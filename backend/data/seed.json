@@ -1,0 +1,14 @@
+{
+  "players": [
+    {"display_name": "Roland"},
+    {"display_name": "Flo"},
+    {"display_name": "Rumpi"},
+    {"display_name": "Berni"},
+    {"display_name": "Atzi"}
+  ],
+  "clubs": [
+    {"name": "Real Madrid", "game": "EA FC 26", "star_rating": 5.0},
+    {"name": "Sturm Graz", "game": "EA FC 26", "star_rating": 3.5},
+    {"name": "Rapid Wien", "game": "EA FC 26", "star_rating": 3.0}
+  ]
+}

@@ -1,0 +1,388 @@
+import { useMemo, useState } from "react";
+import { useParams } from "react-router-dom";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import Card from "../ui/primitives/Card";
+import Button from "../ui/primitives/Button";
+import Sheet from "../ui/primitives/Sheet";
+import Input from "../ui/primitives/Input";
+import { getTournament, enableSecondLegAll, reorderTournamentMatches , patchTournamentStatus } from "../api/tournaments.api";
+import { patchMatch } from "../api/matches.api";
+import { listClubs } from "../api/clubs.api";
+import type { Match, MatchSide, Club } from "../api/types";
+import { useTournamentWS } from "../hooks/useTournamentWS";
+import { useAuth } from "../auth/AuthContext";
+
+function sideBy(m: Match, side: "A" | "B"): MatchSide | undefined {
+  return m.sides.find((s) => s.side === side);
+}
+
+function shuffle<T>(arr: T[]): T[] {
+  const a = arr.slice();
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+export default function LiveTournamentPage() {
+  const { id } = useParams();
+  const tid = id ? Number(id) : null;
+  const qc = useQueryClient();
+  const { role, token } = useAuth();
+
+  const isAdmin = role === "admin";
+  const canEditMatch = role === "editor" || role === "admin";
+
+  const tQ = useQuery({
+    queryKey: ["tournament", tid],
+    queryFn: () => getTournament(tid!),
+    enabled: !!tid,
+  });
+
+  useTournamentWS(tid);
+
+  const matchesSorted = useMemo(() => {
+    const ms = tQ.data?.matches ?? [];
+    return ms.slice().sort((a, b) => a.order_index - b.order_index);
+  }, [tQ.data]);
+
+  const secondLegEnabled = useMemo(() => {
+    return (tQ.data?.matches ?? []).some((m) => m.leg === 2);
+  }, [tQ.data]);
+
+  // --- admin mutations ---
+  const enableLegMut = useMutation({
+    mutationFn: async () => {
+      if (!token) throw new Error("Not logged in");
+      if (!tid) throw new Error("No tournament id");
+      return enableSecondLegAll(token, tid);
+    },
+    onSuccess: async () => {
+      if (tid) await qc.invalidateQueries({ queryKey: ["tournament", tid] });
+    },
+  });
+
+  const reorderMut = useMutation({
+    mutationFn: async (newOrderIds: number[]) => {
+      if (!token) throw new Error("Not logged in");
+      if (!tid) throw new Error("No tournament id");
+      return reorderTournamentMatches(token, tid, newOrderIds);
+    },
+    onSuccess: async () => {
+      if (tid) await qc.invalidateQueries({ queryKey: ["tournament", tid] });
+    },
+  });
+
+  const statusMut = useMutation({
+    mutationFn: async (status: "draft" | "live" | "done") => {
+      if (!token) throw new Error("Not logged in");
+      if (!tid) throw new Error("No tournament id");
+      return patchTournamentStatus(token, tid, status);
+    },
+    onSuccess: async () => {
+      if (tid) await qc.invalidateQueries({ queryKey: ["tournament", tid] });
+      await qc.invalidateQueries({ queryKey: ["tournaments"] });
+    },
+  });
+
+  // --- editor sheet state ---
+  const [open, setOpen] = useState(false);
+  const [selectedMatchId, setSelectedMatchId] = useState<number | null>(null);
+
+  const selectedMatch = useMemo(
+    () => matchesSorted.find((m) => m.id === selectedMatchId) || null,
+    [matchesSorted, selectedMatchId]
+  );
+
+  const [clubGame, setClubGame] = useState("EA FC 26");
+  const [clubSearch, setClubSearch] = useState("");
+
+  const clubsQ = useQuery({
+    queryKey: ["clubs", clubGame],
+    queryFn: () => listClubs(clubGame),
+    enabled: open,
+  });
+
+  const clubsFiltered = useMemo(() => {
+    const clubs = clubsQ.data ?? [];
+    const q = clubSearch.trim().toLowerCase();
+    if (!q) return clubs;
+    return clubs.filter((c) => c.name.toLowerCase().includes(q));
+  }, [clubsQ.data, clubSearch]);
+
+  const [aClub, setAClub] = useState<number | null>(null);
+  const [bClub, setBClub] = useState<number | null>(null);
+  const [aGoals, setAGoals] = useState("0");
+  const [bGoals, setBGoals] = useState("0");
+  const [state, setState] = useState<"scheduled" | "playing" | "finished">("scheduled");
+
+  function openEditor(m: Match) {
+    setSelectedMatchId(m.id);
+    const a = sideBy(m, "A");
+    const b = sideBy(m, "B");
+    setAClub(a?.club_id ?? null);
+    setBClub(b?.club_id ?? null);
+    setAGoals(String(a?.goals ?? 0));
+    setBGoals(String(b?.goals ?? 0));
+    setState(m.state);
+    setOpen(true);
+  }
+
+  const saveMut = useMutation({
+    mutationFn: async () => {
+      if (!token) throw new Error("Not logged in");
+      if (!selectedMatchId) throw new Error("No match selected");
+      return patchMatch(token, selectedMatchId, {
+        state,
+        sideA: { club_id: aClub, goals: Number(aGoals) },
+        sideB: { club_id: bClub, goals: Number(bGoals) },
+      });
+    },
+    onSuccess: async () => {
+      setOpen(false);
+      if (tid) await qc.invalidateQueries({ queryKey: ["tournament", tid] });
+    },
+  });
+
+  if (!tid) return <Card title="Live">Invalid tournament id</Card>;
+
+  return (
+    <div className="space-y-4">
+      <Card title={`Live Tournament #${tid}`}>
+        {tQ.isLoading && <div className="text-zinc-400">Loading…</div>}
+        {tQ.error && <div className="text-red-400 text-sm">{String(tQ.error)}</div>}
+
+        {tQ.data && (
+          <div className="space-y-3">
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <div className="text-lg font-semibold">{tQ.data.name}</div>
+                <div className="text-sm text-zinc-400">
+                  {tQ.data.mode} · {tQ.data.status} · second leg:{" "}
+                  <span className="accent">{secondLegEnabled ? "enabled" : "off"}</span>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button variant="ghost" onClick={() => tQ.refetch()}>
+                  Refetch
+                </Button>
+              </div>
+            </div>
+
+            {isAdmin && (
+              <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-4">
+                <div className="mb-2 text-base font-semibold">Admin controls</div>
+                <div className="flex flex-wrap gap-2">
+                  <Button onClick={() => enableLegMut.mutate()} disabled={enableLegMut.isPending}>
+                    {enableLegMut.isPending ? "Adding…" : "Add second leg"}
+                  </Button>
+
+                  <Button
+                    variant="ghost"
+                    onClick={() => {
+                      const ids = matchesSorted.map((m) => m.id);
+                      reorderMut.mutate(shuffle(ids));
+                    }}
+                    disabled={reorderMut.isPending}
+                  >
+                    Reshuffle order
+                  </Button>
+                </div>
+
+                {enableLegMut.error && (
+                  <div className="mt-2 text-sm text-red-400">{String(enableLegMut.error)}</div>
+                )}
+                {reorderMut.error && (
+                  <div className="mt-2 text-sm text-red-400">{String(reorderMut.error)}</div>
+                )}
+                <div className="mt-2 text-xs text-zinc-500">
+                  Note: these buttons require the backend endpoints to exist with the paths in
+                  <code className="ml-1">src/api/tournaments.api.ts</code>.
+                </div>
+              </div>
+            )}
+
+            <div className="space-y-2">
+              {matchesSorted.map((m) => {
+                const a = sideBy(m, "A");
+                const b = sideBy(m, "B");
+                const aNames = a?.players.map((p) => p.display_name).join(" + ") ?? "—";
+                const bNames = b?.players.map((p) => p.display_name).join(" + ") ?? "—";
+
+                return (
+                  <div key={m.id} className="rounded-xl border border-zinc-800 px-4 py-3 hover:bg-zinc-900/20">
+                    <div className="flex items-start justify-between gap-2">
+                      <button
+                        className="min-w-0 flex-1 text-left"
+                        onClick={() => (canEditMatch ? openEditor(m) : undefined)}
+                        disabled={!canEditMatch}
+                        title={canEditMatch ? "Edit match" : "Login as editor/admin to edit"}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="min-w-0 font-medium">
+                            <span className="truncate">{aNames}</span>{" "}
+                            <span className="text-zinc-400">vs</span>{" "}
+                            <span className="truncate">{bNames}</span>
+                          </div>
+                          <div className="shrink-0 text-sm text-zinc-400">
+                            leg {m.leg} · {m.state}
+                          </div>
+                        </div>
+
+                        <div className="mt-2 flex items-center justify-between text-sm">
+                          <div className="text-zinc-200">
+                            {a?.goals ?? 0} : {b?.goals ?? 0}
+                          </div>
+                          <div className="text-zinc-500">#{m.id}</div>
+                        </div>
+
+                        <div className="mt-1 text-xs text-zinc-500">
+                          clubs: A={a?.club_id ?? "—"} · B={b?.club_id ?? "—"}
+                        </div>
+                      </button>
+
+                      {isAdmin && (
+                        <div className="flex flex-col gap-2">
+                          <Button
+                            variant="ghost"
+                            onClick={() => {
+                              const idx = matchesSorted.findIndex((x) => x.id === m.id);
+                              if (idx <= 0) return;
+                              const ids = matchesSorted.map((x) => x.id);
+                              [ids[idx - 1], ids[idx]] = [ids[idx], ids[idx - 1]];
+                              reorderMut.mutate(ids);
+                            }}
+                            disabled={reorderMut.isPending}
+                            title="Move up"
+                          >
+                            ↑
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            onClick={() => {
+                              const idx = matchesSorted.findIndex((x) => x.id === m.id);
+                              if (idx < 0 || idx >= matchesSorted.length - 1) return;
+                              const ids = matchesSorted.map((x) => x.id);
+                              [ids[idx], ids[idx + 1]] = [ids[idx + 1], ids[idx]];
+                              reorderMut.mutate(ids);
+                            }}
+                            disabled={reorderMut.isPending}
+                            title="Move down"
+                          >
+                            ↓
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {!canEditMatch && (
+              <div className="rounded-xl border border-zinc-800 bg-zinc-900/20 px-3 py-2 text-sm text-zinc-400">
+                Login for write access to enter results.
+              </div>
+            )}
+          </div>
+        )}
+      </Card>
+
+      <Sheet open={open} title={`Edit Match #${selectedMatchId ?? "—"}`} onClose={() => setOpen(false)}>
+        {!selectedMatch ? (
+          <div className="text-sm text-zinc-400">No match selected.</div>
+        ) : (
+          <div className="space-y-4">
+            <div className="rounded-xl border border-zinc-800 p-3">
+              <div className="mb-2 text-sm font-medium">Match State</div>
+              <div className="grid grid-cols-3 gap-2">
+                {(["scheduled", "playing", "finished"] as const).map((s) => (
+                  <button
+                    key={s}
+                    type="button"
+                    className={`rounded-xl border px-3 py-2 text-sm ${
+                      state === s ? "border-zinc-600 bg-zinc-900" : "border-zinc-800 hover:bg-zinc-900/40"
+                    }`}
+                    onClick={() => setState(s)}
+                  >
+                    {s}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-zinc-800 p-3">
+              <div className="mb-2 text-sm font-medium">Clubs</div>
+              <div className="grid gap-3 md:grid-cols-2">
+                <Input label="Game filter" value={clubGame} onChange={(e) => setClubGame(e.target.value)} />
+                <Input label="Search" value={clubSearch} onChange={(e) => setClubSearch(e.target.value)} placeholder="e.g. Madrid" />
+              </div>
+
+              {clubsQ.isLoading && <div className="mt-2 text-sm text-zinc-400">Loading clubs…</div>}
+              {clubsQ.error && <div className="mt-2 text-sm text-red-400">{String(clubsQ.error)}</div>}
+
+              <div className="mt-3 grid gap-3 md:grid-cols-2">
+                <ClubSelect label="Side A club" clubs={clubsFiltered} value={aClub} onChange={setAClub} />
+                <ClubSelect label="Side B club" clubs={clubsFiltered} value={bClub} onChange={setBClub} />
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-zinc-800 p-3">
+              <div className="mb-2 text-sm font-medium">Goals</div>
+              <div className="grid grid-cols-2 gap-3">
+                <Input label="Side A goals" inputMode="numeric" value={aGoals} onChange={(e) => setAGoals(e.target.value)} />
+                <Input label="Side B goals" inputMode="numeric" value={bGoals} onChange={(e) => setBGoals(e.target.value)} />
+              </div>
+            </div>
+
+            {saveMut.error && <div className="text-sm text-red-400">{String(saveMut.error)}</div>}
+
+            <div className="sticky bottom-0 -mx-4 bg-zinc-950 px-4 py-3 md:static md:mx-0 md:px-0">
+              <div className="flex items-center justify-end gap-2">
+                <Button variant="ghost" onClick={() => setOpen(false)} type="button">
+                  Cancel
+                </Button>
+                <Button onClick={() => saveMut.mutate()} disabled={saveMut.isPending} type="button">
+                  {saveMut.isPending ? "Saving…" : "Save"}
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+      </Sheet>
+    </div>
+  );
+}
+
+function ClubSelect({
+  label,
+  clubs,
+  value,
+  onChange,
+}: {
+  label: string;
+  clubs: Club[];
+  value: number | null;
+  onChange: (v: number | null) => void;
+}) {
+  return (
+    <label className="block">
+      <div className="mb-1 text-xs text-zinc-400">{label}</div>
+      <select
+        className="w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm outline-none focus:border-zinc-600"
+        value={value ?? ""}
+        onChange={(e) => onChange(e.target.value ? Number(e.target.value) : null)}
+      >
+        <option value="">—</option>
+        {clubs.map((c) => (
+          <option key={c.id} value={c.id}>
+            {c.name} ({c.star_rating}★)
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+

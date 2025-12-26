@@ -1,0 +1,39 @@
+import { Routes, Route, Navigate } from "react-router-dom";
+import Layout from "../ui/layout/Layout";
+import LoginPage from "../pages/LoginPage";
+import TournamentsPage from "../pages/TournamentsPage";
+import LiveTournamentPage from "../pages/live/LiveTournamentPage";
+import ClubsPage from "../pages/ClubsPage";
+import PlayersAdminPage from "../pages/PlayersAdminPage";
+import { RequireRole } from "../auth/RequireRole";
+
+export default function App() {
+  return (
+    <Layout>
+      <Routes>
+        <Route path="/" element={<Navigate to="/tournaments" replace />} />
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/tournaments" element={<TournamentsPage />} />
+        <Route path="/live/:id" element={<LiveTournamentPage />} />
+
+        <Route
+          path="/clubs"
+          element={
+            <RequireRole minRole="editor">
+              <ClubsPage />
+            </RequireRole>
+          }
+        />
+
+        <Route
+          path="/admin/players"
+          element={
+            <RequireRole minRole="admin">
+              <PlayersAdminPage />
+            </RequireRole>
+          }
+        />
+      </Routes>
+    </Layout>
+  );
+}
