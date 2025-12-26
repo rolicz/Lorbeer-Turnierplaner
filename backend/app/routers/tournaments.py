@@ -2,7 +2,7 @@ import json
 import logging
 import random
 from datetime import datetime
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlmodel import Session, delete, select
 
 from ..auth import require_admin
@@ -564,3 +564,48 @@ async def second_leg(
         detail="Second leg exists but is not complete. Refusing to modify to avoid data loss. (Admin can fix manually.)",
     )
 
+
+@router.delete("/{tournament_id}", dependencies=[Depends(require_admin)])
+async def delete_tournament(
+    tournament_id: int,
+    s: Session = Depends(get_session),
+    role: str = Depends(require_admin),
+):
+    """
+    Admin only:
+      - permanently deletes a tournament and all its related rows (matches, sides, players links)
+    """
+    t = _tournament_or_404(s, tournament_id)
+
+    # Collect match ids first (simple + predictable)
+    match_ids = list(s.exec(select(Match.id).where(Match.tournament_id == tournament_id)).all())
+
+    if match_ids:
+        side_ids = list(s.exec(select(MatchSide.id).where(MatchSide.match_id.in_(match_ids))).all())
+
+        if side_ids:
+            # delete side-player link rows
+            for sp in s.exec(select(MatchSidePlayer).where(MatchSidePlayer.match_side_id.in_(side_ids))).all():
+                s.delete(sp)
+
+            # delete sides
+            for ms in s.exec(select(MatchSide).where(MatchSide.id.in_(side_ids))).all():
+                s.delete(ms)
+
+        # delete matches
+        for m in s.exec(select(Match).where(Match.id.in_(match_ids))).all():
+            s.delete(m)
+
+    # delete tournament-player links
+    for tp in s.exec(select(TournamentPlayer).where(TournamentPlayer.tournament_id == tournament_id)).all():
+        s.delete(tp)
+
+    # finally delete tournament
+    s.delete(t)
+    s.commit()
+
+    # notify clients (list pages should refetch tournaments)
+    await ws_manager.broadcast(tournament_id, "tournament_deleted", {"tournament_id": tournament_id})
+    log.info("Tournament deleted: tournament_id=%s by=%s", tournament_id, role)
+
+    return Response(status_code=204)

@@ -7,6 +7,7 @@ export default function AdminPanel({
   onSetLive,
   onFinalize,
   onSetDraft,
+  onDeleteTournament,
   busy,
   error,
 }: {
@@ -16,6 +17,7 @@ export default function AdminPanel({
   onSetLive: () => void;
   onFinalize: () => void;
   onSetDraft: () => void;
+  onDeleteTournament: () => void;
   busy: boolean;
   error: string | null;
 }) {
@@ -45,6 +47,9 @@ export default function AdminPanel({
         </Button>
         <Button variant="ghost" onClick={onReshuffle} disabled={busy}>
           Reshuffle order
+        </Button>
+        <Button variant="ghost" onClick={onDeleteTournament} disabled={busy}>
+          Delete tournament
         </Button>
       </div>
 

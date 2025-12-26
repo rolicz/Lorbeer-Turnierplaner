@@ -3,7 +3,7 @@ import { useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Card from "../../ui/primitives/Card";
 import Button from "../../ui/primitives/Button";
-import { getTournament, enableSecondLegAll, reorderTournamentMatches, patchTournamentStatus } from "../../api/tournaments.api";
+import { getTournament, enableSecondLegAll, reorderTournamentMatches, patchTournamentStatus, deleteTournament } from "../../api/tournaments.api";
 import { patchMatch } from "../../api/matches.api";
 import { listClubs } from "../../api/clubs.api";
 import type { Match } from "../../api/types";
@@ -13,6 +13,7 @@ import AdminPanel from "./AdminPanel";
 import MatchList from "./MatchList";
 import MatchEditorSheet from "./MatchEditorSheet";
 import { shuffle, sideBy } from "./helpers";
+import { useNavigate } from "react-router-dom";
 
 export default function LiveTournamentPage() {
   const { id } = useParams();
@@ -71,6 +72,20 @@ export default function LiveTournamentPage() {
     },
     onSuccess: async () => {
       if (tid) await qc.invalidateQueries({ queryKey: ["tournament", tid] });
+      await qc.invalidateQueries({ queryKey: ["tournaments"] });
+    },
+  });
+
+  const nav = useNavigate();
+  
+  const deleteMut = useMutation({
+    mutationFn: async () => {
+      if (!token) throw new Error("Not logged in");
+      if (!tid) throw new Error("No tournament id");
+      return deleteTournament(token, tid);
+    },
+    onSuccess: async () => {
+      nav("/tournaments"); // or whatever your list route is
       await qc.invalidateQueries({ queryKey: ["tournaments"] });
     },
   });
@@ -160,7 +175,7 @@ export default function LiveTournamentPage() {
             {isAdmin && (
               <AdminPanel
                 secondLegEnabled={secondLegEnabled}
-                busy={enableLegMut.isPending || reorderMut.isPending || statusMut.isPending}
+                busy={enableLegMut.isPending || reorderMut.isPending || statusMut.isPending || deleteMut.isPending}
                 error={adminError}
                 onSetLive={() => {
                   setAdminError(null);
@@ -190,6 +205,15 @@ export default function LiveTournamentPage() {
                   setAdminError(null);
                   const ids = matchesSorted.map((m) => m.id);
                   reorderMut.mutate(shuffle(ids), {
+                    onError: (e: any) => setAdminError(e?.message ?? String(e)),
+                  });
+                }}
+                onDeleteTournament={() => {
+                  setAdminError(null);
+                  const ok = window.confirm("Delete this tournament permanently? This cannot be undone.");
+                  if (!ok) return;
+
+                  deleteMut.mutate(undefined, {
                     onError: (e: any) => setAdminError(e?.message ?? String(e)),
                   });
                 }}

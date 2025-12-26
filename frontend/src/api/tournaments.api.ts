@@ -68,3 +68,10 @@ export function patchTournamentStatus(
     body: JSON.stringify({ status }),
   });
 }
+
+export function deleteTournament(token: string, tournamentId: number) {
+  return apiFetch(`/tournaments/${tournamentId}`, {
+    method: "DELETE",
+    token,
+  });
+}
