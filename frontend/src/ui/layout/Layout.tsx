@@ -7,6 +7,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const loc = useLocation();
 
   const nav = [
+    { to: "/dashboard", label: "Dashboard", min: "reader" as const },
     { to: "/tournaments", label: "Tournaments", min: "reader" as const },
     { to: "/clubs", label: "Clubs", min: "editor" as const },
     { to: "/admin/players", label: "Players", min: "admin" as const },

@@ -3,11 +3,13 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+from sqlmodel import Session
 
 from .logging_config import setup_logging
-from .db import configure_db, init_db
+from .db import configure_db, init_db, get_engine
 from .settings import Settings
 from .config import CORS_ALLOW_ORIGINS
+from .models import Player
 
 from .ws import ws_manager
 from .routers.auth import router as auth_router
@@ -16,17 +18,33 @@ from .routers.tournaments import router as tournaments_router
 from .routers.matches import router as matches_router
 from .routers.clubs import router as clubs_router
 from .routers.players import router as players_router
+from .routers.cup import router as cup_router
 
 log = logging.getLogger(__name__)
 
-
 def create_app(settings: Settings) -> FastAPI:
     setup_logging(settings.log_level)
+
+    # IMPORTANT: configure DB BEFORE init_db / Session usage
+    configure_db(settings.db_url)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         init_db()
         log.info("DB initialized")
+
+        # validate cup owner id from secrets.json
+        try:
+            pid = int(settings.cup_initial_owner_player_id)
+            with Session(get_engine()) as s:
+                if s.get(Player, pid) is None:
+                    log.warning(
+                        "cup_initial_owner_player_id=%s does not exist in DB (create player or update secrets.json)",
+                        pid,
+                    )
+        except Exception:
+            log.exception("Failed to validate cup_initial_owner_player_id")
+
         yield
 
     app = FastAPI(
@@ -36,7 +54,6 @@ def create_app(settings: Settings) -> FastAPI:
     )
 
     app.state.settings = settings
-    configure_db(settings.db_url)
 
     app.add_middleware(
         CORSMiddleware,
@@ -46,15 +63,14 @@ def create_app(settings: Settings) -> FastAPI:
         allow_headers=["*"],
     )
 
-    # Routers (unchanged)
     app.include_router(auth_router)
     app.include_router(me_router)
     app.include_router(tournaments_router)
     app.include_router(matches_router)
     app.include_router(clubs_router)
     app.include_router(players_router)
+    app.include_router(cup_router)
 
-    # Websocket (unchanged)
     @app.websocket("/ws/tournaments/{tournament_id}")
     async def ws_tournament(ws: WebSocket, tournament_id: int) -> None:
         await ws_manager.connect(tournament_id, ws)
@@ -67,4 +83,3 @@ def create_app(settings: Settings) -> FastAPI:
             ws_manager.disconnect(tournament_id, ws)
 
     return app
-
