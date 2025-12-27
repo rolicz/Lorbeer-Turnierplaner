@@ -10,6 +10,7 @@ export default function MatchList({
   onEditMatch,
   onMoveUp,
   onMoveDown,
+  clubLabel
 }: {
   matches: Match[];
   canEdit: boolean;
@@ -18,6 +19,7 @@ export default function MatchList({
   onEditMatch: (m: Match) => void;
   onMoveUp: (matchId: number) => void;
   onMoveDown: (matchId: number) => void;
+  clubLabel: (id: number | null | undefined) => string;
 }) {
   return (
     <div className="space-y-2">
@@ -55,7 +57,7 @@ export default function MatchList({
                 </div>
 
                 <div className="mt-1 text-xs text-zinc-500">
-                  clubs: A={a?.club_id ?? "—"} · B={b?.club_id ?? "—"}
+                  {clubLabel(a?.club_id)} - {clubLabel(b?.club_id)}
                 </div>
               </button>
 

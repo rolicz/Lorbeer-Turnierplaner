@@ -116,7 +116,7 @@ export default function LiveTournamentPage() {
   const clubsQ = useQuery({
     queryKey: ["clubs", clubGame],
     queryFn: () => listClubs(clubGame),
-    enabled: open,
+    enabled: !!tid,
   });
 
   const clubsFiltered = useMemo(() => {
@@ -125,6 +125,21 @@ export default function LiveTournamentPage() {
     if (!q) return clubs;
     return clubs.filter((c) => c.name.toLowerCase().includes(q));
   }, [clubsQ.data, clubSearch]);
+
+  const clubById = useMemo(() => {
+    const m = new Map<number, string>();
+    for (const c of clubsQ.data ?? []) {
+      // example: "Real Madrid (4.5★)"
+      const stars = typeof c.star_rating === "number" ? c.star_rating.toFixed(1).replace(/\.0$/, "") : String(c.star_rating);
+      m.set(c.id, `${c.name} (${stars}★)`);
+    }
+    return m;
+  }, [clubsQ.data]);
+  
+  const clubLabel = (id: number | null | undefined) => {
+    if (!id) return "—";
+    return clubById.get(id) ?? `#${id}`;
+  };
 
   const [aClub, setAClub] = useState<number | null>(null);
   const [bClub, setBClub] = useState<number | null>(null);
@@ -263,6 +278,7 @@ export default function LiveTournamentPage() {
                 [ids[idx], ids[idx + 1]] = [ids[idx + 1], ids[idx]];
                 reorderMut.mutate(ids);
               }}
+              clubLabel={clubLabel}
             />
 
             {!canEditMatch && (
