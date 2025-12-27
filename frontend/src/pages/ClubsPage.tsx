@@ -7,7 +7,8 @@ import { useAuth } from "../auth/AuthContext";
 import { createClub, listClubs, patchClub } from "../api/clubs.api";
 
 export default function ClubsPage() {
-  const { token } = useAuth();
+  const { token, role } = useAuth();
+  const isAdmin = role === "admin";
   const qc = useQueryClient();
 
   const [game, setGame] = useState("EA FC 26");
@@ -29,12 +30,18 @@ export default function ClubsPage() {
 
   const [editId, setEditId] = useState<number | null>(null);
   const [editStars, setEditStars] = useState("4.0");
+  const [editName, setEditName] = useState("");
+
 
   const patchMut = useMutation({
     mutationFn: async () => {
       if (!token) throw new Error("No token");
       if (!editId) throw new Error("No club selected");
-      return patchClub(token, editId, { star_rating: Number(editStars) });
+
+      const body: any = { star_rating: Number(editStars) };
+      if (isAdmin) body.name = editName.trim();
+
+      return patchClub(token, editId, body);
     },
     onSuccess: async () => {
       setEditId(null);
@@ -77,7 +84,7 @@ export default function ClubsPage() {
                   <div className="text-sm text-zinc-300">{c.star_rating}★</div>
                   <Button
                     variant="ghost"
-                    onClick={() => { setEditId(c.id); setEditStars(String(c.star_rating)); }}
+                    onClick={() => { setEditId(c.id); setEditStars(String(c.star_rating)); setEditName(c.name); }}
                     type="button"
                   >
                     Edit
@@ -87,6 +94,14 @@ export default function ClubsPage() {
 
               {editId === c.id && (
                 <div className="mt-3 flex items-end gap-2">
+                {isAdmin && (
+                  <Input
+                    label="New name"
+                    value={editName}
+                    onChange={(e) => setEditName(e.target.value)}
+                    placeholder="Club name"
+                  />
+                )}
                   <Input label="New stars" value={editStars} onChange={(e) => setEditStars(e.target.value)} />
                   <Button onClick={() => patchMut.mutate()} disabled={patchMut.isPending}>
                     {patchMut.isPending ? "Saving…" : "Save"}

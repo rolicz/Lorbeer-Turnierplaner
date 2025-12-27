@@ -47,15 +47,35 @@ def create_club(body: dict, s: Session = Depends(get_session)):
 
 
 @router.patch("/{club_id}", dependencies=[Depends(require_editor)])
-def patch_club(club_id: int, body: dict, s: Session = Depends(get_session)):
+def patch_club(
+    club_id: int,
+    body: dict,
+    s: Session = Depends(get_session),
+    role: str = Depends(require_editor),
+):
+    """
+    Editor:
+      - can update star_rating (and optionally game)
+    Admin:
+      - can also rename clubs (name)
+    """
     c = s.get(Club, club_id)
     if not c:
         raise HTTPException(status_code=404, detail="Club not found")
 
+    # --- name changes: admin only ---
     if "name" in body:
+        if role != "admin":
+            raise HTTPException(status_code=403, detail="Changing club name is admin-only")
         c.name = (body["name"] or "").strip()
+
+    # If you want game changes to also be admin-only, do the same pattern here.
     if "game" in body:
+        # optional: allow editor, or restrict:
+        # if role != "admin":
+        #     raise HTTPException(status_code=403, detail="Changing game is admin-only")
         c.game = (body["game"] or "").strip()
+
     if "star_rating" in body:
         try:
             c.star_rating = validate_star_rating(body["star_rating"])
@@ -65,7 +85,23 @@ def patch_club(club_id: int, body: dict, s: Session = Depends(get_session)):
     if not c.name or not c.game:
         raise HTTPException(status_code=400, detail="name and game cannot be empty")
 
-    s.add(c)
-    s.commit()
+    # nice uniqueness check for (name, game)
+    other = s.exec(
+        select(Club).where(
+            Club.id != club_id,
+            Club.name == c.name,
+            Club.game == c.game,
+        )
+    ).first()
+    if other:
+        raise HTTPException(status_code=409, detail="Club with same name and game already exists")
+
+    try:
+        s.add(c)
+        s.commit()
+    except IntegrityError:
+        s.rollback()
+        raise HTTPException(status_code=409, detail="Club with same name and game already exists")
+
     s.refresh(c)
     return c
