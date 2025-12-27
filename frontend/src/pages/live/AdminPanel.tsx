@@ -8,6 +8,7 @@ export default function AdminPanel({
   onFinalize,
   onSetDraft,
   onDeleteTournament,
+  onDisableSecondLeg,
   busy,
   error,
 }: {
@@ -18,6 +19,7 @@ export default function AdminPanel({
   onFinalize: () => void;
   onSetDraft: () => void;
   onDeleteTournament: () => void;
+  onDisableSecondLeg: () => void;
   busy: boolean;
   error: string | null;
 }) {
@@ -51,6 +53,11 @@ export default function AdminPanel({
         <Button variant="ghost" onClick={onDeleteTournament} disabled={busy}>
           Delete tournament
         </Button>
+        {secondLegEnabled && (
+          <Button variant="ghost" onClick={onDisableSecondLeg} disabled={busy}>
+            Remove second leg
+          </Button>
+        )}
       </div>
 
       {error && <div className="mt-2 text-sm text-red-400">{error}</div>}

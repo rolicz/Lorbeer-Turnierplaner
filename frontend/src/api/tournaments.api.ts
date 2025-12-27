@@ -42,6 +42,14 @@ export function enableSecondLegAll(token: string, tournamentId: number) {
   });
 }
 
+export function disableSecondLegAll(token: string, tournamentId: number) {
+  return apiFetch(`/tournaments/${tournamentId}/second-leg`, {
+    method: "PATCH",
+    token,
+    body: JSON.stringify({ enabled: false }),
+  });
+}
+
 /**
  * ADMIN: reorder matches by providing match IDs in desired order.
  * Backend: PATCH /tournaments/{tournament_id}/reorder
@@ -70,8 +78,8 @@ export function patchTournamentStatus(
 }
 
 export function deleteTournament(token: string, tournamentId: number) {
-  return apiFetch(`/tournaments/${tournamentId}`, {
-    method: "DELETE",
-    token,
-  });
+return apiFetch(`/tournaments/${tournamentId}`, {
+  method: "DELETE",
+  token,
+});
 }

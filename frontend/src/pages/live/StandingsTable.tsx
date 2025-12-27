@@ -1,0 +1,180 @@
+import { useMemo } from "react";
+import type { Match, Player } from "../../api/types";
+import Card from "../../ui/primitives/Card";
+import { sideBy } from "./helpers";
+
+type Row = {
+  playerId: number;
+  name: string;
+  played: number;
+  wins: number;
+  draws: number;
+  losses: number;
+  gf: number;
+  ga: number;
+  gd: number;
+  pts: number;
+};
+
+function emptyRow(p: Player): Row {
+  return {
+    playerId: p.id,
+    name: p.display_name,
+    played: 0,
+    wins: 0,
+    draws: 0,
+    losses: 0,
+    gf: 0,
+    ga: 0,
+    gd: 0,
+    pts: 0,
+  };
+}
+
+function computeStandings(matches: Match[], players: Player[], mode: "finished" | "live"): Row[] {
+  // ensure EVERY tournament player is present even with 0 matches
+  const rows = new Map<number, Row>();
+  for (const p of players) rows.set(p.id, emptyRow(p));
+
+  const counted = matches.filter((m) => {
+    if (mode === "finished") return m.state === "finished";
+    return m.state === "finished" || m.state === "playing";
+  });
+
+  for (const m of counted) {
+    const a = sideBy(m, "A");
+    const b = sideBy(m, "B");
+    if (!a || !b) continue;
+
+    const aGoals = Number(a.goals ?? 0);
+    const bGoals = Number(b.goals ?? 0);
+
+    const aWin = aGoals > bGoals;
+    const bWin = bGoals > aGoals;
+    const draw = aGoals === bGoals;
+
+    // side A players
+    for (const p of a.players) {
+      const r = rows.get(p.id) ?? emptyRow(p);
+      rows.set(p.id, r);
+
+      r.played += 1;
+      r.gf += aGoals;
+      r.ga += bGoals;
+      if (aWin) r.wins += 1;
+      else if (draw) r.draws += 1;
+      else r.losses += 1;
+    }
+
+    // side B players
+    for (const p of b.players) {
+      const r = rows.get(p.id) ?? emptyRow(p);
+      rows.set(p.id, r);
+
+      r.played += 1;
+      r.gf += bGoals;
+      r.ga += aGoals;
+      if (bWin) r.wins += 1;
+      else if (draw) r.draws += 1;
+      else r.losses += 1;
+    }
+  }
+
+  const out = Array.from(rows.values());
+  for (const r of out) {
+    r.gd = r.gf - r.ga;
+    r.pts = r.wins * 3 + r.draws;
+  }
+
+  // Sort: pts desc, then GD desc, then GF desc, then name
+  out.sort((x, y) => {
+    if (y.pts !== x.pts) return y.pts - x.pts;
+    if (y.gd !== x.gd) return y.gd - x.gd;
+    if (y.gf !== x.gf) return y.gf - x.gf;
+    return x.name.localeCompare(y.name);
+  });
+
+  return out;
+}
+
+function posMap(rows: Row[]): Map<number, number> {
+  const m = new Map<number, number>();
+  rows.forEach((r, idx) => m.set(r.playerId, idx));
+  return m;
+}
+
+function Arrow({ delta }: { delta: number | null }) {
+  // delta = basePos - livePos (positive => moved up)
+  if (delta === null) return <span className="text-zinc-500">–</span>;
+  if (delta > 0) return <span className="text-emerald-400 font-semibold">▲</span>;
+  if (delta < 0) return <span className="text-red-400 font-semibold">▼</span>;
+  return <span className="text-zinc-500">–</span>;
+}
+
+export default function StandingsTable({
+  matches,
+  players,
+}: {
+  matches: Match[];
+  players: Player[];
+}) {
+  const baseRows = useMemo(() => computeStandings(matches, players, "finished"), [matches, players]);
+  const liveRows = useMemo(() => computeStandings(matches, players, "live"), [matches, players]);
+
+  const basePos = useMemo(() => posMap(baseRows), [baseRows]);
+
+  return (
+    <Card title="Standings (live)">
+      <div className="overflow-x-auto">
+        <table className="min-w-[820px] w-full text-sm">
+          <thead className="text-zinc-400">
+            <tr className="border-b border-zinc-800">
+              <th className="py-2 text-left font-medium w-10">#</th>
+              <th className="py-2 text-left font-medium w-10"></th>
+              <th className="py-2 text-left font-medium">Player</th>
+              <th className="py-2 text-right font-medium">P</th>
+              <th className="py-2 text-right font-medium">W</th>
+              <th className="py-2 text-right font-medium">D</th>
+              <th className="py-2 text-right font-medium">L</th>
+              <th className="py-2 text-right font-medium">GF</th>
+              <th className="py-2 text-right font-medium">GA</th>
+              <th className="py-2 text-right font-medium">GD</th>
+              <th className="py-2 text-right font-semibold">Pts</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            {liveRows.map((r, idx) => {
+              const baseIdx = basePos.get(r.playerId);
+              const delta = baseIdx === undefined ? null : baseIdx - idx;
+
+              return (
+                <tr key={r.playerId} className="border-b border-zinc-900/60">
+                  <td className="py-2 pr-2 text-zinc-500">{idx + 1}</td>
+                  <td className="py-2">
+                    <Arrow delta={delta} />
+                  </td>
+                  <td className="py-2 font-medium">{r.name}</td>
+                  <td className="py-2 text-right">{r.played}</td>
+                  <td className="py-2 text-right">{r.wins}</td>
+                  <td className="py-2 text-right">{r.draws}</td>
+                  <td className="py-2 text-right">{r.losses}</td>
+                  <td className="py-2 text-right">{r.gf}</td>
+                  <td className="py-2 text-right">{r.ga}</td>
+                  <td className="py-2 text-right">{r.gd}</td>
+                  <td className="py-2 text-right font-semibold">{r.pts}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="mt-2 text-xs text-zinc-500">
+        Arrows compare <span className="accent">finished-only</span> standings vs{" "}
+        <span className="accent">finished + playing</span> standings.
+        Players with 0 matches are still shown.
+      </div>
+    </Card>
+  );
+}

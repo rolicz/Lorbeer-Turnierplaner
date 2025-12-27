@@ -3,7 +3,7 @@ import { useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Card from "../../ui/primitives/Card";
 import Button from "../../ui/primitives/Button";
-import { getTournament, enableSecondLegAll, reorderTournamentMatches, patchTournamentStatus, deleteTournament } from "../../api/tournaments.api";
+import { getTournament, enableSecondLegAll, disableSecondLegAll, reorderTournamentMatches, patchTournamentStatus, deleteTournament } from "../../api/tournaments.api";
 import { patchMatch } from "../../api/matches.api";
 import { listClubs } from "../../api/clubs.api";
 import type { Match } from "../../api/types";
@@ -12,6 +12,7 @@ import { useAuth } from "../../auth/AuthContext";
 import AdminPanel from "./AdminPanel";
 import MatchList from "./MatchList";
 import MatchEditorSheet from "./MatchEditorSheet";
+import StandingsTable from "./StandingsTable";
 import { shuffle, sideBy } from "./helpers";
 import { useNavigate } from "react-router-dom";
 
@@ -89,6 +90,17 @@ export default function LiveTournamentPage() {
       await qc.invalidateQueries({ queryKey: ["tournaments"] });
     },
   });
+
+  const disableLegMut = useMutation({
+  mutationFn: async () => {
+    if (!token) throw new Error("Not logged in");
+    if (!tid) throw new Error("No tournament id");
+    return disableSecondLegAll(token, tid);
+  },
+  onSuccess: async () => {
+    if (tid) await qc.invalidateQueries({ queryKey: ["tournament", tid] });
+  },
+});
 
   // --- editor sheet state ---
   const [open, setOpen] = useState(false);
@@ -201,6 +213,14 @@ export default function LiveTournamentPage() {
                     onError: (e: any) => setAdminError(e?.message ?? String(e)),
                   });
                 }}
+                onDisableSecondLeg={() => {
+                  const ok = window.confirm("Remove second leg? (Only works if second leg has not started, unless admin.)");
+                  if (!ok) return;
+                  setAdminError(null);
+                  disableLegMut.mutate(undefined, {
+                    onError: (e: any) => setAdminError(e?.message ?? String(e)),
+                  });
+                }}
                 onReshuffle={() => {
                   setAdminError(null);
                   const ids = matchesSorted.map((m) => m.id);
@@ -220,6 +240,8 @@ export default function LiveTournamentPage() {
                 />
 
             )}
+
+            <StandingsTable matches={matchesSorted} players={tQ.data.players ?? []} />
 
             <MatchList
               matches={matchesSorted}
