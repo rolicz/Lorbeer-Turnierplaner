@@ -1,13 +1,42 @@
-const API_BASE = import.meta.env.VITE_API_BASE_URL as string;
-
 export class ApiError extends Error {
   status: number;
+  statusText: string;
   bodyText: string;
+
   constructor(status: number, statusText: string, bodyText: string) {
     super(`${status} ${statusText}: ${bodyText}`);
     this.status = status;
+    this.statusText = statusText;
     this.bodyText = bodyText;
   }
+}
+
+/**
+ * Vite env: build-time.
+ * - Dev:   VITE_API_BASE_URL=http://192.168.x.x:8001   (or http://localhost:8001)
+ * - Prod:  VITE_API_BASE_URL=/api
+ */
+const RAW_BASE = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim();
+
+/**
+ * Returns absolute base URL or relative '/api'.
+ * - If env missing: default to '/api' (works behind reverse proxy)
+ */
+export const API_BASE = RAW_BASE && RAW_BASE.length > 0 ? RAW_BASE : "/api";
+
+/**
+ * Join base + path safely, regardless of whether base is absolute URL or relative '/api'.
+ */
+function joinUrl(base: string, path: string) {
+  const p = path.startsWith("/") ? path : `/${path}`;
+
+  // Absolute base (http://..., https://...)
+  if (base.startsWith("http://") || base.startsWith("https://")) {
+    return `${base.replace(/\/+$/, "")}${p}`;
+  }
+
+  // Relative base (/api)
+  return `${base.replace(/\/+$/, "")}${p}`;
 }
 
 export async function apiFetch<T>(
@@ -15,27 +44,28 @@ export async function apiFetch<T>(
   opts: RequestInit & { token?: string | null } = {}
 ): Promise<T> {
   const headers = new Headers(opts.headers || {});
-  if (!headers.has("Content-Type")) headers.set("Content-Type", "application/json");
+
+  // Only set Content-Type for requests that actually send a body.
+  // This avoids oddities with DELETE/GET and makes 204 handling cleaner.
+  if (opts.body != null && !headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json");
+  }
+
   if (opts.token) headers.set("Authorization", `Bearer ${opts.token}`);
 
-  const res = await fetch(`${API_BASE}${path}`, { ...opts, headers });
+  const url = joinUrl(API_BASE, path);
+  const res = await fetch(url, { ...opts, headers });
 
-  // Handle errors first (try to read body for message)
   if (!res.ok) {
     const text = await res.text();
     throw new ApiError(res.status, res.statusText, text);
   }
 
-  // 204 No Content (common for DELETE)
-  if (res.status === 204) {
-    return null as T;
-  }
+  // Handle 204 No Content (e.g., DELETE)
+  if (res.status === 204) return undefined as T;
 
-  // Some endpoints may return empty body even with 200/201
+  // Some endpoints might return empty body with 200 (rare), handle safely:
   const text = await res.text();
-  if (!text) {
-    return null as T;
-  }
-
+  if (!text) return undefined as T;
   return JSON.parse(text) as T;
 }

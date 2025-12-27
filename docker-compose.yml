@@ -1,0 +1,34 @@
+services:
+  backend:
+    build: ./backend
+    volumes:
+      - backend_data:/data
+      - ./backend/secrets.json:/app/secrets.json:ro
+    environment:
+      DB_URL: "sqlite:////data/app.db"
+    expose:
+      - "8001"
+
+  frontend:
+    build: ./frontend
+    expose:
+      - "80"
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - backend
+      - frontend
+
+volumes:
+  backend_data:
+  caddy_data:
+  caddy_config:

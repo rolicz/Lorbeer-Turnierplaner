@@ -1,0 +1,15 @@
+lorbeerkranz.xyz, www.lorbeerkranz.xyz {
+  encode gzip zstd
+
+  handle_path /api/* {
+    reverse_proxy backend:8001
+  }
+
+  handle_path /ws/* {
+    reverse_proxy backend:8001
+  }
+
+  handle {
+    reverse_proxy frontend:80
+  }
+}
