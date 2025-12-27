@@ -1,7 +1,7 @@
 import { apiFetch } from "./client";
-import type { Tournament, TournamentDetail } from "./types";
+import type { TournamentSummary, TournamentDetail } from "./types";
 
-export function listTournaments(): Promise<Tournament[]> {
+export function listTournaments(): Promise<TournamentSummary[]> {
   return apiFetch("/tournaments", { method: "GET" });
 }
 
@@ -9,7 +9,7 @@ export function createTournament(
   token: string,
   body: { name: string; mode: "1v1" | "2v2"; player_ids: number[] }
 ) {
-  return apiFetch<{ id: number } & Tournament>("/tournaments", {
+  return apiFetch<{ id: number } & TournamentSummary>("/tournaments", {
     method: "POST",
     token,
     body: JSON.stringify(body),
