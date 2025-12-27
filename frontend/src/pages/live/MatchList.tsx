@@ -5,16 +5,16 @@ import { sideBy } from "./helpers";
 export default function MatchList({
   matches,
   canEdit,
-  isAdmin,
+  canReorder,
   busyReorder,
   onEditMatch,
   onMoveUp,
   onMoveDown,
-  clubLabel
+  clubLabel,
 }: {
   matches: Match[];
   canEdit: boolean;
-  isAdmin: boolean;
+  canReorder: boolean;
   busyReorder: boolean;
   onEditMatch: (m: Match) => void;
   onMoveUp: (matchId: number) => void;
@@ -61,7 +61,7 @@ export default function MatchList({
                 </div>
               </button>
 
-              {isAdmin && (
+              {canReorder && (
                 <div className="flex flex-col gap-2">
                   <Button variant="ghost" onClick={() => onMoveUp(m.id)} disabled={busyReorder} title="Move up">
                     ↑

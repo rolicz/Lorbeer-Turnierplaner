@@ -38,7 +38,7 @@ export default function LiveTournamentPage() {
   const { role, token } = useAuth();
 
   const isAdmin = role === "admin";
-  const canEditMatch = role === "editor" || role === "admin";
+  const isEditorOrAdmin = role === "editor" || role === "admin";
 
   const tQ = useQuery({
     queryKey: ["tournament", tid],
@@ -48,6 +48,15 @@ export default function LiveTournamentPage() {
 
   // keep tournament in sync
   useTournamentWS(tid);
+
+  const isDone = tQ.data?.status === "done";
+
+  // Permissions:
+  // - Admin: always can edit
+  // - Editor: cannot edit once tournament is done
+  const canEditTournament = isAdmin || (isEditorOrAdmin && !isDone);
+  const canEditMatch = isAdmin || (isEditorOrAdmin && !isDone);
+  const canReorderMatches = isAdmin || (isEditorOrAdmin && !isDone);
 
   const matchesSorted = useMemo(() => {
     const ms = tQ.data?.matches ?? [];
@@ -236,8 +245,11 @@ export default function LiveTournamentPage() {
               </Button>
             </div>
 
-            {isAdmin && (
+            {/* ✅ Hide editor controls when tournament is done (admins keep access) */}
+            {canEditTournament && (
               <AdminPanel
+                isAdmin={isAdmin}
+                status={tQ.data.status}
                 secondLegEnabled={secondLegEnabled}
                 busy={
                   enableLegMut.isPending ||
@@ -250,79 +262,54 @@ export default function LiveTournamentPage() {
                 error={adminError}
                 onSetLive={() => {
                   setAdminError(null);
-                  statusMut.mutate("live", {
-                    onError: (e: any) => setAdminError(e?.message ?? String(e)),
-                  });
+                  statusMut.mutate("live", { onError: (e: any) => setAdminError(e?.message ?? String(e)) });
                 }}
                 onFinalize={() => {
                   setAdminError(null);
-                  statusMut.mutate("done", {
-                    onError: (e: any) => setAdminError(e?.message ?? String(e)),
-                  });
+                  statusMut.mutate("done", { onError: (e: any) => setAdminError(e?.message ?? String(e)) });
                 }}
                 onSetDraft={() => {
                   setAdminError(null);
-                  statusMut.mutate("draft", {
-                    onError: (e: any) => setAdminError(e?.message ?? String(e)),
-                  });
+                  statusMut.mutate("draft", { onError: (e: any) => setAdminError(e?.message ?? String(e)) });
                 }}
                 onEnableSecondLeg={() => {
                   setAdminError(null);
-                  enableLegMut.mutate(undefined, {
-                    onError: (e: any) => setAdminError(e?.message ?? String(e)),
-                  });
+                  enableLegMut.mutate(undefined, { onError: (e: any) => setAdminError(e?.message ?? String(e)) });
                 }}
                 onDisableSecondLeg={() => {
-                  const ok = window.confirm(
-                    "Remove second leg? (Only works if second leg has not started, unless admin.)"
-                  );
-                  if (!ok) return;
                   setAdminError(null);
-                  disableLegMut.mutate(undefined, {
-                    onError: (e: any) => setAdminError(e?.message ?? String(e)),
-                  });
+                  disableLegMut.mutate(undefined, { onError: (e: any) => setAdminError(e?.message ?? String(e)) });
                 }}
                 onReshuffle={() => {
                   setAdminError(null);
                   const ids = matchesSorted.map((m) => m.id);
-                  reorderMut.mutate(shuffle(ids), {
-                    onError: (e: any) => setAdminError(e?.message ?? String(e)),
-                  });
+                  reorderMut.mutate(shuffle(ids), { onError: (e: any) => setAdminError(e?.message ?? String(e)) });
                 }}
                 onDeleteTournament={() => {
-                  setAdminError(null);
-                  const ok = window.confirm("Delete this tournament permanently? This cannot be undone.");
+                  if (!isAdmin) return;
+                  const ok = window.confirm("Delete tournament permanently?");
                   if (!ok) return;
-                  deleteMut.mutate(undefined, {
-                    onError: (e: any) => setAdminError(e?.message ?? String(e)),
-                  });
-                }}
-                // admin-only date editor
-                dateValue={editDate}
-                onDateChange={setEditDate}
-                onSaveDate={() => {
                   setAdminError(null);
-                  dateMut.mutate(undefined, {
-                    onError: (e: any) => setAdminError(e?.message ?? String(e)),
-                  });
+                  deleteMut.mutate(undefined, { onError: (e: any) => setAdminError(e?.message ?? String(e)) });
                 }}
+                // Only pass date editor props for admins
+                dateValue={isAdmin ? editDate : undefined}
+                onDateChange={isAdmin ? setEditDate : undefined}
+                onSaveDate={isAdmin ? () => dateMut.mutate() : undefined}
                 dateBusy={dateMut.isPending}
               />
             )}
 
-            <StandingsTable
-              matches={matchesSorted}
-              players={tQ.data.players}
-              tournamentStatus={tQ.data.status}
-            />
+            <StandingsTable matches={matchesSorted} players={tQ.data.players} tournamentStatus={tQ.data.status} />
 
             <MatchList
               matches={matchesSorted}
               canEdit={canEditMatch}
-              isAdmin={isAdmin}
+              canReorder={canReorderMatches}
               busyReorder={reorderMut.isPending}
               onEditMatch={openEditor}
               onMoveUp={(matchId) => {
+                if (!canReorderMatches) return;
                 const idx = matchesSorted.findIndex((x) => x.id === matchId);
                 if (idx <= 0) return;
                 const ids = matchesSorted.map((x) => x.id);
@@ -330,6 +317,7 @@ export default function LiveTournamentPage() {
                 reorderMut.mutate(ids);
               }}
               onMoveDown={(matchId) => {
+                if (!canReorderMatches) return;
                 const idx = matchesSorted.findIndex((x) => x.id === matchId);
                 if (idx < 0 || idx >= matchesSorted.length - 1) return;
                 const ids = matchesSorted.map((x) => x.id);
@@ -341,13 +329,14 @@ export default function LiveTournamentPage() {
 
             {!canEditMatch && (
               <div className="rounded-xl border border-zinc-800 bg-zinc-900/20 px-3 py-2 text-sm text-zinc-400">
-                Login for write access to enter results.
+                {isDone ? "Tournament is done (editing disabled)." : "Login for write access to enter results."}
               </div>
             )}
           </div>
         )}
       </Card>
 
+      {/* ✅ Don’t even allow opening the editor sheet when tournament is done (unless admin) */}
       <MatchEditorSheet
         open={open}
         onClose={() => setOpen(false)}

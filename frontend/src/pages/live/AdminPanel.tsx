@@ -1,76 +1,120 @@
 import Button from "../../ui/primitives/Button";
 
+type Status = "draft" | "live" | "done";
+
 export default function AdminPanel({
+  // auth/visibility
+  isAdmin,
+  status,
+
+  // tournament actions (editor OR admin)
   secondLegEnabled,
   onEnableSecondLeg,
+  onDisableSecondLeg,
   onReshuffle,
   onSetLive,
   onFinalize,
   onSetDraft,
+
+  // admin-only actions
   onDeleteTournament,
-  onDisableSecondLeg,
+
+  // busy/error
   busy,
   error,
 
-  // NEW (optional) date editing
+  // optional: admin-only date editor
   dateValue,
   onDateChange,
   onSaveDate,
   dateBusy,
 }: {
+  isAdmin: boolean;
+  status: Status;
+
   secondLegEnabled: boolean;
   onEnableSecondLeg: () => void;
+  onDisableSecondLeg: () => void;
   onReshuffle: () => void;
+
   onSetLive: () => void;
   onFinalize: () => void;
   onSetDraft: () => void;
+
   onDeleteTournament: () => void;
-  onDisableSecondLeg: () => void;
+
   busy: boolean;
   error: string | null;
 
-  // If these are provided by LiveTournamentPage, we show the date editor.
-  // (LiveTournamentPage should only pass them for admins.)
   dateValue?: string;
   onDateChange?: (v: string) => void;
   onSaveDate?: () => void;
   dateBusy?: boolean;
 }) {
-  const showDateEditor = !!onSaveDate && !!onDateChange;
+  const showDateEditor = isAdmin && !!onSaveDate && !!onDateChange;
 
   return (
     <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-4">
-      <div className="mb-2 text-base font-semibold">Admin controls</div>
+      <div className="mb-2 text-base font-semibold">{isAdmin ? "Admin controls" : "Editor controls"}</div>
 
       <div className="mb-3 text-sm text-zinc-400">
-        second leg: <span className="accent">{secondLegEnabled ? "enabled" : "off"}</span>
+        status: <span className="accent">{status}</span> · second leg:{" "}
+        <span className="accent">{secondLegEnabled ? "enabled" : "off"}</span>
       </div>
 
+      {/* Status controls */}
       <div className="flex flex-wrap gap-2">
-        <Button onClick={onSetLive} disabled={busy}>
-          Set live
-        </Button>
-        <Button onClick={onFinalize} disabled={busy}>
-          Finalize
-        </Button>
-        <Button variant="ghost" onClick={onSetDraft} disabled={busy}>
-          Set draft
-        </Button>
+        {isAdmin ? (
+          <>
+            <Button onClick={onSetLive} disabled={busy}>
+              Set live
+            </Button>
+            <Button onClick={onFinalize} disabled={busy}>
+              Finalize
+            </Button>
+            <Button variant="ghost" onClick={onSetDraft} disabled={busy}>
+              Set draft
+            </Button>
+          </>
+        ) : (
+          <>
+            {status === "draft" && (
+              <Button onClick={onSetLive} disabled={busy}>
+                Start (set live)
+              </Button>
+            )}
+            {status === "live" && (
+              <Button onClick={onFinalize} disabled={busy}>
+                Finalize (set done)
+              </Button>
+            )}
+            {status === "done" && (
+              <div className="text-sm text-zinc-500">Tournament is done (admins can change status).</div>
+            )}
+          </>
+        )}
 
         <div className="w-full" />
 
-        <Button onClick={onEnableSecondLeg} disabled={busy}>
-          Add second leg
-        </Button>
+        {/* Schedule controls (editor + admin) */}
+        {!secondLegEnabled ? (
+          <Button onClick={onEnableSecondLeg} disabled={busy}>
+            Add second leg
+          </Button>
+        ) : (
+          <Button variant="ghost" onClick={onDisableSecondLeg} disabled={busy}>
+            Remove second leg
+          </Button>
+        )}
+
         <Button variant="ghost" onClick={onReshuffle} disabled={busy}>
           Reshuffle order
         </Button>
-        <Button variant="ghost" onClick={onDeleteTournament} disabled={busy}>
-          Delete tournament
-        </Button>
-        {secondLegEnabled && (
-          <Button variant="ghost" onClick={onDisableSecondLeg} disabled={busy}>
-            Remove second leg
+
+        {/* Admin-only */}
+        {isAdmin && (
+          <Button variant="ghost" onClick={onDeleteTournament} disabled={busy}>
+            Delete tournament
           </Button>
         )}
       </div>
@@ -89,18 +133,12 @@ export default function AdminPanel({
               />
             </label>
 
-            <Button
-              variant="ghost"
-              onClick={() => onSaveDate?.()}
-              disabled={busy || !!dateBusy || !dateValue}
-            >
+            <Button variant="ghost" onClick={() => onSaveDate?.()} disabled={busy || !!dateBusy || !dateValue}>
               {dateBusy ? "Saving…" : "Save date"}
             </Button>
           </div>
 
-          <div className="mt-2 text-xs text-zinc-500">
-            Admin-only (for backfilling past tournaments).
-          </div>
+          <div className="mt-2 text-xs text-zinc-500">Admin-only (for backfilling past tournaments).</div>
         </div>
       )}
 

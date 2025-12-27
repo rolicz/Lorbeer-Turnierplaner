@@ -39,61 +39,108 @@ def _disjoint(p1: Tuple[str, str], p2: Tuple[str, str]) -> bool:
     return (p1[0] not in p2) and (p1[1] not in p2)
 
 
+
+def _round_robin_pairings(labels: List[str]) -> List[List[Tuple[str, str]]]:
+    """
+    Circle method 1-factorization.
+    Returns rounds; each round is a list of disjoint pairings (2-player partnerships).
+    For odd n, a BYE is inserted; pairings involving BYE are dropped.
+    """
+    players = labels[:]
+    bye = "__BYE__"
+    if len(players) % 2 == 1:
+        players.append(bye)
+
+    n = len(players)
+    half = n // 2
+    arr = players[:]  # rotating list
+
+    rounds: List[List[Tuple[str, str]]] = []
+    for _ in range(n - 1):
+        pairs: List[Tuple[str, str]] = []
+        for i in range(half):
+            a = arr[i]
+            b = arr[n - 1 - i]
+            if a == bye or b == bye:
+                continue
+            pairs.append(tuple(sorted((a, b))))
+        rounds.append(pairs)
+
+        # rotate all but first element
+        arr = [arr[0]] + [arr[-1]] + arr[1:-1]
+
+    return rounds
+
+
+def _disjoint(p: Tuple[str, str], q: Tuple[str, str]) -> bool:
+    return (p[0] not in q) and (p[1] not in q)
+
+
 def schedule_2v2_labels(labels: List[str]) -> List[Tuple[Tuple[str, str], Tuple[str, str]]]:
     """
-    2v2: build teams as partnerships (AB, AC, ...).
-    A match is two disjoint partnerships: (AB) vs (CD).
+    2v2 schedule based on partnerships.
 
-    For 4 and 5 players:
-      - covers each partnership exactly once.
-    For 6 players:
-      - covers all partnerships at least once with exactly one repeated partnership (minimum possible).
+    - n=4: 3 matches, covers each partnership exactly once.
+    - n=5: 5 matches, covers each partnership exactly once (perfectly balanced: each player appears 4 times).
+    - n=6: 8 matches, covers all partnerships once + exactly one repeated partnership (minimum possible).
     """
     n = len(labels)
     if n < 4:
         raise ValueError("2v2 needs at least 4 players")
+    if n > 6:
+        raise ValueError("This scheduler currently supports up to 6 players for 2v2.")
 
-    partnerships: List[Tuple[str, str]] = [tuple(sorted(x)) for x in combinations(labels, 2)]  # size = nC2
+    rounds = _round_robin_pairings(labels)
 
-    # We want to partition partnerships into matches (two disjoint partnerships per match).
-    # If number of partnerships is odd (n=6 => 15), perfect partition is impossible.
-    # We'll do the best possible: cover all once, and repeat one partnership.
-    unused = partnerships[:]
     matches: List[Tuple[Tuple[str, str], Tuple[str, str]]] = []
+    leftovers: List[Tuple[str, str]] = []
 
-    # Greedy pairing: pick a partnership, then find a disjoint one.
-    # This is simple and works well for n<=6.
-    while len(unused) >= 2:
-        p = unused.pop(0)
-        j = next((idx for idx, q in enumerate(unused) if _disjoint(p, q)), None)
-        if j is None:
-            # Can't find a disjoint partner right now. Put it aside and continue.
-            unused.append(p)
-            # If we're stuck (cycle), break and handle leftovers below.
-            if all(not _disjoint(unused[0], q) for q in unused[1:]):
-                break
-            continue
-        q = unused.pop(j)
-        matches.append((p, q))
+    for r in rounds:
+        if n in (4, 5):
+            # For 4: each round has 2 pairings -> one match (two disjoint partnerships).
+            # For 5: after BYE drop, each round has 2 pairings -> one match.
+            if len(r) != 2:
+                raise ValueError(f"Unexpected round size {len(r)} for n={n}: {r}")
+            matches.append((r[0], r[1]))
+        else:
+            # n=6: each round has 3 disjoint pairings.
+            # Use 2 of them for a match, keep 1 leftover to pair later.
+            if len(r) != 3:
+                raise ValueError(f"Unexpected round size {len(r)} for n=6: {r}")
+            matches.append((r[0], r[1]))
+            leftovers.append(r[2])
 
-    if unused:
-        # One leftover partnership (only happens for n=6 in practice here).
-        leftover = unused[0]
+    if n == 6:
+        # Pair leftovers into additional matches, ensuring disjointness.
+        # 5 leftovers -> 2 matches + 1 leftover; the last one gets paired with a repeated disjoint partnership.
+        pending = leftovers[:]
+        extra: List[Tuple[Tuple[str, str], Tuple[str, str]]] = []
 
-        # Pair it with any disjoint partnership (even if that partnership already used) to finish coverage.
-        # This creates exactly one repeat, which is unavoidable for n=6.
-        for p, q in matches:
-            if _disjoint(leftover, p):
-                matches.append((leftover, p))
-                leftover = None
-                break
-            if _disjoint(leftover, q):
-                matches.append((leftover, q))
-                leftover = None
-                break
+        while len(pending) >= 2:
+            p = pending.pop(0)
+            j = next((idx for idx, q in enumerate(pending) if _disjoint(p, q)), None)
+            if j is None:
+                # rotate; should resolve with small n
+                pending.append(p)
+                # safety: if we're stuck, break
+                if len(pending) > 0 and all(not _disjoint(pending[0], q) for q in pending[1:]):
+                    break
+                continue
+            q = pending.pop(j)
+            extra.append((p, q))
 
-        if leftover is not None:
-            # Extremely unlikely for n<=6, but keep a clear error if it happens.
-            raise ValueError("Could not complete 2v2 schedule (unexpected leftover).")
+        if pending:
+            # One leftover partnership remains. Pair it with any disjoint partnership (repeat allowed).
+            last = pending[0]
+            remaining_players = [x for x in labels if x not in last]
+            # pick any 2 from remaining players => disjoint partnership
+            repeat_partner = tuple(sorted((remaining_players[0], remaining_players[1])))
+            extra.append((last, repeat_partner))
+
+        matches.extend(extra)
+
+        # sanity: we should have 8 matches for n=6
+        if len(matches) != 8:
+            raise ValueError(f"Unexpected match count for n=6: {len(matches)}")
 
     return matches

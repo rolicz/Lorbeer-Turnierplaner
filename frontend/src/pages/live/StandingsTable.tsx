@@ -53,7 +53,6 @@ function computeStandings(matches: Match[], players: Player[], mode: "finished" 
     const bWin = bGoals > aGoals;
     const draw = aGoals === bGoals;
 
-    // side A players
     for (const p of a.players) {
       const r = rows.get(p.id) ?? emptyRow(p);
       rows.set(p.id, r);
@@ -66,7 +65,6 @@ function computeStandings(matches: Match[], players: Player[], mode: "finished" 
       else r.losses += 1;
     }
 
-    // side B players
     for (const p of b.players) {
       const r = rows.get(p.id) ?? emptyRow(p);
       rows.set(p.id, r);
@@ -111,6 +109,40 @@ function Arrow({ delta }: { delta: number | null }) {
   return <span className="text-zinc-500">–</span>;
 }
 
+function MobileRow({
+  r,
+  rank,
+  delta,
+}: {
+  r: Row;
+  rank: number;
+  delta: number | null;
+}) {
+  return (
+    <div className="rounded-xl border border-zinc-800 bg-zinc-900/10 px-3 py-2">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <div className="w-6 text-zinc-500 tabular-nums">{rank}</div>
+            <div className="w-5">
+              <Arrow delta={delta} />
+            </div>
+            <div className="min-w-0 truncate font-medium">{r.name}</div>
+          </div>
+          <div className="mt-1 text-xs text-zinc-500 font-mono tabular-nums">
+            {r.played}P · {r.wins}-{r.draws}-{r.losses} · GD {r.gd}
+          </div>
+        </div>
+
+        <div className="shrink-0 text-right">
+          <div className="font-semibold font-mono tabular-nums">{r.pts}</div>
+          <div className="text-[11px] text-zinc-500">pts</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function StandingsTable({
   matches,
   players,
@@ -128,8 +160,18 @@ export default function StandingsTable({
 
   return (
     <Card title={title}>
-      <div className="overflow-x-auto">
-        <table className="min-w-[820px] w-full text-sm">
+      {/* Mobile: compact cards (no horizontal scrolling, far less vertical waste) */}
+      <div className="sm:hidden space-y-2">
+        {liveRows.map((r, idx) => {
+          const baseIdx = basePos.get(r.playerId);
+          const delta = baseIdx === undefined ? null : baseIdx - idx;
+          return <MobileRow key={r.playerId} r={r} rank={idx + 1} delta={delta} />;
+        })}
+      </div>
+
+      {/* Desktop: table */}
+      <div className="hidden sm:block overflow-x-auto">
+        <table className="min-w-[760px] w-full text-sm">
           <thead className="text-zinc-400">
             <tr className="border-b border-zinc-800">
               <th className="py-2 text-left font-medium w-10">#</th>
@@ -146,7 +188,7 @@ export default function StandingsTable({
             </tr>
           </thead>
 
-          <tbody>
+          <tbody className="font-mono tabular-nums">
             {liveRows.map((r, idx) => {
               const baseIdx = basePos.get(r.playerId);
               const delta = baseIdx === undefined ? null : baseIdx - idx;
@@ -157,7 +199,7 @@ export default function StandingsTable({
                   <td className="py-2">
                     <Arrow delta={delta} />
                   </td>
-                  <td className="py-2 font-medium">{r.name}</td>
+                  <td className="py-2 font-sans font-medium">{r.name}</td>
                   <td className="py-2 text-right">{r.played}</td>
                   <td className="py-2 text-right">{r.wins}</td>
                   <td className="py-2 text-right">{r.draws}</td>
@@ -165,14 +207,13 @@ export default function StandingsTable({
                   <td className="py-2 text-right">{r.gf}</td>
                   <td className="py-2 text-right">{r.ga}</td>
                   <td className="py-2 text-right">{r.gd}</td>
-                  <td className="py-2 text-right font-semibold">{r.pts}</td>
+                  <td className="py-2 text-right font-sans font-semibold">{r.pts}</td>
                 </tr>
               );
             })}
           </tbody>
         </table>
       </div>
-
     </Card>
   );
 }

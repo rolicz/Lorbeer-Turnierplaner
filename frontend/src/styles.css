@@ -10,3 +10,28 @@
 .accent-bg { background-color: rgb(var(--accent)); }
 
 * { -webkit-tap-highlight-color: transparent; }
+
+/* ---- App-like defaults + fix horizontal scroll ---- */
+html, body, #root {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+/* helps mobile "app feel" and prevents sideways bounce */
+body {
+  overscroll-behavior-x: none;
+  touch-action: pan-y;
+}
+
+/* make images/long content not overflow their container */
+img, svg, video, canvas {
+  max-width: 100%;
+  height: auto;
+}
+
+/* long names / strings won't force horizontal scrolling */
+.break-anywhere {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}

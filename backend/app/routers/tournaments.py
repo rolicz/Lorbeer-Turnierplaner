@@ -435,8 +435,11 @@ async def generate_schedule(
 
 
 
-@router.patch("/{tournament_id}/reorder", dependencies=[Depends(require_admin)])
-async def reorder(tournament_id: int, body: dict, s: Session = Depends(get_session)):
+@router.patch("/{tournament_id}/reorder", dependencies=[Depends(require_editor)])
+async def reorder(tournament_id: int, body: dict, s: Session = Depends(get_session), role: str = Depends(require_editor)):
+    t = _tournament_or_404(s, tournament_id)
+    if t.status == "done" and role != "admin":
+        raise HTTPException(status_code=403, detail="Tournament is done (admin required to regenerate)")
     match_ids = body.get("match_ids")
     if not isinstance(match_ids, list) or not match_ids:
         raise HTTPException(status_code=400, detail="match_ids must be a non-empty list")
