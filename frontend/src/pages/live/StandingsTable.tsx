@@ -114,17 +114,20 @@ function Arrow({ delta }: { delta: number | null }) {
 export default function StandingsTable({
   matches,
   players,
+  tournamentStatus,
 }: {
   matches: Match[];
   players: Player[];
+  tournamentStatus?: "draft" | "live" | "done";
 }) {
   const baseRows = useMemo(() => computeStandings(matches, players, "finished"), [matches, players]);
   const liveRows = useMemo(() => computeStandings(matches, players, "live"), [matches, players]);
-
   const basePos = useMemo(() => posMap(baseRows), [baseRows]);
 
+  const title = tournamentStatus === "done" ? "Results" : "Standings (live)";
+
   return (
-    <Card title="Standings (live)">
+    <Card title={title}>
       <div className="overflow-x-auto">
         <table className="min-w-[820px] w-full text-sm">
           <thead className="text-zinc-400">
@@ -170,11 +173,6 @@ export default function StandingsTable({
         </table>
       </div>
 
-      <div className="mt-2 text-xs text-zinc-500">
-        Arrows compare <span className="accent">finished-only</span> standings vs{" "}
-        <span className="accent">finished + playing</span> standings.
-        Players with 0 matches are still shown.
-      </div>
     </Card>
   );
 }

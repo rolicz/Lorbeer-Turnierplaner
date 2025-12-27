@@ -310,7 +310,11 @@ export default function LiveTournamentPage() {
               />
             )}
 
-            <StandingsTable matches={matchesSorted} players={tQ.data.players ?? []} />
+            <StandingsTable
+              matches={matchesSorted}
+              players={tQ.data.players}
+              tournamentStatus={tQ.data.status}
+            />
 
             <MatchList
               matches={matchesSorted}

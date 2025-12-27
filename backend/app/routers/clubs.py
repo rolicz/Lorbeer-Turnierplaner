@@ -1,10 +1,10 @@
 import logging
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlmodel import Session, select
 
-from ..auth import require_editor
+from ..auth import require_editor, require_admin
 from ..db import get_session
-from ..models import Club
+from ..models import Club, MatchSide
 from ..validation import validate_star_rating
 
 log = logging.getLogger(__name__)
@@ -105,3 +105,27 @@ def patch_club(
 
     s.refresh(c)
     return c
+
+@router.delete("/{club_id}", dependencies=[Depends(require_admin)])
+def delete_club(
+    club_id: int,
+    s: Session = Depends(get_session),
+    role: str = Depends(require_admin),
+):
+    """
+    Admin only:
+      - deletes a club (team)
+      - refuses if club is referenced by any match side (to protect history)
+    """
+    c = s.get(Club, club_id)
+    if not c:
+        raise HTTPException(status_code=404, detail="Club not found")
+
+    used = s.exec(select(MatchSide.id).where(MatchSide.club_id == club_id)).first()
+    if used is not None:
+        raise HTTPException(status_code=409, detail="Club is used in matches; cannot delete")
+
+    s.delete(c)
+    s.commit()
+    log.info("Club deleted: club_id=%s by=%s", club_id, role)
+    return Response(status_code=204)

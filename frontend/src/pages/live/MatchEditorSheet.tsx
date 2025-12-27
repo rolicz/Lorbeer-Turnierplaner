@@ -3,6 +3,7 @@ import Input from "../../ui/primitives/Input";
 import Button from "../../ui/primitives/Button";
 import type { Club, Match } from "../../api/types";
 import { sideBy } from "./helpers";
+import { useMemo } from "react";
 
 export default function MatchEditorSheet({
   open,
@@ -134,6 +135,26 @@ function ClubSelect({
   value: number | null;
   onChange: (v: number | null) => void;
 }) {
+  const grouped = useMemo(() => {
+    const sorted = (clubs ?? []).slice().sort((a, b) => {
+      const sa = Number(a.star_rating ?? 0);
+      const sb = Number(b.star_rating ?? 0);
+      if (sb !== sa) return sb - sa;
+      return a.name.localeCompare(b.name);
+    });
+
+    const m = new Map<string, Club[]>();
+    for (const c of sorted) {
+      const s = Number(c.star_rating ?? 0);
+      const key = `${s.toFixed(1).replace(/\.0$/, "")}★`;
+      const arr = m.get(key) ?? [];
+      arr.push(c);
+      m.set(key, arr);
+    }
+
+    return Array.from(m.entries());
+  }, [clubs]);
+
   return (
     <label className="block">
       <div className="mb-1 text-xs text-zinc-400">{label}</div>
@@ -143,12 +164,18 @@ function ClubSelect({
         onChange={(e) => onChange(e.target.value ? Number(e.target.value) : null)}
       >
         <option value="">—</option>
-        {clubs.map((c) => (
-          <option key={c.id} value={c.id}>
-            {c.name} ({c.star_rating}★)
-          </option>
+
+        {grouped.map(([starLabel, cs]) => (
+          <optgroup key={starLabel} label={starLabel}>
+            {cs.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </optgroup>
         ))}
       </select>
     </label>
   );
 }
+

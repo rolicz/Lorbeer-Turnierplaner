@@ -1,14 +1,30 @@
 {
   "players": [
-    {"display_name": "Roland"},
+    {"display_name": "Roli"},
     {"display_name": "Flo"},
     {"display_name": "Rumpi"},
     {"display_name": "Berni"},
     {"display_name": "Atzi"}
   ],
   "clubs": [
-    {"name": "Real Madrid", "game": "EA FC 26", "star_rating": 5.0},
-    {"name": "Sturm Graz", "game": "EA FC 26", "star_rating": 3.5},
-    {"name": "Rapid Wien", "game": "EA FC 26", "star_rating": 3.0}
+    {"name": "Real Madrid CF", "game": "EA FC 26", "star_rating": 5.0},
+    {"name": "FC Barcelona", "game": "EA FC 26", "star_rating": 5.0},
+    {"name": "Paris Saint-Germain F.C.", "game": "EA FC 26", "star_rating": 5.0},
+    {"name": "Liverpool F.C.", "game": "EA FC 26", "star_rating": 5.0},
+    {"name": "Manchester City F.C.", "game": "EA FC 26", "star_rating": 5.0},
+    {"name": "Arsenal F.C.", "game": "EA FC 26", "star_rating": 5.0},
+    {"name": "FC Bayern München", "game": "EA FC 26", "star_rating": 5.0},
+    {"name": "Atlético de Madrid", "game": "EA FC 26", "star_rating": 4.5},
+    {"name": "Newcastle United F.C.", "game": "EA FC 26", "star_rating": 4.5},
+    {"name": "SSC Napoli", "game": "EA FC 26", "star_rating": 4.5},
+    {"name": "Borussia Dortmund", "game": "EA FC 26", "star_rating": 4.5},
+    {"name": "Tottenham Hotspur F.C.", "game": "EA FC 26", "star_rating": 4.5},
+    {"name": "Chelsea F.C.", "game": "EA FC 26", "star_rating": 4.5},
+    {"name": "Aston Villa F.C.", "game": "EA FC 26", "star_rating": 4.5},
+    {"name": "Manchester United F.C.", "game": "EA FC 26", "star_rating": 4.5},
+    {"name": "Bayer 04 Leverkusen", "game": "EA FC 26", "star_rating": 4.5},
+
+    {"name": "SK Sturm Graz", "game": "EA FC 26", "star_rating": 3.5},
+    {"name": "SK Rapid Wien", "game": "EA FC 26", "star_rating": 3.0}
   ]
 }
