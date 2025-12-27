@@ -81,14 +81,17 @@ def _max_order_index(s: Session, tournament_id: int) -> int:
 
 
 def _leg2_started(s: Session, tournament_id: int) -> bool:
-    m = s.exec(
-        select(Match).where(
-            Match.tournament_id == tournament_id,
-            Match.leg == 2,
-            ((Match.state != "scheduled") | (Match.started_at.is_not(None)) | (Match.finished_at.is_not(None))),
-        )
-    ).first()
-    return m is not None
+    leg2 = s.exec(
+        select(Match).where(Match.tournament_id == tournament_id, Match.leg == 2)
+    ).all()
+    for m in leg2:
+        if m.state != "scheduled":
+            return True
+        # if you store goals on sides:
+        for side in m.sides:
+            if (side.goals or 0) != 0 or side.club_id is not None:
+                return True
+    return False
 
 def _bulk_delete_matches(
     s: Session,
@@ -523,16 +526,16 @@ async def second_leg(
         if not leg2_exists:
             return {"ok": True, "second_leg": False, "deleted": False}
 
-        if role != "admin" and _leg2_started(s, tournament_id):
-            raise HTTPException(status_code=403, detail="Second leg already started (admin required)")
+        if _leg2_started(s, tournament_id):
+            raise HTTPException(status_code=403, detail="Second leg already started")
 
         _delete_matches_by_leg(s, tournament_id, leg=2)
         await ws_manager.broadcast(tournament_id, "schedule_generated", {"tournament_id": tournament_id})
         return {"ok": True, "second_leg": False, "deleted": True}
 
     # enabled == True
-    if role != "admin" and _leg2_started(s, tournament_id):
-        raise HTTPException(status_code=403, detail="Second leg already started (admin required)")
+    if _leg2_started(s, tournament_id):
+        raise HTTPException(status_code=403, detail="Second leg already started")
 
     if not leg2_exists:
         # Create full leg2 in the same order as leg1, no mirroring.
