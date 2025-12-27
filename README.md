@@ -48,7 +48,9 @@ Create `backend/secrets.json`:
   "cors_allow_origins": [
     "http://localhost:8000",
     "http://127.0.0.1:8000"
-  ]
+  ],
+  "cup_initial_owner_player_id": 5,
+  "log_level": "INFO"
 }
 ```
 
