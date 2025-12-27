@@ -85,6 +85,13 @@ def compute_cup(session: Session, initial_owner_player_id: int) -> CupResult:
 
         rows = compute_player_standings(matches, participants)
         winner_id = unique_winner_player_id(rows)
+        # If standings are tied at the top, allow an explicit tournament decider to pick a winner.
+        if winner_id is None:
+            if getattr(t, "decider_type", "none") != "none" and getattr(t, "decider_winner_player_id", None):
+                winner_id = int(t.decider_winner_player_id)
+        if winner_id not in participant_ids:
+            # invalid decider data -> treat as draw
+            winner_id = None
 
         # draw / no unique winner => cup stays, streak increments (owner participated)
         if winner_id is None:

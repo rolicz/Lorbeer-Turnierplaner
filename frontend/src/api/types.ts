@@ -10,6 +10,11 @@ export type Tournament = {
   mode: "1v1" | "2v2";
   status: string;
   date: string;
+  decider_type?: "none" | "penalties" | "match";
+  decider_winner_player_id?: number | null;
+  decider_loser_player_id?: number | null;
+  decider_winner_goals?: number | null;
+  decider_loser_goals?: number | null;
 };
 
 export type MatchSide = {

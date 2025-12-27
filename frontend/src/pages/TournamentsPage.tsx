@@ -10,6 +10,15 @@ import { listPlayers } from "../api/players.api";
 import { useAuth } from "../auth/AuthContext";
 import { fmtDate } from "../utils/format";
 
+function deciderText(t: any) {
+  const typ = t.decider_type ?? "none";
+  if (typ === "none") return "no decider";
+  const wg = t.decider_winner_goals;
+  const lg = t.decider_loser_goals;
+  const score = (wg != null && lg != null) ? ` ${wg}-${lg}` : "";
+  return `${typ}${score}`;
+}
+
 export default function TournamentsPage() {
   const qc = useQueryClient();
   const { role, token } = useAuth();

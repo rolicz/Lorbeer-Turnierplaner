@@ -33,6 +33,18 @@ class Tournament(SQLModel, table=True):
     players: List["Player"] = Relationship(back_populates="tournaments", link_model=TournamentPlayer)
     matches: List["Match"] = Relationship(back_populates="tournament")
 
+    # Decider for drawn tournaments
+    # type: "none" | "penalties" | "match"
+    decider_type: str = Field(default="none")
+
+    # Decider is a head-to-head between two players from the tied top group
+    decider_winner_player_id: int | None = Field(default=None, foreign_key="player.id")
+    decider_loser_player_id: int | None = Field(default=None, foreign_key="player.id")
+
+    # Score of the decider
+    decider_winner_goals: int | None = Field(default=None)
+    decider_loser_goals: int | None = Field(default=None)
+
 
 class Player(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)

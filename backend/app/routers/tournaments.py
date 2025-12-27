@@ -68,6 +68,11 @@ def _serialize_tournament(s: Session, t: Tournament) -> dict:
         "updated_at": t.updated_at,
         "players": [player_dict(p) for p in t.players],
         "matches": [match_dict(m) for m in matches],
+        "decider_type": t.decider_type,
+        "decider_winner_player_id": t.decider_winner_player_id,
+        "decider_loser_player_id": t.decider_loser_player_id,
+        "decider_winner_goals": t.decider_winner_goals,
+        "decider_loser_goals": t.decider_loser_goals,
     }
 
 
@@ -660,3 +665,182 @@ async def delete_tournament(
     log.info("Tournament deleted: tournament_id=%s by=%s", tournament_id, role)
 
     return Response(status_code=204)
+
+
+ALLOWED_DECIDERS = ("none", "penalties", "match")
+def _compute_points_table_finished(matches: list[Match]) -> dict[int, tuple[int, int, int]]:
+    """
+    Per-player (points, goal_diff, goals_for) using ONLY finished matches.
+    Supports 1v1 and your 2v2 scoring because points are per player.
+    """
+    pts: dict[int, int] = {}
+    gf: dict[int, int] = {}
+    ga: dict[int, int] = {}
+
+    def ensure(pid: int) -> None:
+        pts.setdefault(pid, 0)
+        gf.setdefault(pid, 0)
+        ga.setdefault(pid, 0)
+
+    for m in matches:
+        if m.state != "finished":
+            continue
+
+        # force-loaded in caller, but safe
+        sides = {s.side: s for s in m.sides}
+        a = sides.get("A")
+        b = sides.get("B")
+        if not a or not b:
+            continue
+
+        ag = int(a.goals or 0)
+        bg = int(b.goals or 0)
+
+        a_pids = [p.id for p in a.players]
+        b_pids = [p.id for p in b.players]
+
+        for pid in a_pids + b_pids:
+            ensure(pid)
+
+        for pid in a_pids:
+            gf[pid] += ag
+            ga[pid] += bg
+        for pid in b_pids:
+            gf[pid] += bg
+            ga[pid] += ag
+
+        if ag > bg:
+            for pid in a_pids:
+                pts[pid] += 3
+        elif bg > ag:
+            for pid in b_pids:
+                pts[pid] += 3
+        else:
+            for pid in a_pids + b_pids:
+                pts[pid] += 1
+
+    out: dict[int, tuple[int, int, int]] = {}
+    for pid in pts.keys():
+        out[pid] = (pts[pid], gf[pid] - ga[pid], gf[pid])
+    return out
+
+
+def _top_group(points_table: dict[int, tuple[int, int, int]]) -> list[int]:
+    """Returns player_ids tied for #1 by (points, gd, gf)."""
+    if not points_table:
+        return []
+    items = sorted(points_table.items(), key=lambda kv: (kv[1][0], kv[1][1], kv[1][2]), reverse=True)
+    best = items[0][1]
+    return [pid for (pid, triple) in items if triple == best]
+
+
+@router.patch("/{tournament_id}/decider", dependencies=[Depends(require_editor)])
+async def patch_decider(
+    tournament_id: int,
+    body: dict,
+    s: Session = Depends(get_session),
+    role: str = Depends(require_editor),
+):
+    """
+    body:
+      {
+        "type": "none" | "penalties" | "match",
+        "winner_player_id": number|null,
+        "loser_player_id": number|null,
+        "winner_goals": number|null,
+        "loser_goals": number|null
+      }
+
+    Editors:
+      - can set decider while tournament is NOT done
+    Admin:
+      - can set/adjust anytime, even after done
+
+    Rules:
+      - decider applies only if there is a draw at #1 (based on finished matches)
+      - winner+loser must both be in the tied top group and must be different
+      - goals must be >=0 integers when type != "none"
+    """
+    t = _tournament_or_404(s, tournament_id)
+
+    dec_type = (body.get("type") or "none").strip()
+    if dec_type not in ALLOWED_DECIDERS:
+        raise HTTPException(status_code=400, detail=f"Invalid decider type (allowed: {ALLOWED_DECIDERS})")
+
+    def as_int_or_none(v, field: str) -> int | None:
+        if v is None:
+            return None
+        try:
+            return int(v)
+        except Exception:
+            raise HTTPException(status_code=400, detail=f"{field} must be an integer or null")
+
+    winner_id = as_int_or_none(body.get("winner_player_id"), "winner_player_id")
+    loser_id = as_int_or_none(body.get("loser_player_id"), "loser_player_id")
+    winner_goals = as_int_or_none(body.get("winner_goals"), "winner_goals")
+    loser_goals = as_int_or_none(body.get("loser_goals"), "loser_goals")
+
+    # Load matches + force-load sides/players
+    matches = s.exec(
+        select(Match).where(Match.tournament_id == tournament_id).order_by(Match.order_index)
+    ).all()
+    for m in matches:
+        _ = m.sides
+        for side in m.sides:
+            _ = side.players
+
+    pt = _compute_points_table_finished(matches)
+    top = _top_group(pt)
+
+    if dec_type == "none":
+        t.decider_type = "none"
+        t.decider_winner_player_id = None
+        t.decider_loser_player_id = None
+        t.decider_winner_goals = None
+        t.decider_loser_goals = None
+    else:
+        # must actually be a tie for first
+        if not top or len(top) == 1:
+            raise HTTPException(status_code=409, detail="Tournament is not a draw at the top; decider not applicable")
+
+        if winner_id is None or loser_id is None:
+            raise HTTPException(status_code=400, detail="winner_player_id and loser_player_id are required when type != 'none'")
+        if winner_id == loser_id:
+            raise HTTPException(status_code=400, detail="winner_player_id and loser_player_id must be different")
+        if winner_id not in top or loser_id not in top:
+            raise HTTPException(status_code=400, detail="winner/loser must be chosen from the tied top players")
+
+        if winner_goals is None or loser_goals is None:
+            raise HTTPException(status_code=400, detail="winner_goals and loser_goals are required when type != 'none'")
+        if winner_goals < 0 or loser_goals < 0:
+            raise HTTPException(status_code=400, detail="goals must be >= 0")
+        if loser_goals >= winner_goals:
+            raise HTTPException(status_code=400, detail="winner_goals must be greater than loser_goals")
+
+        # sanity: players belong to tournament
+        allowed_ids = set(
+            s.exec(select(TournamentPlayer.player_id).where(TournamentPlayer.tournament_id == tournament_id)).all()
+        )
+        if winner_id not in allowed_ids or loser_id not in allowed_ids:
+            raise HTTPException(status_code=400, detail="winner/loser is not part of this tournament")
+
+        t.decider_type = dec_type
+        t.decider_winner_player_id = winner_id
+        t.decider_loser_player_id = loser_id
+        t.decider_winner_goals = winner_goals
+        t.decider_loser_goals = loser_goals
+
+    t.updated_at = datetime.utcnow()
+    s.add(t)
+    s.commit()
+    s.refresh(t)
+
+    await ws_manager.broadcast(tournament_id, "tournament_updated", {"tournament_id": tournament_id})
+    return {
+        "ok": True,
+        "decider_type": t.decider_type,
+        "decider_winner_player_id": t.decider_winner_player_id,
+        "decider_loser_player_id": t.decider_loser_player_id,
+        "decider_winner_goals": t.decider_winner_goals,
+        "decider_loser_goals": t.decider_loser_goals,
+    }

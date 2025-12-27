@@ -91,3 +91,21 @@ export function patchTournamentDate(token: string, tournamentId: number, date: s
     body: JSON.stringify({ date }),
   });
 }
+
+export function patchTournamentDecider(
+  token: string,
+  tournamentId: number,
+  body: {
+    type: "none" | "penalties" | "match";
+    winner_player_id: number | null;
+    loser_player_id: number | null;
+    winner_goals: number | null;
+    loser_goals: number | null;
+  }
+) {
+  return apiFetch(`/tournaments/${tournamentId}/decider`, {
+    method: "PATCH",
+    token,
+    body: JSON.stringify(body),
+  });
+}
