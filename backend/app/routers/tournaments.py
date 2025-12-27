@@ -1,7 +1,7 @@
 import json
 import logging
 import random
-from datetime import datetime
+from datetime import datetime, date
 from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlmodel import Session, delete, select
 
@@ -63,6 +63,7 @@ def _serialize_tournament(s: Session, t: Tournament) -> dict:
         "mode": t.mode,
         "status": t.status,
         "settings_json": t.settings_json,
+        "date": t.date,
         "created_at": t.created_at,
         "updated_at": t.updated_at,
         "players": [player_dict(p) for p in t.players],
@@ -193,7 +194,11 @@ def _match_signature_from_loaded_match(m: Match) -> tuple[tuple[int, ...], tuple
         return ((), ())
     return (_side_player_ids(sides["A"]), _side_player_ids(sides["B"]))
 
-
+def _parse_yyyy_mm_dd(value: str):
+    try:
+        return datetime.strptime(value, "%Y-%m-%d").date()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid date (expected YYYY-MM-DD)")
 
 
 @router.get("")
@@ -213,13 +218,15 @@ def create_tournament(body: dict, s: Session = Depends(get_session)):
     mode = body.get("mode")
     settings = body.get("settings", {})
     player_ids = body.get("player_ids", [])
+    date_str = (body.get("date") or "").strip()
+    t_date = _parse_yyyy_mm_dd(date_str) if date_str else date.today()
 
     if not name:
         raise HTTPException(status_code=400, detail="Missing name")
     if mode not in ("1v1", "2v2"):
         raise HTTPException(status_code=400, detail="mode must be '1v1' or '2v2'")
 
-    t = Tournament(name=name, mode=mode, status="draft", settings_json=json.dumps(settings))
+    t = Tournament(name=name, mode=mode, status="draft", settings_json=json.dumps(settings), date=t_date)
     s.add(t)
     s.commit()
     s.refresh(t)
@@ -241,7 +248,11 @@ def create_tournament(body: dict, s: Session = Depends(get_session)):
 
 
 @router.patch("/{tournament_id}", dependencies=[Depends(require_editor)])
-async def patch_tournament(tournament_id: int, body: dict, s: Session = Depends(get_session)):
+async def patch_tournament(
+    tournament_id: int, 
+    body: dict, 
+    s: Session = Depends(get_session),
+    role: str = Depends(require_editor)):
     t = _tournament_or_404(s, tournament_id)
     if t.status == "done" and role != "admin":
         raise HTTPException(status_code=403, detail="Tournament is done (admin required to regenerate)")
@@ -262,6 +273,36 @@ async def patch_tournament(tournament_id: int, body: dict, s: Session = Depends(
 
     await ws_manager.broadcast(tournament_id, "tournament_updated", {"tournament_id": tournament_id})
     return t
+
+@router.patch("/{tournament_id}/date", dependencies=[Depends(require_admin)])
+async def patch_date(
+    tournament_id: int,
+    body: dict,
+    s: Session = Depends(get_session),
+    role: str = Depends(require_admin),
+):
+    """
+    body: { "date": "YYYY-MM-DD" }
+
+    Admin only:
+      - can set date anytime (for backfilling past tournaments)
+    """
+    t = _tournament_or_404(s, tournament_id)
+
+    date_str = (body.get("date") or "").strip()
+    if not date_str:
+        raise HTTPException(status_code=400, detail="Missing date")
+
+    t.date = _parse_yyyy_mm_dd(date_str)
+    t.updated_at = datetime.utcnow()
+
+    s.add(t)
+    s.commit()
+    s.refresh(t)
+
+    await ws_manager.broadcast(tournament_id, "tournament_updated", {"tournament_id": tournament_id})
+    log.info("Tournament date changed: tournament_id=%s date=%s by=%s", tournament_id, t.date, role)
+    return {"ok": True, "date": t.date}
 
 
 @router.post("/{tournament_id}/players", dependencies=[Depends(require_admin)])
@@ -306,7 +347,11 @@ async def remove_player(tournament_id: int, player_id: int, s: Session = Depends
 
 
 @router.post("/{tournament_id}/generate", dependencies=[Depends(require_editor)])
-async def generate_schedule(tournament_id: int, body: dict, s: Session = Depends(get_session)):
+async def generate_schedule(
+    tournament_id: int, 
+    body: dict, 
+    s: Session = Depends(get_session),
+    role: str = Depends(require_editor)):
     """
     body:
       {

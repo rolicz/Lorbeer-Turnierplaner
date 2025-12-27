@@ -83,3 +83,11 @@ return apiFetch(`/tournaments/${tournamentId}`, {
   token,
 });
 }
+
+export function patchTournamentDate(token: string, tournamentId: number, date: string) {
+  return apiFetch(`/tournaments/${tournamentId}/date`, {
+    method: "PATCH",
+    token,
+    body: JSON.stringify({ date }),
+  });
+}

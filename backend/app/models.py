@@ -1,4 +1,5 @@
-from datetime import datetime
+#from datetime import datetime, date
+import datetime as dt
 from typing import List, Optional
 
 from sqlmodel import Field, Relationship, SQLModel
@@ -22,8 +23,9 @@ class Tournament(SQLModel, table=True):
     mode: str = Field(index=True)  # "1v1" | "2v2"
     status: str = Field(default="draft", index=True)
 
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    date: dt.date = Field(default_factory=dt.date.today) 
+    created_at: dt.datetime = Field(default_factory=dt.datetime.utcnow)
+    updated_at: dt.datetime = Field(default_factory=dt.datetime.utcnow)
 
     settings_json: str = Field(default="{}")
 
@@ -57,8 +59,8 @@ class Match(SQLModel, table=True):
     order_index: int = Field(default=0, index=True)
     state: str = Field(default="scheduled", index=True)  # scheduled/playing/finished
 
-    started_at: Optional[datetime] = None
-    finished_at: Optional[datetime] = None
+    started_at: Optional[dt.datetime] = None
+    finished_at: Optional[dt.datetime] = None
 
     tournament: "Tournament" = Relationship(back_populates="matches")
     sides: List["MatchSide"] = Relationship(back_populates="match")

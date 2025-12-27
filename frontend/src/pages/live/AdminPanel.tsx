@@ -11,6 +11,12 @@ export default function AdminPanel({
   onDisableSecondLeg,
   busy,
   error,
+
+  // NEW (optional) date editing
+  dateValue,
+  onDateChange,
+  onSaveDate,
+  dateBusy,
 }: {
   secondLegEnabled: boolean;
   onEnableSecondLeg: () => void;
@@ -22,7 +28,16 @@ export default function AdminPanel({
   onDisableSecondLeg: () => void;
   busy: boolean;
   error: string | null;
+
+  // If these are provided by LiveTournamentPage, we show the date editor.
+  // (LiveTournamentPage should only pass them for admins.)
+  dateValue?: string;
+  onDateChange?: (v: string) => void;
+  onSaveDate?: () => void;
+  dateBusy?: boolean;
 }) {
+  const showDateEditor = !!onSaveDate && !!onDateChange;
+
   return (
     <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-4">
       <div className="mb-2 text-base font-semibold">Admin controls</div>
@@ -59,6 +74,35 @@ export default function AdminPanel({
           </Button>
         )}
       </div>
+
+      {showDateEditor && (
+        <div className="mt-4 rounded-xl border border-zinc-800 bg-zinc-900/10 p-3">
+          <div className="mb-2 text-sm font-medium">Tournament date</div>
+          <div className="flex flex-wrap items-end gap-2">
+            <label className="block">
+              <div className="mb-1 text-xs text-zinc-400">Date</div>
+              <input
+                type="date"
+                className="w-[170px] rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm outline-none focus:border-zinc-600"
+                value={dateValue ?? ""}
+                onChange={(e) => onDateChange?.(e.target.value)}
+              />
+            </label>
+
+            <Button
+              variant="ghost"
+              onClick={() => onSaveDate?.()}
+              disabled={busy || !!dateBusy || !dateValue}
+            >
+              {dateBusy ? "Saving…" : "Save date"}
+            </Button>
+          </div>
+
+          <div className="mt-2 text-xs text-zinc-500">
+            Admin-only (for backfilling past tournaments).
+          </div>
+        </div>
+      )}
 
       {error && <div className="mt-2 text-sm text-red-400">{error}</div>}
     </div>

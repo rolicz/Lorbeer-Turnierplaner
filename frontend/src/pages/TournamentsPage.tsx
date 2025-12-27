@@ -8,6 +8,7 @@ import Modal from "../ui/primitives/Modal";
 import { listTournaments, createTournament, generateSchedule } from "../api/tournaments.api";
 import { listPlayers } from "../api/players.api";
 import { useAuth } from "../auth/AuthContext";
+import { fmtDate } from "../utils/format";
 
 export default function TournamentsPage() {
   const qc = useQueryClient();
@@ -21,7 +22,30 @@ export default function TournamentsPage() {
   const [name, setName] = useState("");
   const [mode, setMode] = useState<"1v1" | "2v2">("1v1");
   const [selected, setSelected] = useState<Record<number, boolean>>({});
-  const selectedIds = useMemo(() => Object.entries(selected).filter(([,v]) => v).map(([k]) => Number(k)), [selected]);
+  const selectedIds = useMemo(
+    () => Object.entries(selected).filter(([, v]) => v).map(([k]) => Number(k)),
+    [selected]
+  );
+
+  // NEW: sort tournaments by date (newest first)
+  const tournamentsSorted = useMemo(() => {
+    const ts = tournamentsQ.data ?? [];
+    const key = (t: any) => {
+      const d = t.date ? `${t.date}T00:00:00` : t.created_at ?? null;
+      const ms = d ? new Date(d).getTime() : 0;
+      return Number.isFinite(ms) ? ms : 0;
+    };
+
+    return ts.slice().sort((a: any, b: any) => {
+      const da = key(a);
+      const db = key(b);
+      if (db !== da) return db - da; // newest first
+      // tie-breakers for stable ordering
+      const ia = typeof a.id === "number" ? a.id : 0;
+      const ib = typeof b.id === "number" ? b.id : 0;
+      return ib - ia;
+    });
+  }, [tournamentsQ.data]);
 
   const createMut = useMutation({
     mutationFn: async () => {
@@ -37,7 +61,7 @@ export default function TournamentsPage() {
       setName("");
       setSelected({});
       await qc.invalidateQueries({ queryKey: ["tournaments"] });
-    }
+    },
   });
 
   return (
@@ -46,7 +70,9 @@ export default function TournamentsPage() {
         <div className="flex items-center justify-between gap-2">
           <div className="text-sm text-zinc-400">Active + past tournaments.</div>
           <div className="flex items-center gap-2">
-            <Button variant="ghost" onClick={() => qc.invalidateQueries({ queryKey: ["tournaments"] })}>Refresh</Button>
+            <Button variant="ghost" onClick={() => qc.invalidateQueries({ queryKey: ["tournaments"] })}>
+              Refresh
+            </Button>
             {canWrite && <Button onClick={() => setOpen(true)}>New</Button>}
           </div>
         </div>
@@ -54,7 +80,7 @@ export default function TournamentsPage() {
         <div className="mt-4 space-y-2">
           {tournamentsQ.isLoading && <div className="text-zinc-400">Loading…</div>}
           {tournamentsQ.error && <div className="text-red-400 text-sm">{String(tournamentsQ.error)}</div>}
-          {tournamentsQ.data?.map(t => (
+          {tournamentsSorted.map((t) => (
             <Link
               key={t.id}
               to={`/live/${t.id}`}
@@ -62,7 +88,9 @@ export default function TournamentsPage() {
             >
               <div className="flex items-center justify-between">
                 <div className="font-medium">{t.name}</div>
-                <div className="text-sm text-zinc-400">{t.mode} · {t.status}</div>
+                <div className="text-sm text-zinc-400">
+                  {t.mode} · {t.status} · {fmtDate(t.date)}
+                </div>
               </div>
             </Link>
           ))}
@@ -74,14 +102,18 @@ export default function TournamentsPage() {
           <Input label="Name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Friday Cup" />
           <div className="grid grid-cols-2 gap-2">
             <button
-              className={`rounded-xl border px-3 py-2 text-sm ${mode==="1v1" ? "border-zinc-600 bg-zinc-900" : "border-zinc-800 hover:bg-zinc-900/40"}`}
+              className={`rounded-xl border px-3 py-2 text-sm ${
+                mode === "1v1" ? "border-zinc-600 bg-zinc-900" : "border-zinc-800 hover:bg-zinc-900/40"
+              }`}
               onClick={() => setMode("1v1")}
               type="button"
             >
               1v1
             </button>
             <button
-              className={`rounded-xl border px-3 py-2 text-sm ${mode==="2v2" ? "border-zinc-600 bg-zinc-900" : "border-zinc-800 hover:bg-zinc-900/40"}`}
+              className={`rounded-xl border px-3 py-2 text-sm ${
+                mode === "2v2" ? "border-zinc-600 bg-zinc-900" : "border-zinc-800 hover:bg-zinc-900/40"
+              }`}
               onClick={() => setMode("2v2")}
               type="button"
             >
@@ -94,12 +126,15 @@ export default function TournamentsPage() {
             {playersQ.isLoading && <div className="text-sm text-zinc-400">Loading players…</div>}
             {playersQ.error && <div className="text-sm text-red-400">{String(playersQ.error)}</div>}
             <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
-              {playersQ.data?.map(p => (
-                <label key={p.id} className="flex items-center gap-2 rounded-lg border border-zinc-800 px-2 py-2 text-sm hover:bg-zinc-900/30">
+              {playersQ.data?.map((p) => (
+                <label
+                  key={p.id}
+                  className="flex items-center gap-2 rounded-lg border border-zinc-800 px-2 py-2 text-sm hover:bg-zinc-900/30"
+                >
                   <input
                     type="checkbox"
                     checked={!!selected[p.id]}
-                    onChange={(e) => setSelected(prev => ({ ...prev, [p.id]: e.target.checked }))}
+                    onChange={(e) => setSelected((prev) => ({ ...prev, [p.id]: e.target.checked }))}
                   />
                   <span className="truncate">{p.display_name}</span>
                 </label>
@@ -108,12 +143,12 @@ export default function TournamentsPage() {
             <div className="mt-2 text-xs text-zinc-500">Selected: {selectedIds.length}</div>
           </div>
 
-          {createMut.error && (
-            <div className="text-sm text-red-400">{String(createMut.error)}</div>
-          )}
+          {createMut.error && <div className="text-sm text-red-400">{String(createMut.error)}</div>}
 
           <div className="flex items-center justify-end gap-2">
-            <Button variant="ghost" onClick={() => setOpen(false)} type="button">Cancel</Button>
+            <Button variant="ghost" onClick={() => setOpen(false)} type="button">
+              Cancel
+            </Button>
             <Button onClick={() => createMut.mutate()} disabled={createMut.isPending} type="button">
               {createMut.isPending ? "Creating…" : "Create"}
             </Button>

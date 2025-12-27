@@ -9,6 +9,7 @@ export type Tournament = {
   name: string;
   mode: "1v1" | "2v2";
   status: string;
+  date: string;
 };
 
 export type MatchSide = {
