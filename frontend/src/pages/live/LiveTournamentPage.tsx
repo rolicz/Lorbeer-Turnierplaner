@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import Card from "../../ui/primitives/Card";
 import Button from "../../ui/primitives/Button";
+import CollapsibleCard from "../../ui/primitives/CollapsibleCard";
 
 import {
   getTournament,
@@ -96,8 +97,11 @@ function starsLabel(v: any): string {
   return String(v ?? "");
 }
 
-
-
+function statusPillClass(status: string) {
+  if (status === "live") return "border-indigo-500/40 bg-indigo-500/10 text-indigo-300";
+  if (status === "done") return "border-emerald-500/40 bg-emerald-500/10 text-emerald-300";
+  return "border-zinc-700 bg-zinc-900/40 text-zinc-300"; // draft / fallback
+}
 
 export default function LiveTournamentPage() {
   const { id } = useParams();
@@ -176,14 +180,12 @@ export default function LiveTournamentPage() {
     if (!showDeciderReadOnly) return null;
     if (decider.type === "none") return "No decider (kept as draw).";
 
-
     const w = decider.winner_player_id ? playerNameById.get(decider.winner_player_id) ?? `#${decider.winner_player_id}` : "—";
     const l = decider.loser_player_id ? playerNameById.get(decider.loser_player_id) ?? `#${decider.loser_player_id}` : "—";
     const score =
       decider.winner_goals != null && decider.loser_goals != null ? `${decider.winner_goals}-${decider.loser_goals}` : "—";
     return `${decider.type.charAt(0).toUpperCase() + decider.type.slice(1)}: ${w} ${score} ${l}`;
   }, [showDeciderReadOnly, decider, playerNameById]);
-
 
   // --- mutations ---
   const enableLegMut = useMutation({
@@ -286,7 +288,6 @@ export default function LiveTournamentPage() {
 
   // --- clubs ---
   const [clubGame, setClubGame] = useState("EA FC 26");
-  const [clubSearch, setClubSearch] = useState("");
 
   const clubsQ = useQuery({
     queryKey: ["clubs", clubGame],
@@ -294,12 +295,7 @@ export default function LiveTournamentPage() {
     enabled: !!tid,
   });
 
-  const clubsFiltered = useMemo(() => {
-    const clubs = clubsQ.data ?? [];
-    const q = clubSearch.trim().toLowerCase();
-    if (!q) return clubs;
-    return clubs.filter((c) => c.name.toLowerCase().includes(q));
-  }, [clubsQ.data, clubSearch]);
+  const clubs = clubsQ.data ?? [];
 
   const clubById = useMemo(() => {
     const m = new Map<number, string>();
@@ -323,6 +319,7 @@ export default function LiveTournamentPage() {
   );
 
   const canEditMatch = isEditorOrAdmin && !isDone;
+  const canReorder = isEditorOrAdmin && !isDone;
 
   const [aClub, setAClub] = useState<number | null>(null);
   const [bClub, setBClub] = useState<number | null>(null);
@@ -361,29 +358,38 @@ export default function LiveTournamentPage() {
 
   const [panelError, setPanelError] = useState<string | null>(null);
 
-  if (!tid) return <Card title="Live">Invalid tournament id</Card>;
+  if (!tid) return <Card title="Tournament" variant="plain">Invalid tournament id</Card>;
 
-  const showControls = isEditorOrAdmin; // readers don’t see the control panel
+  const showControls = isEditorOrAdmin;
 
-  const canReorder = isEditorOrAdmin && !isDone;
+  const cardTitle = tQ.data?.name ? tQ.data.name : `Tournament #${tid}`;
 
   return (
     <div className="space-y-4">
-      <Card title={`Live Tournament #${tid}`}>
+      <Card title={cardTitle} variant="plain">
         {tQ.isLoading && <div className="text-zinc-400">Loading…</div>}
         {tQ.error && <div className="text-red-400 text-sm">{String(tQ.error)}</div>}
 
         {tQ.data && (
           <div className="space-y-3">
-            <div className="flex items-center justify-between gap-2">
-              <div>
-                <div className="text-lg font-semibold">{tQ.data.name}</div>
-                <div className="text-sm text-zinc-400">
-                  {tQ.data.mode} · {tQ.data.status} · {fmtDate(tQ.data.date)}
-                </div>
+            {/* Meta row: mode · status · date (no duplicate name) */}
+
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex flex-wrap items-center gap-2 text-sm">
+                <span className="rounded-full border border-zinc-700 bg-zinc-900/30 px-2.5 py-1 text-zinc-300">
+                  {tQ.data.mode}
+                </span>
+                <span className={`rounded-full border px-2.5 py-1 ${statusPillClass(tQ.data.status)}`}>
+                  {tQ.data.status}
+                </span>
+                <span className="rounded-full border border-zinc-700 bg-zinc-900/30 px-2.5 py-1 text-zinc-300">
+                  {fmtDate(tQ.data.date)}
+                </span>
               </div>
-              <Button variant="ghost" onClick={() => tQ.refetch()}>
-                Refetch
+
+              {/* keep, but small + unobtrusive */}
+              <Button variant="ghost" onClick={() => tQ.refetch()} title="Refetch">
+                ↻
               </Button>
             </div>
 
@@ -400,101 +406,111 @@ export default function LiveTournamentPage() {
               </div>
             )}
 
-            {/* Control panel (editor+admin only) */}
+            {/* Control panel (collapsed by default) */}
             {showControls && (
-              <AdminPanel
-                role={role}
-                status={tQ.data.status}
-                secondLegEnabled={secondLegEnabled}
-                busy={
-                  enableLegMut.isPending ||
-                  disableLegMut.isPending ||
-                  reorderMut.isPending ||
-                  statusMut.isPending ||
-                  deleteMut.isPending ||
-                  dateMut.isPending ||
-                  deciderMut.isPending
-                }
-                error={panelError}
-                onSetLive={() => {
-                  setPanelError(null);
-                  statusMut.mutate("live", { onError: (e: any) => setPanelError(e?.message ?? String(e)) });
-                }}
-                onFinalize={() => {
-                  setPanelError(null);
-                  statusMut.mutate("done", { onError: (e: any) => setPanelError(e?.message ?? String(e)) });
-                }}
-                onSetDraft={() => {
-                  setPanelError(null);
-                  statusMut.mutate("draft", { onError: (e: any) => setPanelError(e?.message ?? String(e)) });
-                }}
-                onEnableSecondLeg={() => {
-                  setPanelError(null);
-                  enableLegMut.mutate(undefined, { onError: (e: any) => setPanelError(e?.message ?? String(e)) });
-                }}
-                onDisableSecondLeg={() => {
-                  setPanelError(null);
-                  disableLegMut.mutate(undefined, { onError: (e: any) => setPanelError(e?.message ?? String(e)) });
-                }}
-                onReshuffle={() => {
-                  setPanelError(null);
-                  const ids = matchesSorted.map((m) => m.id);
-                  reorderMut.mutate(shuffle(ids), { onError: (e: any) => setPanelError(e?.message ?? String(e)) });
-                }}
-                onDeleteTournament={() => {
-                  if (!isAdmin) return;
-                  const ok = window.confirm("Delete tournament permanently?");
-                  if (!ok) return;
-                  setPanelError(null);
-                  deleteMut.mutate(undefined, { onError: (e: any) => setPanelError(e?.message ?? String(e)) });
-                }}
-                // date editor: admin only
-                dateValue={isAdmin ? editDate : undefined}
-                onDateChange={isAdmin ? setEditDate : undefined}
-                onSaveDate={isAdmin ? () => dateMut.mutate() : undefined}
-                dateBusy={dateMut.isPending}
-                // decider editor: editor+admin
-                showDeciderEditor={showDeciderEditor}
-                deciderCandidates={topDrawInfo.candidates}
-                currentDecider={decider}
-                onSaveDecider={
-                  isEditorOrAdmin
-                    ? (body) => {
-                        setPanelError(null);
-                        deciderMut.mutate(body, { onError: (e: any) => setPanelError(e?.message ?? String(e)) });
-                      }
-                    : undefined
-                }
-                deciderBusy={deciderMut.isPending}
-              />
+              <CollapsibleCard
+                title={role === "admin" ? "Admin controls" : "Editor controls"}
+                defaultOpen={false}
+              >
+                <AdminPanel
+                  wrap={false}
+                  role={role}
+                  status={tQ.data.status}
+                  secondLegEnabled={secondLegEnabled}
+                  busy={
+                    enableLegMut.isPending ||
+                    disableLegMut.isPending ||
+                    reorderMut.isPending ||
+                    statusMut.isPending ||
+                    deleteMut.isPending ||
+                    dateMut.isPending ||
+                    deciderMut.isPending
+                  }
+                  error={panelError}
+                  onSetLive={() => {
+                    setPanelError(null);
+                    statusMut.mutate("live", { onError: (e: any) => setPanelError(e?.message ?? String(e)) });
+                  }}
+                  onFinalize={() => {
+                    setPanelError(null);
+                    statusMut.mutate("done", { onError: (e: any) => setPanelError(e?.message ?? String(e)) });
+                  }}
+                  onSetDraft={() => {
+                    setPanelError(null);
+                    statusMut.mutate("draft", { onError: (e: any) => setPanelError(e?.message ?? String(e)) });
+                  }}
+                  onEnableSecondLeg={() => {
+                    setPanelError(null);
+                    enableLegMut.mutate(undefined, { onError: (e: any) => setPanelError(e?.message ?? String(e)) });
+                  }}
+                  onDisableSecondLeg={() => {
+                    setPanelError(null);
+                    disableLegMut.mutate(undefined, { onError: (e: any) => setPanelError(e?.message ?? String(e)) });
+                  }}
+                  onReshuffle={() => {
+                    setPanelError(null);
+                    const ids = matchesSorted.map((m) => m.id);
+                    reorderMut.mutate(shuffle(ids), { onError: (e: any) => setPanelError(e?.message ?? String(e)) });
+                  }}
+                  onDeleteTournament={() => {
+                    if (!isAdmin) return;
+                    const ok = window.confirm("Delete tournament permanently?");
+                    if (!ok) return;
+                    setPanelError(null);
+                    deleteMut.mutate(undefined, { onError: (e: any) => setPanelError(e?.message ?? String(e)) });
+                  }}
+                  // date editor: admin only
+                  dateValue={isAdmin ? editDate : undefined}
+                  onDateChange={isAdmin ? setEditDate : undefined}
+                  onSaveDate={isAdmin ? () => dateMut.mutate() : undefined}
+                  dateBusy={dateMut.isPending}
+                  // decider editor: editor+admin
+                  showDeciderEditor={showDeciderEditor}
+                  deciderCandidates={topDrawInfo.candidates}
+                  currentDecider={decider}
+                  onSaveDecider={
+                    isEditorOrAdmin
+                      ? (body) => {
+                          setPanelError(null);
+                          deciderMut.mutate(body, { onError: (e: any) => setPanelError(e?.message ?? String(e)) });
+                        }
+                      : undefined
+                  }
+                  deciderBusy={deciderMut.isPending}
+                />
+              </CollapsibleCard>
             )}
 
-            <StandingsTable matches={matchesSorted} players={tQ.data.players} />
+            <CollapsibleCard title={tQ.data.status === "done" ? "Results" : "Standings (live)"} defaultOpen={true}>
+              <StandingsTable wrap={false} matches={matchesSorted} players={tQ.data.players} />
+            </CollapsibleCard>
 
-            <MatchList
-              matches={matchesSorted}
-              canEdit={canEditMatch}
-              canReorder={canReorder}
-              busyReorder={reorderMut.isPending}
-              onEditMatch={openEditor}
-              onMoveUp={(matchId) => {
-                if (!canReorder) return;
-                const idx = matchesSorted.findIndex((x) => x.id === matchId);
-                if (idx <= 0) return;
-                const ids = matchesSorted.map((x) => x.id);
-                [ids[idx - 1], ids[idx]] = [ids[idx], ids[idx - 1]];
-                reorderMut.mutate(ids);
-              }}
-              onMoveDown={(matchId) => {
-                if (!canReorder) return;
-                const idx = matchesSorted.findIndex((x) => x.id === matchId);
-                if (idx < 0 || idx >= matchesSorted.length - 1) return;
-                const ids = matchesSorted.map((x) => x.id);
-                [ids[idx], ids[idx + 1]] = [ids[idx + 1], ids[idx]];
-                reorderMut.mutate(ids);
-              }}
-              clubLabel={clubLabel}
-            />
+            <CollapsibleCard title="Matches" defaultOpen={true}>
+              <MatchList
+                matches={matchesSorted}
+                canEdit={canEditMatch}
+                canReorder={canReorder}
+                busyReorder={reorderMut.isPending}
+                onEditMatch={openEditor}
+                onMoveUp={(matchId) => {
+                  if (!canReorder) return;
+                  const idx = matchesSorted.findIndex((x) => x.id === matchId);
+                  if (idx <= 0) return;
+                  const ids = matchesSorted.map((x) => x.id);
+                  [ids[idx - 1], ids[idx]] = [ids[idx], ids[idx - 1]];
+                  reorderMut.mutate(ids);
+                }}
+                onMoveDown={(matchId) => {
+                  if (!canReorder) return;
+                  const idx = matchesSorted.findIndex((x) => x.id === matchId);
+                  if (idx < 0 || idx >= matchesSorted.length - 1) return;
+                  const ids = matchesSorted.map((x) => x.id);
+                  [ids[idx], ids[idx + 1]] = [ids[idx + 1], ids[idx]];
+                  reorderMut.mutate(ids);
+                }}
+                clubLabel={clubLabel}
+              />
+            </CollapsibleCard>
 
             {!canEditMatch && role !== "reader" && isDone && (
               <div className="rounded-xl border border-zinc-800 bg-zinc-900/20 px-3 py-2 text-sm text-zinc-400">
@@ -515,13 +531,11 @@ export default function LiveTournamentPage() {
         open={open}
         onClose={() => setOpen(false)}
         match={selectedMatch}
-        clubs={clubsFiltered}
+        clubs={clubs}
         clubsLoading={clubsQ.isLoading}
         clubsError={clubsQ.error ? String(clubsQ.error) : null}
         clubGame={clubGame}
-        clubSearch={clubSearch}
         setClubGame={setClubGame}
-        setClubSearch={setClubSearch}
         aClub={aClub}
         bClub={bClub}
         setAClub={setAClub}

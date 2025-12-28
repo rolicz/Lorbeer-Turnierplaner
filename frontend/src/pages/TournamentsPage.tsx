@@ -67,7 +67,7 @@ export default function TournamentsPage() {
 
   return (
     <div className="space-y-4">
-      <Card title="Tournaments">
+      <Card title="Tournaments" variant="plain">
         <div className="flex items-center justify-between gap-2">
           <div className="text-sm text-zinc-400">Active + past tournaments.</div>
           <div className="flex items-center gap-2">

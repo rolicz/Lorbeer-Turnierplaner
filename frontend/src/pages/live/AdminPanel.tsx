@@ -39,6 +39,7 @@ export default function AdminPanel({
   currentDecider,
   onSaveDecider,
   deciderBusy,
+  wrap = true,
 }: {
   role: "reader" | "editor" | "admin";
   status: Status;
@@ -79,6 +80,7 @@ export default function AdminPanel({
     loser_goals: number | null;
   }) => void;
   deciderBusy?: boolean;
+  wrap?: boolean;
 }) {
   const isAdmin = role === "admin";
   const isEditorOrAdmin = role === "editor" || role === "admin";
@@ -163,13 +165,9 @@ export default function AdminPanel({
         normalizeInt(wGoals) == null ||
         normalizeInt(lGoals) == null));
 
-  return (
-    <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-4">
-      <div className="mb-2 text-base font-semibold">
-        {role === "admin" ? "Admin controls" : "Editor controls"}
-      </div>
-
-      <div className="mb-3 text-sm text-zinc-400">
+        
+      
+    const content = (<><div className="mb-3 text-sm text-zinc-400">
         status: <span className="accent">{status}</span> · second leg:{" "}
         <span className="accent">{secondLegEnabled ? "enabled" : "off"}</span>
       </div>
@@ -369,6 +367,16 @@ export default function AdminPanel({
       )}
 
       {error && <div className="mt-2 text-sm text-red-400">{error}</div>}
-    </div>
-  );
+    </>);
+    
+    if (!wrap) return content;
+
+    return (
+    <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-4">
+      <div className="mb-2 text-base font-semibold">
+        {role === "admin" ? "Admin controls" : "Editor controls"}
+      </div>
+      {content}
+    </div>);
+
 }

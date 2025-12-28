@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import type { Match, Player } from "../../api/types";
-import Card from "../../ui/primitives/Card";
 import { sideBy } from "./helpers";
+import Card from "../../ui/primitives/Card";
 
 type Row = {
   playerId: number;
@@ -109,15 +109,7 @@ function Arrow({ delta }: { delta: number | null }) {
   return <span className="text-zinc-500">–</span>;
 }
 
-function MobileRow({
-  r,
-  rank,
-  delta,
-}: {
-  r: Row;
-  rank: number;
-  delta: number | null;
-}) {
+function MobileRow({ r, rank, delta }: { r: Row; rank: number; delta: number | null }) {
   return (
     <div className="rounded-xl border border-zinc-800 bg-zinc-900/10 px-3 py-2">
       <div className="flex items-start justify-between gap-3">
@@ -147,10 +139,13 @@ export default function StandingsTable({
   matches,
   players,
   tournamentStatus,
+  wrap = true,
 }: {
   matches: Match[];
   players: Player[];
   tournamentStatus?: "draft" | "live" | "done";
+  /** If false, renders borderless (for embedding inside another Card/Collapsible). */
+  wrap?: boolean;
 }) {
   const baseRows = useMemo(() => computeStandings(matches, players, "finished"), [matches, players]);
   const liveRows = useMemo(() => computeStandings(matches, players, "live"), [matches, players]);
@@ -158,9 +153,9 @@ export default function StandingsTable({
 
   const title = tournamentStatus === "done" ? "Results" : "Standings (live)";
 
-  return (
-    <Card title={title}>
-      {/* Mobile: compact cards (no horizontal scrolling, far less vertical waste) */}
+  const content = (
+    <>
+      {/* Mobile */}
       <div className="sm:hidden space-y-2">
         {liveRows.map((r, idx) => {
           const baseIdx = basePos.get(r.playerId);
@@ -169,7 +164,7 @@ export default function StandingsTable({
         })}
       </div>
 
-      {/* Desktop: table */}
+      {/* Desktop */}
       <div className="hidden sm:block overflow-x-auto">
         <table className="min-w-[760px] w-full text-sm">
           <thead className="text-zinc-400">
@@ -214,6 +209,10 @@ export default function StandingsTable({
           </tbody>
         </table>
       </div>
-    </Card>
+    </>
   );
+
+  if (!wrap) return content;
+
+  return <Card title={title}>{content}</Card>;
 }

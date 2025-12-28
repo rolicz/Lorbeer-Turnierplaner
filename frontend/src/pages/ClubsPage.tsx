@@ -104,7 +104,7 @@ export default function ClubsPage() {
 
   return (
     <div className="space-y-4">
-      <Card title="Clubs (Teams)">
+      <Card title="Clubs (Teams)" variant="plain">
         <div className="grid gap-3 md:grid-cols-3">
           <Input label="Game" value={game} onChange={(e) => setGame(e.target.value)} />
           <Input

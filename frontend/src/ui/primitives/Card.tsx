@@ -1,6 +1,24 @@
-export default function Card({ title, children }: { title: string; children: React.ReactNode }) {
+import React from "react";
+
+export default function Card({
+  title,
+  children,
+  variant = "card",
+  className = "",
+}: {
+  title: string;
+  children: React.ReactNode;
+  variant?: "card" | "plain";
+  className?: string;
+}) {
+  const base = "p-4";
+  const chrome =
+    variant === "card"
+      ? "rounded-2xl border border-zinc-800 bg-zinc-950 shadow-sm"
+      : "";
+
   return (
-    <section className="rounded-2xl border border-zinc-800 bg-zinc-950 p-4 shadow-sm">
+    <section className={`${base} ${chrome} ${className}`}>
       <div className="mb-3 text-lg font-semibold">{title}</div>
       {children}
     </section>

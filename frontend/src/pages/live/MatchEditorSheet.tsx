@@ -13,9 +13,7 @@ export default function MatchEditorSheet({
   clubsLoading,
   clubsError,
   clubGame,
-  clubSearch,
   setClubGame,
-  setClubSearch,
   aClub,
   bClub,
   setAClub,
@@ -37,9 +35,7 @@ export default function MatchEditorSheet({
   clubsLoading: boolean;
   clubsError: string | null;
   clubGame: string;
-  clubSearch: string;
   setClubGame: (v: string) => void;
-  setClubSearch: (v: string) => void;
   aClub: number | null;
   bClub: number | null;
   setAClub: (v: number | null) => void;
@@ -54,74 +50,204 @@ export default function MatchEditorSheet({
   saving: boolean;
   saveError: string | null;
 }) {
-  const a = match ? sideBy(match, "A") : undefined;
-  const b = match ? sideBy(match, "B") : undefined;
+  const aSide = match ? sideBy(match, "A") : undefined;
+  const bSide = match ? sideBy(match, "B") : undefined;
+
+  const aPlayers = aSide?.players.map((p) => p.display_name).join(" + ") ?? "—";
+  const bPlayers = bSide?.players.map((p) => p.display_name).join(" + ") ?? "—";
+
+  const clubById = useMemo(() => {
+    const m = new Map<number, Club>();
+    for (const c of clubs ?? []) m.set(c.id, c);
+    return m;
+  }, [clubs]);
+
+  const aClubObj = aClub ? clubById.get(aClub) : undefined;
+  const bClubObj = bClub ? clubById.get(bClub) : undefined;
+
+  const aClubLabel = aClubObj ? `${aClubObj.name} (${fmtStars(aClubObj.star_rating)})` : "No club";
+  const bClubLabel = bClubObj ? `${bClubObj.name} (${fmtStars(bClubObj.star_rating)})` : "No club";
 
   return (
     <Sheet open={open} title={`Edit Match #${match?.id ?? "—"}`} onClose={onClose}>
       {!match ? (
         <div className="text-sm text-zinc-400">No match selected.</div>
       ) : (
-        <div className="space-y-4">
-          <div className="rounded-xl border border-zinc-800 p-3">
-            <div className="mb-2 text-sm font-medium">Match State</div>
-            <div className="grid grid-cols-3 gap-2">
-              {(["scheduled", "playing", "finished"] as const).map((s) => (
-                <button
-                  key={s}
-                  type="button"
-                  className={`rounded-xl border px-3 py-2 text-sm ${
-                    state === s ? "border-zinc-600 bg-zinc-900" : "border-zinc-800 hover:bg-zinc-900/40"
-                  }`}
-                  onClick={() => setState(s)}
-                >
-                  {s}
-                </button>
-              ))}
+        <div className="flex max-h-[80vh] flex-col">
+          {/* Scroll area */}
+          <div className="flex-1 space-y-4 overflow-y-auto pr-1 [-webkit-overflow-scrolling:touch]">
+            <div className="rounded-xl border border-zinc-800 p-3">
+              <div className="mb-2 text-sm font-medium">Match State</div>
+              <div className="grid grid-cols-3 gap-2">
+                {(["scheduled", "playing", "finished"] as const).map((s) => (
+                  <button
+                    key={s}
+                    type="button"
+                    className={`rounded-xl border px-3 py-2 text-sm ${
+                      state === s
+                        ? "border-zinc-600 bg-zinc-900"
+                        : "border-zinc-800 hover:bg-zinc-900/40"
+                    }`}
+                    onClick={() => setState(s)}
+                  >
+                    {s}
+                  </button>
+                ))}
+              </div>
+
+              <div className="mt-2 text-xs text-zinc-500">
+                <span className="break-anywhere">{aPlayers}</span>{" "}
+                <span className="text-zinc-600">vs</span>{" "}
+                <span className="break-anywhere">{bPlayers}</span>
+              </div>
             </div>
-            <div className="mt-2 text-xs text-zinc-500">
-              {a?.players.map(p => p.display_name).join(" + ")} vs {b?.players.map(p => p.display_name).join(" + ")}
+
+            {/* Goals (players + club) */}
+            <div className="rounded-xl border border-zinc-800 p-3">
+              <div className="mb-2 text-sm font-medium">Score</div>
+
+              <div className="grid gap-3 md:grid-cols-2">
+                <ScoreInput
+                  title={aPlayers}
+                  subtitle={aClubLabel}
+                  value={aGoals}
+                  onChange={setAGoals}
+                />
+                <ScoreInput
+                  title={bPlayers}
+                  subtitle={bClubLabel}
+                  value={bGoals}
+                  onChange={setBGoals}
+                />
+              </div>
             </div>
+
+            {/* Clubs (no search) */}
+            <div className="rounded-xl border border-zinc-800 p-3">
+              <div className="mb-2 text-sm font-medium">Clubs</div>
+
+              <div className="grid gap-3 md:grid-cols-2">
+                <Input
+                  label="Game"
+                  value={clubGame}
+                  onChange={(e) => setClubGame(e.target.value)}
+                />
+                <div className="hidden md:block" />
+              </div>
+
+              {clubsLoading && (
+                <div className="mt-2 text-sm text-zinc-400">Loading clubs…</div>
+              )}
+              {clubsError && (
+                <div className="mt-2 text-sm text-red-400">{clubsError}</div>
+              )}
+
+              <div className="mt-3 grid gap-3 md:grid-cols-2">
+                <ClubSelect label={aPlayers} clubs={clubs} value={aClub} onChange={setAClub} />
+                <ClubSelect label={bPlayers} clubs={clubs} value={bClub} onChange={setBClub} />
+              </div>
+
+              <div className="mt-2 text-xs text-zinc-500">
+                Tip: change clubs anytime before saving results.
+              </div>
+            </div>
+
+            {saveError && <div className="text-sm text-red-400">{saveError}</div>}
+            <div className="h-2" />
           </div>
 
-          <div className="rounded-xl border border-zinc-800 p-3">
-            <div className="mb-2 text-sm font-medium">Clubs</div>
-            <div className="grid gap-3 md:grid-cols-2">
-              <Input label="Game filter" value={clubGame} onChange={(e) => setClubGame(e.target.value)} />
-              <Input label="Search" value={clubSearch} onChange={(e) => setClubSearch(e.target.value)} placeholder="e.g. Madrid" />
-            </div>
-
-            {clubsLoading && <div className="mt-2 text-sm text-zinc-400">Loading clubs…</div>}
-            {clubsError && <div className="mt-2 text-sm text-red-400">{clubsError}</div>}
-
-            <div className="mt-3 grid gap-3 md:grid-cols-2">
-              <ClubSelect label="Side A club" clubs={clubs} value={aClub} onChange={setAClub} />
-              <ClubSelect label="Side B club" clubs={clubs} value={bClub} onChange={setBClub} />
-            </div>
-          </div>
-
-          <div className="rounded-xl border border-zinc-800 p-3">
-            <div className="mb-2 text-sm font-medium">Goals</div>
-            <div className="grid grid-cols-2 gap-3">
-              <Input label="Side A goals" inputMode="numeric" value={aGoals} onChange={(e) => setAGoals(e.target.value)} />
-              <Input label="Side B goals" inputMode="numeric" value={bGoals} onChange={(e) => setBGoals(e.target.value)} />
-            </div>
-          </div>
-
-          {saveError && <div className="text-sm text-red-400">{saveError}</div>}
-
-          <div className="sticky bottom-0 -mx-4 bg-zinc-950 px-4 py-3 md:static md:mx-0 md:px-0">
-            <div className="flex items-center justify-end gap-2">
-              <Button variant="ghost" onClick={onClose} type="button">Cancel</Button>
-              <Button onClick={onSave} disabled={saving} type="button">
-                {saving ? "Saving…" : "Save"}
-              </Button>
+          {/* Fixed footer */}
+          <div
+            className="sticky bottom-0 shrink-0 border-t border-zinc-800 bg-zinc-950/95 backdrop-blur"
+            style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 1.5rem)" }}
+          >
+            <div className="px-0 pt-3">
+              <div className="flex items-center justify-end gap-2">
+                <Button variant="ghost" onClick={onClose} type="button">
+                  Cancel
+                </Button>
+                <Button onClick={onSave} disabled={saving} type="button">
+                  {saving ? "Saving…" : "Save"}
+                </Button>
+              </div>
             </div>
           </div>
         </div>
       )}
     </Sheet>
   );
+}
+
+/** Compact score input with "headline + muted subtitle". */
+function ScoreInput({
+  title,
+  subtitle,
+  value,
+  onChange,
+}: {
+  title: string;
+  subtitle: string;
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  const n = clampInt(value);
+  function set(v: number) {
+    onChange(String(Math.max(0, v)));
+  }
+
+  return (
+    <div className="rounded-xl border border-zinc-800 p-3">
+      <div className="min-w-0">
+        <div className="truncate text-sm font-medium">{title}</div>
+        <div className="truncate text-xs text-zinc-500">{subtitle}</div>
+      </div>
+
+      <div className="mt-3 flex items-center gap-2 md:justify-start">
+        <button
+          type="button"
+          className="h-12 w-12 md:h-10 md:w-10 rounded-xl border border-zinc-800 bg-zinc-950 text-xl hover:bg-zinc-900/50 active:scale-[0.99]"
+          onClick={() => set(n - 1)}
+          aria-label="Decrease goals"
+        >
+          −
+        </button>
+
+        <input
+          className="h-12 w-20 md:h-10 md:w-16 rounded-xl border border-zinc-800 bg-zinc-950 px-2 text-center text-base outline-none focus:border-zinc-600"
+          type="number"
+          inputMode="numeric"
+          pattern="[0-9]*"
+          min={0}
+          step={1}
+          value={String(n)}
+          onChange={(e) => set(clampInt(e.target.value))}
+          onWheel={(e) => (e.currentTarget as HTMLInputElement).blur()}
+        />
+
+        <button
+          type="button"
+          className="h-12 w-12 md:h-10 md:w-10 rounded-xl border border-zinc-800 bg-zinc-950 text-xl hover:bg-zinc-900/50 active:scale-[0.99]"
+          onClick={() => set(n + 1)}
+          aria-label="Increase goals"
+        >
+          +
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function clampInt(v: string): number {
+  const x = Number.parseInt(String(v ?? "").trim(), 10);
+  if (!Number.isFinite(x) || Number.isNaN(x)) return 0;
+  return Math.max(0, x);
+}
+
+function fmtStars(star: any): string {
+  const n = Number(star ?? 0);
+  if (!Number.isFinite(n)) return "—";
+  // show e.g. 4.5★
+  return `${n.toFixed(1).replace(/\.0$/, "")}★`;
 }
 
 function ClubSelect({
@@ -151,20 +277,18 @@ function ClubSelect({
       arr.push(c);
       m.set(key, arr);
     }
-
     return Array.from(m.entries());
   }, [clubs]);
 
   return (
     <label className="block">
-      <div className="mb-1 text-xs text-zinc-400">{label}</div>
+      <div className="mb-1 truncate text-xs text-zinc-400">{label}</div>
       <select
-        className="w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm outline-none focus:border-zinc-600"
+        className="w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-base sm:text-sm outline-none focus:border-zinc-600"
         value={value ?? ""}
         onChange={(e) => onChange(e.target.value ? Number(e.target.value) : null)}
       >
         <option value="">—</option>
-
         {grouped.map(([starLabel, cs]) => (
           <optgroup key={starLabel} label={starLabel}>
             {cs.map((c) => (
@@ -178,4 +302,3 @@ function ClubSelect({
     </label>
   );
 }
-
