@@ -33,6 +33,11 @@ export default function AdminPanel({
   onSaveDate,
   dateBusy,
 
+  nameValue,
+  onNameChange,
+  onSaveName,
+  nameBusy,
+
   // decider editing (editor+admin)
   showDeciderEditor,
   deciderCandidates,
@@ -63,6 +68,11 @@ export default function AdminPanel({
   onSaveDate?: () => void;
   dateBusy?: boolean;
 
+  nameValue?: string;
+  onNameChange?: (v: string) => void;
+  onSaveName?: () => void;
+  nameBusy?: boolean;
+
   showDeciderEditor?: boolean; // show editor UI only if done + top draw (or whatever rule you want)
   deciderCandidates?: Candidate[];
   currentDecider?: {
@@ -90,6 +100,7 @@ export default function AdminPanel({
   const canUseNonDeciderControls = isAdmin || (!done && role === "editor");
 
   const showDateEditor = isAdmin && !!onSaveDate && !!onDateChange;
+  const showNameEditor = isAdmin && !!onSaveName && !!onNameChange;
 
   const candidates = deciderCandidates ?? [];
   const candById = useMemo(() => new Map(candidates.map((c) => [c.id, c.name] as const)), [candidates]);
@@ -235,6 +246,34 @@ export default function AdminPanel({
           </div>
 
           <div className="mt-2 text-xs text-zinc-500">Admin-only (for backfilling past tournaments).</div>
+        </div>
+      )}
+      {showNameEditor && (
+        <div className="mt-4 rounded-xl border border-zinc-800 bg-zinc-900/10 p-3">
+          <div className="mb-2 text-sm font-medium">Tournament name</div>
+      
+          <div className="flex flex-wrap items-end gap-2">
+            <label className="block flex-1 min-w-[220px]">
+              <div className="mb-1 text-xs text-zinc-400">Name</div>
+              <input
+                type="text"
+                className="w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm outline-none focus:border-zinc-600"
+                value={nameValue ?? ""}
+                onChange={(e) => onNameChange?.(e.target.value)}
+                placeholder="e.g. Christmas Cup"
+              />
+            </label>
+      
+            <Button
+              variant="ghost"
+              onClick={() => onSaveName?.()}
+              disabled={busy || !!nameBusy || !(nameValue ?? "").trim()}
+            >
+              {nameBusy ? "Saving…" : "Save name"}
+            </Button>
+          </div>
+      
+          <div className="mt-2 text-xs text-zinc-500">Admin-only.</div>
         </div>
       )}
 

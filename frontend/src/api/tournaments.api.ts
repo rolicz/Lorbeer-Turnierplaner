@@ -92,6 +92,14 @@ export function patchTournamentDate(token: string, tournamentId: number, date: s
   });
 }
 
+export function patchTournamentName(token: string, tournamentId: number, name: string) {
+  return apiFetch(`/tournaments/${tournamentId}/name`, {
+    method: "PATCH",
+    token,
+    body: JSON.stringify({ name }),
+  });
+}
+
 export function patchTournamentDecider(
   token: string,
   tournamentId: number,

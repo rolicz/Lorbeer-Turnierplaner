@@ -14,7 +14,8 @@ import {
   patchTournamentStatus,
   deleteTournament,
   patchTournamentDate,
-  patchTournamentDecider, // must exist in your tournaments.api.ts
+  patchTournamentName,
+  patchTournamentDecider,
 } from "../../api/tournaments.api";
 
 import { patchMatch } from "../../api/matches.api";
@@ -266,6 +267,24 @@ export default function LiveTournamentPage() {
     },
   });
 
+  const [editName, setEditName] = useState("");
+
+  useEffect(() => {
+    if (tQ.data?.name) setEditName(tQ.data.name);
+  }, [tQ.data?.name]);
+  const nameMut = useMutation({
+    mutationFn: async () => {
+      if (!token) throw new Error("Not logged in");
+      if (!tid) throw new Error("No tournament id");
+      return patchTournamentName(token, tid, editName.trim());
+    },
+    onSuccess: async () => {
+      if (tid) await qc.invalidateQueries({ queryKey: ["tournament", tid] });
+      await qc.invalidateQueries({ queryKey: ["tournaments"] });
+      await qc.invalidateQueries({ queryKey: ["cup"] }).catch(() => {});
+    },
+  });
+
   // --- decider patch (editor+admin) ---
   const deciderMut = useMutation({
     mutationFn: async (body: {
@@ -424,6 +443,7 @@ export default function LiveTournamentPage() {
                     statusMut.isPending ||
                     deleteMut.isPending ||
                     dateMut.isPending ||
+                    nameMut.isPending ||
                     deciderMut.isPending
                   }
                   error={panelError}
@@ -464,6 +484,11 @@ export default function LiveTournamentPage() {
                   onDateChange={isAdmin ? setEditDate : undefined}
                   onSaveDate={isAdmin ? () => dateMut.mutate() : undefined}
                   dateBusy={dateMut.isPending}
+                  // name editor: admin only
+                  nameValue={isAdmin ? editName : undefined}
+                  onNameChange={isAdmin ? setEditName : undefined}
+                  onSaveName={isAdmin ? () => nameMut.mutate() : undefined}
+                  nameBusy={nameMut.isPending}
                   // decider editor: editor+admin
                   showDeciderEditor={showDeciderEditor}
                   deciderCandidates={topDrawInfo.candidates}

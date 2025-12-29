@@ -309,6 +309,35 @@ async def patch_date(
     log.info("Tournament date changed: tournament_id=%s date=%s by=%s", tournament_id, t.date, role)
     return {"ok": True, "date": t.date}
 
+@router.patch("/{tournament_id}/name", dependencies=[Depends(require_admin)])
+async def patch_name(
+    tournament_id: int,
+    body: dict,
+    s: Session = Depends(get_session),
+    role: str = Depends(require_admin),
+):
+    """
+    body: { "name": "..." }
+
+    Admin only:
+      - rename tournament anytime
+    """
+    t = _tournament_or_404(s, tournament_id)
+
+    name = str(body.get("name") or "").strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="Missing name")
+
+    t.name = name
+    t.updated_at = datetime.utcnow()
+    s.add(t)
+    s.commit()
+    s.refresh(t)
+
+    await ws_manager.broadcast(tournament_id, "tournament_updated", {"tournament_id": tournament_id})
+    log.info("Tournament renamed: tournament_id=%s name=%s by=%s", tournament_id, t.name, role)
+
+    return {"ok": True, "name": t.name}
 
 @router.post("/{tournament_id}/players", dependencies=[Depends(require_admin)])
 async def add_player(tournament_id: int, body: dict, s: Session = Depends(get_session)):
