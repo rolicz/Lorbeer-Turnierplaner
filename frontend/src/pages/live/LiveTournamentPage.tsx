@@ -185,7 +185,8 @@ export default function LiveTournamentPage() {
     const l = decider.loser_player_id ? playerNameById.get(decider.loser_player_id) ?? `#${decider.loser_player_id}` : "—";
     const score =
       decider.winner_goals != null && decider.loser_goals != null ? `${decider.winner_goals}-${decider.loser_goals}` : "—";
-    return `${decider.type.charAt(0).toUpperCase() + decider.type.slice(1)}: ${w} ${score} ${l}`;
+    const decider_text = decider.type === "none" ? "Keep draw" : decider.type === "scheresteinpapier" ? "Schere-Stein-Papier Turnier" : decider.type === "match" ? "Match" : decider.type === "penalties" ? "Penalties" : decider.type;
+    return `${decider_text}: ${w} ${score} ${l}`;
   }, [showDeciderReadOnly, decider, playerNameById]);
 
   // --- mutations ---
@@ -288,7 +289,7 @@ export default function LiveTournamentPage() {
   // --- decider patch (editor+admin) ---
   const deciderMut = useMutation({
     mutationFn: async (body: {
-      type: "none" | "penalties" | "match";
+      type: "none" | "penalties" | "match" | "scheresteinpapier";
       winner_player_id: number | null;
       loser_player_id: number | null;
       winner_goals: number | null;
@@ -412,18 +413,6 @@ export default function LiveTournamentPage() {
               </Button>
             </div>
 
-            {/* Read-only decider card (visible to everyone) */}
-            {showDeciderReadOnly && (
-              <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-4">
-                <div className="text-base font-semibold">Decider</div>
-                <div className="mt-1 text-sm text-zinc-300">{deciderSummary}</div>
-                {decider.type === "none" && topDrawInfo.isTopDraw && (
-                  <div className="mt-1 text-xs text-zinc-500">
-                    Tournament ended tied at the top. A decider can be set (penalties or deciding match).
-                  </div>
-                )}
-              </div>
-            )}
 
             {/* Control panel (collapsed by default) */}
             {showControls && (
@@ -504,6 +493,19 @@ export default function LiveTournamentPage() {
                   deciderBusy={deciderMut.isPending}
                 />
               </CollapsibleCard>
+            )}
+
+            {/* Read-only decider card (visible to everyone) */}
+            {showDeciderReadOnly && (
+              <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-4">
+                <div className="text-base font-semibold">Decider</div>
+                <div className="mt-1 text-sm text-zinc-300">{deciderSummary}</div>
+                {decider.type === "none" && topDrawInfo.isTopDraw && (
+                  <div className="mt-1 text-xs text-zinc-500">
+                    Tournament ended tied at the top. A decider can be set (penalties or deciding match).
+                  </div>
+                )}
+              </div>
             )}
 
             <CollapsibleCard title={tQ.data.status === "done" ? "Results" : "Standings (live)"} defaultOpen={true}>

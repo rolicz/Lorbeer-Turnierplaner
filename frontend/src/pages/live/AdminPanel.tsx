@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import Button from "../../ui/primitives/Button";
 
 type Status = "draft" | "live" | "done";
-type DeciderType = "none" | "penalties" | "match";
+type DeciderType = "none" | "penalties" | "match" | "scheresteinpapier";
 
 type Candidate = { id: number; name: string };
 
@@ -289,7 +289,7 @@ export default function AdminPanel({
           {canEditDecider && (
             <div className="space-y-3">
               <div className="flex flex-wrap gap-2">
-                {(["none", "penalties", "match"] as const).map((k) => (
+                {(["none", "penalties", "match", "scheresteinpapier"] as const).map((k) => (
                   <button
                     key={k}
                     type="button"
@@ -299,7 +299,7 @@ export default function AdminPanel({
                     onClick={() => setDType(k)}
                     disabled={busy || !!deciderBusy}
                   >
-                    {k === "none" ? "Keep draw" : k}
+                    {k === "none" ? "Keep draw" : k === "scheresteinpapier" ? "Schere-Stein-Papier Turnier" : k === "match" ? "Match" : k === "penalties" ? "Penalties" : k}
                   </button>
                 ))}
               </div>

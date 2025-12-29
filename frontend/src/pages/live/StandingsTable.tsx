@@ -109,6 +109,7 @@ function Arrow({ delta }: { delta: number | null }) {
   return <span className="text-zinc-500">–</span>;
 }
 
+
 function MobileRow({ r, rank, delta }: { r: Row; rank: number; delta: number | null }) {
   return (
     <div className="rounded-xl border border-zinc-800 bg-zinc-900/10 px-3 py-2">
@@ -122,7 +123,7 @@ function MobileRow({ r, rank, delta }: { r: Row; rank: number; delta: number | n
             <div className="min-w-0 truncate font-medium">{r.name}</div>
           </div>
           <div className="mt-1 text-xs text-zinc-500 font-mono tabular-nums">
-            {r.played}P · {r.wins}-{r.draws}-{r.losses} · GD {r.gd}
+            {r.played}P · {r.wins}-{r.draws}-{r.losses} · GD {r.gd} (+{r.gf}/-{r.ga})
           </div>
         </div>
 
@@ -176,8 +177,8 @@ export default function StandingsTable({
               <th className="py-2 text-right font-medium">W</th>
               <th className="py-2 text-right font-medium">D</th>
               <th className="py-2 text-right font-medium">L</th>
-              <th className="py-2 text-right font-medium">GF</th>
-              <th className="py-2 text-right font-medium">GA</th>
+              <th className="py-2 text-right font-medium">+</th>
+              <th className="py-2 text-right font-medium">-</th>
               <th className="py-2 text-right font-medium">GD</th>
               <th className="py-2 text-right font-semibold">Pts</th>
             </tr>

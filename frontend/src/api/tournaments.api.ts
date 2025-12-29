@@ -104,7 +104,7 @@ export function patchTournamentDecider(
   token: string,
   tournamentId: number,
   body: {
-    type: "none" | "penalties" | "match";
+    type: "none" | "penalties" | "match" | "scheresteinpapier";
     winner_player_id: number | null;
     loser_player_id: number | null;
     winner_goals: number | null;

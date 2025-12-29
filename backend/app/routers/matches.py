@@ -21,6 +21,29 @@ def _club_exists(s: Session, club_id: int) -> None:
     if s.get(Club, club_id) is None:
         raise HTTPException(status_code=400, detail=f"Unknown club_id {club_id}")
 
+def _state_rank(state: str) -> int:
+    # finished first, then playing, then scheduled (monotonic increasing)
+    return {"finished": 0, "playing": 1, "scheduled": 2}.get(state, 99)
+
+
+def _validate_tournament_state_order(s: Session, tournament_id: int) -> None:
+    matches = s.exec(
+        select(Match)
+        .where(Match.tournament_id == tournament_id)
+        .order_by(Match.order_index)
+    ).all()
+
+    ranks = [_state_rank(m.state) for m in matches]
+    if any(ranks[i] > ranks[i + 1] for i in range(len(ranks) - 1)):
+        raise HTTPException(
+            status_code=409,
+            detail="Invalid order: must be finished… then (optional) one playing… then scheduled…",
+        )
+
+    playing_count = sum(1 for m in matches if m.state == "playing")
+    if playing_count > 1:
+        raise HTTPException(status_code=409, detail="Only one match can be 'playing' at a time")
+
 
 @router.patch("/{match_id}", dependencies=[Depends(require_editor)])
 async def patch_match(
@@ -59,6 +82,7 @@ async def patch_match(
             m.finished_at = datetime.utcnow()
 
         m.state = new_state
+        _validate_tournament_state_order(s, m.tournament_id)
 
     # Optional: accept goals updates in the simple shape your tests use
     # body: {"sideA": {"goals": 1}, "sideB": {"goals": 2}}

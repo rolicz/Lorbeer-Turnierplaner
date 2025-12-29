@@ -205,6 +205,8 @@ def _parse_yyyy_mm_dd(value: str):
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid date (expected YYYY-MM-DD)")
 
+def _state_rank(state: str) -> int:
+    return {"finished": 0, "playing": 1, "scheduled": 2}.get(state, 99)
 
 @router.get("")
 def list_tournaments(s: Session = Depends(get_session)):
@@ -468,22 +470,65 @@ async def generate_schedule(
     return {"ok": True, "matches": len(label_matches), "labels": label_to_name}
 
 
-
 @router.patch("/{tournament_id}/reorder", dependencies=[Depends(require_editor)])
-async def reorder(tournament_id: int, body: dict, s: Session = Depends(get_session), role: str = Depends(require_editor)):
+async def reorder(
+    tournament_id: int,
+    body: dict,
+    s: Session = Depends(get_session),
+    role: str = Depends(require_editor),
+):
+    """
+    body: { "match_ids": [ ... ] }
+
+    Rules:
+      - must include exactly all match ids of the tournament
+      - order must respect progression: finished* -> playing? -> scheduled*
+      - at most one playing match
+      - if tournament has started (any finished/playing exists), those matches must stay as a fixed prefix
+        (you may only reorder the remaining scheduled matches)
+      - if *all* matches are scheduled, you may reshuffle freely
+    """
     t = _tournament_or_404(s, tournament_id)
     if t.status == "done" and role != "admin":
-        raise HTTPException(status_code=403, detail="Tournament is done (admin required to regenerate)")
+        raise HTTPException(status_code=403, detail="Tournament is done (admin required to reorder)")
+
     match_ids = body.get("match_ids")
     if not isinstance(match_ids, list) or not match_ids:
         raise HTTPException(status_code=400, detail="match_ids must be a non-empty list")
 
-    matches = s.exec(select(Match).where(Match.tournament_id == tournament_id)).all()
-    by_id = {m.id: m for m in matches}
+    # Current matches, in current order
+    matches_sorted = s.exec(
+        select(Match)
+        .where(Match.tournament_id == tournament_id)
+        .order_by(Match.order_index)
+    ).all()
+    by_id = {m.id: m for m in matches_sorted}
 
     if set(match_ids) != set(by_id.keys()):
         raise HTTPException(status_code=400, detail="match_ids must include exactly all tournament match ids")
 
+    # Fixed prefix: all non-scheduled matches must keep their exact relative order and remain at the front.
+    fixed_prefix = [m.id for m in matches_sorted if m.state != "scheduled"]
+    if fixed_prefix:
+        if match_ids[: len(fixed_prefix)] != fixed_prefix:
+            raise HTTPException(
+                status_code=409,
+                detail="Tournament already started: finished/playing matches must stay as the prefix; reorder only scheduled matches after that.",
+            )
+
+    # Validate the proposed order respects state progression and single-playing rule
+    ranks = [_state_rank(by_id[mid].state) for mid in match_ids]
+    if any(ranks[i] > ranks[i + 1] for i in range(len(ranks) - 1)):
+        raise HTTPException(
+            status_code=409,
+            detail="Invalid order: must be finished… then (optional) one playing… then scheduled…",
+        )
+
+    playing_count = sum(1 for mid in match_ids if by_id[mid].state == "playing")
+    if playing_count > 1:
+        raise HTTPException(status_code=409, detail="Only one match can be 'playing' at a time")
+
+    # Apply new order
     for idx, mid in enumerate(match_ids):
         by_id[mid].order_index = idx
         s.add(by_id[mid])
@@ -696,7 +741,7 @@ async def delete_tournament(
     return Response(status_code=204)
 
 
-ALLOWED_DECIDERS = ("none", "penalties", "match")
+ALLOWED_DECIDERS = ("none", "penalties", "match", "scheresteinpapier")
 def _compute_points_table_finished(matches: list[Match]) -> dict[int, tuple[int, int, int]]:
     """
     Per-player (points, goal_diff, goals_for) using ONLY finished matches.
@@ -773,7 +818,7 @@ async def patch_decider(
     """
     body:
       {
-        "type": "none" | "penalties" | "match",
+        "type": "none" | "penalties" | "match" | "scheresteinpapier",
         "winner_player_id": number|null,
         "loser_player_id": number|null,
         "winner_goals": number|null,
