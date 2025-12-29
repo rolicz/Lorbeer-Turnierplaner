@@ -139,7 +139,7 @@ export default function LiveTournamentPage() {
   const decider = useMemo(() => {
     const t: any = tQ.data ?? {};
     return {
-      type: (t.decider_type ?? "none") as "none" | "penalties" | "match",
+      type: (t.decider_type ?? "none") as "none" | "penalties" | "match" | "scheresteinpapier",
       winner_player_id: (t.decider_winner_player_id ?? null) as number | null,
       loser_player_id: (t.decider_loser_player_id ?? null) as number | null,
       winner_goals: (t.decider_winner_goals ?? null) as number | null,
@@ -185,7 +185,7 @@ export default function LiveTournamentPage() {
     const l = decider.loser_player_id ? playerNameById.get(decider.loser_player_id) ?? `#${decider.loser_player_id}` : "—";
     const score =
       decider.winner_goals != null && decider.loser_goals != null ? `${decider.winner_goals}-${decider.loser_goals}` : "—";
-    const decider_text = decider.type === "none" ? "Keep draw" : decider.type === "scheresteinpapier" ? "Schere-Stein-Papier Turnier" : decider.type === "match" ? "Match" : decider.type === "penalties" ? "Penalties" : decider.type;
+    const decider_text = decider.type === "scheresteinpapier" ? "Schere-Stein-Papier Turnier" : decider.type === "match" ? "Match" : decider.type === "penalties" ? "Penalties" : decider.type;
     return `${decider_text}: ${w} ${score} ${l}`;
   }, [showDeciderReadOnly, decider, playerNameById]);
 
