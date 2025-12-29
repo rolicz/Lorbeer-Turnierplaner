@@ -82,14 +82,17 @@ export default function CurrentGameSection({
 
   async function save(stateOverride?: "scheduled" | "playing" | "finished") {
     if (!canControl) return;
-    const nextState = stateOverride ?? match.state;
-
+  
+    const nextState: "scheduled" | "playing" | "finished" =
+      stateOverride ?? match.state ?? "scheduled";
+  
     await onPatch(match.id, {
       state: nextState,
       sideA: { club_id: aClub, goals: aGoals },
       sideB: { club_id: bClub, goals: bGoals },
     });
   }
+
 
   return (
     <div className="space-y-3">
