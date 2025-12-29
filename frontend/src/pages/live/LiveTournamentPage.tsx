@@ -20,7 +20,7 @@ import {
 
 import { patchMatch } from "../../api/matches.api";
 import { listClubs } from "../../api/clubs.api";
-import type { Match } from "../../api/types";
+import type { Match, Club } from "../../api/types";
 
 import { useTournamentWS } from "../../hooks/useTournamentWS";
 import { useAuth } from "../../auth/AuthContext";
@@ -29,6 +29,7 @@ import AdminPanel from "./AdminPanel";
 import MatchList from "./MatchList";
 import MatchEditorSheet from "./MatchEditorSheet";
 import StandingsTable from "./StandingsTable";
+import CurrentGameSection from "./CurrentGameSection";
 import { shuffle, sideBy } from "./helpers";
 
 import { fmtDate } from "../../utils/format";
@@ -168,7 +169,7 @@ export default function LiveTournamentPage() {
     return topDrawInfo.isTopDraw;
   }, [isDone, decider.type, topDrawInfo.isTopDraw]);
 
-  // Editor+admin can edit decider only when done + top draw (your requested rule)
+  // Editor+admin can edit decider only when done + top draw
   const showDeciderEditor = isDone && topDrawInfo.isTopDraw;
 
   const playerNameById = useMemo(() => {
@@ -185,7 +186,14 @@ export default function LiveTournamentPage() {
     const l = decider.loser_player_id ? playerNameById.get(decider.loser_player_id) ?? `#${decider.loser_player_id}` : "—";
     const score =
       decider.winner_goals != null && decider.loser_goals != null ? `${decider.winner_goals}-${decider.loser_goals}` : "—";
-    const decider_text = decider.type === "scheresteinpapier" ? "Schere-Stein-Papier Turnier" : decider.type === "match" ? "Match" : decider.type === "penalties" ? "Penalties" : decider.type;
+    const decider_text =
+      decider.type === "scheresteinpapier"
+        ? "Schere-Stein-Papier Turnier"
+        : decider.type === "match"
+          ? "Match"
+          : decider.type === "penalties"
+            ? "Penalties"
+            : decider.type;
     return `${decider_text}: ${w} ${score} ${l}`;
   }, [showDeciderReadOnly, decider, playerNameById]);
 
@@ -269,10 +277,10 @@ export default function LiveTournamentPage() {
   });
 
   const [editName, setEditName] = useState("");
-
   useEffect(() => {
     if (tQ.data?.name) setEditName(tQ.data.name);
   }, [tQ.data?.name]);
+
   const nameMut = useMutation({
     mutationFn: async () => {
       if (!token) throw new Error("Not logged in");
@@ -315,7 +323,7 @@ export default function LiveTournamentPage() {
     enabled: !!tid,
   });
 
-  const clubs = clubsQ.data ?? [];
+  const clubs: Club[] = (clubsQ.data ?? []) as any;
 
   const clubById = useMemo(() => {
     const m = new Map<number, string>();
@@ -329,6 +337,25 @@ export default function LiveTournamentPage() {
     if (!clubId) return "—";
     return clubById.get(clubId) ?? `#${clubId}`;
   };
+
+  // --- current game (only for status=live, hidden if none left) ---
+  const currentMatch = useMemo(() => {
+    if (status !== "live") return null;
+    const playing = matchesSorted.find((m) => m.state === "playing");
+    if (playing) return playing;
+    return matchesSorted.find((m) => m.state === "scheduled") ?? null;
+  }, [matchesSorted, status]);
+
+  const currentGameMut = useMutation({
+    mutationFn: async (payload: { matchId: number; body: any }) => {
+      if (!token) throw new Error("Not logged in");
+      return patchMatch(token, payload.matchId, payload.body);
+    },
+    onSuccess: async () => {
+      if (tid) await qc.invalidateQueries({ queryKey: ["tournament", tid] });
+      await qc.invalidateQueries({ queryKey: ["cup"] }).catch(() => {});
+    },
+  });
 
   // --- match editor sheet ---
   const [open, setOpen] = useState(false);
@@ -381,7 +408,6 @@ export default function LiveTournamentPage() {
   if (!tid) return <Card title="Tournament" variant="plain">Invalid tournament id</Card>;
 
   const showControls = isEditorOrAdmin;
-
   const cardTitle = tQ.data?.name ? tQ.data.name : `Tournament #${tid}`;
 
   return (
@@ -393,7 +419,6 @@ export default function LiveTournamentPage() {
         {tQ.data && (
           <div className="space-y-3">
             {/* Meta row: mode · status · date (no duplicate name) */}
-
             <div className="flex items-center justify-between gap-3">
               <div className="flex flex-wrap items-center gap-2 text-sm">
                 <span className="rounded-full border border-zinc-700 bg-zinc-900/30 px-2.5 py-1 text-zinc-300">
@@ -407,19 +432,16 @@ export default function LiveTournamentPage() {
                 </span>
               </div>
 
-              {/* keep, but small + unobtrusive */}
               <Button variant="ghost" onClick={() => tQ.refetch()} title="Refetch">
                 ↻
               </Button>
             </div>
 
 
-            {/* Control panel (collapsed by default) */}
+
+            {/* Control panel */}
             {showControls && (
-              <CollapsibleCard
-                title={role === "admin" ? "Admin controls" : "Editor controls"}
-                defaultOpen={false}
-              >
+              <CollapsibleCard title={role === "admin" ? "Admin controls" : "Editor controls"} defaultOpen={false}>
                 <AdminPanel
                   wrap={false}
                   role={role}
@@ -468,17 +490,14 @@ export default function LiveTournamentPage() {
                     setPanelError(null);
                     deleteMut.mutate(undefined, { onError: (e: any) => setPanelError(e?.message ?? String(e)) });
                   }}
-                  // date editor: admin only
                   dateValue={isAdmin ? editDate : undefined}
                   onDateChange={isAdmin ? setEditDate : undefined}
                   onSaveDate={isAdmin ? () => dateMut.mutate() : undefined}
                   dateBusy={dateMut.isPending}
-                  // name editor: admin only
                   nameValue={isAdmin ? editName : undefined}
                   onNameChange={isAdmin ? setEditName : undefined}
                   onSaveName={isAdmin ? () => nameMut.mutate() : undefined}
                   nameBusy={nameMut.isPending}
-                  // decider editor: editor+admin
                   showDeciderEditor={showDeciderEditor}
                   deciderCandidates={topDrawInfo.candidates}
                   currentDecider={decider}
@@ -494,8 +513,21 @@ export default function LiveTournamentPage() {
                 />
               </CollapsibleCard>
             )}
+            {/* NEW: Current game (only visible when status=live and there is a next match) */}
+            {status === "live" && currentMatch && (
+              <CollapsibleCard title="Current game" defaultOpen={true}>
+                <CurrentGameSection
+                  status={status}
+                  match={currentMatch}
+                  clubs={clubs}
+                  canControl={isEditorOrAdmin && !isDone}
+                  busy={currentGameMut.isPending}
+                  onPatch={(matchId, body) => currentGameMut.mutateAsync({ matchId, body })}
+                />
+              </CollapsibleCard>
+            )}
 
-            {/* Read-only decider card (visible to everyone) */}
+            {/* Read-only decider */}
             {showDeciderReadOnly && (
               <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-4">
                 <div className="text-base font-semibold">Decider</div>
@@ -538,12 +570,6 @@ export default function LiveTournamentPage() {
                 clubLabel={clubLabel}
               />
             </CollapsibleCard>
-
-            {!canEditMatch && role !== "reader" && isDone && (
-              <div className="rounded-xl border border-zinc-800 bg-zinc-900/20 px-3 py-2 text-sm text-zinc-400">
-                Tournament is done. Matches are read-only.
-              </div>
-            )}
 
             {!isEditorOrAdmin && (
               <div className="rounded-xl border border-zinc-800 bg-zinc-900/20 px-3 py-2 text-sm text-zinc-400">
