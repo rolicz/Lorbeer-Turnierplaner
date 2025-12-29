@@ -183,11 +183,17 @@ export default function MatchList({
 
               {/* Row 2: clubs (more space now) */}
               <div className="mt-2 grid grid-cols-2 gap-3 text-xs">
-                <div className={`min-w-0 truncate ${hasWinner && !aWin ? "text-zinc-500" : "text-zinc-300"}`}>
+                <div
+                  className={`min-w-0 whitespace-normal break-words ${
+                    hasWinner && !aWin ? "text-zinc-500" : "text-zinc-300"
+                  }`}
+                >
                   {clubLabel(a?.club_id)}
                 </div>
                 <div
-                  className={`min-w-0 truncate text-right ${hasWinner && !bWin ? "text-zinc-500" : "text-zinc-300"}`}
+                  className={`min-w-0 text-right whitespace-normal break-words ${
+                    hasWinner && !bWin ? "text-zinc-500" : "text-zinc-300"
+                  }`}
                 >
                   {clubLabel(b?.club_id)}
                 </div>
