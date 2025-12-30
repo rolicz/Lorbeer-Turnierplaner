@@ -49,6 +49,12 @@ function statusPill(status: "draft" | "live" | "done") {
   return "border-zinc-700 bg-zinc-900/40 text-zinc-300";
 }
 
+function statusMatchPill(state: "scheduled" | "playing" | "finished") {
+  if (state === "playing") return "border-emerald-500/40 bg-emerald-500/10 text-emerald-300";
+  if (state === "scheduled") return "border-indigo-500/40 bg-indigo-500/10 text-indigo-300";
+  return "border-zinc-700 bg-zinc-900/40 text-zinc-300";
+}
+
 function pickPreviewMatch(matches: Match[]): Match | null {
   const sorted = matches.slice().sort((a, b) => a.order_index - b.order_index);
   return (
@@ -139,10 +145,12 @@ export default function CurrentMatchPreviewCard() {
 
             <div className="shrink-0 flex items-center gap-2">
               <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs ${statusPill(status)}`}>
-                {status}
+                <i className="fa fa-trophy symbol-margin-to-text" />
+                <span>{status}</span>
               </span>
-              <span className="inline-flex items-center rounded-full border border-zinc-800 bg-zinc-900/40 px-2.5 py-1 text-xs text-zinc-300">
-                {match.state}
+              <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs ${statusMatchPill(match.state)}`}>
+                <i className="fa fa-gamepad symbol-margin-to-text" />
+                <span>{match.state}</span>
               </span>
             </div>
           </div>

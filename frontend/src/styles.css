@@ -70,3 +70,7 @@ img, svg, video, canvas {
   overflow-wrap: anywhere;
   word-break: break-word;
 }
+
+.symbol-margin-to-text {
+  margin-right: 0.4rem; /* adjust */
+}

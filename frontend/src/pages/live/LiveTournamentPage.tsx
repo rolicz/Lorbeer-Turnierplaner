@@ -547,7 +547,7 @@ export default function LiveTournamentPage() {
 
             {/* Current game: show even in draft (next scheduled) */}
             {(status === "draft" || status === "live") && currentMatch && (
-              <CollapsibleCard title="Current game" defaultOpen={true}>
+              <CollapsibleCard title="Current game" defaultOpen={role === "reader" ? false : true}>
                 <CurrentGameSection
                   status={status}
                   match={currentMatch}
