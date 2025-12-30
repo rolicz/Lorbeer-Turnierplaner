@@ -88,6 +88,7 @@ export default function CurrentGameSection({
     override?: { aGoals?: number; bGoals?: number; aClub?: number | null; bClub?: number | null }
   ) {
     if (!canControl) return;
+    if (match === null) return;
     const nextState = stateOverride ?? match.state;
 
     const payloadAGoals = override?.aGoals ?? aGoals;
