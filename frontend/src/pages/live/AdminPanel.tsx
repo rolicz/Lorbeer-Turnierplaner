@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import Button from "../../ui/primitives/Button";
 
 type Status = "draft" | "live" | "done";
@@ -7,7 +7,6 @@ type DeciderType = "none" | "penalties" | "match" | "scheresteinpapier";
 type Candidate = { id: number; name: string };
 
 export default function AdminPanel({
-  // auth / visibility
   role,
   status,
 
@@ -15,10 +14,8 @@ export default function AdminPanel({
   secondLegEnabled,
   onEnableSecondLeg,
   onDisableSecondLeg,
+  canDisableSecondLeg, // NEW
   onReshuffle,
-  onSetLive,
-  onFinalize,
-  onSetDraft,
 
   // admin-only actions
   onDeleteTournament,
@@ -38,6 +35,10 @@ export default function AdminPanel({
   onSaveName,
   nameBusy,
 
+  // NEW: emergency button to "re-open" last match if tournament accidentally became done
+  onSetLastMatchPlaying,
+  setLastMatchPlayingBusy,
+
   // decider editing (editor+admin)
   showDeciderEditor,
   deciderCandidates,
@@ -52,11 +53,9 @@ export default function AdminPanel({
   secondLegEnabled: boolean;
   onEnableSecondLeg: () => void;
   onDisableSecondLeg: () => void;
+  /** If false, "Remove second leg" is hidden (e.g. leg2 already started). */
+  canDisableSecondLeg?: boolean;
   onReshuffle: () => void;
-
-  onSetLive: () => void;
-  onFinalize: () => void;
-  onSetDraft: () => void;
 
   onDeleteTournament: () => void;
 
@@ -73,7 +72,10 @@ export default function AdminPanel({
   onSaveName?: () => void;
   nameBusy?: boolean;
 
-  showDeciderEditor?: boolean; // show editor UI only if done + top draw (or whatever rule you want)
+  onSetLastMatchPlaying?: () => void;
+  setLastMatchPlayingBusy?: boolean;
+
+  showDeciderEditor?: boolean;
   deciderCandidates?: Candidate[];
   currentDecider?: {
     type: DeciderType;
@@ -94,25 +96,27 @@ export default function AdminPanel({
 }) {
   const isAdmin = role === "admin";
   const isEditorOrAdmin = role === "editor" || role === "admin";
-
-  // We still show controls for editor/admin, but hide most things when tournament is done (admins keep full power)
   const done = status === "done";
-  const canUseNonDeciderControls = isAdmin || (!done && role === "editor");
+
+  // Editors: allow second-leg always (even if done). Reorder only if not done.
+  const canSecondLeg = isEditorOrAdmin;
+  const canReorder = isAdmin || (role === "editor" && !done);
 
   const showDateEditor = isAdmin && !!onSaveDate && !!onDateChange;
   const showNameEditor = isAdmin && !!onSaveName && !!onNameChange;
 
-  const candidates = deciderCandidates ?? [];
-  const candById = useMemo(() => new Map(candidates.map((c) => [c.id, c.name] as const)), [candidates]);
-
   // --- local decider form state ---
+  const candidates = deciderCandidates ?? [];
   const [dType, setDType] = useState<DeciderType>(currentDecider?.type ?? "none");
   const [winnerId, setWinnerId] = useState<number | null>(currentDecider?.winner_player_id ?? null);
   const [loserId, setLoserId] = useState<number | null>(currentDecider?.loser_player_id ?? null);
-  const [wGoals, setWGoals] = useState<string>(currentDecider?.winner_goals != null ? String(currentDecider.winner_goals) : "");
-  const [lGoals, setLGoals] = useState<string>(currentDecider?.loser_goals != null ? String(currentDecider.loser_goals) : "");
+  const [wGoals, setWGoals] = useState<string>(
+    currentDecider?.winner_goals != null ? String(currentDecider.winner_goals) : ""
+  );
+  const [lGoals, setLGoals] = useState<string>(
+    currentDecider?.loser_goals != null ? String(currentDecider.loser_goals) : ""
+  );
 
-  // keep form in sync with server state when tournament refetches
   useEffect(() => {
     setDType(currentDecider?.type ?? "none");
     setWinnerId(currentDecider?.winner_player_id ?? null);
@@ -128,7 +132,6 @@ export default function AdminPanel({
   ]);
 
   const canEditDecider = !!showDeciderEditor && isEditorOrAdmin && !!onSaveDecider;
-  const deciderHasValue = (currentDecider?.type ?? "none") !== "none";
 
   function normalizeInt(s: string): number | null {
     const t = s.trim();
@@ -176,53 +179,61 @@ export default function AdminPanel({
         normalizeInt(wGoals) == null ||
         normalizeInt(lGoals) == null));
 
-        
-      
-    const content = (<><div className="mb-3 text-sm text-zinc-400">
+  const deciderHasValue = (currentDecider?.type ?? "none") !== "none";
+
+  const showReopenLastMatch = isEditorOrAdmin && done && !!onSetLastMatchPlaying;
+
+  const content = (
+    <>
+      <div className="mb-3 text-sm text-zinc-400">
         status: <span className="accent">{status}</span> · second leg:{" "}
         <span className="accent">{secondLegEnabled ? "enabled" : "off"}</span>
       </div>
 
-      {/* Status controls */}
+      {/* Core controls */}
       <div className="flex flex-wrap gap-2">
-        {canUseNonDeciderControls ? (
+        {canSecondLeg && (
           <>
-            <Button onClick={onSetLive} disabled={busy}>
-              Set live
-            </Button>
-            <Button onClick={onFinalize} disabled={busy}>
-              Finalize
-            </Button>
-            <Button variant="ghost" onClick={onSetDraft} disabled={busy}>
-              Set draft
-            </Button>
-
-            <div className="w-full" />
-
             {!secondLegEnabled ? (
               <Button onClick={onEnableSecondLeg} disabled={busy}>
                 Add second leg
               </Button>
             ) : (
-              <Button variant="ghost" onClick={onDisableSecondLeg} disabled={busy}>
-                Remove second leg
-              </Button>
-            )}
-
-            <Button variant="ghost" onClick={onReshuffle} disabled={busy}>
-              Reshuffle order
-            </Button>
-
-            {isAdmin && (
-              <Button variant="ghost" onClick={onDeleteTournament} disabled={busy}>
-                Delete tournament
-              </Button>
+              // Only show "Remove" if it's actually safe/allowed (no leg2 match started)
+              canDisableSecondLeg ? (
+                <Button variant="ghost" onClick={onDisableSecondLeg} disabled={busy}>
+                  Remove second leg
+                </Button>
+              ) : null
             )}
           </>
-        ) : (
-          <div className="text-sm text-zinc-500">
-            Tournament is done. Only decider editing (if applicable) is available for editors.
-          </div>
+        )}
+
+        {canReorder && status === "draft" && (
+          <Button variant="ghost" onClick={onReshuffle} disabled={busy}>
+            Reshuffle order
+          </Button>
+        )}
+
+        {showReopenLastMatch && (
+          <Button
+            variant="ghost"
+            onClick={onSetLastMatchPlaying}
+            disabled={busy || !!setLastMatchPlayingBusy}
+            title="If someone finished the last match by accident and the tournament became done."
+          >
+            {setLastMatchPlayingBusy ? "Reopening…" : "Set last match to playing"}
+          </Button>
+        )}
+
+        {isAdmin && (
+          <Button variant="ghost" onClick={onDeleteTournament} disabled={busy}>
+            Delete tournament
+          </Button>
+        )}
+
+        {!canReorder && role === "editor" && done && (
+          <div className="text-sm text-zinc-500">Tournament is done.</div>
         )}
       </div>
 
@@ -248,10 +259,11 @@ export default function AdminPanel({
           <div className="mt-2 text-xs text-zinc-500">Admin-only (for backfilling past tournaments).</div>
         </div>
       )}
+
       {showNameEditor && (
         <div className="mt-4 rounded-xl border border-zinc-800 bg-zinc-900/10 p-3">
           <div className="mb-2 text-sm font-medium">Tournament name</div>
-      
+
           <div className="flex flex-wrap items-end gap-2">
             <label className="block flex-1 min-w-[220px]">
               <div className="mb-1 text-xs text-zinc-400">Name</div>
@@ -263,7 +275,7 @@ export default function AdminPanel({
                 placeholder="e.g. Christmas Cup"
               />
             </label>
-      
+
             <Button
               variant="ghost"
               onClick={() => onSaveName?.()}
@@ -272,19 +284,17 @@ export default function AdminPanel({
               {nameBusy ? "Saving…" : "Save name"}
             </Button>
           </div>
-      
+
           <div className="mt-2 text-xs text-zinc-500">Admin-only.</div>
         </div>
       )}
 
-      {/* Decider editor UI (only if showDeciderEditor) */}
+      {/* Decider editor */}
       {showDeciderEditor && (
         <div className="mt-4 rounded-xl border border-zinc-800 bg-zinc-900/10 p-3">
           <div className="mb-2 text-sm font-medium">Decider</div>
 
-          {!isEditorOrAdmin && (
-            <div className="text-xs text-zinc-500">Login as editor/admin to set a decider.</div>
-          )}
+          {!isEditorOrAdmin && <div className="text-xs text-zinc-500">Login as editor/admin to set a decider.</div>}
 
           {canEditDecider && (
             <div className="space-y-3">
@@ -299,7 +309,15 @@ export default function AdminPanel({
                     onClick={() => setDType(k)}
                     disabled={busy || !!deciderBusy}
                   >
-                    {k === "none" ? "Keep draw" : k === "scheresteinpapier" ? "Schere-Stein-Papier Turnier" : k === "match" ? "Match" : k === "penalties" ? "Penalties" : k}
+                    {k === "none"
+                      ? "Keep draw"
+                      : k === "scheresteinpapier"
+                        ? "Schere-Stein-Papier Turnier"
+                        : k === "match"
+                          ? "Match"
+                          : k === "penalties"
+                            ? "Penalties"
+                            : k}
                   </button>
                 ))}
               </div>
@@ -397,25 +415,22 @@ export default function AdminPanel({
                 )}
               </div>
 
-              <div className="text-xs text-zinc-500">
-                Decider should only be used if the standings are tied at the top.
-              </div>
+              <div className="text-xs text-zinc-500">Decider should only be used if the standings are tied at the top.</div>
             </div>
           )}
         </div>
       )}
 
       {error && <div className="mt-2 text-sm text-red-400">{error}</div>}
-    </>);
-    
-    if (!wrap) return content;
+    </>
+  );
 
-    return (
+  if (!wrap) return content;
+
+  return (
     <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-4">
-      <div className="mb-2 text-base font-semibold">
-        {role === "admin" ? "Admin controls" : "Editor controls"}
-      </div>
+      <div className="mb-2 text-base font-semibold">{role === "admin" ? "Admin controls" : "Editor controls"}</div>
       {content}
-    </div>);
-
+    </div>
+  );
 }

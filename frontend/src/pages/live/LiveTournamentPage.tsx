@@ -11,7 +11,6 @@ import {
   enableSecondLegAll,
   disableSecondLegAll,
   reorderTournamentMatches,
-  patchTournamentStatus,
   deleteTournament,
   patchTournamentDate,
   patchTournamentName,
@@ -44,7 +43,6 @@ type StandRow = {
   gf: number;
 };
 
-// finished-only standings for “is draw at top?”
 function computeFinishedStandings(matches: Match[], players: PlayerLite[]): StandRow[] {
   const rows = new Map<number, StandRow>();
   for (const p of players) rows.set(p.id, { playerId: p.id, name: p.display_name, pts: 0, gd: 0, gf: 0 });
@@ -102,7 +100,7 @@ function starsLabel(v: any): string {
 function statusPillClass(status: string) {
   if (status === "live") return "border-indigo-500/40 bg-indigo-500/10 text-indigo-300";
   if (status === "done") return "border-emerald-500/40 bg-emerald-500/10 text-emerald-300";
-  return "border-zinc-700 bg-zinc-900/40 text-zinc-300"; // draft / fallback
+  return "border-zinc-700 bg-zinc-900/40 text-zinc-300";
 }
 
 export default function LiveTournamentPage() {
@@ -136,7 +134,6 @@ export default function LiveTournamentPage() {
     return (tQ.data?.matches ?? []).some((m) => m.leg === 2);
   }, [tQ.data]);
 
-  // --- decider fields from backend (names must match your backend response) ---
   const decider = useMemo(() => {
     const t: any = tQ.data ?? {};
     return {
@@ -148,7 +145,6 @@ export default function LiveTournamentPage() {
     };
   }, [tQ.data]);
 
-  // finished-only top draw candidates
   const topDrawInfo = useMemo(() => {
     const players = (tQ.data?.players ?? []) as PlayerLite[];
     if (!tQ.data || !players.length) return { isTopDraw: false, candidates: [] as { id: number; name: string }[] };
@@ -162,14 +158,12 @@ export default function LiveTournamentPage() {
     return { isTopDraw: candidates.length >= 2, candidates };
   }, [tQ.data, matchesSorted]);
 
-  // Readers should be able to SEE a decider if it exists, OR if it’s a draw and needs one.
   const showDeciderReadOnly = useMemo(() => {
     if (!isDone) return false;
     if (decider.type !== "none") return true;
     return topDrawInfo.isTopDraw;
   }, [isDone, decider.type, topDrawInfo.isTopDraw]);
 
-  // Editor+admin can edit decider only when done + top draw
   const showDeciderEditor = isDone && topDrawInfo.isTopDraw;
 
   const playerNameById = useMemo(() => {
@@ -182,11 +176,17 @@ export default function LiveTournamentPage() {
     if (!showDeciderReadOnly) return null;
     if (decider.type === "none") return "No decider (kept as draw).";
 
-    const w = decider.winner_player_id ? playerNameById.get(decider.winner_player_id) ?? `#${decider.winner_player_id}` : "—";
-    const l = decider.loser_player_id ? playerNameById.get(decider.loser_player_id) ?? `#${decider.loser_player_id}` : "—";
+    const w =
+      decider.winner_player_id
+        ? playerNameById.get(decider.winner_player_id) ?? `#${decider.winner_player_id}`
+        : "—";
+    const l =
+      decider.loser_player_id
+        ? playerNameById.get(decider.loser_player_id) ?? `#${decider.loser_player_id}`
+        : "—";
     const score =
       decider.winner_goals != null && decider.loser_goals != null ? `${decider.winner_goals}-${decider.loser_goals}` : "—";
-    const decider_text =
+    const deciderText =
       decider.type === "scheresteinpapier"
         ? "Schere-Stein-Papier Turnier"
         : decider.type === "match"
@@ -194,7 +194,7 @@ export default function LiveTournamentPage() {
           : decider.type === "penalties"
             ? "Penalties"
             : decider.type;
-    return `${decider_text}: ${w} ${score} ${l}`;
+    return `${deciderText}: ${w} ${score} ${l}`;
   }, [showDeciderReadOnly, decider, playerNameById]);
 
   // --- mutations ---
@@ -231,19 +231,6 @@ export default function LiveTournamentPage() {
     },
   });
 
-  const statusMut = useMutation({
-    mutationFn: async (newStatus: "draft" | "live" | "done") => {
-      if (!token) throw new Error("Not logged in");
-      if (!tid) throw new Error("No tournament id");
-      return patchTournamentStatus(token, tid, newStatus);
-    },
-    onSuccess: async () => {
-      if (tid) await qc.invalidateQueries({ queryKey: ["tournament", tid] });
-      await qc.invalidateQueries({ queryKey: ["tournaments"] });
-      await qc.invalidateQueries({ queryKey: ["cup"] }).catch(() => {});
-    },
-  });
-
   const deleteMut = useMutation({
     mutationFn: async () => {
       if (!token) throw new Error("Not logged in");
@@ -257,7 +244,7 @@ export default function LiveTournamentPage() {
     },
   });
 
-  // --- date (admin only) ---
+  // --- date/name (admin only) ---
   const [editDate, setEditDate] = useState("");
   useEffect(() => {
     if (tQ.data?.date) setEditDate(tQ.data.date);
@@ -294,7 +281,6 @@ export default function LiveTournamentPage() {
     },
   });
 
-  // --- decider patch (editor+admin) ---
   const deciderMut = useMutation({
     mutationFn: async (body: {
       type: "none" | "penalties" | "match" | "scheresteinpapier";
@@ -316,7 +302,6 @@ export default function LiveTournamentPage() {
 
   // --- clubs ---
   const [clubGame, setClubGame] = useState("EA FC 26");
-
   const clubsQ = useQuery({
     queryKey: ["clubs", clubGame],
     queryFn: () => listClubs(clubGame),
@@ -327,23 +312,21 @@ export default function LiveTournamentPage() {
 
   const clubById = useMemo(() => {
     const m = new Map<number, string>();
-    for (const c of clubsQ.data ?? []) {
-      m.set(c.id, `${c.name} (${starsLabel(c.star_rating)}★)`);
-    }
+    for (const c of clubsQ.data ?? []) m.set(c.id, `${c.name} (${starsLabel(c.star_rating)}★)`);
     return m;
   }, [clubsQ.data]);
 
-  const clubLabel = (clubId: number | null | undefined) => {
-    if (!clubId) return "—";
-    return clubById.get(clubId) ?? `#${clubId}`;
-  };
+  const clubLabel = (clubId: number | null | undefined) => (!clubId ? "—" : clubById.get(clubId) ?? `#${clubId}`);
 
-  // --- current game (only for status=live, hidden if none left) ---
+  // --- current match selection ---
   const currentMatch = useMemo(() => {
-    if (status !== "live") return null;
     const playing = matchesSorted.find((m) => m.state === "playing");
     if (playing) return playing;
-    return matchesSorted.find((m) => m.state === "scheduled") ?? null;
+
+    // draft/live -> next scheduled
+    if (status === "draft" || status === "live") return matchesSorted.find((m) => m.state === "scheduled") ?? null;
+
+    return null;
   }, [matchesSorted, status]);
 
   const currentGameMut = useMutation({
@@ -365,8 +348,13 @@ export default function LiveTournamentPage() {
     [matchesSorted, selectedMatchId]
   );
 
-  const canEditMatch = isEditorOrAdmin && !isDone;
-  const canReorder = isEditorOrAdmin && !isDone;
+  const canEditMatch = role === "admin" || (role === "editor" && !isDone);
+  const canReorder = isAdmin || (role === "editor" && !isDone);
+  const canDisableSecondLeg = useMemo(() => {
+    // Only allow removing leg2 if NO leg2 match has started (i.e. all are still scheduled)
+    return !matchesSorted.some((m) => m.leg === 2 && m.state !== "scheduled");
+  }, [matchesSorted]);
+
 
   const [aClub, setAClub] = useState<number | null>(null);
   const [bClub, setBClub] = useState<number | null>(null);
@@ -403,6 +391,31 @@ export default function LiveTournamentPage() {
     },
   });
 
+  const reopenLastMut = useMutation({
+    mutationFn: async () => {
+      if (!token) throw new Error("Not logged in");
+      if (!matchesSorted.length) throw new Error("No matches");
+
+      const last = matchesSorted[matchesSorted.length - 1];
+
+      // If it’s already playing, nothing to do.
+      if (last.state === "playing") return { ok: true, note: "Already playing" };
+
+      const a = sideBy(last, "A");
+      const b = sideBy(last, "B");
+
+      // patchMatch in your backend typically expects side payloads too → send them to be safe
+      return patchMatch(token, last.id, {
+        state: "playing",
+        sideA: { club_id: a?.club_id ?? null, goals: Number(a?.goals ?? 0) },
+        sideB: { club_id: b?.club_id ?? null, goals: Number(b?.goals ?? 0) },
+      });
+    },
+    onSuccess: async () => {
+      if (tid) await qc.invalidateQueries({ queryKey: ["tournament", tid] });
+    },
+  });
+
   const [panelError, setPanelError] = useState<string | null>(null);
 
   if (!tid) return <Card title="Tournament" variant="plain">Invalid tournament id</Card>;
@@ -418,7 +431,6 @@ export default function LiveTournamentPage() {
 
         {tQ.data && (
           <div className="space-y-3">
-            {/* Meta row: mode · status · date (no duplicate name) */}
             <div className="flex items-center justify-between gap-3">
               <div className="flex flex-wrap items-center gap-2 text-sm">
                 <span className="rounded-full border border-zinc-700 bg-zinc-900/30 px-2.5 py-1 text-zinc-300">
@@ -437,9 +449,6 @@ export default function LiveTournamentPage() {
               </Button>
             </div>
 
-
-
-            {/* Control panel */}
             {showControls && (
               <CollapsibleCard title={role === "admin" ? "Admin controls" : "Editor controls"} defaultOpen={false}>
                 <AdminPanel
@@ -447,29 +456,18 @@ export default function LiveTournamentPage() {
                   role={role}
                   status={tQ.data.status}
                   secondLegEnabled={secondLegEnabled}
+                  canDisableSecondLeg={canDisableSecondLeg}
                   busy={
                     enableLegMut.isPending ||
                     disableLegMut.isPending ||
                     reorderMut.isPending ||
-                    statusMut.isPending ||
                     deleteMut.isPending ||
                     dateMut.isPending ||
                     nameMut.isPending ||
-                    deciderMut.isPending
+                    deciderMut.isPending ||
+                    reopenLastMut.isPending
                   }
                   error={panelError}
-                  onSetLive={() => {
-                    setPanelError(null);
-                    statusMut.mutate("live", { onError: (e: any) => setPanelError(e?.message ?? String(e)) });
-                  }}
-                  onFinalize={() => {
-                    setPanelError(null);
-                    statusMut.mutate("done", { onError: (e: any) => setPanelError(e?.message ?? String(e)) });
-                  }}
-                  onSetDraft={() => {
-                    setPanelError(null);
-                    statusMut.mutate("draft", { onError: (e: any) => setPanelError(e?.message ?? String(e)) });
-                  }}
                   onEnableSecondLeg={() => {
                     setPanelError(null);
                     enableLegMut.mutate(undefined, { onError: (e: any) => setPanelError(e?.message ?? String(e)) });
@@ -478,6 +476,11 @@ export default function LiveTournamentPage() {
                     setPanelError(null);
                     disableLegMut.mutate(undefined, { onError: (e: any) => setPanelError(e?.message ?? String(e)) });
                   }}
+                  onSetLastMatchPlaying={() => {
+                    setPanelError(null);
+                    reopenLastMut.mutate(undefined, { onError: (e: any) => setPanelError(e?.message ?? String(e)) });
+                  }}
+                  setLastMatchPlayingBusy={reopenLastMut.isPending}
                   onReshuffle={() => {
                     setPanelError(null);
                     const ids = matchesSorted.map((m) => m.id);
@@ -513,8 +516,9 @@ export default function LiveTournamentPage() {
                 />
               </CollapsibleCard>
             )}
-            {/* NEW: Current game (only visible when status=live and there is a next match) */}
-            {status === "live" && currentMatch && (
+
+            {/* Current game: show even in draft (next scheduled) */}
+            {(status === "draft" || status === "live") && currentMatch && (
               <CollapsibleCard title="Current game" defaultOpen={true}>
                 <CurrentGameSection
                   status={status}
@@ -527,14 +531,13 @@ export default function LiveTournamentPage() {
               </CollapsibleCard>
             )}
 
-            {/* Read-only decider */}
             {showDeciderReadOnly && (
               <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-4">
                 <div className="text-base font-semibold">Decider</div>
                 <div className="mt-1 text-sm text-zinc-300">{deciderSummary}</div>
                 {decider.type === "none" && topDrawInfo.isTopDraw && (
                   <div className="mt-1 text-xs text-zinc-500">
-                    Tournament ended tied at the top. A decider can be set (penalties or deciding match).
+                    Tournament ended tied at the top. A decider can be set.
                   </div>
                 )}
               </div>

@@ -4,17 +4,21 @@ import random
 from datetime import datetime, date
 from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlmodel import Session, delete, select
+from sqlalchemy import case, func
 
-from ..auth import require_admin
+from ..auth import require_admin, require_editor
 from ..db import get_session
 from ..models import Match, MatchSide, MatchSidePlayer, Player, Tournament, TournamentPlayer
 from ..scheduling import assign_labels, schedule_1v1_labels, schedule_2v2_labels
 from ..stats import compute_stats
 from ..ws import ws_manager
-from ..auth import require_admin, require_editor
+from ..tournament_status import compute_status_for_tournament, compute_status_map, find_other_live_tournament_id
 
 log = logging.getLogger(__name__)
 router = APIRouter(prefix="/tournaments", tags=["tournaments"])
+
+
+
 
 
 def _tournament_or_404(s: Session, tournament_id: int) -> Tournament:
@@ -33,6 +37,8 @@ def _serialize_tournament(s: Session, t: Tournament) -> dict:
         _ = m.sides
         for side in m.sides:
             _ = side.players
+
+    status = compute_status_for_tournament(s, t.id)
 
     def player_dict(p: Player) -> dict:
         return {"id": p.id, "display_name": p.display_name}
@@ -61,7 +67,7 @@ def _serialize_tournament(s: Session, t: Tournament) -> dict:
         "id": t.id,
         "name": t.name,
         "mode": t.mode,
-        "status": t.status,
+        "status": status,  # computed
         "settings_json": t.settings_json,
         "date": t.date,
         "created_at": t.created_at,
@@ -74,7 +80,6 @@ def _serialize_tournament(s: Session, t: Tournament) -> dict:
         "decider_winner_goals": t.decider_winner_goals,
         "decider_loser_goals": t.decider_loser_goals,
     }
-
 
 
 def _max_order_index(s: Session, tournament_id: int) -> int:
@@ -93,22 +98,17 @@ def _leg2_started(s: Session, tournament_id: int) -> bool:
     for m in leg2:
         if m.state != "scheduled":
             return True
-        # if you store goals on sides:
         for side in m.sides:
             if (side.goals or 0) != 0 or side.club_id is not None:
                 return True
     return False
+
 
 def _bulk_delete_matches(
     s: Session,
     tournament_id: int,
     leg: int | None = None,
 ) -> int:
-    """
-    Deletes matches (and their sides + side-player link rows) for a tournament.
-    Uses bulk DELETE statements only -> avoids StaleDataError from double deletes/cascades.
-    Returns number of deleted matches.
-    """
     q = select(Match.id).where(Match.tournament_id == tournament_id)
     if leg is not None:
         q = q.where(Match.leg == leg)
@@ -140,7 +140,6 @@ def _bulk_delete_matches(
     )
 
     s.commit()
-    # important when you've previously loaded these objects in this same Session
     s.expire_all()
     return len(match_ids)
 
@@ -151,7 +150,6 @@ def _delete_schedule(s: Session, tournament_id: int) -> None:
 
 def _delete_matches_by_leg(s: Session, tournament_id: int, leg: int) -> None:
     _bulk_delete_matches(s, tournament_id, leg=leg)
-
 
 
 def _create_match_with_teams(
@@ -184,20 +182,17 @@ def _create_match_with_teams(
     s.commit()
     return m
 
+
 def _side_player_ids(side) -> tuple[int, ...]:
-    # Sort for stable comparison: (p1,p2) == (p2,p1)
     return tuple(sorted(p.id for p in side.players))
 
 
 def _match_signature_from_loaded_match(m: Match) -> tuple[tuple[int, ...], tuple[int, ...]]:
-    """
-    Signature = (teamA_ids, teamB_ids) with teams as sorted player-id tuples.
-    Side orientation matters (A vs B), because you said: keep order, no mirroring.
-    """
     sides = {s.side: s for s in m.sides}
     if "A" not in sides or "B" not in sides:
         return ((), ())
     return (_side_player_ids(sides["A"]), _side_player_ids(sides["B"]))
+
 
 def _parse_yyyy_mm_dd(value: str):
     try:
@@ -205,12 +200,18 @@ def _parse_yyyy_mm_dd(value: str):
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid date (expected YYYY-MM-DD)")
 
+
 def _state_rank(state: str) -> int:
     return {"finished": 0, "playing": 1, "scheduled": 2}.get(state, 99)
 
+
 @router.get("")
 def list_tournaments(s: Session = Depends(get_session)):
-    return s.exec(select(Tournament).order_by(Tournament.created_at.desc())).all()
+    ts = s.exec(select(Tournament).order_by(Tournament.created_at.desc())).all()
+    status_by_tid = compute_status_map(s)
+    for t in ts:
+        t.status = status_by_tid.get(t.id, "draft")
+    return ts
 
 
 @router.get("/{tournament_id}")
@@ -237,7 +238,7 @@ def create_tournament(body: dict, s: Session = Depends(get_session)):
     s.add(t)
     s.commit()
     s.refresh(t)
-    # editor creates tournament with *existing* players (admin can also do this)
+
     if player_ids:
         if not isinstance(player_ids, list):
             raise HTTPException(status_code=400, detail="player_ids must be a list")
@@ -250,28 +251,105 @@ def create_tournament(body: dict, s: Session = Depends(get_session)):
         for pid in player_ids:
             s.add(TournamentPlayer(tournament_id=t.id, player_id=pid))
         s.commit()
+
     log.info("Created tournament '%s' (id=%s, mode=%s)", t.name, t.id, t.mode)
     return t
 
 
+
+@router.get("/live")
+def get_live_tournament(s: Session = Depends(get_session)):
+    """
+    Returns the currently LIVE tournament (derived from matches), or null.
+
+    LIVE definition:
+      - has at least one match
+      - not all scheduled
+      - not all finished
+    """
+    r = case(
+        (Match.state == "finished", 0),
+        (Match.state == "playing", 1),
+        (Match.state == "scheduled", 2),
+        else_=99,
+    )
+
+    rows = s.exec(
+        select(
+            Match.tournament_id,
+            func.min(r),
+            func.max(r),
+            func.count(Match.id),
+        ).group_by(Match.tournament_id)
+    ).all()
+
+    live_tid = None
+    for tid, minr, maxr, cnt in rows:
+        cnt = int(cnt or 0)
+        if cnt <= 0 or minr is None or maxr is None:
+            continue
+
+        minr = int(minr)
+        maxr = int(maxr)
+
+        # all scheduled -> draft
+        if minr == 2 and maxr == 2:
+            continue
+        # all finished -> done
+        if minr == 0 and maxr == 0:
+            continue
+
+        live_tid = int(tid)
+        break
+
+    if live_tid is None:
+        return None
+
+    t = s.get(Tournament, live_tid)
+    if not t:
+        return None
+
+    return {
+        "id": t.id,
+        "name": t.name,
+        "mode": t.mode,
+        "date": t.date,
+        "created_at": t.created_at,
+        "updated_at": t.updated_at,
+        "status": "live",
+    }
+
+
+
 @router.patch("/{tournament_id}", dependencies=[Depends(require_editor)])
 async def patch_tournament(
-    tournament_id: int, 
-    body: dict, 
+    tournament_id: int,
+    body: dict,
     s: Session = Depends(get_session),
-    role: str = Depends(require_editor)):
+    role: str = Depends(require_editor),
+):
+    """
+    Patch tournament metadata (NO manual status).
+    Allowed fields:
+      - name
+      - settings
+    """
     t = _tournament_or_404(s, tournament_id)
-    if t.status == "done" and role != "admin":
-        raise HTTPException(status_code=403, detail="Tournament is done (admin required to regenerate)")
+
+    status_now = compute_status_for_tournament(s, tournament_id)
+    if status_now == "done" and role != "admin":
+        raise HTTPException(status_code=403, detail="Tournament is done (admin required to edit)")
 
     if "name" in body:
         t.name = str(body["name"]).strip()
-    if "status" in body:
-        if body["status"] not in ("draft", "live", "done"):
-            raise HTTPException(status_code=400, detail="Invalid status")
-        t.status = body["status"]
+        if not t.name:
+            raise HTTPException(status_code=400, detail="name cannot be empty")
+
     if "settings" in body:
         t.settings_json = json.dumps(body["settings"])
+
+    # keep status in sync
+    t.status = compute_status_for_tournament(s, tournament_id)
 
     t.updated_at = datetime.utcnow()
     s.add(t)
@@ -281,6 +359,7 @@ async def patch_tournament(
     await ws_manager.broadcast(tournament_id, "tournament_updated", {"tournament_id": tournament_id})
     return t
 
+
 @router.patch("/{tournament_id}/date", dependencies=[Depends(require_admin)])
 async def patch_date(
     tournament_id: int,
@@ -288,12 +367,6 @@ async def patch_date(
     s: Session = Depends(get_session),
     role: str = Depends(require_admin),
 ):
-    """
-    body: { "date": "YYYY-MM-DD" }
-
-    Admin only:
-      - can set date anytime (for backfilling past tournaments)
-    """
     t = _tournament_or_404(s, tournament_id)
 
     date_str = (body.get("date") or "").strip()
@@ -303,6 +376,9 @@ async def patch_date(
     t.date = _parse_yyyy_mm_dd(date_str)
     t.updated_at = datetime.utcnow()
 
+    # keep status in sync
+    t.status = compute_status_for_tournament(s, tournament_id)
+
     s.add(t)
     s.commit()
     s.refresh(t)
@@ -311,107 +387,33 @@ async def patch_date(
     log.info("Tournament date changed: tournament_id=%s date=%s by=%s", tournament_id, t.date, role)
     return {"ok": True, "date": t.date}
 
-@router.patch("/{tournament_id}/name", dependencies=[Depends(require_admin)])
-async def patch_name(
-    tournament_id: int,
-    body: dict,
-    s: Session = Depends(get_session),
-    role: str = Depends(require_admin),
-):
-    """
-    body: { "name": "..." }
-
-    Admin only:
-      - rename tournament anytime
-    """
-    t = _tournament_or_404(s, tournament_id)
-
-    name = str(body.get("name") or "").strip()
-    if not name:
-        raise HTTPException(status_code=400, detail="Missing name")
-
-    t.name = name
-    t.updated_at = datetime.utcnow()
-    s.add(t)
-    s.commit()
-    s.refresh(t)
-
-    await ws_manager.broadcast(tournament_id, "tournament_updated", {"tournament_id": tournament_id})
-    log.info("Tournament renamed: tournament_id=%s name=%s by=%s", tournament_id, t.name, role)
-
-    return {"ok": True, "name": t.name}
-
-@router.post("/{tournament_id}/players", dependencies=[Depends(require_admin)])
-async def add_player(tournament_id: int, body: dict, s: Session = Depends(get_session)):
-    t = _tournament_or_404(s, tournament_id)
-
-    name = (body.get("display_name") or "").strip()
-    if not name:
-        raise HTTPException(status_code=400, detail="Missing display_name")
-
-    p = s.exec(select(Player).where(Player.display_name == name)).first()
-    if not p:
-        p = Player(display_name=name)
-        s.add(p)
-        s.commit()
-        s.refresh(p)
-
-    exists = s.exec(select(TournamentPlayer).where(
-        TournamentPlayer.tournament_id == tournament_id,
-        TournamentPlayer.player_id == p.id
-    )).first()
-    if not exists:
-        s.add(TournamentPlayer(tournament_id=tournament_id, player_id=p.id))
-        s.commit()
-
-    await ws_manager.broadcast(tournament_id, "players_updated", {"tournament_id": tournament_id})
-    return {"player": {"id": p.id, "display_name": p.display_name}}
-
-
-@router.delete("/{tournament_id}/players/{player_id}", dependencies=[Depends(require_admin)])
-async def remove_player(tournament_id: int, player_id: int, s: Session = Depends(get_session)):
-    _tournament_or_404(s, tournament_id)
-
-    s.exec(delete(TournamentPlayer).where(
-        TournamentPlayer.tournament_id == tournament_id,
-        TournamentPlayer.player_id == player_id
-    ))
-    s.commit()
-
-    await ws_manager.broadcast(tournament_id, "players_updated", {"tournament_id": tournament_id})
-    return {"ok": True}
-
 
 @router.post("/{tournament_id}/generate", dependencies=[Depends(require_editor)])
 async def generate_schedule(
-    tournament_id: int, 
-    body: dict, 
+    tournament_id: int,
+    body: dict,
     s: Session = Depends(get_session),
-    role: str = Depends(require_editor)):
+    role: str = Depends(require_editor),
+):
     """
-    body:
-      {
-        "randomize": true   # randomize player->label mapping + match order
-      }
+    body: { "randomize": true }
     """
     t = _tournament_or_404(s, tournament_id)
-    if t.status == "done" and role != "admin":
+
+    status_now = compute_status_for_tournament(s, tournament_id)
+    if status_now == "done" and role != "admin":
         raise HTTPException(status_code=403, detail="Tournament is done (admin required to regenerate)")
 
     randomize = bool(body.get("randomize", True))
-
     player_names = [p.display_name for p in t.players]
 
-    # Enforce your requested ranges (adjust if you later want 2-player 1v1)
     if t.mode == "1v1" and not (3 <= len(player_names) <= 5):
         raise HTTPException(status_code=400, detail="1v1 supports 3–5 players (adjustable)")
     if t.mode == "2v2" and not (4 <= len(player_names) <= 6):
         raise HTTPException(status_code=400, detail="2v2 supports 4–6 players (adjustable)")
 
-    # 1) Assign A,B,C,... to actual people (shuffled by default)
     labels, label_to_name = assign_labels(player_names, shuffle=randomize)
 
-    # Store label mapping into settings_json (merge with existing settings)
     try:
         settings = json.loads(t.settings_json or "{}")
         if not isinstance(settings, dict):
@@ -424,27 +426,22 @@ async def generate_schedule(
     s.add(t)
     s.commit()
 
-    # 2) Generate matches in label space
     if t.mode == "1v1":
-        label_matches = schedule_1v1_labels(labels)  # [ (("A",),("B",)), ... ]
+        label_matches = schedule_1v1_labels(labels)
     else:
         try:
-            label_matches = schedule_2v2_labels(labels)  # [ (("A","B"),("C","D")), ... ]
+            label_matches = schedule_2v2_labels(labels)
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
 
-    # 3) Optionally randomize match order
     if randomize:
         random.shuffle(label_matches)
 
-    # 4) Wipe old schedule and insert new matches
     _delete_schedule(s, tournament_id)
 
-    # name -> Player (db object)
     db_players = {p.display_name: p for p in t.players}
 
     def label_team_to_player_ids(team: tuple[str, ...]) -> list[int]:
-        # team is ("A",) or ("A","B")
         return [db_players[label_to_name[l]].id for l in team]
 
     for idx, (team_a, team_b) in enumerate(label_matches):
@@ -464,6 +461,13 @@ async def generate_schedule(
 
         s.commit()
 
+    # After generation: all scheduled => draft
+    t = _tournament_or_404(s, tournament_id)
+    t.status = compute_status_for_tournament(s, tournament_id)
+    t.updated_at = datetime.utcnow()
+    s.add(t)
+    s.commit()
+
     await ws_manager.broadcast(tournament_id, "schedule_generated", {"tournament_id": tournament_id})
     log.info("Generated schedule: tournament_id=%s matches=%s mode=%s players=%s",
              tournament_id, len(label_matches), t.mode, len(player_names))
@@ -477,26 +481,16 @@ async def reorder(
     s: Session = Depends(get_session),
     role: str = Depends(require_editor),
 ):
-    """
-    body: { "match_ids": [ ... ] }
-
-    Rules:
-      - must include exactly all match ids of the tournament
-      - order must respect progression: finished* -> playing? -> scheduled*
-      - at most one playing match
-      - if tournament has started (any finished/playing exists), those matches must stay as a fixed prefix
-        (you may only reorder the remaining scheduled matches)
-      - if *all* matches are scheduled, you may reshuffle freely
-    """
     t = _tournament_or_404(s, tournament_id)
-    if t.status == "done" and role != "admin":
+
+    status_now = compute_status_for_tournament(s, tournament_id)
+    if status_now == "done" and role != "admin":
         raise HTTPException(status_code=403, detail="Tournament is done (admin required to reorder)")
 
     match_ids = body.get("match_ids")
     if not isinstance(match_ids, list) or not match_ids:
         raise HTTPException(status_code=400, detail="match_ids must be a non-empty list")
 
-    # Current matches, in current order
     matches_sorted = s.exec(
         select(Match)
         .where(Match.tournament_id == tournament_id)
@@ -507,7 +501,6 @@ async def reorder(
     if set(match_ids) != set(by_id.keys()):
         raise HTTPException(status_code=400, detail="match_ids must include exactly all tournament match ids")
 
-    # Fixed prefix: all non-scheduled matches must keep their exact relative order and remain at the front.
     fixed_prefix = [m.id for m in matches_sorted if m.state != "scheduled"]
     if fixed_prefix:
         if match_ids[: len(fixed_prefix)] != fixed_prefix:
@@ -516,7 +509,6 @@ async def reorder(
                 detail="Tournament already started: finished/playing matches must stay as the prefix; reorder only scheduled matches after that.",
             )
 
-    # Validate the proposed order respects state progression and single-playing rule
     ranks = [_state_rank(by_id[mid].state) for mid in match_ids]
     if any(ranks[i] > ranks[i + 1] for i in range(len(ranks) - 1)):
         raise HTTPException(
@@ -528,7 +520,6 @@ async def reorder(
     if playing_count > 1:
         raise HTTPException(status_code=409, detail="Only one match can be 'playing' at a time")
 
-    # Apply new order
     for idx, mid in enumerate(match_ids):
         by_id[mid].order_index = idx
         s.add(by_id[mid])
@@ -536,60 +527,6 @@ async def reorder(
     s.commit()
     await ws_manager.broadcast(tournament_id, "matches_reordered", {"tournament_id": tournament_id})
     return {"ok": True}
-
-
-@router.get("/{tournament_id}/stats")
-def stats(tournament_id: int, s: Session = Depends(get_session)):
-    _tournament_or_404(s, tournament_id)
-
-    matches = s.exec(select(Match).where(Match.tournament_id == tournament_id).order_by(Match.order_index)).all()
-    # ensure sides+players are loaded
-    for m in matches:
-        _ = m.sides
-        for side in m.sides:
-            _ = side.players
-
-    return compute_stats(matches)
-
-@router.patch("/{tournament_id}/status", dependencies=[Depends(require_editor)])
-async def patch_status(
-    tournament_id: int,
-    body: dict,
-    s: Session = Depends(get_session),
-    role: str = Depends(require_editor),
-):
-    """
-    body: { "status": "draft" | "live" | "done" }
-    Editor:
-      - can move forward (draft->live->done)
-      - cannot re-open done tournaments
-    Admin:
-      - can set anything anytime
-    """
-    t = _tournament_or_404(s, tournament_id)
-
-    new_status = body.get("status")
-    if new_status not in ("draft", "live", "done"):
-        raise HTTPException(status_code=400, detail="Invalid status")
-
-    if role != "admin":
-        order = {"draft": 0, "live": 1, "done": 2}
-        # prevent going backwards
-        if order[new_status] < order[t.status]:
-            raise HTTPException(status_code=403, detail="Cannot move status backwards (admin only)")
-        # prevent reopening done
-        if t.status == "done" and new_status != "done":
-            raise HTTPException(status_code=403, detail="Cannot re-open a done tournament (admin only)")
-
-    t.status = new_status
-    t.updated_at = datetime.utcnow()
-    s.add(t)
-    s.commit()
-    s.refresh(t)
-
-    await ws_manager.broadcast(tournament_id, "tournament_updated", {"tournament_id": tournament_id})
-    log.info("Status changed: tournament_id=%s status=%s by=%s", tournament_id, new_status, role)
-    return {"ok": True, "status": t.status}
 
 
 @router.patch("/{tournament_id}/second-leg", dependencies=[Depends(require_editor)])
@@ -604,18 +541,12 @@ async def second_leg(
 
     Invariant: second leg is either FULL or NONE.
 
-    enabled=true:
-      - if leg2 absent: create full leg2 (same order as leg1, no mirroring)
-      - if leg2 complete: do nothing
-      - if leg2 present but incomplete: 409 (won't guess how to fix)
-
-    enabled=false:
-      - delete leg2, only if leg2 has not started (unless admin)
+    NOTE: This is allowed even if leg1 is fully finished (it can revive a tournament to "live").
+    Enforces: only one tournament may be live.
     """
     _ = _tournament_or_404(s, tournament_id)
     enabled = bool(body.get("enabled", False))
 
-    # Load leg1 matches in current order and force-load players
     leg1 = s.exec(
         select(Match)
         .where(Match.tournament_id == tournament_id, Match.leg == 1)
@@ -629,7 +560,6 @@ async def second_leg(
     leg1_sigs = [_match_signature_from_loaded_match(m) for m in leg1 if _match_signature_from_loaded_match(m) != ((), ())]
     leg1_sig_set = set(leg1_sigs)
 
-    # Load leg2 matches (any order) and force-load
     leg2 = s.exec(
         select(Match)
         .where(Match.tournament_id == tournament_id, Match.leg == 2)
@@ -646,7 +576,6 @@ async def second_leg(
     leg2_exists = len(leg2) > 0
 
     def leg2_complete() -> bool:
-        # must match exactly (count and set)
         return len(leg2_sigs) == len(leg1_sigs) and leg2_sig_set == leg1_sig_set
 
     if not enabled:
@@ -657,15 +586,30 @@ async def second_leg(
             raise HTTPException(status_code=403, detail="Second leg already started")
 
         _delete_matches_by_leg(s, tournament_id, leg=2)
+
+        # sync status
+        t = _tournament_or_404(s, tournament_id)
+        t.status = compute_status_for_tournament(s, tournament_id)
+        t.updated_at = datetime.utcnow()
+        s.add(t)
+        s.commit()
+
         await ws_manager.broadcast(tournament_id, "schedule_generated", {"tournament_id": tournament_id})
-        return {"ok": True, "second_leg": False, "deleted": True}
+        return {"ok": True, "second_leg": False, "deleted": True, "status": t.status}
 
     # enabled == True
     if _leg2_started(s, tournament_id):
         raise HTTPException(status_code=403, detail="Second leg already started")
 
     if not leg2_exists:
-        # Create full leg2 in the same order as leg1, no mirroring.
+        # Creating leg2 will make tournament LIVE (because there will be finished+scheduled).
+        other_live = find_other_live_tournament_id(s, tournament_id)
+        if other_live is not None:
+            raise HTTPException(
+                status_code=409,
+                detail=f"Another tournament is live (tournament_id={other_live}). Finish it before adding a second leg here.",
+            )
+
         idx = _max_order_index(s, tournament_id) + 1
         created = 0
         for sig in leg1_sigs:
@@ -681,18 +625,44 @@ async def second_leg(
             idx += 1
             created += 1
 
+        # sync status
+        t = _tournament_or_404(s, tournament_id)
+        t.status = compute_status_for_tournament(s, tournament_id)
+        t.updated_at = datetime.utcnow()
+        s.add(t)
+        s.commit()
+
         await ws_manager.broadcast(tournament_id, "schedule_generated", {"tournament_id": tournament_id})
-        return {"ok": True, "second_leg": True, "created": created}
+        return {"ok": True, "second_leg": True, "created": created, "status": t.status}
 
-    # leg2 exists already
     if leg2_complete():
-        return {"ok": True, "second_leg": True, "created": 0, "note": "Second leg already complete"}
+        # nothing to do; still keep status synced
+        t = _tournament_or_404(s, tournament_id)
+        t.status = compute_status_for_tournament(s, tournament_id)
+        s.add(t)
+        s.commit()
+        return {"ok": True, "second_leg": True, "created": 0, "note": "Second leg already complete", "status": t.status}
 
-    # Exists but not complete -> strict: refuse and let admin decide what to do
     raise HTTPException(
         status_code=409,
-        detail="Second leg exists but is not complete. Refusing to modify to avoid data loss. (Admin can fix manually.)",
+        detail="Second leg exists but is not complete. Refusing to modify to avoid data loss.",
     )
+
+
+@router.get("/{tournament_id}/stats")
+def stats(tournament_id: int, s: Session = Depends(get_session)):
+    _tournament_or_404(s, tournament_id)
+
+    matches = s.exec(select(Match).where(Match.tournament_id == tournament_id).order_by(Match.order_index)).all()
+    for m in matches:
+        _ = m.sides
+        for side in m.sides:
+            _ = side.players
+
+    return compute_stats(matches)
+
+
+# NOTE: /{tournament_id}/status endpoint REMOVED (status is automatic now)
 
 
 @router.delete("/{tournament_id}", dependencies=[Depends(require_admin)])
@@ -701,44 +671,36 @@ async def delete_tournament(
     s: Session = Depends(get_session),
     role: str = Depends(require_admin),
 ):
-    """
-    Admin only:
-      - permanently deletes a tournament and all its related rows (matches, sides, players links)
-    """
     t = _tournament_or_404(s, tournament_id)
 
-    # Collect match ids first (simple + predictable)
     match_ids = list(s.exec(select(Match.id).where(Match.tournament_id == tournament_id)).all())
 
     if match_ids:
         side_ids = list(s.exec(select(MatchSide.id).where(MatchSide.match_id.in_(match_ids))).all())
 
         if side_ids:
-            # delete side-player link rows
             for sp in s.exec(select(MatchSidePlayer).where(MatchSidePlayer.match_side_id.in_(side_ids))).all():
                 s.delete(sp)
 
-            # delete sides
             for ms in s.exec(select(MatchSide).where(MatchSide.id.in_(side_ids))).all():
                 s.delete(ms)
 
-        # delete matches
         for m in s.exec(select(Match).where(Match.id.in_(match_ids))).all():
             s.delete(m)
 
-    # delete tournament-player links
     for tp in s.exec(select(TournamentPlayer).where(TournamentPlayer.tournament_id == tournament_id)).all():
         s.delete(tp)
 
-    # finally delete tournament
     s.delete(t)
     s.commit()
 
-    # notify clients (list pages should refetch tournaments)
     await ws_manager.broadcast(tournament_id, "tournament_deleted", {"tournament_id": tournament_id})
     log.info("Tournament deleted: tournament_id=%s by=%s", tournament_id, role)
 
     return Response(status_code=204)
+
+
+# (keep your existing /decider endpoint etc. below unchanged)
 
 
 ALLOWED_DECIDERS = ("none", "penalties", "match", "scheresteinpapier")

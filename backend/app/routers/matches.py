@@ -1,12 +1,16 @@
 from datetime import datetime
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select
 
 from ..auth import require_editor
 from ..db import get_session
 from ..models import Match, MatchSide, Tournament, Club
+from ..tournament_status import compute_status_for_tournament, find_other_live_tournament_id
 
 router = APIRouter(prefix="/matches", tags=["matches"])
+log = logging.getLogger(__name__)
 
 
 def _match_or_404(s: Session, match_id: int) -> Match:
@@ -17,9 +21,11 @@ def _match_or_404(s: Session, match_id: int) -> Match:
     _ = m.sides
     return m
 
+
 def _club_exists(s: Session, club_id: int) -> None:
     if s.get(Club, club_id) is None:
         raise HTTPException(status_code=400, detail=f"Unknown club_id {club_id}")
+
 
 def _state_rank(state: str) -> int:
     # finished first, then playing, then scheduled (monotonic increasing)
@@ -55,8 +61,25 @@ async def patch_match(
     m = _match_or_404(s, match_id)
     t = s.exec(select(Tournament).where(Tournament.id == m.tournament_id)).first()
 
-    if t and t.status == "done" and role != "admin":
-        raise HTTPException(status_code=403, detail="Tournament is done (admin required to edit)")
+    # Automatic tournament status: block editing if tournament is DONE
+    # Exception: editor may patch ONLY the *last* match in order (to recover from accidental finish).
+    status_before = compute_status_for_tournament(s, m.tournament_id)
+
+    if status_before == "done" and role != "admin":
+        # Find last match by order_index (stable tie-breaker by id)
+        last_match_id = s.exec(
+            select(Match.id)
+            .where(Match.tournament_id == m.tournament_id)
+            .order_by(Match.order_index.desc(), Match.id.desc())
+        ).first()
+
+        if last_match_id is None or last_match_id != m.id:
+            raise HTTPException(status_code=403, detail="Tournament is done (admin required to edit)")
+
+        # Optional safety: only allow changing state/goals/clubs on that last match (no other admin-like actions)
+        if "leg" in body:
+            raise HTTPException(status_code=403, detail="Changing match leg is admin-only")
+
 
     # --- leg reassignment is ADMIN ONLY (as agreed) ---
     if "leg" in body:
@@ -69,23 +92,34 @@ async def patch_match(
             raise HTTPException(status_code=409, detail="Cannot move a match between legs once it has started")
         m.leg = new_leg
 
-    # --- IMPORTANT: allow playing/finished state transitions ---
+    # --- state transitions ---
     if "state" in body:
         new_state = body["state"]
         if new_state not in ("scheduled", "playing", "finished"):
             raise HTTPException(status_code=400, detail="Invalid state")
 
-        # set timestamps once
-        if new_state == "playing" and m.started_at is None:
-            m.started_at = datetime.utcnow()
-        if new_state == "finished" and m.finished_at is None:
-            m.finished_at = datetime.utcnow()
+        # If we go backwards, clear timestamps appropriately.
+        if new_state == "scheduled":
+            m.started_at = None
+            m.finished_at = None
+
+        if new_state == "playing":
+            # reopening a finished match: clear finished_at
+            m.finished_at = None
+            if m.started_at is None:
+                m.started_at = datetime.utcnow()
+
+        if new_state == "finished":
+            if m.started_at is None:
+                m.started_at = datetime.utcnow()
+            if m.finished_at is None:
+                m.finished_at = datetime.utcnow()
 
         m.state = new_state
         _validate_tournament_state_order(s, m.tournament_id)
 
-    # Optional: accept goals updates in the simple shape your tests use
-    # body: {"sideA": {"goals": 1}, "sideB": {"goals": 2}}
+
+    # goals/club updates
     sides = {side.side: side for side in m.sides}
 
     if "sideA" in body and "A" in sides:
@@ -114,12 +148,33 @@ async def patch_match(
         if "goals" in b:
             sides["B"].goals = int(b["goals"])
 
+    # Compute status AFTER modifications (autoflush happens before queries)
+    status_after = compute_status_for_tournament(s, m.tournament_id)
+
+    # Enforce: only one tournament may be LIVE
+    if status_after == "live":
+        other_live = find_other_live_tournament_id(s, m.tournament_id)
+        if other_live is not None:
+            raise HTTPException(
+                status_code=409,
+                detail=f"Another tournament is live (tournament_id={other_live}). Finish it before starting/continuing this one.",
+            )
+
+    # Keep DB column in sync (even though status is derived)
+    if t is not None:
+        t.status = status_after
+        t.updated_at = datetime.utcnow()
+        s.add(t)
 
     s.add(m)
     for side in m.sides:
         s.add(side)
+
     s.commit()
     s.refresh(m)
 
-    return {"ok": True, "id": m.id, "state": m.state, "leg": m.leg}
+    log.info("Match patched: match_id=%s tournament_id=%s state=%s status=%s by=%s",
+             m.id, m.tournament_id, m.state, status_after, role)
+
+    return {"ok": True, "id": m.id, "state": m.state, "leg": m.leg, "tournament_status": status_after}
 

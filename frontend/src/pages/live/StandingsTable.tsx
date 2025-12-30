@@ -109,10 +109,12 @@ function Arrow({ delta }: { delta: number | null }) {
   return <span className="text-zinc-500">–</span>;
 }
 
-
-function MobileRow({ r, rank, delta }: { r: Row; rank: number; delta: number | null }) {
+function MobileRow({ r, rank, delta, isLeader }: { r: Row; rank: number; delta: number | null; isLeader: boolean }) {
   return (
-    <div className="rounded-xl border border-zinc-800 bg-zinc-900/10 px-3 py-2">
+    <div className="relative rounded-xl border border-zinc-800 bg-zinc-900/10 px-3 py-2">
+      {/* leader bar */}
+      {isLeader && <div className="absolute left-0 top-0 h-full w-1 rounded-l-xl bg-emerald-500/80" />}
+
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
@@ -161,7 +163,7 @@ export default function StandingsTable({
         {liveRows.map((r, idx) => {
           const baseIdx = basePos.get(r.playerId);
           const delta = baseIdx === undefined ? null : baseIdx - idx;
-          return <MobileRow key={r.playerId} r={r} rank={idx + 1} delta={delta} />;
+          return <MobileRow key={r.playerId} r={r} rank={idx + 1} delta={delta} isLeader={idx === 0} />;
         })}
       </div>
 
@@ -188,10 +190,26 @@ export default function StandingsTable({
             {liveRows.map((r, idx) => {
               const baseIdx = basePos.get(r.playerId);
               const delta = baseIdx === undefined ? null : baseIdx - idx;
+              const isLeader = idx === 0;
 
               return (
-                <tr key={r.playerId} className="border-b border-zinc-900/60">
-                  <td className="py-2 pr-2 text-zinc-500">{idx + 1}</td>
+                <tr
+                  key={r.playerId}
+                  className={[
+                    "relative",
+                    idx % 2 === 0 ? "bg-zinc-900/10" : "bg-transparent",
+                    "border-b border-zinc-900/60",
+                  ].join(" ")}
+                >
+                  {/* leader bar */}
+                  {isLeader && (
+                    <td className="relative py-2 pr-2 text-zinc-500">
+                      <div className="absolute left-0 top-0 h-full w-1 bg-emerald-500/80" />
+                      <div className="pl-2">{idx + 1}</div>
+                    </td>
+                  )}
+                  {!isLeader && <td className="py-2 pr-2 text-zinc-500">{idx + 1}</td>}
+
                   <td className="py-2">
                     <Arrow delta={delta} />
                   </td>

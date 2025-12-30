@@ -50,7 +50,7 @@ export default function CurrentGameSection({
   busy: boolean;
   onPatch: (matchId: number, body: any) => Promise<any>;
 }) {
-  if (status !== "live" || !match) return null;
+  if (status === "done" || !match) return null;
 
   const a = sideBy(match, "A");
   const b = sideBy(match, "B");
@@ -77,22 +77,40 @@ export default function CurrentGameSection({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [match?.id, match?.state, a?.club_id, b?.club_id, a?.goals, b?.goals]);
 
-  const showDashScore = match.state === "scheduled" && aGoals === 0 && bGoals === 0;
-  const scoreText = showDashScore ? "- : -" : `${aGoals} : ${bGoals}`;
+  const isScheduled = match.state === "scheduled";
+  const showGoalInputs = canControl && !isScheduled;
 
-  async function save(stateOverride?: "scheduled" | "playing" | "finished") {
+  // Score display: for scheduled always show "- : -" (regardless of stored/typed goals)
+  const scoreText = isScheduled ? "- : -" : `${aGoals} : ${bGoals}`;
+
+  async function save(
+    stateOverride?: "scheduled" | "playing" | "finished",
+    override?: { aGoals?: number; bGoals?: number; aClub?: number | null; bClub?: number | null }
+  ) {
     if (!canControl) return;
-    if (!match) return;
-    if (!match.state) return;
-
     const nextState = stateOverride ?? match.state;
-    if (nextState == null) return;
+
+    const payloadAGoals = override?.aGoals ?? aGoals;
+    const payloadBGoals = override?.bGoals ?? bGoals;
+    const payloadAClub = override?.aClub ?? aClub;
+    const payloadBClub = override?.bClub ?? bClub;
 
     await onPatch(match.id, {
       state: nextState,
-      sideA: { club_id: aClub, goals: aGoals },
-      sideB: { club_id: bClub, goals: bGoals },
+      sideA: { club_id: payloadAClub, goals: payloadAGoals },
+      sideB: { club_id: payloadBClub, goals: payloadBGoals },
     });
+  }
+
+  async function reset() {
+    if (!canControl) return;
+
+    // Update UI immediately (so we don’t “snap back” to old values)
+    setAGoals(0);
+    setBGoals(0);
+
+    // Persist reset explicitly (do NOT depend on current state)
+    await save("scheduled", { aGoals: 0, bGoals: 0 });
   }
 
   return (
@@ -100,7 +118,7 @@ export default function CurrentGameSection({
       {/* Top row */}
       <div className="flex items-center justify-between gap-3">
         <div className="text-sm text-zinc-400">
-          Next match{" "}
+          Current match{" "}
           <span className="text-zinc-500">
             · leg {match.leg} · {match.state}
           </span>
@@ -112,25 +130,36 @@ export default function CurrentGameSection({
               Start
             </Button>
           )}
-          {canControl && (
+          {canControl && match.state !== "scheduled" && (
+            <Button variant="ghost" onClick={() => reset()} disabled={busy}>
+              Reset
+            </Button>
+          )}
+          {canControl && match.state !== "scheduled" && (
             <Button variant="ghost" onClick={() => save()} disabled={busy}>
               Save
             </Button>
           )}
           {canControl && (
-            <Button onClick={() => save("finished")} disabled={busy}>
+            <Button
+              disabled={busy}
+              onClick={() => {
+                const text = match.state === "scheduled" ? "Match not started. Are you sure you want to finish this match (0:0)?" : undefined; 
+                if (text && !window.confirm(text)) return;
+                void save("finished");
+              }}
+            >
               Finish
             </Button>
           )}
         </div>
       </div>
 
-      {/* MOBILE: align A / score / B around the SCORE only */}
+      {/* MOBILE */}
       <div className="space-y-3 md:hidden">
         <div className="rounded-xl border border-zinc-800 bg-zinc-900/10 p-3">
           {/* Row 1: names + score */}
           <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3">
-            {/* Side A */}
             <div className="min-w-0">
               {aNames.map((n, i) => (
                 <div
@@ -141,15 +170,11 @@ export default function CurrentGameSection({
                 </div>
               ))}
             </div>
-            
-            {/* Score (this is the center anchor) */}
+
             <div className="px-1 text-center">
-              <div className="text-2xl font-extrabold tracking-tight text-zinc-100">
-                {scoreText}
-              </div>
+              <div className="text-2xl font-extrabold tracking-tight text-zinc-100">{scoreText}</div>
             </div>
-            
-            {/* Side B */}
+
             <div className="min-w-0 text-right">
               {bNames.map((n, i) => (
                 <div
@@ -161,17 +186,17 @@ export default function CurrentGameSection({
               ))}
             </div>
           </div>
-            
-          {/* Row 2: goal steppers (separate so it doesn't “center” the names) */}
-          {canControl && (
+
+          {/* Row 2: goal steppers only if not scheduled */}
+          {showGoalInputs && (
             <div className="mt-3 flex items-center justify-center gap-4">
               <GoalStepper value={aGoals} onChange={setAGoals} disabled={busy} ariaLabel="Goals left" />
               <GoalStepper value={bGoals} onChange={setBGoals} disabled={busy} ariaLabel="Goals right" />
             </div>
           )}
         </div>
-        
-        {/* Clubs (with player-name labels) */}
+
+        {/* Clubs (always selectable) */}
         <div className="grid grid-cols-1 gap-2">
           <ClubSelect
             label={`${aInline} — club`}
@@ -192,7 +217,6 @@ export default function CurrentGameSection({
         </div>
       </div>
 
-
       {/* DESKTOP/TABLET */}
       <div className="hidden md:block space-y-3">
         <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-4">
@@ -207,7 +231,7 @@ export default function CurrentGameSection({
           <div className="px-2 text-center">
             <div className="text-3xl font-extrabold tracking-tight text-zinc-100">{scoreText}</div>
 
-            {canControl && (
+            {showGoalInputs && (
               <div className="mt-2 flex items-center justify-center gap-4">
                 <GoalStepper value={aGoals} onChange={setAGoals} disabled={busy} ariaLabel="Goals left" />
                 <GoalStepper value={bGoals} onChange={setBGoals} disabled={busy} ariaLabel="Goals right" />
@@ -246,7 +270,7 @@ export default function CurrentGameSection({
 
       {!canControl && (
         <div className="rounded-xl border border-zinc-800 bg-zinc-900/20 px-3 py-2 text-sm text-zinc-400">
-          Read-only. Login as editor/admin to control the live match.
+          Read-only. Login as editor/admin to control the match.
         </div>
       )}
     </div>
