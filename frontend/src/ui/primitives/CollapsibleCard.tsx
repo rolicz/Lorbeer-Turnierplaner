@@ -6,7 +6,7 @@ export default function CollapsibleCard({
   right,
   children,
 }: {
-  title: string;
+  title: React.ReactNode;
   defaultOpen?: boolean;
   right?: React.ReactNode;
   children: React.ReactNode;

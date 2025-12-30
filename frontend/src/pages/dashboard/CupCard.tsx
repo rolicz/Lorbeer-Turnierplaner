@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import Card from "../../ui/primitives/Card";
@@ -24,7 +25,7 @@ export default function CupCard() {
   }, [history, showAll]);
 
   return (
-    <Card title="Lorbeerkranz Cup">
+    <Card title="">
       {q.isLoading && <div className="text-zinc-400">Loading…</div>}
       {q.error && <div className="text-sm text-red-400">{String(q.error)}</div>}
 
@@ -35,22 +36,38 @@ export default function CupCard() {
               <div className="text-xs text-zinc-500">Current owner</div>
               <div className="truncate text-xl font-semibold accent">{q.data.owner.display_name}</div>
             </div>
+            <div className="flex items-center gap-2">
+              <span className="relative inline-flex group">
+                <Button
+                  variant="ghost"
+                  aria-label="Info"
+                  title="Info"
+                >
+                  <i className="fa fa-info" aria-hidden="true" />
+                </Button>
+                <div className="pointer-events-none absolute left-4/4 top-full z-20 mt-2 w-72 -translate-x-1/2 rounded-xl border border-zinc-800 bg-zinc-950/95 p-3 text-xs text-zinc-300 opacity-0 shadow-lg transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+                  Cup transfers only when the current owner participates in a{" "}
+                  <span className="text-zinc-100">done</span> tournament and does not win it.
+                  <br />
+                  Draw for first place does not transfer.
+                </div>
+              </span>
             <Button variant="ghost" onClick={() => q.refetch()} type="button" title="Refresh">
               <i className="fa fa-refresh md:hidden" aria-hidden="true" />
               <span className="hidden md:inline">Refresh</span>
             </Button>
+            </div>
           </div>
 
           <div className="rounded-xl border border-zinc-800 bg-zinc-900/10 p-3">
             <div className="text-xs text-zinc-500">Streak</div>
             <div className="mt-1 text-sm text-zinc-200">
-              <span className="font-semibold">{q.data.streak.tournaments_participated}</span>{" "}
-              tournament{q.data.streak.tournaments_participated === 1 ? "" : "s"} participated (since{" "}
-              <span className="text-zinc-300">{fmtDate(q.data.streak.since.date)}</span>)
+              <span className="font-semibold text-xl">{q.data.streak.tournaments_participated}</span>
             </div>
             {q.data.streak.since.tournament_name && (
               <div className="mt-1 text-xs text-zinc-500">
-                Since: <span className="text-zinc-300">{q.data.streak.since.tournament_name}</span>
+                Since: <span className="text-xs text-zinc-300">{q.data.streak.since.tournament_name}</span><span className="text-xs text-zinc-500">{" "}(
+              {fmtDate(q.data.streak.since.date)})</span>
               </div>
             )}
           </div>
@@ -69,7 +86,10 @@ export default function CupCard() {
           ) : (
             <div className="space-y-2">
               {shown.map((h) => (
-                <div key={`${h.tournament_id}-${h.date}`} className="rounded-xl border border-zinc-800 px-3 py-2">
+                <div key={`${h.tournament_id}-${h.date}`} className="rounded-xl border border-zinc-800 px-3 py-2" >
+                  <Link
+                    to={`/live/${h.tournament_id}`}
+                  >
                   <div className="flex items-center justify-between gap-2">
                     <div className="min-w-0">
                       <div className="truncate text-sm text-zinc-200">{h.tournament_name}</div>
@@ -81,15 +101,13 @@ export default function CupCard() {
                       <span className="accent font-semibold">{h.to.display_name}</span>
                     </div>
                   </div>
+                  </Link>
                 </div>
               ))}
             </div>
           )}
 
-          <div className="text-xs text-zinc-500">
-            Cup transfers only when the current owner participates in a <span className="text-zinc-300">done</span>{" "}
-            tournament and does not win it. Draw for first place does not transfer.
-          </div>
+
         </div>
       )}
     </Card>

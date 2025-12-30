@@ -248,50 +248,6 @@ def list_tournaments(s: Session = Depends(get_session)):
     return out
 
 
-
-@router.get("/{tournament_id}")
-def get_tournament(tournament_id: int, s: Session = Depends(get_session)):
-    t = _tournament_or_404(s, tournament_id)
-    return _serialize_tournament(s, t)
-
-
-@router.post("", dependencies=[Depends(require_editor)])
-def create_tournament(body: dict, s: Session = Depends(get_session)):
-    name = (body.get("name") or "").strip()
-    mode = body.get("mode")
-    settings = body.get("settings", {})
-    player_ids = body.get("player_ids", [])
-    date_str = (body.get("date") or "").strip()
-    t_date = _parse_yyyy_mm_dd(date_str) if date_str else date.today()
-
-    if not name:
-        raise HTTPException(status_code=400, detail="Missing name")
-    if mode not in ("1v1", "2v2"):
-        raise HTTPException(status_code=400, detail="mode must be '1v1' or '2v2'")
-
-    t = Tournament(name=name, mode=mode, status="draft", settings_json=json.dumps(settings), date=t_date)
-    s.add(t)
-    s.commit()
-    s.refresh(t)
-
-    if player_ids:
-        if not isinstance(player_ids, list):
-            raise HTTPException(status_code=400, detail="player_ids must be a list")
-
-        existing = s.exec(select(Player).where(Player.id.in_(player_ids))).all()
-        found_ids = {p.id for p in existing}
-        if set(player_ids) != found_ids:
-            raise HTTPException(status_code=400, detail="One or more player_ids do not exist")
-
-        for pid in player_ids:
-            s.add(TournamentPlayer(tournament_id=t.id, player_id=pid))
-        s.commit()
-
-    log.info("Created tournament '%s' (id=%s, mode=%s)", t.name, t.id, t.mode)
-    return t
-
-
-
 @router.get("/live")
 def get_live_tournament(s: Session = Depends(get_session)):
     """
@@ -353,6 +309,52 @@ def get_live_tournament(s: Session = Depends(get_session)):
         "updated_at": t.updated_at,
         "status": "live",
     }
+
+
+@router.get("/{tournament_id}")
+def get_tournament(tournament_id: int, s: Session = Depends(get_session)):
+    t = _tournament_or_404(s, tournament_id)
+    return _serialize_tournament(s, t)
+
+
+@router.post("", dependencies=[Depends(require_editor)])
+def create_tournament(body: dict, s: Session = Depends(get_session)):
+    name = (body.get("name") or "").strip()
+    mode = body.get("mode")
+    settings = body.get("settings", {})
+    player_ids = body.get("player_ids", [])
+    date_str = (body.get("date") or "").strip()
+    t_date = _parse_yyyy_mm_dd(date_str) if date_str else date.today()
+
+    if not name:
+        raise HTTPException(status_code=400, detail="Missing name")
+    if mode not in ("1v1", "2v2"):
+        raise HTTPException(status_code=400, detail="mode must be '1v1' or '2v2'")
+
+    t = Tournament(name=name, mode=mode, status="draft", settings_json=json.dumps(settings), date=t_date)
+    s.add(t)
+    s.commit()
+    s.refresh(t)
+
+    if player_ids:
+        if not isinstance(player_ids, list):
+            raise HTTPException(status_code=400, detail="player_ids must be a list")
+
+        existing = s.exec(select(Player).where(Player.id.in_(player_ids))).all()
+        found_ids = {p.id for p in existing}
+        if set(player_ids) != found_ids:
+            raise HTTPException(status_code=400, detail="One or more player_ids do not exist")
+
+        for pid in player_ids:
+            s.add(TournamentPlayer(tournament_id=t.id, player_id=pid))
+        s.commit()
+
+    log.info("Created tournament '%s' (id=%s, mode=%s)", t.name, t.id, t.mode)
+    return t
+
+
+
+
 
 
 

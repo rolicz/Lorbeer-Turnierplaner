@@ -287,11 +287,6 @@ export default function CurrentGameSection({
         </div>
       </div>
 
-      {!canControl && (
-        <div className="rounded-xl border border-zinc-800 bg-zinc-900/20 px-3 py-2 text-sm text-zinc-400">
-          Read-only. Login as editor/admin to control the match.
-        </div>
-      )}
     </div>
   );
 }

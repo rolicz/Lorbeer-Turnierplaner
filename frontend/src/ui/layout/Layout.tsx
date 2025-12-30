@@ -31,12 +31,12 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 role: <span className="accent">{role}</span>
               </div>
             </div>
-
             <div className="shrink-0">
               {role === "reader" ? (
                 <Link
                   to="/login"
-                  className="rounded-xl px-3 py-2 text-sm hover:bg-zinc-900/60"
+                  className="bg-transparent border-zinc-800 hover:bg-zinc-900/50"
+                  title="Login"
                 >
                   <i className="fa fa-sign-in md:hidden" aria-hidden="true" />
                   <span className="hidden md:inline">Login</span>
