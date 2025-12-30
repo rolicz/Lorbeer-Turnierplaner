@@ -58,6 +58,7 @@ export function useTournamentWS(tid: number | null) {
 
     ws.onmessage = () => {
       // Any tournament update event: revalidate the cached tournament & list.
+      console.log("invalidate")
       qc.invalidateQueries({ queryKey: ["tournament", tid] });
       qc.invalidateQueries({ queryKey: ["tournaments"] });
     };

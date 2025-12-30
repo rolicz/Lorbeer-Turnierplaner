@@ -1,6 +1,6 @@
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import type { Club, Match, MatchSide } from "../../api/types";
 import { getTournament } from "../../api/tournaments.api";
@@ -8,6 +8,8 @@ import { listClubs } from "../../api/clubs.api";
 import { apiFetch } from "../../api/client";
 
 import CollapsibleCard from "../../ui/primitives/CollapsibleCard";
+
+import { useTournamentWS } from "../../hooks/useTournamentWS";
 
 function sideBy(m: Match, side: "A" | "B"): MatchSide | undefined {
   return m.sides.find((s) => s.side === side);
@@ -77,6 +79,8 @@ export default function CurrentMatchPreviewCard() {
     queryFn: () => getTournament(tid!),
     enabled: !!tid,
   });
+
+  useTournamentWS(tid);
 
   // 3) fetch clubs (for labels). If you ever add "game" to tournaments, switch this.
   const clubsQ = useQuery({
@@ -159,11 +163,11 @@ export default function CurrentMatchPreviewCard() {
                 </div>
 
                 <div className="flex items-center justify-center gap-2 rounded-xl border border-zinc-800 bg-zinc-950/60 px-3 py-1.5">
-                  <span className={`text-xl font-semibold tabular-nums ${aWin ? "text-emerald-300" : "text-zinc-100"}`}>
+                  <span className={`text-xl font-semibold tabular-nums text-zinc-100`}>
                     {scoreLeft}
                   </span>
                   <span className="text-zinc-500">:</span>
-                  <span className={`text-xl font-semibold tabular-nums ${bWin ? "text-emerald-300" : "text-zinc-100"}`}>
+                  <span className={`text-xl font-semibold tabular-nums text-zinc-100`}>
                     {scoreRight}
                   </span>
                 </div>

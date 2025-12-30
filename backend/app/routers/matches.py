@@ -177,6 +177,13 @@ async def patch_match(
     log.info("Match patched: match_id=%s tournament_id=%s state=%s status=%s by=%s",
              m.id, m.tournament_id, m.state, status_after, role)
 
+    await ws_manager.broadcast(
+        m.tournament_id,
+        "match_patched",
+        {"tournament_id": m.tournament_id, "match_id": m.id, "tournament_status": status_after},
+    )
+
+
     return {"ok": True, "id": m.id, "state": m.state, "leg": m.leg, "tournament_status": status_after}
 
 
