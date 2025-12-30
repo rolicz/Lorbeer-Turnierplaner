@@ -117,3 +117,18 @@ export function patchTournamentDecider(
     body: JSON.stringify(body),
   });
 }
+
+export function reassign2v2Schedule(
+  token: string,
+  tournamentId: number,
+  randomize_order: boolean = true
+) {
+  return apiFetch<{ ok: true; matches: number; second_leg: boolean; status: string }>(
+    `/tournaments/${tournamentId}/reassign`,
+    {
+      method: "POST",
+      token,
+      body: JSON.stringify({ randomize_order }),
+    }
+  );
+}

@@ -54,6 +54,7 @@ export default function MatchList({
   canReorder,
   busyReorder,
   onEditMatch,
+  onSwapSides,
   onMoveUp,
   onMoveDown,
   clubLabel,
@@ -63,6 +64,7 @@ export default function MatchList({
   canReorder: boolean;
   busyReorder: boolean;
   onEditMatch: (m: Match) => void;
+  onSwapSides: (matchId: number) => Promise<any>;
   onMoveUp: (matchId: number) => void;
   onMoveDown: (matchId: number) => void;
   clubLabel: (id: number | null | undefined) => string;
@@ -92,6 +94,7 @@ export default function MatchList({
         const scoreRight = showScore ? String(bg) : "-";
 
         const showMove = canReorder && m.state === "scheduled";
+        const showSwap = canEdit && m.state === "scheduled";
 
         return (
           <div
@@ -115,6 +118,23 @@ export default function MatchList({
 
                 {showMove && (
                   <div className="flex items-center gap-1">
+                  {showSwap && (
+                    <div className="flex items-center gap-1">
+                      <Button
+                        variant="ghost"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          onSwapSides(m.id);
+                        }}
+                        disabled={busyReorder}
+                        title="Swap sides"
+                      >
+                        <i className="fa fa-arrow-right-arrow-left md:hidden" aria-hidden="true" />
+                        <span className="hidden md:inline">Swap Home/Away</span>
+                      </Button>
+                    </div>
+                  )}
                     <Button
                       variant="ghost"
                       onClick={(e) => {
@@ -125,7 +145,8 @@ export default function MatchList({
                       disabled={busyReorder}
                       title="Move up"
                     >
-                      ↑
+                      <i className="fa fa-arrow-up md:hidden" aria-hidden="true" />
+                      <span className="hidden md:inline">Move up</span>
                     </Button>
                     <Button
                       variant="ghost"
@@ -137,7 +158,8 @@ export default function MatchList({
                       disabled={busyReorder}
                       title="Move down"
                     >
-                      ↓
+                      <i className="fa fa-arrow-down md:hidden" aria-hidden="true" />
+                      <span className="hidden md:inline">Move down</span>
                     </Button>
                   </div>
                 )}

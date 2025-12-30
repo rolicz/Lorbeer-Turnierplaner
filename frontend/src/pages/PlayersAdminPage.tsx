@@ -58,10 +58,12 @@ export default function PlayersAdminPage() {
         />
         <div className="flex items-end gap-2">
           <Button onClick={() => createMut.mutate()} disabled={!name.trim() || createMut.isPending}>
-            {createMut.isPending ? "Creating…" : "Create"}
+            <i className="fa fa-plus md:hidden" aria-hidden="true" />
+            <span className="hidden md:inline">{createMut.isPending ? "Creating…" : "Create"}</span>
           </Button>
-          <Button variant="ghost" onClick={() => qc.invalidateQueries({ queryKey: ["players"] })}>
-            Refresh
+          <Button variant="ghost" onClick={() => qc.invalidateQueries({ queryKey: ["players"] })} title="Refresh">
+            <i className="fa fa-refresh md:hidden" aria-hidden="true" />
+            <span className="hidden md:inline">Refresh</span>
           </Button>
         </div>
       </div>
@@ -88,7 +90,8 @@ export default function PlayersAdminPage() {
                 }}
                 type="button"
               >
-                Rename
+                <i className="fa fa-edit md:hidden" aria-hidden="true" />
+                <span className="hidden md:inline">Edit</span>
               </Button>
             </div>
 

@@ -40,7 +40,8 @@ export default function LoginPage() {
         />
         {err && <div className="text-sm text-red-400">{err}</div>}
         <Button disabled={busy || !pw.trim()} className="w-full">
-          {busy ? "Logging in..." : "Login"}
+          <i className="fa fa-sign-in md:hidden" aria-hidden="true" />
+          <span className="hidden md:inline">{busy ? "Logging in..." : "Login"}</span>
         </Button>
         <div className="text-sm text-zinc-400">
           No login is needed for read-only viewing.

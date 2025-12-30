@@ -209,9 +209,44 @@ def _state_rank(state: str) -> int:
 def list_tournaments(s: Session = Depends(get_session)):
     ts = s.exec(select(Tournament).order_by(Tournament.created_at.desc())).all()
     status_by_tid = compute_status_map(s)
+
+    out = []
     for t in ts:
-        t.status = status_by_tid.get(t.id, "draft")
-    return ts
+        matches = s.exec(
+            select(Match)
+            .where(Match.tournament_id == t.id)
+            .order_by(Match.order_index)
+        ).all()
+
+        # eager load like before
+        for m in matches:
+            _ = m.sides
+            for side in m.sides:
+                _ = side.players
+
+        status = status_by_tid.get(t.id, "draft")
+
+        winner_string = None
+        winner_decider_string = None
+        pt = _compute_points_table_finished(matches)
+        top = _top_group(pt)
+        if status == "done" and len(top) == 1:
+            winner_string = s.exec(
+                select(Player.display_name).where(Player.id == top[0])
+            ).first()
+        if len(top) > 1 and t.decider_winner_player_id is not None:
+            winner_decider_string = s.exec(
+                select(Player.display_name).where(Player.id == t.decider_winner_player_id)
+            ).first()
+
+        d = t.model_dump()          # all the usual Tournament fields
+        d["status"] = status        # if you want status in response
+        d["winner_string"] = winner_string
+        d["winner_decider_string"] = winner_decider_string
+        out.append(d)
+
+    return out
+
 
 
 @router.get("/{tournament_id}")
@@ -880,3 +915,133 @@ async def patch_decider(
         "decider_winner_goals": t.decider_winner_goals,
         "decider_loser_goals": t.decider_loser_goals,
     }
+
+@router.post("/{tournament_id}/reassign", dependencies=[Depends(require_editor)])
+async def reassign_2v2(
+    tournament_id: int,
+    body: dict,
+    s: Session = Depends(get_session),
+    role: str = Depends(require_editor),
+):
+    """
+    Re-create match combinations for NON-deterministic schedules.
+
+    Only allowed for 2v2 (pairings/opponents are not uniquely determined).
+    Safety:
+      - only when ALL matches are still scheduled (and "clean": no goals/clubs/timestamps)
+      - editor/admin only
+      - preserves "second leg enabled" flag: if leg2 existed before, it is recreated to match new leg1
+
+    body (optional):
+      { "randomize_order": true|false }
+    """
+    t = _tournament_or_404(s, tournament_id)
+
+    if t.mode != "2v2":
+        raise HTTPException(status_code=409, detail="Re-assign is only supported for 2v2 tournaments")
+
+    # Must have an existing schedule
+    matches = s.exec(
+        select(Match)
+        .where(Match.tournament_id == tournament_id)
+        .order_by(Match.order_index)
+    ).all()
+    if not matches:
+        raise HTTPException(status_code=409, detail="No schedule exists yet (generate schedule first)")
+
+    # Safety: only if ALL matches are still scheduled and untouched
+    for m in matches:
+        if m.state != "scheduled":
+            raise HTTPException(status_code=409, detail="Re-assign requires all matches to be scheduled")
+        if m.started_at is not None or m.finished_at is not None:
+            raise HTTPException(status_code=409, detail="Re-assign requires untouched matches (no timestamps)")
+
+        _ = m.sides
+        for side in m.sides:
+            if (side.goals or 0) != 0:
+                raise HTTPException(status_code=409, detail="Re-assign requires untouched matches (goals must be 0)")
+            if side.club_id is not None:
+                raise HTTPException(status_code=409, detail="Re-assign requires untouched matches (clubs must be empty)")
+
+    had_leg2 = any(m.leg == 2 for m in matches)
+    randomize_order = bool(body.get("randomize_order", True))
+
+    # validate player count for 2v2
+    _ = t.players
+    player_names = [p.display_name for p in t.players]
+    if not (4 <= len(player_names) <= 6):
+        raise HTTPException(status_code=400, detail="2v2 supports 4–6 players (adjustable)")
+
+    # Build a NEW random label mapping => changes real pairings (not just order)
+    labels, label_to_name = assign_labels(player_names, shuffle=True)
+
+    # Persist label mapping in settings_json (like /generate does)
+    try:
+        settings = json.loads(t.settings_json or "{}")
+        if not isinstance(settings, dict):
+            settings = {}
+    except Exception:
+        settings = {}
+    settings["labels"] = label_to_name
+    t.settings_json = json.dumps(settings)
+    t.updated_at = datetime.utcnow()
+    s.add(t)
+    s.commit()
+
+    # Compute 2v2 matchups
+    try:
+        label_matches = schedule_2v2_labels(labels)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    if randomize_order:
+        random.shuffle(label_matches)
+
+    # Delete old schedule (both legs, if present)
+    _delete_schedule(s, tournament_id)
+
+    # Map label->player_id using current tournament players
+    db_players = {p.display_name: p for p in t.players}
+
+    def label_team_to_player_ids(team: tuple[str, ...]) -> list[int]:
+        return [db_players[label_to_name[l]].id for l in team]
+
+    # Recreate leg 1
+    idx = 0
+    for team_a, team_b in label_matches:
+        _create_match_with_teams(
+            s=s,
+            tournament_id=tournament_id,
+            order_index=idx,
+            leg=1,
+            team_a_player_ids=label_team_to_player_ids(team_a),
+            team_b_player_ids=label_team_to_player_ids(team_b),
+        )
+        idx += 1
+
+    # If second leg existed before, recreate it to match new leg1
+    if had_leg2:
+        for team_a, team_b in label_matches:
+            _create_match_with_teams(
+                s=s,
+                tournament_id=tournament_id,
+                order_index=idx,
+                leg=2,
+                team_a_player_ids=label_team_to_player_ids(team_a),
+                team_b_player_ids=label_team_to_player_ids(team_b),
+            )
+            idx += 1
+
+    # Sync status (after reassign everything is scheduled => draft)
+    t = _tournament_or_404(s, tournament_id)
+    t.status = compute_status_for_tournament(s, tournament_id)
+    t.updated_at = datetime.utcnow()
+    s.add(t)
+    s.commit()
+
+    await ws_manager.broadcast(tournament_id, "schedule_generated", {"tournament_id": tournament_id})
+    log.info(
+        "2v2 reassign: tournament_id=%s matches=%s had_leg2=%s by=%s",
+        tournament_id, len(label_matches), had_leg2, role
+    )
+    return {"ok": True, "matches": len(label_matches), "second_leg": had_leg2, "status": t.status}

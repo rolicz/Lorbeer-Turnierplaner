@@ -15,9 +15,10 @@ import {
   patchTournamentDate,
   patchTournamentName,
   patchTournamentDecider,
+  reassign2v2Schedule,
 } from "../../api/tournaments.api";
 
-import { patchMatch } from "../../api/matches.api";
+import { patchMatch, swapMatchSides } from "../../api/matches.api";
 import { listClubs } from "../../api/clubs.api";
 import type { Match, Club } from "../../api/types";
 
@@ -98,9 +99,9 @@ function starsLabel(v: any): string {
 }
 
 function statusPillClass(status: string) {
-  if (status === "live") return "border-indigo-500/40 bg-indigo-500/10 text-indigo-300";
-  if (status === "done") return "border-emerald-500/40 bg-emerald-500/10 text-emerald-300";
-  return "border-zinc-700 bg-zinc-900/40 text-zinc-300";
+  if (status === "live") return "border-emerald-500/30 bg-emerald-500/10 text-emerald-200";
+  if (status === "done") return "border-zinc-700/40 bg-zinc-900/40 text-zinc-300";
+  return "border-sky-500/30 bg-sky-500/10 text-sky-200";
 }
 
 export default function LiveTournamentPage() {
@@ -241,6 +242,27 @@ export default function LiveTournamentPage() {
       nav("/tournaments");
       await qc.invalidateQueries({ queryKey: ["tournaments"] });
       await qc.invalidateQueries({ queryKey: ["cup"] }).catch(() => {});
+    },
+  });
+
+  const reassignMut = useMutation({
+    mutationFn: async () => {
+      if (!token) throw new Error("Not logged in");
+      if (!tid) throw new Error("No tournament id");
+      return reassign2v2Schedule(token, tid, true);
+    },
+    onSuccess: async () => {
+      if (tid) await qc.invalidateQueries({ queryKey: ["tournament", tid] });
+    },
+  });
+
+  const swapSidesMut = useMutation({
+    mutationFn: async (matchId: number) => {
+      if (!token) throw new Error("Not logged in");
+      return swapMatchSides(token, matchId);
+    },
+    onSuccess: async () => {
+      if (tid) await qc.invalidateQueries({ queryKey: ["tournament", tid] });
     },
   });
 
@@ -445,7 +467,7 @@ export default function LiveTournamentPage() {
               </div>
 
               <Button variant="ghost" onClick={() => tQ.refetch()} title="Refetch">
-                ↻
+                <i className="fa fa-arrows-rotate" aria-hidden="true" />
               </Button>
             </div>
 
@@ -461,6 +483,7 @@ export default function LiveTournamentPage() {
                     enableLegMut.isPending ||
                     disableLegMut.isPending ||
                     reorderMut.isPending ||
+                    reassignMut.isPending ||
                     deleteMut.isPending ||
                     dateMut.isPending ||
                     nameMut.isPending ||
@@ -485,6 +508,11 @@ export default function LiveTournamentPage() {
                     setPanelError(null);
                     const ids = matchesSorted.map((m) => m.id);
                     reorderMut.mutate(shuffle(ids), { onError: (e: any) => setPanelError(e?.message ?? String(e)) });
+                  }}
+                  mode={tQ.data.mode}
+                  onReassign2v2={() => {
+                    setPanelError(null);
+                    reassignMut.mutate(undefined, { onError: (e: any) => setPanelError(e?.message ?? String(e)) });
                   }}
                   onDeleteTournament={() => {
                     if (!isAdmin) return;
@@ -527,6 +555,9 @@ export default function LiveTournamentPage() {
                   canControl={isEditorOrAdmin && !isDone}
                   busy={currentGameMut.isPending}
                   onPatch={(matchId, body) => currentGameMut.mutateAsync({ matchId, body })}
+                  onSwapSides={async (matchId) => {
+                    await swapSidesMut.mutateAsync(matchId);
+                  }}
                 />
               </CollapsibleCard>
             )}
@@ -554,6 +585,9 @@ export default function LiveTournamentPage() {
                 canReorder={canReorder}
                 busyReorder={reorderMut.isPending}
                 onEditMatch={openEditor}
+                onSwapSides={async (matchId) => {
+                  await swapSidesMut.mutateAsync(matchId);
+                }}
                 onMoveUp={(matchId) => {
                   if (!canReorder) return;
                   const idx = matchesSorted.findIndex((x) => x.id === matchId);

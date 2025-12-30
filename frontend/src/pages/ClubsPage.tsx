@@ -125,18 +125,22 @@ export default function ClubsPage() {
 
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <Button onClick={() => createMut.mutate()} disabled={!name.trim() || !game.trim() || createMut.isPending}>
-            {createMut.isPending ? "Creating…" : "Create"}
+            <i className="fa fa-plus md:hidden" aria-hidden="true" />
+            <span className="hidden md:inline">{createMut.isPending ? "Creating…" : "Create"}</span>
           </Button>
-          <Button variant="ghost" onClick={() => qc.invalidateQueries({ queryKey: ["clubs", game] })}>
-            Refresh
+          <Button variant="ghost" onClick={() => qc.invalidateQueries({ queryKey: ["clubs", game] })} title="Refresh">
+            <i className="fa fa-refresh md:hidden" aria-hidden="true" />
+            <span className="hidden md:inline">Refresh</span>
           </Button>
 
           <div className="ml-auto flex items-center gap-2">
-            <Button variant="ghost" onClick={expandAll} type="button">
-              Expand all
+            <Button variant="ghost" onClick={expandAll} type="button" title="Expand all">
+              <i className="fa fa-plus md:hidden" aria-hidden="true" />
+              <span className="hidden md:inline">Expand all</span>
             </Button>
-            <Button variant="ghost" onClick={collapseAll} type="button">
-              Collapse all
+            <Button variant="ghost" onClick={collapseAll} type="button" title="Collapse all">
+              <i className="fa fa-minus md:hidden" aria-hidden="true" />
+              <span className="hidden md:inline">Collapse all</span>
             </Button>
           </div>
         </div>
@@ -180,7 +184,8 @@ export default function ClubsPage() {
                             }}
                             type="button"
                           >
-                            Edit
+                            <i className="fa fa-edit md:hidden" aria-hidden="true" />
+                            <span className="hidden md:inline">Edit</span>
                           </Button>
                         </div>
                       </div>
@@ -196,11 +201,13 @@ export default function ClubsPage() {
                             />
                           )}
                           <Input label="New stars" value={editStars} onChange={(e) => setEditStars(e.target.value)} />
-                          <Button onClick={() => patchMut.mutate()} disabled={patchMut.isPending} type="button">
-                            {patchMut.isPending ? "Saving…" : "Save"}
+                          <Button onClick={() => patchMut.mutate()} disabled={patchMut.isPending} type="button" title="Save">
+                            <i className="fa fa-check md:hidden" aria-hidden="true" />
+                            <span className="hidden md:inline">{patchMut.isPending ? "Saving…" : "Save"}</span>
                           </Button>
-                          <Button variant="ghost" onClick={() => setEditId(null)} type="button">
-                            Cancel
+                          <Button variant="ghost" onClick={() => setEditId(null)} type="button" title="Cancel">
+                            <i className="fa fa-times md:hidden" aria-hidden="true" />
+                            <span className="hidden md:inline">Cancel</span>
                           </Button>
                           {isAdmin && (
                             <Button
@@ -211,8 +218,10 @@ export default function ClubsPage() {
                                 delMut.mutate(c.id);
                               }}
                               type="button"
+                              title="Delete"
                             >
-                              Delete
+                              <i className="fa fa-trash md:hidden" aria-hidden="true" />
+                              <span className="hidden md:inline">Delete</span>
                             </Button>
                           )}
                         </div>

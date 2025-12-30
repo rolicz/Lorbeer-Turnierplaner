@@ -22,7 +22,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen">
       <header className="sticky top-0 z-10 border-b border-zinc-800 bg-zinc-950/80 backdrop-blur">
-        <div className="mx-auto max-w-5xl px-3 py-2 sm:px-4 sm:py-3">
+        <div className="mx-auto max-w-5xl px-4 py-2 sm:px-4 sm:py-3">
           {/* Row 1: title + auth */}
           <div className="flex items-center justify-between gap-2">
             <div className="flex min-w-0 items-center gap-2">
@@ -38,11 +38,13 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                   to="/login"
                   className="rounded-xl px-3 py-2 text-sm hover:bg-zinc-900/60"
                 >
-                  Login
+                  <i className="fa fa-sign-in md:hidden" aria-hidden="true" />
+                  <span className="hidden md:inline">Login</span>
                 </Link>
               ) : (
-                <Button variant="ghost" onClick={logout}>
-                  Logout
+                <Button variant="ghost" onClick={logout} title="Logout">
+                  <i className="fa fa-sign-out md:hidden" aria-hidden="true" />
+                  <span className="hidden md:inline">Logout</span>
                 </Button>
               )}
             </div>

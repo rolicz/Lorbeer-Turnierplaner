@@ -9,13 +9,15 @@ type Candidate = { id: number; name: string };
 export default function AdminPanel({
   role,
   status,
+  mode,
 
   // tournament actions (editor OR admin)
   secondLegEnabled,
   onEnableSecondLeg,
   onDisableSecondLeg,
-  canDisableSecondLeg, // NEW
+  canDisableSecondLeg,
   onReshuffle,
+  onReassign2v2,
 
   // admin-only actions
   onDeleteTournament,
@@ -56,6 +58,9 @@ export default function AdminPanel({
   /** If false, "Remove second leg" is hidden (e.g. leg2 already started). */
   canDisableSecondLeg?: boolean;
   onReshuffle: () => void;
+
+  mode: "1v1" | "2v2";
+  onReassign2v2?: () => void;
 
   onDeleteTournament: () => void;
 
@@ -212,6 +217,12 @@ export default function AdminPanel({
         {canReorder && status === "draft" && (
           <Button variant="ghost" onClick={onReshuffle} disabled={busy}>
             Reshuffle order
+          </Button>
+        )}
+
+        {isEditorOrAdmin && status === "draft" && mode === "2v2" && onReassign2v2 && (
+          <Button variant="ghost" onClick={onReassign2v2} disabled={busy}>
+            Re-assign 2v2 schedule
           </Button>
         )}
 

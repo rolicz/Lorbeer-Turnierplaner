@@ -42,6 +42,7 @@ export default function CurrentGameSection({
   canControl,
   busy,
   onPatch,
+  onSwapSides,
 }: {
   status: "draft" | "live" | "done";
   match: Match | null;
@@ -49,6 +50,7 @@ export default function CurrentGameSection({
   canControl: boolean;
   busy: boolean;
   onPatch: (matchId: number, body: any) => Promise<any>;
+  onSwapSides?: (matchId: number) => Promise<any>;
 }) {
   if (status === "done" || !match) return null;
 
@@ -119,38 +121,54 @@ export default function CurrentGameSection({
       {/* Top row */}
       <div className="flex items-center justify-between gap-3">
         <div className="text-sm text-zinc-400">
-          Current match{" "}
           <span className="text-zinc-500">
-            · leg {match.leg} · {match.state}
+            leg {match.leg} · {match.state}
           </span>
         </div>
 
+
         <div className="flex items-center gap-2">
+          {canControl && onSwapSides && (
+            <Button variant="ghost" onClick={() => onSwapSides(match.id)} disabled={busy} title="Swap home/away (A↔B)">
+              <i className="fa fa-arrow-right-arrow-left md:hidden" aria-hidden="true" />
+              <span className="hidden md:inline">Swap Home/Away</span>
+            </Button>
+          )}
           {canControl && match.state === "scheduled" && (
-            <Button variant="ghost" onClick={() => save("playing")} disabled={busy}>
-              Start
+            <Button variant="ghost" onClick={() => save("playing")} disabled={busy} title="Start">
+              <i className="fa fa-play md:hidden" aria-hidden="true" />
+              <span className="hidden md:inline">Start</span>
             </Button>
           )}
           {canControl && match.state !== "scheduled" && (
-            <Button variant="ghost" onClick={() => reset()} disabled={busy}>
-              Reset
+            <Button variant="ghost" onClick={() => {
+                const text = "This will reset the match to 0:0 and scheduled state. Are you sure?"; 
+                if (!window.confirm(text)) return;
+                void reset();
+              }} disabled={busy} title="Reset">
+              <i className="fa fa-rotate-left md:hidden" aria-hidden="true" />
+              <span className="hidden md:inline">Reset</span>
             </Button>
+
           )}
           {canControl && match.state !== "scheduled" && (
-            <Button variant="ghost" onClick={() => save()} disabled={busy}>
-              Save
+            <Button variant="ghost" onClick={() => save()} disabled={busy} title="Save">
+              <i className="fa fa-floppy-disk md:hidden" aria-hidden="true" />
+              <span className="hidden md:inline">Save</span>
             </Button>
           )}
           {canControl && (
-            <Button
+            <Button 
               disabled={busy}
               onClick={() => {
                 const text = match.state === "scheduled" ? "Match not started. Are you sure you want to finish this match (0:0)?" : undefined; 
                 if (text && !window.confirm(text)) return;
                 void save("finished");
               }}
+              title = "Finish match"
             >
-              Finish
+              <i className="fa fa-flag-checkered md:hidden" aria-hidden="true" />
+              <span className="hidden md:inline">Finish</span>
             </Button>
           )}
         </div>
@@ -299,8 +317,9 @@ function GoalStepper({
         className="h-9 w-10 rounded-xl border border-zinc-800 bg-zinc-950 text-zinc-200 hover:bg-zinc-900/40 disabled:opacity-50"
         onClick={dec}
         disabled={disabled}
+        title="Decrement score"
       >
-        −
+        <i className="fa fa-minus" aria-hidden="true" />
       </button>
       <div className="min-w-[44px] text-center text-lg font-bold text-zinc-100">{value}</div>
       <button
@@ -308,8 +327,9 @@ function GoalStepper({
         className="h-9 w-10 rounded-xl border border-zinc-800 bg-zinc-950 text-zinc-200 hover:bg-zinc-900/40 disabled:opacity-50"
         onClick={inc}
         disabled={disabled}
+        title="Increment score"
       >
-        +
+        <i className="fa fa-plus" aria-hidden="true" />
       </button>
     </div>
   );

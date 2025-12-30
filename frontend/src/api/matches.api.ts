@@ -31,3 +31,11 @@ export function adminPatchMatch(
     body: JSON.stringify(body),
   });
 }
+
+
+export function swapMatchSides(token: string, matchId: number) {
+  return apiFetch<{ ok: true }>(`/matches/${matchId}/swap-sides`, {
+    method: "PATCH",
+    token,
+  });
+}

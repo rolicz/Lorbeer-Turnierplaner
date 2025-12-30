@@ -163,11 +163,13 @@ export default function MatchEditorSheet({
           >
             <div className="px-0 pt-3">
               <div className="flex items-center justify-end gap-2">
-                <Button variant="ghost" onClick={onClose} type="button">
-                  Cancel
+                <Button variant="ghost" onClick={onClose} type="button" title="Cancel">
+                  <i className="fa fa-xmark md:hidden" aria-hidden="true" />
+                  <span className="hidden md:inline">Cancel</span>
                 </Button>
-                <Button onClick={onSave} disabled={saving} type="button">
-                  {saving ? "Saving…" : "Save"}
+                <Button onClick={onSave} disabled={saving} type="button" title="Save">
+                  <i className="fa fa-check md:hidden" aria-hidden="true" />
+                  <span className="hidden md:inline">{saving ? "Saving…" : "Save"}</span>
                 </Button>
               </div>
             </div>
@@ -205,11 +207,11 @@ function ScoreInput({
       <div className="mt-3 flex items-center gap-2 md:justify-start">
         <button
           type="button"
-          className="h-12 w-12 md:h-10 md:w-10 rounded-xl border border-zinc-800 bg-zinc-950 text-xl hover:bg-zinc-900/50 active:scale-[0.99]"
+          className="h-12 w-12 md:h-10 md:w-10 rounded-xl border border-zinc-800 bg-zinc-950 text-xl hover:bg-zinc-900/50 active:scale-[0.99] md:hidden"
           onClick={() => set(n - 1)}
           aria-label="Decrease goals"
         >
-          −
+          <i className="fa fa-minus" aria-hidden="true" />
         </button>
 
         <input
@@ -226,11 +228,11 @@ function ScoreInput({
 
         <button
           type="button"
-          className="h-12 w-12 md:h-10 md:w-10 rounded-xl border border-zinc-800 bg-zinc-950 text-xl hover:bg-zinc-900/50 active:scale-[0.99]"
+          className="h-12 w-12 md:h-10 md:w-10 rounded-xl border border-zinc-800 bg-zinc-950 text-xl hover:bg-zinc-900/50 active:scale-[0.99] md:hidden"
           onClick={() => set(n + 1)}
           aria-label="Increase goals"
         >
-          +
+          <i className="fa fa-plus" aria-hidden="true" />
         </button>
       </div>
     </div>

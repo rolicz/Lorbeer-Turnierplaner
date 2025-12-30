@@ -10,6 +10,64 @@ import { listPlayers } from "../api/players.api";
 import { useAuth } from "../auth/AuthContext";
 import { fmtDate } from "../utils/format";
 
+type Status = "draft" | "live" | "done";
+
+function statusUI(status: Status) {
+  switch (status) {
+    case "live":
+      return {
+        bar: "bg-emerald-500/70",
+        pill: "border-emerald-500/30 bg-emerald-500/10 text-emerald-200",
+        icon: "▶",
+        label: "LIVE",
+      };
+    case "draft":
+      return {
+        bar: "bg-sky-500/70",
+        pill: "border-sky-500/30 bg-sky-500/10 text-sky-200",
+        icon: "📝",
+        label: "DRAFT",
+      };
+    case "done":
+    default:
+      return {
+        bar: "bg-zinc-700/60",
+        pill: "border-zinc-700/40 bg-zinc-900/40 text-zinc-300",
+        icon: "✓",
+        label: "DONE",
+      };
+  }
+}
+
+function Pill({
+  className,
+  children,
+  title,
+}: {
+  className?: string;
+  children: React.ReactNode;
+  title?: string;
+}) {
+  return (
+    <span
+      title={title}
+      className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium leading-none ${className ?? ""}`}
+    >
+      {children}
+    </span>
+  );
+}
+
+// Best-effort winner label (depends on what your /tournaments list returns)
+function winnerLabel(t: any): string | null {
+  if(t.winner_string) {
+    return t.winner_string;
+  } 
+  else if(t.winner_decider_string) {
+    return t.winner_decider_string + " (decider)";
+  }
+  return null;
+}
 
 export default function TournamentsPage() {
   const qc = useQueryClient();
@@ -28,7 +86,7 @@ export default function TournamentsPage() {
     [selected]
   );
 
-  // NEW: sort tournaments by date (newest first)
+  // Sort tournaments by date (newest first), fallback to created_at
   const tournamentsSorted = useMemo(() => {
     const ts = tournamentsQ.data ?? [];
     const key = (t: any) => {
@@ -40,8 +98,7 @@ export default function TournamentsPage() {
     return ts.slice().sort((a: any, b: any) => {
       const da = key(a);
       const db = key(b);
-      if (db !== da) return db - da; // newest first
-      // tie-breakers for stable ordering
+      if (db !== da) return db - da;
       const ia = typeof a.id === "number" ? a.id : 0;
       const ib = typeof b.id === "number" ? b.id : 0;
       return ib - ia;
@@ -71,30 +128,84 @@ export default function TournamentsPage() {
         <div className="flex items-center justify-between gap-2">
           <div className="text-sm text-zinc-400">Active + past tournaments.</div>
           <div className="flex items-center gap-2">
-            <Button variant="ghost" onClick={() => qc.invalidateQueries({ queryKey: ["tournaments"] })}>
-              Refresh
+            <Button variant="ghost" onClick={() => qc.invalidateQueries({ queryKey: ["tournaments"] })} title="Refresh">
+              <i className="fa fa-refresh md:hidden" aria-hidden="true" />
+              <span className="hidden md:inline">Refresh</span>
             </Button>
-            {canWrite && <Button onClick={() => setOpen(true)}>New</Button>}
+            {canWrite && <Button onClick={() => setOpen(true)} title="New Tournament">
+              <i className="fa fa-plus md:hidden" aria-hidden="true" />
+              <span className="hidden md:inline">New</span>
+            </Button>}
           </div>
         </div>
 
         <div className="mt-4 space-y-2">
           {tournamentsQ.isLoading && <div className="text-zinc-400">Loading…</div>}
           {tournamentsQ.error && <div className="text-red-400 text-sm">{String(tournamentsQ.error)}</div>}
-          {tournamentsSorted.map((t) => (
-            <Link
-              key={t.id}
-              to={`/live/${t.id}`}
-              className="block rounded-xl border border-zinc-800 px-4 py-3 hover:bg-zinc-900/40"
-            >
-              <div className="flex items-center justify-between">
-                <div className="font-medium">{t.name}</div>
-                <div className="text-sm text-zinc-400">
-                  {t.mode} · {t.status} · {fmtDate(t.date)}
+
+          {tournamentsSorted.map((t: any) => {
+            const st: Status = (t.status as Status) ?? "draft";
+            const ui = statusUI(st);
+            console.log(t)
+            const winner = winnerLabel(t);
+
+            // “Current live tournament” -> green emphasis (also adds a subtle background)
+            const isLive = st === "live";
+            const isDraft = st === "draft";
+
+            return (
+              <Link
+                key={t.id}
+                to={`/live/${t.id}`}
+                className={[
+                  "relative block overflow-hidden rounded-xl border px-4 py-3 transition",
+                  "hover:bg-zinc-900/40",
+                  isLive ? "border-emerald-500/30 bg-emerald-500/5" : "",
+                  isDraft ? "border-sky-500/30" : "border-zinc-800",
+                ].join(" ")}
+              >
+                {/* left accent bar */}
+                <div className={`absolute left-0 top-0 h-full w-1 ${ui.bar}`} />
+
+                <div className="pl-1">
+                  {/* Row 1: name + small mode pill */}
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="truncate text-[15px] font-semibold text-zinc-100 sm:text-base">
+                        {t.name}
+                      </div>
+                    </div>
+
+                    <div className="shrink-0">
+                      <Pill className="border-zinc-800 bg-zinc-950/60 text-zinc-200" title="Mode">
+                        {t.mode === "2v2" ? "2v2" : "1v1"}
+                      </Pill>
+                    </div>
+                  </div>
+
+                  {/* Row 2: pills (responsive) */}
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    <Pill className={ui.pill} title={ui.label}>
+                      <span>{ui.label}</span>
+                    </Pill>
+
+                    <Pill className="border-zinc-800 bg-zinc-950/60 text-zinc-300" title="Date">
+                      <span className="font-mono tabular-nums">{fmtDate(t.date)}</span>
+                    </Pill>
+
+                    {winner && (
+                      <Pill className="border-zinc-800 bg-zinc-950/60 text-zinc-200" title="Winner">
+                        <span>
+                          <i className="fa fa-trophy text-yellow-400 mr-1" aria-hidden="true" />
+                        </span>
+                        <span className="max-w-[160px] truncate sm:max-w-[260px]">{winner}</span>
+                      </Pill>
+                    )}
+                  </div>
                 </div>
-              </div>
-            </Link>
-          ))}
+              </Link>
+            );
+          })}
         </div>
       </Card>
 
@@ -148,10 +259,12 @@ export default function TournamentsPage() {
 
           <div className="flex items-center justify-end gap-2">
             <Button variant="ghost" onClick={() => setOpen(false)} type="button">
-              Cancel
+              <i className="fa fa-times md:hidden" aria-hidden="true" />
+              <span className="hidden md:inline">Cancel</span>
             </Button>
             <Button onClick={() => createMut.mutate()} disabled={createMut.isPending} type="button">
-              {createMut.isPending ? "Creating…" : "Create"}
+              <i className="fa fa-check ml-1 md:hidden" aria-hidden="true" />
+              <span className="hidden md:inline">{createMut.isPending ? "Creating…" : "Create"}</span>
             </Button>
           </div>
         </div>

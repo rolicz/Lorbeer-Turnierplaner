@@ -8,6 +8,7 @@ from ..auth import require_editor
 from ..db import get_session
 from ..models import Match, MatchSide, Tournament, Club
 from ..tournament_status import compute_status_for_tournament, find_other_live_tournament_id
+from ..ws import ws_manager
 
 router = APIRouter(prefix="/matches", tags=["matches"])
 log = logging.getLogger(__name__)
@@ -178,3 +179,47 @@ async def patch_match(
 
     return {"ok": True, "id": m.id, "state": m.state, "leg": m.leg, "tournament_status": status_after}
 
+
+@router.patch("/{match_id}/swap-sides", dependencies=[Depends(require_editor)])
+async def swap_sides(
+    match_id: int,
+    s: Session = Depends(get_session),
+    role: str = Depends(require_editor),
+):
+    """
+    Swap home/away (Side A <-> Side B) by swapping the side labels.
+
+    Editor/admin:
+      - allowed while tournament not done
+    Admin:
+      - allowed even after tournament done
+    """
+    m = _match_or_404(s, match_id)
+
+    status_now = compute_status_for_tournament(s, m.tournament_id)
+    if status_now == "done" and role != "admin":
+        raise HTTPException(status_code=403, detail="Tournament is done (admin required to swap sides)")
+
+    _ = m.sides
+    sides = {side.side: side for side in m.sides}
+    a = sides.get("A")
+    b = sides.get("B")
+    if not a or not b:
+        raise HTTPException(status_code=409, detail="Match must have exactly sides A and B")
+
+    # Swap labels using a temporary value (assumes no DB CHECK constraint on side)
+    a.side = "X"
+    s.add(a)
+    s.flush()
+
+    b.side = "A"
+    s.add(b)
+    s.flush()
+
+    a.side = "B"
+    s.add(a)
+
+    s.commit()
+
+    await ws_manager.broadcast(m.tournament_id, "match_updated", {"tournament_id": m.tournament_id, "match_id": m.id})
+    return {"ok": True}

@@ -35,8 +35,9 @@ export default function CupCard() {
               <div className="text-xs text-zinc-500">Current owner</div>
               <div className="truncate text-xl font-semibold accent">{q.data.owner.display_name}</div>
             </div>
-            <Button variant="ghost" onClick={() => q.refetch()} type="button">
-              Refresh
+            <Button variant="ghost" onClick={() => q.refetch()} type="button" title="Refresh">
+              <i className="fa fa-refresh md:hidden" aria-hidden="true" />
+              <span className="hidden md:inline">Refresh</span>
             </Button>
           </div>
 
