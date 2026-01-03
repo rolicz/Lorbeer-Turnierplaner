@@ -32,6 +32,38 @@ export default function ClubsPage() {
   const [editStars, setEditStars] = useState("4.0");
   const [editName, setEditName] = useState("");
 
+  const STAR_OPTIONS = Array.from({ length: 10 }, (_, i) => (i + 1) * 0.5);
+
+  function clamp(n: number, min: number, max: number) {
+    return Math.max(min, Math.min(max, n));
+  }
+
+  function StarsFA({ rating }: { rating: number }) {
+    const r = clamp(rating, 0, 5);
+    const rounded = Math.round(r * 2) / 2;
+    const full = Math.floor(rounded);
+    const half = rounded - full >= 0.5 ? 1 : 0;
+    const empty = 5 - full - half;
+
+    return (
+      <span className="inline-flex items-center gap-0.5 text-zinc-200">
+        {Array.from({ length: full }).map((_, i) => (
+          <i key={`f-${i}`} className="fa-solid fa-star" aria-hidden="true" />
+        ))}
+        {half === 1 && <i className="fa-solid fa-star-half-stroke" aria-hidden="true" />}
+        {Array.from({ length: empty }).map((_, i) => (
+          <i key={`e-${i}`} className="fa-regular fa-star" aria-hidden="true" />
+        ))}
+      </span>
+    );
+  }
+
+  const currentEditStars = clamp(Number(editStars || 0.5), 0.5, 5);
+  const snappedEditStars = Math.round(currentEditStars * 2) / 2;
+
+  const currentCreateStars = clamp(Number(stars || 0.5), 0.5, 5);
+  const snappedCreateStars = Math.round(currentCreateStars * 2) / 2;
+
   const patchMut = useMutation({
     mutationFn: async () => {
       if (!token) throw new Error("No token");
@@ -113,12 +145,26 @@ export default function ClubsPage() {
             onChange={(e) => setName(e.target.value)}
             placeholder="e.g. Sturm Graz"
           />
-          <Input
-            label="Stars (0.5–5.0)"
-            value={stars}
-            onChange={(e) => setStars(e.target.value)}
-            hint="Steps of 0.5"
-          />
+          <div className="w-full">
+            <div className="mb-1 flex items-center justify-between">
+              <span className="text-xs text-zinc-500">Stars</span>
+              <StarsFA rating={snappedCreateStars} />
+            </div>
+
+            <select
+              className="w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-200"
+              value={String(snappedCreateStars)}
+              onChange={(e) => setStars(e.target.value)}
+            >
+              {STAR_OPTIONS.map((v) => (
+                <option key={v} value={String(v)}>
+                  {v.toFixed(1).replace(/\.0$/, "")}
+                </option>
+              ))}
+            </select>
+          </div>
+
+
         </div>
 
         {createMut.error && <div className="mt-2 text-sm text-red-400">{String(createMut.error)}</div>}
@@ -150,88 +196,136 @@ export default function ClubsPage() {
           {q.error && <div className="text-red-400 text-sm">{String(q.error)}</div>}
 
           {clubsByStars.map(([label, clubs]) => (
-            <div key={label} className="space-y-2">
-              <button
-                type="button"
-                onClick={() => toggle(label)}
-                className="flex w-full items-center justify-between gap-2 rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-left hover:bg-zinc-900/40"
-              >
-                <div className="flex items-center gap-2">
-                  <span className="text-sm">{isCollapsed(label) ? "▸" : "▾"}</span>
-                  <span className="text-sm font-semibold text-zinc-200">{label}</span>
-                  <span className="text-xs text-zinc-500 font-normal">({clubs.length})</span>
-                </div>
-                <span className="text-xs text-zinc-500">{isCollapsed(label) ? "Show" : "Hide"}</span>
-              </button>
+          <div key={label} className="space-y-2">
+            <button
+              type="button"
+              onClick={() => toggle(label)}
+              className="flex w-full items-center justify-between gap-2 rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-left hover:bg-zinc-900/40"
+            >
+              <div className="flex items-center gap-2">
+                <span className="text-sm">
+                  {isCollapsed(label) ? (
+                    <i className="fa-solid fa-chevron-right" aria-hidden="true" />
+                  ) : (
+                    <i className="fa-solid fa-chevron-down" aria-hidden="true" />
+                  )}
+                </span>
 
-              {!isCollapsed(label) && (
-                <div className="space-y-2">
-                  {clubs.map((c) => (
-                    <div key={c.id} className="rounded-xl border border-zinc-800 px-4 py-3 hover:bg-zinc-900/20">
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="min-w-0">
-                          <div className="truncate font-medium">{c.name}</div>
-                          <div className="text-xs text-zinc-500">{c.game}</div>
+                <span className="text-sm font-semibold text-zinc-200">{label}</span>
+
+                <span className="text-xs text-zinc-500 font-normal inline-flex items-center gap-1">
+                  <i className="fa-regular fa-folder-open" aria-hidden="true" />
+                  <span>({clubs.length})</span>
+                </span>
+              </div>
+
+              <span className="text-xs text-zinc-500 inline-flex items-center gap-1">
+                {isCollapsed(label) ? (
+                  <>
+                    <i className="fa-regular fa-eye" aria-hidden="true" />
+                    <span className="hidden sm:inline">Show</span>
+                  </>
+                ) : (
+                  <>
+                    <i className="fa-regular fa-eye-slash" aria-hidden="true" />
+                    <span className="hidden sm:inline">Hide</span>
+                  </>
+                )}
+              </span>
+            </button>
+
+            {!isCollapsed(label) && (
+              <div className="space-y-2">
+                {clubs.map((c) => (
+                  <div key={c.id} className="rounded-xl border border-zinc-800 px-4 py-3 hover:bg-zinc-900/20">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="truncate font-medium">{c.name}</div>
+                        <div className="text-xs text-zinc-500">{c.game}</div>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <StarsFA rating={c.star_rating} />
+
+                        <Button
+                          variant="ghost"
+                          onClick={() => {
+                            setEditId(c.id);
+                            setEditStars(String(c.star_rating));
+                            setEditName(c.name);
+                          }}
+                          type="button"
+                        >
+                          <i className="fa-solid fa-pen-to-square md:hidden" aria-hidden="true" />
+                          <span className="hidden md:inline">Edit</span>
+                        </Button>
+                      </div>
+                    </div>
+
+                    {editId === c.id && (
+                      <div className="mt-3 flex flex-wrap items-end gap-2">
+                        {isAdmin && (
+                          <Input
+                            label="New name"
+                            value={editName}
+                            onChange={(e) => setEditName(e.target.value)}
+                            placeholder="Club name"
+                          />
+                        )}
+
+                        <div className="w-full">
+                          <div className="mb-1 flex items-center justify-between">
+                            <span className="text-xs text-zinc-500">New stars</span>
+                            <StarsFA rating={snappedEditStars} />
+                          </div>
+
+                          <select
+                            className="w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-200"
+                            value={String(snappedEditStars)}
+                            onChange={(e) => setEditStars(e.target.value)}
+                          >
+                            {STAR_OPTIONS.map((v) => (
+                              <option key={v} value={String(v)}>
+                                {v.toFixed(1).replace(/\.0$/, "")}
+                              </option>
+                            ))}
+                          </select>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <div className="text-sm text-zinc-300">{c.star_rating}★</div>
+
+                        <Button onClick={() => patchMut.mutate()} disabled={patchMut.isPending} type="button" title="Save">
+                          <i className="fa-solid fa-check md:hidden" aria-hidden="true" />
+                          <span className="hidden md:inline">{patchMut.isPending ? "Saving…" : "Save"}</span>
+                        </Button>
+
+                        <Button variant="ghost" onClick={() => setEditId(null)} type="button" title="Cancel">
+                          <i className="fa-solid fa-xmark md:hidden" aria-hidden="true" />
+                          <span className="hidden md:inline">Cancel</span>
+                        </Button>
+
+                        {isAdmin && (
                           <Button
                             variant="ghost"
                             onClick={() => {
-                              setEditId(c.id);
-                              setEditStars(String(c.star_rating));
-                              setEditName(c.name);
+                              const ok = window.confirm(`Delete club "${c.name}"? This cannot be undone.`);
+                              if (!ok) return;
+                              delMut.mutate(c.id);
                             }}
                             type="button"
+                            title="Delete"
                           >
-                            <i className="fa fa-edit md:hidden" aria-hidden="true" />
-                            <span className="hidden md:inline">Edit</span>
+                            <i className="fa-solid fa-trash md:hidden" aria-hidden="true" />
+                            <span className="hidden md:inline">Delete</span>
                           </Button>
-                        </div>
+                        )}
                       </div>
-
-                      {editId === c.id && (
-                        <div className="mt-3 flex flex-wrap items-end gap-2">
-                          {isAdmin && (
-                            <Input
-                              label="New name"
-                              value={editName}
-                              onChange={(e) => setEditName(e.target.value)}
-                              placeholder="Club name"
-                            />
-                          )}
-                          <Input label="New stars" value={editStars} onChange={(e) => setEditStars(e.target.value)} />
-                          <Button onClick={() => patchMut.mutate()} disabled={patchMut.isPending} type="button" title="Save">
-                            <i className="fa fa-check md:hidden" aria-hidden="true" />
-                            <span className="hidden md:inline">{patchMut.isPending ? "Saving…" : "Save"}</span>
-                          </Button>
-                          <Button variant="ghost" onClick={() => setEditId(null)} type="button" title="Cancel">
-                            <i className="fa fa-times md:hidden" aria-hidden="true" />
-                            <span className="hidden md:inline">Cancel</span>
-                          </Button>
-                          {isAdmin && (
-                            <Button
-                              variant="ghost"
-                              onClick={() => {
-                                const ok = window.confirm(`Delete club "${c.name}"? This cannot be undone.`);
-                                if (!ok) return;
-                                delMut.mutate(c.id);
-                              }}
-                              type="button"
-                              title="Delete"
-                            >
-                              <i className="fa fa-trash md:hidden" aria-hidden="true" />
-                              <span className="hidden md:inline">Delete</span>
-                            </Button>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
           ))}
+
         </div>
       </Card>
     </div>
