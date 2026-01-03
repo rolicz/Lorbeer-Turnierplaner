@@ -211,6 +211,8 @@ export function useTournamentWS(tid: number | null) {
         // Lists that show status/live marker
         qc.invalidateQueries({ queryKey: ["tournaments"] });
         qc.invalidateQueries({ queryKey: ["tournaments", "live"] });
+
+        qc.invalidateQueries({ queryKey: ["cup"] });
       }, 80);
 
       void eventName;

@@ -9,7 +9,7 @@ import { apiFetch } from "../../api/client";
 
 import CollapsibleCard from "../../ui/primitives/CollapsibleCard";
 
-import { useTournamentWS, useAnyTournamentWS } from "../../hooks/useTournamentWS";
+import { useTournamentWS } from "../../hooks/useTournamentWS";
 
 function sideBy(m: Match, side: "A" | "B"): MatchSide | undefined {
   return m.sides.find((s) => s.side === side);
@@ -75,6 +75,10 @@ export default function CurrentMatchPreviewCard() {
       // backend returns either {id,...,status:"live"} or null
       return (await apiFetch("/tournaments/live")) as any;
     },
+    refetchOnMount: "always",
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
+    staleTime: 0,
   });
 
   const tid = (liveQ.data as any)?.id ? Number((liveQ.data as any).id) : null;
@@ -87,7 +91,6 @@ export default function CurrentMatchPreviewCard() {
   });
 
   useTournamentWS(tid);
-  useAnyTournamentWS();
 
   // 3) fetch clubs (for labels). If you ever add "game" to tournaments, switch this.
   const clubsQ = useQuery({

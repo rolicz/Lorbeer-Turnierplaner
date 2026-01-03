@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Button from "../../ui/primitives/Button";
 import type { Club, Match, MatchSide } from "../../api/types";
+import { useTournamentWS } from "../../hooks/useTournamentWS";
 
 function sideBy(m: Match, side: "A" | "B"): MatchSide | undefined {
   return m.sides.find((s) => s.side === side);
@@ -59,6 +60,11 @@ export default function CurrentGameSection({
   onPatch: (matchId: number, body: any) => Promise<any>;
   onSwapSides?: (matchId: number) => Promise<any>;
 }) {
+  // Subscribe to WS updates for this tournament (invalidates react-query queries in the hook).
+  const tid =
+    match && (match as any).tournament_id != null ? Number((match as any).tournament_id) : null;
+  //useTournamentWS(tid);
+
   if (status === "done" || !match) return null;
 
   const a = sideBy(match, "A");
@@ -115,7 +121,6 @@ export default function CurrentGameSection({
     const key = makeKey(match, p);
     if (key === lastKeyRef.current) return;
 
-    // If we are currently busy, try again shortly (keep pendingRef intact)
     if (busy) {
       clearAutosave();
       timerRef.current = window.setTimeout(() => {
@@ -133,7 +138,6 @@ export default function CurrentGameSection({
         sideB: { club_id: p.bClub, goals: p.bGoals },
       });
     } catch {
-      // allow retry on next change
       lastKeyRef.current = "";
     }
   }
@@ -174,15 +178,12 @@ export default function CurrentGameSection({
     setAGoals(next.aGoals);
     setBGoals(next.bGoals);
 
-    // reset autosave bookkeeping so we don't immediately "re-save" server state
     clearAutosave();
     pendingRef.current = next;
     lastKeyRef.current = makeKey(match, next);
-
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [match?.id, match?.state, a?.club_id, b?.club_id, a?.goals, b?.goals]);
 
-  // Score display: for scheduled always show "- : -" (regardless of stored/typed goals)
   const isScheduled = match.state === "scheduled";
   const showGoalInputs = canControl && !isScheduled;
   const scoreText = isScheduled ? "- : -" : `${aGoals} : ${bGoals}`;
@@ -206,7 +207,6 @@ export default function CurrentGameSection({
       bClub: override?.bClub ?? bClub,
     };
 
-    // mark as last-sent to avoid immediate autosave re-fire
     pendingRef.current = payload;
     lastKeyRef.current = makeKey(match, payload);
 
@@ -220,11 +220,9 @@ export default function CurrentGameSection({
   async function reset() {
     if (!canControl) return;
 
-    // Update UI immediately
     setAGoals(0);
     setBGoals(0);
 
-    // Persist explicitly
     await save("scheduled", { aGoals: 0, bGoals: 0 });
   }
 
@@ -527,4 +525,3 @@ function ClubSelect({
     </label>
   );
 }
-
