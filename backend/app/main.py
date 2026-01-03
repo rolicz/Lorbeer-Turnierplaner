@@ -11,7 +11,7 @@ from .settings import Settings
 from .config import CORS_ALLOW_ORIGINS
 from .models import Player
 
-from .ws import ws_manager
+from .ws import ws_manager, ws_manager_update_tournaments
 from .routers.auth import router as auth_router
 from .routers.me import router as me_router
 from .routers.tournaments import router as tournaments_router
@@ -82,4 +82,15 @@ def create_app(settings: Settings) -> FastAPI:
         except WebSocketDisconnect:
             ws_manager.disconnect(tournament_id, ws)
 
+    @app.websocket("/ws/tournaments")
+    async def ws_new_tournament(ws: WebSocket) -> None:
+        await ws_manager_update_tournaments.connect(ws)
+        try:
+            await ws.send_json({"event": "connected", "payload": {}})
+            while True:
+                _ = await ws.receive_text()
+                await ws.send_json({"event": "pong", "payload": {}})
+        except WebSocketDisconnect:
+            ws_manager_update_tournaments.disconnect(ws)
+    
     return app

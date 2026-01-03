@@ -29,3 +29,24 @@ class WSManager:
 
 
 ws_manager = WSManager()
+
+class WSManagerUpdateAllTournaments:
+    def __init__(self) -> None:
+        self._conns: List[WebSocket] = []
+
+    async def connect(self, ws: WebSocket) -> None:
+        await ws.accept()
+        self._conns.append(ws)
+
+    def disconnect(self, ws: WebSocket) -> None:
+        self._conns = [c for c in self._conns if c is not ws]
+
+    async def broadcast(self, event: str, payload: Any) -> None:
+        msg = {"event": event, "payload": payload, "ts": datetime.utcnow().isoformat()}
+        for ws in self._conns:
+            try:
+                await ws.send_json(msg)
+            except Exception:
+                self.disconnect(ws)
+
+ws_manager_update_tournaments  = WSManagerUpdateAllTournaments()

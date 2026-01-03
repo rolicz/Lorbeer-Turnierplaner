@@ -10,6 +10,9 @@ import { listPlayers } from "../api/players.api";
 import { useAuth } from "../auth/AuthContext";
 import { fmtDate } from "../utils/format";
 
+
+import { useAnyTournamentWS } from "../hooks/useTournamentWS";
+
 type Status = "draft" | "live" | "done";
 
 function statusUI(status: Status) {
@@ -77,6 +80,7 @@ export default function TournamentsPage() {
   const tournamentsQ = useQuery({ queryKey: ["tournaments"], queryFn: listTournaments });
   const playersQ = useQuery({ queryKey: ["players"], queryFn: listPlayers, enabled: canWrite });
 
+  useAnyTournamentWS();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [mode, setMode] = useState<"1v1" | "2v2">("1v1");
@@ -146,7 +150,6 @@ export default function TournamentsPage() {
           {tournamentsSorted.map((t: any) => {
             const st: Status = (t.status as Status) ?? "draft";
             const ui = statusUI(st);
-            console.log(t)
             const winner = winnerLabel(t);
 
             // “Current live tournament” -> green emphasis (also adds a subtle background)

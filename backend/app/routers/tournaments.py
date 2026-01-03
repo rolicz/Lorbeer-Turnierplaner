@@ -11,7 +11,7 @@ from ..db import get_session
 from ..models import Match, MatchSide, MatchSidePlayer, Player, Tournament, TournamentPlayer
 from ..scheduling import assign_labels, schedule_1v1_labels, schedule_2v2_labels
 from ..stats import compute_stats
-from ..ws import ws_manager
+from ..ws import ws_manager, ws_manager_update_tournaments
 from ..tournament_status import compute_status_for_tournament, compute_status_map, find_other_live_tournament_id
 
 log = logging.getLogger(__name__)
@@ -318,7 +318,7 @@ def get_tournament(tournament_id: int, s: Session = Depends(get_session)):
 
 
 @router.post("", dependencies=[Depends(require_editor)])
-def create_tournament(body: dict, s: Session = Depends(get_session)):
+async def create_tournament(body: dict, s: Session = Depends(get_session)):
     name = (body.get("name") or "").strip()
     mode = body.get("mode")
     settings = body.get("settings", {})
@@ -350,6 +350,8 @@ def create_tournament(body: dict, s: Session = Depends(get_session)):
         s.commit()
 
     log.info("Created tournament '%s' (id=%s, mode=%s)", t.name, t.id, t.mode)
+
+    await ws_manager_new_tournament.broadcast(0, "tournament_created", {})
     return t
 
 
@@ -394,6 +396,7 @@ async def patch_tournament(
     s.refresh(t)
 
     await ws_manager.broadcast(tournament_id, "tournament_updated", {"tournament_id": tournament_id})
+    await ws_manager_update_tournaments.broadcast("tournament_updated", {"tournament_id": tournament_id}) 
     return t
 
 
@@ -421,6 +424,7 @@ async def patch_date(
     s.refresh(t)
 
     await ws_manager.broadcast(tournament_id, "tournament_updated", {"tournament_id": tournament_id})
+    await ws_manager_update_tournaments.broadcast("tournament_updated", {"tournament_id": tournament_id}) 
     log.info("Tournament date changed: tournament_id=%s date=%s by=%s", tournament_id, t.date, role)
     return {"ok": True, "date": t.date}
 
@@ -732,6 +736,7 @@ async def delete_tournament(
     s.commit()
 
     await ws_manager.broadcast(tournament_id, "tournament_deleted", {"tournament_id": tournament_id})
+    await ws_manager_update_tournaments.broadcast("tournament_deleted", {"tournament_id": tournament_id}) 
     log.info("Tournament deleted: tournament_id=%s by=%s", tournament_id, role)
 
     return Response(status_code=204)
@@ -909,6 +914,7 @@ async def patch_decider(
     s.refresh(t)
 
     await ws_manager.broadcast(tournament_id, "tournament_updated", {"tournament_id": tournament_id})
+    await ws_manager_update_tournaments.broadcast("tournament_updated", {"tournament_id": tournament_id}) 
     return {
         "ok": True,
         "decider_type": t.decider_type,

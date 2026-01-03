@@ -271,7 +271,9 @@ make test
 
 ## Notes
 
-- WebSocket endpoint: `/ws/tournaments/{tournament_id}`
+- WebSocket endpoints: 
+  -`/ws/tournaments/{tournament_id}`
+  -`/ws/tournaments`
 - Behind Caddy, websockets should use **wss** automatically via the same domain.
 - Frontend env is build-time; after changing `frontend/.env.production`, rebuild the frontend image (`docker compose up -d --build frontend`).
 

@@ -8,7 +8,7 @@ from ..auth import require_editor
 from ..db import get_session
 from ..models import Match, MatchSide, Tournament, Club
 from ..tournament_status import compute_status_for_tournament, find_other_live_tournament_id
-from ..ws import ws_manager
+from ..ws import ws_manager, ws_manager_update_tournaments
 
 router = APIRouter(prefix="/matches", tags=["matches"])
 log = logging.getLogger(__name__)
@@ -183,6 +183,7 @@ async def patch_match(
         {"tournament_id": m.tournament_id, "match_id": m.id, "tournament_status": status_after},
     )
 
+    await ws_manager_update_tournaments.broadcast("match_patched", {"tournament_id": m.tournament_id}) 
 
     return {"ok": True, "id": m.id, "state": m.state, "leg": m.leg, "tournament_status": status_after}
 
