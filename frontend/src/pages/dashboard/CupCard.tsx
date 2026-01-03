@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import Card from "../../ui/primitives/Card";
 import Button from "../../ui/primitives/Button";
 import { getCup } from "../../api/cup.api";
+import { useAnyTournamentWS } from "../../hooks/useTournamentWS";
 
 function fmtDate(d?: string | null) {
   if (!d) return "—";
@@ -23,6 +24,8 @@ export default function CupCard() {
     if (showAll) return history.slice().reverse(); // newest first
     return history.slice(-8).reverse();
   }, [history, showAll]);
+
+  useAnyTournamentWS();
 
   return (
     <Card title="">

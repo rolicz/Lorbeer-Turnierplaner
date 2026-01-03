@@ -248,6 +248,7 @@ export function useAnyTournamentWS() {
       if (invalidateTimerRef.current) return;
       invalidateTimerRef.current = window.setTimeout(() => {
         invalidateTimerRef.current = null;
+        qc.invalidateQueries({ queryKey: ["cup"] });
         qc.invalidateQueries({ queryKey: ["tournaments"] });
         qc.invalidateQueries({ queryKey: ["tournaments", "live"] });
       }, 80);
