@@ -1,6 +1,6 @@
-import { useEffect, useMemo } from "react";
+import { useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 
 import type { Club, Match, MatchSide } from "../../api/types";
 import { getTournament } from "../../api/tournaments.api";
@@ -8,12 +8,11 @@ import { listClubs } from "../../api/clubs.api";
 import { apiFetch } from "../../api/client";
 
 import CollapsibleCard from "../../ui/primitives/CollapsibleCard";
-
 import { useTournamentWS } from "../../hooks/useTournamentWS";
 
-function sideBy(m: Match, side: "A" | "B"): MatchSide | undefined {
-  return m.sides.find((s) => s.side === side);
-}
+import { sideBy } from "../../helpers";
+
+import { StarsFA } from "../../ui/primitives/StarsFA";
 
 function starsLabel(v: any): string {
   if (typeof v === "number") return v.toFixed(1).replace(/\.0$/, "");
@@ -29,10 +28,22 @@ function clubLabelById(clubs: Club[], id: number | null | undefined) {
   return `${c.name} (${starsLabel(c.star_rating)}★)`;
 }
 
-function namesInline(side?: MatchSide) {
+function clubLabelPartsById(clubs: Club[], id: number | null | undefined) {
+  if (!id) return { name: "—", rating: null as number | null, ratingText: null as string | null };
+  const c = clubs.find((x) => x.id === id);
+  if (!c) return { name: `#${id}`, rating: null as number | null, ratingText: null as string | null };
+  const r = Number(c.star_rating);
+  return {
+    name: c.name,
+    rating: Number.isFinite(r) ? r : null,
+    ratingText: Number.isFinite(r) ? `${starsLabel(r)}★` : null,
+  };
+}
+
+function namesStack(side?: MatchSide): string[] {
   const ps = side?.players ?? [];
-  if (!ps.length) return "—";
-  return ps.map((p) => p.display_name).join(" + ");
+  if (!ps.length) return ["—"];
+  return ps.map((p) => p.display_name);
 }
 
 type LiveTournamentLite = {
@@ -72,7 +83,6 @@ export default function CurrentMatchPreviewCard() {
   const liveQ = useQuery({
     queryKey: ["tournaments", "live"],
     queryFn: async (): Promise<LiveTournamentLite | null> => {
-      // backend returns either {id,...,status:"live"} or null
       return (await apiFetch("/tournaments/live")) as any;
     },
     refetchOnMount: "always",
@@ -92,7 +102,7 @@ export default function CurrentMatchPreviewCard() {
 
   useTournamentWS(tid);
 
-  // 3) fetch clubs (for labels). If you ever add "game" to tournaments, switch this.
+  // 3) fetch clubs (for labels)
   const clubsQ = useQuery({
     queryKey: ["clubs", "EA FC 26"],
     queryFn: () => listClubs("EA FC 26"),
@@ -105,6 +115,9 @@ export default function CurrentMatchPreviewCard() {
   const a = match ? sideBy(match, "A") : undefined;
   const b = match ? sideBy(match, "B") : undefined;
 
+  const aNames = useMemo(() => namesStack(a), [a]);
+  const bNames = useMemo(() => namesStack(b), [b]);
+
   const aGoals = Number(a?.goals ?? 0);
   const bGoals = Number(b?.goals ?? 0);
 
@@ -114,19 +127,18 @@ export default function CurrentMatchPreviewCard() {
   const scoreLeft = showDashScore ? "—" : String(aGoals);
   const scoreRight = showDashScore ? "—" : String(bGoals);
 
-  const aWin = !isScheduled && aGoals > bGoals;
-  const bWin = !isScheduled && bGoals > aGoals;
-
   const clubs = clubsQ.data ?? [];
   const aClub = clubLabelById(clubs, a?.club_id);
   const bClub = clubLabelById(clubs, b?.club_id);
 
-  // render nothing if no live tournament OR no matches yet
+  const aClubParts = useMemo(() => clubLabelPartsById(clubs, a?.club_id), [clubs, aClub]);
+  const bClubParts = useMemo(() => clubLabelPartsById(clubs, b?.club_id), [clubs, bClub]);
+
   if (!tid || !match) return null;
 
   return (
-
-      <CollapsibleCard title={
+    <CollapsibleCard
+      title={
         <span className="inline-flex items-center gap-2">
           <span className="relative flex h-2 w-2">
             <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-500 opacity-75" />
@@ -134,77 +146,95 @@ export default function CurrentMatchPreviewCard() {
           </span>
           <span>Live now</span>
         </span>
-        } defaultOpen={true}>
-        <button
-          type="button"
-          onClick={() => nav(`/live/${tid}`)}
-          className="w-full text-left rounded-2xl p-1 hover:bg-zinc-900/30 transition"
-        >
-          <div className="flex items-start justify-between gap-3">
+      }
+      defaultOpen={true}
+    >
+      <button
+        type="button"
+        onClick={() => nav(`/live/${tid}`)}
+        className="w-full rounded-2xl p-1 text-left transition hover:bg-zinc-900/30"
+      >
+        {/* Top row: name | centered leg/# | pills */}
+        <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3">
+          <div className="min-w-0">
+            <div className="truncate text-base font-semibold text-zinc-100">
+              {(tQ.data as any)?.name ?? `Tournament #${tid}`}
+            </div>
+          </div>
+
+          <div className="justify-self-center whitespace-nowrap text-[11px] leading-none text-zinc-500">
+            leg {match.leg} · #{match.order_index + 1}
+          </div>
+
+          <div className="flex items-center justify-end gap-2">
+            <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs ${statusPill(status)}`}>
+              <i className="fa fa-trophy symbol-margin-to-text" aria-hidden="true" />
+              <span>{status}</span>
+            </span>
+            <span
+              className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs ${statusMatchPill(
+                match.state
+              )}`}
+            >
+              <i className="fa fa-gamepad symbol-margin-to-text" aria-hidden="true" />
+              <span>{match.state}</span>
+            </span>
+          </div>
+        </div>
+
+        <div className="mt-3 rounded-xl border border-zinc-800 bg-zinc-900/10 p-3">
+          {/* Row 1: names stacked + score centered */}
+          <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3">
+            {/* A names */}
             <div className="min-w-0">
-              <div className="mt-0.5 truncate text-base font-semibold text-zinc-100">
-                {(tQ.data as any)?.name ?? `Tournament #${tid}`}
-              </div>
+              {aNames.map((n, i) => (
+                <div key={`${n}-${i}`} className="truncate font-medium text-zinc-100">
+                  {n}
+                </div>
+              ))}
             </div>
 
-            <div className="shrink-0 flex items-center gap-2">
-              <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs ${statusPill(status)}`}>
-                <i className="fa fa-trophy symbol-margin-to-text" />
-                <span>{status}</span>
-              </span>
-              <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs ${statusMatchPill(match.state)}`}>
-                <i className="fa fa-gamepad symbol-margin-to-text" />
-                <span>{match.state}</span>
-              </span>
-            </div>
-          </div>
-
-          <div className="mt-3 rounded-xl border border-zinc-800 bg-zinc-900/10 px-3 pb-3 pt-10">
-            {/* Row 1: names + score (with leg/# above) */}
-            <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3">
-              {/* A name */}
-              <div className="min-w-0">
-                <div className="truncate font-medium text-zinc-100">{namesInline(a)}</div>
-              </div>
-
-            {/* SCORE + meta above (doesn't change height) */}
+            {/* SCORE (keep style) */}
             <div className="justify-self-center">
-              <div className="relative inline-flex flex-col items-center">
-                <div className="absolute left-1/2 -top-4 -translate-x-1/2 whitespace-nowrap text-[11px] leading-none text-zinc-500">
-                  leg {match.leg} · #{match.order_index + 1}
-                </div>
-
-                <div className="flex items-center justify-center gap-2 rounded-xl border border-zinc-800 bg-zinc-950/60 px-3 py-1.5">
-                  <span className={`text-xl font-semibold tabular-nums text-zinc-100`}>
-                    {scoreLeft}
-                  </span>
-                  <span className="text-zinc-500">:</span>
-                  <span className={`text-xl font-semibold tabular-nums text-zinc-100`}>
-                    {scoreRight}
-                  </span>
-                </div>
+              <div className="flex items-center justify-center gap-2 rounded-xl border border-zinc-800 bg-zinc-950/60 px-3 py-1.5">
+                <span className="text-xl font-semibold tabular-nums text-zinc-100">{scoreLeft}</span>
+                <span className="text-zinc-500">:</span>
+                <span className="text-xl font-semibold tabular-nums text-zinc-100">{scoreRight}</span>
               </div>
             </div>
 
-
-
-              {/* B name */}
-              <div className="min-w-0 text-right">
-                <div className="truncate font-medium text-zinc-100">{namesInline(b)}</div>
-              </div>
-            </div>
-
-            {/* Row 2: clubs below */}
-            <div className="mt-2 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-start gap-3 text-xs text-zinc-500">
-              <div className="min-w-0 truncate">{aClub}</div>
-              <div /> {/* keep center column */}
-              <div className="min-w-0 truncate text-right">{bClub}</div>
+            {/* B names */}
+            <div className="min-w-0 text-right">
+              {bNames.map((n, i) => (
+                <div key={`${n}-${i}`} className="truncate font-medium text-zinc-100">
+                  {n}
+                </div>
+              ))}
             </div>
           </div>
 
+          {/* Row 2: clubs */}
+          <div className="mt-2 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-start gap-3 text-xs text-zinc-500">
+            <div className="min-w-0 whitespace-normal break-words leading-tight">{aClubParts.name}</div>
+            <div />
+            <div className="min-w-0 whitespace-normal break-words leading-tight text-right">{bClubParts.name}</div>
+          </div>
 
-          <div className="mt-2 text-xs text-zinc-500">Tap to open live tournament.</div>
-        </button>
+          {/* Row 3: stars below */}
+          <div className="mt-1 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 text-[11px] text-zinc-500">
+            <div className="min-w-0">
+              {aClubParts.rating != null ? <StarsFA rating={aClubParts.rating} textZinc="text-zinc-500" /> : <span>—</span>}
+            </div>
+            <div />
+            <div className="min-w-0 flex justify-end">
+              {bClubParts.rating != null ? <StarsFA rating={bClubParts.rating} textZinc="text-zinc-500" /> : <span>—</span>}
+            </div>
+          </div>
+
+        </div>
+
+        <div className="mt-2 text-xs text-zinc-500">Tap to open live tournament.</div>
+      </button>
     </CollapsibleCard>
   );
 }

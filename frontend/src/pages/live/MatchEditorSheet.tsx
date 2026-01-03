@@ -2,7 +2,7 @@ import Sheet from "../../ui/primitives/Sheet";
 import Input from "../../ui/primitives/Input";
 import Button from "../../ui/primitives/Button";
 import type { Club, Match } from "../../api/types";
-import { sideBy } from "./helpers";
+import { sideBy } from "../../helpers";
 import { useMemo } from "react";
 
 export default function MatchEditorSheet({

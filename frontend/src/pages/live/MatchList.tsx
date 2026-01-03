@@ -1,6 +1,6 @@
 import Button from "../../ui/primitives/Button";
 import type { Match } from "../../api/types";
-import { sideBy } from "./helpers";
+import { sideBy } from "../../helpers";
 
 type State = Match["state"];
 

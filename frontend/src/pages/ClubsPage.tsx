@@ -5,6 +5,8 @@ import Input from "../ui/primitives/Input";
 import Button from "../ui/primitives/Button";
 import { useAuth } from "../auth/AuthContext";
 import { createClub, listClubs, patchClub, deleteClub } from "../api/clubs.api";
+import { STAR_OPTIONS, clamp } from "../helpers";
+import { StarsFA } from "../ui/primitives/StarsFA";
 
 export default function ClubsPage() {
   const { token, role } = useAuth();
@@ -32,31 +34,6 @@ export default function ClubsPage() {
   const [editStars, setEditStars] = useState("4.0");
   const [editName, setEditName] = useState("");
 
-  const STAR_OPTIONS = Array.from({ length: 10 }, (_, i) => (i + 1) * 0.5);
-
-  function clamp(n: number, min: number, max: number) {
-    return Math.max(min, Math.min(max, n));
-  }
-
-  function StarsFA({ rating }: { rating: number }) {
-    const r = clamp(rating, 0, 5);
-    const rounded = Math.round(r * 2) / 2;
-    const full = Math.floor(rounded);
-    const half = rounded - full >= 0.5 ? 1 : 0;
-    const empty = 5 - full - half;
-
-    return (
-      <span className="inline-flex items-center gap-0.5 text-zinc-200">
-        {Array.from({ length: full }).map((_, i) => (
-          <i key={`f-${i}`} className="fa-solid fa-star" aria-hidden="true" />
-        ))}
-        {half === 1 && <i className="fa-solid fa-star-half-stroke" aria-hidden="true" />}
-        {Array.from({ length: empty }).map((_, i) => (
-          <i key={`e-${i}`} className="fa-regular fa-star" aria-hidden="true" />
-        ))}
-      </span>
-    );
-  }
 
   const currentEditStars = clamp(Number(editStars || 0.5), 0.5, 5);
   const snappedEditStars = Math.round(currentEditStars * 2) / 2;

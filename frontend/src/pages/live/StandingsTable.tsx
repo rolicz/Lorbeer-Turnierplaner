@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import type { Match, Player } from "../../api/types";
-import { sideBy } from "./helpers";
+import { sideBy } from "../../helpers";
 import Card from "../../ui/primitives/Card";
 
 type Row = {

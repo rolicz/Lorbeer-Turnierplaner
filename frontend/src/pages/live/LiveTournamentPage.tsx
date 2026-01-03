@@ -30,7 +30,7 @@ import MatchList from "./MatchList";
 import MatchEditorSheet from "./MatchEditorSheet";
 import StandingsTable from "./StandingsTable";
 import CurrentGameSection from "./CurrentGameSection";
-import { shuffle, sideBy } from "./helpers";
+import { shuffle, sideBy } from "../../helpers";
 
 import { fmtDate } from "../../utils/format";
 

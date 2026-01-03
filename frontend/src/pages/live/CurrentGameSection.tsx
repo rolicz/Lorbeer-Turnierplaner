@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Button from "../../ui/primitives/Button";
 import type { Club, Match, MatchSide } from "../../api/types";
-import { useTournamentWS } from "../../hooks/useTournamentWS";
+// import { useTournamentWS } from "../../hooks/useTournamentWS";
+import CollapsibleCard from "../../ui/primitives/CollapsibleCard";
+import { StarsFA } from "../../ui/primitives/StarsFA";
+
 
 function sideBy(m: Match, side: "A" | "B"): MatchSide | undefined {
   return m.sides.find((s) => s.side === side);
@@ -18,10 +21,16 @@ function starsLabel(v: any): string {
   return String(v ?? "");
 }
 
+function toHalfStep(v: any): number | null {
+  const n = Number(v);
+  if (!Number.isFinite(n)) return null;
+  return Math.round(n * 2) / 2;
+}
+
 function sortClubsForDropdown(clubs: Club[]) {
   return clubs
     .slice()
-    .sort((a, b) => (b.star_rating ?? 0) - (a.star_rating ?? 0) || a.name.localeCompare(b.name));
+    .sort((a, b) => (Number(b.star_rating ?? 0) - Number(a.star_rating ?? 0)) || a.name.localeCompare(b.name));
 }
 
 function namesStack(side?: MatchSide) {
@@ -36,12 +45,39 @@ function namesInline(side?: MatchSide) {
   return ps.map((p) => p.display_name).join(" + ");
 }
 
+function clubLabelPartsById(clubs: Club[], id: number | null | undefined) {
+  if (!id) return { name: "—", rating: null as number | null, ratingText: null as string | null };
+  const c = clubs.find((x) => x.id === id);
+  if (!c) return { name: `#${id}`, rating: null as number | null, ratingText: null as string | null };
+  const r = Number(c.star_rating);
+  return {
+    name: c.name,
+    rating: Number.isFinite(r) ? r : null,
+    ratingText: Number.isFinite(r) ? `${starsLabel(r)}★` : null,
+  };
+}
+
 type PatchPayload = {
   aGoals: number;
   bGoals: number;
   aClub: number | null;
   bClub: number | null;
 };
+
+const STAR_OPTIONS: number[] = Array.from({ length: 10 }, (_, i) => (i + 1) * 0.5); // 0.5..5.0
+
+function ensureSelectedClubVisible(filtered: Club[], all: Club[], selectedId: number | null): Club[] {
+  if (!selectedId) return filtered;
+
+  const inFiltered = filtered.some((c) => c.id === selectedId);
+  if (inFiltered) return filtered;
+
+  const selected = all.find((c) => c.id === selectedId);
+  if (selected) return [selected, ...filtered];
+
+  // Fallback: keep a synthetic option so the select still shows something
+  return [{ id: selectedId, name: `#${selectedId}`, star_rating: null } as any, ...filtered];
+}
 
 export default function CurrentGameSection({
   status,
@@ -60,10 +96,8 @@ export default function CurrentGameSection({
   onPatch: (matchId: number, body: any) => Promise<any>;
   onSwapSides?: (matchId: number) => Promise<any>;
 }) {
-  // Subscribe to WS updates for this tournament (invalidates react-query queries in the hook).
-  const tid =
-    match && (match as any).tournament_id != null ? Number((match as any).tournament_id) : null;
-  //useTournamentWS(tid);
+  // const tid = match && (match as any).tournament_id != null ? Number((match as any).tournament_id) : null;
+  // useTournamentWS(tid);
 
   if (status === "done" || !match) return null;
 
@@ -78,10 +112,31 @@ export default function CurrentGameSection({
 
   const clubsSorted = useMemo(() => sortClubsForDropdown(clubs), [clubs]);
 
+  // ⭐ filter (does NOT change selected club; only changes what you can pick next)
+  const [starFilter, setStarFilter] = useState<number | null>(null);
+
+  const clubsFiltered = useMemo(() => {
+    if (starFilter == null) return clubsSorted;
+    return clubsSorted.filter((c) => toHalfStep(c.star_rating) === starFilter);
+  }, [clubsSorted, starFilter]);
+
   const [aClub, setAClub] = useState<number | null>(a?.club_id ?? null);
   const [bClub, setBClub] = useState<number | null>(b?.club_id ?? null);
   const [aGoals, setAGoals] = useState<number>(Number(a?.goals ?? 0));
   const [bGoals, setBGoals] = useState<number>(Number(b?.goals ?? 0));
+
+  const aClubParts = useMemo(() => clubLabelPartsById(clubs, aClub), [clubs, aClub]);
+  const bClubParts = useMemo(() => clubLabelPartsById(clubs, bClub), [clubs, bClub]);
+
+  // Make sure current clubs remain visible even if filter excludes them
+  const clubsForA = useMemo(
+    () => ensureSelectedClubVisible(clubsFiltered, clubsSorted, aClub),
+    [clubsFiltered, clubsSorted, aClub]
+  );
+  const clubsForB = useMemo(
+    () => ensureSelectedClubVisible(clubsFiltered, clubsSorted, bClub),
+    [clubsFiltered, clubsSorted, bClub]
+  );
 
   // -------------------------
   // AUTO-SAVE (debounced)
@@ -186,12 +241,10 @@ export default function CurrentGameSection({
 
   const isScheduled = match.state === "scheduled";
   const showGoalInputs = canControl && !isScheduled;
-  const scoreText = isScheduled ? "- : -" : `${aGoals} : ${bGoals}`;
+  const scoreLeft = isScheduled ? "-" : String(aGoals);
+  const scoreRight = isScheduled ? "-" : String(bGoals);
 
-  async function save(
-    stateOverride?: "scheduled" | "playing" | "finished",
-    override?: Partial<PatchPayload>
-  ) {
+  async function save(stateOverride?: "scheduled" | "playing" | "finished", override?: Partial<PatchPayload>) {
     if (!canControl) return;
     if (!match) return;
 
@@ -219,10 +272,8 @@ export default function CurrentGameSection({
 
   async function reset() {
     if (!canControl) return;
-
     setAGoals(0);
     setBGoals(0);
-
     await save("scheduled", { aGoals: 0, bGoals: 0 });
   }
 
@@ -232,18 +283,13 @@ export default function CurrentGameSection({
       <div className="flex items-center justify-between gap-3">
         <div className="text-sm text-zinc-400">
           <span className="text-zinc-500">
-            leg {match.leg} · {match.state}
+            leg {match.leg} · #{match.order_index + 1} · {match.state}
           </span>
         </div>
 
         <div className="flex items-center gap-2">
           {canControl && onSwapSides && (
-            <Button
-              variant="ghost"
-              onClick={() => onSwapSides(match.id)}
-              disabled={busy}
-              title="Swap home/away (A↔B)"
-            >
+            <Button variant="ghost" onClick={() => onSwapSides(match.id)} disabled={busy} title="Swap home/away (A↔B)">
               <i className="fa fa-arrow-right-arrow-left md:hidden" aria-hidden="true" />
               <span className="hidden md:inline">Swap Home/Away</span>
             </Button>
@@ -295,7 +341,7 @@ export default function CurrentGameSection({
       {/* MOBILE */}
       <div className="space-y-3 md:hidden">
         <div className="rounded-xl border border-zinc-800 bg-zinc-900/10 p-3">
-          {/* Row 1: names + score */}
+          {/* Row 1: NAMES + SCORE (alignment only uses this row) */}
           <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3">
             <div className="min-w-0">
               {aNames.map((n, i) => (
@@ -308,10 +354,15 @@ export default function CurrentGameSection({
               ))}
             </div>
 
-            <div className="px-1 text-center">
-              <div className="text-2xl font-extrabold tracking-tight text-zinc-100">{scoreText}</div>
+            <div className="flex items-center justify-center gap-2 rounded-xl border border-zinc-800 bg-zinc-950/60 px-3 py-1.5">
+              <span className={`text-xl font-semibold tabular-nums text-zinc-100`}>
+                {scoreLeft}
+              </span>
+              <span className="text-zinc-500">:</span>
+              <span className={`text-xl font-semibold tabular-nums text-zinc-100`}>
+                {scoreRight}
+              </span>
             </div>
-
             <div className="min-w-0 text-right">
               {bNames.map((n, i) => (
                 <div
@@ -324,7 +375,25 @@ export default function CurrentGameSection({
             </div>
           </div>
 
-          {/* Row 2: goal steppers only if not scheduled */}
+          {/* Row 2: CLUBS (separate row) */}
+          <div className="mt-2 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-start gap-3 text-xs text-zinc-500">
+            <div className="min-w-0 whitespace-normal break-words leading-tight">{aClubParts.name}</div>
+            <div />
+            <div className="min-w-0 whitespace-normal break-words leading-tight text-right">{bClubParts.name}</div>
+          </div>
+
+          {/* Row 3: STARS (separate row) */}
+          <div className="mt-1 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 text-[11px] text-zinc-500">
+            <div className="min-w-0">
+              {aClubParts.rating != null ? <StarsFA rating={aClubParts.rating} textZinc="text-zinc-500" /> : <span>—</span>}
+            </div>
+            <div />
+            <div className="min-w-0 flex justify-end">
+              {bClubParts.rating != null ? <StarsFA rating={bClubParts.rating} textZinc="text-zinc-500" /> : <span>—</span>}
+            </div>
+          </div>
+
+          {/* Row 4: INPUTS (separate row; not part of the alignment above) */}
           {showGoalInputs && (
             <div className="mt-3 flex items-center justify-center gap-4">
               <GoalStepper
@@ -349,108 +418,197 @@ export default function CurrentGameSection({
           )}
         </div>
 
-        {/* Clubs (always selectable) */}
-        <div className="grid grid-cols-1 gap-2">
-          <ClubSelect
-            label={`${aInline} — club`}
-            value={aClub}
-            onChange={(v) => {
-              setAClub(v);
-              queueAutosave({ aClub: v });
-            }}
-            disabled={!canControl || busy}
-            clubs={clubsSorted}
-            placeholder="Select club…"
-          />
-          <ClubSelect
-            label={`${bInline} — club`}
-            value={bClub}
-            onChange={(v) => {
-              setBClub(v);
-              queueAutosave({ bClub: v });
-            }}
-            disabled={!canControl || busy}
-            clubs={clubsSorted}
-            placeholder="Select club…"
-          />
-        </div>
+        {/* Filter + Clubs */}
+        { canControl && (
+        <CollapsibleCard title="Select Clubs" defaultOpen={false}>
+          <div className="grid grid-cols-1 gap-2">
+            <StarFilter value={starFilter} onChange={setStarFilter} disabled={busy} />
+
+            <ClubSelect
+              label={`${aInline} — club`}
+              value={aClub}
+              onChange={(v) => {
+                if (v === aClub) return; // only save on actual change
+                setAClub(v);
+                queueAutosave({ aClub: v });
+              }}
+              disabled={!canControl || busy}
+              clubs={clubsForA}
+              placeholder="Select club…"
+            />
+
+            <ClubSelect
+              label={`${bInline} — club`}
+              value={bClub}
+              onChange={(v) => {
+                if (v === bClub) return; // only save on actual change
+                setBClub(v);
+                queueAutosave({ bClub: v });
+              }}
+              disabled={!canControl || busy}
+              clubs={clubsForB}
+              placeholder="Select club…"
+            />
+          </div>
+        </CollapsibleCard>
+        )}
       </div>
 
       {/* DESKTOP/TABLET */}
       <div className="hidden md:block space-y-3">
-        <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-4">
-          <div className="min-w-0">
-            {aNames.map((n, i) => (
-              <div key={`${n}-${i}`} className="truncate text-lg font-semibold text-zinc-100 leading-tight">
-                {n}
-              </div>
-            ))}
+        <div className="rounded-xl border border-zinc-800 bg-zinc-900/10 p-4">
+          {/* Row 1: NAMES + SCORE (alignment only uses this row) */}
+          <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-4">
+            <div className="min-w-0">
+              {aNames.map((n, i) => (
+                <div key={`${n}-${i}`} className="truncate text-lg font-semibold text-zinc-100 leading-tight">
+                  {n}
+                </div>
+              ))}
+            </div>
+
+            <div className="flex items-center justify-center gap-2 rounded-xl border border-zinc-800 bg-zinc-950/60 px-3 py-1.5">
+              <span className={`text-xl font-semibold tabular-nums text-zinc-100`}>
+                {scoreLeft}
+              </span>
+              <span className="text-zinc-500">:</span>
+              <span className={`text-xl font-semibold tabular-nums text-zinc-100`}>
+                {scoreRight}
+              </span>
+            </div>
+
+            <div className="min-w-0 text-right">
+              {bNames.map((n, i) => (
+                <div key={`${n}-${i}`} className="truncate text-lg font-semibold text-zinc-100 leading-tight">
+                  {n}
+                </div>
+              ))}
+            </div>
           </div>
 
-          <div className="px-2 text-center">
-            <div className="text-3xl font-extrabold tracking-tight text-zinc-100">{scoreText}</div>
-
-            {showGoalInputs && (
-              <div className="mt-2 flex items-center justify-center gap-4">
-                <GoalStepper
-                  value={aGoals}
-                  onChange={(v) => {
-                    setAGoals(v);
-                    queueAutosave({ aGoals: v });
-                  }}
-                  disabled={busy}
-                  ariaLabel="Goals left"
-                />
-                <GoalStepper
-                  value={bGoals}
-                  onChange={(v) => {
-                    setBGoals(v);
-                    queueAutosave({ bGoals: v });
-                  }}
-                  disabled={busy}
-                  ariaLabel="Goals right"
-                />
-              </div>
-            )}
+          {/* Row 2: CLUBS */}
+          <div className="mt-3 grid grid-cols-[1fr_auto_1fr] items-start gap-4 text-sm text-zinc-500">
+            <div className="min-w-0 truncate">{aClubParts.name}</div>
+            <div />
+            <div className="min-w-0 truncate text-right">{bClubParts.name}</div>
           </div>
 
-          <div className="min-w-0 text-right">
-            {bNames.map((n, i) => (
-              <div key={`${n}-${i}`} className="truncate text-lg font-semibold text-zinc-100 leading-tight">
-                {n}
-              </div>
-            ))}
+          {/* Row 3: STARS */}
+          <div className="mt-1 grid grid-cols-[1fr_auto_1fr] items-center gap-4 text-sm text-zinc-500">
+            <div className="min-w-0">
+              {aClubParts.rating != null ? <StarsFA rating={aClubParts.rating} textZinc="text-zinc-500" /> : <span>—</span>}
+            </div>
+            <div />
+            <div className="min-w-0 flex justify-end">
+              {bClubParts.rating != null ? <StarsFA rating={bClubParts.rating} textZinc="text-zinc-500" /> : <span>—</span>}
+            </div>
           </div>
+
+          {/* Row 4: INPUTS */}
+          {showGoalInputs && (
+            <div className="mt-3 flex items-center justify-center gap-4">
+              <GoalStepper
+                value={aGoals}
+                onChange={(v) => {
+                  setAGoals(v);
+                  queueAutosave({ aGoals: v });
+                }}
+                disabled={busy}
+                ariaLabel="Goals left"
+              />
+              <GoalStepper
+                value={bGoals}
+                onChange={(v) => {
+                  setBGoals(v);
+                  queueAutosave({ bGoals: v });
+                }}
+                disabled={busy}
+                ariaLabel="Goals right"
+              />
+            </div>
+          )}
         </div>
 
-        <div className="grid grid-cols-[1fr_1fr] gap-3">
-          <ClubSelect
-            label={`${aInline} — club`}
-            value={aClub}
-            onChange={(v) => {
-              setAClub(v);
-              queueAutosave({ aClub: v });
-            }}
-            disabled={!canControl || busy}
-            clubs={clubsSorted}
-            placeholder="Select club…"
-          />
-          <ClubSelect
-            label={`${bInline} — club`}
-            value={bClub}
-            onChange={(v) => {
-              setBClub(v);
-              queueAutosave({ bClub: v });
-            }}
-            disabled={!canControl || busy}
-            clubs={clubsSorted}
-            placeholder="Select club…"
-          />
-        </div>
+        { canControl && (
+        <CollapsibleCard title="Select Clubs" defaultOpen={false}>
+          <div className="grid grid-cols-[auto_1fr_1fr] items-end gap-3">
+            <StarFilter value={starFilter} onChange={setStarFilter} disabled={busy} compact />
+
+            <ClubSelect
+              label={`${aInline} — club`}
+              value={aClub}
+              onChange={(v) => {
+                if (v === aClub) return;
+                setAClub(v);
+                queueAutosave({ aClub: v });
+              }}
+              disabled={!canControl || busy}
+              clubs={clubsForA}
+              placeholder="Select club…"
+            />
+
+            <ClubSelect
+              label={`${bInline} — club`}
+              value={bClub}
+              onChange={(v) => {
+                if (v === bClub) return;
+                setBClub(v);
+                queueAutosave({ bClub: v });
+              }}
+              disabled={!canControl || busy}
+              clubs={clubsForB}
+              placeholder="Select club…"
+            />
+          </div>
+        </CollapsibleCard>
+        )}
       </div>
     </div>
   );
 }
+
+function StarFilter({
+  value,
+  onChange,
+  disabled,
+  compact,
+}: {
+  value: number | null;
+  onChange: (v: number | null) => void;
+  disabled: boolean;
+  compact?: boolean;
+}) {
+  return (
+    <label className="block">
+      <div className="mb-1">
+        <span className="hidden md:inline text-xs text-zinc-400">Filter by stars</span>
+        <span className="md:hidden inline-flex items-center gap-2 text-xs text-zinc-400">
+          <i className="fa-solid fa-filter" aria-hidden="true" />
+          <span className="sr-only">Filter by stars</span>
+        </span>
+      </div>
+
+      <select
+        className={`rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-600 disabled:opacity-60 ${
+          compact ? "w-[160px]" : "w-full"
+        }`}
+        value={value == null ? "" : String(value)}
+        onChange={(e) => onChange(e.target.value ? Number(e.target.value) : null)}
+        disabled={disabled}
+        title="Filter by stars"
+      >
+        <option value="">All stars</option>
+        {STAR_OPTIONS.map((v) => (
+          <option key={v} value={v}>
+            {v.toFixed(1).replace(/\.0$/, "")}★
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+
 
 function GoalStepper({
   value,

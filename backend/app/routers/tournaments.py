@@ -351,7 +351,7 @@ async def create_tournament(body: dict, s: Session = Depends(get_session)):
 
     log.info("Created tournament '%s' (id=%s, mode=%s)", t.name, t.id, t.mode)
 
-    await ws_manager_new_tournament.broadcast(0, "tournament_created", {})
+    await ws_manager_update_tournaments.broadcast("tournament_created", {})
     return t
 
 
