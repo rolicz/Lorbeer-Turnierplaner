@@ -13,6 +13,7 @@ import { useTournamentWS } from "../../hooks/useTournamentWS";
 import { sideBy } from "../../helpers";
 
 import { StarsFA } from "../../ui/primitives/StarsFA";
+import { Pill, statusMatchPill } from "../../ui/primitives/Pill";
 
 function starsLabel(v: any): string {
   if (typeof v === "number") return v.toFixed(1).replace(/\.0$/, "");
@@ -54,17 +55,6 @@ type LiveTournamentLite = {
   date?: string | null;
 };
 
-function statusPill(status: "draft" | "live" | "done") {
-  if (status === "live") return "border-emerald-500/40 bg-emerald-500/10 text-emerald-300";
-  if (status === "draft") return "border-indigo-500/40 bg-indigo-500/10 text-indigo-300";
-  return "border-zinc-700 bg-zinc-900/40 text-zinc-300";
-}
-
-function statusMatchPill(state: "scheduled" | "playing" | "finished") {
-  if (state === "playing") return "border-emerald-500/40 bg-emerald-500/10 text-emerald-300";
-  if (state === "scheduled") return "border-indigo-500/40 bg-indigo-500/10 text-indigo-300";
-  return "border-zinc-700 bg-zinc-900/40 text-zinc-300";
-}
 
 function pickPreviewMatch(matches: Match[]): Match | null {
   const sorted = matches.slice().sort((a, b) => a.order_index - b.order_index);
@@ -154,37 +144,40 @@ export default function CurrentMatchPreviewCard() {
         onClick={() => nav(`/live/${tid}`)}
         className="w-full rounded-2xl p-1 text-left transition hover:bg-zinc-900/30"
       >
-        {/* Top row: name | centered leg/# | pills */}
-        <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3">
+        {/* Top row: name */}
+        <div className="grid grid-cols-1 items-center">
           <div className="min-w-0">
             <div className="truncate text-base font-semibold text-zinc-100">
               {(tQ.data as any)?.name ?? `Tournament #${tid}`}
             </div>
           </div>
-
-          <div className="justify-self-center whitespace-nowrap text-[11px] leading-none text-zinc-500">
-            leg {match.leg} · #{match.order_index + 1}
-          </div>
-
-          <div className="flex items-center justify-end gap-2">
-            <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs ${statusPill(status)}`}>
-              <i className="fa fa-trophy symbol-margin-to-text" aria-hidden="true" />
-              <span>{status}</span>
-            </span>
-            <span
-              className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs ${statusMatchPill(
-                match.state
-              )}`}
-            >
-              <i className="fa fa-gamepad symbol-margin-to-text" aria-hidden="true" />
-              <span>{match.state}</span>
-            </span>
-          </div>
         </div>
 
-        <div className="mt-3 rounded-xl border border-zinc-800 bg-zinc-900/10 p-3">
-          {/* Row 1: names stacked + score centered */}
-          <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3">
+        <div className="mt-2 rounded-xl border border-zinc-800 bg-zinc-900/10 p-3">
+          {/* Row 1: leg/# left + match/mode pills right */}
+          <div className="mt-1 flex items-center justify-between gap-3">
+            <div className="text-[11px] sm:text-xs text-zinc-500">
+              leg {match.leg} · #{match.order_index + 1}
+            </div>
+            <div className="flex items-center gap-2 flex-nowrap whitespace-nowrap">
+              <Pill
+                className="!inline-flex !w-auto shrink-0 border-zinc-800 bg-zinc-950/60 text-[11px] sm:text-xs text-zinc-200"
+                title="Mode"
+              >
+                {tQ.data?.mode === "2v2" ? "2v2" : "1v1"}
+              </Pill>
+              <Pill
+                className={`inline-flex shrink-0 items-center rounded-full border px-3 py-0.5 text-[11px] sm:text-xs ${statusMatchPill(
+                  match.state
+                )}`}
+              >
+                {match.state}
+              </Pill>
+              
+            </div>
+          </div>
+
+          <div className="mt-3 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3">
             {/* A names */}
             <div className="min-w-0">
               {aNames.map((n, i) => (
@@ -230,7 +223,6 @@ export default function CurrentMatchPreviewCard() {
               {bClubParts.rating != null ? <StarsFA rating={bClubParts.rating} textZinc="text-zinc-500" /> : <span>—</span>}
             </div>
           </div>
-
         </div>
 
         <div className="mt-2 text-xs text-zinc-500">Tap to open live tournament.</div>

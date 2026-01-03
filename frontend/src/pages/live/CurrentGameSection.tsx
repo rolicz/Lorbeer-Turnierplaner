@@ -6,6 +6,12 @@ import CollapsibleCard from "../../ui/primitives/CollapsibleCard";
 import { StarsFA } from "../../ui/primitives/StarsFA";
 
 
+function statusMatchPill(state: "scheduled" | "playing" | "finished") {
+  if (state === "playing") return "border-emerald-500/40 bg-emerald-500/10 text-emerald-300";
+  if (state === "scheduled") return "border-indigo-500/40 bg-indigo-500/10 text-indigo-300";
+  return "border-zinc-700 bg-zinc-900/40 text-zinc-300";
+}
+
 function sideBy(m: Match, side: "A" | "B"): MatchSide | undefined {
   return m.sides.find((s) => s.side === side);
 }
@@ -280,13 +286,7 @@ export default function CurrentGameSection({
   return (
     <div className="space-y-3">
       {/* Top row */}
-      <div className="flex items-center justify-between gap-3">
-        <div className="text-sm text-zinc-400">
-          <span className="text-zinc-500">
-            leg {match.leg} · #{match.order_index + 1} · {match.state}
-          </span>
-        </div>
-
+      <div className="flex items-center justify-end gap-3">
         <div className="flex items-center gap-2">
           {canControl && onSwapSides && (
             <Button variant="ghost" onClick={() => onSwapSides(match.id)} disabled={busy} title="Swap home/away (A↔B)">
@@ -341,8 +341,22 @@ export default function CurrentGameSection({
       {/* MOBILE */}
       <div className="space-y-3 md:hidden">
         <div className="rounded-xl border border-zinc-800 bg-zinc-900/10 p-3">
-          {/* Row 1: NAMES + SCORE (alignment only uses this row) */}
-          <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3">
+          {/* Row 1: Leg, match number, state pill */}
+          <div className="flex items-center justify-between gap-3">
+            <div className="text-[11px] sm:text-xs text-zinc-500">
+              leg {match.leg} · #{match.order_index + 1}
+            </div>
+            <span
+              className={`inline-flex items-center rounded-full border px-3 py-0.5 text-[11px] sm:text-xs ${statusMatchPill(
+                match.state
+              )}`}
+            >
+              {match.state}
+            </span>
+          </div>
+          
+          {/* Row 2: NAMES + SCORE (alignment only uses this row) */}
+          <div className="mt-3 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3">
             <div className="min-w-0">
               {aNames.map((n, i) => (
                 <div
@@ -375,14 +389,14 @@ export default function CurrentGameSection({
             </div>
           </div>
 
-          {/* Row 2: CLUBS (separate row) */}
+          {/* Row 3: CLUBS (separate row) */}
           <div className="mt-2 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-start gap-3 text-xs text-zinc-500">
             <div className="min-w-0 whitespace-normal break-words leading-tight">{aClubParts.name}</div>
             <div />
             <div className="min-w-0 whitespace-normal break-words leading-tight text-right">{bClubParts.name}</div>
           </div>
 
-          {/* Row 3: STARS (separate row) */}
+          {/* Row 4: STARS (separate row) */}
           <div className="mt-1 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 text-[11px] text-zinc-500">
             <div className="min-w-0">
               {aClubParts.rating != null ? <StarsFA rating={aClubParts.rating} textZinc="text-zinc-500" /> : <span>—</span>}
@@ -393,7 +407,7 @@ export default function CurrentGameSection({
             </div>
           </div>
 
-          {/* Row 4: INPUTS (separate row; not part of the alignment above) */}
+          {/* Row 5: INPUTS (separate row; not part of the alignment above) */}
           {showGoalInputs && (
             <div className="mt-3 flex items-center justify-center gap-4">
               <GoalStepper
@@ -457,8 +471,21 @@ export default function CurrentGameSection({
       {/* DESKTOP/TABLET */}
       <div className="hidden md:block space-y-3">
         <div className="rounded-xl border border-zinc-800 bg-zinc-900/10 p-4">
-          {/* Row 1: NAMES + SCORE (alignment only uses this row) */}
-          <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-4">
+          {/* Row 1: Leg, match number, state pill */}
+          <div className="mt-1 flex items-center justify-between gap-3">
+            <div className="text-[11px] sm:text-xs text-zinc-500">
+              leg {match.leg} · #{match.order_index + 1}
+            </div>
+            <span
+              className={`inline-flex items-center rounded-full border px-3 py-0.5 text-[11px] sm:text-xs ${statusMatchPill(
+                match.state
+              )}`}
+            >
+              {match.state}
+            </span>
+          </div>
+          {/* Row 2: NAMES + SCORE (alignment only uses this row) */}
+          <div className="mt-3 grid grid-cols-[1fr_auto_1fr] items-center gap-4">
             <div className="min-w-0">
               {aNames.map((n, i) => (
                 <div key={`${n}-${i}`} className="truncate text-lg font-semibold text-zinc-100 leading-tight">
@@ -486,14 +513,14 @@ export default function CurrentGameSection({
             </div>
           </div>
 
-          {/* Row 2: CLUBS */}
+          {/* Row 3: CLUBS */}
           <div className="mt-3 grid grid-cols-[1fr_auto_1fr] items-start gap-4 text-sm text-zinc-500">
             <div className="min-w-0 truncate">{aClubParts.name}</div>
             <div />
             <div className="min-w-0 truncate text-right">{bClubParts.name}</div>
           </div>
 
-          {/* Row 3: STARS */}
+          {/* Row 4: STARS */}
           <div className="mt-1 grid grid-cols-[1fr_auto_1fr] items-center gap-4 text-sm text-zinc-500">
             <div className="min-w-0">
               {aClubParts.rating != null ? <StarsFA rating={aClubParts.rating} textZinc="text-zinc-500" /> : <span>—</span>}
@@ -504,7 +531,7 @@ export default function CurrentGameSection({
             </div>
           </div>
 
-          {/* Row 4: INPUTS */}
+          {/* Row 5: INPUTS */}
           {showGoalInputs && (
             <div className="mt-3 flex items-center justify-center gap-4">
               <GoalStepper

@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Card from "../../ui/primitives/Card";
 import Button from "../../ui/primitives/Button";
 import CollapsibleCard from "../../ui/primitives/CollapsibleCard";
+import { Pill, statusPill } from "../../ui/primitives/Pill";
 
 import {
   getTournament,
@@ -98,11 +99,6 @@ function starsLabel(v: any): string {
   return String(v ?? "");
 }
 
-function statusPillClass(status: string) {
-  if (status === "live") return "border-emerald-500/30 bg-emerald-500/10 text-emerald-200";
-  if (status === "done") return "border-zinc-700/40 bg-zinc-900/40 text-zinc-300";
-  return "border-sky-500/30 bg-sky-500/10 text-sky-200";
-}
 
 export default function LiveTournamentPage() {
   const { id } = useParams();
@@ -455,15 +451,15 @@ export default function LiveTournamentPage() {
           <div className="space-y-3">
             <div className="flex items-center justify-between gap-3">
               <div className="flex flex-wrap items-center gap-2 text-sm">
-                <span className="rounded-full border border-zinc-700 bg-zinc-900/30 px-2.5 py-1 text-zinc-300">
+                <Pill className="rounded-full border border-zinc-700 bg-zinc-900/30 px-2.5 py-1 text-zinc-300">
                   {tQ.data.mode}
-                </span>
-                <span className={`rounded-full border px-2.5 py-1 ${statusPillClass(tQ.data.status)}`}>
-                  {tQ.data.status}
-                </span>
-                <span className="rounded-full border border-zinc-700 bg-zinc-900/30 px-2.5 py-1 text-zinc-300">
+                </Pill>
+                <Pill className={`rounded-full border px-2.5 py-1 ${statusPill(tQ.data.status)}`}>
+                  {tQ.data.status.toUpperCase()}
+                </Pill>
+                <Pill className="rounded-full border border-zinc-700 bg-zinc-900/30 px-2.5 py-1 text-zinc-300">
                   {fmtDate(tQ.data.date)}
-                </span>
+                </Pill>
               </div>
 
               <Button variant="ghost" onClick={() => tQ.refetch()} title="Refetch">

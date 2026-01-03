@@ -5,6 +5,7 @@ import Card from "../ui/primitives/Card";
 import Button from "../ui/primitives/Button";
 import Input from "../ui/primitives/Input";
 import Modal from "../ui/primitives/Modal";
+import Pill from "../ui/primitives/Pill";
 import { listTournaments, createTournament, generateSchedule } from "../api/tournaments.api";
 import { listPlayers } from "../api/players.api";
 import { useAuth } from "../auth/AuthContext";
@@ -42,24 +43,6 @@ function statusUI(status: Status) {
   }
 }
 
-function Pill({
-  className,
-  children,
-  title,
-}: {
-  className?: string;
-  children: React.ReactNode;
-  title?: string;
-}) {
-  return (
-    <span
-      title={title}
-      className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium leading-none ${className ?? ""}`}
-    >
-      {children}
-    </span>
-  );
-}
 
 // Best-effort winner label (depends on what your /tournaments list returns)
 function winnerLabel(t: any): string | null {

@@ -64,19 +64,6 @@ export function reorderTournamentMatches(token: string, tournamentId: number, ma
   });
 }
 
-
-export function patchTournamentStatus(
-  token: string,
-  tournamentId: number,
-  status: "draft" | "live" | "done"
-) {
-  return apiFetch(`/tournaments/${tournamentId}/status`, {
-    method: "PATCH",
-    token,
-    body: JSON.stringify({ status }),
-  });
-}
-
 export function deleteTournament(token: string, tournamentId: number) {
 return apiFetch(`/tournaments/${tournamentId}`, {
   method: "DELETE",
@@ -93,10 +80,10 @@ export function patchTournamentDate(token: string, tournamentId: number, date: s
 }
 
 export function patchTournamentName(token: string, tournamentId: number, name: string) {
-  return apiFetch(`/tournaments/${tournamentId}/name`, {
+  return apiFetch(`/tournaments/${tournamentId}`, {
     method: "PATCH",
     token,
-    body: JSON.stringify({ name }),
+    body: JSON.stringify({ "name" : name }),
   });
 }
 
