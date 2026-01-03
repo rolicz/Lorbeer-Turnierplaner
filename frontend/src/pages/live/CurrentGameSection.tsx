@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Button from "../../ui/primitives/Button";
 import type { Club, Match, MatchSide } from "../../api/types";
 
@@ -35,6 +35,13 @@ function namesInline(side?: MatchSide) {
   return ps.map((p) => p.display_name).join(" + ");
 }
 
+type PatchPayload = {
+  aGoals: number;
+  bGoals: number;
+  aClub: number | null;
+  bClub: number | null;
+};
+
 export default function CurrentGameSection({
   status,
   match,
@@ -70,49 +77,154 @@ export default function CurrentGameSection({
   const [aGoals, setAGoals] = useState<number>(Number(a?.goals ?? 0));
   const [bGoals, setBGoals] = useState<number>(Number(b?.goals ?? 0));
 
+  // -------------------------
+  // AUTO-SAVE (debounced)
+  // -------------------------
+  const timerRef = useRef<number | null>(null);
+  const pendingRef = useRef<PatchPayload | null>(null);
+  const lastKeyRef = useRef<string>("");
+
+  function makeKey(m: Match, p: PatchPayload) {
+    return JSON.stringify({
+      matchId: m.id,
+      state: m.state,
+      aGoals: p.aGoals,
+      bGoals: p.bGoals,
+      aClub: p.aClub,
+      bClub: p.bClub,
+    });
+  }
+
+  function clearAutosave() {
+    if (timerRef.current) {
+      window.clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+  }
+
+  async function flushAutosave() {
+    if (!canControl) return;
+    if (!match) return;
+
+    const nextState = match.state;
+    if (nextState == null) return;
+
+    const p = pendingRef.current;
+    if (!p) return;
+
+    const key = makeKey(match, p);
+    if (key === lastKeyRef.current) return;
+
+    // If we are currently busy, try again shortly (keep pendingRef intact)
+    if (busy) {
+      clearAutosave();
+      timerRef.current = window.setTimeout(() => {
+        void flushAutosave();
+      }, 250);
+      return;
+    }
+
+    lastKeyRef.current = key;
+
+    try {
+      await onPatch(match.id, {
+        state: nextState,
+        sideA: { club_id: p.aClub, goals: p.aGoals },
+        sideB: { club_id: p.bClub, goals: p.bGoals },
+      });
+    } catch {
+      // allow retry on next change
+      lastKeyRef.current = "";
+    }
+  }
+
+  function queueAutosave(override?: Partial<PatchPayload>) {
+    if (!canControl) return;
+    if (!match) return;
+
+    const p: PatchPayload = {
+      aGoals: override?.aGoals ?? aGoals,
+      bGoals: override?.bGoals ?? bGoals,
+      aClub: override?.aClub ?? aClub,
+      bClub: override?.bClub ?? bClub,
+    };
+
+    pendingRef.current = p;
+
+    const key = makeKey(match, p);
+    if (key === lastKeyRef.current) return;
+
+    clearAutosave();
+    timerRef.current = window.setTimeout(() => {
+      void flushAutosave();
+    }, 350);
+  }
+
   // Re-sync local editor state whenever backend updates this match
   useEffect(() => {
-    setAClub(a?.club_id ?? null);
-    setBClub(b?.club_id ?? null);
-    setAGoals(Number(a?.goals ?? 0));
-    setBGoals(Number(b?.goals ?? 0));
+    const next: PatchPayload = {
+      aGoals: Number(a?.goals ?? 0),
+      bGoals: Number(b?.goals ?? 0),
+      aClub: a?.club_id ?? null,
+      bClub: b?.club_id ?? null,
+    };
+
+    setAClub(next.aClub);
+    setBClub(next.bClub);
+    setAGoals(next.aGoals);
+    setBGoals(next.bGoals);
+
+    // reset autosave bookkeeping so we don't immediately "re-save" server state
+    clearAutosave();
+    pendingRef.current = next;
+    lastKeyRef.current = makeKey(match, next);
+
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [match?.id, match?.state, a?.club_id, b?.club_id, a?.goals, b?.goals]);
 
+  // Score display: for scheduled always show "- : -" (regardless of stored/typed goals)
   const isScheduled = match.state === "scheduled";
   const showGoalInputs = canControl && !isScheduled;
-
-  // Score display: for scheduled always show "- : -" (regardless of stored/typed goals)
   const scoreText = isScheduled ? "- : -" : `${aGoals} : ${bGoals}`;
 
   async function save(
     stateOverride?: "scheduled" | "playing" | "finished",
-    override?: { aGoals?: number; bGoals?: number; aClub?: number | null; bClub?: number | null }
+    override?: Partial<PatchPayload>
   ) {
     if (!canControl) return;
-    if (match === null) return;
-    const nextState = stateOverride ?? match.state;
+    if (!match) return;
 
-    const payloadAGoals = override?.aGoals ?? aGoals;
-    const payloadBGoals = override?.bGoals ?? bGoals;
-    const payloadAClub = override?.aClub ?? aClub;
-    const payloadBClub = override?.bClub ?? bClub;
+    clearAutosave();
+
+    const nextState = stateOverride ?? match.state;
+    if (nextState == null) return;
+
+    const payload: PatchPayload = {
+      aGoals: override?.aGoals ?? aGoals,
+      bGoals: override?.bGoals ?? bGoals,
+      aClub: override?.aClub ?? aClub,
+      bClub: override?.bClub ?? bClub,
+    };
+
+    // mark as last-sent to avoid immediate autosave re-fire
+    pendingRef.current = payload;
+    lastKeyRef.current = makeKey(match, payload);
 
     await onPatch(match.id, {
       state: nextState,
-      sideA: { club_id: payloadAClub, goals: payloadAGoals },
-      sideB: { club_id: payloadBClub, goals: payloadBGoals },
+      sideA: { club_id: payload.aClub, goals: payload.aGoals },
+      sideB: { club_id: payload.bClub, goals: payload.bGoals },
     });
   }
 
   async function reset() {
     if (!canControl) return;
 
-    // Update UI immediately (so we don’t “snap back” to old values)
+    // Update UI immediately
     setAGoals(0);
     setBGoals(0);
 
-    // Persist reset explicitly (do NOT depend on current state)
+    // Persist explicitly
     await save("scheduled", { aGoals: 0, bGoals: 0 });
   }
 
@@ -126,46 +238,54 @@ export default function CurrentGameSection({
           </span>
         </div>
 
-
         <div className="flex items-center gap-2">
           {canControl && onSwapSides && (
-            <Button variant="ghost" onClick={() => onSwapSides(match.id)} disabled={busy} title="Swap home/away (A↔B)">
+            <Button
+              variant="ghost"
+              onClick={() => onSwapSides(match.id)}
+              disabled={busy}
+              title="Swap home/away (A↔B)"
+            >
               <i className="fa fa-arrow-right-arrow-left md:hidden" aria-hidden="true" />
               <span className="hidden md:inline">Swap Home/Away</span>
             </Button>
           )}
+
           {canControl && match.state === "scheduled" && (
             <Button variant="ghost" onClick={() => save("playing")} disabled={busy} title="Start">
               <i className="fa fa-play md:hidden" aria-hidden="true" />
               <span className="hidden md:inline">Start</span>
             </Button>
           )}
+
           {canControl && match.state !== "scheduled" && (
-            <Button variant="ghost" onClick={() => {
-                const text = "This will reset the match to 0:0 and scheduled state. Are you sure?"; 
+            <Button
+              variant="ghost"
+              onClick={() => {
+                const text = "This will reset the match to 0:0 and scheduled state. Are you sure?";
                 if (!window.confirm(text)) return;
                 void reset();
-              }} disabled={busy} title="Reset">
+              }}
+              disabled={busy}
+              title="Reset"
+            >
               <i className="fa fa-rotate-left md:hidden" aria-hidden="true" />
               <span className="hidden md:inline">Reset</span>
             </Button>
+          )}
 
-          )}
-          {canControl && match.state !== "scheduled" && (
-            <Button variant="ghost" onClick={() => save()} disabled={busy} title="Save">
-              <i className="fa fa-floppy-disk md:hidden" aria-hidden="true" />
-              <span className="hidden md:inline">Save</span>
-            </Button>
-          )}
           {canControl && (
-            <Button 
+            <Button
               disabled={busy}
               onClick={() => {
-                const text = match.state === "scheduled" ? "Match not started. Are you sure you want to finish this match (0:0)?" : undefined; 
+                const text =
+                  match.state === "scheduled"
+                    ? "Match not started. Are you sure you want to finish this match (0:0)?"
+                    : undefined;
                 if (text && !window.confirm(text)) return;
                 void save("finished");
               }}
-              title = "Finish match"
+              title="Finish match"
             >
               <i className="fa fa-flag-checkered md:hidden" aria-hidden="true" />
               <span className="hidden md:inline">Finish</span>
@@ -209,8 +329,24 @@ export default function CurrentGameSection({
           {/* Row 2: goal steppers only if not scheduled */}
           {showGoalInputs && (
             <div className="mt-3 flex items-center justify-center gap-4">
-              <GoalStepper value={aGoals} onChange={setAGoals} disabled={busy} ariaLabel="Goals left" />
-              <GoalStepper value={bGoals} onChange={setBGoals} disabled={busy} ariaLabel="Goals right" />
+              <GoalStepper
+                value={aGoals}
+                onChange={(v) => {
+                  setAGoals(v);
+                  queueAutosave({ aGoals: v });
+                }}
+                disabled={busy}
+                ariaLabel="Goals left"
+              />
+              <GoalStepper
+                value={bGoals}
+                onChange={(v) => {
+                  setBGoals(v);
+                  queueAutosave({ bGoals: v });
+                }}
+                disabled={busy}
+                ariaLabel="Goals right"
+              />
             </div>
           )}
         </div>
@@ -220,7 +356,10 @@ export default function CurrentGameSection({
           <ClubSelect
             label={`${aInline} — club`}
             value={aClub}
-            onChange={setAClub}
+            onChange={(v) => {
+              setAClub(v);
+              queueAutosave({ aClub: v });
+            }}
             disabled={!canControl || busy}
             clubs={clubsSorted}
             placeholder="Select club…"
@@ -228,7 +367,10 @@ export default function CurrentGameSection({
           <ClubSelect
             label={`${bInline} — club`}
             value={bClub}
-            onChange={setBClub}
+            onChange={(v) => {
+              setBClub(v);
+              queueAutosave({ bClub: v });
+            }}
             disabled={!canControl || busy}
             clubs={clubsSorted}
             placeholder="Select club…"
@@ -252,8 +394,24 @@ export default function CurrentGameSection({
 
             {showGoalInputs && (
               <div className="mt-2 flex items-center justify-center gap-4">
-                <GoalStepper value={aGoals} onChange={setAGoals} disabled={busy} ariaLabel="Goals left" />
-                <GoalStepper value={bGoals} onChange={setBGoals} disabled={busy} ariaLabel="Goals right" />
+                <GoalStepper
+                  value={aGoals}
+                  onChange={(v) => {
+                    setAGoals(v);
+                    queueAutosave({ aGoals: v });
+                  }}
+                  disabled={busy}
+                  ariaLabel="Goals left"
+                />
+                <GoalStepper
+                  value={bGoals}
+                  onChange={(v) => {
+                    setBGoals(v);
+                    queueAutosave({ bGoals: v });
+                  }}
+                  disabled={busy}
+                  ariaLabel="Goals right"
+                />
               </div>
             )}
           </div>
@@ -271,7 +429,10 @@ export default function CurrentGameSection({
           <ClubSelect
             label={`${aInline} — club`}
             value={aClub}
-            onChange={setAClub}
+            onChange={(v) => {
+              setAClub(v);
+              queueAutosave({ aClub: v });
+            }}
             disabled={!canControl || busy}
             clubs={clubsSorted}
             placeholder="Select club…"
@@ -279,14 +440,16 @@ export default function CurrentGameSection({
           <ClubSelect
             label={`${bInline} — club`}
             value={bClub}
-            onChange={setBClub}
+            onChange={(v) => {
+              setBClub(v);
+              queueAutosave({ bClub: v });
+            }}
             disabled={!canControl || busy}
             clubs={clubsSorted}
             placeholder="Select club…"
           />
         </div>
       </div>
-
     </div>
   );
 }
@@ -364,3 +527,4 @@ function ClubSelect({
     </label>
   );
 }
+
