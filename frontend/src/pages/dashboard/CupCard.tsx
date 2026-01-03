@@ -48,17 +48,13 @@ export default function CupCard() {
                 >
                   <i className="fa fa-info" aria-hidden="true" />
                 </Button>
-                <div className="pointer-events-none absolute left-4/4 top-full z-20 mt-2 w-72 -translate-x-1/2 rounded-xl border border-zinc-800 bg-zinc-950/95 p-3 text-xs text-zinc-300 opacity-0 shadow-lg transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+                <div className="pointer-events-none absolute right-0 top-full z-20 mt-2 w-72 origin-top-right rounded-xl border border-zinc-800 bg-zinc-950/95 p-3 text-xs text-zinc-300 opacity-0 shadow-lg transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
                   Cup transfers only when the current owner participates in a{" "}
                   <span className="text-zinc-100">done</span> tournament and does not win it.
                   <br />
                   Draw for first place does not transfer.
                 </div>
               </span>
-            <Button variant="ghost" onClick={() => q.refetch()} type="button" title="Refresh">
-              <i className="fa fa-refresh md:hidden" aria-hidden="true" />
-              <span className="hidden md:inline">Refresh</span>
-            </Button>
             </div>
           </div>
 
