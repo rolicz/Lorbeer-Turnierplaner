@@ -33,18 +33,6 @@ def create_app(settings: Settings) -> FastAPI:
         init_db()
         log.info("DB initialized")
 
-        # validate cup owner id from secrets.json
-        try:
-            pid = int(settings.cup_initial_owner_player_id)
-            with Session(get_engine()) as s:
-                if s.get(Player, pid) is None:
-                    log.warning(
-                        "cup_initial_owner_player_id=%s does not exist in DB (create player or update secrets.json)",
-                        pid,
-                    )
-        except Exception:
-            log.exception("Failed to validate cup_initial_owner_player_id")
-
         yield
 
     app = FastAPI(

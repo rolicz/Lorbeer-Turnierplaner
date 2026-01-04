@@ -6,6 +6,8 @@ import Button from "../../ui/primitives/Button";
 import { getCup } from "../../api/cup.api";
 import { useAnyTournamentWS } from "../../hooks/useTournamentWS";
 
+import { Pill, statusPill } from "../../ui/primitives/Pill";
+
 function fmtDate(d?: string | null) {
   if (!d) return "—";
   try {
@@ -65,8 +67,11 @@ export default function CupCard() {
             </div>
             {q.data.streak.since.tournament_name && (
               <div className="mt-1 text-xs text-zinc-500">
-                Since: <span className="text-xs text-zinc-300">{q.data.streak.since.tournament_name}</span><span className="text-xs text-zinc-500">{" "}(
-              {fmtDate(q.data.streak.since.date)})</span>
+                Since: 
+                  {" "}
+                <span className="text-xs text-zinc-300">
+                  {q.data.streak.since.tournament_name}
+                </span>
               </div>
             )}
           </div>
@@ -92,7 +97,17 @@ export default function CupCard() {
                   <div className="flex items-center justify-between gap-2">
                     <div className="min-w-0">
                       <div className="truncate text-sm text-zinc-200">{h.tournament_name}</div>
-                      <div className="text-xs text-zinc-500">{fmtDate(h.date)}</div>
+                      <div className="mt-2 flex flex-wrap items-center gap-2">
+                        <Pill title="Date">
+                          <span>{fmtDate(h.date)}</span>
+                        </Pill>
+
+                        {h.streak_duration > 0 && (
+                          <Pill title="Streak">
+                            <span>Streak: {h.streak_duration}</span>
+                          </Pill>
+                        )}
+                      </div>
                     </div>
                     <div className="shrink-0 text-sm text-zinc-200">
                       <span className="text-zinc-300">{h.from.display_name}</span>{" "}

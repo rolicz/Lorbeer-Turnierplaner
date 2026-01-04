@@ -18,6 +18,7 @@ class CupTransfer:
     from_player_name: str
     to_player_id: int
     to_player_name: str
+    streak_duration: int
 
 
 @dataclass(frozen=True)
@@ -38,7 +39,7 @@ def _load_player(session: Session, player_id: int) -> Player:
     return p
 
 
-def compute_cup(session: Session, initial_owner_player_id: int) -> CupResult:
+def compute_cup(session: Session) -> CupResult:
     """
     Cup owner changes ONLY by TOURNAMENT WINNER (player standings).
 
@@ -51,7 +52,7 @@ def compute_cup(session: Session, initial_owner_player_id: int) -> CupResult:
       - counts number of completed tournaments (status==done) the *current owner participated in*
         since they last took/won the cup (including that winning tournament).
     """
-    owner = _load_player(session, int(initial_owner_player_id))
+    owner = None
     history: list[CupTransfer] = []
 
     # streak state (for the CURRENT owner segment)
@@ -73,7 +74,7 @@ def compute_cup(session: Session, initial_owner_player_id: int) -> CupResult:
         participant_ids = {p.id for p in participants}
 
         # owner not in this tournament => no change
-        if owner.id not in participant_ids:
+        if owner is not None and owner.id not in participant_ids:
             continue
 
         # load matches + relationships
@@ -104,7 +105,7 @@ def compute_cup(session: Session, initial_owner_player_id: int) -> CupResult:
             continue
 
         # unique winner exists
-        if winner_id == owner.id:
+        if owner is not None and winner_id == owner.id:
             # owner won => cup stays, streak increments
             streak_count += 1
             if streak_since_tid is None:
@@ -121,10 +122,11 @@ def compute_cup(session: Session, initial_owner_player_id: int) -> CupResult:
                 tournament_id=t.id,
                 tournament_name=t.name,
                 date=str(t.date),
-                from_player_id=owner.id,
-                from_player_name=owner.display_name,
+                from_player_id=owner.id if owner is not None else -1,
+                from_player_name=owner.display_name if owner is not None else "",
                 to_player_id=new_owner.id,
                 to_player_name=new_owner.display_name,
+                streak_duration=streak_count,
             )
         )
 

@@ -57,14 +57,12 @@ Create `backend/secrets.json`:
   "editor_password": "change-me-editor",
   "admin_password": "change-me-admin",
   "jwt_secret": "dev-change-me",
-  "log_level": "INFO",
-  "cup_initial_owner_player_id": 5
+  "log_level": "INFO"
 }
 ```
 
 Notes:
 - Use a strong `jwt_secret` in production.
-- `cup_initial_owner_player_id` must reference an existing player ID (create one first if needed).
 - `db_url` uses `/data/app.db` so it can be persisted via a volume/bind mount in Docker.
 
 Recommended `.gitignore` entries:

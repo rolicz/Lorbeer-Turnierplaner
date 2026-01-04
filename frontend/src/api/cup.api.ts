@@ -8,6 +8,7 @@ export type CupHistoryItem = {
   date: string;
   from: CupOwner;
   to: CupOwner;
+  streak_duration: number;
 };
 
 export type CupResponse = {

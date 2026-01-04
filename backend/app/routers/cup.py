@@ -11,14 +11,8 @@ router = APIRouter(prefix="/cup", tags=["cup"])
 
 @router.get("")
 def get_cup(request: Request, s: Session = Depends(get_session)):
-    settings = request.app.state.settings
     try:
-        initial_owner_id = int(settings.cup_initial_owner_player_id)
-    except Exception:
-        raise HTTPException(status_code=500, detail="Invalid cup_initial_owner_player_id in settings")
-
-    try:
-        res = compute_cup(s, initial_owner_id)
+        res = compute_cup(s)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
@@ -39,6 +33,7 @@ def get_cup(request: Request, s: Session = Depends(get_session)):
                 "date": h.date,
                 "from": {"id": h.from_player_id, "display_name": h.from_player_name},
                 "to": {"id": h.to_player_id, "display_name": h.to_player_name},
+                "streak_duration": h.streak_duration,
             }
             for h in res.history
         ],
