@@ -478,6 +478,31 @@ export default function CurrentGameSection({
                   disabled={busy}
                   options={leagueOptions}
                 />
+                <Button
+                  variant="ghost"
+                  onClick={() => {
+                    if (!clubsFiltered.length) return;
+                  
+                    const clubA = clubsFiltered[Math.floor(Math.random() * clubsFiltered.length)];
+                    let clubB = clubsFiltered[Math.floor(Math.random() * clubsFiltered.length)];
+                  
+                    if (clubsFiltered.length > 1) {
+                      while (clubB.id === clubA.id) {
+                        clubB = clubsFiltered[Math.floor(Math.random() * clubsFiltered.length)];
+                      }
+                    }
+                  
+                    setAClub(clubA.id);
+                    setBClub(clubB.id);
+                    queueAutosave({ aClub: clubA.id, bClub: clubB.id });
+                  }}
+                  disabled={busy}
+                  className="whitespace-nowrap"
+                >
+                  <i className="fa fa-rotate-left" aria-hidden="true" />
+                  <span className="ml-2 hidden sm:inline">Random Club</span>
+                  <span className="ml-2 sm:hidden">Random</span>
+                </Button>
               </div>
 
               <ClubSelect
@@ -597,42 +622,79 @@ export default function CurrentGameSection({
 
         {canControl && (
           <CollapsibleCard title="Select Clubs" defaultOpen={false}>
-            <div className="grid grid-cols-[auto_auto_1fr_1fr] items-end gap-3">
-              <StarFilter value={starFilter} onChange={setStarFilter} disabled={busy} compact />
-              <LeagueFilter
-                value={leagueFilter}
-                onChange={setLeagueFilter}
-                disabled={busy}
-                options={leagueOptions}
-                compact
-              />
+            <div className="grid gap-4">
+              {/* Row 1: filters + random */}
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-[auto_auto_1fr] md:items-end">
+                <StarFilter value={starFilter} onChange={setStarFilter} disabled={busy} compact />
 
-              <ClubSelect
-                label={`${aInline} — club`}
-                value={aClub}
-                onChange={(v) => {
-                  if (v === aClub) return;
-                  setAClub(v);
-                  queueAutosave({ aClub: v });
-                }}
-                disabled={!canControl || busy}
-                clubs={clubsForA}
-                placeholder="Select club…"
-              />
+                <LeagueFilter
+                  value={leagueFilter}
+                  onChange={setLeagueFilter}
+                  disabled={busy}
+                  options={leagueOptions}
+                  compact
+                />
 
-              <ClubSelect
-                label={`${bInline} — club`}
-                value={bClub}
-                onChange={(v) => {
-                  if (v === bClub) return;
-                  setBClub(v);
-                  queueAutosave({ bClub: v });
-                }}
-                disabled={!canControl || busy}
-                clubs={clubsForB}
-                placeholder="Select club…"
-              />
+                <div className="flex md:justify-end">
+                  <Button
+                    variant="ghost"
+                    onClick={() => {
+                      if (!clubsFiltered.length) return;
+                    
+                      // pick two distinct clubs (optional but nicer)
+                      const clubA = clubsFiltered[Math.floor(Math.random() * clubsFiltered.length)];
+                      let clubB = clubsFiltered[Math.floor(Math.random() * clubsFiltered.length)];
+                      if (clubsFiltered.length > 1) {
+                        while (clubB.id === clubA.id) {
+                          clubB = clubsFiltered[Math.floor(Math.random() * clubsFiltered.length)];
+                        }
+                      }
+                    
+                      setAClub(clubA.id);
+                      setBClub(clubB.id);
+                      queueAutosave({ aClub: clubA.id, bClub: clubB.id });
+                    }}
+                    disabled={busy}
+                    className="w-full whitespace-nowrap md:w-auto"
+                  >
+                    <i className="fa fa-rotate-left md:hidden" aria-hidden="true" />
+                    <span className="hidden md:inline">Random Club</span>
+                    <span className="md:hidden">Random</span>
+                  </Button>
+                </div>
+              </div>
+
+              {/* Row 2: club dropdowns */}
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2 md:items-end">
+                <ClubSelect
+                  label={`${aInline} — club`}
+                  value={aClub}
+                  onChange={(v) => {
+                    if (v === aClub) return;
+                    setAClub(v);
+                    queueAutosave({ aClub: v });
+                  }}
+                  disabled={!canControl || busy}
+                  clubs={clubsForA}
+                  placeholder="Select club…"
+                />
+
+                <ClubSelect
+                  label={`${bInline} — club`}
+                  value={bClub}
+                  onChange={(v) => {
+                    if (v === bClub) return;
+                    setBClub(v);
+                    queueAutosave({ bClub: v });
+                  }}
+                  disabled={!canControl || busy}
+                  clubs={clubsForB}
+                  placeholder="Select club…"
+                />
+              </div>
             </div>
+
+
           </CollapsibleCard>
         )}
       </div>
