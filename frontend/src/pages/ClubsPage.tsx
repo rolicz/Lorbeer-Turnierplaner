@@ -297,7 +297,7 @@ export default function ClubsPage() {
               </select>
             </label>
 
-            <Input label="Search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="e.g. Madrid" />
+            <Input label="Search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="e.g. Hönigsberg" />
 
             <div className="flex items-end gap-2">
               <Button

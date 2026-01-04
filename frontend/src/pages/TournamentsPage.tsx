@@ -191,7 +191,7 @@ export default function TournamentsPage() {
 
       <Modal open={open} title="Create Tournament" onClose={() => setOpen(false)}>
         <div className="space-y-3">
-          <Input label="Name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Friday Cup" />
+          <Input label="Name" value={name} onChange={(e) => setName(e.target.value)} placeholder="42. Lorbeerkranz Turnier" />
           <div className="grid grid-cols-2 gap-2">
             <button
               className={`rounded-xl border px-3 py-2 text-sm ${

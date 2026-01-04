@@ -283,7 +283,7 @@ export default function AdminPanel({
                 className="w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm outline-none focus:border-zinc-600"
                 value={nameValue ?? ""}
                 onChange={(e) => onNameChange?.(e.target.value)}
-                placeholder="e.g. Christmas Cup"
+                placeholder="e.g. Sauna Turnier"
               />
             </label>
 

@@ -54,7 +54,7 @@ export default function PlayersAdminPage() {
           label="Display name"
           value={name}
           onChange={(e) => setName(e.target.value)}
-          placeholder="e.g. Roland"
+          placeholder="e.g. Hans Knauss"
         />
         <div className="flex items-end gap-2">
           <Button onClick={() => createMut.mutate()} disabled={!name.trim() || createMut.isPending}>
