@@ -202,7 +202,7 @@ export default function ClubsPage() {
               label="Club name"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. Sturm Graz"
+              placeholder="e.g. SV Phönix Hönigsberg"
             />
 
             <label className="block">
