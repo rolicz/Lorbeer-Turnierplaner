@@ -1,0 +1,47 @@
+{
+  "leagues": [
+    {"name": "Premier League"},
+    {"name": "La Liga"},
+    {"name": "Bundesliga"},
+    {"name": "Serie A"},
+    {"name": "Ligue 1"},
+    {"name": "Österreichische Bundesliga"},
+    {"name": "Süper Lig"},
+    {"name": "Liga Portugal"},
+    {"name": "Eredivisie"},
+    {"name": "Primera División"},
+    {"name": "Scottish Premiership"},
+    {"name": "Belgian Pro League"},
+    {"name": "MLS"},
+    {"name": "Swiss Super League"},
+    {"name": "Danish Superliga"},
+    {"name": "Eliteserien"},
+    {"name": "Ekstraklasa"},
+    {"name": "Allsvenskan"},
+    {"name": "League of Ireland Premier Division"},
+    {"name": "Saudi League"},
+    {"name": "K League"},
+    {"name": "Chinese Super League"},
+    {"name": "A-League"},
+    {"name": "Liga 1 (Romania)"},
+    {"name": "Indian Super League"},
+
+    {"name": "EFL Championship"},
+    {"name": "EFL League One"},
+    {"name": "EFL League Two"},
+    {"name": "Serie B"},
+    {"name": "2. Bundesliga"},
+    {"name": "3. Bundesliga"},
+
+    {"name": "Woman's Super League (England)"},
+    {"name": "Liga F (Spain)"},
+    {"name": "Frauen-Bundesliga (Germany)"},
+    {"name": "Serie A Femminile (Italy)"},
+    {"name": "Arkema Première Ligue (France)"},
+    {"name": "NWSL (North America))"},
+
+    {"name": "Rest of the World"},
+    {"name": "National (Men)"},
+    {"name": "National (Women)"}
+  ]
+}
