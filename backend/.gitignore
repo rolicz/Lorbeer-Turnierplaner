@@ -1,3 +1,4 @@
 secrets.json
 *.bkp
 data/app.db
+app.db.orig

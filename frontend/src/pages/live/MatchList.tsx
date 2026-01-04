@@ -133,7 +133,7 @@ export default function MatchList({
                         title="Swap sides"
                       >
                         <i className="fa fa-arrow-right-arrow-left md:hidden text-zinc-200" aria-hidden="true" />
-                        <span className="hidden md:inline">Swap Home/Away</span>
+                        <span className="hidden md:inline text-zinc-200">Swap Home/Away</span>
                       </Button>
                     </div>
                   )}
@@ -148,7 +148,7 @@ export default function MatchList({
                       title="Move up"
                     >
                       <i className="fa fa-arrow-up md:hidden text-zinc-200" aria-hidden="true" />
-                      <span className="hidden md:inline">Move up</span>
+                      <span className="hidden md:inline text-zinc-200">Move up</span>
                     </Button>
                     <Button
                       variant="ghost"
@@ -161,7 +161,7 @@ export default function MatchList({
                       title="Move down"
                     >
                       <i className="fa fa-arrow-down md:hidden text-zinc-200" aria-hidden="true" />
-                      <span className="hidden md:inline">Move down</span>
+                      <span className="hidden md:inline text-zinc-200">Move down</span>
                     </Button>
                   </div>
                 )}

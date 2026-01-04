@@ -1,9 +1,9 @@
-#from datetime import datetime, date
 import datetime as dt
 from typing import List, Optional
 
 from sqlmodel import Field, Relationship, SQLModel
 from sqlalchemy import UniqueConstraint
+from pydantic import BaseModel
 
 class TournamentPlayer(SQLModel, table=True):
     tournament_id: int = Field(foreign_key="tournament.id", primary_key=True)
@@ -23,25 +23,22 @@ class Tournament(SQLModel, table=True):
     mode: str = Field(index=True)  # "1v1" | "2v2"
     status: str = Field(default="draft", index=True)
 
-    date: dt.date = Field(default_factory=dt.date.today) 
+    date: dt.date = Field(default_factory=dt.date.today)
     created_at: dt.datetime = Field(default_factory=dt.datetime.utcnow)
     updated_at: dt.datetime = Field(default_factory=dt.datetime.utcnow)
 
     settings_json: str = Field(default="{}")
 
-    # IMPORTANT: use typing.List + forward refs only for the class name
     players: List["Player"] = Relationship(back_populates="tournaments", link_model=TournamentPlayer)
     matches: List["Match"] = Relationship(back_populates="tournament")
 
     # Decider for drawn tournaments
-    # type: "none" | "penalties" | "match"
+    # type: "none" | "penalties" | "match" | "scheresteinpapier"
     decider_type: str = Field(default="none")
 
-    # Decider is a head-to-head between two players from the tied top group
     decider_winner_player_id: int | None = Field(default=None, foreign_key="player.id")
     decider_loser_player_id: int | None = Field(default=None, foreign_key="player.id")
 
-    # Score of the decider
     decider_winner_goals: int | None = Field(default=None)
     decider_loser_goals: int | None = Field(default=None)
 
@@ -53,6 +50,24 @@ class Player(SQLModel, table=True):
     tournaments: List["Tournament"] = Relationship(back_populates="players", link_model=TournamentPlayer)
 
 
+class League(SQLModel, table=True):
+    """
+    Backend-managed lookup table.
+    Clubs reference leagues by ID, so renaming a league does not break history.
+    """
+    id: Optional[int] = Field(default=None, primary_key=True)
+    name: str = Field(index=True, unique=True)
+
+    clubs: List["Club"] = Relationship(back_populates="league")
+
+class ClubOut(BaseModel):
+    id: int
+    name: str
+    game: str
+    star_rating: float
+    league_id: int
+    league_name: str | None
+
 class Club(SQLModel, table=True):
     __table_args__ = (UniqueConstraint("name", "game", name="uq_club_name_game"),)
 
@@ -61,6 +76,9 @@ class Club(SQLModel, table=True):
     game: str = Field(index=True)
     star_rating: float = Field(default=3.0, ge=0.5, le=5.0)
 
+    # optional league assignment
+    league_id: int = Field(foreign_key="league.id", index=True)
+    league: League = Relationship(back_populates="clubs")
 
 class Match(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)

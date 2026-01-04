@@ -4,13 +4,8 @@ import type { Club, Match, MatchSide } from "../../api/types";
 // import { useTournamentWS } from "../../hooks/useTournamentWS";
 import CollapsibleCard from "../../ui/primitives/CollapsibleCard";
 import { StarsFA } from "../../ui/primitives/StarsFA";
+import { statusMatchPill } from "../../ui/primitives/Pill";
 
-
-function statusMatchPill(state: "scheduled" | "playing" | "finished") {
-  if (state === "playing") return "border-emerald-500/40 bg-emerald-500/10 text-emerald-300";
-  if (state === "scheduled") return "border-indigo-500/40 bg-indigo-500/10 text-indigo-300";
-  return "border-zinc-700 bg-zinc-900/40 text-zinc-300";
-}
 
 function sideBy(m: Match, side: "A" | "B"): MatchSide | undefined {
   return m.sides.find((s) => s.side === side);
@@ -36,7 +31,7 @@ function toHalfStep(v: any): number | null {
 function sortClubsForDropdown(clubs: Club[]) {
   return clubs
     .slice()
-    .sort((a, b) => (Number(b.star_rating ?? 0) - Number(a.star_rating ?? 0)) || a.name.localeCompare(b.name));
+    .sort((a, b) => Number(b.star_rating ?? 0) - Number(a.star_rating ?? 0) || a.name.localeCompare(b.name));
 }
 
 function namesStack(side?: MatchSide) {
@@ -49,6 +44,15 @@ function namesInline(side?: MatchSide) {
   const ps = side?.players ?? [];
   if (!ps.length) return "—";
   return ps.map((p) => p.display_name).join(" + ");
+}
+
+function leagueInfo(c: Club): { id: number | null; name: string | null } {
+  const anyC = c as any;
+  const id = anyC.league_id;
+  const name =
+    anyC.league_name ??
+    (id != null ? `League #${id}` : null);
+  return { id: typeof id === "number" ? id : id != null ? Number(id) : null, name: name ? String(name) : null };
 }
 
 function clubLabelPartsById(clubs: Club[], id: number | null | undefined) {
@@ -84,6 +88,8 @@ function ensureSelectedClubVisible(filtered: Club[], all: Club[], selectedId: nu
   // Fallback: keep a synthetic option so the select still shows something
   return [{ id: selectedId, name: `#${selectedId}`, star_rating: null } as any, ...filtered];
 }
+
+type LeagueOpt = { id: number; name: string };
 
 export default function CurrentGameSection({
   status,
@@ -121,10 +127,33 @@ export default function CurrentGameSection({
   // ⭐ filter (does NOT change selected club; only changes what you can pick next)
   const [starFilter, setStarFilter] = useState<number | null>(null);
 
+  // 🏆 league filter (does NOT change selected club; only changes what you can pick next)
+  const leagueOptions = useMemo<LeagueOpt[]>(() => {
+    const byId = new Map<number, string>();
+    for (const c of clubsSorted) {
+      const li = leagueInfo(c);
+      if (li.id == null) continue;
+      if (!byId.has(li.id)) byId.set(li.id, li.name ?? `League #${li.id}`);
+    }
+    return Array.from(byId.entries())
+      .map(([id, name]) => ({ id, name }))
+      .sort((x, y) => x.name.localeCompare(y.name));
+  }, [clubsSorted]);
+
+  const [leagueFilter, setLeagueFilter] = useState<number | null>(null);
+
   const clubsFiltered = useMemo(() => {
-    if (starFilter == null) return clubsSorted;
-    return clubsSorted.filter((c) => toHalfStep(c.star_rating) === starFilter);
-  }, [clubsSorted, starFilter]);
+    let out = clubsSorted;
+
+    if (starFilter != null) {
+      out = out.filter((c) => toHalfStep(c.star_rating) === starFilter);
+    }
+    if (leagueFilter != null) {
+      out = out.filter((c) => leagueInfo(c).id === leagueFilter);
+    }
+
+    return out;
+  }, [clubsSorted, starFilter, leagueFilter]);
 
   const [aClub, setAClub] = useState<number | null>(a?.club_id ?? null);
   const [bClub, setBClub] = useState<number | null>(b?.club_id ?? null);
@@ -354,8 +383,8 @@ export default function CurrentGameSection({
               {match.state}
             </span>
           </div>
-          
-          {/* Row 2: NAMES + SCORE (alignment only uses this row) */}
+
+          {/* Row 2: NAMES + SCORE */}
           <div className="mt-3 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3">
             <div className="min-w-0">
               {aNames.map((n, i) => (
@@ -369,14 +398,11 @@ export default function CurrentGameSection({
             </div>
 
             <div className="flex items-center justify-center gap-2 rounded-xl border border-zinc-800 bg-zinc-950/60 px-3 py-1.5">
-              <span className={`text-xl font-semibold tabular-nums text-zinc-100`}>
-                {scoreLeft}
-              </span>
+              <span className="text-xl font-semibold tabular-nums text-zinc-100">{scoreLeft}</span>
               <span className="text-zinc-500">:</span>
-              <span className={`text-xl font-semibold tabular-nums text-zinc-100`}>
-                {scoreRight}
-              </span>
+              <span className="text-xl font-semibold tabular-nums text-zinc-100">{scoreRight}</span>
             </div>
+
             <div className="min-w-0 text-right">
               {bNames.map((n, i) => (
                 <div
@@ -389,25 +415,33 @@ export default function CurrentGameSection({
             </div>
           </div>
 
-          {/* Row 3: CLUBS (separate row) */}
+          {/* Row 3: CLUBS */}
           <div className="mt-2 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-start gap-3 text-xs text-zinc-500">
             <div className="min-w-0 whitespace-normal break-words leading-tight">{aClubParts.name}</div>
             <div />
             <div className="min-w-0 whitespace-normal break-words leading-tight text-right">{bClubParts.name}</div>
           </div>
 
-          {/* Row 4: STARS (separate row) */}
+          {/* Row 4: STARS */}
           <div className="mt-1 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 text-[11px] text-zinc-500">
             <div className="min-w-0">
-              {aClubParts.rating != null ? <StarsFA rating={aClubParts.rating} textZinc="text-zinc-500" /> : <span>—</span>}
+              {aClubParts.rating != null ? (
+                <StarsFA rating={aClubParts.rating} textZinc="text-zinc-500" />
+              ) : (
+                <span>—</span>
+              )}
             </div>
             <div />
             <div className="min-w-0 flex justify-end">
-              {bClubParts.rating != null ? <StarsFA rating={bClubParts.rating} textZinc="text-zinc-500" /> : <span>—</span>}
+              {bClubParts.rating != null ? (
+                <StarsFA rating={bClubParts.rating} textZinc="text-zinc-500" />
+              ) : (
+                <span>—</span>
+              )}
             </div>
           </div>
 
-          {/* Row 5: INPUTS (separate row; not part of the alignment above) */}
+          {/* Row 5: INPUTS (only when NOT scheduled) */}
           {showGoalInputs && (
             <div className="mt-3 flex items-center justify-center gap-4">
               <GoalStepper
@@ -433,38 +467,46 @@ export default function CurrentGameSection({
         </div>
 
         {/* Filter + Clubs */}
-        { canControl && (
-        <CollapsibleCard title="Select Clubs" defaultOpen={false}>
-          <div className="grid grid-cols-1 gap-2">
-            <StarFilter value={starFilter} onChange={setStarFilter} disabled={busy} />
+        {canControl && (
+          <CollapsibleCard title="Select Clubs" defaultOpen={false}>
+            <div className="grid grid-cols-1 gap-2">
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                <StarFilter value={starFilter} onChange={setStarFilter} disabled={busy} />
+                <LeagueFilter
+                  value={leagueFilter}
+                  onChange={setLeagueFilter}
+                  disabled={busy}
+                  options={leagueOptions}
+                />
+              </div>
 
-            <ClubSelect
-              label={`${aInline} — club`}
-              value={aClub}
-              onChange={(v) => {
-                if (v === aClub) return; // only save on actual change
-                setAClub(v);
-                queueAutosave({ aClub: v });
-              }}
-              disabled={!canControl || busy}
-              clubs={clubsForA}
-              placeholder="Select club…"
-            />
+              <ClubSelect
+                label={`${aInline} — club`}
+                value={aClub}
+                onChange={(v) => {
+                  if (v === aClub) return; // only save on actual change
+                  setAClub(v);
+                  queueAutosave({ aClub: v });
+                }}
+                disabled={!canControl || busy}
+                clubs={clubsForA}
+                placeholder="Select club…"
+              />
 
-            <ClubSelect
-              label={`${bInline} — club`}
-              value={bClub}
-              onChange={(v) => {
-                if (v === bClub) return; // only save on actual change
-                setBClub(v);
-                queueAutosave({ bClub: v });
-              }}
-              disabled={!canControl || busy}
-              clubs={clubsForB}
-              placeholder="Select club…"
-            />
-          </div>
-        </CollapsibleCard>
+              <ClubSelect
+                label={`${bInline} — club`}
+                value={bClub}
+                onChange={(v) => {
+                  if (v === bClub) return; // only save on actual change
+                  setBClub(v);
+                  queueAutosave({ bClub: v });
+                }}
+                disabled={!canControl || busy}
+                clubs={clubsForB}
+                placeholder="Select club…"
+              />
+            </div>
+          </CollapsibleCard>
         )}
       </div>
 
@@ -484,7 +526,8 @@ export default function CurrentGameSection({
               {match.state}
             </span>
           </div>
-          {/* Row 2: NAMES + SCORE (alignment only uses this row) */}
+
+          {/* Row 2: NAMES + SCORE */}
           <div className="mt-3 grid grid-cols-[1fr_auto_1fr] items-center gap-4">
             <div className="min-w-0">
               {aNames.map((n, i) => (
@@ -495,13 +538,9 @@ export default function CurrentGameSection({
             </div>
 
             <div className="flex items-center justify-center gap-2 rounded-xl border border-zinc-800 bg-zinc-950/60 px-3 py-1.5">
-              <span className={`text-xl font-semibold tabular-nums text-zinc-100`}>
-                {scoreLeft}
-              </span>
+              <span className="text-xl font-semibold tabular-nums text-zinc-100">{scoreLeft}</span>
               <span className="text-zinc-500">:</span>
-              <span className={`text-xl font-semibold tabular-nums text-zinc-100`}>
-                {scoreRight}
-              </span>
+              <span className="text-xl font-semibold tabular-nums text-zinc-100">{scoreRight}</span>
             </div>
 
             <div className="min-w-0 text-right">
@@ -531,7 +570,7 @@ export default function CurrentGameSection({
             </div>
           </div>
 
-          {/* Row 5: INPUTS */}
+          {/* Row 5: INPUTS (only when NOT scheduled) */}
           {showGoalInputs && (
             <div className="mt-3 flex items-center justify-center gap-4">
               <GoalStepper
@@ -556,38 +595,45 @@ export default function CurrentGameSection({
           )}
         </div>
 
-        { canControl && (
-        <CollapsibleCard title="Select Clubs" defaultOpen={false}>
-          <div className="grid grid-cols-[auto_1fr_1fr] items-end gap-3">
-            <StarFilter value={starFilter} onChange={setStarFilter} disabled={busy} compact />
+        {canControl && (
+          <CollapsibleCard title="Select Clubs" defaultOpen={false}>
+            <div className="grid grid-cols-[auto_auto_1fr_1fr] items-end gap-3">
+              <StarFilter value={starFilter} onChange={setStarFilter} disabled={busy} compact />
+              <LeagueFilter
+                value={leagueFilter}
+                onChange={setLeagueFilter}
+                disabled={busy}
+                options={leagueOptions}
+                compact
+              />
 
-            <ClubSelect
-              label={`${aInline} — club`}
-              value={aClub}
-              onChange={(v) => {
-                if (v === aClub) return;
-                setAClub(v);
-                queueAutosave({ aClub: v });
-              }}
-              disabled={!canControl || busy}
-              clubs={clubsForA}
-              placeholder="Select club…"
-            />
+              <ClubSelect
+                label={`${aInline} — club`}
+                value={aClub}
+                onChange={(v) => {
+                  if (v === aClub) return;
+                  setAClub(v);
+                  queueAutosave({ aClub: v });
+                }}
+                disabled={!canControl || busy}
+                clubs={clubsForA}
+                placeholder="Select club…"
+              />
 
-            <ClubSelect
-              label={`${bInline} — club`}
-              value={bClub}
-              onChange={(v) => {
-                if (v === bClub) return;
-                setBClub(v);
-                queueAutosave({ bClub: v });
-              }}
-              disabled={!canControl || busy}
-              clubs={clubsForB}
-              placeholder="Select club…"
-            />
-          </div>
-        </CollapsibleCard>
+              <ClubSelect
+                label={`${bInline} — club`}
+                value={bClub}
+                onChange={(v) => {
+                  if (v === bClub) return;
+                  setBClub(v);
+                  queueAutosave({ bClub: v });
+                }}
+                disabled={!canControl || busy}
+                clubs={clubsForB}
+                placeholder="Select club…"
+              />
+            </div>
+          </CollapsibleCard>
         )}
       </div>
     </div>
@@ -608,23 +654,24 @@ function StarFilter({
   return (
     <label className="block">
       <div className="mb-1">
-        <span className="hidden md:inline text-xs text-zinc-400">Filter by stars</span>
+        <span className="hidden md:inline text-xs text-zinc-400">Filter by</span>
         <span className="md:hidden inline-flex items-center gap-2 text-xs text-zinc-400">
           <i className="fa-solid fa-filter" aria-hidden="true" />
           <span className="sr-only">Filter by stars</span>
         </span>
+        <span className="text-xs text-zinc-400"> Stars</span>
       </div>
 
       <select
         className={`rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-600 disabled:opacity-60 ${
-          compact ? "w-[160px]" : "w-full"
+          compact ? "w-[140px]" : "w-full"
         }`}
         value={value == null ? "" : String(value)}
         onChange={(e) => onChange(e.target.value ? Number(e.target.value) : null)}
         disabled={disabled}
         title="Filter by stars"
       >
-        <option value="">All stars</option>
+        <option value="">All</option>
         {STAR_OPTIONS.map((v) => (
           <option key={v} value={v}>
             {v.toFixed(1).replace(/\.0$/, "")}★
@@ -635,7 +682,49 @@ function StarFilter({
   );
 }
 
+function LeagueFilter({
+  value,
+  onChange,
+  disabled,
+  options,
+  compact,
+}: {
+  value: number | null;
+  onChange: (v: number | null) => void;
+  disabled: boolean;
+  options: LeagueOpt[];
+  compact?: boolean;
+}) {
+  return (
+    <label className="block">
+      <div className="mb-1">
+        <span className="hidden md:inline text-xs text-zinc-400">Filter by</span>
+        <span className="md:hidden inline-flex items-center gap-2 text-xs text-zinc-400">
+          <i className="fa-solid fa-filter" aria-hidden="true" />
+          <span className="sr-only">Filter by league</span>
+        </span>
+        <span className="text-xs text-zinc-400"> League</span>
+      </div>
 
+      <select
+        className={`rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-600 disabled:opacity-60 ${
+          compact ? "w-[180px]" : "w-full"
+        }`}
+        value={value == null ? "" : String(value)}
+        onChange={(e) => onChange(e.target.value ? Number(e.target.value) : null)}
+        disabled={disabled}
+        title="Filter by league"
+      >
+        <option value="">All</option>
+        {options.map((o) => (
+          <option key={o.id} value={o.id}>
+            {o.name}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
 
 function GoalStepper({
   value,
@@ -710,3 +799,4 @@ function ClubSelect({
     </label>
   );
 }
+

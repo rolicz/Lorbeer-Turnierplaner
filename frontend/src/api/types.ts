@@ -13,10 +13,16 @@ export type Player = {
   display_name: string;
 };
 
+export type League = {
+  id: number;
+  name: string;
+}
+
 export type Club = {
   id: number;
   name: string;
   game: string; // e.g. "EA FC 26"
+  league_id: number;
   star_rating: number; // 0.5 .. 5.0 (steps of 0.5)
   created_at?: string;
   updated_at?: string;

@@ -1,28 +1,118 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+
 import Card from "../ui/primitives/Card";
 import Input from "../ui/primitives/Input";
 import Button from "../ui/primitives/Button";
+import CollapsibleCard from "../ui/primitives/CollapsibleCard";
+
 import { useAuth } from "../auth/AuthContext";
-import { createClub, listClubs, patchClub, deleteClub } from "../api/clubs.api";
-import { STAR_OPTIONS, clamp } from "../helpers";
-import { StarsFA } from "../ui/primitives/StarsFA";
+import { createClub, deleteClub, listClubs, listLeagues, patchClub } from "../api/clubs.api";
+import type { Club, League } from "../api/types";
+
+function starsLabel(v: any): string {
+  if (typeof v === "number") return v.toFixed(1).replace(/\.0$/, "");
+  const n = Number(v);
+  if (Number.isFinite(n)) return n.toFixed(1).replace(/\.0$/, "");
+  return String(v ?? "");
+}
+
+function starValues(): number[] {
+  const out: number[] = [];
+  for (let x = 0.5; x <= 5.0001; x += 0.5) out.push(Number(x.toFixed(1)));
+  return out;
+}
+
+function leagueNameForClub(c: Club, leaguesById: Map<number, string>) {
+  // Prefer embedded relationship if backend returns it
+  const rel = (c as any).league;
+  if (rel && typeof rel === "object" && typeof rel.name === "string") return rel.name;
+
+  const id = (c as any).league_id as number | undefined;
+  if (typeof id === "number") return leaguesById.get(id) ?? "—";
+
+  return "—";
+}
+
+function groupByStars(clubs: Club[], leaguesById: Map<number, string>) {
+  const m = new Map<string, Club[]>();
+  for (const c of clubs) {
+    const key = `${starsLabel(c.star_rating)}★`;
+    const arr = m.get(key) ?? [];
+    arr.push(c);
+    m.set(key, arr);
+  }
+
+  const entries = Array.from(m.entries());
+  entries.sort((a, b) => parseFloat(b[0]) - parseFloat(a[0]));
+
+  for (const [, arr] of entries) {
+    arr.sort(
+      (x, y) =>
+        (y.star_rating ?? 0) - (x.star_rating ?? 0) ||
+        leagueNameForClub(x, leaguesById).localeCompare(leagueNameForClub(y, leaguesById)) ||
+        x.name.localeCompare(y.name)
+    );
+  }
+
+  return entries;
+}
 
 export default function ClubsPage() {
   const { token, role } = useAuth();
-  const isAdmin = role === "admin";
   const qc = useQueryClient();
 
-  const [game, setGame] = useState("EA FC 26");
-  const q = useQuery({ queryKey: ["clubs", game], queryFn: () => listClubs(game) });
+  const isAdmin = role === "admin";
+  const isEditorOrAdmin = role === "editor" || role === "admin";
+  const canEdit = isEditorOrAdmin;
 
+  const [game, setGame] = useState("EA FC 26");
+
+  // Create form
   const [name, setName] = useState("");
   const [stars, setStars] = useState("4.0");
+  const [leagueId, setLeagueId] = useState<number | "">("");
+
+  // Filters
+  const [filterStars, setFilterStars] = useState<string>(""); // "" = any
+  const [filterLeagueId, setFilterLeagueId] = useState<number | "">(""); // "" = any
+  const [search, setSearch] = useState("");
+
+  const clubsQ = useQuery({
+    queryKey: ["clubs", game],
+    queryFn: () => listClubs(game),
+  });
+
+  const leaguesQ = useQuery({
+    queryKey: ["leagues"],
+    queryFn: () => listLeagues(),
+    staleTime: 60_000,
+  });
+
+  const leagues: League[] = leaguesQ.data ?? [];
+  const leaguesById = useMemo(() => {
+    const m = new Map<number, string>();
+    for (const l of leagues) m.set(l.id, l.name);
+    return m;
+  }, [leagues]);
+
+  // Default create league if not selected yet
+  const effectiveCreateLeagueId = useMemo(() => {
+    if (leagueId !== "") return leagueId;
+    if (leagues.length) return leagues[0].id;
+    return "";
+  }, [leagueId, leagues]);
 
   const createMut = useMutation({
     mutationFn: async () => {
       if (!token) throw new Error("No token");
-      return createClub(token, { name: name.trim(), game: game.trim(), star_rating: Number(stars) });
+      const nm = name.trim();
+      const gm = game.trim();
+      const lid = effectiveCreateLeagueId;
+      if (!nm) throw new Error("Missing club name");
+      if (!gm) throw new Error("Missing game");
+      if (lid === "") throw new Error("No league available (seed leagues first)");
+      return createClub(token, { name: nm, game: gm, star_rating: Number(stars), league_id: lid });
     },
     onSuccess: async () => {
       setName("");
@@ -30,16 +120,14 @@ export default function ClubsPage() {
     },
   });
 
+  // Edit per club
   const [editId, setEditId] = useState<number | null>(null);
   const [editStars, setEditStars] = useState("4.0");
+  const [editLeagueId, setEditLeagueId] = useState<number | "">("");
   const [editName, setEditName] = useState("");
 
-
-  const currentEditStars = clamp(Number(editStars || 0.5), 0.5, 5);
-  const snappedEditStars = Math.round(currentEditStars * 2) / 2;
-
-  const currentCreateStars = clamp(Number(stars || 0.5), 0.5, 5);
-  const snappedCreateStars = Math.round(currentCreateStars * 2) / 2;
+  const clubs = clubsQ.data ?? [];
+  const editingClub = useMemo(() => clubs.find((c) => c.id === editId) || null, [clubs, editId]);
 
   const patchMut = useMutation({
     mutationFn: async () => {
@@ -47,7 +135,14 @@ export default function ClubsPage() {
       if (!editId) throw new Error("No club selected");
 
       const body: any = { star_rating: Number(editStars) };
-      if (isAdmin) body.name = editName.trim();
+
+      if (editLeagueId === "") throw new Error("League cannot be empty");
+      body.league_id = editLeagueId;
+
+      if (isAdmin) {
+        const nm = editName.trim();
+        if (nm && nm !== (editingClub?.name ?? "")) body.name = nm;
+      }
 
       return patchClub(token, editId, body);
     },
@@ -57,254 +152,304 @@ export default function ClubsPage() {
     },
   });
 
-  const delMut = useMutation({
-    mutationFn: async (id: number) => {
+  const deleteMut = useMutation({
+    mutationFn: async (clubId: number) => {
       if (!token) throw new Error("No token");
-      return deleteClub(token, id);
+      return deleteClub(token, clubId);
     },
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: ["clubs", game] });
     },
   });
 
-  // --- foldable sections by star rating ---
-  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
-  const isCollapsed = (label: string) => collapsed.has(label);
-  const toggle = (label: string) => {
-    setCollapsed((prev) => {
-      const next = new Set(prev);
-      if (next.has(label)) next.delete(label);
-      else next.add(label);
-      return next;
+  const filteredClubs = useMemo(() => {
+    const q = search.trim().toLowerCase();
+
+    return clubs.filter((c) => {
+      if (filterStars) {
+        const s = starsLabel(c.star_rating);
+        if (s !== filterStars) return false;
+      }
+
+      if (filterLeagueId !== "") {
+        const cid = (c as any).league_id as number | undefined;
+        if (cid !== filterLeagueId) return false;
+      }
+
+      if (q) {
+        const ln = leagueNameForClub(c, leaguesById);
+        const hay = `${c.name} ${ln} ${c.game}`.toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+
+      return true;
     });
-  };
+  }, [clubs, filterStars, filterLeagueId, search, leaguesById]);
 
-  const clubsByStars = useMemo(() => {
-    const cs = q.data ?? [];
-
-    const sorted = cs.slice().sort((a, b) => {
-      const da = Number(a.star_rating ?? 0);
-      const db = Number(b.star_rating ?? 0);
-      if (db !== da) return db - da;
-      return a.name.localeCompare(b.name);
-    });
-
-    const groups = new Map<string, typeof sorted>();
-    for (const c of sorted) {
-      const starsNum = Number(c.star_rating ?? 0);
-      const label = `${starsNum.toFixed(1).replace(/\.0$/, "")}★`;
-      const arr = groups.get(label) ?? [];
-      arr.push(c);
-      groups.set(label, arr);
-    }
-
-    return Array.from(groups.entries()); // [ [label, clubs[]], ... ] in sorted order
-  }, [q.data]);
-
-  const allLabels = useMemo(() => clubsByStars.map(([label]) => label), [clubsByStars]);
-
-  function collapseAll() {
-    setCollapsed(new Set(allLabels));
-  }
-
-  function expandAll() {
-    setCollapsed(new Set());
-  }
+  const grouped = useMemo(() => groupByStars(filteredClubs, leaguesById), [filteredClubs, leaguesById]);
 
   return (
     <div className="space-y-4">
-      <Card title="Clubs (Teams)" variant="plain">
-        <div className="grid gap-3 md:grid-cols-3">
-          <Input label="Game" value={game} onChange={(e) => setGame(e.target.value)} />
-          <Input
-            label="Club name"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="e.g. Sturm Graz"
-          />
-          <div className="w-full">
-            <div className="mb-1 flex items-center justify-between">
-              <span className="text-xs text-zinc-500">Stars</span>
-              <StarsFA rating={snappedCreateStars} />
+      <Card title="Clubs (Teams)">
+        {/* Create */}
+        <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-4">
+          <div className="mb-3 text-base font-semibold">Create club</div>
+
+          <div className="grid gap-3 md:grid-cols-4">
+            <Input label="Game" value={game} onChange={(e) => setGame(e.target.value)} />
+
+            <Input
+              label="Club name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="e.g. Sturm Graz"
+            />
+
+            <label className="block">
+              <div className="mb-1 text-xs text-zinc-400">Stars (0.5–5.0)</div>
+              <select
+                className="w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-600"
+                value={stars}
+                onChange={(e) => setStars(e.target.value)}
+              >
+                {starValues().map((v) => (
+                  <option key={v} value={String(v)}>
+                    {starsLabel(v)}★
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="block">
+              <div className="mb-1 text-xs text-zinc-400">League</div>
+              <select
+                className="w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-600"
+                value={effectiveCreateLeagueId}
+                onChange={(e) => setLeagueId(e.target.value ? Number(e.target.value) : "")}
+              >
+                {!leagues.length && <option value="">(no leagues loaded)</option>}
+                {leagues.map((l) => (
+                  <option key={l.id} value={String(l.id)}>
+                    {l.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+
+          {createMut.error && <div className="mt-2 text-sm text-red-400">{String(createMut.error)}</div>}
+
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Button
+              onClick={() => createMut.mutate()}
+              disabled={!canEdit || !name.trim() || !game.trim() || effectiveCreateLeagueId === "" || createMut.isPending}
+            >
+              {createMut.isPending ? "Creating…" : "Create"}
+            </Button>
+
+            <Button variant="ghost" onClick={() => qc.invalidateQueries({ queryKey: ["clubs", game] })}>
+              Refresh
+            </Button>
+
+            {!canEdit && (
+              <div className="self-center text-sm text-zinc-500">Login as editor/admin to create clubs.</div>
+            )}
+          </div>
+        </div>
+
+        {/* Filters */}
+        <div className="mt-4 rounded-2xl border border-zinc-800 bg-zinc-950 p-4">
+          <div className="mb-3 text-base font-semibold">Browse & filter</div>
+
+          <div className="grid gap-3 md:grid-cols-4">
+            <label className="block">
+              <div className="mb-1 text-xs text-zinc-400">Filter stars</div>
+              <select
+                className="w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-600"
+                value={filterStars}
+                onChange={(e) => setFilterStars(e.target.value)}
+              >
+                <option value="">Any</option>
+                {starValues().map((v) => {
+                  const s = starsLabel(v);
+                  return (
+                    <option key={v} value={s}>
+                      {s}★
+                    </option>
+                  );
+                })}
+              </select>
+            </label>
+
+            <label className="block">
+              <div className="mb-1 text-xs text-zinc-400">Filter league</div>
+              <select
+                className="w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-600"
+                value={filterLeagueId === "" ? "" : String(filterLeagueId)}
+                onChange={(e) => setFilterLeagueId(e.target.value ? Number(e.target.value) : "")}
+              >
+                <option value="">Any</option>
+                {leagues.map((l) => (
+                  <option key={l.id} value={String(l.id)}>
+                    {l.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <Input label="Search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="e.g. Madrid" />
+
+            <div className="flex items-end gap-2">
+              <Button
+                variant="ghost"
+                onClick={() => {
+                  setFilterStars("");
+                  setFilterLeagueId("");
+                  setSearch("");
+                }}
+                type="button"
+              >
+                Clear
+              </Button>
             </div>
-
-            <select
-              className="w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-200"
-              value={String(snappedCreateStars)}
-              onChange={(e) => setStars(e.target.value)}
-            >
-              {STAR_OPTIONS.map((v) => (
-                <option key={v} value={String(v)}>
-                  {v.toFixed(1).replace(/\.0$/, "")}
-                </option>
-              ))}
-            </select>
           </div>
 
-
-        </div>
-
-        {createMut.error && <div className="mt-2 text-sm text-red-400">{String(createMut.error)}</div>}
-
-        <div className="mt-3 flex flex-wrap items-center gap-2">
-          <Button onClick={() => createMut.mutate()} disabled={!name.trim() || !game.trim() || createMut.isPending}>
-            <i className="fa fa-plus md:hidden" aria-hidden="true" />
-            <span className="hidden md:inline">{createMut.isPending ? "Creating…" : "Create"}</span>
-          </Button>
-          <Button variant="ghost" onClick={() => qc.invalidateQueries({ queryKey: ["clubs", game] })} title="Refresh">
-            <i className="fa fa-refresh md:hidden" aria-hidden="true" />
-            <span className="hidden md:inline">Refresh</span>
-          </Button>
-
-          <div className="ml-auto flex items-center gap-2">
-            <Button variant="ghost" onClick={expandAll} type="button" title="Expand all">
-              <i className="fa fa-plus md:hidden" aria-hidden="true" />
-              <span className="hidden md:inline">Expand all</span>
-            </Button>
-            <Button variant="ghost" onClick={collapseAll} type="button" title="Collapse all">
-              <i className="fa fa-minus md:hidden" aria-hidden="true" />
-              <span className="hidden md:inline">Collapse all</span>
-            </Button>
+          <div className="mt-3 text-sm text-zinc-500">
+            Showing <span className="text-zinc-200">{filteredClubs.length}</span> clubs.
           </div>
         </div>
 
-        <div className="mt-5 space-y-4">
-          {q.isLoading && <div className="text-zinc-400">Loading…</div>}
-          {q.error && <div className="text-red-400 text-sm">{String(q.error)}</div>}
+        {/* List */}
+        <div className="mt-5 space-y-3">
+          {clubsQ.isLoading && <div className="text-zinc-400">Loading…</div>}
+          {clubsQ.error && <div className="text-red-400 text-sm">{String(clubsQ.error)}</div>}
 
-          {clubsByStars.map(([label, clubs]) => (
-          <div key={label} className="space-y-2">
-            <button
-              type="button"
-              onClick={() => toggle(label)}
-              className="flex w-full items-center justify-between gap-2 rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-left hover:bg-zinc-900/40"
-            >
-              <div className="flex items-center gap-2">
-                <span className="text-sm">
-                  {isCollapsed(label) ? (
-                    <i className="fa-solid fa-chevron-right" aria-hidden="true" />
-                  ) : (
-                    <i className="fa-solid fa-chevron-down" aria-hidden="true" />
-                  )}
-                </span>
+          {!clubsQ.isLoading && grouped.length === 0 && (
+            <div className="rounded-xl border border-zinc-800 bg-zinc-900/10 px-4 py-3 text-sm text-zinc-400">
+              No clubs match the current filters.
+            </div>
+          )}
 
-                <span className="text-sm font-semibold text-zinc-200">{label}</span>
+          {grouped.map(([label, clubsInGroup]) => (
+            <div className="space-y-2">
+              {clubsInGroup.map((c) => {
+                const ln = leagueNameForClub(c, leaguesById);
+                const isEditing = editId === c.id;
+                const cid = (c as any).league_id as number | undefined;
 
-                <span className="text-xs text-zinc-500 font-normal inline-flex items-center gap-1">
-                  <i className="fa-regular fa-folder-open" aria-hidden="true" />
-                  <span>({clubs.length})</span>
-                </span>
-              </div>
-
-              <span className="text-xs text-zinc-500 inline-flex items-center gap-1">
-                {isCollapsed(label) ? (
-                  <>
-                    <i className="fa-regular fa-eye" aria-hidden="true" />
-                    <span className="hidden sm:inline">Show</span>
-                  </>
-                ) : (
-                  <>
-                    <i className="fa-regular fa-eye-slash" aria-hidden="true" />
-                    <span className="hidden sm:inline">Hide</span>
-                  </>
-                )}
-              </span>
-            </button>
-
-            {!isCollapsed(label) && (
-              <div className="space-y-2">
-                {clubs.map((c) => (
+                return (
                   <div key={c.id} className="rounded-xl border border-zinc-800 px-4 py-3 hover:bg-zinc-900/20">
-                    <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <div className="truncate font-medium">{c.name}</div>
-                        <div className="text-xs text-zinc-500">{c.game}</div>
-                      </div>
-
-                      <div className="flex items-center gap-2">
-                        <StarsFA rating={c.star_rating} />
-
-                        <Button
-                          variant="ghost"
-                          onClick={() => {
-                            setEditId(c.id);
-                            setEditStars(String(c.star_rating));
-                            setEditName(c.name);
-                          }}
-                          type="button"
-                        >
-                          <i className="fa-solid fa-pen-to-square md:hidden" aria-hidden="true" />
-                          <span className="hidden md:inline">Edit</span>
-                        </Button>
-                      </div>
-                    </div>
-
-                    {editId === c.id && (
-                      <div className="mt-3 flex flex-wrap items-end gap-2">
-                        {isAdmin && (
-                          <Input
-                            label="New name"
-                            value={editName}
-                            onChange={(e) => setEditName(e.target.value)}
-                            placeholder="Club name"
-                          />
-                        )}
-
-                        <div className="w-full">
-                          <div className="mb-1 flex items-center justify-between">
-                            <span className="text-xs text-zinc-500">New stars</span>
-                            <StarsFA rating={snappedEditStars} />
-                          </div>
-
-                          <select
-                            className="w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-200"
-                            value={String(snappedEditStars)}
-                            onChange={(e) => setEditStars(e.target.value)}
-                          >
-                            {STAR_OPTIONS.map((v) => (
-                              <option key={v} value={String(v)}>
-                                {v.toFixed(1).replace(/\.0$/, "")}
-                              </option>
-                            ))}
-                          </select>
+                        <div className="mt-1 flex flex-wrap items-center gap-2 text-xs">
+                          <span className="rounded-full border border-zinc-800 bg-zinc-950/60 px-2 py-0.5 text-zinc-300">
+                            {c.game}
+                          </span>
+                          <span className="rounded-full border border-zinc-800 bg-zinc-950/60 px-2 py-0.5 text-zinc-300">
+                            {ln}
+                          </span>
+                          <span className="rounded-full border border-zinc-800 bg-zinc-950/60 px-2 py-0.5 text-zinc-300">
+                            {starsLabel(c.star_rating)}★
+                          </span>
                         </div>
+                      </div>
 
-                        <Button onClick={() => patchMut.mutate()} disabled={patchMut.isPending} type="button" title="Save">
-                          <i className="fa-solid fa-check md:hidden" aria-hidden="true" />
-                          <span className="hidden md:inline">{patchMut.isPending ? "Saving…" : "Save"}</span>
-                        </Button>
-
-                        <Button variant="ghost" onClick={() => setEditId(null)} type="button" title="Cancel">
-                          <i className="fa-solid fa-xmark md:hidden" aria-hidden="true" />
-                          <span className="hidden md:inline">Cancel</span>
-                        </Button>
+                      <div className="flex shrink-0 items-center gap-2">
+                        {canEdit && (
+                          <Button
+                            variant="ghost"
+                            onClick={() => {
+                              setEditId(c.id);
+                              setEditStars(String(c.star_rating ?? 3.0));
+                              setEditLeagueId(typeof cid === "number" ? cid : leagues[0]?.id ?? "");
+                              setEditName(c.name);
+                            }}
+                            type="button"
+                          >
+                            Edit
+                          </Button>
+                        )}
 
                         {isAdmin && (
                           <Button
                             variant="ghost"
                             onClick={() => {
-                              const ok = window.confirm(`Delete club "${c.name}"? This cannot be undone.`);
+                              const ok = window.confirm(`Delete club "${c.name}"? (Will fail if used in matches)`);
                               if (!ok) return;
-                              delMut.mutate(c.id);
+                              deleteMut.mutate(c.id);
                             }}
+                            disabled={deleteMut.isPending}
                             type="button"
-                            title="Delete"
                           >
-                            <i className="fa-solid fa-trash md:hidden" aria-hidden="true" />
-                            <span className="hidden md:inline">Delete</span>
+                            Delete
                           </Button>
                         )}
                       </div>
+                    </div>
+
+                    {isEditing && (
+                      <div className="mt-3 rounded-xl border border-zinc-800 bg-zinc-950 p-3">
+                        <div className="grid gap-3 md:grid-cols-3">
+                          {isAdmin ? (
+                            <Input label="Name (admin)" value={editName} onChange={(e) => setEditName(e.target.value)} />
+                          ) : (
+                            <div className="text-sm text-zinc-500 self-end">Name can only be changed by admin.</div>
+                          )}
+
+                          <label className="block">
+                            <div className="mb-1 text-xs text-zinc-400">Stars</div>
+                            <select
+                              className="w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-600"
+                              value={editStars}
+                              onChange={(e) => setEditStars(e.target.value)}
+                            >
+                              {starValues().map((v) => (
+                                <option key={v} value={String(v)}>
+                                  {starsLabel(v)}★
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+
+                          <label className="block">
+                            <div className="mb-1 text-xs text-zinc-400">League</div>
+                            <select
+                              className="w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-600"
+                              value={editLeagueId === "" ? "" : String(editLeagueId)}
+                              onChange={(e) => setEditLeagueId(e.target.value ? Number(e.target.value) : "")}
+                            >
+                              {!leagues.length && <option value="">(no leagues loaded)</option>}
+                              {leagues.map((l) => (
+                                <option key={l.id} value={String(l.id)}>
+                                  {l.name}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                        </div>
+
+                        {patchMut.error && <div className="mt-2 text-sm text-red-400">{String(patchMut.error)}</div>}
+                        {deleteMut.error && <div className="mt-2 text-sm text-red-400">{String(deleteMut.error)}</div>}
+
+                        <div className="mt-3 flex items-center gap-2">
+                          <Button onClick={() => patchMut.mutate()} disabled={patchMut.isPending}>
+                            {patchMut.isPending ? "Saving…" : "Save"}
+                          </Button>
+                          <Button variant="ghost" onClick={() => setEditId(null)} type="button">
+                            Cancel
+                          </Button>
+                        </div>
+                      </div>
                     )}
                   </div>
-                ))}
-              </div>
-            )}
-          </div>
+                );
+              })}
+            </div>
           ))}
-
         </div>
       </Card>
     </div>
   );
 }
+
