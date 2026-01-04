@@ -160,14 +160,11 @@ export default function CurrentMatchPreviewCard() {
               leg {match.leg} · #{match.order_index + 1}
             </div>
             <div className="flex items-center gap-2 flex-nowrap whitespace-nowrap">
-              <Pill
-                className="!inline-flex !w-auto shrink-0 border-zinc-800 bg-zinc-950/60 text-[11px] sm:text-xs text-zinc-200"
-                title="Mode"
-              >
+              <Pill>
                 {tQ.data?.mode === "2v2" ? "2v2" : "1v1"}
               </Pill>
               <Pill
-                className={`inline-flex shrink-0 items-center rounded-full border px-3 py-0.5 text-[11px] sm:text-xs ${statusMatchPill(
+                className={`${statusMatchPill(
                   match.state
                 )}`}
               >
@@ -177,7 +174,7 @@ export default function CurrentMatchPreviewCard() {
             </div>
           </div>
 
-          <div className="mt-3 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3">
+          <div className="mt-4 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3">
             {/* A names */}
             <div className="min-w-0">
               {aNames.map((n, i) => (

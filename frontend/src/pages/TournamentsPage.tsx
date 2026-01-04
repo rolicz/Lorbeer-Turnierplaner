@@ -5,7 +5,7 @@ import Card from "../ui/primitives/Card";
 import Button from "../ui/primitives/Button";
 import Input from "../ui/primitives/Input";
 import Modal from "../ui/primitives/Modal";
-import Pill from "../ui/primitives/Pill";
+import { Pill, statusPill } from "../ui/primitives/Pill"; // ⬅ add statusPill
 import { listTournaments, createTournament, generateSchedule } from "../api/tournaments.api";
 import { listPlayers } from "../api/players.api";
 import { useAuth } from "../auth/AuthContext";
@@ -21,23 +21,17 @@ function statusUI(status: Status) {
     case "live":
       return {
         bar: "bg-emerald-500/70",
-        pill: "border-emerald-500/30 bg-emerald-500/10 text-emerald-200",
-        icon: "▶",
         label: "LIVE",
       };
     case "draft":
       return {
         bar: "bg-sky-500/70",
-        pill: "border-sky-500/30 bg-sky-500/10 text-sky-200",
-        icon: "📝",
         label: "DRAFT",
       };
     case "done":
     default:
       return {
         bar: "bg-zinc-700/60",
-        pill: "border-zinc-700/40 bg-zinc-900/40 text-zinc-300",
-        icon: "✓",
         label: "DONE",
       };
   }
@@ -163,7 +157,7 @@ export default function TournamentsPage() {
                     </div>
 
                     <div className="shrink-0">
-                      <Pill className="border-zinc-800 bg-zinc-950/60 text-zinc-200" title="Mode">
+                      <Pill title="Mode">
                         {t.mode === "2v2" ? "2v2" : "1v1"}
                       </Pill>
                     </div>
@@ -171,16 +165,16 @@ export default function TournamentsPage() {
 
                   {/* Row 2: pills (responsive) */}
                   <div className="mt-2 flex flex-wrap items-center gap-2">
-                    <Pill className={ui.pill} title={ui.label}>
+                    <Pill className={statusPill(st)} title={ui.label}>
                       <span>{ui.label}</span>
                     </Pill>
 
-                    <Pill className="border-zinc-800 bg-zinc-950/60 text-zinc-300" title="Date">
+                    <Pill title="Date">
                       <span className="font-mono tabular-nums">{fmtDate(t.date)}</span>
                     </Pill>
 
                     {winner && (
-                      <Pill className="border-zinc-800 bg-zinc-950/60 text-zinc-200" title="Winner">
+                      <Pill title="Winner">
                         <span>
                           <i className="fa fa-trophy text-yellow-400 mr-1" aria-hidden="true" />
                         </span>

@@ -451,13 +451,13 @@ export default function LiveTournamentPage() {
           <div className="space-y-3">
             <div className="flex items-center justify-between gap-3">
               <div className="flex flex-wrap items-center gap-2 text-sm">
-                <Pill className="rounded-full border border-zinc-700 bg-zinc-900/30 px-2.5 py-1 text-zinc-300">
+                <Pill>
                   {tQ.data.mode}
                 </Pill>
-                <Pill className={`rounded-full border px-2.5 py-1 ${statusPill(tQ.data.status)}`}>
+                <Pill className={`${statusPill(tQ.data.status)}`}>
                   {tQ.data.status.toUpperCase()}
                 </Pill>
-                <Pill className="rounded-full border border-zinc-700 bg-zinc-900/30 px-2.5 py-1 text-zinc-300">
+                <Pill>
                   {fmtDate(tQ.data.date)}
                 </Pill>
               </div>
