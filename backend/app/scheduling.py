@@ -76,6 +76,116 @@ def _disjoint(p: Tuple[str, str], q: Tuple[str, str]) -> bool:
     return (p[0] not in q) and (p[1] not in q)
 
 
+
+Pair = Tuple[str, str]
+Match2v2 = Tuple[Pair, Pair]
+
+def _pair(a: str, b: str) -> Pair:
+    return tuple(sorted((a, b)))
+
+def _players_in_match(m: Match2v2) -> List[str]:
+    (a1,a2),(b1,b2) = m
+    return [a1,a2,b1,b2]
+
+def _teammate_counts(matches: List[Match2v2]) -> Dict[Pair, int]:
+    tc: Dict[Pair, int] = {}
+    for p, q in matches:
+        tc[p] = tc.get(p, 0) + 1
+        tc[q] = tc.get(q, 0) + 1
+    return tc
+
+def _opponent_counts(matches: List[Match2v2]) -> Dict[Pair, int]:
+    """
+    Count unordered opponent-pairs.
+    If teams are (a1,a2) vs (b1,b2), the opponent pairs are:
+      (a1,b1), (a1,b2), (a2,b1), (a2,b2)
+    """
+    oc: Dict[Pair, int] = {}
+    for (a1,a2), (b1,b2) in matches:
+        for x in (a1,a2):
+            for y in (b1,b2):
+                k = _pair(x, y)
+                oc[k] = oc.get(k, 0) + 1
+    return oc
+
+def _match_counts(players: List[str], matches: List[Match2v2]) -> Dict[str, int]:
+    mc = {p: 0 for p in players}
+    for m in matches:
+        for p in _players_in_match(m):
+            mc[p] += 1
+    return mc
+
+def _candidate_splits_of_4(ps: List[str]) -> List[Match2v2]:
+    """
+    For 4 players a,b,c,d there are exactly 3 disjoint pairings:
+      (ab vs cd), (ac vs bd), (ad vs bc)
+    """
+    a,b,c,d = ps
+    return [
+        (_pair(a,b), _pair(c,d)),
+        (_pair(a,c), _pair(b,d)),
+        (_pair(a,d), _pair(b,c)),
+    ]
+
+def _score_added_match(
+    players: List[str],
+    base: List[Match2v2],
+    add: Match2v2
+) -> Tuple[int, int, int, int]:
+    """
+    Lexicographic score (smaller is better):
+      1) max teammate pair count after adding (prefer <=2)
+      2) number of teammate pairs that are repeated (count==2) after adding
+      3) opponent imbalance range: max(opponent)-min(opponent) across all 15 pairs
+      4) opponent squared error around ideal 36/15=2.4 (lower is better)
+    """
+    all_pairs = [_pair(x,y) for x,y in combinations(players, 2)]
+
+    tc = _teammate_counts(base)
+    oc = _opponent_counts(base)
+
+    # apply add
+    (p, q) = add
+    tc[p] = tc.get(p, 0) + 1
+    tc[q] = tc.get(q, 0) + 1
+
+    (a1,a2),(b1,b2) = add
+    for x in (a1,a2):
+        for y in (b1,b2):
+            k = _pair(x,y)
+            oc[k] = oc.get(k, 0) + 1
+
+    max_team = max(tc.get(pp, 0) for pp in all_pairs)
+    repeated_team_pairs = sum(1 for pp in all_pairs if tc.get(pp, 0) == 2)
+
+    # opponent distribution (should be 2 or 3 ideally)
+    opp_vals = [oc.get(pp, 0) for pp in all_pairs]
+    opp_range = max(opp_vals) - min(opp_vals)
+
+    ideal = 36 / 15  # 2.4
+    opp_sse = int(round(sum((v - ideal) ** 2 for v in opp_vals) * 1000))
+
+    return (max_team, repeated_team_pairs, opp_range, opp_sse)
+
+def add_9th_match_balanced(labels: List[str], matches8: List[Match2v2]) -> List[Match2v2]:
+    """
+    Assumes matches8 is already a good n=6 schedule with counts 5,5,5,5,6,6.
+    Adds a 9th match among the four 5-match players, choosing the split that
+    best balances opponent pairings and avoids extra teammate repeats.
+    """
+    players = list(labels)
+    mc = _match_counts(players, matches8)
+
+    lows = [p for p, c in mc.items() if c == min(mc.values())]
+    if len(lows) != 4 or sorted(mc.values()) != [5,5,5,5,6,6]:
+        raise ValueError(f"Expected 5/6 distribution before adding 9th match, got {sorted(mc.values())}")
+
+    candidates = _candidate_splits_of_4(lows)
+
+    best = min(candidates, key=lambda m: _score_added_match(players, matches8, m))
+    return matches8 + [best]
+
+
 def schedule_2v2_labels(labels: List[str]) -> List[Tuple[Tuple[str, str], Tuple[str, str]]]:
     """
     2v2 schedule based on partnerships.
@@ -142,5 +252,8 @@ def schedule_2v2_labels(labels: List[str]) -> List[Tuple[Tuple[str, str], Tuple[
         # sanity: we should have 8 matches for n=6
         if len(matches) != 8:
             raise ValueError(f"Unexpected match count for n=6: {len(matches)}")
+
+        matches = add_9th_match_balanced(labels, matches)
+        return matches
 
     return matches

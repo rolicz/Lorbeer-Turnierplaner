@@ -1,0 +1,9 @@
+{
+    "tournament_id": 6,
+    "teamA_members": ["Berni", "Flo"],
+    "teamB_members": ["Roli", "Atzi"],
+    "teamA_club": "Manchester City F.C.",
+    "teamB_club": "Inter Mailand (Lombardia FC)",
+    "teamA_score": 1,
+    "teamB_score": 6
+}

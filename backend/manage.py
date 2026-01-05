@@ -6,7 +6,7 @@ from app.settings import load_settings
 from app.db import configure_db, init_db, get_engine
 from sqlmodel import Session
 
-from app.seed import load_seed_file, seed_from_json
+from app.seed import load_seed_file, seed_from_json, insert_match
 
 
 def parse_args() -> argparse.Namespace:
@@ -19,6 +19,9 @@ def parse_args() -> argparse.Namespace:
 
     seed = sub.add_parser("seed", help="Seed DB from JSON")
     seed.add_argument("--file", required=True, help="Path to seed JSON file")
+
+    add_match = sub.add_parser("add-match", help="Add a match from JSON file")
+    add_match.add_argument("--file", required=True, help="Path to match JSON file")
 
     return p.parse_args()
 
@@ -47,6 +50,13 @@ def main() -> None:
         with Session(get_engine()) as s:
             res = seed_from_json(s, data)
         log.info("Seed complete: %s", res)
+
+    if args.cmd == "add-match":
+        data = load_seed_file(args.file)
+        from app.db import get_session
+        with Session(get_engine()) as s:
+            res = insert_match(s, data)
+        log.info("Add match complete: %s", res)
 
 
 if __name__ == "__main__":

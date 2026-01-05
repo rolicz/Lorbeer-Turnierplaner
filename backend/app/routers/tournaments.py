@@ -703,9 +703,6 @@ def stats(tournament_id: int, s: Session = Depends(get_session)):
     return compute_stats(matches)
 
 
-# NOTE: /{tournament_id}/status endpoint REMOVED (status is automatic now)
-
-
 @router.delete("/{tournament_id}", dependencies=[Depends(require_admin)])
 async def delete_tournament(
     tournament_id: int,
