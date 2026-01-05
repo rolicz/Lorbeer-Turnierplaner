@@ -21,6 +21,7 @@ export type League = {
 export type Club = {
   id: number;
   name: string;
+  league_name: string;
   game: string; // e.g. "EA FC 26"
   league_id: number;
   star_rating: number; // 0.5 .. 5.0 (steps of 0.5)

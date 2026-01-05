@@ -36,6 +36,7 @@ function clubLabelPartsById(clubs: Club[], id: number | null | undefined) {
   const r = Number(c.star_rating);
   return {
     name: c.name,
+    league_name: c.league_name,
     rating: Number.isFinite(r) ? r : null,
     ratingText: Number.isFinite(r) ? `${starsLabel(r)}★` : null,
   };
@@ -210,7 +211,14 @@ export default function CurrentMatchPreviewCard() {
             <div className="min-w-0 whitespace-normal break-words leading-tight text-right">{bClubParts.name}</div>
           </div>
 
-          {/* Row 3: stars below */}
+          {/* Row 3: leagues */}
+          <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-start gap-3 text-xs text-zinc-700">
+            <div className="min-w-0 whitespace-normal break-words leading-tight">{aClubParts.league_name}</div>
+            <div />
+            <div className="min-w-0 whitespace-normal break-words leading-tight text-right">{bClubParts.league_name}</div>
+          </div>
+
+          {/* Row 4: stars below */}
           <div className="mt-1 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 text-[11px] text-zinc-500">
             <div className="min-w-0">
               {aClubParts.rating != null ? <StarsFA rating={aClubParts.rating} textZinc="text-zinc-500" /> : <span>—</span>}

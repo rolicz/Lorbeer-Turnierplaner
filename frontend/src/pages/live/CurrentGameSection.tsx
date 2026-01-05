@@ -62,6 +62,7 @@ function clubLabelPartsById(clubs: Club[], id: number | null | undefined) {
   const r = Number(c.star_rating);
   return {
     name: c.name,
+    league_name: c.league_name,
     rating: Number.isFinite(r) ? r : null,
     ratingText: Number.isFinite(r) ? `${starsLabel(r)}★` : null,
   };
@@ -421,8 +422,14 @@ export default function CurrentGameSection({
             <div />
             <div className="min-w-0 whitespace-normal break-words leading-tight text-right">{bClubParts.name}</div>
           </div>
+          {/* Row 4: LEAGUES */}
+          <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-start gap-3 text-xs text-zinc-700">
+            <div className="min-w-0 whitespace-normal break-words leading-tight">{aClubParts.league_name}</div>
+            <div />
+            <div className="min-w-0 whitespace-normal break-words leading-tight text-right">{bClubParts.league_name}</div>
+          </div>
 
-          {/* Row 4: STARS */}
+          {/* Row 5: STARS */}
           <div className="mt-1 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 text-[11px] text-zinc-500">
             <div className="min-w-0">
               {aClubParts.rating != null ? (
@@ -441,7 +448,7 @@ export default function CurrentGameSection({
             </div>
           </div>
 
-          {/* Row 5: INPUTS (only when NOT scheduled) */}
+          {/* Row 6: INPUTS (only when NOT scheduled) */}
           {showGoalInputs && (
             <div className="mt-3 flex items-center justify-center gap-4">
               <GoalStepper
@@ -583,8 +590,14 @@ export default function CurrentGameSection({
             <div />
             <div className="min-w-0 truncate text-right">{bClubParts.name}</div>
           </div>
+          {/* Row 4: CLUBS */}
+          <div className="grid grid-cols-[1fr_auto_1fr] items-start gap-4 text-sm text-zinc-700">
+            <div className="min-w-0 truncate">{aClubParts.league_name}</div>
+            <div />
+            <div className="min-w-0 truncate text-right">{bClubParts.league_name}</div>
+          </div>
 
-          {/* Row 4: STARS */}
+          {/* Row 5: STARS */}
           <div className="mt-1 grid grid-cols-[1fr_auto_1fr] items-center gap-4 text-sm text-zinc-500">
             <div className="min-w-0">
               {aClubParts.rating != null ? <StarsFA rating={aClubParts.rating} textZinc="text-zinc-500" /> : <span>—</span>}
@@ -595,7 +608,7 @@ export default function CurrentGameSection({
             </div>
           </div>
 
-          {/* Row 5: INPUTS (only when NOT scheduled) */}
+          {/* Row 6: INPUTS (only when NOT scheduled) */}
           {showGoalInputs && (
             <div className="mt-3 flex items-center justify-center gap-4">
               <GoalStepper
