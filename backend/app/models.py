@@ -3,7 +3,6 @@ from typing import List, Optional
 
 from sqlmodel import Field, Relationship, SQLModel
 from sqlalchemy import UniqueConstraint
-from pydantic import BaseModel
 
 class TournamentPlayer(SQLModel, table=True):
     tournament_id: int = Field(foreign_key="tournament.id", primary_key=True)
@@ -60,13 +59,7 @@ class League(SQLModel, table=True):
 
     clubs: List["Club"] = Relationship(back_populates="league")
 
-class ClubOut(BaseModel):
-    id: int
-    name: str
-    game: str
-    star_rating: float
-    league_id: int
-    league_name: str | None
+
 
 class Club(SQLModel, table=True):
     __table_args__ = (UniqueConstraint("name", "game", name="uq_club_name_game"),)

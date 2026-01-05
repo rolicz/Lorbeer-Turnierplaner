@@ -80,7 +80,6 @@ def upsert_clubs(s: Session, clubs: list[dict[str, Any]]) -> dict[str, int]:
         stars = item.get("star_rating", 3.0)
 
         if not name or not game:
-            print(name, game)
             raise ValueError("Club name/game missing/empty")
 
         stars = validate_star_rating(stars)
