@@ -56,13 +56,6 @@ def create_league(body: dict, s: Session = Depends(get_session), role: str = Dep
     return lg
 
 
-# ---- clubs ----
-# @router.get("")
-# def list_clubs(game: str | None = None, s: Session = Depends(get_session)):
-#     q = select(Club).order_by(Club.game, Club.name)
-#     if game:
-#         q = q.where(Club.game == game)
-#     return s.exec(q).all()
 
 @router.get("", response_model=list[ClubOut])
 def list_clubs(game: str | None = None, s: Session = Depends(get_session)):
