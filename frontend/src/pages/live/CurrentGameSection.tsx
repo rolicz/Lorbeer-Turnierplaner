@@ -511,7 +511,7 @@ export default function CurrentGameSection({
                     let clubB = clubsFiltered[Math.floor(Math.random() * clubsFiltered.length)];
                   
                     if (clubsFiltered.length > 1) {
-                      while (clubB.id === clubA.id) {
+                      while (!randomClubAssignmentOk(clubA, clubB)) {
                         clubB = clubsFiltered[Math.floor(Math.random() * clubsFiltered.length)];
                       }
                     }
