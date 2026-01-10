@@ -6,7 +6,7 @@ import Button from "../../ui/primitives/Button";
 import { getCup } from "../../api/cup.api";
 import { useAnyTournamentWS } from "../../hooks/useTournamentWS";
 
-import { Pill, statusPill } from "../../ui/primitives/Pill";
+import { Pill, pillDate, statusPill } from "../../ui/primitives/Pill";
 
 function fmtDate(d?: string | null) {
   if (!d) return "—";
@@ -98,7 +98,7 @@ export default function CupCard() {
                     <div className="min-w-0">
                       <div className="truncate text-sm text-zinc-200">{h.tournament_name}</div>
                       <div className="mt-2 flex flex-wrap items-center gap-2">
-                        <Pill title="Date">
+                        <Pill className={pillDate()} title="Date">
                           <span>{fmtDate(h.date)}</span>
                         </Pill>
 

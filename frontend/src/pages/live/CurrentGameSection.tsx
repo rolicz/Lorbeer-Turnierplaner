@@ -4,7 +4,7 @@ import type { Club, Match, MatchSide } from "../../api/types";
 // import { useTournamentWS } from "../../hooks/useTournamentWS";
 import CollapsibleCard from "../../ui/primitives/CollapsibleCard";
 import { StarsFA } from "../../ui/primitives/StarsFA";
-import { statusMatchPill } from "../../ui/primitives/Pill";
+import { Pill, statusMatchPill } from "../../ui/primitives/Pill";
 
 
 function sideBy(m: Match, side: "A" | "B"): MatchSide | undefined {
@@ -56,7 +56,7 @@ function leagueInfo(c: Club): { id: number | null; name: string | null } {
 }
 
 function clubLabelPartsById(clubs: Club[], id: number | null | undefined) {
-  if (!id) return { name: "—", rating: null as number | null, ratingText: null as string | null };
+  if (!id) return { name: "No club", rating: null as number | null, ratingText: null as string | null };
   const c = clubs.find((x) => x.id === id);
   if (!c) return { name: `#${id}`, rating: null as number | null, ratingText: null as string | null };
   const r = Number(c.star_rating);
@@ -67,6 +67,25 @@ function clubLabelPartsById(clubs: Club[], id: number | null | undefined) {
     ratingText: Number.isFinite(r) ? `${starsLabel(r)}★` : null,
   };
 }
+
+
+function randomClubAssignmentOk(clubA: Club, clubB: Club): boolean {
+  if(clubB.id === clubA.id) {
+    console.log("1 rejecting", clubA.name, clubB.name);
+    return false;
+  }
+  if(clubA.league_name.startsWith("National (") && !clubB.league_name.startsWith("National (")) {
+    console.log("2 rejecting", clubA.name, clubB.name);
+    return false;
+  }
+  if(clubB.league_name.startsWith("National (") && !clubA.league_name.startsWith("National (")) {
+    console.log("3 rejecting", clubA.name, clubB.name);
+    return false;
+  }
+
+  return true;
+}
+
 
 type PatchPayload = {
   aGoals: number;
@@ -372,17 +391,23 @@ export default function CurrentGameSection({
       <div className="space-y-3 md:hidden">
         <div className="rounded-xl border border-zinc-800 bg-zinc-900/10 p-3">
           {/* Row 1: Leg, match number, state pill */}
-          <div className="flex items-center justify-between gap-3">
-            <div className="text-[11px] sm:text-xs text-zinc-500">
-              leg {match.leg} · #{match.order_index + 1}
+          <div className="mt-1 flex items-center justify-between gap-3">
+            <div className="text-[11px] sm:text-xs text-zinc-300">
+              Match #{match.order_index + 1}
             </div>
-            <span
-              className={`inline-flex items-center rounded-full border px-3 py-0.5 text-[11px] sm:text-xs ${statusMatchPill(
-                match.state
-              )}`}
-            >
-              {match.state}
-            </span>
+            <div className="flex items-center gap-2 flex-nowrap whitespace-nowrap">
+              <Pill>
+                leg {match.leg}
+              </Pill>
+              <Pill
+                className={`${statusMatchPill(
+                  match.state
+                )}`}
+              >
+                {match.state}
+              </Pill>
+              
+            </div>
           </div>
 
           {/* Row 2: NAMES + SCORE */}
@@ -432,19 +457,11 @@ export default function CurrentGameSection({
           {/* Row 5: STARS */}
           <div className="mt-1 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 text-[11px] text-zinc-500">
             <div className="min-w-0">
-              {aClubParts.rating != null ? (
-                <StarsFA rating={aClubParts.rating} textZinc="text-zinc-500" />
-              ) : (
-                <span>—</span>
-              )}
+              <StarsFA rating={aClubParts.rating ?? 0} textZinc="text-zinc-500" />
             </div>
             <div />
             <div className="min-w-0 flex justify-end">
-              {bClubParts.rating != null ? (
-                <StarsFA rating={bClubParts.rating} textZinc="text-zinc-500" />
-              ) : (
-                <span>—</span>
-              )}
+              <StarsFA rating={bClubParts.rating ?? 0} textZinc="text-zinc-500" />
             </div>
           </div>
 
@@ -547,16 +564,22 @@ export default function CurrentGameSection({
         <div className="rounded-xl border border-zinc-800 bg-zinc-900/10 p-4">
           {/* Row 1: Leg, match number, state pill */}
           <div className="mt-1 flex items-center justify-between gap-3">
-            <div className="text-[11px] sm:text-xs text-zinc-500">
-              leg {match.leg} · #{match.order_index + 1}
+            <div className="text-[11px] sm:text-xs text-zinc-300">
+              Match #{match.order_index + 1}
             </div>
-            <span
-              className={`inline-flex items-center rounded-full border px-3 py-0.5 text-[11px] sm:text-xs ${statusMatchPill(
-                match.state
-              )}`}
-            >
-              {match.state}
-            </span>
+            <div className="flex items-center gap-2 flex-nowrap whitespace-nowrap">
+              <Pill>
+                leg {match.leg}
+              </Pill>
+              <Pill
+                className={`${statusMatchPill(
+                  match.state
+                )}`}
+              >
+                {match.state}
+              </Pill>
+              
+            </div>
           </div>
 
           {/* Row 2: NAMES + SCORE */}
@@ -600,11 +623,11 @@ export default function CurrentGameSection({
           {/* Row 5: STARS */}
           <div className="mt-1 grid grid-cols-[1fr_auto_1fr] items-center gap-4 text-sm text-zinc-500">
             <div className="min-w-0">
-              {aClubParts.rating != null ? <StarsFA rating={aClubParts.rating} textZinc="text-zinc-500" /> : <span>—</span>}
+              <StarsFA rating={aClubParts.rating ?? 0} textZinc="text-zinc-500" />
             </div>
             <div />
             <div className="min-w-0 flex justify-end">
-              {bClubParts.rating != null ? <StarsFA rating={bClubParts.rating} textZinc="text-zinc-500" /> : <span>—</span>}
+              <StarsFA rating={bClubParts.rating ?? 0} textZinc="text-zinc-500" />
             </div>
           </div>
 
@@ -658,7 +681,7 @@ export default function CurrentGameSection({
                       const clubA = clubsFiltered[Math.floor(Math.random() * clubsFiltered.length)];
                       let clubB = clubsFiltered[Math.floor(Math.random() * clubsFiltered.length)];
                       if (clubsFiltered.length > 1) {
-                        while (clubB.id === clubA.id) {
+                        while (!randomClubAssignmentOk(clubA, clubB)) {
                           clubB = clubsFiltered[Math.floor(Math.random() * clubsFiltered.length)];
                         }
                       }

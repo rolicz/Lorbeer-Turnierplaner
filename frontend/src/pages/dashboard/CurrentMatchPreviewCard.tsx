@@ -30,7 +30,7 @@ function clubLabelById(clubs: Club[], id: number | null | undefined) {
 }
 
 function clubLabelPartsById(clubs: Club[], id: number | null | undefined) {
-  if (!id) return { name: "—", rating: null as number | null, ratingText: null as string | null };
+  if (!id) return { name: "No club", rating: null as number | null, ratingText: null as string | null };
   const c = clubs.find((x) => x.id === id);
   if (!c) return { name: `#${id}`, rating: null as number | null, ratingText: null as string | null };
   const r = Number(c.star_rating);
@@ -157,10 +157,13 @@ export default function CurrentMatchPreviewCard() {
         <div className="mt-2 rounded-xl border border-zinc-800 bg-zinc-900/10 p-3">
           {/* Row 1: leg/# left + match/mode pills right */}
           <div className="mt-1 flex items-center justify-between gap-3">
-            <div className="text-[11px] sm:text-xs text-zinc-500">
-              leg {match.leg} · #{match.order_index + 1}
+            <div className="text-[11px] sm:text-xs text-zinc-300">
+              Match #{match.order_index + 1}
             </div>
             <div className="flex items-center gap-2 flex-nowrap whitespace-nowrap">
+              <Pill>
+                leg {match.leg}
+              </Pill>
               <Pill>
                 {tQ.data?.mode === "2v2" ? "2v2" : "1v1"}
               </Pill>
@@ -221,11 +224,11 @@ export default function CurrentMatchPreviewCard() {
           {/* Row 4: stars below */}
           <div className="mt-1 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 text-[11px] text-zinc-500">
             <div className="min-w-0">
-              {aClubParts.rating != null ? <StarsFA rating={aClubParts.rating} textZinc="text-zinc-500" /> : <span>—</span>}
+              <StarsFA rating={aClubParts.rating ?? 0} textZinc="text-zinc-500" />
             </div>
             <div />
             <div className="min-w-0 flex justify-end">
-              {bClubParts.rating != null ? <StarsFA rating={bClubParts.rating} textZinc="text-zinc-500" /> : <span>—</span>}
+              <StarsFA rating={bClubParts.rating ?? 0} textZinc="text-zinc-500" />
             </div>
           </div>
         </div>
