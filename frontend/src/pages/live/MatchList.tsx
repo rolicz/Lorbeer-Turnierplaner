@@ -11,24 +11,21 @@ function palette(state: State) {
       return {
         wrap: "border-emerald-800/60 bg-emerald-500/10 hover:bg-emerald-500/15 ring-1 ring-emerald-900/40",
         bar: "bg-emerald-400",
-        pill: "text-emerald-100 border-emerald-800/60 bg-emerald-950/50",
         win: "text-emerald-400",
         lose: "text-zinc-300/80",
       };
     case "scheduled":
       return {
-        wrap: "border-sky-800/60 bg-sky-500/10 hover:bg-sky-500/15 ring-1 ring-sky-900/40",
-        bar: "bg-sky-400",
-        pill: "text-sky-100 border-sky-800/60 bg-sky-950/50",
+        wrap: "border-sky-800/60 hover:bg-sky-500/15 ring-1 ring-sky-900/40",
+        bar: "bg-sky-500/30",
         win: "text-zinc-100",
         lose: "text-zinc-300/80",
       };
     case "finished":
     default:
       return {
-        wrap: "border-zinc-800 bg-zinc-950 hover:bg-zinc-900/20 ring-1 ring-transparent",
+        wrap: "hover:bg-zinc-800 ring-1 ring-transparent",
         bar: "bg-zinc-600",
-        pill: "text-zinc-200 border-zinc-800 bg-zinc-900/30",
         win: "text-emerald-400",
         lose: "text-zinc-400",
       };
@@ -114,7 +111,7 @@ export default function MatchList({
               {/* Top row: state + leg + move arrows (scheduled only) */}
               <div className="mb-2 flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
-                  <Pill className={`${statusMatchPill(m.state)}`}>{m.state}</Pill>
+                  <Pill className={`min-w-24 ${statusMatchPill(m.state)}`}>{m.state}</Pill>
                   <Pill>leg {m.leg}</Pill>
                 </div>
 

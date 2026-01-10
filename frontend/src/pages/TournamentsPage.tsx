@@ -5,7 +5,7 @@ import Card from "../ui/primitives/Card";
 import Button from "../ui/primitives/Button";
 import Input from "../ui/primitives/Input";
 import Modal from "../ui/primitives/Modal";
-import { Pill, statusPill } from "../ui/primitives/Pill"; // ⬅ add statusPill
+import { Pill, statusPill, pillDate } from "../ui/primitives/Pill"; // ⬅ add statusPill
 import { listTournaments, createTournament, generateSchedule } from "../api/tournaments.api";
 import { listPlayers } from "../api/players.api";
 import { useAuth } from "../auth/AuthContext";
@@ -21,18 +21,18 @@ function statusUI(status: Status) {
     case "live":
       return {
         bar: "bg-emerald-500/70",
-        label: "LIVE",
+        label: "Live",
       };
     case "draft":
       return {
         bar: "bg-sky-500/70",
-        label: "DRAFT",
+        label: "Draft",
       };
     case "done":
     default:
       return {
-        bar: "bg-zinc-700/60",
-        label: "DONE",
+        bar: "bg-zinc-600",
+        label: "Done",
       };
   }
 }
@@ -140,7 +140,7 @@ export default function TournamentsPage() {
                 className={[
                   "relative block overflow-hidden rounded-xl border px-4 py-3 transition",
                   "hover:bg-zinc-900/40",
-                  isLive ? "border-emerald-500/30 bg-emerald-500/5" : "",
+                  isLive ? "border-emerald-500/30" : "",
                   isDraft ? "border-sky-500/30" : "border-zinc-800",
                 ].join(" ")}
               >
@@ -169,8 +169,8 @@ export default function TournamentsPage() {
                       <span>{ui.label}</span>
                     </Pill>
 
-                    <Pill title="Date">
-                      <span className="font-mono tabular-nums">{fmtDate(t.date)}</span>
+                    <Pill className={pillDate()} title="Date" >
+                      <span>{fmtDate(t.date)}</span>
                     </Pill>
 
                     {winner && (

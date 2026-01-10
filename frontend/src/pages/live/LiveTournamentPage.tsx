@@ -5,7 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Card from "../../ui/primitives/Card";
 import Button from "../../ui/primitives/Button";
 import CollapsibleCard from "../../ui/primitives/CollapsibleCard";
-import { Pill, statusPill } from "../../ui/primitives/Pill";
+import { Pill, pillDate, statusPill } from "../../ui/primitives/Pill";
 
 import {
   getTournament,
@@ -455,9 +455,9 @@ export default function LiveTournamentPage() {
                   {tQ.data.mode}
                 </Pill>
                 <Pill className={`${statusPill(tQ.data.status)}`}>
-                  {tQ.data.status.toUpperCase()}
+                  {tQ.data.status.at(0)?.toUpperCase() + tQ.data.status.slice(1)}
                 </Pill>
-                <Pill>
+                <Pill className={pillDate()} title="Date" >
                   {fmtDate(tQ.data.date)}
                 </Pill>
               </div>

@@ -26,7 +26,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       <div
         className="
           fixed inset-x-0 top-0 z-30
-          border-b border-zinc-800 bg-zinc-950/90 backdrop-blur
+          border-b border-zinc-800 bg-zinc-900/30 backdrop-blur
           pt-[env(safe-area-inset-top,0px)]
           pl-[env(safe-area-inset-left,0px)]
           pr-[env(safe-area-inset-right,0px)]
