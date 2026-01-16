@@ -5,7 +5,7 @@ import TournamentsPage from "../pages/TournamentsPage";
 import LiveTournamentPage from "../pages/live/LiveTournamentPage";
 import DashboardPage from "../pages/dashboard/DashboardPage";
 import ClubsPage from "../pages/ClubsPage";
-import PlayersAdminPage from "../pages/PlayersAdminPage";
+import PlayersPage from "../pages/PlayersPage";
 import { RequireRole } from "../auth/RequireRole";
 
 export default function App() {
@@ -28,10 +28,10 @@ export default function App() {
         />
 
         <Route
-          path="/admin/players"
+          path="/players"
           element={
-            <RequireRole minRole="admin">
-              <PlayersAdminPage />
+            <RequireRole minRole="editor">
+              <PlayersPage />
             </RequireRole>
           }
         />

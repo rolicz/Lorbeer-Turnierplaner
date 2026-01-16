@@ -17,7 +17,7 @@ Edit `.env` to point to your backend (API + WS).
 - `/tournaments` : list + create tournament (editor/admin)
 - `/live/:id` : live tournament (read-only for everyone, edit match results if logged in)
 - `/clubs` : manage clubs (editor/admin)
-- `/admin/players` : manage players (admin)
+- `/players` : manage players (admin) read (all)
 - `/login` : password login to obtain JWT
 
 ## Notes
