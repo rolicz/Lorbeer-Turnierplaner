@@ -11,6 +11,7 @@ import { createPlayer, listPlayers, patchPlayer } from "../api/players.api";
 import { getStatsPlayers } from "../api/stats.api";
 
 import type { StatsPlayersResponse, StatsTournamentLite, StatsPlayerRow } from "../api/types";
+import { Link } from "react-router-dom";
 
 type SortMode = "overall" | "lastN";
 
@@ -297,9 +298,21 @@ function TournamentPositionsGrid({
               : posGradientClass(pos, totalPlayers);
 
             return (
-              <div key={t.id} title={`${title} · position ${pos}/${totalPlayers}`} className={base + " " + cls} style={{ opacity }}>
+              <Link
+                key={t.id}
+                to={`/live/${t.id}`}
+                title={`${title} · position ${pos}/${totalPlayers}`}
+                className={
+                  base +
+                  " " +
+                  cls +
+                  " w-full select-none no-underline cursor-pointer focus:outline-none focus:ring-2 focus:ring-zinc-500/40"
+                }
+                style={{ opacity }}
+                aria-label={`${title}, position ${pos} of ${totalPlayers}`}
+              >
                 <span>{pos}</span>
-              </div>
+              </Link>
             );
           })}
         </div>
