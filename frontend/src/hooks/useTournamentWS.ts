@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, type QueryClient } from "@tanstack/react-query";
 
 /**
  * Convert an HTTP(S) base URL to a WS(S) URL for a given path.
@@ -46,136 +46,193 @@ function safeJsonParse(s: string): any | null {
   }
 }
 
-type WSOptions = {
-  enabled: boolean;
-  label: string;
-  onMessage: (ev: MessageEvent) => void;
+type Subscriber = (ev: MessageEvent) => void;
+
+type Conn = {
+  url: string;
+  ws: WebSocket | null;
+  subscribers: Set<Subscriber>;
+  refCount: number;
+  closing: boolean;
+  attempt: number;
+  pingTimer: number | null;
+  reconnectTimer: number | null;
 };
 
-function useRobustWS(url: string | null, { enabled, label, onMessage }: WSOptions) {
-  const wsRef = useRef<WebSocket | null>(null);
-  const pingTimerRef = useRef<number | null>(null);
-  const reconnectTimerRef = useRef<number | null>(null);
-  const attemptRef = useRef(0);
-  const closingRef = useRef(false);
-  const lastUrlRef = useRef<string | null>(null);
+/**
+ * Global, shared WS connections keyed by URL.
+ * This prevents multiple components (CurrentMatchPreviewCard, LiveTournamentPage, etc.)
+ * from opening duplicate sockets to the same endpoint.
+ */
+const CONNS = new Map<string, Conn>();
 
-  // ✅ Keep handler stable (no reconnects because callback identity changes)
-  const onMessageRef = useRef(onMessage);
-  useEffect(() => {
-    onMessageRef.current = onMessage;
-  }, [onMessage]);
+function clearPing(conn: Conn) {
+  if (conn.pingTimer) window.clearInterval(conn.pingTimer);
+  conn.pingTimer = null;
+}
 
-  useEffect(() => {
-    if (!enabled || !url) {
-      closingRef.current = true;
-      if (reconnectTimerRef.current) window.clearTimeout(reconnectTimerRef.current);
-      if (pingTimerRef.current) window.clearInterval(pingTimerRef.current);
-      reconnectTimerRef.current = null;
-      pingTimerRef.current = null;
-      wsRef.current?.close(1000, "disabled");
-      wsRef.current = null;
-      lastUrlRef.current = null;
-      closingRef.current = false;
-      return;
+function clearReconnect(conn: Conn) {
+  if (conn.reconnectTimer) window.clearTimeout(conn.reconnectTimer);
+  conn.reconnectTimer = null;
+}
+
+function closeConn(conn: Conn, code = 1000, reason = "close") {
+  conn.closing = true;
+  clearPing(conn);
+  clearReconnect(conn);
+  try {
+    conn.ws?.close(code, reason);
+  } catch {
+    // ignore
+  }
+  conn.ws = null;
+  conn.closing = false;
+}
+
+function scheduleReconnect(conn: Conn) {
+  if (conn.closing) return;
+  if (conn.reconnectTimer) return;
+  if (conn.refCount <= 0) return;
+
+  const attempt = conn.attempt++;
+  const base = Math.min(15000, 500 * Math.pow(2, attempt));
+  const jitter = Math.floor(Math.random() * 300);
+  const delay = base + jitter;
+
+  conn.reconnectTimer = window.setTimeout(() => {
+    conn.reconnectTimer = null;
+    if (conn.closing) return;
+    if (conn.refCount <= 0) return;
+    connect(conn);
+  }, delay);
+}
+
+function startPing(conn: Conn, ws: WebSocket) {
+  clearPing(conn);
+  conn.pingTimer = window.setInterval(() => {
+    if (conn.refCount <= 0) return;
+    if (ws.readyState !== WebSocket.OPEN) return;
+    try {
+      ws.send("ping"); // backend expects receive_text()
+    } catch {
+      // ignore
     }
+  }, 25000);
+}
 
-    if (lastUrlRef.current === url && wsRef.current && wsRef.current.readyState <= 1) return;
-    lastUrlRef.current = url;
+function connect(conn: Conn) {
+  if (conn.closing) return;
+  if (conn.refCount <= 0) return;
 
-    closingRef.current = true;
-    if (reconnectTimerRef.current) window.clearTimeout(reconnectTimerRef.current);
-    if (pingTimerRef.current) window.clearInterval(pingTimerRef.current);
-    reconnectTimerRef.current = null;
-    pingTimerRef.current = null;
-    wsRef.current?.close(1000, "reconnect");
-    wsRef.current = null;
-    closingRef.current = false;
+  // already open/connecting
+  if (conn.ws && conn.ws.readyState <= WebSocket.OPEN) return;
 
-    let alive = true;
+  let ws: WebSocket;
+  try {
+    ws = new WebSocket(conn.url);
+  } catch {
+    scheduleReconnect(conn);
+    return;
+  }
 
-    const clearPing = () => {
-      if (pingTimerRef.current) window.clearInterval(pingTimerRef.current);
-      pingTimerRef.current = null;
-    };
+  conn.ws = ws;
 
-    const scheduleReconnect = () => {
-      if (!alive || closingRef.current) return;
-      if (reconnectTimerRef.current) return;
+  ws.onopen = () => {
+    if (conn.refCount <= 0) return;
+    conn.attempt = 0;
+    startPing(conn, ws);
+  };
 
-      const attempt = attemptRef.current++;
-      const base = Math.min(15000, 500 * Math.pow(2, attempt));
-      const jitter = Math.floor(Math.random() * 300);
-      const delay = base + jitter;
-
-      reconnectTimerRef.current = window.setTimeout(() => {
-        reconnectTimerRef.current = null;
-        if (!alive || closingRef.current) return;
-        connect();
-      }, delay);
-    };
-
-    const startPing = (ws: WebSocket) => {
-      clearPing();
-      pingTimerRef.current = window.setInterval(() => {
-        if (!alive) return;
-        if (ws.readyState !== WebSocket.OPEN) return;
-        try {
-          ws.send("ping"); // server expects receive_text()
-        } catch {}
-      }, 25000);
-    };
-
-    const connect = () => {
-      if (!alive || closingRef.current) return;
-
-      let ws: WebSocket;
+  ws.onmessage = (ev) => {
+    if (conn.refCount <= 0) return;
+    for (const sub of conn.subscribers) {
       try {
-        ws = new WebSocket(url);
+        sub(ev);
       } catch {
-        scheduleReconnect();
-        return;
+        // ignore subscriber errors
       }
+    }
+  };
 
-      wsRef.current = ws;
+  ws.onerror = () => {
+    // let onclose handle reconnect
+  };
 
-      ws.onopen = () => {
-        if (!alive) return;
-        attemptRef.current = 0;
-        startPing(ws);
-        void label;
-      };
+  ws.onclose = () => {
+    clearPing(conn);
+    if (conn.refCount <= 0) return;
+    if (conn.closing) return;
+    scheduleReconnect(conn);
+  };
+}
 
-      ws.onmessage = (ev) => {
-        if (!alive) return;
-        onMessageRef.current(ev);
-      };
+function getOrCreateConn(url: string): Conn {
+  const existing = CONNS.get(url);
+  if (existing) return existing;
 
-      ws.onerror = () => {
-        // let onclose handle reconnect
-      };
+  const conn: Conn = {
+    url,
+    ws: null,
+    subscribers: new Set(),
+    refCount: 0,
+    closing: false,
+    attempt: 0,
+    pingTimer: null,
+    reconnectTimer: null,
+  };
+  CONNS.set(url, conn);
+  return conn;
+}
 
-      ws.onclose = () => {
-        clearPing();
-        if (!alive || closingRef.current) return;
-        scheduleReconnect();
-      };
-    };
+function subscribe(url: string, fn: Subscriber) {
+  const conn = getOrCreateConn(url);
+  conn.subscribers.add(fn);
+  conn.refCount += 1;
 
-    connect();
+  connect(conn);
 
-    return () => {
-      alive = false;
-      closingRef.current = true;
-      if (reconnectTimerRef.current) window.clearTimeout(reconnectTimerRef.current);
-      if (pingTimerRef.current) window.clearInterval(pingTimerRef.current);
-      reconnectTimerRef.current = null;
-      pingTimerRef.current = null;
-      wsRef.current?.close(1000, "unmount");
-      wsRef.current = null;
-      closingRef.current = false;
-    };
-  }, [enabled, url, label]);
+  return () => {
+    conn.subscribers.delete(fn);
+    conn.refCount = Math.max(0, conn.refCount - 1);
+
+    if (conn.refCount === 0) {
+      closeConn(conn, 1000, "idle");
+      CONNS.delete(url);
+    }
+  };
+}
+
+// ---- invalidation de-dupe (avoid 3 components invalidating the same queries) ----
+const INVALIDATE_TIMERS = new Map<string, number>();
+
+function scheduleInvalidate(key: string, fn: () => void) {
+  if (INVALIDATE_TIMERS.has(key)) return;
+  const t = window.setTimeout(() => {
+    INVALIDATE_TIMERS.delete(key);
+    fn();
+  }, 80);
+  INVALIDATE_TIMERS.set(key, t);
+}
+
+function shouldIgnoreEventName(eventName: any) {
+  return eventName === "connected" || eventName === "pong" || eventName == null;
+}
+
+function invalidateTournamentRelated(qc: QueryClient, tid: number) {
+  qc.invalidateQueries({ queryKey: ["tournament", tid] });
+  qc.invalidateQueries({ queryKey: ["tournaments"] });
+  qc.invalidateQueries({ queryKey: ["tournaments", "live"] });
+
+  // Cup + future laurels/points (players stats)
+  qc.invalidateQueries({ queryKey: ["cup"] });
+  qc.invalidateQueries({ queryKey: ["stats", "players"] });
+}
+
+function invalidateAnyTournamentRelated(qc: QueryClient) {
+  qc.invalidateQueries({ queryKey: ["cup"] });
+  qc.invalidateQueries({ queryKey: ["tournaments"] });
+  qc.invalidateQueries({ queryKey: ["tournaments", "live"] });
+  qc.invalidateQueries({ queryKey: ["stats", "players"] });
 }
 
 export function useTournamentWS(tid: number | null) {
@@ -190,41 +247,30 @@ export function useTournamentWS(tid: number | null) {
     }
   })();
 
-  const invalidateTimerRef = useRef<number | null>(null);
-
-  useRobustWS(url, {
-    enabled: !!tid,
-    label: `tournament:${tid ?? "none"}`,
-    onMessage: (ev) => {
-      const data = typeof ev.data === "string" ? safeJsonParse(ev.data) : null;
-      const eventName = data?.event ?? null;
-
-      // Debounce invalidations
-      if (invalidateTimerRef.current) return;
-      invalidateTimerRef.current = window.setTimeout(() => {
-        invalidateTimerRef.current = null;
-        if (!tid) return;
-
-        // Tournament page/card data
-        qc.invalidateQueries({ queryKey: ["tournament", tid] });
-
-        // Lists that show status/live marker
-        qc.invalidateQueries({ queryKey: ["tournaments"] });
-        qc.invalidateQueries({ queryKey: ["tournaments", "live"] });
-
-        qc.invalidateQueries({ queryKey: ["cup"] });
-      }, 80);
-
-      void eventName;
-    },
-  });
+  const tidRef = useRef<number | null>(tid);
+  useEffect(() => {
+    tidRef.current = tid;
+  }, [tid]);
 
   useEffect(() => {
+    if (!tid || !url) return;
+
+    const unsub = subscribe(url, (ev) => {
+      const data = typeof ev.data === "string" ? safeJsonParse(ev.data) : null;
+      const eventName = data?.event ?? null;
+      if (shouldIgnoreEventName(eventName)) return;
+
+      scheduleInvalidate(`tournament:${tid}`, () => {
+        const id = tidRef.current;
+        if (!id) return;
+        invalidateTournamentRelated(qc, id);
+      });
+    });
+
     return () => {
-      if (invalidateTimerRef.current) window.clearTimeout(invalidateTimerRef.current);
-      invalidateTimerRef.current = null;
+      unsub();
     };
-  }, []);
+  }, [qc, tid, url]);
 }
 
 export function useAnyTournamentWS() {
@@ -238,31 +284,22 @@ export function useAnyTournamentWS() {
     }
   })();
 
-  const invalidateTimerRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (!url) return;
 
-  useRobustWS(url, {
-    enabled: true,
-    label: "tournaments:any",
-    onMessage: (ev) => {
+    const unsub = subscribe(url, (ev) => {
       const data = typeof ev.data === "string" ? safeJsonParse(ev.data) : null;
       const eventName = data?.event ?? null;
+      if (shouldIgnoreEventName(eventName)) return;
 
-      if (invalidateTimerRef.current) return;
-      invalidateTimerRef.current = window.setTimeout(() => {
-        invalidateTimerRef.current = null;
-        qc.invalidateQueries({ queryKey: ["cup"] });
-        qc.invalidateQueries({ queryKey: ["tournaments"] });
-        qc.invalidateQueries({ queryKey: ["tournaments", "live"] });
-      }, 80);
+      scheduleInvalidate("tournaments:any", () => {
+        invalidateAnyTournamentRelated(qc);
+      });
+    });
 
-      void eventName;
-    },
-  });
-
-  useEffect(() => {
     return () => {
-      if (invalidateTimerRef.current) window.clearTimeout(invalidateTimerRef.current);
-      invalidateTimerRef.current = null;
+      unsub();
     };
-  }, []);
+  }, [qc, url]);
 }
+

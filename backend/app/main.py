@@ -19,6 +19,7 @@ from .routers.matches import router as matches_router
 from .routers.clubs import router as clubs_router
 from .routers.players import router as players_router
 from .routers.cup import router as cup_router
+from .routers.stats import router as stats_router
 
 log = logging.getLogger(__name__)
 
@@ -58,6 +59,7 @@ def create_app(settings: Settings) -> FastAPI:
     app.include_router(clubs_router)
     app.include_router(players_router)
     app.include_router(cup_router)
+    app.include_router(stats_router)
 
     @app.websocket("/ws/tournaments/{tournament_id}")
     async def ws_tournament(ws: WebSocket, tournament_id: int) -> None:

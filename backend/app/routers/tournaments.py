@@ -694,13 +694,14 @@ async def second_leg(
 def stats(tournament_id: int, s: Session = Depends(get_session)):
     _tournament_or_404(s, tournament_id)
 
-    matches = s.exec(select(Match).where(Match.tournament_id == tournament_id).order_by(Match.order_index)).all()
-    for m in matches:
-        _ = m.sides
-        for side in m.sides:
-            _ = side.players
+    return compute_stats(s)
+    # matches = s.exec(select(Match).where(Match.tournament_id == tournament_id).order_by(Match.order_index)).all()
+    # for m in matches:
+    #     _ = m.sides
+    #     for side in m.sides:
+    #         _ = side.players
 
-    return compute_stats(matches)
+    # return compute_stats(matches)
 
 
 @router.delete("/{tournament_id}", dependencies=[Depends(require_admin)])

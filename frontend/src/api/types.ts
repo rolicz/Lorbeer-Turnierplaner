@@ -146,3 +146,42 @@ export type CupState = {
 
   history: CupHistoryEntry[];
 };
+
+export type StatsTournamentLite = {
+  id: number;
+  name: string;
+  date?: string | null;
+  players_count: number;
+};
+
+export type StatsPlayerRow = {
+  player_id: number;
+  display_name: string;
+
+  // overall
+  played: number;
+  wins: number;
+  draws: number;
+  losses: number;
+  gf: number;
+  ga: number;
+  gd: number;
+  pts: number;
+
+  // last N matches (points per match: 3/1/0)
+  lastN_pts: number[];
+  lastN_avg_pts: number;
+
+  // tournament_id -> position (1 = best). null if player did not participate.
+  positions_by_tournament: Record<number, number | null>;
+};
+
+export type StatsPlayersResponse = {
+  generated_at: string;
+  cup_owner_player_id: number | null;
+  tournaments: StatsTournamentLite[];
+  players: StatsPlayerRow[];
+  lastN: number;
+};
+
+

@@ -6,7 +6,7 @@ from typing import Optional
 from sqlmodel import Session, select
 
 from ..models import Match, Player, Tournament
-from ..stats import compute_player_standings, unique_winner_player_id
+from app.stats_core import compute_player_standings, unique_winner_player_id
 
 
 @dataclass(frozen=True)

@@ -30,7 +30,7 @@ export default function App() {
         <Route
           path="/players"
           element={
-            <RequireRole minRole="editor">
+            <RequireRole minRole="reader">
               <PlayersPage />
             </RequireRole>
           }
