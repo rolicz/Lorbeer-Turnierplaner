@@ -10,25 +10,26 @@ services:
       - "8001"
 
   frontend:
-    build: ./frontend
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
     expose:
       - "80"
 
   caddy:
-    image: caddy:2
+    image: caddy:2-alpine
     restart: unless-stopped
     ports:
       - "80:80"
       - "443:443"
+    depends_on:
+      - backend
+      - frontend
     volumes:
       - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
       - caddy_config:/config
-    depends_on:
-      - backend
-      - frontend
 
 volumes:
-  backend_data:
   caddy_data:
   caddy_config:
