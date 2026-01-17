@@ -1,9 +1,10 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import Card from "../ui/primitives/Card";
 import Input from "../ui/primitives/Input";
 import Button from "../ui/primitives/Button";
+import CollapsibleCard from "../ui/primitives/CollapsibleCard";
 
 import { useAuth } from "../auth/AuthContext";
 import { createPlayer, listPlayers, patchPlayer } from "../api/players.api";
@@ -39,8 +40,34 @@ function parseDateSafe(s?: string | null): number | null {
 }
 
 /**
+ * Determine current tournament grid column count matching:
+ * grid-cols-8 sm:grid-cols-10 lg:grid-cols-12
+ */
+function useTournamentCols() {
+  const [cols, setCols] = useState<number>(() => {
+    if (typeof window === "undefined") return 12;
+    const w = window.innerWidth;
+    if (w >= 1024) return 12; // lg
+    if (w >= 640) return 10; // sm
+    return 8; // base
+  });
+
+  useEffect(() => {
+    const onResize = () => {
+      const w = window.innerWidth;
+      const next = w >= 1024 ? 12 : w >= 640 ? 10 : 8;
+      setCols(next);
+    };
+    window.addEventListener("resize", onResize, { passive: true });
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+
+  return cols;
+}
+
+/**
  * Discrete "real gradient" buckets best->worst.
- * (Winner gets special styling.)
+ * Winner gets separate styling.
  */
 function posGradientClass(position: number, total: number) {
   if (total <= 1) return "border-zinc-800/70 bg-zinc-950/40 text-zinc-300";
@@ -131,9 +158,15 @@ function Scoreline({
   );
 }
 
-function GlobalTournamentLegend() {
+function InfoLegend({
+  showAllTournamentTiles,
+  setShowAllTournamentTiles,
+}: {
+  showAllTournamentTiles: boolean;
+  setShowAllTournamentTiles: (v: boolean) => void;
+}) {
   return (
-    <div className="mt-3 rounded-2xl border border-zinc-800 bg-zinc-950/20 px-3 py-3">
+    <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-3 text-[11px] text-zinc-600">
           <span className="inline-flex items-center gap-2">
@@ -171,6 +204,29 @@ function GlobalTournamentLegend() {
           </span>
         </div>
       </div>
+
+      {/* Global toggle for showing all tournament tiles */}
+      <div className="flex items-center justify-between gap-3 rounded-xl border border-zinc-800 bg-zinc-950/30 px-3 py-2">
+        <div className="min-w-0">
+          <div className="text-sm font-medium text-zinc-200">Tournament tiles</div>
+          <div className="text-[11px] text-zinc-600">Default shows the most recent row only (better overview).</div>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => setShowAllTournamentTiles(!showAllTournamentTiles)}
+          className={
+            "shrink-0 inline-flex items-center gap-2 rounded-xl border px-3 py-1.5 text-[11px] hover:bg-zinc-900/40 " +
+            (showAllTournamentTiles
+              ? "border-emerald-500/35 bg-emerald-500/10 text-emerald-200"
+              : "border-zinc-800 bg-zinc-950/30 text-zinc-200")
+          }
+          title={showAllTournamentTiles ? "Show only the most recent row for all players" : "Show all tournament tiles for all players"}
+        >
+          <i className={"fa-solid " + (showAllTournamentTiles ? "fa-layer-group" : "fa-clock")} aria-hidden="true" />
+          {showAllTournamentTiles ? "Show all" : "Most recent"}
+        </button>
+      </div>
     </div>
   );
 }
@@ -179,52 +235,49 @@ function TournamentPositionsGrid({
   tournamentsSorted,
   recencyByTournamentId,
   positionsByTournament,
-  cupOwnerId,
-  playerId,
+  expanded,
 }: {
   tournamentsSorted: StatsTournamentLite[];
   recencyByTournamentId: Map<number, number>; // 0..1 (old..new)
   positionsByTournament: Record<number, number | null>;
-  cupOwnerId: number | null;
-  playerId: number;
+  expanded: boolean;
 }) {
-  const showWreath = cupOwnerId != null && cupOwnerId === playerId;
+  const cols = useTournamentCols();
+
+  const total = tournamentsSorted.length;
+  const rowsNeeded = total > 0 ? Math.ceil(total / cols) : 0;
+  const hasOlder = rowsNeeded > 1;
+
+  // Always show most recent row by default unless globally expanded
+  const visible = useMemo(() => {
+    if (!hasOlder) return tournamentsSorted;
+    if (expanded) return tournamentsSorted;
+    return tournamentsSorted.slice(Math.max(0, total - cols));
+  }, [tournamentsSorted, expanded, hasOlder, total, cols]);
 
   return (
     <div className="relative w-full">
-      {showWreath && (
-        <div className="absolute -top-2 -right-2">
-          <span
-            className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-amber-500/40 bg-amber-500/10 text-amber-200 shadow-sm"
-            title="Current laurel owner"
-          >
-            <i className="fa-solid fa-crown text-[12px]" aria-hidden="true" />
-          </span>
-        </div>
-      )}
-
-      <div className="rounded-2xl border border-zinc-800 bg-zinc-950/15 p-2">
+      <div className="rounded-2xl border border-zinc-800 bg-zinc-950/30 p-2">
         <div className="grid grid-cols-8 gap-1 sm:grid-cols-10 lg:grid-cols-12">
-          {tournamentsSorted.length === 0 && (
+          {visible.length === 0 && (
             <div className="col-span-full rounded-xl border border-zinc-900 bg-zinc-950/30 px-3 py-2 text-xs text-zinc-600">
               No tournaments yet.
             </div>
           )}
 
-          {tournamentsSorted.map((t) => {
+          {visible.map((t) => {
             const pos = positionsByTournament?.[t.id] ?? null;
             const title = t.date ? `${t.name} · ${t.date}` : t.name;
 
             const w = recencyByTournamentId.get(t.id) ?? 0.5;
-            // Older slightly dimmer, newer brighter. Keep subtle to avoid “washed out”.
-            const opacity = 0.62 + 0.38 * w;
+            const opacity = 0.5 + 0.5 * w;
 
             if (pos == null) {
               return (
                 <div
                   key={t.id}
                   title={title + " · did not participate"}
-                  className="inline-flex h-9 items-center justify-center rounded-xl border border-zinc-900 bg-zinc-950/30 text-[11px] font-mono tabular-nums text-zinc-700"
+                  className="inline-flex h-9 items-center justify-center rounded-xl border border-zinc-500/70 bg-zinc-950/30 text-[11px] font-mono tabular-nums text-zinc-700"
                   style={{ opacity }}
                 >
                   —
@@ -232,7 +285,7 @@ function TournamentPositionsGrid({
               );
             }
 
-            const total = Number(t.players_count ?? 0) || Math.max(1, pos);
+            const totalPlayers = Number(t.players_count ?? 0) || Math.max(1, pos);
             const isWinner = pos === 1;
 
             const base =
@@ -241,10 +294,10 @@ function TournamentPositionsGrid({
 
             const cls = isWinner
               ? "border-emerald-500/70 bg-emerald-500/20 text-emerald-100 shadow-[0_0_0_1px_rgba(16,185,129,0.15)]"
-              : posGradientClass(pos, total);
+              : posGradientClass(pos, totalPlayers);
 
             return (
-              <div key={t.id} title={`${title} · position ${pos}/${total}`} className={base + " " + cls} style={{ opacity }}>
+              <div key={t.id} title={`${title} · position ${pos}/${totalPlayers}`} className={base + " " + cls} style={{ opacity }}>
                 <span>{pos}</span>
               </div>
             );
@@ -355,7 +408,6 @@ export default function PlayersPage() {
     return Math.max(1, d);
   }, [statsQ.data]);
 
-  // Sort tournaments by date (old -> new). If date is missing/unparseable, fall back to id order.
   const tournamentsSorted = useMemo(() => {
     const ts = tournaments.slice();
     ts.sort((a, b) => {
@@ -369,7 +421,6 @@ export default function PlayersPage() {
     return ts;
   }, [tournaments]);
 
-  // Recency weight per tournament id: 0 (old) .. 1 (new)
   const recencyByTournamentId = useMemo(() => {
     const m = new Map<number, number>();
     const n = tournamentsSorted.length;
@@ -377,9 +428,7 @@ export default function PlayersPage() {
       for (const t of tournamentsSorted) m.set(t.id, 1);
       return m;
     }
-    for (let i = 0; i < n; i++) {
-      m.set(tournamentsSorted[i].id, i / (n - 1));
-    }
+    for (let i = 0; i < n; i++) m.set(tournamentsSorted[i].id, i / (n - 1));
     return m;
   }, [tournamentsSorted]);
 
@@ -426,6 +475,30 @@ export default function PlayersPage() {
     return withStats.map((x, idx) => ({ ...x, rank: idx + 1 }));
   }, [playersQ.data, statsById, sortMode]);
 
+  // Collapsing: everything except "positions + name + points"
+  const [openByPlayerId, setOpenByPlayerId] = useState<Record<number, boolean>>({});
+
+  useEffect(() => {
+    const ids = new Set(rows.map((r) => r.p.id));
+    setOpenByPlayerId((prev) => {
+      const next: Record<number, boolean> = {};
+      for (const id of ids) next[id] = prev[id] ?? false;
+      return next;
+    });
+  }, [rows]);
+
+  const allCollapsed = useMemo(() => rows.length > 0 && rows.every((r) => !openByPlayerId[r.p.id]), [rows, openByPlayerId]);
+  const allExpanded = useMemo(() => rows.length > 0 && rows.every((r) => !!openByPlayerId[r.p.id]), [rows, openByPlayerId]);
+
+  const setAllOpen = (v: boolean) => {
+    const next: Record<number, boolean> = {};
+    for (const r of rows) next[r.p.id] = v;
+    setOpenByPlayerId(next);
+  };
+
+  // Global control: show all tournament tiles (instead of per-player)
+  const [showAllTournamentTiles, setShowAllTournamentTiles] = useState(false);
+
   return (
     <div className="space-y-4">
       <Card title={`Players${isAdmin ? " (Admin)" : ""}`}>
@@ -459,169 +532,253 @@ export default function PlayersPage() {
 
         {createMut.error && <div className="mt-2 text-sm text-red-400">{String(createMut.error)}</div>}
 
-        {/* sort control */}
-        <div className="mt-4 space-y-2">
+        {/* "Sort & primary metric" + stats status on same line */}
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
           <div className="text-xs text-zinc-500 inline-flex items-center gap-2">
             <i className="fa-solid fa-arrow-down-wide-short" aria-hidden="true" />
             Sort & primary metric
           </div>
 
-          <div className="flex overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-950/30">
-            <SortSegment
-              active={sortMode === "overall"}
-              onClick={() => setSortMode("overall")}
-              icon="fa-solid fa-trophy"
-              title="Overall points"
-              subtitle="Rank by total points"
-            />
-            <div className="w-px bg-zinc-800" />
-            <SortSegment
-              active={sortMode === "lastN"}
-              onClick={() => setSortMode("lastN")}
-              icon="fa-solid fa-chart-line"
-              title={`Last ${lastN} avg`}
-              subtitle="Rank by recent form"
-            />
-          </div>
-
-          <div className="flex items-center justify-between text-xs text-zinc-500">
-            <span className="inline-flex items-center gap-2">
-              {sortMode === "overall" ? (
-                <>
-                  <i className="fa-solid fa-trophy text-zinc-400" aria-hidden="true" />
-                  Showing: total points
-                </>
-              ) : (
-                <>
-                  <i className="fa-solid fa-chart-line text-zinc-400" aria-hidden="true" />
-                  Showing: last {lastN} average
-                </>
-              )}
-            </span>
-
-            <span className="inline-flex items-center gap-2">
-              {statsQ.isLoading ? (
-                <>
-                  <i className="fa-solid fa-circle-notch fa-spin" aria-hidden="true" />
-                  Stats: loading…
-                </>
-              ) : statsQ.error ? (
-                <>
-                  <i className="fa-solid fa-triangle-exclamation text-red-300" aria-hidden="true" />
-                  Stats: error
-                </>
-              ) : (
-                <>
-                  <i className="fa-regular fa-circle-check text-emerald-300" aria-hidden="true" />
-                  Stats: updated
-                </>
-              )}
-            </span>
+          <div className="text-xs text-zinc-500 inline-flex items-center gap-2">
+            {statsQ.isLoading ? (
+              <>
+                <i className="fa-solid fa-circle-notch fa-spin" aria-hidden="true" />
+                Stats: loading…
+              </>
+            ) : statsQ.error ? (
+              <>
+                <i className="fa-solid fa-triangle-exclamation text-red-300" aria-hidden="true" />
+                Stats: error
+              </>
+            ) : (
+              <>
+                <i className="fa-regular fa-circle-check text-emerald-300" aria-hidden="true" />
+                Stats: updated
+              </>
+            )}
           </div>
         </div>
 
-        {/* Global legend once */}
-        <GlobalTournamentLegend />
+        {/* sort control */}
+        <div className="mt-2 flex overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-950/30">
+          <SortSegment
+            active={sortMode === "overall"}
+            onClick={() => setSortMode("overall")}
+            icon="fa-solid fa-trophy"
+            title="Overall points"
+            subtitle="Rank by total points"
+          />
+          <div className="w-px bg-zinc-800" />
+          <SortSegment
+            active={sortMode === "lastN"}
+            onClick={() => setSortMode("lastN")}
+            icon="fa-solid fa-chart-line"
+            title={`Last ${lastN} avg`}
+            subtitle="Rank by recent form"
+          />
+        </div>
 
-        <div className="mt-5 space-y-3">
-          {playersQ.isLoading && <div className="text-zinc-400">Loading…</div>}
-          {playersQ.error && <div className="text-red-400 text-sm">{String(playersQ.error)}</div>}
+        {/* Legend + global tournament tile options */}
+        <div className="mt-3">
+          <CollapsibleCard
+            title={
+              <span className="inline-flex items-center gap-2">
+                <i className="fa-regular fa-circle-question text-zinc-400" aria-hidden="true" />
+                Tournament tiles & options
+              </span>
+            }
+            defaultOpen={false}
+            right={
+              <span className="text-xs text-zinc-500 inline-flex items-center gap-2">
+                <i className="fa-regular fa-flag" aria-hidden="true" />
+                legend
+              </span>
+            }
+          >
+            <InfoLegend showAllTournamentTiles={showAllTournamentTiles} setShowAllTournamentTiles={setShowAllTournamentTiles} />
+          </CollapsibleCard>
+        </div>
 
-          {rows.map(({ p, s, rank }) => {
-            const primary =
+        {/* Expand/collapse all + compact table header */}
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
+          <div className="text-xs text-zinc-500 inline-flex items-center gap-2">
+            <i className="fa-regular fa-list" aria-hidden="true" />
+            Players
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setAllOpen(true)}
+              className={
+                "inline-flex items-center gap-2 rounded-xl border px-3 py-1.5 text-[11px] hover:bg-zinc-900/40 " +
+                (allExpanded
+                  ? "border-emerald-500/35 bg-emerald-500/10 text-emerald-200"
+                  : "border-zinc-800 bg-zinc-950/30 text-zinc-200")
+              }
+              title="Expand all players"
+            >
+              <i className="fa-solid fa-angles-down" aria-hidden="true" />
+              Expand all
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setAllOpen(false)}
+              className={
+                "inline-flex items-center gap-2 rounded-xl border px-3 py-1.5 text-[11px] hover:bg-zinc-900/40 " +
+                (allCollapsed
+                  ? "border-emerald-500/35 bg-emerald-500/10 text-emerald-200"
+                  : "border-zinc-800 bg-zinc-950/30 text-zinc-200")
+              }
+              title="Collapse all players"
+            >
+              <i className="fa-solid fa-angles-up" aria-hidden="true" />
+              Collapse all
+            </button>
+          </div>
+        </div>
+
+        {/* Table-ish list */}
+        <div className="mt-2 overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-950/10">
+          {/* Header row */}
+          <div className="grid grid-cols-12 items-center gap-2 border-b border-zinc-800 bg-zinc-950/30 px-3 py-2 text-[11px] text-zinc-500">
+            <div className="col-span-7 inline-flex items-center gap-2">
+              <i className="fa-regular fa-user text-zinc-500" aria-hidden="true" />
+              Player
+            </div>
+            <div className="col-span-5 text-right inline-flex items-center justify-end gap-2">
+              <i className={sortMode === "overall" ? "fa-solid fa-trophy" : "fa-solid fa-chart-line"} aria-hidden="true" />
+              {sortMode === "overall" ? "Overall points" : `Last ${lastN} avg`}
+            </div>
+          </div>
+
+          {/* Rows */}
+          {playersQ.isLoading && <div className="px-3 py-3 text-zinc-400">Loading…</div>}
+          {playersQ.error && <div className="px-3 py-3 text-red-400 text-sm">{String(playersQ.error)}</div>}
+
+          {rows.map(({ p, s, rank }, idx) => {
+            const metric =
               sortMode === "overall"
-                ? { label: "Points", value: String(s.pts), suffix: "P", icon: "fa-solid fa-trophy" }
-                : { label: `Last ${lastN} avg`, value: fmtAvg(s.lastN_avg_pts), suffix: "P", icon: "fa-solid fa-chart-line" };
+                ? { icon: "fa-solid fa-trophy", label: "P", value: String(s.pts), tag: "" }
+                : { icon: "fa-solid fa-chart-line", label: "P", value: fmtAvg(s.lastN_avg_pts), tag: "" };
+
+            const rowOpen = !!openByPlayerId[p.id];
+            const toggleRow = () => setOpenByPlayerId((prev) => ({ ...prev, [p.id]: !rowOpen }));
+
+            const isCupOwner = cupOwnerId != null && cupOwnerId === p.id;
+
+            // More distinguishable zebra: subtle but visible
+            const zebra = idx % 2 === 0 ? "bg-zinc-950/10" : "bg-zinc-900/75";
 
             return (
-              <div
-                key={p.id}
-                className="rounded-2xl border border-zinc-800 bg-zinc-950/10 px-4 py-4 hover:bg-zinc-900/15"
-              >
-                {/* Header: aligned top, visually consistent */}
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <div className="flex items-baseline gap-2">
-                      <span className="inline-flex h-7 min-w-[2.75rem] items-center justify-center rounded-xl border border-zinc-800 bg-zinc-950/40 px-2 text-xs font-mono tabular-nums text-zinc-200">
-                        #{rank}
-                      </span>
-                      <div className="truncate text-lg font-semibold leading-tight text-zinc-100">{p.display_name}</div>
+              <div key={p.id} className={"border-b border-zinc-800 last:border-b-0 " + zebra}>
+                {/* Compact “table row”: rank | name (+crown) | points | dropdown */}
+                <div className="grid grid-cols-12 items-center gap-2 px-3 py-2.5">
+                  {/* Left: rank strip */}
+                  <div className="col-span-2">
+                    <span className="inline-flex h-10 w-full items-center justify-center rounded-xl border border-zinc-800 bg-zinc-950/40 px-2 text-medium font-bold tabular-nums text-zinc-200">
+                      #{rank}
+                    </span>
+                  </div>
+
+                  {/* Name */}
+                  <button
+                    type="button"
+                    onClick={toggleRow}
+                    className="col-span-6 min-w-0 text-left"
+                    title={rowOpen ? "Collapse player" : "Expand player"}
+                  >
+                    <div className="flex min-w-0 items-center gap-2">
+                      <span className="truncate text-xl font-semibold text-zinc-100">{p.display_name}</span>
+
+                      {/* Crown next to name (same style as before) */}
+                      {isCupOwner && (
+                        <span
+                          className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-amber-500/40 bg-amber-500/10 text-amber-200 shadow-sm"
+                          title="Current laurel owner"
+                        >
+                          <i className="fa-solid fa-crown text-[14px]" aria-hidden="true" />
+                        </span>
+                      )}
                     </div>
-                    <div className="mt-1 text-xs text-zinc-500 inline-flex items-center gap-2">
-                      <i className="fa-regular fa-calendar text-zinc-500" aria-hidden="true" />
-                      positions (old → new)
+                  </button>
+
+                  {/* Points box */}
+                  <div className="col-span-3 flex items-center justify-end gap-2">
+                    <div className="inline-flex h-10 items-center gap-2 rounded-xl border border-zinc-800 bg-zinc-950/40 px-3">
+                      <i className={metric.icon + " text-zinc-300 text-xs"} aria-hidden="true" />
+                      <span className="font-medium font-mono leading-none text-zinc-100">{metric.value}</span>
+                      <span className="text-xs font-medium text-zinc-500">{metric.label}</span>
                     </div>
                   </div>
 
-                  {/* Metric box: align to top, not “floating” */}
-                  <div className="self-start rounded-2xl border border-zinc-800 bg-zinc-950/40 px-3 py-2 text-right">
-                    <div className="text-[10px] leading-tight text-zinc-500 inline-flex items-center justify-end gap-2">
-                      <i className={primary.icon + " text-zinc-400"} aria-hidden="true" />
-                      <span>{primary.label}</span>
-                    </div>
-                    <div className="mt-1 text-2xl font-bold leading-none text-zinc-100">
-                      {primary.value}
-                      <span className="ml-1 text-xs font-medium text-zinc-500">{primary.suffix}</span>
-                    </div>
-                  </div>
+                  {/* Bigger dropdown (no overlay anywhere) */}
+                  <button
+                    type="button"
+                    onClick={toggleRow}
+                    className="col-span-1 inline-flex h-10 w-full items-center justify-center rounded-xl border border-zinc-800 bg-zinc-950/30 text-zinc-200 hover:bg-zinc-900/40"
+                    title={rowOpen ? "Collapse" : "Expand"}
+                  >
+                    <i className={"fa-solid " + (rowOpen ? "fa-chevron-up" : "fa-chevron-down")} aria-hidden="true" />
+                  </button>
                 </div>
 
-                {/* Tournament grid full width + recency */}
-                <div className="mt-3">
-                  <TournamentPositionsGrid
-                    tournamentsSorted={tournamentsSorted}
-                    recencyByTournamentId={recencyByTournamentId}
-                    positionsByTournament={s.positions_by_tournament ?? {}}
-                    cupOwnerId={cupOwnerId}
-                    playerId={p.id}
-                  />
-                </div>
+                {/* Collapsible details */}
+                {rowOpen && (
+                  <div className="px-3 pb-3">
+                    <TournamentPositionsGrid
+                      tournamentsSorted={tournamentsSorted}
+                      recencyByTournamentId={recencyByTournamentId}
+                      positionsByTournament={s.positions_by_tournament ?? {}}
+                      expanded={showAllTournamentTiles}
+                    />
 
-                {/* Stats */}
-                <Scoreline
-                  played={s.played}
-                  wins={s.wins}
-                  draws={s.draws}
-                  losses={s.losses}
-                  gf={s.gf}
-                  ga={s.ga}
-                  gd={s.gd}
-                />
+                    <Scoreline
+                      played={s.played}
+                      wins={s.wins}
+                      draws={s.draws}
+                      losses={s.losses}
+                      gf={s.gf}
+                      ga={s.ga}
+                      gd={s.gd}
+                    />
 
-                {/* Admin */}
-                {showControls && (
-                  <div className="mt-3 flex flex-wrap items-end gap-2">
-                    <Button
-                      variant="ghost"
-                      onClick={() => {
-                        setEditId(p.id);
-                        setEditName(p.display_name);
-                      }}
-                      type="button"
-                      title="Edit player"
-                    >
-                      <i className="fa fa-edit md:hidden" aria-hidden="true" />
-                      <span className="hidden md:inline">Edit</span>
-                    </Button>
-                  </div>
-                )}
+                    {showControls && (
+                      <div className="mt-3 flex flex-wrap items-end gap-2">
+                        <Button
+                          variant="ghost"
+                          onClick={() => {
+                            setEditId(p.id);
+                            setEditName(p.display_name);
+                          }}
+                          type="button"
+                          title="Edit player"
+                        >
+                          <i className="fa fa-edit md:hidden" aria-hidden="true" />
+                          <span className="hidden md:inline">Edit</span>
+                        </Button>
+                      </div>
+                    )}
 
-                {editId === p.id && (
-                  <div className="mt-3 flex flex-wrap items-end gap-2">
-                    <Input label="New name" value={editName} onChange={(e) => setEditName(e.target.value)} />
-                    <Button onClick={() => patchMut.mutate()} disabled={patchMut.isPending} type="button">
-                      {patchMut.isPending ? "Saving…" : "Save"}
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      onClick={() => {
-                        setEditId(null);
-                        setEditName("");
-                      }}
-                      type="button"
-                    >
-                      Cancel
-                    </Button>
+                    {editId === p.id && (
+                      <div className="mt-3 flex flex-wrap items-end gap-2">
+                        <Input label="New name" value={editName} onChange={(e) => setEditName(e.target.value)} />
+                        <Button onClick={() => patchMut.mutate()} disabled={patchMut.isPending} type="button">
+                          {patchMut.isPending ? "Saving…" : "Save"}
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          onClick={() => {
+                            setEditId(null);
+                            setEditName("");
+                          }}
+                          type="button"
+                        >
+                          Cancel
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
