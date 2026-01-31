@@ -65,11 +65,23 @@ def generate(client: TestClient, editor_headers: dict, tournament_id: int, rando
     assert r.status_code == 200, r.text
     return r.json()
 
+def create_league(client: TestClient, admin_headers: dict, name: str) -> int:
+    r = client.post("/clubs/leagues", json={"name": name}, headers=admin_headers)
+    assert r.status_code == 200, r.text
+    return r.json()["id"]
 
-def create_club(client: TestClient, editor_headers: dict, name: str, game: str, star_rating: float) -> int:
+
+def create_club(
+    client: TestClient,
+    editor_headers: dict,
+    name: str,
+    game: str,
+    star_rating: float,
+    league_id: int,
+) -> int:
     r = client.post(
         "/clubs",
-        json={"name": name, "game": game, "star_rating": star_rating},
+        json={"name": name, "game": game, "star_rating": star_rating, "league_id": league_id},
         headers=editor_headers,
     )
     assert r.status_code == 200, r.text
