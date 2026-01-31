@@ -189,86 +189,78 @@ export default function ClubsPage() {
   const grouped = useMemo(() => groupByStars(filteredClubs, leaguesById), [filteredClubs, leaguesById]);
 
   return (
-    <div className="space-y-4">
-      <Card title="Clubs (Teams)">
-        {/* Create */}
-        <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-4">
-          <div className="mb-3 text-base font-semibold">Create club</div>
+    <div className="page">
+      <Card title="Clubs (Teams)" variant="plain" className="space-y-3">
+        <CollapsibleCard title="Create club" defaultOpen={false}>
+          <div className="space-y-2">
+            <div className="grid gap-2 md:grid-cols-4">
+              <Input label="Game" value={game} onChange={(e) => setGame(e.target.value)} />
 
-          <div className="grid gap-3 md:grid-cols-4">
-            <Input label="Game" value={game} onChange={(e) => setGame(e.target.value)} />
+              <Input
+                label="Club name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="e.g. SV Phönix Hönigsberg"
+              />
 
-            <Input
-              label="Club name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. SV Phönix Hönigsberg"
-            />
+              <label className="block">
+                <div className="input-label">Stars (0.5–5.0)</div>
+                <select className="input-field" value={stars} onChange={(e) => setStars(e.target.value)}>
+                  {starValues().map((v) => (
+                    <option key={v} value={String(v)}>
+                      {starsLabel(v)}★
+                    </option>
+                  ))}
+                </select>
+              </label>
 
-            <label className="block">
-              <div className="mb-1 text-xs text-zinc-400">Stars (0.5–5.0)</div>
-              <select
-                className="w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-600"
-                value={stars}
-                onChange={(e) => setStars(e.target.value)}
+              <label className="block">
+                <div className="input-label">League</div>
+                <select
+                  className="input-field"
+                  value={effectiveCreateLeagueId}
+                  onChange={(e) => setLeagueId(e.target.value ? Number(e.target.value) : "")}
+                >
+                  {!leagues.length && <option value="">(no leagues loaded)</option>}
+                  {leagues.map((l) => (
+                    <option key={l.id} value={String(l.id)}>
+                      {l.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+
+            {createMut.error && <div className="text-sm text-red-400">{String(createMut.error)}</div>}
+
+            <div className="flex flex-wrap gap-2 pt-1">
+              <Button
+                onClick={() => createMut.mutate()}
+                disabled={!canEdit || !name.trim() || !game.trim() || effectiveCreateLeagueId === "" || createMut.isPending}
               >
-                {starValues().map((v) => (
-                  <option key={v} value={String(v)}>
-                    {starsLabel(v)}★
-                  </option>
-                ))}
-              </select>
-            </label>
+                {createMut.isPending ? "Creating…" : "Create"}
+              </Button>
 
-            <label className="block">
-              <div className="mb-1 text-xs text-zinc-400">League</div>
-              <select
-                className="w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-600"
-                value={effectiveCreateLeagueId}
-                onChange={(e) => setLeagueId(e.target.value ? Number(e.target.value) : "")}
-              >
-                {!leagues.length && <option value="">(no leagues loaded)</option>}
-                {leagues.map((l) => (
-                  <option key={l.id} value={String(l.id)}>
-                    {l.name}
-                  </option>
-                ))}
-              </select>
-            </label>
+              <Button variant="ghost" onClick={() => qc.invalidateQueries({ queryKey: ["clubs", game] })}>
+                Refresh
+              </Button>
+
+              {!canEdit && (
+                <div className="self-center text-sm text-zinc-500">Login as editor/admin to create clubs.</div>
+              )}
+            </div>
           </div>
+        </CollapsibleCard>
 
-          {createMut.error && <div className="mt-2 text-sm text-red-400">{String(createMut.error)}</div>}
-
-          <div className="mt-3 flex flex-wrap gap-2">
-            <Button
-              onClick={() => createMut.mutate()}
-              disabled={!canEdit || !name.trim() || !game.trim() || effectiveCreateLeagueId === "" || createMut.isPending}
-            >
-              {createMut.isPending ? "Creating…" : "Create"}
-            </Button>
-
-            <Button variant="ghost" onClick={() => qc.invalidateQueries({ queryKey: ["clubs", game] })}>
-              Refresh
-            </Button>
-
-            {!canEdit && (
-              <div className="self-center text-sm text-zinc-500">Login as editor/admin to create clubs.</div>
-            )}
-          </div>
-        </div>
-
-        {/* Filters */}
-        <div className="mt-4 rounded-2xl border border-zinc-800 bg-zinc-950 p-4">
-          <div className="mb-3 text-base font-semibold">Browse & filter</div>
-
-          <div className="grid gap-3 md:grid-cols-4">
+        <CollapsibleCard
+          title="Browse & filter"
+          defaultOpen={true}
+          right={<span className="text-xs text-zinc-500">{filteredClubs.length} clubs</span>}
+        >
+          <div className="grid gap-2 md:grid-cols-4">
             <label className="block">
-              <div className="mb-1 text-xs text-zinc-400">Filter stars</div>
-              <select
-                className="w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-600"
-                value={filterStars}
-                onChange={(e) => setFilterStars(e.target.value)}
-              >
+              <div className="input-label">Filter stars</div>
+              <select className="input-field" value={filterStars} onChange={(e) => setFilterStars(e.target.value)}>
                 <option value="">Any</option>
                 {starValues().map((v) => {
                   const s = starsLabel(v);
@@ -282,9 +274,9 @@ export default function ClubsPage() {
             </label>
 
             <label className="block">
-              <div className="mb-1 text-xs text-zinc-400">Filter league</div>
+              <div className="input-label">Filter league</div>
               <select
-                className="w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-600"
+                className="input-field"
                 value={filterLeagueId === "" ? "" : String(filterLeagueId)}
                 onChange={(e) => setFilterLeagueId(e.target.value ? Number(e.target.value) : "")}
               >
@@ -313,139 +305,143 @@ export default function ClubsPage() {
               </Button>
             </div>
           </div>
-
-          <div className="mt-3 text-sm text-zinc-500">
-            Showing <span className="text-zinc-200">{filteredClubs.length}</span> clubs.
-          </div>
-        </div>
+        </CollapsibleCard>
 
         {/* List */}
-        <div className="mt-5 space-y-3">
+        <div className="space-y-2">
           {clubsQ.isLoading && <div className="text-zinc-400">Loading…</div>}
           {clubsQ.error && <div className="text-red-400 text-sm">{String(clubsQ.error)}</div>}
 
           {!clubsQ.isLoading && grouped.length === 0 && (
-            <div className="rounded-xl border border-zinc-800 bg-zinc-900/10 px-4 py-3 text-sm text-zinc-400">
+            <div className="panel-subtle px-3 py-2 text-sm text-zinc-400">
               No clubs match the current filters.
             </div>
           )}
 
           {grouped.map(([label, clubsInGroup]) => (
-            <div key={label} className="space-y-2">
-              {clubsInGroup.map((c) => {
-                const ln = leagueNameForClub(c, leaguesById);
-                const isEditing = editId === c.id;
-                const cid = (c as any).league_id as number | undefined;
+            <CollapsibleCard
+              key={label}
+              title={
+                <span className="inline-flex items-center gap-2">
+                  <span className="font-semibold">{label}</span>
+                  <span className="text-xs text-zinc-500">stars</span>
+                </span>
+              }
+              right={<span className="text-xs text-zinc-500">{clubsInGroup.length} clubs</span>}
+              defaultOpen={true}
+            >
+              <div className="space-y-2">
+                {clubsInGroup.map((c) => {
+                  const ln = leagueNameForClub(c, leaguesById);
+                  const isEditing = editId === c.id;
+                  const cid = (c as any).league_id as number | undefined;
 
-                return (
-                  <div key={c.id} className="rounded-xl border border-zinc-800 px-4 py-3 hover:bg-zinc-900/20">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <div className="truncate font-medium">{c.name}</div>
-                        <div className="mt-1 flex flex-wrap items-center gap-2 text-xs">
-                          <span className="rounded-full border border-zinc-800 bg-zinc-950/60 px-2 py-0.5 text-zinc-300">
-                            {c.game}
-                          </span>
-                          <span className="rounded-full border border-zinc-800 bg-zinc-950/60 px-2 py-0.5 text-zinc-300">
-                            {ln}
-                          </span>
-                          <span className="rounded-full border border-zinc-800 bg-zinc-950/60 px-2 py-0.5 text-zinc-300">
-                            {starsLabel(c.star_rating)}★
-                          </span>
+                  return (
+                    <div key={c.id} className="panel px-3 py-2 hover:bg-zinc-900/30">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="truncate font-medium">{c.name}</div>
+                          <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px]">
+                            <span className="rounded-full border border-zinc-800 bg-zinc-950/60 px-2 py-0.5 text-zinc-300">
+                              {c.game}
+                            </span>
+                            <span className="rounded-full border border-zinc-800 bg-zinc-950/60 px-2 py-0.5 text-zinc-300">
+                              {ln}
+                            </span>
+                            <span className="rounded-full border border-zinc-800 bg-zinc-950/60 px-2 py-0.5 text-zinc-300">
+                              {starsLabel(c.star_rating)}★
+                            </span>
+                          </div>
                         </div>
-                      </div>
 
-                      <div className="flex shrink-0 items-center gap-2">
-                        {canEdit && (
-                          <Button
-                            variant="ghost"
-                            onClick={() => {
-                              setEditId(c.id);
-                              setEditStars(String(c.star_rating ?? 3.0));
-                              setEditLeagueId(typeof cid === "number" ? cid : leagues[0]?.id ?? "");
-                              setEditName(c.name);
-                            }}
-                            type="button"
-                          >
-                            Edit
-                          </Button>
-                        )}
-
-                        {isAdmin && (
-                          <Button
-                            variant="ghost"
-                            onClick={() => {
-                              const ok = window.confirm(`Delete club "${c.name}"? (Will fail if used in matches)`);
-                              if (!ok) return;
-                              deleteMut.mutate(c.id);
-                            }}
-                            disabled={deleteMut.isPending}
-                            type="button"
-                          >
-                            Delete
-                          </Button>
-                        )}
-                      </div>
-                    </div>
-
-                    {isEditing && (
-                      <div className="mt-3 rounded-xl border border-zinc-800 bg-zinc-950 p-3">
-                        <div className="grid gap-3 md:grid-cols-3">
-                          {isAdmin ? (
-                            <Input label="Name (admin)" value={editName} onChange={(e) => setEditName(e.target.value)} />
-                          ) : (
-                            <div className="text-sm text-zinc-500 self-end">Name can only be changed by admin.</div>
+                        <div className="flex shrink-0 items-center gap-2">
+                          {canEdit && (
+                            <Button
+                              variant="ghost"
+                              onClick={() => {
+                                setEditId(c.id);
+                                setEditStars(String(c.star_rating ?? 3.0));
+                                setEditLeagueId(typeof cid === "number" ? cid : leagues[0]?.id ?? "");
+                                setEditName(c.name);
+                              }}
+                              type="button"
+                            >
+                              Edit
+                            </Button>
                           )}
 
-                          <label className="block">
-                            <div className="mb-1 text-xs text-zinc-400">Stars</div>
-                            <select
-                              className="w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-600"
-                              value={editStars}
-                              onChange={(e) => setEditStars(e.target.value)}
+                          {isAdmin && (
+                            <Button
+                              variant="ghost"
+                              onClick={() => {
+                                const ok = window.confirm(`Delete club "${c.name}"? (Will fail if used in matches)`);
+                                if (!ok) return;
+                                deleteMut.mutate(c.id);
+                              }}
+                              disabled={deleteMut.isPending}
+                              type="button"
                             >
-                              {starValues().map((v) => (
-                                <option key={v} value={String(v)}>
-                                  {starsLabel(v)}★
-                                </option>
-                              ))}
-                            </select>
-                          </label>
-
-                          <label className="block">
-                            <div className="mb-1 text-xs text-zinc-400">League</div>
-                            <select
-                              className="w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-600"
-                              value={editLeagueId === "" ? "" : String(editLeagueId)}
-                              onChange={(e) => setEditLeagueId(e.target.value ? Number(e.target.value) : "")}
-                            >
-                              {!leagues.length && <option value="">(no leagues loaded)</option>}
-                              {leagues.map((l) => (
-                                <option key={l.id} value={String(l.id)}>
-                                  {l.name}
-                                </option>
-                              ))}
-                            </select>
-                          </label>
-                        </div>
-
-                        {patchMut.error && <div className="mt-2 text-sm text-red-400">{String(patchMut.error)}</div>}
-                        {deleteMut.error && <div className="mt-2 text-sm text-red-400">{String(deleteMut.error)}</div>}
-
-                        <div className="mt-3 flex items-center gap-2">
-                          <Button onClick={() => patchMut.mutate()} disabled={patchMut.isPending}>
-                            {patchMut.isPending ? "Saving…" : "Save"}
-                          </Button>
-                          <Button variant="ghost" onClick={() => setEditId(null)} type="button">
-                            Cancel
-                          </Button>
+                              Delete
+                            </Button>
+                          )}
                         </div>
                       </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
+
+                      {isEditing && (
+                        <div className="panel-subtle mt-2 p-2">
+                          <div className="grid gap-2 md:grid-cols-3">
+                            {isAdmin ? (
+                              <Input label="Name (admin)" value={editName} onChange={(e) => setEditName(e.target.value)} />
+                            ) : (
+                              <div className="text-sm text-zinc-500 self-end">Name can only be changed by admin.</div>
+                            )}
+
+                            <label className="block">
+                              <div className="input-label">Stars</div>
+                              <select className="input-field" value={editStars} onChange={(e) => setEditStars(e.target.value)}>
+                                {starValues().map((v) => (
+                                  <option key={v} value={String(v)}>
+                                    {starsLabel(v)}★
+                                  </option>
+                                ))}
+                              </select>
+                            </label>
+
+                            <label className="block">
+                              <div className="input-label">League</div>
+                              <select
+                                className="input-field"
+                                value={editLeagueId === "" ? "" : String(editLeagueId)}
+                                onChange={(e) => setEditLeagueId(e.target.value ? Number(e.target.value) : "")}
+                              >
+                                {!leagues.length && <option value="">(no leagues loaded)</option>}
+                                {leagues.map((l) => (
+                                  <option key={l.id} value={String(l.id)}>
+                                    {l.name}
+                                  </option>
+                                ))}
+                              </select>
+                            </label>
+                          </div>
+
+                          {patchMut.error && <div className="mt-2 text-sm text-red-400">{String(patchMut.error)}</div>}
+                          {deleteMut.error && <div className="mt-2 text-sm text-red-400">{String(deleteMut.error)}</div>}
+
+                          <div className="mt-2 flex items-center gap-2">
+                            <Button onClick={() => patchMut.mutate()} disabled={patchMut.isPending}>
+                              {patchMut.isPending ? "Saving…" : "Save"}
+                            </Button>
+                            <Button variant="ghost" onClick={() => setEditId(null)} type="button">
+                              Cancel
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </CollapsibleCard>
           ))}
         </div>
       </Card>

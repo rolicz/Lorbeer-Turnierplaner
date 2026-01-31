@@ -10,7 +10,7 @@ type ThemeName = string;
 
 const THEME_OPTIONS: { value: ThemeName; label: string }[] = THEMES.map((t) => ({
   value: t,
-  label: t === "ibm" ? "IBM" : t.charAt(0).toUpperCase() + t.slice(1),
+  label: t.charAt(0).toUpperCase() + t.slice(1),
 }));
 
 export default function Layout({ children }: { children: React.ReactNode }) {
@@ -18,12 +18,12 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const loc = useLocation();
   useAnyTournamentWS();
   const [theme, setTheme] = useState<ThemeName>(() => {
-    const stored = localStorage.getItem("theme") as ThemeName | null;
+    const storedRaw = localStorage.getItem("theme") as ThemeName | null;
+    const stored = storedRaw === "ibm" ? "blue" : storedRaw;
     if (stored && THEME_OPTIONS.some((t) => t.value === stored)) {
       return stored;
     }
-    const prefersLight = window.matchMedia?.("(prefers-color-scheme: light)").matches;
-    return prefersLight ? "light" : "dark";
+    return "blue";
   });
 
   useEffect(() => {
@@ -53,7 +53,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           pr-[env(safe-area-inset-right,0px)]
         "
       >
-        <div className="mx-auto max-w-5xl px-4 py-2 sm:py-3">
+        <div className="mx-auto max-w-6xl xl:max-w-7xl page-x py-2 sm:py-3">
           {/* Row 1: title + role + auth */}
           <div className="flex items-center justify-between gap-2">
             <div className="flex min-w-0 items-center gap-2">
@@ -98,7 +98,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           </div>
 
           {/* Row 2: nav (always visible, scrollable on mobile) */}
-          <nav className="-mx-3 mt-2 overflow-x-auto px-3 pb-1 sm:mx-0 sm:mt-3 sm:overflow-visible sm:px-0 sm:pb-0">
+          <nav className="page-x-bleed mt-2 overflow-x-auto pb-1 sm:mt-3 sm:overflow-visible sm:pb-0">
             <div className="flex min-w-max items-center gap-1">
               {visible.map((n) => {
                 const active = loc.pathname.startsWith(n.to);
@@ -123,7 +123,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       <div className="pt-[calc(env(safe-area-inset-top,0px)+104px)] sm:pt-[calc(env(safe-area-inset-top,0px)+120px)]">
         <main
           className="
-            mx-auto max-w-5xl px-3 py-4 sm:px-4 sm:py-6
+            mx-auto max-w-6xl xl:max-w-7xl page-x py-4 sm:py-6
             pb-[calc(env(safe-area-inset-bottom,0px)+1rem)]
           "
         >

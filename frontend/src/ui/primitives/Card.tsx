@@ -11,11 +11,8 @@ export default function Card({
   variant?: "card" | "plain";
   className?: string;
 }) {
-  const base = "p-4";
-  const chrome =
-    variant === "card"
-      ? "surface-card shadow-sm"
-      : "";
+  const base = variant === "card" ? "p-4" : "";
+  const chrome = variant === "card" ? "surface-card shadow-sm" : "";
 
   return (
     <section className={`${base} ${chrome} ${className}`}>

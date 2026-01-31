@@ -104,8 +104,8 @@ function posMap(rows: Row[]): Map<number, number> {
 function Arrow({ delta }: { delta: number | null }) {
   // delta = basePos - livePos (positive => moved up)
   if (delta === null) return <span className="text-zinc-500">–</span>;
-  if (delta > 0) return <span className="text-emerald-400 font-semibold">▲</span>;
-  if (delta < 0) return <span className="text-red-400 font-semibold">▼</span>;
+  if (delta > 0) return <span className="delta-up font-semibold">▲</span>;
+  if (delta < 0) return <span className="delta-down font-semibold">▼</span>;
   return <span className="text-zinc-500">–</span>;
 }
 

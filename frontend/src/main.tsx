@@ -7,14 +7,13 @@ import App from "./app/App";
 import { THEMES } from "./themes";
 import "./styles.css";
 
-const storedTheme = localStorage.getItem("theme");
+let storedTheme = localStorage.getItem("theme");
 const knownThemes = new Set(THEMES);
-if (storedTheme && knownThemes.has(storedTheme)) {
-  document.documentElement.dataset.theme = storedTheme;
-} else if (window.matchMedia?.("(prefers-color-scheme: light)").matches) {
-  document.documentElement.dataset.theme = "light";
-} else {
-  document.documentElement.dataset.theme = "dark";
+if (storedTheme === "ibm") storedTheme = "blue";
+const resolvedTheme = storedTheme && knownThemes.has(storedTheme) ? storedTheme : "blue";
+document.documentElement.dataset.theme = resolvedTheme;
+if (storedTheme !== resolvedTheme) {
+  localStorage.setItem("theme", resolvedTheme);
 }
 
 const qc = new QueryClient({

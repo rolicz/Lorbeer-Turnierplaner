@@ -8,6 +8,12 @@
     --status-live: 20 184 166; /* teal-500 */
     --status-draft: 14 165 233; /* sky-500 */
     --status-done: 113 113 122; /* zinc-500 */
+    /* Shared UI accents (fixed across themes) */
+    --delta-up: 20 184 166; /* teal-500 */
+    --delta-down: 244 63 94; /* rose-500 */
+    --live-indicator: 239 68 68; /* red-500 */
+    /* Global page padding (tweak here for all pages) */
+    --page-pad-x: 16px;
   }
 
   body {
@@ -15,15 +21,27 @@
   }
 }
 
+@media (min-width: 640px) {
+  :root {
+    --page-pad-x: 20px;
+  }
+}
+
+@media (min-width: 1024px) {
+  :root {
+    --page-pad-x: 24px;
+  }
+}
+
 .accent { color: rgb(var(--accent)); }
 
 @layer components {
-  .surface-card { @apply rounded-2xl border border-zinc-800 bg-zinc-950; }
-  .surface-panel { @apply rounded-xl border border-zinc-800 bg-zinc-950; }
+  .surface-card { @apply rounded-2xl border-2 border-zinc-800 bg-zinc-950; }
+  .surface-panel { @apply rounded-xl border-2 border-zinc-800 bg-zinc-950; }
   .surface-muted { @apply bg-zinc-950/60; }
 
-  .modal-shell { @apply rounded-2xl border border-zinc-800 bg-zinc-950 p-4 shadow-xl; }
-  .sheet-shell { @apply border border-zinc-800 bg-zinc-950 p-4 shadow-xl; }
+  .modal-shell { @apply rounded-2xl border-2 border-zinc-800 bg-zinc-950 p-4 shadow-xl; }
+  .sheet-shell { @apply border-2 border-zinc-800 bg-zinc-950 p-4 shadow-xl; }
   .overlay-scrim { @apply absolute inset-0 bg-black/60; }
   .icon-button { @apply rounded-lg px-2 py-1 text-sm text-zinc-400 hover:bg-zinc-900; }
 
@@ -34,6 +52,23 @@
   .btn-base { @apply rounded-xl px-4 py-2 text-sm font-medium transition border disabled:opacity-50 disabled:cursor-not-allowed; }
   .btn-solid { @apply bg-accent text-on-accent border-transparent hover:opacity-90; }
   .btn-ghost { @apply bg-transparent border-zinc-800 hover:bg-zinc-900/50; }
+
+  .page { @apply space-y-3; }
+  .page-x { padding-left: var(--page-pad-x); padding-right: var(--page-pad-x); }
+  .page-x-bleed {
+    margin-left: calc(var(--page-pad-x) * -1);
+    margin-right: calc(var(--page-pad-x) * -1);
+    padding-left: var(--page-pad-x);
+    padding-right: var(--page-pad-x);
+  }
+
+  .panel { @apply rounded-xl border-2 border-zinc-800 bg-zinc-950/30; }
+  .panel-subtle { @apply rounded-xl border-2 border-zinc-800 bg-zinc-950/10; }
+
+  .delta-up { color: rgb(var(--delta-up)); }
+  .delta-down { color: rgb(var(--delta-down)); }
+  .live-dot { background-color: rgb(var(--live-indicator)); }
+  .live-ping { background-color: rgb(var(--live-indicator)); }
 }
 
 * { -webkit-tap-highlight-color: transparent; }

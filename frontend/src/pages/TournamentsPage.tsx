@@ -84,8 +84,8 @@ export default function TournamentsPage() {
   });
 
   return (
-    <div className="space-y-4">
-      <Card title="Tournaments" variant="plain">
+    <div className="page">
+      <Card title="Tournaments" variant="plain" className="space-y-3">
         <div className="flex items-center justify-between gap-2">
           <div className="text-sm text-zinc-400">Active + past tournaments.</div>
           <div className="flex items-center gap-2">
@@ -100,7 +100,7 @@ export default function TournamentsPage() {
           </div>
         </div>
 
-        <div className="mt-4 space-y-2">
+        <div className="mt-3 space-y-2">
           {tournamentsQ.isLoading && <div className="text-zinc-400">Loading…</div>}
           {tournamentsQ.error && <div className="text-red-400 text-sm">{String(tournamentsQ.error)}</div>}
 

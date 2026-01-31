@@ -207,7 +207,7 @@ function InfoLegend({
       </div>
 
       {/* Global toggle for showing all tournament tiles */}
-      <div className="flex items-center justify-between gap-3 rounded-xl border border-zinc-800 bg-zinc-950/30 px-3 py-2">
+      <div className="panel px-3 py-2">
         <div className="min-w-0">
           <div className="text-sm font-medium text-zinc-200">Tournament tiles</div>
           <div className="text-[11px] text-zinc-600">Default shows the most recent row only (better overview).</div>
@@ -217,7 +217,7 @@ function InfoLegend({
           type="button"
           onClick={() => setShowAllTournamentTiles(!showAllTournamentTiles)}
           className={
-            "shrink-0 inline-flex items-center gap-2 rounded-xl border px-3 py-1.5 text-[11px] hover:bg-zinc-900/40 " +
+            "shrink-0 inline-flex items-center gap-2 rounded-xl border-2 px-3 py-1.5 text-[11px] hover:bg-zinc-900/40 " +
             (showAllTournamentTiles
               ? "border-emerald-500/35 bg-emerald-500/10 text-emerald-200"
               : "border-zinc-800 bg-zinc-950/30 text-zinc-200")
@@ -258,10 +258,10 @@ function TournamentPositionsGrid({
 
   return (
     <div className="relative w-full">
-      <div className="rounded-2xl border border-zinc-800 bg-zinc-950/30 p-2">
+      <div className="panel rounded-2xl p-2">
         <div className="grid grid-cols-8 gap-1 sm:grid-cols-10 lg:grid-cols-12">
           {visible.length === 0 && (
-            <div className="col-span-full rounded-xl border border-zinc-900 bg-zinc-950/30 px-3 py-2 text-xs text-zinc-600">
+            <div className="col-span-full rounded-xl border-2 border-zinc-900 bg-zinc-950/30 px-3 py-2 text-xs text-zinc-600">
               No tournaments yet.
             </div>
           )}
@@ -339,13 +339,13 @@ function SortSegment({
       type="button"
       onClick={onClick}
       className={
-        "flex flex-1 items-center gap-3 px-3 py-2 text-left transition " +
+        "flex flex-1 items-center gap-3 px-3 py-1.5 text-left transition " +
         (active ? "bg-zinc-900/70" : "hover:bg-zinc-900/40")
       }
     >
       <span
         className={
-          "inline-flex h-8 w-8 items-center justify-center rounded-xl border " +
+          "inline-flex h-7 w-7 items-center justify-center rounded-xl border " +
           (active ? "border-zinc-700 bg-zinc-950/40" : "border-zinc-800 bg-zinc-950/20")
         }
       >
@@ -513,8 +513,8 @@ export default function PlayersPage() {
   const [showAllTournamentTiles, setShowAllTournamentTiles] = useState(false);
 
   return (
-    <div className="space-y-4">
-      <Card title={`Players${isAdmin ? " (Admin)" : ""}`}>
+    <div className="page">
+      <Card title={`Players${isAdmin ? " (Admin)" : ""}`} variant="plain" className="space-y-3">
         {showControls && (
           <div className="grid gap-3 md:grid-cols-3">
             <Input
@@ -546,7 +546,7 @@ export default function PlayersPage() {
         {createMut.error && <div className="mt-2 text-sm text-red-400">{String(createMut.error)}</div>}
 
         {/* "Sort & primary metric" + stats status on same line */}
-        <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
           <div className="text-xs text-zinc-500 inline-flex items-center gap-2">
             <i className="fa-solid fa-arrow-down-wide-short" aria-hidden="true" />
             Sort & primary metric
@@ -573,7 +573,7 @@ export default function PlayersPage() {
         </div>
 
         {/* sort control */}
-        <div className="mt-2 flex overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-950/30">
+        <div className="panel rounded-2xl mt-2 flex overflow-hidden">
           <SortSegment
             active={sortMode === "overall"}
             onClick={() => setSortMode("overall")}
@@ -592,7 +592,7 @@ export default function PlayersPage() {
         </div>
 
         {/* Legend + global tournament tile options */}
-        <div className="mt-3">
+        <div className="mt-2">
           <CollapsibleCard
             title={
               <span className="inline-flex items-center gap-2">
@@ -613,7 +613,7 @@ export default function PlayersPage() {
         </div>
 
         {/* Expand/collapse all + compact table header */}
-        <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
           <div className="text-xs text-zinc-500 inline-flex items-center gap-2">
             <i className="fa-regular fa-list" aria-hidden="true" />
             Players
@@ -624,7 +624,7 @@ export default function PlayersPage() {
               type="button"
               onClick={() => setAllOpen(true)}
               className={
-                "inline-flex items-center gap-2 rounded-xl border px-3 py-1.5 text-[11px] hover:bg-zinc-900/40 " +
+                "inline-flex items-center gap-2 rounded-xl border-2 px-3 py-1.5 text-[11px] hover:bg-zinc-900/40 " +
                 (allExpanded
                   ? "border-emerald-500/35 bg-emerald-500/10 text-emerald-200"
                   : "border-zinc-800 bg-zinc-950/30 text-zinc-200")
@@ -639,7 +639,7 @@ export default function PlayersPage() {
               type="button"
               onClick={() => setAllOpen(false)}
               className={
-                "inline-flex items-center gap-2 rounded-xl border px-3 py-1.5 text-[11px] hover:bg-zinc-900/40 " +
+                "inline-flex items-center gap-2 rounded-xl border-2 px-3 py-1.5 text-[11px] hover:bg-zinc-900/40 " +
                 (allCollapsed
                   ? "border-emerald-500/35 bg-emerald-500/10 text-emerald-200"
                   : "border-zinc-800 bg-zinc-950/30 text-zinc-200")
@@ -653,7 +653,7 @@ export default function PlayersPage() {
         </div>
 
         {/* Table-ish list */}
-        <div className="mt-2 overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-950/10">
+        <div className="panel-subtle rounded-2xl mt-2 overflow-hidden">
           {/* Header row */}
           <div className="grid grid-cols-12 items-center gap-2 border-b border-zinc-800 bg-zinc-950/30 px-3 py-2 text-[11px] text-zinc-500">
             <div className="col-span-7 inline-flex items-center gap-2">
@@ -687,10 +687,10 @@ export default function PlayersPage() {
             return (
               <div key={p.id} className={"border-b border-zinc-800 last:border-b-0 " + zebra}>
                 {/* Compact “table row”: rank | name (+crown) | points | dropdown */}
-                <div className="grid grid-cols-12 items-center gap-2 px-3 py-2.5">
+                <div className="grid grid-cols-12 items-center gap-2 px-3 py-2">
                   {/* Left: rank strip */}
                   <div className="col-span-2">
-                    <span className="inline-flex h-10 w-full items-center justify-center rounded-xl border border-zinc-800 bg-zinc-950/40 px-2 text-medium font-bold tabular-nums text-zinc-200">
+                    <span className="inline-flex h-9 w-full items-center justify-center rounded-xl border border-zinc-800 bg-zinc-950/40 px-2 text-medium font-bold tabular-nums text-zinc-200">
                       #{rank}
                     </span>
                   </div>
@@ -719,7 +719,7 @@ export default function PlayersPage() {
 
                   {/* Points box */}
                   <div className="col-span-3 flex items-center justify-end gap-2">
-                    <div className="inline-flex h-10 items-center gap-2 rounded-xl border border-zinc-800 bg-zinc-950/40 px-3">
+                    <div className="inline-flex h-9 items-center gap-2 rounded-xl border border-zinc-800 bg-zinc-950/40 px-3">
                       <i className={metric.icon + " text-zinc-300 text-xs"} aria-hidden="true" />
                       <span className="font-medium font-mono leading-none text-zinc-100">{metric.value}</span>
                       <span className="text-xs font-medium text-zinc-500">{metric.label}</span>
@@ -727,12 +727,12 @@ export default function PlayersPage() {
                   </div>
 
                   {/* Bigger dropdown (no overlay anywhere) */}
-                  <button
-                    type="button"
-                    onClick={toggleRow}
-                    className="col-span-1 inline-flex h-10 w-full items-center justify-center rounded-xl border border-zinc-800 bg-zinc-950/30 text-zinc-200 hover:bg-zinc-900/40"
-                    title={rowOpen ? "Collapse" : "Expand"}
-                  >
+                    <button
+                      type="button"
+                      onClick={toggleRow}
+                      className="col-span-1 inline-flex h-9 w-full items-center justify-center rounded-xl border border-zinc-800 bg-zinc-950/30 text-zinc-200 hover:bg-zinc-900/40"
+                      title={rowOpen ? "Collapse" : "Expand"}
+                    >
                     <i className={"fa-solid " + (rowOpen ? "fa-chevron-up" : "fa-chevron-down")} aria-hidden="true" />
                   </button>
                 </div>
@@ -799,7 +799,7 @@ export default function PlayersPage() {
           })}
         </div>
 
-        {patchMut.error && <div className="mt-3 text-sm text-red-400">{String(patchMut.error)}</div>}
+        {patchMut.error && <div className="mt-2 text-sm text-red-400">{String(patchMut.error)}</div>}
       </Card>
     </div>
   );

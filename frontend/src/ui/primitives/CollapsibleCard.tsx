@@ -17,7 +17,7 @@ export default function CollapsibleCard({
     <div className="surface-card">
       <button
         type="button"
-        className="flex w-full items-center justify-between gap-3 px-4 py-3"
+        className="flex w-full items-center justify-between gap-3 px-3 py-2.5"
         onClick={() => setOpen((v) => !v)}
       >
         <div className="min-w-0 text-left">
@@ -30,7 +30,7 @@ export default function CollapsibleCard({
         </div>
       </button>
 
-      {open && <div className="px-4 pb-4">{children}</div>}
+      {open && <div className="px-3 pb-3">{children}</div>}
     </div>
   );
 }

@@ -429,14 +429,14 @@ export default function LiveTournamentPage() {
 
   const [panelError, setPanelError] = useState<string | null>(null);
 
-  if (!tid) return <Card title="Tournament" variant="plain">Invalid tournament id</Card>;
+  if (!tid) return <Card title="Tournament" variant="plain" className="space-y-3">Invalid tournament id</Card>;
 
   const showControls = isEditorOrAdmin;
   const cardTitle = tQ.data?.name ? tQ.data.name : `Tournament #${tid}`;
 
   return (
-    <div className="space-y-4">
-      <Card title={cardTitle} variant="plain">
+    <div className="page">
+      <Card title={cardTitle} variant="plain" className="space-y-3">
         {tQ.isLoading && <div className="text-zinc-400">Loading…</div>}
         {tQ.error && <div className="text-red-400 text-sm">{String(tQ.error)}</div>}
 

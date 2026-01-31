@@ -132,8 +132,8 @@ export default function CurrentMatchPreviewCard() {
       title={
         <span className="inline-flex items-center gap-2">
           <span className="relative flex h-2 w-2">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-500 opacity-75" />
-            <span className="relative inline-flex h-2 w-2 rounded-full bg-red-500" />
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full live-ping opacity-75" />
+            <span className="relative inline-flex h-2 w-2 rounded-full live-dot" />
           </span>
           <span>Live now</span>
         </span>
@@ -143,7 +143,7 @@ export default function CurrentMatchPreviewCard() {
       <button
         type="button"
         onClick={() => nav(`/live/${tid}`)}
-        className="w-full rounded-2xl p-1 text-left transition hover:bg-zinc-900/30"
+        className="w-full rounded-xl p-0.5 text-left transition hover:bg-zinc-900/30"
       >
         {/* Top row: name */}
         <div className="grid grid-cols-1 items-center">
@@ -154,7 +154,7 @@ export default function CurrentMatchPreviewCard() {
           </div>
         </div>
 
-        <div className="mt-2 rounded-xl border border-zinc-800 bg-zinc-900/10 p-3">
+        <div className="mt-2 panel-subtle p-2 sm:p-3">
           {/* Row 1: leg/# left + match/mode pills right */}
           <div className="mt-1 flex items-center justify-between gap-3">
             <div className="text-[11px] sm:text-xs text-zinc-300">
