@@ -13,7 +13,7 @@ def create_token(request: Request, role: str) -> str:
 
     s = request.app.state.settings
     now = int(time.time())
-    payload = {"sub": "user", "role": role, "iat": now, "exp": now + 60 * 60 * 24 * 30}
+    payload = {"sub": "user", "role": role, "iat": now, "exp": now + 60 * 60 * 24 * 180}
     return jwt.encode(payload, s.jwt_secret, algorithm="HS256")
 
 def role_for_password(request: Request, pw: str) -> str | None:
@@ -35,6 +35,13 @@ def decode_token(
     s = request.app.state.settings
     try:
         return jwt.decode(creds.credentials, s.jwt_secret, algorithms=["HS256"])
+    except Exception:
+        return None
+
+
+def decode_token_string(jwt_secret: str, token: str) -> dict | None:
+    try:
+        return jwt.decode(token, jwt_secret, algorithms=["HS256"])
     except Exception:
         return None
 

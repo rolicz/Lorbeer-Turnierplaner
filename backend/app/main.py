@@ -10,6 +10,7 @@ from .db import configure_db, init_db, get_engine
 from .settings import Settings
 from .config import CORS_ALLOW_ORIGINS
 from .models import Player
+from .auth import decode_token_string
 
 from .ws import ws_manager, ws_manager_update_tournaments
 from .routers.auth import router as auth_router
@@ -61,8 +62,26 @@ def create_app(settings: Settings) -> FastAPI:
     app.include_router(cup_router)
     app.include_router(stats_router)
 
+    def _ws_token_from_request(ws: WebSocket) -> str | None:
+        auth = ws.headers.get("authorization")
+        if auth and auth.lower().startswith("bearer "):
+            return auth.split(" ", 1)[1].strip()
+        return ws.query_params.get("token")
+
+    def _ws_authorized(ws: WebSocket) -> bool:
+        if not app.state.settings.ws_require_auth:
+            return True
+        token = _ws_token_from_request(ws)
+        if not token:
+            return False
+        payload = decode_token_string(app.state.settings.jwt_secret, token)
+        return payload is not None
+
     @app.websocket("/ws/tournaments/{tournament_id}")
     async def ws_tournament(ws: WebSocket, tournament_id: int) -> None:
+        if not _ws_authorized(ws):
+            await ws.close(code=1008)
+            return
         await ws_manager.connect(tournament_id, ws)
         try:
             await ws.send_json({"event": "connected", "payload": {"tournament_id": tournament_id}})
@@ -74,6 +93,9 @@ def create_app(settings: Settings) -> FastAPI:
 
     @app.websocket("/ws/tournaments")
     async def ws_new_tournament(ws: WebSocket) -> None:
+        if not _ws_authorized(ws):
+            await ws.close(code=1008)
+            return
         await ws_manager_update_tournaments.connect(ws)
         try:
             await ws.send_json({"event": "connected", "payload": {}})

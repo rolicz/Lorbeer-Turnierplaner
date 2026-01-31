@@ -13,6 +13,7 @@ def client(tmp_path):
         editor_password="editor-secret",
         admin_password="admin-secret",
         jwt_secret="test-jwt-secret",
+        ws_require_auth=False,
         log_level="DEBUG",
     )
     app = create_app(settings)
