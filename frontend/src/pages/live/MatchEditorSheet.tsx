@@ -1,9 +1,23 @@
 import Sheet from "../../ui/primitives/Sheet";
 import Input from "../../ui/primitives/Input";
 import Button from "../../ui/primitives/Button";
+import CollapsibleCard from "../../ui/primitives/CollapsibleCard";
 import type { Club, Match } from "../../api/types";
 import { sideBy } from "../../helpers";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
+import {
+  ClubSelect,
+  GoalStepper,
+  LeagueFilter,
+  type LeagueOpt,
+  StarFilter,
+  clubLabelPartsById,
+  ensureSelectedClubVisible,
+  leagueInfo,
+  randomClubAssignmentOk,
+  sortClubsForDropdown,
+  toHalfStep,
+} from "../../ui/clubControls";
 
 export default function MatchEditorSheet({
   open,
@@ -56,17 +70,49 @@ export default function MatchEditorSheet({
   const aPlayers = aSide?.players.map((p) => p.display_name).join(" + ") ?? "—";
   const bPlayers = bSide?.players.map((p) => p.display_name).join(" + ") ?? "—";
 
-  const clubById = useMemo(() => {
-    const m = new Map<number, Club>();
-    for (const c of clubs ?? []) m.set(c.id, c);
-    return m;
-  }, [clubs]);
+  const aClubParts = useMemo(() => clubLabelPartsById(clubs, aClub), [clubs, aClub]);
+  const bClubParts = useMemo(() => clubLabelPartsById(clubs, bClub), [clubs, bClub]);
 
-  const aClubObj = aClub ? clubById.get(aClub) : undefined;
-  const bClubObj = bClub ? clubById.get(bClub) : undefined;
+  const clubsSorted = useMemo(() => sortClubsForDropdown(clubs), [clubs]);
+  const [starFilter, setStarFilter] = useState<number | null>(null);
 
-  const aClubLabel = aClubObj ? `${aClubObj.name} (${fmtStars(aClubObj.star_rating)})` : "No club";
-  const bClubLabel = bClubObj ? `${bClubObj.name} (${fmtStars(bClubObj.star_rating)})` : "No club";
+  const leagueOptions = useMemo<LeagueOpt[]>(() => {
+    const byId = new Map<number, string>();
+    for (const c of clubsSorted) {
+      const li = leagueInfo(c);
+      if (li.id == null) continue;
+      if (!byId.has(li.id)) byId.set(li.id, li.name ?? `League #${li.id}`);
+    }
+    return Array.from(byId.entries())
+      .map(([id, name]) => ({ id, name }))
+      .sort((x, y) => x.name.localeCompare(y.name));
+  }, [clubsSorted]);
+
+  const [leagueFilter, setLeagueFilter] = useState<number | null>(null);
+
+  const clubsFiltered = useMemo(() => {
+    let out = clubsSorted;
+    if (starFilter != null) {
+      out = out.filter((c) => toHalfStep(c.star_rating) === starFilter);
+    }
+    if (leagueFilter != null) {
+      out = out.filter((c) => leagueInfo(c).id === leagueFilter);
+    }
+    return out;
+  }, [clubsSorted, starFilter, leagueFilter]);
+
+  const clubsForA = useMemo(
+    () => ensureSelectedClubVisible(clubsFiltered, clubsSorted, aClub),
+    [clubsFiltered, clubsSorted, aClub]
+  );
+  const clubsForB = useMemo(
+    () => ensureSelectedClubVisible(clubsFiltered, clubsSorted, bClub),
+    [clubsFiltered, clubsSorted, bClub]
+  );
+
+  const aGoalsNum = parseGoal(aGoals);
+  const bGoalsNum = parseGoal(bGoals);
+  const showGoalInputs = state !== "scheduled";
 
   return (
     <Sheet open={open} title={`Edit Match #${match?.id ?? "—"}`} onClose={onClose}>
@@ -107,50 +153,119 @@ export default function MatchEditorSheet({
               <div className="mb-2 text-sm font-medium">Score</div>
 
               <div className="grid gap-3 md:grid-cols-2">
-                <ScoreInput
-                  title={aPlayers}
-                  subtitle={aClubLabel}
-                  value={aGoals}
-                  onChange={setAGoals}
-                />
-                <ScoreInput
-                  title={bPlayers}
-                  subtitle={bClubLabel}
-                  value={bGoals}
-                  onChange={setBGoals}
-                />
+                <div className="rounded-xl border border-zinc-800 p-3">
+                  <div className="min-w-0">
+                    <div className="truncate text-sm font-medium">{aPlayers}</div>
+                    <div className="truncate text-xs text-zinc-500">{aClubParts.name}</div>
+                  </div>
+
+                  {showGoalInputs && (
+                    <div className="mt-3 flex items-center gap-2 md:justify-start">
+                      <GoalStepper
+                        value={aGoalsNum}
+                        onChange={(v) => setAGoals(String(v))}
+                        disabled={saving}
+                        ariaLabel="Goals left"
+                      />
+                    </div>
+                  )}
+                </div>
+
+                <div className="rounded-xl border border-zinc-800 p-3">
+                  <div className="min-w-0">
+                    <div className="truncate text-sm font-medium">{bPlayers}</div>
+                    <div className="truncate text-xs text-zinc-500">{bClubParts.name}</div>
+                  </div>
+
+                  {showGoalInputs && (
+                    <div className="mt-3 flex items-center gap-2 md:justify-start">
+                      <GoalStepper
+                        value={bGoalsNum}
+                        onChange={(v) => setBGoals(String(v))}
+                        disabled={saving}
+                        ariaLabel="Goals right"
+                      />
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
 
-            {/* Clubs (no search) */}
-            <div className="rounded-xl border border-zinc-800 p-3">
-              <div className="mb-2 text-sm font-medium">Clubs</div>
+            {/* Clubs (filters + dropdowns) */}
+            <CollapsibleCard title="Select Clubs" defaultOpen={false}>
+              <div className="grid grid-cols-1 gap-2">
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  <Input
+                    label="Game"
+                    value={clubGame}
+                    onChange={(e) => setClubGame(e.target.value)}
+                  />
+                  <div className="hidden md:block" />
+                </div>
 
-              <div className="grid gap-3 md:grid-cols-2">
-                <Input
-                  label="Game"
-                  value={clubGame}
-                  onChange={(e) => setClubGame(e.target.value)}
+                {clubsLoading && (
+                  <div className="mt-2 text-sm text-zinc-400">Loading clubs…</div>
+                )}
+                {clubsError && (
+                  <div className="mt-2 text-sm text-red-400">{clubsError}</div>
+                )}
+
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  <StarFilter value={starFilter} onChange={setStarFilter} disabled={saving} />
+                  <LeagueFilter
+                    value={leagueFilter}
+                    onChange={setLeagueFilter}
+                    disabled={saving}
+                    options={leagueOptions}
+                  />
+                  <Button
+                    variant="ghost"
+                    onClick={() => {
+                      if (!clubsFiltered.length) return;
+
+                      const clubA = clubsFiltered[Math.floor(Math.random() * clubsFiltered.length)];
+                      let clubB = clubsFiltered[Math.floor(Math.random() * clubsFiltered.length)];
+                      if (clubsFiltered.length > 1) {
+                        while (!randomClubAssignmentOk(clubA, clubB)) {
+                          clubB = clubsFiltered[Math.floor(Math.random() * clubsFiltered.length)];
+                        }
+                      }
+
+                      setAClub(clubA.id);
+                      setBClub(clubB.id);
+                    }}
+                    disabled={saving}
+                    className="whitespace-nowrap"
+                  >
+                    <i className="fa fa-rotate-left" aria-hidden="true" />
+                    <span className="ml-2 hidden sm:inline">Random Club</span>
+                    <span className="ml-2 sm:hidden">Random</span>
+                  </Button>
+                </div>
+
+                <ClubSelect
+                  label={`${aPlayers} — club`}
+                  value={aClub}
+                  onChange={setAClub}
+                  disabled={saving}
+                  clubs={clubsForA}
+                  placeholder="Select club…"
                 />
-                <div className="hidden md:block" />
-              </div>
 
-              {clubsLoading && (
-                <div className="mt-2 text-sm text-zinc-400">Loading clubs…</div>
-              )}
-              {clubsError && (
-                <div className="mt-2 text-sm text-red-400">{clubsError}</div>
-              )}
+                <ClubSelect
+                  label={`${bPlayers} — club`}
+                  value={bClub}
+                  onChange={setBClub}
+                  disabled={saving}
+                  clubs={clubsForB}
+                  placeholder="Select club…"
+                />
 
-              <div className="mt-3 grid gap-3 md:grid-cols-2">
-                <ClubSelect label={aPlayers} clubs={clubs} value={aClub} onChange={setAClub} />
-                <ClubSelect label={bPlayers} clubs={clubs} value={bClub} onChange={setBClub} />
+                <div className="mt-2 text-xs text-zinc-500">
+                  Tip: change clubs anytime before saving results.
+                </div>
               </div>
-
-              <div className="mt-2 text-xs text-zinc-500">
-                Tip: change clubs anytime before saving results.
-              </div>
-            </div>
+            </CollapsibleCard>
 
             {saveError && <div className="text-sm text-red-400">{saveError}</div>}
             <div className="h-2" />
@@ -180,127 +295,8 @@ export default function MatchEditorSheet({
   );
 }
 
-/** Compact score input with "headline + muted subtitle". */
-function ScoreInput({
-  title,
-  subtitle,
-  value,
-  onChange,
-}: {
-  title: string;
-  subtitle: string;
-  value: string;
-  onChange: (v: string) => void;
-}) {
-  const n = clampInt(value);
-  function set(v: number) {
-    onChange(String(Math.max(0, v)));
-  }
-
-  return (
-    <div className="rounded-xl border border-zinc-800 p-3">
-      <div className="min-w-0">
-        <div className="truncate text-sm font-medium">{title}</div>
-        <div className="truncate text-xs text-zinc-500">{subtitle}</div>
-      </div>
-
-      <div className="mt-3 flex items-center gap-2 md:justify-start">
-        <button
-          type="button"
-          className="h-12 w-12 md:h-10 md:w-10 rounded-xl border border-zinc-800 bg-zinc-950 text-xl hover:bg-zinc-900/50 active:scale-[0.99] md:hidden"
-          onClick={() => set(n - 1)}
-          aria-label="Decrease goals"
-        >
-          <i className="fa fa-minus" aria-hidden="true" />
-        </button>
-
-        <input
-          className="h-12 w-20 md:h-10 md:w-16 rounded-xl border border-zinc-800 bg-zinc-950 px-2 text-center text-base outline-none focus:border-zinc-600"
-          type="number"
-          inputMode="numeric"
-          pattern="[0-9]*"
-          min={0}
-          step={1}
-          value={String(n)}
-          onChange={(e) => set(clampInt(e.target.value))}
-          onWheel={(e) => (e.currentTarget as HTMLInputElement).blur()}
-        />
-
-        <button
-          type="button"
-          className="h-12 w-12 md:h-10 md:w-10 rounded-xl border border-zinc-800 bg-zinc-950 text-xl hover:bg-zinc-900/50 active:scale-[0.99] md:hidden"
-          onClick={() => set(n + 1)}
-          aria-label="Increase goals"
-        >
-          <i className="fa fa-plus" aria-hidden="true" />
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function clampInt(v: string): number {
+function parseGoal(v: string): number {
   const x = Number.parseInt(String(v ?? "").trim(), 10);
   if (!Number.isFinite(x) || Number.isNaN(x)) return 0;
   return Math.max(0, x);
-}
-
-function fmtStars(star: any): string {
-  const n = Number(star ?? 0);
-  if (!Number.isFinite(n)) return "—";
-  // show e.g. 4.5★
-  return `${n.toFixed(1).replace(/\.0$/, "")}★`;
-}
-
-function ClubSelect({
-  label,
-  clubs,
-  value,
-  onChange,
-}: {
-  label: string;
-  clubs: Club[];
-  value: number | null;
-  onChange: (v: number | null) => void;
-}) {
-  const grouped = useMemo(() => {
-    const sorted = (clubs ?? []).slice().sort((a, b) => {
-      const sa = Number(a.star_rating ?? 0);
-      const sb = Number(b.star_rating ?? 0);
-      if (sb !== sa) return sb - sa;
-      return a.name.localeCompare(b.name);
-    });
-
-    const m = new Map<string, Club[]>();
-    for (const c of sorted) {
-      const s = Number(c.star_rating ?? 0);
-      const key = `${s.toFixed(1).replace(/\.0$/, "")}★`;
-      const arr = m.get(key) ?? [];
-      arr.push(c);
-      m.set(key, arr);
-    }
-    return Array.from(m.entries());
-  }, [clubs]);
-
-  return (
-    <label className="block">
-      <div className="mb-1 truncate text-xs text-zinc-400">{label}</div>
-      <select
-        className="w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-base sm:text-sm outline-none focus:border-zinc-600"
-        value={value ?? ""}
-        onChange={(e) => onChange(e.target.value ? Number(e.target.value) : null)}
-      >
-        <option value="">—</option>
-        {grouped.map(([starLabel, cs]) => (
-          <optgroup key={starLabel} label={starLabel}>
-            {cs.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </optgroup>
-        ))}
-      </select>
-    </label>
-  );
 }

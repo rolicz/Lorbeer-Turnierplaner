@@ -2,7 +2,7 @@
 [data-theme="dark"] {
   color-scheme: dark;
 
-  --accent: 59 130 246; /* indigo-500 */
+  --accent: 59 130 246;/* blue-500 */
   --on-accent: 255 255 255;
 
   --zinc-50: 250 250 250;

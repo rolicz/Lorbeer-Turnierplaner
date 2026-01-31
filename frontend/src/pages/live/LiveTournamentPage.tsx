@@ -34,6 +34,7 @@ import CurrentGameSection from "./CurrentGameSection";
 import { shuffle, sideBy } from "../../helpers";
 
 import { fmtDate } from "../../utils/format";
+import { starsLabel } from "../../ui/clubControls";
 
 type PlayerLite = { id: number; display_name: string };
 
@@ -91,14 +92,6 @@ function computeFinishedStandings(matches: Match[], players: PlayerLite[]): Stan
   });
   return out;
 }
-
-function starsLabel(v: any): string {
-  if (typeof v === "number") return v.toFixed(1).replace(/\.0$/, "");
-  const n = Number(v);
-  if (Number.isFinite(n)) return n.toFixed(1).replace(/\.0$/, "");
-  return String(v ?? "");
-}
-
 
 export default function LiveTournamentPage() {
   const { id } = useParams();
