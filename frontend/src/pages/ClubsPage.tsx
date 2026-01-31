@@ -331,7 +331,7 @@ export default function ClubsPage() {
           )}
 
           {grouped.map(([label, clubsInGroup]) => (
-            <div className="space-y-2">
+            <div key={label} className="space-y-2">
               {clubsInGroup.map((c) => {
                 const ln = leagueNameForClub(c, leaguesById);
                 const isEditing = editId === c.id;
@@ -452,4 +452,3 @@ export default function ClubsPage() {
     </div>
   );
 }
-

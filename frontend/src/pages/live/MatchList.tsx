@@ -74,10 +74,18 @@ export default function MatchList({
           >
             <div className={`absolute left-0 top-0 h-full w-2 ${pal.bar}`} />
 
-            <button
-              className="block w-full text-left disabled:opacity-80"
+            <div
+              className={`block w-full text-left ${canEdit ? "cursor-pointer" : "cursor-default opacity-80"}`}
               onClick={() => (canEdit ? onEditMatch(m) : undefined)}
-              disabled={!canEdit}
+              onKeyDown={(e) => {
+                if (!canEdit) return;
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  onEditMatch(m);
+                }
+              }}
+              role="button"
+              tabIndex={canEdit ? 0 : -1}
               title={canEdit ? "Edit match" : "Login as editor/admin to edit"}
             >
               {/* Top row: state + leg + move arrows (scheduled only) */}
@@ -191,7 +199,7 @@ export default function MatchList({
                   {clubLabel(b?.club_id)}
                 </div>
               </div>
-            </button>
+            </div>
           </div>
         );
       })}
