@@ -5,7 +5,8 @@ import Card from "../ui/primitives/Card";
 import Button from "../ui/primitives/Button";
 import Input from "../ui/primitives/Input";
 import Modal from "../ui/primitives/Modal";
-import { Pill, statusPill, pillDate } from "../ui/primitives/Pill"; // ⬅ add statusPill
+import { Pill, statusPill, pillDate } from "../ui/primitives/Pill";
+import { tournamentStatusUI } from "../ui/theme";
 import { listTournaments, createTournament, generateSchedule } from "../api/tournaments.api";
 import { listPlayers } from "../api/players.api";
 import { useAuth } from "../auth/AuthContext";
@@ -15,27 +16,6 @@ import { fmtDate } from "../utils/format";
 import { useAnyTournamentWS } from "../hooks/useTournamentWS";
 
 type Status = "draft" | "live" | "done";
-
-function statusUI(status: Status) {
-  switch (status) {
-    case "live":
-      return {
-        bar: "bg-emerald-500/70",
-        label: "Live",
-      };
-    case "draft":
-      return {
-        bar: "bg-sky-500/70",
-        label: "Draft",
-      };
-    case "done":
-    default:
-      return {
-        bar: "bg-zinc-600",
-        label: "Done",
-      };
-  }
-}
 
 
 // Best-effort winner label (depends on what your /tournaments list returns)
@@ -126,7 +106,7 @@ export default function TournamentsPage() {
 
           {tournamentsSorted.map((t: any) => {
             const st: Status = (t.status as Status) ?? "draft";
-            const ui = statusUI(st);
+            const ui = tournamentStatusUI(st);
             const winner = winnerLabel(t);
 
             // “Current live tournament” -> green emphasis (also adds a subtle background)

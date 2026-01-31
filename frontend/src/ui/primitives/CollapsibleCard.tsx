@@ -14,7 +14,7 @@ export default function CollapsibleCard({
   const [open, setOpen] = useState(defaultOpen);
 
   return (
-    <div className="rounded-2xl border border-zinc-800 bg-zinc-950">
+    <div className="surface-card">
       <button
         type="button"
         className="flex w-full items-center justify-between gap-3 px-4 py-3"

@@ -2,35 +2,7 @@ import Button from "../../ui/primitives/Button";
 import type { Match } from "../../api/types";
 import { sideBy } from "../../helpers";
 import { Pill, statusMatchPill, colorMatch } from "../../ui/primitives/Pill";
-
-type State = Match["state"];
-
-function palette(state: State) {
-  switch (state) {
-    case "playing":
-      return {
-        wrap: "border-emerald-800/60 bg-emerald-500/10 hover:bg-emerald-500/15 ring-1 ring-emerald-900/40",
-        bar: "bg-emerald-400",
-        win: "text-emerald-400",
-        lose: "text-zinc-300/80",
-      };
-    case "scheduled":
-      return {
-        wrap: "border-sky-800/60 hover:bg-sky-500/15 ring-1 ring-sky-900/40",
-        bar: "bg-sky-500/30",
-        win: "text-zinc-100",
-        lose: "text-zinc-300/80",
-      };
-    case "finished":
-    default:
-      return {
-        wrap: "hover:bg-zinc-800 ring-1 ring-transparent",
-        bar: "bg-zinc-600",
-        win: "text-emerald-400",
-        lose: "text-zinc-400",
-      };
-  }
-}
+import { matchPalette } from "../../ui/theme";
 
 function winnerSide(m: Match): "A" | "B" | null {
   if (m.state !== "finished") return null;
@@ -78,7 +50,7 @@ export default function MatchList({
         const aPlayers = splitPlayers(aNames);
         const bPlayers = splitPlayers(bNames);
 
-        const pal = palette(m.state);
+        const pal = matchPalette(m.state);
         const w = winnerSide(m);
         const aWin = w === "A";
         const bWin = w === "B";

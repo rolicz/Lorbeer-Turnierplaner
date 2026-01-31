@@ -14,7 +14,7 @@ export default function Card({
   const base = "p-4";
   const chrome =
     variant === "card"
-      ? "rounded-2xl border border-zinc-800 bg-zinc-950 shadow-sm"
+      ? "surface-card shadow-sm"
       : "";
 
   return (

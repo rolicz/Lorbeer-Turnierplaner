@@ -6,12 +6,12 @@ export default function Input(
   const { label, hint, className = "", ...rest } = props;
   return (
     <label className="block">
-      {label && <div className="mb-1 text-xs text-zinc-400">{label}</div>}
+      {label && <div className="input-label">{label}</div>}
       <input
-        className={`w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-base sm:text-sm outline-none focus:border-zinc-600 ${className}`}
+        className={`input-field ${className}`}
         {...rest}
       />
-      {hint && <div className="mt-1 text-xs text-zinc-500">{hint}</div>}
+      {hint && <div className="input-hint">{hint}</div>}
     </label>
   );
 }

@@ -1,14 +1,35 @@
 import { Link, useLocation } from "react-router-dom";
+import { useEffect, useState } from "react";
 import { useAuth } from "../../auth/AuthContext";
 import Button from "../primitives/Button";
 import { useAnyTournamentWS } from "../../hooks/useTournamentWS";
+import { THEMES } from "../../themes";
 
 type Role = "reader" | "editor" | "admin";
+type ThemeName = string;
+
+const THEME_OPTIONS: { value: ThemeName; label: string }[] = THEMES.map((t) => ({
+  value: t,
+  label: t === "ibm" ? "IBM" : t.charAt(0).toUpperCase() + t.slice(1),
+}));
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const { role, logout } = useAuth();
   const loc = useLocation();
   useAnyTournamentWS();
+  const [theme, setTheme] = useState<ThemeName>(() => {
+    const stored = localStorage.getItem("theme") as ThemeName | null;
+    if (stored && THEME_OPTIONS.some((t) => t.value === stored)) {
+      return stored;
+    }
+    const prefersLight = window.matchMedia?.("(prefers-color-scheme: light)").matches;
+    return prefersLight ? "light" : "dark";
+  });
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    localStorage.setItem("theme", theme);
+  }, [theme]);
 
   const nav: { to: string; label: string; min: Role }[] = [
     { to: "/dashboard", label: "Dashboard", min: "reader" },
@@ -42,7 +63,22 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               </div>
             </div>
 
-            <div className="shrink-0">
+            <div className="flex shrink-0 items-center gap-2">
+              <div className="flex items-center gap-2">
+                <span className="hidden md:inline text-xs text-zinc-400">Theme</span>
+                <select
+                  aria-label="Theme"
+                  className="h-10 w-[120px] rounded-xl border border-zinc-800 bg-zinc-950 px-2 text-[11px] text-zinc-200 outline-none focus:border-zinc-600 sm:w-[140px] sm:text-xs"
+                  value={theme}
+                  onChange={(e) => setTheme(e.target.value as ThemeName)}
+                >
+                  {THEME_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
               {role === "reader" ? (
                 <Link
                   to="/login"
