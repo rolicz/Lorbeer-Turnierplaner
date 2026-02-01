@@ -47,7 +47,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       <div
         className="
           fixed inset-x-0 top-0 z-30
-          border-b border-zinc-800 bg-zinc-900/30 backdrop-blur
+          nav-shell backdrop-blur
           pt-[env(safe-area-inset-top,0px)]
           pl-[env(safe-area-inset-left,0px)]
           pr-[env(safe-area-inset-right,0px)]
@@ -58,17 +58,17 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           <div className="flex items-center justify-between gap-2">
             <div className="flex min-w-0 items-center gap-2">
               <div className="shrink-0 font-semibold tracking-tight">EA FC</div>
-              <div className="truncate text-xs text-zinc-400 sm:text-sm">
+              <div className="truncate text-xs text-muted sm:text-sm">
                 role: <span className="accent">{role}</span>
               </div>
             </div>
 
             <div className="flex shrink-0 items-center gap-2">
               <div className="flex items-center gap-2">
-                <span className="hidden md:inline text-xs text-zinc-400">Theme</span>
+                <span className="hidden md:inline text-xs text-muted">Theme</span>
                 <select
                   aria-label="Theme"
-                  className="h-10 w-[120px] rounded-xl border border-zinc-800 bg-zinc-950 px-2 text-[11px] text-zinc-200 outline-none focus:border-zinc-600 sm:w-[140px] sm:text-xs"
+                  className="select-field h-10 w-[120px] px-2 text-[11px] sm:w-[140px] sm:text-xs"
                   value={theme}
                   onChange={(e) => setTheme(e.target.value as ThemeName)}
                 >
@@ -83,7 +83,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 <Link
                   to="/login"
                   title="Login"
-                  className="inline-flex h-10 items-center justify-center rounded-xl border border-zinc-800 bg-transparent px-4 text-sm font-medium transition hover:bg-zinc-900/50"
+                  className="btn-base btn-ghost inline-flex h-10 items-center justify-center"
                 >
                   <i className="fa fa-sign-in md:hidden" aria-hidden="true" />
                   <span className="hidden md:inline">Login</span>
@@ -106,9 +106,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                   <Link
                     key={n.to}
                     to={n.to}
-                    className={`rounded-xl px-3 py-2 text-sm ${
-                      active ? "bg-zinc-900" : "hover:bg-zinc-900/60"
-                    }`}
+                    className={`nav-link ${active ? "nav-link-active" : ""}`}
                   >
                     {n.label}
                   </Link>

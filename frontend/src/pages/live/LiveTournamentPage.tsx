@@ -552,7 +552,7 @@ export default function LiveTournamentPage() {
             )}
 
             {showDeciderReadOnly && (
-              <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-4">
+              <div className="card-subtle">
                 <div className="text-base font-semibold">Decider</div>
                 <div className="mt-1 text-sm text-zinc-300">{deciderSummary}</div>
                 {decider.type === "none" && topDrawInfo.isTopDraw && (

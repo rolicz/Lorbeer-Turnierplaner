@@ -79,18 +79,16 @@ export function StarFilter({
   return (
     <label className="block">
       <div className="mb-1">
-        <span className="hidden md:inline text-xs text-zinc-400">Filter by</span>
-        <span className="md:hidden inline-flex items-center gap-2 text-xs text-zinc-400">
+        <span className="hidden md:inline text-xs text-muted">Filter by</span>
+        <span className="md:hidden inline-flex items-center gap-2 text-xs text-muted">
           <i className="fa-solid fa-filter" aria-hidden="true" />
           <span className="sr-only">Filter by stars</span>
         </span>
-        <span className="text-xs text-zinc-400"> Stars</span>
+        <span className="text-xs text-muted"> Stars</span>
       </div>
 
       <select
-        className={`rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-600 disabled:opacity-60 ${
-          compact ? "w-[140px]" : "w-full"
-        }`}
+        className={`select-field ${compact ? "w-[140px]" : "w-full"}`}
         value={value == null ? "" : String(value)}
         onChange={(e) => onChange(e.target.value ? Number(e.target.value) : null)}
         disabled={disabled}
@@ -123,18 +121,16 @@ export function LeagueFilter({
   return (
     <label className="block">
       <div className="mb-1">
-        <span className="hidden md:inline text-xs text-zinc-400">Filter by</span>
-        <span className="md:hidden inline-flex items-center gap-2 text-xs text-zinc-400">
+        <span className="hidden md:inline text-xs text-muted">Filter by</span>
+        <span className="md:hidden inline-flex items-center gap-2 text-xs text-muted">
           <i className="fa-solid fa-filter" aria-hidden="true" />
           <span className="sr-only">Filter by league</span>
         </span>
-        <span className="text-xs text-zinc-400"> League</span>
+        <span className="text-xs text-muted"> League</span>
       </div>
 
       <select
-        className={`rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-600 disabled:opacity-60 ${
-          compact ? "w-[180px]" : "w-full"
-        }`}
+        className={`select-field ${compact ? "w-[180px]" : "w-full"}`}
         value={value == null ? "" : String(value)}
         onChange={(e) => onChange(e.target.value ? Number(e.target.value) : null)}
         disabled={disabled}
@@ -169,17 +165,17 @@ export function GoalStepper({
     <div className="inline-flex items-center gap-1" aria-label={ariaLabel}>
       <button
         type="button"
-        className="h-9 w-10 rounded-xl border border-zinc-800 bg-zinc-950 text-zinc-200 hover:bg-zinc-900/40 disabled:opacity-50"
+        className="stepper-btn"
         onClick={dec}
         disabled={disabled}
         title="Decrement score"
       >
         <i className="fa fa-minus" aria-hidden="true" />
       </button>
-      <div className="min-w-[44px] text-center text-lg font-bold text-zinc-100">{value}</div>
+      <div className="min-w-[44px] text-center text-lg font-bold text-default">{value}</div>
       <button
         type="button"
-        className="h-9 w-10 rounded-xl border border-zinc-800 bg-zinc-950 text-zinc-200 hover:bg-zinc-900/40 disabled:opacity-50"
+        className="stepper-btn"
         onClick={inc}
         disabled={disabled}
         title="Increment score"
@@ -207,9 +203,9 @@ export function ClubSelect({
 }) {
   return (
     <label className="block">
-      <div className="mb-1 text-xs text-zinc-400">{label}</div>
+      <div className="input-label">{label}</div>
       <select
-        className="w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-600 disabled:opacity-60"
+        className="select-field"
         value={value ?? ""}
         onChange={(e) => onChange(e.target.value ? Number(e.target.value) : null)}
         disabled={disabled}

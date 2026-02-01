@@ -190,7 +190,7 @@ export default function CurrentMatchPreviewCard() {
 
             {/* SCORE (keep style) */}
             <div className="justify-self-center">
-              <div className="flex items-center justify-center gap-2 rounded-xl border border-zinc-800 bg-zinc-950/60 px-3 py-1.5">
+              <div className="card-chip flex items-center justify-center gap-2">
                 <span className="text-xl font-semibold tabular-nums text-zinc-100">{scoreLeft}</span>
                 <span className="text-zinc-500">:</span>
                 <span className="text-xl font-semibold tabular-nums text-zinc-100">{scoreRight}</span>

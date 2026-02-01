@@ -5,7 +5,7 @@ export function StarsFA({
   rating,
   className = "",
   title,
-  textZinc = "text-zinc-200",
+  textZinc = "text-soft",
 }: {
   rating: number;
   className?: string;

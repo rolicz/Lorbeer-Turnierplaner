@@ -14,10 +14,13 @@
     --live-indicator: 239 68 68; /* red-500 */
     /* Global page padding (tweak here for all pages) */
     --page-pad-x: 16px;
+    /* App background (set per theme via --theme-app-bg) */
+    --app-bg: var(--theme-app-bg, 24 24 27);
   }
 
   body {
-    @apply bg-zinc-950 text-zinc-100;
+    background-color: rgb(var(--app-bg));
+    @apply text-zinc-100;
   }
 }
 
@@ -36,18 +39,40 @@
 .accent { color: rgb(var(--accent)); }
 
 @layer components {
-  .surface-card { @apply rounded-2xl border-2 border-zinc-800 bg-zinc-950; }
-  .surface-panel { @apply rounded-xl border-2 border-zinc-800 bg-zinc-950; }
-  .surface-muted { @apply bg-zinc-950/60; }
+  .surface-border { @apply border border-zinc-800; }
+  .surface-border-2 { @apply border-2 border-zinc-800; }
+  .surface-bg { @apply bg-zinc-950; }
+  .surface-bg-subtle { @apply bg-zinc-900/10; }
+  .surface-bg-subtle-2 { @apply bg-zinc-950/10; }
+  .surface-bg-chip { @apply bg-zinc-950/60; }
+  .surface-bg-soft { @apply bg-zinc-900/30; }
 
-  .modal-shell { @apply rounded-2xl border-2 border-zinc-800 bg-zinc-950 p-4 shadow-xl; }
-  .sheet-shell { @apply border-2 border-zinc-800 bg-zinc-950 p-4 shadow-xl; }
+  .text-default { @apply text-zinc-100; }
+  .text-soft { @apply text-zinc-200; }
+  .text-muted { @apply text-zinc-400; }
+  .text-subtle { @apply text-zinc-500; }
+  .text-faint { @apply text-zinc-600; }
+
+  .hover-surface { @apply hover:bg-zinc-900/50; }
+  .hover-surface-strong { @apply hover:bg-zinc-900/60; }
+  .nav-shell { @apply border-b border-zinc-800 surface-bg; }
+  .nav-link { @apply rounded-xl px-3 py-2 text-sm hover-surface-strong; }
+  .nav-link-active { @apply bg-zinc-900; }
+
+  .surface-card { @apply rounded-2xl surface-border-2 surface-bg; }
+  .surface-panel { @apply rounded-xl surface-border-2 surface-bg; }
+  .surface-muted { @apply surface-bg-chip; }
+
+  .modal-shell { @apply rounded-2xl surface-border-2 surface-bg p-4 shadow-xl; }
+  .sheet-shell { @apply surface-border-2 surface-bg p-4 shadow-xl; }
   .overlay-scrim { @apply absolute inset-0 bg-black/60; }
-  .icon-button { @apply rounded-lg px-2 py-1 text-sm text-zinc-400 hover:bg-zinc-900; }
+  .icon-button { @apply rounded-lg px-2 py-1 text-sm text-muted hover:bg-zinc-900; }
 
-  .input-label { @apply mb-1 text-xs text-zinc-400; }
-  .input-hint { @apply mt-1 text-xs text-zinc-500; }
-  .input-field { @apply w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-base sm:text-sm outline-none focus:border-zinc-600; }
+  .input-label { @apply mb-1 text-xs text-muted; }
+  .input-hint { @apply mt-1 text-xs text-subtle; }
+  .input-field { @apply w-full rounded-xl surface-border surface-bg px-3 py-2 text-base sm:text-sm outline-none focus:border-zinc-600 text-default; }
+  .select-field { @apply w-full rounded-xl surface-border surface-bg px-3 py-2 text-sm outline-none focus:border-zinc-600 text-default disabled:opacity-60; }
+  .stepper-btn { @apply h-9 w-10 rounded-xl surface-border surface-bg text-soft hover:bg-zinc-900/40 disabled:opacity-50; }
 
   .btn-base { @apply rounded-xl px-4 py-2 text-sm font-medium transition border disabled:opacity-50 disabled:cursor-not-allowed; }
   .btn-solid { @apply bg-accent text-on-accent border-transparent hover:opacity-90; }
@@ -62,8 +87,10 @@
     padding-right: var(--page-pad-x);
   }
 
-  .panel { @apply rounded-xl border-2 border-zinc-800 bg-zinc-950/30; }
-  .panel-subtle { @apply rounded-xl border-2 border-zinc-800 bg-zinc-950/10; }
+  .panel { @apply rounded-xl surface-border-2 bg-zinc-950/30; }
+  .panel-subtle { @apply rounded-xl surface-border-2 surface-bg-subtle-2; }
+  .card-subtle { @apply rounded-xl surface-border-2 surface-bg-subtle p-3; }
+  .card-chip { @apply rounded-xl surface-border surface-bg-chip px-3 py-1.5; }
 
   .delta-up { color: rgb(var(--delta-up)); }
   .delta-down { color: rgb(var(--delta-down)); }

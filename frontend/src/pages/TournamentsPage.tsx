@@ -118,10 +118,10 @@ export default function TournamentsPage() {
                 key={t.id}
                 to={`/live/${t.id}`}
                 className={[
-                  "relative block overflow-hidden rounded-xl border px-4 py-3 transition",
-                  "hover:bg-zinc-900/40",
+                  "relative block overflow-hidden rounded-xl border bg-zinc-900 px-4 py-3 transition",
+                  "hover:bg-zinc-600",
                   isLive ? "border-emerald-500/30" : "",
-                  isDraft ? "border-sky-500/30" : "border-zinc-800",
+                  isDraft ? "border-sky-500/30" : "border-zinc-600",
                 ].join(" ")}
               >
                 {/* left accent bar */}

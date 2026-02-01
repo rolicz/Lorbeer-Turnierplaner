@@ -17,6 +17,8 @@
   --zinc-900: 231 229 228;
   --zinc-950: 245 245 244;
 
+  --theme-app-bg: var(--zinc-800);
+
   --neutral-900: var(--zinc-900);
   --neutral-950: var(--zinc-950);
 

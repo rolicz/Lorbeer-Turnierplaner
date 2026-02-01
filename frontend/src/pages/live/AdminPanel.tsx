@@ -249,7 +249,7 @@ export default function AdminPanel({
       </div>
 
       {showDateEditor && (
-        <div className="mt-4 rounded-xl border border-zinc-800 bg-zinc-900/10 p-3">
+      <div className="mt-4 card-subtle">
           <div className="mb-2 text-sm font-medium">Tournament date</div>
           <div className="flex flex-wrap items-end gap-2">
             <label className="block">
@@ -272,7 +272,7 @@ export default function AdminPanel({
       )}
 
       {showNameEditor && (
-        <div className="mt-4 rounded-xl border border-zinc-800 bg-zinc-900/10 p-3">
+      <div className="mt-4 card-subtle">
           <div className="mb-2 text-sm font-medium">Tournament name</div>
 
           <div className="flex flex-wrap items-end gap-2">
@@ -302,7 +302,7 @@ export default function AdminPanel({
 
       {/* Decider editor */}
       {showDeciderEditor && (
-        <div className="mt-4 rounded-xl border border-zinc-800 bg-zinc-900/10 p-3">
+      <div className="mt-4 card-subtle">
           <div className="mb-2 text-sm font-medium">Decider</div>
 
           {!isEditorOrAdmin && <div className="text-xs text-zinc-500">Login as editor/admin to set a decider.</div>}
@@ -439,7 +439,7 @@ export default function AdminPanel({
   if (!wrap) return content;
 
   return (
-    <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-4">
+    <div className="card-subtle">
       <div className="mb-2 text-base font-semibold">{role === "admin" ? "Admin controls" : "Editor controls"}</div>
       {content}
     </div>

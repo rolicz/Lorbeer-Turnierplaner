@@ -4,6 +4,7 @@
   --accent: 255 176 0; /* #FFB000 */
   --on-accent: 15 23 42;
 
+
   --zinc-50: 248 250 252;
   --zinc-100: 241 245 249;
   --zinc-200: 226 232 240;
@@ -15,6 +16,8 @@
   --zinc-800: 30 41 59;
   --zinc-900: 15 23 42;
   --zinc-950: 7 16 36;
+
+  --theme-app-bg: var(--zinc-800);
 
   --neutral-900: var(--zinc-900);
   --neutral-950: var(--zinc-950);

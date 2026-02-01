@@ -321,7 +321,7 @@ export default function CurrentGameSection({
 
       {/* MOBILE */}
       <div className="space-y-3 md:hidden">
-        <div className="rounded-xl border border-zinc-800 bg-zinc-900/10 p-3">
+        <div className="card-subtle">
           {/* Row 1: Leg, match number, state pill */}
           <div className="mt-1 flex items-center justify-between gap-3">
             <div className="text-[11px] sm:text-xs text-zinc-300">
@@ -355,7 +355,7 @@ export default function CurrentGameSection({
               ))}
             </div>
 
-            <div className="flex items-center justify-center gap-2 rounded-xl border border-zinc-800 bg-zinc-950/60 px-3 py-1.5">
+            <div className="card-chip flex items-center justify-center gap-2">
               <span className="text-xl font-semibold tabular-nums text-zinc-100">{scoreLeft}</span>
               <span className="text-zinc-500">:</span>
               <span className="text-xl font-semibold tabular-nums text-zinc-100">{scoreRight}</span>
@@ -493,7 +493,7 @@ export default function CurrentGameSection({
 
       {/* DESKTOP/TABLET */}
       <div className="hidden md:block space-y-3">
-        <div className="rounded-xl border border-zinc-800 bg-zinc-900/10 p-4">
+        <div className="card-subtle">
           {/* Row 1: Leg, match number, state pill */}
           <div className="mt-1 flex items-center justify-between gap-3">
             <div className="text-[11px] sm:text-xs text-zinc-300">
@@ -524,7 +524,7 @@ export default function CurrentGameSection({
               ))}
             </div>
 
-            <div className="flex items-center justify-center gap-2 rounded-xl border border-zinc-800 bg-zinc-950/60 px-3 py-1.5">
+            <div className="card-chip flex items-center justify-center gap-2">
               <span className="text-xl font-semibold tabular-nums text-zinc-100">{scoreLeft}</span>
               <span className="text-zinc-500">:</span>
               <span className="text-xl font-semibold tabular-nums text-zinc-100">{scoreRight}</span>
