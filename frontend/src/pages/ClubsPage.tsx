@@ -190,9 +190,8 @@ export default function ClubsPage() {
 
   return (
     <div className="page">
-      <Card title="Clubs (Teams)" variant="plain" className="space-y-3">
-        <CollapsibleCard title="Create club" defaultOpen={false}>
-          <div className="space-y-2">
+      <Card title="Clubs (Teams)" className="card-outer">
+        <CollapsibleCard title="Create club" defaultOpen={false} className="card-inner">
             <div className="grid gap-2 md:grid-cols-4">
               <Input label="Game" value={game} onChange={(e) => setGame(e.target.value)} />
 
@@ -249,13 +248,13 @@ export default function ClubsPage() {
                 <div className="self-center text-sm text-zinc-500">Login as editor/admin to create clubs.</div>
               )}
             </div>
-          </div>
         </CollapsibleCard>
 
         <CollapsibleCard
           title="Browse & filter"
           defaultOpen={true}
           right={<span className="text-xs text-zinc-500">{filteredClubs.length} clubs</span>}
+          className="card-inner"
         >
           <div className="grid gap-2 md:grid-cols-4">
             <label className="block">
@@ -329,6 +328,7 @@ export default function ClubsPage() {
               }
               right={<span className="text-xs text-zinc-500">{clubsInGroup.length} clubs</span>}
               defaultOpen={true}
+              className="card-inner"
             >
               <div className="space-y-2">
                 {clubsInGroup.map((c) => {

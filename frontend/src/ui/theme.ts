@@ -1,60 +1,52 @@
 export type MatchState = "scheduled" | "playing" | "finished";
 export type TournamentStatus = "draft" | "live" | "done";
 
-function pillBase() {
-  return "bg-background-alt text-text-muted border-border-color";
+export type MatchState = "scheduled" | "playing" | "finished";
+export type TournamentStatus = "draft" | "live" | "done";
+
+// --- Pills ---
+// Default is used for "finished" or other neutral states
+function pillDefault() {
+  return "bg-status-bg-default text-status-text-default border-status-border-default";
 }
 
-export function pillBaseClass() {
-  return pillBase();
+function pillGreen() {
+  return "bg-status-bg-green text-status-text-green border-status-border-green";
 }
 
-export function matchColor(state: MatchState) {
-  if (state === "playing") return "bg-status-live/10 text-status-live";
-  if (state === "scheduled") return "bg-status-draft/10 text-status-draft";
-  return "bg-background-default text-text-muted";
-}
-
-export function matchStatusPill(state: MatchState) {
-  if (state === "playing") return `${matchColor(state)} border-status-live/40`;
-  if (state === "scheduled") return `${matchColor(state)} border-status-draft/40`;
-  return pillBase();
-}
-
-export function tournamentStatusPill(status: TournamentStatus) {
-  if (status === "live") return `${tournamentColor(status)} border-status-live/40`;
-  if (status === "draft") return `${tournamentColor(status)} border-status-draft/40`;
-  return pillBase();
-}
-
-export function tournamentColor(status: TournamentStatus) {
-  if (status === "live") return "bg-status-live/10 text-status-live";
-  if (status === "draft") return "bg-status-draft/10 text-status-draft";
-  return pillBase();
+function pillBlue() {
+  return "bg-status-bg-blue text-status-text-blue border-status-border-blue";
 }
 
 export function pillDateClass() {
-  return `font-mono tabular-nums ${pillBase()}`;
+  return `font-mono tabular-nums ${pillDefault()}`;
 }
+
+// --- Statuses (for Pills) ---
+export function matchStatusPill(state: MatchState) {
+  if (state === "playing") return pillGreen();
+  if (state === "scheduled") return pillBlue();
+  return pillDefault();
+}
+
+export function tournamentStatusPill(status: TournamentStatus) {
+  if (status === "live") return pillGreen();
+  if (status === "draft") return pillBlue();
+  return pillDefault();
+}
+
+
+// --- UI Colors (for bars, backgrounds etc. - not pills) ---
 
 export function tournamentStatusUI(status: TournamentStatus) {
   switch (status) {
     case "live":
-      return {
-        bar: "bg-status-live/70",
-        label: "Live",
-      };
+      return { bar: "bg-status-bar-green", label: "Live" };
     case "draft":
-      return {
-        bar: "bg-status-draft/70",
-        label: "Draft",
-      };
+      return { bar: "bg-status-bar-blue", label: "Draft" };
     case "done":
     default:
-      return {
-        bar: "bg-border-color",
-        label: "Done",
-      };
+      return { bar: "bg-status-bar-default", label: "Done" };
   }
 }
 
@@ -62,25 +54,33 @@ export function matchPalette(state: MatchState) {
   switch (state) {
     case "playing":
       return {
-        wrap: "border-status-live/60 bg-status-live/10 hover:bg-status-live/15 ring-1 ring-status-live/25",
-        bar: "bg-status-live",
-        win: "text-status-live",
-        lose: "text-text-muted/80",
+        wrap: "border-status-border-green bg-status-bg-green hover:bg-hover-green",
+        bar: "bg-status-bar-green",
+        win: "text-status-text-green",
+        lose: "text-text-normal/80",
       };
     case "scheduled":
       return {
-        wrap: "border-status-draft/60 hover:bg-status-draft/15 ring-1 ring-status-draft/25",
-        bar: "bg-status-draft/60",
-        win: "text-text-default",
-        lose: "text-text-muted/80",
+        wrap: "border-status-border-blue bg-status-bg-blue hover:bg-hover-blue",
+        bar: "bg-status-bar-blue",
+        win: "text-text-normal",
+        lose: "text-text-normal/80",
       };
     case "finished":
     default:
       return {
-        wrap: "border-border-color bg-background-default hover:bg-background-alt ring-1 ring-transparent",
-        bar: "bg-border-color",
-        win: "text-status-live",
+        wrap: "border-status-border-default bg-status-bg-default hover:bg-hover-default",
+        bar: "bg-status-bar-default",
+        win: "text-status-text-green", // Winner is still highlighted
         lose: "text-text-muted",
       };
   }
 }
+
+// Legacy exports, keeping them to avoid breaking imports for now,
+// but they are deprecated in favor of the more specific functions above.
+export const colorMatch = matchStatusPill;
+export const colorTournament = tournamentStatusPill;
+export const pillBaseClass = pillDefault;
+export { matchColor, tournamentColor } from "./theme-legacy";
+

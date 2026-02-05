@@ -9,7 +9,7 @@ export default function DashboardPage() {
       <div className="grid gap-3 lg:grid-cols-2">
         <CurrentMatchPreviewCard />
 
-        <CollapsibleCard title="Lorbeerkranz Wanderpokal" defaultOpen={true}>
+        <CollapsibleCard title="Lorbeerkranz Wanderpokal" defaultOpen={true} className="card-outer">
           <CupCard />
         </CollapsibleCard>
         

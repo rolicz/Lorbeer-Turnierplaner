@@ -111,27 +111,27 @@ function Arrow({ delta }: { delta: number | null }) {
 
 function MobileRow({ r, rank, delta, isLeader }: { r: Row; rank: number; delta: number | null; isLeader: boolean }) {
   return (
-    <div className="relative rounded-xl border border-zinc-800 bg-zinc-900/10 px-3 py-2">
+    <div className="relative rounded-xl border border-border-card-inner bg-table-row-a px-3 py-2">
       {/* leader bar */}
-      {isLeader && <div className="absolute left-0 top-0 h-full w-1 rounded-l-xl bg-emerald-500/80" />}
+      {isLeader && <div className="absolute left-0 top-0 h-full w-1 rounded-l-xl bg-status-bar-green" />}
 
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <div className="w-6 text-zinc-500 tabular-nums">{rank}</div>
+            <div className="w-6 text-text-muted tabular-nums">{rank}</div>
             <div className="w-5">
               <Arrow delta={delta} />
             </div>
             <div className="min-w-0 truncate font-medium">{r.name}</div>
           </div>
-          <div className="mt-1 text-xs text-zinc-500 font-mono tabular-nums">
+          <div className="mt-1 text-xs text-text-muted font-mono tabular-nums">
             {r.played}P · {r.wins}-{r.draws}-{r.losses} · GD {r.gd} (+{r.gf}/-{r.ga})
           </div>
         </div>
 
         <div className="shrink-0 text-right">
           <div className="font-semibold font-mono tabular-nums">{r.pts}</div>
-          <div className="text-[11px] text-zinc-500">pts</div>
+          <div className="text-[11px] text-text-muted">pts</div>
         </div>
       </div>
     </div>
@@ -170,8 +170,8 @@ export default function StandingsTable({
       {/* Desktop */}
       <div className="hidden sm:block overflow-x-auto">
         <table className="min-w-[760px] w-full text-sm">
-          <thead className="text-zinc-400">
-            <tr className="border-b border-zinc-800">
+          <thead className="text-text-muted">
+            <tr className="border-b border-border-card-inner">
               <th className="py-2 text-left font-medium w-10">#</th>
               <th className="py-2 text-left font-medium w-10"></th>
               <th className="py-2 text-left font-medium">Player</th>
@@ -197,18 +197,18 @@ export default function StandingsTable({
                   key={r.playerId}
                   className={[
                     "relative",
-                    idx % 2 === 0 ? "bg-zinc-900/10" : "bg-transparent",
-                    "border-b border-zinc-900/60",
+                    idx % 2 === 0 ? "bg-table-row-a" : "bg-table-row-b",
+                    "border-b border-border-card-inner",
                   ].join(" ")}
                 >
                   {/* leader bar */}
                   {isLeader && (
-                    <td className="relative py-2 pr-2 text-zinc-500">
-                      <div className="absolute left-0 top-0 h-full w-1 bg-emerald-500/80" />
+                    <td className="relative py-2 pr-2 text-text-muted">
+                      <div className="absolute left-0 top-0 h-full w-1 bg-status-bar-green" />
                       <div className="pl-2">{idx + 1}</div>
                     </td>
                   )}
-                  {!isLeader && <td className="py-2 pr-2 text-zinc-500">{idx + 1}</td>}
+                  {!isLeader && <td className="py-2 pr-2 text-text-muted">{idx + 1}</td>}
 
                   <td className="py-2">
                     <Arrow delta={delta} />
@@ -233,5 +233,5 @@ export default function StandingsTable({
 
   if (!wrap) return content;
 
-  return <Card title={title}>{content}</Card>;
+  return <Card title={title} className="card-inner">{content}</Card>;
 }

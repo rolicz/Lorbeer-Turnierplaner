@@ -71,14 +71,14 @@ function useTournamentCols() {
  * Winner gets separate styling.
  */
 function posGradientClass(position: number, total: number) {
-  if (total <= 1) return "border-zinc-800/70 bg-zinc-950/40 text-zinc-300";
+  if (total <= 1) return "pill-default";
   const p = clamp((position - 1) / (total - 1), 0, 1); // 0 best .. 1 worst
 
   const buckets = [
-    "border-emerald-400/35 bg-emerald-400/10 text-emerald-200",
-    "border-lime-400/30 bg-lime-400/10 text-lime-200",
-    "border-amber-400/35 bg-amber-400/10 text-amber-200",
-    "border-orange-400/35 bg-orange-400/10 text-orange-200",
+    "pill-green",
+    "pill-blue",
+    "pill-default",
+    "border-orange-400/35 bg-orange-400/10 text-orange-200", // Keep some variety
     "border-red-500/35 bg-red-500/10 text-red-200",
   ];
 
@@ -90,7 +90,7 @@ function StatsPill({
   icon,
   label,
   value,
-  valueCls = "text-zinc-200",
+  valueCls = "text-text-chip",
 }: {
   icon: string;
   label: string;
@@ -98,9 +98,9 @@ function StatsPill({
   valueCls?: string;
 }) {
   return (
-    <span className="inline-flex items-center gap-2 rounded-lg border border-zinc-800 bg-zinc-950/40 px-2 py-1">
-      <i className={icon + " text-zinc-400"} aria-hidden="true" />
-      <span className="text-[11px] text-zinc-600">{label}</span>
+    <span className="card-chip inline-flex items-center gap-2 px-2 py-1">
+      <i className={icon + " text-text-muted"} aria-hidden="true" />
+      <span className="text-[11px] text-text-muted">{label}</span>
       <span className={"text-[11px] font-mono tabular-nums " + valueCls}>{value}</span>
     </span>
   );
@@ -123,31 +123,31 @@ function Scoreline({
   ga: number;
   gd: number;
 }) {
-  const gdCls = gd > 0 ? "text-emerald-300" : gd < 0 ? "text-red-300" : "text-zinc-300";
+  const gdCls = gd > 0 ? "text-status-text-green" : gd < 0 ? "text-red-300" : "text-text-muted";
 
   return (
     <div className="mt-2 flex flex-wrap items-center gap-2">
       <StatsPill icon="fa-solid fa-gamepad" label="P" value={fmtInt(played)} />
 
-      <span className="inline-flex items-center gap-2 rounded-lg border border-zinc-800 bg-zinc-950/40 px-2 py-1">
+      <span className="card-chip inline-flex items-center gap-2 px-2 py-1">
         <span className="inline-flex items-center gap-1">
-          <span className="text-[11px] text-zinc-600">W</span>
-          <span className="text-[11px] font-mono tabular-nums text-emerald-300">{fmtInt(wins)}</span>
+          <span className="text-[11px] text-text-muted">W</span>
+          <span className="text-[11px] font-mono tabular-nums text-status-text-green">{fmtInt(wins)}</span>
         </span>
         <span className="inline-flex items-center gap-1">
-          <span className="text-[11px] text-zinc-600">D</span>
+          <span className="text-[11px] text-text-muted">D</span>
           <span className="text-[11px] font-mono tabular-nums text-amber-300">{fmtInt(draws)}</span>
         </span>
         <span className="inline-flex items-center gap-1">
-          <span className="text-[11px] text-zinc-600">L</span>
+          <span className="text-[11px] text-text-muted">L</span>
           <span className="text-[11px] font-mono tabular-nums text-red-300">{fmtInt(losses)}</span>
         </span>
       </span>
 
-      <span className="inline-flex items-center gap-2 rounded-lg border border-zinc-800 bg-zinc-950/40 px-2 py-1">
-        <i className="fa-regular fa-futbol text-zinc-400" aria-hidden="true" />
-        <span className="text-[11px] text-zinc-600">G</span>
-        <span className="text-[11px] font-mono tabular-nums text-zinc-200">
+      <span className="card-chip inline-flex items-center gap-2 px-2 py-1">
+        <i className="fa-regular fa-futbol text-text-muted" aria-hidden="true" />
+        <span className="text-[11px] text-text-muted">G</span>
+        <span className="text-[11px] font-mono tabular-nums text-text-chip">
           {fmtInt(gf)}:{fmtInt(ga)}
         </span>
         <span className={"text-[11px] font-mono tabular-nums " + gdCls} title="Goal difference">
@@ -169,58 +169,54 @@ function InfoLegend({
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-3 text-[11px] text-zinc-600">
+        <div className="flex flex-wrap items-center gap-3 text-[11px] text-text-muted">
           <span className="inline-flex items-center gap-2">
-            <i className="fa-regular fa-flag text-zinc-500" aria-hidden="true" />
+            <i className="fa-regular fa-flag text-text-muted" aria-hidden="true" />
             Tournament positions
           </span>
 
           <span className="inline-flex items-center gap-2">
-            <span className="h-2.5 w-2.5 rounded-sm border border-emerald-400/55 bg-emerald-400/15" />
+            <span className="h-2.5 w-2.5 rounded-sm border border-status-border-green bg-status-bg-green" />
             <span>best</span>
-            <span className="h-2.5 w-2.5 rounded-sm border border-lime-400/45 bg-lime-400/15" />
-            <span className="h-2.5 w-2.5 rounded-sm border border-amber-400/55 bg-amber-400/15" />
-            <span className="h-2.5 w-2.5 rounded-sm border border-orange-400/55 bg-orange-400/15" />
-            <span className="h-2.5 w-2.5 rounded-sm border border-red-500/55 bg-red-500/15" />
+            <span className="h-2.5 w-2.5 rounded-sm border border-status-border-blue bg-status-bg-blue" />
+            <span className="h-2.5 w-2.5 rounded-sm border border-status-border-default bg-status-bg-default" />
             <span>worst</span>
           </span>
 
           <span className="inline-flex items-center gap-2">
-            <span className="inline-flex h-6 w-7 items-center justify-center rounded-xl border border-zinc-900 bg-zinc-950/30 font-mono tabular-nums text-zinc-700">
+            <span className="card-chip inline-flex h-6 w-7 items-center justify-center text-[11px] font-mono tabular-nums text-text-muted">
               —
             </span>
             <span>not played</span>
           </span>
         </div>
 
-        <div className="flex items-center gap-2 text-[11px] text-zinc-600">
+        <div className="flex items-center gap-2 text-[11px] text-text-muted">
           <span className="inline-flex items-center gap-2">
-            <i className="fa-regular fa-clock text-zinc-500" aria-hidden="true" />
+            <i className="fa-regular fa-clock" aria-hidden="true" />
             <span>Old</span>
           </span>
-          <div className="h-2 w-20 rounded-full border border-zinc-800 bg-gradient-to-r from-zinc-900/40 to-zinc-200/20" />
+          <div className="h-2 w-20 rounded-full border border-border-card-inner bg-gradient-to-r from-bg-card-chip to-bg-card-inner" />
           <span className="inline-flex items-center gap-2">
             <span>New</span>
-            <i className="fa-regular fa-clock text-zinc-400" aria-hidden="true" />
+            <i className="fa-regular fa-clock text-text-normal" aria-hidden="true" />
           </span>
         </div>
       </div>
 
       {/* Global toggle for showing all tournament tiles */}
-      <div className="panel px-3 py-2">
+      <div className="card-inner flex justify-between items-center">
         <div className="min-w-0">
-          <div className="text-sm font-medium text-zinc-200">Tournament tiles</div>
-          <div className="text-[11px] text-zinc-600">Default shows the most recent row only (better overview).</div>
+          <div className="text-sm font-medium text-text-normal">Tournament tiles</div>
+          <div className="text-[11px] text-text-muted">Default shows the most recent row only (better overview).</div>
         </div>
 
         <button
           type="button"
           onClick={() => setShowAllTournamentTiles(!showAllTournamentTiles)}
           className={
-            "shrink-0 inline-flex items-center gap-2 rounded-xl border-2 px-3 py-1.5 text-[11px] hover:bg-zinc-900/40 " +
-            (showAllTournamentTiles
-              ? "border-emerald-500/35 bg-emerald-500/10 text-emerald-200"
-              : "border-zinc-800 bg-zinc-950/30 text-zinc-200")
+            "shrink-0 inline-flex items-center gap-2 rounded-xl border-2 px-3 py-1.5 text-[11px] hover:bg-hover-default " +
+            (showAllTournamentTiles ? "pill-green" : "pill-default")
           }
           title={showAllTournamentTiles ? "Show only the most recent row for all players" : "Show all tournament tiles for all players"}
         >
@@ -340,20 +336,19 @@ function SortSegment({
       onClick={onClick}
       className={
         "flex flex-1 items-center gap-3 px-3 py-1.5 text-left transition " +
-        (active ? "bg-zinc-900/70" : "hover:bg-zinc-900/40")
+        (active ? "bg-bg-card-inner" : "hover:bg-hover-default")
       }
     >
       <span
         className={
-          "inline-flex h-7 w-7 items-center justify-center rounded-xl border " +
-          (active ? "border-zinc-700 bg-zinc-950/40" : "border-zinc-800 bg-zinc-950/20")
+          "card-chip inline-flex h-7 w-7 items-center justify-center rounded-xl border"
         }
       >
-        <i className={icon + " text-zinc-300"} aria-hidden="true" />
+        <i className={icon + " text-text-normal"} aria-hidden="true" />
       </span>
       <span className="min-w-0">
-        <div className={"truncate text-sm " + (active ? "text-zinc-100 font-semibold" : "text-zinc-300")}>{title}</div>
-        <div className="truncate text-[11px] text-zinc-500">{subtitle}</div>
+        <div className={"truncate text-sm " + (active ? "text-text-normal font-semibold" : "text-text-muted")}>{title}</div>
+        <div className="truncate text-[11px] text-text-muted">{subtitle}</div>
       </span>
     </button>
   );
@@ -514,7 +509,7 @@ export default function PlayersPage() {
 
   return (
     <div className="page">
-      <Card title={`Players${isAdmin ? " (Admin)" : ""}`} variant="plain" className="space-y-3">
+      <Card title={`Players${isAdmin ? " (Admin)" : ""}`} className="card-outer">
         {showControls && (
           <div className="grid gap-3 md:grid-cols-3">
             <Input
@@ -607,6 +602,7 @@ export default function PlayersPage() {
                 legend
               </span>
             }
+            className="card-inner"
           >
             <InfoLegend showAllTournamentTiles={showAllTournamentTiles} setShowAllTournamentTiles={setShowAllTournamentTiles} />
           </CollapsibleCard>
@@ -681,11 +677,10 @@ export default function PlayersPage() {
 
             const isCupOwner = cupOwnerId != null && cupOwnerId === p.id;
 
-            // More distinguishable zebra: subtle but visible
-            const zebra = idx % 2 === 0 ? "bg-zinc-950/10" : "bg-zinc-900/75";
+            const zebra = idx % 2 === 0 ? "bg-table-row-a" : "bg-table-row-b";
 
             return (
-              <div key={p.id} className={"border-b border-zinc-800 last:border-b-0 " + zebra}>
+              <div key={p.id} className={"border-b border-border-card-inner last:border-b-0 " + zebra}>
                 {/* Compact “table row”: rank | name (+crown) | points | dropdown */}
                 <div className="grid grid-cols-12 items-center gap-2 px-3 py-2">
                   {/* Left: rank strip */}

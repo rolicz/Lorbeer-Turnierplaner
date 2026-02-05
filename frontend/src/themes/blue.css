@@ -1,20 +1,61 @@
 [data-theme="blue"] {
-  --accent: 255 176 0; /* #FFB000 */
-  --on-accent: 15 23 42;
-
-  --color-primary: 100 143 255; /* Based on emerald-500 */
-  --color-on-primary: 15 23 42; /* Based on zinc-900 */
-
-  --color-secondary: 120 94 240; /* Based on sky-500 */
-  --color-on-secondary: 248 250 252; /* Based on zinc-50 */
-
-  --color-background-default: 30 41 59; /* Based on zinc-800 */
-  --color-background-alt: 51 65 85; /* Based on zinc-700 */
-
-  --color-text-default: 248 250 252; /* Based on zinc-50 */
-  --color-text-muted: 148 163 184; /* Based on zinc-400 */
-
-  --color-border-color: 71 85 105; /* Based on zinc-600 */
-
   color-scheme: dark;
+
+  /* Backgrounds */
+  --color-bg-default: 30 41 59; /* Original zinc-800 */
+  --color-bg-card-outer: 15 23 42; /* Original zinc-900 */
+  --color-bg-card-inner: 30 41 59; /* Original zinc-800 */
+  --color-bg-card-chip: 7 16 36; /* Original zinc-950 */
+
+  /* Text */
+  --color-text-normal: 248 250 252; /* Original zinc-50 */
+  --color-text-chip: 226 232 240; /* Original zinc-200 */
+
+  /* Borders */
+  --color-border-card-outer: 51 65 85; /* Original zinc-700 */
+  --color-border-card-inner: 15 23 42; /* Original zinc-600 */
+  --color-border-card-chip: 51 65 85; /* Original zinc-700 */
+
+  /* Table */
+  --color-table-row-a: 30 41 59; /* Original zinc-800 */
+  --color-table-row-b: 35 46 66; /* Slightly bluer zinc-800 */
+
+  /* Button */
+  --color-btn-bg: 100 143 255; /* Original emerald-500 */
+  --color-btn-text: 15 23 42; /* Original zinc-900 */
+
+  /* Accent */
+  --color-accent: 254 97 0; /* Original amber-400 */
+  --color-accent-text: 15 23 42; /* Original zinc-900 */
+
+  /* Hover */
+  --color-hover-btn-bg: 129 140 248; /* Original emerald-400 */
+  --color-hover-nav: 51 65 85; /* Original zinc-700 */
+  --color-hover-default: 51 65 85; /* Original zinc-700 */
+  --color-hover-green: 20 184 166; /* A green */
+  --color-hover-blue: 100 143 255; /* A blue */
+
+  /* Pills & Statuses */
+  --color-status-bg-default: 51 65 85; /* zinc-700 */
+  --color-status-text-default: 226 232 240; /* zinc-200 */
+  --color-status-border-default: 71 85 105; /* zinc-600 */
+  --color-status-bg-green: 17 94 89; /* emerald-800 */
+  --color-status-text-green: 204 251 241; /* emerald-100 */
+  --color-status-border-green: 20 184 166; /* emerald-500 */
+  --color-status-bg-blue: 12 74 110; /* sky-900 */
+  --color-status-text-blue: 224 242 254; /* sky-100 */
+  --color-status-border-blue: 14 165 233; /* sky-500 */
+
+  --color-status-bar-default: 71 85 105; /* zinc-600 */
+  --color-status-bar-green: 20 184 166; /* emerald-500 */
+  --color-status-bar-blue: 14 165 233; /* sky-500 */
+
+  /* Gradients */
+  --color-gradient-gold-from: 251 191 36;
+  --color-gradient-gold-to: 253 230 138;
+  --color-gradient-silver-from: 161 161 170;
+  --color-gradient-silver-to: 228 228 231;
+  --color-gradient-bronze-from: 205 133 63;
+  --color-gradient-bronze-to: 255 221 170;
 }
+

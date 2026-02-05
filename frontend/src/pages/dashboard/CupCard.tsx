@@ -34,7 +34,7 @@ export default function CupCard() {
       {q.error && <div className="text-sm text-red-400">{String(q.error)}</div>}
 
       {q.data && (
-        <div className="space-y-3">
+        <div className="space-y-3 card-inner">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
               <div className="text-xs text-zinc-500">Current owner</div>

@@ -1,20 +1,61 @@
 [data-theme="light"] {
-  --accent: 59 130 246; /* blue-500 */
-  --on-accent: 255 255 255;
-
-  --color-primary: 20 184 166; /* Based on emerald-500 */
-  --color-on-primary: 12 10 9; /* Based on zinc-50 (dark) */
-
-  --color-secondary: 14 165 233; /* Based on sky-500 */
-  --color-on-secondary: 12 10 9; /* Based on zinc-50 (dark) */
-
-  --color-background-default: 231 229 228; /* Based on zinc-900 (light) */
-  --color-background-alt: 214 211 209; /* Based on zinc-800 (still light) */
-
-  --color-text-default: 12 10 9; /* Based on zinc-50 (dark) */
-  --color-text-muted: 68 64 60; /* Based on zinc-400 (darker zinc) */
-
-  --color-border-color: 168 162 158; /* Based on zinc-700 (darker zinc) */
-
   color-scheme: light;
+
+  /* Backgrounds */
+  --color-bg-default: 245 245 244; /* Original zinc-950 (light) */
+  --color-bg-card-outer: 231 229 228; /* Original zinc-900 (light) */
+  --color-bg-card-inner: 245 245 244; /* Original zinc-950 (light) */
+  --color-bg-card-chip: 214 211 209; /* Original zinc-800 (light) */
+
+  /* Text */
+  --color-text-normal: 12 10 9; /* Original zinc-50 (dark) */
+  --color-text-chip: 28 25 23; /* Original zinc-200 (dark) */
+
+  /* Borders */
+  --color-border-card-outer: 168 162 158; /* Original zinc-700 (dark) */
+  --color-border-card-inner: 214 211 209; /* Original zinc-800 (light) */
+  --color-border-card-chip: 168 162 158; /* Original zinc-700 (dark) */
+
+  /* Table */
+  --color-table-row-a: 231 229 228; /* Original zinc-900 (light) */
+  --color-table-row-b: 225 223 222; /* Slightly darker */
+
+  /* Button */
+  --color-btn-bg: 20 184 166; /* Original emerald-500 */
+  --color-btn-text: 255 255 255; /* White */
+
+  /* Accent */
+  --color-accent: 59 130 246; /* Original blue-500 */
+  --color-accent-text: 255 255 255; /* White */
+
+  /* Hover */
+  --color-hover-btn-bg: 45 212 191; /* Original emerald-400 */
+  --color-hover-nav: 214 211 209; /* Original zinc-800 (light) */
+  --color-hover-default: 214 211 209; /* Original zinc-800 (light) */
+  --color-hover-green: 20 184 166;
+  --color-hover-blue: 14 165 233;
+
+  /* Pills & Statuses */
+  --color-status-bg-default: 214 211 209; /* zinc-800 (light) */
+  --color-status-text-default: 41 37 36; /* zinc-300 (dark) */
+  --color-status-border-default: 168 162 158; /* zinc-700 (dark) */
+  --color-status-bg-green: 153 246 228; /* emerald-200 */
+  --color-status-text-green: 19 78 74; /* emerald-900 */
+  --color-status-border-green: 20 184 166; /* emerald-500 */
+  --color-status-bg-blue: 224 242 254; /* sky-100 */
+  --color-status-text-blue: 12 74 110; /* sky-900 */
+  --color-status-border-blue: 14 165 233; /* sky-500 */
+
+  --color-status-bar-default: 168 162 158; /* zinc-700 (dark) */
+  --color-status-bar-green: 20 184 166; /* emerald-500 */
+  --color-status-bar-blue: 14 165 233; /* sky-500 */
+
+  /* Gradients */
+  --color-gradient-gold-from: 251 146 60;
+  --color-gradient-gold-to: 253 186 116;
+  --color-gradient-silver-from: 120 113 108;
+  --color-gradient-silver-to: 168 162 158;
+  --color-gradient-bronze-from: 249 115 22;
+  --color-gradient-bronze-to: 254 215 170;
 }
+

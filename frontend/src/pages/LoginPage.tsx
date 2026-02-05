@@ -29,7 +29,7 @@ export default function LoginPage() {
   }
 
   return (
-    <Card title="Login (write access)">
+    <Card title="Login (write access)" className="card-outer">
       <form onSubmit={onSubmit} className="space-y-3">
         <Input
           label="Password"

@@ -5,16 +5,18 @@ export default function CollapsibleCard({
   defaultOpen = true,
   right,
   children,
+  className = "",
 }: {
   title: React.ReactNode;
   defaultOpen?: boolean;
   right?: React.ReactNode;
   children: React.ReactNode;
+  className?: string;
 }) {
   const [open, setOpen] = useState(defaultOpen);
 
   return (
-    <div className="surface-card">
+    <div className={`${className}`}>
       <button
         type="button"
         className="flex w-full items-center justify-between gap-3 px-3 py-2.5"
@@ -30,7 +32,11 @@ export default function CollapsibleCard({
         </div>
       </button>
 
-      {open && <div className="px-3 pb-3">{children}</div>}
+      {open && (
+        <div className="px-1 pb-1">
+          {children}
+        </div>
+      )}
     </div>
   );
 }

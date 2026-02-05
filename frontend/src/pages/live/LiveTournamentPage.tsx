@@ -429,14 +429,14 @@ export default function LiveTournamentPage() {
 
   const [panelError, setPanelError] = useState<string | null>(null);
 
-  if (!tid) return <Card title="Tournament" variant="plain" className="space-y-3">Invalid tournament id</Card>;
+  if (!tid) return <Card title="Tournament" className="space-y-3">Invalid tournament id</Card>;
 
   const showControls = isEditorOrAdmin;
   const cardTitle = tQ.data?.name ? tQ.data.name : `Tournament #${tid}`;
 
   return (
     <div className="page">
-      <Card title={cardTitle} variant="plain" className="space-y-3">
+      <Card title={cardTitle} className="card-outer">
         {tQ.isLoading && <div className="text-zinc-400">Loading…</div>}
         {tQ.error && <div className="text-red-400 text-sm">{String(tQ.error)}</div>}
 
@@ -461,7 +461,7 @@ export default function LiveTournamentPage() {
             </div>
 
             {showControls && (
-              <CollapsibleCard title={role === "admin" ? "Admin controls" : "Editor controls"} defaultOpen={false}>
+              <CollapsibleCard title={role === "admin" ? "Admin controls" : "Editor controls"} defaultOpen={false} className="card-inner">
                 <AdminPanel
                   wrap={false}
                   role={role}
@@ -536,7 +536,7 @@ export default function LiveTournamentPage() {
 
             {/* Current game: show even in draft (next scheduled) */}
             {(status === "draft" || status === "live") && currentMatch && (
-              <CollapsibleCard title="Current game" defaultOpen={role === "reader" ? false : true}>
+              <CollapsibleCard title="Current game" defaultOpen={role === "reader" ? false : true} className="card-inner">
                 <CurrentGameSection
                   status={status}
                   match={currentMatch}
@@ -563,11 +563,11 @@ export default function LiveTournamentPage() {
               </div>
             )}
 
-            <CollapsibleCard title={tQ.data.status === "done" ? "Results" : "Standings (live)"} defaultOpen={true}>
+            <CollapsibleCard title={tQ.data.status === "done" ? "Results" : "Standings (live)"} defaultOpen={true} className="card-inner">
               <StandingsTable wrap={false} matches={matchesSorted} players={tQ.data.players} />
             </CollapsibleCard>
 
-            <CollapsibleCard title="Matches" defaultOpen={true}>
+            <CollapsibleCard title="Matches" defaultOpen={true} className="card-inner">
               <MatchList
                 matches={matchesSorted}
                 canEdit={canEditMatch}

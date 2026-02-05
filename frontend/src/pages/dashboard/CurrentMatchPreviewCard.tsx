@@ -139,7 +139,9 @@ export default function CurrentMatchPreviewCard() {
         </span>
       }
       defaultOpen={true}
+      className="card-outer"
     >
+      <div className="card-inner">
       <button
         type="button"
         onClick={() => nav(`/live/${tid}`)}
@@ -235,6 +237,7 @@ export default function CurrentMatchPreviewCard() {
 
         <div className="mt-2 text-xs text-zinc-500">Tap to open live tournament.</div>
       </button>
+      </div>
     </CollapsibleCard>
   );
 }
