@@ -4,8 +4,8 @@ import { BrowserRouter } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AuthProvider } from "./auth/AuthContext";
 import App from "./app/App";
-import { THEMES } from "./themes";
 import "./styles.css";
+import { THEMES } from "./themes";
 
 let storedTheme = localStorage.getItem("theme");
 const knownThemes = new Set(THEMES);

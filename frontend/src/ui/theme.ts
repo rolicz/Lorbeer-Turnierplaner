@@ -2,7 +2,7 @@ export type MatchState = "scheduled" | "playing" | "finished";
 export type TournamentStatus = "draft" | "live" | "done";
 
 function pillBase() {
-  return "bg-neutral-950 text-zinc-300 border-zinc-600";
+  return "bg-background-alt text-text-muted border-border-color";
 }
 
 export function pillBaseClass() {
@@ -12,7 +12,7 @@ export function pillBaseClass() {
 export function matchColor(state: MatchState) {
   if (state === "playing") return "bg-status-live/10 text-status-live";
   if (state === "scheduled") return "bg-status-draft/10 text-status-draft";
-  return pillBase();
+  return "bg-background-default text-text-muted";
 }
 
 export function matchStatusPill(state: MatchState) {
@@ -52,7 +52,7 @@ export function tournamentStatusUI(status: TournamentStatus) {
     case "done":
     default:
       return {
-        bar: "bg-zinc-600",
+        bar: "bg-border-color",
         label: "Done",
       };
   }
@@ -65,22 +65,22 @@ export function matchPalette(state: MatchState) {
         wrap: "border-status-live/60 bg-status-live/10 hover:bg-status-live/15 ring-1 ring-status-live/25",
         bar: "bg-status-live",
         win: "text-status-live",
-        lose: "text-zinc-300/80",
+        lose: "text-text-muted/80",
       };
     case "scheduled":
       return {
         wrap: "border-status-draft/60 hover:bg-status-draft/15 ring-1 ring-status-draft/25",
         bar: "bg-status-draft/60",
-        win: "text-zinc-100",
-        lose: "text-zinc-300/80",
+        win: "text-text-default",
+        lose: "text-text-muted/80",
       };
     case "finished":
     default:
       return {
-        wrap: "hover:bg-zinc-800 ring-1 ring-transparent",
-        bar: "bg-zinc-600",
+        wrap: "border-border-color bg-background-default hover:bg-background-alt ring-1 ring-transparent",
+        bar: "bg-border-color",
         win: "text-status-live",
-        lose: "text-zinc-400",
+        lose: "text-text-muted",
       };
   }
 }

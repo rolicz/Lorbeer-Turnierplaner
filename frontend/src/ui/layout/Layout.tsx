@@ -47,7 +47,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       <div
         className="
           fixed inset-x-0 top-0 z-30
-          nav-shell backdrop-blur
+          nav-shell backdrop-blur-md backdrop-saturate-150
           pt-[env(safe-area-inset-top,0px)]
           pl-[env(safe-area-inset-left,0px)]
           pr-[env(safe-area-inset-right,0px)]

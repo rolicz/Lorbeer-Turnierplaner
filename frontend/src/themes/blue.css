@@ -1,54 +1,20 @@
 [data-theme="blue"] {
-  color-scheme: dark;
-
   --accent: 255 176 0; /* #FFB000 */
   --on-accent: 15 23 42;
 
+  --color-primary: 100 143 255; /* Based on emerald-500 */
+  --color-on-primary: 15 23 42; /* Based on zinc-900 */
 
-  --zinc-50: 248 250 252;
-  --zinc-100: 241 245 249;
-  --zinc-200: 226 232 240;
-  --zinc-300: 203 213 225;
-  --zinc-400: 148 163 184;
-  --zinc-500: 100 116 139;
-  --zinc-600: 71 85 105;
-  --zinc-700: 51 65 85;
-  --zinc-800: 30 41 59;
-  --zinc-900: 15 23 42;
-  --zinc-950: 7 16 36;
+  --color-secondary: 120 94 240; /* Based on sky-500 */
+  --color-on-secondary: 248 250 252; /* Based on zinc-50 */
 
-  --theme-app-bg: var(--zinc-800);
+  --color-background-default: 30 41 59; /* Based on zinc-800 */
+  --color-background-alt: 51 65 85; /* Based on zinc-700 */
 
-  --neutral-900: var(--zinc-900);
-  --neutral-950: var(--zinc-950);
+  --color-text-default: 248 250 252; /* Based on zinc-50 */
+  --color-text-muted: 148 163 184; /* Based on zinc-400 */
 
-  /* IBM palette mapping */
-  --emerald-100: 224 231 255;
-  --emerald-200: 199 210 254;
-  --emerald-300: 165 180 252;
-  --emerald-400: 129 140 248;
-  --emerald-500: 100 143 255; /* #648FFF */
-  --emerald-800: 67 56 202;
-  --emerald-900: 55 48 163;
+  --color-border-color: 71 85 105; /* Based on zinc-600 */
 
-  --sky-100: 237 233 254;
-  --sky-500: 120 94 240; /* #785EF0 */
-  --sky-800: 91 33 182;
-  --sky-900: 76 29 149;
-
-  --amber-200: 255 237 213;
-  --amber-300: 254 215 170;
-  --amber-400: 254 97 0;  /* #FE6100 */
-  --amber-500: 254 97 0;
-
-  --red-200: 251 207 232;
-  --red-300: 249 168 212;
-  --red-400: 220 38 127; /* #DC267F */
-  --red-500: 220 38 127;
-
-  --yellow-400: 255 176 0; /* #FFB000 */
-  --lime-200: 255 231 145;
-  --lime-400: 255 176 0;
-  --orange-200: 255 221 170;
-  --orange-400: 254 97 0;
+  color-scheme: dark;
 }
