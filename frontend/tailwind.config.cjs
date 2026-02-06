@@ -14,6 +14,7 @@ module.exports = {
         // Text
         "text-normal": cssVar("color-text-normal"),
         "text-chip": cssVar("color-text-chip"),
+        "text-muted": cssVar("color-text-muted"),
 
         // Borders
         "border-card-outer": cssVar("color-border-card-outer"),

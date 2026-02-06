@@ -109,8 +109,8 @@ export default function MatchList({
                         disabled={busyReorder}
                         title="Swap sides"
                       >
-                        <i className="fa fa-arrow-right-arrow-left md:hidden text-zinc-200" aria-hidden="true" />
-                        <span className="hidden md:inline text-zinc-200">Swap Home/Away</span>
+                        <i className="fa fa-arrow-right-arrow-left md:hidden text-text-normal" aria-hidden="true" />
+                        <span className="hidden md:inline text-text-normal">Swap Home/Away</span>
                       </Button>
                     </div>
                   )}
@@ -124,8 +124,8 @@ export default function MatchList({
                       disabled={busyReorder}
                       title="Move up"
                     >
-                      <i className="fa fa-arrow-up md:hidden text-zinc-200" aria-hidden="true" />
-                      <span className="hidden md:inline text-zinc-200">Move up</span>
+                      <i className="fa fa-arrow-up md:hidden text-text-normal" aria-hidden="true" />
+                      <span className="hidden md:inline text-text-normal">Move up</span>
                     </Button>
                     <Button
                       variant="ghost"
@@ -137,8 +137,8 @@ export default function MatchList({
                       disabled={busyReorder}
                       title="Move down"
                     >
-                      <i className="fa fa-arrow-down md:hidden text-zinc-200" aria-hidden="true" />
-                      <span className="hidden md:inline text-zinc-200">Move down</span>
+                      <i className="fa fa-arrow-down md:hidden text-text-normal" aria-hidden="true" />
+                      <span className="hidden md:inline text-text-normal">Move down</span>
                     </Button>
                   </div>
                 )}
@@ -148,7 +148,7 @@ export default function MatchList({
               <div className="mt-3 grid grid-cols-[1fr_auto_1fr] items-center gap-3">
                 {/* Team A players */}
                 <div className="min-w-0">
-                  <div className={`space-y-0.5 ${(hasWinner && !isDraw) ? (!aWin ? pal.lose : pal.win) : "text-zinc-200"}`}>
+                  <div className={`space-y-0.5 ${(hasWinner && !isDraw) ? (!aWin ? pal.lose : pal.win) : "text-text-normal"}`}>
                     {aPlayers.map((n, i) => (
                       <div key={i} className="truncate text-[15px] font-semibold leading-snug">
                         {n}
@@ -160,11 +160,11 @@ export default function MatchList({
                 {/* Score centered */}
                 <div className="justify-self-center">
                   <div className="card-chip flex items-center justify-center gap-2">
-                    <span className={`text-xl font-semibold tabular-nums text-zinc-100`}>
+                    <span className="text-xl font-semibold tabular-nums">
                       {scoreLeft}
                     </span>
-                    <span className="text-zinc-500">:</span>
-                    <span className={`text-xl font-semibold tabular-nums text-zinc-100`}>
+                    <span className="text-text-muted">:</span>
+                    <span className="text-xl font-semibold tabular-nums">
                       {scoreRight}
                     </span>
                   </div>
@@ -172,7 +172,7 @@ export default function MatchList({
 
                 {/* Team B players */}
                 <div className="min-w-0 text-right">
-                  <div className={`space-y-0.5 ${(hasWinner && !isDraw) ? (!bWin ? pal.lose : pal.win) : "text-zinc-200"}`}>
+                  <div className={`space-y-0.5 ${(hasWinner && !isDraw) ? (!bWin ? pal.lose : pal.win) : "text-text-normal"}`}>
                     {bPlayers.map((n, i) => (
                       <div key={i} className="truncate text-[15px] font-semibold leading-snug">
                         {n}
@@ -186,14 +186,14 @@ export default function MatchList({
               <div className="mt-2 grid grid-cols-2 gap-3 text-xs">
                 <div
                   className={`min-w-0 whitespace-normal break-words ${
-                    hasWinner && !aWin && !isDraw ? "text-zinc-500" : "text-zinc-300"
+                    hasWinner && !aWin && !isDraw ? "text-text-muted" : "text-text-muted"
                   }`}
                 >
                   {clubLabel(a?.club_id)}
                 </div>
                 <div
                   className={`min-w-0 text-right whitespace-normal break-words ${
-                    hasWinner && !bWin && !isDraw ? "text-zinc-500" : "text-zinc-300"
+                    hasWinner && !bWin && !isDraw ? "text-text-muted" : "text-text-muted"
                   }`}
                 >
                   {clubLabel(b?.club_id)}

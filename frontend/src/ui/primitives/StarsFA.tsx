@@ -5,11 +5,14 @@ export function StarsFA({
   rating,
   className = "",
   title,
-  textZinc = "text-soft",
+  textClassName,
+  textZinc,
 }: {
   rating: number;
   className?: string;
   title?: string;
+  textClassName?: string;
+  /** @deprecated Use textClassName (this prop name leaked implementation details). */
   textZinc?: string;
 }) {
   const r = clamp(Number.isFinite(rating) ? rating : 0, 0, 5);
@@ -19,9 +22,10 @@ export function StarsFA({
   const empty = Math.max(0, 5 - full - (half ? 1 : 0));
 
   const aria = title ?? `${rounded.toFixed(1).replace(/\.0$/, "")} out of 5 stars`;
+  const textCls = textClassName ?? textZinc ?? "text-text-muted";
 
   return (
-    <span className={`inline-flex items-center gap-0.5 ${textZinc} ${className}`} title={aria} aria-label={aria}>
+    <span className={`inline-flex items-center gap-0.5 ${textCls} ${className}`} title={aria} aria-label={aria}>
       {Array.from({ length: full }).map((_, i) => (
         <i key={`f-${i}`} className="fa-solid fa-star" aria-hidden="true" />
       ))}

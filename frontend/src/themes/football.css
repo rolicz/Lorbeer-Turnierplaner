@@ -10,6 +10,7 @@
   /* Text */
   --color-text-normal: 248 250 249; /* Original zinc-50 */
   --color-text-chip: 220 230 223; /* Original zinc-200 */
+  --color-text-muted: 147 170 155; /* muted (silver-ish) */
 
   /* Borders */
   --color-border-card-outer: 48 70 56; /* Original zinc-700 */
@@ -58,4 +59,3 @@
   --color-gradient-bronze-from: 161 98 7; /* A brown */
   --color-gradient-bronze-to: 251 146 60;
 }
-

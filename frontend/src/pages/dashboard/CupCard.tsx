@@ -5,7 +5,7 @@ import Button from "../../ui/primitives/Button";
 import { getCup } from "../../api/cup.api";
 import { useAnyTournamentWS } from "../../hooks/useTournamentWS";
 
-import { Pill, pillDate, statusPill } from "../../ui/primitives/Pill";
+import { Pill, pillDate } from "../../ui/primitives/Pill";
 
 function fmtDate(d?: string | null) {
   if (!d) return "—";
@@ -30,14 +30,14 @@ export default function CupCard() {
 
   return (
     <div>
-      {q.isLoading && <div className="text-zinc-400">Loading…</div>}
+      {q.isLoading && <div className="text-text-muted">Loading…</div>}
       {q.error && <div className="text-sm text-red-400">{String(q.error)}</div>}
 
       {q.data && (
         <div className="space-y-3 card-inner">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <div className="text-xs text-zinc-500">Current owner</div>
+              <div className="text-xs text-text-muted">Current owner</div>
               <div className="truncate text-xl font-semibold accent">{q.data.owner.display_name}</div>
             </div>
             <div className="flex items-center gap-2">
@@ -49,9 +49,9 @@ export default function CupCard() {
                 >
                   <i className="fa fa-info" aria-hidden="true" />
                 </Button>
-                <div className="pointer-events-none absolute right-0 top-full z-20 mt-2 w-72 origin-top-right rounded-xl border border-zinc-800 bg-zinc-950/95 p-3 text-xs text-zinc-300 opacity-0 shadow-lg transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+                <div className="pointer-events-none absolute right-0 top-full z-20 mt-2 w-72 origin-top-right rounded-xl border border-border-card-chip bg-bg-card-outer/95 p-3 text-xs text-text-muted opacity-0 shadow-lg transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
                   Cup transfers only when the current owner participates in a{" "}
-                  <span className="text-zinc-100">done</span> tournament and does not win it.
+                  <span className="text-text-normal">done</span> tournament and does not win it.
                   <br />
                   Draw for first place does not transfer.
                 </div>
@@ -60,15 +60,15 @@ export default function CupCard() {
           </div>
 
           <div className="panel-subtle p-2">
-            <div className="text-xs text-zinc-500">Streak</div>
-            <div className="mt-1 text-sm text-zinc-200">
+            <div className="text-xs text-text-muted">Streak</div>
+            <div className="mt-1 text-sm text-text-normal">
               <span className="font-semibold text-xl">{q.data.streak.tournaments_participated}</span>
             </div>
             {q.data.streak.since.tournament_name && (
-              <div className="mt-1 text-xs text-zinc-500">
+              <div className="mt-1 text-xs text-text-muted">
                 Since: 
                   {" "}
-                <span className="text-xs text-zinc-300">
+                <span className="text-xs text-text-muted">
                   {q.data.streak.since.tournament_name}
                 </span>
               </div>
@@ -76,7 +76,7 @@ export default function CupCard() {
           </div>
 
           <div className="flex items-center justify-between">
-            <div className="text-sm text-zinc-300 font-semibold">History</div>
+            <div className="text-sm font-semibold">History</div>
             {history.length > 8 && (
               <Button variant="ghost" type="button" onClick={() => setShowAll((v) => !v)}>
                 {showAll ? "Show less" : "Show all"}
@@ -85,7 +85,7 @@ export default function CupCard() {
           </div>
 
           {history.length === 0 ? (
-            <div className="text-sm text-zinc-500">No transfers yet.</div>
+            <div className="text-sm text-text-muted">No transfers yet.</div>
           ) : (
             <div className="space-y-2">
               {shown.map((h) => (
@@ -95,7 +95,7 @@ export default function CupCard() {
                   >
                   <div className="flex items-center justify-between gap-2">
                     <div className="min-w-0">
-                      <div className="truncate text-sm text-zinc-200">{h.tournament_name}</div>
+                      <div className="truncate text-sm text-text-normal">{h.tournament_name}</div>
                       <div className="mt-2 flex flex-wrap items-center gap-2">
                         <Pill className={pillDate()} title="Date">
                           <span>{fmtDate(h.date)}</span>
@@ -108,9 +108,9 @@ export default function CupCard() {
                         )}
                       </div>
                     </div>
-                    <div className="shrink-0 text-sm text-zinc-200">
-                      <span className="text-zinc-300">{h.from.display_name}</span>{" "}
-                      <span className="text-zinc-500">→</span>{" "}
+                    <div className="shrink-0 text-sm text-text-normal">
+                      <span className="text-text-muted">{h.from.display_name}</span>{" "}
+                      <span className="text-text-muted">→</span>{" "}
                       <span className="accent font-semibold">{h.to.display_name}</span>
                     </div>
                   </div>

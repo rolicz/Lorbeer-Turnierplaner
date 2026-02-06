@@ -429,15 +429,15 @@ export default function LiveTournamentPage() {
 
   const [panelError, setPanelError] = useState<string | null>(null);
 
-  if (!tid) return <Card title="Tournament" className="space-y-3">Invalid tournament id</Card>;
+  if (!tid) return <Card title="Tournament" variant="outer">Invalid tournament id</Card>;
 
   const showControls = isEditorOrAdmin;
   const cardTitle = tQ.data?.name ? tQ.data.name : `Tournament #${tid}`;
 
   return (
     <div className="page">
-      <Card title={cardTitle} className="card-outer">
-        {tQ.isLoading && <div className="text-zinc-400">Loading…</div>}
+      <Card title={cardTitle} variant="outer">
+        {tQ.isLoading && <div className="text-text-muted">Loading…</div>}
         {tQ.error && <div className="text-red-400 text-sm">{String(tQ.error)}</div>}
 
         {tQ.data && (
@@ -461,7 +461,7 @@ export default function LiveTournamentPage() {
             </div>
 
             {showControls && (
-              <CollapsibleCard title={role === "admin" ? "Admin controls" : "Editor controls"} defaultOpen={false} className="card-inner">
+              <CollapsibleCard title={role === "admin" ? "Admin controls" : "Editor controls"} defaultOpen={false} variant="inner">
                 <AdminPanel
                   wrap={false}
                   role={role}
@@ -536,7 +536,7 @@ export default function LiveTournamentPage() {
 
             {/* Current game: show even in draft (next scheduled) */}
             {(status === "draft" || status === "live") && currentMatch && (
-              <CollapsibleCard title="Current game" defaultOpen={role === "reader" ? false : true} className="card-inner">
+              <CollapsibleCard title="Current game" defaultOpen={role === "reader" ? false : true} variant="inner">
                 <CurrentGameSection
                   status={status}
                   match={currentMatch}
@@ -554,20 +554,20 @@ export default function LiveTournamentPage() {
             {showDeciderReadOnly && (
               <div className="card-subtle">
                 <div className="text-base font-semibold">Decider</div>
-                <div className="mt-1 text-sm text-zinc-300">{deciderSummary}</div>
+                <div className="mt-1 text-sm text-text-muted">{deciderSummary}</div>
                 {decider.type === "none" && topDrawInfo.isTopDraw && (
-                  <div className="mt-1 text-xs text-zinc-500">
+                  <div className="mt-1 text-xs text-text-muted">
                     Tournament ended tied at the top. A decider can be set.
                   </div>
                 )}
               </div>
             )}
 
-            <CollapsibleCard title={tQ.data.status === "done" ? "Results" : "Standings (live)"} defaultOpen={true} className="card-inner">
+            <CollapsibleCard title={tQ.data.status === "done" ? "Results" : "Standings (live)"} defaultOpen={true} variant="inner">
               <StandingsTable wrap={false} matches={matchesSorted} players={tQ.data.players} />
             </CollapsibleCard>
 
-            <CollapsibleCard title="Matches" defaultOpen={true} className="card-inner">
+            <CollapsibleCard title="Matches" defaultOpen={true} variant="inner">
               <MatchList
                 matches={matchesSorted}
                 canEdit={canEditMatch}
@@ -598,7 +598,7 @@ export default function LiveTournamentPage() {
             </CollapsibleCard>
 
             {!isEditorOrAdmin && (
-              <div className="rounded-xl border border-zinc-800 bg-zinc-900/20 px-3 py-2 text-sm text-zinc-400">
+              <div className="panel-subtle px-3 py-2 text-sm text-text-muted">
                 Login for write access to enter results.
               </div>
             )}

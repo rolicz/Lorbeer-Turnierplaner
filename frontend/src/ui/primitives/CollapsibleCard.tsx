@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { cn } from "../cn";
 
 export default function CollapsibleCard({
   title,
@@ -6,20 +7,26 @@ export default function CollapsibleCard({
   right,
   children,
   className = "",
+  variant = "none",
 }: {
   title: React.ReactNode;
   defaultOpen?: boolean;
   right?: React.ReactNode;
   children: React.ReactNode;
   className?: string;
+  variant?: "outer" | "inner" | "none";
 }) {
   const [open, setOpen] = useState(defaultOpen);
+  const variantCls =
+    variant === "outer" ? "card-outer" : variant === "inner" ? "card-inner" : "";
+  const pad = variant === "none" ? "px-3 py-2.5" : "";
+  const bodyPad = variant === "none" ? "px-3 pb-3" : "";
 
   return (
-    <div className={`${className}`}>
+    <section className={cn(variantCls, className)}>
       <button
         type="button"
-        className="flex w-full items-center justify-between gap-3 px-3 py-2.5"
+        className={cn("flex w-full items-center justify-between gap-3", pad)}
         onClick={() => setOpen((v) => !v)}
       >
         <div className="min-w-0 text-left">
@@ -33,10 +40,8 @@ export default function CollapsibleCard({
       </button>
 
       {open && (
-        <div className="px-1 pb-1">
-          {children}
-        </div>
+        <div className={cn("mt-3", bodyPad)}>{children}</div>
       )}
-    </div>
+    </section>
   );
 }

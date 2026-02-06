@@ -71,15 +71,15 @@ function useTournamentCols() {
  * Winner gets separate styling.
  */
 function posGradientClass(position: number, total: number) {
-  if (total <= 1) return "pill-default";
+  if (total <= 1) return "pos-best";
   const p = clamp((position - 1) / (total - 1), 0, 1); // 0 best .. 1 worst
 
   const buckets = [
-    "pill-green",
-    "pill-blue",
-    "pill-default",
-    "border-orange-400/35 bg-orange-400/10 text-orange-200", // Keep some variety
-    "border-red-500/35 bg-red-500/10 text-red-200",
+    "pos-best",
+    "pos-good",
+    "pos-mid",
+    "pos-bad",
+    "pos-worst",
   ];
 
   const idx = clamp(Math.round(p * (buckets.length - 1)), 0, buckets.length - 1);
@@ -176,10 +176,11 @@ function InfoLegend({
           </span>
 
           <span className="inline-flex items-center gap-2">
-            <span className="h-2.5 w-2.5 rounded-sm border border-status-border-green bg-status-bg-green" />
+            <span className="h-2.5 w-2.5 rounded-sm border border-emerald-400/55 bg-emerald-400/15" />
             <span>best</span>
-            <span className="h-2.5 w-2.5 rounded-sm border border-status-border-blue bg-status-bg-blue" />
-            <span className="h-2.5 w-2.5 rounded-sm border border-status-border-default bg-status-bg-default" />
+            <span className="h-2.5 w-2.5 rounded-sm border border-amber-400/55 bg-amber-400/15" />
+            <span className="h-2.5 w-2.5 rounded-sm border border-orange-400/55 bg-orange-400/15" />
+            <span className="h-2.5 w-2.5 rounded-sm border border-red-500/55 bg-red-500/15" />
             <span>worst</span>
           </span>
 
@@ -257,7 +258,7 @@ function TournamentPositionsGrid({
       <div className="panel rounded-2xl p-2">
         <div className="grid grid-cols-8 gap-1 sm:grid-cols-10 lg:grid-cols-12">
           {visible.length === 0 && (
-            <div className="col-span-full rounded-xl border-2 border-zinc-900 bg-zinc-950/30 px-3 py-2 text-xs text-zinc-600">
+            <div className="col-span-full panel-subtle px-3 py-2 text-xs text-text-muted">
               No tournaments yet.
             </div>
           )}
@@ -274,7 +275,7 @@ function TournamentPositionsGrid({
                 <div
                   key={t.id}
                   title={title + " · did not participate"}
-                  className="inline-flex h-9 items-center justify-center rounded-xl border border-zinc-500/70 bg-zinc-950/30 text-[11px] font-mono tabular-nums text-zinc-700"
+                  className="inline-flex h-9 items-center justify-center rounded-xl border border-border-card-inner/70 bg-bg-card-outer/30 text-[11px] font-mono tabular-nums text-text-muted"
                   style={{ opacity }}
                 >
                   —
@@ -287,7 +288,7 @@ function TournamentPositionsGrid({
 
             const base =
               "inline-flex h-9 items-center justify-center rounded-xl border text-[11px] font-mono tabular-nums transition " +
-              "hover:brightness-110 hover:border-zinc-600/60";
+              "hover:brightness-110 hover:border-accent/40";
 
             const cls = isWinner
               ? "border-emerald-500/70 bg-emerald-500/20 text-emerald-100 shadow-[0_0_0_1px_rgba(16,185,129,0.15)]"
@@ -302,7 +303,7 @@ function TournamentPositionsGrid({
                   base +
                   " " +
                   cls +
-                  " w-full select-none no-underline cursor-pointer focus:outline-none focus:ring-2 focus:ring-zinc-500/40"
+                  " w-full select-none no-underline cursor-pointer focus:outline-none focus:ring-2 focus:ring-accent/30"
                 }
                 style={{ opacity }}
                 aria-label={`${title}, position ${pos} of ${totalPlayers}`}
@@ -509,7 +510,7 @@ export default function PlayersPage() {
 
   return (
     <div className="page">
-      <Card title={`Players${isAdmin ? " (Admin)" : ""}`} className="card-outer">
+      <Card variant="outer" showHeader={false}>
         {showControls && (
           <div className="grid gap-3 md:grid-cols-3">
             <Input
@@ -542,12 +543,12 @@ export default function PlayersPage() {
 
         {/* "Sort & primary metric" + stats status on same line */}
         <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-          <div className="text-xs text-zinc-500 inline-flex items-center gap-2">
+          <div className="text-xs text-text-muted inline-flex items-center gap-2">
             <i className="fa-solid fa-arrow-down-wide-short" aria-hidden="true" />
             Sort & primary metric
           </div>
 
-          <div className="text-xs text-zinc-500 inline-flex items-center gap-2">
+          <div className="text-xs text-text-muted inline-flex items-center gap-2">
             {statsQ.isLoading ? (
               <>
                 <i className="fa-solid fa-circle-notch fa-spin" aria-hidden="true" />
@@ -576,7 +577,7 @@ export default function PlayersPage() {
             title="Overall points"
             subtitle="Rank by total points"
           />
-          <div className="w-px bg-zinc-800" />
+          <div className="w-px bg-border-card-inner" />
           <SortSegment
             active={sortMode === "lastN"}
             onClick={() => setSortMode("lastN")}
@@ -591,18 +592,18 @@ export default function PlayersPage() {
           <CollapsibleCard
             title={
               <span className="inline-flex items-center gap-2">
-                <i className="fa-regular fa-circle-question text-zinc-400" aria-hidden="true" />
+                <i className="fa-regular fa-circle-question text-text-muted" aria-hidden="true" />
                 Tournament tiles & options
               </span>
             }
             defaultOpen={false}
             right={
-              <span className="text-xs text-zinc-500 inline-flex items-center gap-2">
+              <span className="text-xs text-text-muted inline-flex items-center gap-2">
                 <i className="fa-regular fa-flag" aria-hidden="true" />
                 legend
               </span>
             }
-            className="card-inner"
+            variant="inner"
           >
             <InfoLegend showAllTournamentTiles={showAllTournamentTiles} setShowAllTournamentTiles={setShowAllTournamentTiles} />
           </CollapsibleCard>
@@ -610,7 +611,7 @@ export default function PlayersPage() {
 
         {/* Expand/collapse all + compact table header */}
         <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-          <div className="text-xs text-zinc-500 inline-flex items-center gap-2">
+          <div className="text-xs text-text-muted inline-flex items-center gap-2">
             <i className="fa-regular fa-list" aria-hidden="true" />
             Players
           </div>
@@ -620,10 +621,10 @@ export default function PlayersPage() {
               type="button"
               onClick={() => setAllOpen(true)}
               className={
-                "inline-flex items-center gap-2 rounded-xl border-2 px-3 py-1.5 text-[11px] hover:bg-zinc-900/40 " +
+                "inline-flex items-center gap-2 rounded-xl border-2 px-3 py-1.5 text-[11px] transition hover:bg-hover-default/40 " +
                 (allExpanded
                   ? "border-emerald-500/35 bg-emerald-500/10 text-emerald-200"
-                  : "border-zinc-800 bg-zinc-950/30 text-zinc-200")
+                  : "border-border-card-inner bg-bg-card-outer/30 text-text-normal")
               }
               title="Expand all players"
             >
@@ -635,10 +636,10 @@ export default function PlayersPage() {
               type="button"
               onClick={() => setAllOpen(false)}
               className={
-                "inline-flex items-center gap-2 rounded-xl border-2 px-3 py-1.5 text-[11px] hover:bg-zinc-900/40 " +
+                "inline-flex items-center gap-2 rounded-xl border-2 px-3 py-1.5 text-[11px] transition hover:bg-hover-default/40 " +
                 (allCollapsed
                   ? "border-emerald-500/35 bg-emerald-500/10 text-emerald-200"
-                  : "border-zinc-800 bg-zinc-950/30 text-zinc-200")
+                  : "border-border-card-inner bg-bg-card-outer/30 text-text-normal")
               }
               title="Collapse all players"
             >
@@ -651,9 +652,9 @@ export default function PlayersPage() {
         {/* Table-ish list */}
         <div className="panel-subtle rounded-2xl mt-2 overflow-hidden">
           {/* Header row */}
-          <div className="grid grid-cols-12 items-center gap-2 border-b border-zinc-800 bg-zinc-950/30 px-3 py-2 text-[11px] text-zinc-500">
+          <div className="grid grid-cols-12 items-center gap-2 border-b border-border-card-inner bg-bg-card-outer/30 px-3 py-2 text-[11px] text-text-muted">
             <div className="col-span-7 inline-flex items-center gap-2">
-              <i className="fa-regular fa-user text-zinc-500" aria-hidden="true" />
+              <i className="fa-regular fa-user text-text-muted" aria-hidden="true" />
               Player
             </div>
             <div className="col-span-5 text-right inline-flex items-center justify-end gap-2">
@@ -663,7 +664,7 @@ export default function PlayersPage() {
           </div>
 
           {/* Rows */}
-          {playersQ.isLoading && <div className="px-3 py-3 text-zinc-400">Loading…</div>}
+          {playersQ.isLoading && <div className="px-3 py-3 text-text-muted">Loading…</div>}
           {playersQ.error && <div className="px-3 py-3 text-red-400 text-sm">{String(playersQ.error)}</div>}
 
           {rows.map(({ p, s, rank }, idx) => {
@@ -685,7 +686,7 @@ export default function PlayersPage() {
                 <div className="grid grid-cols-12 items-center gap-2 px-3 py-2">
                   {/* Left: rank strip */}
                   <div className="col-span-2">
-                    <span className="inline-flex h-9 w-full items-center justify-center rounded-xl border border-zinc-800 bg-zinc-950/40 px-2 text-medium font-bold tabular-nums text-zinc-200">
+                    <span className="inline-flex h-9 w-full items-center justify-center rounded-xl border border-border-card-inner bg-bg-card-outer/40 px-2 text-medium font-bold tabular-nums text-text-normal">
                       #{rank}
                     </span>
                   </div>
@@ -698,7 +699,7 @@ export default function PlayersPage() {
                     title={rowOpen ? "Collapse player" : "Expand player"}
                   >
                     <div className="flex min-w-0 items-center gap-2">
-                      <span className="truncate text-xl font-semibold text-zinc-100">{p.display_name}</span>
+                      <span className="truncate text-xl font-semibold text-text-normal">{p.display_name}</span>
 
                       {/* Crown next to name (same style as before) */}
                       {isCupOwner && (
@@ -714,10 +715,10 @@ export default function PlayersPage() {
 
                   {/* Points box */}
                   <div className="col-span-3 flex items-center justify-end gap-2">
-                    <div className="inline-flex h-9 items-center gap-2 rounded-xl border border-zinc-800 bg-zinc-950/40 px-3">
-                      <i className={metric.icon + " text-zinc-300 text-xs"} aria-hidden="true" />
-                      <span className="font-medium font-mono leading-none text-zinc-100">{metric.value}</span>
-                      <span className="text-xs font-medium text-zinc-500">{metric.label}</span>
+                    <div className="inline-flex h-9 items-center gap-2 rounded-xl border border-border-card-inner bg-bg-card-outer/40 px-3">
+                      <i className={metric.icon + " text-text-muted text-xs"} aria-hidden="true" />
+                      <span className="font-medium font-mono leading-none text-text-normal">{metric.value}</span>
+                      <span className="text-xs font-medium text-text-muted">{metric.label}</span>
                     </div>
                   </div>
 
@@ -725,7 +726,7 @@ export default function PlayersPage() {
                     <button
                       type="button"
                       onClick={toggleRow}
-                      className="col-span-1 inline-flex h-9 w-full items-center justify-center rounded-xl border border-zinc-800 bg-zinc-950/30 text-zinc-200 hover:bg-zinc-900/40"
+                      className="col-span-1 inline-flex h-9 w-full items-center justify-center rounded-xl border border-border-card-inner bg-bg-card-outer/30 text-text-normal transition hover:bg-hover-default/40"
                       title={rowOpen ? "Collapse" : "Expand"}
                     >
                     <i className={"fa-solid " + (rowOpen ? "fa-chevron-up" : "fa-chevron-down")} aria-hidden="true" />

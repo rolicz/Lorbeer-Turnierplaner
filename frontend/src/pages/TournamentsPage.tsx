@@ -7,6 +7,7 @@ import Input from "../ui/primitives/Input";
 import Modal from "../ui/primitives/Modal";
 import { Pill, statusPill, pillDate } from "../ui/primitives/Pill";
 import { tournamentStatusUI } from "../ui/theme";
+import { cn } from "../ui/cn";
 import { listTournaments, createTournament, generateSchedule } from "../api/tournaments.api";
 import { listPlayers } from "../api/players.api";
 import { useAuth } from "../auth/AuthContext";
@@ -85,9 +86,9 @@ export default function TournamentsPage() {
 
   return (
     <div className="page">
-      <Card title="Tournaments" className="card-outer">
+      <Card variant="outer" showHeader={false}>
         <div className="flex items-center justify-between gap-2">
-          <div className="text-sm text-zinc-400">Active + past tournaments.</div>
+          <div className="text-sm text-text-muted">Active + past tournaments.</div>
           <div className="flex items-center gap-2">
             <Button variant="ghost" onClick={() => qc.invalidateQueries({ queryKey: ["tournaments"] })} title="Refresh">
               <i className="fa fa-refresh md:hidden" aria-hidden="true" />
@@ -101,7 +102,7 @@ export default function TournamentsPage() {
         </div>
 
         <div className="mt-3 space-y-2">
-          {tournamentsQ.isLoading && <div className="text-zinc-400">Loading…</div>}
+          {tournamentsQ.isLoading && <div className="text-text-muted">Loading…</div>}
           {tournamentsQ.error && <div className="text-red-400 text-sm">{String(tournamentsQ.error)}</div>}
 
           {tournamentsSorted.map((t: any) => {
@@ -117,12 +118,15 @@ export default function TournamentsPage() {
               <Link
                 key={t.id}
                 to={`/live/${t.id}`}
-                className={[
-                  "relative block overflow-hidden rounded-xl border bg-zinc-900 px-4 py-3 transition",
-                  "hover:bg-zinc-600",
-                  isLive ? "border-emerald-500/30" : "",
-                  isDraft ? "border-sky-500/30" : "border-zinc-600",
-                ].join(" ")}
+                className={cn(
+                  "relative block overflow-hidden rounded-xl border px-4 py-3 transition",
+                  "bg-bg-card-inner hover:bg-hover-default/40",
+                  isLive
+                    ? "border-status-border-green/60"
+                    : isDraft
+                      ? "border-status-border-blue/60"
+                      : "border-border-card-inner"
+                )}
               >
                 {/* left accent bar */}
                 <div className={`absolute left-0 top-0 h-full w-1 ${ui.bar}`} />
@@ -131,7 +135,7 @@ export default function TournamentsPage() {
                   {/* Row 1: name + small mode pill */}
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <div className="truncate text-[15px] font-semibold text-zinc-100 sm:text-base">
+                      <div className="truncate text-[15px] font-semibold text-text-normal sm:text-base">
                         {t.name}
                       </div>
                     </div>
@@ -174,18 +178,24 @@ export default function TournamentsPage() {
           <Input label="Name" value={name} onChange={(e) => setName(e.target.value)} placeholder="42. Lorbeerkranz Turnier" />
           <div className="grid grid-cols-2 gap-2">
             <button
-              className={`rounded-xl border px-3 py-2 text-sm ${
-                mode === "1v1" ? "border-zinc-600 bg-zinc-900" : "border-zinc-800 hover:bg-zinc-900/40"
-              }`}
+              className={cn(
+                "rounded-xl border px-3 py-2 text-sm transition",
+                mode === "1v1"
+                  ? "border-accent/60 bg-bg-card-inner"
+                  : "border-border-card-inner/70 hover:bg-hover-default/40"
+              )}
               onClick={() => setMode("1v1")}
               type="button"
             >
               1v1
             </button>
             <button
-              className={`rounded-xl border px-3 py-2 text-sm ${
-                mode === "2v2" ? "border-zinc-600 bg-zinc-900" : "border-zinc-800 hover:bg-zinc-900/40"
-              }`}
+              className={cn(
+                "rounded-xl border px-3 py-2 text-sm transition",
+                mode === "2v2"
+                  ? "border-accent/60 bg-bg-card-inner"
+                  : "border-border-card-inner/70 hover:bg-hover-default/40"
+              )}
               onClick={() => setMode("2v2")}
               type="button"
             >
@@ -193,15 +203,15 @@ export default function TournamentsPage() {
             </button>
           </div>
 
-          <div className="rounded-xl border border-zinc-800 p-3">
+          <div className="panel p-3">
             <div className="mb-2 text-sm font-medium">Players</div>
-            {playersQ.isLoading && <div className="text-sm text-zinc-400">Loading players…</div>}
+            {playersQ.isLoading && <div className="text-sm text-text-muted">Loading players…</div>}
             {playersQ.error && <div className="text-sm text-red-400">{String(playersQ.error)}</div>}
             <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
               {playersQ.data?.map((p) => (
                 <label
                   key={p.id}
-                  className="flex items-center gap-2 rounded-lg border border-zinc-800 px-2 py-2 text-sm hover:bg-zinc-900/30"
+                  className="flex items-center gap-2 rounded-lg border border-border-card-inner px-2 py-2 text-sm transition hover:bg-hover-default/40"
                 >
                   <input
                     type="checkbox"
@@ -212,7 +222,7 @@ export default function TournamentsPage() {
                 </label>
               ))}
             </div>
-            <div className="mt-2 text-xs text-zinc-500">Selected: {selectedIds.length}</div>
+            <div className="mt-2 text-xs text-text-muted">Selected: {selectedIds.length}</div>
           </div>
 
           {createMut.error && <div className="text-sm text-red-400">{String(createMut.error)}</div>}

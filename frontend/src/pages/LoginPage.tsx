@@ -29,7 +29,7 @@ export default function LoginPage() {
   }
 
   return (
-    <Card title="Login (write access)" className="card-outer">
+    <Card title="Login (write access)" variant="outer">
       <form onSubmit={onSubmit} className="space-y-3">
         <Input
           label="Password"
@@ -43,7 +43,7 @@ export default function LoginPage() {
           <i className="fa fa-sign-in md:hidden" aria-hidden="true" />
           <span className="hidden md:inline">{busy ? "Logging in..." : "Login"}</span>
         </Button>
-        <div className="text-sm text-zinc-400">
+        <div className="text-sm text-text-muted">
           No login is needed for read-only viewing.
         </div>
       </form>

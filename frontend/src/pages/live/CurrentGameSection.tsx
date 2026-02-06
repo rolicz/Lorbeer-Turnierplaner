@@ -324,7 +324,7 @@ export default function CurrentGameSection({
         <div className="card-subtle">
           {/* Row 1: Leg, match number, state pill */}
           <div className="mt-1 flex items-center justify-between gap-3">
-            <div className="text-[11px] sm:text-xs text-zinc-300">
+            <div className="text-[11px] sm:text-xs text-text-muted">
               Match #{match.order_index + 1}
             </div>
             <div className="flex items-center gap-2 flex-nowrap whitespace-nowrap">
@@ -348,7 +348,7 @@ export default function CurrentGameSection({
               {aNames.map((n, i) => (
                 <div
                   key={`${n}-${i}`}
-                  className="text-[15px] font-semibold text-zinc-100 whitespace-normal break-words leading-tight"
+                  className="text-[15px] font-semibold text-text-normal whitespace-normal break-words leading-tight"
                 >
                   {n}
                 </div>
@@ -356,16 +356,16 @@ export default function CurrentGameSection({
             </div>
 
             <div className="card-chip flex items-center justify-center gap-2">
-              <span className="text-xl font-semibold tabular-nums text-zinc-100">{scoreLeft}</span>
-              <span className="text-zinc-500">:</span>
-              <span className="text-xl font-semibold tabular-nums text-zinc-100">{scoreRight}</span>
+              <span className="text-xl font-semibold tabular-nums">{scoreLeft}</span>
+              <span className="text-text-muted">:</span>
+              <span className="text-xl font-semibold tabular-nums">{scoreRight}</span>
             </div>
 
             <div className="min-w-0 text-right">
               {bNames.map((n, i) => (
                 <div
                   key={`${n}-${i}`}
-                  className="text-[15px] font-semibold text-zinc-100 whitespace-normal break-words leading-tight"
+                  className="text-[15px] font-semibold text-text-normal whitespace-normal break-words leading-tight"
                 >
                   {n}
                 </div>
@@ -374,26 +374,26 @@ export default function CurrentGameSection({
           </div>
 
           {/* Row 3: CLUBS */}
-          <div className="mt-2 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-start gap-3 text-xs text-zinc-500">
+          <div className="mt-2 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-start gap-3 text-xs text-text-muted">
             <div className="min-w-0 whitespace-normal break-words leading-tight">{aClubParts.name}</div>
             <div />
             <div className="min-w-0 whitespace-normal break-words leading-tight text-right">{bClubParts.name}</div>
           </div>
           {/* Row 4: LEAGUES */}
-          <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-start gap-3 text-xs text-zinc-700">
+          <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-start gap-3 text-xs text-text-muted">
             <div className="min-w-0 whitespace-normal break-words leading-tight">{aClubParts.league_name}</div>
             <div />
             <div className="min-w-0 whitespace-normal break-words leading-tight text-right">{bClubParts.league_name}</div>
           </div>
 
           {/* Row 5: STARS */}
-          <div className="mt-1 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 text-[11px] text-zinc-500">
+          <div className="mt-1 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 text-[11px] text-text-muted">
             <div className="min-w-0">
-              <StarsFA rating={aClubParts.rating ?? 0} textZinc="text-zinc-500" />
+              <StarsFA rating={aClubParts.rating ?? 0} textClassName="text-text-muted" />
             </div>
             <div />
             <div className="min-w-0 flex justify-end">
-              <StarsFA rating={bClubParts.rating ?? 0} textZinc="text-zinc-500" />
+              <StarsFA rating={bClubParts.rating ?? 0} textClassName="text-text-muted" />
             </div>
           </div>
 
@@ -496,7 +496,7 @@ export default function CurrentGameSection({
         <div className="card-subtle">
           {/* Row 1: Leg, match number, state pill */}
           <div className="mt-1 flex items-center justify-between gap-3">
-            <div className="text-[11px] sm:text-xs text-zinc-300">
+            <div className="text-[11px] sm:text-xs text-text-muted">
               Match #{match.order_index + 1}
             </div>
             <div className="flex items-center gap-2 flex-nowrap whitespace-nowrap">
@@ -518,21 +518,21 @@ export default function CurrentGameSection({
           <div className="mt-3 grid grid-cols-[1fr_auto_1fr] items-center gap-4">
             <div className="min-w-0">
               {aNames.map((n, i) => (
-                <div key={`${n}-${i}`} className="truncate text-lg font-semibold text-zinc-100 leading-tight">
+                <div key={`${n}-${i}`} className="truncate text-lg font-semibold text-text-normal leading-tight">
                   {n}
                 </div>
               ))}
             </div>
 
             <div className="card-chip flex items-center justify-center gap-2">
-              <span className="text-xl font-semibold tabular-nums text-zinc-100">{scoreLeft}</span>
-              <span className="text-zinc-500">:</span>
-              <span className="text-xl font-semibold tabular-nums text-zinc-100">{scoreRight}</span>
+              <span className="text-xl font-semibold tabular-nums">{scoreLeft}</span>
+              <span className="text-text-muted">:</span>
+              <span className="text-xl font-semibold tabular-nums">{scoreRight}</span>
             </div>
 
             <div className="min-w-0 text-right">
               {bNames.map((n, i) => (
-                <div key={`${n}-${i}`} className="truncate text-lg font-semibold text-zinc-100 leading-tight">
+                <div key={`${n}-${i}`} className="truncate text-lg font-semibold text-text-normal leading-tight">
                   {n}
                 </div>
               ))}
@@ -540,26 +540,26 @@ export default function CurrentGameSection({
           </div>
 
           {/* Row 3: CLUBS */}
-          <div className="mt-3 grid grid-cols-[1fr_auto_1fr] items-start gap-4 text-sm text-zinc-500">
+          <div className="mt-3 grid grid-cols-[1fr_auto_1fr] items-start gap-4 text-sm text-text-muted">
             <div className="min-w-0 truncate">{aClubParts.name}</div>
             <div />
             <div className="min-w-0 truncate text-right">{bClubParts.name}</div>
           </div>
           {/* Row 4: CLUBS */}
-          <div className="grid grid-cols-[1fr_auto_1fr] items-start gap-4 text-sm text-zinc-700">
+          <div className="grid grid-cols-[1fr_auto_1fr] items-start gap-4 text-sm text-text-muted">
             <div className="min-w-0 truncate">{aClubParts.league_name}</div>
             <div />
             <div className="min-w-0 truncate text-right">{bClubParts.league_name}</div>
           </div>
 
           {/* Row 5: STARS */}
-          <div className="mt-1 grid grid-cols-[1fr_auto_1fr] items-center gap-4 text-sm text-zinc-500">
+          <div className="mt-1 grid grid-cols-[1fr_auto_1fr] items-center gap-4 text-sm text-text-muted">
             <div className="min-w-0">
-              <StarsFA rating={aClubParts.rating ?? 0} textZinc="text-zinc-500" />
+              <StarsFA rating={aClubParts.rating ?? 0} textClassName="text-text-muted" />
             </div>
             <div />
             <div className="min-w-0 flex justify-end">
-              <StarsFA rating={bClubParts.rating ?? 0} textZinc="text-zinc-500" />
+              <StarsFA rating={bClubParts.rating ?? 0} textClassName="text-text-muted" />
             </div>
           </div>
 

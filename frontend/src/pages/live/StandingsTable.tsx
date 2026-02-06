@@ -103,10 +103,10 @@ function posMap(rows: Row[]): Map<number, number> {
 
 function Arrow({ delta }: { delta: number | null }) {
   // delta = basePos - livePos (positive => moved up)
-  if (delta === null) return <span className="text-zinc-500">–</span>;
+  if (delta === null) return <span className="text-text-muted">–</span>;
   if (delta > 0) return <span className="delta-up font-semibold">▲</span>;
   if (delta < 0) return <span className="delta-down font-semibold">▼</span>;
-  return <span className="text-zinc-500">–</span>;
+  return <span className="text-text-muted">–</span>;
 }
 
 function MobileRow({ r, rank, delta, isLeader }: { r: Row; rank: number; delta: number | null; isLeader: boolean }) {
@@ -233,5 +233,5 @@ export default function StandingsTable({
 
   if (!wrap) return content;
 
-  return <Card title={title} className="card-inner">{content}</Card>;
+  return <Card title={title} variant="inner">{content}</Card>;
 }

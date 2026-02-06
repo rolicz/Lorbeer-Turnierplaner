@@ -117,12 +117,12 @@ export default function MatchEditorSheet({
   return (
     <Sheet open={open} title={`Edit Match #${match?.id ?? "—"}`} onClose={onClose}>
       {!match ? (
-        <div className="text-sm text-zinc-400">No match selected.</div>
+        <div className="text-sm text-text-muted">No match selected.</div>
       ) : (
         <div className="flex max-h-[80vh] flex-col">
           {/* Scroll area */}
           <div className="flex-1 space-y-4 overflow-y-auto pr-1 [-webkit-overflow-scrolling:touch]">
-            <div className="rounded-xl border border-zinc-800 p-3">
+            <div className="panel p-3">
               <div className="mb-2 text-sm font-medium">Match State</div>
               <div className="grid grid-cols-3 gap-2">
                 {(["scheduled", "playing", "finished"] as const).map((s) => (
@@ -131,8 +131,8 @@ export default function MatchEditorSheet({
                     type="button"
                     className={`rounded-xl border px-3 py-2 text-sm ${
                       state === s
-                        ? "border-zinc-600 bg-zinc-900"
-                        : "border-zinc-800 hover:bg-zinc-900/40"
+                        ? "border-accent/60 bg-bg-card-inner"
+                        : "border-border-card-inner/70 transition hover:bg-hover-default/40"
                     }`}
                     onClick={() => setState(s)}
                   >
@@ -141,22 +141,22 @@ export default function MatchEditorSheet({
                 ))}
               </div>
 
-              <div className="mt-2 text-xs text-zinc-500">
+              <div className="mt-2 text-xs text-text-muted">
                 <span className="break-anywhere">{aPlayers}</span>{" "}
-                <span className="text-zinc-600">vs</span>{" "}
+                <span className="text-text-muted">vs</span>{" "}
                 <span className="break-anywhere">{bPlayers}</span>
               </div>
             </div>
 
             {/* Goals (players + club) */}
-            <div className="rounded-xl border border-zinc-800 p-3">
+            <div className="panel p-3">
               <div className="mb-2 text-sm font-medium">Score</div>
 
               <div className="grid gap-3 md:grid-cols-2">
-                <div className="rounded-xl border border-zinc-800 p-3">
+                <div className="panel-subtle p-3">
                   <div className="min-w-0">
                     <div className="truncate text-sm font-medium">{aPlayers}</div>
-                    <div className="truncate text-xs text-zinc-500">{aClubParts.name}</div>
+                    <div className="truncate text-xs text-text-muted">{aClubParts.name}</div>
                   </div>
 
                   {showGoalInputs && (
@@ -171,10 +171,10 @@ export default function MatchEditorSheet({
                   )}
                 </div>
 
-                <div className="rounded-xl border border-zinc-800 p-3">
+                <div className="panel-subtle p-3">
                   <div className="min-w-0">
                     <div className="truncate text-sm font-medium">{bPlayers}</div>
-                    <div className="truncate text-xs text-zinc-500">{bClubParts.name}</div>
+                    <div className="truncate text-xs text-text-muted">{bClubParts.name}</div>
                   </div>
 
                   {showGoalInputs && (
@@ -204,7 +204,7 @@ export default function MatchEditorSheet({
                 </div>
 
                 {clubsLoading && (
-                  <div className="mt-2 text-sm text-zinc-400">Loading clubs…</div>
+                  <div className="mt-2 text-sm text-text-muted">Loading clubs…</div>
                 )}
                 {clubsError && (
                   <div className="mt-2 text-sm text-red-400">{clubsError}</div>
@@ -261,7 +261,7 @@ export default function MatchEditorSheet({
                   placeholder="Select club…"
                 />
 
-                <div className="mt-2 text-xs text-zinc-500">
+                <div className="mt-2 text-xs text-text-muted">
                   Tip: change clubs anytime before saving results.
                 </div>
               </div>
@@ -273,7 +273,7 @@ export default function MatchEditorSheet({
 
           {/* Fixed footer */}
           <div
-            className="sticky bottom-0 shrink-0 border-t border-zinc-800 bg-zinc-950/95 backdrop-blur"
+            className="sticky bottom-0 shrink-0 border-t border-border-card-inner bg-bg-card-outer/95 backdrop-blur"
             style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 1.5rem)" }}
           >
             <div className="px-0 pt-3">

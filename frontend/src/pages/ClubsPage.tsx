@@ -190,10 +190,10 @@ export default function ClubsPage() {
 
   return (
     <div className="page">
-      <Card title="Clubs (Teams)" className="card-outer">
-        <CollapsibleCard title="Create club" defaultOpen={false} className="card-inner">
-            <div className="grid gap-2 md:grid-cols-4">
-              <Input label="Game" value={game} onChange={(e) => setGame(e.target.value)} />
+      <Card variant="outer" showHeader={false}>
+        <CollapsibleCard title="Create club" defaultOpen={false} variant="inner">
+          <div className="grid gap-2 md:grid-cols-4">
+            <Input label="Game" value={game} onChange={(e) => setGame(e.target.value)} />
 
               <Input
                 label="Club name"
@@ -245,7 +245,7 @@ export default function ClubsPage() {
               </Button>
 
               {!canEdit && (
-                <div className="self-center text-sm text-zinc-500">Login as editor/admin to create clubs.</div>
+                <div className="self-center text-sm text-text-muted">Login as editor/admin to create clubs.</div>
               )}
             </div>
         </CollapsibleCard>
@@ -253,8 +253,8 @@ export default function ClubsPage() {
         <CollapsibleCard
           title="Browse & filter"
           defaultOpen={true}
-          right={<span className="text-xs text-zinc-500">{filteredClubs.length} clubs</span>}
-          className="card-inner"
+          right={<span className="text-xs text-text-muted">{filteredClubs.length} clubs</span>}
+          variant="inner"
         >
           <div className="grid gap-2 md:grid-cols-4">
             <label className="block">
@@ -308,11 +308,11 @@ export default function ClubsPage() {
 
         {/* List */}
         <div className="space-y-2">
-          {clubsQ.isLoading && <div className="text-zinc-400">Loading…</div>}
+          {clubsQ.isLoading && <div className="text-text-muted">Loading…</div>}
           {clubsQ.error && <div className="text-red-400 text-sm">{String(clubsQ.error)}</div>}
 
           {!clubsQ.isLoading && grouped.length === 0 && (
-            <div className="panel-subtle px-3 py-2 text-sm text-zinc-400">
+            <div className="panel-subtle px-3 py-2 text-sm text-text-muted">
               No clubs match the current filters.
             </div>
           )}
@@ -323,12 +323,12 @@ export default function ClubsPage() {
               title={
                 <span className="inline-flex items-center gap-2">
                   <span className="font-semibold">{label}</span>
-                  <span className="text-xs text-zinc-500">stars</span>
+                  <span className="text-xs text-text-muted">stars</span>
                 </span>
               }
-              right={<span className="text-xs text-zinc-500">{clubsInGroup.length} clubs</span>}
+              right={<span className="text-xs text-text-muted">{clubsInGroup.length} clubs</span>}
               defaultOpen={true}
-              className="card-inner"
+              variant="inner"
             >
               <div className="space-y-2">
                 {clubsInGroup.map((c) => {
@@ -337,18 +337,18 @@ export default function ClubsPage() {
                   const cid = (c as any).league_id as number | undefined;
 
                   return (
-                    <div key={c.id} className="panel px-3 py-2 hover:bg-zinc-900/30">
+                    <div key={c.id} className="panel px-3 py-2 transition hover:bg-hover-default/40">
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
                           <div className="truncate font-medium">{c.name}</div>
                           <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px]">
-                            <span className="rounded-full border border-zinc-800 bg-zinc-950/60 px-2 py-0.5 text-zinc-300">
+                            <span className="card-chip rounded-full px-2 py-0.5 text-[11px]">
                               {c.game}
                             </span>
-                            <span className="rounded-full border border-zinc-800 bg-zinc-950/60 px-2 py-0.5 text-zinc-300">
+                            <span className="card-chip rounded-full px-2 py-0.5 text-[11px]">
                               {ln}
                             </span>
-                            <span className="rounded-full border border-zinc-800 bg-zinc-950/60 px-2 py-0.5 text-zinc-300">
+                            <span className="card-chip rounded-full px-2 py-0.5 text-[11px]">
                               {starsLabel(c.star_rating)}★
                             </span>
                           </div>
@@ -393,7 +393,7 @@ export default function ClubsPage() {
                             {isAdmin ? (
                               <Input label="Name (admin)" value={editName} onChange={(e) => setEditName(e.target.value)} />
                             ) : (
-                              <div className="text-sm text-zinc-500 self-end">Name can only be changed by admin.</div>
+                              <div className="text-sm text-text-muted self-end">Name can only be changed by admin.</div>
                             )}
 
                             <label className="block">

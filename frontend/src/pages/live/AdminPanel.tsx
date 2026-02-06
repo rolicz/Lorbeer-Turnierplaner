@@ -190,7 +190,7 @@ export default function AdminPanel({
 
   const content = (
     <>
-      <div className="mb-3 text-sm text-zinc-400">
+      <div className="mb-3 text-sm text-text-muted">
         status: <span className="accent">{status}</span> · second leg:{" "}
         <span className="accent">{secondLegEnabled ? "enabled" : "off"}</span>
       </div>
@@ -244,7 +244,7 @@ export default function AdminPanel({
         )}
 
         {!canReorder && role === "editor" && done && (
-          <div className="text-sm text-zinc-500">Tournament is done.</div>
+          <div className="text-sm text-text-muted">Tournament is done.</div>
         )}
       </div>
 
@@ -253,10 +253,10 @@ export default function AdminPanel({
           <div className="mb-2 text-sm font-medium">Tournament date</div>
           <div className="flex flex-wrap items-end gap-2">
             <label className="block">
-              <div className="mb-1 text-xs text-zinc-400">Date</div>
+              <div className="input-label">Date</div>
               <input
                 type="date"
-                className="w-[170px] rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm outline-none focus:border-zinc-600"
+                className="input-field w-[170px]"
                 value={dateValue ?? ""}
                 onChange={(e) => onDateChange?.(e.target.value)}
               />
@@ -267,7 +267,7 @@ export default function AdminPanel({
             </Button>
           </div>
 
-          <div className="mt-2 text-xs text-zinc-500">Admin-only (for backfilling past tournaments).</div>
+          <div className="mt-2 text-xs text-text-muted">Admin-only (for backfilling past tournaments).</div>
         </div>
       )}
 
@@ -277,10 +277,10 @@ export default function AdminPanel({
 
           <div className="flex flex-wrap items-end gap-2">
             <label className="block flex-1 min-w-[220px]">
-              <div className="mb-1 text-xs text-zinc-400">Name</div>
+              <div className="input-label">Name</div>
               <input
                 type="text"
-                className="w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm outline-none focus:border-zinc-600"
+                className="input-field w-full"
                 value={nameValue ?? ""}
                 onChange={(e) => onNameChange?.(e.target.value)}
                 placeholder="e.g. Sauna Turnier"
@@ -296,7 +296,7 @@ export default function AdminPanel({
             </Button>
           </div>
 
-          <div className="mt-2 text-xs text-zinc-500">Admin-only.</div>
+          <div className="mt-2 text-xs text-text-muted">Admin-only.</div>
         </div>
       )}
 
@@ -305,7 +305,7 @@ export default function AdminPanel({
       <div className="mt-4 card-subtle">
           <div className="mb-2 text-sm font-medium">Decider</div>
 
-          {!isEditorOrAdmin && <div className="text-xs text-zinc-500">Login as editor/admin to set a decider.</div>}
+          {!isEditorOrAdmin && <div className="text-xs text-text-muted">Login as editor/admin to set a decider.</div>}
 
           {canEditDecider && (
             <div className="space-y-3">
@@ -315,7 +315,7 @@ export default function AdminPanel({
                     key={k}
                     type="button"
                     className={`rounded-xl border px-3 py-2 text-sm ${
-                      dType === k ? "border-zinc-600 bg-zinc-950" : "border-zinc-800 hover:bg-zinc-950/40"
+                      dType === k ? "border-accent/60 bg-bg-card-outer" : "border-border-card-inner/70 transition hover:bg-hover-default/40"
                     }`}
                     onClick={() => setDType(k)}
                     disabled={busy || !!deciderBusy}
@@ -336,9 +336,9 @@ export default function AdminPanel({
               {dType !== "none" && (
                 <div className="grid gap-3 md:grid-cols-2">
                   <label className="block">
-                    <div className="mb-1 text-xs text-zinc-400">Winner</div>
+                    <div className="input-label">Winner</div>
                     <select
-                      className="w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm outline-none focus:border-zinc-600"
+                      className="select-field w-full"
                       value={winnerId ?? ""}
                       onChange={(e) => {
                         const v = e.target.value ? Number(e.target.value) : null;
@@ -360,9 +360,9 @@ export default function AdminPanel({
                   </label>
 
                   <label className="block">
-                    <div className="mb-1 text-xs text-zinc-400">Loser</div>
+                    <div className="input-label">Loser</div>
                     <select
-                      className="w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm outline-none focus:border-zinc-600"
+                      className="select-field w-full"
                       value={loserId ?? ""}
                       onChange={(e) => setLoserId(e.target.value ? Number(e.target.value) : null)}
                       disabled={busy || !!deciderBusy}
@@ -377,10 +377,10 @@ export default function AdminPanel({
                   </label>
 
                   <label className="block">
-                    <div className="mb-1 text-xs text-zinc-400">Winner goals</div>
+                    <div className="input-label">Winner goals</div>
                     <input
                       inputMode="numeric"
-                      className="w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm outline-none focus:border-zinc-600"
+                      className="input-field w-full"
                       value={wGoals}
                       onChange={(e) => setWGoals(e.target.value)}
                       disabled={busy || !!deciderBusy}
@@ -389,10 +389,10 @@ export default function AdminPanel({
                   </label>
 
                   <label className="block">
-                    <div className="mb-1 text-xs text-zinc-400">Loser goals</div>
+                    <div className="input-label">Loser goals</div>
                     <input
                       inputMode="numeric"
-                      className="w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm outline-none focus:border-zinc-600"
+                      className="input-field w-full"
                       value={lGoals}
                       onChange={(e) => setLGoals(e.target.value)}
                       disabled={busy || !!deciderBusy}
@@ -426,7 +426,7 @@ export default function AdminPanel({
                 )}
               </div>
 
-              <div className="text-xs text-zinc-500">Decider should only be used if the standings are tied at the top.</div>
+              <div className="text-xs text-text-muted">Decider should only be used if the standings are tied at the top.</div>
             </div>
           )}
         </div>

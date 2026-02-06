@@ -57,14 +57,14 @@ export function matchPalette(state: MatchState) {
         wrap: "border-status-border-green bg-status-bg-green hover:bg-hover-green",
         bar: "bg-status-bar-green",
         win: "text-status-text-green",
-        lose: "text-text-normal/80",
+        lose: "text-text-muted",
       };
     case "scheduled":
       return {
         wrap: "border-status-border-blue bg-status-bg-blue hover:bg-hover-blue",
         bar: "bg-status-bar-blue",
         win: "text-text-normal",
-        lose: "text-text-normal/80",
+        lose: "text-text-muted",
       };
     case "finished":
     default:
@@ -83,4 +83,3 @@ export const colorMatch = matchStatusPill;
 export const colorTournament = tournamentStatusPill;
 export const pillBaseClass = pillDefault;
 export { matchColor, tournamentColor } from "./theme-legacy";
-
