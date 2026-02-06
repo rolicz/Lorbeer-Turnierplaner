@@ -1,9 +1,6 @@
 export type MatchState = "scheduled" | "playing" | "finished";
 export type TournamentStatus = "draft" | "live" | "done";
 
-export type MatchState = "scheduled" | "playing" | "finished";
-export type TournamentStatus = "draft" | "live" | "done";
-
 // --- Pills ---
 // Default is used for "finished" or other neutral states
 function pillDefault() {
