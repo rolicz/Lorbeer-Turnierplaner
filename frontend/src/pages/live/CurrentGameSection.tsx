@@ -320,121 +320,114 @@ export default function CurrentGameSection({
         </div>
       </div>
 
-      {/* MOBILE */}
-      <div className="space-y-3 md:hidden">
-        <div className="card-subtle">
-          {/* Row 1: Leg, match number, state pill */}
-          <div className="mt-1 flex items-center justify-between gap-3">
-            <div className="text-[11px] sm:text-xs text-text-muted">
-              Match #{match.order_index + 1}
-            </div>
-            <div className="flex items-center gap-2 flex-nowrap whitespace-nowrap">
-              <Pill>
-                leg {match.leg}
-              </Pill>
-              <Pill
-                className={`${statusMatchPill(
-                  match.state
-                )}`}
-              >
-                {match.state}
-              </Pill>
-              
-            </div>
+      {/* Match card */}
+      <div className="card-subtle">
+        {/* Row 1: Leg, match number, state pill */}
+        <div className="mt-1 flex items-center justify-between gap-3">
+          <div className="text-[11px] sm:text-xs text-text-muted">Match #{match.order_index + 1}</div>
+          <div className="flex items-center gap-2 flex-nowrap whitespace-nowrap">
+            <Pill>leg {match.leg}</Pill>
+            <Pill className={`${statusMatchPill(match.state)}`}>{match.state}</Pill>
           </div>
-
-          {/* Row 2: NAMES + SCORE */}
-          <div className="mt-3 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3">
-            <div className="min-w-0">
-              {aNames.map((n, i) => (
-                <div
-                  key={`${n}-${i}`}
-                  className="text-[15px] font-semibold text-text-normal whitespace-normal break-words leading-tight"
-                >
-                  {n}
-                </div>
-              ))}
-            </div>
-
-            <div className="card-chip flex items-center justify-center gap-2">
-              <span className="text-xl font-semibold tabular-nums">{scoreLeft}</span>
-              <span className="text-text-muted">:</span>
-              <span className="text-xl font-semibold tabular-nums">{scoreRight}</span>
-            </div>
-
-            <div className="min-w-0 text-right">
-              {bNames.map((n, i) => (
-                <div
-                  key={`${n}-${i}`}
-                  className="text-[15px] font-semibold text-text-normal whitespace-normal break-words leading-tight"
-                >
-                  {n}
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Row 3: CLUBS */}
-          <div className="mt-2 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-start gap-3 text-xs text-text-muted">
-            <div className="min-w-0 whitespace-normal break-words leading-tight">{aClubParts.name}</div>
-            <div />
-            <div className="min-w-0 whitespace-normal break-words leading-tight text-right">{bClubParts.name}</div>
-          </div>
-          {/* Row 4: LEAGUES */}
-          <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-start gap-3 text-xs text-text-muted">
-            <div className="min-w-0 whitespace-normal break-words leading-tight">{aClubParts.league_name}</div>
-            <div />
-            <div className="min-w-0 whitespace-normal break-words leading-tight text-right">{bClubParts.league_name}</div>
-          </div>
-
-          {/* Row 5: STARS */}
-          <div className="mt-1 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 text-[11px] text-text-muted">
-            <div className="min-w-0">
-              <StarsFA rating={aClubParts.rating ?? 0} textClassName="text-text-muted" />
-            </div>
-            <div />
-            <div className="min-w-0 flex justify-end">
-              <StarsFA rating={bClubParts.rating ?? 0} textClassName="text-text-muted" />
-            </div>
-          </div>
-
-          {/* Row 6: INPUTS (only when NOT scheduled) */}
-          {showGoalInputs && (
-            <div className="mt-3 flex items-center justify-center gap-4">
-              <GoalStepper
-                value={aGoals}
-                onChange={(v) => {
-                  setAGoals(v);
-                  queueAutosave({ aGoals: v });
-                }}
-                disabled={busy}
-                ariaLabel="Goals left"
-              />
-              <GoalStepper
-                value={bGoals}
-                onChange={(v) => {
-                  setBGoals(v);
-                  queueAutosave({ bGoals: v });
-                }}
-                disabled={busy}
-                ariaLabel="Goals right"
-              />
-            </div>
-          )}
         </div>
 
-        {/* Filter + Clubs */}
-        {canControl && (
-          <CollapsibleCard title="Select Clubs" defaultOpen={false} className="panel-subtle">
-            <div className="grid grid-cols-1 gap-2">
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                <StarFilter value={starFilter} onChange={setStarFilter} disabled={busy} />
-                <LeagueFilter
-                  value={leagueFilter}
-                  onChange={setLeagueFilter}
-                  disabled={busy}
-                  options={leagueOptions}
-                />
+        {/* Row 2: NAMES + SCORE */}
+        <div className="mt-3 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 md:gap-4">
+          <div className="min-w-0">
+            {aNames.map((n, i) => (
+              <div
+                key={`${n}-${i}`}
+                className="text-[15px] md:text-lg font-semibold text-text-normal whitespace-normal md:truncate break-words leading-tight"
+              >
+                {n}
+              </div>
+            ))}
+          </div>
+
+          <div className="card-chip flex items-center justify-center gap-2">
+            <span className="text-xl font-semibold tabular-nums">{scoreLeft}</span>
+            <span className="text-text-muted">:</span>
+            <span className="text-xl font-semibold tabular-nums">{scoreRight}</span>
+          </div>
+
+          <div className="min-w-0 text-right">
+            {bNames.map((n, i) => (
+              <div
+                key={`${n}-${i}`}
+                className="text-[15px] md:text-lg font-semibold text-text-normal whitespace-normal md:truncate break-words leading-tight"
+              >
+                {n}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Row 3: CLUBS */}
+        <div className="mt-2 md:mt-3 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-start gap-3 md:gap-4 text-xs md:text-sm text-text-muted">
+          <div className="min-w-0 whitespace-normal md:truncate break-words leading-tight">{aClubParts.name}</div>
+          <div />
+          <div className="min-w-0 whitespace-normal md:truncate break-words leading-tight text-right">{bClubParts.name}</div>
+        </div>
+        {/* Row 4: LEAGUES */}
+        <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-start gap-3 md:gap-4 text-xs md:text-sm text-text-muted">
+          <div className="min-w-0 whitespace-normal md:truncate break-words leading-tight">{aClubParts.league_name}</div>
+          <div />
+          <div className="min-w-0 whitespace-normal md:truncate break-words leading-tight text-right">{bClubParts.league_name}</div>
+        </div>
+
+        {/* Row 5: STARS */}
+        <div className="mt-1 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 md:gap-4 text-[11px] md:text-sm text-text-muted">
+          <div className="min-w-0">
+            <StarsFA rating={aClubParts.rating ?? 0} textClassName="text-text-muted" />
+          </div>
+          <div />
+          <div className="min-w-0 flex justify-end">
+            <StarsFA rating={bClubParts.rating ?? 0} textClassName="text-text-muted" />
+          </div>
+        </div>
+
+        {/* Row 6: INPUTS (only when NOT scheduled) */}
+        {showGoalInputs && (
+          <div className="mt-3 flex items-center justify-center gap-4">
+            <GoalStepper
+              value={aGoals}
+              onChange={(v) => {
+                setAGoals(v);
+                queueAutosave({ aGoals: v });
+              }}
+              disabled={busy}
+              ariaLabel="Goals left"
+            />
+            <GoalStepper
+              value={bGoals}
+              onChange={(v) => {
+                setBGoals(v);
+                queueAutosave({ bGoals: v });
+              }}
+              disabled={busy}
+              ariaLabel="Goals right"
+            />
+          </div>
+        )}
+      </div>
+
+      {/* Filter + Clubs */}
+      {canControl && (
+        <CollapsibleCard title="Select Clubs" defaultOpen={false} className="panel-subtle">
+          <div className="grid gap-4">
+            {/* Row 1: filters + random */}
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-[auto_auto_1fr] md:items-end">
+              <StarFilter value={starFilter} onChange={setStarFilter} disabled={busy} compact />
+
+              <LeagueFilter
+                value={leagueFilter}
+                onChange={setLeagueFilter}
+                disabled={busy}
+                options={leagueOptions}
+                compact
+              />
+
+              <div className="flex md:justify-end">
                 <Button
                   variant="ghost"
                   onClick={() => {
@@ -442,7 +435,6 @@ export default function CurrentGameSection({
 
                     const clubA = clubsFiltered[Math.floor(Math.random() * clubsFiltered.length)];
                     let clubB = clubsFiltered[Math.floor(Math.random() * clubsFiltered.length)];
-
                     if (clubsFiltered.length > 1) {
                       while (!randomClubAssignmentOk(clubA, clubB)) {
                         clubB = clubsFiltered[Math.floor(Math.random() * clubsFiltered.length)];
@@ -454,14 +446,17 @@ export default function CurrentGameSection({
                     queueAutosave({ aClub: clubA.id, bClub: clubB.id });
                   }}
                   disabled={busy}
-                  className="whitespace-nowrap"
+                  className="w-full whitespace-nowrap md:w-auto"
                 >
-                  <i className="fa fa-rotate-left" aria-hidden="true" />
-                  <span className="ml-2 hidden sm:inline">Random Club</span>
-                  <span className="ml-2 sm:hidden">Random</span>
+                  <i className="fa fa-rotate-left md:hidden" aria-hidden="true" />
+                  <span className="hidden md:inline">Random Club</span>
+                  <span className="md:hidden">Random</span>
                 </Button>
               </div>
+            </div>
 
+            {/* Row 2: club dropdowns (+ inline star edit for editor/admin) */}
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2 md:items-end">
               <div className="grid grid-cols-[1fr_auto] items-end gap-2">
                 <div className="min-w-0">
                   <ClubSelect
@@ -498,195 +493,9 @@ export default function CurrentGameSection({
                 <ClubStarsEditor clubId={bClub} clubs={clubs} disabled={!canControl || busy} />
               </div>
             </div>
-          </CollapsibleCard>
-        )}
-      </div>
-
-      {/* DESKTOP/TABLET */}
-      <div className="hidden md:block space-y-3">
-        <div className="card-subtle">
-          {/* Row 1: Leg, match number, state pill */}
-          <div className="mt-1 flex items-center justify-between gap-3">
-            <div className="text-[11px] sm:text-xs text-text-muted">
-              Match #{match.order_index + 1}
-            </div>
-            <div className="flex items-center gap-2 flex-nowrap whitespace-nowrap">
-              <Pill>
-                leg {match.leg}
-              </Pill>
-              <Pill
-                className={`${statusMatchPill(
-                  match.state
-                )}`}
-              >
-                {match.state}
-              </Pill>
-              
-            </div>
           </div>
-
-          {/* Row 2: NAMES + SCORE */}
-          <div className="mt-3 grid grid-cols-[1fr_auto_1fr] items-center gap-4">
-            <div className="min-w-0">
-              {aNames.map((n, i) => (
-                <div key={`${n}-${i}`} className="truncate text-lg font-semibold text-text-normal leading-tight">
-                  {n}
-                </div>
-              ))}
-            </div>
-
-            <div className="card-chip flex items-center justify-center gap-2">
-              <span className="text-xl font-semibold tabular-nums">{scoreLeft}</span>
-              <span className="text-text-muted">:</span>
-              <span className="text-xl font-semibold tabular-nums">{scoreRight}</span>
-            </div>
-
-            <div className="min-w-0 text-right">
-              {bNames.map((n, i) => (
-                <div key={`${n}-${i}`} className="truncate text-lg font-semibold text-text-normal leading-tight">
-                  {n}
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Row 3: CLUBS */}
-          <div className="mt-3 grid grid-cols-[1fr_auto_1fr] items-start gap-4 text-sm text-text-muted">
-            <div className="min-w-0 truncate">{aClubParts.name}</div>
-            <div />
-            <div className="min-w-0 truncate text-right">{bClubParts.name}</div>
-          </div>
-          {/* Row 4: CLUBS */}
-          <div className="grid grid-cols-[1fr_auto_1fr] items-start gap-4 text-sm text-text-muted">
-            <div className="min-w-0 truncate">{aClubParts.league_name}</div>
-            <div />
-            <div className="min-w-0 truncate text-right">{bClubParts.league_name}</div>
-          </div>
-
-          {/* Row 5: STARS */}
-          <div className="mt-1 grid grid-cols-[1fr_auto_1fr] items-center gap-4 text-sm text-text-muted">
-            <div className="min-w-0">
-              <StarsFA rating={aClubParts.rating ?? 0} textClassName="text-text-muted" />
-            </div>
-            <div />
-            <div className="min-w-0 flex justify-end">
-              <StarsFA rating={bClubParts.rating ?? 0} textClassName="text-text-muted" />
-            </div>
-          </div>
-
-          {/* Row 6: INPUTS (only when NOT scheduled) */}
-          {showGoalInputs && (
-            <div className="mt-3 flex items-center justify-center gap-4">
-              <GoalStepper
-                value={aGoals}
-                onChange={(v) => {
-                  setAGoals(v);
-                  queueAutosave({ aGoals: v });
-                }}
-                disabled={busy}
-                ariaLabel="Goals left"
-              />
-              <GoalStepper
-                value={bGoals}
-                onChange={(v) => {
-                  setBGoals(v);
-                  queueAutosave({ bGoals: v });
-                }}
-                disabled={busy}
-                ariaLabel="Goals right"
-              />
-            </div>
-          )}
-        </div>
-
-        {canControl && (
-          <CollapsibleCard title="Select Clubs" defaultOpen={false} className="panel-subtle">
-            <div className="grid gap-4">
-              {/* Row 1: filters + random */}
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-[auto_auto_1fr] md:items-end">
-                <StarFilter value={starFilter} onChange={setStarFilter} disabled={busy} compact />
-
-                <LeagueFilter
-                  value={leagueFilter}
-                  onChange={setLeagueFilter}
-                  disabled={busy}
-                  options={leagueOptions}
-                  compact
-                />
-
-                <div className="flex md:justify-end">
-                  <Button
-                    variant="ghost"
-                    onClick={() => {
-                      if (!clubsFiltered.length) return;
-
-                      // pick two distinct clubs (optional but nicer)
-                      const clubA = clubsFiltered[Math.floor(Math.random() * clubsFiltered.length)];
-                      let clubB = clubsFiltered[Math.floor(Math.random() * clubsFiltered.length)];
-                      if (clubsFiltered.length > 1) {
-                        while (!randomClubAssignmentOk(clubA, clubB)) {
-                          clubB = clubsFiltered[Math.floor(Math.random() * clubsFiltered.length)];
-                        }
-                      }
-
-                      setAClub(clubA.id);
-                      setBClub(clubB.id);
-                      queueAutosave({ aClub: clubA.id, bClub: clubB.id });
-                    }}
-                    disabled={busy}
-                    className="w-full whitespace-nowrap md:w-auto"
-                  >
-                    <i className="fa fa-rotate-left md:hidden" aria-hidden="true" />
-                    <span className="hidden md:inline">Random Club</span>
-                    <span className="md:hidden">Random</span>
-                  </Button>
-                </div>
-              </div>
-
-              {/* Row 2: club dropdowns (+ inline star edit for editor/admin) */}
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-2 md:items-end">
-                <div className="grid grid-cols-[1fr_auto] items-end gap-2">
-                  <div className="min-w-0">
-                    <ClubSelect
-                      label={`${aInline} — club`}
-                      value={aClub}
-                      onChange={(v) => {
-                        if (v === aClub) return;
-                        setAClub(v);
-                        queueAutosave({ aClub: v });
-                      }}
-                      disabled={!canControl || busy}
-                      clubs={clubsForA}
-                      placeholder="Select club…"
-                    />
-                  </div>
-                  <ClubStarsEditor clubId={aClub} clubs={clubs} disabled={!canControl || busy} />
-                </div>
-
-                <div className="grid grid-cols-[1fr_auto] items-end gap-2">
-                  <div className="min-w-0">
-                    <ClubSelect
-                      label={`${bInline} — club`}
-                      value={bClub}
-                      onChange={(v) => {
-                        if (v === bClub) return;
-                        setBClub(v);
-                        queueAutosave({ bClub: v });
-                      }}
-                      disabled={!canControl || busy}
-                      clubs={clubsForB}
-                      placeholder="Select club…"
-                    />
-                  </div>
-                  <ClubStarsEditor clubId={bClub} clubs={clubs} disabled={!canControl || busy} />
-                </div>
-              </div>
-            </div>
-
-
-          </CollapsibleCard>
-        )}
-      </div>
+        </CollapsibleCard>
+      )}
     </div>
   );
 }

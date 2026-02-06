@@ -88,7 +88,7 @@ export function StarFilter({
       </div>
 
       <select
-        className={`select-field ${compact ? "w-[140px]" : "w-full"}`}
+        className={`select-field w-full ${compact ? "md:w-[140px]" : ""}`}
         value={value == null ? "" : String(value)}
         onChange={(e) => onChange(e.target.value ? Number(e.target.value) : null)}
         disabled={disabled}
@@ -130,7 +130,7 @@ export function LeagueFilter({
       </div>
 
       <select
-        className={`select-field ${compact ? "w-[180px]" : "w-full"}`}
+        className={`select-field w-full ${compact ? "md:w-[180px]" : ""}`}
         value={value == null ? "" : String(value)}
         onChange={(e) => onChange(e.target.value ? Number(e.target.value) : null)}
         disabled={disabled}
