@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import type { CSSProperties } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import Card from "../ui/primitives/Card";
@@ -6,6 +7,7 @@ import Input from "../ui/primitives/Input";
 import Button from "../ui/primitives/Button";
 import CollapsibleCard from "../ui/primitives/CollapsibleCard";
 import { MetaRow } from "../ui/primitives/Meta";
+import SectionHeader from "../ui/primitives/SectionHeader";
 
 import { useAuth } from "../auth/AuthContext";
 import { createPlayer, listPlayers, patchPlayer } from "../api/players.api";
@@ -68,24 +70,8 @@ function useTournamentCols() {
 }
 
 /**
- * Discrete "real gradient" buckets best->worst.
- * Winner gets separate styling.
+ * Continuous red->green gradient. Winner gets separate styling.
  */
-function posGradientClass(position: number, total: number) {
-  if (total <= 1) return "pos-best";
-  const p = clamp((position - 1) / (total - 1), 0, 1); // 0 best .. 1 worst
-
-  const buckets = [
-    "pos-best",
-    "pos-good",
-    "pos-mid",
-    "pos-bad",
-    "pos-worst",
-  ];
-
-  const idx = clamp(Math.round(p * (buckets.length - 1)), 0, buckets.length - 1);
-  return buckets[idx];
-}
 
 function StatsPill({
   icon,
@@ -160,13 +146,7 @@ function Scoreline({
   );
 }
 
-function InfoLegend({
-  showAllTournamentTiles,
-  setShowAllTournamentTiles,
-}: {
-  showAllTournamentTiles: boolean;
-  setShowAllTournamentTiles: (v: boolean) => void;
-}) {
+function InfoLegend() {
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -177,19 +157,25 @@ function InfoLegend({
           </span>
 
           <span className="inline-flex items-center gap-2">
-            <span className="h-2.5 w-2.5 rounded-sm border border-emerald-400/55 bg-emerald-400/15" />
+            <span className="h-2.5 w-2.5 rounded-sm border pos-best" />
             <span>best</span>
-            <span className="h-2.5 w-2.5 rounded-sm border border-amber-400/55 bg-amber-400/15" />
-            <span className="h-2.5 w-2.5 rounded-sm border border-orange-400/55 bg-orange-400/15" />
-            <span className="h-2.5 w-2.5 rounded-sm border border-red-500/55 bg-red-500/15" />
+            <span className="h-2.5 w-2.5 rounded-sm border pos-mid" />
+            <span className="h-2.5 w-2.5 rounded-sm border pos-bad" />
+            <span className="h-2.5 w-2.5 rounded-sm border pos-worst" />
             <span>worst</span>
           </span>
 
           <span className="inline-flex items-center gap-2">
-            <span className="card-chip inline-flex h-6 w-7 items-center justify-center text-[11px] font-mono tabular-nums text-text-muted">
+            <span className="pos-none inline-flex h-6 w-7 items-center justify-center rounded-lg border text-[11px] font-mono tabular-nums">
               —
             </span>
             <span>not played</span>
+          </span>
+          <span className="inline-flex items-center gap-2">
+            <span className="pos-winner inline-flex h-6 w-7 items-center justify-center rounded-lg border text-[11px] font-mono tabular-nums">
+              1
+            </span>
+            <span>winner</span>
           </span>
         </div>
 
@@ -204,27 +190,6 @@ function InfoLegend({
             <i className="fa-regular fa-clock text-text-normal" aria-hidden="true" />
           </span>
         </div>
-      </div>
-
-      {/* Global toggle for showing all tournament tiles */}
-      <div className="card-inner flex justify-between items-center">
-        <div className="min-w-0">
-          <div className="text-sm font-medium text-text-normal">Tournament tiles</div>
-          <div className="text-[11px] text-text-muted">Default shows the most recent row only (better overview).</div>
-        </div>
-
-        <button
-          type="button"
-          onClick={() => setShowAllTournamentTiles(!showAllTournamentTiles)}
-          className={
-            "shrink-0 inline-flex items-center gap-2 rounded-xl border-2 px-3 py-1.5 text-[11px] hover:bg-hover-default " +
-            (showAllTournamentTiles ? "pill-green" : "pill-default")
-          }
-          title={showAllTournamentTiles ? "Show only the most recent row for all players" : "Show all tournament tiles for all players"}
-        >
-          <i className={"fa-solid " + (showAllTournamentTiles ? "fa-layer-group" : "fa-clock")} aria-hidden="true" />
-          {showAllTournamentTiles ? "Show all" : "Most recent"}
-        </button>
       </div>
     </div>
   );
@@ -286,14 +251,13 @@ function TournamentPositionsGrid({
 
             const totalPlayers = Number(t.players_count ?? 0) || Math.max(1, pos);
             const isWinner = pos === 1;
+            const p = totalPlayers <= 1 ? 0 : clamp((pos - 1) / (totalPlayers - 1), 0, 1); // 0 best .. 1 worst
 
             const base =
               "inline-flex h-9 items-center justify-center rounded-xl border text-[11px] font-mono tabular-nums transition " +
               "hover:brightness-110 hover:border-accent/40";
 
-            const cls = isWinner
-              ? "pos-winner shadow-[0_0_0_1px_rgba(16,185,129,0.15)]"
-              : posGradientClass(pos, totalPlayers);
+            const cls = isWinner ? "pos-winner shadow-[0_0_0_1px_rgba(16,185,129,0.15)]" : "pos-tile";
 
             return (
               <Link
@@ -306,7 +270,9 @@ function TournamentPositionsGrid({
                   cls +
                   " w-full select-none no-underline cursor-pointer focus:outline-none focus:ring-2 focus:ring-accent/30"
                 }
-                style={{ opacity }}
+                style={
+                  isWinner ? ({ opacity } as CSSProperties) : ({ opacity, ["--pos-p" as any]: p } as CSSProperties)
+                }
                 aria-label={`${title}, position ${pos} of ${totalPlayers}`}
               >
                 <span>{pos}</span>
@@ -410,13 +376,42 @@ export default function PlayersPage() {
   const tournaments = statsQ.data?.tournaments ?? [];
   const cupOwnerId = statsQ.data?.cup_owner_player_id ?? null;
 
-  const lastN = useMemo(() => {
+  const lastNServer = useMemo(() => {
     const n = statsQ.data?.lastN;
     if (Number.isFinite(n as any) && (n as number) > 0) return n as number;
     const first = statsQ.data?.players?.[0];
     const d = first?.lastN_pts?.length ?? 10;
     return Math.max(1, d);
   }, [statsQ.data]);
+
+  const lastNMax = useMemo(() => {
+    let mx = 0;
+    for (const r of statsQ.data?.players ?? []) {
+      const n = (r.lastN_pts ?? []).length;
+      if (n > mx) mx = n;
+    }
+    return mx || lastNServer;
+  }, [statsQ.data, lastNServer]);
+
+  const lastNInitRef = useRef(false);
+  const [lastNView, setLastNView] = useState<number>(10);
+  useEffect(() => {
+    if (!lastNInitRef.current) {
+      lastNInitRef.current = true;
+      setLastNView(lastNServer);
+      return;
+    }
+    setLastNView((prev) => Math.max(1, Math.min(prev, lastNMax)));
+  }, [lastNServer, lastNMax]);
+
+  function avgLastN(s: StatsPlayerRow) {
+    const arr = (s.lastN_pts ?? []).map((x) => Number(x)).filter((x) => Number.isFinite(x));
+    if (!arr.length) return 0;
+    const n = Math.max(1, Math.min(lastNView, arr.length));
+    const slice = arr.slice(-n);
+    const sum = slice.reduce((a, b) => a + b, 0);
+    return sum / n;
+  }
 
   const tournamentsSorted = useMemo(() => {
     const ts = tournaments.slice();
@@ -473,7 +468,7 @@ export default function PlayersPage() {
       return { p, s };
     });
 
-    const key = (x: (typeof withStats)[number]) => (sortMode === "overall" ? x.s.pts : x.s.lastN_avg_pts);
+    const key = (x: (typeof withStats)[number]) => (sortMode === "overall" ? x.s.pts : avgLastN(x.s));
 
     withStats.sort((a, b) => {
       const ka = key(a);
@@ -483,7 +478,7 @@ export default function PlayersPage() {
     });
 
     return withStats.map((x, idx) => ({ ...x, rank: idx + 1 }));
-  }, [playersQ.data, statsById, sortMode]);
+  }, [playersQ.data, statsById, sortMode, lastNView]);
 
   // Collapsing: everything except "positions + name + points"
   const [openByPlayerId, setOpenByPlayerId] = useState<Record<number, boolean>>({});
@@ -511,123 +506,164 @@ export default function PlayersPage() {
 
   return (
     <div className="page">
-      <Card variant="outer" showHeader={false}>
-        {showControls && (
-          <div className="grid gap-3 md:grid-cols-3">
-            <Input
-              label="Display name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. Hans Knauss"
-            />
-            <div className="flex items-end gap-2">
-              <Button onClick={() => createMut.mutate()} disabled={!name.trim() || createMut.isPending}>
-                <i className="fa fa-plus md:hidden" aria-hidden="true" />
-                <span className="hidden md:inline">{createMut.isPending ? "Creating…" : "Create"}</span>
-              </Button>
-              <Button
-                variant="ghost"
-                onClick={() => {
-                  qc.invalidateQueries({ queryKey: ["players"] });
-                  qc.invalidateQueries({ queryKey: ["stats", "players"] });
-                }}
-                title="Refresh"
-              >
-                <i className="fa fa-refresh md:hidden" aria-hidden="true" />
-                <span className="hidden md:inline">Refresh</span>
-              </Button>
-            </div>
-          </div>
-        )}
-
-        {createMut.error && <div className="mt-2 text-sm text-red-400">{String(createMut.error)}</div>}
-
-        {/* "Sort & primary metric" + stats status on same line */}
-        <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-          <MetaRow>
-            <i className="fa-solid fa-arrow-down-wide-short" aria-hidden="true" />
-            Sort & primary metric
-          </MetaRow>
-
-          <MetaRow>
-            {statsQ.isLoading ? (
-              <>
-                <i className="fa-solid fa-circle-notch fa-spin" aria-hidden="true" />
-                Stats: loading…
-              </>
-            ) : statsQ.error ? (
-              <>
-                <i className="fa-solid fa-triangle-exclamation text-red-300" aria-hidden="true" />
-                Stats: error
-              </>
-            ) : (
-              <>
-                <i className="fa-regular fa-circle-check text-emerald-300" aria-hidden="true" />
-                Stats: updated
-              </>
-            )}
-          </MetaRow>
-        </div>
-
-        {/* sort control */}
-        <div className="panel rounded-2xl mt-2 flex overflow-hidden">
-          <SortSegment
-            active={sortMode === "overall"}
-            onClick={() => setSortMode("overall")}
-            icon="fa-solid fa-trophy"
-            title="Overall points"
-            subtitle="Rank by total points"
-          />
-          <div className="w-px bg-border-card-inner" />
-          <SortSegment
-            active={sortMode === "lastN"}
-            onClick={() => setSortMode("lastN")}
-            icon="fa-solid fa-chart-line"
-            title={`Last ${lastN} avg`}
-            subtitle="Rank by recent form"
-          />
-        </div>
-
-        {/* Legend + global tournament tile options */}
-        <div className="mt-2">
-          <CollapsibleCard
-            title={
-              <span className="inline-flex items-center gap-2">
-                <i className="fa-regular fa-circle-question text-text-muted" aria-hidden="true" />
-                Tournament tiles & options
-              </span>
-            }
-            defaultOpen={false}
-            right={
-              <MetaRow as="span">
-                <i className="fa-regular fa-flag" aria-hidden="true" />
-                legend
+      <Card variant="outer" showHeader={false} bodyClassName="space-y-3">
+        {/* Controls */}
+        <div className="card-inner">
+          <SectionHeader
+            left={
+              <MetaRow as="div">
+                <i className="fa-regular fa-user" aria-hidden="true" />
+                Players
               </MetaRow>
             }
-            variant="inner"
-          >
-            <InfoLegend showAllTournamentTiles={showAllTournamentTiles} setShowAllTournamentTiles={setShowAllTournamentTiles} />
-          </CollapsibleCard>
+            right={
+              <MetaRow as="div">
+                {statsQ.isLoading ? (
+                  <>
+                    <i className="fa-solid fa-circle-notch fa-spin" aria-hidden="true" />
+                    Stats: loading…
+                  </>
+                ) : statsQ.error ? (
+                  <>
+                    <i className="fa-solid fa-triangle-exclamation text-red-400" aria-hidden="true" />
+                    Stats: error
+                  </>
+                ) : (
+                  <>
+                    <i className="fa-regular fa-circle-check accent" aria-hidden="true" />
+                    Stats: updated
+                  </>
+                )}
+              </MetaRow>
+            }
+          />
+
+          <div className="mt-3 grid gap-3 md:grid-cols-[1fr_220px]">
+            <div className="panel rounded-2xl flex overflow-hidden">
+              <SortSegment
+                active={sortMode === "overall"}
+                onClick={() => setSortMode("overall")}
+                icon="fa-solid fa-trophy"
+                title="Overall points"
+                subtitle="Rank by total points"
+              />
+              <div className="w-px bg-border-card-inner" />
+              <SortSegment
+                active={sortMode === "lastN"}
+                onClick={() => setSortMode("lastN")}
+                icon="fa-solid fa-chart-line"
+                title={`Last ${lastNView} avg`}
+                subtitle="Rank by recent form"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-2 md:grid-cols-1 md:gap-3">
+              <label className="block">
+                <div className="input-label">Mode</div>
+                <select
+                  className="select-field"
+                  value="overall"
+                  disabled
+                  title="Needs backend support (1v1/2v2 split stats)"
+                >
+                  <option value="overall">Overall</option>
+                  <option value="1v1">1v1</option>
+                  <option value="2v2">2v2</option>
+                </select>
+              </label>
+
+              <label className="block">
+                <div className="input-label">Last N</div>
+                <select
+                  className="select-field"
+                  value={String(lastNView)}
+                  onChange={(e) => setLastNView(Math.max(1, Math.min(Number(e.target.value), lastNMax)))}
+                  disabled={sortMode !== "lastN" || !Number.isFinite(lastNMax) || lastNMax <= 1}
+                  title={sortMode !== "lastN" ? "Switch to Last N avg to adjust" : "Choose N for Last N average"}
+                >
+                  {Array.from(new Set([3, 5, 8, 10, 12, 15, 20, lastNServer, lastNMax]))
+                    .filter((n) => Number.isFinite(n) && n >= 1 && n <= lastNMax)
+                    .sort((a, b) => a - b)
+                    .map((n) => (
+                      <option key={n} value={String(n)}>
+                        {n}
+                      </option>
+                    ))}
+                </select>
+              </label>
+            </div>
+          </div>
+
+          {showControls && (
+            <div className="mt-3">
+              <CollapsibleCard
+                title={
+                  <span className="inline-flex items-center gap-2">
+                    <i className="fa-solid fa-shield-halved text-text-muted" aria-hidden="true" />
+                    Admin
+                  </span>
+                }
+                defaultOpen={false}
+                className="panel-subtle"
+              >
+                <div className="grid gap-3 md:grid-cols-[1fr_auto] md:items-end">
+                  <Input
+                    label="New player"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="e.g. Hans Knauss"
+                  />
+                  <div className="flex items-end gap-2">
+                    <Button onClick={() => createMut.mutate()} disabled={!name.trim() || createMut.isPending}>
+                      <i className="fa fa-plus md:hidden" aria-hidden="true" />
+                      <span className="hidden md:inline">{createMut.isPending ? "Creating…" : "Create"}</span>
+                      <span className="md:hidden">Create</span>
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      onClick={() => {
+                        qc.invalidateQueries({ queryKey: ["players"] });
+                        qc.invalidateQueries({ queryKey: ["stats", "players"] });
+                      }}
+                      title="Refresh"
+                    >
+                      <i className="fa fa-refresh md:hidden" aria-hidden="true" />
+                      <span className="hidden md:inline">Refresh</span>
+                      <span className="md:hidden">Refresh</span>
+                    </Button>
+                  </div>
+                </div>
+
+                {createMut.error && <div className="mt-2 text-sm text-red-400">{String(createMut.error)}</div>}
+              </CollapsibleCard>
+            </div>
+          )}
         </div>
 
-        {/* Expand/collapse all + compact table header */}
-        <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+        {/* View / legend / bulk actions */}
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <MetaRow>
             <i className="fa-regular fa-list" aria-hidden="true" />
-            Players
+            List
           </MetaRow>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setShowAllTournamentTiles((v) => !v)}
+              className="btn-base btn-ghost inline-flex h-9 items-center gap-2 px-3 py-2 text-[11px]"
+              title={showAllTournamentTiles ? "Show only the most recent row of tournaments for each player" : "Show all tournament tiles for each player"}
+            >
+              <i className={"fa-solid " + (showAllTournamentTiles ? "fa-layer-group" : "fa-clock")} aria-hidden="true" />
+              {showAllTournamentTiles ? "Show all tiles" : "Most recent tiles"}
+            </button>
+
             <button
               type="button"
               onClick={() => setAllOpen(true)}
-              className={
-                "inline-flex items-center gap-2 rounded-xl border-2 px-3 py-1.5 text-[11px] transition hover:bg-hover-default/40 " +
-                (allExpanded
-                  ? "pill-green"
-                  : "border-border-card-inner bg-bg-card-outer/30 text-text-normal")
-              }
+              className="btn-base btn-ghost inline-flex h-9 items-center gap-2 px-3 py-2 text-[11px]"
               title="Expand all players"
+              disabled={allExpanded}
             >
               <i className="fa-solid fa-angles-down" aria-hidden="true" />
               Expand all
@@ -636,13 +672,9 @@ export default function PlayersPage() {
             <button
               type="button"
               onClick={() => setAllOpen(false)}
-              className={
-                "inline-flex items-center gap-2 rounded-xl border-2 px-3 py-1.5 text-[11px] transition hover:bg-hover-default/40 " +
-                (allCollapsed
-                  ? "pill-green"
-                  : "border-border-card-inner bg-bg-card-outer/30 text-text-normal")
-              }
+              className="btn-base btn-ghost inline-flex h-9 items-center gap-2 px-3 py-2 text-[11px]"
               title="Collapse all players"
+              disabled={allCollapsed}
             >
               <i className="fa-solid fa-angles-up" aria-hidden="true" />
               Collapse all
@@ -650,17 +682,30 @@ export default function PlayersPage() {
           </div>
         </div>
 
+        <CollapsibleCard
+          title={
+            <span className="inline-flex items-center gap-2">
+              <i className="fa-regular fa-circle-question text-text-muted" aria-hidden="true" />
+              Legend
+            </span>
+          }
+          defaultOpen={false}
+          className="panel-subtle"
+        >
+          <InfoLegend />
+        </CollapsibleCard>
+
         {/* Table-ish list */}
         <div className="panel-subtle rounded-2xl mt-2 overflow-hidden">
           {/* Header row */}
-          <div className="grid grid-cols-12 items-center gap-2 border-b border-border-card-inner bg-bg-card-outer/30 px-3 py-2 text-[11px] text-text-muted">
+          <div className="grid grid-cols-12 items-center gap-2 border-b border-border-card-inner bg-bg-card-chip/20 px-3 py-2 text-[11px] text-text-muted">
             <div className="col-span-7 inline-flex items-center gap-2">
               <i className="fa-regular fa-user text-text-muted" aria-hidden="true" />
               Player
             </div>
             <div className="col-span-5 text-right inline-flex items-center justify-end gap-2">
               <i className={sortMode === "overall" ? "fa-solid fa-trophy" : "fa-solid fa-chart-line"} aria-hidden="true" />
-              {sortMode === "overall" ? "Overall points" : `Last ${lastN} avg`}
+              {sortMode === "overall" ? "Overall points" : `Last ${lastNView} avg`}
             </div>
           </div>
 
@@ -671,8 +716,8 @@ export default function PlayersPage() {
           {rows.map(({ p, s, rank }, idx) => {
             const metric =
               sortMode === "overall"
-                ? { icon: "fa-solid fa-trophy", label: "P", value: String(s.pts), tag: "" }
-                : { icon: "fa-solid fa-chart-line", label: "P", value: fmtAvg(s.lastN_avg_pts), tag: "" };
+                ? { icon: "fa-solid fa-trophy", label: "P", value: String(s.pts) }
+                : { icon: "fa-solid fa-chart-line", label: "P", value: fmtAvg(avgLastN(s)) };
 
             const rowOpen = !!openByPlayerId[p.id];
             const toggleRow = () => setOpenByPlayerId((prev) => ({ ...prev, [p.id]: !rowOpen }));
@@ -687,7 +732,7 @@ export default function PlayersPage() {
                 <div className="grid grid-cols-12 items-center gap-2 px-3 py-2">
                   {/* Left: rank strip */}
                   <div className="col-span-2">
-                    <span className="inline-flex h-9 w-full items-center justify-center rounded-xl border border-border-card-inner bg-bg-card-outer/40 px-2 text-medium font-bold tabular-nums text-text-normal">
+                    <span className="panel inline-flex h-9 w-full items-center justify-center px-2 text-medium font-bold tabular-nums text-text-normal">
                       #{rank}
                     </span>
                   </div>
@@ -716,7 +761,7 @@ export default function PlayersPage() {
 
                   {/* Points box */}
                   <div className="col-span-3 flex items-center justify-end gap-2">
-                    <div className="inline-flex h-9 items-center gap-2 rounded-xl border border-border-card-inner bg-bg-card-outer/40 px-3">
+                    <div className="panel inline-flex h-9 items-center gap-2 px-3">
                       <i className={metric.icon + " text-text-muted text-xs"} aria-hidden="true" />
                       <span className="font-medium font-mono leading-none text-text-normal">{metric.value}</span>
                       <span className="text-xs font-medium text-text-muted">{metric.label}</span>
@@ -724,12 +769,12 @@ export default function PlayersPage() {
                   </div>
 
                   {/* Bigger dropdown (no overlay anywhere) */}
-                    <button
-                      type="button"
-                      onClick={toggleRow}
-                      className="col-span-1 inline-flex h-9 w-full items-center justify-center rounded-xl border border-border-card-inner bg-bg-card-outer/30 text-text-normal transition hover:bg-hover-default/40"
-                      title={rowOpen ? "Collapse" : "Expand"}
-                    >
+                  <button
+                    type="button"
+                    onClick={toggleRow}
+                    className="col-span-1 btn-base btn-ghost inline-flex h-9 w-full items-center justify-center px-0"
+                    title={rowOpen ? "Collapse" : "Expand"}
+                  >
                     <i className={"fa-solid " + (rowOpen ? "fa-chevron-up" : "fa-chevron-down")} aria-hidden="true" />
                   </button>
                 </div>

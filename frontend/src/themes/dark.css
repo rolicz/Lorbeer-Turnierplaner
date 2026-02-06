@@ -2,10 +2,10 @@
   color-scheme: dark;
 
   /* Backgrounds */
-  --color-bg-default: 16 16 20; /* Darker page backdrop for more surface separation */
-  --color-bg-card-outer: 9 9 11; /* Original zinc-950 */
-  --color-bg-card-inner: 24 24 27; /* Original zinc-900 */
-  --color-bg-card-chip: 39 39 42; /* Original zinc-800 */
+  --color-bg-default: 12 12 15; /* Shifted darker for more usable dark shades */
+  --color-bg-card-outer: 5 5 7;
+  --color-bg-card-inner: 18 18 20;
+  --color-bg-card-chip: 30 30 33;
 
   /* Text */
   --color-text-normal: 250 250 250; /* Original zinc-50 */
@@ -18,8 +18,8 @@
   --color-border-card-chip: 63 63 70; /* Original zinc-700 */
 
   /* Table */
-  --color-table-row-a: 24 24 27; /* Original zinc-900 */
-  --color-table-row-b: 28 28 31; /* Slightly lighter */
+  --color-table-row-a: 18 18 20;
+  --color-table-row-b: 22 22 24;
 
   /* Button */
   --color-btn-bg: 20 184 166; /* Original emerald-500 */
