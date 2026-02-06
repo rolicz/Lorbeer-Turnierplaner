@@ -162,7 +162,7 @@ export function GoalStepper({
   const inc = () => onChange(clampInt(value + 1, 0, 99));
 
   return (
-    <div className="inline-flex items-center gap-1" aria-label={ariaLabel}>
+    <div className="stepper" aria-label={ariaLabel}>
       <button
         type="button"
         className="stepper-btn"
@@ -170,9 +170,11 @@ export function GoalStepper({
         disabled={disabled}
         title="Decrement score"
       >
-        <i className="fa fa-minus" aria-hidden="true" />
+        <i className="fa fa-minus leading-none" aria-hidden="true" />
       </button>
-      <div className="min-w-[44px] text-center text-lg font-bold text-default">{value}</div>
+      <div className="stepper-divider" aria-hidden="true" />
+      <div className="stepper-value">{value}</div>
+      <div className="stepper-divider" aria-hidden="true" />
       <button
         type="button"
         className="stepper-btn"
@@ -180,7 +182,7 @@ export function GoalStepper({
         disabled={disabled}
         title="Increment score"
       >
-        <i className="fa fa-plus" aria-hidden="true" />
+        <i className="fa fa-plus leading-none" aria-hidden="true" />
       </button>
     </div>
   );

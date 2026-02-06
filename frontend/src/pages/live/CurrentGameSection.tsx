@@ -231,6 +231,7 @@ export default function CurrentGameSection({
   const showGoalInputs = canControl && !isScheduled;
   const scoreLeft = isScheduled ? "-" : String(aGoals);
   const scoreRight = isScheduled ? "-" : String(bGoals);
+  const leader: "A" | "B" | null = isScheduled || aGoals === bGoals ? null : aGoals > bGoals ? "A" : "B";
 
   async function save(stateOverride?: "scheduled" | "playing" | "finished", override?: Partial<PatchPayload>) {
     if (!canControl) return;
@@ -331,34 +332,42 @@ export default function CurrentGameSection({
           </div>
         </div>
 
-        {/* Row 2: NAMES + SCORE */}
-        <div className="mt-3 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 md:gap-4">
-          <div className="min-w-0">
-            {aNames.map((n, i) => (
-              <div
-                key={`${n}-${i}`}
-                className="text-[15px] md:text-lg font-semibold text-text-normal whitespace-normal md:truncate break-words leading-tight"
-              >
-                {n}
-              </div>
-            ))}
-          </div>
+        {/* Row 2: NAMES + SCORE (with guide lines for alignment) */}
+        <div className="mt-3 border-y border-border-card-inner/60 py-3">
+          <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 md:gap-4">
+            <div className="min-w-0">
+              {aNames.map((n, i) => (
+                <div
+                  key={`${n}-${i}`}
+                  className={
+                    "text-[15px] md:text-lg text-text-normal whitespace-normal md:truncate break-words leading-tight " +
+                    (leader === "A" ? "font-black" : "font-medium")
+                  }
+                >
+                  {n}
+                </div>
+              ))}
+            </div>
 
-          <div className="card-chip flex items-center justify-center gap-2">
-            <span className="text-xl font-semibold tabular-nums">{scoreLeft}</span>
-            <span className="text-text-muted">:</span>
-            <span className="text-xl font-semibold tabular-nums">{scoreRight}</span>
-          </div>
+            <div className="card-chip justify-self-center flex items-center justify-center gap-2">
+              <span className="text-xl font-semibold tabular-nums">{scoreLeft}</span>
+              <span className="text-text-muted">:</span>
+              <span className="text-xl font-semibold tabular-nums">{scoreRight}</span>
+            </div>
 
-          <div className="min-w-0 text-right">
-            {bNames.map((n, i) => (
-              <div
-                key={`${n}-${i}`}
-                className="text-[15px] md:text-lg font-semibold text-text-normal whitespace-normal md:truncate break-words leading-tight"
-              >
-                {n}
-              </div>
-            ))}
+            <div className="min-w-0 text-right">
+              {bNames.map((n, i) => (
+                <div
+                  key={`${n}-${i}`}
+                  className={
+                    "text-[15px] md:text-lg text-text-normal whitespace-normal md:truncate break-words leading-tight " +
+                    (leader === "B" ? "font-black" : "font-medium")
+                  }
+                >
+                  {n}
+                </div>
+              ))}
+            </div>
           </div>
         </div>
 
@@ -388,25 +397,30 @@ export default function CurrentGameSection({
 
         {/* Row 6: INPUTS (only when NOT scheduled) */}
         {showGoalInputs && (
-          <div className="mt-3 flex items-center justify-center gap-4">
-            <GoalStepper
-              value={aGoals}
-              onChange={(v) => {
-                setAGoals(v);
-                queueAutosave({ aGoals: v });
-              }}
-              disabled={busy}
-              ariaLabel="Goals left"
-            />
-            <GoalStepper
-              value={bGoals}
-              onChange={(v) => {
-                setBGoals(v);
-                queueAutosave({ bGoals: v });
-              }}
-              disabled={busy}
-              ariaLabel="Goals right"
-            />
+          <div className="mt-3 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 md:gap-4">
+            <div className="flex justify-start">
+              <GoalStepper
+                value={aGoals}
+                onChange={(v) => {
+                  setAGoals(v);
+                  queueAutosave({ aGoals: v });
+                }}
+                disabled={busy}
+                ariaLabel="Goals left"
+              />
+            </div>
+            <div />
+            <div className="flex justify-end">
+              <GoalStepper
+                value={bGoals}
+                onChange={(v) => {
+                  setBGoals(v);
+                  queueAutosave({ bGoals: v });
+                }}
+                disabled={busy}
+                ariaLabel="Goals right"
+              />
+            </div>
           </div>
         )}
       </div>

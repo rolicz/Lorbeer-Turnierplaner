@@ -65,6 +65,9 @@ export default function MatchList({
         const scoreLeft = showScore ? String(ag) : "-";
         const scoreRight = showScore ? String(bg) : "-";
 
+        // For bolding: use the current leader for playing/finished (and keep draws neutral).
+        const leader: "A" | "B" | null = !showScore || ag === bg ? null : ag > bg ? "A" : "B";
+
         const showMove = canReorder && m.state === "scheduled";
         const showSwap = canEdit && m.state === "scheduled";
 
@@ -153,9 +156,18 @@ export default function MatchList({
               <div className="mt-3 grid grid-cols-[1fr_auto_1fr] items-center gap-3">
                 {/* Team A players */}
                 <div className="min-w-0">
-                  <div className={`space-y-0.5 ${(hasWinner && !isDraw) ? (!aWin ? pal.lose : pal.win) : "text-text-normal"}`}>
+                  <div
+                    className={`space-y-0.5 ${
+                      hasWinner && !isDraw ? (!aWin ? pal.lose : pal.win) : "text-text-normal"
+                    }`}
+                  >
                     {aPlayers.map((n, i) => (
-                      <div key={i} className="truncate text-[15px] font-semibold leading-snug">
+                      <div
+                        key={i}
+                        className={`truncate text-[15px] leading-snug ${
+                          leader === "A" ? "font-black" : "font-medium"
+                        }`}
+                      >
                         {n}
                       </div>
                     ))}
@@ -177,9 +189,18 @@ export default function MatchList({
 
                 {/* Team B players */}
                 <div className="min-w-0 text-right">
-                  <div className={`space-y-0.5 ${(hasWinner && !isDraw) ? (!bWin ? pal.lose : pal.win) : "text-text-normal"}`}>
+                  <div
+                    className={`space-y-0.5 ${
+                      hasWinner && !isDraw ? (!bWin ? pal.lose : pal.win) : "text-text-normal"
+                    }`}
+                  >
                     {bPlayers.map((n, i) => (
-                      <div key={i} className="truncate text-[15px] font-semibold leading-snug">
+                      <div
+                        key={i}
+                        className={`truncate text-[15px] leading-snug ${
+                          leader === "B" ? "font-black" : "font-medium"
+                        }`}
+                      >
                         {n}
                       </div>
                     ))}

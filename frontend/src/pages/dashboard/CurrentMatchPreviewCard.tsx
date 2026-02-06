@@ -117,6 +117,7 @@ export default function CurrentMatchPreviewCard() {
 
   const scoreLeft = showDashScore ? "—" : String(aGoals);
   const scoreRight = showDashScore ? "—" : String(bGoals);
+  const leader: "A" | "B" | null = showDashScore || aGoals === bGoals ? null : aGoals > bGoals ? "A" : "B";
 
   const clubs = clubsQ.data ?? [];
   const aClub = clubLabelById(clubs, a?.club_id);
@@ -180,32 +181,40 @@ export default function CurrentMatchPreviewCard() {
               </div>
             </div>
 
-            <div className="mt-4 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3">
-              {/* A names */}
-              <div className="min-w-0">
-                {aNames.map((n, i) => (
-                  <div key={`${n}-${i}`} className="truncate font-medium text-text-normal">
-                    {n}
-                  </div>
-                ))}
-              </div>
-
-              {/* SCORE (keep style) */}
-              <div className="justify-self-center">
-                <div className="card-chip flex items-center justify-center gap-2">
-                  <span className="text-xl font-semibold tabular-nums">{scoreLeft}</span>
-                  <span className="text-text-muted">:</span>
-                  <span className="text-xl font-semibold tabular-nums">{scoreRight}</span>
+            <div className="mt-4 border-y border-border-card-inner/60 py-3">
+              <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3">
+                {/* A names */}
+                <div className="min-w-0">
+                  {aNames.map((n, i) => (
+                    <div
+                      key={`${n}-${i}`}
+                      className={`truncate text-text-normal ${leader === "A" ? "font-black" : "font-medium"}`}
+                    >
+                      {n}
+                    </div>
+                  ))}
                 </div>
-              </div>
 
-              {/* B names */}
-              <div className="min-w-0 text-right">
-                {bNames.map((n, i) => (
-                  <div key={`${n}-${i}`} className="truncate font-medium text-text-normal">
-                    {n}
+                {/* SCORE (keep style) */}
+                <div className="justify-self-center">
+                  <div className="card-chip flex items-center justify-center gap-2">
+                    <span className="text-xl font-semibold tabular-nums">{scoreLeft}</span>
+                    <span className="text-text-muted">:</span>
+                    <span className="text-xl font-semibold tabular-nums">{scoreRight}</span>
                   </div>
-                ))}
+                </div>
+
+                {/* B names */}
+                <div className="min-w-0 text-right">
+                  {bNames.map((n, i) => (
+                    <div
+                      key={`${n}-${i}`}
+                      className={`truncate text-text-normal ${leader === "B" ? "font-black" : "font-medium"}`}
+                    >
+                      {n}
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
 

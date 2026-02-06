@@ -161,18 +161,30 @@
   .select-field:focus {
     border-color: rgb(var(--color-accent));
   }
-  .stepper-btn {
-    @apply h-9 w-10 rounded-xl disabled:opacity-50;
-    color: rgb(var(--color-text-normal));
+  .stepper {
+    @apply inline-flex items-stretch overflow-hidden rounded-xl;
     background-color: rgb(var(--color-bg-card-chip) / 0.35);
     border: 1px solid rgb(var(--color-border-card-chip) / 0.65);
   }
+  .stepper-divider {
+    width: 1px;
+    background-color: rgb(var(--color-border-card-chip) / 0.55);
+  }
+  .stepper-btn {
+    @apply inline-flex h-9 w-10 items-center justify-center disabled:opacity-50;
+    color: rgb(var(--color-text-normal));
+    background-color: transparent;
+  }
   .stepper-btn:hover {
-    background-color: rgb(var(--color-bg-card-chip) / 0.6);
-    border-color: rgb(var(--color-border-card-chip) / 0.85);
+    background-color: rgb(var(--color-bg-card-chip) / 0.55);
   }
   .stepper-btn:focus {
-    border-color: rgb(var(--color-accent));
+    outline: 2px solid rgb(var(--color-accent) / 0.35);
+    outline-offset: -2px;
+  }
+  .stepper-value {
+    @apply min-w-[44px] px-2 text-center text-lg font-bold tabular-nums leading-none flex items-center justify-center;
+    color: rgb(var(--color-text-normal));
   }
 
   /* Semantic pills (used in Players tournament positions etc.) */
