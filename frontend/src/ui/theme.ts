@@ -77,6 +77,27 @@ export function matchPalette(state: MatchState) {
   }
 }
 
+export function tournamentPalette(status: TournamentStatus) {
+  switch (status) {
+    case "live":
+      return {
+        wrap: "border-status-border-green bg-status-bg-green hover:bg-hover-green",
+        bar: "bg-status-bar-green",
+      };
+    case "draft":
+      return {
+        wrap: "border-status-border-blue bg-status-bg-blue hover:bg-hover-blue",
+        bar: "bg-status-bar-blue",
+      };
+    case "done":
+    default:
+      return {
+        wrap: "border-status-border-default bg-status-bg-default hover:bg-hover-default",
+        bar: "bg-status-bar-default",
+      };
+  }
+}
+
 // Legacy exports, keeping them to avoid breaking imports for now,
 // but they are deprecated in favor of the more specific functions above.
 export const colorMatch = matchStatusPill;

@@ -9,7 +9,7 @@ import Panel from "../ui/primitives/Panel";
 import SectionHeader from "../ui/primitives/SectionHeader";
 import { Meta } from "../ui/primitives/Meta";
 import { Pill, statusPill, pillDate } from "../ui/primitives/Pill";
-import { tournamentStatusUI } from "../ui/theme";
+import { tournamentPalette, tournamentStatusUI } from "../ui/theme";
 import { cn } from "../ui/cn";
 import { listTournaments, createTournament, generateSchedule } from "../api/tournaments.api";
 import { listPlayers } from "../api/players.api";
@@ -119,11 +119,8 @@ export default function TournamentsPage() {
           {tournamentsSorted.map((t: any) => {
             const st: Status = (t.status as Status) ?? "draft";
             const ui = tournamentStatusUI(st);
+            const pal = tournamentPalette(st);
             const winner = winnerLabel(t);
-
-            // “Current live tournament” -> green emphasis (also adds a subtle background)
-            const isLive = st === "live";
-            const isDraft = st === "draft";
 
             return (
               <Link
@@ -131,16 +128,11 @@ export default function TournamentsPage() {
                 to={`/live/${t.id}`}
                 className={cn(
                   "relative block overflow-hidden rounded-xl border px-4 py-3 transition",
-                  "bg-bg-card-inner hover:bg-hover-default/40",
-                  isLive
-                    ? "border-status-border-green/60"
-                    : isDraft
-                      ? "border-status-border-blue/60"
-                      : "border-border-card-inner"
+                  pal.wrap
                 )}
               >
                 {/* left accent bar */}
-                <div className={`absolute left-0 top-0 h-full w-1 ${ui.bar}`} />
+                <div className={`absolute left-0 top-0 h-full w-1 ${pal.bar}`} />
 
                 <div className="pl-1">
                   {/* Row 1: name + small mode pill */}
