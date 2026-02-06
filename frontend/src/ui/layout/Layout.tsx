@@ -2,6 +2,7 @@ import { Link, useLocation } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { useAuth } from "../../auth/AuthContext";
 import Button from "../primitives/Button";
+import SectionHeader from "../primitives/SectionHeader";
 import { useAnyTournamentWS } from "../../hooks/useTournamentWS";
 import { THEMES } from "../../themes";
 
@@ -55,47 +56,50 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       >
         <div className="mx-auto max-w-6xl xl:max-w-7xl page-x py-2 sm:py-3">
           {/* Row 1: title + role + auth */}
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex min-w-0 items-center gap-2">
-              <div className="shrink-0 font-semibold tracking-tight">EA FC</div>
-              <div className="truncate text-xs text-muted sm:text-sm">
-                role: <span className="accent">{role}</span>
+          <SectionHeader
+            left={
+              <div className="flex min-w-0 items-center gap-2">
+                <div className="shrink-0 font-semibold tracking-tight">EA FC</div>
+                <div className="truncate text-xs text-muted sm:text-sm">
+                  role: <span className="accent">{role}</span>
+                </div>
               </div>
-            </div>
-
-            <div className="flex shrink-0 items-center gap-2">
-              <div className="flex items-center gap-2">
-                <span className="hidden md:inline text-xs text-muted">Theme</span>
-                <select
-                  aria-label="Theme"
-                  className="select-field h-10 w-[120px] px-2 text-[11px] sm:w-[140px] sm:text-xs"
-                  value={theme}
-                  onChange={(e) => setTheme(e.target.value as ThemeName)}
-                >
-                  {THEME_OPTIONS.map((opt) => (
-                    <option key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              {role === "reader" ? (
-                <Link
-                  to="/login"
-                  title="Login"
-                  className="btn-base btn-ghost inline-flex h-10 items-center justify-center"
-                >
-                  <i className="fa fa-sign-in md:hidden" aria-hidden="true" />
-                  <span className="hidden md:inline">Login</span>
-                </Link>
-              ) : (
-                <Button variant="ghost" onClick={logout} title="Logout">
-                  <i className="fa fa-sign-out md:hidden" aria-hidden="true" />
-                  <span className="hidden md:inline">Logout</span>
-                </Button>
-              )}
-            </div>
-          </div>
+            }
+            right={
+              <>
+                <div className="flex items-center gap-2">
+                  <span className="hidden md:inline text-xs text-muted">Theme</span>
+                  <select
+                    aria-label="Theme"
+                    className="select-field h-10 w-[120px] px-2 text-[11px] sm:w-[140px] sm:text-xs"
+                    value={theme}
+                    onChange={(e) => setTheme(e.target.value as ThemeName)}
+                  >
+                    {THEME_OPTIONS.map((opt) => (
+                      <option key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                {role === "reader" ? (
+                  <Link
+                    to="/login"
+                    title="Login"
+                    className="btn-base btn-ghost inline-flex h-10 items-center justify-center"
+                  >
+                    <i className="fa fa-sign-in md:hidden" aria-hidden="true" />
+                    <span className="hidden md:inline">Login</span>
+                  </Link>
+                ) : (
+                  <Button variant="ghost" onClick={logout} title="Logout">
+                    <i className="fa fa-sign-out md:hidden" aria-hidden="true" />
+                    <span className="hidden md:inline">Logout</span>
+                  </Button>
+                )}
+              </>
+            }
+          />
 
           {/* Row 2: nav (always visible, scrollable on mobile) */}
           <nav className="page-x-bleed mt-2 overflow-x-auto pb-1 sm:mt-3 sm:overflow-visible sm:pb-0">

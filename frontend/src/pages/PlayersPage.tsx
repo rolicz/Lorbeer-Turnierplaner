@@ -5,6 +5,7 @@ import Card from "../ui/primitives/Card";
 import Input from "../ui/primitives/Input";
 import Button from "../ui/primitives/Button";
 import CollapsibleCard from "../ui/primitives/CollapsibleCard";
+import { MetaRow } from "../ui/primitives/Meta";
 
 import { useAuth } from "../auth/AuthContext";
 import { createPlayer, listPlayers, patchPlayer } from "../api/players.api";
@@ -543,12 +544,12 @@ export default function PlayersPage() {
 
         {/* "Sort & primary metric" + stats status on same line */}
         <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-          <div className="text-xs text-text-muted inline-flex items-center gap-2">
+          <MetaRow>
             <i className="fa-solid fa-arrow-down-wide-short" aria-hidden="true" />
             Sort & primary metric
-          </div>
+          </MetaRow>
 
-          <div className="text-xs text-text-muted inline-flex items-center gap-2">
+          <MetaRow>
             {statsQ.isLoading ? (
               <>
                 <i className="fa-solid fa-circle-notch fa-spin" aria-hidden="true" />
@@ -565,7 +566,7 @@ export default function PlayersPage() {
                 Stats: updated
               </>
             )}
-          </div>
+          </MetaRow>
         </div>
 
         {/* sort control */}
@@ -598,10 +599,10 @@ export default function PlayersPage() {
             }
             defaultOpen={false}
             right={
-              <span className="text-xs text-text-muted inline-flex items-center gap-2">
+              <MetaRow as="span">
                 <i className="fa-regular fa-flag" aria-hidden="true" />
                 legend
-              </span>
+              </MetaRow>
             }
             variant="inner"
           >
@@ -611,10 +612,10 @@ export default function PlayersPage() {
 
         {/* Expand/collapse all + compact table header */}
         <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-          <div className="text-xs text-text-muted inline-flex items-center gap-2">
+          <MetaRow>
             <i className="fa-regular fa-list" aria-hidden="true" />
             Players
-          </div>
+          </MetaRow>
 
           <div className="flex items-center gap-2">
             <button

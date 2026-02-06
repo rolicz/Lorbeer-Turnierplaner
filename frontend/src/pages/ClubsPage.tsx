@@ -190,7 +190,7 @@ export default function ClubsPage() {
 
   return (
     <div className="page">
-      <Card variant="outer" showHeader={false}>
+      <Card variant="outer" showHeader={false} bodyClassName="space-y-3">
         <CollapsibleCard title="Create club" defaultOpen={false} variant="inner">
           <div className="grid gap-2 md:grid-cols-4">
             <Input label="Game" value={game} onChange={(e) => setGame(e.target.value)} />

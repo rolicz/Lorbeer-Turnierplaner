@@ -5,6 +5,7 @@ import CollapsibleCard from "../../ui/primitives/CollapsibleCard";
 import type { Club, Match } from "../../api/types";
 import { sideBy } from "../../helpers";
 import { useMemo, useState } from "react";
+import ClubStarsEditor from "../../ui/ClubStarsEditor";
 import {
   ClubSelect,
   GoalStepper,
@@ -192,7 +193,7 @@ export default function MatchEditorSheet({
             </div>
 
             {/* Clubs (filters + dropdowns) */}
-            <CollapsibleCard title="Select Clubs" defaultOpen={false}>
+            <CollapsibleCard title="Select Clubs" defaultOpen={false} className="panel-subtle">
               <div className="grid grid-cols-1 gap-2">
                 <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                   <Input
@@ -243,23 +244,33 @@ export default function MatchEditorSheet({
                   </Button>
                 </div>
 
-                <ClubSelect
-                  label={`${aPlayers} — club`}
-                  value={aClub}
-                  onChange={setAClub}
-                  disabled={saving}
-                  clubs={clubsForA}
-                  placeholder="Select club…"
-                />
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+                  <div className="min-w-0 flex-1">
+                    <ClubSelect
+                      label={`${aPlayers} — club`}
+                      value={aClub}
+                      onChange={setAClub}
+                      disabled={saving}
+                      clubs={clubsForA}
+                      placeholder="Select club…"
+                    />
+                  </div>
+                  <ClubStarsEditor clubId={aClub} clubs={clubs} disabled={saving} className="sm:w-[130px]" />
+                </div>
 
-                <ClubSelect
-                  label={`${bPlayers} — club`}
-                  value={bClub}
-                  onChange={setBClub}
-                  disabled={saving}
-                  clubs={clubsForB}
-                  placeholder="Select club…"
-                />
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+                  <div className="min-w-0 flex-1">
+                    <ClubSelect
+                      label={`${bPlayers} — club`}
+                      value={bClub}
+                      onChange={setBClub}
+                      disabled={saving}
+                      clubs={clubsForB}
+                      placeholder="Select club…"
+                    />
+                  </div>
+                  <ClubStarsEditor clubId={bClub} clubs={clubs} disabled={saving} className="sm:w-[130px]" />
+                </div>
 
                 <div className="mt-2 text-xs text-text-muted">
                   Tip: change clubs anytime before saving results.

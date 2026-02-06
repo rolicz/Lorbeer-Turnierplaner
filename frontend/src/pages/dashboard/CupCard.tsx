@@ -6,6 +6,7 @@ import { getCup } from "../../api/cup.api";
 import { useAnyTournamentWS } from "../../hooks/useTournamentWS";
 
 import { Pill, pillDate } from "../../ui/primitives/Pill";
+import SectionHeader from "../../ui/primitives/SectionHeader";
 
 function fmtDate(d?: string | null) {
   if (!d) return "—";
@@ -34,7 +35,7 @@ export default function CupCard() {
       {q.error && <div className="text-sm text-red-400">{String(q.error)}</div>}
 
       {q.data && (
-        <div className="space-y-3 card-inner">
+        <div className="space-y-3">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
               <div className="text-xs text-text-muted">Current owner</div>
@@ -93,27 +94,31 @@ export default function CupCard() {
                   <Link
                     to={`/live/${h.tournament_id}`}
                   >
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="min-w-0">
-                      <div className="truncate text-sm text-text-normal">{h.tournament_name}</div>
-                      <div className="mt-2 flex flex-wrap items-center gap-2">
-                        <Pill className={pillDate()} title="Date">
-                          <span>{fmtDate(h.date)}</span>
-                        </Pill>
-
-                        {h.streak_duration > 0 && (
-                          <Pill title="Streak">
-                            <span>Streak: {h.streak_duration}</span>
+                  <SectionHeader
+                    left={
+                      <div className="min-w-0">
+                        <div className="truncate text-sm text-text-normal">{h.tournament_name}</div>
+                        <div className="mt-2 flex flex-wrap items-center gap-2">
+                          <Pill className={pillDate()} title="Date">
+                            <span>{fmtDate(h.date)}</span>
                           </Pill>
-                        )}
+
+                          {h.streak_duration > 0 && (
+                            <Pill title="Streak">
+                              <span>Streak: {h.streak_duration}</span>
+                            </Pill>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                    <div className="shrink-0 text-sm text-text-normal">
-                      <span className="text-text-muted">{h.from.display_name}</span>{" "}
-                      <span className="text-text-muted">→</span>{" "}
-                      <span className="accent font-semibold">{h.to.display_name}</span>
-                    </div>
-                  </div>
+                    }
+                    right={
+                      <div className="text-sm text-text-normal">
+                        <span className="text-text-muted">{h.from.display_name}</span>{" "}
+                        <span className="text-text-muted">→</span>{" "}
+                        <span className="accent font-semibold">{h.to.display_name}</span>
+                      </div>
+                    }
+                  />
                   </Link>
                 </div>
               ))}

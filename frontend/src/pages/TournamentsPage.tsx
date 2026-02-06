@@ -5,6 +5,9 @@ import Card from "../ui/primitives/Card";
 import Button from "../ui/primitives/Button";
 import Input from "../ui/primitives/Input";
 import Modal from "../ui/primitives/Modal";
+import Panel from "../ui/primitives/Panel";
+import SectionHeader from "../ui/primitives/SectionHeader";
+import { Meta } from "../ui/primitives/Meta";
 import { Pill, statusPill, pillDate } from "../ui/primitives/Pill";
 import { tournamentStatusUI } from "../ui/theme";
 import { cn } from "../ui/cn";
@@ -87,19 +90,27 @@ export default function TournamentsPage() {
   return (
     <div className="page">
       <Card variant="outer" showHeader={false}>
-        <div className="flex items-center justify-between gap-2">
-          <div className="text-sm text-text-muted">Active + past tournaments.</div>
-          <div className="flex items-center gap-2">
-            <Button variant="ghost" onClick={() => qc.invalidateQueries({ queryKey: ["tournaments"] })} title="Refresh">
-              <i className="fa fa-refresh md:hidden" aria-hidden="true" />
-              <span className="hidden md:inline">Refresh</span>
-            </Button>
-            {canWrite && <Button onClick={() => setOpen(true)} title="New Tournament">
-              <i className="fa fa-plus md:hidden" aria-hidden="true" />
-              <span className="hidden md:inline">New</span>
-            </Button>}
-          </div>
-        </div>
+        <SectionHeader
+          left={<Meta size="sm">Active + past tournaments.</Meta>}
+          right={
+            <>
+              <Button
+                variant="ghost"
+                onClick={() => qc.invalidateQueries({ queryKey: ["tournaments"] })}
+                title="Refresh"
+              >
+                <i className="fa fa-refresh md:hidden" aria-hidden="true" />
+                <span className="hidden md:inline">Refresh</span>
+              </Button>
+              {canWrite ? (
+                <Button onClick={() => setOpen(true)} title="New Tournament">
+                  <i className="fa fa-plus md:hidden" aria-hidden="true" />
+                  <span className="hidden md:inline">New</span>
+                </Button>
+              ) : null}
+            </>
+          }
+        />
 
         <div className="mt-3 space-y-2">
           {tournamentsQ.isLoading && <div className="text-text-muted">Loading…</div>}
@@ -203,7 +214,7 @@ export default function TournamentsPage() {
             </button>
           </div>
 
-          <div className="panel p-3">
+          <Panel className="p-3">
             <div className="mb-2 text-sm font-medium">Players</div>
             {playersQ.isLoading && <div className="text-sm text-text-muted">Loading players…</div>}
             {playersQ.error && <div className="text-sm text-red-400">{String(playersQ.error)}</div>}
@@ -223,7 +234,7 @@ export default function TournamentsPage() {
               ))}
             </div>
             <div className="mt-2 text-xs text-text-muted">Selected: {selectedIds.length}</div>
-          </div>
+          </Panel>
 
           {createMut.error && <div className="text-sm text-red-400">{String(createMut.error)}</div>}
 

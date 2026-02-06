@@ -5,6 +5,7 @@ import type { Club, Match, MatchSide } from "../../api/types";
 import CollapsibleCard from "../../ui/primitives/CollapsibleCard";
 import { StarsFA } from "../../ui/primitives/StarsFA";
 import { Pill, statusMatchPill } from "../../ui/primitives/Pill";
+import ClubStarsEditor from "../../ui/ClubStarsEditor";
 import {
   ClubSelect,
   GoalStepper,
@@ -424,7 +425,7 @@ export default function CurrentGameSection({
 
         {/* Filter + Clubs */}
         {canControl && (
-          <CollapsibleCard title="Select Clubs" defaultOpen={false}>
+          <CollapsibleCard title="Select Clubs" defaultOpen={false} className="panel-subtle">
             <div className="grid grid-cols-1 gap-2">
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                 <StarFilter value={starFilter} onChange={setStarFilter} disabled={busy} />
@@ -438,16 +439,16 @@ export default function CurrentGameSection({
                   variant="ghost"
                   onClick={() => {
                     if (!clubsFiltered.length) return;
-                  
+
                     const clubA = clubsFiltered[Math.floor(Math.random() * clubsFiltered.length)];
                     let clubB = clubsFiltered[Math.floor(Math.random() * clubsFiltered.length)];
-                  
+
                     if (clubsFiltered.length > 1) {
                       while (!randomClubAssignmentOk(clubA, clubB)) {
                         clubB = clubsFiltered[Math.floor(Math.random() * clubsFiltered.length)];
                       }
                     }
-                  
+
                     setAClub(clubA.id);
                     setBClub(clubB.id);
                     queueAutosave({ aClub: clubA.id, bClub: clubB.id });
@@ -461,31 +462,41 @@ export default function CurrentGameSection({
                 </Button>
               </div>
 
-              <ClubSelect
-                label={`${aInline} — club`}
-                value={aClub}
-                onChange={(v) => {
-                  if (v === aClub) return; // only save on actual change
-                  setAClub(v);
-                  queueAutosave({ aClub: v });
-                }}
-                disabled={!canControl || busy}
-                clubs={clubsForA}
-                placeholder="Select club…"
-              />
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+                <div className="min-w-0 flex-1">
+                  <ClubSelect
+                    label={`${aInline} — club`}
+                    value={aClub}
+                    onChange={(v) => {
+                      if (v === aClub) return; // only save on actual change
+                      setAClub(v);
+                      queueAutosave({ aClub: v });
+                    }}
+                    disabled={!canControl || busy}
+                    clubs={clubsForA}
+                    placeholder="Select club…"
+                  />
+                </div>
+                <ClubStarsEditor clubId={aClub} clubs={clubs} disabled={!canControl || busy} className="sm:w-[130px]" />
+              </div>
 
-              <ClubSelect
-                label={`${bInline} — club`}
-                value={bClub}
-                onChange={(v) => {
-                  if (v === bClub) return; // only save on actual change
-                  setBClub(v);
-                  queueAutosave({ bClub: v });
-                }}
-                disabled={!canControl || busy}
-                clubs={clubsForB}
-                placeholder="Select club…"
-              />
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+                <div className="min-w-0 flex-1">
+                  <ClubSelect
+                    label={`${bInline} — club`}
+                    value={bClub}
+                    onChange={(v) => {
+                      if (v === bClub) return; // only save on actual change
+                      setBClub(v);
+                      queueAutosave({ bClub: v });
+                    }}
+                    disabled={!canControl || busy}
+                    clubs={clubsForB}
+                    placeholder="Select club…"
+                  />
+                </div>
+                <ClubStarsEditor clubId={bClub} clubs={clubs} disabled={!canControl || busy} className="sm:w-[130px]" />
+              </div>
             </div>
           </CollapsibleCard>
         )}
@@ -589,7 +600,7 @@ export default function CurrentGameSection({
         </div>
 
         {canControl && (
-          <CollapsibleCard title="Select Clubs" defaultOpen={false}>
+          <CollapsibleCard title="Select Clubs" defaultOpen={false} className="panel-subtle">
             <div className="grid gap-4">
               {/* Row 1: filters + random */}
               <div className="grid grid-cols-1 gap-3 md:grid-cols-[auto_auto_1fr] md:items-end">
@@ -608,7 +619,7 @@ export default function CurrentGameSection({
                     variant="ghost"
                     onClick={() => {
                       if (!clubsFiltered.length) return;
-                    
+
                       // pick two distinct clubs (optional but nicer)
                       const clubA = clubsFiltered[Math.floor(Math.random() * clubsFiltered.length)];
                       let clubB = clubsFiltered[Math.floor(Math.random() * clubsFiltered.length)];
@@ -617,7 +628,7 @@ export default function CurrentGameSection({
                           clubB = clubsFiltered[Math.floor(Math.random() * clubsFiltered.length)];
                         }
                       }
-                    
+
                       setAClub(clubA.id);
                       setBClub(clubB.id);
                       queueAutosave({ aClub: clubA.id, bClub: clubB.id });
@@ -632,33 +643,43 @@ export default function CurrentGameSection({
                 </div>
               </div>
 
-              {/* Row 2: club dropdowns */}
+              {/* Row 2: club dropdowns (+ inline star edit for editor/admin) */}
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2 md:items-end">
-                <ClubSelect
-                  label={`${aInline} — club`}
-                  value={aClub}
-                  onChange={(v) => {
-                    if (v === aClub) return;
-                    setAClub(v);
-                    queueAutosave({ aClub: v });
-                  }}
-                  disabled={!canControl || busy}
-                  clubs={clubsForA}
-                  placeholder="Select club…"
-                />
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+                  <div className="min-w-0 flex-1">
+                    <ClubSelect
+                      label={`${aInline} — club`}
+                      value={aClub}
+                      onChange={(v) => {
+                        if (v === aClub) return;
+                        setAClub(v);
+                        queueAutosave({ aClub: v });
+                      }}
+                      disabled={!canControl || busy}
+                      clubs={clubsForA}
+                      placeholder="Select club…"
+                    />
+                  </div>
+                  <ClubStarsEditor clubId={aClub} clubs={clubs} disabled={!canControl || busy} className="sm:w-[130px]" />
+                </div>
 
-                <ClubSelect
-                  label={`${bInline} — club`}
-                  value={bClub}
-                  onChange={(v) => {
-                    if (v === bClub) return;
-                    setBClub(v);
-                    queueAutosave({ bClub: v });
-                  }}
-                  disabled={!canControl || busy}
-                  clubs={clubsForB}
-                  placeholder="Select club…"
-                />
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+                  <div className="min-w-0 flex-1">
+                    <ClubSelect
+                      label={`${bInline} — club`}
+                      value={bClub}
+                      onChange={(v) => {
+                        if (v === bClub) return;
+                        setBClub(v);
+                        queueAutosave({ bClub: v });
+                      }}
+                      disabled={!canControl || busy}
+                      clubs={clubsForB}
+                      placeholder="Select club…"
+                    />
+                  </div>
+                  <ClubStarsEditor clubId={bClub} clubs={clubs} disabled={!canControl || busy} className="sm:w-[130px]" />
+                </div>
               </div>
             </div>
 

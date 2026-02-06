@@ -9,7 +9,9 @@ export default function DashboardPage() {
         <CurrentMatchPreviewCard />
 
         <CollapsibleCard title="Lorbeerkranz Wanderpokal" defaultOpen={true} variant="outer">
-          <CupCard />
+          <div className="card-inner">
+            <CupCard />
+          </div>
         </CollapsibleCard>
         
       </div>

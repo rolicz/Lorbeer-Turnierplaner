@@ -75,9 +75,9 @@
     border: 1px solid rgb(var(--color-border-card-outer));
   }
   .card-inner {
-    @apply rounded-xl p-3 my-5;
+    @apply rounded-xl p-3;
     background-color: rgb(var(--color-bg-card-inner));
-    border: 1px solid rgb(var(--color-border-card-inner));
+    border: 1px solid rgb(var(--color-border-card-inner) / 0.45);
   }
   .card-chip {
     @apply rounded-lg px-3 py-1.5;
@@ -115,17 +115,23 @@
   }
   .btn-ghost {
     @apply btn-base bg-transparent;
-    border-color: rgb(var(--color-border-card-inner));
+    color: rgb(var(--color-text-normal));
+    background-color: rgb(var(--color-bg-card-chip) / 0.35);
+    border-color: rgb(var(--color-border-card-chip) / 0.65);
   }
   .btn-ghost:hover {
-    background-color: rgb(var(--color-hover-default));
+    background-color: rgb(var(--color-bg-card-chip) / 0.55);
+    border-color: rgb(var(--color-border-card-chip) / 0.85);
   }
   .icon-button {
-    @apply rounded-lg px-2 py-1 text-sm;
-    color: rgb(var(--color-text-muted));
+    @apply rounded-xl p-2 text-sm transition border;
+    color: rgb(var(--color-text-normal));
+    background-color: rgb(var(--color-bg-card-chip) / 0.25);
+    border-color: rgb(var(--color-border-card-chip) / 0.55);
   }
   .icon-button:hover {
-    background-color: rgb(var(--color-hover-default));
+    background-color: rgb(var(--color-bg-card-chip) / 0.45);
+    border-color: rgb(var(--color-border-card-chip) / 0.8);
   }
 
   /* Forms */
@@ -158,11 +164,12 @@
   .stepper-btn {
     @apply h-9 w-10 rounded-xl disabled:opacity-50;
     color: rgb(var(--color-text-normal));
-    background-color: rgb(var(--color-bg-card-chip));
-    border: 1px solid rgb(var(--color-border-card-chip));
+    background-color: rgb(var(--color-bg-card-chip) / 0.35);
+    border: 1px solid rgb(var(--color-border-card-chip) / 0.65);
   }
   .stepper-btn:hover {
-    background-color: rgb(var(--color-hover-default));
+    background-color: rgb(var(--color-bg-card-chip) / 0.6);
+    border-color: rgb(var(--color-border-card-chip) / 0.85);
   }
   .stepper-btn:focus {
     border-color: rgb(var(--color-accent));
@@ -195,18 +202,18 @@
 
   .panel {
     @apply rounded-xl;
-    background-color: rgb(var(--color-bg-card-inner) / 0.25);
-    border: 1px solid rgb(var(--color-border-card-inner) / 0.7);
+    background-color: rgb(var(--color-bg-card-chip));
+    border: 1px solid rgb(var(--color-border-card-chip) / 0.55);
   }
   .panel-subtle {
     @apply rounded-xl;
-    background-color: rgb(var(--color-bg-card-inner) / 0.18);
-    border: 1px solid rgb(var(--color-border-card-inner) / 0.5);
+    background-color: rgb(var(--color-bg-card-chip) / 0.65);
+    border: 0;
   }
   .card-subtle {
     @apply rounded-xl p-3;
-    background-color: rgb(var(--color-bg-card-inner) / 0.18);
-    border: 1px solid rgb(var(--color-border-card-inner) / 0.5);
+    background-color: rgb(var(--color-bg-card-chip) / 0.6);
+    border: 0;
   }
 
   .delta-up { color: rgb(var(--delta-up)); }

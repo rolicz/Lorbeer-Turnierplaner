@@ -2,7 +2,7 @@
   color-scheme: dark;
 
   /* Backgrounds */
-  --color-bg-default: 24 24 27; /* Original zinc-900 */
+  --color-bg-default: 16 16 20; /* Darker page backdrop for more surface separation */
   --color-bg-card-outer: 9 9 11; /* Original zinc-950 */
   --color-bg-card-inner: 24 24 27; /* Original zinc-900 */
   --color-bg-card-chip: 39 39 42; /* Original zinc-800 */

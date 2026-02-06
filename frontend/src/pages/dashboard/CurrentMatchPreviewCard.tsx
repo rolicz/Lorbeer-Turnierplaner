@@ -142,101 +142,101 @@ export default function CurrentMatchPreviewCard() {
       variant="outer"
     >
       <div className="card-inner">
-      <button
-        type="button"
-        onClick={() => nav(`/live/${tid}`)}
-        className="w-full rounded-xl p-0.5 text-left transition hover:bg-hover-default/40"
-      >
-        {/* Top row: name */}
-        <div className="grid grid-cols-1 items-center">
-          <div className="min-w-0">
-            <div className="truncate text-base font-semibold text-text-normal">
-              {(tQ.data as any)?.name ?? `Tournament #${tid}`}
-            </div>
-          </div>
-        </div>
-
-        <div className="mt-2 panel-subtle p-2 sm:p-3">
-          {/* Row 1: leg/# left + match/mode pills right */}
-          <div className="mt-1 flex items-center justify-between gap-3">
-            <div className="text-[11px] sm:text-xs text-text-muted">
-              Match #{match.order_index + 1}
-            </div>
-            <div className="flex items-center gap-2 flex-nowrap whitespace-nowrap">
-              <Pill>
-                leg {match.leg}
-              </Pill>
-              <Pill>
-                {tQ.data?.mode === "2v2" ? "2v2" : "1v1"}
-              </Pill>
-              <Pill
-                className={`${statusMatchPill(
-                  match.state
-                )}`}
-              >
-                {match.state}
-              </Pill>
-              
-            </div>
-          </div>
-
-          <div className="mt-4 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3">
-            {/* A names */}
+        <button
+          type="button"
+          onClick={() => nav(`/live/${tid}`)}
+          className="w-full rounded-xl p-0.5 text-left transition hover:bg-hover-default/40"
+        >
+          {/* Top row: name */}
+          <div className="grid grid-cols-1 items-center">
             <div className="min-w-0">
-              {aNames.map((n, i) => (
-                <div key={`${n}-${i}`} className="truncate font-medium text-text-normal">
-                  {n}
-                </div>
-              ))}
+              <div className="truncate text-base font-semibold text-text-normal">
+                {(tQ.data as any)?.name ?? `Tournament #${tid}`}
+              </div>
             </div>
+          </div>
 
-            {/* SCORE (keep style) */}
-            <div className="justify-self-center">
-              <div className="card-chip flex items-center justify-center gap-2">
-                <span className="text-xl font-semibold tabular-nums">{scoreLeft}</span>
-                <span className="text-text-muted">:</span>
-                <span className="text-xl font-semibold tabular-nums">{scoreRight}</span>
+          <div className="mt-2 panel-subtle p-2 sm:p-3">
+            {/* Row 1: leg/# left + match/mode pills right */}
+            <div className="mt-1 flex items-center justify-between gap-3">
+              <div className="text-[11px] sm:text-xs text-text-muted">
+                Match #{match.order_index + 1}
+              </div>
+              <div className="flex items-center gap-2 flex-nowrap whitespace-nowrap">
+                <Pill>
+                  leg {match.leg}
+                </Pill>
+                <Pill>
+                  {tQ.data?.mode === "2v2" ? "2v2" : "1v1"}
+                </Pill>
+                <Pill
+                  className={`${statusMatchPill(
+                    match.state
+                  )}`}
+                >
+                  {match.state}
+                </Pill>
+                
               </div>
             </div>
 
-            {/* B names */}
-            <div className="min-w-0 text-right">
-              {bNames.map((n, i) => (
-                <div key={`${n}-${i}`} className="truncate font-medium text-text-normal">
-                  {n}
+            <div className="mt-4 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3">
+              {/* A names */}
+              <div className="min-w-0">
+                {aNames.map((n, i) => (
+                  <div key={`${n}-${i}`} className="truncate font-medium text-text-normal">
+                    {n}
+                  </div>
+                ))}
+              </div>
+
+              {/* SCORE (keep style) */}
+              <div className="justify-self-center">
+                <div className="card-chip flex items-center justify-center gap-2">
+                  <span className="text-xl font-semibold tabular-nums">{scoreLeft}</span>
+                  <span className="text-text-muted">:</span>
+                  <span className="text-xl font-semibold tabular-nums">{scoreRight}</span>
                 </div>
-              ))}
+              </div>
+
+              {/* B names */}
+              <div className="min-w-0 text-right">
+                {bNames.map((n, i) => (
+                  <div key={`${n}-${i}`} className="truncate font-medium text-text-normal">
+                    {n}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Row 2: clubs */}
+            <div className="mt-2 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-start gap-3 text-xs text-text-muted">
+              <div className="min-w-0 whitespace-normal break-words leading-tight">{aClubParts.name}</div>
+              <div />
+              <div className="min-w-0 whitespace-normal break-words leading-tight text-right">{bClubParts.name}</div>
+            </div>
+
+            {/* Row 3: leagues */}
+            <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-start gap-3 text-xs text-text-muted">
+              <div className="min-w-0 whitespace-normal break-words leading-tight">{aClubParts.league_name}</div>
+              <div />
+              <div className="min-w-0 whitespace-normal break-words leading-tight text-right">{bClubParts.league_name}</div>
+            </div>
+
+            {/* Row 4: stars below */}
+            <div className="mt-1 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 text-[11px] text-text-muted">
+              <div className="min-w-0">
+                <StarsFA rating={aClubParts.rating ?? 0} textClassName="text-text-muted" />
+              </div>
+              <div />
+              <div className="min-w-0 flex justify-end">
+                <StarsFA rating={bClubParts.rating ?? 0} textClassName="text-text-muted" />
+              </div>
             </div>
           </div>
 
-          {/* Row 2: clubs */}
-          <div className="mt-2 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-start gap-3 text-xs text-text-muted">
-            <div className="min-w-0 whitespace-normal break-words leading-tight">{aClubParts.name}</div>
-            <div />
-            <div className="min-w-0 whitespace-normal break-words leading-tight text-right">{bClubParts.name}</div>
-          </div>
-
-          {/* Row 3: leagues */}
-          <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-start gap-3 text-xs text-text-muted">
-            <div className="min-w-0 whitespace-normal break-words leading-tight">{aClubParts.league_name}</div>
-            <div />
-            <div className="min-w-0 whitespace-normal break-words leading-tight text-right">{bClubParts.league_name}</div>
-          </div>
-
-          {/* Row 4: stars below */}
-          <div className="mt-1 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 text-[11px] text-text-muted">
-            <div className="min-w-0">
-              <StarsFA rating={aClubParts.rating ?? 0} textClassName="text-text-muted" />
-            </div>
-            <div />
-            <div className="min-w-0 flex justify-end">
-              <StarsFA rating={bClubParts.rating ?? 0} textClassName="text-text-muted" />
-            </div>
-          </div>
-        </div>
-
-        <div className="mt-2 text-xs text-text-muted">Tap to open live tournament.</div>
-      </button>
+          <div className="mt-2 text-xs text-text-muted">Tap to open live tournament.</div>
+        </button>
       </div>
     </CollapsibleCard>
   );

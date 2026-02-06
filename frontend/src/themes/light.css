@@ -2,7 +2,7 @@
   color-scheme: light;
 
   /* Backgrounds */
-  --color-bg-default: 245 245 244; /* Original zinc-950 (light) */
+  --color-bg-default: 250 250 249; /* Slightly lighter page backdrop for more surface separation */
   --color-bg-card-outer: 231 229 228; /* Original zinc-900 (light) */
   --color-bg-card-inner: 245 245 244; /* Original zinc-950 (light) */
   --color-bg-card-chip: 214 211 209; /* Original zinc-800 (light) */

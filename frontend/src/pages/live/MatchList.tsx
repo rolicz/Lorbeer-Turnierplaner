@@ -3,6 +3,7 @@ import type { Match } from "../../api/types";
 import { sideBy } from "../../helpers";
 import { Pill, statusMatchPill, colorMatch } from "../../ui/primitives/Pill";
 import { matchPalette } from "../../ui/theme";
+import SectionHeader from "../../ui/primitives/SectionHeader";
 
 function winnerSide(m: Match): "A" | "B" | null {
   if (m.state !== "finished") return null;
@@ -89,60 +90,64 @@ export default function MatchList({
               title={canEdit ? "Edit match" : "Login as editor/admin to edit"}
             >
               {/* Top row: state + leg + move arrows (scheduled only) */}
-              <div className="mb-2 flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2">
-                  <Pill className={`min-w-24 ${statusMatchPill(m.state)}`}>{m.state}</Pill>
-                  <Pill>leg {m.leg}</Pill>
-                </div>
-
-                {showMove && (
-                  <div className="flex items-center gap-1">
-                  {showSwap && (
+              <SectionHeader
+                className="mb-2"
+                left={
+                  <div className="flex items-center gap-2">
+                    <Pill className={`min-w-24 ${statusMatchPill(m.state)}`}>{m.state}</Pill>
+                    <Pill>leg {m.leg}</Pill>
+                  </div>
+                }
+                right={
+                  showMove ? (
                     <div className="flex items-center gap-1">
+                      {showSwap ? (
+                        <div className="flex items-center gap-1">
+                          <Button
+                            variant="ghost"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              onSwapSides(m.id);
+                            }}
+                            disabled={busyReorder}
+                            title="Swap sides"
+                          >
+                            <i className="fa fa-arrow-right-arrow-left md:hidden text-text-normal" aria-hidden="true" />
+                            <span className="hidden md:inline text-text-normal">Swap Home/Away</span>
+                          </Button>
+                        </div>
+                      ) : null}
                       <Button
                         variant="ghost"
                         onClick={(e) => {
                           e.preventDefault();
                           e.stopPropagation();
-                          onSwapSides(m.id);
+                          onMoveUp(m.id);
                         }}
                         disabled={busyReorder}
-                        title="Swap sides"
+                        title="Move up"
                       >
-                        <i className="fa fa-arrow-right-arrow-left md:hidden text-text-normal" aria-hidden="true" />
-                        <span className="hidden md:inline text-text-normal">Swap Home/Away</span>
+                        <i className="fa fa-arrow-up md:hidden text-text-normal" aria-hidden="true" />
+                        <span className="hidden md:inline text-text-normal">Move up</span>
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          onMoveDown(m.id);
+                        }}
+                        disabled={busyReorder}
+                        title="Move down"
+                      >
+                        <i className="fa fa-arrow-down md:hidden text-text-normal" aria-hidden="true" />
+                        <span className="hidden md:inline text-text-normal">Move down</span>
                       </Button>
                     </div>
-                  )}
-                    <Button
-                      variant="ghost"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        onMoveUp(m.id);
-                      }}
-                      disabled={busyReorder}
-                      title="Move up"
-                    >
-                      <i className="fa fa-arrow-up md:hidden text-text-normal" aria-hidden="true" />
-                      <span className="hidden md:inline text-text-normal">Move up</span>
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        onMoveDown(m.id);
-                      }}
-                      disabled={busyReorder}
-                      title="Move down"
-                    >
-                      <i className="fa fa-arrow-down md:hidden text-text-normal" aria-hidden="true" />
-                      <span className="hidden md:inline text-text-normal">Move down</span>
-                    </Button>
-                  </div>
-                )}
-              </div>
+                  ) : null
+                }
+              />
 
               {/* Row 1: players + centered score */}
               <div className="mt-3 grid grid-cols-[1fr_auto_1fr] items-center gap-3">
