@@ -462,8 +462,8 @@ export default function CurrentGameSection({
                 </Button>
               </div>
 
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
-                <div className="min-w-0 flex-1">
+              <div className="grid grid-cols-[1fr_auto] items-end gap-2">
+                <div className="min-w-0">
                   <ClubSelect
                     label={`${aInline} — club`}
                     value={aClub}
@@ -477,11 +477,11 @@ export default function CurrentGameSection({
                     placeholder="Select club…"
                   />
                 </div>
-                <ClubStarsEditor clubId={aClub} clubs={clubs} disabled={!canControl || busy} className="sm:w-[130px]" />
+                <ClubStarsEditor clubId={aClub} clubs={clubs} disabled={!canControl || busy} />
               </div>
 
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
-                <div className="min-w-0 flex-1">
+              <div className="grid grid-cols-[1fr_auto] items-end gap-2">
+                <div className="min-w-0">
                   <ClubSelect
                     label={`${bInline} — club`}
                     value={bClub}
@@ -495,7 +495,7 @@ export default function CurrentGameSection({
                     placeholder="Select club…"
                   />
                 </div>
-                <ClubStarsEditor clubId={bClub} clubs={clubs} disabled={!canControl || busy} className="sm:w-[130px]" />
+                <ClubStarsEditor clubId={bClub} clubs={clubs} disabled={!canControl || busy} />
               </div>
             </div>
           </CollapsibleCard>
@@ -645,8 +645,8 @@ export default function CurrentGameSection({
 
               {/* Row 2: club dropdowns (+ inline star edit for editor/admin) */}
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2 md:items-end">
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
-                  <div className="min-w-0 flex-1">
+                <div className="grid grid-cols-[1fr_auto] items-end gap-2">
+                  <div className="min-w-0">
                     <ClubSelect
                       label={`${aInline} — club`}
                       value={aClub}
@@ -660,11 +660,11 @@ export default function CurrentGameSection({
                       placeholder="Select club…"
                     />
                   </div>
-                  <ClubStarsEditor clubId={aClub} clubs={clubs} disabled={!canControl || busy} className="sm:w-[130px]" />
+                  <ClubStarsEditor clubId={aClub} clubs={clubs} disabled={!canControl || busy} />
                 </div>
 
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
-                  <div className="min-w-0 flex-1">
+                <div className="grid grid-cols-[1fr_auto] items-end gap-2">
+                  <div className="min-w-0">
                     <ClubSelect
                       label={`${bInline} — club`}
                       value={bClub}
@@ -678,7 +678,7 @@ export default function CurrentGameSection({
                       placeholder="Select club…"
                     />
                   </div>
-                  <ClubStarsEditor clubId={bClub} clubs={clubs} disabled={!canControl || busy} className="sm:w-[130px]" />
+                  <ClubStarsEditor clubId={bClub} clubs={clubs} disabled={!canControl || busy} />
                 </div>
               </div>
             </div>

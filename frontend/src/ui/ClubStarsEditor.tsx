@@ -13,12 +13,14 @@ export default function ClubStarsEditor({
   disabled = false,
   label = "Stars",
   className,
+  compact = true,
 }: {
   clubId: number | null;
   clubs: Club[];
   disabled?: boolean;
   label?: string;
   className?: string;
+  compact?: boolean;
 }) {
   const { role, token } = useAuth();
   const qc = useQueryClient();
@@ -57,6 +59,53 @@ export default function ClubStarsEditor({
 
   const uiDisabled = disabled || !clubId || patchMut.isPending;
 
+  if (compact) {
+    const txt = effectiveValue == null ? "★" : `${starsLabel(effectiveValue)}★`;
+    return (
+      <div className={cn("inline-block", className)}>
+        <div className="relative inline-flex">
+          <div
+            className={cn(
+              "btn-base btn-ghost inline-flex items-center gap-2 px-3 py-2",
+              uiDisabled ? "opacity-60 cursor-not-allowed" : "cursor-pointer"
+            )}
+            aria-hidden="true"
+          >
+            <span className="tabular-nums">{txt}</span>
+            <span className="text-subtle">▾</span>
+          </div>
+
+          {/* Native select overlaid for mobile-friendly UX */}
+          <select
+            className="absolute inset-0 opacity-0"
+            value={effectiveValue == null ? "" : String(effectiveValue)}
+            onChange={(e) => {
+              const next = e.target.value ? Number(e.target.value) : null;
+              if (next == null || !Number.isFinite(next)) return;
+              if (!clubId) return;
+              if (serverValue != null && next === serverValue) return;
+              setErr(null);
+              setLocalValue(next);
+              patchMut.mutate(next);
+            }}
+            disabled={uiDisabled}
+            aria-label={clubId ? `Change stars for ${club?.name ?? `#${clubId}`}` : "Select a club first"}
+            title={clubId ? `Set stars for ${club?.name ?? `#${clubId}`}` : "Select a club first"}
+          >
+            <option value="">{clubId ? "—" : "Select club first"}</option>
+            {STAR_OPTIONS.map((v) => (
+              <option key={v} value={String(v)}>
+                {starsLabel(v)}★
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {err && <div className="mt-1 text-[11px] text-red-400">{err}</div>}
+      </div>
+    );
+  }
+
   return (
     <label className={cn("block", className)}>
       <div className="input-label">{label}</div>
@@ -86,4 +135,3 @@ export default function ClubStarsEditor({
     </label>
   );
 }
-

@@ -2,10 +2,11 @@
   color-scheme: light;
 
   /* Backgrounds */
-  --color-bg-default: 250 250 249; /* Slightly lighter page backdrop for more surface separation */
-  --color-bg-card-outer: 231 229 228; /* Original zinc-900 (light) */
-  --color-bg-card-inner: 245 245 244; /* Original zinc-950 (light) */
-  --color-bg-card-chip: 214 211 209; /* Original zinc-800 (light) */
+  /* Keep the same "dark -> brighter -> brightest" surface progression as the dark themes. */
+  --color-bg-default: 224 223 222; /* Page backdrop (darkest surface) */
+  --color-bg-card-outer: 233 232 231; /* Outer card */
+  --color-bg-card-inner: 240 239 238; /* Inner card */
+  --color-bg-card-chip: 252 252 251; /* Innermost surfaces (chips/panels/inputs) */
 
   /* Text */
   --color-text-normal: 12 10 9; /* Original zinc-50 (dark) */
@@ -14,12 +15,12 @@
 
   /* Borders */
   --color-border-card-outer: 168 162 158; /* Original zinc-700 (dark) */
-  --color-border-card-inner: 214 211 209; /* Original zinc-800 (light) */
+  --color-border-card-inner: 221 219 217; /* Softer borders for the lighter surfaces */
   --color-border-card-chip: 168 162 158; /* Original zinc-700 (dark) */
 
   /* Table */
-  --color-table-row-a: 231 229 228; /* Original zinc-900 (light) */
-  --color-table-row-b: 225 223 222; /* Slightly darker */
+  --color-table-row-a: 240 239 238; /* Close to inner */
+  --color-table-row-b: 235 234 233; /* Slightly darker zebra */
 
   /* Button */
   --color-btn-bg: 20 184 166; /* Original emerald-500 */
@@ -31,8 +32,8 @@
 
   /* Hover */
   --color-hover-btn-bg: 45 212 191; /* Original emerald-400 */
-  --color-hover-nav: 214 211 209; /* Original zinc-800 (light) */
-  --color-hover-default: 214 211 209; /* Original zinc-800 (light) */
+  --color-hover-nav: 235 234 233; /* subtle darken */
+  --color-hover-default: 235 234 233; /* subtle darken */
   --color-hover-green: 20 184 166;
   --color-hover-blue: 14 165 233;
 

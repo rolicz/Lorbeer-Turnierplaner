@@ -111,7 +111,7 @@ function Arrow({ delta }: { delta: number | null }) {
 
 function MobileRow({ r, rank, delta, isLeader }: { r: Row; rank: number; delta: number | null; isLeader: boolean }) {
   return (
-    <div className="relative rounded-xl border border-border-card-inner bg-table-row-a px-3 py-2">
+    <div className="relative panel px-3 py-2">
       {/* leader bar */}
       {isLeader && <div className="absolute left-0 top-0 h-full w-1 rounded-l-xl bg-status-bar-green" />}
 
@@ -122,7 +122,9 @@ function MobileRow({ r, rank, delta, isLeader }: { r: Row; rank: number; delta: 
             <div className="w-5">
               <Arrow delta={delta} />
             </div>
-            <div className="min-w-0 truncate font-medium">{r.name}</div>
+            <div className="min-w-0 truncate font-medium">
+              <span className="panel-subtle inline-flex items-center rounded-lg px-2 py-1">{r.name}</span>
+            </div>
           </div>
           <div className="mt-1 text-xs text-text-muted font-mono tabular-nums">
             {r.played}P · {r.wins}-{r.draws}-{r.losses} · GD {r.gd} (+{r.gf}/-{r.ga})
@@ -213,7 +215,9 @@ export default function StandingsTable({
                   <td className="py-2">
                     <Arrow delta={delta} />
                   </td>
-                  <td className="py-2 font-sans font-medium">{r.name}</td>
+                  <td className="py-2 font-sans font-medium">
+                    <span className="panel-subtle inline-flex items-center rounded-lg px-2 py-1">{r.name}</span>
+                  </td>
                   <td className="py-2 text-right">{r.played}</td>
                   <td className="py-2 text-right">{r.wins}</td>
                   <td className="py-2 text-right">{r.draws}</td>

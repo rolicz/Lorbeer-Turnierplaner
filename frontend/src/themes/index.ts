@@ -6,7 +6,7 @@ const fileNames = Object.keys(modules)
   .map((name) => name.replace(".css", ""))
   .filter(Boolean);
 
-const preferredOrder = ["blue", "dark", "light", "football"];
+const preferredOrder = ["blue", "dark", "light", "green"];
 const known = new Set(fileNames);
 
 export const THEMES = [

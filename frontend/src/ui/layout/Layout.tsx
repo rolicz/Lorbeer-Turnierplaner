@@ -20,7 +20,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   useAnyTournamentWS();
   const [theme, setTheme] = useState<ThemeName>(() => {
     const storedRaw = localStorage.getItem("theme") as ThemeName | null;
-    const stored = storedRaw === "ibm" ? "blue" : storedRaw;
+    const stored = storedRaw === "ibm" ? "blue" : storedRaw === "football" ? "green" : storedRaw;
     if (stored && THEME_OPTIONS.some((t) => t.value === stored)) {
       return stored;
     }

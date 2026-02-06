@@ -276,7 +276,7 @@ function TournamentPositionsGrid({
                 <div
                   key={t.id}
                   title={title + " · did not participate"}
-                  className="inline-flex h-9 items-center justify-center rounded-xl border border-border-card-inner/70 bg-bg-card-outer/30 text-[11px] font-mono tabular-nums text-text-muted"
+                  className="pos-none inline-flex h-9 items-center justify-center rounded-xl border text-[11px] font-mono tabular-nums"
                   style={{ opacity }}
                 >
                   —
@@ -292,7 +292,7 @@ function TournamentPositionsGrid({
               "hover:brightness-110 hover:border-accent/40";
 
             const cls = isWinner
-              ? "border-emerald-500/70 bg-emerald-500/20 text-emerald-100 shadow-[0_0_0_1px_rgba(16,185,129,0.15)]"
+              ? "pos-winner shadow-[0_0_0_1px_rgba(16,185,129,0.15)]"
               : posGradientClass(pos, totalPlayers);
 
             return (
@@ -624,7 +624,7 @@ export default function PlayersPage() {
               className={
                 "inline-flex items-center gap-2 rounded-xl border-2 px-3 py-1.5 text-[11px] transition hover:bg-hover-default/40 " +
                 (allExpanded
-                  ? "border-emerald-500/35 bg-emerald-500/10 text-emerald-200"
+                  ? "pill-green"
                   : "border-border-card-inner bg-bg-card-outer/30 text-text-normal")
               }
               title="Expand all players"
@@ -639,7 +639,7 @@ export default function PlayersPage() {
               className={
                 "inline-flex items-center gap-2 rounded-xl border-2 px-3 py-1.5 text-[11px] transition hover:bg-hover-default/40 " +
                 (allCollapsed
-                  ? "border-emerald-500/35 bg-emerald-500/10 text-emerald-200"
+                  ? "pill-green"
                   : "border-border-card-inner bg-bg-card-outer/30 text-text-normal")
               }
               title="Collapse all players"

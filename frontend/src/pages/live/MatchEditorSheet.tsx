@@ -244,8 +244,8 @@ export default function MatchEditorSheet({
                   </Button>
                 </div>
 
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
-                  <div className="min-w-0 flex-1">
+                <div className="grid grid-cols-[1fr_auto] items-end gap-2">
+                  <div className="min-w-0">
                     <ClubSelect
                       label={`${aPlayers} — club`}
                       value={aClub}
@@ -255,11 +255,11 @@ export default function MatchEditorSheet({
                       placeholder="Select club…"
                     />
                   </div>
-                  <ClubStarsEditor clubId={aClub} clubs={clubs} disabled={saving} className="sm:w-[130px]" />
+                  <ClubStarsEditor clubId={aClub} clubs={clubs} disabled={saving} />
                 </div>
 
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
-                  <div className="min-w-0 flex-1">
+                <div className="grid grid-cols-[1fr_auto] items-end gap-2">
+                  <div className="min-w-0">
                     <ClubSelect
                       label={`${bPlayers} — club`}
                       value={bClub}
@@ -269,7 +269,7 @@ export default function MatchEditorSheet({
                       placeholder="Select club…"
                     />
                   </div>
-                  <ClubStarsEditor clubId={bClub} clubs={clubs} disabled={saving} className="sm:w-[130px]" />
+                  <ClubStarsEditor clubId={bClub} clubs={clubs} disabled={saving} />
                 </div>
 
                 <div className="mt-2 text-xs text-text-muted">
