@@ -12,7 +12,7 @@ export default function CollapsibleCard({
   title: React.ReactNode;
   defaultOpen?: boolean;
   right?: React.ReactNode;
-  children: React.ReactNode;
+  children: React.ReactNode | ((open: boolean) => React.ReactNode);
   className?: string;
   variant?: "outer" | "inner" | "none";
 }) {
@@ -40,7 +40,9 @@ export default function CollapsibleCard({
       </button>
 
       {open && (
-        <div className={cn("mt-3", bodyPad)}>{children}</div>
+        <div className={cn("mt-3", bodyPad)}>
+          {typeof children === "function" ? children(open) : children}
+        </div>
       )}
     </section>
   );

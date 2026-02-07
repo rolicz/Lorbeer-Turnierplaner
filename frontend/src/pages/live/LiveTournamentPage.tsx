@@ -34,7 +34,6 @@ import CurrentGameSection from "./CurrentGameSection";
 import { shuffle, sideBy } from "../../helpers";
 
 import { fmtDate } from "../../utils/format";
-import { starsLabel } from "../../ui/clubControls";
 
 type PlayerLite = { id: number; display_name: string };
 
@@ -321,14 +320,6 @@ export default function LiveTournamentPage() {
 
   const clubs: Club[] = (clubsQ.data ?? []) as any;
 
-  const clubById = useMemo(() => {
-    const m = new Map<number, string>();
-    for (const c of clubsQ.data ?? []) m.set(c.id, `${c.name} (${starsLabel(c.star_rating)}★)`);
-    return m;
-  }, [clubsQ.data]);
-
-  const clubLabel = (clubId: number | null | undefined) => (!clubId ? "—" : clubById.get(clubId) ?? `#${clubId}`);
-
   // --- current match selection ---
   const currentMatch = useMemo(() => {
     const playing = matchesSorted.find((m) => m.state === "playing");
@@ -570,6 +561,7 @@ export default function LiveTournamentPage() {
             <CollapsibleCard title="Matches" defaultOpen={true} variant="inner">
               <MatchList
                 matches={matchesSorted}
+                clubs={clubs}
                 canEdit={canEditMatch}
                 canReorder={canReorder}
                 busyReorder={reorderMut.isPending}
@@ -593,7 +585,6 @@ export default function LiveTournamentPage() {
                   [ids[idx], ids[idx + 1]] = [ids[idx + 1], ids[idx]];
                   reorderMut.mutate(ids);
                 }}
-                clubLabel={clubLabel}
               />
             </CollapsibleCard>
 

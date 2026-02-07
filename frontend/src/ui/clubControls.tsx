@@ -33,9 +33,23 @@ export function leagueInfo(c: Club): { id: number | null; name: string | null } 
 }
 
 export function clubLabelPartsById(clubs: Club[], id: number | null | undefined) {
-  if (!id) return { name: "No club", rating: null as number | null, ratingText: null as string | null };
+  if (!id) {
+    return {
+      name: "No club",
+      league_name: null as string | null,
+      rating: null as number | null,
+      ratingText: null as string | null,
+    };
+  }
   const c = clubs.find((x) => x.id === id);
-  if (!c) return { name: `#${id}`, rating: null as number | null, ratingText: null as string | null };
+  if (!c) {
+    return {
+      name: `#${id}`,
+      league_name: null as string | null,
+      rating: null as number | null,
+      ratingText: null as string | null,
+    };
+  }
   const r = Number(c.star_rating);
   return {
     name: c.name,

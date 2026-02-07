@@ -1,9 +1,11 @@
 import Button from "../../ui/primitives/Button";
-import type { Match } from "../../api/types";
+import type { Club, Match } from "../../api/types";
 import { sideBy } from "../../helpers";
 import { Pill, statusMatchPill, colorMatch } from "../../ui/primitives/Pill";
 import { matchPalette } from "../../ui/theme";
 import SectionHeader from "../../ui/primitives/SectionHeader";
+import { StarsFA } from "../../ui/primitives/StarsFA";
+import { clubLabelPartsById } from "../../ui/clubControls";
 
 function winnerSide(m: Match): "A" | "B" | null {
   if (m.state !== "finished") return null;
@@ -21,6 +23,7 @@ function splitPlayers(names: string): string[] {
 
 export default function MatchList({
   matches,
+  clubs,
   canEdit,
   canReorder,
   busyReorder,
@@ -28,9 +31,9 @@ export default function MatchList({
   onSwapSides,
   onMoveUp,
   onMoveDown,
-  clubLabel,
 }: {
   matches: Match[];
+  clubs: Club[];
   canEdit: boolean;
   canReorder: boolean;
   busyReorder: boolean;
@@ -38,7 +41,6 @@ export default function MatchList({
   onSwapSides: (matchId: number) => Promise<any>;
   onMoveUp: (matchId: number) => void;
   onMoveDown: (matchId: number) => void;
-  clubLabel: (id: number | null | undefined) => string;
 }) {
   return (
     <div className="space-y-2">
@@ -68,8 +70,11 @@ export default function MatchList({
         // For bolding: use the current leader for playing/finished (and keep draws neutral).
         const leader: "A" | "B" | null = !showScore || ag === bg ? null : ag > bg ? "A" : "B";
 
+        const aClubParts = clubLabelPartsById(clubs, a?.club_id);
+        const bClubParts = clubLabelPartsById(clubs, b?.club_id);
+
         const showMove = canReorder && m.state === "scheduled";
-        const showSwap = canEdit && m.state === "scheduled";
+        const showSwap = canEdit;
 
         return (
           <div
@@ -102,51 +107,54 @@ export default function MatchList({
                   </div>
                 }
                 right={
-                  showMove ? (
+                  showMove || showSwap ? (
                     <div className="flex items-center gap-1">
-                      {showSwap ? (
-                        <div className="flex items-center gap-1">
+                      {showMove ? (
+                        <>
                           <Button
                             variant="ghost"
                             onClick={(e) => {
                               e.preventDefault();
                               e.stopPropagation();
-                              onSwapSides(m.id);
+                              onMoveUp(m.id);
                             }}
                             disabled={busyReorder}
-                            title="Swap sides"
+                            title="Move up"
                           >
-                            <i className="fa fa-arrow-right-arrow-left md:hidden text-text-normal" aria-hidden="true" />
-                            <span className="hidden md:inline text-text-normal">Swap Home/Away</span>
+                            <i className="fa fa-arrow-up md:hidden text-text-normal" aria-hidden="true" />
+                            <span className="hidden md:inline text-text-normal">Move up</span>
                           </Button>
-                        </div>
+                          <Button
+                            variant="ghost"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              onMoveDown(m.id);
+                            }}
+                            disabled={busyReorder}
+                            title="Move down"
+                          >
+                            <i className="fa fa-arrow-down md:hidden text-text-normal" aria-hidden="true" />
+                            <span className="hidden md:inline text-text-normal">Move down</span>
+                          </Button>
+                        </>
                       ) : null}
-                      <Button
-                        variant="ghost"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          onMoveUp(m.id);
-                        }}
-                        disabled={busyReorder}
-                        title="Move up"
-                      >
-                        <i className="fa fa-arrow-up md:hidden text-text-normal" aria-hidden="true" />
-                        <span className="hidden md:inline text-text-normal">Move up</span>
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          onMoveDown(m.id);
-                        }}
-                        disabled={busyReorder}
-                        title="Move down"
-                      >
-                        <i className="fa fa-arrow-down md:hidden text-text-normal" aria-hidden="true" />
-                        <span className="hidden md:inline text-text-normal">Move down</span>
-                      </Button>
+
+                      {showSwap ? (
+                        <Button
+                          variant="ghost"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            onSwapSides(m.id);
+                          }}
+                          disabled={busyReorder}
+                          title="Swap sides"
+                        >
+                          <i className="fa fa-arrow-right-arrow-left md:hidden text-text-normal" aria-hidden="true" />
+                          <span className="hidden md:inline text-text-normal">Swap Home/Away</span>
+                        </Button>
+                      ) : null}
                     </div>
                   ) : null
                 }
@@ -208,21 +216,28 @@ export default function MatchList({
                 </div>
               </div>
 
-              {/* Row 2: clubs (more space now) */}
-              <div className="mt-2 grid grid-cols-2 gap-3 text-xs">
-                <div
-                  className={`min-w-0 whitespace-normal break-words ${
-                    hasWinner && !aWin && !isDraw ? "text-text-muted" : "text-text-muted"
-                  }`}
-                >
-                  {clubLabel(a?.club_id)}
+              {/* Row 2: clubs (like Current Game) */}
+              <div className="mt-2 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-start gap-3 text-xs text-text-muted">
+                <div className="min-w-0 whitespace-normal break-words leading-tight">{aClubParts.name}</div>
+                <div />
+                <div className="min-w-0 text-right whitespace-normal break-words leading-tight">{bClubParts.name}</div>
+              </div>
+
+              {/* Row 3: leagues */}
+              <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-start gap-3 text-xs text-text-muted">
+                <div className="min-w-0 whitespace-normal break-words leading-tight">{aClubParts.league_name}</div>
+                <div />
+                <div className="min-w-0 text-right whitespace-normal break-words leading-tight">{bClubParts.league_name}</div>
+              </div>
+
+              {/* Row 4: stars */}
+              <div className="mt-1 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 text-[11px] text-text-muted">
+                <div className="min-w-0">
+                  <StarsFA rating={aClubParts.rating ?? 0} textClassName="text-text-muted" />
                 </div>
-                <div
-                  className={`min-w-0 text-right whitespace-normal break-words ${
-                    hasWinner && !bWin && !isDraw ? "text-text-muted" : "text-text-muted"
-                  }`}
-                >
-                  {clubLabel(b?.club_id)}
+                <div />
+                <div className="min-w-0 flex justify-end">
+                  <StarsFA rating={bClubParts.rating ?? 0} textClassName="text-text-muted" />
                 </div>
               </div>
             </div>
