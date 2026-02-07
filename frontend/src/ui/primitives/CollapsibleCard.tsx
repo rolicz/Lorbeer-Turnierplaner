@@ -5,6 +5,7 @@ export default function CollapsibleCard({
   title,
   defaultOpen = true,
   right,
+  onOpenChange,
   children,
   className = "",
   variant = "none",
@@ -12,6 +13,7 @@ export default function CollapsibleCard({
   title: React.ReactNode;
   defaultOpen?: boolean;
   right?: React.ReactNode;
+  onOpenChange?: (open: boolean) => void;
   children: React.ReactNode | ((open: boolean) => React.ReactNode);
   className?: string;
   variant?: "outer" | "inner" | "none";
@@ -27,7 +29,13 @@ export default function CollapsibleCard({
       <button
         type="button"
         className={cn("flex w-full items-center justify-between gap-3", pad)}
-        onClick={() => setOpen((v) => !v)}
+        onClick={() =>
+          setOpen((v) => {
+            const next = !v;
+            onOpenChange?.(next);
+            return next;
+          })
+        }
       >
         <div className="min-w-0 text-left">
           <div className="text-sm font-semibold">{title}</div>

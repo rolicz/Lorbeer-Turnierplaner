@@ -5,11 +5,13 @@ import type { Club } from "../api/types";
 import Button from "./primitives/Button";
 import CollapsibleCard from "./primitives/CollapsibleCard";
 import ClubStarsEditor from "./ClubStarsEditor";
+import { StarsFA } from "./primitives/StarsFA";
 import {
   ClubSelect,
   LeagueFilter,
   STAR_OPTIONS,
   StarFilter,
+  clubLabelPartsById,
   ensureSelectedClubVisible,
   leagueInfo,
   randomClubAssignmentOk,
@@ -78,6 +80,8 @@ export default function SelectClubsPanel({
   defaultOpen = false,
   extraTop,
   extraBottom,
+  wrap = true,
+  showSelectedMeta = false,
 }: {
   clubs: Club[];
   disabled: boolean;
@@ -91,6 +95,10 @@ export default function SelectClubsPanel({
   defaultOpen?: boolean;
   extraTop?: React.ReactNode;
   extraBottom?: React.ReactNode;
+  /** If false, renders only the panel body (no CollapsibleCard wrapper). */
+  wrap?: boolean;
+  /** Show league + stars for currently selected clubs (read-only). */
+  showSelectedMeta?: boolean;
 }) {
   const clubsSorted = useMemo(() => sortClubsForDropdown(clubs), [clubs]);
 
@@ -135,6 +143,9 @@ export default function SelectClubsPanel({
     () => ensureSelectedClubVisible(clubsFiltered, clubsSorted, bClub),
     [clubsFiltered, clubsSorted, bClub]
   );
+
+  const aParts = useMemo(() => clubLabelPartsById(clubs, aClub), [clubs, aClub]);
+  const bParts = useMemo(() => clubLabelPartsById(clubs, bClub), [clubs, bClub]);
 
   const [starRoll, setStarRoll] = useState(false);
   const lastStarRollRef = useRef<number | null>(null);
@@ -193,56 +204,56 @@ export default function SelectClubsPanel({
     onChangeBClub(clubB.id);
   }
 
-  return (
-    <CollapsibleCard title="Select Clubs" defaultOpen={defaultOpen} className="panel-subtle">
-      <div className="grid gap-4">
-        {extraTop ? <div>{extraTop}</div> : null}
+  const body = (
+    <div className="grid gap-4">
+      {extraTop ? <div>{extraTop}</div> : null}
 
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-[auto_auto_1fr] md:items-end">
-          <StarFilter
-            value={starFilter}
-            onChange={setStarFilter}
-            disabled={disabled}
-            compact
-            right={
-              <button
-                type="button"
-                className="icon-button h-10 w-10 p-0 flex items-center justify-center"
-                onMouseDown={(e) => e.preventDefault()}
-                onTouchStart={(e) => e.preventDefault()}
-                onClick={rollStars}
-                disabled={disabled}
-                title="Randomize star filter"
-              >
-                <DiceIcon spinning={starRoll} />
-              </button>
-            }
-          />
-
-          <LeagueFilter
-            value={leagueFilter}
-            onChange={setLeagueFilter}
-            disabled={disabled}
-            options={leagueOptions}
-            compact
-          />
-
-          <div className="flex md:justify-end">
-            <Button
-              variant="ghost"
-              onClick={randomizeClubs}
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-[auto_auto_1fr] md:items-end">
+        <StarFilter
+          value={starFilter}
+          onChange={setStarFilter}
+          disabled={disabled}
+          compact
+          right={
+            <button
+              type="button"
+              className="icon-button h-10 w-10 p-0 flex items-center justify-center"
+              onMouseDown={(e) => e.preventDefault()}
+              onTouchStart={(e) => e.preventDefault()}
+              onClick={rollStars}
               disabled={disabled}
-              className="w-full whitespace-nowrap md:w-auto"
-              title="Randomize clubs"
+              title="Randomize star filter"
             >
-              <i className="fa fa-rotate-left md:hidden" aria-hidden="true" />
-              <span className="hidden md:inline">Random Club</span>
-              <span className="md:hidden">Random</span>
-            </Button>
-          </div>
-        </div>
+              <DiceIcon spinning={starRoll} />
+            </button>
+          }
+        />
 
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 md:items-end">
+        <LeagueFilter
+          value={leagueFilter}
+          onChange={setLeagueFilter}
+          disabled={disabled}
+          options={leagueOptions}
+          compact
+        />
+
+        <div className="flex md:justify-end">
+          <Button
+            variant="ghost"
+            onClick={randomizeClubs}
+            disabled={disabled}
+            className="w-full whitespace-nowrap md:w-auto"
+            title="Randomize clubs"
+          >
+            <i className="fa fa-rotate-left md:hidden" aria-hidden="true" />
+            <span className="hidden md:inline">Random Club</span>
+            <span className="md:hidden">Random</span>
+          </Button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+        <div className="space-y-1.5">
           <div className="grid grid-cols-[1fr_auto] items-end gap-2">
             <div className="min-w-0">
               <ClubSelect
@@ -257,6 +268,17 @@ export default function SelectClubsPanel({
             <ClubStarsEditor clubId={aClub} clubs={clubs} disabled={disabled} />
           </div>
 
+          {showSelectedMeta && (
+            <div className="grid grid-cols-[1fr_auto] items-center gap-2 px-1">
+              <div className="min-w-0 text-xs text-text-muted truncate">{aParts.league_name ?? "—"}</div>
+              <div className="justify-self-end">
+                <StarsFA rating={aParts.rating ?? 0} textClassName="text-text-muted" />
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="space-y-1.5">
           <div className="grid grid-cols-[1fr_auto] items-end gap-2">
             <div className="min-w-0">
               <ClubSelect
@@ -270,10 +292,27 @@ export default function SelectClubsPanel({
             </div>
             <ClubStarsEditor clubId={bClub} clubs={clubs} disabled={disabled} />
           </div>
-        </div>
 
-        {extraBottom ? <div>{extraBottom}</div> : null}
+          {showSelectedMeta && (
+            <div className="grid grid-cols-[1fr_auto] items-center gap-2 px-1">
+              <div className="min-w-0 text-xs text-text-muted truncate">{bParts.league_name ?? "—"}</div>
+              <div className="justify-self-end">
+                <StarsFA rating={bParts.rating ?? 0} textClassName="text-text-muted" />
+              </div>
+            </div>
+          )}
+        </div>
       </div>
+
+      {extraBottom ? <div>{extraBottom}</div> : null}
+    </div>
+  );
+
+  if (!wrap) return body;
+
+  return (
+    <CollapsibleCard title="Select Clubs" defaultOpen={defaultOpen} className="panel-subtle">
+      {body}
     </CollapsibleCard>
   );
 }
