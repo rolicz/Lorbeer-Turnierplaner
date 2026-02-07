@@ -37,7 +37,7 @@
   --color-hover-blue: 100 143 255; /* A blue */
 
   /* Pills & Statuses */
-  --color-status-bg-default: 51 65 85; /* zinc-700 */
+  --color-status-bg-default: 41 55 74; /* slightly darker than slate-700 */
   --color-status-text-default: 226 232 240; /* zinc-200 */
   --color-status-border-default: 71 85 105; /* zinc-600 */
   --color-status-bg-green: 17 94 89; /* emerald-800 */
