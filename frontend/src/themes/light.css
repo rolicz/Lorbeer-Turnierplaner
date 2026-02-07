@@ -11,7 +11,7 @@
   /* Text */
   --color-text-normal: 12 10 9; /* Original zinc-50 (dark) */
   --color-text-chip: 28 25 23; /* Original zinc-200 (dark) */
-  --color-text-muted: 87 83 78; /* stone-600-ish */
+  --color-text-muted: 74 70 66; /* darker for readable secondary text */
 
   /* Borders */
   --color-border-card-outer: 168 162 158; /* Original zinc-700 (dark) */

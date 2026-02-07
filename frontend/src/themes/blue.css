@@ -10,7 +10,7 @@
   /* Text */
   --color-text-normal: 248 250 252; /* Original zinc-50 */
   --color-text-chip: 226 232 240; /* Original zinc-200 */
-  --color-text-muted: 148 163 184; /* muted slate-400-ish */
+  --color-text-muted: 186 198 216; /* Brighter for readable secondary text */
 
   /* Borders */
   --color-border-card-outer: 51 65 85; /* Original zinc-700 */
