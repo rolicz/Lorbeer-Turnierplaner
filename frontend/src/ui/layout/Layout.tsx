@@ -35,8 +35,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const nav: { to: string; label: string; min: Role }[] = [
     { to: "/dashboard", label: "Dashboard", min: "reader" },
     { to: "/tournaments", label: "Tournaments", min: "reader" },
-    { to: "/clubs", label: "Clubs", min: "editor" },
     { to: "/players", label: "Players", min: "reader" },
+    { to: "/clubs", label: "Clubs", min: "editor" },
+    { to: "/tools", label: "Tools", min: "reader" },
   ];
 
   const rank: Record<Role, number> = { reader: 1, editor: 2, admin: 3 };

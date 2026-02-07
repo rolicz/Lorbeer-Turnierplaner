@@ -6,6 +6,7 @@ import LiveTournamentPage from "../pages/live/LiveTournamentPage";
 import DashboardPage from "../pages/dashboard/DashboardPage";
 import ClubsPage from "../pages/ClubsPage";
 import PlayersPage from "../pages/PlayersPage";
+import ToolsPage from "../pages/ToolsPage";
 import { RequireRole } from "../auth/RequireRole";
 
 export default function App() {
@@ -32,6 +33,15 @@ export default function App() {
           element={
             <RequireRole minRole="reader">
               <PlayersPage />
+            </RequireRole>
+          }
+        />
+
+        <Route
+          path="/tools"
+          element={
+            <RequireRole minRole="reader">
+              <ToolsPage />
             </RequireRole>
           }
         />

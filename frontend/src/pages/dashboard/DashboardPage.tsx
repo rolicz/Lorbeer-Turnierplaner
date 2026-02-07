@@ -1,7 +1,6 @@
 import CupCard from "./CupCard";
 import CurrentMatchPreviewCard from "./CurrentMatchPreviewCard";
 import CollapsibleCard from "../../ui/primitives/CollapsibleCard";
-import RandomClubPickerCard from "./RandomClubPickerCard";
 
 export default function DashboardPage() {
   return (
@@ -14,9 +13,6 @@ export default function DashboardPage() {
             <CupCard />
           </div>
         </CollapsibleCard>
-
-        {/* Keep dashboard cards consistent: participate in the same 2-col grid on desktop. */}
-        <RandomClubPickerCard />
       </div>
     </div>
   );
