@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import Card from "../ui/primitives/Card";
 import Input from "../ui/primitives/Input";
@@ -12,9 +12,11 @@ import SectionHeader from "../ui/primitives/SectionHeader";
 import { useAuth } from "../auth/AuthContext";
 import { createPlayer, listPlayers, patchPlayer } from "../api/players.api";
 import { getStatsPlayers } from "../api/stats.api";
+import { getCup, listCupDefs } from "../api/cup.api";
 
 import type { StatsPlayersResponse, StatsTournamentLite, StatsPlayerRow } from "../api/types";
 import { Link } from "react-router-dom";
+import { cupColorVarForKey } from "../cupColors";
 
 type SortMode = "overall" | "lastN";
 
@@ -22,6 +24,23 @@ type PlayerLite = {
   id: number;
   display_name: string;
 };
+
+function CupOwnerMark({ cupKey, cupName }: { cupKey: string; cupName: string }) {
+  const varName = cupColorVarForKey(cupKey);
+  return (
+    <span
+      className="inline-flex h-7 w-7 items-center justify-center rounded-full border shadow-sm"
+      style={{
+        borderColor: `rgb(var(${varName}) / 0.55)`,
+        backgroundColor: `rgb(var(${varName}) / 0.14)`,
+        color: `rgb(var(${varName}))`,
+      }}
+      title={`${cupName} owner`}
+    >
+      <i className="fa-solid fa-crown text-[13px]" aria-hidden="true" />
+    </span>
+  );
+}
 
 function fmtAvg(n: number) {
   if (!Number.isFinite(n)) return "0.00";
@@ -342,6 +361,22 @@ export default function PlayersPage() {
     staleTime: 0,
   });
 
+  const cupDefsQ = useQuery({ queryKey: ["cup", "defs"], queryFn: listCupDefs });
+  const cupsRaw = cupDefsQ.data?.cups?.length ? cupDefsQ.data.cups : [{ key: "default", name: "Cup", since_date: null }];
+  const cups = useMemo(() => {
+    // Keep config order, but put the default cup last.
+    const nonDefault = cupsRaw.filter((c) => c.key !== "default");
+    const defaults = cupsRaw.filter((c) => c.key === "default");
+    return [...nonDefault, ...defaults];
+  }, [cupsRaw]);
+
+  const cupsQ = useQueries({
+    queries: cups.map((c) => ({
+      queryKey: ["cup", c.key],
+      queryFn: () => getCup(c.key),
+    })),
+  });
+
   const createMut = useMutation({
     mutationFn: async () => {
       if (!token) throw new Error("No token");
@@ -375,6 +410,31 @@ export default function PlayersPage() {
 
   const tournaments = statsQ.data?.tournaments ?? [];
   const cupOwnerId = statsQ.data?.cup_owner_player_id ?? null;
+
+  const cupsOwnedByPlayerId = useMemo(() => {
+    const m = new Map<number, { key: string; name: string }[]>();
+    for (let i = 0; i < cups.length; i++) {
+      const def = cups[i];
+      const q = cupsQ[i];
+      const ownerId = q?.data?.owner?.id ?? null;
+      if (ownerId == null) continue;
+      const arr = m.get(ownerId) ?? [];
+      arr.push({ key: def.key, name: q?.data?.cup?.name ?? def.name ?? def.key });
+      m.set(ownerId, arr);
+    }
+
+    // Fallback for the legacy stats field (default cup only) if the cup endpoints aren't available.
+    if (cupOwnerId != null) {
+      const hasDefaultFromCups = Array.from(m.values()).some((arr) => arr.some((x) => x.key === "default"));
+      if (!hasDefaultFromCups) {
+        const arr = m.get(cupOwnerId) ?? [];
+        arr.push({ key: "default", name: "Cup" });
+        m.set(cupOwnerId, arr);
+      }
+    }
+
+    return m;
+  }, [cups, cupsQ, cupOwnerId]);
 
   const lastNServer = useMemo(() => {
     const n = statsQ.data?.lastN;
@@ -722,7 +782,7 @@ export default function PlayersPage() {
             const rowOpen = !!openByPlayerId[p.id];
             const toggleRow = () => setOpenByPlayerId((prev) => ({ ...prev, [p.id]: !rowOpen }));
 
-            const isCupOwner = cupOwnerId != null && cupOwnerId === p.id;
+            const ownedCups = cupsOwnedByPlayerId.get(p.id) ?? [];
 
             const zebra = idx % 2 === 0 ? "bg-table-row-a" : "bg-table-row-b";
 
@@ -747,15 +807,13 @@ export default function PlayersPage() {
                     <div className="flex min-w-0 items-center gap-2">
                       <span className="truncate text-xl font-semibold text-text-normal">{p.display_name}</span>
 
-                      {/* Crown next to name (same style as before) */}
-                      {isCupOwner && (
-                        <span
-                          className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-amber-500/40 bg-amber-500/10 text-amber-200 shadow-sm"
-                          title="Current laurel owner"
-                        >
-                          <i className="fa-solid fa-crown text-[14px]" aria-hidden="true" />
+                      {ownedCups.length ? (
+                        <span className="inline-flex items-center gap-1.5">
+                          {ownedCups.map((c) => (
+                            <CupOwnerMark key={c.key} cupKey={c.key} cupName={c.name} />
+                          ))}
                         </span>
-                      )}
+                      ) : null}
                     </div>
                   </button>
 
