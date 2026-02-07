@@ -187,6 +187,14 @@
     color: rgb(var(--color-text-normal));
   }
 
+  @keyframes dice-roll {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(720deg); }
+  }
+  .dice-roll {
+    animation: dice-roll 700ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  }
+
   /* Semantic pills (used in Players tournament positions etc.) */
   .pill-default { @apply bg-status-bg-default text-status-text-default border-status-border-default; }
   .pill-green { @apply bg-status-bg-green text-status-text-green border-status-border-green; }

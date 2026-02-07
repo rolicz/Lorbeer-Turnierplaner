@@ -11,6 +11,7 @@ import {
   GoalStepper,
   LeagueFilter,
   type LeagueOpt,
+  STAR_OPTIONS,
   StarFilter,
   clubLabelPartsById,
   ensureSelectedClubVisible,
@@ -94,6 +95,17 @@ export default function CurrentGameSection({
   }, [clubsSorted]);
 
   const [leagueFilter, setLeagueFilter] = useState<number | null>(null);
+  const [starRoll, setStarRoll] = useState(false);
+  const starRollIntervalRef = useRef<number | null>(null);
+  const starRollTimeoutRef = useRef<number | null>(null);
+  const lastStarRollRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (starRollIntervalRef.current) window.clearInterval(starRollIntervalRef.current);
+      if (starRollTimeoutRef.current) window.clearTimeout(starRollTimeoutRef.current);
+    };
+  }, []);
 
   const clubsFiltered = useMemo(() => {
     let out = clubsSorted;
@@ -107,6 +119,17 @@ export default function CurrentGameSection({
 
     return out;
   }, [clubsSorted, starFilter, leagueFilter]);
+
+  const availableStarSteps = useMemo(() => {
+    const set = new Set<number>();
+    for (const c of clubsSorted) {
+      if (leagueFilter != null && leagueInfo(c).id !== leagueFilter) continue;
+      const s = toHalfStep(c.star_rating);
+      if (s != null) set.add(s);
+    }
+    const arr = Array.from(set.values()).sort((a, b) => a - b);
+    return arr.length ? arr : STAR_OPTIONS;
+  }, [clubsSorted, leagueFilter]);
 
   const [aClub, setAClub] = useState<number | null>(a?.club_id ?? null);
   const [bClub, setBClub] = useState<number | null>(b?.club_id ?? null);
@@ -264,6 +287,77 @@ export default function CurrentGameSection({
     setAGoals(0);
     setBGoals(0);
     await save("scheduled", { aGoals: 0, bGoals: 0 });
+  }
+
+  function DiceIcon({ spinning }: { spinning: boolean }) {
+    return (
+      <svg
+        viewBox="0 0 24 24"
+        className={"h-4 w-4 " + (spinning ? "dice-roll" : "")}
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinejoin="round"
+        strokeLinecap="round"
+        aria-hidden="true"
+      >
+        {/* "Normal" dice (d6) outline + pips */}
+        <rect x="4.5" y="4.5" width="15" height="15" rx="3" fill="none" />
+        <circle cx="8" cy="8" r="1.2" fill="currentColor" stroke="none" />
+        <circle cx="16" cy="8" r="1.2" fill="currentColor" stroke="none" />
+        <circle cx="12" cy="12" r="1.2" fill="currentColor" stroke="none" />
+        <circle cx="8" cy="16" r="1.2" fill="currentColor" stroke="none" />
+        <circle cx="16" cy="16" r="1.2" fill="currentColor" stroke="none" />
+      </svg>
+    );
+  }
+
+  // Unbiased RNG using Web Crypto (prevents modulo bias).
+  function cryptoRandomInt(maxExclusive: number): number {
+    if (maxExclusive <= 0) return 0;
+    const max = 0xffffffff;
+    const limit = max - (max % maxExclusive);
+    const u32 = new Uint32Array(1);
+    while (true) {
+      crypto.getRandomValues(u32);
+      const x = u32[0]!;
+      if (x < limit) return x % maxExclusive;
+    }
+  }
+
+  function randomPick<T>(arr: T[]): T {
+    return arr[cryptoRandomInt(arr.length)]!;
+  }
+
+  function randomPickDifferent(arr: number[], prev: number | null): number {
+    if (arr.length <= 1 || prev == null) return randomPick(arr);
+    for (let i = 0; i < 6; i++) {
+      const v = randomPick(arr);
+      if (v !== prev) return v;
+    }
+    return randomPick(arr);
+  }
+
+  function rollStars() {
+    if (busy) return;
+    if (starRollIntervalRef.current) window.clearInterval(starRollIntervalRef.current);
+    if (starRollTimeoutRef.current) window.clearTimeout(starRollTimeoutRef.current);
+
+    setStarRoll(true);
+
+    // Visual "rolling": temporarily cycle through all 10 half-step options.
+    starRollIntervalRef.current = window.setInterval(() => {
+      setStarFilter(randomPickDifferent(STAR_OPTIONS, lastStarRollRef.current));
+    }, 75);
+
+    starRollTimeoutRef.current = window.setTimeout(() => {
+      if (starRollIntervalRef.current) window.clearInterval(starRollIntervalRef.current);
+      starRollIntervalRef.current = null;
+
+      const v = randomPickDifferent(availableStarSteps, lastStarRollRef.current);
+      lastStarRollRef.current = v;
+      setStarFilter(v);
+      setStarRoll(false);
+    }, 700);
   }
 
   return (
@@ -425,17 +519,35 @@ export default function CurrentGameSection({
         )}
       </div>
 
-      {/* Filter + Clubs */}
-      {canControl && (
-        <CollapsibleCard title="Select Clubs" defaultOpen={false} className="panel-subtle">
-          <div className="grid gap-4">
-            {/* Row 1: filters + random */}
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-[auto_auto_1fr] md:items-end">
-              <StarFilter value={starFilter} onChange={setStarFilter} disabled={busy} compact />
+	      {/* Filter + Clubs */}
+	      {canControl && (
+	        <CollapsibleCard title="Select Clubs" defaultOpen={false} className="panel-subtle">
+	          <div className="grid gap-4">
+	            {/* Row 1: filters + random */}
+	            <div className="grid grid-cols-1 gap-3 md:grid-cols-[auto_auto_1fr] md:items-end">
+	              <StarFilter
+	                value={starFilter}
+	                onChange={setStarFilter}
+	                disabled={busy}
+	                compact
+	                right={
+	                  <button
+	                    type="button"
+	                    className="icon-button h-10 w-10 p-0 flex items-center justify-center"
+	                    onMouseDown={(e) => e.preventDefault()}
+	                    onTouchStart={(e) => e.preventDefault()}
+	                    onClick={rollStars}
+	                    disabled={busy}
+	                    title="Randomize star filter"
+	                  >
+	                    <DiceIcon spinning={starRoll} />
+	                  </button>
+	                }
+	              />
 
-              <LeagueFilter
-                value={leagueFilter}
-                onChange={setLeagueFilter}
+	              <LeagueFilter
+	                value={leagueFilter}
+	                onChange={setLeagueFilter}
                 disabled={busy}
                 options={leagueOptions}
                 compact

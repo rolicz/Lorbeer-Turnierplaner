@@ -1,4 +1,6 @@
 import type { Club } from "../api/types";
+import { useId } from "react";
+import type { ReactNode } from "react";
 
 export type LeagueOpt = { id: number; name: string };
 
@@ -70,38 +72,46 @@ export function StarFilter({
   onChange,
   disabled,
   compact,
+  right,
 }: {
   value: number | null;
   onChange: (v: number | null) => void;
   disabled: boolean;
   compact?: boolean;
+  right?: ReactNode;
 }) {
+  const selectId = useId();
+
   return (
-    <label className="block">
-      <div className="mb-1">
+    <div className="block">
+      <label htmlFor={selectId} className="mb-1 block">
         <span className="hidden md:inline text-xs text-muted">Filter by</span>
         <span className="md:hidden inline-flex items-center gap-2 text-xs text-muted">
           <i className="fa-solid fa-filter" aria-hidden="true" />
           <span className="sr-only">Filter by stars</span>
         </span>
         <span className="text-xs text-muted"> Stars</span>
-      </div>
+      </label>
 
-      <select
-        className={`select-field w-full ${compact ? "md:w-[140px]" : ""}`}
-        value={value == null ? "" : String(value)}
-        onChange={(e) => onChange(e.target.value ? Number(e.target.value) : null)}
-        disabled={disabled}
-        title="Filter by stars"
-      >
-        <option value="">All</option>
-        {STAR_OPTIONS.map((v) => (
-          <option key={v} value={v}>
-            {v.toFixed(1).replace(/\.0$/, "")}★
-          </option>
-        ))}
-      </select>
-    </label>
+      <div className={right ? "flex items-center gap-2" : undefined}>
+        <select
+          id={selectId}
+          className={`select-field w-full ${right ? "flex-1" : ""} ${compact ? "md:flex-none md:w-[140px]" : ""}`}
+          value={value == null ? "" : String(value)}
+          onChange={(e) => onChange(e.target.value ? Number(e.target.value) : null)}
+          disabled={disabled}
+          title="Filter by stars"
+        >
+          <option value="">All</option>
+          {STAR_OPTIONS.map((v) => (
+            <option key={v} value={v}>
+              {v.toFixed(1).replace(/\.0$/, "")}★
+            </option>
+          ))}
+        </select>
+        {right}
+      </div>
+    </div>
   );
 }
 
