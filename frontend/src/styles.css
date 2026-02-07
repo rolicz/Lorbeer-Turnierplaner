@@ -4,24 +4,6 @@
 
 @layer base {
   :root {
-    /* Status colors are invariant across themes */
-    --status-live: 34 197 94; /* green-500 (less blue than teal) */
-    --status-draft: 14 165 233; /* sky-500 */
-    --status-done: 113 113 122; /* zinc-500 */
-
-    /* Shared status/hover tokens (keep invariant across themes). */
-    --color-status-border-green: var(--status-live);
-    --color-status-bar-green: var(--status-live);
-    --color-hover-green: var(--status-live);
-    --color-status-border-blue: var(--status-draft);
-    --color-status-bar-blue: var(--status-draft);
-    --color-hover-blue: var(--status-draft);
-    /* Shared UI accents (fixed across themes) */
-    --delta-up: 20 184 166; /* teal-500 */
-    --delta-down: 244 63 94; /* rose-500 */
-    --live-indicator: 239 68 68; /* red-500 */
-    /* Cup palette (invariant across themes). */
-    --color-cup-green-dark: 21 128 61; /* green-700 */
     /* Global page padding (tweak here for all pages) */
     --page-pad-x: 16px;
   }
@@ -113,10 +95,10 @@
 
   /* Buttons */
   .btn-base {
-    @apply rounded-xl px-4 py-2 text-sm font-medium transition border disabled:opacity-50 disabled:cursor-not-allowed;
+    @apply rounded-xl px-4 py-2 text-sm font-medium transition disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/35;
   }
   .btn-solid {
-    @apply btn-base border-transparent;
+    @apply btn-base;
     background-color: rgb(var(--color-btn-bg));
     color: rgb(var(--color-btn-text));
   }
@@ -127,21 +109,17 @@
     @apply btn-base bg-transparent;
     color: rgb(var(--color-text-normal));
     background-color: rgb(var(--color-bg-card-chip) / 0.35);
-    border-color: rgb(var(--color-border-card-chip) / 0.65);
   }
   .btn-ghost:hover {
     background-color: rgb(var(--color-bg-card-chip) / 0.55);
-    border-color: rgb(var(--color-border-card-chip) / 0.85);
   }
   .icon-button {
-    @apply rounded-xl p-2 text-sm transition border;
+    @apply rounded-xl p-2 text-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/35;
     color: rgb(var(--color-text-normal));
     background-color: rgb(var(--color-bg-card-chip) / 0.25);
-    border-color: rgb(var(--color-border-card-chip) / 0.55);
   }
   .icon-button:hover {
     background-color: rgb(var(--color-bg-card-chip) / 0.45);
-    border-color: rgb(var(--color-border-card-chip) / 0.8);
   }
 
   /* Forms */

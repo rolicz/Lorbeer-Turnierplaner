@@ -1,4 +1,4 @@
-[data-theme="light"] {
+:root[data-theme="light"] {
   color-scheme: light;
 
   /* Backgrounds */
@@ -34,7 +34,6 @@
   --color-hover-btn-bg: 45 212 191; /* Original emerald-400 */
   --color-hover-nav: 235 234 233; /* subtle darken */
   --color-hover-default: 235 234 233; /* subtle darken */
-  /* --color-hover-blue is centralized in styles.css */
 
   /* Pills & Statuses */
   --color-status-bg-default: 214 211 209; /* zinc-800 (light) */
@@ -44,10 +43,8 @@
   --color-status-text-green: 19 78 74; /* emerald-900 */
   --color-status-bg-blue: 224 242 254; /* sky-100 */
   --color-status-text-blue: 12 74 110; /* sky-900 */
-  /* --color-status-border-blue is centralized in styles.css */
 
   --color-status-bar-default: 168 162 158; /* zinc-700 (dark) */
-  /* --color-status-bar-blue is centralized in styles.css */
 
   /* Gradients */
   --color-gradient-gold-from: 251 146 60;

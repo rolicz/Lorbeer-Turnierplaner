@@ -75,9 +75,6 @@ export default function CupCard({ cupKey }: { cupKey: string }) {
                   <br />
                   Draw for first place does not transfer.
                   </div>
-                  <div className="mt-2 text-[11px] text-text-muted">
-                    Config date format: <span className="text-text-normal">YYYY-MM-DD</span>
-                  </div>
                 </div>
               </span>
             </div>

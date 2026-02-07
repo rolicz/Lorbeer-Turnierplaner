@@ -4,7 +4,7 @@ const fileNames = Object.keys(modules)
   .map((p) => p.split("/").pop() || "")
   .filter((name) => name.endsWith(".css"))
   .map((name) => name.replace(".css", ""))
-  .filter(Boolean);
+  .filter((name) => Boolean(name) && name !== "defaults");
 
 const preferredOrder = ["blue", "dark", "light", "green"];
 const known = new Set(fileNames);
