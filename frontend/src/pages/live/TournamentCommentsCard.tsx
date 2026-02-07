@@ -84,6 +84,7 @@ function AddCommentDropdown({
   onChangeDraftBody,
   onSubmit,
   canSubmit,
+  surfaceClassName = "panel-subtle",
 }: {
   open: boolean;
   players: Player[];
@@ -93,10 +94,11 @@ function AddCommentDropdown({
   onChangeDraftBody: (v: string) => void;
   onSubmit: () => void;
   canSubmit: boolean;
+  surfaceClassName?: string;
 }) {
   if (!open) return null;
   return (
-    <div className="panel-subtle p-3 space-y-2">
+    <div className={surfaceClassName + " p-3 space-y-2"}>
       <div className="grid gap-2">
         <label className="block">
           <div className="input-label">Posted as</div>
@@ -157,6 +159,7 @@ function CommentCard({
   onSave,
   canSubmit,
   flash,
+  surfaceClassName = "panel-subtle",
 }: {
   c: TournamentComment;
   isEditing: boolean;
@@ -176,13 +179,14 @@ function CommentCard({
   onSave: () => void;
   canSubmit: boolean;
   flash: boolean;
+  surfaceClassName?: string;
 }) {
   const edited = c.updatedAt > c.createdAt;
 
   return (
     <div
       id={`comment-${c.id}`}
-      className={"panel-subtle p-3 scroll-mt-28 sm:scroll-mt-32 " + (flash ? "comment-attn" : "")}
+      className={surfaceClassName + " p-3 scroll-mt-28 sm:scroll-mt-32 " + (flash ? "comment-attn" : "")}
       style={
         isEditing || isPinned
           ? {
@@ -400,26 +404,24 @@ export default function TournamentCommentsCard({
       const commentEl = document.getElementById(`comment-${pendingFocusId}`);
 
       // Wait for query refresh to render the new/updated comment into the DOM.
-      if ((!commentEl || (blockId != null && !blockEl)) && tries < 90) {
+      if ((!commentEl || (blockId != null && !blockEl)) && tries < 240) {
         tries += 1;
         requestAnimationFrame(tryScroll);
         return;
       }
 
       if (blockEl || commentEl) {
-        const nav = document.querySelector(".nav-shell") as HTMLElement | null;
-        const navH = nav?.getBoundingClientRect().height ?? 0;
-
         // Primary: scroll to the beginning of the relevant block (Tournament / Match #n).
         // Fallback: scroll to the comment itself if the block id isn't found.
         const anchor = blockEl ?? commentEl!;
-        const y = window.scrollY + anchor.getBoundingClientRect().top - navH - 10;
-        window.scrollTo({ top: Math.max(0, y), behavior: "smooth" });
+        anchor.scrollIntoView({ block: "start", behavior: "smooth" });
 
         // Ensure the focused comment is actually visible (without overriding the block alignment too much).
         if (commentEl) {
           requestAnimationFrame(() => {
             const r = commentEl.getBoundingClientRect();
+            const nav = document.querySelector(".nav-shell") as HTMLElement | null;
+            const navH = nav?.getBoundingClientRect().height ?? 0;
             const topLimit = navH + 6;
             const bottomLimit = window.innerHeight - 10;
             if (r.top < topLimit || r.bottom > bottomLimit) {
@@ -430,6 +432,22 @@ export default function TournamentCommentsCard({
             requestAnimationFrame(() => setFlashId(pendingFocusId));
             window.setTimeout(() => setFlashId(null), 1800);
           });
+
+          // Second pass: after layout settles (edit UI collapsing, images/fonts, etc.)
+          // ensure the anchor (block start) is still aligned near the top.
+          window.setTimeout(() => {
+            const blockEl2 = blockId ? document.getElementById(blockId) : null;
+            const commentEl2 = document.getElementById(`comment-${pendingFocusId}`);
+            const anchor2 = blockEl2 ?? commentEl2;
+            if (!anchor2) return;
+
+            const nav = document.querySelector(".nav-shell") as HTMLElement | null;
+            const navH = nav?.getBoundingClientRect().height ?? 0;
+            const rr = anchor2.getBoundingClientRect();
+            if (rr.top < navH + 4 || rr.top > navH + 40) {
+              anchor2.scrollIntoView({ block: "start", behavior: "smooth" });
+            }
+          }, 250);
         }
       }
 
@@ -651,7 +669,7 @@ export default function TournamentCommentsCard({
         ) : null}
 
         <div className="space-y-2">
-          <div id="comments-block-tournament" className="panel p-3">
+          <div id="comments-block-tournament" className="panel-subtle p-3 scroll-mt-28 sm:scroll-mt-32">
             <div className="flex items-center justify-between gap-3">
               <div className="text-sm font-semibold">Tournament</div>
               <div className="flex items-center gap-2">
@@ -677,6 +695,7 @@ export default function TournamentCommentsCard({
                 onChangeDraftBody={setDraftBody}
                 onSubmit={() => upsertComment({ kind: "tournament" })}
                 canSubmit={canSubmit}
+                surfaceClassName="panel"
               />
             </div>
 
@@ -691,6 +710,7 @@ export default function TournamentCommentsCard({
                     isEditing={editingId === c!.id}
                     isPinned={pinnedTournamentCommentId === c!.id}
                     flash={flashId === c!.id}
+                    surfaceClassName="panel"
                     canPin={
                       c!.scope.kind === "tournament" &&
                       canWrite &&
@@ -730,7 +750,11 @@ export default function TournamentCommentsCard({
             const h = matchHeaderMeta(b.matchId);
             const addOpenForMatch = canWrite && sameScope(addTarget, { kind: "match", matchId: b.matchId });
             return (
-              <div key={b.matchId} id={`comments-block-match-${b.matchId}`} className="card-inner-flat">
+              <div
+                key={b.matchId}
+                id={`comments-block-match-${b.matchId}`}
+                className="card-inner-flat scroll-mt-28 sm:scroll-mt-32"
+              >
                 <div className="flex items-start justify-between gap-3">
                   <div className="text-sm font-semibold">{h?.title ?? `Match #${b.matchId}`}</div>
                   <div className="flex items-center gap-2">
@@ -807,6 +831,7 @@ export default function TournamentCommentsCard({
                     onChangeDraftBody={setDraftBody}
                     onSubmit={() => upsertComment({ kind: "match", matchId: b.matchId })}
                     canSubmit={canSubmit}
+                    surfaceClassName="panel-subtle"
                   />
                 </div>
 
@@ -819,6 +844,7 @@ export default function TournamentCommentsCard({
                         isEditing={editingId === c.id}
                         isPinned={false}
                         flash={flashId === c.id}
+                        surfaceClassName="panel-subtle"
                         canPin={false}
                         onTogglePin={null}
                         canWrite={canWrite}
