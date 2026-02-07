@@ -49,6 +49,18 @@ class Player(SQLModel, table=True):
     tournaments: List["Tournament"] = Relationship(back_populates="players", link_model=TournamentPlayer)
 
 
+class PlayerAvatar(SQLModel, table=True):
+    """
+    Optional player avatar stored as a small blob.
+    This is a separate table (not a Player column) because this project uses create_all()
+    without migrations, and we don't want to break existing DBs.
+    """
+    player_id: int = Field(foreign_key="player.id", primary_key=True)
+    content_type: str
+    data: bytes
+    updated_at: dt.datetime = Field(default_factory=dt.datetime.utcnow, index=True)
+
+
 class League(SQLModel, table=True):
     """
     Backend-managed lookup table.

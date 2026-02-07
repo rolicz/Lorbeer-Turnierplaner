@@ -1,13 +1,17 @@
 import logging
-from fastapi import APIRouter, Depends, HTTPException
+import datetime as dt
+
+from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFile
 from sqlmodel import Session, select
 
 from ..auth import require_admin
 from ..db import get_session
-from ..models import Player
+from ..models import Player, PlayerAvatar
 
 log = logging.getLogger(__name__)
 router = APIRouter(prefix="/players", tags=["players"])
+
+MAX_AVATAR_BYTES = 2_000_000  # 2MB is plenty for a cropped 512x512 webp/png
 
 
 @router.get("")
@@ -67,3 +71,69 @@ def patch_player(
 
     log.info("Player renamed: id=%s name=%s", player_id, new_name)
     return p
+
+
+@router.get("/avatars")
+def list_player_avatar_meta(s: Session = Depends(get_session)):
+    """
+    Lightweight avatar metadata used by the frontend to avoid spamming 404 requests.
+    Returns only player_id + updated_at for players who have an avatar.
+    """
+    rows = s.exec(select(PlayerAvatar.player_id, PlayerAvatar.updated_at)).all()
+    return [{"player_id": pid, "updated_at": updated_at} for (pid, updated_at) in rows]
+
+
+@router.get("/{player_id}/avatar")
+def get_player_avatar(player_id: int, s: Session = Depends(get_session)):
+    av = s.get(PlayerAvatar, player_id)
+    if not av:
+        raise HTTPException(status_code=404, detail="Avatar not found")
+
+    # Cache: avatar changes rarely; frontend uses updated_at as a cache buster.
+    headers = {"Cache-Control": "public, max-age=604800"}
+    return Response(content=av.data, media_type=av.content_type, headers=headers)
+
+
+@router.put("/{player_id}/avatar", dependencies=[Depends(require_admin)])
+async def put_player_avatar(
+    player_id: int,
+    file: UploadFile = File(...),
+    s: Session = Depends(get_session),
+):
+    p = s.get(Player, player_id)
+    if not p:
+        raise HTTPException(status_code=404, detail="Player not found")
+
+    ct = (file.content_type or "").strip().lower()
+    if not ct.startswith("image/"):
+        raise HTTPException(status_code=400, detail="Invalid file type")
+
+    data = await file.read()
+    if not data:
+        raise HTTPException(status_code=400, detail="Empty file")
+    if len(data) > MAX_AVATAR_BYTES:
+        raise HTTPException(status_code=413, detail=f"Avatar too large (max {MAX_AVATAR_BYTES} bytes)")
+
+    av = s.get(PlayerAvatar, player_id)
+    now = dt.datetime.utcnow()
+    if av is None:
+        av = PlayerAvatar(player_id=player_id, content_type=ct, data=data, updated_at=now)
+    else:
+        av.content_type = ct
+        av.data = data
+        av.updated_at = now
+
+    s.add(av)
+    s.commit()
+    s.refresh(av)
+    return {"player_id": av.player_id, "updated_at": av.updated_at}
+
+
+@router.delete("/{player_id}/avatar", dependencies=[Depends(require_admin)])
+def delete_player_avatar(player_id: int, s: Session = Depends(get_session)):
+    av = s.get(PlayerAvatar, player_id)
+    if not av:
+        return Response(status_code=204)
+    s.delete(av)
+    s.commit()
+    return Response(status_code=204)

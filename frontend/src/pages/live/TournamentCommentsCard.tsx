@@ -15,6 +15,7 @@ import {
   setPinnedTournamentComment,
 } from "../../api/comments.api";
 import { useAuth } from "../../auth/AuthContext";
+import { listPlayerAvatarMeta, playerAvatarUrl } from "../../api/playerAvatars.api";
 
 type CommentScope =
   | { kind: "tournament" }
@@ -160,6 +161,7 @@ function CommentCard({
   canSubmit,
   flash,
   surfaceClassName = "panel-subtle",
+  avatarUpdatedAt,
 }: {
   c: TournamentComment;
   isEditing: boolean;
@@ -180,6 +182,7 @@ function CommentCard({
   canSubmit: boolean;
   flash: boolean;
   surfaceClassName?: string;
+  avatarUpdatedAt?: string | null;
 }) {
   const edited = c.updatedAt > c.createdAt;
 
@@ -200,6 +203,23 @@ function CommentCard({
         <div className="min-w-0">
           {/* Row 1: poster */}
           <div className="flex flex-wrap items-center gap-2">
+            {c.author.kind === "player" ? (
+              <span className="panel-subtle inline-flex h-7 w-7 items-center justify-center overflow-hidden rounded-full shrink-0">
+                {avatarUpdatedAt ? (
+                  <img
+                    src={playerAvatarUrl(c.author.playerId, avatarUpdatedAt)}
+                    alt=""
+                    className="h-full w-full object-cover"
+                    loading="lazy"
+                    decoding="async"
+                  />
+                ) : (
+                  <span className="text-[12px] font-semibold text-text-muted">
+                    {(authorLabel(c.author) || "?").trim().slice(0, 1).toUpperCase()}
+                  </span>
+                )}
+              </span>
+            ) : null}
             <div className="text-xs font-semibold text-text-normal">{authorLabel(c.author)}</div>
             {isPinned ? <span className="card-chip text-[10px] py-1 px-2">pinned</span> : null}
             {isEditing ? <span className="card-chip text-[10px] py-1 px-2">editing</span> : null}
@@ -315,6 +335,13 @@ export default function TournamentCommentsCard({
 }) {
   const qc = useQueryClient();
   const { token } = useAuth();
+
+  const avatarMetaQ = useQuery({ queryKey: ["players", "avatars"], queryFn: listPlayerAvatarMeta });
+  const avatarUpdatedAtByPlayerId = useMemo(() => {
+    const m = new Map<number, string>();
+    for (const r of avatarMetaQ.data ?? []) m.set(r.player_id, r.updated_at);
+    return m;
+  }, [avatarMetaQ.data]);
 
   const matchById = useMemo(() => new Map(matches.map((m) => [m.id, m])), [matches]);
   const playerById = useMemo(() => new Map(players.map((p) => [p.id, p.display_name])), [players]);
@@ -711,6 +738,9 @@ export default function TournamentCommentsCard({
                     isPinned={pinnedTournamentCommentId === c!.id}
                     flash={flashId === c!.id}
                     surfaceClassName="panel"
+                    avatarUpdatedAt={
+                      c!.author.kind === "player" ? avatarUpdatedAtByPlayerId.get(c!.author.playerId) ?? null : null
+                    }
                     canPin={
                       c!.scope.kind === "tournament" &&
                       canWrite &&
@@ -845,6 +875,9 @@ export default function TournamentCommentsCard({
                         isPinned={false}
                         flash={flashId === c.id}
                         surfaceClassName="panel-subtle"
+                        avatarUpdatedAt={
+                          c.author.kind === "player" ? avatarUpdatedAtByPlayerId.get(c.author.playerId) ?? null : null
+                        }
                         canPin={false}
                         onTogglePin={null}
                         canWrite={canWrite}

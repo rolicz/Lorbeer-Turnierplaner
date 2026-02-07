@@ -13,10 +13,12 @@ import { useAuth } from "../auth/AuthContext";
 import { createPlayer, listPlayers, patchPlayer } from "../api/players.api";
 import { getStatsPlayers } from "../api/stats.api";
 import { getCup, listCupDefs } from "../api/cup.api";
+import { deletePlayerAvatar, listPlayerAvatarMeta, playerAvatarUrl, putPlayerAvatar } from "../api/playerAvatars.api";
 
 import type { StatsPlayersResponse, StatsTournamentLite, StatsPlayerRow } from "../api/types";
 import { Link } from "react-router-dom";
 import { cupColorVarForKey } from "../cupColors";
+import PlayerAvatarEditor from "./players/PlayerAvatarEditor";
 
 type SortMode = "overall" | "lastN";
 
@@ -352,6 +354,7 @@ export default function PlayersPage() {
   const [name, setName] = useState("");
 
   const playersQ = useQuery({ queryKey: ["players"], queryFn: listPlayers });
+  const avatarMetaQ = useQuery({ queryKey: ["players", "avatars"], queryFn: listPlayerAvatarMeta });
 
   const statsQ = useQuery<StatsPlayersResponse>({
     queryKey: ["stats", "players"],
@@ -410,6 +413,34 @@ export default function PlayersPage() {
 
   const tournaments = statsQ.data?.tournaments ?? [];
   const cupOwnerId = statsQ.data?.cup_owner_player_id ?? null;
+
+  const avatarMetaByPlayerId = useMemo(() => {
+    const m = new Map<number, string>();
+    for (const r of avatarMetaQ.data ?? []) m.set(r.player_id, r.updated_at);
+    return m;
+  }, [avatarMetaQ.data]);
+
+  const [avatarEditPlayer, setAvatarEditPlayer] = useState<{ id: number; name: string } | null>(null);
+
+  const putAvatarMut = useMutation({
+    mutationFn: async (payload: { playerId: number; blob: Blob }) => {
+      if (!token) throw new Error("No token");
+      return putPlayerAvatar(token, payload.playerId, payload.blob);
+    },
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ["players", "avatars"] });
+    },
+  });
+
+  const delAvatarMut = useMutation({
+    mutationFn: async (playerId: number) => {
+      if (!token) throw new Error("No token");
+      await deletePlayerAvatar(token, playerId);
+    },
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ["players", "avatars"] });
+    },
+  });
 
   const cupsOwnedByPlayerId = useMemo(() => {
     const m = new Map<number, { key: string; name: string }[]>();
@@ -805,6 +836,34 @@ export default function PlayersPage() {
                     title={rowOpen ? "Collapse player" : "Expand player"}
                   >
                     <div className="flex min-w-0 items-center gap-2">
+                      <button
+                        type="button"
+                        className="shrink-0"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          if (!isAdmin) return;
+                          setAvatarEditPlayer({ id: p.id, name: p.display_name });
+                        }}
+                        title={isAdmin ? "Edit avatar" : undefined}
+                      >
+                        <span className="panel-subtle inline-flex h-10 w-10 items-center justify-center overflow-hidden rounded-full">
+                          {avatarMetaByPlayerId.has(p.id) ? (
+                            <img
+                              src={playerAvatarUrl(p.id, avatarMetaByPlayerId.get(p.id) ?? null)}
+                              alt=""
+                              className="h-full w-full object-cover"
+                              loading="lazy"
+                              decoding="async"
+                            />
+                          ) : (
+                            <span className="text-sm font-semibold text-text-muted">
+                              {(p.display_name || "?").trim().slice(0, 1).toUpperCase()}
+                            </span>
+                          )}
+                        </span>
+                      </button>
+
                       <span className="truncate text-xl font-semibold text-text-normal">{p.display_name}</span>
 
                       {ownedCups.length ? (
@@ -901,6 +960,24 @@ export default function PlayersPage() {
 
         {patchMut.error && <div className="mt-2 text-sm text-red-400">{String(patchMut.error)}</div>}
       </Card>
+
+      <PlayerAvatarEditor
+        open={avatarEditPlayer != null}
+        title={avatarEditPlayer ? `Avatar: ${avatarEditPlayer.name}` : "Avatar"}
+        canEdit={isAdmin}
+        onClose={() => setAvatarEditPlayer(null)}
+        onSave={async (blob) => {
+          if (!avatarEditPlayer) return;
+          await putAvatarMut.mutateAsync({ playerId: avatarEditPlayer.id, blob });
+        }}
+        onDelete={
+          avatarEditPlayer && avatarMetaByPlayerId.has(avatarEditPlayer.id)
+            ? async () => {
+                await delAvatarMut.mutateAsync(avatarEditPlayer.id);
+              }
+            : null
+        }
+      />
     </div>
   );
 }

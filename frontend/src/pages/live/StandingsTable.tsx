@@ -1,7 +1,9 @@
 import { useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 import type { Match, Player } from "../../api/types";
 import { sideBy } from "../../helpers";
 import Card from "../../ui/primitives/Card";
+import { listPlayerAvatarMeta, playerAvatarUrl } from "../../api/playerAvatars.api";
 
 type Row = {
   playerId: number;
@@ -109,7 +111,50 @@ function Arrow({ delta }: { delta: number | null }) {
   return <span className="text-text-muted">–</span>;
 }
 
-function MobileRow({ r, rank, delta, isLeader }: { r: Row; rank: number; delta: number | null; isLeader: boolean }) {
+function PlayerAvatar({
+  playerId,
+  name,
+  updatedAt,
+  className = "h-9 w-9",
+}: {
+  playerId: number;
+  name: string;
+  updatedAt: string | null;
+  className?: string;
+}) {
+  const initial = (name || "?").trim().slice(0, 1).toUpperCase();
+  return (
+    <span
+      className={`panel-subtle inline-flex items-center justify-center overflow-hidden rounded-full shrink-0 ${className}`}
+    >
+      {updatedAt ? (
+        <img
+          src={playerAvatarUrl(playerId, updatedAt)}
+          alt=""
+          className="h-full w-full object-cover"
+          loading="lazy"
+          decoding="async"
+        />
+      ) : (
+        <span className="text-sm font-semibold text-text-muted">{initial}</span>
+      )}
+    </span>
+  );
+}
+
+function MobileRow({
+  r,
+  rank,
+  delta,
+  isLeader,
+  avatarUpdatedAt,
+}: {
+  r: Row;
+  rank: number;
+  delta: number | null;
+  isLeader: boolean;
+  avatarUpdatedAt: string | null;
+}) {
   return (
     <div className="panel-subtle relative overflow-hidden px-3 py-2">
       {/* leader bar */}
@@ -122,6 +167,7 @@ function MobileRow({ r, rank, delta, isLeader }: { r: Row; rank: number; delta: 
             <div className="w-5">
               <Arrow delta={delta} />
             </div>
+            <PlayerAvatar playerId={r.playerId} name={r.name} updatedAt={avatarUpdatedAt} />
             <div className="min-w-0 truncate font-medium text-text-normal">{r.name}</div>
           </div>
           <div className="mt-1 text-xs text-text-muted font-mono tabular-nums">
@@ -154,6 +200,13 @@ export default function StandingsTable({
   const liveRows = useMemo(() => computeStandings(matches, players, "live"), [matches, players]);
   const basePos = useMemo(() => posMap(baseRows), [baseRows]);
 
+  const avatarMetaQ = useQuery({ queryKey: ["players", "avatars"], queryFn: listPlayerAvatarMeta });
+  const avatarUpdatedAtByPlayerId = useMemo(() => {
+    const m = new Map<number, string>();
+    for (const r of avatarMetaQ.data ?? []) m.set(r.player_id, r.updated_at);
+    return m;
+  }, [avatarMetaQ.data]);
+
   const title = tournamentStatus === "done" ? "Results" : "Standings (live)";
 
   const content = (
@@ -163,7 +216,17 @@ export default function StandingsTable({
         {liveRows.map((r, idx) => {
           const baseIdx = basePos.get(r.playerId);
           const delta = baseIdx === undefined ? null : baseIdx - idx;
-          return <MobileRow key={r.playerId} r={r} rank={idx + 1} delta={delta} isLeader={idx === 0} />;
+          const avatarUpdatedAt = avatarUpdatedAtByPlayerId.get(r.playerId) ?? null;
+          return (
+            <MobileRow
+              key={r.playerId}
+              r={r}
+              rank={idx + 1}
+              delta={delta}
+              isLeader={idx === 0}
+              avatarUpdatedAt={avatarUpdatedAt}
+            />
+          );
         })}
       </div>
 
@@ -213,9 +276,15 @@ export default function StandingsTable({
                     <Arrow delta={delta} />
                   </td>
                   <td className="py-2 pr-1.5 font-sans font-medium min-w-0">
-                    <span className="inline-flex min-w-0 max-w-[220px] items-center truncate lg:max-w-[320px]">
-                      {r.name}
-                    </span>
+                    <div className="inline-flex min-w-0 max-w-[260px] items-center gap-2 lg:max-w-[360px]">
+                      <PlayerAvatar
+                        playerId={r.playerId}
+                        name={r.name}
+                        updatedAt={avatarUpdatedAtByPlayerId.get(r.playerId) ?? null}
+                        className="h-7 w-7"
+                      />
+                      <span className="min-w-0 truncate">{r.name}</span>
+                    </div>
                   </td>
                   <td className="py-2 px-1.5 text-right">{r.played}</td>
                   <td className="py-2 px-1.5 text-right">{r.wins}</td>

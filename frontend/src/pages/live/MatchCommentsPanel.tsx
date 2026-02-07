@@ -6,6 +6,7 @@ import Button from "../../ui/primitives/Button";
 import Textarea from "../../ui/primitives/Textarea";
 import type { Player } from "../../api/types";
 import { createTournamentComment, listTournamentComments } from "../../api/comments.api";
+import { listPlayerAvatarMeta, playerAvatarUrl } from "../../api/playerAvatars.api";
 import { useAuth } from "../../auth/AuthContext";
 
 function fmtTs(ms: number) {
@@ -52,6 +53,13 @@ export default function MatchCommentsPanel({
     queryFn: () => listTournamentComments(tournamentId),
     enabled: Number.isFinite(tournamentId) && tournamentId > 0,
   });
+
+  const avatarMetaQ = useQuery({ queryKey: ["players", "avatars"], queryFn: listPlayerAvatarMeta });
+  const avatarUpdatedAtByPlayerId = useMemo(() => {
+    const m = new Map<number, string>();
+    for (const r of avatarMetaQ.data ?? []) m.set(r.player_id, r.updated_at);
+    return m;
+  }, [avatarMetaQ.data]);
 
   const matchComments = useMemo(() => {
     const raw = commentsQ.data?.comments ?? [];
@@ -133,19 +141,41 @@ export default function MatchCommentsPanel({
           <div className="text-sm text-text-muted">No comments yet.</div>
         ) : (
           <div className="space-y-2">
-            {matchComments.map((c) => (
-              <div
-                key={c.id}
-                id={`match-comment-${c.id}`}
-                className={
-                  "panel-subtle p-3 scroll-mt-28 sm:scroll-mt-32 " + (flashId === c.id ? "comment-attn" : "")
-                }
-              >
-                <div className="text-xs font-semibold text-text-normal">{authorLabel(c.author_player_id)}</div>
-                <div className="mt-0.5 text-[11px] text-text-muted">
-                  {fmtTs(Date.parse(c.created_at))}
-                  {Date.parse(c.updated_at) > Date.parse(c.created_at) ? (
-                    <span className="ml-2">edited</span>
+	            {matchComments.map((c) => (
+	              <div
+	                key={c.id}
+	                id={`match-comment-${c.id}`}
+	                className={
+	                  "panel-subtle p-3 scroll-mt-28 sm:scroll-mt-32 " + (flashId === c.id ? "comment-attn" : "")
+	                }
+	              >
+	                <div className="flex items-center gap-2">
+	                  {c.author_player_id != null ? (
+	                    <span className="panel-subtle inline-flex h-7 w-7 items-center justify-center overflow-hidden rounded-full shrink-0">
+	                      {avatarUpdatedAtByPlayerId.has(c.author_player_id) ? (
+	                        <img
+	                          src={playerAvatarUrl(
+	                            c.author_player_id,
+	                            avatarUpdatedAtByPlayerId.get(c.author_player_id) ?? null
+	                          )}
+	                          alt=""
+	                          className="h-full w-full object-cover"
+	                          loading="lazy"
+	                          decoding="async"
+	                        />
+	                      ) : (
+	                        <span className="text-[12px] font-semibold text-text-muted">
+	                          {(authorLabel(c.author_player_id) || "?").trim().slice(0, 1).toUpperCase()}
+	                        </span>
+	                      )}
+	                    </span>
+	                  ) : null}
+	                  <div className="text-xs font-semibold text-text-normal">{authorLabel(c.author_player_id)}</div>
+	                </div>
+	                <div className="mt-0.5 text-[11px] text-text-muted">
+	                  {fmtTs(Date.parse(c.created_at))}
+	                  {Date.parse(c.updated_at) > Date.parse(c.created_at) ? (
+	                    <span className="ml-2">edited</span>
                   ) : null}
                 </div>
                 <div className="mt-2 whitespace-pre-wrap text-sm">{c.body}</div>
