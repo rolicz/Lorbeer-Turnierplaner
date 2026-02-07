@@ -55,6 +55,7 @@ export default function DashboardPage() {
             }
             defaultOpen={true}
             variant="outer"
+            bodyVariant="none"
           >
             <div className="card-inner">
               <CupCard cupKey={c.key} />

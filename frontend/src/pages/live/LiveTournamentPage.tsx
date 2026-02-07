@@ -428,187 +428,195 @@ export default function LiveTournamentPage() {
 
   return (
     <div className="page">
-      <Card title={cardTitle} variant="outer">
-        {tQ.isLoading && <div className="text-text-muted">Loading…</div>}
-        {tQ.error && <div className="text-red-400 text-sm">{String(tQ.error)}</div>}
+      <Card
+        title={cardTitle}
+        variant="outer"
+        right={
+          <Button variant="ghost" onClick={() => tQ.refetch()} title="Refetch">
+            <i className="fa fa-arrows-rotate" aria-hidden="true" />
+          </Button>
+        }
+        bodyClassName="space-y-3"
+      >
+        {tQ.isLoading ? <div className="text-text-muted">Loading…</div> : null}
+        {tQ.error ? <div className="text-red-400 text-sm">{String(tQ.error)}</div> : null}
 
-        {tQ.data && (
-          <div className="space-y-3">
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex flex-wrap items-center gap-2 text-sm">
-                <Pill>
-                  {tQ.data.mode}
-                </Pill>
-                <Pill className={`${statusPill(tQ.data.status)}`}>
-                  {tQ.data.status.at(0)?.toUpperCase() + tQ.data.status.slice(1)}
-                </Pill>
-                <Pill className={pillDate()} title="Date" >
-                  {fmtDate(tQ.data.date)}
-                </Pill>
-              </div>
+        {tQ.data ? (
+          <div className="flex flex-wrap items-center gap-2 text-sm">
+            <Pill>{tQ.data.mode}</Pill>
+            <Pill className={`${statusPill(tQ.data.status)}`}>
+              {tQ.data.status.at(0)?.toUpperCase() + tQ.data.status.slice(1)}
+            </Pill>
+            <Pill className={pillDate()} title="Date">
+              {fmtDate(tQ.data.date)}
+            </Pill>
+          </div>
+        ) : null}
+      </Card>
 
-              <Button variant="ghost" onClick={() => tQ.refetch()} title="Refetch">
-                <i className="fa fa-arrows-rotate" aria-hidden="true" />
-              </Button>
-            </div>
-
-            {showControls && (
-              <CollapsibleCard title={role === "admin" ? "Admin controls" : "Editor controls"} defaultOpen={false} variant="inner">
-                <AdminPanel
-                  wrap={false}
-                  role={role}
-                  status={tQ.data.status}
-                  secondLegEnabled={secondLegEnabled}
-                  canDisableSecondLeg={canDisableSecondLeg}
-                  busy={
-                    enableLegMut.isPending ||
-                    disableLegMut.isPending ||
-                    reorderMut.isPending ||
-                    reassignMut.isPending ||
-                    deleteMut.isPending ||
-                    dateMut.isPending ||
-                    nameMut.isPending ||
-                    deciderMut.isPending ||
-                    reopenLastMut.isPending
-                  }
-                  error={panelError}
-                  onEnableSecondLeg={() => {
-                    setPanelError(null);
-                    enableLegMut.mutate(undefined, { onError: (e: any) => setPanelError(e?.message ?? String(e)) });
-                  }}
-                  onDisableSecondLeg={() => {
-                    setPanelError(null);
-                    disableLegMut.mutate(undefined, { onError: (e: any) => setPanelError(e?.message ?? String(e)) });
-                  }}
-                  onSetLastMatchPlaying={() => {
-                    setPanelError(null);
-                    reopenLastMut.mutate(undefined, { onError: (e: any) => setPanelError(e?.message ?? String(e)) });
-                  }}
-                  setLastMatchPlayingBusy={reopenLastMut.isPending}
-                  onReshuffle={() => {
-                    setPanelError(null);
-                    const ids = matchesSorted.map((m) => m.id);
-                    reorderMut.mutate(shuffle(ids), { onError: (e: any) => setPanelError(e?.message ?? String(e)) });
-                  }}
-                  mode={tQ.data.mode}
-                  onReassign2v2={() => {
-                    setPanelError(null);
-                    reassignMut.mutate(undefined, { onError: (e: any) => setPanelError(e?.message ?? String(e)) });
-                  }}
-                  onDeleteTournament={() => {
-                    if (!isAdmin) return;
-                    const ok = window.confirm("Delete tournament permanently?");
-                    if (!ok) return;
-                    setPanelError(null);
-                    deleteMut.mutate(undefined, { onError: (e: any) => setPanelError(e?.message ?? String(e)) });
-                  }}
-                  dateValue={isAdmin ? editDate : undefined}
-                  onDateChange={isAdmin ? setEditDate : undefined}
-                  onSaveDate={isAdmin ? () => dateMut.mutate() : undefined}
-                  dateBusy={dateMut.isPending}
-                  nameValue={isAdmin ? editName : undefined}
-                  onNameChange={isAdmin ? setEditName : undefined}
-                  onSaveName={isAdmin ? () => nameMut.mutate() : undefined}
-                  nameBusy={nameMut.isPending}
-                  showDeciderEditor={showDeciderEditor}
-                  deciderCandidates={topDrawInfo.candidates}
-                  currentDecider={decider}
-                  onSaveDecider={
-                    isEditorOrAdmin
-                      ? (body) => {
-                          setPanelError(null);
-                          deciderMut.mutate(body, { onError: (e: any) => setPanelError(e?.message ?? String(e)) });
-                        }
-                      : undefined
-                  }
-                  deciderBusy={deciderMut.isPending}
-                />
-              </CollapsibleCard>
-            )}
-
-            {/* Current game: show even in draft (next scheduled) */}
-            {(status === "draft" || status === "live") && currentMatch && (
-              <CollapsibleCard title="Current game" defaultOpen={true} variant="inner">
-                <CurrentGameSection
-                  status={status}
-                  tournamentId={tid}
-                  match={currentMatch}
-                  clubs={clubs}
-                  canControl={isEditorOrAdmin && !isDone}
-                  busy={currentGameMut.isPending}
-                  onPatch={(matchId, body) => currentGameMut.mutateAsync({ matchId, body })}
-                  onSwapSides={async (matchId) => {
-                    await swapSidesMut.mutateAsync(matchId);
-                  }}
-                />
-              </CollapsibleCard>
-            )}
-
-            {showDeciderReadOnly && (
-              <div className="card-subtle">
-                <div className="text-base font-semibold">Decider</div>
-                <div className="mt-1 text-sm text-text-muted">{deciderSummary}</div>
-                {decider.type === "none" && topDrawInfo.isTopDraw && (
-                  <div className="mt-1 text-xs text-text-muted">
-                    Tournament ended tied at the top. A decider can be set.
-                  </div>
-                )}
-              </div>
-            )}
-
-            <CollapsibleCard title={tQ.data.status === "done" ? "Results" : "Standings (live)"} defaultOpen={true} variant="inner">
-              <StandingsTable wrap={false} matches={matchesSorted} players={tQ.data.players} />
+      {tQ.data ? (
+        <>
+          {showControls ? (
+            <CollapsibleCard
+              title={role === "admin" ? "Admin controls" : "Editor controls"}
+              defaultOpen={false}
+              variant="outer"
+              bodyVariant="none"
+            >
+              <AdminPanel
+                wrap={false}
+                role={role}
+                status={tQ.data.status}
+                secondLegEnabled={secondLegEnabled}
+                canDisableSecondLeg={canDisableSecondLeg}
+                busy={
+                  enableLegMut.isPending ||
+                  disableLegMut.isPending ||
+                  reorderMut.isPending ||
+                  reassignMut.isPending ||
+                  deleteMut.isPending ||
+                  dateMut.isPending ||
+                  nameMut.isPending ||
+                  deciderMut.isPending ||
+                  reopenLastMut.isPending
+                }
+                error={panelError}
+                onEnableSecondLeg={() => {
+                  setPanelError(null);
+                  enableLegMut.mutate(undefined, { onError: (e: any) => setPanelError(e?.message ?? String(e)) });
+                }}
+                onDisableSecondLeg={() => {
+                  setPanelError(null);
+                  disableLegMut.mutate(undefined, { onError: (e: any) => setPanelError(e?.message ?? String(e)) });
+                }}
+                onSetLastMatchPlaying={() => {
+                  setPanelError(null);
+                  reopenLastMut.mutate(undefined, { onError: (e: any) => setPanelError(e?.message ?? String(e)) });
+                }}
+                setLastMatchPlayingBusy={reopenLastMut.isPending}
+                onReshuffle={() => {
+                  setPanelError(null);
+                  const ids = matchesSorted.map((m) => m.id);
+                  reorderMut.mutate(shuffle(ids), { onError: (e: any) => setPanelError(e?.message ?? String(e)) });
+                }}
+                mode={tQ.data.mode}
+                onReassign2v2={() => {
+                  setPanelError(null);
+                  reassignMut.mutate(undefined, { onError: (e: any) => setPanelError(e?.message ?? String(e)) });
+                }}
+                onDeleteTournament={() => {
+                  if (!isAdmin) return;
+                  const ok = window.confirm("Delete tournament permanently?");
+                  if (!ok) return;
+                  setPanelError(null);
+                  deleteMut.mutate(undefined, { onError: (e: any) => setPanelError(e?.message ?? String(e)) });
+                }}
+                dateValue={isAdmin ? editDate : undefined}
+                onDateChange={isAdmin ? setEditDate : undefined}
+                onSaveDate={isAdmin ? () => dateMut.mutate() : undefined}
+                dateBusy={dateMut.isPending}
+                nameValue={isAdmin ? editName : undefined}
+                onNameChange={isAdmin ? setEditName : undefined}
+                onSaveName={isAdmin ? () => nameMut.mutate() : undefined}
+                nameBusy={nameMut.isPending}
+                showDeciderEditor={showDeciderEditor}
+                deciderCandidates={topDrawInfo.candidates}
+                currentDecider={decider}
+                onSaveDecider={
+                  isEditorOrAdmin
+                    ? (body) => {
+                        setPanelError(null);
+                        deciderMut.mutate(body, { onError: (e: any) => setPanelError(e?.message ?? String(e)) });
+                      }
+                    : undefined
+                }
+                deciderBusy={deciderMut.isPending}
+              />
             </CollapsibleCard>
+          ) : null}
 
-            <CollapsibleCard title="Matches" defaultOpen={!isDone} variant="inner">
-              <MatchList
-                matches={matchesSorted}
+          {/* Current game: show even in draft (next scheduled) */}
+          {(status === "draft" || status === "live") && currentMatch ? (
+            <CollapsibleCard title="Current game" defaultOpen={true} variant="outer" bodyVariant="none">
+              <CurrentGameSection
+                status={status}
+                tournamentId={tid}
+                match={currentMatch}
                 clubs={clubs}
-                canEdit={canEditMatch}
-                canReorder={canReorder}
-                busyReorder={reorderMut.isPending}
-                onEditMatch={openEditor}
+                canControl={isEditorOrAdmin && !isDone}
+                busy={currentGameMut.isPending}
+                onPatch={(matchId, body) => currentGameMut.mutateAsync({ matchId, body })}
                 onSwapSides={async (matchId) => {
                   await swapSidesMut.mutateAsync(matchId);
                 }}
-                onMoveUp={(matchId) => {
-                  if (!canReorder) return;
-                  const idx = matchesSorted.findIndex((x) => x.id === matchId);
-                  if (idx <= 0) return;
-                  const ids = matchesSorted.map((x) => x.id);
-                  [ids[idx - 1], ids[idx]] = [ids[idx], ids[idx - 1]];
-                  reorderMut.mutate(ids);
-                }}
-                onMoveDown={(matchId) => {
-                  if (!canReorder) return;
-                  const idx = matchesSorted.findIndex((x) => x.id === matchId);
-                  if (idx < 0 || idx >= matchesSorted.length - 1) return;
-                  const ids = matchesSorted.map((x) => x.id);
-                  [ids[idx], ids[idx + 1]] = [ids[idx + 1], ids[idx]];
-                  reorderMut.mutate(ids);
-                }}
               />
             </CollapsibleCard>
+          ) : null}
 
-            {tid && (
-              <TournamentCommentsCard
-                tournamentId={tid}
-                matches={matchesSorted}
-                clubs={clubs}
-                players={tQ.data?.players ?? []}
-                canWrite={isEditorOrAdmin}
-                canDelete={isAdmin}
-              />
-            )}
+          {showDeciderReadOnly ? (
+            <Card title="Decider" variant="outer" bodyClassName="space-y-1">
+              <div className="text-sm text-text-muted">{deciderSummary}</div>
+              {decider.type === "none" && topDrawInfo.isTopDraw ? (
+                <div className="text-xs text-text-muted">Tournament ended tied at the top. A decider can be set.</div>
+              ) : null}
+            </Card>
+          ) : null}
 
-            {!isEditorOrAdmin && (
-              <div className="panel-subtle px-3 py-2 text-sm text-text-muted">
-                Login for write access to enter results.
-              </div>
-            )}
-          </div>
-        )}
-      </Card>
+          <CollapsibleCard
+            title={tQ.data.status === "done" ? "Results" : "Standings (live)"}
+            defaultOpen={true}
+            variant="outer"
+            bodyVariant="none"
+          >
+            <StandingsTable wrap={false} matches={matchesSorted} players={tQ.data.players} />
+          </CollapsibleCard>
+
+          <CollapsibleCard title="Matches" defaultOpen={!isDone} variant="outer" bodyVariant="none">
+            <MatchList
+              matches={matchesSorted}
+              clubs={clubs}
+              canEdit={canEditMatch}
+              canReorder={canReorder}
+              busyReorder={reorderMut.isPending}
+              onEditMatch={openEditor}
+              onSwapSides={async (matchId) => {
+                await swapSidesMut.mutateAsync(matchId);
+              }}
+              onMoveUp={(matchId) => {
+                if (!canReorder) return;
+                const idx = matchesSorted.findIndex((x) => x.id === matchId);
+                if (idx <= 0) return;
+                const ids = matchesSorted.map((x) => x.id);
+                [ids[idx - 1], ids[idx]] = [ids[idx], ids[idx - 1]];
+                reorderMut.mutate(ids);
+              }}
+              onMoveDown={(matchId) => {
+                if (!canReorder) return;
+                const idx = matchesSorted.findIndex((x) => x.id === matchId);
+                if (idx < 0 || idx >= matchesSorted.length - 1) return;
+                const ids = matchesSorted.map((x) => x.id);
+                [ids[idx], ids[idx + 1]] = [ids[idx + 1], ids[idx]];
+                reorderMut.mutate(ids);
+              }}
+            />
+          </CollapsibleCard>
+
+          {tid ? (
+            <TournamentCommentsCard
+              tournamentId={tid}
+              matches={matchesSorted}
+              clubs={clubs}
+              players={tQ.data?.players ?? []}
+              canWrite={isEditorOrAdmin}
+              canDelete={isAdmin}
+            />
+          ) : null}
+
+          {!isEditorOrAdmin ? (
+            <div className="panel-subtle px-3 py-2 text-sm text-text-muted">Login for write access to enter results.</div>
+          ) : null}
+        </>
+      ) : null}
 
       <MatchEditorSheet
         open={open}

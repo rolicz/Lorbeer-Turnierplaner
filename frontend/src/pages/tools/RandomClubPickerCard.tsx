@@ -38,7 +38,13 @@ export default function RandomClubPickerCard() {
   const bPlayerName = bPlayerId ? players.find((p) => p.id === bPlayerId)?.display_name ?? "B" : "B";
 
   return (
-    <CollapsibleCard title="Random club picker" defaultOpen={true} variant="outer" onOpenChange={setOpen}>
+    <CollapsibleCard
+      title="Random club picker"
+      defaultOpen={true}
+      variant="outer"
+      onOpenChange={setOpen}
+      bodyVariant="none"
+    >
       <div className="card-inner space-y-3">
         <div className="flex items-end gap-2">
           <div className="flex-1 min-w-0">
@@ -149,4 +155,3 @@ export default function RandomClubPickerCard() {
     </CollapsibleCard>
   );
 }
-

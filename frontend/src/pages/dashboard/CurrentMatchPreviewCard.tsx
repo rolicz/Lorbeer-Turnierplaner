@@ -141,6 +141,7 @@ export default function CurrentMatchPreviewCard() {
       }
       defaultOpen={true}
       variant="outer"
+      bodyVariant="none"
     >
       <div className="card-inner">
         <button

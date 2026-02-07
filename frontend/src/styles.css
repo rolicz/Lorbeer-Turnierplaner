@@ -244,9 +244,20 @@
     background-color: rgb(var(--color-bg-card-chip) / 0.65);
     border: 0;
   }
+  /* Inner-surface panels: use when you want to avoid the extra "chip" layer. */
+  .panel-inner {
+    @apply rounded-xl;
+    background-color: rgb(var(--color-bg-card-inner));
+    border: 0;
+  }
   .card-subtle {
     @apply rounded-xl p-3;
     background-color: rgb(var(--color-bg-card-chip) / 0.6);
+    border: 0;
+  }
+  .card-inner-flat {
+    @apply rounded-xl p-3;
+    background-color: rgb(var(--color-bg-card-inner));
     border: 0;
   }
 
@@ -258,6 +269,14 @@
   [data-theme="light"] .card-subtle {
     background-color: rgb(var(--color-bg-card-chip));
     border: 1px solid rgb(var(--color-border-card-chip) / 0.35);
+  }
+  [data-theme="light"] .panel-inner {
+    background-color: rgb(var(--color-bg-card-inner));
+    border: 1px solid rgb(var(--color-border-card-chip) / 0.30);
+  }
+  [data-theme="light"] .card-inner-flat {
+    background-color: rgb(var(--color-bg-card-inner));
+    border: 1px solid rgb(var(--color-border-card-chip) / 0.30);
   }
 
   @keyframes comment-attn {

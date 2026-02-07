@@ -2,11 +2,11 @@
   color-scheme: light;
 
   /* Backgrounds */
-  /* Keep the same "dark -> brighter -> brightest" surface progression as the dark themes. */
-  --color-bg-default: 224 223 222; /* Page backdrop (darkest surface) */
-  --color-bg-card-outer: 233 232 231; /* Outer card */
-  --color-bg-card-inner: 240 239 238; /* Inner card */
-  --color-bg-card-chip: 252 252 251; /* Innermost surfaces (chips/panels/inputs) */
+  /* Light: near-white page with clearly separated card layers. */
+  --color-bg-default: 252 251 250; /* Page backdrop (near-white) */
+  --color-bg-card-outer: 244 243 242; /* Outer card */
+  --color-bg-card-inner: 234 233 232; /* Inner card */
+  --color-bg-card-chip: 255 255 255; /* Innermost surfaces (chips/panels/inputs) */
 
   /* Text */
   --color-text-normal: 12 10 9; /* Original zinc-50 (dark) */

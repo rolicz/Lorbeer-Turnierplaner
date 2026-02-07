@@ -182,7 +182,7 @@ function CommentCard({
   return (
     <div
       id={`comment-${c.id}`}
-      className={"panel p-3 scroll-mt-28 sm:scroll-mt-32 " + (flash ? "comment-attn" : "")}
+      className={"panel-subtle p-3 scroll-mt-28 sm:scroll-mt-32 " + (flash ? "comment-attn" : "")}
       style={
         isEditing || isPinned
           ? {
@@ -639,8 +639,7 @@ export default function TournamentCommentsCard({
   }
 
   return (
-    <CollapsibleCard title="Comments" defaultOpen={true} variant="inner">
-      <div className="space-y-3">
+    <CollapsibleCard title="Comments" defaultOpen={true} variant="outer" bodyVariant="none" bodyClassName="space-y-3">
         {commentsQ.isLoading ? (
           <div className="panel-subtle px-3 py-2 text-sm text-text-muted">Loading comments…</div>
         ) : null}
@@ -731,7 +730,7 @@ export default function TournamentCommentsCard({
             const h = matchHeaderMeta(b.matchId);
             const addOpenForMatch = canWrite && sameScope(addTarget, { kind: "match", matchId: b.matchId });
             return (
-              <div key={b.matchId} id={`comments-block-match-${b.matchId}`} className="card-subtle">
+              <div key={b.matchId} id={`comments-block-match-${b.matchId}`} className="card-inner-flat">
                 <div className="flex items-start justify-between gap-3">
                   <div className="text-sm font-semibold">{h?.title ?? `Match #${b.matchId}`}</div>
                   <div className="flex items-center gap-2">
@@ -844,7 +843,6 @@ export default function TournamentCommentsCard({
             );
           })}
         </div>
-      </div>
     </CollapsibleCard>
   );
 }

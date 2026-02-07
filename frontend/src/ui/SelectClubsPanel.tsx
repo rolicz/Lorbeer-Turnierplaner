@@ -82,6 +82,7 @@ export default function SelectClubsPanel({
   extraBottom,
   wrap = true,
   showSelectedMeta = false,
+  wrapClassName,
 }: {
   clubs: Club[];
   disabled: boolean;
@@ -99,6 +100,8 @@ export default function SelectClubsPanel({
   wrap?: boolean;
   /** Show league + stars for currently selected clubs (read-only). */
   showSelectedMeta?: boolean;
+  /** Wrapper class for the CollapsibleCard when `wrap` is true. */
+  wrapClassName?: string;
 }) {
   const clubsSorted = useMemo(() => sortClubsForDropdown(clubs), [clubs]);
 
@@ -311,7 +314,7 @@ export default function SelectClubsPanel({
   if (!wrap) return body;
 
   return (
-    <CollapsibleCard title="Select Clubs" defaultOpen={defaultOpen} className="panel-subtle">
+    <CollapsibleCard title="Select Clubs" defaultOpen={defaultOpen} className={wrapClassName ?? "panel-subtle"}>
       {body}
     </CollapsibleCard>
   );

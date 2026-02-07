@@ -117,7 +117,7 @@ export default function MatchCommentsPanel({
       <CollapsibleCard
         title="Match comments"
         defaultOpen={false}
-        className="panel-subtle"
+        className="panel-inner"
         right={
           matchComments.length ? (
             <span className="text-xs text-text-muted">{matchComments.length}</span>
@@ -138,7 +138,7 @@ export default function MatchCommentsPanel({
                 key={c.id}
                 id={`match-comment-${c.id}`}
                 className={
-                  "panel p-3 scroll-mt-28 sm:scroll-mt-32 " + (flashId === c.id ? "comment-attn" : "")
+                  "panel-subtle p-3 scroll-mt-28 sm:scroll-mt-32 " + (flashId === c.id ? "comment-attn" : "")
                 }
               >
                 <div className="text-xs font-semibold text-text-normal">{authorLabel(c.author_player_id)}</div>

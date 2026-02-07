@@ -32,9 +32,10 @@
 
   /* Backgrounds */
   --color-bg-default: 12 12 15; /* Shifted darker for more usable dark shades */
-  --color-bg-card-outer: 5 5 7;
-  --color-bg-card-inner: 18 18 20;
-  --color-bg-card-chip: 30 30 33;
+  /* Increase contrast between the surface levels (outer -> inner -> chip). */
+  --color-bg-card-outer: 4 4 6;
+  --color-bg-card-inner: 20 20 24;
+  --color-bg-card-chip: 42 42 47;
 
   /* Text */
   --color-text-normal: 250 250 250; /* zinc-50 */
@@ -84,4 +85,3 @@
   --color-gradient-bronze-from: 181 120 85;
   --color-gradient-bronze-to: 252 211 77;
 }
-

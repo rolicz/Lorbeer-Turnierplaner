@@ -79,7 +79,7 @@ export default function MatchList({
         return (
           <div
             key={m.id}
-            className={`relative overflow-hidden rounded-xl border px-4 py-3 transition-colors ${pal.wrap} ${colorMatch(m.state)}`}
+            className={`relative overflow-hidden rounded-xl border px-3 py-2.5 transition-colors ${pal.wrap} ${colorMatch(m.state)}`}
           >
             <div className={`absolute left-0 top-0 h-full w-2 ${pal.bar}`} />
 
@@ -99,7 +99,7 @@ export default function MatchList({
             >
               {/* Top row: state + leg + move arrows (scheduled only) */}
               <SectionHeader
-                className="mb-2"
+                className="mb-1.5"
                 left={
                   <div className="flex items-center gap-2">
                     <Pill className={`min-w-24 ${statusMatchPill(m.state)}`}>{m.state}</Pill>
@@ -161,7 +161,7 @@ export default function MatchList({
               />
 
               {/* Row 1: players + centered score */}
-              <div className="mt-3 grid grid-cols-[1fr_auto_1fr] items-center gap-3">
+              <div className="mt-2 grid grid-cols-[1fr_auto_1fr] items-center gap-3">
                 {/* Team A players */}
                 <div className="min-w-0">
                   <div
@@ -217,7 +217,7 @@ export default function MatchList({
               </div>
 
               {/* Row 2: clubs (like Current Game) */}
-              <div className="mt-2 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-start gap-3 text-xs text-text-muted">
+              <div className="mt-1.5 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-start gap-3 text-xs text-text-muted">
                 <div className="min-w-0 whitespace-normal break-words leading-tight">{aClubParts.name}</div>
                 <div />
                 <div className="min-w-0 text-right whitespace-normal break-words leading-tight">{bClubParts.name}</div>

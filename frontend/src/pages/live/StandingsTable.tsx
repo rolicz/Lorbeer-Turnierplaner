@@ -111,9 +111,9 @@ function Arrow({ delta }: { delta: number | null }) {
 
 function MobileRow({ r, rank, delta, isLeader }: { r: Row; rank: number; delta: number | null; isLeader: boolean }) {
   return (
-    <div className="relative panel px-3 py-2">
+    <div className="panel-subtle relative overflow-hidden px-3 py-2">
       {/* leader bar */}
-      {isLeader && <div className="absolute left-0 top-0 h-full w-1 rounded-l-xl bg-status-bar-green" />}
+      {isLeader && <div className="absolute inset-y-0 left-0 w-1 bg-status-bar-green" />}
 
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
@@ -122,9 +122,7 @@ function MobileRow({ r, rank, delta, isLeader }: { r: Row; rank: number; delta: 
             <div className="w-5">
               <Arrow delta={delta} />
             </div>
-            <div className="min-w-0 truncate font-medium">
-              <span className="panel-subtle inline-flex items-center rounded-lg px-2 py-1">{r.name}</span>
-            </div>
+            <div className="min-w-0 truncate font-medium text-text-normal">{r.name}</div>
           </div>
           <div className="mt-1 text-xs text-text-muted font-mono tabular-nums">
             {r.played}P · {r.wins}-{r.draws}-{r.losses} · GD {r.gd} (+{r.gf}/-{r.ga})
@@ -199,7 +197,6 @@ export default function StandingsTable({
                   key={r.playerId}
                   className={[
                     "relative",
-                    idx % 2 === 0 ? "bg-table-row-a" : "bg-table-row-b",
                     "border-b border-border-card-inner",
                   ].join(" ")}
                 >
@@ -216,7 +213,7 @@ export default function StandingsTable({
                     <Arrow delta={delta} />
                   </td>
                   <td className="py-2 pr-1.5 font-sans font-medium min-w-0">
-                    <span className="panel-subtle inline-flex min-w-0 max-w-[220px] items-center rounded-lg px-1.5 py-0.5 truncate lg:max-w-[320px]">
+                    <span className="inline-flex min-w-0 max-w-[220px] items-center truncate lg:max-w-[320px]">
                       {r.name}
                     </span>
                   </td>

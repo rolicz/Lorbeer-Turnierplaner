@@ -291,7 +291,7 @@ export default function CurrentGameSection({
       </div>
 
       {/* Match card */}
-      <div className="card-subtle">
+      <div className="panel-subtle p-3">
         {/* Row 1: Leg, match number, state pill */}
         <div className="mt-1 flex items-center justify-between gap-3">
           <div className="text-[11px] sm:text-xs text-text-muted">Match #{match.order_index + 1}</div>
@@ -420,6 +420,7 @@ export default function CurrentGameSection({
               queueAutosave({ bClub: v });
             }}
             defaultOpen={false}
+            wrapClassName="panel-inner"
           />
         )}
 

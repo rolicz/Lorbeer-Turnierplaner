@@ -9,6 +9,8 @@ export default function CollapsibleCard({
   children,
   className = "",
   variant = "none",
+  bodyVariant,
+  bodyClassName = "",
 }: {
   title: React.ReactNode;
   defaultOpen?: boolean;
@@ -17,12 +19,28 @@ export default function CollapsibleCard({
   children: React.ReactNode | ((open: boolean) => React.ReactNode);
   className?: string;
   variant?: "outer" | "inner" | "none";
+  bodyVariant?: "none" | "inner";
+  bodyClassName?: string;
 }) {
   const [open, setOpen] = useState(defaultOpen);
   const variantCls =
     variant === "outer" ? "card-outer" : variant === "inner" ? "card-inner" : "";
   const pad = variant === "none" ? "px-3 py-2.5" : "";
   const bodyPad = variant === "none" ? "px-3 pb-3" : "";
+
+  const resolvedBodyVariant: "none" | "inner" =
+    bodyVariant ?? (variant === "outer" ? "inner" : "none");
+
+  const innerBodyCls =
+    resolvedBodyVariant === "inner"
+      ? variant === "outer"
+        ? // For outer cards: make the body a lighter "inner" surface without double padding.
+          // We "bleed" the body to the outer edges, keep the header on the darker surface.
+          "bg-bg-card-inner border-t border-border-card-inner/45 -mx-3 -mb-3 rounded-b-2xl p-3"
+        : "card-inner"
+      : "";
+
+  const bodyTopGap = variant === "outer" && resolvedBodyVariant === "inner" ? "" : "mt-3";
 
   return (
     <section className={cn(variantCls, className)}>
@@ -48,8 +66,16 @@ export default function CollapsibleCard({
       </button>
 
       {open && (
-        <div className={cn("mt-3", bodyPad)}>
-          {typeof children === "function" ? children(open) : children}
+        <div className={cn(bodyTopGap, bodyPad)}>
+          {resolvedBodyVariant === "inner" ? (
+            <div className={cn(innerBodyCls, bodyClassName)}>
+              {typeof children === "function" ? children(open) : children}
+            </div>
+          ) : (
+            <div className={cn(bodyClassName)}>
+              {typeof children === "function" ? children(open) : children}
+            </div>
+          )}
         </div>
       )}
     </section>

@@ -3,9 +3,10 @@
 
   /* Backgrounds */
   --color-bg-default: 16 24 19; /* Darker page backdrop for more surface separation */
-  --color-bg-card-outer: 14 20 16; /* Original zinc-950 */
-  --color-bg-card-inner: 20 30 24; /* Original zinc-900 */
-  --color-bg-card-chip: 31 46 37; /* Original zinc-800 */
+  /* Increase contrast between the surface levels (outer -> inner -> chip). */
+  --color-bg-card-outer: 10 16 12;
+  --color-bg-card-inner: 24 38 29;
+  --color-bg-card-chip: 42 64 50;
 
   /* Text */
   --color-text-normal: 248 250 249; /* Original zinc-50 */
