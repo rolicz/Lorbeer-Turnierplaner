@@ -99,3 +99,32 @@ class MatchSide(SQLModel, table=True):
 
     match: "Match" = Relationship(back_populates="sides")
     players: List["Player"] = Relationship(link_model=MatchSidePlayer)
+
+
+class Comment(SQLModel, table=True):
+    """
+    Tournament comments.
+    - match_id = NULL => tournament-wide comment
+    - match_id set => comment tied to a specific match (stable even if order_index changes)
+    - author_player_id = NULL => "General"
+    """
+    id: Optional[int] = Field(default=None, primary_key=True)
+
+    tournament_id: int = Field(foreign_key="tournament.id", index=True)
+    match_id: Optional[int] = Field(default=None, foreign_key="match.id", index=True)
+
+    author_player_id: Optional[int] = Field(default=None, foreign_key="player.id", index=True)
+    body: str
+
+    created_at: dt.datetime = Field(default_factory=dt.datetime.utcnow, index=True)
+    updated_at: dt.datetime = Field(default_factory=dt.datetime.utcnow, index=True)
+
+
+class TournamentPinnedComment(SQLModel, table=True):
+    """
+    Keep pin state in a dedicated table to avoid altering existing Tournament rows
+    (this project uses create_all() without migrations).
+    """
+    tournament_id: int = Field(foreign_key="tournament.id", primary_key=True)
+    comment_id: Optional[int] = Field(default=None, foreign_key="comment.id")
+    updated_at: dt.datetime = Field(default_factory=dt.datetime.utcnow)

@@ -1,5 +1,5 @@
-export type MatchState = "scheduled" | "playing" | "finished";
-export type TournamentStatus = "draft" | "live" | "done";
+import type { MatchState, TournamentStatus } from "../api/types";
+export type { MatchState, TournamentStatus } from "../api/types";
 
 // --- Pills ---
 // Default is used for "finished" or other neutral states

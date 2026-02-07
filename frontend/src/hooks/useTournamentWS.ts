@@ -220,6 +220,7 @@ function shouldIgnoreEventName(eventName: any) {
 
 function invalidateTournamentRelated(qc: QueryClient, tid: number) {
   qc.invalidateQueries({ queryKey: ["tournament", tid] });
+  qc.invalidateQueries({ queryKey: ["comments", tid] });
   qc.invalidateQueries({ queryKey: ["tournaments"] });
   qc.invalidateQueries({ queryKey: ["tournaments", "live"] });
 
@@ -302,4 +303,3 @@ export function useAnyTournamentWS() {
     };
   }, [qc, url]);
 }
-

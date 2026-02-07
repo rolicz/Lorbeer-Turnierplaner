@@ -5,6 +5,7 @@ import type { Club, Match, MatchSide } from "../../api/types";
 import { StarsFA } from "../../ui/primitives/StarsFA";
 import { Pill, statusMatchPill } from "../../ui/primitives/Pill";
 import SelectClubsPanel from "../../ui/SelectClubsPanel";
+import MatchCommentsPanel from "./MatchCommentsPanel";
 import {
   GoalStepper,
   clubLabelPartsById,
@@ -36,6 +37,7 @@ type PatchPayload = {
 
 export default function CurrentGameSection({
   status,
+  tournamentId,
   match,
   clubs,
   canControl,
@@ -44,6 +46,7 @@ export default function CurrentGameSection({
   onSwapSides,
 }: {
   status: "draft" | "live" | "done";
+  tournamentId?: number | null;
   match: Match | null;
   clubs: Club[];
   canControl: boolean;
@@ -56,6 +59,14 @@ export default function CurrentGameSection({
 
   if (status === "done" || !match) return null;
 
+  const tidComments = useMemo(() => {
+    if (tournamentId != null && Number.isFinite(tournamentId) && tournamentId > 0) return tournamentId;
+    const anyMatch: any = match as any;
+    const raw = anyMatch?.tournament_id ?? anyMatch?.tournamentId ?? null;
+    const n = typeof raw === "string" ? Number(raw) : raw;
+    return typeof n === "number" && Number.isFinite(n) && n > 0 ? n : NaN;
+  }, [match, tournamentId]);
+
   const a = sideBy(match, "A");
   const b = sideBy(match, "B");
 
@@ -64,6 +75,17 @@ export default function CurrentGameSection({
 
   const aInline = useMemo(() => namesInline(a), [a]);
   const bInline = useMemo(() => namesInline(b), [b]);
+
+  const playersInMatch = useMemo(() => {
+    const out: { id: number; display_name: string }[] = [];
+    const seen = new Set<number>();
+    for (const p of [...(a?.players ?? []), ...(b?.players ?? [])]) {
+      if (seen.has(p.id)) continue;
+      seen.add(p.id);
+      out.push(p);
+    }
+    return out;
+  }, [a, b]);
 
   const [aClub, setAClub] = useState<number | null>(a?.club_id ?? null);
   const [bClub, setBClub] = useState<number | null>(b?.club_id ?? null);
@@ -372,33 +394,42 @@ export default function CurrentGameSection({
         )}
       </div>
 
-	      {/* Filter + Clubs */}
-	      {canControl && (
-	        <SelectClubsPanel
-	          clubs={clubs}
-	          disabled={busy || !canControl}
-	          aLabel={`${aInline} — club`}
-	          bLabel={`${bInline} — club`}
-	          aClub={aClub}
-	          bClub={bClub}
-	          onChangeClubs={(aId, bId) => {
-	            setAClub(aId);
-	            setBClub(bId);
-	            queueAutosave({ aClub: aId, bClub: bId });
-	          }}
-	          onChangeAClub={(v) => {
-	            if (v === aClub) return;
-	            setAClub(v);
-	            queueAutosave({ aClub: v });
-	          }}
-	          onChangeBClub={(v) => {
-	            if (v === bClub) return;
-	            setBClub(v);
-	            queueAutosave({ bClub: v });
-	          }}
-	          defaultOpen={false}
-	        />
-	      )}
-	    </div>
-	  );
+      <div className="mt-3 space-y-2">
+        {/* Filter + clubs */}
+        {canControl && (
+          <SelectClubsPanel
+            clubs={clubs}
+            disabled={busy || !canControl}
+            aLabel={`${aInline} — club`}
+            bLabel={`${bInline} — club`}
+            aClub={aClub}
+            bClub={bClub}
+            onChangeClubs={(aId, bId) => {
+              setAClub(aId);
+              setBClub(bId);
+              queueAutosave({ aClub: aId, bClub: bId });
+            }}
+            onChangeAClub={(v) => {
+              if (v === aClub) return;
+              setAClub(v);
+              queueAutosave({ aClub: v });
+            }}
+            onChangeBClub={(v) => {
+              if (v === bClub) return;
+              setBClub(v);
+              queueAutosave({ bClub: v });
+            }}
+            defaultOpen={false}
+          />
+        )}
+
+        <MatchCommentsPanel
+          tournamentId={tidComments}
+          matchId={match.id}
+          canWrite={canControl}
+          playersInMatch={playersInMatch}
+        />
+      </div>
+    </div>
+  );
 }

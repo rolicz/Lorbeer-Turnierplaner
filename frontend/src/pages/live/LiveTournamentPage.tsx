@@ -31,6 +31,7 @@ import MatchList from "./MatchList";
 import MatchEditorSheet from "./MatchEditorSheet";
 import StandingsTable from "./StandingsTable";
 import CurrentGameSection from "./CurrentGameSection";
+import TournamentCommentsCard from "./TournamentCommentsCard";
 import { shuffle, sideBy } from "../../helpers";
 
 import { fmtDate } from "../../utils/format";
@@ -527,9 +528,10 @@ export default function LiveTournamentPage() {
 
             {/* Current game: show even in draft (next scheduled) */}
             {(status === "draft" || status === "live") && currentMatch && (
-              <CollapsibleCard title="Current game" defaultOpen={role === "reader" ? false : true} variant="inner">
+              <CollapsibleCard title="Current game" defaultOpen={true} variant="inner">
                 <CurrentGameSection
                   status={status}
+                  tournamentId={tid}
                   match={currentMatch}
                   clubs={clubs}
                   canControl={isEditorOrAdmin && !isDone}
@@ -558,7 +560,7 @@ export default function LiveTournamentPage() {
               <StandingsTable wrap={false} matches={matchesSorted} players={tQ.data.players} />
             </CollapsibleCard>
 
-            <CollapsibleCard title="Matches" defaultOpen={true} variant="inner">
+            <CollapsibleCard title="Matches" defaultOpen={!isDone} variant="inner">
               <MatchList
                 matches={matchesSorted}
                 clubs={clubs}
@@ -587,6 +589,17 @@ export default function LiveTournamentPage() {
                 }}
               />
             </CollapsibleCard>
+
+            {tid && (
+              <TournamentCommentsCard
+                tournamentId={tid}
+                matches={matchesSorted}
+                clubs={clubs}
+                players={tQ.data?.players ?? []}
+                canWrite={isEditorOrAdmin}
+                canDelete={isAdmin}
+              />
+            )}
 
             {!isEditorOrAdmin && (
               <div className="panel-subtle px-3 py-2 text-sm text-text-muted">

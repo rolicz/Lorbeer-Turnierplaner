@@ -48,6 +48,21 @@ export type Match = {
   sides: MatchSide[];
 };
 
+export type Comment = {
+  id: number;
+  tournament_id: number;
+  match_id: number | null;
+  author_player_id: number | null;
+  body: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type TournamentCommentsResponse = {
+  pinned_comment_id: number | null;
+  comments: Comment[];
+};
+
 export type TournamentSummary = {
   id: number;
   name: string;
@@ -183,5 +198,4 @@ export type StatsPlayersResponse = {
   players: StatsPlayerRow[];
   lastN: number;
 };
-
 

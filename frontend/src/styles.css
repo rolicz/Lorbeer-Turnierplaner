@@ -272,6 +272,37 @@
     border: 1px solid rgb(var(--color-border-card-chip) / 0.35);
   }
 
+  @keyframes comment-attn {
+    0% {
+      transform: scale(1);
+      box-shadow: 0 0 0 0 rgb(var(--color-accent) / 0);
+    }
+    25% {
+      transform: scale(1.01);
+      box-shadow: 0 0 0 3px rgb(var(--color-accent) / 0.35);
+    }
+    55% {
+      transform: scale(1.005);
+      box-shadow: 0 0 0 2px rgb(var(--color-accent) / 0.22);
+    }
+    100% {
+      transform: scale(1);
+      box-shadow: 0 0 0 0 rgb(var(--color-accent) / 0);
+    }
+  }
+
+  .comment-attn {
+    animation: comment-attn 850ms ease-in-out 2;
+    will-change: transform, box-shadow;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .comment-attn {
+      animation: none;
+      box-shadow: 0 0 0 2px rgb(var(--color-accent) / 0.20);
+    }
+  }
+
   .delta-up { color: rgb(var(--delta-up)); }
   .delta-down { color: rgb(var(--delta-down)); }
   .live-dot { background-color: rgb(var(--live-indicator)); }
