@@ -75,7 +75,7 @@ def stats_players(
 
     # Current cup owner (for wreath overlay in frontend)
     cup_state = compute_cup(s)
-    cup_owner_player_id = int(cup_state.owner_id) if cup_state and cup_state.owner_id else None
+    cup_owner_player_id = int(cup_state.owner_id) if cup_state and cup_state.owner_id is not None else None
 
     # Build per-player rows
     player_rows: list[dict[str, Any]] = []

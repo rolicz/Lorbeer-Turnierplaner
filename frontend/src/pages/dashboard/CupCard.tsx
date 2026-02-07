@@ -3,7 +3,7 @@ import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import Button from "../../ui/primitives/Button";
 import { getCup } from "../../api/cup.api";
-import { useAnyTournamentWS } from "../../hooks/useTournamentWS";
+import { cupColorVarForKey, rgbFromCssVar } from "../../cupColors";
 
 import { Pill, pillDate } from "../../ui/primitives/Pill";
 import SectionHeader from "../../ui/primitives/SectionHeader";
@@ -17,17 +17,16 @@ function fmtDate(d?: string | null) {
   }
 }
 
-export default function CupCard() {
-  const q = useQuery({ queryKey: ["cup"], queryFn: getCup });
+export default function CupCard({ cupKey }: { cupKey: string }) {
+  const q = useQuery({ queryKey: ["cup", cupKey], queryFn: () => getCup(cupKey) });
   const [showAll, setShowAll] = useState(false);
+  const varName = cupColorVarForKey(cupKey);
 
   const history = q.data?.history ?? [];
   const shown = useMemo(() => {
     if (showAll) return history.slice().reverse(); // newest first
     return history.slice(-8).reverse();
   }, [history, showAll]);
-
-  useAnyTournamentWS();
 
   return (
     <div>
@@ -39,7 +38,13 @@ export default function CupCard() {
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
               <div className="text-xs text-text-muted">Current owner</div>
-              <div className="truncate text-xl font-semibold accent">{q.data.owner.display_name}</div>
+              {q.data.owner ? (
+                <div className="truncate text-xl font-semibold" style={{ color: rgbFromCssVar(varName) }}>
+                  {q.data.owner.display_name}
+                </div>
+              ) : (
+                <div className="truncate text-xl font-semibold text-text-muted">No owner yet</div>
+              )}
             </div>
             <div className="flex items-center gap-2">
               <span className="relative inline-flex group">
@@ -51,10 +56,28 @@ export default function CupCard() {
                   <i className="fa fa-info" aria-hidden="true" />
                 </Button>
                 <div className="pointer-events-none absolute right-0 top-full z-20 mt-2 w-72 origin-top-right rounded-xl border border-border-card-chip bg-bg-card-outer/95 p-3 text-xs text-text-muted opacity-0 shadow-lg transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+                  <div className="flex items-center gap-2">
+                    <span
+                      className="h-2 w-2 rounded-full"
+                      style={{ backgroundColor: rgbFromCssVar(varName) }}
+                      aria-hidden="true"
+                    />
+                    <span className="text-text-normal">{q.data.cup.name}</span>
+                    {q.data.cup.since_date ? (
+                      <span className="text-text-muted">from {fmtDate(q.data.cup.since_date)}</span>
+                    ) : (
+                      <span className="text-text-muted">all-time</span>
+                    )}
+                  </div>
+                  <div className="mt-2">
                   Cup transfers only when the current owner participates in a{" "}
                   <span className="text-text-normal">done</span> tournament and does not win it.
                   <br />
                   Draw for first place does not transfer.
+                  </div>
+                  <div className="mt-2 text-[11px] text-text-muted">
+                    Config date format: <span className="text-text-normal">YYYY-MM-DD</span>
+                  </div>
                 </div>
               </span>
             </div>
@@ -74,6 +97,9 @@ export default function CupCard() {
                 </span>
               </div>
             )}
+            {q.data.cup.since_date ? (
+              <div className="mt-1 text-xs text-text-muted">From: {fmtDate(q.data.cup.since_date)}</div>
+            ) : null}
           </div>
 
           <div className="flex items-center justify-between">
@@ -115,7 +141,9 @@ export default function CupCard() {
                       <div className="text-sm text-text-normal">
                         <span className="text-text-muted">{h.from.display_name}</span>{" "}
                         <span className="text-text-muted">→</span>{" "}
-                        <span className="accent font-semibold">{h.to.display_name}</span>
+                        <span className="font-semibold" style={{ color: rgbFromCssVar(varName) }}>
+                          {h.to.display_name}
+                        </span>
                       </div>
                     }
                   />

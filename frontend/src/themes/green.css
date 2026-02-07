@@ -42,13 +42,13 @@
   --color-status-border-default: 70 96 78; /* zinc-600 */
   --color-status-bg-green: 17 94 89; /* emerald-800 */
   --color-status-text-green: 204 251 241; /* emerald-100 */
-  --color-status-border-green: 20 184 166; /* emerald-500 */
+  --color-status-border-green: 34 197 94; /* green-500 */
   --color-status-bg-blue: 7 59 90; /* sky-900 */
   --color-status-text-blue: 224 242 254; /* sky-100 */
   --color-status-border-blue: 56 189 248; /* sky-500 */
 
   --color-status-bar-default: 70 96 78; /* zinc-600 */
-  --color-status-bar-green: 20 184 166; /* emerald-500 */
+  --color-status-bar-green: 34 197 94; /* green-500 */
   --color-status-bar-blue: 56 189 248; /* sky-500 */
 
   /* Gradients */

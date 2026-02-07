@@ -1,5 +1,7 @@
 import { apiFetch } from "./client";
 
+export type CupDef = { key: string; name: string; since_date: string | null };
+
 export type CupOwner = { id: number; display_name: string };
 
 export type CupHistoryItem = {
@@ -12,7 +14,8 @@ export type CupHistoryItem = {
 };
 
 export type CupResponse = {
-  owner: CupOwner;
+  cup: CupDef;
+  owner: CupOwner | null;
   streak: {
     tournaments_participated: number;
     since: {
@@ -24,6 +27,11 @@ export type CupResponse = {
   history: CupHistoryItem[];
 };
 
-export function getCup(): Promise<CupResponse> {
-  return apiFetch(`/cup`, { method: "GET" });
+export function listCupDefs(): Promise<{ cups: CupDef[] }> {
+  return apiFetch(`/cup/defs`, { method: "GET" });
+}
+
+export function getCup(key?: string | null): Promise<CupResponse> {
+  const q = key ? `?key=${encodeURIComponent(key)}` : "";
+  return apiFetch(`/cup${q}`, { method: "GET" });
 }

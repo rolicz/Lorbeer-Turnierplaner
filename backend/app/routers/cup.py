@@ -4,20 +4,39 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlmodel import Session
 
 from ..db import get_session
+from ..cup_defs import get_cup_def, load_cup_defs
 from ..services.cup import compute_cup
 
 router = APIRouter(prefix="/cup", tags=["cup"])
 
+@router.get("/defs")
+def list_cup_defs():
+    defs = load_cup_defs()
+    return {
+        "cups": [
+            {
+                "key": d.key,
+                "name": d.name,
+                "since_date": d.since_date.isoformat() if d.since_date else None,
+            }
+            for d in defs
+        ]
+    }
+
 
 @router.get("")
-def get_cup(request: Request, s: Session = Depends(get_session)):
+def get_cup(request: Request, key: str | None = None, s: Session = Depends(get_session)):
     try:
-        res = compute_cup(s)
+        d = get_cup_def(key)
+        res = compute_cup(s, since_date=d.since_date)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
+    except KeyError:
+        raise HTTPException(status_code=404, detail="Cup not found")
 
     return {
-        "owner": {"id": res.owner_id, "display_name": res.owner_name},
+        "cup": {"key": d.key, "name": d.name, "since_date": d.since_date.isoformat() if d.since_date else None},
+        "owner": {"id": res.owner_id, "display_name": res.owner_name} if res.owner_id else None,
         "streak": {
             "tournaments_participated": res.streak_tournaments_participated,
             "since": {

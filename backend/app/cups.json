@@ -1,0 +1,14 @@
+{
+  "cups": [
+    {
+      "key": "default",
+      "name": "Lorbeerkranz",
+      "since_date": null
+    },
+    {
+      "key": "bauernkranz",
+      "name": "Bauernkranz",
+      "since_date": "2026-01-05"
+    }
+  ]
+}

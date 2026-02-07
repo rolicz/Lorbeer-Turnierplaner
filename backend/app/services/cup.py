@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import datetime as dt
 from typing import Optional
 
 from sqlmodel import Session, select
@@ -23,8 +24,8 @@ class CupTransfer:
 
 @dataclass(frozen=True)
 class CupResult:
-    owner_id: int
-    owner_name: str
+    owner_id: int | None
+    owner_name: str | None
     streak_tournaments_participated: int
     streak_since_tournament_id: Optional[int]
     streak_since_tournament_name: Optional[str]
@@ -39,7 +40,7 @@ def _load_player(session: Session, player_id: int) -> Player:
     return p
 
 
-def compute_cup(session: Session) -> CupResult:
+def compute_cup(session: Session, *, since_date: dt.date | None = None) -> CupResult:
     """
     Cup owner changes ONLY by TOURNAMENT WINNER (player standings).
 
@@ -61,9 +62,10 @@ def compute_cup(session: Session) -> CupResult:
     streak_since_tname: Optional[str] = None
     streak_since_date: Optional[str] = None
 
-    tournaments = session.exec(
-        select(Tournament).order_by(Tournament.date, Tournament.created_at, Tournament.id)
-    ).all()
+    q = select(Tournament)
+    if since_date is not None:
+        q = q.where(Tournament.date >= since_date)
+    tournaments = session.exec(q.order_by(Tournament.date, Tournament.created_at, Tournament.id)).all()
 
     for t in tournaments:
         if t.status != "done":
@@ -94,18 +96,43 @@ def compute_cup(session: Session) -> CupResult:
             # invalid decider data -> treat as draw
             winner_id = None
 
-        # draw / no unique winner => cup stays, streak increments (owner participated)
+        # draw / no unique winner
         if winner_id is None:
+            # If the cup has no owner yet (e.g. new cup starting at since_date), draws do nothing.
+            if owner is None:
+                continue
+            # Cup stays, streak increments (owner participated).
             streak_count += 1
-            # if streak not started yet (initial owner never "took" cup in history), set anchor to first counted tournament
             if streak_since_tid is None:
                 streak_since_tid = t.id
                 streak_since_tname = t.name
                 streak_since_date = str(t.date)
             continue
 
+        # unique winner exists, but cup has no owner yet => initial acquire
+        if owner is None:
+            new_owner = _load_player(session, winner_id)
+            history.append(
+                CupTransfer(
+                    tournament_id=t.id,
+                    tournament_name=t.name,
+                    date=str(t.date),
+                    from_player_id=0,
+                    from_player_name="—",
+                    to_player_id=new_owner.id,
+                    to_player_name=new_owner.display_name,
+                    streak_duration=0,
+                )
+            )
+            owner = new_owner
+            streak_count = 1
+            streak_since_tid = t.id
+            streak_since_tname = t.name
+            streak_since_date = str(t.date)
+            continue
+
         # unique winner exists
-        if owner is not None and winner_id == owner.id:
+        if winner_id == owner.id:
             # owner won => cup stays, streak increments
             streak_count += 1
             if streak_since_tid is None:
@@ -122,8 +149,8 @@ def compute_cup(session: Session) -> CupResult:
                 tournament_id=t.id,
                 tournament_name=t.name,
                 date=str(t.date),
-                from_player_id=owner.id if owner is not None else -1,
-                from_player_name=owner.display_name if owner is not None else "",
+                from_player_id=owner.id,
+                from_player_name=owner.display_name,
                 to_player_id=new_owner.id,
                 to_player_name=new_owner.display_name,
                 streak_duration=streak_count,
@@ -138,11 +165,11 @@ def compute_cup(session: Session) -> CupResult:
         streak_since_date = str(t.date)
 
     return CupResult(
-        owner_id=owner.id,
-        owner_name=owner.display_name,
-        streak_tournaments_participated=streak_count,
-        streak_since_tournament_id=streak_since_tid,
-        streak_since_tournament_name=streak_since_tname,
-        streak_since_date=streak_since_date,
+        owner_id=owner.id if owner is not None else None,
+        owner_name=owner.display_name if owner is not None else None,
+        streak_tournaments_participated=streak_count if owner is not None else 0,
+        streak_since_tournament_id=streak_since_tid if owner is not None else None,
+        streak_since_tournament_name=streak_since_tname if owner is not None else None,
+        streak_since_date=streak_since_date if owner is not None else None,
         history=history,
     )

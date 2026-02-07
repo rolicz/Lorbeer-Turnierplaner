@@ -4,8 +4,11 @@ services:
     volumes:
       - ./backend/data:/data
       - ./backend/secrets.json:/app/secrets.json:ro
+      # Optional: external cup config (override path via env CUPS_CONFIG_PATH)
+      - ./backend/cups.json:/data/cups.json:ro
     environment:
       DB_URL: "sqlite:////data/app.db"
+      CUPS_CONFIG_PATH: "/data/cups.json"
     expose:
       - "8001"
 
