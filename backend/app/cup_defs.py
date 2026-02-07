@@ -20,7 +20,7 @@ def _cups_path() -> Path:
     p = os.getenv("CUPS_CONFIG_PATH")
     if p:
         candidate = Path(p)
-        if candidate.exists():
+        if candidate.exists() and candidate.is_file():
             return candidate
     return Path(__file__).resolve().parent / "cups.json"
 
@@ -29,8 +29,6 @@ def load_cup_defs() -> list[CupDef]:
     p = _cups_path()
     if not p.exists():
         raise ValueError(f"cups config not found: {p}")
-    if p.is_dir():
-        raise ValueError(f"cups config path is a directory (expected a file): {p}")
     raw = json.loads(p.read_text(encoding="utf-8"))
     cups = raw.get("cups", [])
     out: list[CupDef] = []
