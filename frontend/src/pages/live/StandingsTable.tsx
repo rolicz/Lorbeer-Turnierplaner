@@ -171,20 +171,20 @@ export default function StandingsTable({
 
       {/* Desktop */}
       <div className="hidden sm:block overflow-x-auto">
-        <table className="min-w-[760px] w-full text-sm">
+        <table className="w-full table-auto text-sm">
           <thead className="text-text-muted">
             <tr className="border-b border-border-card-inner">
-              <th className="py-2 text-left font-medium w-10">#</th>
-              <th className="py-2 text-left font-medium w-10"></th>
-              <th className="py-2 text-left font-medium">Player</th>
-              <th className="py-2 text-right font-medium">P</th>
-              <th className="py-2 text-right font-medium">W</th>
-              <th className="py-2 text-right font-medium">D</th>
-              <th className="py-2 text-right font-medium">L</th>
-              <th className="py-2 text-right font-medium">+</th>
-              <th className="py-2 text-right font-medium">-</th>
-              <th className="py-2 text-right font-medium">GD</th>
-              <th className="py-2 text-right font-semibold">Pts</th>
+              <th className="py-2 pr-1.5 text-left font-medium w-10">#</th>
+              <th className="py-2 px-1.5 text-left font-medium w-8"></th>
+              <th className="py-2 pr-1.5 text-left font-medium">Player</th>
+              <th className="py-2 px-1.5 text-right font-medium">P</th>
+              <th className="py-2 px-1.5 text-right font-medium">W</th>
+              <th className="py-2 px-1.5 text-right font-medium">D</th>
+              <th className="py-2 px-1.5 text-right font-medium">L</th>
+              <th className="py-2 px-1.5 text-right font-medium">+</th>
+              <th className="py-2 px-1.5 text-right font-medium">-</th>
+              <th className="py-2 px-1.5 text-right font-medium">GD</th>
+              <th className="py-2 pl-1.5 text-right font-semibold">Pts</th>
             </tr>
           </thead>
 
@@ -205,27 +205,29 @@ export default function StandingsTable({
                 >
                   {/* leader bar */}
                   {isLeader && (
-                    <td className="relative py-2 pr-2 text-text-muted">
+                    <td className="relative py-2 pr-1.5 text-text-muted">
                       <div className="absolute left-0 top-0 h-full w-1 bg-status-bar-green" />
-                      <div className="pl-2">{idx + 1}</div>
+                      <div className="pl-1.5">{idx + 1}</div>
                     </td>
                   )}
-                  {!isLeader && <td className="py-2 pr-2 text-text-muted">{idx + 1}</td>}
+                  {!isLeader && <td className="py-2 pr-1.5 text-text-muted">{idx + 1}</td>}
 
-                  <td className="py-2">
+                  <td className="py-2 px-1.5">
                     <Arrow delta={delta} />
                   </td>
-                  <td className="py-2 font-sans font-medium">
-                    <span className="panel-subtle inline-flex items-center rounded-lg px-2 py-1">{r.name}</span>
+                  <td className="py-2 pr-1.5 font-sans font-medium min-w-0">
+                    <span className="panel-subtle inline-flex min-w-0 max-w-[220px] items-center rounded-lg px-1.5 py-0.5 truncate lg:max-w-[320px]">
+                      {r.name}
+                    </span>
                   </td>
-                  <td className="py-2 text-right">{r.played}</td>
-                  <td className="py-2 text-right">{r.wins}</td>
-                  <td className="py-2 text-right">{r.draws}</td>
-                  <td className="py-2 text-right">{r.losses}</td>
-                  <td className="py-2 text-right">{r.gf}</td>
-                  <td className="py-2 text-right">{r.ga}</td>
-                  <td className="py-2 text-right">{r.gd}</td>
-                  <td className="py-2 text-right font-sans font-semibold">{r.pts}</td>
+                  <td className="py-2 px-1.5 text-right">{r.played}</td>
+                  <td className="py-2 px-1.5 text-right">{r.wins}</td>
+                  <td className="py-2 px-1.5 text-right">{r.draws}</td>
+                  <td className="py-2 px-1.5 text-right">{r.losses}</td>
+                  <td className="py-2 px-1.5 text-right">{r.gf}</td>
+                  <td className="py-2 px-1.5 text-right">{r.ga}</td>
+                  <td className="py-2 px-1.5 text-right">{r.gd}</td>
+                  <td className="py-2 pl-1.5 text-right font-sans font-semibold">{r.pts}</td>
                 </tr>
               );
             })}
