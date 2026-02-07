@@ -15,11 +15,13 @@ class CupDef:
 
 
 def _cups_path() -> Path:
-    # If set, use an external (mounted) config file path.
+    # Prefer an external (mounted) config file path, but fall back to the bundled default
+    # if the path doesn't exist. This avoids hard-failing on fresh deployments.
     p = os.getenv("CUPS_CONFIG_PATH")
     if p:
-        return Path(p)
-    # Fallback: config committed with the backend code.
+        candidate = Path(p)
+        if candidate.exists():
+            return candidate
     return Path(__file__).resolve().parent / "cups.json"
 
 
@@ -27,6 +29,8 @@ def load_cup_defs() -> list[CupDef]:
     p = _cups_path()
     if not p.exists():
         raise ValueError(f"cups config not found: {p}")
+    if p.is_dir():
+        raise ValueError(f"cups config path is a directory (expected a file): {p}")
     raw = json.loads(p.read_text(encoding="utf-8"))
     cups = raw.get("cups", [])
     out: list[CupDef] = []
