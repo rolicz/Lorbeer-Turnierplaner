@@ -51,14 +51,14 @@ export function matchPalette(state: MatchState) {
   switch (state) {
     case "playing":
       return {
-        wrap: "border-status-border-green bg-status-bg-green hover:bg-hover-green",
+        wrap: "border-status-border-green bg-status-bg-green hover:bg-hover-green/20",
         bar: "bg-status-bar-green",
         win: "text-status-text-green",
         lose: "text-text-muted",
       };
     case "scheduled":
       return {
-        wrap: "border-status-border-blue bg-status-bg-blue hover:bg-hover-blue",
+        wrap: "border-status-border-blue bg-status-bg-blue hover:bg-hover-blue/20",
         bar: "bg-status-bar-blue",
         win: "text-text-normal",
         lose: "text-text-muted",
@@ -66,7 +66,7 @@ export function matchPalette(state: MatchState) {
     case "finished":
     default:
       return {
-        wrap: "border-status-border-default bg-status-bg-default hover:bg-hover-default",
+        wrap: "border-status-border-default bg-status-bg-default hover:bg-hover-default/40",
         bar: "bg-status-bar-default",
         win: "text-status-text-green", // Winner is still highlighted
         lose: "text-text-muted",
@@ -78,18 +78,18 @@ export function tournamentPalette(status: TournamentStatus) {
   switch (status) {
     case "live":
       return {
-        wrap: "border-status-border-green bg-status-bg-green hover:bg-hover-green",
+        wrap: "border-status-border-green bg-status-bg-green hover:bg-hover-green/20",
         bar: "bg-status-bar-green",
       };
     case "draft":
       return {
-        wrap: "border-status-border-blue bg-status-bg-blue hover:bg-hover-blue",
+        wrap: "border-status-border-blue bg-status-bg-blue hover:bg-hover-blue/20",
         bar: "bg-status-bar-blue",
       };
     case "done":
     default:
       return {
-        wrap: "border-status-border-default bg-status-bg-default hover:bg-hover-default",
+        wrap: "border-status-border-default bg-status-bg-default hover:bg-hover-default/40",
         bar: "bg-status-bar-default",
       };
   }

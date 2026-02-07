@@ -33,8 +33,7 @@
   --color-hover-btn-bg: 129 140 248; /* Original emerald-400 */
   --color-hover-nav: 51 65 85; /* Original zinc-700 */
   --color-hover-default: 51 65 85; /* Original zinc-700 */
-  --color-hover-green: 34 197 94; /* A green */
-  --color-hover-blue: 100 143 255; /* A blue */
+  /* --color-hover-blue is centralized in styles.css */
 
   /* Pills & Statuses */
   --color-status-bg-default: 41 55 74; /* slightly darker than slate-700 */
@@ -42,14 +41,12 @@
   --color-status-border-default: 71 85 105; /* zinc-600 */
   --color-status-bg-green: 17 94 89; /* emerald-800 */
   --color-status-text-green: 204 251 241; /* emerald-100 */
-  --color-status-border-green: 34 197 94; /* green-500 */
   --color-status-bg-blue: 12 74 110; /* sky-900 */
   --color-status-text-blue: 224 242 254; /* sky-100 */
-  --color-status-border-blue: 14 165 233; /* sky-500 */
+  /* --color-status-border-blue is centralized in styles.css */
 
   --color-status-bar-default: 71 85 105; /* zinc-600 */
-  --color-status-bar-green: 34 197 94; /* green-500 */
-  --color-status-bar-blue: 14 165 233; /* sky-500 */
+  /* --color-status-bar-blue is centralized in styles.css */
 
   /* Gradients */
   --color-gradient-gold-from: 251 191 36;

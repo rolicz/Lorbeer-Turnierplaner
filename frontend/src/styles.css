@@ -8,6 +8,14 @@
     --status-live: 34 197 94; /* green-500 (less blue than teal) */
     --status-draft: 14 165 233; /* sky-500 */
     --status-done: 113 113 122; /* zinc-500 */
+
+    /* Shared status/hover tokens (keep invariant across themes). */
+    --color-status-border-green: var(--status-live);
+    --color-status-bar-green: var(--status-live);
+    --color-hover-green: var(--status-live);
+    --color-status-border-blue: var(--status-draft);
+    --color-status-bar-blue: var(--status-draft);
+    --color-hover-blue: var(--status-draft);
     /* Shared UI accents (fixed across themes) */
     --delta-up: 20 184 166; /* teal-500 */
     --delta-down: 244 63 94; /* rose-500 */
