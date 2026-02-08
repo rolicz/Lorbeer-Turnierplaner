@@ -1,9 +1,11 @@
 import { useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQueries, useQuery } from "@tanstack/react-query";
 import type { Match, Player } from "../../api/types";
 import { sideBy } from "../../helpers";
 import Card from "../../ui/primitives/Card";
 import { listPlayerAvatarMeta, playerAvatarUrl } from "../../api/playerAvatars.api";
+import { getCup, listCupDefs } from "../../api/cup.api";
+import { cupColorVarForKey } from "../../cupColors";
 
 type Row = {
   playerId: number;
@@ -142,18 +144,37 @@ function PlayerAvatar({
   );
 }
 
+function CupMark({ cupKey, cupName }: { cupKey: string; cupName: string }) {
+  const varName = cupColorVarForKey(cupKey);
+  return (
+    <span
+      className="inline-flex h-6 w-6 items-center justify-center rounded-full border shadow-sm shrink-0"
+      style={{
+        borderColor: `rgb(var(${varName}) / 0.50)`,
+        backgroundColor: `rgb(var(${varName}) / 0.14)`,
+        color: `rgb(var(${varName}))`,
+      }}
+      title={`${cupName} owner (before tournament)`}
+    >
+      <i className="fa-solid fa-crown text-[11px]" aria-hidden="true" />
+    </span>
+  );
+}
+
 function MobileRow({
   r,
   rank,
   delta,
   isLeader,
   avatarUpdatedAt,
+  cupMarks,
 }: {
   r: Row;
   rank: number;
   delta: number | null;
   isLeader: boolean;
   avatarUpdatedAt: string | null;
+  cupMarks: { key: string; name: string }[];
 }) {
   return (
     <div className="panel-subtle relative overflow-hidden px-3 py-2">
@@ -168,7 +189,19 @@ function MobileRow({
               <Arrow delta={delta} />
             </div>
             <PlayerAvatar playerId={r.playerId} name={r.name} updatedAt={avatarUpdatedAt} />
-            <div className="min-w-0 truncate font-medium text-text-normal">{r.name}</div>
+            <div className="min-w-0 flex items-center gap-2">
+              <div className="min-w-0 truncate font-medium text-text-normal">{r.name}</div>
+              {cupMarks.length ? (
+                <div className="inline-flex items-center gap-1">
+                  {cupMarks.slice(0, 2).map((c) => (
+                    <CupMark key={c.key} cupKey={c.key} cupName={c.name} />
+                  ))}
+                  {cupMarks.length > 2 ? (
+                    <span className="text-[11px] text-text-muted">+{cupMarks.length - 2}</span>
+                  ) : null}
+                </div>
+              ) : null}
+            </div>
           </div>
           <div className="mt-1 text-xs text-text-muted font-mono tabular-nums">
             {r.played}P · {r.wins}-{r.draws}-{r.losses} · GD {r.gd} (+{r.gf}/-{r.ga})
@@ -185,11 +218,15 @@ function MobileRow({
 }
 
 export default function StandingsTable({
+  tournamentId,
+  tournamentDate,
   matches,
   players,
   tournamentStatus,
   wrap = true,
 }: {
+  tournamentId: number;
+  tournamentDate?: string | null;
   matches: Match[];
   players: Player[];
   tournamentStatus?: "draft" | "live" | "done";
@@ -207,6 +244,77 @@ export default function StandingsTable({
     return m;
   }, [avatarMetaQ.data]);
 
+  const cupDefsQ = useQuery({ queryKey: ["cup", "defs"], queryFn: listCupDefs });
+  const cupsRaw = cupDefsQ.data?.cups?.length ? cupDefsQ.data.cups : [{ key: "default", name: "Cup", since_date: null }];
+  const cups = useMemo(() => {
+    // Keep config order, but put the default cup last (consistent with dashboard/players).
+    const nonDefault = cupsRaw.filter((c) => c.key !== "default");
+    const defaults = cupsRaw.filter((c) => c.key === "default");
+    return [...nonDefault, ...defaults];
+  }, [cupsRaw]);
+
+  const cupsQ = useQueries({
+    queries: cups.map((c) => ({
+      queryKey: ["cup", c.key],
+      queryFn: () => getCup(c.key),
+    })),
+  });
+
+  const cupMarksByPlayerId = useMemo(() => {
+    const m = new Map<number, { key: string; name: string }[]>();
+    const tDateMs = tournamentDate ? Date.parse(tournamentDate) : NaN;
+
+    const add = (playerId: number | null, key: string, name: string) => {
+      if (playerId == null || playerId <= 0) return;
+      const arr = m.get(playerId) ?? [];
+      arr.push({ key, name });
+      m.set(playerId, arr);
+    };
+
+    for (let i = 0; i < cups.length; i++) {
+      const def = cups[i];
+      const q = cupsQ[i];
+      const data = q?.data;
+      if (!data) continue;
+
+      const hist = (data.history ?? []).slice().sort((a, b) => {
+        const da = Date.parse(a.date);
+        const db = Date.parse(b.date);
+        if (da !== db) return da - db;
+        return a.tournament_id - b.tournament_id;
+      });
+
+      const direct = hist.find((h) => h.tournament_id === tournamentId);
+      if (direct) {
+        add(direct.from?.id ?? null, def.key, data.cup?.name ?? def.name ?? def.key);
+        continue;
+      }
+
+      // If we cannot locate the tournament on the timeline, fallback to "current owner"
+      // (still useful for live tournaments, and harmless for cups with no history).
+      if (!Number.isFinite(tDateMs)) {
+        add(data.owner?.id ?? null, def.key, data.cup?.name ?? def.name ?? def.key);
+        continue;
+      }
+
+      // Owner before the tournament = owner after the last transfer strictly before it.
+      let ownerId: number | null = hist.length ? (hist[0].from?.id ?? null) : (data.owner?.id ?? null);
+      if (ownerId != null && ownerId <= 0) ownerId = null;
+
+      for (const h of hist) {
+        const hDateMs = Date.parse(h.date);
+        const before = hDateMs < tDateMs || (hDateMs === tDateMs && h.tournament_id < tournamentId);
+        if (!before) continue;
+        const next = h.to?.id ?? null;
+        ownerId = next != null && next > 0 ? next : null;
+      }
+
+      add(ownerId, def.key, data.cup?.name ?? def.name ?? def.key);
+    }
+
+    return m;
+  }, [cups, cupsQ, tournamentDate, tournamentId]);
+
   const title = tournamentStatus === "done" ? "Results" : "Standings (live)";
 
   const content = (
@@ -217,6 +325,7 @@ export default function StandingsTable({
           const baseIdx = basePos.get(r.playerId);
           const delta = baseIdx === undefined ? null : baseIdx - idx;
           const avatarUpdatedAt = avatarUpdatedAtByPlayerId.get(r.playerId) ?? null;
+          const cupMarks = cupMarksByPlayerId.get(r.playerId) ?? [];
           return (
             <MobileRow
               key={r.playerId}
@@ -225,6 +334,7 @@ export default function StandingsTable({
               delta={delta}
               isLeader={idx === 0}
               avatarUpdatedAt={avatarUpdatedAt}
+              cupMarks={cupMarks}
             />
           );
         })}
@@ -276,7 +386,7 @@ export default function StandingsTable({
                     <Arrow delta={delta} />
                   </td>
                   <td className="py-2 pr-1.5 font-sans font-medium min-w-0">
-                    <div className="inline-flex min-w-0 max-w-[260px] items-center gap-2 lg:max-w-[360px]">
+                    <div className="inline-flex min-w-0 max-w-[280px] items-center gap-2 lg:max-w-[420px]">
                       <PlayerAvatar
                         playerId={r.playerId}
                         name={r.name}
@@ -284,6 +394,16 @@ export default function StandingsTable({
                         className="h-7 w-7"
                       />
                       <span className="min-w-0 truncate">{r.name}</span>
+                      {(cupMarksByPlayerId.get(r.playerId) ?? []).length ? (
+                        <span className="inline-flex items-center gap-1">
+                          {(cupMarksByPlayerId.get(r.playerId) ?? []).slice(0, 2).map((c) => (
+                            <CupMark key={c.key} cupKey={c.key} cupName={c.name} />
+                          ))}
+                          {(cupMarksByPlayerId.get(r.playerId) ?? []).length > 2 ? (
+                            <span className="text-[11px] text-text-muted">+{(cupMarksByPlayerId.get(r.playerId) ?? []).length - 2}</span>
+                          ) : null}
+                        </span>
+                      ) : null}
                     </div>
                   </td>
                   <td className="py-2 px-1.5 text-right">{r.played}</td>

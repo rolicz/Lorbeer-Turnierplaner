@@ -567,9 +567,15 @@ export default function LiveTournamentPage() {
             defaultOpen={true}
             variant="outer"
             bodyVariant="none"
-          >
-            <StandingsTable wrap={false} matches={matchesSorted} players={tQ.data.players} />
-          </CollapsibleCard>
+	          >
+	            <StandingsTable
+	              tournamentId={tid!}
+	              tournamentDate={tQ.data?.date ?? null}
+	              wrap={false}
+	              matches={matchesSorted}
+	              players={tQ.data.players}
+	            />
+	          </CollapsibleCard>
 
           <CollapsibleCard title="Matches" defaultOpen={!isDone} variant="outer" bodyVariant="none">
             <MatchList
