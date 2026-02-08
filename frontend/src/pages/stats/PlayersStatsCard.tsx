@@ -4,7 +4,6 @@ import type { CSSProperties } from "react";
 import { useQueries, useQuery } from "@tanstack/react-query";
 
 import CollapsibleCard from "../../ui/primitives/CollapsibleCard";
-import Card from "../../ui/primitives/Card";
 import { MetaRow } from "../../ui/primitives/Meta";
 
 import { listPlayers } from "../../api/players.api";
@@ -498,15 +497,17 @@ export default function PlayersStatsCard() {
   const allCollapsed = rows.length === 0 || rows.every((r) => !openByPlayerId[r.p.id]);
 
   return (
-    <Card
+    <CollapsibleCard
       title={
         <span className="inline-flex items-center gap-2">
           <i className="fa-regular fa-user text-text-muted" aria-hidden="true" />
           Players
         </span>
       }
-      variant="outer"
       bodyClassName="space-y-3"
+      defaultOpen={true}
+      variant="outer"
+      bodyVariant="none"
     >
       <div className="panel-subtle rounded-2xl overflow-hidden">
         <div className="flex">
@@ -695,6 +696,6 @@ export default function PlayersStatsCard() {
           );
         })}
       </div>
-    </Card>
+    </CollapsibleCard>
   );
 }

@@ -1,29 +1,13 @@
 import CollapsibleCard from "../ui/primitives/CollapsibleCard";
 import PlayersStatsCard from "./stats/PlayersStatsCard";
+import HeadToHeadCard from "./stats/HeadToHeadCard";
 
 export default function StatsPage() {
   return (
     <div className="page">
       <div className="grid gap-3 lg:grid-cols-2">
         <PlayersStatsCard />
-
-        <CollapsibleCard
-          title={
-            <span className="inline-flex items-center gap-2">
-              <i className="fa-solid fa-user-group text-text-muted" aria-hidden="true" />
-              Head-to-Head Dominance
-            </span>
-          }
-          defaultOpen={true}
-          variant="outer"
-          bodyVariant="none"
-        >
-          <div className="card-inner space-y-2">
-            <div className="panel-subtle p-3 text-sm text-text-muted">
-              Next: show top rivals, biggest domination matchups, and recent H2H matches. (Backend block to be added.)
-            </div>
-          </div>
-        </CollapsibleCard>
+        <HeadToHeadCard />
 
         <CollapsibleCard
           title={
@@ -55,4 +39,3 @@ export default function StatsPage() {
     </div>
   );
 }
-

@@ -199,3 +199,96 @@ export type StatsPlayersResponse = {
   lastN: number;
 };
 
+export type StatsH2HPlayerLite = {
+  id: number;
+  display_name: string;
+};
+
+export type StatsH2HTeamRivalry = {
+  team1: StatsH2HPlayerLite[]; // length 2
+  team2: StatsH2HPlayerLite[]; // length 2
+  played: number;
+  team1_wins: number;
+  draws: number;
+  team2_wins: number;
+  team1_gf: number;
+  team1_ga: number;
+  team2_gf: number;
+  team2_ga: number;
+  win_share_team1: number;
+  rivalry_score: number;
+  dominance_score: number;
+};
+
+export type StatsH2HPair = {
+  a: StatsH2HPlayerLite;
+  b: StatsH2HPlayerLite;
+
+  played: number;
+  a_wins: number;
+  draws: number;
+  b_wins: number;
+
+  a_gf: number;
+  a_ga: number;
+  b_gf: number;
+  b_ga: number;
+
+  win_share_a: number; // 0..1 (excluding draws)
+  rivalry_score: number;
+  dominance_score: number;
+};
+
+export type StatsH2HDuo = {
+  p1: StatsH2HPlayerLite;
+  p2: StatsH2HPlayerLite;
+
+  played: number;
+  wins: number;
+  draws: number;
+  losses: number;
+
+  gf: number;
+  ga: number;
+  gd: number;
+
+  pts: number;
+  pts_per_match: number;
+  win_rate: number;
+};
+
+export type StatsH2HOpponentRow = {
+  opponent: StatsH2HPlayerLite;
+  played: number;
+  wins: number;
+  draws: number;
+  losses: number;
+  gf: number;
+  ga: number;
+  gd: number;
+  pts: number;
+  pts_per_match: number;
+  win_rate: number;
+};
+
+export type StatsH2HResponse = {
+  generated_at: string;
+  limit: number;
+  order?: "rivalry" | "played";
+  player: StatsH2HPlayerLite | null;
+
+  rivalries_all: StatsH2HPair[];
+  rivalries_1v1: StatsH2HPair[];
+  rivalries_2v2: StatsH2HPair[];
+  team_rivalries_2v2: StatsH2HTeamRivalry[];
+  dominance_1v1: StatsH2HPair[];
+  best_teammates_2v2: StatsH2HDuo[];
+
+  vs_all?: StatsH2HOpponentRow[];
+  vs_1v1?: StatsH2HOpponentRow[];
+  vs_2v2?: StatsH2HOpponentRow[];
+  with_2v2?: StatsH2HDuo[];
+  team_rivalries_2v2_for_player?: StatsH2HTeamRivalry[];
+  nemesis_all?: StatsH2HOpponentRow | null;
+  favorite_victim_all?: StatsH2HOpponentRow | null;
+};

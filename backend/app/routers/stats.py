@@ -9,6 +9,7 @@ from sqlmodel import Session
 from ..db import get_session
 from ..services.stats.players import compute_stats_players
 from ..services.stats.registry import stats_overview
+from ..services.stats.h2h import compute_stats_h2h
 
 router = APIRouter(prefix="/stats", tags=["stats"])
 
@@ -22,3 +23,13 @@ def stats_players(
     lastN: int = Query(10, ge=0, le=100, description="How many recent matches to average (0 disables)"),
     s: Session = Depends(get_session)) -> dict[str, Any]:
     return compute_stats_players(s, lastN=lastN)
+
+
+@router.get("/h2h")
+def stats_h2h(
+    player_id: int | None = Query(None, ge=1, description="Optional player to focus on"),
+    limit: int = Query(12, ge=1, le=200, description="Max entries per section"),
+    order: str = Query("rivalry", description='Sorting for "rivalries" lists: "rivalry" (default) or "played"'),
+    s: Session = Depends(get_session),
+) -> dict[str, Any]:
+    return compute_stats_h2h(s, player_id=player_id, limit=limit, order=order)

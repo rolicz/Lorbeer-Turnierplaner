@@ -16,7 +16,12 @@ def stats_overview() -> dict[str, Any]:
                 "version": 1,
                 "description": "Leaderboard + form + per-tournament positions.",
             },
+            {
+                "key": "h2h",
+                "name": "Head-to-Head",
+                "version": 1,
+                "description": "Rivalries (1v1/2v2/all) + best teammates (2v2).",
+            },
             # future: h2h, streaks, seasons, cups, clubs, etc.
         ]
     }
-

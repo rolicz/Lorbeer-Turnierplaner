@@ -227,6 +227,7 @@ function invalidateTournamentRelated(qc: QueryClient, tid: number) {
   // Cup + future laurels/points (players stats)
   qc.invalidateQueries({ queryKey: ["cup"] });
   qc.invalidateQueries({ queryKey: ["stats", "players"] });
+  qc.invalidateQueries({ queryKey: ["stats", "h2h"] });
 }
 
 function invalidateAnyTournamentRelated(qc: QueryClient) {
@@ -234,6 +235,7 @@ function invalidateAnyTournamentRelated(qc: QueryClient) {
   qc.invalidateQueries({ queryKey: ["tournaments"] });
   qc.invalidateQueries({ queryKey: ["tournaments", "live"] });
   qc.invalidateQueries({ queryKey: ["stats", "players"] });
+  qc.invalidateQueries({ queryKey: ["stats", "h2h"] });
 }
 
 export function useTournamentWS(tid: number | null) {

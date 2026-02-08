@@ -5,6 +5,7 @@ def test_stats_overview(client):
     assert "blocks" in data
     assert isinstance(data["blocks"], list)
     assert any(b.get("key") == "players" for b in data["blocks"])
+    assert any(b.get("key") == "h2h" for b in data["blocks"])
 
 
 def test_stats_players_empty(client):
@@ -18,3 +19,22 @@ def test_stats_players_empty(client):
     assert isinstance(data["players"], list)
     assert isinstance(data["tournaments"], list)
 
+
+def test_stats_h2h_empty(client):
+    r = client.get("/stats/h2h")
+    assert r.status_code == 200, r.text
+    data = r.json()
+    assert "generated_at" in data
+    assert "rivalries_all" in data
+    assert "best_teammates_2v2" in data
+    assert "team_rivalries_2v2" in data
+    assert isinstance(data["rivalries_all"], list)
+    assert isinstance(data["best_teammates_2v2"], list)
+    assert isinstance(data["team_rivalries_2v2"], list)
+
+
+def test_stats_h2h_order_param(client):
+    r = client.get("/stats/h2h?order=played")
+    assert r.status_code == 200, r.text
+    data = r.json()
+    assert data.get("order") in ("played", "rivalry")
