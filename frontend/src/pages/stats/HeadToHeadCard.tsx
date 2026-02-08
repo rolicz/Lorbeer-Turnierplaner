@@ -105,10 +105,34 @@ function DuoRow({ r }: { r: StatsH2HDuo }) {
   );
 }
 
-function TeamRivalryRow({ r }: { r: StatsH2HTeamRivalry }) {
-  const t1 = r.team1.map((p) => p.display_name).join("/");
-  const t2 = r.team2.map((p) => p.display_name).join("/");
-  const closePct = pct(r.rivalry_score / Math.max(1, r.played));
+function normalizeTeamRivalryForFocus(r: StatsH2HTeamRivalry, focusPlayerId: number | null): StatsH2HTeamRivalry {
+  if (!focusPlayerId) return r;
+  const in1 = (r.team1 ?? []).some((p) => p.id === focusPlayerId);
+  const in2 = (r.team2 ?? []).some((p) => p.id === focusPlayerId);
+  if (in1 || !in2) return r; // already left, or not found (shouldn't happen)
+
+  const winsTotal = (r.team1_wins ?? 0) + (r.team2_wins ?? 0);
+  const winShare = winsTotal > 0 ? (r.team2_wins ?? 0) / winsTotal : 0.5;
+  return {
+    ...r,
+    team1: r.team2,
+    team2: r.team1,
+    team1_wins: r.team2_wins,
+    team2_wins: r.team1_wins,
+    team1_gf: r.team2_gf,
+    team1_ga: r.team2_ga,
+    team2_gf: r.team1_gf,
+    team2_ga: r.team1_ga,
+    win_share_team1: winShare,
+    // rivalry_score / dominance_score are symmetric; keep as-is.
+  };
+}
+
+function TeamRivalryRow({ r, focusPlayerId }: { r: StatsH2HTeamRivalry; focusPlayerId?: number | null }) {
+  const rr = useMemo(() => normalizeTeamRivalryForFocus(r, focusPlayerId ?? null), [r, focusPlayerId]);
+  const t1 = rr.team1.map((p) => p.display_name).join("/");
+  const t2 = rr.team2.map((p) => p.display_name).join("/");
+  const closePct = pct(rr.rivalry_score / Math.max(1, rr.played));
   return (
     <div className="panel-subtle rounded-xl px-3 py-2">
       <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
@@ -123,16 +147,16 @@ function TeamRivalryRow({ r }: { r: StatsH2HTeamRivalry }) {
 
       <div className="mt-1 flex items-center justify-between gap-3 text-[11px] text-text-muted">
         <span className="shrink-0">
-          {fmtInt(r.played)} games · {closePct} close
+          {fmtInt(rr.played)} games · {closePct} close
         </span>
         <span className="shrink-0 font-mono tabular-nums">
-          <span className="text-status-text-green">{fmtInt(r.team1_wins)}</span>
+          <span className="text-status-text-green">{fmtInt(rr.team1_wins)}</span>
           <span className="text-text-muted">-</span>
-          <span className="text-amber-300">{fmtInt(r.draws)}</span>
+          <span className="text-amber-300">{fmtInt(rr.draws)}</span>
           <span className="text-text-muted">-</span>
-          <span className="text-red-300">{fmtInt(r.team2_wins)}</span>
+          <span className="text-red-300">{fmtInt(rr.team2_wins)}</span>
           <span className="text-text-muted"> · </span>
-          {fmtInt(r.team1_gf)}:{fmtInt(r.team1_ga)}
+          {fmtInt(rr.team1_gf)}:{fmtInt(rr.team1_ga)}
         </span>
       </div>
     </div>
@@ -435,155 +459,37 @@ export default function HeadToHeadCard() {
             ) : null}
 
             {mode === "1v1" ? (
-              !selected ? (
-                <div className="card-inner-flat rounded-2xl space-y-2">
-                  {(() => {
-                    const k = `domination-global-${mode}-${order}`;
-                    const list = h2hQ.data.dominance_1v1 ?? [];
-                    const showAll = getShowAll(k);
-                    const hasMore = list.length > DEFAULT_SHOW;
-                    const visible = showAll ? list : list.slice(0, DEFAULT_SHOW);
-                    return (
-                      <>
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="text-sm font-semibold text-text-normal">Biggest domination (1v1)</div>
-                          {hasMore ? (
-                            <button
-                              type="button"
-                              className="btn-base btn-ghost inline-flex h-9 items-center justify-center px-3 py-2 text-[11px] shrink-0"
-                              onClick={() => toggleShowAll(k)}
-                              title={showAll ? `Show top ${DEFAULT_SHOW}` : "Show all"}
-                            >
-                              {showAll ? `Top ${DEFAULT_SHOW}` : "All"}
-                            </button>
-                          ) : null}
-                        </div>
-                        <div className="space-y-2">
-                          {visible.length ? (
-                            visible.map((r) => <PairRow key={`dom-${r.a.id}-${r.b.id}`} r={r} />)
-                          ) : (
-                            <div className="text-sm text-text-muted">No data yet.</div>
-                          )}
-                        </div>
-                      </>
-                    );
-                  })()}
-                </div>
-              ) : (
-                <div className="card-inner-flat rounded-2xl space-y-2">
-                  <div className="text-sm font-semibold text-text-normal">
-                    {selected.display_name}
-                    <span className="text-text-muted"> · most one-sided matchups (1v1)</span>
-                  </div>
-                  <div className="space-y-2">
-                    {(() => {
-                      const k = `domination-focus-${mode}-${order}-${selected.id}`;
-                      const base = h2hQ.data.vs_1v1 ?? [];
-                      const sorted = base
-                        .slice()
-                        .sort((a, b) => dominanceScoreFromOpponentRow(b) - dominanceScoreFromOpponentRow(a));
-                      const showAll = getShowAll(k);
-                      const hasMore = sorted.length > DEFAULT_SHOW;
-                      const visible = showAll ? sorted : sorted.slice(0, DEFAULT_SHOW);
-
-                      return visible.length ? (
-                        <>
-                          {hasMore ? (
-                            <div className="flex justify-end">
-                              <button
-                                type="button"
-                                className="btn-base btn-ghost inline-flex h-9 items-center justify-center px-3 py-2 text-[11px]"
-                                onClick={() => toggleShowAll(k)}
-                                title={showAll ? `Show top ${DEFAULT_SHOW}` : "Show all"}
-                              >
-                                {showAll ? `Top ${DEFAULT_SHOW}` : "All"}
-                              </button>
-                            </div>
-                          ) : null}
-                          {visible.map((r) => <OpponentRow key={`dom1v1-${r.opponent.id}`} r={r} />)}
-                        </>
-                      ) : (
-                        <div className="text-sm text-text-muted">No data yet.</div>
-                      );
-                    })()}
-                  </div>
-                </div>
-              )
+              null
             ) : null}
 
             {selected ? (
-              <div className="grid gap-3 lg:grid-cols-2">
-                <div className="card-inner-flat rounded-2xl space-y-2">
-                  <div className="text-sm font-semibold text-text-normal">
-                    {selected.display_name}
-                    <span className="text-text-muted"> · matchups ({modeTitle})</span>
-                  </div>
-                  <div className="text-[11px] text-text-muted">
-                    {order === "played" ? (
-                      <>Sorted by <span className="text-text-normal">games played</span>.</>
-                    ) : (
-                      <>
-                        Sorted by <span className="text-text-normal">played × closeness</span>.{" "}
-                        <span className="text-text-normal">Closeness</span> compares wins only (draws ignored).
-                      </>
-                    )}
-                  </div>
-                  <div className="space-y-2">
-                    {(() => {
-                      const k = `matchups-focus-${mode}-${order}-${selected.id}`;
-                      const list =
-                        mode === "1v1"
-                          ? (h2hQ.data.vs_1v1 ?? [])
-                          : mode === "2v2"
-                            ? (h2hQ.data.vs_2v2 ?? [])
-                            : (h2hQ.data.vs_all ?? []);
-
-                      const showAll = getShowAll(k);
-                      const hasMore = list.length > DEFAULT_SHOW;
-                      const visible = showAll ? list : list.slice(0, DEFAULT_SHOW);
-
-                      return visible.length ? (
-                        <>
-                          {hasMore ? (
-                            <div className="flex justify-end">
-                              <button
-                                type="button"
-                                className="btn-base btn-ghost inline-flex h-9 items-center justify-center px-3 py-2 text-[11px]"
-                                onClick={() => toggleShowAll(k)}
-                                title={showAll ? `Show top ${DEFAULT_SHOW}` : "Show all"}
-                              >
-                                {showAll ? `Top ${DEFAULT_SHOW}` : "All"}
-                              </button>
-                            </div>
-                          ) : null}
-                          {visible.map((r) => <OpponentRow key={`vs-${mode}-${r.opponent.id}`} r={r} />)}
-                        </>
-                      ) : (
-                        <div className="text-sm text-text-muted">No data yet.</div>
-                      );
-                    })()}
-                  </div>
-                </div>
-
-                {mode === "2v2" ? (
+              (() => {
+                const Matchups = (
                   <div className="card-inner-flat rounded-2xl space-y-2">
                     <div className="text-sm font-semibold text-text-normal">
                       {selected.display_name}
-                      <span className="text-text-muted"> · teammates (2v2)</span>
+                      <span className="text-text-muted"> · matchups ({modeTitle})</span>
                     </div>
                     <div className="text-[11px] text-text-muted">
                       {order === "played" ? (
                         <>Sorted by <span className="text-text-normal">games played</span>.</>
                       ) : (
                         <>
-                          Sorted by <span className="text-text-normal">points per match</span> (then games played).
+                          Sorted by <span className="text-text-normal">played × closeness</span>.{" "}
+                          <span className="text-text-normal">Closeness</span> compares wins only (draws ignored).
                         </>
                       )}
                     </div>
                     <div className="space-y-2">
                       {(() => {
-                        const k = `teammates-focus-${mode}-${order}-${selected.id}`;
-                        const list = h2hQ.data.with_2v2 ?? [];
+                        const k = `matchups-focus-${mode}-${order}-${selected.id}`;
+                        const list =
+                          mode === "1v1"
+                            ? (h2hQ.data.vs_1v1 ?? [])
+                            : mode === "2v2"
+                              ? (h2hQ.data.vs_2v2 ?? [])
+                              : (h2hQ.data.vs_all ?? []);
+
                         const showAll = getShowAll(k);
                         const hasMore = list.length > DEFAULT_SHOW;
                         const visible = showAll ? list : list.slice(0, DEFAULT_SHOW);
@@ -602,7 +508,7 @@ export default function HeadToHeadCard() {
                                 </button>
                               </div>
                             ) : null}
-                            {visible.map((r) => <DuoRow key={`with-${r.p1.id}-${r.p2.id}`} r={r} />)}
+                            {visible.map((r) => <OpponentRow key={`vs-${mode}-${r.opponent.id}`} r={r} />)}
                           </>
                         ) : (
                           <div className="text-sm text-text-muted">No data yet.</div>
@@ -610,64 +516,123 @@ export default function HeadToHeadCard() {
                       })()}
                     </div>
                   </div>
-                ) : null}
-              </div>
-            ) : null}
+                );
 
-            {selected && mode === "2v2" ? (
-              <div className="card-inner-flat rounded-2xl space-y-2">
-                {(() => {
-                  const k = `team-rivalries-focus-${mode}-${order}-${selected.id}`;
-                  const list = h2hQ.data.team_rivalries_2v2_for_player ?? [];
-                  const showAll = getShowAll(k);
-                  const hasMore = list.length > DEFAULT_SHOW;
-                  const visible = showAll ? list : list.slice(0, DEFAULT_SHOW);
-
-                  return (
-                    <>
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="text-sm font-semibold text-text-normal">
-                          {selected.display_name}
-                          <span className="text-text-muted"> · team rivalries (2v2)</span>
-                        </div>
-                        {hasMore ? (
-                          <button
-                            type="button"
-                            className="btn-base btn-ghost inline-flex h-9 items-center justify-center px-3 py-2 text-[11px] shrink-0"
-                            onClick={() => toggleShowAll(k)}
-                            title={showAll ? `Show top ${DEFAULT_SHOW}` : "Show all"}
-                          >
-                            {showAll ? `Top ${DEFAULT_SHOW}` : "All"}
-                          </button>
-                        ) : null}
+                const Teammates =
+                  mode === "2v2" ? (
+                    <div className="card-inner-flat rounded-2xl space-y-2">
+                      <div className="text-sm font-semibold text-text-normal">
+                        {selected.display_name}
+                        <span className="text-text-muted"> · teammates (2v2)</span>
                       </div>
                       <div className="text-[11px] text-text-muted">
                         {order === "played" ? (
                           <>Sorted by <span className="text-text-normal">games played</span>.</>
                         ) : (
                           <>
-                            Sorted by <span className="text-text-normal">played × closeness</span>.{" "}
-                            <span className="text-text-normal">% close</span> compares wins only (draws ignored).
+                            Sorted by <span className="text-text-normal">points per match</span> (then games played).
                           </>
                         )}
                       </div>
-
                       <div className="space-y-2">
-                        {visible.length ? (
-                          visible.map((r) => (
-                            <TeamRivalryRow
-                              key={`tm-${r.team1.map((p) => p.id).join("-")}-${r.team2.map((p) => p.id).join("-")}`}
-                              r={r}
-                            />
-                          ))
-                        ) : (
-                          <div className="text-sm text-text-muted">No data yet.</div>
-                        )}
+                        {(() => {
+                          const k = `teammates-focus-${mode}-${order}-${selected.id}`;
+                          const list = h2hQ.data.with_2v2 ?? [];
+                          const showAll = getShowAll(k);
+                          const hasMore = list.length > DEFAULT_SHOW;
+                          const visible = showAll ? list : list.slice(0, DEFAULT_SHOW);
+
+                          return visible.length ? (
+                            <>
+                              {hasMore ? (
+                                <div className="flex justify-end">
+                                  <button
+                                    type="button"
+                                    className="btn-base btn-ghost inline-flex h-9 items-center justify-center px-3 py-2 text-[11px]"
+                                    onClick={() => toggleShowAll(k)}
+                                    title={showAll ? `Show top ${DEFAULT_SHOW}` : "Show all"}
+                                  >
+                                    {showAll ? `Top ${DEFAULT_SHOW}` : "All"}
+                                  </button>
+                                </div>
+                              ) : null}
+                              {visible.map((r) => <DuoRow key={`with-${r.p1.id}-${r.p2.id}`} r={r} />)}
+                            </>
+                          ) : (
+                            <div className="text-sm text-text-muted">No data yet.</div>
+                          );
+                        })()}
                       </div>
-                    </>
-                  );
-                })()}
-              </div>
+                    </div>
+                  ) : null;
+
+                if (mode !== "2v2") return Matchups;
+
+                const TeamRivalries = (
+                  <div className="card-inner-flat rounded-2xl space-y-2">
+                    {(() => {
+                      const k = `team-rivalries-focus-${mode}-${order}-${selected.id}`;
+                      const list = h2hQ.data.team_rivalries_2v2_for_player ?? [];
+                      const showAll = getShowAll(k);
+                      const hasMore = list.length > DEFAULT_SHOW;
+                      const visible = showAll ? list : list.slice(0, DEFAULT_SHOW);
+
+                      return (
+                        <>
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="text-sm font-semibold text-text-normal">
+                              {selected.display_name}
+                              <span className="text-text-muted"> · team rivalries (2v2)</span>
+                            </div>
+                            {hasMore ? (
+                              <button
+                                type="button"
+                                className="btn-base btn-ghost inline-flex h-9 items-center justify-center px-3 py-2 text-[11px] shrink-0"
+                                onClick={() => toggleShowAll(k)}
+                                title={showAll ? `Show top ${DEFAULT_SHOW}` : "Show all"}
+                              >
+                                {showAll ? `Top ${DEFAULT_SHOW}` : "All"}
+                              </button>
+                            ) : null}
+                          </div>
+                          <div className="text-[11px] text-text-muted">
+                            {order === "played" ? (
+                              <>Sorted by <span className="text-text-normal">games played</span>.</>
+                            ) : (
+                              <>
+                                Sorted by <span className="text-text-normal">played × closeness</span>.{" "}
+                                <span className="text-text-normal">% close</span> compares wins only (draws ignored).
+                              </>
+                            )}
+                          </div>
+
+                          <div className="space-y-2">
+                            {visible.length ? (
+                              visible.map((r) => (
+                                <TeamRivalryRow
+                                  key={`tm-${r.team1.map((p) => p.id).join("-")}-${r.team2.map((p) => p.id).join("-")}`}
+                                  r={r}
+                                  focusPlayerId={selected.id}
+                                />
+                              ))
+                            ) : (
+                              <div className="text-sm text-text-muted">No data yet.</div>
+                            )}
+                          </div>
+                        </>
+                      );
+                    })()}
+                  </div>
+                );
+
+                return (
+                  <div className="space-y-3">
+                    {Matchups}
+                    {Teammates}
+                    {TeamRivalries}
+                  </div>
+                );
+              })()
             ) : null}
           </div>
         ) : null}
