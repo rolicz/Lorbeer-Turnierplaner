@@ -16,6 +16,7 @@ import { cupColorVarForKey } from "../../cupColors";
 import { listPlayerAvatarMeta, playerAvatarUrl } from "../../api/playerAvatars.api";
 
 type SortMode = "overall" | "lastN";
+type ModeFilter = "overall" | "1v1" | "2v2";
 
 function fmtAvg(n: number) {
   if (!Number.isFinite(n)) return "0.00";
@@ -347,6 +348,52 @@ function PlayersViewSwitch({ value, onChange }: { value: SortMode; onChange: (v:
   );
 }
 
+function ModeSwitch({ value, onChange }: { value: ModeFilter; onChange: (m: ModeFilter) => void }) {
+  const idx = value === "overall" ? 0 : value === "1v1" ? 1 : 2;
+  const wCls = "w-20 sm:w-24";
+  return (
+    <div
+      className="relative inline-flex shrink-0 rounded-2xl p-1"
+      style={{ backgroundColor: "rgb(var(--color-bg-card-chip) / 0.35)" }}
+      role="group"
+      aria-label="Mode filter"
+      title="Filter: Overall / 1v1 / 2v2"
+    >
+      <span
+        className={"absolute inset-y-1 left-1 rounded-xl shadow-sm transition-transform duration-200 ease-out " + wCls}
+        style={{
+          backgroundColor: "rgb(var(--color-bg-card-inner))",
+          transform: `translateX(${idx * 100}%)`,
+        }}
+        aria-hidden="true"
+      />
+      {(
+        [
+          { k: "overall" as const, label: "Overall", icon: "fa-layer-group" },
+          { k: "1v1" as const, label: "1v1", icon: "fa-user" },
+          { k: "2v2" as const, label: "2v2", icon: "fa-users" },
+        ] as const
+      ).map((x) => (
+        <button
+          key={x.k}
+          type="button"
+          onClick={() => onChange(x.k)}
+          className={
+            "relative z-10 inline-flex h-9 items-center justify-center gap-2 rounded-xl text-[11px] transition-colors " +
+            wCls +
+            " " +
+            (value === x.k ? "text-text-normal" : "text-text-muted hover:text-text-normal")
+          }
+          aria-pressed={value === x.k}
+        >
+          <i className={"fa-solid " + x.icon + " hidden sm:inline"} aria-hidden="true" />
+          <span>{x.label}</span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function TilesScopeSwitch({
   value,
   onChange,
@@ -403,9 +450,11 @@ function TilesScopeSwitch({
 export default function PlayersStatsCard() {
   const playersQ = useQuery({ queryKey: ["players"], queryFn: listPlayers });
 
+  const LASTN_FETCH = 25;
+  const [modeFilter, setModeFilter] = useState<ModeFilter>("overall");
   const statsQ = useQuery<StatsPlayersResponse>({
-    queryKey: ["stats", "players"],
-    queryFn: getStatsPlayers,
+    queryKey: ["stats", "players", modeFilter, LASTN_FETCH],
+    queryFn: () => getStatsPlayers({ mode: modeFilter, lastN: LASTN_FETCH }),
     refetchOnWindowFocus: true,
     refetchOnReconnect: true,
     staleTime: 0,
@@ -481,10 +530,10 @@ export default function PlayersStatsCard() {
   useEffect(() => {
     if (!lastNInitRef.current) {
       lastNInitRef.current = true;
-      setLastNView(lastNServer);
+      setLastNView((prev) => Math.max(1, Math.min(prev, Math.min(lastNMax, LASTN_FETCH))));
       return;
     }
-    setLastNView((prev) => Math.max(1, Math.min(prev, lastNMax)));
+    setLastNView((prev) => Math.max(1, Math.min(prev, Math.min(lastNMax, LASTN_FETCH))));
   }, [lastNServer, lastNMax]);
 
   function avgLastN(s: StatsPlayerRow) {
@@ -580,6 +629,14 @@ export default function PlayersStatsCard() {
         <div className="flex flex-wrap items-center gap-2">
           <div className="inline-flex items-center gap-2">
             <span className="inline-flex h-9 items-center gap-2 rounded-xl px-2 text-[11px] font-medium text-text-muted">
+              <i className="fa-solid fa-filter text-[11px]" aria-hidden="true" />
+              <span>Filter</span>
+            </span>
+            <ModeSwitch value={modeFilter} onChange={setModeFilter} />
+          </div>
+
+          <div className="inline-flex items-center gap-2">
+            <span className="inline-flex h-9 items-center gap-2 rounded-xl px-2 text-[11px] font-medium text-text-muted">
               <i className="fa-solid fa-eye text-[11px]" aria-hidden="true" />
               <span>View</span>
             </span>
@@ -628,7 +685,7 @@ export default function PlayersStatsCard() {
           <input
             type="range"
             min={1}
-            max={Math.max(1, lastNMax)}
+            max={Math.max(1, Math.min(lastNMax, LASTN_FETCH))}
             value={lastNView}
             onChange={(e) => setLastNView(Number(e.target.value))}
             className="w-full"

@@ -11,11 +11,14 @@ from ...services.cup import compute_cup
 from ...stats_core import compute_overall_and_lastN, compute_player_standings, positions_from_standings
 
 
-def _finished_matches_with_players(s: Session) -> list[Match]:
-    stmt = (
-        select(Match)
-        .where(Match.state == "finished")
-        .options(selectinload(Match.sides).selectinload(MatchSide.players))
+def _finished_matches_with_players(s: Session, *, mode: str) -> list[Match]:
+    stmt = select(Match).where(Match.state == "finished")
+    if mode != "overall":
+        stmt = stmt.join(Tournament).where(Tournament.mode == mode)
+
+    stmt = stmt.options(
+        selectinload(Match.tournament),
+        selectinload(Match.sides).selectinload(MatchSide.players),
     )
     return list(s.exec(stmt).all())
 
@@ -30,23 +33,29 @@ def _tournament_matches_with_players(s: Session, tournament_id: int) -> list[Mat
     return list(s.exec(stmt).all())
 
 
-def compute_stats_players(s: Session, *, lastN: int) -> dict[str, Any]:
+def compute_stats_players(s: Session, *, mode: str, lastN: int) -> dict[str, Any]:
+    mode_norm = str(mode or "overall").strip().lower()
+    if mode_norm not in ("overall", "1v1", "2v2"):
+        mode_norm = "overall"
+
     # All players (for global sorting + showing even inactive ones)
     players = list(s.exec(select(Player).order_by(Player.display_name)).all())
 
     # Finished matches for overall + lastN
-    finished_matches = _finished_matches_with_players(s)
+    finished_matches = _finished_matches_with_players(s, mode=mode_norm)
     overall = compute_overall_and_lastN(finished_matches, players, lastN=lastN)
 
     # Done tournaments for per-tournament positions (load players relationship once)
-    done_ts = list(
-        s.exec(
-            select(Tournament)
-            .where(Tournament.status == "done")
-            .order_by(Tournament.date, Tournament.id)
-            .options(selectinload(Tournament.players))
-        ).all()
+    done_stmt = (
+        select(Tournament)
+        .where(Tournament.status == "done")
+        .order_by(Tournament.date, Tournament.id)
+        .options(selectinload(Tournament.players))
     )
+    if mode_norm != "overall":
+        done_stmt = done_stmt.where(Tournament.mode == mode_norm)
+
+    done_ts = list(s.exec(done_stmt).all())
 
     tournaments_out: list[dict[str, Any]] = []
     # positions_by_tid[tid][player_id] = rank
@@ -127,9 +136,9 @@ def compute_stats_players(s: Session, *, lastN: int) -> dict[str, Any]:
 
     return {
         "generated_at": datetime.utcnow().isoformat(),
+        "mode": mode_norm,
         "cup_owner_player_id": cup_owner_player_id,
         "tournaments": tournaments_out,
         "players": player_rows,
         "lastN": lastN,
     }
-

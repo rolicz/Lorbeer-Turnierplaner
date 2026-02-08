@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from datetime import datetime
+from datetime import date, datetime, time
 from typing import Any
 
 from .models import Match, MatchSide, Player
@@ -119,15 +119,30 @@ def iter_finished_match_points(matches: list[Match]) -> list[tuple[datetime, int
     Returns events: (timestamp, player_id, points_for_that_match).
     Used for lastN avg points.
     """
-    out: list[tuple[datetime, int, int]] = []
+    out: list[tuple[tuple[datetime, int, int, int], int, int]] = []
 
-    def ts_for(m: Match) -> datetime:
-        # prefer finished_at, else started_at, else epoch
-        if m.finished_at:
-            return m.finished_at if isinstance(m.finished_at, datetime) else datetime.fromisoformat(str(m.finished_at))
-        if m.started_at:
-            return m.started_at if isinstance(m.started_at, datetime) else datetime.fromisoformat(str(m.started_at))
-        return datetime(1970, 1, 1)
+    def sort_key(m: Match) -> tuple[datetime, int, int, int]:
+        """
+        Sorting for "recent matches" should follow tournament chronology, not
+        "when the result was entered". Many matches share started/finished timestamps.
+        """
+        t = getattr(m, "tournament", None)
+        tdate = getattr(t, "date", None) if t else None
+        if isinstance(tdate, date):
+            base = datetime.combine(tdate, time.min)
+        else:
+            # fallback: prefer finished_at/started_at, else epoch
+            if m.finished_at:
+                base = m.finished_at if isinstance(m.finished_at, datetime) else datetime.fromisoformat(str(m.finished_at))
+            elif m.started_at:
+                base = m.started_at if isinstance(m.started_at, datetime) else datetime.fromisoformat(str(m.started_at))
+            else:
+                base = datetime(1970, 1, 1)
+
+        tid = int(getattr(t, "id", 0) or 0) if t else 0
+        order_index = int(getattr(m, "order_index", 0) or 0)
+        mid = int(getattr(m, "id", 0) or 0)
+        return (base, tid, order_index, mid)
 
     for m in matches:
         if m.state != "finished":
@@ -147,14 +162,14 @@ def iter_finished_match_points(matches: list[Match]) -> list[tuple[datetime, int
         else:
             pts_a = pts_b = 1
 
-        t = ts_for(m)
+        key = sort_key(m)
         for p in a.players:
-            out.append((t, int(p.id), pts_a))
+            out.append((key, int(p.id), int(pts_a)))
         for p in b.players:
-            out.append((t, int(p.id), pts_b))
+            out.append((key, int(p.id), int(pts_b)))
 
     out.sort(key=lambda x: x[0])
-    return out
+    return [(k[0], pid, pts) for k, pid, pts in out]
 
 
 def compute_overall_and_lastN(matches: list[Match], all_players: list[Player], lastN: int = 5) -> dict[int, dict[str, Any]]:

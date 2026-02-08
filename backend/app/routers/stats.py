@@ -21,9 +21,10 @@ def stats_overview_endpoint() -> dict[str, Any]:
 
 @router.get("/players")
 def stats_players(
+    mode: str = Query("overall", description='Match mode filter: "overall" (default), "1v1", or "2v2"'),
     lastN: int = Query(10, ge=0, le=100, description="How many recent matches to average (0 disables)"),
     s: Session = Depends(get_session)) -> dict[str, Any]:
-    return compute_stats_players(s, lastN=lastN)
+    return compute_stats_players(s, mode=mode, lastN=lastN)
 
 
 @router.get("/h2h")

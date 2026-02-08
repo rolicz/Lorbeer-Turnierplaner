@@ -1,8 +1,12 @@
 import { apiFetch } from "./client";
 import { StatsH2HResponse, StatsPlayersResponse, StatsStreaksResponse } from "./types";
 
-export function getStatsPlayers(): Promise<StatsPlayersResponse> {
-    return apiFetch("/stats/players", { method: "GET" });
+export function getStatsPlayers(opts?: { lastN?: number; mode?: "overall" | "1v1" | "2v2" }): Promise<StatsPlayersResponse> {
+    const qs = new URLSearchParams();
+    if (opts?.lastN != null) qs.set("lastN", String(opts.lastN));
+    if (opts?.mode && opts.mode !== "overall") qs.set("mode", String(opts.mode));
+    const suffix = qs.toString() ? `?${qs.toString()}` : "";
+    return apiFetch(`/stats/players${suffix}`, { method: "GET" });
 }
 
 export function getStatsH2H(opts?: {
