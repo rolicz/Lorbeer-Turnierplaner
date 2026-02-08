@@ -357,11 +357,13 @@ def compute_match_odds_for_tournament(
                 # Normalize to [-1..1] (max gap 4.5), then amplify big gaps non-linearly.
                 # 5.0 vs 0.5 => |norm|=1 => full weight.
                 norm = (sa - sb) / 4.5
-                delta += 0.80 * norm * abs(norm)
+                # This should noticeably matter for huge gaps like 5.0 vs 0.5 without
+                # overpowering the whole model for small gaps.
+                delta += 1.35 * norm * abs(norm)
 
         # If the match is live, incorporate current score advantage (we don't have minute-by-minute timing).
         if m.state == "playing":
-            delta += 0.95 * float(int(a.goals or 0) - int(b.goals or 0))
+            delta += 1.25 * float(int(a.goals or 0) - int(b.goals or 0))
 
         # Draw probability: baseline draw-rate + closeness bump.
         close_bump = 0.10 * exp(-abs(delta) * 2.5)
@@ -370,11 +372,11 @@ def compute_match_odds_for_tournament(
         # Live games with a big goal difference are extremely unlikely to end as a draw.
         if m.state == "playing":
             gd_live = abs(int(a.goals or 0) - int(b.goals or 0))
-            pX = _clamp(pX * exp(-0.85 * float(gd_live)), 0.01, 0.35)
+            pX = _clamp(pX * exp(-1.10 * float(gd_live)), 0.005, 0.35)
 
         # Win/loss split conditional on "not a draw".
         # The slope is tuned so odds don't become too extreme on small datasets.
-        slope = 1.45 if m.state != "playing" else 2.05
+        slope = 1.45 if m.state != "playing" else 2.55
         pA_nodraw = _sigmoid(delta * slope)
         pA = (1.0 - pX) * pA_nodraw
         pB = (1.0 - pX) * (1.0 - pA_nodraw)
@@ -423,3 +425,175 @@ def compute_match_odds_for_tournament(
         if payload:
             out[int(m.id)] = payload
     return out
+
+
+def compute_single_match_odds(
+    s: Session,
+    *,
+    mode: str,
+    teamA_player_ids: list[int],
+    teamB_player_ids: list[int],
+    clubA_id: int | None = None,
+    clubB_id: int | None = None,
+    state: str = "scheduled",
+    a_goals: int = 0,
+    b_goals: int = 0,
+    lastN_form: int = 10,
+    lastM_h2h: int = 8,
+    overround: float = 0.07,
+) -> dict[str, Any] | None:
+    """
+    Compute odds for an ad-hoc matchup (not necessarily persisted in the DB).
+    Uses the same model as tournament odds, but builds a temporary Match object in memory.
+    """
+    mode_norm = str(mode or "1v1").strip().lower()
+    if mode_norm not in ("1v1", "2v2"):
+        mode_norm = "1v1"
+
+    teamA = tuple(sorted(int(x) for x in (teamA_player_ids or []) if int(x) > 0))
+    teamB = tuple(sorted(int(x) for x in (teamB_player_ids or []) if int(x) > 0))
+    if mode_norm == "1v1" and (len(teamA) != 1 or len(teamB) != 1):
+        return None
+    if mode_norm == "2v2" and (len(teamA) != 2 or len(teamB) != 2):
+        return None
+    if set(teamA) & set(teamB):
+        # Same player on both sides is invalid.
+        return None
+
+    state_norm = str(state or "scheduled").strip().lower()
+    if state_norm not in ("scheduled", "playing"):
+        state_norm = "scheduled"
+
+    # Load finished matches with tournament+players in both: mode-specific + overall.
+    stmt = (
+        select(Match)
+        .where(Match.state == "finished")
+        .options(
+            selectinload(Match.tournament),
+            selectinload(Match.sides).selectinload(MatchSide.players),
+        )
+    )
+    finished_all = list(s.exec(stmt).all())
+    finished_all.sort(key=_sort_key)
+
+    finished_mode = [m for m in finished_all if getattr(getattr(m, "tournament", None), "mode", None) == mode_norm]
+
+    all_players = list(s.exec(select(Player)).all())
+
+    aggs_overall = _player_aggs_from_overall(compute_overall_and_lastN(finished_all, all_players, lastN=lastN_form))
+    aggs_mode = _player_aggs_from_overall(compute_overall_and_lastN(finished_mode, all_players, lastN=lastN_form))
+
+    draw_rate_mode = _draw_rate(finished_mode)
+    pair_form: dict[tuple[int, int], float] = _pair_form_lastN(finished_mode, lastN=lastN_form) if mode_norm == "2v2" else {}
+
+    # Preload star ratings for the selected clubs (optional signal).
+    club_star: dict[int, float] = {}
+    club_ids = [int(x) for x in (clubA_id, clubB_id) if x is not None]
+    if club_ids:
+        for c in s.exec(select(Club).where(Club.id.in_(club_ids))).all():
+            if c.id is not None:
+                club_star[int(c.id)] = float(getattr(c, "star_rating", 0.0) or 0.0)
+
+    now = datetime.utcnow().isoformat()
+
+    def player_strength(pid: int) -> float:
+        o = aggs_overall.get(pid) or _Agg(lastN_avg_pts=0.0, played=0, gd_per_match=0.0)
+        m = aggs_mode.get(pid) or _Agg(lastN_avg_pts=0.0, played=0, gd_per_match=0.0)
+        w_mode = 0.70 if m.played >= 3 else 0.45
+        return w_mode * m.lastN_avg_pts + (1.0 - w_mode) * o.lastN_avg_pts
+
+    def player_gdpm(pid: int) -> float:
+        o = aggs_overall.get(pid) or _Agg(lastN_avg_pts=0.0, played=0, gd_per_match=0.0)
+        m = aggs_mode.get(pid) or _Agg(lastN_avg_pts=0.0, played=0, gd_per_match=0.0)
+        w_mode = 0.75 if m.played >= 6 else 0.50
+        return w_mode * m.gd_per_match + (1.0 - w_mode) * o.gd_per_match
+
+    def team_strength(team: tuple[int, ...]) -> float:
+        return (sum(player_strength(pid) for pid in team) / len(team)) if team else 0.0
+
+    def team_gdpm(team: tuple[int, ...]) -> float:
+        return (sum(player_gdpm(pid) for pid in team) / len(team)) if team else 0.0
+
+    def synergy_edge(teamA_: tuple[int, ...], teamB_: tuple[int, ...]) -> float:
+        if mode_norm != "2v2":
+            return 0.0
+        if len(teamA_) != 2 or len(teamB_) != 2:
+            return 0.0
+        kA = (teamA_[0], teamA_[1]) if teamA_[0] < teamA_[1] else (teamA_[1], teamA_[0])
+        kB = (teamB_[0], teamB_[1]) if teamB_[0] < teamB_[1] else (teamB_[1], teamB_[0])
+        pairA = float(pair_form.get(kA, 0.0))
+        pairB = float(pair_form.get(kB, 0.0))
+        indA = team_strength(teamA_)
+        indB = team_strength(teamB_)
+        return (pairA - indA) - (pairB - indB)
+
+    def compute_probs_for(teamA_: tuple[int, ...], teamB_: tuple[int, ...]) -> dict[str, Any] | None:
+        sA = team_strength(teamA_)
+        sB = team_strength(teamB_)
+        gdA = team_gdpm(teamA_)
+        gdB = team_gdpm(teamB_)
+        h2h = _team_h2h_edge(finished_all, mode=mode_norm, teamA=teamA_, teamB=teamB_, lastM=lastM_h2h)
+        syn = synergy_edge(teamA_, teamB_)
+
+        delta = (sA - sB) + 0.20 * (gdA - gdB) + 0.25 * h2h + 0.22 * syn
+
+        if clubA_id is not None and clubB_id is not None:
+            sa = float(club_star.get(int(clubA_id), 0.0))
+            sb = float(club_star.get(int(clubB_id), 0.0))
+            if sa and sb:
+                norm = (sa - sb) / 4.5
+                delta += 1.35 * norm * abs(norm)
+
+        if state_norm == "playing":
+            delta += 1.25 * float(int(a_goals or 0) - int(b_goals or 0))
+
+        close_bump = 0.10 * exp(-abs(delta) * 2.5)
+        pX = _clamp(draw_rate_mode + close_bump, 0.10, 0.42)
+
+        if state_norm == "playing":
+            gd_live = abs(int(a_goals or 0) - int(b_goals or 0))
+            pX = _clamp(pX * exp(-1.10 * float(gd_live)), 0.005, 0.35)
+
+        slope = 1.45 if state_norm != "playing" else 2.55
+        pA_nodraw = _sigmoid(delta * slope)
+        pA = (1.0 - pX) * pA_nodraw
+        pB = (1.0 - pX) * (1.0 - pA_nodraw)
+
+        eff = float(min(40, len(finished_mode)))
+        prior = (0.36, 0.28, 0.36)
+        prior_strength = 10.0 if state_norm != "playing" else 6.0
+
+        if state_norm == "playing":
+            gd_live = abs(int(a_goals or 0) - int(b_goals or 0))
+            eff += float(min(60, 6 + gd_live * 8))
+            prior_strength = 4.0
+        denom = eff + prior_strength
+        pA = (pA * eff + prior[0] * prior_strength) / denom
+        pX = (pX * eff + prior[1] * prior_strength) / denom
+        pB = (pB * eff + prior[2] * prior_strength) / denom
+
+        ssum = pA + pX + pB
+        if ssum <= 0:
+            pA, pX, pB = prior
+            ssum = sum(prior)
+        pA, pX, pB = pA / ssum, pX / ssum, pB / ssum
+
+        oA, oX, oB = _decimal_odds_from_probs(pA, pX, pB, overround=overround)
+        return {
+            "model": "v1",
+            "updated_at": now,
+            "p_home": round(float(pA), 6),
+            "p_draw": round(float(pX), 6),
+            "p_away": round(float(pB), 6),
+            "home": round(float(oA), 2),
+            "draw": round(float(oX), 2),
+            "away": round(float(oB), 2),
+        }
+
+    # Validate requested players exist.
+    need_ids = list(teamA) + list(teamB)
+    db_players = {int(p.id): p for p in s.exec(select(Player).where(Player.id.in_(need_ids))).all() if p.id is not None}
+    if any(pid not in db_players for pid in need_ids):
+        return None
+
+    return compute_probs_for(teamA, teamB)

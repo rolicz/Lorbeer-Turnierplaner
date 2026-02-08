@@ -1,10 +1,9 @@
-import RandomClubPickerCard from "./tools/RandomClubPickerCard";
+import FriendlyMatchCard from "./tools/FriendlyMatchCard";
 
 export default function ToolsPage() {
   return (
     <div className="page">
-      <RandomClubPickerCard />
+      <FriendlyMatchCard />
     </div>
   );
 }
-

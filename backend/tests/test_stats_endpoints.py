@@ -1,3 +1,6 @@
+from tests.conftest import create_league
+
+
 def test_stats_overview(client):
     r = client.get("/stats/overview")
     assert r.status_code == 200, r.text
@@ -54,3 +57,42 @@ def test_stats_streaks_empty(client):
 def test_stats_player_matches_requires_player_id(client):
     r = client.get("/stats/player-matches")
     assert r.status_code in (400, 422), r.text
+
+
+def test_stats_odds_endpoint_basic(client, admin_headers, editor_headers):
+    league_id = create_league(client, admin_headers, "Odds League")
+
+    p1 = client.post("/players", json={"display_name": "OA"}, headers=admin_headers).json()["id"]
+    p2 = client.post("/players", json={"display_name": "OB"}, headers=admin_headers).json()["id"]
+
+    c_strong = client.post(
+        "/clubs",
+        json={"name": "Strong", "game": "EA FC 26", "star_rating": 5.0, "league_id": league_id},
+        headers=editor_headers,
+    ).json()["id"]
+    c_weak = client.post(
+        "/clubs",
+        json={"name": "Weak", "game": "EA FC 26", "star_rating": 0.5, "league_id": league_id},
+        headers=editor_headers,
+    ).json()["id"]
+
+    r = client.post(
+        "/stats/odds",
+        json={
+            "mode": "1v1",
+            "teamA_player_ids": [p1],
+            "teamB_player_ids": [p2],
+            "clubA_id": c_strong,
+            "clubB_id": c_weak,
+            "state": "scheduled",
+            "a_goals": 0,
+            "b_goals": 0,
+        },
+    )
+    assert r.status_code == 200, r.text
+    data = r.json()
+    odds = data.get("odds")
+    assert isinstance(odds, dict)
+    assert float(odds.get("home")) >= 1.01
+    assert float(odds.get("draw")) >= 1.01
+    assert float(odds.get("away")) >= 1.01

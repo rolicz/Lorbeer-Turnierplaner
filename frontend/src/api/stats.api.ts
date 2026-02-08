@@ -1,5 +1,11 @@
 import { apiFetch } from "./client";
-import { StatsH2HResponse, StatsPlayerMatchesResponse, StatsPlayersResponse, StatsStreaksResponse } from "./types";
+import {
+  MatchOdds,
+  StatsH2HResponse,
+  StatsPlayerMatchesResponse,
+  StatsPlayersResponse,
+  StatsStreaksResponse,
+} from "./types";
 
 export function getStatsPlayers(opts?: { lastN?: number; mode?: "overall" | "1v1" | "2v2" }): Promise<StatsPlayersResponse> {
     const qs = new URLSearchParams();
@@ -39,4 +45,23 @@ export function getStatsPlayerMatches(opts: { playerId: number }): Promise<Stats
     const qs = new URLSearchParams();
     qs.set("player_id", String(opts.playerId));
     return apiFetch(`/stats/player-matches?${qs.toString()}`, { method: "GET" });
+}
+
+export type StatsOddsRequest = {
+  mode: "1v1" | "2v2";
+  teamA_player_ids: number[];
+  teamB_player_ids: number[];
+  clubA_id: number | null;
+  clubB_id: number | null;
+  state: "scheduled" | "playing";
+  a_goals: number;
+  b_goals: number;
+};
+
+export type StatsOddsResponse = {
+  odds: MatchOdds | null;
+};
+
+export function getStatsOdds(req: StatsOddsRequest): Promise<StatsOddsResponse> {
+  return apiFetch(`/stats/odds`, { method: "POST", body: JSON.stringify(req) });
 }

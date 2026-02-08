@@ -3,7 +3,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Body, Depends, Query
+from pydantic import BaseModel, Field
 from sqlmodel import Session
 
 from ..db import get_session
@@ -12,8 +13,21 @@ from ..services.stats.registry import stats_overview
 from ..services.stats.h2h import compute_stats_h2h
 from ..services.stats.streaks import compute_stats_streaks
 from ..services.stats.player_matches import compute_stats_player_matches
+from ..services.stats.odds import compute_single_match_odds
 
 router = APIRouter(prefix="/stats", tags=["stats"])
+
+
+class StatsOddsRequest(BaseModel):
+    mode: str = Field("1v1", description='Match mode: "1v1" or "2v2"')
+    teamA_player_ids: list[int] = Field(default_factory=list, description="Team A player ids")
+    teamB_player_ids: list[int] = Field(default_factory=list, description="Team B player ids")
+    clubA_id: int | None = Field(None, description="Optional club for team A")
+    clubB_id: int | None = Field(None, description="Optional club for team B")
+    state: str = Field("scheduled", description='Match state: "scheduled" or "playing"')
+    a_goals: int = Field(0, ge=0, le=99)
+    b_goals: int = Field(0, ge=0, le=99)
+
 
 @router.get("/overview")
 def stats_overview_endpoint() -> dict[str, Any]:
@@ -54,3 +68,23 @@ def stats_player_matches(
     s: Session = Depends(get_session),
 ) -> dict[str, Any]:
     return compute_stats_player_matches(s, player_id=player_id)
+
+
+@router.post("/odds")
+def stats_odds(
+    req: StatsOddsRequest = Body(...),
+    s: Session = Depends(get_session),
+) -> dict[str, Any]:
+    payload = compute_single_match_odds(
+        s,
+        mode=req.mode,
+        teamA_player_ids=req.teamA_player_ids,
+        teamB_player_ids=req.teamB_player_ids,
+        clubA_id=req.clubA_id,
+        clubB_id=req.clubB_id,
+        state=req.state,
+        a_goals=req.a_goals,
+        b_goals=req.b_goals,
+    )
+    # Keep response shape stable for the UI; clients treat missing as "no odds yet".
+    return {"odds": payload}
