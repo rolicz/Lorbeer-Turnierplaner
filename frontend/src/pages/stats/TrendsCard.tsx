@@ -10,7 +10,7 @@ import { sideBy } from "../../helpers";
 
 type Mode = "overall" | "1v1" | "2v2";
 type View = "lastN" | "total";
-type WindowMonths = 3 | 5 | 6 | 12;
+type WindowMonths = 3 | 6 | 12 | "all";
 
 function fmtDate(s?: string | null) {
   if (!s) return "";
@@ -81,7 +81,7 @@ function monthTicksBetween(startTs: number, endTs: number) {
   return out;
 }
 
-function colorForIdx(idx: number, total: number) {
+export function colorForIdx(idx: number, total: number) {
   // Distinct, theme-invariant palette via HSL.
   const hue = Math.round(((idx % Math.max(1, total)) * 360) / Math.max(1, total));
   return {
@@ -183,7 +183,7 @@ function ViewSwitch({ value, onChange }: { value: View; onChange: (m: View) => v
 }
 
 function WindowSwitch({ value, onChange }: { value: WindowMonths; onChange: (m: WindowMonths) => void }) {
-  const idx = value === 3 ? 0 : value === 5 ? 1 : value === 6 ? 2 : 3;
+  const idx = value === 3 ? 0 : value === 6 ? 1 : value === 12 ? 2 : 3;
   const wCls = "w-14 sm:w-20";
   return (
     <div
@@ -204,9 +204,9 @@ function WindowSwitch({ value, onChange }: { value: WindowMonths; onChange: (m: 
       {(
         [
           { k: 3 as const, label: "3m" },
-          { k: 5 as const, label: "5m" },
           { k: 6 as const, label: "6m" },
           { k: 12 as const, label: "1y" },
+          { k: "all" as const, label: "All" },
         ] as const
       ).map((x) => (
         <button
@@ -255,12 +255,13 @@ function pointsForPlayerInMatch(m: Match, playerId: number): number | null {
 function avgLast(arr: number[], n: number) {
   const slice = arr.slice(-n);
   if (!slice.length) return 0;
-  return slice.reduce((a, b) => a + b, 0) / slice.length;
+  // Divide by the chosen N even if fewer matches exist (pad missing with 0).
+  return slice.reduce((a, b) => a + b, 0) / Math.max(1, n);
 }
 
-type SeriesPoint = { y: number; present: boolean } | null; // null = no datapoint
+export type SeriesPoint = { y: number; present: boolean } | null; // null = no datapoint
 
-function MultiLineChart({
+export function MultiLineChart({
   title,
   tournamentTs,
   windowStartTs,
@@ -273,6 +274,11 @@ function MultiLineChart({
   xHintLeft,
   xHintRight,
   ySuffix,
+  size = "full",
+  showTournamentTitles = true,
+  showLegend = true,
+  showHeader = true,
+  frame = "flat",
 }: {
   title: string;
   tournamentTs: number[];
@@ -286,15 +292,21 @@ function MultiLineChart({
   xHintLeft?: string;
   xHintRight?: string;
   ySuffix?: string;
+  size?: "full" | "mini";
+  showTournamentTitles?: boolean;
+  showLegend?: boolean;
+  showHeader?: boolean;
+  frame?: "flat" | "none";
 }) {
   const w = 920;
-  // Match typical phone card aspect ratios so `preserveAspectRatio="meet"` uses vertical space too.
-  const h = 720;
+  // Tune the viewBox aspect so `preserveAspectRatio="meet"` doesn't leave big horizontal gutters
+  // in short (mini) plots.
+  const h = 520;
   // Leave room for Y-axis labels to the left of the axis.
-  const padL = 56;
+  const padL = size === "mini" ? 52 : 56;
   const padR = 14;
   const padT = 14;
-  const padB = 86;
+  const padB = size === "mini" ? 78 : 86;
   const n = tournamentTs.length;
 
   const span = Math.max(1, windowEndTs - windowStartTs);
@@ -314,8 +326,8 @@ function MultiLineChart({
   const gridStroke = "rgb(var(--color-border-card-inner))";
   const labelFill = "rgb(var(--color-text-muted))";
   // Font sizes are in viewBox units; since the SVG is scaled down, these need to be large.
-  const axisLabelSize = 32;
-  const axisXSize = 26; // narrow month labels (MM/YY)
+  const axisLabelSize = size === "mini" ? 28 : 32;
+  const axisXSize = size === "mini" ? 22 : 26; // narrow month labels (MM/YY)
   const axisWeight = 600;
 
   // Absolute time ticks (month boundaries only; do not force start/end labels).
@@ -382,19 +394,36 @@ function MultiLineChart({
 
   return (
     <div
-      className="card-inner-flat rounded-2xl flex min-h-0 min-w-0 flex-col overflow-hidden"
+      className={
+        (frame === "flat" ? "card-inner-flat " : "") + "rounded-2xl flex min-h-0 min-w-0 flex-col overflow-hidden"
+      }
     >
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="text-sm font-semibold text-text-normal">{title}</div>
-          <div className="mt-0.5 text-[11px] text-text-muted">{xHintLeft || "—"} <span className="opacity-70">to</span> {xHintRight || "—"}</div>
+      {showHeader ? (
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="text-sm font-semibold text-text-normal">{title}</div>
+            <div className="mt-0.5 text-[11px] text-text-muted">
+              {xHintLeft || "—"} <span className="opacity-70">to</span> {xHintRight || "—"}
+            </div>
+          </div>
+          <div className="shrink-0 text-[11px] text-text-muted">{series.length} players</div>
         </div>
-        <div className="shrink-0 text-[11px] text-text-muted">{series.length} players</div>
-      </div>
+      ) : null}
 
       {/* Fixed, responsive plot height (no dynamic viewport sizing). */}
-      <div className="mt-2 h-[280px] sm:h-[320px] lg:h-[380px]">
-        <div className="relative h-full w-full overflow-hidden rounded-2xl border border-border-card-chip/55 bg-bg-card-chip p-2 shadow-sm">
+      <div
+        className={
+          (showHeader ? "mt-2 " : "") +
+          // Dashboard preview is short; on desktop, the stats chart needs more height to avoid unused horizontal space.
+          (size === "mini" ? "h-[200px] sm:h-[220px] lg:h-[240px]" : "h-[200px] sm:h-[220px] lg:h-[340px]")
+        }
+      >
+        <div
+          className={
+            "relative h-full w-full overflow-hidden rounded-2xl border border-border-card-chip/55 bg-bg-card-chip shadow-sm " +
+            (size === "mini" ? "p-1.5" : "p-2")
+          }
+        >
           {/* Brighter plot surface (solid tint; no gradient). */}
           <div className="pointer-events-none absolute inset-0 bg-white/26" />
           {/* Keep aspect ratio so text/points don't get stretched when the plot grows vertically. */}
@@ -471,7 +500,7 @@ function MultiLineChart({
             ) : null}
 
             {/* tournament titles (vertical) at the top of the plot */}
-            {tournamentTitles.length ? (
+            {showTournamentTitles && tournamentTitles.length ? (
               <>
                 {tournamentTitles.map((name, i) => {
                   // Clamp slightly so the most recent/oldest label can't bleed out of the plot box.
@@ -629,23 +658,31 @@ function MultiLineChart({
       </div>
 
       {/* Reserve space for 2 legend rows (prevents width overflow on small phones and avoids layout jumps). */}
-      <div className="mt-2 min-w-0 pb-1">
-        <div className="flex h-[56px] flex-wrap content-start items-center gap-2 overflow-y-auto overflow-x-hidden pr-1">
-          {series.map((s) => (
-            <div key={s.id} className="inline-flex items-center gap-2 rounded-xl px-2 py-1 text-[11px] text-text-muted">
-              <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: s.color }} />
-              <span className="max-w-[12rem] truncate">{s.name}</span>
-            </div>
-          ))}
+      {showLegend ? (
+        <div className="mt-2 min-w-0 pb-1">
+          <div className={size === "mini" ? "flex h-[44px] flex-wrap content-start items-center gap-2 overflow-y-auto overflow-x-hidden pr-1" : "flex h-[56px] flex-wrap content-start items-center gap-2 overflow-y-auto overflow-x-hidden pr-1"}>
+            {series.map((s) => (
+              <div key={s.id} className="inline-flex items-center gap-2 rounded-xl px-2 py-1 text-[11px] text-text-muted">
+                <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: s.color }} />
+                <span className="max-w-[12rem] truncate">{s.name}</span>
+              </div>
+            ))}
+          </div>
         </div>
-      </div>
+      ) : null}
     </div>
   );
 }
 
-export default function TrendsCard() {
+export default function TrendsCard({
+  defaultOpen = false,
+  initialView = "lastN",
+}: {
+  defaultOpen?: boolean;
+  initialView?: View;
+} = {}) {
   const [mode, setMode] = useState<Mode>("overall");
-  const [view, setView] = useState<View>("lastN");
+  const [view, setView] = useState<View>(initialView);
   const [formN, setFormN] = useState(10);
   const [endIdx, setEndIdx] = useState<number | null>(null);
   const [windowMonths, setWindowMonths] = useState<WindowMonths>(6);
@@ -722,12 +759,17 @@ export default function TrendsCard() {
     const nowTs = Date.now();
     const endTs = endIdx >= all.length ? Math.max(nowTs, lastTs) : new Date(all[endIdx]?.date ?? 0).getTime();
     const endD = new Date(endTs);
-    const startD = addMonths(endD, -windowMonths);
+    const startD =
+      windowMonths === "all"
+        ? new Date(Math.min(...all.map((t) => new Date(t.date ?? 0).getTime()).filter((x) => Number.isFinite(x) && x > 0)))
+        : addMonths(endD, -windowMonths);
+
     const window = all.filter((t) => {
       const d = new Date(t.date ?? 0);
       return d >= startD && d <= endD;
     });
-    const label = `${fmtMonthDate(startD)} → ${fmtMonthDate(endD)}`;
+
+    const label = windowMonths === "all" ? `All → ${fmtMonthDate(endD)}` : `${fmtMonthDate(startD)} → ${fmtMonthDate(endD)}`;
     const lite: StatsTournamentLite[] = window.map((t) => ({
       id: t.id,
       name: t.name,
@@ -908,7 +950,9 @@ export default function TrendsCard() {
         <div className="pt-2 border-t border-border-card-chip/40 space-y-2">
           <MetaRow size="11">
             <span>Timeline</span>
-            <span className="text-text-normal">{windowMonths === 12 ? "1 year" : `${windowMonths} months`}</span>
+            <span className="text-text-normal">
+              {windowMonths === "all" ? "All time" : windowMonths === 12 ? "1 year" : `${windowMonths} months`}
+            </span>
           </MetaRow>
           <div className="flex items-center justify-between gap-3 text-[11px] text-text-muted">
             <span className="shrink-0">{timeSpanLabel || "—"}</span>
@@ -945,7 +989,7 @@ export default function TrendsCard() {
             windowStartTs={windowStartTs}
             windowEndTs={windowEndTs}
             tournamentTitles={chart.tournamentTitles}
-            xLabelEvery={windowMonths === 12 ? 2 : 1}
+            xLabelEvery={windowMonths === 12 || windowMonths === "all" ? 2 : 1}
             xHintLeft={chart.xHintLeft}
             xHintRight={chart.xHintRight}
             yMax={chart.yMax}
@@ -965,7 +1009,11 @@ export default function TrendsCard() {
   );
 
   return (
-    <div ref={wrapRef} className="scroll-mt-[calc(env(safe-area-inset-top,0px)+128px)] sm:scroll-mt-[calc(env(safe-area-inset-top,0px)+144px)]">
+    <div
+      id="stats-trends"
+      ref={wrapRef}
+      className="scroll-mt-[calc(env(safe-area-inset-top,0px)+128px)] sm:scroll-mt-[calc(env(safe-area-inset-top,0px)+144px)]"
+    >
       <CollapsibleCard
         title={
           <span className="inline-flex items-center gap-2">
@@ -973,7 +1021,7 @@ export default function TrendsCard() {
             Trends
           </span>
         }
-        defaultOpen={false}
+        defaultOpen={defaultOpen}
         scrollOnOpen={true}
         variant="outer"
         bodyVariant="none"

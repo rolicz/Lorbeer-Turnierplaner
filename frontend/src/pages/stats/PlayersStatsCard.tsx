@@ -507,39 +507,14 @@ export default function PlayersStatsCard() {
   }, [cups, cupsQ, cupOwnerIdLegacy]);
 
   const tournaments = statsQ.data?.tournaments ?? [];
-
-  const lastNServer = useMemo(() => {
-    const n = statsQ.data?.lastN;
-    if (Number.isFinite(n as any) && (n as number) > 0) return n as number;
-    const first = statsQ.data?.players?.[0];
-    const d = first?.lastN_pts?.length ?? 10;
-    return Math.max(1, d);
-  }, [statsQ.data]);
-
-  const lastNMax = useMemo(() => {
-    let mx = 0;
-    for (const r of statsQ.data?.players ?? []) {
-      const n = (r.lastN_pts ?? []).length;
-      if (n > mx) mx = n;
-    }
-    return mx || lastNServer;
-  }, [statsQ.data, lastNServer]);
-
-  const lastNInitRef = useRef(false);
   const [lastNView, setLastNView] = useState<number>(10);
-  useEffect(() => {
-    if (!lastNInitRef.current) {
-      lastNInitRef.current = true;
-      setLastNView((prev) => Math.max(1, Math.min(prev, Math.min(lastNMax, LASTN_FETCH))));
-      return;
-    }
-    setLastNView((prev) => Math.max(1, Math.min(prev, Math.min(lastNMax, LASTN_FETCH))));
-  }, [lastNServer, lastNMax]);
 
   function avgLastN(s: StatsPlayerRow) {
     const arr = (s.lastN_pts ?? []).map((x) => Number(x)).filter((x) => Number.isFinite(x));
     if (!arr.length) return 0;
-    const n = Math.max(1, Math.min(lastNView, arr.length));
+    // Divide by the chosen N even if the player has fewer than N matches.
+    // This avoids inflating small-sample "form" (e.g. 1 match + 1 win = 3.00 ppm).
+    const n = clamp(Math.trunc(lastNView) || 1, 1, LASTN_FETCH);
     const slice = arr.slice(-n);
     const sum = slice.reduce((a, b) => a + b, 0);
     return sum / n;
@@ -686,9 +661,9 @@ export default function PlayersStatsCard() {
           <input
             type="range"
             min={1}
-            max={Math.max(1, Math.min(lastNMax, LASTN_FETCH))}
+            max={LASTN_FETCH}
             value={lastNView}
-            onChange={(e) => setLastNView(Number(e.target.value))}
+            onChange={(e) => setLastNView(clamp(Number(e.target.value), 1, LASTN_FETCH))}
             className="w-full"
           />
         </div>

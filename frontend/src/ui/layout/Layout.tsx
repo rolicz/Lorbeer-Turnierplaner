@@ -113,6 +113,13 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                     key={n.to}
                     to={n.to}
                     className={`nav-link ${active ? "nav-link-active" : ""}`}
+                    onClick={
+                      n.to === "/dashboard"
+                        ? () => {
+                            window.scrollTo({ top: 0, behavior: "auto" });
+                          }
+                        : undefined
+                    }
                   >
                     {n.label}
                   </Link>

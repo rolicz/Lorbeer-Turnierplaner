@@ -51,7 +51,8 @@ function rollingAvg(series: number[], window: number) {
   for (let i = 0; i < series.length; i++) {
     const start = Math.max(0, i - window + 1);
     const slice = series.slice(start, i + 1);
-    const avg = slice.reduce((a, b) => a + b, 0) / Math.max(1, slice.length);
+    // Fixed denominator (pad missing history with 0) to avoid inflating early values.
+    const avg = slice.reduce((a, b) => a + b, 0) / Math.max(1, window);
     out.push(avg);
   }
   return out;

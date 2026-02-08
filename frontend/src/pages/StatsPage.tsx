@@ -4,13 +4,46 @@ import TrendsCard from "./stats/TrendsCard";
 import HeadToHeadCard from "./stats/HeadToHeadCard";
 import StreaksCard from "./stats/StreaksCard";
 import PlayerMatchesCard from "./stats/PlayerMatchesCard";
+import { useEffect, useMemo } from "react";
+import { useLocation } from "react-router-dom";
 
 export default function StatsPage() {
+  const location = useLocation() as { hash?: string; state?: any };
+  const focusTrends = useMemo(() => {
+    return location?.hash === "#trends" || location?.state?.focus === "trends";
+  }, [location?.hash, location?.state?.focus]);
+
+  const initialTrendsView = (location?.state?.trendsView as "lastN" | "total" | undefined) ?? undefined;
+
+  useEffect(() => {
+    if (!focusTrends) return;
+    const el = document.getElementById("stats-trends");
+    if (!el) return;
+
+    let raf2: number | null = null;
+    const raf1 = requestAnimationFrame(() => {
+      raf2 = requestAnimationFrame(() => {
+        el.scrollIntoView({ behavior: "smooth", block: "start" });
+        window.setTimeout(() => {
+          try {
+            el.scrollIntoView({ behavior: "auto", block: "start" });
+          } catch {
+            // ignore
+          }
+        }, 220);
+      });
+    });
+    return () => {
+      cancelAnimationFrame(raf1);
+      if (raf2 != null) cancelAnimationFrame(raf2);
+    };
+  }, [focusTrends]);
+
   return (
     <div className="page">
       <div className="grid gap-3 lg:grid-cols-2">
         <PlayersStatsCard />
-        <TrendsCard />
+        <TrendsCard defaultOpen={focusTrends} initialView={initialTrendsView} />
         <HeadToHeadCard />
         <StreaksCard />
         <PlayerMatchesCard />

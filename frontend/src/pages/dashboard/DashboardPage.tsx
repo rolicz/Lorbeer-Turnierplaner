@@ -2,14 +2,19 @@ import { useQuery } from "@tanstack/react-query";
 
 import CupCard from "./CupCard";
 import CurrentMatchPreviewCard from "./CurrentMatchPreviewCard";
+import TrendsPreviewCard from "./TrendsPreviewCard";
 import CollapsibleCard from "../../ui/primitives/CollapsibleCard";
 import { listCupDefs } from "../../api/cup.api";
 import { useAnyTournamentWS } from "../../hooks/useTournamentWS";
 import { cupColorVarForKey, rgbFromCssVar } from "../../cupColors";
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 
 export default function DashboardPage() {
   useAnyTournamentWS();
+  useEffect(() => {
+    // Ensure dashboard always starts at the top (e.g. when navigating back).
+    window.scrollTo({ top: 0, behavior: "auto" });
+  }, []);
 
   const defsQ = useQuery({ queryKey: ["cup", "defs"], queryFn: listCupDefs });
   const cupsRaw = defsQ.data?.cups?.length ? defsQ.data.cups : [{ key: "default", name: "Cup", since_date: null }];
@@ -24,6 +29,7 @@ export default function DashboardPage() {
     <div className="page">
       <div className="grid gap-3 lg:grid-cols-2">
         <CurrentMatchPreviewCard />
+        <TrendsPreviewCard />
 
         {defsQ.error ? <div className="text-sm text-red-400">{String(defsQ.error)}</div> : null}
 
