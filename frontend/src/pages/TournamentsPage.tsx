@@ -4,8 +4,6 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Card from "../ui/primitives/Card";
 import Button from "../ui/primitives/Button";
 import Input from "../ui/primitives/Input";
-import Modal from "../ui/primitives/Modal";
-import Panel from "../ui/primitives/Panel";
 import SectionHeader from "../ui/primitives/SectionHeader";
 import { Meta } from "../ui/primitives/Meta";
 import { Pill, statusPill, pillDate } from "../ui/primitives/Pill";
@@ -42,7 +40,7 @@ export default function TournamentsPage() {
   const playersQ = useQuery({ queryKey: ["players"], queryFn: listPlayers, enabled: canWrite });
 
   useAnyTournamentWS();
-  const [open, setOpen] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
   const [name, setName] = useState("");
   const [mode, setMode] = useState<"1v1" | "2v2">("1v1");
   const [selected, setSelected] = useState<Record<number, boolean>>({});
@@ -80,7 +78,7 @@ export default function TournamentsPage() {
       return created.id;
     },
     onSuccess: async () => {
-      setOpen(false);
+      setCreateOpen(false);
       setName("");
       setSelected({});
       await qc.invalidateQueries({ queryKey: ["tournaments"] });
@@ -103,16 +101,110 @@ export default function TournamentsPage() {
                 <span className="hidden md:inline">Refresh</span>
               </Button>
               {canWrite ? (
-                <Button onClick={() => setOpen(true)} title="New Tournament">
-                  <i className="fa fa-plus md:hidden" aria-hidden="true" />
-                  <span className="hidden md:inline">New</span>
+                <Button
+                  variant={createOpen ? "ghost" : "solid"}
+                  onClick={() => setCreateOpen((v) => !v)}
+                  title={createOpen ? "Close new tournament" : "New Tournament"}
+                >
+                  <i className={"fa " + (createOpen ? "fa-chevron-up" : "fa-plus") + " md:hidden"} aria-hidden="true" />
+                  <span className="hidden md:inline">{createOpen ? "Close" : "New"}</span>
                 </Button>
               ) : null}
             </>
           }
         />
 
-        <div className="mt-3 space-y-2">
+        {canWrite && createOpen ? (
+          <div className="mt-3 panel-subtle p-3 space-y-3">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Input
+                label="Name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="42. Lorbeerkranz Turnier"
+              />
+
+              <div>
+                <div className="input-label">Mode</div>
+                <div
+                  className="relative inline-flex w-full rounded-2xl p-1"
+                  style={{ backgroundColor: "rgb(var(--color-bg-card-chip) / 0.35)" }}
+                  role="group"
+                  aria-label="Tournament mode"
+                >
+                  <span
+                    className="absolute inset-y-1 left-1 w-1/2 rounded-xl shadow-sm transition-transform duration-200 ease-out"
+                    style={{
+                      backgroundColor: "rgb(var(--color-bg-card-inner))",
+                      transform: `translateX(${mode === "1v1" ? 0 : 100}%)`,
+                    }}
+                    aria-hidden="true"
+                  />
+                  {(
+                    [
+                      { k: "1v1" as const, label: "1v1" },
+                      { k: "2v2" as const, label: "2v2" },
+                    ] as const
+                  ).map((x) => (
+                    <button
+                      key={x.k}
+                      type="button"
+                      onClick={() => setMode(x.k)}
+                      className={
+                        "relative z-10 inline-flex h-10 w-1/2 items-center justify-center rounded-xl text-sm transition-colors " +
+                        (mode === x.k ? "text-text-normal" : "text-text-muted hover:text-text-normal")
+                      }
+                      aria-pressed={mode === x.k}
+                    >
+                      {x.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <div className="text-sm font-medium text-text-normal">Players</div>
+              {playersQ.isLoading && <div className="text-sm text-text-muted">Loading players…</div>}
+              {playersQ.error && <div className="text-sm text-red-400">{String(playersQ.error)}</div>}
+              <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
+                {playersQ.data?.map((p) => {
+                  const checked = !!selected[p.id];
+                  return (
+                    <label
+                      key={p.id}
+                      className={cn(
+                        "flex items-center gap-2 rounded-xl border px-2 py-2 text-sm transition",
+                        checked
+                          ? "border-accent/50 bg-bg-card-inner"
+                          : "border-border-card-chip/70 bg-bg-card-chip/25 hover:bg-bg-card-chip/40"
+                      )}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={(e) => setSelected((prev) => ({ ...prev, [p.id]: e.target.checked }))}
+                      />
+                      <span className="truncate">{p.display_name}</span>
+                    </label>
+                  );
+                })}
+              </div>
+              <div className="text-xs text-text-muted">Selected: {selectedIds.length}</div>
+            </div>
+
+            {createMut.error && <div className="text-sm text-red-400">{String(createMut.error)}</div>}
+
+            <div className="flex items-center justify-end gap-2">
+              <Button onClick={() => createMut.mutate()} disabled={createMut.isPending} type="button">
+                <i className="fa fa-check md:hidden" aria-hidden="true" />
+                <span className="hidden md:inline">{createMut.isPending ? "Creating…" : "Create"}</span>
+              </Button>
+            </div>
+          </div>
+        ) : null}
+
+        <div className={cn(canWrite && createOpen ? "mt-3 space-y-2" : "mt-3 space-y-2")}>
           {tournamentsQ.isLoading && <div className="text-text-muted">Loading…</div>}
           {tournamentsQ.error && <div className="text-red-400 text-sm">{String(tournamentsQ.error)}</div>}
 
@@ -175,73 +267,6 @@ export default function TournamentsPage() {
           })}
         </div>
       </Card>
-
-      <Modal open={open} title="Create Tournament" onClose={() => setOpen(false)}>
-        <div className="space-y-3">
-          <Input label="Name" value={name} onChange={(e) => setName(e.target.value)} placeholder="42. Lorbeerkranz Turnier" />
-          <div className="grid grid-cols-2 gap-2">
-            <button
-              className={cn(
-                "rounded-xl border px-3 py-2 text-sm transition",
-                mode === "1v1"
-                  ? "border-accent/60 bg-bg-card-inner"
-                  : "border-border-card-inner/70 hover:bg-hover-default/40"
-              )}
-              onClick={() => setMode("1v1")}
-              type="button"
-            >
-              1v1
-            </button>
-            <button
-              className={cn(
-                "rounded-xl border px-3 py-2 text-sm transition",
-                mode === "2v2"
-                  ? "border-accent/60 bg-bg-card-inner"
-                  : "border-border-card-inner/70 hover:bg-hover-default/40"
-              )}
-              onClick={() => setMode("2v2")}
-              type="button"
-            >
-              2v2
-            </button>
-          </div>
-
-          <Panel className="p-3">
-            <div className="mb-2 text-sm font-medium">Players</div>
-            {playersQ.isLoading && <div className="text-sm text-text-muted">Loading players…</div>}
-            {playersQ.error && <div className="text-sm text-red-400">{String(playersQ.error)}</div>}
-            <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
-              {playersQ.data?.map((p) => (
-                <label
-                  key={p.id}
-                  className="flex items-center gap-2 rounded-lg border border-border-card-inner px-2 py-2 text-sm transition hover:bg-hover-default/40"
-                >
-                  <input
-                    type="checkbox"
-                    checked={!!selected[p.id]}
-                    onChange={(e) => setSelected((prev) => ({ ...prev, [p.id]: e.target.checked }))}
-                  />
-                  <span className="truncate">{p.display_name}</span>
-                </label>
-              ))}
-            </div>
-            <div className="mt-2 text-xs text-text-muted">Selected: {selectedIds.length}</div>
-          </Panel>
-
-          {createMut.error && <div className="text-sm text-red-400">{String(createMut.error)}</div>}
-
-          <div className="flex items-center justify-end gap-2">
-            <Button variant="ghost" onClick={() => setOpen(false)} type="button">
-              <i className="fa fa-times md:hidden" aria-hidden="true" />
-              <span className="hidden md:inline">Cancel</span>
-            </Button>
-            <Button onClick={() => createMut.mutate()} disabled={createMut.isPending} type="button">
-              <i className="fa fa-check ml-1 md:hidden" aria-hidden="true" />
-              <span className="hidden md:inline">{createMut.isPending ? "Creating…" : "Create"}</span>
-            </Button>
-          </div>
-        </div>
-      </Modal>
     </div>
   );
 }
