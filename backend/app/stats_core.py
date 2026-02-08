@@ -177,6 +177,11 @@ def compute_overall_and_lastN(matches: list[Match], all_players: list[Player], l
     Returns per player:
       played, wins/draws/losses, gf/ga/gd, pts, lastN_pts(list), lastN_avg_pts(float)
     """
+    # lastN=0 is allowed and means "disable recent form".
+    lastN_eff = int(lastN or 0)
+    if lastN_eff < 0:
+      lastN_eff = 0
+
     # base standings-like from all finished matches
     base = compute_player_standings(matches, all_players)
     per: dict[int, dict[str, Any]] = {int(r["player_id"]): dict(r) for r in base}
@@ -202,9 +207,14 @@ def compute_overall_and_lastN(matches: list[Match], all_players: list[Player], l
                 "gd": 0,
                 "pts": 0,
             }
-        lastN_pts = pts_hist.get(pid, [])[-lastN:]
+        if lastN_eff <= 0:
+            per[pid]["lastN_pts"] = []
+            per[pid]["lastN_avg_pts"] = 0.0
+            continue
+
+        lastN_pts = pts_hist.get(pid, [])[-lastN_eff:]
         per[pid]["lastN_pts"] = lastN_pts
-        per[pid]["lastN_avg_pts"] = (sum(lastN_pts) / lastN) if lastN_pts else 0.0
+        per[pid]["lastN_avg_pts"] = (sum(lastN_pts) / lastN_eff) if lastN_pts else 0.0
 
     return per
 

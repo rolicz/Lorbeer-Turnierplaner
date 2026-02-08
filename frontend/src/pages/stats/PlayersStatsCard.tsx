@@ -305,7 +305,7 @@ function TournamentPositionsGrid({
 
 function PlayersViewSwitch({ value, onChange }: { value: SortMode; onChange: (v: SortMode) => void }) {
   const idx = value === "overall" ? 0 : 1;
-  const wCls = "w-20 sm:w-24";
+  const wCls = "w-16 sm:w-24";
   return (
     <div
       className="relative inline-flex shrink-0 rounded-2xl p-1"
@@ -350,7 +350,7 @@ function PlayersViewSwitch({ value, onChange }: { value: SortMode; onChange: (v:
 
 function ModeSwitch({ value, onChange }: { value: ModeFilter; onChange: (m: ModeFilter) => void }) {
   const idx = value === "overall" ? 0 : value === "1v1" ? 1 : 2;
-  const wCls = "w-20 sm:w-24";
+  const wCls = "w-16 sm:w-24";
   return (
     <div
       className="relative inline-flex shrink-0 rounded-2xl p-1"
@@ -404,7 +404,7 @@ function TilesScopeSwitch({
   title: string;
 }) {
   const idx = value ? 1 : 0;
-  const wCls = "w-20 sm:w-24";
+  const wCls = "w-16 sm:w-24";
   return (
     <div
       className="relative inline-flex shrink-0 rounded-2xl p-1"
@@ -622,12 +622,13 @@ export default function PlayersStatsCard() {
       }
       bodyClassName="space-y-3"
       defaultOpen={true}
+      scrollOnOpen={true}
       variant="outer"
       bodyVariant="none"
     >
       <div className="card-inner-flat rounded-2xl space-y-2">
         <div className="flex flex-wrap items-center gap-2">
-          <div className="inline-flex items-center gap-2">
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
             <span className="inline-flex h-9 items-center gap-2 rounded-xl px-2 text-[11px] font-medium text-text-muted">
               <i className="fa-solid fa-filter text-[11px]" aria-hidden="true" />
               <span>Filter</span>
@@ -635,7 +636,7 @@ export default function PlayersStatsCard() {
             <ModeSwitch value={modeFilter} onChange={setModeFilter} />
           </div>
 
-          <div className="inline-flex items-center gap-2">
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
             <span className="inline-flex h-9 items-center gap-2 rounded-xl px-2 text-[11px] font-medium text-text-muted">
               <i className="fa-solid fa-eye text-[11px]" aria-hidden="true" />
               <span>View</span>
@@ -652,7 +653,7 @@ export default function PlayersStatsCard() {
               : "Only one row of tournaments (toggle still changes state, but the grid won't look different yet)";
 
             return (
-              <div className="inline-flex items-center gap-2">
+              <div className="flex min-w-0 flex-wrap items-center gap-2">
                 <span className="inline-flex h-9 items-center gap-2 rounded-xl px-2 text-[11px] font-medium text-text-muted">
                   <i className="fa-solid fa-layer-group text-[11px]" aria-hidden="true" />
                   <span>Tiles</span>

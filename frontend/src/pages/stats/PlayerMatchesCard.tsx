@@ -19,6 +19,8 @@ function fmtDate(s?: string | null) {
   return d.toLocaleDateString();
 }
 
+type Outcome = "W" | "D" | "L";
+
 function winnerSide(m: Match): "A" | "B" | null {
   if (m.state !== "finished") return null;
   const a = sideBy(m, "A");
@@ -27,6 +29,167 @@ function winnerSide(m: Match): "A" | "B" | null {
   const bg = b?.goals ?? 0;
   if (ag === bg) return null;
   return ag > bg ? "A" : "B";
+}
+
+function outcomeForPlayer(m: Match, playerId: number): { outcome: Outcome; points: number } | null {
+  if (m.state !== "finished") return null;
+  const a = sideBy(m, "A");
+  const b = sideBy(m, "B");
+  const aHas = (a?.players ?? []).some((p) => p.id === playerId);
+  const bHas = (b?.players ?? []).some((p) => p.id === playerId);
+  const focusSide: "A" | "B" | null = aHas && !bHas ? "A" : bHas && !aHas ? "B" : null;
+  if (!focusSide) return null;
+
+  const w = winnerSide(m);
+  if (!w) return { outcome: "D", points: 1 };
+  if (w === focusSide) return { outcome: "W", points: 3 };
+  return { outcome: "L", points: 0 };
+}
+
+function rollingAvg(series: number[], window: number) {
+  const out: number[] = [];
+  for (let i = 0; i < series.length; i++) {
+    const start = Math.max(0, i - window + 1);
+    const slice = series.slice(start, i + 1);
+    const avg = slice.reduce((a, b) => a + b, 0) / Math.max(1, slice.length);
+    out.push(avg);
+  }
+  return out;
+}
+
+function Sparkline({
+  series,
+  outcomes,
+  xMinLabel,
+  xMaxLabel,
+}: {
+  series: number[]; // points per match: 0/1/3
+  outcomes: Outcome[];
+  xMinLabel?: string;
+  xMaxLabel?: string;
+}) {
+  const n = Math.min(series.length, outcomes.length);
+  const w = 320;
+  const h = 80;
+  const padX = 8;
+  const padY = 10;
+  if (n <= 1) return null;
+
+  const avg = rollingAvg(series.slice(0, n), 5);
+  const xAt = (i: number) => padX + (i * (w - padX * 2)) / Math.max(1, n - 1);
+  const yAt = (v: number) => {
+    const vv = Math.max(0, Math.min(3, v));
+    const innerH = h - padY * 2;
+    return padY + (1 - vv / 3) * innerH;
+  };
+
+  const pts = avg.map((v, i) => `${xAt(i).toFixed(2)},${yAt(v).toFixed(2)}`).join(" ");
+  const area = `${padX},${h - padY} ${pts} ${w - padX},${h - padY}`;
+
+  const dotFill = (o: Outcome) =>
+    o === "W" ? "rgb(var(--color-status-text-green))" : o === "D" ? "rgb(251 191 36)" : "rgb(248 113 113)";
+
+  return (
+    <div className="panel-subtle rounded-2xl p-3">
+      <div className="text-[11px] font-medium text-text-muted">Form (last {n})</div>
+      <svg
+        className="mt-2 h-[80px] w-full"
+        viewBox={`0 0 ${w} ${h}`}
+        preserveAspectRatio="none"
+        aria-label="Form sparkline"
+      >
+        <defs>
+          <linearGradient id="formFill" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="rgb(var(--color-accent))" stopOpacity="0.22" />
+            <stop offset="100%" stopColor="rgb(var(--color-accent))" stopOpacity="0" />
+          </linearGradient>
+          <filter id="formGlow" x="-20%" y="-50%" width="140%" height="200%">
+            <feDropShadow dx="0" dy="1" stdDeviation="1.4" floodColor="rgb(var(--color-accent))" floodOpacity="0.25" />
+          </filter>
+        </defs>
+
+        {/* y grid */}
+        {[0, 1, 2, 3].map((v) => (
+          <line
+            key={v}
+            x1={padX}
+            x2={w - padX}
+            y1={yAt(v)}
+            y2={yAt(v)}
+            stroke="rgb(var(--color-border-card-inner))"
+            strokeOpacity={v === 0 ? 0.55 : 0.28}
+            strokeWidth={v === 0 ? 1 : 1}
+          />
+        ))}
+
+        {/* y labels */}
+        <text x={padX} y={yAt(3) + 4} fontSize="10" fill="rgb(var(--color-text-muted))">
+          3
+        </text>
+        <text x={padX} y={yAt(0) - 2} fontSize="10" fill="rgb(var(--color-text-muted))">
+          0
+        </text>
+
+        {/* baseline (explicit for crispness) */}
+        <line
+          x1={padX}
+          x2={w - padX}
+          y1={h - padY}
+          y2={h - padY}
+          stroke="rgb(var(--color-border-card-inner))"
+          strokeOpacity="0.55"
+          strokeWidth="1"
+        />
+
+        {/* area */}
+        <polygon points={area} fill="url(#formFill)" />
+
+        {/* line */}
+        <polyline
+          points={pts}
+          fill="none"
+          stroke="rgb(var(--color-accent))"
+          strokeWidth="2.2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          filter="url(#formGlow)"
+        />
+
+        {/* outcome dots */}
+        {outcomes.slice(0, n).map((o, i) => (
+          <circle key={i} cx={xAt(i)} cy={yAt(avg[i])} r={2.3} fill={dotFill(o)} opacity="0.95" />
+        ))}
+      </svg>
+
+      <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+        <div className="text-[11px] text-text-muted">
+          Rolling avg <span className="text-text-normal">5</span> (0..3)
+          {xMinLabel || xMaxLabel ? (
+            <span className="text-text-muted">
+              {" "}
+              · {xMinLabel || "—"} <span className="opacity-70">to</span> {xMaxLabel || "—"}
+            </span>
+          ) : null}
+        </div>
+        <div className="flex items-center gap-1">
+          {outcomes.slice(-n).map((o, i) => (
+            <span
+              key={i}
+              className={
+                "h-2.5 w-2.5 rounded-sm " +
+                (o === "W"
+                  ? "bg-status-bg-green/45"
+                  : o === "D"
+                    ? "bg-amber-500/35"
+                    : "bg-red-500/30")
+              }
+              title={o}
+            />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function MatchRowWithClubs({
@@ -197,7 +360,7 @@ function TournamentBlock({
 function MetaSwitch({ value, onChange }: { value: boolean; onChange: (v: boolean) => void }) {
   // Compact (left) -> Details (right)
   const idx = value ? 1 : 0;
-  const wCls = "w-24 sm:w-28";
+  const wCls = "w-20 sm:w-28";
   return (
     <div
       className="relative inline-flex shrink-0 rounded-2xl p-1"
@@ -274,6 +437,39 @@ export default function PlayerMatchesCard() {
   }, [players, playerId]);
 
   const tournaments = matchesQ.data?.tournaments ?? [];
+  const form = useMemo(() => {
+    if (!selected) return null;
+    const flat = tournaments.flatMap((t) =>
+      t.matches
+        .filter((m) => m.state === "finished")
+        .map((m) => ({
+          t_date: new Date(t.date ?? 0).getTime(),
+          t_label: fmtDate(t.date),
+          order: m.order_index ?? 0,
+          m,
+        }))
+    );
+    const sorted = flat
+      .slice()
+      .sort((a, b) => (a.t_date !== b.t_date ? a.t_date - b.t_date : a.order - b.order))
+      .slice(-25);
+    const last = sorted.map((x) => x.m);
+    const out: Outcome[] = [];
+    const pts: number[] = [];
+    for (const m of last) {
+      const o = outcomeForPlayer(m, selected.id);
+      if (!o) continue;
+      out.push(o.outcome);
+      pts.push(o.points);
+    }
+    if (!out.length) return null;
+    return {
+      pts,
+      out,
+      startLabel: sorted[0]?.t_label ?? "",
+      endLabel: sorted[sorted.length - 1]?.t_label ?? "",
+    };
+  }, [selected, tournaments]);
 
   return (
     <CollapsibleCard
@@ -284,6 +480,7 @@ export default function PlayerMatchesCard() {
         </span>
       }
       defaultOpen={false}
+      scrollOnOpen={true}
       variant="outer"
       bodyVariant="none"
       bodyClassName="space-y-3"
@@ -339,6 +536,7 @@ export default function PlayerMatchesCard() {
 
       {selected && tournaments.length ? (
         <div className="space-y-3">
+          {form ? <Sparkline series={form.pts} outcomes={form.out} xMinLabel={form.startLabel} xMaxLabel={form.endLabel} /> : null}
           {tournaments.map((t) => (
             <TournamentBlock key={t.id} t={t} focusId={selected.id} clubs={clubs} showMeta={showMeta} />
           ))}

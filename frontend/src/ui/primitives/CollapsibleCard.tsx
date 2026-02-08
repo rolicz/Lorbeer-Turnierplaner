@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { cn } from "../cn";
 
 export default function CollapsibleCard({
@@ -11,6 +11,7 @@ export default function CollapsibleCard({
   variant = "none",
   bodyVariant,
   bodyClassName = "",
+  scrollOnOpen = false,
 }: {
   title: React.ReactNode;
   defaultOpen?: boolean;
@@ -21,8 +22,11 @@ export default function CollapsibleCard({
   variant?: "outer" | "inner" | "none";
   bodyVariant?: "none" | "inner";
   bodyClassName?: string;
+  scrollOnOpen?: boolean;
 }) {
   const [open, setOpen] = useState(defaultOpen);
+  const sectionRef = useRef<HTMLElement | null>(null);
+  const prevOpenRef = useRef<boolean>(open);
   const variantCls =
     variant === "outer" ? "card-outer" : variant === "inner" ? "card-inner" : "";
   const pad = variant === "none" ? "px-3 py-2.5" : "";
@@ -42,8 +46,44 @@ export default function CollapsibleCard({
 
   const bodyTopGap = variant === "outer" && resolvedBodyVariant === "inner" ? "" : "mt-3";
 
+  useEffect(() => {
+    if (!scrollOnOpen) return;
+    const wasOpen = prevOpenRef.current;
+    prevOpenRef.current = open;
+    if (wasOpen || !open) return; // only on false -> true transitions
+
+    const el = sectionRef.current;
+    if (!el) return;
+
+    // Robust scroll: do it after the DOM updated, and repeat once to counter layout shifts.
+    let raf2: number | null = null;
+    const raf1 = requestAnimationFrame(() => {
+      raf2 = requestAnimationFrame(() => {
+        el.scrollIntoView({ behavior: "smooth", block: "start" });
+        window.setTimeout(() => {
+          try {
+            el.scrollIntoView({ behavior: "auto", block: "start" });
+          } catch {
+            // ignore
+          }
+        }, 220);
+      });
+    });
+    return () => {
+      cancelAnimationFrame(raf1);
+      if (raf2 != null) cancelAnimationFrame(raf2);
+    };
+  }, [open, scrollOnOpen]);
+
   return (
-    <section className={cn(variantCls, className)}>
+    <section
+      ref={sectionRef}
+      className={cn(
+        variantCls,
+        "min-w-0 scroll-mt-[calc(env(safe-area-inset-top,0px)+104px)] sm:scroll-mt-[calc(env(safe-area-inset-top,0px)+120px)]",
+        className,
+      )}
+    >
       <button
         type="button"
         className={cn("flex w-full items-center justify-between gap-3", pad)}

@@ -19,7 +19,7 @@ function fmtDate(s?: string | null) {
 
 function ModeSwitch({ value, onChange }: { value: Mode; onChange: (m: Mode) => void }) {
   const idx = value === "overall" ? 0 : value === "1v1" ? 1 : 2;
-  const wCls = "w-20 sm:w-24";
+  const wCls = "w-16 sm:w-24";
   return (
     <div
       className="relative inline-flex shrink-0 rounded-2xl p-1"
@@ -66,7 +66,7 @@ function ModeSwitch({ value, onChange }: { value: Mode; onChange: (m: Mode) => v
 function ViewSwitch({ value, onChange }: { value: View; onChange: (v: View) => void }) {
   // Current is the default, left-side view.
   const idx = value === "current" ? 0 : 1;
-  const wCls = "w-20 sm:w-24";
+  const wCls = "w-16 sm:w-24";
   return (
     <div
       className="relative inline-flex shrink-0 rounded-2xl p-1"
@@ -201,13 +201,14 @@ export default function StreaksCard() {
         </span>
       }
       defaultOpen={false}
+      scrollOnOpen={true}
       variant="outer"
       bodyVariant="none"
       bodyClassName="space-y-3"
     >
       <div className="card-inner-flat rounded-2xl space-y-2">
         <div className="flex flex-wrap items-center gap-2">
-          <div className="inline-flex items-center gap-2">
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
             <span className="inline-flex h-9 items-center gap-2 rounded-xl px-2 text-[11px] font-medium text-text-muted">
               <i className="fa-solid fa-filter text-[11px]" aria-hidden="true" />
               <span>Filter</span>
@@ -215,7 +216,7 @@ export default function StreaksCard() {
             <ModeSwitch value={mode} onChange={setMode} />
           </div>
 
-          <div className="inline-flex items-center gap-2">
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
             <span className="inline-flex h-9 items-center gap-2 rounded-xl px-2 text-[11px] font-medium text-text-muted">
               <i className="fa-solid fa-eye text-[11px]" aria-hidden="true" />
               <span>View</span>

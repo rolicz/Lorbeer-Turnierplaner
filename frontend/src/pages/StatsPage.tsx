@@ -1,5 +1,6 @@
 import CollapsibleCard from "../ui/primitives/CollapsibleCard";
 import PlayersStatsCard from "./stats/PlayersStatsCard";
+import TrendsCard from "./stats/TrendsCard";
 import HeadToHeadCard from "./stats/HeadToHeadCard";
 import StreaksCard from "./stats/StreaksCard";
 import PlayerMatchesCard from "./stats/PlayerMatchesCard";
@@ -9,6 +10,7 @@ export default function StatsPage() {
     <div className="page">
       <div className="grid gap-3 lg:grid-cols-2">
         <PlayersStatsCard />
+        <TrendsCard />
         <HeadToHeadCard />
         <StreaksCard />
         <PlayerMatchesCard />
@@ -21,6 +23,7 @@ export default function StatsPage() {
             </span>
           }
           defaultOpen={false}
+          scrollOnOpen={true}
           variant="outer"
           bodyVariant="none"
           className="lg:col-span-2"
