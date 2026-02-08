@@ -364,6 +364,7 @@ export default function StandingsTable({
               const baseIdx = basePos.get(r.playerId);
               const delta = baseIdx === undefined ? null : baseIdx - idx;
               const isLeader = idx === 0;
+              const zebra = idx % 2 === 0 ? "bg-table-row-a" : "bg-table-row-b";
 
               return (
                 <tr
@@ -371,6 +372,7 @@ export default function StandingsTable({
                   className={[
                     "relative",
                     "border-b border-border-card-inner",
+                    zebra,
                   ].join(" ")}
                 >
                   {/* leader bar */}
