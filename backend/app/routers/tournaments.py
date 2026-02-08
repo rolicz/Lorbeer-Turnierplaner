@@ -14,6 +14,7 @@ from ..stats import compute_stats
 from ..ws import ws_manager, ws_manager_update_tournaments
 from ..tournament_status import compute_status_for_tournament, compute_status_map, find_other_live_tournament_id
 from ..services.comments_summary import tournament_comments_summary
+from ..services.stats.odds import compute_match_odds_for_tournament
 
 log = logging.getLogger(__name__)
 router = APIRouter(prefix="/tournaments", tags=["tournaments"])
@@ -40,6 +41,7 @@ def _serialize_tournament(s: Session, t: Tournament) -> dict:
             _ = side.players
 
     status = compute_status_for_tournament(s, t.id)
+    odds_by_match_id = compute_match_odds_for_tournament(s, tournament=t, matches_in_tournament=matches)
 
     def player_dict(p: Player) -> dict:
         return {"id": p.id, "display_name": p.display_name}
@@ -56,12 +58,14 @@ def _serialize_tournament(s: Session, t: Tournament) -> dict:
             })
         return {
             "id": m.id,
+            "tournament_id": m.tournament_id,
             "leg": m.leg,
             "order_index": m.order_index,
             "state": m.state,
             "started_at": m.started_at,
             "finished_at": m.finished_at,
             "sides": sides,
+            "odds": odds_by_match_id.get(int(m.id)) if m.id is not None else None,
         }
 
     return {

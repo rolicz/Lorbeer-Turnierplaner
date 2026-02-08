@@ -28,6 +28,33 @@ function namesInline(side?: MatchSide) {
   return ps.map((p) => p.display_name).join(" + ");
 }
 
+function fmtOdd(x: number) {
+  return Number.isFinite(x) ? x.toFixed(2) : "—";
+}
+
+function OddsInline({ odds }: { odds: { home: number; draw: number; away: number } }) {
+  return (
+    <div className="mt-2 flex items-center justify-center">
+      <div className="inline-flex items-center gap-2 text-[11px] sm:text-xs">
+        <span className="inline-flex items-baseline gap-1">
+          <span className="text-text-muted font-semibold">1</span>
+          <span className="font-mono tabular-nums text-text-normal">{fmtOdd(Number(odds.home))}</span>
+        </span>
+        <span className="text-text-muted/60">|</span>
+        <span className="inline-flex items-baseline gap-1">
+          <span className="text-text-muted font-semibold">X</span>
+          <span className="font-mono tabular-nums text-text-normal">{fmtOdd(Number(odds.draw))}</span>
+        </span>
+        <span className="text-text-muted/60">|</span>
+        <span className="inline-flex items-baseline gap-1">
+          <span className="text-text-muted font-semibold">2</span>
+          <span className="font-mono tabular-nums text-text-normal">{fmtOdd(Number(odds.away))}</span>
+        </span>
+      </div>
+    </div>
+  );
+}
+
 type PatchPayload = {
   aGoals: number;
   bGoals: number;
@@ -300,6 +327,11 @@ export default function CurrentGameSection({
             <Pill className={`${statusMatchPill(match.state)}`}>{match.state}</Pill>
           </div>
         </div>
+
+        {/* Odds (scheduled/live only) */}
+        {(match.state === "scheduled" || match.state === "playing") && match.odds ? (
+          <OddsInline odds={match.odds} />
+        ) : null}
 
         {/* Row 2: NAMES + SCORE (with guide lines for alignment) */}
         <div className="mt-3 border-y border-border-card-inner/60 py-3">

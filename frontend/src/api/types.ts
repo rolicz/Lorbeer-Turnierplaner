@@ -37,6 +37,19 @@ export type MatchSide = {
   goals: number | null;
 };
 
+export type MatchOdds = {
+  model: string;
+  updated_at: string;
+  // Probabilities (0..1)
+  p_home: number;
+  p_draw: number;
+  p_away: number;
+  // Decimal odds (multiplicator format, e.g. 1.50, 10.00)
+  home: number;
+  draw: number;
+  away: number;
+};
+
 export type Match = {
   id: number;
   tournament_id: number;
@@ -46,6 +59,7 @@ export type Match = {
   started_at?: string | null;
   finished_at?: string | null;
   sides: MatchSide[];
+  odds?: MatchOdds | null;
 };
 
 export type Comment = {

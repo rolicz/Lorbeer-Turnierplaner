@@ -21,6 +21,33 @@ function splitPlayers(names: string): string[] {
   return names.split(" + ").map((s) => s.trim()).filter(Boolean);
 }
 
+function fmtOdd(x: number) {
+  return Number.isFinite(x) ? x.toFixed(2) : "—";
+}
+
+function OddsInline({ odds }: { odds: { home: number; draw: number; away: number } }) {
+  return (
+    <div className="mt-1 flex items-center justify-center">
+      <div className="inline-flex items-center gap-2 text-[11px] sm:text-xs">
+        <span className="inline-flex items-baseline gap-1">
+          <span className="text-text-muted font-semibold">1</span>
+          <span className="font-mono tabular-nums text-text-normal">{fmtOdd(Number(odds.home))}</span>
+        </span>
+        <span className="text-text-muted/60">|</span>
+        <span className="inline-flex items-baseline gap-1">
+          <span className="text-text-muted font-semibold">X</span>
+          <span className="font-mono tabular-nums text-text-normal">{fmtOdd(Number(odds.draw))}</span>
+        </span>
+        <span className="text-text-muted/60">|</span>
+        <span className="inline-flex items-baseline gap-1">
+          <span className="text-text-muted font-semibold">2</span>
+          <span className="font-mono tabular-nums text-text-normal">{fmtOdd(Number(odds.away))}</span>
+        </span>
+      </div>
+    </div>
+  );
+}
+
 export default function MatchList({
   matches,
   clubs,
@@ -75,6 +102,8 @@ export default function MatchList({
 
         const showMove = canReorder && m.state === "scheduled";
         const showSwap = canEdit;
+        const showOdds = (m.state === "scheduled" || m.state === "playing") && !!m.odds;
+        const odds = m.odds ?? null;
 
         return (
           <div
@@ -159,6 +188,9 @@ export default function MatchList({
                   ) : null
                 }
               />
+
+              {/* Odds (scheduled/live only) */}
+              {showOdds && odds ? <OddsInline odds={odds} /> : null}
 
               {/* Row 1: players + centered score */}
               <div className="mt-2 grid grid-cols-[1fr_auto_1fr] items-center gap-3">
