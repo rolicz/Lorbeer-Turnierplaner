@@ -35,7 +35,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const nav: { to: string; label: string; min: Role }[] = [
     { to: "/dashboard", label: "Dashboard", min: "reader" },
     { to: "/tournaments", label: "Tournaments", min: "reader" },
-    { to: "/players", label: "Players", min: "reader" },
+    { to: "/stats", label: "Stats", min: "reader" },
+    { to: "/players", label: "Players", min: "admin" },
     { to: "/clubs", label: "Clubs", min: "editor" },
     { to: "/tools", label: "Tools", min: "reader" },
   ];

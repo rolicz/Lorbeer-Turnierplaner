@@ -5,8 +5,9 @@ import TournamentsPage from "../pages/TournamentsPage";
 import LiveTournamentPage from "../pages/live/LiveTournamentPage";
 import DashboardPage from "../pages/dashboard/DashboardPage";
 import ClubsPage from "../pages/ClubsPage";
-import PlayersPage from "../pages/PlayersPage";
+import PlayersAdminPage from "../pages/PlayersAdminPage";
 import ToolsPage from "../pages/ToolsPage";
+import StatsPage from "../pages/StatsPage";
 import { RequireRole } from "../auth/RequireRole";
 
 export default function App() {
@@ -20,6 +21,15 @@ export default function App() {
         <Route path="/live/:id" element={<LiveTournamentPage />} />
 
         <Route
+          path="/stats"
+          element={
+            <RequireRole minRole="reader">
+              <StatsPage />
+            </RequireRole>
+          }
+        />
+
+        <Route
           path="/clubs"
           element={
             <RequireRole minRole="editor">
@@ -31,8 +41,8 @@ export default function App() {
         <Route
           path="/players"
           element={
-            <RequireRole minRole="reader">
-              <PlayersPage />
+            <RequireRole minRole="admin">
+              <PlayersAdminPage />
             </RequireRole>
           }
         />
