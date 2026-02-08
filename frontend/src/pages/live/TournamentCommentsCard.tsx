@@ -16,6 +16,8 @@ import {
 } from "../../api/comments.api";
 import { useAuth } from "../../auth/AuthContext";
 import { listPlayerAvatarMeta, playerAvatarUrl } from "../../api/playerAvatars.api";
+import { useSeenSet } from "../../hooks/useSeenComments";
+import { markCommentSeen } from "../../seenComments";
 
 type CommentScope =
   | { kind: "tournament" }
@@ -145,6 +147,8 @@ function CommentCard({
   c,
   isEditing,
   isPinned,
+  isUnseen,
+  onMarkSeen,
   canPin,
   onTogglePin,
   canWrite,
@@ -166,6 +170,8 @@ function CommentCard({
   c: TournamentComment;
   isEditing: boolean;
   isPinned: boolean;
+  isUnseen: boolean;
+  onMarkSeen: () => void;
   canPin: boolean;
   onTogglePin: (() => void) | null;
   canWrite: boolean;
@@ -189,7 +195,11 @@ function CommentCard({
   return (
     <div
       id={`comment-${c.id}`}
-      className={surfaceClassName + " p-3 scroll-mt-28 sm:scroll-mt-32 " + (flash ? "comment-attn" : "")}
+      className={
+        surfaceClassName +
+        " p-3 scroll-mt-28 sm:scroll-mt-32 " +
+        (flash ? "comment-attn" : "")
+      }
       style={
         isEditing || isPinned
           ? {
@@ -231,8 +241,23 @@ function CommentCard({
           </div>
         </div>
 
-        {canWrite ? (
+        {canWrite || isUnseen ? (
           <div className="shrink-0 flex items-center gap-2">
+            {isUnseen ? (
+              <Button
+                variant="ghost"
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onMarkSeen();
+                }}
+                title="Mark as read"
+                className="h-9 w-9 p-0 inline-flex items-center justify-center"
+              >
+                <i className="fa-solid fa-envelope text-accent motion-safe:animate-pulse" aria-hidden="true" />
+              </Button>
+            ) : null}
             {canPin && onTogglePin ? (
               <Button
                 variant="ghost"
@@ -335,6 +360,7 @@ export default function TournamentCommentsCard({
 }) {
   const qc = useQueryClient();
   const { token } = useAuth();
+  const seen = useSeenSet(tournamentId);
 
   const avatarMetaQ = useQuery({ queryKey: ["players", "avatars"], queryFn: listPlayerAvatarMeta });
   const avatarUpdatedAtByPlayerId = useMemo(() => {
@@ -736,6 +762,8 @@ export default function TournamentCommentsCard({
                     c={c!}
                     isEditing={editingId === c!.id}
                     isPinned={pinnedTournamentCommentId === c!.id}
+                    isUnseen={!seen.has(c!.id)}
+                    onMarkSeen={() => markCommentSeen(tournamentId, c!.id)}
                     flash={flashId === c!.id}
                     surfaceClassName="panel"
                     avatarUpdatedAt={
@@ -873,6 +901,8 @@ export default function TournamentCommentsCard({
                         c={c}
                         isEditing={editingId === c.id}
                         isPinned={false}
+                        isUnseen={!seen.has(c.id)}
+                        onMarkSeen={() => markCommentSeen(tournamentId, c.id)}
                         flash={flashId === c.id}
                         surfaceClassName="panel-subtle"
                         avatarUpdatedAt={

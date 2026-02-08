@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import Card from "../ui/primitives/Card";
 import Button from "../ui/primitives/Button";
 import Input from "../ui/primitives/Input";
@@ -13,6 +13,8 @@ import { listTournaments, createTournament, generateSchedule } from "../api/tour
 import { listPlayers } from "../api/players.api";
 import { useAuth } from "../auth/AuthContext";
 import { fmtDate } from "../utils/format";
+import { listTournamentComments, listTournamentCommentsSummary } from "../api/comments.api";
+import { useSeenIdsByTournamentId } from "../hooks/useSeenComments";
 
 
 import { useAnyTournamentWS } from "../hooks/useTournamentWS";
@@ -38,6 +40,7 @@ export default function TournamentsPage() {
 
   const tournamentsQ = useQuery({ queryKey: ["tournaments"], queryFn: listTournaments });
   const playersQ = useQuery({ queryKey: ["players"], queryFn: listPlayers, enabled: canWrite });
+  const summaryQ = useQuery({ queryKey: ["comments", "summary"], queryFn: listTournamentCommentsSummary });
 
   useAnyTournamentWS();
   const [createOpen, setCreateOpen] = useState(false);
@@ -67,6 +70,39 @@ export default function TournamentsPage() {
       return ib - ia;
     });
   }, [tournamentsQ.data]);
+
+  const tournamentIds = useMemo(() => tournamentsSorted.map((t: any) => Number(t.id)).filter((x) => Number.isFinite(x)), [tournamentsSorted]);
+  const seenIdsByTid = useSeenIdsByTournamentId(tournamentIds);
+  const summaryByTid = useMemo(() => {
+    const m = new Map<number, { comment_ids: number[]; total_comments: number }>();
+    for (const r of summaryQ.data ?? []) {
+      m.set(r.tournament_id, { comment_ids: r.comment_ids ?? [], total_comments: r.total_comments });
+    }
+    return m;
+  }, [summaryQ.data]);
+
+  // Fallback for older backends: if the summary endpoint fails, fetch comment ids per tournament.
+  // This is only enabled when the summary request errors.
+  const fallbackTids = useMemo(() => (summaryQ.isError ? tournamentIds.slice(0, 50) : []), [summaryQ.isError, tournamentIds.join("|")]);
+  const fallbackQs = useQueries({
+    queries: fallbackTids.map((tid) => ({
+      queryKey: ["comments", "tournament", tid],
+      queryFn: () => listTournamentComments(tid),
+    })),
+  });
+  const fallbackIdsByTid = useMemo(() => {
+    const m = new Map<number, { total_comments: number; comment_ids: number[] }>();
+    if (!summaryQ.isError) return m;
+    for (let i = 0; i < fallbackTids.length; i++) {
+      const tid = fallbackTids[i];
+      const q = fallbackQs[i];
+      const ids = (q?.data?.comments ?? [])
+        .map((c: any) => Number(c?.id))
+        .filter((x: any) => Number.isFinite(x) && x > 0);
+      m.set(tid, { total_comments: ids.length, comment_ids: ids });
+    }
+    return m;
+  }, [summaryQ.isError, fallbackTids.join("|"), fallbackQs.map((q) => (q.data?.comments ?? []).length).join("|")]);
 
   const createMut = useMutation({
     mutationFn: async () => {
@@ -213,6 +249,13 @@ export default function TournamentsPage() {
             const ui = tournamentStatusUI(st);
             const pal = tournamentPalette(st);
             const winner = winnerLabel(t);
+            const tid = Number(t.id);
+            const sum = summaryByTid.get(tid) ?? fallbackIdsByTid.get(tid);
+            const seen = seenIdsByTid.get(Number(t.id)) ?? new Set<number>();
+            const unseenCount = !!sum
+              ? (sum.comment_ids ?? []).reduce((acc, cid) => (seen.has(cid) ? acc : acc + 1), 0)
+              : 0;
+            const hasUnseen = unseenCount > 0;
 
             return (
               <Link
@@ -242,24 +285,33 @@ export default function TournamentsPage() {
                     </div>
                   </div>
 
-                  {/* Row 2: pills (responsive) */}
-                  <div className="mt-2 flex flex-wrap items-center gap-2">
-                    <Pill className={statusPill(st)} title={ui.label}>
-                      <span>{ui.label}</span>
-                    </Pill>
-
-                    <Pill className={pillDate()} title="Date" >
-                      <span>{fmtDate(t.date)}</span>
-                    </Pill>
-
-                    {winner && (
-                      <Pill title="Winner">
-                        <span>
-                          <i className="fa fa-trophy text-yellow-400 mr-1" aria-hidden="true" />
-                        </span>
-                        <span className="max-w-[160px] truncate sm:max-w-[260px]">{winner}</span>
+                  {/* Row 2: pills (unread indicator aligned right) */}
+                  <div className="mt-2 grid grid-cols-[1fr_auto] items-start gap-2">
+                    <div className="min-w-0 flex flex-wrap items-center gap-2">
+                      <Pill className={statusPill(st)} title={ui.label}>
+                        <span>{ui.label}</span>
                       </Pill>
-                    )}
+
+                      <Pill className={pillDate()} title="Date">
+                        <span>{fmtDate(t.date)}</span>
+                      </Pill>
+
+                      {winner && (
+                        <Pill title="Winner">
+                          <span>
+                            <i className="fa fa-trophy text-yellow-400 mr-1" aria-hidden="true" />
+                          </span>
+                          <span className="max-w-[160px] truncate sm:max-w-[260px]">{winner}</span>
+                        </Pill>
+                      )}
+                    </div>
+
+                    {hasUnseen ? (
+                      <Pill title="Unread comments" className="shrink-0 justify-self-end">
+                        <i className="fa-solid fa-comment text-accent" aria-hidden="true" />
+                        <span className="tabular-nums text-text-normal">{unseenCount}</span>
+                      </Pill>
+                    ) : null}
                   </div>
                 </div>
               </Link>

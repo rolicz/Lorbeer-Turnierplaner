@@ -221,6 +221,7 @@ function shouldIgnoreEventName(eventName: any) {
 function invalidateTournamentRelated(qc: QueryClient, tid: number) {
   qc.invalidateQueries({ queryKey: ["tournament", tid] });
   qc.invalidateQueries({ queryKey: ["comments", tid] });
+  qc.invalidateQueries({ queryKey: ["comments", "summary"] });
   qc.invalidateQueries({ queryKey: ["tournaments"] });
   qc.invalidateQueries({ queryKey: ["tournaments", "live"] });
 
@@ -235,6 +236,7 @@ function invalidateTournamentRelated(qc: QueryClient, tid: number) {
   qc.invalidateQueries({ queryKey: ["cup"] });
   qc.invalidateQueries({ queryKey: ["tournaments"] });
   qc.invalidateQueries({ queryKey: ["tournaments", "live"] });
+    qc.invalidateQueries({ queryKey: ["comments", "summary"] });
     qc.invalidateQueries({ queryKey: ["stats", "players"] });
     qc.invalidateQueries({ queryKey: ["stats", "h2h"] });
     qc.invalidateQueries({ queryKey: ["stats", "streaks"] });

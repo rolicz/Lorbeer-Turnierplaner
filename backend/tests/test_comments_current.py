@@ -50,6 +50,37 @@ def test_comments_create_list_pin_and_delete(client, editor_headers, admin_heade
     assert r7["comments"] == []
 
 
+def test_comments_summary_endpoints(client, editor_headers, admin_headers):
+    p1 = client.post("/players", json={"display_name": "S1"}, headers=admin_headers).json()["id"]
+    p2 = client.post("/players", json={"display_name": "S2"}, headers=admin_headers).json()["id"]
+
+    tid = client.post(
+        "/tournaments",
+        json={"name": "comments-summary", "mode": "1v1", "player_ids": [p1, p2]},
+        headers=editor_headers,
+    ).json()["id"]
+
+    r = client.post(
+        f"/tournaments/{tid}/comments",
+        json={"body": "summary hello"},
+        headers=editor_headers,
+    )
+    assert r.status_code == 200, r.text
+    cid = r.json()["id"]
+
+    # This one must exist and must not be shadowed by "/tournaments/{tournament_id}".
+    s1 = client.get("/tournaments/comments-summary")
+    assert s1.status_code == 200, s1.text
+    rows = s1.json()
+    row = next((x for x in rows if x["tournament_id"] == tid), None)
+    assert row is not None
+    assert cid in row.get("comment_ids", [])
+
+    # Secondary endpoint (non-tournaments prefix) should behave the same.
+    s2 = client.get("/comments/tournaments-summary")
+    assert s2.status_code == 200, s2.text
+
+
 def test_comment_author_must_be_tournament_player(client, editor_headers, admin_headers):
     p1 = client.post("/players", json={"display_name": "A1"}, headers=admin_headers).json()["id"]
     p2 = client.post("/players", json={"display_name": "A2"}, headers=admin_headers).json()["id"]

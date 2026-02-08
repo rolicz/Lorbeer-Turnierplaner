@@ -8,6 +8,8 @@ import type { Player } from "../../api/types";
 import { createTournamentComment, listTournamentComments } from "../../api/comments.api";
 import { listPlayerAvatarMeta, playerAvatarUrl } from "../../api/playerAvatars.api";
 import { useAuth } from "../../auth/AuthContext";
+import { useSeenSet } from "../../hooks/useSeenComments";
+import { markCommentSeen } from "../../seenComments";
 
 function fmtTs(ms: number) {
   const d = new Date(ms);
@@ -33,6 +35,7 @@ export default function MatchCommentsPanel({
 }) {
   const qc = useQueryClient();
   const { token } = useAuth();
+  const seen = useSeenSet(tournamentId);
 
   const [author, setAuthor] = useState<"general" | number>("general");
   const [text, setText] = useState("");
@@ -149,7 +152,8 @@ export default function MatchCommentsPanel({
 	                  "panel-subtle p-3 scroll-mt-28 sm:scroll-mt-32 " + (flashId === c.id ? "comment-attn" : "")
 	                }
 	              >
-	                <div className="flex items-center gap-2">
+	                <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2 min-w-0">
 	                  {c.author_player_id != null ? (
 	                    <span className="panel-subtle inline-flex h-7 w-7 items-center justify-center overflow-hidden rounded-full shrink-0">
 	                      {avatarUpdatedAtByPlayerId.has(c.author_player_id) ? (
@@ -170,7 +174,24 @@ export default function MatchCommentsPanel({
 	                      )}
 	                    </span>
 	                  ) : null}
-	                  <div className="text-xs font-semibold text-text-normal">{authorLabel(c.author_player_id)}</div>
+	                  <div className="text-xs font-semibold text-text-normal truncate">{authorLabel(c.author_player_id)}</div>
+                    </div>
+
+                    {!seen.has(c.id) ? (
+                      <Button
+                        variant="ghost"
+                        type="button"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          markCommentSeen(tournamentId, c.id);
+                        }}
+                        title="Mark as read"
+                        className="h-8 w-8 p-0 inline-flex items-center justify-center shrink-0"
+                      >
+                        <i className="fa-solid fa-envelope text-accent motion-safe:animate-pulse" aria-hidden="true" />
+                      </Button>
+                    ) : null}
 	                </div>
 	                <div className="mt-0.5 text-[11px] text-text-muted">
 	                  {fmtTs(Date.parse(c.created_at))}

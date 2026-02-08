@@ -25,6 +25,7 @@ import type { Match, Club } from "../../api/types";
 
 import { useTournamentWS } from "../../hooks/useTournamentWS";
 import { useAuth } from "../../auth/AuthContext";
+import { useSeenSet } from "../../hooks/useSeenComments";
 
 import AdminPanel from "./AdminPanel";
 import MatchList from "./MatchList";
@@ -35,6 +36,7 @@ import TournamentCommentsCard from "./TournamentCommentsCard";
 import { shuffle, sideBy } from "../../helpers";
 
 import { fmtDate } from "../../utils/format";
+import { listTournamentComments } from "../../api/comments.api";
 
 type PlayerLite = { id: number; display_name: string };
 
@@ -111,6 +113,21 @@ export default function LiveTournamentPage() {
   });
 
   useTournamentWS(tid);
+
+  const seenCommentIds = useSeenSet(tid ?? 0);
+  const commentsQ = useQuery({
+    queryKey: ["comments", tid],
+    queryFn: () => listTournamentComments(tid!),
+    enabled: !!tid,
+  });
+  const unreadCommentsCount = useMemo(() => {
+    const cs = commentsQ.data?.comments ?? [];
+    let n = 0;
+    for (const c of cs) {
+      if (!seenCommentIds.has(c.id)) n++;
+    }
+    return n;
+  }, [commentsQ.dataUpdatedAt, seenCommentIds]);
 
   const status = tQ.data?.status ?? "draft";
   const isDone = status === "done";
@@ -442,14 +459,23 @@ export default function LiveTournamentPage() {
         {tQ.error ? <div className="text-red-400 text-sm">{String(tQ.error)}</div> : null}
 
         {tQ.data ? (
-          <div className="flex flex-wrap items-center gap-2 text-sm">
-            <Pill>{tQ.data.mode}</Pill>
-            <Pill className={`${statusPill(tQ.data.status)}`}>
-              {tQ.data.status.at(0)?.toUpperCase() + tQ.data.status.slice(1)}
-            </Pill>
-            <Pill className={pillDate()} title="Date">
-              {fmtDate(tQ.data.date)}
-            </Pill>
+          <div className="grid grid-cols-[1fr_auto] items-start gap-2">
+            <div className="min-w-0 flex flex-wrap items-center gap-2 text-sm">
+              <Pill>{tQ.data.mode}</Pill>
+              <Pill className={`${statusPill(tQ.data.status)}`}>
+                {tQ.data.status.at(0)?.toUpperCase() + tQ.data.status.slice(1)}
+              </Pill>
+              <Pill className={pillDate()} title="Date">
+                {fmtDate(tQ.data.date)}
+              </Pill>
+            </div>
+
+            {unreadCommentsCount > 0 ? (
+              <Pill title="Unread comments" className="shrink-0 justify-self-end">
+                <i className="fa-solid fa-comment text-accent" aria-hidden="true" />
+                <span className="tabular-nums text-text-normal">{unreadCommentsCount}</span>
+              </Pill>
+            ) : null}
           </div>
         ) : null}
       </Card>

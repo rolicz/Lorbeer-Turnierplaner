@@ -1,8 +1,13 @@
 import { apiFetch } from "./client";
-import type { TournamentCommentsResponse, Comment } from "./types";
+import type { TournamentCommentsResponse, TournamentCommentsSummary, Comment } from "./types";
 
 export function listTournamentComments(tournamentId: number): Promise<TournamentCommentsResponse> {
   return apiFetch(`/tournaments/${tournamentId}/comments`, { method: "GET" });
+}
+
+export function listTournamentCommentsSummary(): Promise<TournamentCommentsSummary[]> {
+  // Served by the tournaments router to avoid being shadowed by "/tournaments/{tournament_id}".
+  return apiFetch(`/tournaments/comments-summary`, { method: "GET" });
 }
 
 export function createTournamentComment(
@@ -44,4 +49,3 @@ export function setPinnedTournamentComment(token: string, tournamentId: number, 
     body: JSON.stringify({ comment_id: commentId }),
   });
 }
-

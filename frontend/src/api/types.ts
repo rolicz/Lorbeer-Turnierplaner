@@ -63,6 +63,14 @@ export type TournamentCommentsResponse = {
   comments: Comment[];
 };
 
+export type TournamentCommentsSummary = {
+  tournament_id: number;
+  total_comments: number;
+  latest_comment_id: number;
+  latest_updated_at: string | null;
+  comment_ids: number[];
+};
+
 export type TournamentSummary = {
   id: number;
   name: string;

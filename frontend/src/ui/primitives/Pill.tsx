@@ -16,10 +16,11 @@ export function Pill({
   children: React.ReactNode;
   title?: string;
 }) {
+  const base = pillBaseClass();
   return (
     <span
       title={title}
-      className={`inline-flex items-center justify-center text-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium leading-none min-w-14 ${className ?? pillBaseClass()}`}
+      className={`inline-flex items-center justify-center text-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium leading-none min-w-14 ${base} ${className ?? ""}`}
     >
       {children}
     </span>

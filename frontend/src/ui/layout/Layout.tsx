@@ -1,10 +1,12 @@
 import { Link, useLocation } from "react-router-dom";
 import { useEffect, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../../auth/AuthContext";
 import Button from "../primitives/Button";
 import SectionHeader from "../primitives/SectionHeader";
 import { useAnyTournamentWS } from "../../hooks/useTournamentWS";
 import { THEMES } from "../../themes";
+import { listTournamentCommentsSummary } from "../../api/comments.api";
 
 type Role = "reader" | "editor" | "admin";
 type ThemeName = string;
@@ -18,6 +20,20 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const { role, logout } = useAuth();
   const loc = useLocation();
   useAnyTournamentWS();
+  const qc = useQueryClient();
+
+  // Warm cache so "unread comments" indicators appear quickly after navigation.
+  // Using prefetch avoids any rendering dependencies and works well with StrictMode.
+  useEffect(() => {
+    qc.prefetchQuery({
+      queryKey: ["comments", "summary"],
+      queryFn: listTournamentCommentsSummary,
+      staleTime: 15_000,
+    }).catch(() => {
+      // ignore (older backend may not have this endpoint)
+    });
+  }, [qc]);
+
   const [theme, setTheme] = useState<ThemeName>(() => {
     const storedRaw = localStorage.getItem("theme") as ThemeName | null;
     const stored = storedRaw === "ibm" ? "blue" : storedRaw === "football" ? "green" : storedRaw;

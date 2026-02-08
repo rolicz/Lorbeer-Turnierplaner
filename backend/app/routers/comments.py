@@ -16,6 +16,7 @@ from ..models import (
     TournamentPinnedComment,
     TournamentPlayer,
 )
+from ..services.comments_summary import tournament_comments_summary
 from ..ws import ws_manager
 
 log = logging.getLogger(__name__)
@@ -99,6 +100,11 @@ def list_comments(tournament_id: int, s: Session = Depends(get_session)) -> dict
     ).all()
 
     return {"pinned_comment_id": pinned_comment_id, "comments": [_comment_dict(c) for c in comments]}
+
+
+@router.get("/comments/tournaments-summary")
+def comments_summary(s: Session = Depends(get_session)) -> list[dict]:
+    return tournament_comments_summary(s)
 
 
 @router.post("/tournaments/{tournament_id}/comments", dependencies=[Depends(require_editor)])
@@ -246,4 +252,3 @@ async def set_pinned_comment(
     )
 
     return {"pinned_comment_id": comment_id}
-

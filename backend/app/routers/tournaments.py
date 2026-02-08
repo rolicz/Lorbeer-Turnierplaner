@@ -13,6 +13,7 @@ from ..scheduling import assign_labels, schedule_1v1_labels, schedule_2v2_labels
 from ..stats import compute_stats
 from ..ws import ws_manager, ws_manager_update_tournaments
 from ..tournament_status import compute_status_for_tournament, compute_status_map, find_other_live_tournament_id
+from ..services.comments_summary import tournament_comments_summary
 
 log = logging.getLogger(__name__)
 router = APIRouter(prefix="/tournaments", tags=["tournaments"])
@@ -309,6 +310,12 @@ def get_live_tournament(s: Session = Depends(get_session)):
         "updated_at": t.updated_at,
         "status": "live",
     }
+
+
+@router.get("/comments-summary")
+def get_tournaments_comments_summary(s: Session = Depends(get_session)) -> list[dict]:
+    # Must live here (and before "/{tournament_id}") so it doesn't get shadowed by the int path param route.
+    return tournament_comments_summary(s)
 
 
 @router.get("/{tournament_id}")
