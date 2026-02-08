@@ -1,6 +1,7 @@
 import CollapsibleCard from "../ui/primitives/CollapsibleCard";
 import PlayersStatsCard from "./stats/PlayersStatsCard";
 import HeadToHeadCard from "./stats/HeadToHeadCard";
+import StreaksCard from "./stats/StreaksCard";
 
 export default function StatsPage() {
   return (
@@ -8,6 +9,7 @@ export default function StatsPage() {
       <div className="grid gap-3 lg:grid-cols-2">
         <PlayersStatsCard />
         <HeadToHeadCard />
+        <StreaksCard />
 
         <CollapsibleCard
           title={

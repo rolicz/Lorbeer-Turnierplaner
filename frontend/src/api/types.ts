@@ -292,3 +292,35 @@ export type StatsH2HResponse = {
   nemesis_all?: StatsH2HOpponentRow | null;
   favorite_victim_all?: StatsH2HOpponentRow | null;
 };
+
+export type StatsStreaksPlayerLite = {
+  id: number;
+  display_name: string;
+};
+
+export type StatsStreakRun = {
+  length: number;
+  start_ts: string | null;
+  end_ts: string | null;
+};
+
+export type StatsStreakRow = StatsStreakRun & {
+  player: StatsStreaksPlayerLite;
+};
+
+export type StatsStreakCategory = {
+  key: string;
+  name: string;
+  description: string;
+  records: StatsStreakRow[];
+  records_total: number;
+  current: StatsStreakRow[];
+  current_total: number;
+};
+
+export type StatsStreaksResponse = {
+  generated_at: string;
+  mode: "overall" | "1v1" | "2v2";
+  player: StatsStreaksPlayerLite | null;
+  categories: StatsStreakCategory[];
+};

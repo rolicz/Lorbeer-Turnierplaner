@@ -22,6 +22,12 @@ def stats_overview() -> dict[str, Any]:
                 "version": 1,
                 "description": "Rivalries (1v1/2v2/all) + best teammates (2v2).",
             },
+            {
+                "key": "streaks",
+                "name": "Streaks",
+                "version": 1,
+                "description": "Win/unbeaten + scoring/clean-sheet streaks (records + current).",
+            },
             # future: h2h, streaks, seasons, cups, clubs, etc.
         ]
     }

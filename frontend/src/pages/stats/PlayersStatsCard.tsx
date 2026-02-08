@@ -302,33 +302,101 @@ function TournamentPositionsGrid({
   );
 }
 
-function SortSegment({
-  active,
-  onClick,
-  icon,
-  title,
-  subtitle,
-}: {
-  active: boolean;
-  onClick: () => void;
-  icon: string;
-  title: string;
-  subtitle: string;
-}) {
+function PlayersViewSwitch({ value, onChange }: { value: SortMode; onChange: (v: SortMode) => void }) {
+  const idx = value === "overall" ? 0 : 1;
+  const wCls = "w-20 sm:w-24";
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={"flex flex-1 items-center gap-3 px-3 py-1.5 text-left transition " + (active ? "bg-bg-card-inner" : "hover:bg-hover-default")}
+    <div
+      className="relative inline-flex shrink-0 rounded-2xl p-1"
+      style={{ backgroundColor: "rgb(var(--color-bg-card-chip) / 0.35)" }}
+      role="group"
+      aria-label="Players view"
+      title="View: Overall or form"
     >
-      <span className={"card-chip inline-flex h-7 w-7 items-center justify-center rounded-xl border"}>
-        <i className={icon + " text-text-normal"} aria-hidden="true" />
-      </span>
-      <span className="min-w-0">
-        <div className={"truncate text-sm " + (active ? "text-text-normal font-semibold" : "text-text-muted")}>{title}</div>
-        <div className="truncate text-[11px] text-text-muted">{subtitle}</div>
-      </span>
-    </button>
+      <span
+        className={"absolute inset-y-1 left-1 rounded-xl shadow-sm transition-transform duration-200 ease-out " + wCls}
+        style={{
+          backgroundColor: "rgb(var(--color-bg-card-inner))",
+          transform: `translateX(${idx * 100}%)`,
+        }}
+        aria-hidden="true"
+      />
+      {(
+        [
+          { k: "overall" as const, label: "Overall", icon: "fa-trophy" },
+          { k: "lastN" as const, label: "Form", icon: "fa-chart-line" },
+        ] as const
+      ).map((x) => (
+        <button
+          key={x.k}
+          type="button"
+          onClick={() => onChange(x.k)}
+          className={
+            "relative z-10 inline-flex h-9 items-center justify-center gap-2 rounded-xl text-[11px] transition-colors " +
+            wCls +
+            " " +
+            (value === x.k ? "text-text-normal" : "text-text-muted hover:text-text-normal")
+          }
+          aria-pressed={value === x.k}
+        >
+          <i className={"fa-solid " + x.icon + " hidden sm:inline"} aria-hidden="true" />
+          <span>{x.label}</span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function TilesScopeSwitch({
+  value,
+  onChange,
+  title,
+}: {
+  value: boolean;
+  onChange: (v: boolean) => void;
+  title: string;
+}) {
+  const idx = value ? 1 : 0;
+  const wCls = "w-20 sm:w-24";
+  return (
+    <div
+      className="relative inline-flex shrink-0 rounded-2xl p-1"
+      style={{ backgroundColor: "rgb(var(--color-bg-card-chip) / 0.35)" }}
+      role="group"
+      aria-label="Tournament tiles scope"
+      title={title}
+    >
+      <span
+        className={"absolute inset-y-1 left-1 rounded-xl shadow-sm transition-transform duration-200 ease-out " + wCls}
+        style={{
+          backgroundColor: "rgb(var(--color-bg-card-inner))",
+          transform: `translateX(${idx * 100}%)`,
+        }}
+        aria-hidden="true"
+      />
+      {(
+        [
+          { k: false as const, label: "Recent", icon: "fa-clock" },
+          { k: true as const, label: "All", icon: "fa-layer-group" },
+        ] as const
+      ).map((x) => (
+        <button
+          key={String(x.k)}
+          type="button"
+          onClick={() => onChange(x.k)}
+          className={
+            "relative z-10 inline-flex h-9 items-center justify-center gap-2 rounded-xl text-[11px] transition-colors " +
+            wCls +
+            " " +
+            (value === x.k ? "text-text-normal" : "text-text-muted hover:text-text-normal")
+          }
+          aria-pressed={value === x.k}
+        >
+          <i className={"fa-solid " + x.icon + " hidden sm:inline"} aria-hidden="true" />
+          <span>{x.label}</span>
+        </button>
+      ))}
+    </div>
   );
 }
 
@@ -494,7 +562,6 @@ export default function PlayersStatsCard() {
   };
 
   const allExpanded = rows.length > 0 && rows.every((r) => !!openByPlayerId[r.p.id]);
-  const allCollapsed = rows.length === 0 || rows.every((r) => !openByPlayerId[r.p.id]);
 
   return (
     <CollapsibleCard
@@ -509,22 +576,46 @@ export default function PlayersStatsCard() {
       variant="outer"
       bodyVariant="none"
     >
-      <div className="panel-subtle rounded-2xl overflow-hidden">
-        <div className="flex">
-          <SortSegment
-            active={sortMode === "overall"}
-            onClick={() => setSortMode("overall")}
-            icon="fa-solid fa-trophy"
-            title="Overall"
-            subtitle="All-time points"
-          />
-          <SortSegment
-            active={sortMode === "lastN"}
-            onClick={() => setSortMode("lastN")}
-            icon="fa-solid fa-chart-line"
-            title="Form"
-            subtitle={`Last ${lastNView} avg`}
-          />
+      <div className="card-inner-flat rounded-2xl space-y-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="inline-flex items-center gap-2">
+            <span className="inline-flex h-9 items-center gap-2 rounded-xl px-2 text-[11px] font-medium text-text-muted">
+              <i className="fa-solid fa-eye text-[11px]" aria-hidden="true" />
+              <span>View</span>
+            </span>
+            <PlayersViewSwitch value={sortMode} onChange={setSortMode} />
+          </div>
+
+          {(() => {
+            const canToggleTiles = tournamentsSorted.length > tileCols;
+            const title = canToggleTiles
+              ? showAllTournamentTiles
+                ? "Show only the most recent row of tournaments for each player"
+                : "Show all tournament tiles for each player"
+              : "Only one row of tournaments (toggle still changes state, but the grid won't look different yet)";
+
+            return (
+              <div className="inline-flex items-center gap-2">
+                <span className="inline-flex h-9 items-center gap-2 rounded-xl px-2 text-[11px] font-medium text-text-muted">
+                  <i className="fa-solid fa-layer-group text-[11px]" aria-hidden="true" />
+                  <span>Tiles</span>
+                </span>
+                <TilesScopeSwitch value={showAllTournamentTiles} onChange={setShowAllTournamentTiles} title={title} />
+              </div>
+            );
+          })()}
+
+          <button
+            type="button"
+            className="btn-base btn-ghost inline-flex h-9 items-center gap-2 rounded-xl px-3 py-2 text-[11px]"
+            onClick={() => setAllOpen(allExpanded ? false : true)}
+            disabled={rows.length === 0}
+            title={rows.length ? (allExpanded ? "Collapse all players" : "Expand all players") : "Loading players…"}
+            aria-pressed={allExpanded}
+          >
+            <i className={"fa-solid " + (allExpanded ? "fa-angles-up" : "fa-angles-down")} aria-hidden="true" />
+            <span className="whitespace-nowrap">{allExpanded ? "Collapse" : "Expand"}</span>
+          </button>
         </div>
       </div>
 
@@ -544,61 +635,6 @@ export default function PlayersStatsCard() {
           />
         </div>
       ) : null}
-
-      <div className="grid grid-cols-2 gap-2">
-        {(() => {
-          const canToggleTiles = tournamentsSorted.length > tileCols;
-          const label = showAllTournamentTiles ? "All tiles" : "Recent tiles";
-          const title = canToggleTiles
-            ? showAllTournamentTiles
-              ? "Show only the most recent row of tournaments for each player"
-              : "Show all tournament tiles for each player"
-            : "Only one row of tournaments (toggle still changes state, but the grid won't look different yet)";
-
-          const cls =
-            "btn-base inline-flex h-9 w-full items-center justify-center gap-1.5 px-2 py-2 text-[10px] sm:gap-2 sm:px-3 sm:text-[11px] " +
-            (showAllTournamentTiles
-              ? "bg-bg-card-inner text-text-normal shadow-sm"
-              : "bg-bg-card-chip/30 text-text-normal hover:bg-bg-card-chip/45");
-
-          return (
-            <button
-              type="button"
-              className={cls}
-              onClick={() => setShowAllTournamentTiles((v) => !v)}
-              title={title}
-              aria-pressed={showAllTournamentTiles}
-            >
-              <i className={"fa-solid " + (showAllTournamentTiles ? "fa-layer-group" : "fa-clock")} aria-hidden="true" />
-              <span className="whitespace-nowrap">{label}</span>
-            </button>
-          );
-        })()}
-
-        {(() => {
-          const expanded = allExpanded;
-          const label = expanded ? "Collapse all" : "Expand all";
-          const title = rows.length ? (expanded ? "Collapse all players" : "Expand all players") : "Loading players…";
-
-          const cls =
-            "btn-base inline-flex h-9 w-full items-center justify-center gap-1.5 px-2 py-2 text-[10px] sm:gap-2 sm:px-3 sm:text-[11px] " +
-            (expanded ? "bg-bg-card-inner text-text-normal shadow-sm" : "bg-bg-card-chip/35 text-text-normal hover:bg-bg-card-chip/55");
-
-          return (
-            <button
-              type="button"
-              className={cls}
-              onClick={() => setAllOpen(!expanded)}
-              disabled={rows.length === 0}
-              title={title}
-              aria-pressed={expanded}
-            >
-              <i className={"fa-solid " + (expanded ? "fa-angles-up" : "fa-angles-down")} aria-hidden="true" />
-              <span className="whitespace-nowrap">{label}</span>
-            </button>
-          );
-        })()}
-      </div>
 
       <CollapsibleCard
         title={

@@ -276,17 +276,21 @@ export default function HeadToHeadCard() {
     >
       <div className="card-inner-flat rounded-2xl space-y-2">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="inline-flex h-9 items-center gap-2 rounded-xl px-2 text-[11px] font-medium text-text-muted">
-            <i className="fa-solid fa-filter text-[11px]" aria-hidden="true" />
-            <span>Filter</span>
-          </span>
-          <ModeSwitch value={mode} onChange={setMode} />
+          <div className="inline-flex items-center gap-2">
+            <span className="inline-flex h-9 items-center gap-2 rounded-xl px-2 text-[11px] font-medium text-text-muted">
+              <i className="fa-solid fa-filter text-[11px]" aria-hidden="true" />
+              <span>Filter</span>
+            </span>
+            <ModeSwitch value={mode} onChange={setMode} />
+          </div>
 
-          <span className="inline-flex h-9 items-center gap-2 rounded-xl px-2 text-[11px] font-medium text-text-muted">
-            <i className="fa-solid fa-arrow-down-wide-short text-[11px]" aria-hidden="true" />
-            <span>Order</span>
-          </span>
-          <OrderSwitch value={order} onChange={setOrder} />
+          <div className="inline-flex items-center gap-2">
+            <span className="inline-flex h-9 items-center gap-2 rounded-xl px-2 text-[11px] font-medium text-text-muted">
+              <i className="fa-solid fa-arrow-down-wide-short text-[11px]" aria-hidden="true" />
+              <span>Order</span>
+            </span>
+            <OrderSwitch value={order} onChange={setOrder} />
+          </div>
         </div>
 
           <MetaRow>

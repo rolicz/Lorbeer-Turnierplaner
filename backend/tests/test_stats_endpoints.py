@@ -6,6 +6,7 @@ def test_stats_overview(client):
     assert isinstance(data["blocks"], list)
     assert any(b.get("key") == "players" for b in data["blocks"])
     assert any(b.get("key") == "h2h" for b in data["blocks"])
+    assert any(b.get("key") == "streaks" for b in data["blocks"])
 
 
 def test_stats_players_empty(client):
@@ -38,3 +39,13 @@ def test_stats_h2h_order_param(client):
     assert r.status_code == 200, r.text
     data = r.json()
     assert data.get("order") in ("played", "rivalry")
+
+
+def test_stats_streaks_empty(client):
+    r = client.get("/stats/streaks")
+    assert r.status_code == 200, r.text
+    data = r.json()
+    assert "generated_at" in data
+    assert "mode" in data
+    assert "categories" in data
+    assert isinstance(data["categories"], list)

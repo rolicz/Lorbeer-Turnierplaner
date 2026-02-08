@@ -228,6 +228,7 @@ function invalidateTournamentRelated(qc: QueryClient, tid: number) {
   qc.invalidateQueries({ queryKey: ["cup"] });
   qc.invalidateQueries({ queryKey: ["stats", "players"] });
   qc.invalidateQueries({ queryKey: ["stats", "h2h"] });
+  qc.invalidateQueries({ queryKey: ["stats", "streaks"] });
 }
 
 function invalidateAnyTournamentRelated(qc: QueryClient) {
@@ -236,6 +237,7 @@ function invalidateAnyTournamentRelated(qc: QueryClient) {
   qc.invalidateQueries({ queryKey: ["tournaments", "live"] });
   qc.invalidateQueries({ queryKey: ["stats", "players"] });
   qc.invalidateQueries({ queryKey: ["stats", "h2h"] });
+  qc.invalidateQueries({ queryKey: ["stats", "streaks"] });
 }
 
 export function useTournamentWS(tid: number | null) {
