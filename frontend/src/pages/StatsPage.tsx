@@ -2,6 +2,7 @@ import CollapsibleCard from "../ui/primitives/CollapsibleCard";
 import PlayersStatsCard from "./stats/PlayersStatsCard";
 import HeadToHeadCard from "./stats/HeadToHeadCard";
 import StreaksCard from "./stats/StreaksCard";
+import PlayerMatchesCard from "./stats/PlayerMatchesCard";
 
 export default function StatsPage() {
   return (
@@ -10,6 +11,7 @@ export default function StatsPage() {
         <PlayersStatsCard />
         <HeadToHeadCard />
         <StreaksCard />
+        <PlayerMatchesCard />
 
         <CollapsibleCard
           title={

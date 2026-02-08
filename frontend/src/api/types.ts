@@ -324,3 +324,23 @@ export type StatsStreaksResponse = {
   player: StatsStreaksPlayerLite | null;
   categories: StatsStreakCategory[];
 };
+
+export type StatsPlayerMatchesPlayerLite = {
+  id: number;
+  display_name: string;
+};
+
+export type StatsPlayerMatchesTournament = {
+  id: number;
+  name: string;
+  date: string;
+  mode: "1v1" | "2v2";
+  status: string;
+  matches: Match[];
+};
+
+export type StatsPlayerMatchesResponse = {
+  generated_at: string;
+  player: StatsPlayerMatchesPlayerLite | null;
+  tournaments: StatsPlayerMatchesTournament[];
+};

@@ -269,7 +269,7 @@ export default function HeadToHeadCard() {
           Head-to-Head
         </span>
       }
-      defaultOpen={true}
+      defaultOpen={false}
       variant="outer"
       bodyVariant="none"
       bodyClassName="space-y-3"

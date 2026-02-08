@@ -200,7 +200,7 @@ export default function StreaksCard() {
           Streaks
         </span>
       }
-      defaultOpen={true}
+      defaultOpen={false}
       variant="outer"
       bodyVariant="none"
       bodyClassName="space-y-3"

@@ -49,3 +49,8 @@ def test_stats_streaks_empty(client):
     assert "mode" in data
     assert "categories" in data
     assert isinstance(data["categories"], list)
+
+
+def test_stats_player_matches_requires_player_id(client):
+    r = client.get("/stats/player-matches")
+    assert r.status_code in (400, 422), r.text

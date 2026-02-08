@@ -11,6 +11,7 @@ from ..services.stats.players import compute_stats_players
 from ..services.stats.registry import stats_overview
 from ..services.stats.h2h import compute_stats_h2h
 from ..services.stats.streaks import compute_stats_streaks
+from ..services.stats.player_matches import compute_stats_player_matches
 
 router = APIRouter(prefix="/stats", tags=["stats"])
 
@@ -45,3 +46,11 @@ def stats_streaks(
     s: Session = Depends(get_session),
 ) -> dict[str, Any]:
     return compute_stats_streaks(s, mode=mode, player_id=player_id, limit=limit)
+
+
+@router.get("/player-matches")
+def stats_player_matches(
+    player_id: int = Query(..., ge=1, description="Player id"),
+    s: Session = Depends(get_session),
+) -> dict[str, Any]:
+    return compute_stats_player_matches(s, player_id=player_id)
