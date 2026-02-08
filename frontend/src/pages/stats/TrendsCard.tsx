@@ -508,13 +508,15 @@ export function MultiLineChart({
                   const x = Math.max(padL + 8, Math.min(w - padR - 8, xRaw));
                   // Place labels inside the plot area, starting at the very top.
                   const y = padT + 6;
-                  const [l1, l2] = wrapTwoLinesWords(name, 16);
+                  const [l1, l2] = wrapTwoLinesWords(name, size === "mini" ? 14 : 16);
+                  const titleFont = size === "mini" ? 14 : 16;
+                  const titleLine = size === "mini" ? 16 : 18;
                   return (
                     <text
                       key={i}
                       x={x}
                       y={y}
-                      fontSize={16}
+                      fontSize={titleFont}
                       fontWeight={axisWeight as any}
                       textAnchor="start"
                       dominantBaseline="hanging"
@@ -527,7 +529,7 @@ export function MultiLineChart({
                         {l1}
                       </tspan>
                       {l2 ? (
-                        <tspan x={x} dy={18}>
+                        <tspan x={x} dy={titleLine}>
                           {l2}
                         </tspan>
                       ) : null}
@@ -609,10 +611,92 @@ export function MultiLineChart({
                 .map((p, i) => (p ? { p, i } : null))
                 .filter(Boolean) as Array<{ p: NonNullable<SeriesPoint>; i: number }>;
 
+              const solidOpacity = 0.88;
+              const fadeLen = size === "mini" ? 26 : 30; // SVG units (fixed length)
+              const gradients = segments
+                .filter((seg) => seg.muted)
+                .map((seg) => {
+                  const p1 = pts[seg.i1];
+                  const p2 = pts[seg.i2];
+                  const present1 = !!p1?.present;
+                  const present2 = !!p2?.present;
+
+                  const x1 = xAt(seg.i1);
+                  const y1 = yAt(seg.y1) + laneOffset(s.id, seg.i1);
+                  const x2 = xAt(seg.i2);
+                  const y2 = yAt(seg.y2) + laneOffset(s.id, seg.i2);
+                  const len = Math.hypot(x2 - x1, y2 - y1);
+                  if (!Number.isFinite(len) || len <= 1e-6) return null;
+
+                  const frac = Math.max(0, Math.min(0.45, fadeLen / len));
+                  const id = `seggrad-${s.id}-${seg.i1}-${seg.i2}`;
+
+                  const muted = { color: s.colorMuted, op: seg.opacity };
+                  const solid = { color: s.color, op: solidOpacity };
+
+                  const stops: Array<{ off: number; color: string; op: number }> = [];
+                  if (present1 && present2) {
+                    // Both sides played, but missing tournaments in between -> fade out, stay muted, fade in.
+                    stops.push({ off: 0, ...solid });
+                    stops.push({ off: frac, ...muted });
+                    stops.push({ off: 1 - frac, ...muted });
+                    stops.push({ off: 1, ...solid });
+                  } else if (present1 && !present2) {
+                    // Played -> missing
+                    stops.push({ off: 0, ...solid });
+                    stops.push({ off: frac, ...muted });
+                    stops.push({ off: 1, ...muted });
+                  } else if (!present1 && present2) {
+                    // Missing -> played
+                    stops.push({ off: 0, ...muted });
+                    stops.push({ off: 1 - frac, ...muted });
+                    stops.push({ off: 1, ...solid });
+                  } else {
+                    stops.push({ off: 0, ...muted });
+                    stops.push({ off: 1, ...muted });
+                  }
+
+                  return { seg, id, x1, y1, x2, y2, stops };
+                })
+                .filter(Boolean) as Array<{
+                seg: (typeof segments)[number];
+                id: string;
+                x1: number;
+                y1: number;
+                x2: number;
+                y2: number;
+                stops: Array<{ off: number; color: string; op: number }>;
+              }>;
+
               // No blend-mode: overlapping colors are shown via lanes.
 
               return (
                 <g key={s.id}>
+                  {gradients.length ? (
+                    <defs>
+                      {gradients.map((g) => (
+                        <linearGradient
+                          key={g.id}
+                          id={g.id}
+                          gradientUnits="userSpaceOnUse"
+                          x1={g.x1}
+                          y1={g.y1}
+                          x2={g.x2}
+                          y2={g.y2}
+                        >
+                          {g.stops.map((st, i) => (
+                            <stop
+                              key={i}
+                              offset={`${Math.round(st.off * 1000) / 10}%`}
+                              stopColor={st.color}
+                              stopOpacity={st.op}
+                            />
+                          ))}
+                        </linearGradient>
+                      ))}
+                    </defs>
+                  ) : null}
+
                   {/* outline pass (under everything) */}
                   {segments.map((seg, idx) => (
                     <line
@@ -627,19 +711,54 @@ export function MultiLineChart({
                       strokeLinecap="round"
                     />
                   ))}
-                  {segments.map((seg, idx) => (
-                    <line
-                      key={idx}
-                      x1={xAt(seg.i1)}
-                      y1={yAt(seg.y1) + laneOffset(s.id, seg.i1)}
-                      x2={xAt(seg.i2)}
-                      y2={yAt(seg.y2) + laneOffset(s.id, seg.i2)}
-                      stroke={seg.muted ? s.colorMuted : s.color}
-                      strokeOpacity={seg.opacity}
-                      strokeWidth="11"
-                      strokeLinecap="round"
-                    />
-                  ))}
+                  {segments.map((seg, idx) => {
+                    if (!seg.muted) {
+                      return (
+                        <line
+                          key={idx}
+                          x1={xAt(seg.i1)}
+                          y1={yAt(seg.y1) + laneOffset(s.id, seg.i1)}
+                          x2={xAt(seg.i2)}
+                          y2={yAt(seg.y2) + laneOffset(s.id, seg.i2)}
+                          stroke={s.color}
+                          strokeOpacity={seg.opacity}
+                          strokeWidth="11"
+                          strokeLinecap="round"
+                        />
+                      );
+                    }
+
+                    const g = gradients.find((x) => x.seg === seg) ?? null;
+                    if (!g) {
+                      return (
+                        <line
+                          key={idx}
+                          x1={xAt(seg.i1)}
+                          y1={yAt(seg.y1) + laneOffset(s.id, seg.i1)}
+                          x2={xAt(seg.i2)}
+                          y2={yAt(seg.y2) + laneOffset(s.id, seg.i2)}
+                          stroke={s.colorMuted}
+                          strokeOpacity={seg.opacity}
+                          strokeWidth="11"
+                          strokeLinecap="round"
+                        />
+                      );
+                    }
+
+                    return (
+                      <line
+                        key={idx}
+                        x1={xAt(seg.i1)}
+                        y1={yAt(seg.y1) + laneOffset(s.id, seg.i1)}
+                        x2={xAt(seg.i2)}
+                        y2={yAt(seg.y2) + laneOffset(s.id, seg.i2)}
+                        stroke={`url(#${g.id})`}
+                        strokeOpacity="1"
+                        strokeWidth="11"
+                        strokeLinecap="round"
+                      />
+                    );
+                  })}
                   {dots.map(({ p, i }) => (
                     <circle
                       key={i}

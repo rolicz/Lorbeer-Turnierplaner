@@ -233,6 +233,7 @@ export default function TrendsPreviewCard() {
 
   const chart = useMemo(() => {
     const tournamentTs = tournaments.map((t) => new Date(t.date ?? 0).getTime());
+    const tournamentTitles = tournaments.map((t) => t.name);
 
     let maxCum = 0;
     const series = players.map((p, idx) => {
@@ -273,11 +274,11 @@ export default function TrendsPreviewCard() {
     });
 
     if (view === "lastN") {
-      return { title: `Trends (Form, last ${formN})`, yMax: 3, yTicks: [0, 1, 2, 3], ySuffix: "", series, tournamentTs };
+      return { title: `Trends (Form, last ${formN})`, yMax: 3, yTicks: [0, 1, 2, 3], ySuffix: "", series, tournamentTs, tournamentTitles };
     }
 
     const yMax = Math.max(1, Math.ceil(maxCum / 10) * 10);
-    return { title: "Trends (Total Points)", yMax, yTicks: [0, Math.floor(yMax / 2), yMax], ySuffix: "", series, tournamentTs };
+    return { title: "Trends (Total Points)", yMax, yTicks: [0, Math.floor(yMax / 2), yMax], ySuffix: "", series, tournamentTs, tournamentTitles };
   }, [formN, perPlayer, players, tids, tournaments, view]);
 
   const matchesLoading = matchesQs.some((q) => q.isLoading);
@@ -331,7 +332,7 @@ export default function TrendsPreviewCard() {
               tournamentTs={chart.tournamentTs}
               windowStartTs={windowStartTs}
               windowEndTs={windowEndTs}
-              tournamentTitles={[]} // keep preview clean; full view shows titles
+              tournamentTitles={chart.tournamentTitles ?? []}
               xLabelEvery={1}
               xHintLeft={xHintLeft}
               xHintRight={xHintRight}
@@ -340,7 +341,7 @@ export default function TrendsPreviewCard() {
               ySuffix={chart.ySuffix}
               series={chart.series}
               size="mini"
-              showTournamentTitles={false}
+              showTournamentTitles={true}
               showLegend={false}
               showHeader={false}
               frame="none"
