@@ -28,6 +28,12 @@ def stats_overview() -> dict[str, Any]:
                 "version": 1,
                 "description": "Win/unbeaten + scoring/clean-sheet streaks (records + current).",
             },
+            {
+                "key": "ratings",
+                "name": "Ratings",
+                "version": 1,
+                "description": "Elo-like ladder per mode (overall/1v1/2v2).",
+            },
             # future: h2h, streaks, seasons, cups, clubs, etc.
         ]
     }

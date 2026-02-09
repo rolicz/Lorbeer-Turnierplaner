@@ -555,6 +555,10 @@ def compute_stats_h2h(
                 "team_rivalries_2v2_for_player": player_team_rivalries_2v2(team_rivalries_2v2),
                 "nemesis_all": pick_extreme(vs_all, which="nemesis"),
                 "favorite_victim_all": pick_extreme(vs_all, which="victim"),
+                "nemesis_1v1": pick_extreme(player_vs(pairs_1v1), which="nemesis"),
+                "favorite_victim_1v1": pick_extreme(player_vs(pairs_1v1), which="victim"),
+                "nemesis_2v2": pick_extreme(player_vs(pairs_2v2), which="nemesis"),
+                "favorite_victim_2v2": pick_extreme(player_vs(pairs_2v2), which="victim"),
             }
         )
 

@@ -4,6 +4,7 @@ import {
   StatsH2HResponse,
   StatsPlayerMatchesResponse,
   StatsPlayersResponse,
+  StatsRatingsResponse,
   StatsStreaksResponse,
 } from "./types";
 
@@ -45,6 +46,13 @@ export function getStatsPlayerMatches(opts: { playerId: number }): Promise<Stats
     const qs = new URLSearchParams();
     qs.set("player_id", String(opts.playerId));
     return apiFetch(`/stats/player-matches?${qs.toString()}`, { method: "GET" });
+}
+
+export function getStatsRatings(opts?: { mode?: "overall" | "1v1" | "2v2" }): Promise<StatsRatingsResponse> {
+    const qs = new URLSearchParams();
+    if (opts?.mode && opts.mode !== "overall") qs.set("mode", String(opts.mode));
+    const suffix = qs.toString() ? `?${qs.toString()}` : "";
+    return apiFetch(`/stats/ratings${suffix}`, { method: "GET" });
 }
 
 export type StatsOddsRequest = {

@@ -14,6 +14,7 @@ from ..services.stats.h2h import compute_stats_h2h
 from ..services.stats.streaks import compute_stats_streaks
 from ..services.stats.player_matches import compute_stats_player_matches
 from ..services.stats.odds import compute_single_match_odds
+from ..services.stats.ratings import compute_stats_ratings
 
 router = APIRouter(prefix="/stats", tags=["stats"])
 
@@ -68,6 +69,13 @@ def stats_player_matches(
     s: Session = Depends(get_session),
 ) -> dict[str, Any]:
     return compute_stats_player_matches(s, player_id=player_id)
+
+@router.get("/ratings")
+def stats_ratings(
+    mode: str = Query("overall", description='Match mode filter: "overall" (default), "1v1", or "2v2"'),
+    s: Session = Depends(get_session),
+) -> dict[str, Any]:
+    return compute_stats_ratings(s, mode=mode)
 
 
 @router.post("/odds")

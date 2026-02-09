@@ -230,6 +230,7 @@ function invalidateTournamentRelated(qc: QueryClient, tid: number) {
   qc.invalidateQueries({ queryKey: ["stats", "players"] });
   qc.invalidateQueries({ queryKey: ["stats", "h2h"] });
   qc.invalidateQueries({ queryKey: ["stats", "streaks"] });
+  qc.invalidateQueries({ queryKey: ["stats", "ratings"] });
 }
 
   function invalidateAnyTournamentRelated(qc: QueryClient) {
@@ -240,6 +241,7 @@ function invalidateTournamentRelated(qc: QueryClient, tid: number) {
     qc.invalidateQueries({ queryKey: ["stats", "players"] });
     qc.invalidateQueries({ queryKey: ["stats", "h2h"] });
     qc.invalidateQueries({ queryKey: ["stats", "streaks"] });
+    qc.invalidateQueries({ queryKey: ["stats", "ratings"] });
     qc.invalidateQueries({ queryKey: ["stats", "playerMatches"] });
   }
 

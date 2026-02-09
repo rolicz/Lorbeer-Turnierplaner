@@ -313,6 +313,36 @@ export type StatsH2HResponse = {
   team_rivalries_2v2_for_player?: StatsH2HTeamRivalry[];
   nemesis_all?: StatsH2HOpponentRow | null;
   favorite_victim_all?: StatsH2HOpponentRow | null;
+  nemesis_1v1?: StatsH2HOpponentRow | null;
+  favorite_victim_1v1?: StatsH2HOpponentRow | null;
+  nemesis_2v2?: StatsH2HOpponentRow | null;
+  favorite_victim_2v2?: StatsH2HOpponentRow | null;
+};
+
+export type StatsRatingsPlayerLite = {
+  id: number;
+  display_name: string;
+};
+
+export type StatsRatingsRow = {
+  player: StatsRatingsPlayerLite;
+  rating: number;
+  played: number;
+  wins: number;
+  draws: number;
+  losses: number;
+  gf: number;
+  ga: number;
+  gd: number;
+  pts: number;
+};
+
+export type StatsRatingsResponse = {
+  generated_at: string;
+  mode: "overall" | "1v1" | "2v2";
+  base_rating: number;
+  k: number;
+  rows: StatsRatingsRow[];
 };
 
 export type StatsStreaksPlayerLite = {

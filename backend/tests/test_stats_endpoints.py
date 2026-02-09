@@ -10,6 +10,7 @@ def test_stats_overview(client):
     assert any(b.get("key") == "players" for b in data["blocks"])
     assert any(b.get("key") == "h2h" for b in data["blocks"])
     assert any(b.get("key") == "streaks" for b in data["blocks"])
+    assert any(b.get("key") == "ratings" for b in data["blocks"])
 
 
 def test_stats_players_empty(client):
@@ -96,3 +97,13 @@ def test_stats_odds_endpoint_basic(client, admin_headers, editor_headers):
     assert float(odds.get("home")) >= 1.01
     assert float(odds.get("draw")) >= 1.01
     assert float(odds.get("away")) >= 1.01
+
+
+def test_stats_ratings_empty(client):
+    r = client.get("/stats/ratings")
+    assert r.status_code == 200, r.text
+    data = r.json()
+    assert "generated_at" in data
+    assert data.get("mode") in ("overall", "1v1", "2v2")
+    assert "rows" in data
+    assert isinstance(data["rows"], list)

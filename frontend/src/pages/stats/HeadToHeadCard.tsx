@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import CollapsibleCard from "../../ui/primitives/CollapsibleCard";
@@ -165,6 +165,7 @@ function TeamRivalryRow({ r, focusPlayerId }: { r: StatsH2HTeamRivalry; focusPla
 
 type Mode = "overall" | "1v1" | "2v2";
 type RivalryOrder = "rivalry" | "played";
+type View = "lists" | "matrix";
 
 function ModeSwitch({ value, onChange }: { value: Mode; onChange: (m: Mode) => void }) {
   const idx = value === "overall" ? 0 : value === "1v1" ? 1 : 2;
@@ -257,6 +258,51 @@ function OrderSwitch({ value, onChange }: { value: RivalryOrder; onChange: (o: R
   );
 }
 
+function ViewSwitch({ value, onChange }: { value: View; onChange: (v: View) => void }) {
+  const idx = value === "lists" ? 0 : 1;
+  const wCls = "w-16 sm:w-24";
+  return (
+    <div
+      className="relative inline-flex shrink-0 rounded-2xl p-1"
+      style={{ backgroundColor: "rgb(var(--color-bg-card-chip) / 0.35)" }}
+      role="group"
+      aria-label="View"
+      title="View"
+    >
+      <span
+        className={"absolute inset-y-1 left-1 rounded-xl shadow-sm transition-transform duration-200 ease-out " + wCls}
+        style={{
+          backgroundColor: "rgb(var(--color-bg-card-inner))",
+          transform: `translateX(${idx * 100}%)`,
+        }}
+        aria-hidden="true"
+      />
+      {(
+        [
+          { k: "lists" as const, label: "Lists", icon: "fa-list" },
+          { k: "matrix" as const, label: "Matrix", icon: "fa-table-cells" },
+        ] as const
+      ).map((x) => (
+        <button
+          key={x.k}
+          type="button"
+          onClick={() => onChange(x.k)}
+          className={
+            "relative z-10 inline-flex h-9 items-center justify-center gap-2 rounded-xl text-[11px] transition-colors " +
+            wCls +
+            " " +
+            (value === x.k ? "text-text-normal" : "text-text-muted hover:text-text-normal")
+          }
+          aria-pressed={value === x.k}
+        >
+          <i className={"fa-solid " + x.icon + " hidden sm:inline"} aria-hidden="true" />
+          <span>{x.label}</span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
 export default function HeadToHeadCard() {
   const playersQ = useQuery({ queryKey: ["players"], queryFn: listPlayers });
   const players = playersQ.data ?? [];
@@ -264,6 +310,7 @@ export default function HeadToHeadCard() {
   const [playerId, setPlayerId] = useState<number | "">("");
   const [mode, setMode] = useState<Mode>("overall");
   const [order, setOrder] = useState<RivalryOrder>("rivalry");
+  const [view, setView] = useState<View>("lists");
   const FETCH_LIMIT = 200; // keep UI trimmed to 5 by default, but don't hide data due to API limit
   const h2hQ = useQuery({
     queryKey: ["stats", "h2h", playerId || "all", FETCH_LIMIT, order],
@@ -284,6 +331,22 @@ export default function HeadToHeadCard() {
   const [showAllByKey, setShowAllByKey] = useState<Record<string, boolean>>({});
   const getShowAll = (k: string) => !!showAllByKey[k];
   const toggleShowAll = (k: string) => setShowAllByKey((prev) => ({ ...prev, [k]: !prev[k] }));
+
+  const nemesis = useMemo(() => {
+    const d = h2hQ.data;
+    if (!d || !selected) return null;
+    return mode === "1v1" ? d.nemesis_1v1 ?? null : mode === "2v2" ? d.nemesis_2v2 ?? null : d.nemesis_all ?? null;
+  }, [h2hQ.data, selected, mode]);
+
+  const victim = useMemo(() => {
+    const d = h2hQ.data;
+    if (!d || !selected) return null;
+    return mode === "1v1"
+      ? d.favorite_victim_1v1 ?? null
+      : mode === "2v2"
+        ? d.favorite_victim_2v2 ?? null
+        : d.favorite_victim_all ?? null;
+  }, [h2hQ.data, selected, mode]);
 
   return (
     <CollapsibleCard
@@ -315,6 +378,14 @@ export default function HeadToHeadCard() {
               <span>Order</span>
             </span>
             <OrderSwitch value={order} onChange={setOrder} />
+          </div>
+
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <span className="inline-flex h-9 items-center gap-2 rounded-xl px-2 text-[11px] font-medium text-text-muted">
+              <i className="fa-solid fa-layer-group text-[11px]" aria-hidden="true" />
+              <span>View</span>
+            </span>
+            <ViewSwitch value={view} onChange={setView} />
           </div>
         </div>
 
@@ -353,117 +424,281 @@ export default function HeadToHeadCard() {
 
         {h2hQ.data ? (
           <div className="space-y-3">
-            {!selected ? (
+            {selected ? (
+              <div className="card-inner-flat rounded-2xl">
+                <div className="grid gap-2">
+                  <div className="panel-subtle flex items-center justify-between gap-3 rounded-xl px-3 py-2">
+                    <div className="min-w-0">
+                      <div className="text-sm font-semibold text-text-normal">
+                        <i className="fa-solid fa-thumbs-up mr-2 text-text-muted" aria-hidden="true" />
+                        Favorite
+                      </div>
+                      <div className="text-[11px] text-text-muted">Best points per match</div>
+                    </div>
+                    <div className="shrink-0 text-right">
+                      <div className="text-sm font-semibold text-text-normal">{victim?.opponent.display_name ?? "—"}</div>
+                      {victim ? (
+                        <div className="font-mono text-[11px] tabular-nums text-text-muted">
+                          {victim.pts_per_match.toFixed(2)} ppm · {fmtInt(victim.played)} g
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
+
+                  <div className="panel-subtle flex items-center justify-between gap-3 rounded-xl px-3 py-2">
+                    <div className="min-w-0">
+                      <div className="text-sm font-semibold text-text-normal">
+                        <i className="fa-solid fa-thumbs-down mr-2 text-text-muted" aria-hidden="true" />
+                        Nemesis
+                      </div>
+                      <div className="text-[11px] text-text-muted">Worst points per match</div>
+                    </div>
+                    <div className="shrink-0 text-right">
+                      <div className="text-sm font-semibold text-text-normal">{nemesis?.opponent.display_name ?? "—"}</div>
+                      {nemesis ? (
+                        <div className="font-mono text-[11px] tabular-nums text-text-muted">
+                          {nemesis.pts_per_match.toFixed(2)} ppm · {fmtInt(nemesis.played)} g
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : null}
+
+            {view === "matrix" ? (
               <div className="card-inner-flat rounded-2xl space-y-2">
+                <div className="text-sm font-semibold text-text-normal">
+                  Matrix <span className="text-text-muted">· {modeTitle}</span>
+                </div>
+                <div className="text-[11px] text-text-muted">
+                  Cells show <span className="text-text-normal">W</span> (top) / <span className="text-text-normal">D</span>{" "}
+                  (mid) / <span className="text-text-normal">L</span> (bottom) from the row player’s perspective.
+                </div>
+
                 {(() => {
-                  const k = `legendary-${mode}-${order}`;
                   const list =
-                    mode === "2v2"
-                      ? (h2hQ.data.team_rivalries_2v2 ?? [])
-                      : mode === "1v1"
-                        ? (h2hQ.data.rivalries_1v1 ?? [])
+                    mode === "1v1"
+                      ? (h2hQ.data.rivalries_1v1 ?? [])
+                      : mode === "2v2"
+                        ? (h2hQ.data.rivalries_2v2 ?? [])
                         : (h2hQ.data.rivalries_all ?? []);
 
-                  const showAll = getShowAll(k);
-                  const hasMore = list.length > DEFAULT_SHOW;
-                  const visible = showAll ? list : list.slice(0, DEFAULT_SHOW);
+                  const byKey = new Map<string, StatsH2HPair>();
+                  for (const r of list) {
+                    const a = Math.min(r.a.id, r.b.id);
+                    const b = Math.max(r.a.id, r.b.id);
+                    byKey.set(`${a}-${b}`, r);
+                  }
+
+                  const roster = [...players].sort((a, b) => a.display_name.localeCompare(b.display_name));
+                  if (!roster.length) return <div className="text-sm text-text-muted">No players.</div>;
+
+                  // Mobile-friendly: vertical column labels so the grid can stay compact.
+                  // Keep the left name column fixed (no wasted space), and make cells wide enough to avoid overflow.
+                  const rowHeadW = "76px";
+                  const colW = roster.length <= 8 ? "38px" : roster.length <= 10 ? "34px" : "30px";
+                  // Let columns expand to fill available width (no dead space on the right),
+                  // but keep a minimum so cells stay readable.
+                  const gridCols = `${rowHeadW} repeat(${roster.length}, minmax(${colW}, 1fr))`;
 
                   return (
-                    <>
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <div className="text-sm font-semibold text-text-normal">
-                            Legendary rivalries <span className="text-text-muted">· {modeTitle}</span>
+                    <div className="-mx-3 overflow-x-auto px-3">
+                      <div
+                        className="grid gap-px"
+                        style={{
+                          gridTemplateColumns: gridCols,
+                        }}
+                      >
+                        <div className="sticky left-0 z-20 flex h-7 items-center rounded-md bg-bg-card-inner px-2 text-[10px] font-semibold text-text-muted">
+                          <span className="truncate">Player</span>
+                        </div>
+                        {roster.map((p) => (
+                          <div
+                            key={`h-${p.id}`}
+                            className="flex h-7 items-center justify-center rounded-md bg-bg-card-chip/25 px-1 text-center font-semibold text-text-muted"
+                            title={p.display_name}
+                          >
+                            <div className="w-full truncate text-[9px] leading-3">{p.display_name}</div>
                           </div>
-                          <div className="mt-1 text-[11px] text-text-muted">
-                            {orderTitle === "Legendary" ? (
-                              <>
-                                Ranked by <span className="text-text-normal">played × closeness</span>.{" "}
-                                <span className="text-text-normal">% close</span> measures win-balance (wins only, draws
-                                ignored).
-                              </>
+                        ))}
+
+                        {roster.map((rowP, rowIdx) => (
+                          <Fragment key={`row-${rowP.id}`}>
+                            <div
+                              key={`r-${rowP.id}`}
+                              className="sticky left-0 z-10 flex h-9 items-center rounded-md bg-bg-card-inner px-2 text-[11px] font-semibold text-text-normal"
+                              title={rowP.display_name}
+                            >
+                              <div className="w-full truncate">{rowP.display_name}</div>
+                            </div>
+                            {roster.map((colP, colIdx) => {
+                              const shade = rowIdx % 2 === 0 ? "bg-bg-card-chip/25" : "bg-bg-card-chip/35";
+                              const shadeEmpty = rowIdx % 2 === 0 ? "bg-bg-card-chip/18" : "bg-bg-card-chip/24";
+                              if (rowP.id === colP.id) {
+                                return (
+                                  <div
+                                    key={`c-${rowP.id}-${colP.id}`}
+                                    className="h-9 rounded-md bg-bg-card-chip/15"
+                                  />
+                                );
+                              }
+                              const a = Math.min(rowP.id, colP.id);
+                              const b = Math.max(rowP.id, colP.id);
+                              const r = byKey.get(`${a}-${b}`) ?? null;
+                              if (!r || !r.played) {
+                                return (
+                                  <div
+                                    key={`c-${rowP.id}-${colP.id}`}
+                                    className={
+                                      "flex h-9 items-center justify-center rounded-md px-1 text-center text-[11px] text-text-muted " +
+                                      shadeEmpty
+                                    }
+                                  >
+                                    —
+                                  </div>
+                                );
+                              }
+                              const rowIsA = r.a.id === rowP.id;
+                              const w = rowIsA ? r.a_wins : r.b_wins;
+                              const l = rowIsA ? r.b_wins : r.a_wins;
+                              const d = r.draws;
+                              return (
+                                <div
+                                  key={`c-${rowP.id}-${colP.id}`}
+                                  className={
+                                    "flex h-9 items-center justify-center rounded-md px-1 text-center overflow-hidden " + shade
+                                  }
+                                  title={`${rowP.display_name} vs ${colP.display_name} · ${r.played} games`}
+                                >
+                                  <div className="mx-auto inline-flex flex-col items-center justify-center font-mono text-[10px] leading-[10px] tabular-nums">
+                                    <span className="text-status-text-green">{fmtInt(w)}</span>
+                                    <span className="text-amber-300">{fmtInt(d)}</span>
+                                    <span className="text-[color:rgb(var(--delta-down)/1)]">{fmtInt(l)}</span>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </Fragment>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+            ) : null}
+
+            {view === "lists" ? (
+              <>
+                {!selected ? (
+                  <div className="card-inner-flat rounded-2xl space-y-2">
+                    {(() => {
+                      const k = `legendary-${mode}-${order}`;
+                      const list =
+                        mode === "2v2"
+                          ? (h2hQ.data.team_rivalries_2v2 ?? [])
+                          : mode === "1v1"
+                            ? (h2hQ.data.rivalries_1v1 ?? [])
+                            : (h2hQ.data.rivalries_all ?? []);
+
+                      const showAll = getShowAll(k);
+                      const hasMore = list.length > DEFAULT_SHOW;
+                      const visible = showAll ? list : list.slice(0, DEFAULT_SHOW);
+
+                      return (
+                        <>
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <div className="text-sm font-semibold text-text-normal">
+                                Legendary rivalries <span className="text-text-muted">· {modeTitle}</span>
+                              </div>
+                              <div className="mt-1 text-[11px] text-text-muted">
+                                {orderTitle === "Legendary" ? (
+                                  <>
+                                    Ranked by <span className="text-text-normal">played × closeness</span>.{" "}
+                                    <span className="text-text-normal">% close</span> measures win-balance (wins only, draws
+                                    ignored).
+                                  </>
+                                ) : (
+                                  <>Sorted by <span className="text-text-normal">games played</span>.</>
+                                )}
+                              </div>
+                            </div>
+
+                            {hasMore ? (
+                              <button
+                                type="button"
+                                className="btn-base btn-ghost inline-flex h-9 items-center justify-center px-3 py-2 text-[11px] shrink-0"
+                                onClick={() => toggleShowAll(k)}
+                                title={showAll ? `Show top ${DEFAULT_SHOW}` : "Show all"}
+                              >
+                                {showAll ? `Top ${DEFAULT_SHOW}` : "All"}
+                              </button>
+                            ) : null}
+                          </div>
+
+                          <div className="space-y-2">
+                            {visible.length ? (
+                              mode === "2v2" ? (
+                                (visible as StatsH2HTeamRivalry[]).map((r) => (
+                                  <TeamRivalryRow
+                                    key={`t2-${r.team1.map((p) => p.id).join("-")}-${r.team2.map((p) => p.id).join("-")}`}
+                                    r={r}
+                                  />
+                                ))
+                              ) : (
+                                (visible as StatsH2HPair[]).map((r) => (
+                                  <PairRow key={`${mode}-${r.a.id}-${r.b.id}`} r={r} />
+                                ))
+                              )
                             ) : (
-                              <>Sorted by <span className="text-text-normal">games played</span>.</>
+                              <div className="text-sm text-text-muted">No data yet.</div>
                             )}
                           </div>
-                        </div>
+                        </>
+                      );
+                    })()}
+                  </div>
+                ) : null}
 
-                        {hasMore ? (
-                          <button
-                            type="button"
-                            className="btn-base btn-ghost inline-flex h-9 items-center justify-center px-3 py-2 text-[11px] shrink-0"
-                            onClick={() => toggleShowAll(k)}
-                            title={showAll ? `Show top ${DEFAULT_SHOW}` : "Show all"}
-                          >
-                            {showAll ? `Top ${DEFAULT_SHOW}` : "All"}
-                          </button>
-                        ) : null}
-                      </div>
+                {mode === "2v2" && !selected ? (
+                  <div className="card-inner-flat rounded-2xl space-y-2">
+                    {(() => {
+                      const k = `best-teammates-${mode}-${order}`;
+                      const list = h2hQ.data.best_teammates_2v2 ?? [];
+                      const showAll = getShowAll(k);
+                      const hasMore = list.length > DEFAULT_SHOW;
+                      const visible = showAll ? list : list.slice(0, DEFAULT_SHOW);
+                      return (
+                        <>
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="text-sm font-semibold text-text-normal">Best teammates (2v2)</div>
+                            {hasMore ? (
+                              <button
+                                type="button"
+                                className="btn-base btn-ghost inline-flex h-9 items-center justify-center px-3 py-2 text-[11px] shrink-0"
+                                onClick={() => toggleShowAll(k)}
+                                title={showAll ? `Show top ${DEFAULT_SHOW}` : "Show all"}
+                              >
+                                {showAll ? `Top ${DEFAULT_SHOW}` : "All"}
+                              </button>
+                            ) : null}
+                          </div>
+                          <div className="space-y-2">
+                            {visible.length ? (
+                              visible.map((r) => <DuoRow key={`duo-${r.p1.id}-${r.p2.id}`} r={r} />)
+                            ) : (
+                              <div className="text-sm text-text-muted">No data yet.</div>
+                            )}
+                          </div>
+                        </>
+                      );
+                    })()}
+                  </div>
+                ) : null}
 
-                      <div className="space-y-2">
-                        {visible.length ? (
-                          mode === "2v2" ? (
-                            (visible as StatsH2HTeamRivalry[]).map((r) => (
-                              <TeamRivalryRow
-                                key={`t2-${r.team1.map((p) => p.id).join("-")}-${r.team2.map((p) => p.id).join("-")}`}
-                                r={r}
-                              />
-                            ))
-                          ) : (
-                            (visible as StatsH2HPair[]).map((r) => <PairRow key={`${mode}-${r.a.id}-${r.b.id}`} r={r} />)
-                          )
-                        ) : (
-                          <div className="text-sm text-text-muted">No data yet.</div>
-                        )}
-                      </div>
-                    </>
-                  );
-                })()}
-              </div>
-            ) : null}
-
-            {mode === "2v2" && !selected ? (
-              <div className="card-inner-flat rounded-2xl space-y-2">
-                {(() => {
-                  const k = `best-teammates-${mode}-${order}`;
-                  const list = h2hQ.data.best_teammates_2v2 ?? [];
-                  const showAll = getShowAll(k);
-                  const hasMore = list.length > DEFAULT_SHOW;
-                  const visible = showAll ? list : list.slice(0, DEFAULT_SHOW);
-                  return (
-                    <>
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="text-sm font-semibold text-text-normal">Best teammates (2v2)</div>
-                        {hasMore ? (
-                          <button
-                            type="button"
-                            className="btn-base btn-ghost inline-flex h-9 items-center justify-center px-3 py-2 text-[11px] shrink-0"
-                            onClick={() => toggleShowAll(k)}
-                            title={showAll ? `Show top ${DEFAULT_SHOW}` : "Show all"}
-                          >
-                            {showAll ? `Top ${DEFAULT_SHOW}` : "All"}
-                          </button>
-                        ) : null}
-                      </div>
-                      <div className="space-y-2">
-                        {visible.length ? (
-                          visible.map((r) => <DuoRow key={`duo-${r.p1.id}-${r.p2.id}`} r={r} />)
-                        ) : (
-                          <div className="text-sm text-text-muted">No data yet.</div>
-                        )}
-                      </div>
-                    </>
-                  );
-                })()}
-              </div>
-            ) : null}
-
-            {mode === "1v1" ? (
-              null
-            ) : null}
-
-            {selected ? (
-              (() => {
+                {selected ? (
+                  (() => {
                 const Matchups = (
                   <div className="card-inner-flat rounded-2xl space-y-2">
                     <div className="text-sm font-semibold text-text-normal">
@@ -632,7 +867,9 @@ export default function HeadToHeadCard() {
                     {TeamRivalries}
                   </div>
                 );
-              })()
+                  })()
+                ) : null}
+              </>
             ) : null}
           </div>
         ) : null}
