@@ -597,6 +597,7 @@ export default function LiveTournamentPage() {
 	            <StandingsTable
 	              tournamentId={tid!}
 	              tournamentDate={tQ.data?.date ?? null}
+	              tournamentStatus={tQ.data?.status ?? undefined}
 	              wrap={false}
 	              matches={matchesSorted}
 	              players={tQ.data.players}

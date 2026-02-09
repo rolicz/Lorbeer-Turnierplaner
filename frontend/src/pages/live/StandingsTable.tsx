@@ -6,6 +6,9 @@ import Card from "../../ui/primitives/Card";
 import { listPlayerAvatarMeta, playerAvatarUrl } from "../../api/playerAvatars.api";
 import { getCup, listCupDefs } from "../../api/cup.api";
 import { cupColorVarForKey } from "../../cupColors";
+import { getStatsStreaks } from "../../api/stats.api";
+import type { StatsStreaksResponse } from "../../api/types";
+import { StreakPatch, type ActiveStreak } from "../../ui/StreakPatches";
 
 type Row = {
   playerId: number;
@@ -168,6 +171,7 @@ function MobileRow({
   isLeader,
   avatarUpdatedAt,
   cupMarks,
+  streaks,
 }: {
   r: Row;
   rank: number;
@@ -175,6 +179,7 @@ function MobileRow({
   isLeader: boolean;
   avatarUpdatedAt: string | null;
   cupMarks: { key: string; name: string }[];
+  streaks: ActiveStreak[];
 }) {
   return (
     <div className="panel-subtle relative overflow-hidden px-3 py-2">
@@ -196,21 +201,46 @@ function MobileRow({
                   {cupMarks.slice(0, 2).map((c) => (
                     <CupMark key={c.key} cupKey={c.key} cupName={c.name} />
                   ))}
-                  {cupMarks.length > 2 ? (
-                    <span className="text-[11px] text-text-muted">+{cupMarks.length - 2}</span>
-                  ) : null}
+                  {cupMarks.length > 2 ? <span className="text-[11px] text-text-muted">+{cupMarks.length - 2}</span> : null}
                 </div>
               ) : null}
             </div>
           </div>
-          <div className="mt-1 text-xs text-text-muted font-mono tabular-nums">
-            {r.played}P · {r.wins}-{r.draws}-{r.losses} · GD {r.gd} (+{r.gf}/-{r.ga})
-          </div>
         </div>
 
-        <div className="shrink-0 text-right">
+        {/* Fixed width keeps the right column stable across rows (prevents jitter/misalignment). */}
+        <div className="shrink-0 w-[120px] text-right">
           <div className="font-semibold font-mono tabular-nums">{r.pts}</div>
           <div className="text-[11px] text-text-muted">pts</div>
+        </div>
+      </div>
+
+      {/* second row: stats on the left, streak badges right-aligned under points */}
+      <div className="mt-1 flex items-center justify-between gap-3">
+        <div className="min-w-0 text-[11px] leading-none text-text-muted font-mono tabular-nums whitespace-nowrap">
+          <span className="inline-flex items-center gap-3">
+            <span>
+              {r.played}P {r.wins}-{r.draws}-{r.losses}
+            </span>
+            <span className="inline-flex items-center gap-0.5">
+              <span className="text-status-text-green opacity-90">{r.gf}</span>
+              <span className="opacity-60">:</span>
+              <span className="delta-down opacity-75">{r.ga}</span>
+            </span>
+            <span>
+              GD <span className="text-text-muted">{r.gd >= 0 ? "+" : ""}{r.gd}</span>
+            </span>
+          </span>
+        </div>
+        <div className="shrink-0 w-[120px] flex justify-end">
+          {streaks.length ? (
+            <div className="inline-flex max-w-full items-center justify-end gap-1 overflow-hidden whitespace-nowrap">
+              {streaks.slice(0, 3).map((s, i) => (
+                <StreakPatch key={s.key + "-" + i} streak={s} className="streak-compact" />
+              ))}
+              {streaks.length > 3 ? <span className="text-[11px] text-text-muted">+{streaks.length - 3}</span> : null}
+            </div>
+          ) : null}
         </div>
       </div>
     </div>
@@ -259,6 +289,113 @@ export default function StandingsTable({
       queryFn: () => getCup(c.key),
     })),
   });
+
+  const showStreaks = tournamentStatus !== "done";
+  const streaksQ = useQuery<StatsStreaksResponse>({
+    queryKey: ["stats", "streaks", "overall", 200],
+    queryFn: () => getStatsStreaks({ mode: "overall", playerId: null, limit: 200 }),
+    enabled: showStreaks,
+    staleTime: 0,
+    refetchOnReconnect: true,
+    refetchOnWindowFocus: false,
+  });
+
+  const streaksByPlayerId = useMemo(() => {
+    const m = new Map<number, ActiveStreak[]>();
+    if (!showStreaks) return m;
+    const data = streaksQ.data;
+    if (!data) return m;
+
+    const cur = (key: string) => data.categories.find((c) => c.key === key)?.current ?? [];
+    const rec = (key: string) => data.categories.find((c) => c.key === key)?.records ?? [];
+
+    // Only show "real" streaks.
+    const MIN_LEN = 2;
+    const wins = cur("win_streak");
+    const unbeaten = cur("unbeaten_streak");
+    const scoring = cur("scoring_streak");
+    const clean = cur("clean_sheet_streak");
+
+    const recordsWins = rec("win_streak");
+    const recordsUnbeaten = rec("unbeaten_streak");
+    const recordsScoring = rec("scoring_streak");
+    const recordsClean = rec("clean_sheet_streak");
+
+    const bestRecBy = (rows: any[]) => {
+      const best = new Map<number, { length: number; start_ts: string | null; end_ts: string | null }>();
+      for (const r of rows ?? []) {
+        const pid = r.player?.id;
+        const len = Number(r.length ?? 0);
+        if (!pid || len <= 0) continue;
+        const prev = best.get(pid);
+        if (!prev || len > prev.length) best.set(pid, { length: len, start_ts: r.start_ts ?? null, end_ts: r.end_ts ?? null });
+      }
+      return best;
+    };
+
+    const bestWin = bestRecBy(recordsWins);
+    const bestUnbeaten = bestRecBy(recordsUnbeaten);
+    const bestScoring = bestRecBy(recordsScoring);
+    const bestClean = bestRecBy(recordsClean);
+
+    const add = (pid: number, s: ActiveStreak) => {
+      const arr = m.get(pid) ?? [];
+      arr.push(s);
+      m.set(pid, arr);
+    };
+
+    const hasWin = new Set<number>();
+    for (const r of wins) {
+      if ((r.length ?? 0) < MIN_LEN) continue;
+      const pid = r.player.id;
+      hasWin.add(pid);
+      const best = bestWin.get(pid);
+      const highlight = !!best && best.length === r.length && (best.start_ts ?? null) === (r.start_ts ?? null) && (best.end_ts ?? null) === (r.end_ts ?? null);
+      add(pid, { key: "win_streak", length: r.length, highlight });
+    }
+    for (const r of unbeaten) {
+      if ((r.length ?? 0) < MIN_LEN) continue;
+      const pid = r.player.id;
+      if (hasWin.has(pid)) continue; // if winning, don't show unbeaten
+      const best = bestUnbeaten.get(pid);
+      const highlight = !!best && best.length === r.length && (best.start_ts ?? null) === (r.start_ts ?? null) && (best.end_ts ?? null) === (r.end_ts ?? null);
+      add(pid, { key: "unbeaten_streak", length: r.length, highlight });
+    }
+    for (const r of scoring) {
+      if ((r.length ?? 0) < MIN_LEN) continue;
+      const pid = r.player.id;
+      const best = bestScoring.get(pid);
+      const highlight = !!best && best.length === r.length && (best.start_ts ?? null) === (r.start_ts ?? null) && (best.end_ts ?? null) === (r.end_ts ?? null);
+      add(pid, { key: "scoring_streak", length: r.length, highlight });
+    }
+    for (const r of clean) {
+      if ((r.length ?? 0) < MIN_LEN) continue;
+      const pid = r.player.id;
+      const best = bestClean.get(pid);
+      const highlight = !!best && best.length === r.length && (best.start_ts ?? null) === (r.start_ts ?? null) && (best.end_ts ?? null) === (r.end_ts ?? null);
+      add(pid, { key: "clean_sheet_streak", length: r.length, highlight });
+    }
+
+    for (const [pid, arr] of m.entries()) {
+      // stable display order
+      arr.sort((a, b) => {
+        const order = (k: ActiveStreak["key"]) =>
+          k === "win_streak"
+            ? 0
+            : k === "unbeaten_streak"
+              ? 1
+              : k === "scoring_streak"
+                ? 2
+                : 3;
+        const oa = order(a.key);
+        const ob = order(b.key);
+        if (oa !== ob) return oa - ob;
+        return b.length - a.length;
+      });
+    }
+
+    return m;
+  }, [showStreaks, streaksQ.data]);
 
   const cupMarksByPlayerId = useMemo(() => {
     const m = new Map<number, { key: string; name: string }[]>();
@@ -326,6 +463,7 @@ export default function StandingsTable({
           const delta = baseIdx === undefined ? null : baseIdx - idx;
           const avatarUpdatedAt = avatarUpdatedAtByPlayerId.get(r.playerId) ?? null;
           const cupMarks = cupMarksByPlayerId.get(r.playerId) ?? [];
+          const streaks = streaksByPlayerId.get(r.playerId) ?? [];
           return (
             <MobileRow
               key={r.playerId}
@@ -335,6 +473,7 @@ export default function StandingsTable({
               isLeader={idx === 0}
               avatarUpdatedAt={avatarUpdatedAt}
               cupMarks={cupMarks}
+              streaks={streaks}
             />
           );
         })}
@@ -365,6 +504,7 @@ export default function StandingsTable({
               const delta = baseIdx === undefined ? null : baseIdx - idx;
               const isLeader = idx === 0;
               const zebra = idx % 2 === 0 ? "bg-table-row-a" : "bg-table-row-b";
+              const streaks = streaksByPlayerId.get(r.playerId) ?? [];
 
               return (
                 <tr
@@ -373,6 +513,8 @@ export default function StandingsTable({
                     "relative",
                     "border-b border-border-card-inner",
                     zebra,
+                    // Ensure all cells (including streak badges) are vertically centered in the row.
+                    "[&>td]:align-middle",
                   ].join(" ")}
                 >
                   {/* leader bar */}
@@ -396,13 +538,18 @@ export default function StandingsTable({
                         className="h-7 w-7"
                       />
                       <span className="min-w-0 truncate">{r.name}</span>
-                      {(cupMarksByPlayerId.get(r.playerId) ?? []).length ? (
-                        <span className="inline-flex items-center gap-1">
+                      {(cupMarksByPlayerId.get(r.playerId) ?? []).length || streaks.length ? (
+                        <span className="inline-flex items-center gap-1 overflow-hidden whitespace-nowrap">
                           {(cupMarksByPlayerId.get(r.playerId) ?? []).slice(0, 2).map((c) => (
                             <CupMark key={c.key} cupKey={c.key} cupName={c.name} />
                           ))}
-                          {(cupMarksByPlayerId.get(r.playerId) ?? []).length > 2 ? (
-                            <span className="text-[11px] text-text-muted">+{(cupMarksByPlayerId.get(r.playerId) ?? []).length - 2}</span>
+                          {streaks.slice(0, 2).map((s, i) => (
+                            <StreakPatch key={s.key + "-" + i} streak={s} className="streak-compact" />
+                          ))}
+                          {(cupMarksByPlayerId.get(r.playerId) ?? []).length + streaks.length > 4 ? (
+                            <span className="text-[11px] text-text-muted">
+                              +{(cupMarksByPlayerId.get(r.playerId) ?? []).length + streaks.length - 4}
+                            </span>
                           ) : null}
                         </span>
                       ) : null}
@@ -415,7 +562,7 @@ export default function StandingsTable({
                   <td className="py-2 px-1.5 text-right">{r.gf}</td>
                   <td className="py-2 px-1.5 text-right">{r.ga}</td>
                   <td className="py-2 px-1.5 text-right">{r.gd}</td>
-                  <td className="py-2 pl-1.5 text-right font-sans font-semibold">{r.pts}</td>
+                  <td className="py-2 pl-1.5 text-right font-sans font-semibold tabular-nums">{r.pts}</td>
                 </tr>
               );
             })}

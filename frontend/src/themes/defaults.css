@@ -24,7 +24,7 @@
 
   /* Shared UI accents (fixed across themes) */
   --delta-up: 20 184 166; /* teal-500 */
-  --delta-down: 244 63 94; /* rose-500 */
+  --delta-down: 225 56 74; /* softened red (less intense than rose-500) */
   --live-indicator: 239 68 68; /* red-500 */
 
   /* Cup palette (invariant across themes). */

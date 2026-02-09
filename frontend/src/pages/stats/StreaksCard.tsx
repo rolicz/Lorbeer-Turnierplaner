@@ -10,6 +10,21 @@ import type { StatsStreakCategory, StatsStreakRow } from "../../api/types";
 type Mode = "overall" | "1v1" | "2v2";
 type View = "records" | "current";
 
+function iconForCatKey(key: string) {
+  switch (key) {
+    case "win_streak":
+      return { icon: "fa-fire-flame-curved", label: "Win streak" };
+    case "unbeaten_streak":
+      return { icon: "fa-shield", label: "Unbeaten streak" };
+    case "scoring_streak":
+      return { icon: "fa-futbol", label: "Scoring streak" };
+    case "clean_sheet_streak":
+      return { icon: "fa-lock", label: "Clean sheet streak" };
+    default:
+      return null;
+  }
+}
+
 function fmtDate(s?: string | null) {
   if (!s) return "";
   const d = new Date(s);
@@ -144,11 +159,15 @@ function CatBlock({
   view: View;
 }) {
   const hasMore = total > 5;
+  const icon = iconForCatKey(c.key);
   return (
     <div className="card-inner-flat rounded-2xl space-y-2">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <div className="text-sm font-semibold text-text-normal">{c.name}</div>
+          <div className="text-sm font-semibold text-text-normal inline-flex items-center gap-2">
+            {icon ? <i className={"fa-solid " + icon.icon + " text-text-muted"} aria-hidden="true" /> : null}
+            <span>{c.name}</span>
+          </div>
           <div className="mt-1 text-[11px] text-text-muted">{c.description}</div>
         </div>
         {hasMore ? (
