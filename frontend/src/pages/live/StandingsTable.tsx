@@ -344,11 +344,11 @@ export default function StandingsTable({
       m.set(pid, arr);
     };
 
-    const hasWin = new Set<number>();
+    const winLenByPid = new Map<number, number>();
     for (const r of wins) {
       if ((r.length ?? 0) < MIN_LEN) continue;
       const pid = r.player.id;
-      hasWin.add(pid);
+      winLenByPid.set(pid, Number(r.length) || 0);
       const best = bestWin.get(pid);
       const highlight = !!best && best.length === r.length && (best.start_ts ?? null) === (r.start_ts ?? null) && (best.end_ts ?? null) === (r.end_ts ?? null);
       add(pid, { key: "win_streak", length: r.length, highlight });
@@ -356,7 +356,10 @@ export default function StandingsTable({
     for (const r of unbeaten) {
       if ((r.length ?? 0) < MIN_LEN) continue;
       const pid = r.player.id;
-      if (hasWin.has(pid)) continue; // if winning, don't show unbeaten
+      const winLen = winLenByPid.get(pid) ?? 0;
+      // If the unbeaten run is longer than the current win streak (i.e. contains draws),
+      // show both. Otherwise, the unbeaten badge would be redundant.
+      if (winLen > 0 && Number(r.length || 0) <= winLen) continue;
       const best = bestUnbeaten.get(pid);
       const highlight = !!best && best.length === r.length && (best.start_ts ?? null) === (r.start_ts ?? null) && (best.end_ts ?? null) === (r.end_ts ?? null);
       add(pid, { key: "unbeaten_streak", length: r.length, highlight });
