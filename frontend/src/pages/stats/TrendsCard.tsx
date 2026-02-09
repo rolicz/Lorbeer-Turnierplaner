@@ -2052,7 +2052,7 @@ export default function TrendsCard({
     <div className="card-inner-flat rounded-2xl space-y-2">
       <div className="flex flex-wrap items-center gap-2">
         <div className="flex min-w-0 items-center gap-2">
-          <span className="inline-flex h-9 w-20 shrink-0 items-center gap-2 rounded-xl px-2 text-[11px] font-medium text-text-muted">
+          <span className="inline-flex h-9 w-20 shrink-0 items-center justify-center gap-2 rounded-xl px-2 text-[11px] font-medium text-text-muted">
             <i className="fa-solid fa-filter text-[11px]" aria-hidden="true" />
             <span>Filter</span>
           </span>
@@ -2060,7 +2060,7 @@ export default function TrendsCard({
         </div>
 
         <div className="flex min-w-0 items-center gap-2">
-          <span className="inline-flex h-9 w-20 shrink-0 items-center gap-2 rounded-xl px-2 text-[11px] font-medium text-text-muted">
+          <span className="inline-flex h-9 w-20 shrink-0 items-center justify-center gap-2 rounded-xl px-2 text-[11px] font-medium text-text-muted">
             <i className="fa-solid fa-eye text-[11px]" aria-hidden="true" />
             <span>View</span>
           </span>

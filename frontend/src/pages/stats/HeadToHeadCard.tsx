@@ -1,16 +1,65 @@
 import { Fragment, useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 
 import CollapsibleCard from "../../ui/primitives/CollapsibleCard";
-import { MetaRow } from "../../ui/primitives/Meta";
 
 import { listPlayers } from "../../api/players.api";
 import { getStatsH2H } from "../../api/stats.api";
 import type { StatsH2HDuo, StatsH2HOpponentRow, StatsH2HPair, StatsH2HTeamRivalry } from "../../api/types";
+import { listPlayerAvatarMeta, playerAvatarUrl } from "../../api/playerAvatars.api";
 
 function pct(n: number) {
   if (!Number.isFinite(n)) return "0%";
   return `${Math.round(n * 100)}%`;
+}
+
+function AvatarButton({
+  playerId,
+  name,
+  updatedAt,
+  selected,
+  onClick,
+  className = "h-9 w-9",
+}: {
+  playerId: number | null;
+  name: string;
+  updatedAt: string | null;
+  selected: boolean;
+  onClick: () => void;
+  className?: string;
+}) {
+  const initial = (name || "?").trim().slice(0, 1).toUpperCase();
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={"relative shrink-0 rounded-full transition-colors " + (selected ? "" : "hover:bg-bg-card-chip/20")}
+      aria-pressed={selected}
+      title={name}
+    >
+      <span
+        className={
+          `panel-subtle inline-flex items-center justify-center overflow-hidden rounded-full ${className} ` +
+          (selected ? "ring-2 ring-[color:rgb(var(--color-accent)/0.85)]" : "")
+        }
+      >
+        {playerId == null ? (
+          <i className="fa-solid fa-layer-group text-[12px] text-text-muted" aria-hidden="true" />
+        ) : updatedAt ? (
+          <img
+            src={playerAvatarUrl(playerId, updatedAt)}
+            alt=""
+            className="h-full w-full object-cover"
+            loading="lazy"
+            decoding="async"
+          />
+        ) : (
+          <span className="text-sm font-semibold text-text-muted">{initial}</span>
+        )}
+      </span>
+      <span className="sr-only">{name}</span>
+    </button>
+  );
 }
 
 function fmtInt(n: number) {
@@ -57,9 +106,30 @@ function PairRow({ r }: { r: StatsH2HPair }) {
   );
 }
 
-function OpponentRow({ r }: { r: StatsH2HOpponentRow }) {
+function OpponentRow({
+  r,
+  tone,
+}: {
+  r: StatsH2HOpponentRow;
+  tone?: "favorite" | "nemesis" | null;
+}) {
+  const isFav = tone === "favorite";
+  const isNem = tone === "nemesis";
   return (
-    <div className="panel-subtle flex items-center justify-between gap-3 rounded-xl px-3 py-2">
+    <div
+      className={
+        "panel-subtle flex items-center justify-between gap-3 rounded-xl px-3 py-2 " +
+        (isFav ? "ring-1 ring-[color:rgb(var(--color-status-border-green)/0.6)]" : "") +
+        (isNem ? "ring-1 ring-[color:rgb(var(--delta-down)/0.45)]" : "")
+      }
+      style={{
+        backgroundImage: isFav
+          ? "linear-gradient(0deg, rgb(var(--color-status-bg-green) / 0.28), rgb(var(--color-status-bg-green) / 0.28))"
+          : isNem
+            ? "linear-gradient(0deg, rgb(var(--delta-down) / 0.14), rgb(var(--delta-down) / 0.14))"
+            : undefined,
+      }}
+    >
       <div className="min-w-0">
         <div className="truncate text-sm font-semibold text-text-normal">{r.opponent.display_name}</div>
         <div className="text-[11px] text-text-muted">
@@ -80,25 +150,33 @@ function OpponentRow({ r }: { r: StatsH2HOpponentRow }) {
   );
 }
 
-function DuoRow({ r }: { r: StatsH2HDuo }) {
+function DuoRow({ r, focusPlayerId }: { r: StatsH2HDuo; focusPlayerId?: number | null }) {
+  const rr = useMemo(() => {
+    const pid = focusPlayerId ?? null;
+    if (!pid) return r;
+    if (r.p1.id === pid) return r;
+    if (r.p2.id !== pid) return r;
+    return { ...r, p1: r.p2, p2: r.p1 };
+  }, [r, focusPlayerId]);
+
   return (
     <div className="panel-subtle flex items-center justify-between gap-3 rounded-xl px-3 py-2">
       <div className="min-w-0">
         <div className="truncate text-sm font-semibold text-text-normal">
-          {r.p1.display_name} <span className="text-text-muted">/</span> {r.p2.display_name}
+          {rr.p1.display_name} <span className="text-text-muted">/</span> {rr.p2.display_name}
         </div>
         <div className="text-[11px] text-text-muted">
-          {fmtInt(r.played)} games · {pct(r.win_rate)} win · {fmtInt(r.gf)}:{fmtInt(r.ga)}
+          {fmtInt(rr.played)} games · {pct(rr.win_rate)} win · {fmtInt(rr.gf)}:{fmtInt(rr.ga)}
         </div>
       </div>
       <div className="shrink-0 text-right">
-        <div className="font-mono tabular-nums text-sm text-text-normal">{r.pts_per_match.toFixed(2)} ppm</div>
+        <div className="font-mono tabular-nums text-sm text-text-normal">{rr.pts_per_match.toFixed(2)} ppm</div>
         <div className="font-mono tabular-nums text-[11px] text-text-muted">
-          <span className="text-status-text-green">{fmtInt(r.wins)}</span>
+          <span className="text-status-text-green">{fmtInt(rr.wins)}</span>
           <span className="text-text-muted">-</span>
-          <span className="text-amber-300">{fmtInt(r.draws)}</span>
+          <span className="text-amber-300">{fmtInt(rr.draws)}</span>
           <span className="text-text-muted">-</span>
-          <span className="text-red-300">{fmtInt(r.losses)}</span>
+          <span className="text-red-300">{fmtInt(rr.losses)}</span>
         </div>
       </div>
     </div>
@@ -130,7 +208,16 @@ function normalizeTeamRivalryForFocus(r: StatsH2HTeamRivalry, focusPlayerId: num
 
 function TeamRivalryRow({ r, focusPlayerId }: { r: StatsH2HTeamRivalry; focusPlayerId?: number | null }) {
   const rr = useMemo(() => normalizeTeamRivalryForFocus(r, focusPlayerId ?? null), [r, focusPlayerId]);
-  const t1 = rr.team1.map((p) => p.display_name).join("/");
+  const team1 = useMemo(() => {
+    const pid = focusPlayerId ?? null;
+    if (!pid) return rr.team1;
+    if (!rr.team1?.length) return rr.team1;
+    if (rr.team1[0]?.id === pid) return rr.team1;
+    if (rr.team1[1]?.id !== pid) return rr.team1;
+    return [rr.team1[1], rr.team1[0]];
+  }, [rr.team1, focusPlayerId]);
+
+  const t1 = team1.map((p) => p.display_name).join("/");
   const t2 = rr.team2.map((p) => p.display_name).join("/");
   const closePct = pct(rr.rivalry_score / Math.max(1, rr.played));
   return (
@@ -214,7 +301,7 @@ function ModeSwitch({ value, onChange }: { value: Mode; onChange: (m: Mode) => v
 }
 
 function OrderSwitch({ value, onChange }: { value: RivalryOrder; onChange: (o: RivalryOrder) => void }) {
-  const idx = value === "rivalry" ? 0 : 1;
+  const idx = value === "played" ? 0 : 1;
   const wCls = "w-16 sm:w-24";
   return (
     <div
@@ -234,8 +321,8 @@ function OrderSwitch({ value, onChange }: { value: RivalryOrder; onChange: (o: R
       />
       {(
         [
-          { k: "rivalry" as const, label: "Legendary", icon: "fa-handshake-angle" },
           { k: "played" as const, label: "Played", icon: "fa-hashtag" },
+          { k: "rivalry" as const, label: "Legendary", icon: "fa-handshake-angle" },
         ] as const
       ).map((x) => (
         <button
@@ -306,24 +393,43 @@ function ViewSwitch({ value, onChange }: { value: View; onChange: (v: View) => v
 export default function HeadToHeadCard() {
   const playersQ = useQuery({ queryKey: ["players"], queryFn: listPlayers });
   const players = playersQ.data ?? [];
+  const avatarMetaQ = useQuery({
+    queryKey: ["players", "avatars"],
+    queryFn: listPlayerAvatarMeta,
+    staleTime: 30_000,
+    refetchOnReconnect: false,
+    refetchOnWindowFocus: false,
+  });
+  const avatarUpdatedAtById = useMemo(() => {
+    const m = new Map<number, string>();
+    for (const x of avatarMetaQ.data ?? []) m.set(x.player_id, x.updated_at);
+    return m;
+  }, [avatarMetaQ.data]);
 
   const [playerId, setPlayerId] = useState<number | "">("");
   const [mode, setMode] = useState<Mode>("overall");
-  const [order, setOrder] = useState<RivalryOrder>("rivalry");
+  const [order, setOrder] = useState<RivalryOrder>("played");
   const [view, setView] = useState<View>("lists");
   const FETCH_LIMIT = 200; // keep UI trimmed to 5 by default, but don't hide data due to API limit
   const h2hQ = useQuery({
     queryKey: ["stats", "h2h", playerId || "all", FETCH_LIMIT, order],
     queryFn: () => getStatsH2H({ playerId: playerId === "" ? null : playerId, limit: FETCH_LIMIT, order }),
+    placeholderData: keepPreviousData,
     staleTime: 0,
-    refetchOnReconnect: true,
-    refetchOnWindowFocus: true,
+    // Avoid surprise reflows while the user is interacting (mobile scroll anchoring can look like "jumps").
+    // WS invalidation still refreshes stats when tournaments change.
+    refetchOnReconnect: false,
+    refetchOnWindowFocus: false,
   });
 
   const selected = useMemo(() => {
     if (playerId === "") return null;
     return players.find((p) => p.id === playerId) ?? null;
   }, [players, playerId]);
+
+  const sortedPlayers = useMemo(() => {
+    return [...players].sort((a, b) => a.display_name.localeCompare(b.display_name));
+  }, [players]);
 
   const modeTitle = mode === "overall" ? "Overall" : mode === "1v1" ? "1v1" : "2v2";
   const orderTitle = order === "played" ? "Most played" : "Legendary";
@@ -348,6 +454,9 @@ export default function HeadToHeadCard() {
         : d.favorite_victim_all ?? null;
   }, [h2hQ.data, selected, mode]);
 
+  const favoriteOpponentId = victim?.opponent?.id ?? null;
+  const nemesisOpponentId = nemesis?.opponent?.id ?? null;
+
   return (
     <CollapsibleCard
       title={
@@ -365,7 +474,7 @@ export default function HeadToHeadCard() {
       <div className="card-inner-flat rounded-2xl space-y-2">
         <div className="flex flex-wrap items-center gap-2">
           <div className="flex min-w-0 flex-wrap items-center gap-2">
-            <span className="inline-flex h-9 items-center gap-2 rounded-xl px-2 text-[11px] font-medium text-text-muted">
+            <span className="inline-flex h-9 w-20 shrink-0 items-center justify-center gap-2 rounded-xl px-2 text-[11px] font-medium text-text-muted">
               <i className="fa-solid fa-filter text-[11px]" aria-hidden="true" />
               <span>Filter</span>
             </span>
@@ -373,7 +482,7 @@ export default function HeadToHeadCard() {
           </div>
 
           <div className="flex min-w-0 flex-wrap items-center gap-2">
-            <span className="inline-flex h-9 items-center gap-2 rounded-xl px-2 text-[11px] font-medium text-text-muted">
+            <span className="inline-flex h-9 w-20 shrink-0 items-center justify-center gap-2 rounded-xl px-2 text-[11px] font-medium text-text-muted">
               <i className="fa-solid fa-arrow-down-wide-short text-[11px]" aria-hidden="true" />
               <span>Order</span>
             </span>
@@ -381,7 +490,7 @@ export default function HeadToHeadCard() {
           </div>
 
           <div className="flex min-w-0 flex-wrap items-center gap-2">
-            <span className="inline-flex h-9 items-center gap-2 rounded-xl px-2 text-[11px] font-medium text-text-muted">
+            <span className="inline-flex h-9 w-20 shrink-0 items-center justify-center gap-2 rounded-xl px-2 text-[11px] font-medium text-text-muted">
               <i className="fa-solid fa-layer-group text-[11px]" aria-hidden="true" />
               <span>View</span>
             </span>
@@ -389,33 +498,30 @@ export default function HeadToHeadCard() {
           </div>
         </div>
 
-          <MetaRow>
-            <span>Focus</span>
-            <span className="text-text-muted">Optional</span>
-          </MetaRow>
-          <div className="flex items-center gap-2">
-            <select
-              className="w-full rounded-xl border border-border-card-inner bg-bg-card-inner px-3 py-2 text-sm text-text-normal"
-              value={playerId}
-              onChange={(e) => setPlayerId(e.target.value ? Number(e.target.value) : "")}
-            >
-              <option value="">All players</option>
-              {players.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.display_name}
-                </option>
-              ))}
-            </select>
-            {playerId !== "" ? (
-              <button
-                type="button"
-                className="btn-base btn-ghost inline-flex h-10 w-10 items-center justify-center"
+          <div className="h-px bg-border-card-inner/70" />
+
+          <div className="-mx-1 overflow-x-auto px-1 py-0.5">
+            <div className="flex min-w-full items-center justify-between gap-2">
+              <AvatarButton
+                playerId={null}
+                name="All players"
+                updatedAt={null}
+                selected={playerId === ""}
                 onClick={() => setPlayerId("")}
-                title="Clear focus"
-              >
-                <i className="fa-solid fa-xmark" aria-hidden="true" />
-              </button>
-            ) : null}
+                className="h-8 w-8"
+              />
+              {sortedPlayers.map((p) => (
+                <AvatarButton
+                  key={p.id}
+                  playerId={p.id}
+                  name={p.display_name}
+                  updatedAt={avatarUpdatedAtById.get(p.id) ?? null}
+                  selected={playerId === p.id}
+                  onClick={() => setPlayerId(p.id)}
+                  className="h-8 w-8"
+                />
+              ))}
+            </div>
           </div>
       </div>
 
@@ -423,49 +529,7 @@ export default function HeadToHeadCard() {
         {h2hQ.error ? <div className="card-inner-flat rounded-2xl text-sm text-red-400">{String(h2hQ.error)}</div> : null}
 
         {h2hQ.data ? (
-          <div className="space-y-3">
-            {selected ? (
-              <div className="card-inner-flat rounded-2xl">
-                <div className="grid gap-2">
-                  <div className="panel-subtle flex items-center justify-between gap-3 rounded-xl px-3 py-2">
-                    <div className="min-w-0">
-                      <div className="text-sm font-semibold text-text-normal">
-                        <i className="fa-solid fa-thumbs-up mr-2 text-text-muted" aria-hidden="true" />
-                        Favorite
-                      </div>
-                      <div className="text-[11px] text-text-muted">Best points per match</div>
-                    </div>
-                    <div className="shrink-0 text-right">
-                      <div className="text-sm font-semibold text-text-normal">{victim?.opponent.display_name ?? "—"}</div>
-                      {victim ? (
-                        <div className="font-mono text-[11px] tabular-nums text-text-muted">
-                          {victim.pts_per_match.toFixed(2)} ppm · {fmtInt(victim.played)} g
-                        </div>
-                      ) : null}
-                    </div>
-                  </div>
-
-                  <div className="panel-subtle flex items-center justify-between gap-3 rounded-xl px-3 py-2">
-                    <div className="min-w-0">
-                      <div className="text-sm font-semibold text-text-normal">
-                        <i className="fa-solid fa-thumbs-down mr-2 text-text-muted" aria-hidden="true" />
-                        Nemesis
-                      </div>
-                      <div className="text-[11px] text-text-muted">Worst points per match</div>
-                    </div>
-                    <div className="shrink-0 text-right">
-                      <div className="text-sm font-semibold text-text-normal">{nemesis?.opponent.display_name ?? "—"}</div>
-                      {nemesis ? (
-                        <div className="font-mono text-[11px] tabular-nums text-text-muted">
-                          {nemesis.pts_per_match.toFixed(2)} ppm · {fmtInt(nemesis.played)} g
-                        </div>
-                      ) : null}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ) : null}
-
+          <div className="space-y-3" style={{ overflowAnchor: "none" }}>
             {view === "matrix" ? (
               <div className="card-inner-flat rounded-2xl space-y-2">
                 <div className="text-sm font-semibold text-text-normal">
@@ -491,12 +555,21 @@ export default function HeadToHeadCard() {
                     byKey.set(`${a}-${b}`, r);
                   }
 
+                  const metric = (r: StatsH2HPair) => {
+                    // For the matrix highlight we follow the current ordering mode.
+                    // "played": highlight by games played.
+                    // "legendary": highlight by rivalry_score (played × closeness).
+                    return order === "played" ? Number(r.played ?? 0) : Number(r.rivalry_score ?? 0);
+                  };
+                  const maxMetric = Math.max(1, ...list.map(metric));
+                  const focusId = selected?.id ?? null;
+
                   const roster = [...players].sort((a, b) => a.display_name.localeCompare(b.display_name));
                   if (!roster.length) return <div className="text-sm text-text-muted">No players.</div>;
 
                   // Mobile-friendly: vertical column labels so the grid can stay compact.
                   // Keep the left name column fixed (no wasted space), and make cells wide enough to avoid overflow.
-                  const rowHeadW = "76px";
+                  const rowHeadW = "56px";
                   const colW = roster.length <= 8 ? "38px" : roster.length <= 10 ? "34px" : "30px";
                   // Let columns expand to fill available width (no dead space on the right),
                   // but keep a minimum so cells stay readable.
@@ -505,41 +578,68 @@ export default function HeadToHeadCard() {
                   return (
                     <div className="-mx-3 overflow-x-auto px-3">
                       <div
-                        className="grid gap-px"
-                        style={{
-                          gridTemplateColumns: gridCols,
-                        }}
+                        className="rounded-lg p-px"
+                        style={{ backgroundColor: "rgb(var(--color-border-card-inner) / 0.55)" }}
                       >
-                        <div className="sticky left-0 z-20 flex h-7 items-center rounded-md bg-bg-card-inner px-2 text-[10px] font-semibold text-text-muted">
-                          <span className="truncate">Player</span>
-                        </div>
-                        {roster.map((p) => (
-                          <div
-                            key={`h-${p.id}`}
-                            className="flex h-7 items-center justify-center rounded-md bg-bg-card-chip/25 px-1 text-center font-semibold text-text-muted"
-                            title={p.display_name}
-                          >
-                            <div className="w-full truncate text-[9px] leading-3">{p.display_name}</div>
+                        <div
+                          className="grid gap-px"
+                          style={{
+                            gridTemplateColumns: gridCols,
+                          }}
+                        >
+                          <div className="sticky left-0 z-20 flex h-7 items-center rounded-md bg-bg-card-inner px-1.5 text-[10px] font-semibold text-text-muted">
+                            <span className="truncate">Player</span>
                           </div>
-                        ))}
-
-                        {roster.map((rowP, rowIdx) => (
-                          <Fragment key={`row-${rowP.id}`}>
+                          {roster.map((p) => (
                             <div
-                              key={`r-${rowP.id}`}
-                              className="sticky left-0 z-10 flex h-9 items-center rounded-md bg-bg-card-inner px-2 text-[11px] font-semibold text-text-normal"
-                              title={rowP.display_name}
+                              key={`h-${p.id}`}
+                              className="flex h-7 items-center justify-center rounded-md bg-bg-card-chip/28 px-1 text-center font-semibold text-text-muted"
+                              title={p.display_name}
                             >
-                              <div className="w-full truncate">{rowP.display_name}</div>
+                              <div className="w-full truncate text-[9px] leading-3">{p.display_name}</div>
                             </div>
-                            {roster.map((colP, colIdx) => {
-                              const shade = rowIdx % 2 === 0 ? "bg-bg-card-chip/25" : "bg-bg-card-chip/35";
-                              const shadeEmpty = rowIdx % 2 === 0 ? "bg-bg-card-chip/18" : "bg-bg-card-chip/24";
+                          ))}
+
+                          {roster.map((rowP, rowIdx) => (
+                            <Fragment key={`row-${rowP.id}`}>
+                              <div
+                                key={`r-${rowP.id}`}
+                                className={"sticky left-0 z-10 flex h-9 items-center rounded-md bg-bg-card-inner px-1.5 text-[11px] font-semibold text-text-normal"}
+                                style={{
+                                  backgroundImage:
+                                    focusId && rowP.id === focusId
+                                      ? `linear-gradient(0deg, rgb(var(--color-accent) / 0.08), rgb(var(--color-accent) / 0.08))`
+                                      : undefined,
+                                }}
+                                title={rowP.display_name}
+                              >
+                                <div className="w-full truncate">{rowP.display_name}</div>
+                              </div>
+                              {roster.map((colP, colIdx) => {
+                              const cellBaseCls = "bg-bg-card-chip/28";
+                              const rowIsFocus = !!focusId && rowP.id === focusId;
+                              const toneCell =
+                                rowIsFocus && favoriteOpponentId && colP.id === favoriteOpponentId
+                                  ? "favorite"
+                                  : rowIsFocus && nemesisOpponentId && colP.id === nemesisOpponentId
+                                    ? "nemesis"
+                                    : null;
+                              const cellBoxShadow = toneCell
+                                ? toneCell === "favorite"
+                                  ? "inset 0 0 0 1.5px rgb(var(--color-status-border-green) / 0.95)"
+                                  : "inset 0 0 0 1.5px rgb(var(--delta-down) / 0.65)"
+                                : undefined;
                               if (rowP.id === colP.id) {
                                 return (
                                   <div
                                     key={`c-${rowP.id}-${colP.id}`}
-                                    className="h-9 rounded-md bg-bg-card-chip/15"
+                                    className={"h-9 rounded-md " + cellBaseCls}
+                                    style={{
+                                      backgroundImage: rowIsFocus
+                                        ? `linear-gradient(0deg, rgb(var(--color-accent) / 0.06), rgb(var(--color-accent) / 0.06))`
+                                        : undefined,
+                                      boxShadow: cellBoxShadow,
+                                    }}
                                   />
                                 );
                               }
@@ -552,35 +652,51 @@ export default function HeadToHeadCard() {
                                     key={`c-${rowP.id}-${colP.id}`}
                                     className={
                                       "flex h-9 items-center justify-center rounded-md px-1 text-center text-[11px] text-text-muted " +
-                                      shadeEmpty
+                                      cellBaseCls
                                     }
+                                    style={{
+                                      backgroundImage: rowIsFocus
+                                        ? `linear-gradient(0deg, rgb(var(--color-accent) / 0.06), rgb(var(--color-accent) / 0.06))`
+                                        : undefined,
+                                      boxShadow: cellBoxShadow,
+                                    }}
                                   >
                                     —
                                   </div>
                                 );
                               }
-                              const rowIsA = r.a.id === rowP.id;
-                              const w = rowIsA ? r.a_wins : r.b_wins;
-                              const l = rowIsA ? r.b_wins : r.a_wins;
-                              const d = r.draws;
-                              return (
-                                <div
-                                  key={`c-${rowP.id}-${colP.id}`}
-                                  className={
-                                    "flex h-9 items-center justify-center rounded-md px-1 text-center overflow-hidden " + shade
-                                  }
+                                const rowIsA = r.a.id === rowP.id;
+                                const w = rowIsA ? r.a_wins : r.b_wins;
+                                const l = rowIsA ? r.b_wins : r.a_wins;
+                                const d = r.draws;
+                                const t = Math.max(0, Math.min(1, metric(r) / maxMetric));
+                                const alpha = 0.03 + 0.14 * t; // subtle highlight, scaled to current mode/order
+                                return (
+                                  <div
+                                    key={`c-${rowP.id}-${colP.id}`}
+                                    className={
+                                      "flex h-9 items-center justify-center rounded-md px-1 text-center overflow-hidden " +
+                                      cellBaseCls
+                                    }
+                                  style={{
+                                    backgroundImage: rowIsFocus
+                                      ? `linear-gradient(0deg, rgb(var(--color-accent) / ${alpha}), rgb(var(--color-accent) / ${alpha})), linear-gradient(0deg, rgb(var(--color-accent) / 0.06), rgb(var(--color-accent) / 0.06))`
+                                      : `linear-gradient(0deg, rgb(var(--color-accent) / ${alpha}), rgb(var(--color-accent) / ${alpha}))`,
+                                    boxShadow: cellBoxShadow,
+                                  }}
                                   title={`${rowP.display_name} vs ${colP.display_name} · ${r.played} games`}
                                 >
-                                  <div className="mx-auto inline-flex flex-col items-center justify-center font-mono text-[10px] leading-[10px] tabular-nums">
-                                    <span className="text-status-text-green">{fmtInt(w)}</span>
-                                    <span className="text-amber-300">{fmtInt(d)}</span>
-                                    <span className="text-[color:rgb(var(--delta-down)/1)]">{fmtInt(l)}</span>
+                                    <div className="mx-auto inline-flex flex-col items-center justify-center font-mono text-[10px] leading-[10px] tabular-nums">
+                                      <span className="text-status-text-green">{fmtInt(w)}</span>
+                                      <span className="text-amber-300">{fmtInt(d)}</span>
+                                      <span className="text-[color:rgb(var(--delta-down)/1)]">{fmtInt(l)}</span>
+                                    </div>
                                   </div>
-                                </div>
-                              );
-                            })}
-                          </Fragment>
-                        ))}
+                                );
+                              })}
+                            </Fragment>
+                          ))}
+                        </div>
                       </div>
                     </div>
                   );
@@ -743,7 +859,19 @@ export default function HeadToHeadCard() {
                                 </button>
                               </div>
                             ) : null}
-                            {visible.map((r) => <OpponentRow key={`vs-${mode}-${r.opponent.id}`} r={r} />)}
+                            {visible.map((r) => (
+                              <OpponentRow
+                                key={`vs-${mode}-${r.opponent.id}`}
+                                r={r}
+                                tone={
+                                  favoriteOpponentId && r.opponent.id === favoriteOpponentId
+                                    ? "favorite"
+                                    : nemesisOpponentId && r.opponent.id === nemesisOpponentId
+                                      ? "nemesis"
+                                      : null
+                                }
+                              />
+                            ))}
                           </>
                         ) : (
                           <div className="text-sm text-text-muted">No data yet.</div>
@@ -791,7 +919,9 @@ export default function HeadToHeadCard() {
                                   </button>
                                 </div>
                               ) : null}
-                              {visible.map((r) => <DuoRow key={`with-${r.p1.id}-${r.p2.id}`} r={r} />)}
+                              {visible.map((r) => (
+                                <DuoRow key={`with-${r.p1.id}-${r.p2.id}`} r={r} focusPlayerId={selected.id} />
+                              ))}
                             </>
                           ) : (
                             <div className="text-sm text-text-muted">No data yet.</div>
@@ -871,6 +1001,7 @@ export default function HeadToHeadCard() {
                 ) : null}
               </>
             ) : null}
+
           </div>
         ) : null}
     </CollapsibleCard>

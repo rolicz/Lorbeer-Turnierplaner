@@ -28,6 +28,10 @@
 
 .accent { color: rgb(var(--color-accent)); }
 
+/* Browser scroll anchoring can cause visible "jumps" on highly dynamic pages (stats).
+   Apply this class on containers where we prefer stable scroll behavior. */
+.no-scroll-anchor { overflow-anchor: none; }
+
 @layer components {
   /* Main page structure */
   body {

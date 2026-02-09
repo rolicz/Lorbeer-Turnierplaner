@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { cn } from "../cn";
+import { prefersReducedMotion } from "../scroll";
 
 export default function CollapsibleCard({
   title,
@@ -55,23 +56,24 @@ export default function CollapsibleCard({
     const el = sectionRef.current;
     if (!el) return;
 
-    // Robust scroll: do it after the DOM updated, and repeat once to counter layout shifts.
-    let raf2: number | null = null;
-    const raf1 = requestAnimationFrame(() => {
-      raf2 = requestAnimationFrame(() => {
-        el.scrollIntoView({ behavior: "smooth", block: "start" });
-        window.setTimeout(() => {
-          try {
-            el.scrollIntoView({ behavior: "auto", block: "start" });
-          } catch {
-            // ignore
-          }
-        }, 220);
-      });
+    // Use scrollIntoView so scroll-margin-top is respected (navbar offset).
+    // Only triggers on expand, never on internal state changes.
+    let canceled = false;
+    const raf = requestAnimationFrame(() => {
+      if (canceled) return;
+      el.scrollIntoView({ behavior: prefersReducedMotion() ? "auto" : "smooth", block: "start" });
+      window.setTimeout(() => {
+        if (canceled) return;
+        try {
+          el.scrollIntoView({ behavior: "auto", block: "start" });
+        } catch {
+          // ignore
+        }
+      }, 160);
     });
     return () => {
-      cancelAnimationFrame(raf1);
-      if (raf2 != null) cancelAnimationFrame(raf2);
+      canceled = true;
+      cancelAnimationFrame(raf);
     };
   }, [open, scrollOnOpen]);
 

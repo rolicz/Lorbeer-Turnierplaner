@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMemo, useRef, useState } from "react";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 
 import CollapsibleCard from "../../ui/primitives/CollapsibleCard";
 
@@ -11,6 +11,7 @@ import { sideBy } from "../../helpers";
 import { clubLabelPartsById } from "../../ui/clubControls";
 import { StarsFA } from "../../ui/primitives/StarsFA";
 import { Pill, pillDate } from "../../ui/primitives/Pill";
+import { listPlayerAvatarMeta, playerAvatarUrl } from "../../api/playerAvatars.api";
 
 function fmtDate(s?: string | null) {
   if (!s) return "";
@@ -56,6 +57,53 @@ function rollingAvg(series: number[], window: number) {
     out.push(avg);
   }
   return out;
+}
+
+function AvatarButton({
+  playerId,
+  name,
+  updatedAt,
+  selected,
+  onClick,
+  className = "h-9 w-9",
+}: {
+  playerId: number;
+  name: string;
+  updatedAt: string | null;
+  selected: boolean;
+  onClick: () => void;
+  className?: string;
+}) {
+  const initial = (name || "?").trim().slice(0, 1).toUpperCase();
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={"relative shrink-0 rounded-full transition-colors " + (selected ? "" : "hover:bg-bg-card-chip/20")}
+      aria-pressed={selected}
+      title={name}
+    >
+      <span
+        className={
+          `panel-subtle inline-flex items-center justify-center overflow-hidden rounded-full ${className} ` +
+          (selected ? "ring-2 ring-[color:rgb(var(--color-accent)/0.85)]" : "")
+        }
+      >
+        {updatedAt ? (
+          <img
+            src={playerAvatarUrl(playerId, updatedAt)}
+            alt=""
+            className="h-full w-full object-cover"
+            loading="lazy"
+            decoding="async"
+          />
+        ) : (
+          <span className="text-sm font-semibold text-text-muted">{initial}</span>
+        )}
+      </span>
+      <span className="sr-only">{name}</span>
+    </button>
+  );
 }
 
 function Sparkline({
@@ -407,6 +455,18 @@ function MetaSwitch({ value, onChange }: { value: boolean; onChange: (v: boolean
 export default function PlayerMatchesCard() {
   const playersQ = useQuery({ queryKey: ["players"], queryFn: listPlayers });
   const players = playersQ.data ?? [];
+  const avatarMetaQ = useQuery({
+    queryKey: ["players", "avatars"],
+    queryFn: listPlayerAvatarMeta,
+    staleTime: 30_000,
+    refetchOnReconnect: false,
+    refetchOnWindowFocus: false,
+  });
+  const avatarUpdatedAtById = useMemo(() => {
+    const m = new Map<number, string>();
+    for (const x of avatarMetaQ.data ?? []) m.set(x.player_id, x.updated_at);
+    return m;
+  }, [avatarMetaQ.data]);
 
   const clubsQ = useQuery({ queryKey: ["clubs"], queryFn: () => listClubs() });
   const clubs = clubsQ.data ?? [];
@@ -415,27 +475,28 @@ export default function PlayerMatchesCard() {
   const [showMeta, setShowMeta] = useState(false);
   const selectorRef = useRef<HTMLDivElement | null>(null);
 
-  useEffect(() => {
-    if (playerId === "") return;
-    const el = selectorRef.current;
-    if (!el) return;
-    // Keep the selector anchored at the top when switching players (mobile-friendly).
-    el.scrollIntoView({ behavior: "smooth", block: "start" });
-  }, [playerId]);
+  // Intentionally no auto-scroll on avatar selection; it feels jumpy on mobile and is easy to trigger accidentally.
 
   const matchesQ = useQuery({
     queryKey: ["stats", "playerMatches", playerId || "none"],
     queryFn: () => getStatsPlayerMatches({ playerId: Number(playerId) }),
     enabled: playerId !== "",
+    placeholderData: keepPreviousData,
     staleTime: 0,
-    refetchOnReconnect: true,
-    refetchOnWindowFocus: true,
+    // Avoid surprise reflows while the user is interacting (mobile scroll anchoring can look like "jumps").
+    // WS invalidation still refreshes stats when tournaments change.
+    refetchOnReconnect: false,
+    refetchOnWindowFocus: false,
   });
 
   const selected = useMemo(() => {
     if (playerId === "") return null;
     return players.find((p) => p.id === playerId) ?? null;
   }, [players, playerId]);
+
+  const sortedPlayers = useMemo(() => {
+    return [...players].sort((a, b) => a.display_name.localeCompare(b.display_name));
+  }, [players]);
 
   const tournaments = matchesQ.data?.tournaments ?? [];
   const form = useMemo(() => {
@@ -491,62 +552,53 @@ export default function PlayerMatchesCard() {
         className="card-inner-flat rounded-2xl space-y-2 scroll-mt-[calc(env(safe-area-inset-top,0px)+128px)] sm:scroll-mt-[calc(env(safe-area-inset-top,0px)+144px)]"
       >
         <div className="flex flex-wrap items-center gap-2">
-          <span className="inline-flex h-9 items-center gap-2 rounded-xl px-2 text-[11px] font-medium text-text-muted">
-            <i className="fa-solid fa-user text-[11px]" aria-hidden="true" />
-            <span>Player</span>
-          </span>
-          <div className="flex min-w-0 flex-1 items-center gap-2">
-            <select
-              className="w-full min-w-0 rounded-xl border border-border-card-inner bg-bg-card-inner px-3 py-2 text-sm text-text-normal"
-              value={playerId}
-              onChange={(e) => setPlayerId(e.target.value ? Number(e.target.value) : "")}
-            >
-              <option value="">Select player…</option>
-              {players.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.display_name}
-                </option>
-              ))}
-            </select>
-            {playerId !== "" ? (
-              <button
-                type="button"
-                className="btn-base btn-ghost inline-flex h-10 w-10 items-center justify-center"
-                onClick={() => setPlayerId("")}
-                title="Clear"
-              >
-                <i className="fa-solid fa-xmark" aria-hidden="true" />
-              </button>
-            ) : null}
-          </div>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="inline-flex h-9 items-center gap-2 rounded-xl px-2 text-[11px] font-medium text-text-muted">
+          <span className="inline-flex h-9 w-20 shrink-0 items-center justify-center gap-2 rounded-xl px-2 text-[11px] font-medium text-text-muted">
             <i className="fa-solid fa-sliders text-[11px]" aria-hidden="true" />
             <span>View</span>
           </span>
           <MetaSwitch value={showMeta} onChange={setShowMeta} />
         </div>
+
+        <div className="h-px bg-border-card-inner/70" />
+
+        <div className="-mx-1 overflow-x-auto px-1 py-0.5">
+          <div className="flex min-w-full items-center justify-between gap-2">
+            {sortedPlayers.map((p) => (
+              <AvatarButton
+                key={p.id}
+                playerId={p.id}
+                name={p.display_name}
+                updatedAt={avatarUpdatedAtById.get(p.id) ?? null}
+                selected={playerId === p.id}
+                onClick={() => setPlayerId(p.id)}
+                className="h-8 w-8"
+              />
+            ))}
+          </div>
+        </div>
       </div>
 
-      {playerId === "" ? <div className="card-inner-flat rounded-2xl text-sm text-text-muted">Pick a player to see their match history.</div> : null}
-      {matchesQ.isLoading ? <div className="card-inner-flat rounded-2xl text-sm text-text-muted">Loading…</div> : null}
-      {matchesQ.error ? <div className="card-inner-flat rounded-2xl text-sm text-red-400">{String(matchesQ.error)}</div> : null}
-      {clubsQ.error ? <div className="card-inner-flat rounded-2xl text-sm text-red-400">{String(clubsQ.error)}</div> : null}
+      <div style={{ overflowAnchor: "none" }}>
+        {playerId === "" ? (
+          <div className="card-inner-flat rounded-2xl text-sm text-text-muted">Pick a player to see their match history.</div>
+        ) : null}
+        {matchesQ.isLoading ? <div className="card-inner-flat rounded-2xl text-sm text-text-muted">Loading…</div> : null}
+        {matchesQ.error ? <div className="card-inner-flat rounded-2xl text-sm text-red-400">{String(matchesQ.error)}</div> : null}
+        {clubsQ.error ? <div className="card-inner-flat rounded-2xl text-sm text-red-400">{String(clubsQ.error)}</div> : null}
 
-      {selected && tournaments.length ? (
-        <div className="space-y-3">
-          {form ? <Sparkline series={form.pts} outcomes={form.out} xMinLabel={form.startLabel} xMaxLabel={form.endLabel} /> : null}
-          {tournaments.map((t) => (
-            <TournamentBlock key={t.id} t={t} focusId={selected.id} clubs={clubs} showMeta={showMeta} />
-          ))}
-        </div>
-      ) : null}
+        {selected && tournaments.length ? (
+          <div className="space-y-3">
+            {form ? <Sparkline series={form.pts} outcomes={form.out} xMinLabel={form.startLabel} xMaxLabel={form.endLabel} /> : null}
+            {tournaments.map((t) => (
+              <TournamentBlock key={t.id} t={t} focusId={selected.id} clubs={clubs} showMeta={showMeta} />
+            ))}
+          </div>
+        ) : null}
 
-      {selected && !matchesQ.isLoading && !tournaments.length ? (
-        <div className="card-inner-flat rounded-2xl text-sm text-text-muted">No matches found for {selected.display_name}.</div>
-      ) : null}
+        {selected && !matchesQ.isLoading && !tournaments.length ? (
+          <div className="card-inner-flat rounded-2xl text-sm text-text-muted">No matches found for {selected.display_name}.</div>
+        ) : null}
+      </div>
     </CollapsibleCard>
   );
 }

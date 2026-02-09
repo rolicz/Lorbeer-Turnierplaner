@@ -86,7 +86,7 @@ export default function CurrentMatchPreviewCard() {
 
   // 2) fetch full tournament details so we can show match + players
   const tQ = useQuery({
-    queryKey: ["tournament", tid],
+    queryKey: ["tournament", tid ?? "none"],
     queryFn: () => getTournament(tid!),
     enabled: !!tid,
   });
@@ -126,7 +126,9 @@ export default function CurrentMatchPreviewCard() {
   const aClubParts = useMemo(() => clubLabelPartsById(clubs, a?.club_id), [clubs, aClub]);
   const bClubParts = useMemo(() => clubLabelPartsById(clubs, b?.club_id), [clubs, bClub]);
 
-  if (!tid || !match) return null;
+  // If there's no live tournament, don't show this card at all (dashboard stays clean).
+  // Important: keep this AFTER hooks to avoid rules-of-hooks crashes when tid flips null<->number.
+  if (!tid) return null;
 
   return (
     <CollapsibleCard
@@ -144,11 +146,14 @@ export default function CurrentMatchPreviewCard() {
       bodyVariant="none"
     >
       <div className="card-inner">
-        <button
-          type="button"
-          onClick={() => nav(`/live/${tid}`)}
-          className="w-full rounded-xl p-0.5 text-left transition hover:bg-hover-default/40"
-        >
+        {!match ? (
+          <div className="panel-subtle p-3 text-sm text-text-muted">Loading live match…</div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => nav(`/live/${tid}`)}
+            className="w-full rounded-xl p-0.5 text-left transition hover:bg-hover-default/40"
+          >
           {/* Top row: name */}
           <div className="grid grid-cols-1 items-center">
             <div className="min-w-0">
@@ -246,7 +251,8 @@ export default function CurrentMatchPreviewCard() {
           </div>
 
           <div className="mt-2 text-xs text-text-muted">Tap to open live tournament.</div>
-        </button>
+          </button>
+        )}
       </div>
     </CollapsibleCard>
   );
