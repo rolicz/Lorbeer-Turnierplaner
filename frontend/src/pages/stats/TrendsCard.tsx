@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useQueries, useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import CollapsibleCard from "../../ui/primitives/CollapsibleCard";
 import { MetaRow } from "../../ui/primitives/Meta";
@@ -1871,18 +1871,32 @@ export default function TrendsCard({
   const [formN, setFormN] = useState(10);
 
   const wrapRef = useRef<HTMLDivElement | null>(null);
+  const qc = useQueryClient();
 
   // lastN irrelevant here, but keep it small (we only use tournaments + positions).
   const statsQ = useQuery<StatsPlayersResponse>({
     queryKey: ["stats", "players", mode, 0],
     queryFn: () => getStatsPlayers({ mode, lastN: 0 }),
-    refetchOnReconnect: true,
-    refetchOnWindowFocus: true,
-    staleTime: 0,
+    placeholderData: keepPreviousData,
+    refetchOnReconnect: false,
+    refetchOnWindowFocus: false,
+    staleTime: 30_000,
   });
 
   const players = statsQ.data?.players ?? [];
   const tournamentsAll: StatsTournamentLite[] = statsQ.data?.tournaments ?? [];
+
+  // Warmup: prefetch the lightweight players+tourneys payload for other modes so toggling is instant.
+  useEffect(() => {
+    const modes: Mode[] = ["overall", "1v1", "2v2"];
+    for (const m of modes) {
+      void qc.prefetchQuery({
+        queryKey: ["stats", "players", m, 0],
+        queryFn: () => getStatsPlayers({ mode: m, lastN: 0 }),
+        staleTime: 30_000,
+      });
+    }
+  }, [qc]);
 
   // Needed for form/cumulative
   const needMatches = view === "lastN" || view === "total";
@@ -1891,9 +1905,10 @@ export default function TrendsCard({
       queryKey: ["stats", "playerMatches", mode, p.player_id],
       queryFn: () => getStatsPlayerMatches({ playerId: p.player_id }),
       enabled: needMatches && players.length > 0,
-      staleTime: 0,
-      refetchOnReconnect: true,
-      refetchOnWindowFocus: true,
+      placeholderData: keepPreviousData,
+      staleTime: 30_000,
+      refetchOnReconnect: false,
+      refetchOnWindowFocus: false,
     })),
   });
 
@@ -2047,6 +2062,7 @@ export default function TrendsCard({
 
   const matchesLoading = needMatches && matchesQs.some((q) => q.isLoading);
   const matchesError = needMatches ? matchesQs.find((q) => q.error)?.error : null;
+  const busy = statsQ.isFetching || (needMatches && matchesQs.some((q) => q.isFetching));
 
   const Filters = (
     <div className="card-inner-flat rounded-2xl space-y-2">
@@ -2093,13 +2109,11 @@ export default function TrendsCard({
     <div className="flex min-h-0 flex-col gap-3">
       {Filters}
 
-      {statsQ.isLoading ? <div className="card-inner-flat rounded-2xl text-sm text-text-muted">Loading…</div> : null}
       {statsQ.error ? <div className="card-inner-flat rounded-2xl text-sm text-red-400">{String(statsQ.error)}</div> : null}
-      {matchesLoading ? <div className="card-inner-flat rounded-2xl text-sm text-text-muted">Loading match trends…</div> : null}
       {matchesError ? <div className="card-inner-flat rounded-2xl text-sm text-red-400">{String(matchesError)}</div> : null}
 
-      {players.length && tournaments.length ? (
-        <div className="min-w-0">
+      <div className="min-w-0 relative" style={{ overflowAnchor: "none" }}>
+        {players.length && tournaments.length ? (
           <PanZoomTrendsChart
             title={chart.title}
             tournamentTs={chart.tournamentTs}
@@ -2109,8 +2123,20 @@ export default function TrendsCard({
             ySuffix={chart.ySuffix}
             series={chart.series}
           />
-        </div>
-      ) : null}
+        ) : (
+          <div className="card-inner-flat rounded-2xl h-[200px] sm:h-[220px] lg:h-[340px] flex items-center justify-center text-sm text-text-muted">
+            {statsQ.isLoading ? "Loading…" : "Not enough data yet."}
+          </div>
+        )}
+
+        {busy ? (
+          <div className="pointer-events-none absolute inset-0 flex items-start justify-end p-3">
+            <div className="rounded-xl bg-bg-card-outer/70 px-2 py-1 text-[11px] text-text-muted">
+              Updating…
+            </div>
+          </div>
+        ) : null}
+      </div>
     </div>
   );
 

@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
+import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import CollapsibleCard from "../../ui/primitives/CollapsibleCard";
 
@@ -196,19 +196,34 @@ function CatBlock({
 
 export default function StreaksCard() {
   // Keep the players query around for cache warmup / consistency with other cards.
-  useQuery({ queryKey: ["players"], queryFn: listPlayers });
+  useQuery({ queryKey: ["players"], queryFn: listPlayers, refetchOnReconnect: false, refetchOnWindowFocus: false });
 
   const [mode, setMode] = useState<Mode>("overall");
   const [view, setView] = useState<View>("current");
   const [showAllByKey, setShowAllByKey] = useState<Record<string, boolean>>({});
 
   const FETCH_LIMIT = 200;
+  const qc = useQueryClient();
+
+  // Warmup: prefetch all modes so switching doesn't cause a cold-load reflow.
+  useEffect(() => {
+    const modes: Mode[] = ["overall", "1v1", "2v2"];
+    for (const m of modes) {
+      void qc.prefetchQuery({
+        queryKey: ["stats", "streaks", m, FETCH_LIMIT],
+        queryFn: () => getStatsStreaks({ mode: m, playerId: null, limit: FETCH_LIMIT }),
+        staleTime: 30_000,
+      });
+    }
+  }, [FETCH_LIMIT, qc]);
+
   const q = useQuery({
     queryKey: ["stats", "streaks", mode, FETCH_LIMIT],
     queryFn: () => getStatsStreaks({ mode, playerId: null, limit: FETCH_LIMIT }),
-    staleTime: 0,
-    refetchOnReconnect: true,
-    refetchOnWindowFocus: true,
+    placeholderData: keepPreviousData,
+    staleTime: 30_000,
+    refetchOnReconnect: false,
+    refetchOnWindowFocus: false,
   });
 
   return (
@@ -245,11 +260,11 @@ export default function StreaksCard() {
         </div>
       </div>
 
-      {q.isLoading ? <div className="card-inner-flat rounded-2xl text-sm text-text-muted">Loading…</div> : null}
+      {q.isLoading && !q.data ? <div className="card-inner-flat rounded-2xl text-sm text-text-muted">Loading…</div> : null}
       {q.error ? <div className="card-inner-flat rounded-2xl text-sm text-red-400">{String(q.error)}</div> : null}
 
       {q.data ? (
-        <div className="grid gap-3 lg:grid-cols-2">
+        <div className="grid gap-3 lg:grid-cols-2" style={{ overflowAnchor: "none" }}>
           {(q.data.categories ?? []).map((c) => {
             const k = `${view}-${mode}-${c.key}`;
             const showAll = !!showAllByKey[k];

@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useEffect, useMemo, useState } from "react";
+import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import CollapsibleCard from "../../ui/primitives/CollapsibleCard";
 import { MetaRow } from "../../ui/primitives/Meta";
@@ -89,11 +89,27 @@ function Row({ i, r }: { i: number; r: StatsRatingsRow }) {
 
 export default function RatingsCard() {
   const [mode, setMode] = useState<Mode>("overall");
+  const qc = useQueryClient();
+
+  // Warmup: prefetch all modes so switching doesn't cause a "blank -> filled" layout jump on cold load.
+  useEffect(() => {
+    const modes: Mode[] = ["overall", "1v1", "2v2"];
+    for (const m of modes) {
+      void qc.prefetchQuery({
+        queryKey: ["stats", "ratings", m],
+        queryFn: () => getStatsRatings({ mode: m }),
+        staleTime: 30_000,
+      });
+    }
+  }, [qc]);
 
   const q = useQuery({
-    queryKey: ["stats", "ratings", { mode }],
+    queryKey: ["stats", "ratings", mode],
     queryFn: () => getStatsRatings({ mode }),
-    staleTime: 10_000,
+    placeholderData: keepPreviousData,
+    staleTime: 30_000,
+    refetchOnReconnect: false,
+    refetchOnWindowFocus: false,
   });
 
   const rows = useMemo(() => q.data?.rows ?? [], [q.data?.rows]);
@@ -119,7 +135,7 @@ export default function RatingsCard() {
           </MetaRow>
           <ModeSwitch value={mode} onChange={setMode} />
         </div>
-        <div className="grid gap-2">
+        <div className="grid gap-2" style={{ overflowAnchor: "none" }}>
           {rows.map((r, i) => (
             <Row key={r.player.id} i={i} r={r} />
           ))}

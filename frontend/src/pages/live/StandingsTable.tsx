@@ -151,7 +151,7 @@ function CupMark({ cupKey, cupName }: { cupKey: string; cupName: string }) {
   const varName = cupColorVarForKey(cupKey);
   return (
     <span
-      className="inline-flex h-6 w-6 items-center justify-center rounded-full border shadow-sm shrink-0"
+      className="inline-flex h-6 w-6 items-center justify-center rounded-full border shrink-0"
       style={{
         borderColor: `rgb(var(${varName}) / 0.50)`,
         backgroundColor: `rgb(var(${varName}) / 0.14)`,
@@ -186,18 +186,18 @@ function MobileRow({
       {/* leader bar */}
       {isLeader && <div className="absolute inset-y-0 left-0 w-1 bg-status-bar-green" />}
 
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
+      <div className="flex items-start gap-3">
+        <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <div className="w-6 text-text-muted tabular-nums">{rank}</div>
             <div className="w-5">
               <Arrow delta={delta} />
             </div>
             <PlayerAvatar playerId={r.playerId} name={r.name} updatedAt={avatarUpdatedAt} />
-            <div className="min-w-0 flex items-center gap-2">
-              <div className="min-w-0 truncate font-medium text-text-normal">{r.name}</div>
+            <div className="min-w-0 flex flex-1 items-center gap-2">
+              <div className="min-w-0 flex-[0_1_auto] truncate font-medium text-text-normal">{r.name}</div>
               {cupMarks.length ? (
-                <div className="inline-flex items-center gap-1">
+                <div className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap pl-0.5">
                   {cupMarks.slice(0, 2).map((c) => (
                     <CupMark key={c.key} cupKey={c.key} cupName={c.name} />
                   ))}
@@ -209,14 +209,14 @@ function MobileRow({
         </div>
 
         {/* Fixed width keeps the right column stable across rows (prevents jitter/misalignment). */}
-        <div className="shrink-0 w-[120px] text-right">
+        <div className="shrink-0 w-[104px] sm:w-[120px] text-right">
           <div className="font-semibold font-mono tabular-nums">{r.pts}</div>
           <div className="text-[11px] text-text-muted">pts</div>
         </div>
       </div>
 
       {/* second row: stats on the left, streak badges right-aligned under points */}
-      <div className="mt-1 flex items-center justify-between gap-3">
+      <div className="mt-1 flex h-5 items-center justify-between gap-3">
         <div className="min-w-0 text-[11px] leading-none text-text-muted font-mono tabular-nums whitespace-nowrap">
           <span className="inline-flex items-center gap-3">
             <span>
@@ -232,15 +232,13 @@ function MobileRow({
             </span>
           </span>
         </div>
-        <div className="shrink-0 w-[120px] flex justify-end">
-          {streaks.length ? (
-            <div className="inline-flex max-w-full items-center justify-end gap-1 overflow-hidden whitespace-nowrap">
-              {streaks.slice(0, 3).map((s, i) => (
-                <StreakPatch key={s.key + "-" + i} streak={s} className="streak-compact" />
-              ))}
-              {streaks.length > 3 ? <span className="text-[11px] text-text-muted">+{streaks.length - 3}</span> : null}
-            </div>
-          ) : null}
+        <div className="shrink-0 min-w-[104px] sm:min-w-[120px] flex h-5 items-center justify-end px-0.5">
+          <div className="inline-flex items-center justify-end gap-1 whitespace-nowrap">
+            {streaks.slice(0, 3).map((s, i) => (
+              <StreakPatch key={s.key + "-" + i} streak={s} className="streak-compact shadow-none" />
+            ))}
+            {streaks.length > 3 ? <span className="text-[11px] text-text-muted">+{streaks.length - 3}</span> : null}
+          </div>
         </div>
       </div>
     </div>
