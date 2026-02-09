@@ -20,14 +20,19 @@ Designed to be snappy and work well on both mobile and desktop.
 ## Features (high level)
 
 - Tournament creation (1v1 / 2v2 round-robin style for small groups)
-- Live match editing (goals, state, clubs per match side)
-- Second leg (all-or-none), reorder matches
+- Live match editing (goals, state, clubs per match side) + live updates via WebSocket
+- Second leg (all-or-none), reorder matches, swap sides
 - Roles:
   - Reader: read-only (no login)
   - Editor: enter results + normal operations
   - Admin: advanced operations (delete tournaments, edit past, rename, etc.)
-- Live updates via WebSocket (`/ws/tournaments/{id}`)
-- Challenge Cup tracking (current owner + history), based on finished tournaments in date order
+- **Multiple cups** (configurable keys/names + optional start date), each with owner + history
+- Tournament & match **comments** (edit, delete, pin one tournament comment), real-time updates
+- **Unread comments** indicator (stored locally in the browser)
+- Player **avatars** (admin upload/crop; stored in DB; used across the UI)
+- Stats page: trends (pan/zoom), head-to-head (lists + matrix), streaks, ratings (Elo-like), player match history
+- “Bookmaker-style” odds for scheduled/playing matches (based on form, rating, clubs, score, etc.)
+- Tools page: “Friendly match” sandbox (pick teams/clubs, see odds, enter result; not persisted)
 
 ---
 
@@ -57,6 +62,7 @@ Create `backend/secrets.json`:
   "editor_password": "change-me-editor",
   "admin_password": "change-me-admin",
   "jwt_secret": "dev-change-me",
+  "ws_require_auth": false,
   "log_level": "INFO"
 }
 ```
@@ -64,6 +70,33 @@ Create `backend/secrets.json`:
 Notes:
 - Use a strong `jwt_secret` in production.
 - `db_url` uses `/data/app.db` so it can be persisted via a volume/bind mount in Docker.
+- You can override any of these via env vars (e.g. `DB_URL`, `EDITOR_PASSWORD`, `ADMIN_PASSWORD`, `JWT_SECRET`).
+
+### Cups config (multiple cups)
+
+The backend loads cup definitions from:
+- `CUPS_CONFIG_PATH` (recommended in Docker), or
+- fallback: `backend/app/cups.json`
+
+Format (`since_date` is optional, ISO `YYYY-MM-DD`):
+
+```json
+{
+  "cups": [
+    { "key": "default", "name": "Lorbeerkranz", "since_date": null },
+    { "key": "bauernkranz", "name": "Bauernkranz", "since_date": "2026-01-05" }
+  ]
+}
+```
+
+Notes:
+- Cup `key` is used in URLs (`/cup?key=...`) and in the frontend mapping for cup colors.
+- `since_date` means “cup history starts at this date”. Before that, the cup has no owner.
+
+### Cup colors (frontend)
+
+Cup colors are defined client-side in `frontend/src/cupColors.ts` by mapping cup keys to existing CSS variables.
+If a key is missing, the UI falls back to `--color-accent`.
 
 Recommended `.gitignore` entries:
 ```
@@ -104,6 +137,14 @@ VITE_WS_BASE_URL=
 ---
 
 ## Local development
+
+From repo root you can use the convenience targets:
+
+```bash
+make backend        # http://127.0.0.1:8001
+make frontend       # http://127.0.0.1:8000
+make dev            # both on LAN (0.0.0.0)
+```
 
 ### Backend
 
@@ -165,9 +206,15 @@ mkdir -p backend/data
 
 Your `docker-compose.yml` backend volume should look like:
 ```yaml
-volumes:
-  - ./backend/data:/data
-  - ./backend/secrets.json:/app/secrets.json:ro
+services:
+  backend:
+    volumes:
+      - ./backend/data:/data
+      - ./backend/secrets.json:/app/secrets.json:ro
+    environment:
+      DB_URL: "sqlite:////data/app.db"
+      # Optional cups config in the persisted data dir:
+      CUPS_CONFIG_PATH: "/data/cups.json"
 ```
 
 ### 3) Caddyfile
@@ -269,9 +316,32 @@ make test
 
 ## Notes
 
-- WebSocket endpoints: 
-  -`/ws/tournaments/{tournament_id}`
-  -`/ws/tournaments`
+- WebSocket endpoints:
+  - `/ws/tournaments/{tournament_id}` (live tournament updates + comments updates)
+  - `/ws/tournaments` (global “something changed” updates)
 - Behind Caddy, websockets should use **wss** automatically via the same domain.
 - Frontend env is build-time; after changing `frontend/.env.production`, rebuild the frontend image (`docker compose up -d --build frontend`).
 
+### Useful API endpoints (quick reference)
+
+- Cups:
+  - `GET /cup/defs`
+  - `GET /cup?key=<cupKey>`
+- Comments:
+  - `GET /tournaments/{id}/comments`
+  - `POST /tournaments/{id}/comments` (editor+)
+  - `PATCH /comments/{comment_id}` (editor+)
+  - `DELETE /comments/{comment_id}` (admin)
+  - `GET /tournaments/comments-summary` (used for unread indicators)
+- Player avatars:
+  - `GET /players/avatars` (meta)
+  - `GET /players/{id}/avatar`
+  - `PUT /players/{id}/avatar` (admin, overwrites)
+  - `DELETE /players/{id}/avatar` (admin)
+- Stats:
+  - `GET /stats/players`
+  - `GET /stats/h2h`
+  - `GET /stats/streaks`
+  - `GET /stats/ratings`
+  - `GET /stats/player-matches`
+  - `POST /stats/odds`
