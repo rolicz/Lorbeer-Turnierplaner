@@ -6,6 +6,7 @@ import { matchPalette } from "../../ui/theme";
 import SectionHeader from "../../ui/primitives/SectionHeader";
 import { StarsFA } from "../../ui/primitives/StarsFA";
 import { clubLabelPartsById } from "../../ui/clubControls";
+import { useEffect, useState } from "react";
 
 function winnerSide(m: Match): "A" | "B" | null {
   if (m.state !== "finished") return null;
@@ -48,6 +49,53 @@ function OddsInline({ odds }: { odds: { home: number; draw: number; away: number
   );
 }
 
+type MatchListView = "compact" | "comfort";
+
+function ViewSwitch({ value, onChange }: { value: MatchListView; onChange: (v: MatchListView) => void }) {
+  const idx = value === "compact" ? 0 : 1;
+  const wCls = "w-20 sm:w-24";
+  return (
+    <div
+      className="relative inline-flex shrink-0 rounded-2xl p-1"
+      style={{ backgroundColor: "rgb(var(--color-bg-card-chip) / 0.35)" }}
+      role="group"
+      aria-label="Matches view"
+      title="Matches view"
+    >
+      <span
+        className={"absolute inset-y-1 left-1 rounded-xl shadow-sm transition-transform duration-200 ease-out " + wCls}
+        style={{
+          backgroundColor: "rgb(var(--color-bg-card-inner))",
+          transform: `translateX(${idx * 100}%)`,
+        }}
+        aria-hidden="true"
+      />
+      {(
+        [
+          { k: "compact" as const, label: "Compact", icon: "fa-compress" },
+          { k: "comfort" as const, label: "Details", icon: "fa-list" },
+        ] as const
+      ).map((x) => (
+        <button
+          key={x.k}
+          type="button"
+          onClick={() => onChange(x.k)}
+          className={
+            "relative z-10 inline-flex h-9 items-center justify-center gap-2 rounded-xl text-[11px] transition-colors " +
+            wCls +
+            " " +
+            (value === x.k ? "text-text-normal" : "text-text-muted hover:text-text-normal")
+          }
+          aria-pressed={value === x.k}
+        >
+          <i className={"fa-solid " + x.icon + " hidden sm:inline"} aria-hidden="true" />
+          <span>{x.label}</span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
 export default function MatchList({
   matches,
   clubs,
@@ -69,8 +117,32 @@ export default function MatchList({
   onMoveUp: (matchId: number) => void;
   onMoveDown: (matchId: number) => void;
 }) {
+  const [view, setView] = useState<MatchListView>(() => {
+    const stored = localStorage.getItem("match_list_view");
+    if (stored === "compact" || stored === "comfort") return stored;
+    try {
+      return window.matchMedia && window.matchMedia("(max-width: 639px)").matches ? "compact" : "comfort";
+    } catch {
+      return "comfort";
+    }
+  });
+
+  useEffect(() => {
+    localStorage.setItem("match_list_view", view);
+  }, [view]);
+
   return (
     <div className="space-y-2">
+      <div className="card-inner-flat rounded-2xl">
+        <div className="flex items-center justify-between gap-2">
+          <div className="text-[11px] font-medium text-text-muted inline-flex items-center gap-2">
+            <i className="fa-solid fa-layer-group" aria-hidden="true" />
+            <span>View</span>
+          </div>
+          <ViewSwitch value={view} onChange={setView} />
+        </div>
+      </div>
+
       {matches.map((m) => {
         const a = sideBy(m, "A");
         const b = sideBy(m, "B");
@@ -79,8 +151,16 @@ export default function MatchList({
         const bNames = b?.players.map((p) => p.display_name).join(" + ") ?? "—";
         const aPlayers = splitPlayers(aNames);
         const bPlayers = splitPlayers(bNames);
+        const aCompact = aPlayers.join("/");
+        const bCompact = bPlayers.join("/");
 
         const pal = matchPalette(m.state);
+        const statusTextCls =
+          m.state === "playing"
+            ? "text-status-text-green"
+            : m.state === "scheduled"
+              ? "text-status-text-blue"
+              : "text-status-text-default";
         const w = winnerSide(m);
         const aWin = w === "A";
         const bWin = w === "B";
@@ -101,14 +181,17 @@ export default function MatchList({
         const bClubParts = clubLabelPartsById(clubs, b?.club_id);
 
         const showMove = canReorder && m.state === "scheduled";
-        const showSwap = canEdit;
+        const showSwapDetails = canEdit;
         const showOdds = (m.state === "scheduled" || m.state === "playing") && !!m.odds;
         const odds = m.odds ?? null;
+        const compact = view === "compact";
 
         return (
           <div
             key={m.id}
-            className={`relative overflow-hidden rounded-xl border px-3 py-2.5 transition-colors ${pal.wrap} ${colorMatch(m.state)}`}
+            className={`relative overflow-hidden rounded-xl border transition-colors ${pal.wrap} ${colorMatch(m.state)} ${
+              compact ? "pl-5 pr-3 py-1.5" : "pl-6 pr-4 py-2.5"
+            }`}
           >
             <div className={`absolute left-0 top-0 h-full w-2 ${pal.bar}`} />
 
@@ -126,74 +209,130 @@ export default function MatchList({
               tabIndex={canEdit ? 0 : -1}
               title={canEdit ? "Edit match" : "Login as editor/admin to edit"}
             >
-              {/* Top row: state + leg + move arrows (scheduled only) */}
-              <SectionHeader
-                className="mb-1.5"
-                left={
-                  <div className="flex items-center gap-2">
-                    <Pill className={`min-w-24 ${statusMatchPill(m.state)}`}>{m.state}</Pill>
-                    <Pill>leg {m.leg}</Pill>
-                  </div>
-                }
-                right={
-                  showMove || showSwap ? (
-                    <div className="flex items-center gap-1">
-                      {showMove ? (
-                        <>
-                          <Button
-                            variant="ghost"
-                            onClick={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              onMoveUp(m.id);
-                            }}
-                            disabled={busyReorder}
-                            title="Move up"
-                          >
-                            <i className="fa fa-arrow-up md:hidden text-text-normal" aria-hidden="true" />
-                            <span className="hidden md:inline text-text-normal">Move up</span>
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            onClick={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              onMoveDown(m.id);
-                            }}
-                            disabled={busyReorder}
-                            title="Move down"
-                          >
-                            <i className="fa fa-arrow-down md:hidden text-text-normal" aria-hidden="true" />
-                            <span className="hidden md:inline text-text-normal">Move down</span>
-                          </Button>
-                        </>
-                      ) : null}
+              {/* Top row: state + leg + actions */}
+              {compact ? (
+                <div className="mb-1 border-b border-border-card-inner/70 pb-1">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="min-w-0 text-[11px] font-semibold">
+                      <span className="text-text-muted">#{m.order_index + 1}</span>
+                      <span className="text-text-muted/60 px-1.5">·</span>
+                      <span className={statusTextCls}>{m.state}</span>
+                      <span className="text-text-muted/60 px-1.5">·</span>
+                      <span className="text-text-muted">leg {m.leg}</span>
+                    </div>
 
-                      {showSwap ? (
+                    {/* Keep move controls in the same place/height for every match (even when not reorderable). */}
+                    {canReorder ? (
+                      <div className="flex shrink-0 items-center gap-1">
                         <Button
                           variant="ghost"
                           onClick={(e) => {
                             e.preventDefault();
                             e.stopPropagation();
-                            onSwapSides(m.id);
+                            onMoveUp(m.id);
                           }}
-                          disabled={busyReorder}
-                          title="Swap sides"
+                          disabled={busyReorder || !showMove}
+                          className={!showMove ? "invisible" : ""}
+                          tabIndex={showMove ? 0 : -1}
+                          aria-hidden={!showMove}
+                          title="Move up"
                         >
-                          <i className="fa fa-arrow-right-arrow-left md:hidden text-text-normal" aria-hidden="true" />
-                          <span className="hidden md:inline text-text-normal">Swap Home/Away</span>
+                          <i className="fa fa-arrow-up text-text-normal" aria-hidden="true" />
                         </Button>
-                      ) : null}
-                    </div>
-                  ) : null
-                }
-              />
+                        <Button
+                          variant="ghost"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            onMoveDown(m.id);
+                          }}
+                          disabled={busyReorder || !showMove}
+                          className={!showMove ? "invisible" : ""}
+                          tabIndex={showMove ? 0 : -1}
+                          aria-hidden={!showMove}
+                          title="Move down"
+                        >
+                          <i className="fa fa-arrow-down text-text-normal" aria-hidden="true" />
+                        </Button>
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+              ) : (
+                <div className="mb-1.5 border-b border-border-card-inner/70 pb-1.5">
+                  <SectionHeader
+                    left={
+                      <div className="flex items-center gap-2">
+                        <Pill className="min-w-14">#{m.order_index + 1}</Pill>
+                        <Pill className={`min-w-24 ${statusMatchPill(m.state)}`}>{m.state}</Pill>
+                        <Pill>leg {m.leg}</Pill>
+                      </div>
+                    }
+                  right={
+                    showMove || showSwapDetails ? (
+                      <div className="flex items-center gap-1">
+                        {showMove ? (
+                          <>
+                            <Button
+                              variant="ghost"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  onMoveUp(m.id);
+                                }}
+                                disabled={busyReorder}
+                                title="Move up"
+                              >
+                                <i className="fa fa-arrow-up md:hidden text-text-normal" aria-hidden="true" />
+                                <span className="hidden md:inline text-text-normal">Move up</span>
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  onMoveDown(m.id);
+                                }}
+                                disabled={busyReorder}
+                                title="Move down"
+                              >
+                                <i className="fa fa-arrow-down md:hidden text-text-normal" aria-hidden="true" />
+                                <span className="hidden md:inline text-text-normal">Move down</span>
+                              </Button>
+                          </>
+                        ) : null}
+
+                        {showSwapDetails ? (
+                          <Button
+                            variant="ghost"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                                onSwapSides(m.id);
+                              }}
+                              disabled={busyReorder}
+                              title="Swap sides"
+                            >
+                              <i className="fa fa-arrow-right-arrow-left md:hidden text-text-normal" aria-hidden="true" />
+                              <span className="hidden md:inline text-text-normal">Swap Home/Away</span>
+                            </Button>
+                          ) : null}
+                        </div>
+                      ) : null
+                    }
+                  />
+                </div>
+              )}
 
               {/* Odds (scheduled/live only) */}
-              {showOdds && odds ? <OddsInline odds={odds} /> : null}
+              {!compact && showOdds && odds ? (
+                <div className="pb-1.5 border-b border-border-card-inner/70">
+                  <OddsInline odds={odds} />
+                </div>
+              ) : null}
 
               {/* Row 1: players + centered score */}
-              <div className="mt-2 grid grid-cols-[1fr_auto_1fr] items-center gap-3">
+              <div className={(compact ? "mt-1" : "mt-1.5") + " grid grid-cols-[1fr_auto_1fr] items-center gap-3"}>
                 {/* Team A players */}
                 <div className="min-w-0">
                   <div
@@ -201,27 +340,46 @@ export default function MatchList({
                       hasWinner && !isDraw ? (!aWin ? pal.lose : pal.win) : "text-text-normal"
                     }`}
                   >
-                    {aPlayers.map((n, i) => (
-                      <div
-                        key={i}
-                        className={`truncate text-[15px] leading-snug ${
-                          leader === "A" ? "font-black" : "font-medium"
-                        }`}
-                      >
-                        {n}
-                      </div>
-                    ))}
+                    {compact ? (
+                      aPlayers.length > 1 ? (
+                        <div className="space-y-0">
+                          {aPlayers.map((n, i) => (
+                            <div
+                              key={i}
+                              className={`truncate text-[12px] leading-tight ${leader === "A" ? "font-black" : "font-medium"}`}
+                            >
+                              {n}
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div
+                          className={`truncate text-[12px] leading-snug ${leader === "A" ? "font-black" : "font-medium"}`}
+                        >
+                          {aCompact || "—"}
+                        </div>
+                      )
+                    ) : (
+                      aPlayers.map((n, i) => (
+                        <div
+                          key={i}
+                          className={`truncate text-[15px] leading-snug ${leader === "A" ? "font-black" : "font-medium"}`}
+                        >
+                          {n}
+                        </div>
+                      ))
+                    )}
                   </div>
                 </div>
 
                 {/* Score centered */}
                 <div className="justify-self-center">
-                  <div className="card-chip flex items-center justify-center gap-2">
-                    <span className="text-xl font-semibold tabular-nums">
+                  <div className={"card-chip flex items-center justify-center gap-2 " + (compact ? "px-2 py-1" : "")}>
+                    <span className={(compact ? "text-base" : "text-xl") + " font-semibold tabular-nums"}>
                       {scoreLeft}
                     </span>
                     <span className="text-text-muted">:</span>
-                    <span className="text-xl font-semibold tabular-nums">
+                    <span className={(compact ? "text-base" : "text-xl") + " font-semibold tabular-nums"}>
                       {scoreRight}
                     </span>
                   </div>
@@ -234,44 +392,69 @@ export default function MatchList({
                       hasWinner && !isDraw ? (!bWin ? pal.lose : pal.win) : "text-text-normal"
                     }`}
                   >
-                    {bPlayers.map((n, i) => (
-                      <div
-                        key={i}
-                        className={`truncate text-[15px] leading-snug ${
-                          leader === "B" ? "font-black" : "font-medium"
-                        }`}
-                      >
-                        {n}
-                      </div>
-                    ))}
+                    {compact ? (
+                      bPlayers.length > 1 ? (
+                        <div className="space-y-0">
+                          {bPlayers.map((n, i) => (
+                            <div
+                              key={i}
+                              className={`truncate text-[12px] leading-tight ${leader === "B" ? "font-black" : "font-medium"}`}
+                            >
+                              {n}
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div
+                          className={`truncate text-[12px] leading-snug ${leader === "B" ? "font-black" : "font-medium"}`}
+                        >
+                          {bCompact || "—"}
+                        </div>
+                      )
+                    ) : (
+                      bPlayers.map((n, i) => (
+                        <div
+                          key={i}
+                          className={`truncate text-[15px] leading-snug ${leader === "B" ? "font-black" : "font-medium"}`}
+                        >
+                          {n}
+                        </div>
+                      ))
+                    )}
                   </div>
                 </div>
               </div>
 
               {/* Row 2: clubs (like Current Game) */}
-              <div className="mt-1.5 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-start gap-3 text-xs text-text-muted">
-                <div className="min-w-0 whitespace-normal break-words leading-tight">{aClubParts.name}</div>
-                <div />
-                <div className="min-w-0 text-right whitespace-normal break-words leading-tight">{bClubParts.name}</div>
-              </div>
+              {!compact ? (
+                <div className="mt-1.5 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-start gap-3 text-xs text-text-muted">
+                  <div className="min-w-0 whitespace-normal break-words leading-tight">{aClubParts.name}</div>
+                  <div />
+                  <div className="min-w-0 text-right whitespace-normal break-words leading-tight">{bClubParts.name}</div>
+                </div>
+              ) : null}
 
               {/* Row 3: leagues */}
-              <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-start gap-3 text-xs text-text-muted">
-                <div className="min-w-0 whitespace-normal break-words leading-tight">{aClubParts.league_name}</div>
-                <div />
-                <div className="min-w-0 text-right whitespace-normal break-words leading-tight">{bClubParts.league_name}</div>
-              </div>
+              {!compact ? (
+                <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-start gap-3 text-xs text-text-muted">
+                  <div className="min-w-0 whitespace-normal break-words leading-tight">{aClubParts.league_name}</div>
+                  <div />
+                  <div className="min-w-0 text-right whitespace-normal break-words leading-tight">{bClubParts.league_name}</div>
+                </div>
+              ) : null}
 
               {/* Row 4: stars */}
-              <div className="mt-1 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 text-[11px] text-text-muted">
-                <div className="min-w-0">
-                  <StarsFA rating={aClubParts.rating ?? 0} textClassName="text-text-muted" />
+              {!compact ? (
+                <div className="mt-1 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 text-[11px] text-text-muted">
+                  <div className="min-w-0">
+                    <StarsFA rating={aClubParts.rating ?? 0} textClassName="text-text-muted" />
+                  </div>
+                  <div />
+                  <div className="min-w-0 flex justify-end">
+                    <StarsFA rating={bClubParts.rating ?? 0} textClassName="text-text-muted" />
+                  </div>
                 </div>
-                <div />
-                <div className="min-w-0 flex justify-end">
-                  <StarsFA rating={bClubParts.rating ?? 0} textClassName="text-text-muted" />
-                </div>
-              </div>
+              ) : null}
             </div>
           </div>
         );
