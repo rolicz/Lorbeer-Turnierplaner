@@ -1,5 +1,5 @@
-import { Fragment, useMemo, useState } from "react";
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import CollapsibleCard from "../../ui/primitives/CollapsibleCard";
 
@@ -33,6 +33,7 @@ function AvatarButton({
     <button
       type="button"
       onClick={onClick}
+      style={{ overflowAnchor: "none" }}
       className={"relative shrink-0 rounded-full transition-colors " + (selected ? "" : "hover:bg-bg-card-chip/20")}
       aria-pressed={selected}
       title={name}
@@ -391,6 +392,7 @@ function ViewSwitch({ value, onChange }: { value: View; onChange: (v: View) => v
 }
 
 export default function HeadToHeadCard() {
+  const qc = useQueryClient();
   const playersQ = useQuery({ queryKey: ["players"], queryFn: listPlayers });
   const players = playersQ.data ?? [];
   const avatarMetaQ = useQuery({
@@ -406,11 +408,35 @@ export default function HeadToHeadCard() {
     return m;
   }, [avatarMetaQ.data]);
 
+  const FETCH_LIMIT = 200; // keep UI trimmed to 5 by default, but don't hide data due to API limit
+  const [isOpen, setIsOpen] = useState(false);
+  const didWarmRef = useRef(false);
+
   const [playerId, setPlayerId] = useState<number | "">("");
   const [mode, setMode] = useState<Mode>("overall");
   const [order, setOrder] = useState<RivalryOrder>("played");
   const [view, setView] = useState<View>("lists");
-  const FETCH_LIMIT = 200; // keep UI trimmed to 5 by default, but don't hide data due to API limit
+
+  // Warmup: prefetch H2H for all players so avatar clicks don't trigger a first-time loading/layout shift.
+  useEffect(() => {
+    if (!isOpen) return;
+    if (didWarmRef.current) return;
+    if (!players.length) return;
+    didWarmRef.current = true;
+
+    const ids: Array<number | null> = [null, ...players.map((p) => p.id)];
+    const orders: RivalryOrder[] = ["played", "rivalry"];
+    for (const pid of ids) {
+      for (const o of orders) {
+        void qc.prefetchQuery({
+          queryKey: ["stats", "h2h", pid ?? "all", FETCH_LIMIT, o],
+          queryFn: () => getStatsH2H({ playerId: pid, limit: FETCH_LIMIT, order: o }),
+          staleTime: 30_000,
+        });
+      }
+    }
+  }, [FETCH_LIMIT, isOpen, players, qc]);
+
   const h2hQ = useQuery({
     queryKey: ["stats", "h2h", playerId || "all", FETCH_LIMIT, order],
     queryFn: () => getStatsH2H({ playerId: playerId === "" ? null : playerId, limit: FETCH_LIMIT, order }),
@@ -467,6 +493,7 @@ export default function HeadToHeadCard() {
       }
       defaultOpen={false}
       scrollOnOpen={true}
+      onOpenChange={setIsOpen}
       variant="outer"
       bodyVariant="none"
       bodyClassName="space-y-3"

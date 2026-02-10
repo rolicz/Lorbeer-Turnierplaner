@@ -79,6 +79,7 @@ function AvatarButton({
     <button
       type="button"
       onClick={onClick}
+      style={{ overflowAnchor: "none" }}
       className={"relative shrink-0 rounded-full transition-colors " + (selected ? "" : "hover:bg-bg-card-chip/20")}
       aria-pressed={selected}
       title={name}

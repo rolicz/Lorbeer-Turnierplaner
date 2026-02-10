@@ -1902,7 +1902,7 @@ export default function TrendsCard({
   const needMatches = view === "lastN" || view === "total";
   const matchesQs = useQueries({
     queries: players.map((p) => ({
-      queryKey: ["stats", "playerMatches", mode, p.player_id],
+      queryKey: ["stats", "playerMatches", p.player_id],
       queryFn: () => getStatsPlayerMatches({ playerId: p.player_id }),
       enabled: needMatches && players.length > 0,
       placeholderData: keepPreviousData,

@@ -118,7 +118,7 @@ export default function TrendsPreviewCard() {
 
   const matchesQs = useQueries({
     queries: players.map((p) => ({
-      queryKey: ["stats", "playerMatches", "overall", p.player_id],
+      queryKey: ["stats", "playerMatches", p.player_id],
       queryFn: () => getStatsPlayerMatches({ playerId: p.player_id }),
       enabled: players.length > 0,
       staleTime: 0,
@@ -324,7 +324,7 @@ export default function TrendsPreviewCard() {
           <button
             type="button"
             className="block w-full text-left"
-            onClick={() => navigate("/stats#trends", { state: { focus: "trends", trendsView: view } })}
+            onClick={() => navigate("/stats#stats-trends", { state: { focus: "trends", trendsView: view } })}
             aria-label="Open full trends"
           >
             <MultiLineChart
