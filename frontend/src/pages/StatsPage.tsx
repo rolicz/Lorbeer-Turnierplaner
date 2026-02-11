@@ -5,6 +5,7 @@ import HeadToHeadCard from "./stats/HeadToHeadCard";
 import StreaksCard from "./stats/StreaksCard";
 import PlayerMatchesCard from "./stats/PlayerMatchesCard";
 import RatingsCard from "./stats/RatingsCard";
+import StarsPerformanceCard from "./stats/StarsPerformanceCard";
 import { useMemo } from "react";
 import { useLocation } from "react-router-dom";
 import { useEffect } from "react";
@@ -88,6 +89,7 @@ export default function StatsPage() {
         <StreaksCard />
         <RatingsCard />
         <PlayerMatchesCard />
+        <StarsPerformanceCard />
 
         <CollapsibleCard
           title={
