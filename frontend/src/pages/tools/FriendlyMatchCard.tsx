@@ -12,6 +12,7 @@ import { clubLabelPartsById } from "../../ui/clubControls";
 import { listClubs } from "../../api/clubs.api";
 import { listPlayers } from "../../api/players.api";
 import { getStatsOdds, type StatsOddsRequest } from "../../api/stats.api";
+import { listPlayerAvatarMeta, playerAvatarUrl } from "../../api/playerAvatars.api";
 
 function fmtOdd(x: number) {
   return Number.isFinite(x) ? x.toFixed(2) : "—";
@@ -91,13 +92,61 @@ function ModeSwitch({
   );
 }
 
-function PlayerSelect({
+function AvatarButton({
+  playerId,
+  name,
+  updatedAt,
+  selected,
+  disabled,
+  onClick,
+}: {
+  playerId: number | null;
+  name: string;
+  updatedAt: string | null;
+  selected: boolean;
+  disabled: boolean;
+  onClick: () => void;
+}) {
+  const initial = (name || "?").trim().slice(0, 1).toUpperCase();
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className={
+        "relative shrink-0 rounded-full transition-colors " +
+        (selected ? "" : "hover:bg-bg-card-chip/20") +
+        (disabled ? " opacity-45" : "")
+      }
+      aria-pressed={selected}
+      title={name}
+    >
+      <span
+        className={
+          "panel-subtle inline-flex h-8 w-8 items-center justify-center overflow-hidden rounded-full " +
+          (selected ? "ring-2 ring-[color:rgb(var(--color-accent)/0.85)]" : "")
+        }
+      >
+        {playerId == null ? (
+          <i className="fa-solid fa-ban text-[11px] text-text-muted" aria-hidden="true" />
+        ) : updatedAt ? (
+          <img src={playerAvatarUrl(playerId, updatedAt)} alt="" className="h-full w-full object-cover" loading="lazy" decoding="async" />
+        ) : (
+          <span className="text-xs font-semibold text-text-muted">{initial}</span>
+        )}
+      </span>
+    </button>
+  );
+}
+
+function AvatarPlayerSelect({
   label,
   value,
   onChange,
   disabled,
   players,
   usedIds,
+  avatarUpdatedAtById,
 }: {
   label: string;
   value: number | null;
@@ -105,27 +154,42 @@ function PlayerSelect({
   disabled: boolean;
   players: { id: number; display_name: string }[];
   usedIds: Set<number>;
+  avatarUpdatedAtById: Map<number, string>;
 }) {
+  const currentName = value != null ? (players.find((p) => p.id === value)?.display_name ?? "Unassigned") : "Unassigned";
   return (
-    <label className="block">
-      <div className="input-label">{label}</div>
-      <select
-        className="select-field"
-        value={value == null ? "" : String(value)}
-        onChange={(e) => onChange(e.target.value ? Number(e.target.value) : null)}
-        disabled={disabled}
-      >
-        <option value="">(select)</option>
-        {players.map((p) => {
-          const dis = usedIds.has(p.id) && p.id !== value;
-          return (
-            <option key={p.id} value={String(p.id)} disabled={dis}>
-              {p.display_name}
-            </option>
-          );
-        })}
-      </select>
-    </label>
+    <div className="space-y-1.5">
+      <div className="flex items-center justify-between gap-2">
+        <div className="input-label">{label}</div>
+        <div className="text-[11px] text-text-muted truncate">{currentName}</div>
+      </div>
+      <div className="-mx-1 overflow-x-auto px-1 py-0.5">
+        <div className="flex min-w-full items-center justify-between gap-2">
+          <AvatarButton
+            playerId={null}
+            name="None"
+            updatedAt={null}
+            selected={value == null}
+            disabled={disabled}
+            onClick={() => onChange(null)}
+          />
+          {players.map((p) => {
+            const takenElsewhere = usedIds.has(p.id) && value !== p.id;
+            return (
+              <AvatarButton
+                key={p.id}
+                playerId={p.id}
+                name={p.display_name}
+                updatedAt={avatarUpdatedAtById.get(p.id) ?? null}
+                selected={value === p.id}
+                disabled={disabled || takenElsewhere}
+                onClick={() => onChange(p.id)}
+              />
+            );
+          })}
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -159,7 +223,20 @@ export default function FriendlyMatchCard() {
     enabled: open,
     staleTime: 60_000,
   });
+  const avatarMetaQ = useQuery({
+    queryKey: ["players", "avatars"],
+    queryFn: listPlayerAvatarMeta,
+    enabled: open,
+    staleTime: 30_000,
+    refetchOnReconnect: false,
+    refetchOnWindowFocus: false,
+  });
   const players = playersQ.data ?? [];
+  const avatarUpdatedAtById = useMemo(() => {
+    const m = new Map<number, string>();
+    for (const x of avatarMetaQ.data ?? []) m.set(x.player_id, x.updated_at);
+    return m;
+  }, [avatarMetaQ.data]);
 
   const usedIds = useMemo(() => {
     const s = new Set<number>();
@@ -373,43 +450,47 @@ export default function FriendlyMatchCard() {
 
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-2">
-              <PlayerSelect
+              <AvatarPlayerSelect
                 label={mode === "2v2" ? "Team A (1)" : "Team A"}
                 value={a1}
                 onChange={setA1}
                 disabled={!open || playersQ.isLoading || !!playersQ.error}
                 players={players}
                 usedIds={usedIds}
+                avatarUpdatedAtById={avatarUpdatedAtById}
               />
               {mode === "2v2" ? (
-                <PlayerSelect
+                <AvatarPlayerSelect
                   label="Team A (2)"
                   value={a2}
                   onChange={setA2}
                   disabled={!open || playersQ.isLoading || !!playersQ.error}
                   players={players}
                   usedIds={usedIds}
+                  avatarUpdatedAtById={avatarUpdatedAtById}
                 />
               ) : null}
             </div>
 
             <div className="space-y-2">
-              <PlayerSelect
+              <AvatarPlayerSelect
                 label={mode === "2v2" ? "Team B (1)" : "Team B"}
                 value={b1}
                 onChange={setB1}
                 disabled={!open || playersQ.isLoading || !!playersQ.error}
                 players={players}
                 usedIds={usedIds}
+                avatarUpdatedAtById={avatarUpdatedAtById}
               />
               {mode === "2v2" ? (
-                <PlayerSelect
+                <AvatarPlayerSelect
                   label="Team B (2)"
                   value={b2}
                   onChange={setB2}
                   disabled={!open || playersQ.isLoading || !!playersQ.error}
                   players={players}
                   usedIds={usedIds}
+                  avatarUpdatedAtById={avatarUpdatedAtById}
                 />
               ) : null}
             </div>
