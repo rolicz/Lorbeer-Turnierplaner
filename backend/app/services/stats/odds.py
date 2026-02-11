@@ -147,6 +147,57 @@ def _pair_form_lastN(matches_2v2: list[Match], lastN: int) -> dict[tuple[int, in
     return out
 
 
+def _player_elo(matches: list[Match], *, mode: str, base: float = 1500.0, k_base: float = 24.0) -> dict[int, float]:
+    """
+    Simple mode-specific Elo for players.
+    - 1v1: direct duel update.
+    - 2v2: team-average expectation, team delta applied to both team members.
+    """
+    out: dict[int, float] = {}
+    ms = [m for m in matches if m.state == "finished"]
+    ms.sort(key=_sort_key)
+
+    for m in ms:
+        t = getattr(m, "tournament", None)
+        if mode in ("1v1", "2v2") and getattr(t, "mode", None) != mode:
+            continue
+
+        a = _side_by(m, "A")
+        b = _side_by(m, "B")
+        if not a or not b:
+            continue
+        teamA = _team_player_ids(a)
+        teamB = _team_player_ids(b)
+        if not teamA or not teamB:
+            continue
+        if mode == "1v1" and (len(teamA) != 1 or len(teamB) != 1):
+            continue
+        if mode == "2v2" and (len(teamA) != 2 or len(teamB) != 2):
+            continue
+
+        res = _match_result_score(m)
+        if not res:
+            continue
+        sA = float(res[0])
+
+        rA = sum(out.get(pid, base) for pid in teamA) / len(teamA)
+        rB = sum(out.get(pid, base) for pid in teamB) / len(teamB)
+        eA = 1.0 / (1.0 + 10.0 ** ((rB - rA) / 400.0))
+
+        # Margin multiplier: small boost for clearer wins.
+        goal_diff = abs(int(a.goals or 0) - int(b.goals or 0))
+        mov = 1.0 + 0.20 * min(4.0, float(goal_diff))
+        k = k_base * mov
+        dA = k * (sA - eA)
+
+        for pid in teamA:
+            out[pid] = out.get(pid, base) + dA
+        for pid in teamB:
+            out[pid] = out.get(pid, base) - dA
+
+    return out
+
+
 def _team_h2h_edge(matches: list[Match], *, mode: str, teamA: tuple[int, ...], teamB: tuple[int, ...], lastM: int) -> float:
     """
     Returns an edge score in [-1..1] for teamA vs teamB based on lastM head-to-head matches.
@@ -193,9 +244,19 @@ def _team_h2h_edge(matches: list[Match], *, mode: str, teamA: tuple[int, ...], t
     if not tail:
         return 0.0
 
-    # map [0, 0.5, 1] to edge [-1, 0, +1] (draw is neutral)
-    # and average over lastM (still divided by len(tail), that's ok for h2h).
-    edge_team1 = sum((v - 0.5) * 2.0 for v in tail) / len(tail)
+    # Recency-weighted H2H:
+    # newest duel has weight 1.0, then exponential decay backwards.
+    # This keeps direct prior duels meaningful while still looking at a window.
+    decay = 0.84
+    weighted_sum = 0.0
+    weight_total = 0.0
+    for i, v in enumerate(tail):
+        # i=0 oldest in tail, i=len(tail)-1 newest
+        age = (len(tail) - 1) - i
+        w = decay ** age
+        weighted_sum += w * ((v - 0.5) * 2.0)  # map [0, 0.5, 1] -> [-1, 0, +1]
+        weight_total += w
+    edge_team1 = (weighted_sum / weight_total) if weight_total > 0 else 0.0
     return edge_team1 if teamA == t1 else -edge_team1
 
 
@@ -262,6 +323,7 @@ def compute_match_odds_for_tournament(
 
     draw_rate_mode = _draw_rate(finished_mode)
     pair_form: dict[tuple[int, int], float] = _pair_form_lastN(finished_mode, lastN=lastN_form) if mode == "2v2" else {}
+    elo_mode = _player_elo(finished_all, mode=mode)
 
     # Preload club star ratings (optional signal; small weight).
     club_ids: set[int] = set()
@@ -305,6 +367,11 @@ def compute_match_odds_for_tournament(
             return 0.0
         return sum(player_strength(pid) for pid in team) / len(team)
 
+    def team_elo(team: tuple[int, ...]) -> float:
+        if not team:
+            return 1500.0
+        return sum(float(elo_mode.get(pid, 1500.0)) for pid in team) / len(team)
+
     def team_gdpm(team: tuple[int, ...]) -> float:
         if not team:
             return 0.0
@@ -340,6 +407,8 @@ def compute_match_odds_for_tournament(
         # Core signals (similar to what a bookmaker would consider in a lightweight way).
         sA = team_strength(teamA)
         sB = team_strength(teamB)
+        eA = team_elo(teamA)
+        eB = team_elo(teamB)
         gdA = team_gdpm(teamA)
         gdB = team_gdpm(teamB)
         h2h = _team_h2h_edge(finished_all, mode=mode, teamA=teamA, teamB=teamB, lastM=lastM_h2h)
@@ -347,7 +416,7 @@ def compute_match_odds_for_tournament(
 
         # Translate to a single matchup delta.
         # Units are "points per match" with small additive corrections.
-        delta = (sA - sB) + 0.20 * (gdA - gdB) + 0.25 * h2h + 0.22 * syn
+        delta = (sA - sB) + 0.20 * (gdA - gdB) + 0.45 * h2h + 0.22 * syn + 0.65 * ((eA - eB) / 400.0)
 
         # Optional: incorporate club star rating (bigger influence for big star gaps).
         if a.club_id is not None and b.club_id is not None:
@@ -361,36 +430,19 @@ def compute_match_odds_for_tournament(
                 # overpowering the whole model for small gaps.
                 delta += 1.35 * norm * abs(norm)
 
-        # If the match is live, incorporate current score advantage (we don't have minute-by-minute timing).
-        if m.state == "playing":
-            delta += 1.25 * float(int(a.goals or 0) - int(b.goals or 0))
-
         # Draw probability: baseline draw-rate + closeness bump.
         close_bump = 0.10 * exp(-abs(delta) * 2.5)
         pX = _clamp(draw_rate_mode + close_bump, 0.10, 0.42)
 
-        # Live games with a big goal difference are extremely unlikely to end as a draw.
-        if m.state == "playing":
-            gd_live = abs(int(a.goals or 0) - int(b.goals or 0))
-            pX = _clamp(pX * exp(-1.10 * float(gd_live)), 0.005, 0.35)
-
         # Win/loss split conditional on "not a draw".
-        # The slope is tuned so odds don't become too extreme on small datasets.
-        slope = 1.45 if m.state != "playing" else 2.55
-        pA_nodraw = _sigmoid(delta * slope)
+        pA_nodraw = _sigmoid(delta * 1.45)
         pA = (1.0 - pX) * pA_nodraw
         pB = (1.0 - pX) * (1.0 - pA_nodraw)
 
         # Bayesian shrinkage towards a sensible football prior, based on dataset size.
         eff = float(min(40, len(finished_mode)))
         prior = (0.36, 0.28, 0.36)
-        prior_strength = 10.0 if m.state != "playing" else 6.0
-
-        # Live matches should react strongly to the current score even if there is no historic data yet.
-        if m.state == "playing":
-            gd_live = abs(int(a.goals or 0) - int(b.goals or 0))
-            eff += float(min(60, 6 + gd_live * 8))
-            prior_strength = 4.0
+        prior_strength = 10.0
         denom = eff + prior_strength
         pA = (pA * eff + prior[0] * prior_strength) / denom
         pX = (pX * eff + prior[1] * prior_strength) / denom
@@ -405,7 +457,7 @@ def compute_match_odds_for_tournament(
 
         oA, oX, oB = _decimal_odds_from_probs(pA, pX, pB, overround=overround)
         return {
-            "model": "v1",
+            "model": "v3",
             "updated_at": now,
             "p_home": round(float(pA), 6),
             "p_draw": round(float(pX), 6),
@@ -485,6 +537,7 @@ def compute_single_match_odds(
 
     draw_rate_mode = _draw_rate(finished_mode)
     pair_form: dict[tuple[int, int], float] = _pair_form_lastN(finished_mode, lastN=lastN_form) if mode_norm == "2v2" else {}
+    elo_mode = _player_elo(finished_all, mode=mode_norm)
 
     # Preload star ratings for the selected clubs (optional signal).
     club_star: dict[int, float] = {}
@@ -511,6 +564,9 @@ def compute_single_match_odds(
     def team_strength(team: tuple[int, ...]) -> float:
         return (sum(player_strength(pid) for pid in team) / len(team)) if team else 0.0
 
+    def team_elo(team: tuple[int, ...]) -> float:
+        return (sum(float(elo_mode.get(pid, 1500.0)) for pid in team) / len(team)) if team else 1500.0
+
     def team_gdpm(team: tuple[int, ...]) -> float:
         return (sum(player_gdpm(pid) for pid in team) / len(team)) if team else 0.0
 
@@ -530,12 +586,14 @@ def compute_single_match_odds(
     def compute_probs_for(teamA_: tuple[int, ...], teamB_: tuple[int, ...]) -> dict[str, Any] | None:
         sA = team_strength(teamA_)
         sB = team_strength(teamB_)
+        eA = team_elo(teamA_)
+        eB = team_elo(teamB_)
         gdA = team_gdpm(teamA_)
         gdB = team_gdpm(teamB_)
         h2h = _team_h2h_edge(finished_all, mode=mode_norm, teamA=teamA_, teamB=teamB_, lastM=lastM_h2h)
         syn = synergy_edge(teamA_, teamB_)
 
-        delta = (sA - sB) + 0.20 * (gdA - gdB) + 0.25 * h2h + 0.22 * syn
+        delta = (sA - sB) + 0.20 * (gdA - gdB) + 0.45 * h2h + 0.22 * syn + 0.65 * ((eA - eB) / 400.0)
 
         if clubA_id is not None and clubB_id is not None:
             sa = float(club_star.get(int(clubA_id), 0.0))
@@ -544,29 +602,16 @@ def compute_single_match_odds(
                 norm = (sa - sb) / 4.5
                 delta += 1.35 * norm * abs(norm)
 
-        if state_norm == "playing":
-            delta += 1.25 * float(int(a_goals or 0) - int(b_goals or 0))
-
         close_bump = 0.10 * exp(-abs(delta) * 2.5)
         pX = _clamp(draw_rate_mode + close_bump, 0.10, 0.42)
 
-        if state_norm == "playing":
-            gd_live = abs(int(a_goals or 0) - int(b_goals or 0))
-            pX = _clamp(pX * exp(-1.10 * float(gd_live)), 0.005, 0.35)
-
-        slope = 1.45 if state_norm != "playing" else 2.55
-        pA_nodraw = _sigmoid(delta * slope)
+        pA_nodraw = _sigmoid(delta * 1.45)
         pA = (1.0 - pX) * pA_nodraw
         pB = (1.0 - pX) * (1.0 - pA_nodraw)
 
         eff = float(min(40, len(finished_mode)))
         prior = (0.36, 0.28, 0.36)
-        prior_strength = 10.0 if state_norm != "playing" else 6.0
-
-        if state_norm == "playing":
-            gd_live = abs(int(a_goals or 0) - int(b_goals or 0))
-            eff += float(min(60, 6 + gd_live * 8))
-            prior_strength = 4.0
+        prior_strength = 10.0
         denom = eff + prior_strength
         pA = (pA * eff + prior[0] * prior_strength) / denom
         pX = (pX * eff + prior[1] * prior_strength) / denom
@@ -580,7 +625,7 @@ def compute_single_match_odds(
 
         oA, oX, oB = _decimal_odds_from_probs(pA, pX, pB, overround=overround)
         return {
-            "model": "v1",
+            "model": "v3",
             "updated_at": now,
             "p_home": round(float(pA), 6),
             "p_draw": round(float(pX), 6),

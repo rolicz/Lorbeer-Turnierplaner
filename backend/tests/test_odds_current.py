@@ -29,7 +29,7 @@ def test_tournament_match_odds_present_for_scheduled_matches(client, editor_head
                 assert float(v) >= 1.01
 
 
-def test_live_odds_move_strongly_with_big_score_delta(client, editor_headers, admin_headers):
+def test_live_score_updates_do_not_change_odds(client, editor_headers, admin_headers):
     p1 = client.post("/players", json={"display_name": "L1"}, headers=admin_headers).json()["id"]
     p2 = client.post("/players", json={"display_name": "L2"}, headers=admin_headers).json()["id"]
     p3 = client.post("/players", json={"display_name": "L3"}, headers=admin_headers).json()["id"]
@@ -44,6 +44,8 @@ def test_live_odds_move_strongly_with_big_score_delta(client, editor_headers, ad
 
     t = client.get(f"/tournaments/{tid}").json()
     mid = t["matches"][0]["id"]
+    pre = t["matches"][0].get("odds") or {}
+    assert isinstance(pre, dict)
 
     # Set match to playing with a huge score advantage.
     rpatch = client.patch(
@@ -55,7 +57,40 @@ def test_live_odds_move_strongly_with_big_score_delta(client, editor_headers, ad
 
     t2 = client.get(f"/tournaments/{tid}").json()
     m2 = next(m for m in t2["matches"] if m["id"] == mid)
-    odds = m2.get("odds") or {}
-    assert isinstance(odds, dict)
-    # With 10:0 lead, draw odds should be very high (i.e., prob tiny).
-    assert float(odds.get("draw", 0.0)) >= 8.0
+    post = m2.get("odds") or {}
+    assert isinstance(post, dict)
+    for k in ("home", "draw", "away"):
+        assert abs(float(post.get(k, 0.0)) - float(pre.get(k, 0.0))) <= 0.01
+
+
+def test_single_match_odds_ignore_live_score_state(client, editor_headers, admin_headers):
+    p1 = client.post("/players", json={"display_name": "M1"}, headers=admin_headers).json()["id"]
+    p2 = client.post("/players", json={"display_name": "M2"}, headers=admin_headers).json()["id"]
+    p3 = client.post("/players", json={"display_name": "M3"}, headers=admin_headers).json()["id"]
+
+    # Ad-hoc endpoint should use pre-match model regardless of live score.
+    payload_scheduled = {
+        "mode": "1v1",
+        "teamA_player_ids": [p1],
+        "teamB_player_ids": [p2],
+        "state": "scheduled",
+        "a_goals": 0,
+        "b_goals": 0,
+    }
+    payload_playing = {
+        "mode": "1v1",
+        "teamA_player_ids": [p1],
+        "teamB_player_ids": [p2],
+        "state": "playing",
+        "a_goals": 7,
+        "b_goals": 0,
+    }
+
+    r0 = client.post("/stats/odds", json=payload_scheduled)
+    r1 = client.post("/stats/odds", json=payload_playing)
+    assert r0.status_code == 200, r0.text
+    assert r1.status_code == 200, r1.text
+    o0 = (r0.json() or {}).get("odds") or {}
+    o1 = (r1.json() or {}).get("odds") or {}
+    for k in ("home", "draw", "away"):
+        assert abs(float(o0.get(k, 0.0)) - float(o1.get(k, 0.0))) <= 0.01
