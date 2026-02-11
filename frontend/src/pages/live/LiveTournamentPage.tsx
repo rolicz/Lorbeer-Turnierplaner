@@ -597,6 +597,7 @@ export default function LiveTournamentPage() {
 	            <StandingsTable
 	              tournamentId={tid!}
 	              tournamentDate={tQ.data?.date ?? null}
+	              tournamentMode={tQ.data?.mode === "2v2" ? "2v2" : "1v1"}
 	              tournamentStatus={tQ.data?.status ?? undefined}
 	              wrap={false}
 	              matches={matchesSorted}

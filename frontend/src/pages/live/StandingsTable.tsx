@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import type { Match, Player } from "../../api/types";
 import { sideBy } from "../../helpers";
@@ -9,6 +9,7 @@ import { cupColorVarForKey } from "../../cupColors";
 import { getStatsStreaks } from "../../api/stats.api";
 import type { StatsStreaksResponse } from "../../api/types";
 import { StreakPatch, type ActiveStreak } from "../../ui/StreakPatches";
+import PlayerLiveStatsModal from "./PlayerLiveStatsModal";
 
 type Row = {
   playerId: number;
@@ -172,6 +173,7 @@ function MobileRow({
   avatarUpdatedAt,
   cupMarks,
   streaks,
+  onOpenPlayer,
 }: {
   r: Row;
   rank: number;
@@ -180,9 +182,22 @@ function MobileRow({
   avatarUpdatedAt: string | null;
   cupMarks: { key: string; name: string }[];
   streaks: ActiveStreak[];
+  onOpenPlayer: (playerId: number) => void;
 }) {
   return (
-    <div className="panel-subtle relative overflow-hidden px-3 py-2">
+    <div
+      className="panel-subtle relative overflow-hidden px-3 py-2 cursor-pointer"
+      title={`Open stats for ${r.name}`}
+      onClick={() => onOpenPlayer(r.playerId)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onOpenPlayer(r.playerId);
+        }
+      }}
+      role="button"
+      tabIndex={0}
+    >
       {/* leader bar */}
       {isLeader && <div className="absolute inset-y-0 left-0 w-1 bg-status-bar-green" />}
 
@@ -195,7 +210,7 @@ function MobileRow({
             </div>
             <PlayerAvatar playerId={r.playerId} name={r.name} updatedAt={avatarUpdatedAt} />
             <div className="min-w-0 flex flex-1 items-center gap-2">
-              <div className="min-w-0 flex-[0_1_auto] truncate font-medium text-text-normal">{r.name}</div>
+              <div className="min-w-0 flex-[0_1_auto] truncate text-left font-medium text-text-normal">{r.name}</div>
               {cupMarks.length ? (
                 <div className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap pl-0.5">
                   {cupMarks.slice(0, 2).map((c) => (
@@ -248,6 +263,7 @@ function MobileRow({
 export default function StandingsTable({
   tournamentId,
   tournamentDate,
+  tournamentMode,
   matches,
   players,
   tournamentStatus,
@@ -255,6 +271,7 @@ export default function StandingsTable({
 }: {
   tournamentId: number;
   tournamentDate?: string | null;
+  tournamentMode: "1v1" | "2v2";
   matches: Match[];
   players: Player[];
   tournamentStatus?: "draft" | "live" | "done";
@@ -264,6 +281,7 @@ export default function StandingsTable({
   const baseRows = useMemo(() => computeStandings(matches, players, "finished"), [matches, players]);
   const liveRows = useMemo(() => computeStandings(matches, players, "live"), [matches, players]);
   const basePos = useMemo(() => posMap(baseRows), [baseRows]);
+  const [selectedPlayerId, setSelectedPlayerId] = useState<number | null>(null);
 
   const avatarMetaQ = useQuery({ queryKey: ["players", "avatars"], queryFn: listPlayerAvatarMeta });
   const avatarUpdatedAtByPlayerId = useMemo(() => {
@@ -454,6 +472,16 @@ export default function StandingsTable({
   }, [cups, cupsQ, tournamentDate, tournamentId]);
 
   const title = tournamentStatus === "done" ? "Results" : "Standings (live)";
+  const selectedPlayer = useMemo(() => {
+    if (!selectedPlayerId) return null;
+    const p = players.find((x) => x.id === selectedPlayerId);
+    if (!p) return null;
+    return { id: p.id, name: p.display_name };
+  }, [players, selectedPlayerId]);
+  const selectedAvatarUpdatedAt = useMemo(() => {
+    if (!selectedPlayerId) return null;
+    return avatarUpdatedAtByPlayerId.get(selectedPlayerId) ?? null;
+  }, [avatarUpdatedAtByPlayerId, selectedPlayerId]);
 
   const content = (
     <>
@@ -475,6 +503,7 @@ export default function StandingsTable({
               avatarUpdatedAt={avatarUpdatedAt}
               cupMarks={cupMarks}
               streaks={streaks}
+              onOpenPlayer={setSelectedPlayerId}
             />
           );
         })}
@@ -514,9 +543,20 @@ export default function StandingsTable({
                     "relative",
                     "border-b border-border-card-inner",
                     zebra,
+                    "cursor-pointer hover:bg-hover-default/20",
                     // Ensure all cells (including streak badges) are vertically centered in the row.
                     "[&>td]:align-middle",
                   ].join(" ")}
+                  title={`Open stats for ${r.name}`}
+                  onClick={() => setSelectedPlayerId(r.playerId)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      setSelectedPlayerId(r.playerId);
+                    }
+                  }}
+                  role="button"
+                  tabIndex={0}
                 >
                   {/* leader bar */}
                   {isLeader && (
@@ -570,6 +610,14 @@ export default function StandingsTable({
           </tbody>
         </table>
       </div>
+
+      <PlayerLiveStatsModal
+        open={selectedPlayerId != null}
+        onClose={() => setSelectedPlayerId(null)}
+        player={selectedPlayer}
+        avatarUpdatedAt={selectedAvatarUpdatedAt}
+        mode={tournamentMode}
+      />
     </>
   );
 
