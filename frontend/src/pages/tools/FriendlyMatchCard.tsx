@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import CollapsibleCard from "../../ui/primitives/CollapsibleCard";
@@ -13,6 +13,79 @@ import { listClubs } from "../../api/clubs.api";
 import { listPlayers } from "../../api/players.api";
 import { getStatsOdds, type StatsOddsRequest } from "../../api/stats.api";
 import { listPlayerAvatarMeta, playerAvatarUrl } from "../../api/playerAvatars.api";
+
+const FRIENDLY_MATCH_STORAGE_KEY = "friendly_match_state_v1";
+
+type FriendlyMatchPersistedState = {
+  clubGame: string;
+  mode: "1v1" | "2v2";
+  a1: number | null;
+  a2: number | null;
+  b1: number | null;
+  b2: number | null;
+  aClub: number | null;
+  bClub: number | null;
+  aGoals: number;
+  bGoals: number;
+};
+
+function toNullableInt(v: unknown): number | null {
+  if (v == null || v === "") return null;
+  const n = Number(v);
+  if (!Number.isFinite(n)) return null;
+  return Math.max(1, Math.trunc(n));
+}
+
+function toNonNegativeInt(v: unknown, fallback: number): number {
+  const n = Number(v);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.max(0, Math.trunc(n));
+}
+
+function loadFriendlyState(): FriendlyMatchPersistedState {
+  const defaults: FriendlyMatchPersistedState = {
+    clubGame: "EA FC 26",
+    mode: "2v2",
+    a1: null,
+    a2: null,
+    b1: null,
+    b2: null,
+    aClub: null,
+    bClub: null,
+    aGoals: 0,
+    bGoals: 0,
+  };
+  try {
+    if (typeof window === "undefined") return defaults;
+    const raw = window.localStorage.getItem(FRIENDLY_MATCH_STORAGE_KEY);
+    if (!raw) return defaults;
+    const parsed = JSON.parse(raw) as Partial<FriendlyMatchPersistedState>;
+    const mode = parsed.mode === "1v1" || parsed.mode === "2v2" ? parsed.mode : defaults.mode;
+    return {
+      clubGame: typeof parsed.clubGame === "string" && parsed.clubGame.trim() ? parsed.clubGame : defaults.clubGame,
+      mode,
+      a1: toNullableInt(parsed.a1),
+      a2: mode === "2v2" ? toNullableInt(parsed.a2) : null,
+      b1: toNullableInt(parsed.b1),
+      b2: mode === "2v2" ? toNullableInt(parsed.b2) : null,
+      aClub: toNullableInt(parsed.aClub),
+      bClub: toNullableInt(parsed.bClub),
+      aGoals: toNonNegativeInt(parsed.aGoals, 0),
+      bGoals: toNonNegativeInt(parsed.bGoals, 0),
+    };
+  } catch {
+    return defaults;
+  }
+}
+
+function saveFriendlyState(state: FriendlyMatchPersistedState) {
+  try {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(FRIENDLY_MATCH_STORAGE_KEY, JSON.stringify(state));
+  } catch {
+    // ignore storage failures
+  }
+}
 
 function fmtOdd(x: number) {
   return Number.isFinite(x) ? x.toFixed(2) : "—";
@@ -194,21 +267,23 @@ function AvatarPlayerSelect({
 }
 
 export default function FriendlyMatchCard() {
+  const initRef = useRef<FriendlyMatchPersistedState>(loadFriendlyState());
+
   const [open, setOpen] = useState(true);
-  const [clubGame, setClubGame] = useState("EA FC 26");
+  const [clubGame, setClubGame] = useState(initRef.current.clubGame);
 
-  const [mode, setMode] = useState<"1v1" | "2v2">("2v2");
+  const [mode, setMode] = useState<"1v1" | "2v2">(initRef.current.mode);
 
-  const [a1, setA1] = useState<number | null>(null);
-  const [a2, setA2] = useState<number | null>(null);
-  const [b1, setB1] = useState<number | null>(null);
-  const [b2, setB2] = useState<number | null>(null);
+  const [a1, setA1] = useState<number | null>(initRef.current.a1);
+  const [a2, setA2] = useState<number | null>(initRef.current.a2);
+  const [b1, setB1] = useState<number | null>(initRef.current.b1);
+  const [b2, setB2] = useState<number | null>(initRef.current.b2);
 
-  const [aClub, setAClub] = useState<number | null>(null);
-  const [bClub, setBClub] = useState<number | null>(null);
+  const [aClub, setAClub] = useState<number | null>(initRef.current.aClub);
+  const [bClub, setBClub] = useState<number | null>(initRef.current.bClub);
 
-  const [aGoals, setAGoals] = useState(0);
-  const [bGoals, setBGoals] = useState(0);
+  const [aGoals, setAGoals] = useState(initRef.current.aGoals);
+  const [bGoals, setBGoals] = useState(initRef.current.bGoals);
 
   const clubsQ = useQuery({
     queryKey: ["clubs", clubGame],
@@ -293,6 +368,21 @@ export default function FriendlyMatchCard() {
     refetchOnWindowFocus: false,
   });
   const odds = oddsQ.data?.odds ?? null;
+
+  useEffect(() => {
+    saveFriendlyState({
+      clubGame,
+      mode,
+      a1,
+      a2: mode === "2v2" ? a2 : null,
+      b1,
+      b2: mode === "2v2" ? b2 : null,
+      aClub,
+      bClub,
+      aGoals,
+      bGoals,
+    });
+  }, [clubGame, mode, a1, a2, b1, b2, aClub, bClub, aGoals, bGoals]);
 
   function clearAll() {
     setA1(null);
