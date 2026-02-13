@@ -45,23 +45,27 @@ def compute_stats_players(s: Session, *, mode: str, lastN: int) -> dict[str, Any
     finished_matches = _finished_matches_with_players(s, mode=mode_norm)
     overall = compute_overall_and_lastN(finished_matches, players, lastN=lastN)
 
-    # Done tournaments for per-tournament positions (load players relationship once)
-    done_stmt = (
-        select(Tournament)
-        .where(Tournament.status == "done")
-        .order_by(Tournament.date, Tournament.id)
-        .options(selectinload(Tournament.players))
-    )
-    if mode_norm != "overall":
-        done_stmt = done_stmt.where(Tournament.mode == mode_norm)
-
-    done_ts = list(s.exec(done_stmt).all())
+    # Per-tournament positions should include any tournament that already has
+    # finished matches (including currently live tournaments), not only "done".
+    finished_tournament_ids = sorted({int(m.tournament_id) for m in finished_matches if m.tournament_id is not None})
+    if finished_tournament_ids:
+        tournaments_stmt = (
+            select(Tournament)
+            .where(Tournament.id.in_(finished_tournament_ids))
+            .order_by(Tournament.date, Tournament.id)
+            .options(selectinload(Tournament.players))
+        )
+        if mode_norm != "overall":
+            tournaments_stmt = tournaments_stmt.where(Tournament.mode == mode_norm)
+        tournaments_with_finished = list(s.exec(tournaments_stmt).all())
+    else:
+        tournaments_with_finished = []
 
     tournaments_out: list[dict[str, Any]] = []
     # positions_by_tid[tid][player_id] = rank
     positions_by_tid: dict[int, dict[int, int]] = {}
 
-    for t in done_ts:
+    for t in tournaments_with_finished:
         tid = int(t.id)
         matches = _tournament_matches_with_players(s, tid)
 

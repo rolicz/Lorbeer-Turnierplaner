@@ -1916,16 +1916,29 @@ export default function TrendsCard({
   const tournamentsDoneSorted = useMemo(() => {
     // StatsTournamentLite doesn't include mode/status, so derive from player-matches responses.
     // Union across players to cover tournaments not played by everyone.
-    const byId = new Map<number, { id: number; name: string; date: string; mode: "1v1" | "2v2"; status: string }>();
+    const byId = new Map<number, { id: number; name: string; date: string; mode: "1v1" | "2v2"; status: string; has_finished: boolean }>();
     for (const q of matchesQs as Array<{ data?: StatsPlayerMatchesResponse }>) {
       const ts = q.data?.tournaments ?? [];
       for (const t of ts) {
-        if (!byId.has(t.id)) byId.set(t.id, { id: t.id, name: t.name, date: t.date, mode: t.mode, status: t.status });
+        const hasFinished = (t.matches ?? []).some((m) => m.state === "finished");
+        const prev = byId.get(t.id);
+        if (!prev) {
+          byId.set(t.id, {
+            id: t.id,
+            name: t.name,
+            date: t.date,
+            mode: t.mode,
+            status: t.status,
+            has_finished: hasFinished,
+          });
+        } else if (hasFinished && !prev.has_finished) {
+          byId.set(t.id, { ...prev, has_finished: true });
+        }
       }
     }
 
     return Array.from(byId.values())
-      .filter((t) => String(t.status) === "done" && (mode === "overall" || t.mode === mode))
+      .filter((t) => t.has_finished && (mode === "overall" || t.mode === mode))
       .sort((a, b) => {
         const da = new Date(a.date ?? 0).getTime();
         const db = new Date(b.date ?? 0).getTime();
@@ -1969,7 +1982,7 @@ export default function TrendsCard({
 
       // Chronological (old -> new) for "form up to tournament".
       const tournamentsChrono = (resp?.tournaments ?? [])
-        .filter((t) => t.status === "done" && (mode === "overall" || t.mode === mode))
+        .filter((t) => (mode === "overall" || t.mode === mode) && (t.matches ?? []).some((m) => m.state === "finished"))
         .slice()
         .sort((a, b) => {
           const da = new Date(a.date ?? 0).getTime();

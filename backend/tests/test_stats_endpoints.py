@@ -1,4 +1,5 @@
 from tests.conftest import create_league
+from tests.conftest import create_player, create_tournament, generate
 
 
 def test_stats_overview(client):
@@ -23,6 +24,37 @@ def test_stats_players_empty(client):
     assert "lastN" in data
     assert isinstance(data["players"], list)
     assert isinstance(data["tournaments"], list)
+
+
+def test_stats_players_includes_live_tournament_when_matches_finished(client, editor_headers, admin_headers):
+    ids = [create_player(client, admin_headers, n) for n in ["S1", "S2", "S3"]]
+    tid = create_tournament(client, editor_headers, "stats-live", "1v1", ids)
+    generate(client, editor_headers, tid, randomize=False)
+
+    # No finished match yet -> should not appear in per-tournament trends.
+    before = client.get("/stats/players")
+    assert before.status_code == 200, before.text
+    tids_before = {int(t["id"]) for t in before.json().get("tournaments", [])}
+    assert tid not in tids_before
+
+    t = client.get(f"/tournaments/{tid}")
+    assert t.status_code == 200, t.text
+    first_mid = t.json()["matches"][0]["id"]
+
+    # Mark one match finished while tournament remains live.
+    rp = client.patch(f"/matches/{first_mid}", json={"state": "playing"}, headers=editor_headers)
+    assert rp.status_code == 200, rp.text
+    rf = client.patch(f"/matches/{first_mid}", json={"state": "finished"}, headers=editor_headers)
+    assert rf.status_code == 200, rf.text
+
+    t_live = client.get(f"/tournaments/{tid}")
+    assert t_live.status_code == 200, t_live.text
+    assert t_live.json()["status"] == "live"
+
+    after = client.get("/stats/players")
+    assert after.status_code == 200, after.text
+    tids_after = {int(t["id"]) for t in after.json().get("tournaments", [])}
+    assert tid in tids_after
 
 
 def test_stats_h2h_empty(client):
