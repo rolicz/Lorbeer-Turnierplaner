@@ -1,4 +1,5 @@
 import { apiFetch } from "./client";
+import { API_BASE } from "./client";
 import type { TournamentCommentsResponse, TournamentCommentsSummary, Comment } from "./types";
 
 export function listTournamentComments(tournamentId: number): Promise<TournamentCommentsResponse> {
@@ -17,6 +18,7 @@ export function createTournamentComment(
     match_id?: number | null;
     author_player_id?: number | null;
     body: string;
+    has_image?: boolean;
   }
 ): Promise<Comment> {
   return apiFetch(`/tournaments/${tournamentId}/comments`, {
@@ -40,6 +42,37 @@ export function patchComment(
 
 export function deleteComment(token: string, commentId: number) {
   return apiFetch(`/comments/${commentId}`, { method: "DELETE", token });
+}
+
+export function commentImageUrl(commentId: number, updatedAt?: string | null): string {
+  const base = API_BASE.replace(/\/+$/, "");
+  const v = updatedAt ? `?v=${encodeURIComponent(updatedAt)}` : "";
+  return `${base}/comments/${commentId}/image${v}`;
+}
+
+export async function putCommentImage(
+  token: string,
+  commentId: number,
+  blob: Blob,
+  filename = "comment.webp"
+): Promise<Comment> {
+  const fd = new FormData();
+  fd.append("file", blob, filename);
+  const url = `${API_BASE.replace(/\/+$/, "")}/comments/${commentId}/image`;
+  const res = await fetch(url, {
+    method: "PUT",
+    headers: { Authorization: `Bearer ${token}` },
+    body: fd,
+  });
+  if (!res.ok) {
+    const txt = await res.text();
+    throw new Error(`${res.status} ${res.statusText}: ${txt}`);
+  }
+  return (await res.json()) as Comment;
+}
+
+export function deleteCommentImage(token: string, commentId: number) {
+  return apiFetch<{ ok: boolean }>(`/comments/${commentId}/image`, { method: "DELETE", token });
 }
 
 export function setPinnedTournamentComment(token: string, tournamentId: number, commentId: number | null) {

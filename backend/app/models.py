@@ -132,6 +132,17 @@ class Comment(SQLModel, table=True):
     updated_at: dt.datetime = Field(default_factory=dt.datetime.utcnow, index=True)
 
 
+class CommentImage(SQLModel, table=True):
+    """
+    Optional image attachment for a comment.
+    Separate table to keep existing Comment rows/schema intact in create_all()-based deployments.
+    """
+    comment_id: int = Field(foreign_key="comment.id", primary_key=True)
+    content_type: str
+    data: bytes
+    updated_at: dt.datetime = Field(default_factory=dt.datetime.utcnow, index=True)
+
+
 class TournamentPinnedComment(SQLModel, table=True):
     """
     Keep pin state in a dedicated table to avoid altering existing Tournament rows

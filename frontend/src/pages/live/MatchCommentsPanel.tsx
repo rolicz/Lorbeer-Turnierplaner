@@ -5,8 +5,10 @@ import CollapsibleCard from "../../ui/primitives/CollapsibleCard";
 import Button from "../../ui/primitives/Button";
 import Textarea from "../../ui/primitives/Textarea";
 import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
+import { showErrorToast } from "../../ui/primitives/ErrorToast";
+import CommentImageCropper from "../../ui/primitives/CommentImageCropper";
 import type { Player } from "../../api/types";
-import { createTournamentComment, listTournamentComments } from "../../api/comments.api";
+import { commentImageUrl, createTournamentComment, listTournamentComments, putCommentImage } from "../../api/comments.api";
 import { listPlayerAvatarMeta, playerAvatarUrl } from "../../api/playerAvatars.api";
 import { useAuth } from "../../auth/AuthContext";
 import { useSeenSet } from "../../hooks/useSeenComments";
@@ -35,11 +37,15 @@ export default function MatchCommentsPanel({
   playersInMatch: Player[];
 }) {
   const qc = useQueryClient();
-  const { token } = useAuth();
+  const { token, role } = useAuth();
+  const canAttachImage = role === "admin" || role === "editor";
   const seen = useSeenSet(tournamentId);
 
   const [author, setAuthor] = useState<"general" | number>("general");
   const [text, setText] = useState("");
+  const [draftImageBlob, setDraftImageBlob] = useState<Blob | null>(null);
+  const [draftImagePreviewUrl, setDraftImagePreviewUrl] = useState<string | null>(null);
+  const [imageCropOpen, setImageCropOpen] = useState(false);
   const [pendingScrollId, setPendingScrollId] = useState<number | null>(null);
   const [composerOpen, setComposerOpen] = useState(false);
   const [flashId, setFlashId] = useState<number | null>(null);
@@ -65,6 +71,20 @@ export default function MatchCommentsPanel({
     return m;
   }, [avatarMetaQ.data]);
 
+  function setDraftImage(blob: Blob | null) {
+    setDraftImageBlob(blob);
+    setDraftImagePreviewUrl((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return blob ? URL.createObjectURL(blob) : null;
+    });
+  }
+
+  useEffect(() => {
+    return () => {
+      if (draftImagePreviewUrl) URL.revokeObjectURL(draftImagePreviewUrl);
+    };
+  }, [draftImagePreviewUrl]);
+
   const matchComments = useMemo(() => {
     const raw = commentsQ.data?.comments ?? [];
     return raw
@@ -83,16 +103,27 @@ export default function MatchCommentsPanel({
       if (!Number.isFinite(matchId) || matchId <= 0) throw new Error("Missing match id");
       if (!token) throw new Error("Not logged in");
       const author_player_id = author === "general" ? null : author;
-      return createTournamentComment(token, tournamentId, {
+      const created = await createTournamentComment(token, tournamentId, {
         match_id: matchId,
         author_player_id,
         body: text.trim(),
+        has_image: !!draftImageBlob,
       });
+      if (draftImageBlob) {
+        try {
+          await putCommentImage(token, created.id, draftImageBlob, "comment.webp");
+        } catch (e: any) {
+          showErrorToast(String(e?.message ?? e), "Comment image upload failed");
+        }
+      }
+      return created;
     },
     onSuccess: async (created) => {
       setPendingScrollId(created.id);
       setText("");
+      setDraftImage(null);
       setAuthor("general");
+      setImageCropOpen(false);
       setComposerOpen(false);
       await qc.invalidateQueries({ queryKey: ["comments", tournamentId] });
     },
@@ -125,6 +156,7 @@ export default function MatchCommentsPanel({
   }, [pendingScrollId, commentsQ.dataUpdatedAt]);
 
   return (
+    <>
     <div id={`current-match-comments-${matchId}`}>
       <CollapsibleCard
         title="Match comments"
@@ -200,7 +232,20 @@ export default function MatchCommentsPanel({
 	                    <span className="ml-2">edited</span>
                   ) : null}
                 </div>
-                <div className="mt-2 whitespace-pre-wrap text-sm">{c.body}</div>
+                <div className="mt-2 space-y-2">
+                  {c.body ? <div className="whitespace-pre-wrap text-sm">{c.body}</div> : null}
+                  {c.has_image ? (
+                    <div className="panel-subtle p-2">
+                      <img
+                        src={commentImageUrl(c.id, c.image_updated_at ?? null)}
+                        alt=""
+                        className="w-full rounded-lg object-cover aspect-[4/3]"
+                        loading="lazy"
+                        decoding="async"
+                      />
+                    </div>
+                  ) : null}
+                </div>
               </div>
             ))}
           </div>
@@ -218,6 +263,8 @@ export default function MatchCommentsPanel({
                     if (!next) {
                       // Treat "collapse" as cancel.
                       setText("");
+                      setDraftImage(null);
+                      setImageCropOpen(false);
                       setAuthor("general");
                     }
                     return next;
@@ -264,11 +311,47 @@ export default function MatchCommentsPanel({
                   disabled={createMut.isPending}
                 />
 
+                {canAttachImage ? (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="text-xs text-text-muted">Image (4:3, 1920x1440)</div>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          onClick={() => setImageCropOpen(true)}
+                          className="h-9 px-3 inline-flex items-center justify-center gap-2"
+                          title={draftImagePreviewUrl ? "Replace image" : "Attach image"}
+                        >
+                          <i className="fa-solid fa-image md:hidden" aria-hidden="true" />
+                          <span className="hidden md:inline">{draftImagePreviewUrl ? "Replace" : "Attach"}</span>
+                        </Button>
+                        {draftImagePreviewUrl ? (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            onClick={() => setDraftImage(null)}
+                            className="h-9 w-9 p-0 inline-flex items-center justify-center"
+                            title="Remove image"
+                          >
+                            <i className="fa-solid fa-xmark" aria-hidden="true" />
+                          </Button>
+                        ) : null}
+                      </div>
+                    </div>
+                    {draftImagePreviewUrl ? (
+                      <div className="panel-subtle p-2">
+                        <img src={draftImagePreviewUrl} alt="" className="w-full rounded-lg object-cover aspect-[4/3]" />
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
+
                 <div className="flex items-center justify-end">
                   <Button
                     type="button"
                     onClick={() => void createMut.mutateAsync()}
-                    disabled={createMut.isPending || !text.trim() || !idsOk}
+                    disabled={createMut.isPending || (!text.trim() && !draftImageBlob) || !idsOk}
                     title="Post comment"
                     className="h-10 w-10 p-0 inline-flex items-center justify-center md:w-auto md:px-4 md:py-2"
                   >
@@ -283,5 +366,12 @@ export default function MatchCommentsPanel({
       </div>
       </CollapsibleCard>
     </div>
+    <CommentImageCropper
+      open={imageCropOpen}
+      title="Attach comment image"
+      onClose={() => setImageCropOpen(false)}
+      onApply={async (blob) => setDraftImage(blob)}
+    />
+    </>
   );
 }

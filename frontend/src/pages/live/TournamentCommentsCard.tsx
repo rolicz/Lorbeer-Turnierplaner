@@ -5,11 +5,15 @@ import CollapsibleCard from "../../ui/primitives/CollapsibleCard";
 import Button from "../../ui/primitives/Button";
 import Textarea from "../../ui/primitives/Textarea";
 import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
+import { showErrorToast } from "../../ui/primitives/ErrorToast";
+import CommentImageCropper from "../../ui/primitives/CommentImageCropper";
 import type { Club, Match, Player } from "../../api/types";
 import { clubLabelPartsById } from "../../ui/clubControls";
 import { StarsFA } from "../../ui/primitives/StarsFA";
 import {
   createTournamentComment,
+  commentImageUrl,
+  putCommentImage,
   deleteComment as apiDeleteComment,
   listTournamentComments,
   patchComment as apiPatchComment,
@@ -35,6 +39,8 @@ type TournamentComment = {
   scope: CommentScope;
   author: CommentAuthor;
   body: string;
+  hasImage: boolean;
+  imageUpdatedAt: string | null;
 };
 
 function sameScope(a: CommentScope | null | undefined, b: CommentScope) {
@@ -86,6 +92,10 @@ function AddCommentDropdown({
   onChangeDraftAuthor,
   draftBody,
   onChangeDraftBody,
+  canAttachImage = false,
+  imagePreviewUrl = null,
+  onOpenImageCropper,
+  onClearImage,
   onSubmit,
   canSubmit,
   surfaceClassName = "panel-subtle",
@@ -96,6 +106,10 @@ function AddCommentDropdown({
   onChangeDraftAuthor: (v: "general" | number) => void;
   draftBody: string;
   onChangeDraftBody: (v: string) => void;
+  canAttachImage?: boolean;
+  imagePreviewUrl?: string | null;
+  onOpenImageCropper?: () => void;
+  onClearImage?: () => void;
   onSubmit: () => void;
   canSubmit: boolean;
   surfaceClassName?: string;
@@ -127,6 +141,42 @@ function AddCommentDropdown({
         value={draftBody}
         onChange={(e) => onChangeDraftBody(e.target.value)}
       />
+
+      {canAttachImage ? (
+        <div className="space-y-2">
+          <div className="flex items-center justify-between gap-2">
+            <div className="text-xs text-text-muted">Image (4:3, 1920x1440)</div>
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={onOpenImageCropper}
+                className="h-9 px-3 inline-flex items-center justify-center gap-2"
+                title={imagePreviewUrl ? "Replace image" : "Attach image"}
+              >
+                <i className="fa-solid fa-image md:hidden" aria-hidden="true" />
+                <span className="hidden md:inline">{imagePreviewUrl ? "Replace" : "Attach"}</span>
+              </Button>
+              {imagePreviewUrl ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={onClearImage}
+                  className="h-9 w-9 p-0 inline-flex items-center justify-center"
+                  title="Remove image"
+                >
+                  <i className="fa-solid fa-xmark" aria-hidden="true" />
+                </Button>
+              ) : null}
+            </div>
+          </div>
+          {imagePreviewUrl ? (
+            <div className="panel-subtle p-2">
+              <img src={imagePreviewUrl} alt="" className="w-full rounded-lg object-cover aspect-[4/3]" />
+            </div>
+          ) : null}
+        </div>
+      ) : null}
 
       <div className="flex items-center justify-end gap-2">
         <Button
@@ -338,7 +388,20 @@ function CommentCard({
           </div>
         </div>
       ) : (
-        <div className="mt-2 whitespace-pre-wrap text-sm">{c.body}</div>
+        <div className="mt-2 space-y-2">
+          {c.body ? <div className="whitespace-pre-wrap text-sm">{c.body}</div> : null}
+          {c.hasImage ? (
+            <div className="panel-subtle p-2">
+              <img
+                src={commentImageUrl(c.id, c.imageUpdatedAt)}
+                alt=""
+                className="w-full rounded-lg object-cover aspect-[4/3]"
+                loading="lazy"
+                decoding="async"
+              />
+            </div>
+          ) : null}
+        </div>
       )}
     </div>
   );
@@ -360,7 +423,8 @@ export default function TournamentCommentsCard({
   canDelete: boolean;
 }) {
   const qc = useQueryClient();
-  const { token } = useAuth();
+  const { token, role } = useAuth();
+  const canAttachImage = role === "admin" || role === "editor";
   const seen = useSeenSet(tournamentId);
 
   const avatarMetaQ = useQuery({ queryKey: ["players", "avatars"], queryFn: listPlayerAvatarMeta });
@@ -388,6 +452,9 @@ export default function TournamentCommentsCard({
   // --- create/edit form state ---
   const [draftAuthor, setDraftAuthor] = useState<"general" | number>("general");
   const [draftBody, setDraftBody] = useState("");
+  const [draftImageBlob, setDraftImageBlob] = useState<Blob | null>(null);
+  const [draftImagePreviewUrl, setDraftImagePreviewUrl] = useState<string | null>(null);
+  const [imageCropOpen, setImageCropOpen] = useState(false);
 
   const [editingId, setEditingId] = useState<number | null>(null);
   const [addTarget, setAddTarget] = useState<CommentScope | null>(null);
@@ -411,6 +478,8 @@ export default function TournamentCommentsCard({
       scope: c.match_id == null ? { kind: "tournament" } : { kind: "match", matchId: c.match_id },
       author: c.author_player_id == null ? { kind: "general" } : { kind: "player", playerId: c.author_player_id },
       body: c.body ?? "",
+      hasImage: !!c.has_image,
+      imageUpdatedAt: c.image_updated_at ?? null,
     }));
   }, [commentsQ.data]);
 
@@ -432,11 +501,23 @@ export default function TournamentCommentsCard({
     // Reset UI state when switching tournaments.
     setDraftAuthor("general");
     setDraftBody("");
+    setDraftImageBlob(null);
+    setDraftImagePreviewUrl((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return null;
+    });
+    setImageCropOpen(false);
     setEditingId(null);
     setAddTarget(null);
     setPendingFocusId(null);
     setFlashId(null);
   }, [tournamentId]);
+
+  useEffect(() => {
+    return () => {
+      if (draftImagePreviewUrl) URL.revokeObjectURL(draftImagePreviewUrl);
+    };
+  }, [draftImagePreviewUrl]);
 
   useEffect(() => {
     if (!pendingFocusId) return;
@@ -517,6 +598,12 @@ export default function TournamentCommentsCard({
   function resetDraft() {
     setDraftAuthor("general");
     setDraftBody("");
+    setDraftImageBlob(null);
+    setDraftImagePreviewUrl((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return null;
+    });
+    setImageCropOpen(false);
     setEditingId(null);
     setAddTarget(null);
   }
@@ -525,6 +612,12 @@ export default function TournamentCommentsCard({
     setEditingId(c.id);
     setDraftAuthor(c.author.kind === "player" ? c.author.playerId : "general");
     setDraftBody(c.body);
+    setDraftImageBlob(null);
+    setDraftImagePreviewUrl((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return null;
+    });
+    setImageCropOpen(false);
     setAddTarget(null);
   }
 
@@ -537,12 +630,13 @@ export default function TournamentCommentsCard({
   }
 
   const createMut = useMutation({
-    mutationFn: async (payload: { scope: CommentScope; author_player_id: number | null; body: string }) => {
+    mutationFn: async (payload: { scope: CommentScope; author_player_id: number | null; body: string; has_image: boolean }) => {
       if (!token) throw new Error("Not logged in");
       return createTournamentComment(token, tournamentId, {
         match_id: payload.scope.kind === "match" ? payload.scope.matchId : null,
         author_player_id: payload.author_player_id,
         body: payload.body,
+        has_image: payload.has_image,
       });
     },
     onSuccess: async () => {
@@ -598,7 +692,12 @@ export default function TournamentCommentsCard({
 
   async function upsertComment(scope: CommentScope) {
     const body = draftBody.trim();
-    if (!body) return;
+    const hasImage = !!draftImageBlob;
+    if (editingId != null) {
+      if (!body && !(editingOriginal?.hasImage ?? false)) return;
+    } else if (!body && !hasImage) {
+      return;
+    }
 
     const author_player_id = draftAuthor === "general" ? null : draftAuthor;
 
@@ -608,7 +707,14 @@ export default function TournamentCommentsCard({
         await patchMut.mutateAsync({ commentId: editingId, author_player_id, body });
         setPendingFocusId(editingId);
       } else {
-        const created = await createMut.mutateAsync({ scope, author_player_id, body });
+        const created = await createMut.mutateAsync({ scope, author_player_id, body, has_image: hasImage });
+        if (hasImage && token) {
+          try {
+            await putCommentImage(token, created.id, draftImageBlob!, "comment.webp");
+          } catch (e: any) {
+            showErrorToast(String(e?.message ?? e), "Comment image upload failed");
+          }
+        }
         setPendingFocusId(created.id);
       }
       resetDraft();
@@ -697,12 +803,17 @@ export default function TournamentCommentsCard({
     };
   }
 
-  const canSubmit = !!draftBody.trim();
+  const canSubmit = !!draftBody.trim() || !!draftImageBlob;
 
   function startAdd(scope: CommentScope) {
     setEditingId(null);
     setDraftAuthor("general");
     setDraftBody("");
+    setDraftImageBlob(null);
+    setDraftImagePreviewUrl((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return null;
+    });
     setAddTarget((cur) => {
       const same =
         cur?.kind === scope.kind && (scope.kind === "tournament" || (cur as any).matchId === (scope as any).matchId);
@@ -710,7 +821,16 @@ export default function TournamentCommentsCard({
     });
   }
 
+  function setDraftImage(blob: Blob | null) {
+    setDraftImageBlob(blob);
+    setDraftImagePreviewUrl((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return blob ? URL.createObjectURL(blob) : null;
+    });
+  }
+
   return (
+    <>
     <CollapsibleCard title="Comments" defaultOpen={true} variant="outer" bodyVariant="none" bodyClassName="space-y-3">
         <ErrorToastOnError error={commentsQ.error} title="Comments loading failed" />
         <ErrorToastOnError error={actionError} title="Comment action failed" />
@@ -743,6 +863,10 @@ export default function TournamentCommentsCard({
                 onChangeDraftAuthor={setDraftAuthor}
                 draftBody={draftBody}
                 onChangeDraftBody={setDraftBody}
+                canAttachImage={canAttachImage}
+                imagePreviewUrl={draftImagePreviewUrl}
+                onOpenImageCropper={() => setImageCropOpen(true)}
+                onClearImage={() => setDraftImage(null)}
                 onSubmit={() => upsertComment({ kind: "tournament" })}
                 canSubmit={canSubmit}
                 surfaceClassName="panel"
@@ -884,6 +1008,10 @@ export default function TournamentCommentsCard({
                     onChangeDraftAuthor={setDraftAuthor}
                     draftBody={draftBody}
                     onChangeDraftBody={setDraftBody}
+                    canAttachImage={canAttachImage}
+                    imagePreviewUrl={draftImagePreviewUrl}
+                    onOpenImageCropper={() => setImageCropOpen(true)}
+                    onClearImage={() => setDraftImage(null)}
                     onSubmit={() => upsertComment({ kind: "match", matchId: b.matchId })}
                     canSubmit={canSubmit}
                     surfaceClassName="panel-subtle"
@@ -930,5 +1058,12 @@ export default function TournamentCommentsCard({
           })}
         </div>
     </CollapsibleCard>
+    <CommentImageCropper
+      open={imageCropOpen}
+      title="Attach comment image"
+      onClose={() => setImageCropOpen(false)}
+      onApply={async (blob) => setDraftImage(blob)}
+    />
+    </>
   );
 }

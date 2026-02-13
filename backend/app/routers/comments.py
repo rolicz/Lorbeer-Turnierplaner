@@ -3,13 +3,14 @@ from __future__ import annotations
 import logging
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFile
 from sqlmodel import Session, select
 
 from ..auth import require_admin, require_editor
 from ..db import get_session
 from ..models import (
     Comment,
+    CommentImage,
     Match,
     Player,
     Tournament,
@@ -21,6 +22,7 @@ from ..ws import ws_manager
 
 log = logging.getLogger(__name__)
 router = APIRouter(tags=["comments"])
+MAX_COMMENT_IMAGE_BYTES = 8_000_000  # enough for cropped 1920x1440 webp/png
 
 
 def _tournament_or_404(s: Session, tournament_id: int) -> Tournament:
@@ -37,7 +39,16 @@ def _comment_or_404(s: Session, comment_id: int) -> Comment:
     return c
 
 
-def _comment_dict(c: Comment) -> dict:
+def _comment_image_meta_map(s: Session, tournament_id: int) -> dict[int, datetime]:
+    rows = s.exec(
+        select(CommentImage.comment_id, CommentImage.updated_at)
+        .join(Comment, Comment.id == CommentImage.comment_id)
+        .where(Comment.tournament_id == tournament_id)
+    ).all()
+    return {int(comment_id): updated_at for (comment_id, updated_at) in rows}
+
+
+def _comment_dict(c: Comment, image_updated_at: datetime | None = None) -> dict:
     return {
         "id": c.id,
         "tournament_id": c.tournament_id,
@@ -46,6 +57,8 @@ def _comment_dict(c: Comment) -> dict:
         "body": c.body,
         "created_at": c.created_at,
         "updated_at": c.updated_at,
+        "has_image": image_updated_at is not None,
+        "image_updated_at": image_updated_at,
     }
 
 
@@ -98,8 +111,12 @@ def list_comments(tournament_id: int, s: Session = Depends(get_session)) -> dict
         .where(Comment.tournament_id == tournament_id)
         .order_by(Comment.created_at, Comment.id)
     ).all()
+    image_meta = _comment_image_meta_map(s, tournament_id)
 
-    return {"pinned_comment_id": pinned_comment_id, "comments": [_comment_dict(c) for c in comments]}
+    return {
+        "pinned_comment_id": pinned_comment_id,
+        "comments": [_comment_dict(c, image_meta.get(int(c.id))) for c in comments],
+    }
 
 
 @router.get("/comments/tournaments-summary")
@@ -107,7 +124,7 @@ def comments_summary(s: Session = Depends(get_session)) -> list[dict]:
     return tournament_comments_summary(s)
 
 
-@router.post("/tournaments/{tournament_id}/comments", dependencies=[Depends(require_editor)])
+@router.post("/tournaments/{tournament_id}/comments")
 async def create_comment(
     tournament_id: int,
     body: dict,
@@ -116,8 +133,9 @@ async def create_comment(
     _tournament_or_404(s, tournament_id)
 
     text = str(body.get("body", "")).strip()
-    if not text:
-        raise HTTPException(status_code=400, detail="body is required")
+    has_image_hint = bool(body.get("has_image", False))
+    if not text and not has_image_hint:
+        raise HTTPException(status_code=400, detail="body is required (or attach an image)")
 
     match_id_raw = body.get("match_id", None)
     match_id = None if match_id_raw in (None, "") else int(match_id_raw)
@@ -147,7 +165,7 @@ async def create_comment(
         {"tournament_id": tournament_id, "comment_id": c.id, "action": "created"},
     )
 
-    return _comment_dict(c)
+    return _comment_dict(c, None)
 
 
 @router.patch("/comments/{comment_id}", dependencies=[Depends(require_editor)])
@@ -157,10 +175,11 @@ async def patch_comment(
     s: Session = Depends(get_session),
 ) -> dict:
     c = _comment_or_404(s, comment_id)
+    image_row = s.get(CommentImage, comment_id)
 
     if "body" in body:
         text = str(body.get("body", "")).strip()
-        if not text:
+        if not text and image_row is None:
             raise HTTPException(status_code=400, detail="body cannot be empty")
         c.body = text
 
@@ -181,7 +200,8 @@ async def patch_comment(
         {"tournament_id": c.tournament_id, "comment_id": c.id, "action": "updated"},
     )
 
-    return _comment_dict(c)
+    image_updated_at = image_row.updated_at if image_row is not None else None
+    return _comment_dict(c, image_updated_at)
 
 
 @router.delete("/comments/{comment_id}", dependencies=[Depends(require_admin)])
@@ -195,6 +215,10 @@ async def delete_comment(
     if pin and pin.comment_id == c.id:
         s.delete(pin)
 
+    image_row = s.get(CommentImage, comment_id)
+    if image_row:
+        s.delete(image_row)
+
     s.delete(c)
     s.commit()
 
@@ -204,6 +228,80 @@ async def delete_comment(
         {"tournament_id": c.tournament_id, "comment_id": c.id, "action": "deleted"},
     )
 
+    return {"ok": True}
+
+
+@router.get("/comments/{comment_id}/image")
+def get_comment_image(comment_id: int, s: Session = Depends(get_session)):
+    c = _comment_or_404(s, comment_id)
+    img = s.get(CommentImage, comment_id)
+    if not img:
+        raise HTTPException(status_code=404, detail="Comment image not found")
+
+    headers = {"Cache-Control": "public, max-age=604800"}
+    return Response(content=img.data, media_type=img.content_type, headers=headers)
+
+
+@router.put("/comments/{comment_id}/image", dependencies=[Depends(require_editor)])
+async def put_comment_image(
+    comment_id: int,
+    file: UploadFile = File(...),
+    s: Session = Depends(get_session),
+) -> dict:
+    c = _comment_or_404(s, comment_id)
+    ct = (file.content_type or "").strip().lower()
+    if not ct.startswith("image/"):
+        raise HTTPException(status_code=400, detail="Invalid file type")
+
+    data = await file.read()
+    if not data:
+        raise HTTPException(status_code=400, detail="Empty file")
+    if len(data) > MAX_COMMENT_IMAGE_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail=f"Comment image too large (max {MAX_COMMENT_IMAGE_BYTES} bytes)",
+        )
+
+    now = datetime.utcnow()
+    img = s.get(CommentImage, comment_id)
+    if img is None:
+        img = CommentImage(comment_id=comment_id, content_type=ct, data=data, updated_at=now)
+    else:
+        img.content_type = ct
+        img.data = data
+        img.updated_at = now
+    s.add(img)
+
+    c.updated_at = now
+    s.add(c)
+    s.commit()
+    s.refresh(c)
+
+    await ws_manager.broadcast(
+        c.tournament_id,
+        "comments_updated",
+        {"tournament_id": c.tournament_id, "comment_id": c.id, "action": "image_updated"},
+    )
+    return _comment_dict(c, img.updated_at)
+
+
+@router.delete("/comments/{comment_id}/image", dependencies=[Depends(require_editor)])
+async def delete_comment_image(comment_id: int, s: Session = Depends(get_session)) -> dict:
+    c = _comment_or_404(s, comment_id)
+    img = s.get(CommentImage, comment_id)
+    if img is None:
+        return {"ok": True}
+
+    s.delete(img)
+    c.updated_at = datetime.utcnow()
+    s.add(c)
+    s.commit()
+
+    await ws_manager.broadcast(
+        c.tournament_id,
+        "comments_updated",
+        {"tournament_id": c.tournament_id, "comment_id": c.id, "action": "image_deleted"},
+    )
     return {"ok": True}
 
 

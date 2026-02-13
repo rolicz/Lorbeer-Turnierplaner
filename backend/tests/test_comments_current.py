@@ -126,3 +126,60 @@ def test_match_comment_requires_match_in_tournament(client, editor_headers, admi
         headers=editor_headers,
     )
     assert r.status_code == 400, r.text
+
+
+def test_comment_image_editor_or_admin_and_image_only_comment_allowed(client, editor_headers, admin_headers):
+    p1 = client.post("/players", json={"display_name": "I1"}, headers=admin_headers).json()["id"]
+    p2 = client.post("/players", json={"display_name": "I2"}, headers=admin_headers).json()["id"]
+
+    tid = client.post(
+        "/tournaments",
+        json={"name": "comments-image", "mode": "1v1", "player_ids": [p1, p2]},
+        headers=editor_headers,
+    ).json()["id"]
+
+    # Empty comment without image hint is rejected.
+    r0 = client.post(
+        f"/tournaments/{tid}/comments",
+        json={"body": ""},
+        headers=editor_headers,
+    )
+    assert r0.status_code == 400, r0.text
+
+    # Image-only comment placeholder is also allowed for editor.
+    r1 = client.post(
+        f"/tournaments/{tid}/comments",
+        json={"body": "", "has_image": True},
+        headers=editor_headers,
+    )
+    assert r1.status_code == 200, r1.text
+    cid = r1.json()["id"]
+    assert r1.json()["has_image"] is False
+
+    # Upload image: editor allowed.
+    files = {"file": ("comment.webp", b"fakewebpdata", "image/webp")}
+    r2 = client.put(f"/comments/{cid}/image", files=files, headers=editor_headers)
+    assert r2.status_code == 200, r2.text
+    assert r2.json()["has_image"] is True
+    assert r2.json()["image_updated_at"] is not None
+
+    rl = client.get(f"/tournaments/{tid}/comments")
+    assert rl.status_code == 200, rl.text
+    rows = rl.json()["comments"]
+    row = next((x for x in rows if x["id"] == cid), None)
+    assert row is not None
+    assert row["has_image"] is True
+
+    rg = client.get(f"/comments/{cid}/image")
+    assert rg.status_code == 200, rg.text
+    assert rg.content == b"fakewebpdata"
+
+    # Empty body edit is valid while image exists.
+    r4 = client.patch(f"/comments/{cid}", json={"body": ""}, headers=editor_headers)
+    assert r4.status_code == 200, r4.text
+
+    # Delete image (editor can do this too), then empty body should be invalid again.
+    r5 = client.delete(f"/comments/{cid}/image", headers=editor_headers)
+    assert r5.status_code == 200, r5.text
+    r6 = client.patch(f"/comments/{cid}", json={"body": ""}, headers=editor_headers)
+    assert r6.status_code == 400, r6.text

@@ -68,6 +68,8 @@ export type Comment = {
   match_id: number | null;
   author_player_id: number | null;
   body: string;
+  has_image?: boolean;
+  image_updated_at?: string | null;
   created_at: string;
   updated_at: string;
 };
