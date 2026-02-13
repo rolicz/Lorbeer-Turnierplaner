@@ -1,0 +1,52 @@
+:root[data-theme="red"] {
+  color-scheme: dark;
+
+  /* Backgrounds (dark baseline with a subtle red tint) */
+  --color-bg-default: 15 10 12;
+  --color-bg-card-outer: 8 5 7;
+  --color-bg-card-inner: 24 15 18;
+  --color-bg-card-chip: 42 26 31;
+
+  /* Text */
+  --color-text-normal: 250 250 250;
+  --color-text-chip: 244 244 245;
+  --color-text-muted: 207 192 197;
+
+  /* Borders */
+  --color-border-card-outer: 83 53 62;
+  --color-border-card-inner: 63 39 47;
+  --color-border-card-chip: 98 63 73;
+
+  /* Table */
+  --color-table-row-a: 20 13 16;
+  --color-table-row-b: 26 16 20;
+
+  /* Button */
+  --color-btn-bg: 225 56 74;
+  --color-btn-text: 255 255 255;
+
+  /* Accent */
+  --color-accent: 225 56 74;
+  --color-accent-text: 255 255 255;
+
+  /* Hover */
+  --color-hover-btn-bg: 244 63 94;
+  --color-hover-nav: 53 32 39;
+  --color-hover-default: 53 32 39;
+
+  /* Pills & statuses */
+  --color-status-bg-default: 64 39 47;
+  --color-status-text-default: 235 222 226;
+  --color-status-border-default: 98 63 73;
+  /* green/blue status tokens are inherited from themes/defaults.css */
+
+  --color-status-bar-default: 98 63 73;
+
+  /* Gradients */
+  --color-gradient-gold-from: 251 191 36;
+  --color-gradient-gold-to: 253 230 138;
+  --color-gradient-silver-from: 161 161 170;
+  --color-gradient-silver-to: 228 228 231;
+  --color-gradient-bronze-from: 181 120 85;
+  --color-gradient-bronze-to: 252 211 77;
+}
