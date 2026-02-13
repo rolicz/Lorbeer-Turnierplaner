@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import Card from "../ui/primitives/Card";
@@ -9,7 +9,7 @@ import { Meta } from "../ui/primitives/Meta";
 import { Pill, statusPill, pillDate } from "../ui/primitives/Pill";
 import { tournamentPalette, tournamentStatusUI } from "../ui/theme";
 import { cn } from "../ui/cn";
-import { listTournaments, createTournament, generateSchedule } from "../api/tournaments.api";
+import { listTournaments, createTournament } from "../api/tournaments.api";
 import { listPlayers } from "../api/players.api";
 import { useAuth } from "../auth/AuthContext";
 import { fmtDate } from "../utils/format";
@@ -20,6 +20,11 @@ import { useSeenIdsByTournamentId } from "../hooks/useSeenComments";
 import { useAnyTournamentWS } from "../hooks/useTournamentWS";
 
 type Status = "draft" | "live" | "done";
+
+function errText(err: unknown): string {
+  if (err instanceof Error) return err.message;
+  return String(err ?? "Unknown error");
+}
 
 
 // Best-effort winner label (depends on what your /tournaments list returns)
@@ -44,6 +49,7 @@ export default function TournamentsPage() {
 
   useAnyTournamentWS();
   const [createOpen, setCreateOpen] = useState(false);
+  const [createToast, setCreateToast] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [mode, setMode] = useState<"1v1" | "2v2">("1v1");
   const [selected, setSelected] = useState<Record<number, boolean>>({});
@@ -109,8 +115,13 @@ export default function TournamentsPage() {
       if (!token) throw new Error("No token");
       if (!name.trim()) throw new Error("Name missing");
       if (selectedIds.length < 3) throw new Error("Select at least 3 players");
-      const created = await createTournament(token, { name: name.trim(), mode, player_ids: selectedIds });
-      await generateSchedule(token, created.id, true);
+      const created = await createTournament(token, {
+        name: name.trim(),
+        mode,
+        player_ids: selectedIds,
+        auto_generate: true,
+        randomize: true,
+      });
       return created.id;
     },
     onSuccess: async () => {
@@ -119,10 +130,40 @@ export default function TournamentsPage() {
       setSelected({});
       await qc.invalidateQueries({ queryKey: ["tournaments"] });
     },
+    onError: (err: unknown) => {
+      setCreateToast(errText(err));
+    },
   });
+
+  useEffect(() => {
+    if (!createToast) return;
+    const t = window.setTimeout(() => setCreateToast(null), 3800);
+    return () => window.clearTimeout(t);
+  }, [createToast]);
 
   return (
     <div className="page">
+      {createToast ? (
+        <div className="fixed bottom-4 right-4 z-50 max-w-[min(92vw,380px)]">
+          <div className="card-outer p-2 shadow-xl">
+            <div className="card-inner-flat flex items-start gap-2 py-2">
+              <i className="fa-solid fa-circle-exclamation mt-0.5 text-[color:rgb(var(--delta-down)/1)]" aria-hidden="true" />
+              <div className="min-w-0 flex-1">
+                <div className="text-xs font-semibold text-text-normal">Could not create tournament</div>
+                <div className="mt-0.5 break-anywhere text-xs text-text-muted">{createToast}</div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setCreateToast(null)}
+                className="icon-button inline-flex h-7 w-7 items-center justify-center"
+                title="Dismiss"
+              >
+                <i className="fa-solid fa-xmark text-[11px]" aria-hidden="true" />
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
       <Card variant="outer" showHeader={false}>
         <SectionHeader
           left={<Meta size="sm">Active + past tournaments.</Meta>}
@@ -228,8 +269,6 @@ export default function TournamentsPage() {
               </div>
               <div className="text-xs text-text-muted">Selected: {selectedIds.length}</div>
             </div>
-
-            {createMut.error && <div className="text-sm text-red-400">{String(createMut.error)}</div>}
 
             <div className="flex items-center justify-end gap-2">
               <Button onClick={() => createMut.mutate()} disabled={createMut.isPending} type="button">

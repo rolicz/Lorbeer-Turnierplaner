@@ -7,7 +7,13 @@ export function listTournaments(): Promise<TournamentSummary[]> {
 
 export function createTournament(
   token: string,
-  body: { name: string; mode: "1v1" | "2v2"; player_ids: number[] }
+  body: {
+    name: string;
+    mode: "1v1" | "2v2";
+    player_ids: number[];
+    auto_generate?: boolean;
+    randomize?: boolean;
+  }
 ) {
   return apiFetch<{ id: number } & TournamentSummary>("/tournaments", {
     method: "POST",
