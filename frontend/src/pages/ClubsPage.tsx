@@ -5,6 +5,7 @@ import Card from "../ui/primitives/Card";
 import Input from "../ui/primitives/Input";
 import Button from "../ui/primitives/Button";
 import CollapsibleCard from "../ui/primitives/CollapsibleCard";
+import { ErrorToastOnError } from "../ui/primitives/ErrorToast";
 
 import { useAuth } from "../auth/AuthContext";
 import { createClub, deleteClub, listClubs, listLeagues, patchClub } from "../api/clubs.api";
@@ -222,6 +223,10 @@ export default function ClubsPage() {
 
   return (
     <div className="page">
+      <ErrorToastOnError error={createMut.error} title="Could not create club" />
+      <ErrorToastOnError error={clubsQ.error} title="Clubs loading failed" />
+      <ErrorToastOnError error={patchMut.error} title="Could not update club" />
+      <ErrorToastOnError error={deleteMut.error} title="Could not delete club" />
       <Card
         title="Clubs"
         variant="outer"
@@ -276,8 +281,6 @@ export default function ClubsPage() {
               </select>
             </label>
           </div>
-
-          {createMut.error ? <div className="text-sm text-red-400">{String(createMut.error)}</div> : null}
 
           <div className="flex flex-wrap gap-2 pt-1">
             <Button
@@ -375,7 +378,6 @@ export default function ClubsPage() {
       >
         <div className="card-inner space-y-2">
           {clubsQ.isLoading ? <div className="text-text-muted">Loading…</div> : null}
-          {clubsQ.error ? <div className="text-red-400 text-sm">{String(clubsQ.error)}</div> : null}
 
           {!clubsQ.isLoading && grouped.length === 0 ? (
             <div className="panel-subtle px-3 py-2 text-sm text-text-muted">No clubs match the current filters.</div>
@@ -495,9 +497,6 @@ export default function ClubsPage() {
                                   </select>
                                 </label>
                               </div>
-
-                              {patchMut.error ? <div className="mt-2 text-sm text-red-400">{String(patchMut.error)}</div> : null}
-                              {deleteMut.error ? <div className="mt-2 text-sm text-red-400">{String(deleteMut.error)}</div> : null}
 
                               <div className="mt-2 flex items-center gap-2">
                                 <Button onClick={() => patchMut.mutate()} disabled={patchMut.isPending}>

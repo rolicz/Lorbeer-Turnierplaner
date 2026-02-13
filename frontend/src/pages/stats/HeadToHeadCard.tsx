@@ -2,6 +2,7 @@ import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import CollapsibleCard from "../../ui/primitives/CollapsibleCard";
+import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
 
 import { listPlayers } from "../../api/players.api";
 import { getStatsH2H } from "../../api/stats.api";
@@ -498,6 +499,7 @@ export default function HeadToHeadCard() {
       bodyVariant="none"
       bodyClassName="space-y-3"
     >
+      <ErrorToastOnError error={h2hQ.error} title="H2H loading failed" />
       <div className="card-inner-flat rounded-2xl space-y-2">
         <div className="flex flex-wrap items-center gap-2">
           <div className="flex min-w-0 flex-wrap items-center gap-2">
@@ -553,7 +555,6 @@ export default function HeadToHeadCard() {
       </div>
 
         {h2hQ.isLoading ? <div className="card-inner-flat rounded-2xl text-sm text-text-muted">Loading…</div> : null}
-        {h2hQ.error ? <div className="card-inner-flat rounded-2xl text-sm text-red-400">{String(h2hQ.error)}</div> : null}
 
         {h2hQ.data ? (
           <div className="space-y-3" style={{ overflowAnchor: "none" }}>

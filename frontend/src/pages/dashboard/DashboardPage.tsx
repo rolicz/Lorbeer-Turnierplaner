@@ -4,6 +4,7 @@ import CupCard from "./CupCard";
 import CurrentMatchPreviewCard from "./CurrentMatchPreviewCard";
 import TrendsPreviewCard from "./TrendsPreviewCard";
 import CollapsibleCard from "../../ui/primitives/CollapsibleCard";
+import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
 import { listCupDefs } from "../../api/cup.api";
 import { useAnyTournamentWS } from "../../hooks/useTournamentWS";
 import { cupColorVarForKey, rgbFromCssVar } from "../../cupColors";
@@ -27,11 +28,10 @@ export default function DashboardPage() {
 
   return (
     <div className="page">
+      <ErrorToastOnError error={defsQ.error} title="Dashboard loading failed" />
       <div className="grid gap-3 lg:grid-cols-2">
         <CurrentMatchPreviewCard />
         <TrendsPreviewCard />
-
-        {defsQ.error ? <div className="text-sm text-red-400">{String(defsQ.error)}</div> : null}
 
         {cups.map((c) => (
           <CollapsibleCard

@@ -6,6 +6,7 @@ import Card from "../../ui/primitives/Card";
 import Button from "../../ui/primitives/Button";
 import CollapsibleCard from "../../ui/primitives/CollapsibleCard";
 import { Pill, pillDate, statusPill } from "../../ui/primitives/Pill";
+import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
 
 import {
   getTournament,
@@ -455,8 +456,8 @@ export default function LiveTournamentPage() {
         }
         bodyClassName="space-y-3"
       >
+        <ErrorToastOnError error={tQ.error} title="Tournament loading failed" />
         {tQ.isLoading ? <div className="text-text-muted">Loading…</div> : null}
-        {tQ.error ? <div className="text-red-400 text-sm">{String(tQ.error)}</div> : null}
 
         {tQ.data ? (
           <div className="grid grid-cols-[1fr_auto] items-start gap-2">

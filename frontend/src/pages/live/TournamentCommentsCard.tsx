@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import CollapsibleCard from "../../ui/primitives/CollapsibleCard";
 import Button from "../../ui/primitives/Button";
 import Textarea from "../../ui/primitives/Textarea";
+import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
 import type { Club, Match, Player } from "../../api/types";
 import { clubLabelPartsById } from "../../ui/clubControls";
 import { StarsFA } from "../../ui/primitives/StarsFA";
@@ -711,14 +712,10 @@ export default function TournamentCommentsCard({
 
   return (
     <CollapsibleCard title="Comments" defaultOpen={true} variant="outer" bodyVariant="none" bodyClassName="space-y-3">
+        <ErrorToastOnError error={commentsQ.error} title="Comments loading failed" />
+        <ErrorToastOnError error={actionError} title="Comment action failed" />
         {commentsQ.isLoading ? (
           <div className="panel-subtle px-3 py-2 text-sm text-text-muted">Loading comments…</div>
-        ) : null}
-        {commentsQ.error ? (
-          <div className="panel-subtle px-3 py-2 text-sm text-red-400">{String(commentsQ.error)}</div>
-        ) : null}
-        {actionError ? (
-          <div className="panel-subtle px-3 py-2 text-sm text-red-400">{String(actionError)}</div>
         ) : null}
 
         <div className="space-y-2">

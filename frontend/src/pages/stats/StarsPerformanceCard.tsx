@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import CollapsibleCard from "../../ui/primitives/CollapsibleCard";
+import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
 import { listPlayers } from "../../api/players.api";
 import { listClubs } from "../../api/clubs.api";
 import { getStatsPlayerMatches } from "../../api/stats.api";
@@ -349,6 +350,8 @@ export default function StarsPerformanceCard() {
       bodyClassName="space-y-3"
       className="lg:col-start-2"
     >
+      <ErrorToastOnError error={matchesQ.error} title="Stars performance loading failed" />
+      <ErrorToastOnError error={clubsQ.error} title="Club data loading failed" />
       <div className="card-inner-flat rounded-2xl space-y-2">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="inline-flex h-9 items-center gap-2 rounded-xl px-2 text-[11px] font-medium text-text-muted">
@@ -380,8 +383,6 @@ export default function StarsPerformanceCard() {
           <div className="card-inner-flat rounded-2xl text-sm text-text-muted">Pick a player to see PPM by club stars.</div>
         ) : null}
         {matchesQ.isLoading ? <div className="card-inner-flat rounded-2xl text-sm text-text-muted">Loading…</div> : null}
-        {matchesQ.error ? <div className="card-inner-flat rounded-2xl text-sm text-red-400">{String(matchesQ.error)}</div> : null}
-        {clubsQ.error ? <div className="card-inner-flat rounded-2xl text-sm text-red-400">{String(clubsQ.error)}</div> : null}
 
         {selected && rows.length ? (
           <div className="space-y-2">

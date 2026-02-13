@@ -4,6 +4,7 @@ import type { CSSProperties } from "react";
 import { useQueries, useQuery } from "@tanstack/react-query";
 
 import CollapsibleCard from "../../ui/primitives/CollapsibleCard";
+import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
 import { MetaRow } from "../../ui/primitives/Meta";
 
 import { listPlayers } from "../../api/players.api";
@@ -683,6 +684,8 @@ export default function PlayersStatsCard() {
       </CollapsibleCard>
 
       <div className="panel-subtle rounded-2xl overflow-hidden">
+        <ErrorToastOnError error={playersQ.error} title="Players loading failed" />
+        <ErrorToastOnError error={statsQ.error} title="Stats loading failed" />
         <div className="grid grid-cols-12 items-center gap-2 border-b border-border-card-inner bg-bg-card-chip/20 px-3 py-2 text-[11px] text-text-muted">
           <div className="col-span-7 inline-flex items-center gap-2">Player</div>
           <div className="col-span-5 text-right inline-flex items-center justify-end gap-2">
@@ -692,8 +695,6 @@ export default function PlayersStatsCard() {
 
         {playersQ.isLoading && <div className="px-3 py-3 text-text-muted">Loading players…</div>}
         {statsQ.isLoading && <div className="px-3 py-3 text-text-muted">Loading stats…</div>}
-        {playersQ.error && <div className="px-3 py-3 text-red-400 text-sm">{String(playersQ.error)}</div>}
-        {statsQ.error && <div className="px-3 py-3 text-red-400 text-sm">{String(statsQ.error)}</div>}
 
         {rows.map(({ p, s, rank }, idx) => {
 	          const metric =

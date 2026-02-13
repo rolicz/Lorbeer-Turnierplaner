@@ -6,6 +6,7 @@ import { patchClub } from "../api/clubs.api";
 import { useAuth } from "../auth/AuthContext";
 import { cn } from "./cn";
 import { STAR_OPTIONS, starsLabel, toHalfStep } from "./clubControls";
+import { ErrorToastOnError } from "./primitives/ErrorToast";
 
 export default function ClubStarsEditor({
   clubId,
@@ -63,6 +64,7 @@ export default function ClubStarsEditor({
     const txt = effectiveValue == null ? "★" : `${starsLabel(effectiveValue)}★`;
     return (
       <div className={cn("inline-block", className)}>
+        <ErrorToastOnError error={err} title="Could not update club stars" />
         <div className="relative inline-flex">
           <div
             className={cn(
@@ -100,14 +102,13 @@ export default function ClubStarsEditor({
             ))}
           </select>
         </div>
-
-        {err && <div className="mt-1 text-[11px] text-red-400">{err}</div>}
       </div>
     );
   }
 
   return (
     <label className={cn("block", className)}>
+      <ErrorToastOnError error={err} title="Could not update club stars" />
       <div className="input-label">{label}</div>
       <select
         className="select-field"
@@ -131,7 +132,6 @@ export default function ClubStarsEditor({
           </option>
         ))}
       </select>
-      {err && <div className="mt-1 text-[11px] text-red-400">{err}</div>}
     </label>
   );
 }

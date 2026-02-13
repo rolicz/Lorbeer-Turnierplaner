@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import Card from "../ui/primitives/Card";
 import Input from "../ui/primitives/Input";
 import Button from "../ui/primitives/Button";
+import { ErrorToastOnError } from "../ui/primitives/ErrorToast";
 import { login } from "../api/auth.api";
 import { useAuth } from "../auth/AuthContext";
 
@@ -30,6 +31,7 @@ export default function LoginPage() {
 
   return (
     <Card title="Login (write access)" variant="outer">
+      <ErrorToastOnError error={err} title="Login failed" />
       <form onSubmit={onSubmit} className="space-y-3">
         <Input
           label="Password"
@@ -38,7 +40,6 @@ export default function LoginPage() {
           onChange={(e) => setPw(e.target.value)}
           placeholder="editor/admin password"
         />
-        {err && <div className="text-sm text-red-400">{err}</div>}
         <Button disabled={busy || !pw.trim()} className="w-full">
           <i className="fa fa-sign-in md:hidden" aria-hidden="true" />
           <span className="hidden md:inline">{busy ? "Logging in..." : "Login"}</span>

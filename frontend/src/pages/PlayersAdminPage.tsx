@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Card from "../ui/primitives/Card";
 import Input from "../ui/primitives/Input";
 import Button from "../ui/primitives/Button";
+import { ErrorToastOnError } from "../ui/primitives/ErrorToast";
 
 import { useAuth } from "../auth/AuthContext";
 import { createPlayer, listPlayers, patchPlayer } from "../api/players.api";
@@ -109,6 +110,9 @@ export default function PlayersAdminPage() {
         variant="outer"
         bodyClassName="space-y-3"
       >
+        <ErrorToastOnError error={createMut.error} title="Could not create player" />
+        <ErrorToastOnError error={playersQ.error} title="Players loading failed" />
+        <ErrorToastOnError error={patchMut.error} title="Could not save player" />
         <div className="panel-subtle p-3 space-y-2">
           <div className="text-xs text-text-muted">Create player</div>
           <div className="flex flex-wrap items-end gap-2">
@@ -122,7 +126,6 @@ export default function PlayersAdminPage() {
               {createMut.isPending ? "Creating…" : "Create"}
             </Button>
           </div>
-          {createMut.error ? <div className="text-sm text-red-400">{String(createMut.error)}</div> : null}
         </div>
 
         <div className="panel-subtle rounded-2xl overflow-hidden">
@@ -132,7 +135,6 @@ export default function PlayersAdminPage() {
           </div>
 
           {playersQ.isLoading ? <div className="px-3 py-3 text-text-muted">Loading…</div> : null}
-          {playersQ.error ? <div className="px-3 py-3 text-red-400 text-sm">{String(playersQ.error)}</div> : null}
 
           {players.map((p, idx) => {
             const zebra = idx % 2 === 0 ? "bg-table-row-a" : "bg-table-row-b";
@@ -201,7 +203,6 @@ export default function PlayersAdminPage() {
                         {patchMut.isPending ? "Saving…" : "Save"}
                       </Button>
                     </div>
-                    {patchMut.error ? <div className="mt-2 text-sm text-red-400">{String(patchMut.error)}</div> : null}
                   </div>
                 ) : null}
               </div>
@@ -230,4 +231,3 @@ export default function PlayersAdminPage() {
     </div>
   );
 }
-

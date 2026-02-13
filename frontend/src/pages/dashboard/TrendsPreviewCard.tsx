@@ -3,6 +3,7 @@ import { useQueries, useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 
 import CollapsibleCard from "../../ui/primitives/CollapsibleCard";
+import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
 
 import { getStatsPlayerMatches, getStatsPlayers } from "../../api/stats.api";
 import type { Match, StatsPlayerMatchesResponse, StatsPlayersResponse, StatsTournamentLite } from "../../api/types";
@@ -297,6 +298,8 @@ export default function TrendsPreviewCard() {
       bodyVariant="none"
     >
       <div className="card-inner space-y-2">
+        <ErrorToastOnError error={statsQ.error} title="Trends loading failed" />
+        <ErrorToastOnError error={matchesError} title="Trends loading failed" />
         <div className="grid grid-cols-[auto,1fr] items-start gap-3">
           <div className="shrink-0">
             <ViewSwitch value={view} onChange={setView} />
@@ -316,9 +319,7 @@ export default function TrendsPreviewCard() {
         </div>
 
         {statsQ.isLoading ? <div className="card-inner-flat rounded-2xl text-sm text-text-muted">Loading…</div> : null}
-        {statsQ.error ? <div className="card-inner-flat rounded-2xl text-sm text-red-400">{String(statsQ.error)}</div> : null}
         {matchesLoading ? <div className="card-inner-flat rounded-2xl text-sm text-text-muted">Loading match trends…</div> : null}
-        {matchesError ? <div className="card-inner-flat rounded-2xl text-sm text-red-400">{String(matchesError)}</div> : null}
 
         {players.length && tournaments.length ? (
           <button

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { keepPreviousData, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import CollapsibleCard from "../../ui/primitives/CollapsibleCard";
+import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
 import { MetaRow } from "../../ui/primitives/Meta";
 
 import { getStatsPlayerMatches, getStatsPlayers } from "../../api/stats.api";
@@ -2107,10 +2108,9 @@ export default function TrendsCard({
 
   const Body = (
     <div className="flex min-h-0 flex-col gap-3">
+      <ErrorToastOnError error={statsQ.error} title="Trends loading failed" />
+      <ErrorToastOnError error={matchesError} title="Trends loading failed" />
       {Filters}
-
-      {statsQ.error ? <div className="card-inner-flat rounded-2xl text-sm text-red-400">{String(statsQ.error)}</div> : null}
-      {matchesError ? <div className="card-inner-flat rounded-2xl text-sm text-red-400">{String(matchesError)}</div> : null}
 
       <div className="min-w-0 relative" style={{ overflowAnchor: "none" }}>
         {players.length && tournaments.length ? (

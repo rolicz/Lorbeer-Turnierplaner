@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import Button from "../../ui/primitives/Button";
+import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
 
 type Status = "draft" | "live" | "done";
 type DeciderType = "none" | "penalties" | "match" | "scheresteinpapier";
@@ -190,6 +191,7 @@ export default function AdminPanel({
 
   const content = (
     <>
+      <ErrorToastOnError error={error} title="Admin action failed" />
       <div className="mb-3 text-sm text-text-muted">
         status: <span className="accent">{status}</span> · second leg:{" "}
         <span className="accent">{secondLegEnabled ? "enabled" : "off"}</span>
@@ -432,7 +434,6 @@ export default function AdminPanel({
         </div>
       )}
 
-      {error && <div className="mt-2 text-sm text-red-400">{error}</div>}
     </>
   );
 

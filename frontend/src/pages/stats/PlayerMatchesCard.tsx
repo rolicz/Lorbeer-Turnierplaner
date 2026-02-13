@@ -2,6 +2,7 @@ import { useMemo, useRef, useState } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 
 import CollapsibleCard from "../../ui/primitives/CollapsibleCard";
+import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
 
 import { listClubs } from "../../api/clubs.api";
 import { listPlayers } from "../../api/players.api";
@@ -548,6 +549,8 @@ export default function PlayerMatchesCard() {
       bodyVariant="none"
       bodyClassName="space-y-3"
     >
+      <ErrorToastOnError error={matchesQ.error} title="Player matches loading failed" />
+      <ErrorToastOnError error={clubsQ.error} title="Club data loading failed" />
       <div
         ref={selectorRef}
         className="card-inner-flat rounded-2xl space-y-2 scroll-mt-[calc(env(safe-area-inset-top,0px)+128px)] sm:scroll-mt-[calc(env(safe-area-inset-top,0px)+144px)]"
@@ -584,8 +587,6 @@ export default function PlayerMatchesCard() {
           <div className="card-inner-flat rounded-2xl text-sm text-text-muted">Pick a player to see their match history.</div>
         ) : null}
         {matchesQ.isLoading ? <div className="card-inner-flat rounded-2xl text-sm text-text-muted">Loading…</div> : null}
-        {matchesQ.error ? <div className="card-inner-flat rounded-2xl text-sm text-red-400">{String(matchesQ.error)}</div> : null}
-        {clubsQ.error ? <div className="card-inner-flat rounded-2xl text-sm text-red-400">{String(clubsQ.error)}</div> : null}
 
         {selected && tournaments.length ? (
           <div className="space-y-3">

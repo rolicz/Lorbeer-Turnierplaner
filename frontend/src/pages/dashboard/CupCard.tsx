@@ -8,6 +8,7 @@ import { listPlayerAvatarMeta, playerAvatarUrl } from "../../api/playerAvatars.a
 
 import { Pill, pillDate } from "../../ui/primitives/Pill";
 import SectionHeader from "../../ui/primitives/SectionHeader";
+import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
 
 function fmtDate(d?: string | null) {
   if (!d) return "—";
@@ -67,8 +68,8 @@ export default function CupCard({ cupKey }: { cupKey: string }) {
 
   return (
     <div>
+      <ErrorToastOnError error={q.error} title="Cup loading failed" />
       {q.isLoading && <div className="text-text-muted">Loading…</div>}
-      {q.error && <div className="text-sm text-red-400">{String(q.error)}</div>}
 
 	      {q.data && (
 	        <div className="space-y-3">

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import Button from "../../ui/primitives/Button";
+import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
 
 function clamp(n: number, lo: number, hi: number) {
   return Math.max(lo, Math.min(hi, n));
@@ -190,6 +191,7 @@ export default function PlayerAvatarEditor({
       {/* Bottom sheet (mobile-first), centered modal on desktop */}
       <div className="absolute inset-x-0 bottom-0 sm:inset-0 sm:flex sm:items-center sm:justify-center p-3 sm:p-6">
         <div className="panel w-full max-w-lg p-3 sm:p-4">
+          <ErrorToastOnError error={err} title="Avatar action failed" />
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
               <div className="text-sm font-semibold text-text-normal truncate">{title}</div>
@@ -288,8 +290,6 @@ export default function PlayerAvatarEditor({
                 </Button>
               </div>
             </div>
-
-            {err ? <div className="text-sm text-red-400">{err}</div> : null}
 
             <div className="flex items-center justify-between gap-2">
               {onDelete ? (

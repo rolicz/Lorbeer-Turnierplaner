@@ -1,6 +1,7 @@
 import Sheet from "../../ui/primitives/Sheet";
 import Input from "../../ui/primitives/Input";
 import Button from "../../ui/primitives/Button";
+import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
 import type { Club, Match } from "../../api/types";
 import { sideBy } from "../../helpers";
 import { useMemo } from "react";
@@ -79,6 +80,8 @@ export default function MatchEditorSheet({
 
   return (
     <Sheet open={open} title={`Edit Match #${match?.id ?? "—"}`} onClose={onClose}>
+      <ErrorToastOnError error={clubsError} title="Clubs loading failed" />
+      <ErrorToastOnError error={saveError} title="Could not save match" />
       {!match ? (
         <div className="text-sm text-text-muted">No match selected.</div>
       ) : (
@@ -229,7 +232,6 @@ export default function MatchEditorSheet({
                   </div>
 
                   {clubsLoading && <div className="text-sm text-text-muted">Loading clubs…</div>}
-                  {clubsError && <div className="text-sm text-red-400">{clubsError}</div>}
                 </div>
               }
               extraBottom={
@@ -237,7 +239,6 @@ export default function MatchEditorSheet({
               }
             />
 
-            {saveError && <div className="text-sm text-red-400">{saveError}</div>}
             <div className="h-2" />
           </div>
 

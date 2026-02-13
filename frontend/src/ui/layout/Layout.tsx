@@ -4,6 +4,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../../auth/AuthContext";
 import Button from "../primitives/Button";
 import SectionHeader from "../primitives/SectionHeader";
+import { ErrorToastViewport } from "../primitives/ErrorToast";
 import { useAnyTournamentWS } from "../../hooks/useTournamentWS";
 import { THEMES } from "../../themes";
 import { listTournamentCommentsSummary } from "../../api/comments.api";
@@ -157,6 +158,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           {children}
         </main>
       </div>
+      <ErrorToastViewport />
     </div>
   );
 }

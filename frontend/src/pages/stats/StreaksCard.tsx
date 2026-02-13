@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import CollapsibleCard from "../../ui/primitives/CollapsibleCard";
+import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
 
 import { listPlayers } from "../../api/players.api";
 import { getStatsStreaks } from "../../api/stats.api";
@@ -240,6 +241,7 @@ export default function StreaksCard() {
       bodyVariant="none"
       bodyClassName="space-y-3"
     >
+      <ErrorToastOnError error={q.error} title="Streaks loading failed" />
       <div className="card-inner-flat rounded-2xl space-y-2">
         <div className="flex flex-wrap items-center gap-2">
           <div className="flex min-w-0 flex-wrap items-center gap-2">
@@ -261,7 +263,6 @@ export default function StreaksCard() {
       </div>
 
       {q.isLoading && !q.data ? <div className="card-inner-flat rounded-2xl text-sm text-text-muted">Loading…</div> : null}
-      {q.error ? <div className="card-inner-flat rounded-2xl text-sm text-red-400">{String(q.error)}</div> : null}
 
       {q.data ? (
         <div className="grid gap-3 lg:grid-cols-2" style={{ overflowAnchor: "none" }}>

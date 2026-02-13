@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import CollapsibleCard from "../../ui/primitives/CollapsibleCard";
 import Input from "../../ui/primitives/Input";
 import Button from "../../ui/primitives/Button";
+import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
 import SelectClubsPanel from "../../ui/SelectClubsPanel";
 import { GoalStepper } from "../../ui/clubControls";
 import { StarsFA } from "../../ui/primitives/StarsFA";
@@ -404,6 +405,9 @@ export default function FriendlyMatchCard() {
       bodyVariant="none"
     >
       <div className="card-inner space-y-3">
+        <ErrorToastOnError error={oddsQ.error} title="Odds loading failed" />
+        <ErrorToastOnError error={playersQ.error} title="Players loading failed" />
+        <ErrorToastOnError error={clubsQ.error} title="Clubs loading failed" />
         <div className="flex items-end gap-2">
           <div className="flex-1 min-w-0">
             <Input label="Game" value={clubGame} onChange={(e) => setClubGame(e.target.value)} />
@@ -519,7 +523,6 @@ export default function FriendlyMatchCard() {
           </div>
 
           {oddsQ.isFetching ? <div className="mt-2 text-xs text-text-muted">Computing odds…</div> : null}
-          {oddsQ.error ? <div className="mt-2 text-xs text-red-400">{String(oddsQ.error)}</div> : null}
         </div>
 
         <div className="panel-subtle p-3 space-y-3">
@@ -586,12 +589,10 @@ export default function FriendlyMatchCard() {
             </div>
 
             {playersQ.isLoading && <div className="col-span-full text-sm text-text-muted">Loading players…</div>}
-            {playersQ.error && <div className="col-span-full text-sm text-red-400">{String(playersQ.error)}</div>}
           </div>
         </div>
 
         {clubsQ.isLoading && <div className="text-sm text-text-muted">Loading clubs…</div>}
-        {clubsQ.error && <div className="text-sm text-red-400">{String(clubsQ.error)}</div>}
 
         <SelectClubsPanel
           clubs={clubs}

@@ -7,6 +7,7 @@ import Input from "../ui/primitives/Input";
 import SectionHeader from "../ui/primitives/SectionHeader";
 import { Meta } from "../ui/primitives/Meta";
 import { Pill, statusPill, pillDate } from "../ui/primitives/Pill";
+import { ErrorToastOnError } from "../ui/primitives/ErrorToast";
 import { tournamentPalette, tournamentStatusUI } from "../ui/theme";
 import { cn } from "../ui/cn";
 import { listTournaments, createTournament } from "../api/tournaments.api";
@@ -164,6 +165,8 @@ export default function TournamentsPage() {
           </div>
         </div>
       ) : null}
+      <ErrorToastOnError error={playersQ.error} title="Players loading failed" />
+      <ErrorToastOnError error={tournamentsQ.error} title="Tournaments loading failed" />
       <Card variant="outer" showHeader={false}>
         <SectionHeader
           left={<Meta size="sm">Active + past tournaments.</Meta>}
@@ -243,7 +246,6 @@ export default function TournamentsPage() {
             <div className="space-y-2">
               <div className="text-sm font-medium text-text-normal">Players</div>
               {playersQ.isLoading && <div className="text-sm text-text-muted">Loading players…</div>}
-              {playersQ.error && <div className="text-sm text-red-400">{String(playersQ.error)}</div>}
               <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
                 {playersQ.data?.map((p) => {
                   const checked = !!selected[p.id];
@@ -281,7 +283,6 @@ export default function TournamentsPage() {
 
         <div className={cn(canWrite && createOpen ? "mt-3 space-y-2" : "mt-3 space-y-2")}>
           {tournamentsQ.isLoading && <div className="text-text-muted">Loading…</div>}
-          {tournamentsQ.error && <div className="text-red-400 text-sm">{String(tournamentsQ.error)}</div>}
 
           {tournamentsSorted.map((t: any) => {
             const st: Status = (t.status as Status) ?? "draft";

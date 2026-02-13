@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import CollapsibleCard from "../../ui/primitives/CollapsibleCard";
 import Button from "../../ui/primitives/Button";
 import Textarea from "../../ui/primitives/Textarea";
+import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
 import type { Player } from "../../api/types";
 import { createTournamentComment, listTournamentComments } from "../../api/comments.api";
 import { listPlayerAvatarMeta, playerAvatarUrl } from "../../api/playerAvatars.api";
@@ -136,10 +137,10 @@ export default function MatchCommentsPanel({
         }
       >
         <div className="space-y-2">
+        <ErrorToastOnError error={commentsQ.error} title="Comments loading failed" />
+        <ErrorToastOnError error={createMut.error} title="Could not post comment" />
         {commentsQ.isLoading ? (
           <div className="text-sm text-text-muted">Loading…</div>
-        ) : commentsQ.error ? (
-          <div className="text-sm text-red-400">{String(commentsQ.error)}</div>
         ) : matchComments.length === 0 ? (
           <div className="text-sm text-text-muted">No comments yet.</div>
         ) : (
@@ -275,13 +276,6 @@ export default function MatchCommentsPanel({
                     <span className="hidden md:inline">Post</span>
                   </Button>
                 </div>
-
-                {!idsOk ? (
-                  <div className="text-sm text-red-400">Cannot post: missing match/tournament id.</div>
-                ) : null}
-                {createMut.error ? (
-                  <div className="text-sm text-red-400">{String(createMut.error)}</div>
-                ) : null}
               </div>
             ) : null}
           </div>
