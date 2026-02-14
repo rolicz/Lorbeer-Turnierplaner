@@ -1,6 +1,8 @@
 services:
   backend:
     build: ./backend
+    # Run non-root to avoid root-owned files in mounted ./backend/data
+    user: "${UID:-1000}:${GID:-1000}"
     volumes:
       - ./backend/data:/data
       - ./backend/secrets.json:/app/secrets.json:ro
