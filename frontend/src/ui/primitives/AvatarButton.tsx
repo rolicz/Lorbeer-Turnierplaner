@@ -1,4 +1,4 @@
-import { playerAvatarUrl } from "../../api/playerAvatars.api";
+import AvatarCircle from "./AvatarCircle";
 
 export default function AvatarButton({
   playerId,
@@ -21,8 +21,6 @@ export default function AvatarButton({
   fallbackIconClass?: string;
   noOverflowAnchor?: boolean;
 }) {
-  const initial = (name || "?").trim().slice(0, 1).toUpperCase();
-
   return (
     <button
       type="button"
@@ -37,26 +35,15 @@ export default function AvatarButton({
       aria-pressed={selected}
       title={name}
     >
-      <span
-        className={
-          `panel-subtle inline-flex items-center justify-center overflow-hidden rounded-full ${className} ` +
-          (selected ? "ring-2 ring-[color:rgb(var(--color-accent)/0.85)]" : "")
-        }
-      >
-        {playerId == null ? (
-          fallbackIconClass ? (
-            <i className={fallbackIconClass} aria-hidden="true" />
-          ) : (
-            <span className="text-sm font-semibold text-text-muted">{initial}</span>
-          )
-        ) : updatedAt ? (
-          <img src={playerAvatarUrl(playerId, updatedAt)} alt="" className="h-full w-full object-cover" loading="lazy" decoding="async" />
-        ) : (
-          <span className="text-sm font-semibold text-text-muted">{initial}</span>
-        )}
-      </span>
+      <AvatarCircle
+        playerId={playerId}
+        name={name}
+        updatedAt={updatedAt}
+        sizeClass={className}
+        className={selected ? "ring-2 ring-[color:rgb(var(--color-accent)/0.85)]" : ""}
+        fallbackIconClass={playerId == null ? fallbackIconClass : undefined}
+      />
       <span className="sr-only">{name}</span>
     </button>
   );
 }
-

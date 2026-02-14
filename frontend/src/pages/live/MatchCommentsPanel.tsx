@@ -6,14 +6,15 @@ import Button from "../../ui/primitives/Button";
 import Textarea from "../../ui/primitives/Textarea";
 import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
 import { showErrorToast } from "../../ui/primitives/ErrorToast";
+import AvatarCircle from "../../ui/primitives/AvatarCircle";
 import CommentImageCropper from "../../ui/primitives/CommentImageCropper";
 import ImageLightbox from "../../ui/primitives/ImageLightbox";
 import type { Player } from "../../api/types";
 import { commentImageUrl, createTournamentComment, listTournamentComments, putCommentImage } from "../../api/comments.api";
-import { listPlayerAvatarMeta, playerAvatarUrl } from "../../api/playerAvatars.api";
 import { useAuth } from "../../auth/AuthContext";
 import { useSeenSet } from "../../hooks/useSeenComments";
 import { markCommentSeen } from "../../seenComments";
+import { usePlayerAvatarMap } from "../../hooks/usePlayerAvatarMap";
 
 function fmtTs(ms: number) {
   const d = new Date(ms);
@@ -66,12 +67,7 @@ export default function MatchCommentsPanel({
     enabled: Number.isFinite(tournamentId) && tournamentId > 0,
   });
 
-  const avatarMetaQ = useQuery({ queryKey: ["players", "avatars"], queryFn: listPlayerAvatarMeta });
-  const avatarUpdatedAtByPlayerId = useMemo(() => {
-    const m = new Map<number, string>();
-    for (const r of avatarMetaQ.data ?? []) m.set(r.player_id, r.updated_at);
-    return m;
-  }, [avatarMetaQ.data]);
+  const { avatarUpdatedAtById: avatarUpdatedAtByPlayerId } = usePlayerAvatarMap();
 
   function setDraftImage(blob: Blob | null) {
     setDraftImageBlob(blob);
@@ -187,24 +183,13 @@ export default function MatchCommentsPanel({
 	                <div className="flex items-center justify-between gap-3">
                     <div className="flex items-center gap-2 min-w-0">
 	                  {c.author_player_id != null ? (
-	                    <span className="panel-subtle inline-flex h-7 w-7 items-center justify-center overflow-hidden rounded-full shrink-0">
-	                      {avatarUpdatedAtByPlayerId.has(c.author_player_id) ? (
-	                        <img
-	                          src={playerAvatarUrl(
-	                            c.author_player_id,
-	                            avatarUpdatedAtByPlayerId.get(c.author_player_id) ?? null
-	                          )}
-	                          alt=""
-	                          className="h-full w-full object-cover"
-	                          loading="lazy"
-	                          decoding="async"
-	                        />
-	                      ) : (
-	                        <span className="text-[12px] font-semibold text-text-muted">
-	                          {(authorLabel(c.author_player_id) || "?").trim().slice(0, 1).toUpperCase()}
-	                        </span>
-	                      )}
-	                    </span>
+                      <AvatarCircle
+                        playerId={c.author_player_id}
+                        name={authorLabel(c.author_player_id)}
+                        updatedAt={avatarUpdatedAtByPlayerId.get(c.author_player_id) ?? null}
+                        sizeClass="h-7 w-7"
+                        fallbackClassName="text-[12px] font-semibold text-text-muted"
+                      />
 	                  ) : null}
 	                  <div className="text-xs font-semibold text-text-normal truncate">{authorLabel(c.author_player_id)}</div>
                     </div>

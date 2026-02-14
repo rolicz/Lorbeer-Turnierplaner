@@ -3,17 +3,16 @@ import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-quer
 
 import CollapsibleCard from "../../ui/primitives/CollapsibleCard";
 import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
-import AvatarButton from "../../ui/primitives/AvatarButton";
 import { listPlayers } from "../../api/players.api";
 import { listClubs } from "../../api/clubs.api";
 import { getStatsPlayerMatches } from "../../api/stats.api";
-import { listPlayerAvatarMeta } from "../../api/playerAvatars.api";
 import type { Club, Match } from "../../api/types";
 import { sideBy } from "../../helpers";
 import { StarsFA } from "../../ui/primitives/StarsFA";
+import { StatsAvatarSelector, StatsControlLabel, StatsModeSwitch, type StatsMode } from "./StatsControls";
+import { usePlayerAvatarMap } from "../../hooks/usePlayerAvatarMap";
 
 type Outcome = "W" | "D" | "L";
-type Mode = "overall" | "1v1" | "2v2";
 
 function winnerSide(m: Match): "A" | "B" | null {
   if (m.state !== "finished") return null;
@@ -40,54 +39,8 @@ function outcomeForPlayer(m: Match, playerId: number): { outcome: Outcome; point
   return { outcome: "L", points: 0, side: focusSide };
 }
 
-function modeLabel(mode: Mode) {
+function modeLabel(mode: StatsMode) {
   return mode === "overall" ? "overall" : mode;
-}
-
-function ModeSwitch({ value, onChange }: { value: Mode; onChange: (m: Mode) => void }) {
-  const idx = value === "overall" ? 0 : value === "1v1" ? 1 : 2;
-  const wCls = "w-16 sm:w-24";
-  return (
-    <div
-      className="relative inline-flex shrink-0 rounded-2xl p-1"
-      style={{ backgroundColor: "rgb(var(--color-bg-card-chip) / 0.35)" }}
-      role="group"
-      aria-label="Filter mode"
-      title="Filter: Overall / 1v1 / 2v2"
-    >
-      <span
-        className={"absolute inset-y-1 left-1 rounded-xl shadow-sm transition-transform duration-200 ease-out " + wCls}
-        style={{
-          backgroundColor: "rgb(var(--color-bg-card-inner))",
-          transform: `translateX(${idx * 100}%)`,
-        }}
-        aria-hidden="true"
-      />
-      {(
-        [
-          { k: "overall" as const, label: "Overall", icon: "fa-layer-group" },
-          { k: "1v1" as const, label: "1v1", icon: "fa-user" },
-          { k: "2v2" as const, label: "2v2", icon: "fa-users" },
-        ] as const
-      ).map((x) => (
-        <button
-          key={x.k}
-          type="button"
-          onClick={() => onChange(x.k)}
-          className={
-            "relative z-10 inline-flex h-9 items-center justify-center gap-2 rounded-xl text-[11px] transition-colors " +
-            wCls +
-            " " +
-            (value === x.k ? "text-text-normal" : "text-text-muted hover:text-text-normal")
-          }
-          aria-pressed={value === x.k}
-        >
-          <i className={"fa-solid " + x.icon + " hidden sm:inline"} aria-hidden="true" />
-          <span>{x.label}</span>
-        </button>
-      ))}
-    </div>
-  );
 }
 
 type StarBucket = {
@@ -221,18 +174,12 @@ export default function StarsPerformanceCard() {
   const qc = useQueryClient();
   const playersQ = useQuery({ queryKey: ["players"], queryFn: listPlayers });
   const clubsQ = useQuery({ queryKey: ["clubs"], queryFn: () => listClubs() });
-  const avatarMetaQ = useQuery({
-    queryKey: ["players", "avatars"],
-    queryFn: listPlayerAvatarMeta,
-    staleTime: 30_000,
-    refetchOnReconnect: false,
-    refetchOnWindowFocus: false,
-  });
+  const { avatarUpdatedAtById } = usePlayerAvatarMap();
 
   const players = useMemo(() => playersQ.data ?? [], [playersQ.data]);
   const clubs = useMemo(() => clubsQ.data ?? [], [clubsQ.data]);
   const [playerId, setPlayerId] = useState<number | "">("");
-  const [mode, setMode] = useState<Mode>("overall");
+  const [mode, setMode] = useState<StatsMode>("overall");
 
   useEffect(() => {
     if (!players.length) return;
@@ -244,12 +191,6 @@ export default function StarsPerformanceCard() {
       });
     }
   }, [players, qc]);
-
-  const avatarUpdatedAtById = useMemo(() => {
-    const m = new Map<number, string>();
-    for (const x of avatarMetaQ.data ?? []) m.set(x.player_id, x.updated_at);
-    return m;
-  }, [avatarMetaQ.data]);
 
   const matchesQ = useQuery({
     queryKey: ["stats", "starsPerformance", playerId || "none"],
@@ -307,29 +248,17 @@ export default function StarsPerformanceCard() {
       <ErrorToastOnError error={clubsQ.error} title="Club data loading failed" />
       <div className="card-inner-flat rounded-2xl space-y-2">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="inline-flex h-9 items-center gap-2 rounded-xl px-2 text-[11px] font-medium text-text-muted">
-            <i className="fa-solid fa-filter text-[11px]" aria-hidden="true" />
-            <span>Filter</span>
-          </div>
-          <ModeSwitch value={mode} onChange={setMode} />
+          <StatsControlLabel icon="fa-filter" text="Filter" widthClass="w-auto" />
+          <StatsModeSwitch value={mode} onChange={setMode} />
         </div>
         <div className="h-px bg-border-card-inner/70" />
         <div className="text-[11px] text-text-muted">Player</div>
-        <div className="-mx-1 overflow-x-auto px-1 py-0.5">
-          <div className="flex min-w-full items-center justify-between gap-2">
-            {sortedPlayers.map((p) => (
-              <AvatarButton
-                key={p.id}
-                playerId={p.id}
-                name={p.display_name}
-                updatedAt={avatarUpdatedAtById.get(p.id) ?? null}
-                selected={playerId === p.id}
-                onClick={() => setPlayerId(p.id)}
-                noOverflowAnchor={true}
-              />
-            ))}
-          </div>
-        </div>
+        <StatsAvatarSelector
+          players={sortedPlayers}
+          selectedId={playerId}
+          onSelect={setPlayerId}
+          avatarUpdatedAtById={avatarUpdatedAtById}
+        />
       </div>
 
       <div style={{ overflowAnchor: "none" }}>

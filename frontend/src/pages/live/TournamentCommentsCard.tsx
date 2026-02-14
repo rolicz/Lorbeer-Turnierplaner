@@ -6,6 +6,7 @@ import Button from "../../ui/primitives/Button";
 import Textarea from "../../ui/primitives/Textarea";
 import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
 import { showErrorToast } from "../../ui/primitives/ErrorToast";
+import AvatarCircle from "../../ui/primitives/AvatarCircle";
 import CommentImageCropper from "../../ui/primitives/CommentImageCropper";
 import ImageLightbox from "../../ui/primitives/ImageLightbox";
 import type { Club, Match, Player } from "../../api/types";
@@ -21,9 +22,9 @@ import {
   setPinnedTournamentComment,
 } from "../../api/comments.api";
 import { useAuth } from "../../auth/AuthContext";
-import { listPlayerAvatarMeta, playerAvatarUrl } from "../../api/playerAvatars.api";
 import { useSeenSet } from "../../hooks/useSeenComments";
 import { markCommentSeen } from "../../seenComments";
+import { usePlayerAvatarMap } from "../../hooks/usePlayerAvatarMap";
 
 type CommentScope =
   | { kind: "tournament" }
@@ -268,21 +269,13 @@ function CommentCard({
           {/* Row 1: poster */}
           <div className="flex flex-wrap items-center gap-2">
             {c.author.kind === "player" ? (
-              <span className="panel-subtle inline-flex h-7 w-7 items-center justify-center overflow-hidden rounded-full shrink-0">
-                {avatarUpdatedAt ? (
-                  <img
-                    src={playerAvatarUrl(c.author.playerId, avatarUpdatedAt)}
-                    alt=""
-                    className="h-full w-full object-cover"
-                    loading="lazy"
-                    decoding="async"
-                  />
-                ) : (
-                  <span className="text-[12px] font-semibold text-text-muted">
-                    {(authorLabel(c.author) || "?").trim().slice(0, 1).toUpperCase()}
-                  </span>
-                )}
-              </span>
+              <AvatarCircle
+                playerId={c.author.playerId}
+                name={authorLabel(c.author)}
+                updatedAt={avatarUpdatedAt}
+                sizeClass="h-7 w-7"
+                fallbackClassName="text-[12px] font-semibold text-text-muted"
+              />
             ) : null}
             <div className="text-xs font-semibold text-text-normal">{authorLabel(c.author)}</div>
             {isPinned ? <span className="card-chip text-[10px] py-1 px-2">pinned</span> : null}
@@ -439,12 +432,7 @@ export default function TournamentCommentsCard({
   const canAttachImage = role === "admin" || role === "editor";
   const seen = useSeenSet(tournamentId);
 
-  const avatarMetaQ = useQuery({ queryKey: ["players", "avatars"], queryFn: listPlayerAvatarMeta });
-  const avatarUpdatedAtByPlayerId = useMemo(() => {
-    const m = new Map<number, string>();
-    for (const r of avatarMetaQ.data ?? []) m.set(r.player_id, r.updated_at);
-    return m;
-  }, [avatarMetaQ.data]);
+  const { avatarUpdatedAtById: avatarUpdatedAtByPlayerId } = usePlayerAvatarMap();
 
   const matchById = useMemo(() => new Map(matches.map((m) => [m.id, m])), [matches]);
   const playerById = useMemo(() => new Map(players.map((p) => [p.id, p.display_name])), [players]);

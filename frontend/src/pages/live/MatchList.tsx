@@ -7,6 +7,7 @@ import SectionHeader from "../../ui/primitives/SectionHeader";
 import { StarsFA } from "../../ui/primitives/StarsFA";
 import { clubLabelPartsById } from "../../ui/clubControls";
 import { useEffect, useState } from "react";
+import SegmentedSwitch from "../../ui/primitives/SegmentedSwitch";
 
 function winnerSide(m: Match): "A" | "B" | null {
   if (m.state !== "finished") return null;
@@ -51,51 +52,6 @@ function OddsInline({ odds }: { odds: { home: number; draw: number; away: number
 
 type MatchListView = "compact" | "comfort";
 
-function ViewSwitch({ value, onChange }: { value: MatchListView; onChange: (v: MatchListView) => void }) {
-  const idx = value === "compact" ? 0 : 1;
-  const wCls = "w-20 sm:w-24";
-  return (
-    <div
-      className="relative inline-flex shrink-0 rounded-2xl p-1"
-      style={{ backgroundColor: "rgb(var(--color-bg-card-chip) / 0.35)" }}
-      role="group"
-      aria-label="Matches view"
-      title="Matches view"
-    >
-      <span
-        className={"absolute inset-y-1 left-1 rounded-xl shadow-sm transition-transform duration-200 ease-out " + wCls}
-        style={{
-          backgroundColor: "rgb(var(--color-bg-card-inner))",
-          transform: `translateX(${idx * 100}%)`,
-        }}
-        aria-hidden="true"
-      />
-      {(
-        [
-          { k: "compact" as const, label: "Compact", icon: "fa-compress" },
-          { k: "comfort" as const, label: "Details", icon: "fa-list" },
-        ] as const
-      ).map((x) => (
-        <button
-          key={x.k}
-          type="button"
-          onClick={() => onChange(x.k)}
-          className={
-            "relative z-10 inline-flex h-9 items-center justify-center gap-2 rounded-xl text-[11px] transition-colors " +
-            wCls +
-            " " +
-            (value === x.k ? "text-text-normal" : "text-text-muted hover:text-text-normal")
-          }
-          aria-pressed={value === x.k}
-        >
-          <i className={"fa-solid " + x.icon + " hidden sm:inline"} aria-hidden="true" />
-          <span>{x.label}</span>
-        </button>
-      ))}
-    </div>
-  );
-}
-
 export default function MatchList({
   matches,
   clubs,
@@ -139,7 +95,17 @@ export default function MatchList({
             <i className="fa-solid fa-layer-group" aria-hidden="true" />
             <span>View</span>
           </div>
-          <ViewSwitch value={view} onChange={setView} />
+          <SegmentedSwitch<MatchListView>
+            value={view}
+            onChange={setView}
+            options={[
+              { key: "compact", label: "Compact", icon: "fa-compress" },
+              { key: "comfort", label: "Details", icon: "fa-list" },
+            ]}
+            widthClass="w-20 sm:w-24"
+            ariaLabel="Matches view"
+            title="Matches view"
+          />
         </div>
       </div>
 

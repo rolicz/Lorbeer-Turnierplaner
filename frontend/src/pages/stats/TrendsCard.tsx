@@ -9,8 +9,8 @@ import { MetaRow } from "../../ui/primitives/Meta";
 import { getStatsPlayerMatches, getStatsPlayers } from "../../api/stats.api";
 import type { Match, StatsPlayerMatchesResponse, StatsPlayersResponse, StatsTournamentLite } from "../../api/types";
 import { sideBy } from "../../helpers";
+import { StatsControlLabel, StatsModeSwitch, StatsSegmentedSwitch, type StatsMode } from "./StatsControls";
 
-type Mode = "overall" | "1v1" | "2v2";
 type View = "lastN" | "total";
 
 function fmtDate(s?: string | null) {
@@ -75,97 +75,6 @@ export function colorForIdx(idx: number, total: number) {
     muted: `hsl(${hue} 62% 38%)`, // darker for "no data" segments
     outline: `hsl(${hue} 25% 16%)`,
   };
-}
-
-function ModeSwitch({ value, onChange }: { value: Mode; onChange: (m: Mode) => void }) {
-  const idx = value === "overall" ? 0 : value === "1v1" ? 1 : 2;
-  const wCls = "w-16 sm:w-24";
-  return (
-    <div
-      className="relative inline-flex shrink-0 rounded-2xl p-1"
-      style={{ backgroundColor: "rgb(var(--color-bg-card-chip) / 0.35)" }}
-      role="group"
-      aria-label="Filter mode"
-      title="Filter: Overall / 1v1 / 2v2"
-    >
-      <span
-        className={"absolute inset-y-1 left-1 rounded-xl shadow-sm transition-transform duration-200 ease-out " + wCls}
-        style={{
-          backgroundColor: "rgb(var(--color-bg-card-inner))",
-          transform: `translateX(${idx * 100}%)`,
-        }}
-        aria-hidden="true"
-      />
-      {(
-        [
-          { k: "overall" as const, label: "Overall", icon: "fa-layer-group" },
-          { k: "1v1" as const, label: "1v1", icon: "fa-user" },
-          { k: "2v2" as const, label: "2v2", icon: "fa-users" },
-        ] as const
-      ).map((x) => (
-        <button
-          key={x.k}
-          type="button"
-          onClick={() => onChange(x.k)}
-          className={
-            "relative z-10 inline-flex h-9 items-center justify-center gap-2 rounded-xl text-[11px] transition-colors " +
-            wCls +
-            " " +
-            (value === x.k ? "text-text-normal" : "text-text-muted hover:text-text-normal")
-          }
-          aria-pressed={value === x.k}
-        >
-          <i className={"fa-solid " + x.icon + " hidden sm:inline"} aria-hidden="true" />
-          <span>{x.label}</span>
-        </button>
-      ))}
-    </div>
-  );
-}
-
-function ViewSwitch({ value, onChange }: { value: View; onChange: (m: View) => void }) {
-  const idx = value === "lastN" ? 0 : 1;
-  const wCls = "w-16 sm:w-24";
-  return (
-    <div
-      className="relative inline-flex shrink-0 rounded-2xl p-1"
-      style={{ backgroundColor: "rgb(var(--color-bg-card-chip) / 0.35)" }}
-      role="group"
-      aria-label="View"
-      title="View"
-    >
-      <span
-        className={"absolute inset-y-1 left-1 rounded-xl shadow-sm transition-transform duration-200 ease-out " + wCls}
-        style={{
-          backgroundColor: "rgb(var(--color-bg-card-inner))",
-          transform: `translateX(${idx * 100}%)`,
-        }}
-        aria-hidden="true"
-      />
-      {(
-        [
-          { k: "lastN" as const, label: "Last N", icon: "fa-bolt" },
-          { k: "total" as const, label: "Total", icon: "fa-layer-group" },
-        ] as const
-      ).map((x) => (
-        <button
-          key={x.k}
-          type="button"
-          onClick={() => onChange(x.k)}
-          className={
-            "relative z-10 inline-flex h-9 items-center justify-center gap-2 rounded-xl text-[11px] transition-colors " +
-            wCls +
-            " " +
-            (value === x.k ? "text-text-normal" : "text-text-muted hover:text-text-normal")
-          }
-          aria-pressed={value === x.k}
-        >
-          <i className={"fa-solid " + x.icon + " hidden sm:inline"} aria-hidden="true" />
-          <span>{x.label}</span>
-        </button>
-      ))}
-    </div>
-  );
 }
 
 function winnerSide(m: Match): "A" | "B" | null {
@@ -1249,7 +1158,7 @@ export default function TrendsCard({
   defaultOpen?: boolean;
   initialView?: View;
 } = {}) {
-  const [mode, setMode] = useState<Mode>("overall");
+  const [mode, setMode] = useState<StatsMode>("overall");
   const [view, setView] = useState<View>(initialView);
   const [formN, setFormN] = useState(10);
 
@@ -1270,7 +1179,7 @@ export default function TrendsCard({
 
   // Warmup: prefetch the lightweight players+tourneys payload for other modes so toggling is instant.
   useEffect(() => {
-    const modes: Mode[] = ["overall", "1v1", "2v2"];
+    const modes: StatsMode[] = ["overall", "1v1", "2v2"];
     for (const m of modes) {
       void qc.prefetchQuery({
         queryKey: ["stats", "players", m, 0],
@@ -1462,19 +1371,22 @@ export default function TrendsCard({
     <div className="card-inner-flat rounded-2xl space-y-2">
       <div className="flex flex-wrap items-center gap-2">
         <div className="flex min-w-0 items-center gap-2">
-          <span className="inline-flex h-9 w-20 shrink-0 items-center justify-center gap-2 rounded-xl px-2 text-[11px] font-medium text-text-muted">
-            <i className="fa-solid fa-filter text-[11px]" aria-hidden="true" />
-            <span>Filter</span>
-          </span>
-          <ModeSwitch value={mode} onChange={setMode} />
+          <StatsControlLabel icon="fa-filter" text="Filter" />
+          <StatsModeSwitch value={mode} onChange={setMode} />
         </div>
 
         <div className="flex min-w-0 items-center gap-2">
-          <span className="inline-flex h-9 w-20 shrink-0 items-center justify-center gap-2 rounded-xl px-2 text-[11px] font-medium text-text-muted">
-            <i className="fa-solid fa-eye text-[11px]" aria-hidden="true" />
-            <span>View</span>
-          </span>
-          <ViewSwitch value={view} onChange={setView} />
+          <StatsControlLabel icon="fa-eye" text="View" />
+          <StatsSegmentedSwitch<View>
+            value={view}
+            onChange={setView}
+            options={[
+              { key: "lastN", label: "Last N", icon: "fa-bolt" },
+              { key: "total", label: "Total", icon: "fa-layer-group" },
+            ]}
+            ariaLabel="View"
+            title="View"
+          />
         </div>
       </div>
 

@@ -6,6 +6,7 @@ import { useQueries, useQuery } from "@tanstack/react-query";
 import CollapsibleCard from "../../ui/primitives/CollapsibleCard";
 import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
 import { MetaRow } from "../../ui/primitives/Meta";
+import AvatarCircle from "../../ui/primitives/AvatarCircle";
 
 import { listPlayers } from "../../api/players.api";
 import { getStatsPlayers } from "../../api/stats.api";
@@ -14,10 +15,11 @@ import type { StatsPlayersResponse, StatsTournamentLite, StatsPlayerRow } from "
 import { getCup, listCupDefs } from "../../api/cup.api";
 import { cupColorVarForKey } from "../../cupColors";
 
-import { listPlayerAvatarMeta, playerAvatarUrl } from "../../api/playerAvatars.api";
+import { StatsControlLabel, StatsModeSwitch, StatsSegmentedSwitch, type StatsMode } from "./StatsControls";
+import { usePlayerAvatarMap } from "../../hooks/usePlayerAvatarMap";
 
 type SortMode = "overall" | "lastN";
-type ModeFilter = "overall" | "1v1" | "2v2";
+type ModeFilter = StatsMode;
 
 function fmtAvg(n: number) {
   if (!Number.isFinite(n)) return "0.00";
@@ -52,25 +54,6 @@ function CupOwnerMark({ cupKey, cupName }: { cupKey: string; cupName: string }) 
       title={`${cupName} owner`}
     >
       <i className="fa-solid fa-crown text-[13px]" aria-hidden="true" />
-    </span>
-  );
-}
-
-function Avatar({ playerId, name, updatedAt }: { playerId: number; name: string; updatedAt: string | null }) {
-  const initial = (name || "?").trim().slice(0, 1).toUpperCase();
-  return (
-    <span className="panel-subtle inline-flex h-10 w-10 items-center justify-center overflow-hidden rounded-full shrink-0">
-      {updatedAt ? (
-        <img
-          src={playerAvatarUrl(playerId, updatedAt)}
-          alt=""
-          className="h-full w-full object-cover"
-          loading="lazy"
-          decoding="async"
-        />
-      ) : (
-        <span className="text-sm font-semibold text-text-muted">{initial}</span>
-      )}
     </span>
   );
 }
@@ -310,93 +293,17 @@ function TournamentPositionsGrid({
 }
 
 function PlayersViewSwitch({ value, onChange }: { value: SortMode; onChange: (v: SortMode) => void }) {
-  const idx = value === "overall" ? 0 : 1;
-  const wCls = "w-16 sm:w-24";
   return (
-    <div
-      className="relative inline-flex shrink-0 rounded-2xl p-1"
-      style={{ backgroundColor: "rgb(var(--color-bg-card-chip) / 0.35)" }}
-      role="group"
-      aria-label="Players view"
+    <StatsSegmentedSwitch<SortMode>
+      value={value}
+      onChange={onChange}
+      options={[
+        { key: "overall", label: "Overall", icon: "fa-trophy" },
+        { key: "lastN", label: "Form", icon: "fa-chart-line" },
+      ]}
+      ariaLabel="Players view"
       title="View: Overall or form"
-    >
-      <span
-        className={"absolute inset-y-1 left-1 rounded-xl shadow-sm transition-transform duration-200 ease-out " + wCls}
-        style={{
-          backgroundColor: "rgb(var(--color-bg-card-inner))",
-          transform: `translateX(${idx * 100}%)`,
-        }}
-        aria-hidden="true"
-      />
-      {(
-        [
-          { k: "overall" as const, label: "Overall", icon: "fa-trophy" },
-          { k: "lastN" as const, label: "Form", icon: "fa-chart-line" },
-        ] as const
-      ).map((x) => (
-        <button
-          key={x.k}
-          type="button"
-          onClick={() => onChange(x.k)}
-          className={
-            "relative z-10 inline-flex h-9 items-center justify-center gap-2 rounded-xl text-[11px] transition-colors " +
-            wCls +
-            " " +
-            (value === x.k ? "text-text-normal" : "text-text-muted hover:text-text-normal")
-          }
-          aria-pressed={value === x.k}
-        >
-          <i className={"fa-solid " + x.icon + " hidden sm:inline"} aria-hidden="true" />
-          <span>{x.label}</span>
-        </button>
-      ))}
-    </div>
-  );
-}
-
-function ModeSwitch({ value, onChange }: { value: ModeFilter; onChange: (m: ModeFilter) => void }) {
-  const idx = value === "overall" ? 0 : value === "1v1" ? 1 : 2;
-  const wCls = "w-16 sm:w-24";
-  return (
-    <div
-      className="relative inline-flex shrink-0 rounded-2xl p-1"
-      style={{ backgroundColor: "rgb(var(--color-bg-card-chip) / 0.35)" }}
-      role="group"
-      aria-label="Mode filter"
-      title="Filter: Overall / 1v1 / 2v2"
-    >
-      <span
-        className={"absolute inset-y-1 left-1 rounded-xl shadow-sm transition-transform duration-200 ease-out " + wCls}
-        style={{
-          backgroundColor: "rgb(var(--color-bg-card-inner))",
-          transform: `translateX(${idx * 100}%)`,
-        }}
-        aria-hidden="true"
-      />
-      {(
-        [
-          { k: "overall" as const, label: "Overall", icon: "fa-layer-group" },
-          { k: "1v1" as const, label: "1v1", icon: "fa-user" },
-          { k: "2v2" as const, label: "2v2", icon: "fa-users" },
-        ] as const
-      ).map((x) => (
-        <button
-          key={x.k}
-          type="button"
-          onClick={() => onChange(x.k)}
-          className={
-            "relative z-10 inline-flex h-9 items-center justify-center gap-2 rounded-xl text-[11px] transition-colors " +
-            wCls +
-            " " +
-            (value === x.k ? "text-text-normal" : "text-text-muted hover:text-text-normal")
-          }
-          aria-pressed={value === x.k}
-        >
-          <i className={"fa-solid " + x.icon + " hidden sm:inline"} aria-hidden="true" />
-          <span>{x.label}</span>
-        </button>
-      ))}
-    </div>
+    />
   );
 }
 
@@ -409,47 +316,17 @@ function TilesScopeSwitch({
   onChange: (v: boolean) => void;
   title: string;
 }) {
-  const idx = value ? 1 : 0;
-  const wCls = "w-16 sm:w-24";
   return (
-    <div
-      className="relative inline-flex shrink-0 rounded-2xl p-1"
-      style={{ backgroundColor: "rgb(var(--color-bg-card-chip) / 0.35)" }}
-      role="group"
-      aria-label="Tournament tiles scope"
+    <StatsSegmentedSwitch<boolean>
+      value={value}
+      onChange={onChange}
+      options={[
+        { key: false, label: "Recent", icon: "fa-clock" },
+        { key: true, label: "All", icon: "fa-layer-group" },
+      ]}
+      ariaLabel="Tournament tiles scope"
       title={title}
-    >
-      <span
-        className={"absolute inset-y-1 left-1 rounded-xl shadow-sm transition-transform duration-200 ease-out " + wCls}
-        style={{
-          backgroundColor: "rgb(var(--color-bg-card-inner))",
-          transform: `translateX(${idx * 100}%)`,
-        }}
-        aria-hidden="true"
-      />
-      {(
-        [
-          { k: false as const, label: "Recent", icon: "fa-clock" },
-          { k: true as const, label: "All", icon: "fa-layer-group" },
-        ] as const
-      ).map((x) => (
-        <button
-          key={String(x.k)}
-          type="button"
-          onClick={() => onChange(x.k)}
-          className={
-            "relative z-10 inline-flex h-9 items-center justify-center gap-2 rounded-xl text-[11px] transition-colors " +
-            wCls +
-            " " +
-            (value === x.k ? "text-text-normal" : "text-text-muted hover:text-text-normal")
-          }
-          aria-pressed={value === x.k}
-        >
-          <i className={"fa-solid " + x.icon + " hidden sm:inline"} aria-hidden="true" />
-          <span>{x.label}</span>
-        </button>
-      ))}
-    </div>
+    />
   );
 }
 
@@ -466,12 +343,7 @@ export default function PlayersStatsCard() {
     staleTime: 0,
   });
 
-  const avatarMetaQ = useQuery({ queryKey: ["players", "avatars"], queryFn: listPlayerAvatarMeta });
-  const avatarUpdatedAtByPlayerId = useMemo(() => {
-    const m = new Map<number, string>();
-    for (const r of avatarMetaQ.data ?? []) m.set(r.player_id, r.updated_at);
-    return m;
-  }, [avatarMetaQ.data]);
+  const { avatarUpdatedAtById: avatarUpdatedAtByPlayerId } = usePlayerAvatarMap();
 
   const cupDefsQ = useQuery({ queryKey: ["cup", "defs"], queryFn: listCupDefs });
   const cups = useMemo(() => {
@@ -610,18 +482,12 @@ export default function PlayersStatsCard() {
       <div className="card-inner-flat rounded-2xl space-y-2">
         <div className="flex flex-wrap items-center gap-2">
           <div className="flex min-w-0 flex-wrap items-center gap-2">
-            <span className="inline-flex h-9 w-20 shrink-0 items-center justify-center gap-2 rounded-xl px-2 text-[11px] font-medium text-text-muted">
-              <i className="fa-solid fa-filter text-[11px]" aria-hidden="true" />
-              <span>Filter</span>
-            </span>
-            <ModeSwitch value={modeFilter} onChange={setModeFilter} />
+            <StatsControlLabel icon="fa-filter" text="Filter" />
+            <StatsModeSwitch value={modeFilter} onChange={setModeFilter} ariaLabel="Mode filter" />
           </div>
 
           <div className="flex min-w-0 flex-wrap items-center gap-2">
-            <span className="inline-flex h-9 w-20 shrink-0 items-center justify-center gap-2 rounded-xl px-2 text-[11px] font-medium text-text-muted">
-              <i className="fa-solid fa-eye text-[11px]" aria-hidden="true" />
-              <span>View</span>
-            </span>
+            <StatsControlLabel icon="fa-eye" text="View" />
             <PlayersViewSwitch value={sortMode} onChange={setSortMode} />
           </div>
 
@@ -635,10 +501,7 @@ export default function PlayersStatsCard() {
 
             return (
               <div className="flex min-w-0 flex-wrap items-center gap-2">
-                <span className="inline-flex h-9 w-20 shrink-0 items-center justify-center gap-2 rounded-xl px-2 text-[11px] font-medium text-text-muted">
-                  <i className="fa-solid fa-layer-group text-[11px]" aria-hidden="true" />
-                  <span>Tiles</span>
-                </span>
+                <StatsControlLabel icon="fa-layer-group" text="Tiles" />
                 <TilesScopeSwitch value={showAllTournamentTiles} onChange={setShowAllTournamentTiles} title={title} />
               </div>
             );
@@ -729,7 +592,7 @@ export default function PlayersStatsCard() {
 
                 <button type="button" onClick={toggleRow} className="col-span-6 min-w-0 text-left" title={rowOpen ? "Collapse player" : "Expand player"}>
                   <div className="flex min-w-0 items-center gap-2">
-                    <Avatar playerId={p.id} name={p.display_name} updatedAt={avatarUpdatedAt} />
+                    <AvatarCircle playerId={p.id} name={p.display_name} updatedAt={avatarUpdatedAt} sizeClass="h-10 w-10" />
                     <span className="truncate text-xl font-semibold text-text-normal">{p.display_name}</span>
                     {ownedCups.length ? (
                       <span className="inline-flex items-center gap-1.5">

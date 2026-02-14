@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 
 import CollapsibleCard from "../../ui/primitives/CollapsibleCard";
@@ -12,8 +12,8 @@ import { sideBy } from "../../helpers";
 import { clubLabelPartsById } from "../../ui/clubControls";
 import { StarsFA } from "../../ui/primitives/StarsFA";
 import { Pill, pillDate } from "../../ui/primitives/Pill";
-import AvatarButton from "../../ui/primitives/AvatarButton";
-import { listPlayerAvatarMeta } from "../../api/playerAvatars.api";
+import { usePlayerAvatarMap } from "../../hooks/usePlayerAvatarMap";
+import { StatsAvatarSelector, StatsControlLabel, StatsSegmentedSwitch } from "./StatsControls";
 
 function fmtDate(s?: string | null) {
   if (!s) return "";
@@ -361,75 +361,16 @@ function TournamentBlock({
   );
 }
 
-function MetaSwitch({ value, onChange }: { value: boolean; onChange: (v: boolean) => void }) {
-  // Compact (left) -> Details (right)
-  const idx = value ? 1 : 0;
-  const wCls = "w-20 sm:w-28";
-  return (
-    <div
-      className="relative inline-flex shrink-0 rounded-2xl p-1"
-      style={{ backgroundColor: "rgb(var(--color-bg-card-chip) / 0.35)" }}
-      role="group"
-      aria-label="Details"
-      title="Toggle details (clubs / leagues / stars)"
-    >
-      <span
-        className={"absolute inset-y-1 left-1 rounded-xl shadow-sm transition-transform duration-200 ease-out " + wCls}
-        style={{
-          backgroundColor: "rgb(var(--color-bg-card-inner))",
-          transform: `translateX(${idx * 100}%)`,
-        }}
-        aria-hidden="true"
-      />
-      {(
-        [
-          { k: false as const, label: "Compact", icon: "fa-compress" },
-          { k: true as const, label: "Details", icon: "fa-list" },
-        ] as const
-      ).map((x) => (
-        <button
-          key={String(x.k)}
-          type="button"
-          onClick={() => onChange(x.k)}
-          className={
-            "relative z-10 inline-flex h-9 items-center justify-center gap-2 rounded-xl text-[11px] transition-colors " +
-            wCls +
-            " " +
-            (value === x.k ? "text-text-normal" : "text-text-muted hover:text-text-normal")
-          }
-          aria-pressed={value === x.k}
-        >
-          <i className={"fa-solid " + x.icon + " hidden sm:inline"} aria-hidden="true" />
-          <span>{x.label}</span>
-        </button>
-      ))}
-    </div>
-  );
-}
-
 export default function PlayerMatchesCard() {
   const playersQ = useQuery({ queryKey: ["players"], queryFn: listPlayers });
   const players = useMemo(() => playersQ.data ?? [], [playersQ.data]);
-  const avatarMetaQ = useQuery({
-    queryKey: ["players", "avatars"],
-    queryFn: listPlayerAvatarMeta,
-    staleTime: 30_000,
-    refetchOnReconnect: false,
-    refetchOnWindowFocus: false,
-  });
-  const avatarUpdatedAtById = useMemo(() => {
-    const m = new Map<number, string>();
-    for (const x of avatarMetaQ.data ?? []) m.set(x.player_id, x.updated_at);
-    return m;
-  }, [avatarMetaQ.data]);
+  const { avatarUpdatedAtById } = usePlayerAvatarMap();
 
   const clubsQ = useQuery({ queryKey: ["clubs"], queryFn: () => listClubs() });
   const clubs = clubsQ.data ?? [];
 
   const [playerId, setPlayerId] = useState<number | "">("");
   const [showMeta, setShowMeta] = useState(false);
-  const selectorRef = useRef<HTMLDivElement | null>(null);
-
   // Intentionally no auto-scroll on avatar selection; it feels jumpy on mobile and is easy to trigger accidentally.
 
   const matchesQ = useQuery({
@@ -504,36 +445,31 @@ export default function PlayerMatchesCard() {
     >
       <ErrorToastOnError error={matchesQ.error} title="Player matches loading failed" />
       <ErrorToastOnError error={clubsQ.error} title="Club data loading failed" />
-      <div
-        ref={selectorRef}
-        className="card-inner-flat rounded-2xl space-y-2 scroll-mt-[calc(env(safe-area-inset-top,0px)+128px)] sm:scroll-mt-[calc(env(safe-area-inset-top,0px)+144px)]"
-      >
+      <div className="card-inner-flat rounded-2xl space-y-2 scroll-mt-[calc(env(safe-area-inset-top,0px)+128px)] sm:scroll-mt-[calc(env(safe-area-inset-top,0px)+144px)]">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="inline-flex h-9 w-20 shrink-0 items-center justify-center gap-2 rounded-xl px-2 text-[11px] font-medium text-text-muted">
-            <i className="fa-solid fa-sliders text-[11px]" aria-hidden="true" />
-            <span>View</span>
-          </span>
-          <MetaSwitch value={showMeta} onChange={setShowMeta} />
+          <StatsControlLabel icon="fa-sliders" text="View" />
+          <StatsSegmentedSwitch<boolean>
+            value={showMeta}
+            onChange={setShowMeta}
+            options={[
+              { key: false, label: "Compact", icon: "fa-compress" },
+              { key: true, label: "Details", icon: "fa-list" },
+            ]}
+            widthClass="w-20 sm:w-28"
+            ariaLabel="Details"
+            title="Toggle details (clubs / leagues / stars)"
+          />
         </div>
 
         <div className="h-px bg-border-card-inner/70" />
 
-        <div className="-mx-1 overflow-x-auto px-1 py-0.5">
-          <div className="flex min-w-full items-center justify-between gap-2">
-            {sortedPlayers.map((p) => (
-              <AvatarButton
-                key={p.id}
-                playerId={p.id}
-                name={p.display_name}
-                updatedAt={avatarUpdatedAtById.get(p.id) ?? null}
-                selected={playerId === p.id}
-                onClick={() => setPlayerId(p.id)}
-                className="h-8 w-8"
-                noOverflowAnchor={true}
-              />
-            ))}
-          </div>
-        </div>
+        <StatsAvatarSelector
+          players={sortedPlayers}
+          selectedId={playerId}
+          onSelect={setPlayerId}
+          avatarUpdatedAtById={avatarUpdatedAtById}
+          avatarClassName="h-8 w-8"
+        />
       </div>
 
       <div style={{ overflowAnchor: "none" }}>

@@ -1,7 +1,7 @@
 import { useEffect, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { getStatsH2H, getStatsPlayerMatches, getStatsPlayers, getStatsRatings, getStatsStreaks } from "../../api/stats.api";
-import { playerAvatarUrl } from "../../api/playerAvatars.api";
+import AvatarCircle from "../../ui/primitives/AvatarCircle";
 import { StreakPatch, type ActiveStreak } from "../../ui/StreakPatches";
 import type { Match, StatsPlayerMatchesTournament, StatsStreakCategory, StatsStreakRow, StatsStreaksResponse } from "../../api/types";
 import { sideBy } from "../../helpers";
@@ -208,13 +208,13 @@ export default function PlayerLiveStatsModal({
         <div className="card-outer w-full max-w-xl p-3 sm:p-4 max-h-[85vh] overflow-y-auto">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0 inline-flex items-center gap-3">
-              <span className="panel-subtle inline-flex h-10 w-10 items-center justify-center overflow-hidden rounded-full shrink-0">
-                {avatarUpdatedAt ? (
-                  <img src={playerAvatarUrl(player.id, avatarUpdatedAt)} alt="" className="block h-full w-full object-cover" />
-                ) : (
-                  <span className="text-base font-semibold text-text-muted">{player.name.slice(0, 1).toUpperCase()}</span>
-                )}
-              </span>
+              <AvatarCircle
+                playerId={player.id}
+                name={player.name}
+                updatedAt={avatarUpdatedAt}
+                sizeClass="h-10 w-10"
+                fallbackClassName="text-base font-semibold text-text-muted"
+              />
               <div className="min-w-0">
                 <div className="truncate text-sm font-semibold text-text-normal">{player.name}</div>
                 <div className="text-[11px] text-text-muted">Player stats ({mode})</div>

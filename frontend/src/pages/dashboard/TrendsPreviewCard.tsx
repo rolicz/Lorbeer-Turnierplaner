@@ -9,6 +9,7 @@ import { getStatsPlayerMatches, getStatsPlayers } from "../../api/stats.api";
 import type { Match, StatsPlayerMatchesResponse, StatsPlayersResponse, StatsTournamentLite } from "../../api/types";
 import { sideBy } from "../../helpers";
 import { colorForIdx, MultiLineChart } from "../stats/TrendsCard";
+import SegmentedSwitch from "../../ui/primitives/SegmentedSwitch";
 
 type View = "lastN" | "total";
 
@@ -54,51 +55,6 @@ function avgLast(arr: number[], n: number) {
   if (!slice.length) return 0;
   // Divide by the chosen N even if fewer matches exist (pad missing with 0).
   return slice.reduce((a, b) => a + b, 0) / Math.max(1, n);
-}
-
-function ViewSwitch({ value, onChange }: { value: View; onChange: (m: View) => void }) {
-  const idx = value === "lastN" ? 0 : 1;
-  const wCls = "w-16 sm:w-24";
-  return (
-    <div
-      className="relative inline-flex shrink-0 rounded-2xl p-1"
-      style={{ backgroundColor: "rgb(var(--color-bg-card-chip) / 0.35)" }}
-      role="group"
-      aria-label="Trends view"
-      title="View"
-    >
-      <span
-        className={"absolute inset-y-1 left-1 rounded-xl shadow-sm transition-transform duration-200 ease-out " + wCls}
-        style={{
-          backgroundColor: "rgb(var(--color-bg-card-inner))",
-          transform: `translateX(${idx * 100}%)`,
-        }}
-        aria-hidden="true"
-      />
-      {(
-        [
-          { k: "lastN" as const, label: "Last 10", icon: "fa-bolt" },
-          { k: "total" as const, label: "Total", icon: "fa-layer-group" },
-        ] as const
-      ).map((x) => (
-        <button
-          key={x.k}
-          type="button"
-          onClick={() => onChange(x.k)}
-          className={
-            "relative z-10 inline-flex h-9 items-center justify-center gap-2 rounded-xl text-[11px] transition-colors " +
-            wCls +
-            " " +
-            (value === x.k ? "text-text-normal" : "text-text-muted hover:text-text-normal")
-          }
-          aria-pressed={value === x.k}
-        >
-          <i className={"fa-solid " + x.icon + " hidden sm:inline"} aria-hidden="true" />
-          <span>{x.label}</span>
-        </button>
-      ))}
-    </div>
-  );
 }
 
 export default function TrendsPreviewCard() {
@@ -315,8 +271,17 @@ export default function TrendsPreviewCard() {
         <ErrorToastOnError error={matchesError} title="Trends loading failed" />
         <div className="grid grid-cols-[auto,1fr] items-start gap-3">
           <div className="shrink-0">
-            <ViewSwitch value={view} onChange={setView} />
-          </div>
+              <SegmentedSwitch<View>
+                value={view}
+                onChange={setView}
+                options={[
+                  { key: "lastN", label: "Last 10", icon: "fa-bolt" },
+                  { key: "total", label: "Total", icon: "fa-layer-group" },
+                ]}
+                ariaLabel="Trends view"
+                title="View"
+              />
+            </div>
           {players.length ? (
             <div className="min-w-0 pt-1">
               <div className="grid grid-cols-3 gap-x-3 gap-y-1">

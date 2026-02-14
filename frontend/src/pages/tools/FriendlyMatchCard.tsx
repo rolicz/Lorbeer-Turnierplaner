@@ -10,11 +10,12 @@ import SelectClubsPanel from "../../ui/SelectClubsPanel";
 import { GoalStepper } from "../../ui/clubControls";
 import { StarsFA } from "../../ui/primitives/StarsFA";
 import { clubLabelPartsById } from "../../ui/clubControls";
+import SegmentedSwitch from "../../ui/primitives/SegmentedSwitch";
 
 import { listClubs } from "../../api/clubs.api";
 import { listPlayers } from "../../api/players.api";
 import { getStatsOdds, type StatsOddsRequest } from "../../api/stats.api";
-import { listPlayerAvatarMeta } from "../../api/playerAvatars.api";
+import { usePlayerAvatarMap } from "../../hooks/usePlayerAvatarMap";
 
 const FRIENDLY_MATCH_STORAGE_KEY = "friendly_match_state_v1";
 
@@ -116,57 +117,6 @@ function OddsInline({ odds }: { odds: { home: number; draw: number; away: number
   );
 }
 
-function ModeSwitch({
-  value,
-  onChange,
-}: {
-  value: "1v1" | "2v2";
-  onChange: (m: "1v1" | "2v2") => void;
-}) {
-  const idx = value === "1v1" ? 0 : 1;
-  const wCls = "w-16 sm:w-24";
-  return (
-    <div
-      className="relative inline-flex shrink-0 rounded-2xl p-1"
-      style={{ backgroundColor: "rgb(var(--color-bg-card-chip) / 0.35)" }}
-      role="group"
-      aria-label="Match mode"
-      title="Mode: 1v1 / 2v2"
-    >
-      <span
-        className={"absolute inset-y-1 left-1 rounded-xl shadow-sm transition-transform duration-200 ease-out " + wCls}
-        style={{
-          backgroundColor: "rgb(var(--color-bg-card-inner))",
-          transform: `translateX(${idx * 100}%)`,
-        }}
-        aria-hidden="true"
-      />
-      {(
-        [
-          { k: "1v1" as const, label: "1v1", icon: "fa-user" },
-          { k: "2v2" as const, label: "2v2", icon: "fa-users" },
-        ] as const
-      ).map((x) => (
-        <button
-          key={x.k}
-          type="button"
-          onClick={() => onChange(x.k)}
-          className={
-            "relative z-10 inline-flex h-9 items-center justify-center gap-2 rounded-xl text-[11px] transition-colors " +
-            wCls +
-            " " +
-            (value === x.k ? "text-text-normal" : "text-text-muted hover:text-text-normal")
-          }
-          aria-pressed={value === x.k}
-        >
-          <i className={"fa-solid " + x.icon + " hidden sm:inline"} aria-hidden="true" />
-          <span>{x.label}</span>
-        </button>
-      ))}
-    </div>
-  );
-}
-
 function AvatarPlayerSelect({
   label,
   value,
@@ -258,20 +208,8 @@ export default function FriendlyMatchCard() {
     enabled: open,
     staleTime: 60_000,
   });
-  const avatarMetaQ = useQuery({
-    queryKey: ["players", "avatars"],
-    queryFn: listPlayerAvatarMeta,
-    enabled: open,
-    staleTime: 30_000,
-    refetchOnReconnect: false,
-    refetchOnWindowFocus: false,
-  });
+  const { avatarUpdatedAtById } = usePlayerAvatarMap({ enabled: open });
   const players = useMemo(() => playersQ.data ?? [], [playersQ.data]);
-  const avatarUpdatedAtById = useMemo(() => {
-    const m = new Map<number, string>();
-    for (const x of avatarMetaQ.data ?? []) m.set(x.player_id, x.updated_at);
-    return m;
-  }, [avatarMetaQ.data]);
 
   const usedIds = useMemo(() => {
     const s = new Set<number>();
@@ -487,7 +425,7 @@ export default function FriendlyMatchCard() {
         <div className="panel-subtle p-3 space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="text-sm font-semibold text-text-normal">Setup</div>
-            <ModeSwitch
+            <SegmentedSwitch<"1v1" | "2v2">
               value={mode}
               onChange={(m) => {
                 setMode(m);
@@ -497,6 +435,12 @@ export default function FriendlyMatchCard() {
                   setB2(null);
                 }
               }}
+              options={[
+                { key: "1v1", label: "1v1", icon: "fa-user" },
+                { key: "2v2", label: "2v2", icon: "fa-users" },
+              ]}
+              ariaLabel="Match mode"
+              title="Mode: 1v1 / 2v2"
             />
           </div>
 

@@ -3,13 +3,14 @@ import { useQueries, useQuery } from "@tanstack/react-query";
 import type { Match, Player } from "../../api/types";
 import { sideBy } from "../../helpers";
 import Card from "../../ui/primitives/Card";
-import { listPlayerAvatarMeta, playerAvatarUrl } from "../../api/playerAvatars.api";
+import AvatarCircle from "../../ui/primitives/AvatarCircle";
 import { getCup, listCupDefs } from "../../api/cup.api";
 import { cupColorVarForKey } from "../../cupColors";
 import { getStatsStreaks } from "../../api/stats.api";
 import type { StatsStreakRow, StatsStreaksResponse } from "../../api/types";
 import { StreakPatch, type ActiveStreak } from "../../ui/StreakPatches";
 import PlayerLiveStatsModal from "./PlayerLiveStatsModal";
+import { usePlayerAvatarMap } from "../../hooks/usePlayerAvatarMap";
 
 type Row = {
   playerId: number;
@@ -117,37 +118,6 @@ function Arrow({ delta }: { delta: number | null }) {
   return <span className="text-text-muted">–</span>;
 }
 
-function PlayerAvatar({
-  playerId,
-  name,
-  updatedAt,
-  className = "h-9 w-9",
-}: {
-  playerId: number;
-  name: string;
-  updatedAt: string | null;
-  className?: string;
-}) {
-  const initial = (name || "?").trim().slice(0, 1).toUpperCase();
-  return (
-    <span
-      className={`panel-subtle inline-flex items-center justify-center overflow-hidden rounded-full shrink-0 ${className}`}
-    >
-      {updatedAt ? (
-        <img
-          src={playerAvatarUrl(playerId, updatedAt)}
-          alt=""
-          className="h-full w-full object-cover"
-          loading="lazy"
-          decoding="async"
-        />
-      ) : (
-        <span className="text-sm font-semibold text-text-muted">{initial}</span>
-      )}
-    </span>
-  );
-}
-
 function CupMark({ cupKey, cupName }: { cupKey: string; cupName: string }) {
   const varName = cupColorVarForKey(cupKey);
   return (
@@ -208,7 +178,7 @@ function MobileRow({
             <div className="w-5">
               <Arrow delta={delta} />
             </div>
-            <PlayerAvatar playerId={r.playerId} name={r.name} updatedAt={avatarUpdatedAt} />
+            <AvatarCircle playerId={r.playerId} name={r.name} updatedAt={avatarUpdatedAt} sizeClass="h-9 w-9" />
             <div className="min-w-0 flex flex-1 items-center gap-2">
               <div className="min-w-0 flex-[0_1_auto] truncate text-left font-medium text-text-normal">{r.name}</div>
               {cupMarks.length ? (
@@ -283,12 +253,7 @@ export default function StandingsTable({
   const basePos = useMemo(() => posMap(baseRows), [baseRows]);
   const [selectedPlayerId, setSelectedPlayerId] = useState<number | null>(null);
 
-  const avatarMetaQ = useQuery({ queryKey: ["players", "avatars"], queryFn: listPlayerAvatarMeta });
-  const avatarUpdatedAtByPlayerId = useMemo(() => {
-    const m = new Map<number, string>();
-    for (const r of avatarMetaQ.data ?? []) m.set(r.player_id, r.updated_at);
-    return m;
-  }, [avatarMetaQ.data]);
+  const { avatarUpdatedAtById: avatarUpdatedAtByPlayerId } = usePlayerAvatarMap();
 
   const cupDefsQ = useQuery({ queryKey: ["cup", "defs"], queryFn: listCupDefs });
   const cups = useMemo(() => {
@@ -572,11 +537,11 @@ export default function StandingsTable({
                   </td>
                   <td className="py-2 pr-1.5 font-sans font-medium min-w-0">
                     <div className="inline-flex min-w-0 max-w-[280px] items-center gap-2 lg:max-w-[420px]">
-                      <PlayerAvatar
+                      <AvatarCircle
                         playerId={r.playerId}
                         name={r.name}
                         updatedAt={avatarUpdatedAtByPlayerId.get(r.playerId) ?? null}
-                        className="h-7 w-7"
+                        sizeClass="h-7 w-7"
                       />
                       <span className="min-w-0 truncate">{r.name}</span>
                       {(cupMarksByPlayerId.get(r.playerId) ?? []).length || streaks.length ? (

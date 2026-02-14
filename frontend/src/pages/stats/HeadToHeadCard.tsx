@@ -3,12 +3,18 @@ import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-quer
 
 import CollapsibleCard from "../../ui/primitives/CollapsibleCard";
 import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
-import AvatarButton from "../../ui/primitives/AvatarButton";
 
 import { listPlayers } from "../../api/players.api";
 import { getStatsH2H } from "../../api/stats.api";
 import type { StatsH2HDuo, StatsH2HOpponentRow, StatsH2HPair, StatsH2HTeamRivalry } from "../../api/types";
-import { listPlayerAvatarMeta } from "../../api/playerAvatars.api";
+import { usePlayerAvatarMap } from "../../hooks/usePlayerAvatarMap";
+import {
+  StatsAvatarSelector,
+  StatsControlLabel,
+  StatsModeSwitch,
+  StatsSegmentedSwitch,
+  type StatsMode,
+} from "./StatsControls";
 
 function pct(n: number) {
   if (!Number.isFinite(n)) return "0%";
@@ -193,169 +199,21 @@ function TeamRivalryRow({ r, focusPlayerId }: { r: StatsH2HTeamRivalry; focusPla
   );
 }
 
-type Mode = "overall" | "1v1" | "2v2";
 type RivalryOrder = "rivalry" | "played";
 type View = "lists" | "matrix";
-
-function ModeSwitch({ value, onChange }: { value: Mode; onChange: (m: Mode) => void }) {
-  const idx = value === "overall" ? 0 : value === "1v1" ? 1 : 2;
-  const wCls = "w-16 sm:w-24";
-  return (
-    <div
-      className="relative inline-flex shrink-0 rounded-2xl p-1"
-      style={{ backgroundColor: "rgb(var(--color-bg-card-chip) / 0.35)" }}
-      role="group"
-      aria-label="Filter mode"
-      title="Filter: Overall / 1v1 / 2v2"
-    >
-      <span
-        className={"absolute inset-y-1 left-1 rounded-xl shadow-sm transition-transform duration-200 ease-out " + wCls}
-        style={{
-          backgroundColor: "rgb(var(--color-bg-card-inner))",
-          transform: `translateX(${idx * 100}%)`,
-        }}
-        aria-hidden="true"
-      />
-      {(
-        [
-          { k: "overall" as const, label: "Overall", icon: "fa-layer-group" },
-          { k: "1v1" as const, label: "1v1", icon: "fa-user" },
-          { k: "2v2" as const, label: "2v2", icon: "fa-users" },
-        ] as const
-      ).map((x) => (
-        <button
-          key={x.k}
-          type="button"
-          onClick={() => onChange(x.k)}
-          className={
-            "relative z-10 inline-flex h-9 items-center justify-center gap-2 rounded-xl text-[11px] transition-colors " +
-            wCls +
-            " " +
-            (value === x.k ? "text-text-normal" : "text-text-muted hover:text-text-normal")
-          }
-          aria-pressed={value === x.k}
-        >
-          <i className={"fa-solid " + x.icon + " hidden sm:inline"} aria-hidden="true" />
-          <span>{x.label}</span>
-        </button>
-      ))}
-    </div>
-  );
-}
-
-function OrderSwitch({ value, onChange }: { value: RivalryOrder; onChange: (o: RivalryOrder) => void }) {
-  const idx = value === "played" ? 0 : 1;
-  const wCls = "w-16 sm:w-24";
-  return (
-    <div
-      className="relative inline-flex shrink-0 rounded-2xl p-1"
-      style={{ backgroundColor: "rgb(var(--color-bg-card-chip) / 0.35)" }}
-      role="group"
-      aria-label="Order"
-      title='Order: "Legendary" or "Played"'
-    >
-      <span
-        className={"absolute inset-y-1 left-1 rounded-xl shadow-sm transition-transform duration-200 ease-out " + wCls}
-        style={{
-          backgroundColor: "rgb(var(--color-bg-card-inner))",
-          transform: `translateX(${idx * 100}%)`,
-        }}
-        aria-hidden="true"
-      />
-      {(
-        [
-          { k: "played" as const, label: "Played", icon: "fa-hashtag" },
-          { k: "rivalry" as const, label: "Legendary", icon: "fa-handshake-angle" },
-        ] as const
-      ).map((x) => (
-        <button
-          key={x.k}
-          type="button"
-          onClick={() => onChange(x.k)}
-          className={
-            "relative z-10 inline-flex h-9 items-center justify-center gap-2 rounded-xl text-[11px] transition-colors " +
-            wCls +
-            " " +
-            (value === x.k ? "text-text-normal" : "text-text-muted hover:text-text-normal")
-          }
-          aria-pressed={value === x.k}
-        >
-          <i className={"fa-solid " + x.icon + " hidden sm:inline"} aria-hidden="true" />
-          <span>{x.label}</span>
-        </button>
-      ))}
-    </div>
-  );
-}
-
-function ViewSwitch({ value, onChange }: { value: View; onChange: (v: View) => void }) {
-  const idx = value === "lists" ? 0 : 1;
-  const wCls = "w-16 sm:w-24";
-  return (
-    <div
-      className="relative inline-flex shrink-0 rounded-2xl p-1"
-      style={{ backgroundColor: "rgb(var(--color-bg-card-chip) / 0.35)" }}
-      role="group"
-      aria-label="View"
-      title="View"
-    >
-      <span
-        className={"absolute inset-y-1 left-1 rounded-xl shadow-sm transition-transform duration-200 ease-out " + wCls}
-        style={{
-          backgroundColor: "rgb(var(--color-bg-card-inner))",
-          transform: `translateX(${idx * 100}%)`,
-        }}
-        aria-hidden="true"
-      />
-      {(
-        [
-          { k: "lists" as const, label: "Lists", icon: "fa-list" },
-          { k: "matrix" as const, label: "Matrix", icon: "fa-table-cells" },
-        ] as const
-      ).map((x) => (
-        <button
-          key={x.k}
-          type="button"
-          onClick={() => onChange(x.k)}
-          className={
-            "relative z-10 inline-flex h-9 items-center justify-center gap-2 rounded-xl text-[11px] transition-colors " +
-            wCls +
-            " " +
-            (value === x.k ? "text-text-normal" : "text-text-muted hover:text-text-normal")
-          }
-          aria-pressed={value === x.k}
-        >
-          <i className={"fa-solid " + x.icon + " hidden sm:inline"} aria-hidden="true" />
-          <span>{x.label}</span>
-        </button>
-      ))}
-    </div>
-  );
-}
 
 export default function HeadToHeadCard() {
   const qc = useQueryClient();
   const playersQ = useQuery({ queryKey: ["players"], queryFn: listPlayers });
   const players = useMemo(() => playersQ.data ?? [], [playersQ.data]);
-  const avatarMetaQ = useQuery({
-    queryKey: ["players", "avatars"],
-    queryFn: listPlayerAvatarMeta,
-    staleTime: 30_000,
-    refetchOnReconnect: false,
-    refetchOnWindowFocus: false,
-  });
-  const avatarUpdatedAtById = useMemo(() => {
-    const m = new Map<number, string>();
-    for (const x of avatarMetaQ.data ?? []) m.set(x.player_id, x.updated_at);
-    return m;
-  }, [avatarMetaQ.data]);
+  const { avatarUpdatedAtById } = usePlayerAvatarMap();
 
   const FETCH_LIMIT = 200; // keep UI trimmed to 5 by default, but don't hide data due to API limit
   const [isOpen, setIsOpen] = useState(false);
   const didWarmRef = useRef(false);
 
   const [playerId, setPlayerId] = useState<number | "">("");
-  const [mode, setMode] = useState<Mode>("overall");
+  const [mode, setMode] = useState<StatsMode>("overall");
   const [order, setOrder] = useState<RivalryOrder>("played");
   const [view, setView] = useState<View>("lists");
 
@@ -444,58 +302,52 @@ export default function HeadToHeadCard() {
       <div className="card-inner-flat rounded-2xl space-y-2">
         <div className="flex flex-wrap items-center gap-2">
           <div className="flex min-w-0 flex-wrap items-center gap-2">
-            <span className="inline-flex h-9 w-20 shrink-0 items-center justify-center gap-2 rounded-xl px-2 text-[11px] font-medium text-text-muted">
-              <i className="fa-solid fa-filter text-[11px]" aria-hidden="true" />
-              <span>Filter</span>
-            </span>
-            <ModeSwitch value={mode} onChange={setMode} />
+            <StatsControlLabel icon="fa-filter" text="Filter" />
+            <StatsModeSwitch value={mode} onChange={setMode} />
           </div>
 
           <div className="flex min-w-0 flex-wrap items-center gap-2">
-            <span className="inline-flex h-9 w-20 shrink-0 items-center justify-center gap-2 rounded-xl px-2 text-[11px] font-medium text-text-muted">
-              <i className="fa-solid fa-arrow-down-wide-short text-[11px]" aria-hidden="true" />
-              <span>Order</span>
-            </span>
-            <OrderSwitch value={order} onChange={setOrder} />
+            <StatsControlLabel icon="fa-arrow-down-wide-short" text="Order" />
+            <StatsSegmentedSwitch<RivalryOrder>
+              value={order}
+              onChange={setOrder}
+              options={[
+                { key: "played", label: "Played", icon: "fa-hashtag" },
+                { key: "rivalry", label: "Legendary", icon: "fa-handshake-angle" },
+              ]}
+              ariaLabel="Order"
+              title='Order: "Legendary" or "Played"'
+            />
           </div>
 
           <div className="flex min-w-0 flex-wrap items-center gap-2">
-            <span className="inline-flex h-9 w-20 shrink-0 items-center justify-center gap-2 rounded-xl px-2 text-[11px] font-medium text-text-muted">
-              <i className="fa-solid fa-layer-group text-[11px]" aria-hidden="true" />
-              <span>View</span>
-            </span>
-            <ViewSwitch value={view} onChange={setView} />
+            <StatsControlLabel icon="fa-layer-group" text="View" />
+            <StatsSegmentedSwitch<View>
+              value={view}
+              onChange={setView}
+              options={[
+                { key: "lists", label: "Lists", icon: "fa-list" },
+                { key: "matrix", label: "Matrix", icon: "fa-table-cells" },
+              ]}
+              ariaLabel="View"
+              title="View"
+            />
           </div>
         </div>
 
-          <div className="h-px bg-border-card-inner/70" />
+        <div className="h-px bg-border-card-inner/70" />
 
-          <div className="-mx-1 overflow-x-auto px-1 py-0.5">
-            <div className="flex min-w-full items-center justify-between gap-2">
-              <AvatarButton
-                playerId={null}
-                name="All players"
-                updatedAt={null}
-                selected={playerId === ""}
-                onClick={() => setPlayerId("")}
-                className="h-8 w-8"
-                fallbackIconClass="fa-solid fa-layer-group text-[12px] text-text-muted"
-                noOverflowAnchor={true}
-              />
-              {sortedPlayers.map((p) => (
-                <AvatarButton
-                  key={p.id}
-                  playerId={p.id}
-                  name={p.display_name}
-                  updatedAt={avatarUpdatedAtById.get(p.id) ?? null}
-                  selected={playerId === p.id}
-                  onClick={() => setPlayerId(p.id)}
-                  className="h-8 w-8"
-                  noOverflowAnchor={true}
-                />
-              ))}
-            </div>
-          </div>
+        <StatsAvatarSelector
+          players={sortedPlayers}
+          selectedId={playerId}
+          onSelect={setPlayerId}
+          avatarUpdatedAtById={avatarUpdatedAtById}
+          includeAll={true}
+          allValue=""
+          allLabel="All players"
+          allIconClass="fa-solid fa-layer-group text-[12px] text-text-muted"
+          avatarClassName="h-8 w-8"
+        />
       </div>
 
         {h2hQ.isLoading ? <div className="card-inner-flat rounded-2xl text-sm text-text-muted">Loading…</div> : null}

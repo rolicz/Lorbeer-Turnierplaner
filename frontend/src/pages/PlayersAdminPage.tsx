@@ -1,47 +1,24 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import Card from "../ui/primitives/Card";
 import Input from "../ui/primitives/Input";
 import Button from "../ui/primitives/Button";
 import { ErrorToastOnError } from "../ui/primitives/ErrorToast";
+import AvatarCircle from "../ui/primitives/AvatarCircle";
 
 import { useAuth } from "../auth/AuthContext";
 import { createPlayer, listPlayers, patchPlayer } from "../api/players.api";
-import { deletePlayerAvatar, listPlayerAvatarMeta, playerAvatarUrl, putPlayerAvatar } from "../api/playerAvatars.api";
+import { deletePlayerAvatar, putPlayerAvatar } from "../api/playerAvatars.api";
 import PlayerAvatarEditor from "./players/PlayerAvatarEditor";
-
-function Avatar({ playerId, name, updatedAt }: { playerId: number; name: string; updatedAt: string | null }) {
-  const initial = (name || "?").trim().slice(0, 1).toUpperCase();
-  return (
-    <span className="panel-subtle inline-flex h-10 w-10 items-center justify-center overflow-hidden rounded-full shrink-0">
-      {updatedAt ? (
-        <img
-          src={playerAvatarUrl(playerId, updatedAt)}
-          alt=""
-          className="h-full w-full object-cover"
-          loading="lazy"
-          decoding="async"
-        />
-      ) : (
-        <span className="text-sm font-semibold text-text-muted">{initial}</span>
-      )}
-    </span>
-  );
-}
+import { usePlayerAvatarMap } from "../hooks/usePlayerAvatarMap";
 
 export default function PlayersAdminPage() {
   const { token } = useAuth();
   const qc = useQueryClient();
 
   const playersQ = useQuery({ queryKey: ["players"], queryFn: listPlayers });
-  const avatarsQ = useQuery({ queryKey: ["players", "avatars"], queryFn: listPlayerAvatarMeta });
-
-  const avatarUpdatedAtByPlayerId = useMemo(() => {
-    const m = new Map<number, string>();
-    for (const r of avatarsQ.data ?? []) m.set(r.player_id, r.updated_at);
-    return m;
-  }, [avatarsQ.data]);
+  const { avatarUpdatedAtById: avatarUpdatedAtByPlayerId } = usePlayerAvatarMap();
 
   const [newName, setNewName] = useState("");
   const createMut = useMutation({
@@ -151,7 +128,7 @@ export default function PlayersAdminPage() {
                       onClick={() => setAvatarEditPlayer({ id: p.id, name: p.display_name })}
                       title="Edit avatar"
                     >
-                      <Avatar playerId={p.id} name={p.display_name} updatedAt={updatedAt} />
+                      <AvatarCircle playerId={p.id} name={p.display_name} updatedAt={updatedAt} sizeClass="h-10 w-10" />
                     </button>
                     <div className="min-w-0">
                       <div className="truncate text-text-normal font-semibold">{p.display_name}</div>

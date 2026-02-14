@@ -4,7 +4,8 @@ import { useQuery } from "@tanstack/react-query";
 import Button from "../../ui/primitives/Button";
 import { getCup } from "../../api/cup.api";
 import { cupColorVarForKey, rgbFromCssVar } from "../../cupColors";
-import { listPlayerAvatarMeta, playerAvatarUrl } from "../../api/playerAvatars.api";
+import { usePlayerAvatarMap } from "../../hooks/usePlayerAvatarMap";
+import AvatarCircle from "../../ui/primitives/AvatarCircle";
 
 import { Pill, pillDate } from "../../ui/primitives/Pill";
 import SectionHeader from "../../ui/primitives/SectionHeader";
@@ -19,38 +20,9 @@ function fmtDate(d?: string | null) {
   }
 }
 
-function OwnerAvatar({
-  playerId,
-  name,
-  updatedAt,
-  className = "h-10 w-10",
-}: {
-  playerId: number;
-  name: string;
-  updatedAt: string | null;
-  className?: string;
-}) {
-  const initial = (name || "?").trim().slice(0, 1).toUpperCase();
-  return (
-    <span className={`panel-subtle inline-flex items-center justify-center overflow-hidden rounded-full shrink-0 ${className}`}>
-      {updatedAt ? (
-        <img
-          src={playerAvatarUrl(playerId, updatedAt)}
-          alt=""
-          className="h-full w-full object-cover"
-          loading="lazy"
-          decoding="async"
-        />
-      ) : (
-        <span className="text-sm font-semibold text-text-muted">{initial}</span>
-      )}
-    </span>
-  );
-}
-
 export default function CupCard({ cupKey }: { cupKey: string }) {
   const q = useQuery({ queryKey: ["cup", cupKey], queryFn: () => getCup(cupKey) });
-  const avatarsQ = useQuery({ queryKey: ["players", "avatars"], queryFn: listPlayerAvatarMeta });
+  const { avatarUpdatedAtById: avatarUpdatedAtByPlayerId } = usePlayerAvatarMap();
   const [showAll, setShowAll] = useState(false);
   const varName = cupColorVarForKey(cupKey);
 
@@ -59,12 +31,6 @@ export default function CupCard({ cupKey }: { cupKey: string }) {
     if (showAll) return history.slice().reverse(); // newest first
     return history.slice(-8).reverse();
   }, [history, showAll]);
-
-  const avatarUpdatedAtByPlayerId = useMemo(() => {
-    const m = new Map<number, string>();
-    for (const r of avatarsQ.data ?? []) m.set(r.player_id, r.updated_at);
-    return m;
-  }, [avatarsQ.data]);
 
   return (
     <div>
@@ -78,10 +44,11 @@ export default function CupCard({ cupKey }: { cupKey: string }) {
 	              <div className="text-xs text-text-muted">Current owner</div>
 	              {q.data.owner ? (
 	                <div className="mt-1 flex items-center gap-3 min-w-0">
-	                  <OwnerAvatar
+	                  <AvatarCircle
 	                    playerId={q.data.owner.id}
 	                    name={q.data.owner.display_name}
 	                    updatedAt={avatarUpdatedAtByPlayerId.get(q.data.owner.id) ?? null}
+                      sizeClass="h-10 w-10"
 	                  />
 	                  <div className="min-w-0 truncate text-xl font-semibold" style={{ color: rgbFromCssVar(varName) }}>
 	                    {q.data.owner.display_name}
