@@ -19,7 +19,7 @@ Designed to be snappy and work well on both mobile and desktop.
 
 ## Features (high level)
 
-- Tournament creation (1v1 / 2v2 round-robin style for small groups)
+- Tournament creation (1v1 / 2v2 round-robin style for small groups; 1v1 supports 3-6 players, 2v2 supports 4-6)
 - Live match editing (goals, state, clubs per match side) + live updates via WebSocket
 - Second leg (all-or-none), reorder matches, swap sides
 - Roles:
@@ -28,10 +28,10 @@ Designed to be snappy and work well on both mobile and desktop.
   - Admin: advanced operations (delete tournaments, edit past, rename, etc.)
 - **Multiple cups** (configurable keys/names + optional start date), each with owner + history
 - Tournament & match **comments** (edit, delete, pin one tournament comment), real-time updates
-- **Unread comments** indicator (stored locally in the browser)
-- Player **avatars** (admin upload/crop; stored in DB; used across the UI)
+- **Unread comments** indicators/actions (stored locally in the browser): jump to latest unread + mark all read
+- Comment images (editor/admin upload + crop) and player avatars (admin upload + crop), stored on disk
 - Stats page: trends (pan/zoom), head-to-head (lists + matrix), streaks, ratings (Elo-like), player match history
-- “Bookmaker-style” odds for scheduled/playing matches (based on form, rating, clubs, score, etc.)
+- “Bookmaker-style” odds (prematch-focused; based on form, ratings, direct duels, partner synergy, club stars, etc.)
 - Tools page: “Friendly match” sandbox (pick teams/clubs, see odds, enter result; not persisted)
 
 ---
@@ -71,6 +71,16 @@ Notes:
 - Use a strong `jwt_secret` in production.
 - `db_url` uses `/data/app.db` so it can be persisted via a volume/bind mount in Docker.
 - You can override any of these via env vars (e.g. `DB_URL`, `EDITOR_PASSWORD`, `ADMIN_PASSWORD`, `JWT_SECRET`).
+
+### Media storage (avatars + comment images)
+
+- Media files are stored on disk (not as SQLite blobs).
+- Root folder is controlled by `UPLOADS_DIR`:
+  - Docker default (in this repo): `/data/uploads`
+  - Local fallback: `./data/uploads`
+- Files are separated by type:
+  - Avatars: `avatars/<player_id>.<ext>`
+  - Comment images: `comments/<comment_id>.<ext>`
 
 ### Cups config (multiple cups)
 
@@ -204,10 +214,17 @@ Create the directory:
 mkdir -p backend/data
 ```
 
+Optional but recommended for Linux hosts: create repo-root `.env` so Docker writes files with your host user:
+```env
+UID=1000
+GID=1000
+```
+
 Your `docker-compose.yml` backend volume should look like:
 ```yaml
 services:
   backend:
+    user: "${UID:-1000}:${GID:-1000}"
     volumes:
       - ./backend/data:/data
       - ./backend/secrets.json:/app/secrets.json:ro
@@ -215,6 +232,7 @@ services:
       DB_URL: "sqlite:////data/app.db"
       # Optional cups config in the persisted data dir:
       CUPS_CONFIG_PATH: "/data/cups.json"
+      UPLOADS_DIR: "/data/uploads"
 ```
 
 ### 3) Caddyfile
@@ -312,6 +330,24 @@ cd backend
 make test
 ```
 
+### Maintenance commands
+
+From `backend/`:
+
+```bash
+# Seed DB
+python manage.py seed --file ./seed.json --secrets ./secrets.json
+
+# Add one match
+python manage.py add-match --file ./match.json --secrets ./secrets.json
+
+# Reclaim SQLite space after deletes/migrations
+python manage.py vacuum-db --secrets ./secrets.json
+
+# Optional: refresh SQLite planner statistics
+python manage.py vacuum-db --analyze --secrets ./secrets.json
+```
+
 ---
 
 ## Notes
@@ -321,6 +357,7 @@ make test
   - `/ws/tournaments` (global “something changed” updates)
 - Behind Caddy, websockets should use **wss** automatically via the same domain.
 - Frontend env is build-time; after changing `frontend/.env.production`, rebuild the frontend image (`docker compose up -d --build frontend`).
+- Live tournament reload button is a full fallback refresh (invalidates/refetches related tournament, comments, cup and stats queries).
 
 ### Useful API endpoints (quick reference)
 
@@ -329,10 +366,13 @@ make test
   - `GET /cup?key=<cupKey>`
 - Comments:
   - `GET /tournaments/{id}/comments`
+  - `GET /tournaments/comments-summary` (used for unread indicators)
   - `POST /tournaments/{id}/comments` (editor+)
   - `PATCH /comments/{comment_id}` (editor+)
   - `DELETE /comments/{comment_id}` (admin)
-  - `GET /tournaments/comments-summary` (used for unread indicators)
+  - `GET /comments/{comment_id}/image`
+  - `PUT /comments/{comment_id}/image` (editor+)
+  - `DELETE /comments/{comment_id}/image` (editor+)
 - Player avatars:
   - `GET /players/avatars` (meta)
   - `GET /players/{id}/avatar`

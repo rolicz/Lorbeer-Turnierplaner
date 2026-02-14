@@ -414,6 +414,7 @@ export default function TournamentCommentsCard({
   players,
   canWrite,
   canDelete,
+  focusCommentRequest,
 }: {
   tournamentId: number;
   matches: Match[];
@@ -421,6 +422,7 @@ export default function TournamentCommentsCard({
   players: Player[];
   canWrite: boolean;
   canDelete: boolean;
+  focusCommentRequest?: { id: number; nonce: number } | null;
 }) {
   const qc = useQueryClient();
   const { token, role } = useAuth();
@@ -520,6 +522,13 @@ export default function TournamentCommentsCard({
   }, [draftImagePreviewUrl]);
 
   useEffect(() => {
+    if (!focusCommentRequest) return;
+    const cid = Number(focusCommentRequest.id);
+    if (!Number.isFinite(cid) || cid <= 0) return;
+    setPendingFocusId(Math.trunc(cid));
+  }, [focusCommentRequest?.id, focusCommentRequest?.nonce]);
+
+  useEffect(() => {
     if (!pendingFocusId) return;
 
     let cancelled = false;
@@ -527,63 +536,20 @@ export default function TournamentCommentsCard({
 
     const tryScroll = () => {
       if (cancelled) return;
-      const focus = comments.find((c) => c.id === pendingFocusId) ?? null;
-      const scope = focus?.scope ?? null;
-      const blockId =
-        scope?.kind === "tournament"
-          ? "comments-block-tournament"
-          : scope?.kind === "match"
-            ? `comments-block-match-${scope.matchId}`
-            : null;
-      const blockEl = blockId ? document.getElementById(blockId) : null;
       const commentEl = document.getElementById(`comment-${pendingFocusId}`);
 
-      // Wait for query refresh to render the new/updated comment into the DOM.
-      if ((!commentEl || (blockId != null && !blockEl)) && tries < 240) {
+      // Wait for query refresh to render the target comment into the DOM.
+      if (!commentEl && tries < 240) {
         tries += 1;
         requestAnimationFrame(tryScroll);
         return;
       }
 
-      if (blockEl || commentEl) {
-        // Primary: scroll to the beginning of the relevant block (Tournament / Match #n).
-        // Fallback: scroll to the comment itself if the block id isn't found.
-        const anchor = blockEl ?? commentEl!;
-        anchor.scrollIntoView({ block: "start", behavior: "smooth" });
-
-        // Ensure the focused comment is actually visible (without overriding the block alignment too much).
-        if (commentEl) {
-          requestAnimationFrame(() => {
-            const r = commentEl.getBoundingClientRect();
-            const nav = document.querySelector(".nav-shell") as HTMLElement | null;
-            const navH = nav?.getBoundingClientRect().height ?? 0;
-            const topLimit = navH + 6;
-            const bottomLimit = window.innerHeight - 10;
-            if (r.top < topLimit || r.bottom > bottomLimit) {
-              commentEl.scrollIntoView({ block: "nearest", behavior: "smooth" });
-            }
-
-            setFlashId(null);
-            requestAnimationFrame(() => setFlashId(pendingFocusId));
-            window.setTimeout(() => setFlashId(null), 1800);
-          });
-
-          // Second pass: after layout settles (edit UI collapsing, images/fonts, etc.)
-          // ensure the anchor (block start) is still aligned near the top.
-          window.setTimeout(() => {
-            const blockEl2 = blockId ? document.getElementById(blockId) : null;
-            const commentEl2 = document.getElementById(`comment-${pendingFocusId}`);
-            const anchor2 = blockEl2 ?? commentEl2;
-            if (!anchor2) return;
-
-            const nav = document.querySelector(".nav-shell") as HTMLElement | null;
-            const navH = nav?.getBoundingClientRect().height ?? 0;
-            const rr = anchor2.getBoundingClientRect();
-            if (rr.top < navH + 4 || rr.top > navH + 40) {
-              anchor2.scrollIntoView({ block: "start", behavior: "smooth" });
-            }
-          }, 250);
-        }
+      if (commentEl) {
+        commentEl.scrollIntoView({ block: "center", behavior: "smooth" });
+        setFlashId(null);
+        requestAnimationFrame(() => setFlashId(pendingFocusId));
+        window.setTimeout(() => setFlashId(null), 1800);
       }
 
       setPendingFocusId(null);

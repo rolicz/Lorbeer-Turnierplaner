@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import Card from "../../ui/primitives/Card";
@@ -27,6 +27,7 @@ import type { Match, Club } from "../../api/types";
 import { useTournamentWS } from "../../hooks/useTournamentWS";
 import { useAuth } from "../../auth/AuthContext";
 import { useSeenSet } from "../../hooks/useSeenComments";
+import { markCommentSeen } from "../../seenComments";
 
 import AdminPanel from "./AdminPanel";
 import MatchList from "./MatchList";
@@ -101,6 +102,8 @@ export default function LiveTournamentPage() {
   const tid = id ? Number(id) : null;
 
   const qc = useQueryClient();
+  const location = useLocation();
+  const [, setSearchParams] = useSearchParams();
   const nav = useNavigate();
   const { role, token } = useAuth();
 
@@ -129,6 +132,57 @@ export default function LiveTournamentPage() {
     }
     return n;
   }, [commentsQ.dataUpdatedAt, seenCommentIds]);
+  const unreadCommentIds = useMemo(() => {
+    const cs = commentsQ.data?.comments ?? [];
+    return cs
+      .map((c) => Number(c.id))
+      .filter((id) => Number.isFinite(id) && id > 0 && !seenCommentIds.has(id))
+      .map((id) => Math.trunc(id));
+  }, [commentsQ.dataUpdatedAt, seenCommentIds]);
+  const parseApiTs = (raw?: string | null): number => {
+    if (!raw) return 0;
+    let ts = Date.parse(raw);
+    if (!Number.isFinite(ts) && raw.includes(" ")) ts = Date.parse(raw.replace(" ", "T"));
+    return Number.isFinite(ts) ? ts : 0;
+  };
+  const latestUnreadCommentId = useMemo(() => {
+    const cs = commentsQ.data?.comments ?? [];
+    let bestId: number | null = null;
+    let bestTs = -1;
+    for (const c of cs) {
+      if (seenCommentIds.has(c.id)) continue;
+      // "Most recent" is based on creation time, not edits.
+      const tsv = parseApiTs(c.created_at ?? "");
+      if (tsv > bestTs || (tsv === bestTs && (bestId == null || c.id > bestId))) {
+        bestTs = tsv;
+        bestId = c.id;
+      }
+    }
+    return bestId;
+  }, [commentsQ.dataUpdatedAt, seenCommentIds]);
+  const [focusCommentRequest, setFocusCommentRequest] = useState<{ id: number; nonce: number } | null>(null);
+
+  useEffect(() => {
+    const raw = new URLSearchParams(location.search).get("comment");
+    if (!raw) return;
+    const cid = Number(raw);
+    if (!Number.isFinite(cid) || cid <= 0) return;
+    setFocusCommentRequest((prev) => ({ id: Math.trunc(cid), nonce: (prev?.nonce ?? 0) + 1 }));
+    const next = new URLSearchParams(location.search);
+    next.delete("comment");
+    setSearchParams(next, { replace: true });
+  }, [location.search, setSearchParams]);
+
+  useEffect(() => {
+    const sp = new URLSearchParams(location.search);
+    const jumpUnread = sp.get("unread") === "1";
+    if (!jumpUnread) return;
+    if (latestUnreadCommentId) {
+      setFocusCommentRequest((prev) => ({ id: latestUnreadCommentId, nonce: (prev?.nonce ?? 0) + 1 }));
+    }
+    sp.delete("unread");
+    setSearchParams(sp, { replace: true });
+  }, [latestUnreadCommentId, location.search, setSearchParams]);
 
   const status = tQ.data?.status ?? "draft";
   const isDone = status === "done";
@@ -439,6 +493,22 @@ export default function LiveTournamentPage() {
 
   const [panelError, setPanelError] = useState<string | null>(null);
 
+  async function reloadAllLiveData() {
+    if (!tid) return;
+    const jobs: Promise<unknown>[] = [
+      qc.invalidateQueries({ queryKey: ["tournament", tid], refetchType: "active" }),
+      qc.invalidateQueries({ queryKey: ["comments", tid], refetchType: "active" }),
+      qc.invalidateQueries({ queryKey: ["clubs", clubGame], refetchType: "active" }),
+      qc.invalidateQueries({ queryKey: ["players", "avatars"], refetchType: "active" }),
+      qc.invalidateQueries({ queryKey: ["comments", "summary"], refetchType: "active" }),
+      qc.invalidateQueries({ queryKey: ["tournaments"], refetchType: "active" }),
+      qc.invalidateQueries({ queryKey: ["tournaments", "live"], refetchType: "active" }),
+      qc.invalidateQueries({ queryKey: ["cup"], refetchType: "active" }),
+      qc.invalidateQueries({ queryKey: ["stats"], refetchType: "active" }),
+    ];
+    await Promise.allSettled(jobs);
+  }
+
   if (!tid) return <Card title="Tournament" variant="outer">Invalid tournament id</Card>;
 
   const showControls = isEditorOrAdmin;
@@ -450,9 +520,33 @@ export default function LiveTournamentPage() {
         title={cardTitle}
         variant="outer"
         right={
-          <Button variant="ghost" onClick={() => tQ.refetch()} title="Refetch">
-            <i className="fa fa-arrows-rotate" aria-hidden="true" />
-          </Button>
+          <div className="inline-flex items-center gap-2">
+            {unreadCommentsCount > 0 ? (
+              <Button
+                variant="ghost"
+                type="button"
+                title="Mark all unread comments as read"
+                onClick={() => {
+                  if (!tid || unreadCommentIds.length === 0) return;
+                  const ok = window.confirm(`Mark ${unreadCommentIds.length} unread comment(s) as read?`);
+                  if (!ok) return;
+                  for (const cid of unreadCommentIds) markCommentSeen(tid, cid);
+                }}
+              >
+                <i className="fa-solid fa-envelope-open md:hidden" aria-hidden="true" />
+                <span className="hidden md:inline">Read all</span>
+              </Button>
+            ) : null}
+            <Button
+              variant="ghost"
+              onClick={() => {
+                void reloadAllLiveData();
+              }}
+              title="Reload all data"
+            >
+              <i className="fa fa-arrows-rotate" aria-hidden="true" />
+            </Button>
+          </div>
         }
         bodyClassName="space-y-3"
       >
@@ -460,7 +554,7 @@ export default function LiveTournamentPage() {
         {tQ.isLoading ? <div className="text-text-muted">Loading…</div> : null}
 
         {tQ.data ? (
-          <div className="grid grid-cols-[1fr_auto] items-start gap-2">
+          <div className="grid grid-cols-[1fr_auto] items-center gap-2">
             <div className="min-w-0 flex flex-wrap items-center gap-2 text-sm">
               <Pill>{tQ.data.mode}</Pill>
               <Pill className={`${statusPill(tQ.data.status)}`}>
@@ -472,10 +566,23 @@ export default function LiveTournamentPage() {
             </div>
 
             {unreadCommentsCount > 0 ? (
-              <Pill title="Unread comments" className="shrink-0 justify-self-end">
-                <i className="fa-solid fa-comment text-accent" aria-hidden="true" />
-                <span className="tabular-nums text-text-normal">{unreadCommentsCount}</span>
-              </Pill>
+              <button
+                type="button"
+                className="shrink-0 justify-self-end inline-flex items-center"
+                title="Jump to latest unread comment"
+                onClick={() => {
+                  if (!latestUnreadCommentId) return;
+                  setFocusCommentRequest((prev) => ({
+                    id: latestUnreadCommentId,
+                    nonce: (prev?.nonce ?? 0) + 1,
+                  }));
+                }}
+              >
+                <Pill title="Unread comments">
+                  <i className="fa-solid fa-comment text-accent" aria-hidden="true" />
+                  <span className="tabular-nums text-text-normal">{unreadCommentsCount}</span>
+                </Pill>
+              </button>
             ) : null}
           </div>
         ) : null}
@@ -644,6 +751,7 @@ export default function LiveTournamentPage() {
               players={tQ.data?.players ?? []}
               canWrite={isEditorOrAdmin}
               canDelete={isAdmin}
+              focusCommentRequest={focusCommentRequest}
             />
           ) : null}
 

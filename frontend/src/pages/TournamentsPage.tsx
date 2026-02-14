@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import Card from "../ui/primitives/Card";
 import Button from "../ui/primitives/Button";
@@ -41,6 +41,7 @@ function winnerLabel(t: any): string | null {
 
 export default function TournamentsPage() {
   const qc = useQueryClient();
+  const navigate = useNavigate();
   const { role, token } = useAuth();
   const canWrite = role === "editor" || role === "admin";
 
@@ -292,9 +293,8 @@ export default function TournamentsPage() {
             const tid = Number(t.id);
             const sum = summaryByTid.get(tid) ?? fallbackIdsByTid.get(tid);
             const seen = seenIdsByTid.get(Number(t.id)) ?? new Set<number>();
-            const unseenCount = !!sum
-              ? (sum.comment_ids ?? []).reduce((acc, cid) => (seen.has(cid) ? acc : acc + 1), 0)
-              : 0;
+            const unseenIds = (sum?.comment_ids ?? []).filter((cid) => !seen.has(cid));
+            const unseenCount = unseenIds.length;
             const hasUnseen = unseenCount > 0;
 
             return (
@@ -326,7 +326,7 @@ export default function TournamentsPage() {
                   </div>
 
                   {/* Row 2: pills (unread indicator aligned right) */}
-                  <div className="mt-2 grid grid-cols-[1fr_auto] items-start gap-2">
+                  <div className="mt-2 grid grid-cols-[1fr_auto] items-center gap-2">
                     <div className="min-w-0 flex flex-wrap items-center gap-2">
                       <Pill className={statusPill(st)} title={ui.label}>
                         <span>{ui.label}</span>
@@ -347,10 +347,21 @@ export default function TournamentsPage() {
                     </div>
 
                     {hasUnseen ? (
-                      <Pill title="Unread comments" className="shrink-0 justify-self-end">
-                        <i className="fa-solid fa-comment text-accent" aria-hidden="true" />
-                        <span className="tabular-nums text-text-normal">{unseenCount}</span>
-                      </Pill>
+                      <button
+                        type="button"
+                        className="shrink-0 justify-self-end inline-flex items-center"
+                        title="Jump to latest unread comment"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          navigate(`/live/${t.id}?unread=1`);
+                        }}
+                      >
+                        <Pill title="Unread comments">
+                          <i className="fa-solid fa-comment text-accent" aria-hidden="true" />
+                          <span className="tabular-nums text-text-normal">{unseenCount}</span>
+                        </Pill>
+                      </button>
                     ) : null}
                   </div>
                 </div>
