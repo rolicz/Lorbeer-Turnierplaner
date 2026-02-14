@@ -36,6 +36,11 @@ def media_path_for_comment(comment_id: int, content_type: str) -> str:
     return f"comments/{int(comment_id)}.{ext}"
 
 
+def media_path_for_profile_header(player_id: int, content_type: str) -> str:
+    ext = _ext_from_content_type(content_type)
+    return f"profile_headers/{int(player_id)}.{ext}"
+
+
 def read_media(rel_path: str) -> bytes | None:
     rel = _safe_rel(rel_path)
     p = _uploads_root() / rel
@@ -97,4 +102,3 @@ def _ext_from_content_type(content_type: str) -> str:
     if ct == "image/svg+xml":
         return "svg"
     return "img"
-

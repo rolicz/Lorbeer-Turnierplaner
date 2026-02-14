@@ -55,6 +55,17 @@ class Player(SQLModel, table=True):
     tournaments: List["Tournament"] = Relationship(back_populates="players", link_model=TournamentPlayer)
 
 
+class PlayerProfile(SQLModel, table=True):
+    """
+    Extensible profile payload for player-facing features.
+    Keep this separate from Player to avoid destructive schema migrations.
+    """
+    player_id: int = Field(foreign_key="player.id", primary_key=True)
+    bio: str = Field(default="")
+    extras_json: str = Field(default="{}")
+    updated_at: dt.datetime = Field(default_factory=dt.datetime.utcnow, index=True)
+
+
 class PlayerAvatarFile(SQLModel, table=True):
     """
     Preferred avatar storage (metadata in DB, bytes on disk/object storage).
@@ -64,6 +75,26 @@ class PlayerAvatarFile(SQLModel, table=True):
     content_type: str
     file_path: str = Field(index=True)
     file_size: int
+    updated_at: dt.datetime = Field(default_factory=dt.datetime.utcnow, index=True)
+
+
+class PlayerHeaderImageFile(SQLModel, table=True):
+    """
+    Profile header image storage (metadata in DB, bytes on disk/object storage).
+    """
+    player_id: int = Field(foreign_key="player.id", primary_key=True)
+    content_type: str
+    file_path: str = Field(index=True)
+    file_size: int
+    updated_at: dt.datetime = Field(default_factory=dt.datetime.utcnow, index=True)
+
+
+class PlayerGuestbookEntry(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    profile_player_id: int = Field(foreign_key="player.id", index=True)
+    author_player_id: int = Field(foreign_key="player.id", index=True)
+    body: str
+    created_at: dt.datetime = Field(default_factory=dt.datetime.utcnow, index=True)
     updated_at: dt.datetime = Field(default_factory=dt.datetime.utcnow, index=True)
 
 

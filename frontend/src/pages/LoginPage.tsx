@@ -8,6 +8,7 @@ import { login } from "../api/auth.api";
 import { useAuth } from "../auth/AuthContext";
 
 export default function LoginPage() {
+  const [username, setUsername] = useState("");
   const [pw, setPw] = useState("");
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -19,8 +20,8 @@ export default function LoginPage() {
     setErr(null);
     setBusy(true);
     try {
-      const res = await login(pw);
-      auth.login(res.token, res.role);
+      const res = await login(username.trim(), pw);
+      auth.login(res.token, res.role, res.player_id, res.player_name);
       nav("/tournaments");
     } catch (e: unknown) {
       if (e instanceof Error && e.message) setErr(e.message);
@@ -31,7 +32,7 @@ export default function LoginPage() {
   }
 
   return (
-    <Card title="Login (write access)" variant="outer">
+    <Card title="Player Login" variant="outer">
       <ErrorToastOnError error={err} title="Login failed" />
       <form
         onSubmit={(e) => {
@@ -40,13 +41,20 @@ export default function LoginPage() {
         className="space-y-3"
       >
         <Input
+          label="Username"
+          type="text"
+          value={username}
+          onChange={(e) => setUsername(e.target.value)}
+          placeholder="player name"
+        />
+        <Input
           label="Password"
           type="password"
           value={pw}
           onChange={(e) => setPw(e.target.value)}
-          placeholder="editor/admin password"
+          placeholder="profile password"
         />
-        <Button disabled={busy || !pw.trim()} className="w-full">
+        <Button disabled={busy || !pw.trim() || !username.trim()} className="w-full">
           <i className="fa fa-sign-in md:hidden" aria-hidden="true" />
           <span className="hidden md:inline">{busy ? "Logging in..." : "Login"}</span>
         </Button>

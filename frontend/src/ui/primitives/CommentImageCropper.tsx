@@ -2,8 +2,6 @@ import { useEffect, useRef, useState } from "react";
 import Button from "./Button";
 import { ErrorToastOnError } from "./ErrorToast";
 
-const ASPECT_W = 4;
-const ASPECT_H = 3;
 const CROP_FRAC = 0.9;
 
 function clamp(n: number, lo: number, hi: number) {
@@ -19,11 +17,21 @@ type ImgInfo = {
 export default function CommentImageCropper({
   open,
   title = "Attach image",
+  aspectW = 4,
+  aspectH = 3,
+  outputWidth = 1920,
+  outputHeight = 1440,
+  hint,
   onClose,
   onApply,
 }: {
   open: boolean;
   title?: string;
+  aspectW?: number;
+  aspectH?: number;
+  outputWidth?: number;
+  outputHeight?: number;
+  hint?: string;
   onClose: () => void;
   onApply: (blob: Blob) => Promise<void> | void;
 }) {
@@ -72,10 +80,10 @@ export default function CommentImageCropper({
       const maxH = vH * CROP_FRAC;
 
       let cropW = maxW;
-      let cropH = (cropW * ASPECT_H) / ASPECT_W;
+      let cropH = (cropW * aspectH) / aspectW;
       if (cropH > maxH) {
         cropH = maxH;
-        cropW = (cropH * ASPECT_W) / ASPECT_H;
+        cropW = (cropH * aspectW) / aspectH;
       }
 
       const base = Math.max(cropW / img.w, cropH / img.h);
@@ -85,7 +93,7 @@ export default function CommentImageCropper({
     compute();
     window.addEventListener("resize", compute);
     return () => window.removeEventListener("resize", compute);
-  }, [img, open]);
+  }, [aspectH, aspectW, img, open]);
 
   function clampOffset(next: { x: number; y: number }, z: number) {
     if (!img || !layout) return next;
@@ -114,7 +122,7 @@ export default function CommentImageCropper({
     setOff({ x: 0, y: 0 });
   }
 
-  async function exportCropped(outW = 1920, outH = 1440): Promise<Blob> {
+  async function exportCropped(outW = outputWidth, outH = outputHeight): Promise<Blob> {
     if (!img || !layout) throw new Error("No image");
     const scale = layout.base * zoom;
     const dispW = img.w * scale;
@@ -182,7 +190,9 @@ export default function CommentImageCropper({
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
               <div className="text-sm font-semibold text-text-normal truncate">{title}</div>
-              <div className="mt-0.5 text-[11px] text-text-muted">Crop 4:3 · exported as 1920x1440</div>
+              <div className="mt-0.5 text-[11px] text-text-muted">
+                {hint ?? `Crop ${aspectW}:${aspectH} · exported as ${outputWidth}x${outputHeight}`}
+              </div>
             </div>
             <Button variant="ghost" type="button" onClick={onClose} className="h-9 w-9 p-0 inline-flex items-center justify-center" title="Close">
               <i className="fa-solid fa-xmark" aria-hidden="true" />
@@ -192,7 +202,8 @@ export default function CommentImageCropper({
           <div className="mt-3 grid gap-3">
             <div
               ref={viewportRef}
-              className="panel-subtle relative mx-auto w-full max-w-[760px] aspect-[4/3] overflow-hidden touch-none"
+              className="panel-subtle relative mx-auto w-full max-w-[760px] overflow-hidden touch-none"
+              style={{ aspectRatio: `${aspectW} / ${aspectH}` }}
               onPointerDown={(e) => {
                 if (!img) return;
                 (e.currentTarget as HTMLDivElement).setPointerCapture(e.pointerId);
@@ -267,7 +278,7 @@ export default function CommentImageCropper({
                     setErr(null);
                     setBusy(true);
                     try {
-                      const blob = await exportCropped(1920, 1440);
+                      const blob = await exportCropped(outputWidth, outputHeight);
                       await onApply(blob);
                       onClose();
                     } catch (e: unknown) {

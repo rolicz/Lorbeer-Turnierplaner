@@ -1,8 +1,11 @@
 import pytest
 from fastapi.testclient import TestClient
+from sqlmodel import Session, select
 
 from app.main import create_app
-from app.settings import Settings
+from app.db import get_engine, init_db
+from app.models import Player
+from app.settings import PlayerAccount, Settings
 
 
 @pytest.fixture()
@@ -11,33 +14,43 @@ def client(tmp_path, monkeypatch):
     monkeypatch.setenv("UPLOADS_DIR", str(tmp_path / "uploads"))
     settings = Settings(
         db_url=f"sqlite:///{db_path}",
-        editor_password="editor-secret",
-        admin_password="admin-secret",
+        player_accounts=(
+            PlayerAccount(name="Editor", password="editor-secret", admin=False),
+            PlayerAccount(name="Admin", password="admin-secret", admin=True),
+        ),
         jwt_secret="test-jwt-secret",
         ws_require_auth=False,
         log_level="DEBUG",
     )
     app = create_app(settings)
+    init_db()
+
+    with Session(get_engine()) as s:
+        for name in ("Editor", "Admin"):
+            exists = s.exec(select(Player).where(Player.display_name == name)).first()
+            if exists is None:
+                s.add(Player(display_name=name))
+        s.commit()
 
     with TestClient(app) as c:
         yield c
 
 
-def login(client: TestClient, password: str) -> str:
-    r = client.post("/auth/login", json={"password": password})
+def login(client: TestClient, username: str, password: str) -> str:
+    r = client.post("/auth/login", json={"username": username, "password": password})
     assert r.status_code == 200, r.text
     return r.json()["token"]
 
 
 @pytest.fixture()
 def editor_headers(client):
-    token = login(client, "editor-secret")
+    token = login(client, "Editor", "editor-secret")
     return {"Authorization": f"Bearer {token}"}
 
 
 @pytest.fixture()
 def admin_headers(client):
-    token = login(client, "admin-secret")
+    token = login(client, "Admin", "admin-secret")
     return {"Authorization": f"Bearer {token}"}
 
 

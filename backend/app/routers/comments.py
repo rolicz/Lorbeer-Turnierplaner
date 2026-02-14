@@ -6,7 +6,7 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFile
 from sqlmodel import Session, select
 
-from ..auth import require_admin, require_editor
+from ..auth import require_admin, require_editor, require_editor_claims
 from ..db import get_session
 from ..schemas import CommentCreateBody, CommentPatchBody, CommentsPinBody
 from ..models import (
@@ -180,6 +180,7 @@ async def create_comment(
     tournament_id: int,
     body: CommentCreateBody,
     s: Session = Depends(get_session),
+    claims: dict = Depends(require_editor_claims),
 ) -> dict:
     _tournament_or_404(s, tournament_id)
 
@@ -190,6 +191,9 @@ async def create_comment(
 
     match_id = None if body.match_id in (None, "") else int(body.match_id)
     author_player_id = None if body.author_player_id in (None, "") else int(body.author_player_id)
+
+    if author_player_id is not None and author_player_id != int(claims.get("player_id")):
+        raise HTTPException(status_code=403, detail="You can only post comments as yourself or General")
 
     _validate_match_ref(s, tournament_id, match_id)
     _validate_author(s, tournament_id, author_player_id)
@@ -216,11 +220,12 @@ async def create_comment(
     return _comment_dict(c, None)
 
 
-@router.patch("/comments/{comment_id}", dependencies=[Depends(require_editor)])
+@router.patch("/comments/{comment_id}")
 async def patch_comment(
     comment_id: int,
     body: CommentPatchBody,
     s: Session = Depends(get_session),
+    claims: dict = Depends(require_editor_claims),
 ) -> dict:
     c = _comment_or_404(s, comment_id)
     image_updated_at = _comment_image_updated_at(s, comment_id)
@@ -234,6 +239,8 @@ async def patch_comment(
 
     if "author_player_id" in fields:
         author_player_id = None if body.author_player_id in (None, "") else int(body.author_player_id)
+        if author_player_id is not None and author_player_id != int(claims.get("player_id")):
+            raise HTTPException(status_code=403, detail="You can only post comments as yourself or General")
         _validate_author(s, c.tournament_id, author_player_id)
         c.author_player_id = author_player_id
 

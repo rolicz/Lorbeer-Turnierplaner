@@ -1,19 +1,16 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 
-from ..auth import decode_token
+from ..auth import require_auth_claims
 
 router = APIRouter(tags=["auth"])
 
 
 @router.get("/me")
-def me(claims: dict | None = Depends(decode_token)) -> dict:
-    if claims is None:
-        # returning 401 is usually better than returning role:null,
-        # because it clearly tells the frontend "not logged in"
-        raise HTTPException(status_code=401, detail="Not authenticated")
-
+def me(claims: dict = Depends(require_auth_claims)) -> dict:
     return {
         "role": claims.get("role"),
+        "player_id": claims.get("player_id"),
+        "player_name": claims.get("player_name"),
         "sub": claims.get("sub"),
         "iat": claims.get("iat"),
         "exp": claims.get("exp"),

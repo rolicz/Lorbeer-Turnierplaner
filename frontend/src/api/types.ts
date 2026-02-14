@@ -14,6 +14,25 @@ export type Player = {
   display_name: string;
 };
 
+export type PlayerProfile = {
+  player_id: number;
+  display_name: string;
+  bio: string;
+  extras_json?: string;
+  header_image_updated_at?: string | null;
+  updated_at: string | null;
+};
+
+export type PlayerGuestbookEntry = {
+  id: number;
+  profile_player_id: number;
+  author_player_id: number;
+  author_display_name: string;
+  body: string;
+  created_at: string;
+  updated_at: string;
+};
+
 export type League = {
   id: number;
   name: string;
@@ -140,11 +159,16 @@ export type TournamentDetail = {
 // ---- Auth / Me ----
 export type LoginResponse = {
   token: string;
-  role: Exclude<Role, "reader">; // tokens are for editor/admin
+  role: Exclude<Role, "reader">;
+  player_id: number;
+  player_name: string;
 };
 
 export type MeResponse = {
   role: Role;
+  player_id?: number | null;
+  player_name?: string | null;
+  exp: number;
 };
 
 // ---- API payload helpers ----

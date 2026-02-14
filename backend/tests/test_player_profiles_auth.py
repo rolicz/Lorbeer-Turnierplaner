@@ -1,0 +1,111 @@
+def _player_id_by_name(client, name: str) -> int:
+    rows = client.get("/players").json()
+    row = next((p for p in rows if p.get("display_name") == name), None)
+    assert row is not None
+    return int(row["id"])
+
+
+def test_profile_read_public_and_owner_only_edit(client, editor_headers, admin_headers):
+    editor_id = _player_id_by_name(client, "Editor")
+    other_id = client.post("/players", json={"display_name": "ProfileOther"}, headers=admin_headers).json()["id"]
+
+    # Public read for any player profile.
+    rg = client.get(f"/players/{other_id}/profile")
+    assert rg.status_code == 200, rg.text
+    assert rg.json()["player_id"] == other_id
+    assert rg.json()["bio"] == ""
+
+    # Non-owner cannot edit someone else's profile.
+    r_forbidden = client.patch(f"/players/{other_id}/profile", json={"bio": "x"}, headers=editor_headers)
+    assert r_forbidden.status_code == 403, r_forbidden.text
+
+    # Owner can edit own profile.
+    r_ok = client.patch(f"/players/{editor_id}/profile", json={"bio": "hello world"}, headers=editor_headers)
+    assert r_ok.status_code == 200, r_ok.text
+    assert r_ok.json()["bio"] == "hello world"
+
+
+def test_avatar_owner_only_edit(client, editor_headers, admin_headers):
+    editor_id = _player_id_by_name(client, "Editor")
+    other_id = client.post("/players", json={"display_name": "AvatarOther"}, headers=admin_headers).json()["id"]
+
+    files = {"file": ("avatar.webp", b"fake-avatar-bytes", "image/webp")}
+
+    # Non-owner cannot edit someone else's avatar.
+    r_forbidden = client.put(f"/players/{other_id}/avatar", files=files, headers=editor_headers)
+    assert r_forbidden.status_code == 403, r_forbidden.text
+
+    # Owner can upload/delete own avatar.
+    r_put = client.put(f"/players/{editor_id}/avatar", files=files, headers=editor_headers)
+    assert r_put.status_code == 200, r_put.text
+    assert r_put.json()["player_id"] == editor_id
+
+    r_get = client.get(f"/players/{editor_id}/avatar")
+    assert r_get.status_code == 200, r_get.text
+    assert r_get.content == b"fake-avatar-bytes"
+
+    r_del = client.delete(f"/players/{editor_id}/avatar", headers=editor_headers)
+    assert r_del.status_code == 204, r_del.text
+
+
+def test_profile_header_owner_only_edit(client, editor_headers, admin_headers):
+    editor_id = _player_id_by_name(client, "Editor")
+    other_id = client.post("/players", json={"display_name": "HeaderOther"}, headers=admin_headers).json()["id"]
+
+    files = {"file": ("header.webp", b"fake-header-bytes", "image/webp")}
+
+    r_forbidden = client.put(f"/players/{other_id}/header-image", files=files, headers=editor_headers)
+    assert r_forbidden.status_code == 403, r_forbidden.text
+
+    r_put = client.put(f"/players/{editor_id}/header-image", files=files, headers=editor_headers)
+    assert r_put.status_code == 200, r_put.text
+
+    r_get = client.get(f"/players/{editor_id}/header-image")
+    assert r_get.status_code == 200, r_get.text
+    assert r_get.content == b"fake-header-bytes"
+
+    r_meta = client.get("/players/headers")
+    assert r_meta.status_code == 200, r_meta.text
+    assert any(int(x.get("player_id")) == editor_id for x in (r_meta.json() or []))
+
+    r_del = client.delete(f"/players/{editor_id}/header-image", headers=editor_headers)
+    assert r_del.status_code == 204, r_del.text
+
+
+def test_profile_guestbook_create_list_delete(client, editor_headers, admin_headers):
+    editor_id = _player_id_by_name(client, "Editor")
+    target_id = client.post("/players", json={"display_name": "GuestbookTarget"}, headers=admin_headers).json()["id"]
+
+    # Editor can post on another player's guestbook.
+    r_create = client.post(
+        f"/players/{target_id}/guestbook",
+        json={"body": "hello from editor"},
+        headers=editor_headers,
+    )
+    assert r_create.status_code == 200, r_create.text
+    row = r_create.json()
+    assert int(row["profile_player_id"]) == int(target_id)
+    assert int(row["author_player_id"]) == int(editor_id)
+    assert row["body"] == "hello from editor"
+
+    # Public list.
+    r_list = client.get(f"/players/{target_id}/guestbook")
+    assert r_list.status_code == 200, r_list.text
+    rows = r_list.json() or []
+    assert len(rows) == 1
+    assert int(rows[0]["id"]) == int(row["id"])
+
+    # Admin can delete.
+    r_del_admin = client.delete(f"/players/guestbook/{row['id']}", headers=admin_headers)
+    assert r_del_admin.status_code == 204, r_del_admin.text
+
+    # Recreate and delete by author.
+    r_create2 = client.post(
+        f"/players/{target_id}/guestbook",
+        json={"body": "second"},
+        headers=editor_headers,
+    )
+    assert r_create2.status_code == 200, r_create2.text
+    row2 = r_create2.json()
+    r_del_author = client.delete(f"/players/guestbook/{row2['id']}", headers=editor_headers)
+    assert r_del_author.status_code == 204, r_del_author.text

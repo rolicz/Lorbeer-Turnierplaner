@@ -8,6 +8,7 @@ import ClubsPage from "../pages/ClubsPage";
 import PlayersAdminPage from "../pages/PlayersAdminPage";
 import FriendliesPage from "../pages/FriendliesPage";
 import StatsPage from "../pages/StatsPage";
+import ProfilePage from "../pages/ProfilePage";
 import { RequireRole } from "../auth/RequireRole";
 
 export default function App() {
@@ -41,8 +42,26 @@ export default function App() {
         <Route
           path="/players"
           element={
-            <RequireRole minRole="admin">
+            <RequireRole minRole="reader">
               <PlayersAdminPage />
+            </RequireRole>
+          }
+        />
+
+        <Route
+          path="/profile"
+          element={
+            <RequireRole minRole="editor">
+              <ProfilePage />
+            </RequireRole>
+          }
+        />
+
+        <Route
+          path="/profiles/:id"
+          element={
+            <RequireRole minRole="reader">
+              <ProfilePage />
             </RequireRole>
           }
         />

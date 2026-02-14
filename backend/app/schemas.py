@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field
 
 
 class LoginBody(BaseModel):
+    username: str = ""
     password: str = ""
 
 
@@ -15,6 +16,14 @@ class PlayerCreateBody(BaseModel):
 
 class PlayerPatchBody(BaseModel):
     display_name: str | None = None
+
+
+class PlayerProfilePatchBody(BaseModel):
+    bio: str | None = None
+
+
+class PlayerGuestbookCreateBody(BaseModel):
+    body: str = ""
 
 
 class TournamentCreateBody(BaseModel):

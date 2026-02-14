@@ -90,6 +90,8 @@ function ScopeActionButton({
 function AddCommentDropdown({
   open,
   players,
+  currentPlayerId,
+  currentPlayerName,
   draftAuthor,
   onChangeDraftAuthor,
   draftBody,
@@ -104,6 +106,8 @@ function AddCommentDropdown({
 }: {
   open: boolean;
   players: Player[];
+  currentPlayerId: number | null;
+  currentPlayerName: string | null;
   draftAuthor: "general" | number;
   onChangeDraftAuthor: (v: "general" | number) => void;
   draftBody: string;
@@ -117,6 +121,9 @@ function AddCommentDropdown({
   surfaceClassName?: string;
 }) {
   if (!open) return null;
+  const foreignAuthorId =
+    draftAuthor !== "general" && currentPlayerId != null && draftAuthor !== currentPlayerId ? draftAuthor : null;
+  const foreignAuthorName = foreignAuthorId != null ? players.find((p) => p.id === foreignAuthorId)?.display_name : null;
   return (
     <div className={surfaceClassName + " p-3 space-y-2"}>
       <div className="grid gap-2">
@@ -127,12 +134,13 @@ function AddCommentDropdown({
             value={draftAuthor === "general" ? "general" : String(draftAuthor)}
             onChange={(e) => onChangeDraftAuthor(e.target.value === "general" ? "general" : Number(e.target.value))}
           >
+            {currentPlayerId != null ? <option value={String(currentPlayerId)}>{currentPlayerName || "Me"}</option> : null}
             <option value="general">General</option>
-            {players.map((p) => (
-              <option key={p.id} value={String(p.id)}>
-                {p.display_name}
+            {foreignAuthorId != null ? (
+              <option value={String(foreignAuthorId)}>
+                {(foreignAuthorName ?? `Player #${foreignAuthorId}`) + " (original)"}
               </option>
-            ))}
+            ) : null}
           </select>
         </label>
       </div>
@@ -207,6 +215,8 @@ function CommentCard({
   canWrite,
   canDelete,
   players,
+  currentPlayerId,
+  currentPlayerName,
   authorLabel,
   onToggleEdit,
   onDelete,
@@ -231,6 +241,8 @@ function CommentCard({
   canWrite: boolean;
   canDelete: boolean;
   players: Player[];
+  currentPlayerId: number | null;
+  currentPlayerName: string | null;
   authorLabel: (a: CommentAuthor) => string;
   onToggleEdit: () => void;
   onDelete: () => void;
@@ -246,6 +258,9 @@ function CommentCard({
   onOpenImage: (src: string) => void;
 }) {
   const edited = c.updatedAt > c.createdAt;
+  const foreignAuthorId =
+    draftAuthor !== "general" && currentPlayerId != null && draftAuthor !== currentPlayerId ? draftAuthor : null;
+  const foreignAuthorName = foreignAuthorId != null ? players.find((p) => p.id === foreignAuthorId)?.display_name : null;
 
   return (
     <div
@@ -354,12 +369,15 @@ function CommentCard({
               value={draftAuthor === "general" ? "general" : String(draftAuthor)}
               onChange={(e) => onChangeDraftAuthor(e.target.value === "general" ? "general" : Number(e.target.value))}
             >
+              {currentPlayerId != null ? (
+                <option value={String(currentPlayerId)}>{currentPlayerName || "Me"}</option>
+              ) : null}
               <option value="general">General</option>
-              {players.map((p) => (
-                <option key={p.id} value={String(p.id)}>
-                  {p.display_name}
+              {foreignAuthorId != null ? (
+                <option value={String(foreignAuthorId)}>
+                  {(foreignAuthorName ?? `Player #${foreignAuthorId}`) + " (original)"}
                 </option>
-              ))}
+              ) : null}
             </select>
           </label>
 
@@ -428,7 +446,7 @@ export default function TournamentCommentsCard({
   focusCommentRequest?: { id: number; nonce: number } | null;
 }) {
   const qc = useQueryClient();
-  const { token, role } = useAuth();
+  const { token, role, playerId: currentPlayerId, playerName: currentPlayerName } = useAuth();
   const canAttachImage = role === "admin" || role === "editor";
   const seen = useSeenSet(tournamentId);
 
@@ -450,7 +468,7 @@ export default function TournamentCommentsCard({
   }
 
   // --- create/edit form state ---
-  const [draftAuthor, setDraftAuthor] = useState<"general" | number>("general");
+  const [draftAuthor, setDraftAuthor] = useState<"general" | number>(currentPlayerId ?? "general");
   const [draftBody, setDraftBody] = useState("");
   const [draftImageBlob, setDraftImageBlob] = useState<Blob | null>(null);
   const [draftImagePreviewUrl, setDraftImagePreviewUrl] = useState<string | null>(null);
@@ -501,7 +519,7 @@ export default function TournamentCommentsCard({
   useEffect(() => {
     // Reset UI state when switching tournaments.
     /* eslint-disable react-hooks/set-state-in-effect */
-    setDraftAuthor("general");
+    setDraftAuthor(currentPlayerId ?? "general");
     setDraftBody("");
     setDraftImageBlob(null);
     setDraftImagePreviewUrl((prev) => {
@@ -514,7 +532,7 @@ export default function TournamentCommentsCard({
     setPendingFocusId(null);
     setFlashId(null);
     /* eslint-enable react-hooks/set-state-in-effect */
-  }, [tournamentId]);
+  }, [tournamentId, currentPlayerId]);
 
   useEffect(() => {
     return () => {
@@ -565,7 +583,7 @@ export default function TournamentCommentsCard({
   }, [comments, pendingFocusId]);
 
   function resetDraft() {
-    setDraftAuthor("general");
+    setDraftAuthor(currentPlayerId ?? "general");
     setDraftBody("");
     setDraftImageBlob(null);
     setDraftImagePreviewUrl((prev) => {
@@ -614,7 +632,7 @@ export default function TournamentCommentsCard({
   });
 
   const patchMut = useMutation({
-    mutationFn: async (payload: { commentId: number; author_player_id: number | null; body: string }) => {
+    mutationFn: async (payload: { commentId: number; author_player_id?: number | null; body: string }) => {
       if (!token) throw new Error("Not logged in");
       return apiPatchComment(token, payload.commentId, {
         author_player_id: payload.author_player_id,
@@ -673,7 +691,20 @@ export default function TournamentCommentsCard({
     try {
       if (editingId != null) {
         if (!editingDirty) return;
-        await patchMut.mutateAsync({ commentId: editingId, author_player_id, body });
+        const patchPayload: { commentId: number; author_player_id?: number | null; body: string } = {
+          commentId: editingId,
+          body,
+        };
+        if (editingOriginal) {
+          const originalAuthorId =
+            editingOriginal.author.kind === "player" ? editingOriginal.author.playerId : null;
+          if (originalAuthorId !== author_player_id) {
+            patchPayload.author_player_id = author_player_id;
+          }
+        } else {
+          patchPayload.author_player_id = author_player_id;
+        }
+        await patchMut.mutateAsync(patchPayload);
         setPendingFocusId(editingId);
       } else {
         const created = await createMut.mutateAsync({ scope, author_player_id, body, has_image: hasImage });
@@ -777,7 +808,7 @@ export default function TournamentCommentsCard({
 
   function startAdd(scope: CommentScope) {
     setEditingId(null);
-    setDraftAuthor("general");
+    setDraftAuthor(currentPlayerId ?? "general");
     setDraftBody("");
     setDraftImageBlob(null);
     setDraftImagePreviewUrl((prev) => {
@@ -828,6 +859,8 @@ export default function TournamentCommentsCard({
               <AddCommentDropdown
                 open={canWrite && sameScope(addTarget, { kind: "tournament" })}
                 players={players}
+                currentPlayerId={currentPlayerId}
+                currentPlayerName={currentPlayerName}
                 draftAuthor={draftAuthor}
                 onChangeDraftAuthor={setDraftAuthor}
                 draftBody={draftBody}
@@ -880,6 +913,8 @@ export default function TournamentCommentsCard({
                     canWrite={canWrite}
                     canDelete={canDelete}
                     players={players}
+                    currentPlayerId={currentPlayerId}
+                    currentPlayerName={currentPlayerName}
                     authorLabel={authorLabel}
                     onToggleEdit={() => toggleEdit(c!)}
                     onDelete={() => {
@@ -980,6 +1015,8 @@ export default function TournamentCommentsCard({
                   <AddCommentDropdown
                     open={addOpenForMatch}
                     players={players}
+                    currentPlayerId={currentPlayerId}
+                    currentPlayerName={currentPlayerName}
                     draftAuthor={draftAuthor}
                     onChangeDraftAuthor={setDraftAuthor}
                     draftBody={draftBody}
@@ -1017,6 +1054,8 @@ export default function TournamentCommentsCard({
                         canWrite={canWrite}
                         canDelete={canDelete}
                         players={players}
+                        currentPlayerId={currentPlayerId}
+                        currentPlayerName={currentPlayerName}
                         authorLabel={authorLabel}
                         onToggleEdit={() => toggleEdit(c)}
                         onDelete={() => {

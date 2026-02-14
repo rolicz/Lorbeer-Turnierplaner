@@ -97,7 +97,7 @@ def test_comment_author_must_be_tournament_player(client, editor_headers, admin_
         json={"body": "hi", "author_player_id": outsider},
         headers=editor_headers,
     )
-    assert r.status_code == 400, r.text
+    assert r.status_code == 403, r.text
 
 
 def test_match_comment_requires_match_in_tournament(client, editor_headers, admin_headers):

@@ -11,8 +11,6 @@ def parse_args() -> argparse.Namespace:
 
     # Optional overrides (override secrets.json)
     p.add_argument("--db-url")
-    p.add_argument("--admin-password")
-    p.add_argument("--editor-password")
     p.add_argument("--jwt-secret")
     p.add_argument("--log-level")
     return p.parse_args()
@@ -23,8 +21,6 @@ def app_factory():
     settings = load_settings(
         secrets_path=args.secrets,
         db_url=args.db_url,
-        admin_password=args.admin_password,
-        editor_password=args.editor_password,
         jwt_secret=args.jwt_secret,
         log_level=args.log_level,
     )

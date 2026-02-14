@@ -184,7 +184,7 @@ export default function FriendlyMatchCard() {
   const canStore = role === "editor" || role === "admin";
   const [initialState] = useState<FriendlyMatchPersistedState>(() => loadFriendlyState());
 
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(false);
   const [clubGame, setClubGame] = useState(initialState.clubGame);
 
   const [mode, setMode] = useState<"1v1" | "2v2">(initialState.mode);
@@ -324,7 +324,7 @@ export default function FriendlyMatchCard() {
   return (
     <CollapsibleCard
       title="New Friendly"
-      defaultOpen={true}
+      defaultOpen={false}
       variant="outer"
       onOpenChange={setOpen}
       bodyVariant="none"

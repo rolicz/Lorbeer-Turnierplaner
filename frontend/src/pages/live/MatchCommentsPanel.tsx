@@ -39,11 +39,11 @@ export default function MatchCommentsPanel({
   playersInMatch: Player[];
 }) {
   const qc = useQueryClient();
-  const { token, role } = useAuth();
+  const { token, role, playerId: currentPlayerId, playerName: currentPlayerName } = useAuth();
   const canAttachImage = role === "admin" || role === "editor";
   const seen = useSeenSet(tournamentId);
 
-  const [author, setAuthor] = useState<"general" | number>("general");
+  const [postAsGeneral, setPostAsGeneral] = useState(false);
   const [text, setText] = useState("");
   const [draftImageBlob, setDraftImageBlob] = useState<Blob | null>(null);
   const [draftImagePreviewUrl, setDraftImagePreviewUrl] = useState<string | null>(null);
@@ -100,7 +100,8 @@ export default function MatchCommentsPanel({
       if (!Number.isFinite(tournamentId) || tournamentId <= 0) throw new Error("Missing tournament id");
       if (!Number.isFinite(matchId) || matchId <= 0) throw new Error("Missing match id");
       if (!token) throw new Error("Not logged in");
-      const author_player_id = author === "general" ? null : author;
+      if (!postAsGeneral && (!currentPlayerId || currentPlayerId <= 0)) throw new Error("Missing player identity");
+      const author_player_id = postAsGeneral ? null : currentPlayerId;
       const created = await createTournamentComment(token, tournamentId, {
         match_id: matchId,
         author_player_id,
@@ -120,7 +121,7 @@ export default function MatchCommentsPanel({
       setPendingScrollId(created.id);
       setText("");
       setDraftImage(null);
-      setAuthor("general");
+      setPostAsGeneral(false);
       setImageCropOpen(false);
       setComposerOpen(false);
       await qc.invalidateQueries({ queryKey: ["comments", tournamentId] });
@@ -256,7 +257,7 @@ export default function MatchCommentsPanel({
                       setText("");
                       setDraftImage(null);
                       setImageCropOpen(false);
-                      setAuthor("general");
+                      setPostAsGeneral(false);
                     }
                     return next;
                   });
@@ -279,18 +280,12 @@ export default function MatchCommentsPanel({
                   <div className="input-label">Posted as</div>
                   <select
                     className="select-field"
-                    value={author === "general" ? "general" : String(author)}
-                    onChange={(e) =>
-                      setAuthor(e.target.value === "general" ? "general" : Number(e.target.value))
-                    }
+                    value={postAsGeneral ? "general" : "self"}
+                    onChange={(e) => setPostAsGeneral(e.target.value === "general")}
                     disabled={createMut.isPending}
                   >
+                    <option value="self">{currentPlayerName || "Me"}</option>
                     <option value="general">General</option>
-                    {playersInMatch.map((p) => (
-                      <option key={p.id} value={String(p.id)}>
-                        {p.display_name}
-                      </option>
-                    ))}
                   </select>
                 </label>
 

@@ -40,33 +40,57 @@ export default function FriendlyMatchesListCard() {
 
   const tournaments = useMemo<StatsPlayerMatchesTournament[]>(() => {
     const rows = friendliesQ.data ?? [];
-    return rows.map((f) => {
-      const sides: MatchSide[] = [...(f.sides ?? [])]
-        .sort((a, b) => a.side.localeCompare(b.side))
-        .map((s) => ({
-          id: s.id,
-          side: s.side,
-          players: s.players ?? [],
-          club_id: s.club_id,
-          goals: Number.isFinite(Number(s.goals)) ? Number(s.goals) : 0,
-        }));
-      const m: Match = {
-        id: 2_100_000_000 + f.id,
-        tournament_id: 0,
-        order_index: 0,
-        leg: 1,
-        state: normalizeState(f.state),
-        started_at: f.created_at,
-        finished_at: f.updated_at,
-        sides,
-      };
+    const byDate = new Map<string, typeof rows>();
+    for (const f of rows) {
+      const key = String(f.date || "");
+      const arr = byDate.get(key) ?? [];
+      arr.push(f);
+      byDate.set(key, arr);
+    }
+
+    const dates = [...byDate.keys()].sort((a, b) => b.localeCompare(a));
+
+    return dates.map((dateKey) => {
+      const groupRows = [...(byDate.get(dateKey) ?? [])].sort((a, b) => {
+        const at = Date.parse(a.created_at);
+        const bt = Date.parse(b.created_at);
+        if (Number.isFinite(at) && Number.isFinite(bt) && bt !== at) return bt - at;
+        return b.id - a.id;
+      });
+      const matches: Match[] = groupRows.map((f, idx) => {
+        const sides: MatchSide[] = [...(f.sides ?? [])]
+          .sort((a, b) => a.side.localeCompare(b.side))
+          .map((s) => ({
+            id: s.id,
+            side: s.side,
+            players: s.players ?? [],
+            club_id: s.club_id,
+            goals: Number.isFinite(Number(s.goals)) ? Number(s.goals) : 0,
+          }));
+        return {
+          id: 2_100_000_000 + f.id,
+          tournament_id: 0,
+          order_index: idx,
+          leg: 1,
+          state: normalizeState(f.state),
+          started_at: f.created_at,
+          finished_at: f.updated_at,
+          sides,
+        };
+      });
+
+      const numericDate = Number.parseInt(dateKey.replace(/-/g, ""), 10);
+      const fallbackId = groupRows[0]?.id ?? 0;
+      const groupId = Number.isFinite(numericDate) && numericDate > 0 ? -(3_000_000 + numericDate) : -(3_000_000 + fallbackId);
+      const groupMode: "1v1" | "2v2" = groupRows.every((r) => r.mode === "2v2") ? "2v2" : "1v1";
+
       return {
-        id: -(3_000_000 + f.id),
-        name: `Friendly #${f.id}`,
-        date: f.date,
-        mode: f.mode,
+        id: groupId,
+        name: "Friendlies",
+        date: dateKey,
+        mode: groupMode,
         status: "friendly",
-        matches: [m],
+        matches,
       };
     });
   }, [friendliesQ.data]);
@@ -84,9 +108,8 @@ export default function FriendlyMatchesListCard() {
 
   const pendingDeleteId = deleteMut.variables ?? null;
 
-  function friendlyIdFromTournamentId(tid: number): number | null {
-    if (tid >= 0) return null;
-    const fid = Math.abs(tid) - 3_000_000;
+  function friendlyIdFromMatchId(mid: number): number | null {
+    const fid = Math.trunc(mid) - 2_100_000_000;
     return fid > 0 ? fid : null;
   }
 
@@ -98,7 +121,7 @@ export default function FriendlyMatchesListCard() {
           All Friendlies
         </span>
       }
-      defaultOpen={false}
+      defaultOpen={true}
       variant="outer"
       bodyVariant="none"
       bodyClassName="space-y-3"
@@ -162,19 +185,20 @@ export default function FriendlyMatchesListCard() {
             tournaments={tournaments}
             clubs={clubsQ.data ?? []}
             showMeta={showMeta}
-            renderTournamentActions={(t) => {
+            hideModePill
+            renderMatchActions={(_t, m) => {
               if (!canDelete) return null;
-              const fid = friendlyIdFromTournamentId(t.id);
+              const fid = friendlyIdFromMatchId(m.id);
               if (!fid) return null;
               const pending = deleteMut.isPending && pendingDeleteId === fid;
               return (
                 <button
                   type="button"
                   className="btn-base btn-ghost inline-flex h-8 w-8 items-center justify-center p-0"
-                  title="Delete friendly"
+                  title={`Delete friendly #${fid}`}
                   disabled={pending}
                   onClick={() => {
-                    if (!window.confirm(`Delete ${t.name}?`)) return;
+                    if (!window.confirm(`Delete friendly #${fid}?`)) return;
                     deleteMut.mutate(fid);
                   }}
                 >
