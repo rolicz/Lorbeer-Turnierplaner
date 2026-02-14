@@ -1,5 +1,5 @@
 import { Link, useLocation } from "react-router-dom";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../../auth/AuthContext";
 import Button from "../primitives/Button";
@@ -12,16 +12,22 @@ import { listTournamentCommentsSummary } from "../../api/comments.api";
 type Role = "reader" | "editor" | "admin";
 type ThemeName = string;
 
-const THEME_OPTIONS: { value: ThemeName; label: string }[] = THEMES.map((t) => ({
-  value: t,
-  label: t.charAt(0).toUpperCase() + t.slice(1),
-}));
+const THEME_SWATCHES: Record<string, string[]> = {
+  blue: ["#0f172a", "#1e293b", "#334155", "#fe6100"],
+  dark: ["#09090b", "#27272a", "#3f3f46", "#3b82f6"],
+  red: ["#080507", "#180f12", "#2a1a1f", "#e1384a"],
+  light: ["#f4f3f2", "#eae9e8", "#ffffff", "#3b82f6"],
+  green: ["#0a100c", "#18261d", "#2a4032", "#22c55e"],
+};
+
+const THEME_OPTIONS: ThemeName[] = THEMES;
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const { token, role, accountRole, playerName, logout, canCycleRole, cycleRole } = useAuth();
   const loc = useLocation();
   useAnyTournamentWS();
   const qc = useQueryClient();
+  const themeMenuRef = useRef<HTMLDivElement | null>(null);
 
   // Warm cache so "unread comments" indicators appear quickly after navigation.
   // Using prefetch avoids any rendering dependencies and works well with StrictMode.
@@ -38,16 +44,37 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const [theme, setTheme] = useState<ThemeName>(() => {
     const storedRaw = localStorage.getItem("theme");
     const stored = storedRaw === "ibm" ? "blue" : storedRaw === "football" ? "green" : storedRaw;
-    if (stored && THEME_OPTIONS.some((t) => t.value === stored)) {
+    if (stored && THEME_OPTIONS.includes(stored)) {
       return stored;
     }
     return "blue";
   });
+  const [themeMenuOpen, setThemeMenuOpen] = useState(false);
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
     localStorage.setItem("theme", theme);
   }, [theme]);
+
+  useEffect(() => {
+    if (!themeMenuOpen) return;
+    const onDocMouseDown = (e: MouseEvent) => {
+      const el = themeMenuRef.current;
+      if (!el) return;
+      if (e.target instanceof Node && !el.contains(e.target)) {
+        setThemeMenuOpen(false);
+      }
+    };
+    const onDocKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setThemeMenuOpen(false);
+    };
+    document.addEventListener("mousedown", onDocMouseDown);
+    document.addEventListener("keydown", onDocKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", onDocMouseDown);
+      document.removeEventListener("keydown", onDocKeyDown);
+    };
+  }, [themeMenuOpen]);
 
   const nav: { to: string; label: string; icon: string; min: Role }[] = [
     { to: "/dashboard", label: "Dashboard", icon: "fa-gauge-high", min: "reader" },
@@ -106,24 +133,70 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             right={
               <>
                 <div className="flex items-center gap-2">
-                  <span className="hidden md:inline text-xs text-muted">Theme</span>
-                  <select
-                    aria-label="Theme"
-                    className="select-field h-9 sm:h-10 w-[120px] px-2 py-0 text-[11px] sm:w-[140px] sm:text-xs"
-                    value={theme}
-                    onChange={(e) => {
-                      const next = e.target.value;
-                      if (THEME_OPTIONS.some((t) => t.value === next)) {
-                        setTheme(next);
-                      }
-                    }}
-                  >
-                    {THEME_OPTIONS.map((opt) => (
-                      <option key={opt.value} value={opt.value}>
-                        {opt.label}
-                      </option>
-                    ))}
-                  </select>
+                  <div className="relative" ref={themeMenuRef}>
+                    <button
+                      type="button"
+                      aria-label="Theme"
+                      title={`Theme: ${theme}`}
+                      className="btn-base btn-ghost inline-flex h-9 sm:h-10 items-center justify-center gap-2 px-2 sm:px-3"
+                      onClick={() => setThemeMenuOpen((v) => !v)}
+                    >
+                      <span className="inline-flex items-center gap-1.5">
+                        {(THEME_SWATCHES[theme] ?? ["#334155", "#475569", "#64748b", "#fe6100"]).map((c, i) => (
+                          <span
+                            key={`${theme}-${i}`}
+                            className="h-3 w-3 rounded-full border border-border-card-chip/80"
+                            style={{ backgroundColor: c }}
+                            aria-hidden="true"
+                          />
+                        ))}
+                      </span>
+                      <i className={"fa-solid text-[11px] text-text-muted " + (themeMenuOpen ? "fa-chevron-up" : "fa-chevron-down")} aria-hidden="true" />
+                    </button>
+
+                    {themeMenuOpen ? (
+                      <div className="absolute right-0 top-full z-50 mt-1 min-w-[156px] rounded-xl border border-border-card-chip bg-bg-card-inner p-1 shadow-xl">
+                        <div className="space-y-1">
+                          {THEME_OPTIONS.map((opt) => {
+                            const swatches = THEME_SWATCHES[opt] ?? ["#334155", "#475569", "#64748b", "#fe6100"];
+                            const active = opt === theme;
+                            return (
+                              <button
+                                key={opt}
+                                type="button"
+                                title={opt}
+                                aria-label={`Theme ${opt}`}
+                                className={
+                                  "w-full rounded-lg px-2 py-1.5 transition " +
+                                  (active ? "bg-bg-card-chip/45" : "hover:bg-hover-default/40")
+                                }
+                                onClick={() => {
+                                  setTheme(opt);
+                                  setThemeMenuOpen(false);
+                                }}
+                              >
+                                <span className="flex items-center justify-between gap-2">
+                                  <span className="inline-flex items-center gap-1.5">
+                                    {swatches.map((c, i) => (
+                                      <span
+                                        key={`${opt}-${i}`}
+                                        className="h-3 w-3 rounded-full border border-border-card-chip/80"
+                                        style={{ backgroundColor: c }}
+                                        aria-hidden="true"
+                                      />
+                                    ))}
+                                  </span>
+                                  <span className="inline-flex w-4 items-center justify-center text-text-muted">
+                                    {active ? <i className="fa-solid fa-check text-[11px]" aria-hidden="true" /> : null}
+                                  </span>
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
                 </div>
                 {!token ? (
                   <Link
