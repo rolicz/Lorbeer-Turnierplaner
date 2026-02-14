@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import type { Match, Player } from "../../api/types";
 import { sideBy } from "../../helpers";
@@ -9,7 +10,6 @@ import { cupColorVarForKey } from "../../cupColors";
 import { getStatsStreaks } from "../../api/stats.api";
 import type { StatsStreakRow, StatsStreaksResponse } from "../../api/types";
 import { StreakPatch, type ActiveStreak } from "../../ui/StreakPatches";
-import PlayerLiveStatsModal from "./PlayerLiveStatsModal";
 import { usePlayerAvatarMap } from "../../hooks/usePlayerAvatarMap";
 
 type Row = {
@@ -143,7 +143,7 @@ function MobileRow({
   avatarUpdatedAt,
   cupMarks,
   streaks,
-  onOpenPlayer,
+  onOpenProfile,
 }: {
   r: Row;
   rank: number;
@@ -152,17 +152,17 @@ function MobileRow({
   avatarUpdatedAt: string | null;
   cupMarks: { key: string; name: string }[];
   streaks: ActiveStreak[];
-  onOpenPlayer: (playerId: number) => void;
+  onOpenProfile: (playerId: number) => void;
 }) {
   return (
     <div
       className="panel-subtle relative overflow-hidden px-3 py-2 cursor-pointer"
-      title={`Open stats for ${r.name}`}
-      onClick={() => onOpenPlayer(r.playerId)}
+      title={`Open profile: ${r.name}`}
+      onClick={() => onOpenProfile(r.playerId)}
       onKeyDown={(e) => {
         if (e.key === "Enter" || e.key === " ") {
           e.preventDefault();
-          onOpenPlayer(r.playerId);
+          onOpenProfile(r.playerId);
         }
       }}
       role="button"
@@ -180,7 +180,7 @@ function MobileRow({
             </div>
             <AvatarCircle playerId={r.playerId} name={r.name} updatedAt={avatarUpdatedAt} sizeClass="h-9 w-9" />
             <div className="min-w-0 flex flex-1 items-center gap-2">
-              <div className="min-w-0 flex-[0_1_auto] truncate text-left font-medium text-text-normal">{r.name}</div>
+              <span className="min-w-0 flex-[0_1_auto] truncate text-left font-medium text-text-normal">{r.name}</span>
               {cupMarks.length ? (
                 <div className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap pl-0.5">
                   {cupMarks.slice(0, 2).map((c) => (
@@ -233,7 +233,7 @@ function MobileRow({
 export default function StandingsTable({
   tournamentId,
   tournamentDate,
-  tournamentMode,
+  tournamentMode: _tournamentMode,
   matches,
   players,
   tournamentStatus,
@@ -248,10 +248,10 @@ export default function StandingsTable({
   /** If false, renders borderless (for embedding inside another Card/Collapsible). */
   wrap?: boolean;
 }) {
+  const navigate = useNavigate();
   const baseRows = useMemo(() => computeStandings(matches, players, "finished"), [matches, players]);
   const liveRows = useMemo(() => computeStandings(matches, players, "live"), [matches, players]);
   const basePos = useMemo(() => posMap(baseRows), [baseRows]);
-  const [selectedPlayerId, setSelectedPlayerId] = useState<number | null>(null);
 
   const { avatarUpdatedAtById: avatarUpdatedAtByPlayerId } = usePlayerAvatarMap();
 
@@ -437,16 +437,6 @@ export default function StandingsTable({
   }, [cups, cupsQ, tournamentDate, tournamentId]);
 
   const title = tournamentStatus === "done" ? "Results" : "Standings (live)";
-  const selectedPlayer = useMemo(() => {
-    if (!selectedPlayerId) return null;
-    const p = players.find((x) => x.id === selectedPlayerId);
-    if (!p) return null;
-    return { id: p.id, name: p.display_name };
-  }, [players, selectedPlayerId]);
-  const selectedAvatarUpdatedAt = useMemo(() => {
-    if (!selectedPlayerId) return null;
-    return avatarUpdatedAtByPlayerId.get(selectedPlayerId) ?? null;
-  }, [avatarUpdatedAtByPlayerId, selectedPlayerId]);
 
   const content = (
     <>
@@ -468,7 +458,7 @@ export default function StandingsTable({
               avatarUpdatedAt={avatarUpdatedAt}
               cupMarks={cupMarks}
               streaks={streaks}
-              onOpenPlayer={setSelectedPlayerId}
+              onOpenProfile={(playerId) => navigate(`/profiles/${playerId}`)}
             />
           );
         })}
@@ -512,12 +502,12 @@ export default function StandingsTable({
                     // Ensure all cells (including streak badges) are vertically centered in the row.
                     "[&>td]:align-middle",
                   ].join(" ")}
-                  title={`Open stats for ${r.name}`}
-                  onClick={() => setSelectedPlayerId(r.playerId)}
+                  title={`Open profile: ${r.name}`}
+                  onClick={() => navigate(`/profiles/${r.playerId}`)}
                   onKeyDown={(e) => {
                     if (e.key === "Enter" || e.key === " ") {
                       e.preventDefault();
-                      setSelectedPlayerId(r.playerId);
+                      navigate(`/profiles/${r.playerId}`);
                     }
                   }}
                   role="button"
@@ -536,7 +526,7 @@ export default function StandingsTable({
                     <Arrow delta={delta} />
                   </td>
                   <td className="py-2 pr-1.5 font-sans font-medium min-w-0">
-                    <div className="inline-flex min-w-0 max-w-[280px] items-center gap-2 lg:max-w-[420px]">
+                    <span className="inline-flex min-w-0 max-w-[280px] items-center gap-2 no-underline lg:max-w-[420px]">
                       <AvatarCircle
                         playerId={r.playerId}
                         name={r.name}
@@ -559,7 +549,7 @@ export default function StandingsTable({
                           ) : null}
                         </span>
                       ) : null}
-                    </div>
+                    </span>
                   </td>
                   <td className="py-2 px-1.5 text-right">{r.played}</td>
                   <td className="py-2 px-1.5 text-right">{r.wins}</td>
@@ -576,13 +566,6 @@ export default function StandingsTable({
         </table>
       </div>
 
-      <PlayerLiveStatsModal
-        open={selectedPlayerId != null}
-        onClose={() => setSelectedPlayerId(null)}
-        player={selectedPlayer}
-        avatarUpdatedAt={selectedAvatarUpdatedAt}
-        mode={tournamentMode}
-      />
     </>
   );
 

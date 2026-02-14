@@ -91,6 +91,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const isNavActive = (to: string, pathname: string) => {
     if (to === "/profile") return pathname === "/profile";
     if (to === "/players") return pathname === "/players" || pathname.startsWith("/players/") || pathname.startsWith("/profiles/");
+    if (to === "/tournaments") return pathname === "/tournaments" || pathname.startsWith("/tournaments/") || pathname.startsWith("/live/");
     return pathname === to || pathname.startsWith(`${to}/`);
   };
 

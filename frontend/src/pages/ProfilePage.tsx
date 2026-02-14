@@ -454,7 +454,6 @@ export default function ProfilePage() {
 
             <span className="card-chip inline-flex items-center gap-2 px-2 py-1">
               <i className="fa-regular fa-futbol text-text-muted" aria-hidden="true" />
-              <span className="text-[11px] text-text-muted">G</span>
               <span className="text-[11px] font-mono tabular-nums text-text-chip">
                 {fmtInt(playerStatsRow?.gf ?? 0)}:{fmtInt(playerStatsRow?.ga ?? 0)}
               </span>
@@ -487,6 +486,15 @@ export default function ProfilePage() {
               <span className="text-[11px] text-text-muted">Last 10</span>
               <span className="text-[11px] font-mono tabular-nums text-text-chip">{pct(playerStatsRow?.lastN_avg_pts ?? 0)}</span>
             </span>
+
+            <span className="card-chip inline-flex items-center gap-2 px-2 py-1">
+              <i className="fa-solid fa-ranking-star text-text-muted" aria-hidden="true" />
+              <span className="text-[11px] text-text-muted">Elo</span>
+              <span className="text-[11px] font-mono tabular-nums text-text-chip">
+                {eloRow ? Math.round(eloRow.rating) : "—"}
+              </span>
+              <span className="text-[11px] text-text-muted">{eloRank != null ? `#${eloRank}` : ""}</span>
+            </span>
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
@@ -511,22 +519,7 @@ export default function ProfilePage() {
             })}
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-xs">
-            <div className="card-chip px-3 py-2">
-              <div className="inline-flex items-center gap-2 text-text-muted">
-                <i className="fa-solid fa-ranking-star" aria-hidden="true" />
-                <span>Elo rank</span>
-              </div>
-              <div className="font-semibold mt-0.5">
-                {eloRank != null ? `#${eloRank}` : "—"}
-                <span className="text-text-muted"> · {eloRow ? `${Math.round(eloRow.rating)} pts` : "—"}</span>
-              </div>
-              {eloRow ? (
-                <div className="text-text-muted mt-0.5">
-                  {eloRow.wins}-{eloRow.draws}-{eloRow.losses} · {eloRow.played}P
-                </div>
-              ) : null}
-            </div>
+          <div className="grid grid-cols-2 gap-2 text-xs">
             <div className="card-chip px-3 py-2">
               <div className="inline-flex items-center gap-2 text-text-muted">
                 <i className="fa-solid fa-face-smile" aria-hidden="true" />
