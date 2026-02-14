@@ -9,8 +9,18 @@ from sqlalchemy import case, func
 from ..auth import require_admin, require_editor
 from ..db import get_session
 from ..models import Match, MatchSide, MatchSidePlayer, Player, Tournament, TournamentPlayer
+from ..schemas import (
+    TournamentCreateBody,
+    TournamentDeciderPatchBody,
+    TournamentDatePatchBody,
+    TournamentGenerateBody,
+    TournamentPatchBody,
+    TournamentReassignBody,
+    TournamentReorderBody,
+    TournamentSecondLegBody,
+)
 from ..scheduling import assign_labels, schedule_1v1_labels, schedule_2v2_labels
-from ..stats import compute_stats
+from ..stats import compute_tournament_stats
 from ..ws import ws_manager, ws_manager_update_tournaments
 from ..tournament_status import compute_status_for_tournament, compute_status_map, find_other_live_tournament_id
 from ..services.comments_summary import tournament_comments_summary
@@ -113,6 +123,8 @@ def _bulk_delete_matches(
     s: Session,
     tournament_id: int,
     leg: int | None = None,
+    *,
+    autocommit: bool = True,
 ) -> int:
     q = select(Match.id).where(Match.tournament_id == tournament_id)
     if leg is not None:
@@ -144,17 +156,18 @@ def _bulk_delete_matches(
         .execution_options(synchronize_session=False)
     )
 
-    s.commit()
-    s.expire_all()
+    if autocommit:
+        s.commit()
+        s.expire_all()
     return len(match_ids)
 
 
-def _delete_schedule(s: Session, tournament_id: int) -> None:
-    _bulk_delete_matches(s, tournament_id, leg=None)
+def _delete_schedule(s: Session, tournament_id: int, *, autocommit: bool = True) -> None:
+    _bulk_delete_matches(s, tournament_id, leg=None, autocommit=autocommit)
 
 
-def _delete_matches_by_leg(s: Session, tournament_id: int, leg: int) -> None:
-    _bulk_delete_matches(s, tournament_id, leg=leg)
+def _delete_matches_by_leg(s: Session, tournament_id: int, leg: int, *, autocommit: bool = True) -> None:
+    _bulk_delete_matches(s, tournament_id, leg=leg, autocommit=autocommit)
 
 
 def _delete_tournament_graph(s: Session, tournament_id: int) -> bool:
@@ -198,7 +211,13 @@ def _delete_tournament_graph(s: Session, tournament_id: int) -> bool:
     return True
 
 
-def _generate_schedule_for_tournament(s: Session, t: Tournament, randomize: bool) -> tuple[int, dict]:
+def _generate_schedule_for_tournament(
+    s: Session,
+    t: Tournament,
+    randomize: bool,
+    *,
+    autocommit: bool = True,
+) -> tuple[int, dict]:
     player_names = [p.display_name for p in t.players]
 
     if t.mode == "1v1" and not (3 <= len(player_names) <= 6):
@@ -218,7 +237,7 @@ def _generate_schedule_for_tournament(s: Session, t: Tournament, randomize: bool
     t.settings_json = json.dumps(settings)
     t.updated_at = datetime.utcnow()
     s.add(t)
-    s.commit()
+    s.flush()
 
     if t.mode == "1v1":
         label_matches = schedule_1v1_labels(labels)
@@ -231,7 +250,7 @@ def _generate_schedule_for_tournament(s: Session, t: Tournament, randomize: bool
     if randomize:
         random.shuffle(label_matches)
 
-    _delete_schedule(s, int(t.id))
+    _delete_schedule(s, int(t.id), autocommit=False)
 
     db_players = {p.display_name: p for p in t.players}
 
@@ -239,27 +258,23 @@ def _generate_schedule_for_tournament(s: Session, t: Tournament, randomize: bool
         return [db_players[label_to_name[l]].id for l in team]
 
     for idx, (team_a, team_b) in enumerate(label_matches):
-        m = Match(tournament_id=t.id, order_index=idx, state="scheduled")
-        s.add(m)
-        s.commit()
-        s.refresh(m)
+        _create_match_with_teams(
+            s=s,
+            tournament_id=int(t.id),
+            order_index=idx,
+            leg=1,
+            team_a_player_ids=label_team_to_player_ids(team_a),
+            team_b_player_ids=label_team_to_player_ids(team_b),
+            autocommit=False,
+        )
 
-        for side_label, team in (("A", team_a), ("B", team_b)):
-            side = MatchSide(match_id=m.id, side=side_label, goals=0, club_id=None)
-            s.add(side)
-            s.commit()
-            s.refresh(side)
-
-            for pid in label_team_to_player_ids(team):
-                s.add(MatchSidePlayer(match_side_id=side.id, player_id=pid))
-
-        s.commit()
-
-    t = _tournament_or_404(s, int(t.id))
+    s.flush()
     t.status = compute_status_for_tournament(s, int(t.id))
     t.updated_at = datetime.utcnow()
     s.add(t)
-    s.commit()
+    if autocommit:
+        s.commit()
+        s.refresh(t)
 
     return len(label_matches), label_to_name
 
@@ -271,6 +286,8 @@ def _create_match_with_teams(
     leg: int,
     team_a_player_ids: list[int],
     team_b_player_ids: list[int],
+    *,
+    autocommit: bool = True,
 ) -> Match:
     m = Match(
         tournament_id=tournament_id,
@@ -279,19 +296,19 @@ def _create_match_with_teams(
         state="scheduled",
     )
     s.add(m)
-    s.commit()
-    s.refresh(m)
+    s.flush()
 
     for side_label, pids in (("A", team_a_player_ids), ("B", team_b_player_ids)):
         side = MatchSide(match_id=m.id, side=side_label, goals=0, club_id=None)
         s.add(side)
-        s.commit()
-        s.refresh(side)
+        s.flush()
 
         for pid in pids:
             s.add(MatchSidePlayer(match_side_id=side.id, player_id=pid))
 
-    s.commit()
+    if autocommit:
+        s.commit()
+        s.refresh(m)
     return m
 
 
@@ -436,41 +453,37 @@ def get_tournament(tournament_id: int, s: Session = Depends(get_session)):
 
 
 @router.post("", dependencies=[Depends(require_editor)])
-async def create_tournament(body: dict, s: Session = Depends(get_session)):
-    name = (body.get("name") or "").strip()
-    mode = body.get("mode")
-    settings = body.get("settings", {})
-    player_ids = body.get("player_ids", [])
-    auto_generate = bool(body.get("auto_generate", False))
-    randomize = bool(body.get("randomize", True))
-    date_str = (body.get("date") or "").strip()
+async def create_tournament(body: TournamentCreateBody, s: Session = Depends(get_session)):
+    name = (body.name or "").strip()
+    mode = body.mode
+    settings = body.settings or {}
+    player_ids = list(body.player_ids or [])
+    auto_generate = bool(body.auto_generate)
+    randomize = bool(body.randomize)
+    date_str = (body.date or "").strip()
     t_date = _parse_yyyy_mm_dd(date_str) if date_str else date.today()
 
     if not name:
         raise HTTPException(status_code=400, detail="Missing name")
-    if mode not in ("1v1", "2v2"):
-        raise HTTPException(status_code=400, detail="mode must be '1v1' or '2v2'")
-    if player_ids and not isinstance(player_ids, list):
-        raise HTTPException(status_code=400, detail="player_ids must be a list")
     if player_ids:
         existing = s.exec(select(Player).where(Player.id.in_(player_ids))).all()
         found_ids = {p.id for p in existing}
         if set(player_ids) != found_ids:
             raise HTTPException(status_code=400, detail="One or more player_ids do not exist")
 
-    t = Tournament(name=name, mode=mode, status="draft", settings_json=json.dumps(settings), date=t_date)
-    s.add(t)
-    s.commit()
-    s.refresh(t)
+    try:
+        t = Tournament(name=name, mode=mode, status="draft", settings_json=json.dumps(settings), date=t_date)
+        s.add(t)
+        s.flush()
 
-    if player_ids:
-        for pid in player_ids:
-            s.add(TournamentPlayer(tournament_id=t.id, player_id=pid))
-        s.commit()
+        if player_ids:
+            for pid in player_ids:
+                s.add(TournamentPlayer(tournament_id=t.id, player_id=pid))
+            s.flush()
+            s.refresh(t)
 
-    if auto_generate:
-        try:
-            created_matches, _ = _generate_schedule_for_tournament(s, t, randomize=randomize)
+        if auto_generate:
+            created_matches, _ = _generate_schedule_for_tournament(s, t, randomize=randomize, autocommit=False)
             log.info(
                 "Created + generated tournament '%s' (id=%s, mode=%s, matches=%s)",
                 t.name,
@@ -478,13 +491,16 @@ async def create_tournament(body: dict, s: Session = Depends(get_session)):
                 t.mode,
                 created_matches,
             )
-        except HTTPException:
-            _delete_tournament_graph(s, int(t.id))
-            raise
-        except Exception as e:
-            _delete_tournament_graph(s, int(t.id))
-            log.exception("Create+generate failed and rolled back: tournament_id=%s", t.id)
-            raise HTTPException(status_code=500, detail=f"Failed to create tournament: {e}")
+
+        s.commit()
+        s.refresh(t)
+    except HTTPException:
+        s.rollback()
+        raise
+    except Exception as e:
+        s.rollback()
+        log.exception("Create+generate failed and rolled back")
+        raise HTTPException(status_code=500, detail=f"Failed to create tournament: {e}")
 
     log.info("Created tournament '%s' (id=%s, mode=%s)", t.name, t.id, t.mode)
 
@@ -500,7 +516,7 @@ async def create_tournament(body: dict, s: Session = Depends(get_session)):
 @router.patch("/{tournament_id}", dependencies=[Depends(require_editor)])
 async def patch_tournament(
     tournament_id: int,
-    body: dict,
+    body: TournamentPatchBody,
     s: Session = Depends(get_session),
     role: str = Depends(require_editor),
 ):
@@ -516,13 +532,15 @@ async def patch_tournament(
     if status_now == "done" and role != "admin":
         raise HTTPException(status_code=403, detail="Tournament is done (admin required to edit)")
 
-    if "name" in body:
-        t.name = str(body["name"]).strip()
+    fields = body.model_fields_set
+
+    if "name" in fields:
+        t.name = str(body.name or "").strip()
         if not t.name:
             raise HTTPException(status_code=400, detail="name cannot be empty")
 
-    if "settings" in body:
-        t.settings_json = json.dumps(body["settings"])
+    if "settings" in fields:
+        t.settings_json = json.dumps(body.settings)
 
     # keep status in sync
     t.status = compute_status_for_tournament(s, tournament_id)
@@ -540,13 +558,13 @@ async def patch_tournament(
 @router.patch("/{tournament_id}/date", dependencies=[Depends(require_admin)])
 async def patch_date(
     tournament_id: int,
-    body: dict,
+    body: TournamentDatePatchBody,
     s: Session = Depends(get_session),
     role: str = Depends(require_admin),
 ):
     t = _tournament_or_404(s, tournament_id)
 
-    date_str = (body.get("date") or "").strip()
+    date_str = (body.date or "").strip()
     if not date_str:
         raise HTTPException(status_code=400, detail="Missing date")
 
@@ -569,7 +587,7 @@ async def patch_date(
 @router.post("/{tournament_id}/generate", dependencies=[Depends(require_editor)])
 async def generate_schedule(
     tournament_id: int,
-    body: dict,
+    body: TournamentGenerateBody,
     s: Session = Depends(get_session),
     role: str = Depends(require_editor),
 ):
@@ -582,7 +600,7 @@ async def generate_schedule(
     if status_now == "done" and role != "admin":
         raise HTTPException(status_code=403, detail="Tournament is done (admin required to regenerate)")
 
-    randomize = bool(body.get("randomize", True))
+    randomize = bool(body.randomize)
     created_matches, label_to_name = _generate_schedule_for_tournament(s, t, randomize=randomize)
 
     await ws_manager.broadcast(tournament_id, "schedule_generated", {"tournament_id": tournament_id})
@@ -599,7 +617,7 @@ async def generate_schedule(
 @router.patch("/{tournament_id}/reorder", dependencies=[Depends(require_editor)])
 async def reorder(
     tournament_id: int,
-    body: dict,
+    body: TournamentReorderBody,
     s: Session = Depends(get_session),
     role: str = Depends(require_editor),
 ):
@@ -609,8 +627,8 @@ async def reorder(
     if status_now == "done" and role != "admin":
         raise HTTPException(status_code=403, detail="Tournament is done (admin required to reorder)")
 
-    match_ids = body.get("match_ids")
-    if not isinstance(match_ids, list) or not match_ids:
+    match_ids = list(body.match_ids or [])
+    if not match_ids:
         raise HTTPException(status_code=400, detail="match_ids must be a non-empty list")
 
     matches_sorted = s.exec(
@@ -654,7 +672,7 @@ async def reorder(
 @router.patch("/{tournament_id}/second-leg", dependencies=[Depends(require_editor)])
 async def second_leg(
     tournament_id: int,
-    body: dict,
+    body: TournamentSecondLegBody,
     s: Session = Depends(get_session),
     role: str = Depends(require_editor),
 ):
@@ -667,7 +685,7 @@ async def second_leg(
     Enforces: only one tournament may be live.
     """
     _ = _tournament_or_404(s, tournament_id)
-    enabled = bool(body.get("enabled", False))
+    enabled = bool(body.enabled)
 
     leg1 = s.exec(
         select(Match)
@@ -743,11 +761,13 @@ async def second_leg(
                 leg=2,
                 team_a_player_ids=list(teamA),
                 team_b_player_ids=list(teamB),
+                autocommit=False,
             )
             idx += 1
             created += 1
 
         # sync status
+        s.flush()
         t = _tournament_or_404(s, tournament_id)
         t.status = compute_status_for_tournament(s, tournament_id)
         t.updated_at = datetime.utcnow()
@@ -774,15 +794,7 @@ async def second_leg(
 @router.get("/{tournament_id}/stats")
 def stats(tournament_id: int, s: Session = Depends(get_session)):
     _tournament_or_404(s, tournament_id)
-
-    return compute_stats(s)
-    # matches = s.exec(select(Match).where(Match.tournament_id == tournament_id).order_by(Match.order_index)).all()
-    # for m in matches:
-    #     _ = m.sides
-    #     for side in m.sides:
-    #         _ = side.players
-
-    # return compute_stats(matches)
+    return compute_tournament_stats(s, tournament_id)
 
 
 @router.delete("/{tournament_id}", dependencies=[Depends(require_admin)])
@@ -874,7 +886,7 @@ def _top_group(points_table: dict[int, tuple[int, int, int]]) -> list[int]:
 @router.patch("/{tournament_id}/decider", dependencies=[Depends(require_editor)])
 async def patch_decider(
     tournament_id: int,
-    body: dict,
+    body: TournamentDeciderPatchBody,
     s: Session = Depends(get_session),
     role: str = Depends(require_editor),
 ):
@@ -900,7 +912,7 @@ async def patch_decider(
     """
     t = _tournament_or_404(s, tournament_id)
 
-    dec_type = (body.get("type") or "none").strip()
+    dec_type = (body.type or "none").strip()
     if dec_type not in ALLOWED_DECIDERS:
         raise HTTPException(status_code=400, detail=f"Invalid decider type (allowed: {ALLOWED_DECIDERS})")
 
@@ -912,10 +924,10 @@ async def patch_decider(
         except Exception:
             raise HTTPException(status_code=400, detail=f"{field} must be an integer or null")
 
-    winner_id = as_int_or_none(body.get("winner_player_id"), "winner_player_id")
-    loser_id = as_int_or_none(body.get("loser_player_id"), "loser_player_id")
-    winner_goals = as_int_or_none(body.get("winner_goals"), "winner_goals")
-    loser_goals = as_int_or_none(body.get("loser_goals"), "loser_goals")
+    winner_id = as_int_or_none(body.winner_player_id, "winner_player_id")
+    loser_id = as_int_or_none(body.loser_player_id, "loser_player_id")
+    winner_goals = as_int_or_none(body.winner_goals, "winner_goals")
+    loser_goals = as_int_or_none(body.loser_goals, "loser_goals")
 
     # Load matches + force-load sides/players
     matches = s.exec(
@@ -986,7 +998,7 @@ async def patch_decider(
 @router.post("/{tournament_id}/reassign", dependencies=[Depends(require_editor)])
 async def reassign_2v2(
     tournament_id: int,
-    body: dict,
+    body: TournamentReassignBody | None = None,
     s: Session = Depends(get_session),
     role: str = Depends(require_editor),
 ):
@@ -1031,7 +1043,7 @@ async def reassign_2v2(
                 raise HTTPException(status_code=409, detail="Re-assign requires untouched matches (clubs must be empty)")
 
     had_leg2 = any(m.leg == 2 for m in matches)
-    randomize_order = bool(body.get("randomize_order", True))
+    randomize_order = bool(body.randomize_order) if body is not None else True
 
     # validate player count for 2v2
     _ = t.players
@@ -1053,7 +1065,7 @@ async def reassign_2v2(
     t.settings_json = json.dumps(settings)
     t.updated_at = datetime.utcnow()
     s.add(t)
-    s.commit()
+    s.flush()
 
     # Compute 2v2 matchups
     try:
@@ -1065,7 +1077,7 @@ async def reassign_2v2(
         random.shuffle(label_matches)
 
     # Delete old schedule (both legs, if present)
-    _delete_schedule(s, tournament_id)
+    _delete_schedule(s, tournament_id, autocommit=False)
 
     # Map label->player_id using current tournament players
     db_players = {p.display_name: p for p in t.players}
@@ -1083,6 +1095,7 @@ async def reassign_2v2(
             leg=1,
             team_a_player_ids=label_team_to_player_ids(team_a),
             team_b_player_ids=label_team_to_player_ids(team_b),
+            autocommit=False,
         )
         idx += 1
 
@@ -1096,10 +1109,12 @@ async def reassign_2v2(
                 leg=2,
                 team_a_player_ids=label_team_to_player_ids(team_a),
                 team_b_player_ids=label_team_to_player_ids(team_b),
+                autocommit=False,
             )
             idx += 1
 
     # Sync status (after reassign everything is scheduled => draft)
+    s.flush()
     t = _tournament_or_404(s, tournament_id)
     t.status = compute_status_for_tournament(s, tournament_id)
     t.updated_at = datetime.utcnow()

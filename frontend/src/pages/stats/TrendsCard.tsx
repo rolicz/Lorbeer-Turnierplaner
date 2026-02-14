@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+/* eslint-disable react-refresh/only-export-components */
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { keepPreviousData, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import CollapsibleCard from "../../ui/primitives/CollapsibleCard";
@@ -17,15 +18,6 @@ function fmtDate(s?: string | null) {
   const d = new Date(s);
   if (Number.isNaN(d.getTime())) return "";
   return d.toLocaleDateString();
-}
-
-function fmtMonth(s?: string | null) {
-  if (!s) return "";
-  const d = new Date(s);
-  if (Number.isNaN(d.getTime())) return "";
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  const yy = String(d.getFullYear()).slice(-2);
-  return `${mm}/${yy}`;
 }
 
 function fmtMonthDate(d: Date) {
@@ -269,11 +261,14 @@ export function MultiLineChart({
   };
 
   const xAt = (i: number) => xAtTime(tournamentTs[Math.max(0, Math.min(n - 1, i))] ?? windowStartTs);
-  const yAt = (v: number) => {
-    const vv = Math.max(0, Math.min(yMax, v));
-    const innerH = h - padT - padB;
-    return padT + (1 - vv / Math.max(1e-6, yMax)) * innerH;
-  };
+  const yAt = useCallback(
+    (v: number) => {
+      const vv = Math.max(0, Math.min(yMax, v));
+      const innerH = h - padT - padB;
+      return padT + (1 - vv / Math.max(1e-6, yMax)) * innerH;
+    },
+    [h, padB, padT, yMax]
+  );
 
   const gridStroke = "rgb(var(--color-border-card-inner))";
   const labelFill = "rgb(var(--color-text-muted))";
@@ -340,7 +335,7 @@ export function MultiLineChart({
       if (any) out.set(i, m);
     }
     return out;
-  }, [n, series, yMax, windowStartTs, windowEndTs]); // yAt depends on yMax
+  }, [n, series, yAt]);
 
   const laneOffset = (seriesId: number, idx: number) => laneOffsetsByIndex.get(idx)?.get(seriesId) ?? 0;
 
@@ -415,7 +410,7 @@ export function MultiLineChart({
                   x={padL - 10}
                   y={yAt(t) + 10}
                   fontSize={axisLabelSize}
-                  fontWeight={axisWeight as any}
+                  fontWeight={axisWeight}
                   textAnchor="end"
                   fill={labelFill}
                 >
@@ -473,7 +468,7 @@ export function MultiLineChart({
                       x={x}
                       y={y}
                       fontSize={titleFont}
-                      fontWeight={axisWeight as any}
+                      fontWeight={axisWeight}
                       textAnchor="start"
                       dominantBaseline="hanging"
                       fill={labelFill}
@@ -498,7 +493,7 @@ export function MultiLineChart({
             {/* x labels + tick marks (absolute time) */}
             {xTicksLabeled.length ? (
               <>
-                {xTicksLabeled.map((t, idx) => {
+                {xTicksLabeled.map((t) => {
                   return (
                     <g key={t.ts}>
                       <line
@@ -514,7 +509,7 @@ export function MultiLineChart({
                         x={xAtTime(t.ts)}
                         y={h - 22}
                         fontSize={axisXSize}
-                        fontWeight={axisWeight as any}
+                        fontWeight={axisWeight}
                         // Always center labels under their gridline (including the outermost ones).
                         textAnchor="middle"
                         fill={labelFill}
@@ -758,35 +753,6 @@ function dist2(t1: { clientX: number; clientY: number }, t2: { clientX: number; 
   return Math.hypot(dx, dy);
 }
 
-// Legacy helper used by the old ScrollZoom chart (kept for now, even if not rendered).
-function useElementSize<T extends HTMLElement>() {
-  const ref = useRef<T | null>(null);
-  const [size, setSize] = useState({ w: 0, h: 0 });
-
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-
-    const measure = () => {
-      const r = el.getBoundingClientRect();
-      const w = Math.max(0, Math.round(r.width));
-      const h = Math.max(0, Math.round(r.height));
-      setSize((prev) => (prev.w === w && prev.h === h ? prev : { w, h }));
-    };
-
-    measure();
-    const onResize = () => measure();
-    window.addEventListener("resize", onResize, { passive: true });
-    const id = window.setInterval(measure, 750);
-    return () => {
-      window.removeEventListener("resize", onResize);
-      window.clearInterval(id);
-    };
-  }, []);
-
-  return { ref, size };
-}
-
 function clampWindow(startTs: number, spanMs: number, domainStartTs: number, domainEndTs: number) {
   const span = Math.max(1, spanMs);
   let start = startTs;
@@ -821,6 +787,7 @@ function PanZoomTrendsChart({
   series: Array<{ id: number; name: string; color: string; colorMuted: string; outline: string; points: SeriesPoint[] }>;
 }) {
   // Capture "now" once so the domain doesn't move on every render (would break panning).
+  // eslint-disable-next-line react-hooks/purity
   const nowTs = useMemo(() => Date.now(), []);
   const userInteractedRef = useRef(false);
   const validTs = useMemo(
@@ -1076,11 +1043,11 @@ function PanZoomTrendsChart({
     el.addEventListener("wheel", onWheel, { passive: false });
 
     return () => {
-      el.removeEventListener("touchstart", onTouchStart as any);
-      el.removeEventListener("touchmove", onTouchMove as any);
-      el.removeEventListener("touchend", onTouchEnd as any);
-      el.removeEventListener("touchcancel", onTouchEnd as any);
-      el.removeEventListener("wheel", onWheel as any);
+      el.removeEventListener("touchstart", onTouchStart);
+      el.removeEventListener("touchmove", onTouchMove);
+      el.removeEventListener("touchend", onTouchEnd);
+      el.removeEventListener("touchcancel", onTouchEnd);
+      el.removeEventListener("wheel", onWheel);
     };
   }, []);
 
@@ -1275,591 +1242,6 @@ function PanZoomTrendsChart({
   );
 }
 
-function ScrollZoomTrendsChart({
-  title,
-  tournamentTs,
-  tournamentTitles,
-  yMax,
-  yTicks,
-  ySuffix,
-  series,
-}: {
-  title: string;
-  tournamentTs: number[];
-  tournamentTitles: string[];
-  yMax: number;
-  yTicks: number[];
-  ySuffix?: string;
-  series: Array<{ id: number; name: string; color: string; colorMuted: string; outline: string; points: SeriesPoint[] }>;
-}) {
-  const initialViewportWRef = useRef<number>(0);
-  useEffect(() => {
-    // Capture once; on iOS Safari the "layout viewport" width can grow if something overflows.
-    const w = document?.documentElement?.clientWidth || window.innerWidth || 0;
-    initialViewportWRef.current = Math.max(0, Math.floor(w));
-  }, []);
-
-  const validTs = useMemo(
-    () => tournamentTs.filter((t) => Number.isFinite(t) && t > 0).slice().sort((a, b) => a - b),
-    [tournamentTs]
-  );
-  const domainStartTs = validTs[0] ?? Date.now();
-  const domainEndTs = Math.max(Date.now(), validTs[validTs.length - 1] ?? Date.now());
-  const spanMs = Math.max(1, domainEndTs - domainStartTs);
-
-  const { ref: frameRef, size: frameSize } = useElementSize<HTMLDivElement>();
-  const scrollerRef = useRef<HTMLDivElement | null>(null);
-  const [zoom, setZoom] = useState(1);
-  const zoomAnchorRef = useRef<{ anchorTs: number; clientX: number } | null>(null);
-  const zoomRef = useRef(zoom);
-  const didInitScrollRef = useRef(false);
-
-  useEffect(() => {
-    zoomRef.current = zoom;
-  }, [zoom]);
-
-  const plotH = Math.max(160, frameSize.h || 260);
-  const padL = 56;
-  const padR = 14;
-  const padT = 14;
-  const padB = 76;
-  const axisLabelSize = 12;
-  const axisXSize = 11;
-  const axisWeight = 600;
-
-  const monthsApprox = clamp(spanMs / (30 * 24 * 3600 * 1000), 1, 240);
-  const pxPerMonthBase = 110;
-  const contentW = useMemo(() => {
-    // Mobile Safari can get into a runaway loop where this component grows,
-    // gets re-measured wider, and grows again. Clamp to viewport width.
-    const vw0 = initialViewportWRef.current || (typeof window !== "undefined" ? Math.max(0, Math.floor(window.innerWidth || 0)) : 0);
-    const baseW = frameSize.w > 0 ? frameSize.w : vw0;
-    const safeW = vw0 > 0 ? Math.min(baseW, vw0) : baseW;
-
-    const w = monthsApprox * pxPerMonthBase * zoom;
-    return Math.max(safeW || 0, Math.round(w));
-  }, [frameSize.w, monthsApprox, zoom]);
-
-  const xAtTime = (ts: number) => {
-    const t = Math.max(domainStartTs, Math.min(domainEndTs, ts));
-    const p = (t - domainStartTs) / spanMs;
-    return padL + p * Math.max(1, contentW - padL - padR);
-  };
-  const yAt = (v: number) => {
-    const vv = Math.max(0, Math.min(yMax, v));
-    const innerH = Math.max(1, plotH - padT - padB);
-    return padT + (1 - vv / Math.max(1e-6, yMax)) * innerH;
-  };
-
-  const gridStroke = "rgb(var(--color-border-card-inner))";
-  const labelFill = "rgb(var(--color-text-muted))";
-
-  const xTicksAll = useMemo(() => monthTicksBetween(domainStartTs, domainEndTs), [domainEndTs, domainStartTs]);
-  const xLabelEvery = useMemo(() => {
-    // Target ~110px between labels for readability.
-    const targetPx = 110;
-    const maxLabels = Math.max(1, Math.floor((contentW - padL - padR) / targetPx));
-    const every = Math.ceil(xTicksAll.length / maxLabels);
-    return clamp(every, 1, 6);
-  }, [contentW, xTicksAll.length]);
-  const xTicksLabeled = useMemo(() => {
-    const every = Math.max(1, Math.trunc(xLabelEvery) || 1);
-    if (every === 1) return xTicksAll;
-    const out = xTicksAll.filter((_, idx) => idx % every === 0);
-    const last = xTicksAll[xTicksAll.length - 1];
-    if (last && !out.some((t) => t.ts === last.ts)) out.push(last);
-    return out;
-  }, [xLabelEvery, xTicksAll]);
-
-  // Keep the most recent data in view on first mount.
-  useEffect(() => {
-    const sc = scrollerRef.current;
-    if (!sc || didInitScrollRef.current) return;
-    if (contentW <= sc.clientWidth) return;
-    const raf = requestAnimationFrame(() => {
-      sc.scrollLeft = sc.scrollWidth - sc.clientWidth;
-      didInitScrollRef.current = true;
-    });
-    return () => cancelAnimationFrame(raf);
-  }, [contentW]);
-
-  // Re-anchor scroll position after zoom changes (wheel/pinch).
-  useEffect(() => {
-    const sc = scrollerRef.current;
-    const a = zoomAnchorRef.current;
-    if (!sc || !a) return;
-    const x = xAtTime(a.anchorTs);
-    sc.scrollLeft = clamp(x - a.clientX, 0, Math.max(0, contentW - sc.clientWidth));
-    zoomAnchorRef.current = null;
-  }, [contentW, domainStartTs, domainEndTs]); // depends on xAtTime()
-
-  function zoomBy(factor: number, anchorTs: number, clientX: number) {
-    zoomAnchorRef.current = { anchorTs, clientX };
-    setZoom((z) => clamp(z * factor, 0.6, 4.0));
-  }
-
-  function tsAtClientX(clientX: number) {
-    const sc = scrollerRef.current;
-    if (!sc) return domainEndTs;
-    const x = sc.scrollLeft + clientX;
-    const p = clamp((x - padL) / Math.max(1, contentW - padL - padR), 0, 1);
-    return domainStartTs + p * spanMs;
-  }
-
-  // Attach native listeners with `passive:false` so preventDefault() works:
-  // - Ctrl+wheel otherwise zooms the whole page.
-  useEffect(() => {
-    const sc = scrollerRef.current;
-    if (!sc) return;
-
-    const onWheel = (e: WheelEvent) => {
-      // Prefer Ctrl/Meta+wheel (trackpad pinch), but also allow Alt+wheel as a reliable fallback.
-      if (!(e.ctrlKey || e.metaKey || e.altKey)) return;
-      e.preventDefault();
-      const rect = sc.getBoundingClientRect();
-      const clientX = e.clientX - rect.left;
-      const anchorTs = tsAtClientX(clientX);
-      const factor = Math.exp(-e.deltaY * 0.0022);
-      zoomBy(factor, anchorTs, clientX);
-    };
-
-    sc.addEventListener("wheel", onWheel, { passive: false });
-
-    return () => {
-      sc.removeEventListener("wheel", onWheel as any);
-    };
-    // Intentionally depend on a minimal set; handlers read latest values via refs/state setters.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [contentW, domainEndTs, domainStartTs]);
-
-  // Lanes for overlap visibility (reuse the same idea, but in pixel coords).
-  const laneOffsetsByIndex = useMemo(() => {
-    const threshold = 2.25;
-    const laneGap = 5;
-    const out = new Map<number, Map<number, number>>();
-    const n = tournamentTs.length;
-    for (let i = 0; i < n; i++) {
-      const atI: Array<{ id: number; y: number }> = [];
-      for (const s of series) {
-        const p = s.points[i];
-        if (!p) continue;
-        atI.push({ id: s.id, y: yAt(p.y) });
-      }
-      if (atI.length <= 1) continue;
-      atI.sort((a, b) => a.y - b.y);
-
-      const groups: Array<Array<{ id: number; y: number }>> = [];
-      let cur: Array<{ id: number; y: number }> = [];
-      for (const item of atI) {
-        if (!cur.length) {
-          cur = [item];
-          continue;
-        }
-        const prev = cur[cur.length - 1];
-        if (Math.abs(item.y - prev.y) <= threshold) cur.push(item);
-        else {
-          groups.push(cur);
-          cur = [item];
-        }
-      }
-      if (cur.length) groups.push(cur);
-
-      const m = new Map<number, number>();
-      let any = false;
-      for (const g of groups) {
-        if (g.length <= 1) continue;
-        any = true;
-        const mid = (g.length - 1) / 2;
-        for (let j = 0; j < g.length; j++) {
-          m.set(g[j].id, (j - mid) * laneGap);
-        }
-      }
-      if (any) out.set(i, m);
-    }
-    return out;
-  }, [plotH, series, tournamentTs.length, yMax]); // yAt depends on plotH/yMax
-
-  const laneOffset = (seriesId: number, idx: number) => laneOffsetsByIndex.get(idx)?.get(seriesId) ?? 0;
-
-  const showTournamentTitles = true;
-
-  return (
-    <div className="card-inner-flat rounded-2xl flex min-h-0 min-w-0 w-full max-w-full flex-col overflow-hidden">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="text-sm font-semibold text-text-normal">{title}</div>
-          <div className="mt-0.5 text-[11px] text-text-muted">
-            Pan: scroll · Zoom: slider / buttons (Alt+wheel works on desktop)
-          </div>
-        </div>
-        <div className="shrink-0 flex items-center gap-2">
-          <button
-            type="button"
-            className="icon-button h-9 w-9 p-0 inline-flex items-center justify-center"
-            onClick={() => zoomBy(1 / 1.2, domainEndTs, (scrollerRef.current?.clientWidth ?? 0) * 0.7)}
-            title="Zoom out"
-          >
-            <i className="fa-solid fa-magnifying-glass-minus" aria-hidden="true" />
-          </button>
-          <input
-            type="range"
-            min={0.6}
-            max={4}
-            step={0.05}
-            value={zoom}
-            onChange={(e) => {
-              const sc = scrollerRef.current;
-              const clientX = (sc?.clientWidth ?? 0) * 0.65;
-              const anchorTs = tsAtClientX(clientX);
-              zoomAnchorRef.current = { anchorTs, clientX };
-              setZoom(clamp(Number(e.target.value), 0.6, 4.0));
-            }}
-            className="w-24 sm:w-32"
-            aria-label="Zoom"
-            title="Zoom"
-          />
-          <button
-            type="button"
-            className="icon-button h-9 w-9 p-0 inline-flex items-center justify-center"
-            onClick={() => zoomBy(1.2, domainEndTs, (scrollerRef.current?.clientWidth ?? 0) * 0.7)}
-            title="Zoom in"
-          >
-            <i className="fa-solid fa-magnifying-glass-plus" aria-hidden="true" />
-          </button>
-        </div>
-      </div>
-
-      <div ref={frameRef} className="mt-2 h-[200px] sm:h-[220px] lg:h-[340px] min-h-0 min-w-0 w-full max-w-full">
-        <div
-          ref={scrollerRef}
-          className="relative h-full w-full max-w-full min-w-0 overflow-x-auto overflow-y-hidden rounded-2xl border border-border-card-chip/55 bg-bg-card-chip shadow-sm"
-          style={{
-            WebkitOverflowScrolling: "touch",
-            touchAction: "pan-x",
-            overscrollBehaviorX: "contain",
-            maxWidth: "100%",
-            contain: "layout paint",
-          }}
-        >
-          <div style={{ width: contentW, height: plotH }} className="relative">
-            {/* Plot background (keep the subtle tint you already liked). */}
-            <div className="pointer-events-none absolute inset-0 bg-white/26" />
-            <svg
-              className="relative block"
-              width={contentW}
-              height={plotH}
-              viewBox={`0 0 ${contentW} ${plotH}`}
-              aria-label={title}
-            >
-              {/* x grid */}
-              {xTicksAll.map((t) => (
-                <line
-                  key={t.ts}
-                  x1={xAtTime(t.ts)}
-                  x2={xAtTime(t.ts)}
-                  y1={padT}
-                  y2={plotH - padB}
-                  stroke={gridStroke}
-                  strokeOpacity="0.48"
-                  strokeWidth="1.2"
-                />
-              ))}
-
-              {/* y grid */}
-              {yTicks.map((t) => (
-                <g key={t}>
-                  <line
-                    x1={padL}
-                    x2={contentW - padR}
-                    y1={yAt(t)}
-                    y2={yAt(t)}
-                    stroke={gridStroke}
-                    strokeOpacity={t === 0 ? 0.72 : 0.48}
-                    strokeWidth="1.2"
-                  />
-                  <text
-                    x={padL - 10}
-                    y={yAt(t) + 4}
-                    fontSize={axisLabelSize}
-                    fontWeight={axisWeight as any}
-                    textAnchor="end"
-                    fill={labelFill}
-                  >
-                    {ySuffix ? `${t}${ySuffix}` : t}
-                  </text>
-                </g>
-              ))}
-
-              {/* x axis */}
-              <line
-                x1={padL}
-                x2={contentW - padR}
-                y1={plotH - padB}
-                y2={plotH - padB}
-                stroke={gridStroke}
-                strokeOpacity="0.55"
-                strokeWidth="1"
-              />
-
-              {/* tournament markers */}
-              {tournamentTs.length ? (
-                <>
-                  {tournamentTs.map((ts, i) => (
-                    <circle
-                      key={i}
-                      cx={xAtTime(ts)}
-                      cy={plotH - padB}
-                      r={3.2}
-                      fill="rgb(var(--color-text-muted))"
-                      opacity="0.22"
-                    />
-                  ))}
-                </>
-              ) : null}
-
-              {/* tournament titles (vertical, two lines) */}
-              {showTournamentTitles && tournamentTitles.length ? (
-                <>
-                  {tournamentTitles.map((name, i) => {
-                    const ts = tournamentTs[i];
-                    if (!Number.isFinite(ts) || ts <= 0) return null;
-                    const xRaw = xAtTime(ts);
-                    const x = Math.max(padL + 8, Math.min(contentW - padR - 8, xRaw));
-                    const y = padT + 6;
-                    const [l1, l2] = wrapTwoLinesWords(name, 16);
-                    const titleFont = 10;
-                    const titleLine = 12;
-                    return (
-                      <text
-                        key={i}
-                        x={x}
-                        y={y}
-                        fontSize={titleFont}
-                        fontWeight={axisWeight as any}
-                        textAnchor="start"
-                        dominantBaseline="hanging"
-                        fill={labelFill}
-                        opacity="0.88"
-                        transform={`rotate(90 ${x} ${y})`}
-                      >
-                        <title>{name}</title>
-                        <tspan x={x} dy={0}>
-                          {l1}
-                        </tspan>
-                        {l2 ? (
-                          <tspan x={x} dy={titleLine}>
-                            {l2}
-                          </tspan>
-                        ) : null}
-                      </text>
-                    );
-                  })}
-                </>
-              ) : null}
-
-              {/* x labels */}
-              {xTicksLabeled.length ? (
-                <>
-                  {xTicksLabeled.map((t, idx) => {
-                    const isLeft = idx === 0;
-                    const isRight = idx === xTicksLabeled.length - 1;
-                    return (
-                      <g key={t.ts}>
-                        <line
-                          x1={xAtTime(t.ts)}
-                          x2={xAtTime(t.ts)}
-                          y1={plotH - padB}
-                          y2={plotH - padB + 8}
-                          stroke={gridStroke}
-                          strokeOpacity="0.55"
-                          strokeWidth="1"
-                        />
-                        <text
-                          x={xAtTime(t.ts)}
-                          y={plotH - 18}
-                          fontSize={axisXSize}
-                          fontWeight={axisWeight as any}
-                          textAnchor={isLeft ? "start" : isRight ? "end" : "middle"}
-                          fill={labelFill}
-                        >
-                          {t.label}
-                        </text>
-                      </g>
-                    );
-                  })}
-                </>
-              ) : null}
-
-              {/* series */}
-              {series.map((s) => {
-                const pts = s.points;
-                const segments: Array<{ i1: number; y1: number; i2: number; y2: number; muted: boolean; opacity: number }> = [];
-                let lastIdx: number | null = null;
-                let lastY: number | null = null;
-                for (let i = 0; i < pts.length; i++) {
-                  const p = pts[i];
-                  if (!p) continue;
-                  if (lastIdx != null && lastY != null) {
-                    const gap = i - lastIdx;
-                    const muted = gap > 1 || !p.present || !(pts[lastIdx]?.present ?? true);
-                    segments.push({ i1: lastIdx, y1: lastY, i2: i, y2: p.y, muted, opacity: muted ? 0.55 : 0.88 });
-                  }
-                  lastIdx = i;
-                  lastY = p.y;
-                }
-
-                const dots = pts
-                  .map((p, i) => (p ? { p, i } : null))
-                  .filter(Boolean) as Array<{ p: NonNullable<SeriesPoint>; i: number }>;
-
-                const solidOpacity = 0.88;
-                const fadeLen = 28;
-                const gradients = segments
-                  .filter((seg) => seg.muted)
-                  .map((seg) => {
-                    const p1 = pts[seg.i1];
-                    const p2 = pts[seg.i2];
-                    const present1 = !!p1?.present;
-                    const present2 = !!p2?.present;
-                    const x1 = xAtTime(tournamentTs[seg.i1] ?? domainStartTs);
-                    const y1 = yAt(seg.y1) + laneOffset(s.id, seg.i1);
-                    const x2 = xAtTime(tournamentTs[seg.i2] ?? domainStartTs);
-                    const y2 = yAt(seg.y2) + laneOffset(s.id, seg.i2);
-                    const len = Math.hypot(x2 - x1, y2 - y1);
-                    if (!Number.isFinite(len) || len <= 1e-6) return null;
-                    const frac = Math.max(0, Math.min(0.45, fadeLen / len));
-                    const id = `seggrad-scroll-${s.id}-${seg.i1}-${seg.i2}`;
-                    const muted = { color: s.colorMuted, op: seg.opacity };
-                    const solid = { color: s.color, op: solidOpacity };
-                    const stops: Array<{ off: number; color: string; op: number }> = [];
-                    if (present1 && present2) {
-                      stops.push({ off: 0, ...solid });
-                      stops.push({ off: frac, ...muted });
-                      stops.push({ off: 1 - frac, ...muted });
-                      stops.push({ off: 1, ...solid });
-                    } else if (present1 && !present2) {
-                      stops.push({ off: 0, ...solid });
-                      stops.push({ off: frac, ...muted });
-                      stops.push({ off: 1, ...muted });
-                    } else if (!present1 && present2) {
-                      stops.push({ off: 0, ...muted });
-                      stops.push({ off: 1 - frac, ...muted });
-                      stops.push({ off: 1, ...solid });
-                    } else {
-                      stops.push({ off: 0, ...muted });
-                      stops.push({ off: 1, ...muted });
-                    }
-                    return { seg, id, x1, y1, x2, y2, stops };
-                  })
-                  .filter(Boolean) as Array<{
-                  seg: (typeof segments)[number];
-                  id: string;
-                  x1: number;
-                  y1: number;
-                  x2: number;
-                  y2: number;
-                  stops: Array<{ off: number; color: string; op: number }>;
-                }>;
-
-                return (
-                  <g key={s.id}>
-                    {gradients.length ? (
-                      <defs>
-                        {gradients.map((g) => (
-                          <linearGradient
-                            key={g.id}
-                            id={g.id}
-                            gradientUnits="userSpaceOnUse"
-                            x1={g.x1}
-                            y1={g.y1}
-                            x2={g.x2}
-                            y2={g.y2}
-                          >
-                            {g.stops.map((st, i) => (
-                              <stop
-                                key={i}
-                                offset={`${Math.round(st.off * 1000) / 10}%`}
-                                stopColor={st.color}
-                                stopOpacity={st.op}
-                              />
-                            ))}
-                          </linearGradient>
-                        ))}
-                      </defs>
-                    ) : null}
-
-                    {segments.map((seg, idx) => {
-                      const x1 = xAtTime(tournamentTs[seg.i1] ?? domainStartTs);
-                      const x2 = xAtTime(tournamentTs[seg.i2] ?? domainStartTs);
-                      const y1 = yAt(seg.y1) + laneOffset(s.id, seg.i1);
-                      const y2 = yAt(seg.y2) + laneOffset(s.id, seg.i2);
-                      if (!seg.muted) {
-                        return (
-                          <line
-                            key={idx}
-                            x1={x1}
-                            y1={y1}
-                            x2={x2}
-                            y2={y2}
-                            stroke={s.color}
-                            strokeOpacity={seg.opacity}
-                            strokeWidth="2.6"
-                            strokeLinecap="round"
-                          />
-                        );
-                      }
-                      const g = gradients.find((x) => x.seg === seg) ?? null;
-                      return (
-                        <line
-                          key={idx}
-                          x1={x1}
-                          y1={y1}
-                          x2={x2}
-                          y2={y2}
-                          stroke={g ? `url(#${g.id})` : s.colorMuted}
-                          strokeOpacity="1"
-                          strokeWidth="2.6"
-                          strokeLinecap="round"
-                        />
-                      );
-                    })}
-
-                    {dots.map(({ p, i }) => {
-                      const ts = tournamentTs[i];
-                      if (!Number.isFinite(ts) || ts <= 0) return null;
-                      return (
-                        <circle
-                          key={i}
-                          cx={xAtTime(ts)}
-                          cy={yAt(p.y) + laneOffset(s.id, i)}
-                          r={p.present ? 3.4 : 3.2}
-                          fill={p.present ? s.color : s.colorMuted}
-                          opacity={p.present ? 0.92 : 0.55}
-                        />
-                      );
-                    })}
-                  </g>
-                );
-              })}
-            </svg>
-          </div>
-        </div>
-      </div>
-
-      <div className="mt-2 min-w-0 pb-1">
-        <div className="flex h-[56px] flex-wrap content-start items-center gap-2 overflow-y-auto overflow-x-hidden pr-1">
-          {series.map((s) => (
-            <div key={s.id} className="inline-flex items-center gap-2 rounded-xl px-2 py-1 text-[11px] text-text-muted">
-              <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: s.color }} />
-              <span className="max-w-[12rem] truncate">{s.name}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
-
 export default function TrendsCard({
   defaultOpen = false,
   initialView = "lastN",
@@ -1884,8 +1266,7 @@ export default function TrendsCard({
     staleTime: 30_000,
   });
 
-  const players = statsQ.data?.players ?? [];
-  const tournamentsAll: StatsTournamentLite[] = statsQ.data?.tournaments ?? [];
+  const players = useMemo(() => statsQ.data?.players ?? [], [statsQ.data?.players]);
 
   // Warmup: prefetch the lightweight players+tourneys payload for other modes so toggling is instant.
   useEffect(() => {
@@ -1997,7 +1378,7 @@ export default function TrendsCard({
         let playedThisT = false;
         const matches = (t.matches ?? []).slice().sort((m1, m2) => (m1.order_index ?? 0) - (m2.order_index ?? 0));
         for (const m of matches) {
-          const p = pointsForPlayerInMatch(m as Match, pid);
+          const p = pointsForPlayerInMatch(m, pid);
           if (p == null) continue;
           playedThisT = true;
           sum += p;
@@ -2074,7 +1455,6 @@ export default function TrendsCard({
     return { title: "Trends (Total Points)", xHintLeft, xHintRight, yMax, yTicks, ySuffix: "", series, tournamentTs, tournamentTitles };
   }, [formN, perPlayer, players, tids, tournaments, view]);
 
-  const matchesLoading = needMatches && matchesQs.some((q) => q.isLoading);
   const matchesError = needMatches ? matchesQs.find((q) => q.error)?.error : null;
   const busy = statsQ.isFetching || (needMatches && matchesQs.some((q) => q.isFetching));
 

@@ -16,7 +16,8 @@ export class ApiError extends Error {
  * - Dev:   VITE_API_BASE_URL=http://192.168.x.x:8001   (or http://localhost:8001)
  * - Prod:  VITE_API_BASE_URL=/api
  */
-const RAW_BASE = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim();
+const envBase = import.meta.env.VITE_API_BASE_URL;
+const RAW_BASE = typeof envBase === "string" ? envBase.trim() : "";
 
 /**
  * Returns absolute base URL or relative '/api'.

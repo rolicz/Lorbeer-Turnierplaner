@@ -49,13 +49,21 @@ function cryptoRandomInt(maxExclusive: number): number {
   const u32 = new Uint32Array(1);
   while (true) {
     crypto.getRandomValues(u32);
-    const x = u32[0]!;
+    const x = u32[0];
+    if (x == null) continue;
     if (x < limit) return x % maxExclusive;
   }
 }
 
 function randomPick<T>(arr: T[]): T {
-  return arr[cryptoRandomInt(arr.length)]!;
+  if (!arr.length) {
+    throw new Error("randomPick requires a non-empty array");
+  }
+  const value = arr[cryptoRandomInt(arr.length)];
+  if (value == null) {
+    throw new Error("randomPick failed to select a value");
+  }
+  return value;
 }
 
 function randomPickDifferent(arr: number[], prev: number | null): number {
@@ -187,13 +195,17 @@ export default function SelectClubsPanel({
     if (disabled) return;
     if (!clubsFiltered.length) return;
 
-    const clubA = clubsFiltered[cryptoRandomInt(clubsFiltered.length)]!;
-    let clubB = clubsFiltered[cryptoRandomInt(clubsFiltered.length)]!;
+    const clubA = clubsFiltered[cryptoRandomInt(clubsFiltered.length)];
+    const firstClubB = clubsFiltered[cryptoRandomInt(clubsFiltered.length)];
+    if (!clubA || !firstClubB) return;
+    let clubB = firstClubB;
 
     if (clubsFiltered.length > 1) {
       let guard = 0;
       while (!randomClubAssignmentOk(clubA, clubB) && guard < 50) {
-        clubB = clubsFiltered[cryptoRandomInt(clubsFiltered.length)]!;
+        const candidate = clubsFiltered[cryptoRandomInt(clubsFiltered.length)];
+        if (!candidate) break;
+        clubB = candidate;
         guard++;
       }
     }

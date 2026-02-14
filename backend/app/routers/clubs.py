@@ -9,6 +9,7 @@ from pydantic import BaseModel
 from ..auth import require_editor, require_admin
 from ..db import get_session
 from ..models import Club, MatchSide, League
+from ..schemas import ClubCreateBody, ClubPatchBody, LeagueCreateBody
 from ..validation import validate_star_rating
 
 log = logging.getLogger(__name__)
@@ -30,8 +31,8 @@ def list_leagues(s: Session = Depends(get_session)):
 
 
 @router.post("/leagues", dependencies=[Depends(require_admin)])
-def create_league(body: dict, s: Session = Depends(get_session), role: str = Depends(require_admin)):
-    name = (body.get("name") or "").strip()
+def create_league(body: LeagueCreateBody, s: Session = Depends(get_session), role: str = Depends(require_admin)):
+    name = (body.name or "").strip()
     if not name:
         raise HTTPException(status_code=400, detail="Missing league name")
 
@@ -85,17 +86,21 @@ def list_clubs(game: str | None = None, s: Session = Depends(get_session)):
 
 
 @router.post("", dependencies=[Depends(require_editor)])
-def create_club(body: dict, s: Session = Depends(get_session)):
-    name = (body.get("name") or "").strip()
-    game = (body.get("game") or "").strip()
-    stars = body.get("star_rating", None)
-    league_id = body.get("league_id", None)
+def create_club(body: ClubCreateBody, s: Session = Depends(get_session)):
+    name = (body.name or "").strip()
+    game = (body.game or "").strip()
+    stars = body.star_rating
+    league_id_raw = body.league_id
 
     if not name or not game:
         raise HTTPException(status_code=400, detail="Missing name or game")
-    if not stars:
+    if stars in (None, ""):
         raise HTTPException(status_code=400, detail="Missing star_rating")
-    if league_id is not None:
+    if league_id_raw is not None:
+        try:
+            league_id = int(league_id_raw)
+        except Exception:
+            raise HTTPException(status_code=400, detail="league_id must be an integer")
         # validate league exists
         if s.get(League, league_id) is None:
             raise HTTPException(status_code=400, detail=f"Unknown league_id {league_id}")
@@ -123,7 +128,7 @@ def create_club(body: dict, s: Session = Depends(get_session)):
 @router.patch("/{club_id}", dependencies=[Depends(require_editor)])
 def patch_club(
     club_id: int,
-    body: dict,
+    body: ClubPatchBody,
     s: Session = Depends(get_session),
     role: str = Depends(require_editor),
 ):
@@ -138,25 +143,27 @@ def patch_club(
     if not c:
         raise HTTPException(status_code=404, detail="Club not found")
 
+    fields = body.model_fields_set
+
     # --- name changes: admin only ---
-    if "name" in body:
+    if "name" in fields:
         if role != "admin":
             raise HTTPException(status_code=403, detail="Changing club name is admin-only")
-        c.name = (body["name"] or "").strip()
+        c.name = (body.name or "").strip()
 
     # game (currently editor-allowed, keep as-is)
-    if "game" in body:
-        c.game = (body["game"] or "").strip()
+    if "game" in fields:
+        c.game = (body.game or "").strip()
 
-    if "star_rating" in body:
+    if "star_rating" in fields:
         try:
-            c.star_rating = validate_star_rating(body["star_rating"])
+            c.star_rating = validate_star_rating(body.star_rating)
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
 
     # --- league assignment: admin-only, optional, must exist ---
-    if "league_id" in body:
-        lid = body.get("league_id", None)
+    if "league_id" in fields:
+        lid = body.league_id
         if lid is None or lid == "":
             c.league_id = None
         else:

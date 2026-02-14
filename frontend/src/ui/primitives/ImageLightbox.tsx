@@ -13,25 +13,28 @@ export default function ImageLightbox({
   src: string | null;
   onClose: () => void;
 }) {
+  if (!open || !src) return null;
+  return <ImageLightboxOpen key={src} src={src} onClose={onClose} />;
+}
+
+function ImageLightboxOpen({
+  src,
+  onClose,
+}: {
+  src: string;
+  onClose: () => void;
+}) {
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const [scale, setScale] = useState(1);
   const [tx, setTx] = useState(0);
   const [ty, setTy] = useState(0);
   const [natural, setNatural] = useState<{ w: number; h: number } | null>(null);
+  const [viewportSize, setViewportSize] = useState({ w: 0, h: 0 });
   const dragRef = useRef<{ x: number; y: number; baseX: number; baseY: number } | null>(null);
   const pinchRef = useRef<{ dist: number; baseScale: number } | null>(null);
   const movedRef = useRef(false);
 
   useEffect(() => {
-    if (!open) return;
-    setScale(1);
-    setTx(0);
-    setTy(0);
-    setNatural(null);
-  }, [open, src]);
-
-  useEffect(() => {
-    if (!open) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
       if (e.key === "+" || e.key === "=") setScale((s) => clamp(s * 1.15, 1, 6));
@@ -44,13 +47,33 @@ export default function ImageLightbox({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [open, onClose]);
+  }, [onClose]);
+
+  useEffect(() => {
+    const el = viewportRef.current;
+    if (!el) return;
+
+    const measure = () => {
+      setViewportSize({
+        w: Math.max(0, el.clientWidth || 0),
+        h: Math.max(0, el.clientHeight || 0),
+      });
+    };
+    measure();
+
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    window.addEventListener("resize", measure, { passive: true });
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("resize", measure);
+    };
+  }, []);
 
   const limits = useMemo(() => {
-    const vp = viewportRef.current;
-    if (!vp || !natural) return { x: 0, y: 0 };
-    const vw = vp.clientWidth;
-    const vh = vp.clientHeight;
+    if (!natural) return { x: 0, y: 0 };
+    const vw = viewportSize.w;
+    const vh = viewportSize.h;
     if (vw <= 0 || vh <= 0) return { x: 0, y: 0 };
     const base = Math.min(vw / natural.w, vh / natural.h);
     const rw = natural.w * base * scale;
@@ -59,14 +82,10 @@ export default function ImageLightbox({
       x: Math.max(0, (rw - vw) / 2),
       y: Math.max(0, (rh - vh) / 2),
     };
-  }, [natural, scale, open]);
+  }, [natural, scale, viewportSize.w, viewportSize.h]);
 
-  useEffect(() => {
-    setTx((v) => clamp(v, -limits.x, limits.x));
-    setTy((v) => clamp(v, -limits.y, limits.y));
-  }, [limits.x, limits.y]);
-
-  if (!open || !src) return null;
+  const renderTx = clamp(tx, -limits.x, limits.x);
+  const renderTy = clamp(ty, -limits.y, limits.y);
 
   return (
     <div
@@ -91,7 +110,7 @@ export default function ImageLightbox({
         onMouseDown={(e) => {
           movedRef.current = false;
           if (scale <= 1) return;
-          dragRef.current = { x: e.clientX, y: e.clientY, baseX: tx, baseY: ty };
+          dragRef.current = { x: e.clientX, y: e.clientY, baseX: renderTx, baseY: renderTy };
         }}
         onMouseMove={(e) => {
           const d = dragRef.current;
@@ -124,7 +143,7 @@ export default function ImageLightbox({
           }
           if (e.touches.length === 1 && scale > 1) {
             const t = e.touches[0];
-            dragRef.current = { x: t.clientX, y: t.clientY, baseX: tx, baseY: ty };
+            dragRef.current = { x: t.clientX, y: t.clientY, baseX: renderTx, baseY: renderTy };
           }
         }}
         onTouchMove={(e) => {
@@ -178,7 +197,7 @@ export default function ImageLightbox({
             alt=""
             className="max-h-full max-w-full select-none"
             style={{
-              transform: `translate(${tx}px, ${ty}px) scale(${scale})`,
+              transform: `translate(${renderTx}px, ${renderTy}px) scale(${scale})`,
               transformOrigin: "center center",
             }}
             onLoad={(e) => {

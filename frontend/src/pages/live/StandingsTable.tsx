@@ -7,7 +7,7 @@ import { listPlayerAvatarMeta, playerAvatarUrl } from "../../api/playerAvatars.a
 import { getCup, listCupDefs } from "../../api/cup.api";
 import { cupColorVarForKey } from "../../cupColors";
 import { getStatsStreaks } from "../../api/stats.api";
-import type { StatsStreaksResponse } from "../../api/types";
+import type { StatsStreakRow, StatsStreaksResponse } from "../../api/types";
 import { StreakPatch, type ActiveStreak } from "../../ui/StreakPatches";
 import PlayerLiveStatsModal from "./PlayerLiveStatsModal";
 
@@ -291,13 +291,13 @@ export default function StandingsTable({
   }, [avatarMetaQ.data]);
 
   const cupDefsQ = useQuery({ queryKey: ["cup", "defs"], queryFn: listCupDefs });
-  const cupsRaw = cupDefsQ.data?.cups?.length ? cupDefsQ.data.cups : [{ key: "default", name: "Cup", since_date: null }];
   const cups = useMemo(() => {
+    const cupsRaw = cupDefsQ.data?.cups?.length ? cupDefsQ.data.cups : [{ key: "default", name: "Cup", since_date: null }];
     // Keep config order, but put the default cup last (consistent with dashboard/players).
     const nonDefault = cupsRaw.filter((c) => c.key !== "default");
     const defaults = cupsRaw.filter((c) => c.key === "default");
     return [...nonDefault, ...defaults];
-  }, [cupsRaw]);
+  }, [cupDefsQ.data]);
 
   const cupsQ = useQueries({
     queries: cups.map((c) => ({
@@ -337,7 +337,7 @@ export default function StandingsTable({
     const recordsScoring = rec("scoring_streak");
     const recordsClean = rec("clean_sheet_streak");
 
-    const bestRecBy = (rows: any[]) => {
+    const bestRecBy = (rows: StatsStreakRow[]) => {
       const best = new Map<number, { length: number; start_ts: string | null; end_ts: string | null }>();
       for (const r of rows ?? []) {
         const pid = r.player?.id;
@@ -395,7 +395,7 @@ export default function StandingsTable({
       add(pid, { key: "clean_sheet_streak", length: r.length, highlight });
     }
 
-    for (const [pid, arr] of m.entries()) {
+    for (const [, arr] of m.entries()) {
       // stable display order
       arr.sort((a, b) => {
         const order = (k: ActiveStreak["key"]) =>

@@ -61,6 +61,11 @@ type PatchPayload = {
   aClub: number | null;
   bClub: number | null;
 };
+type MatchPatchBody = {
+  state: Match["state"];
+  sideA: { club_id: number | null; goals: number };
+  sideB: { club_id: number | null; goals: number };
+};
 
 export default function CurrentGameSection({
   status,
@@ -78,24 +83,23 @@ export default function CurrentGameSection({
   clubs: Club[];
   canControl: boolean;
   busy: boolean;
-  onPatch: (matchId: number, body: any) => Promise<any>;
-  onSwapSides?: (matchId: number) => Promise<any>;
+  onPatch: (matchId: number, body: MatchPatchBody) => Promise<unknown>;
+  onSwapSides?: (matchId: number) => Promise<unknown>;
 }) {
   // const tid = match && (match as any).tournament_id != null ? Number((match as any).tournament_id) : null;
   // useTournamentWS(tid);
-
-  if (status === "done" || !match) return null;
+  const activeMatch = match;
+  const isVisible = status !== "done" && !!activeMatch;
 
   const tidComments = useMemo(() => {
     if (tournamentId != null && Number.isFinite(tournamentId) && tournamentId > 0) return tournamentId;
-    const anyMatch: any = match as any;
-    const raw = anyMatch?.tournament_id ?? anyMatch?.tournamentId ?? null;
-    const n = typeof raw === "string" ? Number(raw) : raw;
+    const raw = activeMatch?.tournament_id;
+    const n = typeof raw === "string" ? Number(raw) : raw ?? null;
     return typeof n === "number" && Number.isFinite(n) && n > 0 ? n : NaN;
-  }, [match, tournamentId]);
+  }, [activeMatch?.tournament_id, tournamentId]);
 
-  const a = sideBy(match, "A");
-  const b = sideBy(match, "B");
+  const a = activeMatch ? sideBy(activeMatch, "A") : undefined;
+  const b = activeMatch ? sideBy(activeMatch, "B") : undefined;
 
   const aNames = useMemo(() => namesStack(a), [a]);
   const bNames = useMemo(() => namesStack(b), [b]);
@@ -149,15 +153,15 @@ export default function CurrentGameSection({
 
   async function flushAutosave() {
     if (!canControl) return;
-    if (!match) return;
+    if (!activeMatch) return;
 
-    const nextState = match.state;
+    const nextState = activeMatch.state;
     if (nextState == null) return;
 
     const p = pendingRef.current;
     if (!p) return;
 
-    const key = makeKey(match, p);
+    const key = makeKey(activeMatch, p);
     if (key === lastKeyRef.current) return;
 
     if (busy) {
@@ -171,7 +175,7 @@ export default function CurrentGameSection({
     lastKeyRef.current = key;
 
     try {
-      await onPatch(match.id, {
+      await onPatch(activeMatch.id, {
         state: nextState,
         sideA: { club_id: p.aClub, goals: p.aGoals },
         sideB: { club_id: p.bClub, goals: p.bGoals },
@@ -183,7 +187,7 @@ export default function CurrentGameSection({
 
   function queueAutosave(override?: Partial<PatchPayload>) {
     if (!canControl) return;
-    if (!match) return;
+    if (!activeMatch) return;
 
     const p: PatchPayload = {
       aGoals: override?.aGoals ?? aGoals,
@@ -194,7 +198,7 @@ export default function CurrentGameSection({
 
     pendingRef.current = p;
 
-    const key = makeKey(match, p);
+    const key = makeKey(activeMatch, p);
     if (key === lastKeyRef.current) return;
 
     clearAutosave();
@@ -205,6 +209,7 @@ export default function CurrentGameSection({
 
   // Re-sync local editor state whenever backend updates this match
   useEffect(() => {
+    if (!activeMatch) return;
     const next: PatchPayload = {
       aGoals: Number(a?.goals ?? 0),
       bGoals: Number(b?.goals ?? 0),
@@ -212,18 +217,20 @@ export default function CurrentGameSection({
       bClub: b?.club_id ?? null,
     };
 
+    // Sync local draft UI with server snapshot for this match.
+    /* eslint-disable react-hooks/set-state-in-effect */
     setAClub(next.aClub);
     setBClub(next.bClub);
     setAGoals(next.aGoals);
     setBGoals(next.bGoals);
+    /* eslint-enable react-hooks/set-state-in-effect */
 
     clearAutosave();
     pendingRef.current = next;
-    lastKeyRef.current = makeKey(match, next);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [match?.id, match?.state, a?.club_id, b?.club_id, a?.goals, b?.goals]);
+    lastKeyRef.current = makeKey(activeMatch, next);
+  }, [activeMatch, a?.club_id, b?.club_id, a?.goals, b?.goals]);
 
-  const isScheduled = match.state === "scheduled";
+  const isScheduled = activeMatch?.state === "scheduled";
   const showGoalInputs = canControl && !isScheduled;
   const scoreLeft = isScheduled ? "-" : String(aGoals);
   const scoreRight = isScheduled ? "-" : String(bGoals);
@@ -231,11 +238,11 @@ export default function CurrentGameSection({
 
   async function save(stateOverride?: "scheduled" | "playing" | "finished", override?: Partial<PatchPayload>) {
     if (!canControl) return;
-    if (!match) return;
+    if (!activeMatch) return;
 
     clearAutosave();
 
-    const nextState = stateOverride ?? match.state;
+    const nextState = stateOverride ?? activeMatch.state;
     if (nextState == null) return;
 
     const payload: PatchPayload = {
@@ -246,9 +253,9 @@ export default function CurrentGameSection({
     };
 
     pendingRef.current = payload;
-    lastKeyRef.current = makeKey(match, payload);
+    lastKeyRef.current = makeKey(activeMatch, payload);
 
-    await onPatch(match.id, {
+    await onPatch(activeMatch.id, {
       state: nextState,
       sideA: { club_id: payload.aClub, goals: payload.aGoals },
       sideB: { club_id: payload.bClub, goals: payload.bGoals },
@@ -262,26 +269,42 @@ export default function CurrentGameSection({
     await save("scheduled", { aGoals: 0, bGoals: 0 });
   }
 
+  if (!isVisible || !activeMatch) return null;
+
   return (
     <div className="space-y-3">
       {/* Top row */}
       <div className="flex items-center justify-end gap-3">
         <div className="flex items-center gap-2">
           {canControl && onSwapSides && (
-            <Button variant="ghost" onClick={() => onSwapSides(match.id)} disabled={busy} title="Swap home/away (A↔B)">
+            <Button
+              variant="ghost"
+              onClick={() => {
+                void onSwapSides(activeMatch.id);
+              }}
+              disabled={busy}
+              title="Swap home/away (A↔B)"
+            >
               <i className="fa fa-arrow-right-arrow-left md:hidden" aria-hidden="true" />
               <span className="hidden md:inline">Swap Home/Away</span>
             </Button>
           )}
 
-          {canControl && match.state === "scheduled" && (
-            <Button variant="ghost" onClick={() => save("playing")} disabled={busy} title="Start">
+          {canControl && activeMatch.state === "scheduled" && (
+            <Button
+              variant="ghost"
+              onClick={() => {
+                void save("playing");
+              }}
+              disabled={busy}
+              title="Start"
+            >
               <i className="fa fa-play md:hidden" aria-hidden="true" />
               <span className="hidden md:inline">Start</span>
             </Button>
           )}
 
-          {canControl && match.state !== "scheduled" && (
+          {canControl && activeMatch.state !== "scheduled" && (
             <Button
               variant="ghost"
               onClick={() => {
@@ -302,7 +325,7 @@ export default function CurrentGameSection({
               disabled={busy}
               onClick={() => {
                 const text =
-                  match.state === "scheduled"
+                  activeMatch.state === "scheduled"
                     ? "Match not started. Are you sure you want to finish this match (0:0)?"
                     : undefined;
                 if (text && !window.confirm(text)) return;
@@ -321,16 +344,16 @@ export default function CurrentGameSection({
       <div className="panel-subtle p-3">
         {/* Row 1: Leg, match number, state pill */}
         <div className="mt-1 flex items-center justify-between gap-3">
-          <div className="text-[11px] sm:text-xs text-text-muted">Match #{match.order_index + 1}</div>
+          <div className="text-[11px] sm:text-xs text-text-muted">Match #{activeMatch.order_index + 1}</div>
           <div className="flex items-center gap-2 flex-nowrap whitespace-nowrap">
-            <Pill>leg {match.leg}</Pill>
-            <Pill className={`${statusMatchPill(match.state)}`}>{match.state}</Pill>
+            <Pill>leg {activeMatch.leg}</Pill>
+            <Pill className={`${statusMatchPill(activeMatch.state)}`}>{activeMatch.state}</Pill>
           </div>
         </div>
 
         {/* Odds (scheduled/live only) */}
-        {(match.state === "scheduled" || match.state === "playing") && match.odds ? (
-          <OddsInline odds={match.odds} />
+        {(activeMatch.state === "scheduled" || activeMatch.state === "playing") && activeMatch.odds ? (
+          <OddsInline odds={activeMatch.odds} />
         ) : null}
 
         {/* Row 2: NAMES + SCORE (with guide lines for alignment) */}
@@ -458,7 +481,7 @@ export default function CurrentGameSection({
 
         <MatchCommentsPanel
           tournamentId={tidComments}
-          matchId={match.id}
+          matchId={activeMatch.id}
           canWrite={canControl}
           playersInMatch={playersInMatch}
         />

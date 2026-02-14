@@ -54,7 +54,7 @@ export default function CupCard({ cupKey }: { cupKey: string }) {
   const [showAll, setShowAll] = useState(false);
   const varName = cupColorVarForKey(cupKey);
 
-  const history = q.data?.history ?? [];
+  const history = useMemo(() => q.data?.history ?? [], [q.data?.history]);
   const shown = useMemo(() => {
     if (showAll) return history.slice().reverse(); // newest first
     return history.slice(-8).reverse();

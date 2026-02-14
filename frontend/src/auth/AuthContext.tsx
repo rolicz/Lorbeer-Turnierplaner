@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { me } from "../api/auth.api";
 
@@ -37,7 +38,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     let cancelled = false;
     if (!token) return;
 
-    (async () => {
+    void (async () => {
       try {
         const res = await me(token);
         if (cancelled) return;
@@ -67,7 +68,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setStoredRole(r);
     },
     logout: clearAuth,
-  }), [token, role, storedRole]);
+  }), [token, role]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

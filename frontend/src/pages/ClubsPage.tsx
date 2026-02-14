@@ -11,11 +11,12 @@ import { useAuth } from "../auth/AuthContext";
 import { createClub, deleteClub, listClubs, listLeagues, patchClub } from "../api/clubs.api";
 import type { Club, League } from "../api/types";
 
-function starsLabel(v: any): string {
+function starsLabel(v: unknown): string {
   if (typeof v === "number") return v.toFixed(1).replace(/\.0$/, "");
+  if (typeof v === "string") return v;
   const n = Number(v);
   if (Number.isFinite(n)) return n.toFixed(1).replace(/\.0$/, "");
-  return String(v ?? "");
+  return "";
 }
 
 function starValues(): number[] {
@@ -25,12 +26,9 @@ function starValues(): number[] {
 }
 
 function leagueNameForClub(c: Club, leaguesById: Map<number, string>) {
-  // Prefer embedded relationship if backend returns it
-  const rel = (c as any).league;
-  if (rel && typeof rel === "object" && typeof rel.name === "string") return rel.name;
-
-  const id = (c as any).league_id as number | undefined;
-  if (typeof id === "number") return leaguesById.get(id) ?? "—";
+  const byName = (c.league_name ?? "").trim();
+  if (byName) return byName;
+  if (typeof c.league_id === "number") return leaguesById.get(c.league_id) ?? "—";
 
   return "—";
 }
@@ -114,7 +112,7 @@ export default function ClubsPage() {
     staleTime: 60_000,
   });
 
-  const leagues: League[] = leaguesQ.data ?? [];
+  const leagues: League[] = useMemo(() => leaguesQ.data ?? [], [leaguesQ.data]);
   const leaguesById = useMemo(() => {
     const m = new Map<number, string>();
     for (const l of leagues) m.set(l.id, l.name);
@@ -151,7 +149,7 @@ export default function ClubsPage() {
   const [editLeagueId, setEditLeagueId] = useState<number | "">("");
   const [editName, setEditName] = useState("");
 
-  const clubs = clubsQ.data ?? [];
+  const clubs = useMemo(() => clubsQ.data ?? [], [clubsQ.data]);
   const editingClub = useMemo(() => clubs.find((c) => c.id === editId) || null, [clubs, editId]);
 
   const patchMut = useMutation({
@@ -159,10 +157,11 @@ export default function ClubsPage() {
       if (!token) throw new Error("No token");
       if (!editId) throw new Error("No club selected");
 
-      const body: any = { star_rating: Number(editStars) };
-
       if (editLeagueId === "") throw new Error("League cannot be empty");
-      body.league_id = editLeagueId;
+      const body: Partial<{ name: string; game: string; star_rating: number; league_id: number }> = {
+        star_rating: Number(editStars),
+        league_id: editLeagueId,
+      };
 
       if (isAdmin) {
         const nm = editName.trim();
@@ -197,7 +196,7 @@ export default function ClubsPage() {
       }
 
       if (filterLeagueId !== "") {
-        const cid = (c as any).league_id as number | undefined;
+        const cid = c.league_id;
         if (cid !== filterLeagueId) return false;
       }
 
@@ -231,7 +230,7 @@ export default function ClubsPage() {
         title="Clubs"
         variant="outer"
         right={
-          <Button variant="ghost" onClick={() => qc.invalidateQueries({ queryKey: ["clubs", game] })} title="Refresh">
+          <Button variant="ghost" onClick={() => void qc.invalidateQueries({ queryKey: ["clubs", game] })} title="Refresh">
             <i className="fa-solid fa-rotate-right" aria-hidden="true" />
           </Button>
         }
@@ -308,7 +307,14 @@ export default function ClubsPage() {
           <div className="grid gap-2 md:grid-cols-4">
             <label className="block">
               <div className="input-label">Group</div>
-              <select className="input-field" value={groupMode} onChange={(e) => setGroupMode(e.target.value as any)}>
+              <select
+                className="input-field"
+                value={groupMode}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  if (v === "stars" || v === "league") setGroupMode(v);
+                }}
+              >
                 <option value="stars">Stars</option>
                 <option value="league">League</option>
               </select>
@@ -404,7 +410,7 @@ export default function ClubsPage() {
                     {clubsInGroup.map((c) => {
                       const ln = leagueNameForClub(c, leaguesById);
                       const isEditing = editId === c.id;
-                      const cid = (c as any).league_id as number | undefined;
+                      const cid = c.league_id;
 
                       return (
                         <div key={c.id} className="panel-subtle px-3 py-2 transition hover:bg-hover-default/40">

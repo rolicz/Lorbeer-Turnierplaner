@@ -12,7 +12,8 @@ import { sideBy } from "../../helpers";
 import { clubLabelPartsById } from "../../ui/clubControls";
 import { StarsFA } from "../../ui/primitives/StarsFA";
 import { Pill, pillDate } from "../../ui/primitives/Pill";
-import { listPlayerAvatarMeta, playerAvatarUrl } from "../../api/playerAvatars.api";
+import AvatarButton from "../../ui/primitives/AvatarButton";
+import { listPlayerAvatarMeta } from "../../api/playerAvatars.api";
 
 function fmtDate(s?: string | null) {
   if (!s) return "";
@@ -58,54 +59,6 @@ function rollingAvg(series: number[], window: number) {
     out.push(avg);
   }
   return out;
-}
-
-function AvatarButton({
-  playerId,
-  name,
-  updatedAt,
-  selected,
-  onClick,
-  className = "h-9 w-9",
-}: {
-  playerId: number;
-  name: string;
-  updatedAt: string | null;
-  selected: boolean;
-  onClick: () => void;
-  className?: string;
-}) {
-  const initial = (name || "?").trim().slice(0, 1).toUpperCase();
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      style={{ overflowAnchor: "none" }}
-      className={"relative shrink-0 rounded-full transition-colors " + (selected ? "" : "hover:bg-bg-card-chip/20")}
-      aria-pressed={selected}
-      title={name}
-    >
-      <span
-        className={
-          `panel-subtle inline-flex items-center justify-center overflow-hidden rounded-full ${className} ` +
-          (selected ? "ring-2 ring-[color:rgb(var(--color-accent)/0.85)]" : "")
-        }
-      >
-        {updatedAt ? (
-          <img
-            src={playerAvatarUrl(playerId, updatedAt)}
-            alt=""
-            className="h-full w-full object-cover"
-            loading="lazy"
-            decoding="async"
-          />
-        ) : (
-          <span className="text-sm font-semibold text-text-muted">{initial}</span>
-        )}
-      </span>
-      <span className="sr-only">{name}</span>
-    </button>
-  );
 }
 
 function Sparkline({
@@ -266,10 +219,10 @@ function MatchRowWithClubs({
   type NameLine = { id: number; display_name: string };
   const aPlayers: NameLine[] = (a?.players ?? [])
     .filter((p) => Boolean(p.display_name))
-    .map((p) => ({ id: p.id, display_name: p.display_name! }));
+    .map((p) => ({ id: p.id, display_name: p.display_name }));
   const bPlayers: NameLine[] = (b?.players ?? [])
     .filter((p) => Boolean(p.display_name))
-    .map((p) => ({ id: p.id, display_name: p.display_name! }));
+    .map((p) => ({ id: p.id, display_name: p.display_name }));
   const aDisplay: NameLine[] = aPlayers.length ? aPlayers : [{ id: -1, display_name: "—" }];
   const bDisplay: NameLine[] = bPlayers.length ? bPlayers : [{ id: -2, display_name: "—" }];
 
@@ -456,7 +409,7 @@ function MetaSwitch({ value, onChange }: { value: boolean; onChange: (v: boolean
 
 export default function PlayerMatchesCard() {
   const playersQ = useQuery({ queryKey: ["players"], queryFn: listPlayers });
-  const players = playersQ.data ?? [];
+  const players = useMemo(() => playersQ.data ?? [], [playersQ.data]);
   const avatarMetaQ = useQuery({
     queryKey: ["players", "avatars"],
     queryFn: listPlayerAvatarMeta,
@@ -500,7 +453,7 @@ export default function PlayerMatchesCard() {
     return [...players].sort((a, b) => a.display_name.localeCompare(b.display_name));
   }, [players]);
 
-  const tournaments = matchesQ.data?.tournaments ?? [];
+  const tournaments = useMemo(() => matchesQ.data?.tournaments ?? [], [matchesQ.data?.tournaments]);
   const form = useMemo(() => {
     if (!selected) return null;
     const flat = tournaments.flatMap((t) =>
@@ -576,6 +529,7 @@ export default function PlayerMatchesCard() {
                 selected={playerId === p.id}
                 onClick={() => setPlayerId(p.id)}
                 className="h-8 w-8"
+                noOverflowAnchor={true}
               />
             ))}
           </div>

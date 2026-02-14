@@ -15,24 +15,18 @@ import { sideBy } from "../../helpers";
 import { StarsFA } from "../../ui/primitives/StarsFA";
 import { Pill, statusMatchPill } from "../../ui/primitives/Pill";
 
-function starsLabel(v: any): string {
+function starsLabel(v: unknown): string {
   if (typeof v === "number") return v.toFixed(1).replace(/\.0$/, "");
+  if (typeof v === "string") return v;
   const n = Number(v);
   if (Number.isFinite(n)) return n.toFixed(1).replace(/\.0$/, "");
-  return String(v ?? "");
-}
-
-function clubLabelById(clubs: Club[], id: number | null | undefined) {
-  if (!id) return "—";
-  const c = clubs.find((x) => x.id === id);
-  if (!c) return `#${id}`;
-  return `${c.name} (${starsLabel(c.star_rating)}★)`;
+  return "";
 }
 
 function clubLabelPartsById(clubs: Club[], id: number | null | undefined) {
-  if (!id) return { name: "No club", rating: null as number | null, ratingText: null as string | null };
+  if (!id) return { name: "No club", league_name: "", rating: null as number | null, ratingText: null as string | null };
   const c = clubs.find((x) => x.id === id);
-  if (!c) return { name: `#${id}`, rating: null as number | null, ratingText: null as string | null };
+  if (!c) return { name: `#${id}`, league_name: "", rating: null as number | null, ratingText: null as string | null };
   const r = Number(c.star_rating);
   return {
     name: c.name,
@@ -74,7 +68,7 @@ export default function CurrentMatchPreviewCard() {
   const liveQ = useQuery({
     queryKey: ["tournaments", "live"],
     queryFn: async (): Promise<LiveTournamentLite | null> => {
-      return (await apiFetch("/tournaments/live")) as any;
+      return apiFetch<LiveTournamentLite | null>("/tournaments/live");
     },
     refetchOnMount: "always",
     refetchOnWindowFocus: true,
@@ -82,7 +76,7 @@ export default function CurrentMatchPreviewCard() {
     staleTime: 0,
   });
 
-  const tid = (liveQ.data as any)?.id ? Number((liveQ.data as any).id) : null;
+  const tid = typeof liveQ.data?.id === "number" ? liveQ.data.id : null;
 
   // 2) fetch full tournament details so we can show match + players
   const tQ = useQuery({
@@ -100,8 +94,7 @@ export default function CurrentMatchPreviewCard() {
     enabled: !!tid,
   });
 
-  const status = (tQ.data as any)?.status ?? "draft";
-  const match = useMemo(() => pickPreviewMatch((tQ.data as any)?.matches ?? []), [tQ.data]);
+  const match = useMemo(() => pickPreviewMatch(tQ.data?.matches ?? []), [tQ.data?.matches]);
 
   const a = match ? sideBy(match, "A") : undefined;
   const b = match ? sideBy(match, "B") : undefined;
@@ -119,12 +112,9 @@ export default function CurrentMatchPreviewCard() {
   const scoreRight = showDashScore ? "—" : String(bGoals);
   const leader: "A" | "B" | null = showDashScore || aGoals === bGoals ? null : aGoals > bGoals ? "A" : "B";
 
-  const clubs = clubsQ.data ?? [];
-  const aClub = clubLabelById(clubs, a?.club_id);
-  const bClub = clubLabelById(clubs, b?.club_id);
-
-  const aClubParts = useMemo(() => clubLabelPartsById(clubs, a?.club_id), [clubs, aClub]);
-  const bClubParts = useMemo(() => clubLabelPartsById(clubs, b?.club_id), [clubs, bClub]);
+  const clubs = useMemo(() => clubsQ.data ?? [], [clubsQ.data]);
+  const aClubParts = useMemo(() => clubLabelPartsById(clubs, a?.club_id), [clubs, a?.club_id]);
+  const bClubParts = useMemo(() => clubLabelPartsById(clubs, b?.club_id), [clubs, b?.club_id]);
 
   // If there's no live tournament, don't show this card at all (dashboard stays clean).
   // Important: keep this AFTER hooks to avoid rules-of-hooks crashes when tid flips null<->number.
@@ -158,7 +148,7 @@ export default function CurrentMatchPreviewCard() {
           <div className="grid grid-cols-1 items-center">
             <div className="min-w-0">
               <div className="truncate text-base font-semibold text-text-normal">
-                {(tQ.data as any)?.name ?? `Tournament #${tid}`}
+                {tQ.data?.name ?? `Tournament #${tid}`}
               </div>
             </div>
           </div>

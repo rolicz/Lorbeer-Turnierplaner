@@ -131,6 +131,32 @@ def test_stats_odds_endpoint_basic(client, admin_headers, editor_headers):
     assert float(odds.get("away")) >= 1.01
 
 
+def test_tournament_stats_are_scoped_to_tournament(client, editor_headers, admin_headers):
+    # Tournament A players
+    a1 = create_player(client, admin_headers, "TA1")
+    a2 = create_player(client, admin_headers, "TA2")
+    a3 = create_player(client, admin_headers, "TA3")
+    tid_a = create_tournament(client, editor_headers, "T-A", "1v1", [a1, a2, a3])
+    generate(client, editor_headers, tid_a, randomize=False)
+
+    # Tournament B players
+    b1 = create_player(client, admin_headers, "TB1")
+    b2 = create_player(client, admin_headers, "TB2")
+    b3 = create_player(client, admin_headers, "TB3")
+    tid_b = create_tournament(client, editor_headers, "T-B", "1v1", [b1, b2, b3])
+    generate(client, editor_headers, tid_b, randomize=False)
+
+    ra = client.get(f"/tournaments/{tid_a}/stats")
+    assert ra.status_code == 200, ra.text
+    names_a = {row["name"] for row in ra.json().get("players", [])}
+    assert names_a == {"TA1", "TA2", "TA3"}
+
+    rb = client.get(f"/tournaments/{tid_b}/stats")
+    assert rb.status_code == 200, rb.text
+    names_b = {row["name"] for row in rb.json().get("players", [])}
+    assert names_b == {"TB1", "TB2", "TB3"}
+
+
 def test_stats_ratings_empty(client):
     r = client.get("/stats/ratings")
     assert r.status_code == 200, r.text

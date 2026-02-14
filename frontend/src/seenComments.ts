@@ -6,12 +6,12 @@ type SeenIdsMap = Record<string, number[]>; // tournament_id -> comment ids seen
 function safeParse(raw: string | null): SeenIdsMap {
   if (!raw) return {};
   try {
-    const v = JSON.parse(raw) as any;
+    const v: unknown = JSON.parse(raw);
     if (!v || typeof v !== "object") return {};
     const out: SeenIdsMap = {};
-    for (const [k, val] of Object.entries(v)) {
+    for (const [k, val] of Object.entries(v as Record<string, unknown>)) {
       if (!Array.isArray(val)) continue;
-      const ids = (val as any[])
+      const ids = val
         .map((x) => Number(x))
         .filter((x) => Number.isFinite(x) && x > 0)
         .map((x) => Math.trunc(x));
@@ -58,7 +58,7 @@ export function markCommentSeen(tournamentId: number, commentId: number) {
   if (!Number.isFinite(commentId) || commentId <= 0) return;
   const cur = load();
   const k = String(tournamentId);
-  const prev = Array.isArray(cur[k]) ? (cur[k] as number[]) : [];
+  const prev = Array.isArray(cur[k]) ? cur[k] : [];
   if (prev.includes(commentId)) return;
   const next = [...prev, Math.trunc(commentId)];
   // Keep bounded: you won't have many, but avoid unbounded growth.
@@ -79,4 +79,3 @@ export function subscribeSeenComments(cb: () => void) {
     window.removeEventListener("storage", onStorage);
   };
 }
-

@@ -8,6 +8,7 @@ from sqlmodel import Session, select
 
 from ..auth import require_admin, require_editor
 from ..db import get_session
+from ..schemas import CommentCreateBody, CommentPatchBody, CommentsPinBody
 from ..models import (
     Comment,
     CommentImageFile,
@@ -177,21 +178,18 @@ def comments_summary(s: Session = Depends(get_session)) -> list[dict]:
 @router.post("/tournaments/{tournament_id}/comments")
 async def create_comment(
     tournament_id: int,
-    body: dict,
+    body: CommentCreateBody,
     s: Session = Depends(get_session),
 ) -> dict:
     _tournament_or_404(s, tournament_id)
 
-    text = str(body.get("body", "")).strip()
-    has_image_hint = bool(body.get("has_image", False))
+    text = str(body.body or "").strip()
+    has_image_hint = bool(body.has_image)
     if not text and not has_image_hint:
         raise HTTPException(status_code=400, detail="body is required (or attach an image)")
 
-    match_id_raw = body.get("match_id", None)
-    match_id = None if match_id_raw in (None, "") else int(match_id_raw)
-
-    author_raw = body.get("author_player_id", None)
-    author_player_id = None if author_raw in (None, "") else int(author_raw)
+    match_id = None if body.match_id in (None, "") else int(body.match_id)
+    author_player_id = None if body.author_player_id in (None, "") else int(body.author_player_id)
 
     _validate_match_ref(s, tournament_id, match_id)
     _validate_author(s, tournament_id, author_player_id)
@@ -221,21 +219,21 @@ async def create_comment(
 @router.patch("/comments/{comment_id}", dependencies=[Depends(require_editor)])
 async def patch_comment(
     comment_id: int,
-    body: dict,
+    body: CommentPatchBody,
     s: Session = Depends(get_session),
 ) -> dict:
     c = _comment_or_404(s, comment_id)
     image_updated_at = _comment_image_updated_at(s, comment_id)
+    fields = body.model_fields_set
 
-    if "body" in body:
-        text = str(body.get("body", "")).strip()
+    if "body" in fields:
+        text = str(body.body or "").strip()
         if not text and image_updated_at is None:
             raise HTTPException(status_code=400, detail="body cannot be empty")
         c.body = text
 
-    if "author_player_id" in body:
-        author_raw = body.get("author_player_id", None)
-        author_player_id = None if author_raw in (None, "") else int(author_raw)
+    if "author_player_id" in fields:
+        author_player_id = None if body.author_player_id in (None, "") else int(body.author_player_id)
         _validate_author(s, c.tournament_id, author_player_id)
         c.author_player_id = author_player_id
 
@@ -362,12 +360,12 @@ async def delete_comment_image(comment_id: int, s: Session = Depends(get_session
 @router.put("/tournaments/{tournament_id}/comments/pin", dependencies=[Depends(require_editor)])
 async def set_pinned_comment(
     tournament_id: int,
-    body: dict,
+    body: CommentsPinBody,
     s: Session = Depends(get_session),
 ) -> dict:
     _tournament_or_404(s, tournament_id)
 
-    comment_id_raw = body.get("comment_id", None)
+    comment_id_raw = body.comment_id
     comment_id = None if comment_id_raw in (None, "") else int(comment_id_raw)
 
     if comment_id is None:

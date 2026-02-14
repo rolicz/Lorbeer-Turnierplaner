@@ -3,24 +3,25 @@ import { useQuery } from "@tanstack/react-query";
 import { getStatsH2H, getStatsPlayerMatches, getStatsPlayers, getStatsRatings, getStatsStreaks } from "../../api/stats.api";
 import { playerAvatarUrl } from "../../api/playerAvatars.api";
 import { StreakPatch, type ActiveStreak } from "../../ui/StreakPatches";
-import type { Match, StatsPlayerMatchesTournament } from "../../api/types";
+import type { Match, StatsPlayerMatchesTournament, StatsStreakCategory, StatsStreakRow, StatsStreaksResponse } from "../../api/types";
 import { sideBy } from "../../helpers";
 
 function ppm(pts: number, played: number) {
   return played > 0 ? (pts / played).toFixed(2) : "0.00";
 }
 
-function toActiveStreaks(data: any): ActiveStreak[] {
+function toActiveStreaks(data: StatsStreaksResponse | undefined): ActiveStreak[] {
   if (!data?.categories?.length) return [];
-  const cur = (key: string) => data.categories.find((c: any) => c.key === key)?.current ?? [];
-  const rec = (key: string) => data.categories.find((c: any) => c.key === key)?.records ?? [];
+  const byKey = (key: string): StatsStreakCategory | undefined => data.categories.find((c) => c.key === key);
+  const cur = (key: string): StatsStreakRow[] => byKey(key)?.current ?? [];
+  const rec = (key: string): StatsStreakRow[] => byKey(key)?.records ?? [];
 
   const wins = cur("win_streak")?.[0] ?? null;
   const unbeaten = cur("unbeaten_streak")?.[0] ?? null;
   const scoring = cur("scoring_streak")?.[0] ?? null;
   const clean = cur("clean_sheet_streak")?.[0] ?? null;
 
-  const bestLen = (rows: any[]) => rows.reduce((m, r) => Math.max(m, Number(r.length ?? 0)), 0);
+  const bestLen = (rows: StatsStreakRow[]) => rows.reduce((m, r) => Math.max(m, Number(r.length ?? 0)), 0);
   const bestWin = bestLen(rec("win_streak"));
   const bestUnbeaten = bestLen(rec("unbeaten_streak"));
   const bestScoring = bestLen(rec("scoring_streak"));
@@ -132,7 +133,10 @@ export default function PlayerLiveStatsModal({
   });
   const matchesQ = useQuery({
     queryKey: ["stats", "playerMatches", pid ?? "none"],
-    queryFn: () => getStatsPlayerMatches({ playerId: pid as number }),
+    queryFn: () => {
+      if (pid == null) throw new Error("No player selected");
+      return getStatsPlayerMatches({ playerId: pid });
+    },
     enabled,
     refetchOnReconnect: false,
     refetchOnWindowFocus: false,
@@ -185,7 +189,7 @@ export default function PlayerLiveStatsModal({
     for (const t of ts) {
       const ms = (t.matches ?? []).slice().sort((m1, m2) => (m1.order_index ?? 0) - (m2.order_index ?? 0));
       for (const m of ms) {
-        const o = outcomeForPlayer(m as Match, pid);
+        const o = outcomeForPlayer(m, pid);
         if (o) outcomes.push(o);
       }
     }

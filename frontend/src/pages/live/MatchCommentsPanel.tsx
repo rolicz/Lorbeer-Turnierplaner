@@ -114,8 +114,8 @@ export default function MatchCommentsPanel({
       if (draftImageBlob) {
         try {
           await putCommentImage(token, created.id, draftImageBlob, "comment.webp");
-        } catch (e: any) {
-          showErrorToast(String(e?.message ?? e), "Comment image upload failed");
+        } catch (e: unknown) {
+          showErrorToast(e instanceof Error ? e.message : "Image upload failed", "Comment image upload failed");
         }
       }
       return created;
@@ -139,9 +139,6 @@ export default function MatchCommentsPanel({
 
     // Defer until layout stabilizes (composer collapsing + query refresh).
     requestAnimationFrame(() => {
-      const nav = document.querySelector(".nav-shell") as HTMLElement | null;
-      const navH = nav?.getBoundingClientRect().height ?? 0;
-
       // Scroll so the new comment ends up at the bottom of the viewport (nice for quickly reading it).
       requestAnimationFrame(() => {
         const bottomPad = 10;
@@ -155,7 +152,7 @@ export default function MatchCommentsPanel({
         setPendingScrollId(null);
       });
     });
-  }, [pendingScrollId, commentsQ.dataUpdatedAt]);
+  }, [matchId, pendingScrollId, commentsQ.dataUpdatedAt]);
 
   return (
     <>
@@ -379,7 +376,7 @@ export default function MatchCommentsPanel({
       open={imageCropOpen}
       title="Attach comment image"
       onClose={() => setImageCropOpen(false)}
-      onApply={async (blob) => setDraftImage(blob)}
+      onApply={(blob) => setDraftImage(blob)}
     />
     <ImageLightbox open={!!lightboxSrc} src={lightboxSrc} onClose={() => setLightboxSrc(null)} />
     </>

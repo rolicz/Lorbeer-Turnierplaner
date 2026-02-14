@@ -48,7 +48,7 @@ function sameScope(a: CommentScope | null | undefined, b: CommentScope) {
   if (!a) return false;
   if (a.kind !== b.kind) return false;
   if (b.kind === "tournament") return true;
-  return (a as any).matchId === (b as any).matchId;
+  return a.kind === "match" && a.matchId === b.matchId;
 }
 
 function fmtTs(ms: number) {
@@ -512,6 +512,7 @@ export default function TournamentCommentsCard({
 
   useEffect(() => {
     // Reset UI state when switching tournaments.
+    /* eslint-disable react-hooks/set-state-in-effect */
     setDraftAuthor("general");
     setDraftBody("");
     setDraftImageBlob(null);
@@ -524,6 +525,7 @@ export default function TournamentCommentsCard({
     setAddTarget(null);
     setPendingFocusId(null);
     setFlashId(null);
+    /* eslint-enable react-hooks/set-state-in-effect */
   }, [tournamentId]);
 
   useEffect(() => {
@@ -536,8 +538,10 @@ export default function TournamentCommentsCard({
     if (!focusCommentRequest) return;
     const cid = Number(focusCommentRequest.id);
     if (!Number.isFinite(cid) || cid <= 0) return;
+    /* eslint-disable react-hooks/set-state-in-effect */
     setPendingFocusId(Math.trunc(cid));
-  }, [focusCommentRequest?.id, focusCommentRequest?.nonce]);
+    /* eslint-enable react-hooks/set-state-in-effect */
+  }, [focusCommentRequest]);
 
   useEffect(() => {
     if (!pendingFocusId) return;
@@ -654,7 +658,7 @@ export default function TournamentCommentsCard({
     },
   });
 
-  const actionError = (createMut.error ?? patchMut.error ?? deleteMut.error ?? pinMut.error) as any;
+  const actionError: unknown = createMut.error ?? patchMut.error ?? deleteMut.error ?? pinMut.error;
 
   async function deleteComment(commentId: number) {
     const ok = window.confirm("Delete comment?");
@@ -685,11 +689,12 @@ export default function TournamentCommentsCard({
         setPendingFocusId(editingId);
       } else {
         const created = await createMut.mutateAsync({ scope, author_player_id, body, has_image: hasImage });
-        if (hasImage && token) {
+        const imageBlob = draftImageBlob;
+        if (hasImage && token && imageBlob) {
           try {
-            await putCommentImage(token, created.id, draftImageBlob!, "comment.webp");
-          } catch (e: any) {
-            showErrorToast(String(e?.message ?? e), "Comment image upload failed");
+            await putCommentImage(token, created.id, imageBlob, "comment.webp");
+          } catch (e: unknown) {
+            showErrorToast(e instanceof Error ? e.message : "Image upload failed", "Comment image upload failed");
           }
         }
         setPendingFocusId(created.id);
@@ -792,8 +797,7 @@ export default function TournamentCommentsCard({
       return null;
     });
     setAddTarget((cur) => {
-      const same =
-        cur?.kind === scope.kind && (scope.kind === "tournament" || (cur as any).matchId === (scope as any).matchId);
+      const same = sameScope(cur, scope);
       return same ? null : scope;
     });
   }
@@ -844,7 +848,9 @@ export default function TournamentCommentsCard({
                 imagePreviewUrl={draftImagePreviewUrl}
                 onOpenImageCropper={() => setImageCropOpen(true)}
                 onClearImage={() => setDraftImage(null)}
-                onSubmit={() => upsertComment({ kind: "tournament" })}
+                onSubmit={() => {
+                  void upsertComment({ kind: "tournament" });
+                }}
                 canSubmit={canSubmit}
                 surfaceClassName="panel"
               />
@@ -888,12 +894,16 @@ export default function TournamentCommentsCard({
                     players={players}
                     authorLabel={authorLabel}
                     onToggleEdit={() => toggleEdit(c!)}
-                    onDelete={() => deleteComment(c!.id)}
+                    onDelete={() => {
+                      void deleteComment(c!.id);
+                    }}
                     draftAuthor={draftAuthor}
                     onChangeDraftAuthor={setDraftAuthor}
                     draftBody={draftBody}
                     onChangeDraftBody={setDraftBody}
-                    onSave={() => upsertComment(c!.scope)}
+                    onSave={() => {
+                      void upsertComment(c!.scope);
+                    }}
                     canSubmit={canSubmit && (editingId !== c!.id || editingDirty)}
                   />
                 ))
@@ -990,7 +1000,9 @@ export default function TournamentCommentsCard({
                     imagePreviewUrl={draftImagePreviewUrl}
                     onOpenImageCropper={() => setImageCropOpen(true)}
                     onClearImage={() => setDraftImage(null)}
-                    onSubmit={() => upsertComment({ kind: "match", matchId: b.matchId })}
+                    onSubmit={() => {
+                      void upsertComment({ kind: "match", matchId: b.matchId });
+                    }}
                     canSubmit={canSubmit}
                     surfaceClassName="panel-subtle"
                   />
@@ -1019,12 +1031,16 @@ export default function TournamentCommentsCard({
                         players={players}
                         authorLabel={authorLabel}
                         onToggleEdit={() => toggleEdit(c)}
-                        onDelete={() => deleteComment(c.id)}
+                        onDelete={() => {
+                          void deleteComment(c.id);
+                        }}
                         draftAuthor={draftAuthor}
                         onChangeDraftAuthor={setDraftAuthor}
                         draftBody={draftBody}
                         onChangeDraftBody={setDraftBody}
-                        onSave={() => upsertComment(c.scope)}
+                        onSave={() => {
+                          void upsertComment(c.scope);
+                        }}
                         canSubmit={canSubmit && (editingId !== c.id || editingDirty)}
                       />
                     ))
@@ -1041,7 +1057,7 @@ export default function TournamentCommentsCard({
       open={imageCropOpen}
       title="Attach comment image"
       onClose={() => setImageCropOpen(false)}
-      onApply={async (blob) => setDraftImage(blob)}
+      onApply={(blob) => setDraftImage(blob)}
     />
     <ImageLightbox open={!!lightboxSrc} src={lightboxSrc} onClose={() => setLightboxSrc(null)} />
     </>

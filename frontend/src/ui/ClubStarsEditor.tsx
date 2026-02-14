@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import type { Club } from "../api/types";
@@ -30,14 +30,16 @@ export default function ClubStarsEditor({
   const club = useMemo(() => (clubId ? clubs.find((c) => c.id === clubId) ?? null : null), [clubs, clubId]);
   const serverValue = club ? toHalfStep(club.star_rating) : null;
 
-  const [localValue, setLocalValue] = useState<number | null>(null);
-  const [err, setErr] = useState<string | null>(null);
-
-  useEffect(() => {
-    // Avoid showing the previous club's stars when switching clubs.
-    setLocalValue(null);
-    setErr(null);
-  }, [clubId]);
+  const [localByClub, setLocalByClub] = useState<{ clubId: number | null; value: number | null }>({
+    clubId: null,
+    value: null,
+  });
+  const [errByClub, setErrByClub] = useState<{ clubId: number | null; message: string | null }>({
+    clubId: null,
+    message: null,
+  });
+  const localValue = localByClub.clubId === clubId ? localByClub.value : null;
+  const err = errByClub.clubId === clubId ? errByClub.message : null;
 
   const effectiveValue = localValue ?? serverValue;
 
@@ -48,11 +50,13 @@ export default function ClubStarsEditor({
       return patchClub(token, clubId, { star_rating: v });
     },
     onSuccess: async () => {
+      setLocalByClub({ clubId, value: null });
       await qc.invalidateQueries({ queryKey: ["clubs"] });
     },
-    onError: (e: any) => {
-      setLocalValue(null);
-      setErr(String(e?.message ?? e));
+    onError: (e: unknown) => {
+      const message = e instanceof Error && e.message ? e.message : "Could not update stars";
+      setLocalByClub({ clubId, value: null });
+      setErrByClub({ clubId, message });
     },
   });
 
@@ -86,8 +90,8 @@ export default function ClubStarsEditor({
               if (next == null || !Number.isFinite(next)) return;
               if (!clubId) return;
               if (serverValue != null && next === serverValue) return;
-              setErr(null);
-              setLocalValue(next);
+              setErrByClub({ clubId, message: null });
+              setLocalByClub({ clubId, value: next });
               patchMut.mutate(next);
             }}
             disabled={uiDisabled}
@@ -118,8 +122,8 @@ export default function ClubStarsEditor({
           if (next == null || !Number.isFinite(next)) return;
           if (!clubId) return;
           if (serverValue != null && next === serverValue) return;
-          setErr(null);
-          setLocalValue(next);
+          setErrByClub({ clubId, message: null });
+          setLocalByClub({ clubId, value: next });
           patchMut.mutate(next);
         }}
         disabled={uiDisabled}

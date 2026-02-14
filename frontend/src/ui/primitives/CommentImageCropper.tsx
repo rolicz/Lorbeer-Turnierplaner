@@ -127,8 +127,8 @@ export default function CommentImageCropper({
 
     let sx = (cropLeft - imgLeft) / scale;
     let sy = (cropTop - imgTop) / scale;
-    let sw = layout.cropW / scale;
-    let sh = layout.cropH / scale;
+    const sw = layout.cropW / scale;
+    const sh = layout.cropH / scale;
     sx = clamp(sx, 0, Math.max(0, img.w - sw));
     sy = clamp(sy, 0, Math.max(0, img.h - sh));
 
@@ -261,19 +261,22 @@ export default function CommentImageCropper({
             <div className="flex items-center justify-end gap-2">
               <Button
                 type="button"
-                onClick={async () => {
+                onClick={() => {
                   if (!img || busy) return;
-                  setErr(null);
-                  setBusy(true);
-                  try {
-                    const blob = await exportCropped(1920, 1440);
-                    await onApply(blob);
-                    onClose();
-                  } catch (e: any) {
-                    setErr(String(e?.message ?? e));
-                  } finally {
-                    setBusy(false);
-                  }
+                  void (async () => {
+                    setErr(null);
+                    setBusy(true);
+                    try {
+                      const blob = await exportCropped(1920, 1440);
+                      await onApply(blob);
+                      onClose();
+                    } catch (e: unknown) {
+                      if (e instanceof Error && e.message) setErr(e.message);
+                      else setErr("Image crop failed");
+                    } finally {
+                      setBusy(false);
+                    }
+                  })();
                 }}
                 disabled={!img || busy}
                 title="Use image"

@@ -1,10 +1,16 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import Button from "../../ui/primitives/Button";
 import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
 
 function clamp(n: number, lo: number, hi: number) {
   return Math.max(lo, Math.min(hi, n));
+}
+
+function errorMessage(e: unknown): string {
+  if (e instanceof Error) return e.message;
+  if (typeof e === "string") return e;
+  return "Request failed";
 }
 
 const CROP_FRAC = 0.84; // crop square relative to viewport size
@@ -133,8 +139,8 @@ export default function PlayerAvatarEditor({
     // source rect (in image px) that corresponds to the crop square
     let sx = (cropLeft - imgLeft) / scale;
     let sy = (cropTop - imgTop) / scale;
-    let sw = crop / scale;
-    let sh = crop / scale;
+    const sw = crop / scale;
+    const sh = crop / scale;
 
     sx = clamp(sx, 0, Math.max(0, img.w - sw));
     sy = clamp(sy, 0, Math.max(0, img.h - sh));
@@ -296,18 +302,20 @@ export default function PlayerAvatarEditor({
                 <Button
                   type="button"
                   variant="ghost"
-                  onClick={async () => {
-                    if (busy) return;
-                    setErr(null);
-                    setBusy(true);
-                    try {
-                      await onDelete();
-                      onClose();
-                    } catch (e: any) {
-                      setErr(String(e?.message ?? e));
-                    } finally {
-                      setBusy(false);
-                    }
+                  onClick={() => {
+                    void (async () => {
+                      if (busy) return;
+                      setErr(null);
+                      setBusy(true);
+                      try {
+                        await onDelete();
+                        onClose();
+                      } catch (e: unknown) {
+                        setErr(errorMessage(e));
+                      } finally {
+                        setBusy(false);
+                      }
+                    })();
                   }}
                   disabled={!canEdit || busy}
                   title="Delete avatar"
@@ -321,19 +329,21 @@ export default function PlayerAvatarEditor({
 
               <Button
                 type="button"
-                onClick={async () => {
-                  if (!img || busy) return;
-                  setErr(null);
-                  setBusy(true);
-                  try {
-                    const blob = await exportCropped(512);
-                    await onSave(blob);
-                    onClose();
-                  } catch (e: any) {
-                    setErr(String(e?.message ?? e));
-                  } finally {
-                    setBusy(false);
-                  }
+                onClick={() => {
+                  void (async () => {
+                    if (!img || busy) return;
+                    setErr(null);
+                    setBusy(true);
+                    try {
+                      const blob = await exportCropped(512);
+                      await onSave(blob);
+                      onClose();
+                    } catch (e: unknown) {
+                      setErr(errorMessage(e));
+                    } finally {
+                      setBusy(false);
+                    }
+                  })();
                 }}
                 disabled={!canEdit || busy || !img}
                 title="Save"

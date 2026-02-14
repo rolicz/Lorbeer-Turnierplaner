@@ -6,7 +6,7 @@ export type TournamentMode = "1v1" | "2v2";
 export type TournamentStatus = "draft" | "live" | "done";
 export type MatchState = "scheduled" | "playing" | "finished";
 
-export type DeciderType = "none" | "penalties" | "match";
+export type DeciderType = "none" | "penalties" | "match" | "scheresteinpapier";
 
 export type Player = {
   id: number;
@@ -105,6 +105,8 @@ export type TournamentSummary = {
   decider_loser_player_id?: number | null;
   decider_winner_goals?: number | null;
   decider_loser_goals?: number | null;
+  winner_string?: string | null;
+  winner_decider_string?: string | null;
 };
 
 export type TournamentDetail = {

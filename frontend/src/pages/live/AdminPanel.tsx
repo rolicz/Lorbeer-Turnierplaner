@@ -124,11 +124,13 @@ export default function AdminPanel({
   );
 
   useEffect(() => {
+    /* eslint-disable react-hooks/set-state-in-effect */
     setDType(currentDecider?.type ?? "none");
     setWinnerId(currentDecider?.winner_player_id ?? null);
     setLoserId(currentDecider?.loser_player_id ?? null);
     setWGoals(currentDecider?.winner_goals != null ? String(currentDecider.winner_goals) : "");
     setLGoals(currentDecider?.loser_goals != null ? String(currentDecider.loser_goals) : "");
+    /* eslint-enable react-hooks/set-state-in-effect */
   }, [
     currentDecider?.type,
     currentDecider?.winner_player_id,

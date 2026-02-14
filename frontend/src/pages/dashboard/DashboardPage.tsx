@@ -8,7 +8,7 @@ import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
 import { listCupDefs } from "../../api/cup.api";
 import { useAnyTournamentWS } from "../../hooks/useTournamentWS";
 import { cupColorVarForKey, rgbFromCssVar } from "../../cupColors";
-import { useEffect, useMemo } from "react";
+import { useEffect } from "react";
 
 export default function DashboardPage() {
   useAnyTournamentWS();
@@ -19,12 +19,10 @@ export default function DashboardPage() {
 
   const defsQ = useQuery({ queryKey: ["cup", "defs"], queryFn: listCupDefs });
   const cupsRaw = defsQ.data?.cups?.length ? defsQ.data.cups : [{ key: "default", name: "Cup", since_date: null }];
-  const cups = useMemo(() => {
-    // Keep config order, but put the default cup last.
-    const nonDefault = cupsRaw.filter((c) => c.key !== "default");
-    const defaults = cupsRaw.filter((c) => c.key === "default");
-    return [...nonDefault, ...defaults];
-  }, [cupsRaw]);
+  // Keep config order, but put the default cup last.
+  const nonDefault = cupsRaw.filter((c) => c.key !== "default");
+  const defaults = cupsRaw.filter((c) => c.key === "default");
+  const cups = [...nonDefault, ...defaults];
 
   return (
     <div className="page">

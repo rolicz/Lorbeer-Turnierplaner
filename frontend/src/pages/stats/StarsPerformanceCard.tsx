@@ -3,10 +3,11 @@ import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-quer
 
 import CollapsibleCard from "../../ui/primitives/CollapsibleCard";
 import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
+import AvatarButton from "../../ui/primitives/AvatarButton";
 import { listPlayers } from "../../api/players.api";
 import { listClubs } from "../../api/clubs.api";
 import { getStatsPlayerMatches } from "../../api/stats.api";
-import { listPlayerAvatarMeta, playerAvatarUrl } from "../../api/playerAvatars.api";
+import { listPlayerAvatarMeta } from "../../api/playerAvatars.api";
 import type { Club, Match } from "../../api/types";
 import { sideBy } from "../../helpers";
 import { StarsFA } from "../../ui/primitives/StarsFA";
@@ -41,54 +42,6 @@ function outcomeForPlayer(m: Match, playerId: number): { outcome: Outcome; point
 
 function modeLabel(mode: Mode) {
   return mode === "overall" ? "overall" : mode;
-}
-
-function AvatarButton({
-  playerId,
-  name,
-  updatedAt,
-  selected,
-  onClick,
-  className = "h-8 w-8",
-}: {
-  playerId: number;
-  name: string;
-  updatedAt: string | null;
-  selected: boolean;
-  onClick: () => void;
-  className?: string;
-}) {
-  const initial = (name || "?").trim().slice(0, 1).toUpperCase();
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      style={{ overflowAnchor: "none" }}
-      className={"relative shrink-0 rounded-full transition-colors " + (selected ? "" : "hover:bg-bg-card-chip/20")}
-      aria-pressed={selected}
-      title={name}
-    >
-      <span
-        className={
-          `panel-subtle inline-flex items-center justify-center overflow-hidden rounded-full ${className} ` +
-          (selected ? "ring-2 ring-[color:rgb(var(--color-accent)/0.85)]" : "")
-        }
-      >
-        {updatedAt ? (
-          <img
-            src={playerAvatarUrl(playerId, updatedAt)}
-            alt=""
-            className="h-full w-full object-cover"
-            loading="lazy"
-            decoding="async"
-          />
-        ) : (
-          <span className="text-sm font-semibold text-text-muted">{initial}</span>
-        )}
-      </span>
-      <span className="sr-only">{name}</span>
-    </button>
-  );
 }
 
 function ModeSwitch({ value, onChange }: { value: Mode; onChange: (m: Mode) => void }) {
@@ -276,8 +229,8 @@ export default function StarsPerformanceCard() {
     refetchOnWindowFocus: false,
   });
 
-  const players = playersQ.data ?? [];
-  const clubs = clubsQ.data ?? [];
+  const players = useMemo(() => playersQ.data ?? [], [playersQ.data]);
+  const clubs = useMemo(() => clubsQ.data ?? [], [clubsQ.data]);
   const [playerId, setPlayerId] = useState<number | "">("");
   const [mode, setMode] = useState<Mode>("overall");
 
@@ -372,6 +325,7 @@ export default function StarsPerformanceCard() {
                 updatedAt={avatarUpdatedAtById.get(p.id) ?? null}
                 selected={playerId === p.id}
                 onClick={() => setPlayerId(p.id)}
+                noOverflowAnchor={true}
               />
             ))}
           </div>

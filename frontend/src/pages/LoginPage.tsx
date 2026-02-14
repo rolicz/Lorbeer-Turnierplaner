@@ -22,8 +22,9 @@ export default function LoginPage() {
       const res = await login(pw);
       auth.login(res.token, res.role);
       nav("/tournaments");
-    } catch (e: any) {
-      setErr(e?.message || "Login failed");
+    } catch (e: unknown) {
+      if (e instanceof Error && e.message) setErr(e.message);
+      else setErr("Login failed");
     } finally {
       setBusy(false);
     }
@@ -32,7 +33,12 @@ export default function LoginPage() {
   return (
     <Card title="Login (write access)" variant="outer">
       <ErrorToastOnError error={err} title="Login failed" />
-      <form onSubmit={onSubmit} className="space-y-3">
+      <form
+        onSubmit={(e) => {
+          void onSubmit(e);
+        }}
+        className="space-y-3"
+      >
         <Input
           label="Password"
           type="password"

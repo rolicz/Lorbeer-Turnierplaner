@@ -115,7 +115,7 @@ export default function TrendsPreviewCard() {
     staleTime: 0,
   });
 
-  const players = statsQ.data?.players ?? [];
+  const players = useMemo(() => statsQ.data?.players ?? [], [statsQ.data?.players]);
 
   const matchesQs = useQueries({
     queries: players.map((p) => ({
@@ -226,7 +226,7 @@ export default function TrendsPreviewCard() {
         let playedThisT = false;
         const matches = (t.matches ?? []).slice().sort((m1, m2) => (m1.order_index ?? 0) - (m2.order_index ?? 0));
         for (const m of matches) {
-          const p = pointsForPlayerInMatch(m as Match, pid);
+          const p = pointsForPlayerInMatch(m, pid);
           if (p == null) continue;
           playedThisT = true;
           sum += p;

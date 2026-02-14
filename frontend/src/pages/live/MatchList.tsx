@@ -113,7 +113,7 @@ export default function MatchList({
   canReorder: boolean;
   busyReorder: boolean;
   onEditMatch: (m: Match) => void;
-  onSwapSides: (matchId: number) => Promise<any>;
+  onSwapSides: (matchId: number) => Promise<unknown>;
   onMoveUp: (matchId: number) => void;
   onMoveDown: (matchId: number) => void;
 }) {
@@ -305,10 +305,10 @@ export default function MatchList({
                         {showSwapDetails ? (
                           <Button
                             variant="ghost"
-                            onClick={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                                onSwapSides(m.id);
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                void onSwapSides(m.id);
                               }}
                               disabled={busyReorder}
                               title="Swap sides"

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Card from "../ui/primitives/Card";
 import Button from "../ui/primitives/Button";
 import Input from "../ui/primitives/Input";
@@ -12,9 +12,10 @@ import { tournamentPalette, tournamentStatusUI } from "../ui/theme";
 import { cn } from "../ui/cn";
 import { listTournaments, createTournament } from "../api/tournaments.api";
 import { listPlayers } from "../api/players.api";
+import { type TournamentSummary } from "../api/types";
 import { useAuth } from "../auth/AuthContext";
 import { fmtDate } from "../utils/format";
-import { listTournamentComments, listTournamentCommentsSummary } from "../api/comments.api";
+import { listTournamentCommentsSummary } from "../api/comments.api";
 import { useSeenIdsByTournamentId } from "../hooks/useSeenComments";
 
 
@@ -24,17 +25,23 @@ type Status = "draft" | "live" | "done";
 
 function errText(err: unknown): string {
   if (err instanceof Error) return err.message;
-  return String(err ?? "Unknown error");
+  if (typeof err === "string") return err;
+  if (err == null) return "Unknown error";
+  try {
+    return JSON.stringify(err);
+  } catch {
+    return "Unknown error";
+  }
 }
 
 
 // Best-effort winner label (depends on what your /tournaments list returns)
-function winnerLabel(t: any): string | null {
-  if(t.winner_string) {
+function winnerLabel(t: TournamentSummary): string | null {
+  if (t.winner_string) {
     return t.winner_string;
-  } 
-  else if(t.winner_decider_string) {
-    return t.winner_decider_string + " (decider)";
+  }
+  if (t.winner_decider_string) {
+    return `${t.winner_decider_string} (decider)`;
   }
   return null;
 }
@@ -63,23 +70,21 @@ export default function TournamentsPage() {
   // Sort tournaments by date (newest first), fallback to created_at
   const tournamentsSorted = useMemo(() => {
     const ts = tournamentsQ.data ?? [];
-    const key = (t: any) => {
+    const key = (t: TournamentSummary): number => {
       const d = t.date ? `${t.date}T00:00:00` : t.created_at ?? null;
       const ms = d ? new Date(d).getTime() : 0;
       return Number.isFinite(ms) ? ms : 0;
     };
 
-    return ts.slice().sort((a: any, b: any) => {
+    return ts.slice().sort((a, b) => {
       const da = key(a);
       const db = key(b);
       if (db !== da) return db - da;
-      const ia = typeof a.id === "number" ? a.id : 0;
-      const ib = typeof b.id === "number" ? b.id : 0;
-      return ib - ia;
+      return b.id - a.id;
     });
   }, [tournamentsQ.data]);
 
-  const tournamentIds = useMemo(() => tournamentsSorted.map((t: any) => Number(t.id)).filter((x) => Number.isFinite(x)), [tournamentsSorted]);
+  const tournamentIds = useMemo(() => tournamentsSorted.map((t) => t.id), [tournamentsSorted]);
   const seenIdsByTid = useSeenIdsByTournamentId(tournamentIds);
   const summaryByTid = useMemo(() => {
     const m = new Map<number, { comment_ids: number[]; total_comments: number }>();
@@ -88,29 +93,6 @@ export default function TournamentsPage() {
     }
     return m;
   }, [summaryQ.data]);
-
-  // Fallback for older backends: if the summary endpoint fails, fetch comment ids per tournament.
-  // This is only enabled when the summary request errors.
-  const fallbackTids = useMemo(() => (summaryQ.isError ? tournamentIds.slice(0, 50) : []), [summaryQ.isError, tournamentIds.join("|")]);
-  const fallbackQs = useQueries({
-    queries: fallbackTids.map((tid) => ({
-      queryKey: ["comments", "tournament", tid],
-      queryFn: () => listTournamentComments(tid),
-    })),
-  });
-  const fallbackIdsByTid = useMemo(() => {
-    const m = new Map<number, { total_comments: number; comment_ids: number[] }>();
-    if (!summaryQ.isError) return m;
-    for (let i = 0; i < fallbackTids.length; i++) {
-      const tid = fallbackTids[i];
-      const q = fallbackQs[i];
-      const ids = (q?.data?.comments ?? [])
-        .map((c: any) => Number(c?.id))
-        .filter((x: any) => Number.isFinite(x) && x > 0);
-      m.set(tid, { total_comments: ids.length, comment_ids: ids });
-    }
-    return m;
-  }, [summaryQ.isError, fallbackTids.join("|"), fallbackQs.map((q) => (q.data?.comments ?? []).length).join("|")]);
 
   const createMut = useMutation({
     mutationFn: async () => {
@@ -175,7 +157,7 @@ export default function TournamentsPage() {
             <>
               <Button
                 variant="ghost"
-                onClick={() => qc.invalidateQueries({ queryKey: ["tournaments"] })}
+                onClick={() => void qc.invalidateQueries({ queryKey: ["tournaments"] })}
                 title="Refresh"
               >
                 <i className="fa fa-refresh md:hidden" aria-hidden="true" />
@@ -285,14 +267,14 @@ export default function TournamentsPage() {
         <div className={cn(canWrite && createOpen ? "mt-3 space-y-2" : "mt-3 space-y-2")}>
           {tournamentsQ.isLoading && <div className="text-text-muted">Loading…</div>}
 
-          {tournamentsSorted.map((t: any) => {
+          {tournamentsSorted.map((t) => {
             const st: Status = (t.status as Status) ?? "draft";
             const ui = tournamentStatusUI(st);
             const pal = tournamentPalette(st);
             const winner = winnerLabel(t);
-            const tid = Number(t.id);
-            const sum = summaryByTid.get(tid) ?? fallbackIdsByTid.get(tid);
-            const seen = seenIdsByTid.get(Number(t.id)) ?? new Set<number>();
+            const tid = t.id;
+            const sum = summaryByTid.get(tid);
+            const seen = seenIdsByTid.get(tid) ?? new Set<number>();
             const unseenIds = (sum?.comment_ids ?? []).filter((cid) => !seen.has(cid));
             const unseenCount = unseenIds.length;
             const hasUnseen = unseenCount > 0;

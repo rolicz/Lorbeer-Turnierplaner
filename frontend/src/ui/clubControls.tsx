@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import type { Club } from "../api/types";
 import { useId } from "react";
 import type { ReactNode } from "react";
@@ -6,14 +7,15 @@ export type LeagueOpt = { id: number; name: string };
 
 export const STAR_OPTIONS: number[] = Array.from({ length: 10 }, (_, i) => (i + 1) * 0.5); // 0.5..5.0
 
-export function starsLabel(v: any): string {
+export function starsLabel(v: unknown): string {
   if (typeof v === "number") return v.toFixed(1).replace(/\.0$/, "");
+  if (typeof v === "string") return v;
   const n = Number(v);
   if (Number.isFinite(n)) return n.toFixed(1).replace(/\.0$/, "");
-  return String(v ?? "");
+  return "";
 }
 
-export function toHalfStep(v: any): number | null {
+export function toHalfStep(v: unknown): number | null {
   const n = Number(v);
   if (!Number.isFinite(n)) return null;
   return Math.round(n * 2) / 2;
@@ -26,10 +28,9 @@ export function sortClubsForDropdown(clubs: Club[]) {
 }
 
 export function leagueInfo(c: Club): { id: number | null; name: string | null } {
-  const anyC = c as any;
-  const id = anyC.league_id;
-  const name = anyC.league_name ?? (id != null ? `League #${id}` : null);
-  return { id: typeof id === "number" ? id : id != null ? Number(id) : null, name: name ? String(name) : null };
+  const id = Number.isFinite(c.league_id) ? c.league_id : null;
+  const name = c.league_name || (id != null ? `League #${id}` : null);
+  return { id, name };
 }
 
 export function clubLabelPartsById(clubs: Club[], id: number | null | undefined) {
@@ -53,7 +54,7 @@ export function clubLabelPartsById(clubs: Club[], id: number | null | undefined)
   const r = Number(c.star_rating);
   return {
     name: c.name,
-    league_name: (c as any).league_name,
+    league_name: c.league_name,
     rating: Number.isFinite(r) ? r : null,
     ratingText: Number.isFinite(r) ? `${starsLabel(r)}★` : null,
   };
@@ -68,14 +69,14 @@ export function ensureSelectedClubVisible(filtered: Club[], all: Club[], selecte
   const selected = all.find((c) => c.id === selectedId);
   if (selected) return [selected, ...filtered];
 
-  // Fallback: keep a synthetic option so the select still shows something
-  return [{ id: selectedId, name: `#${selectedId}`, star_rating: null } as any, ...filtered];
+  // If selected id is unknown to the current dataset, keep list unchanged.
+  return filtered;
 }
 
 export function randomClubAssignmentOk(clubA: Club, clubB: Club): boolean {
   if (clubB.id === clubA.id) return false;
-  const aLeague = String((clubA as any).league_name ?? "");
-  const bLeague = String((clubB as any).league_name ?? "");
+  const aLeague = clubA.league_name ?? "";
+  const bLeague = clubB.league_name ?? "";
   if (aLeague.startsWith("National (") && !bLeague.startsWith("National (")) return false;
   if (bLeague.startsWith("National (") && !aLeague.startsWith("National (")) return false;
   return true;

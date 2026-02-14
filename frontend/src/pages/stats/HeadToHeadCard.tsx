@@ -3,80 +3,21 @@ import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-quer
 
 import CollapsibleCard from "../../ui/primitives/CollapsibleCard";
 import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
+import AvatarButton from "../../ui/primitives/AvatarButton";
 
 import { listPlayers } from "../../api/players.api";
 import { getStatsH2H } from "../../api/stats.api";
 import type { StatsH2HDuo, StatsH2HOpponentRow, StatsH2HPair, StatsH2HTeamRivalry } from "../../api/types";
-import { listPlayerAvatarMeta, playerAvatarUrl } from "../../api/playerAvatars.api";
+import { listPlayerAvatarMeta } from "../../api/playerAvatars.api";
 
 function pct(n: number) {
   if (!Number.isFinite(n)) return "0%";
   return `${Math.round(n * 100)}%`;
 }
 
-function AvatarButton({
-  playerId,
-  name,
-  updatedAt,
-  selected,
-  onClick,
-  className = "h-9 w-9",
-}: {
-  playerId: number | null;
-  name: string;
-  updatedAt: string | null;
-  selected: boolean;
-  onClick: () => void;
-  className?: string;
-}) {
-  const initial = (name || "?").trim().slice(0, 1).toUpperCase();
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      style={{ overflowAnchor: "none" }}
-      className={"relative shrink-0 rounded-full transition-colors " + (selected ? "" : "hover:bg-bg-card-chip/20")}
-      aria-pressed={selected}
-      title={name}
-    >
-      <span
-        className={
-          `panel-subtle inline-flex items-center justify-center overflow-hidden rounded-full ${className} ` +
-          (selected ? "ring-2 ring-[color:rgb(var(--color-accent)/0.85)]" : "")
-        }
-      >
-        {playerId == null ? (
-          <i className="fa-solid fa-layer-group text-[12px] text-text-muted" aria-hidden="true" />
-        ) : updatedAt ? (
-          <img
-            src={playerAvatarUrl(playerId, updatedAt)}
-            alt=""
-            className="h-full w-full object-cover"
-            loading="lazy"
-            decoding="async"
-          />
-        ) : (
-          <span className="text-sm font-semibold text-text-muted">{initial}</span>
-        )}
-      </span>
-      <span className="sr-only">{name}</span>
-    </button>
-  );
-}
-
 function fmtInt(n: number) {
   if (!Number.isFinite(n)) return "0";
   return String(Math.trunc(n));
-}
-
-function dominanceScoreFromOpponentRow(r: StatsH2HOpponentRow) {
-  const played = Number(r.played ?? 0) || 0;
-  const wins = Number(r.wins ?? 0) || 0;
-  const losses = Number(r.losses ?? 0) || 0;
-  const winsTotal = wins + losses;
-  const share = winsTotal > 0 ? wins / winsTotal : 0.5;
-  const closeness = 1 - Math.min(1, Math.abs(share - 0.5) * 2); // 1 close .. 0 one-sided
-  return played * (1 - closeness);
 }
 
 function PairRow({ r }: { r: StatsH2HPair }) {
@@ -395,7 +336,7 @@ function ViewSwitch({ value, onChange }: { value: View; onChange: (v: View) => v
 export default function HeadToHeadCard() {
   const qc = useQueryClient();
   const playersQ = useQuery({ queryKey: ["players"], queryFn: listPlayers });
-  const players = playersQ.data ?? [];
+  const players = useMemo(() => playersQ.data ?? [], [playersQ.data]);
   const avatarMetaQ = useQuery({
     queryKey: ["players", "avatars"],
     queryFn: listPlayerAvatarMeta,
@@ -538,6 +479,8 @@ export default function HeadToHeadCard() {
                 selected={playerId === ""}
                 onClick={() => setPlayerId("")}
                 className="h-8 w-8"
+                fallbackIconClass="fa-solid fa-layer-group text-[12px] text-text-muted"
+                noOverflowAnchor={true}
               />
               {sortedPlayers.map((p) => (
                 <AvatarButton
@@ -548,6 +491,7 @@ export default function HeadToHeadCard() {
                   selected={playerId === p.id}
                   onClick={() => setPlayerId(p.id)}
                   className="h-8 w-8"
+                  noOverflowAnchor={true}
                 />
               ))}
             </div>
@@ -628,7 +572,7 @@ export default function HeadToHeadCard() {
                             </div>
                           ))}
 
-                          {roster.map((rowP, rowIdx) => (
+                          {roster.map((rowP) => (
                             <Fragment key={`row-${rowP.id}`}>
                               <div
                                 key={`r-${rowP.id}`}
@@ -643,7 +587,7 @@ export default function HeadToHeadCard() {
                               >
                                 <div className="w-full truncate">{rowP.display_name}</div>
                               </div>
-                              {roster.map((colP, colIdx) => {
+                              {roster.map((colP) => {
                               const cellBaseCls = "bg-bg-card-chip/28";
                               const rowIsFocus = !!focusId && rowP.id === focusId;
                               const toneCell =

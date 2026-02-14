@@ -14,7 +14,8 @@ function httpBaseToWsUrl(httpBase: string, path: string) {
 }
 
 function buildWsUrlForPath(path: string) {
-  const raw = (import.meta.env.VITE_WS_BASE_URL as string | undefined)?.trim();
+  const envValue = import.meta.env.VITE_WS_BASE_URL;
+  const raw = typeof envValue === "string" ? envValue.trim() : "";
 
   if (raw) {
     if (raw.startsWith("ws://") || raw.startsWith("wss://")) {
@@ -38,12 +39,19 @@ function buildWsUrlUpdateAnyTournament() {
   return buildWsUrlForPath(`/ws/tournaments`);
 }
 
-function safeJsonParse(s: string): any | null {
+function safeJsonParse(s: string): unknown {
   try {
     return JSON.parse(s);
   } catch {
     return null;
   }
+}
+
+function eventNameFromPayload(payload: unknown): string | null {
+  if (!payload || typeof payload !== "object") return null;
+  const rec = payload as Record<string, unknown>;
+  const event = rec.event;
+  return typeof event === "string" ? event : null;
 }
 
 type Subscriber = (ev: MessageEvent) => void;
@@ -214,36 +222,36 @@ function scheduleInvalidate(key: string, fn: () => void) {
   INVALIDATE_TIMERS.set(key, t);
 }
 
-function shouldIgnoreEventName(eventName: any) {
+function shouldIgnoreEventName(eventName: string | null) {
   return eventName === "connected" || eventName === "pong" || eventName == null;
 }
 
 function invalidateTournamentRelated(qc: QueryClient, tid: number) {
-  qc.invalidateQueries({ queryKey: ["tournament", tid] });
-  qc.invalidateQueries({ queryKey: ["comments", tid] });
-  qc.invalidateQueries({ queryKey: ["comments", "summary"] });
-  qc.invalidateQueries({ queryKey: ["tournaments"] });
-  qc.invalidateQueries({ queryKey: ["tournaments", "live"] });
+  void qc.invalidateQueries({ queryKey: ["tournament", tid] });
+  void qc.invalidateQueries({ queryKey: ["comments", tid] });
+  void qc.invalidateQueries({ queryKey: ["comments", "summary"] });
+  void qc.invalidateQueries({ queryKey: ["tournaments"] });
+  void qc.invalidateQueries({ queryKey: ["tournaments", "live"] });
 
   // Cup + future laurels/points (players stats)
-  qc.invalidateQueries({ queryKey: ["cup"] });
-  qc.invalidateQueries({ queryKey: ["stats", "players"] });
-  qc.invalidateQueries({ queryKey: ["stats", "h2h"] });
-  qc.invalidateQueries({ queryKey: ["stats", "streaks"] });
-  qc.invalidateQueries({ queryKey: ["stats", "ratings"] });
+  void qc.invalidateQueries({ queryKey: ["cup"] });
+  void qc.invalidateQueries({ queryKey: ["stats", "players"] });
+  void qc.invalidateQueries({ queryKey: ["stats", "h2h"] });
+  void qc.invalidateQueries({ queryKey: ["stats", "streaks"] });
+  void qc.invalidateQueries({ queryKey: ["stats", "ratings"] });
 }
 
-  function invalidateAnyTournamentRelated(qc: QueryClient) {
-  qc.invalidateQueries({ queryKey: ["cup"] });
-  qc.invalidateQueries({ queryKey: ["tournaments"] });
-  qc.invalidateQueries({ queryKey: ["tournaments", "live"] });
-    qc.invalidateQueries({ queryKey: ["comments", "summary"] });
-    qc.invalidateQueries({ queryKey: ["stats", "players"] });
-    qc.invalidateQueries({ queryKey: ["stats", "h2h"] });
-    qc.invalidateQueries({ queryKey: ["stats", "streaks"] });
-    qc.invalidateQueries({ queryKey: ["stats", "ratings"] });
-    qc.invalidateQueries({ queryKey: ["stats", "playerMatches"] });
-  }
+function invalidateAnyTournamentRelated(qc: QueryClient) {
+  void qc.invalidateQueries({ queryKey: ["cup"] });
+  void qc.invalidateQueries({ queryKey: ["tournaments"] });
+  void qc.invalidateQueries({ queryKey: ["tournaments", "live"] });
+  void qc.invalidateQueries({ queryKey: ["comments", "summary"] });
+  void qc.invalidateQueries({ queryKey: ["stats", "players"] });
+  void qc.invalidateQueries({ queryKey: ["stats", "h2h"] });
+  void qc.invalidateQueries({ queryKey: ["stats", "streaks"] });
+  void qc.invalidateQueries({ queryKey: ["stats", "ratings"] });
+  void qc.invalidateQueries({ queryKey: ["stats", "playerMatches"] });
+}
 
 export function useTournamentWS(tid: number | null) {
   const qc = useQueryClient();
@@ -267,7 +275,7 @@ export function useTournamentWS(tid: number | null) {
 
     const unsub = subscribe(url, (ev) => {
       const data = typeof ev.data === "string" ? safeJsonParse(ev.data) : null;
-      const eventName = data?.event ?? null;
+      const eventName = eventNameFromPayload(data);
       if (shouldIgnoreEventName(eventName)) return;
 
       scheduleInvalidate(`tournament:${tid}`, () => {
@@ -299,7 +307,7 @@ export function useAnyTournamentWS() {
 
     const unsub = subscribe(url, (ev) => {
       const data = typeof ev.data === "string" ? safeJsonParse(ev.data) : null;
-      const eventName = data?.event ?? null;
+      const eventName = eventNameFromPayload(data);
       if (shouldIgnoreEventName(eventName)) return;
 
       scheduleInvalidate("tournaments:any", () => {

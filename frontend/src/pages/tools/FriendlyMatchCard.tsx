@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import CollapsibleCard from "../../ui/primitives/CollapsibleCard";
 import Input from "../../ui/primitives/Input";
 import Button from "../../ui/primitives/Button";
+import AvatarButton from "../../ui/primitives/AvatarButton";
 import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
 import SelectClubsPanel from "../../ui/SelectClubsPanel";
 import { GoalStepper } from "../../ui/clubControls";
@@ -13,7 +14,7 @@ import { clubLabelPartsById } from "../../ui/clubControls";
 import { listClubs } from "../../api/clubs.api";
 import { listPlayers } from "../../api/players.api";
 import { getStatsOdds, type StatsOddsRequest } from "../../api/stats.api";
-import { listPlayerAvatarMeta, playerAvatarUrl } from "../../api/playerAvatars.api";
+import { listPlayerAvatarMeta } from "../../api/playerAvatars.api";
 
 const FRIENDLY_MATCH_STORAGE_KEY = "friendly_match_state_v1";
 
@@ -166,53 +167,6 @@ function ModeSwitch({
   );
 }
 
-function AvatarButton({
-  playerId,
-  name,
-  updatedAt,
-  selected,
-  disabled,
-  onClick,
-}: {
-  playerId: number | null;
-  name: string;
-  updatedAt: string | null;
-  selected: boolean;
-  disabled: boolean;
-  onClick: () => void;
-}) {
-  const initial = (name || "?").trim().slice(0, 1).toUpperCase();
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      className={
-        "relative shrink-0 rounded-full transition-colors " +
-        (selected ? "" : "hover:bg-bg-card-chip/20") +
-        (disabled ? " opacity-45" : "")
-      }
-      aria-pressed={selected}
-      title={name}
-    >
-      <span
-        className={
-          "panel-subtle inline-flex h-8 w-8 items-center justify-center overflow-hidden rounded-full " +
-          (selected ? "ring-2 ring-[color:rgb(var(--color-accent)/0.85)]" : "")
-        }
-      >
-        {playerId == null ? (
-          <i className="fa-solid fa-ban text-[11px] text-text-muted" aria-hidden="true" />
-        ) : updatedAt ? (
-          <img src={playerAvatarUrl(playerId, updatedAt)} alt="" className="h-full w-full object-cover" loading="lazy" decoding="async" />
-        ) : (
-          <span className="text-xs font-semibold text-text-muted">{initial}</span>
-        )}
-      </span>
-    </button>
-  );
-}
-
 function AvatarPlayerSelect({
   label,
   value,
@@ -246,6 +200,9 @@ function AvatarPlayerSelect({
             selected={value == null}
             disabled={disabled}
             onClick={() => onChange(null)}
+            className="h-8 w-8"
+            fallbackIconClass="fa-solid fa-ban text-[11px] text-text-muted"
+            noOverflowAnchor={true}
           />
           {players.map((p) => {
             const takenElsewhere = usedIds.has(p.id) && value !== p.id;
@@ -258,6 +215,8 @@ function AvatarPlayerSelect({
                 selected={value === p.id}
                 disabled={disabled || takenElsewhere}
                 onClick={() => onChange(p.id)}
+                className="h-8 w-8"
+                noOverflowAnchor={true}
               />
             );
           })}
@@ -268,30 +227,30 @@ function AvatarPlayerSelect({
 }
 
 export default function FriendlyMatchCard() {
-  const initRef = useRef<FriendlyMatchPersistedState>(loadFriendlyState());
+  const [initialState] = useState<FriendlyMatchPersistedState>(() => loadFriendlyState());
 
   const [open, setOpen] = useState(true);
-  const [clubGame, setClubGame] = useState(initRef.current.clubGame);
+  const [clubGame, setClubGame] = useState(initialState.clubGame);
 
-  const [mode, setMode] = useState<"1v1" | "2v2">(initRef.current.mode);
+  const [mode, setMode] = useState<"1v1" | "2v2">(initialState.mode);
 
-  const [a1, setA1] = useState<number | null>(initRef.current.a1);
-  const [a2, setA2] = useState<number | null>(initRef.current.a2);
-  const [b1, setB1] = useState<number | null>(initRef.current.b1);
-  const [b2, setB2] = useState<number | null>(initRef.current.b2);
+  const [a1, setA1] = useState<number | null>(initialState.a1);
+  const [a2, setA2] = useState<number | null>(initialState.a2);
+  const [b1, setB1] = useState<number | null>(initialState.b1);
+  const [b2, setB2] = useState<number | null>(initialState.b2);
 
-  const [aClub, setAClub] = useState<number | null>(initRef.current.aClub);
-  const [bClub, setBClub] = useState<number | null>(initRef.current.bClub);
+  const [aClub, setAClub] = useState<number | null>(initialState.aClub);
+  const [bClub, setBClub] = useState<number | null>(initialState.bClub);
 
-  const [aGoals, setAGoals] = useState(initRef.current.aGoals);
-  const [bGoals, setBGoals] = useState(initRef.current.bGoals);
+  const [aGoals, setAGoals] = useState(initialState.aGoals);
+  const [bGoals, setBGoals] = useState(initialState.bGoals);
 
   const clubsQ = useQuery({
     queryKey: ["clubs", clubGame],
     queryFn: () => listClubs(clubGame),
     enabled: open,
   });
-  const clubs = clubsQ.data ?? [];
+  const clubs = useMemo(() => clubsQ.data ?? [], [clubsQ.data]);
 
   const playersQ = useQuery({
     queryKey: ["players"],
@@ -307,7 +266,7 @@ export default function FriendlyMatchCard() {
     refetchOnReconnect: false,
     refetchOnWindowFocus: false,
   });
-  const players = playersQ.data ?? [];
+  const players = useMemo(() => playersQ.data ?? [], [playersQ.data]);
   const avatarUpdatedAtById = useMemo(() => {
     const m = new Map<number, string>();
     for (const x of avatarMetaQ.data ?? []) m.set(x.player_id, x.updated_at);

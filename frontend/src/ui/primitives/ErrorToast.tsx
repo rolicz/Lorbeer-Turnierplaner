@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import { useEffect, useMemo, useState } from "react";
 
 type ToastLevel = "error";
@@ -23,8 +24,9 @@ const recentByKey = new Map<string, number>();
 function toText(err: unknown): string {
   if (err == null) return "";
   if (typeof err === "string") return err;
-  if (err instanceof Error) return err.message || String(err);
-  return String(err);
+  if (typeof err === "number" || typeof err === "boolean" || typeof err === "bigint") return String(err);
+  if (err instanceof Error) return err.message || "Error";
+  return "";
 }
 
 export function showErrorToast(message: string, title = "Error") {
@@ -105,4 +107,3 @@ export function ErrorToastViewport() {
     </div>
   );
 }
-

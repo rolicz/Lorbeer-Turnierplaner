@@ -7,6 +7,7 @@ from sqlmodel import Session, select
 from ..auth import require_editor
 from ..db import get_session
 from ..models import Match, MatchSide, Tournament, Club
+from ..schemas import MatchPatchBody, MatchSidePatchBody
 from ..tournament_status import compute_status_for_tournament, find_other_live_tournament_id
 from ..ws import ws_manager, ws_manager_update_tournaments
 
@@ -55,12 +56,14 @@ def _validate_tournament_state_order(s: Session, tournament_id: int) -> None:
 @router.patch("/{match_id}", dependencies=[Depends(require_editor)])
 async def patch_match(
     match_id: int,
-    body: dict,
+    body: MatchPatchBody,
     s: Session = Depends(get_session),
     role: str = Depends(require_editor),
 ):
     m = _match_or_404(s, match_id)
     t = s.exec(select(Tournament).where(Tournament.id == m.tournament_id)).first()
+
+    fields = body.model_fields_set
 
     # Automatic tournament status: block editing if tournament is DONE
     # Exception: editor may patch ONLY the *last* match in order (to recover from accidental finish).
@@ -78,15 +81,15 @@ async def patch_match(
             raise HTTPException(status_code=403, detail="Tournament is done (admin required to edit)")
 
         # Optional safety: only allow changing state/goals/clubs on that last match (no other admin-like actions)
-        if "leg" in body:
+        if "leg" in fields:
             raise HTTPException(status_code=403, detail="Changing match leg is admin-only")
 
 
     # --- leg reassignment is ADMIN ONLY (as agreed) ---
-    if "leg" in body:
+    if "leg" in fields:
         if role != "admin":
             raise HTTPException(status_code=403, detail="Changing match leg is admin-only")
-        new_leg = int(body["leg"])
+        new_leg = int(body.leg)
         if new_leg not in (1, 2):
             raise HTTPException(status_code=400, detail="leg must be 1 or 2")
         if m.state != "scheduled":
@@ -94,8 +97,8 @@ async def patch_match(
         m.leg = new_leg
 
     # --- state transitions ---
-    if "state" in body:
-        new_state = body["state"]
+    if "state" in fields:
+        new_state = body.state
         if new_state not in ("scheduled", "playing", "finished"):
             raise HTTPException(status_code=400, detail="Invalid state")
 
@@ -123,31 +126,33 @@ async def patch_match(
     # goals/club updates
     sides = {side.side: side for side in m.sides}
 
-    if "sideA" in body and "A" in sides:
-        a = body["sideA"] or {}
-        if "club_id" in a:
-            cid = a["club_id"]
+    if "sideA" in fields and "A" in sides:
+        a = body.sideA or MatchSidePatchBody()
+        a_fields = a.model_fields_set if isinstance(a, MatchSidePatchBody) else set()
+        if "club_id" in a_fields:
+            cid = a.club_id
             if cid is None:
                 sides["A"].club_id = None
             else:
                 cid = int(cid)
                 _club_exists(s, cid)
                 sides["A"].club_id = cid
-        if "goals" in a:
-            sides["A"].goals = int(a["goals"])
+        if "goals" in a_fields:
+            sides["A"].goals = int(a.goals)
 
-    if "sideB" in body and "B" in sides:
-        b = body["sideB"] or {}
-        if "club_id" in b:
-            cid = b["club_id"]
+    if "sideB" in fields and "B" in sides:
+        b = body.sideB or MatchSidePatchBody()
+        b_fields = b.model_fields_set if isinstance(b, MatchSidePatchBody) else set()
+        if "club_id" in b_fields:
+            cid = b.club_id
             if cid is None:
                 sides["B"].club_id = None
             else:
                 cid = int(cid)
                 _club_exists(s, cid)
                 sides["B"].club_id = cid
-        if "goals" in b:
-            sides["B"].goals = int(b["goals"])
+        if "goals" in b_fields:
+            sides["B"].goals = int(b.goals)
 
     # Compute status AFTER modifications (autoflush happens before queries)
     status_after = compute_status_for_tournament(s, m.tournament_id)

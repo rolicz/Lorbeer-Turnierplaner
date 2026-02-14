@@ -36,7 +36,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   }, [qc]);
 
   const [theme, setTheme] = useState<ThemeName>(() => {
-    const storedRaw = localStorage.getItem("theme") as ThemeName | null;
+    const storedRaw = localStorage.getItem("theme");
     const stored = storedRaw === "ibm" ? "blue" : storedRaw === "football" ? "green" : storedRaw;
     if (stored && THEME_OPTIONS.some((t) => t.value === stored)) {
       return stored;
@@ -92,7 +92,12 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                     aria-label="Theme"
                     className="select-field h-10 w-[120px] px-2 text-[11px] sm:w-[140px] sm:text-xs"
                     value={theme}
-                    onChange={(e) => setTheme(e.target.value as ThemeName)}
+                    onChange={(e) => {
+                      const next = e.target.value;
+                      if (THEME_OPTIONS.some((t) => t.value === next)) {
+                        setTheme(next);
+                      }
+                    }}
                   >
                     {THEME_OPTIONS.map((opt) => (
                       <option key={opt.value} value={opt.value}>

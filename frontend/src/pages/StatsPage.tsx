@@ -11,13 +11,19 @@ import { useLocation } from "react-router-dom";
 import { useEffect } from "react";
 import { prefersReducedMotion } from "../ui/scroll";
 
-export default function StatsPage() {
-  const location = useLocation() as { hash?: string; state?: any; key?: string };
-  const focusTrends = useMemo(() => {
-    return location?.hash === "#trends" || location?.hash === "#stats-trends" || location?.state?.focus === "trends";
-  }, [location?.hash, location?.state?.focus]);
+type StatsLocationState = {
+  focus?: string;
+  trendsView?: "lastN" | "total";
+};
 
-  const initialTrendsView = (location?.state?.trendsView as "lastN" | "total" | undefined) ?? undefined;
+export default function StatsPage() {
+  const location = useLocation();
+  const state = (location.state as StatsLocationState | null) ?? null;
+  const focusTrends = useMemo(() => {
+    return location.hash === "#trends" || location.hash === "#stats-trends" || state?.focus === "trends";
+  }, [location.hash, state?.focus]);
+
+  const initialTrendsView = state?.trendsView ?? undefined;
 
   useEffect(() => {
     if (!focusTrends) return;
@@ -46,8 +52,8 @@ export default function StatsPage() {
 
     // If content above loads a moment later (avatars/data), the Trends card can get pushed down again.
     // Observe short-lived resizes and re-align, then stop (no autoscroll during normal interaction).
-    const page = document.querySelector(".page") as HTMLElement | null;
-    const hasRO = typeof (window as any).ResizeObserver !== "undefined";
+    const page = document.querySelector<HTMLElement>(".page");
+    const hasRO = typeof window.ResizeObserver !== "undefined";
     const stopAfterMs = 1200;
     const start = Date.now();
     let ro: ResizeObserver | null = null;
@@ -78,7 +84,7 @@ export default function StatsPage() {
       window.clearTimeout(tStop);
       if (ro) ro.disconnect();
     };
-  }, [focusTrends, location?.key]);
+  }, [focusTrends, location.key]);
 
   return (
     <div className="page no-scroll-anchor">

@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CSSProperties } from "react";
 import { useQueries, useQuery } from "@tanstack/react-query";
 
@@ -279,6 +279,7 @@ function TournamentPositionsGrid({
               "hover:brightness-110 hover:border-accent/40";
 
             const cls = isWinner ? "pos-winner shadow-[0_0_0_1px_rgba(16,185,129,0.15)]" : "pos-tile";
+            const posVar = "--pos-p" as const;
 
             return (
               <Link
@@ -291,7 +292,11 @@ function TournamentPositionsGrid({
                   cls +
                   " w-full select-none no-underline cursor-pointer focus:outline-none focus:ring-2 focus:ring-accent/30"
                 }
-                style={isWinner ? ({ opacity } as CSSProperties) : ({ opacity, ["--pos-p" as any]: p } as CSSProperties)}
+                style={
+                  isWinner
+                    ? ({ opacity } as CSSProperties)
+                    : ({ opacity, [posVar]: p } as CSSProperties)
+                }
                 aria-label={`${title}, position ${pos} of ${totalPlayers}`}
               >
                 <span>{pos}</span>
@@ -469,12 +474,12 @@ export default function PlayersStatsCard() {
   }, [avatarMetaQ.data]);
 
   const cupDefsQ = useQuery({ queryKey: ["cup", "defs"], queryFn: listCupDefs });
-  const cupsRaw = cupDefsQ.data?.cups?.length ? cupDefsQ.data.cups : [{ key: "default", name: "Cup", since_date: null }];
   const cups = useMemo(() => {
+    const cupsRaw = cupDefsQ.data?.cups?.length ? cupDefsQ.data.cups : [{ key: "default", name: "Cup", since_date: null }];
     const nonDefault = cupsRaw.filter((c) => c.key !== "default");
     const defaults = cupsRaw.filter((c) => c.key === "default");
     return [...nonDefault, ...defaults];
-  }, [cupsRaw]);
+  }, [cupDefsQ.data]);
 
   const cupsQ = useQueries({
     queries: cups.map((c) => ({
@@ -507,10 +512,10 @@ export default function PlayersStatsCard() {
     return m;
   }, [cups, cupsQ, cupOwnerIdLegacy]);
 
-  const tournaments = statsQ.data?.tournaments ?? [];
+  const tournaments = useMemo(() => statsQ.data?.tournaments ?? [], [statsQ.data?.tournaments]);
   const [lastNView, setLastNView] = useState<number>(10);
 
-  function avgLastN(s: StatsPlayerRow) {
+  const avgLastN = useCallback((s: StatsPlayerRow) => {
     const arr = (s.lastN_pts ?? []).map((x) => Number(x)).filter((x) => Number.isFinite(x));
     if (!arr.length) return 0;
     // Divide by the chosen N even if the player has fewer than N matches.
@@ -519,7 +524,7 @@ export default function PlayersStatsCard() {
     const slice = arr.slice(-n);
     const sum = slice.reduce((a, b) => a + b, 0);
     return sum / n;
-  }
+  }, [lastNView]);
 
   const tournamentsSorted = useMemo(() => {
     const ts = tournaments.slice();
@@ -557,7 +562,7 @@ export default function PlayersStatsCard() {
   const [showAllTournamentTiles, setShowAllTournamentTiles] = useState(false);
   const tileCols = useTournamentCols();
 
-  const players = playersQ.data ?? [];
+  const players = useMemo(() => playersQ.data ?? [], [playersQ.data]);
   const rows = useMemo(() => {
     const out: { p: { id: number; display_name: string }; s: StatsPlayerRow; rank: number }[] = [];
     for (const p of players) {
@@ -576,7 +581,7 @@ export default function PlayersStatsCard() {
 
     out.forEach((x, i) => (x.rank = i + 1));
     return out;
-  }, [players, statsByPlayerId, sortMode, lastNView]);
+  }, [avgLastN, players, statsByPlayerId, sortMode]);
 
   const setAllOpen = (open: boolean) => {
     setOpenByPlayerId((prev) => {

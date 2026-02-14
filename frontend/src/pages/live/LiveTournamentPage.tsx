@@ -22,7 +22,7 @@ import {
 
 import { patchMatch, swapMatchSides } from "../../api/matches.api";
 import { listClubs } from "../../api/clubs.api";
-import type { Match, Club } from "../../api/types";
+import type { Match, Club, PatchMatchBody } from "../../api/types";
 
 import { useTournamentWS } from "../../hooks/useTournamentWS";
 import { useAuth } from "../../auth/AuthContext";
@@ -97,6 +97,12 @@ function computeFinishedStandings(matches: Match[], players: PlayerLite[]): Stan
   return out;
 }
 
+function errorMessage(err: unknown): string {
+  if (err instanceof Error) return err.message;
+  if (typeof err === "string") return err;
+  return "Request failed";
+}
+
 export default function LiveTournamentPage() {
   const { id } = useParams();
   const tid = id ? Number(id) : null;
@@ -131,14 +137,14 @@ export default function LiveTournamentPage() {
       if (!seenCommentIds.has(c.id)) n++;
     }
     return n;
-  }, [commentsQ.dataUpdatedAt, seenCommentIds]);
+  }, [commentsQ.data?.comments, seenCommentIds]);
   const unreadCommentIds = useMemo(() => {
     const cs = commentsQ.data?.comments ?? [];
     return cs
       .map((c) => Number(c.id))
       .filter((id) => Number.isFinite(id) && id > 0 && !seenCommentIds.has(id))
       .map((id) => Math.trunc(id));
-  }, [commentsQ.dataUpdatedAt, seenCommentIds]);
+  }, [commentsQ.data?.comments, seenCommentIds]);
   const parseApiTs = (raw?: string | null): number => {
     if (!raw) return 0;
     let ts = Date.parse(raw);
@@ -159,7 +165,7 @@ export default function LiveTournamentPage() {
       }
     }
     return bestId;
-  }, [commentsQ.dataUpdatedAt, seenCommentIds]);
+  }, [commentsQ.data?.comments, seenCommentIds]);
   const [focusCommentRequest, setFocusCommentRequest] = useState<{ id: number; nonce: number } | null>(null);
 
   useEffect(() => {
@@ -167,7 +173,9 @@ export default function LiveTournamentPage() {
     if (!raw) return;
     const cid = Number(raw);
     if (!Number.isFinite(cid) || cid <= 0) return;
+    /* eslint-disable react-hooks/set-state-in-effect */
     setFocusCommentRequest((prev) => ({ id: Math.trunc(cid), nonce: (prev?.nonce ?? 0) + 1 }));
+    /* eslint-enable react-hooks/set-state-in-effect */
     const next = new URLSearchParams(location.search);
     next.delete("comment");
     setSearchParams(next, { replace: true });
@@ -178,7 +186,9 @@ export default function LiveTournamentPage() {
     const jumpUnread = sp.get("unread") === "1";
     if (!jumpUnread) return;
     if (latestUnreadCommentId) {
+      /* eslint-disable react-hooks/set-state-in-effect */
       setFocusCommentRequest((prev) => ({ id: latestUnreadCommentId, nonce: (prev?.nonce ?? 0) + 1 }));
+      /* eslint-enable react-hooks/set-state-in-effect */
     }
     sp.delete("unread");
     setSearchParams(sp, { replace: true });
@@ -197,13 +207,12 @@ export default function LiveTournamentPage() {
   }, [tQ.data]);
 
   const decider = useMemo(() => {
-    const t: any = tQ.data ?? {};
     return {
-      type: (t.decider_type ?? "none") as "none" | "penalties" | "match" | "scheresteinpapier",
-      winner_player_id: (t.decider_winner_player_id ?? null) as number | null,
-      loser_player_id: (t.decider_loser_player_id ?? null) as number | null,
-      winner_goals: (t.decider_winner_goals ?? null) as number | null,
-      loser_goals: (t.decider_loser_goals ?? null) as number | null,
+      type: tQ.data?.decider_type ?? "none",
+      winner_player_id: tQ.data?.decider_winner_player_id ?? null,
+      loser_player_id: tQ.data?.decider_loser_player_id ?? null,
+      winner_goals: tQ.data?.decider_winner_goals ?? null,
+      loser_goals: tQ.data?.decider_loser_goals ?? null,
     };
   }, [tQ.data]);
 
@@ -330,7 +339,9 @@ export default function LiveTournamentPage() {
   // --- date/name (admin only) ---
   const [editDate, setEditDate] = useState("");
   useEffect(() => {
+    /* eslint-disable react-hooks/set-state-in-effect */
     if (tQ.data?.date) setEditDate(tQ.data.date);
+    /* eslint-enable react-hooks/set-state-in-effect */
   }, [tQ.data?.date]);
 
   const dateMut = useMutation({
@@ -348,7 +359,9 @@ export default function LiveTournamentPage() {
 
   const [editName, setEditName] = useState("");
   useEffect(() => {
+    /* eslint-disable react-hooks/set-state-in-effect */
     if (tQ.data?.name) setEditName(tQ.data.name);
+    /* eslint-enable react-hooks/set-state-in-effect */
   }, [tQ.data?.name]);
 
   const nameMut = useMutation({
@@ -391,7 +404,7 @@ export default function LiveTournamentPage() {
     enabled: !!tid,
   });
 
-  const clubs: Club[] = (clubsQ.data ?? []) as any;
+  const clubs: Club[] = clubsQ.data ?? [];
 
   // --- current match selection ---
   const currentMatch = useMemo(() => {
@@ -405,7 +418,7 @@ export default function LiveTournamentPage() {
   }, [matchesSorted, status]);
 
   const currentGameMut = useMutation({
-    mutationFn: async (payload: { matchId: number; body: any }) => {
+    mutationFn: async (payload: { matchId: number; body: PatchMatchBody }) => {
       if (!token) throw new Error("Not logged in");
       return patchMatch(token, payload.matchId, payload.body);
     },
@@ -617,33 +630,33 @@ export default function LiveTournamentPage() {
                 error={panelError}
                 onEnableSecondLeg={() => {
                   setPanelError(null);
-                  enableLegMut.mutate(undefined, { onError: (e: any) => setPanelError(e?.message ?? String(e)) });
+                  enableLegMut.mutate(undefined, { onError: (e) => setPanelError(errorMessage(e)) });
                 }}
                 onDisableSecondLeg={() => {
                   setPanelError(null);
-                  disableLegMut.mutate(undefined, { onError: (e: any) => setPanelError(e?.message ?? String(e)) });
+                  disableLegMut.mutate(undefined, { onError: (e) => setPanelError(errorMessage(e)) });
                 }}
                 onSetLastMatchPlaying={() => {
                   setPanelError(null);
-                  reopenLastMut.mutate(undefined, { onError: (e: any) => setPanelError(e?.message ?? String(e)) });
+                  reopenLastMut.mutate(undefined, { onError: (e) => setPanelError(errorMessage(e)) });
                 }}
                 setLastMatchPlayingBusy={reopenLastMut.isPending}
                 onReshuffle={() => {
                   setPanelError(null);
                   const ids = matchesSorted.map((m) => m.id);
-                  reorderMut.mutate(shuffle(ids), { onError: (e: any) => setPanelError(e?.message ?? String(e)) });
+                  reorderMut.mutate(shuffle(ids), { onError: (e) => setPanelError(errorMessage(e)) });
                 }}
                 mode={tQ.data.mode}
                 onReassign2v2={() => {
                   setPanelError(null);
-                  reassignMut.mutate(undefined, { onError: (e: any) => setPanelError(e?.message ?? String(e)) });
+                  reassignMut.mutate(undefined, { onError: (e) => setPanelError(errorMessage(e)) });
                 }}
                 onDeleteTournament={() => {
                   if (!isAdmin) return;
                   const ok = window.confirm("Delete tournament permanently?");
                   if (!ok) return;
                   setPanelError(null);
-                  deleteMut.mutate(undefined, { onError: (e: any) => setPanelError(e?.message ?? String(e)) });
+                  deleteMut.mutate(undefined, { onError: (e) => setPanelError(errorMessage(e)) });
                 }}
                 dateValue={isAdmin ? editDate : undefined}
                 onDateChange={isAdmin ? setEditDate : undefined}
@@ -660,7 +673,7 @@ export default function LiveTournamentPage() {
                   isEditorOrAdmin
                     ? (body) => {
                         setPanelError(null);
-                        deciderMut.mutate(body, { onError: (e: any) => setPanelError(e?.message ?? String(e)) });
+                        deciderMut.mutate(body, { onError: (e) => setPanelError(errorMessage(e)) });
                       }
                     : undefined
                 }
@@ -703,7 +716,7 @@ export default function LiveTournamentPage() {
             bodyVariant="none"
 	          >
 	            <StandingsTable
-	              tournamentId={tid!}
+              tournamentId={tid}
 	              tournamentDate={tQ.data?.date ?? null}
 	              tournamentMode={tQ.data?.mode === "2v2" ? "2v2" : "1v1"}
 	              tournamentStatus={tQ.data?.status ?? undefined}

@@ -7,6 +7,7 @@ from sqlmodel import Session, select
 from ..auth import require_admin
 from ..db import get_session
 from ..models import Player, PlayerAvatarFile
+from ..schemas import PlayerCreateBody, PlayerPatchBody
 from ..services.file_storage import delete_media, media_path_for_avatar, read_media, write_media
 
 log = logging.getLogger(__name__)
@@ -53,8 +54,8 @@ def list_players(s: Session = Depends(get_session)):
 
 
 @router.post("", dependencies=[Depends(require_admin)])
-def create_player(body: dict, s: Session = Depends(get_session)):
-    name = (body.get("display_name") or "").strip()
+def create_player(body: PlayerCreateBody, s: Session = Depends(get_session)):
+    name = (body.display_name or "").strip()
     if not name:
         raise HTTPException(status_code=400, detail="Missing display_name")
 
@@ -72,7 +73,7 @@ def create_player(body: dict, s: Session = Depends(get_session)):
 @router.patch("/{player_id}", dependencies=[Depends(require_admin)])
 def patch_player(
     player_id: int,
-    body: dict,
+    body: PlayerPatchBody,
     s: Session = Depends(get_session),
 ):
     """
@@ -85,10 +86,10 @@ def patch_player(
     if not p:
         raise HTTPException(status_code=404, detail="Player not found")
 
-    if "display_name" not in body:
+    if "display_name" not in body.model_fields_set:
         raise HTTPException(status_code=400, detail="Missing display_name")
 
-    new_name = (body["display_name"] or "").strip()
+    new_name = (body.display_name or "").strip()
     if not new_name:
         raise HTTPException(status_code=400, detail="display_name cannot be empty")
 
