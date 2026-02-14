@@ -22,17 +22,18 @@ Designed to be snappy and work well on both mobile and desktop.
 - Tournament creation (1v1 / 2v2 round-robin style for small groups; 1v1 supports 3-6 players, 2v2 supports 4-6)
 - Live match editing (goals, state, clubs per match side) + live updates via WebSocket
 - Second leg (all-or-none), reorder matches, swap sides
-- Roles:
+- Player-based auth (case-insensitive username + password), with roles:
   - Reader: read-only (no login)
-  - Editor: enter results + normal operations
-  - Admin: advanced operations (delete tournaments, edit past, rename, etc.)
+  - Editor: normal write operations
+  - Admin: advanced operations (delete tournaments, rename players, etc.)
+- Player profiles: avatar + 16:9 header image + about text + guestbook (owner-editable, public-readable)
 - **Multiple cups** (configurable keys/names + optional start date), each with owner + history
 - Tournament & match **comments** (edit, delete, pin one tournament comment), real-time updates
 - **Unread comments** indicators/actions (stored locally in the browser): jump to latest unread + mark all read
-- Comment images (editor/admin upload + crop) and player avatars (admin upload + crop), stored on disk
-- Stats page: trends (pan/zoom), head-to-head (lists + matrix), streaks, ratings (Elo-like), player match history
-- “Bookmaker-style” odds (prematch-focused; based on form, ratings, direct duels, partner synergy, club stars, etc.)
-- Tools page: “Friendly match” sandbox (pick teams/clubs, see odds, enter result; not persisted)
+- Comment images + profile images (cropped in UI), stored on disk
+- Stats page: trends (pan/zoom), h2h (lists + matrix + matchup history), streaks, ratings (Elo-like), player match history, stars performance
+- Friendlies page: create friendly matches and store them in DB (admin can delete); supported as optional data scope in stats
+- “Bookmaker-style” prematch odds (form, ratings, direct duels, partner synergy, club stars, etc.)
 
 ---
 
@@ -59,8 +60,10 @@ Create `backend/secrets.json`:
 ```json
 {
   "db_url": "sqlite:////data/app.db",
-  "editor_password": "change-me-editor",
-  "admin_password": "change-me-admin",
+  "player_accounts": [
+    { "name": "Roli", "password": "change-me", "admin": true },
+    { "name": "Flo", "password": "change-me", "admin": false }
+  ],
   "jwt_secret": "dev-change-me",
   "ws_require_auth": false,
   "log_level": "INFO"
@@ -70,7 +73,8 @@ Create `backend/secrets.json`:
 Notes:
 - Use a strong `jwt_secret` in production.
 - `db_url` uses `/data/app.db` so it can be persisted via a volume/bind mount in Docker.
-- You can override any of these via env vars (e.g. `DB_URL`, `EDITOR_PASSWORD`, `ADMIN_PASSWORD`, `JWT_SECRET`).
+- `player_accounts[].name` must match an existing player name (case-insensitive login).
+- `admin: true` enables admin privileges for that player account.
 
 ### Media storage (avatars + comment images)
 
@@ -81,6 +85,7 @@ Notes:
 - Files are separated by type:
   - Avatars: `avatars/<player_id>.<ext>`
   - Comment images: `comments/<comment_id>.<ext>`
+  - Profile headers: `profile_headers/<player_id>.<ext>`
 
 ### Cups config (multiple cups)
 
@@ -302,10 +307,11 @@ curl -i https://lorbeerkranz.xyz/api/tournaments
 
 - **Reader**: no login; read-only access.
 - **Editor**: normal write operations (enter results, manage clubs, reorder matches, second leg when allowed, status changes).
-- **Admin**: advanced operations (create/rename players, delete tournaments, edit past data, etc.).
+- **Admin**: advanced operations (create/rename players, delete tournaments/friendlies, edit past data, etc.).
 
 Login:
-- `POST /auth/login` with `{ "password": "..." }`
+- `POST /auth/login` with `{ "username": "...", "password": "..." }`
+- Username matching is case-insensitive and resolved via `player_accounts` in `backend/secrets.json`.
 - Response contains a JWT token used as:
   - `Authorization: Bearer <token>`
 
@@ -368,20 +374,39 @@ python manage.py vacuum-db --analyze --secrets ./secrets.json
   - `GET /tournaments/{id}/comments`
   - `GET /tournaments/comments-summary` (used for unread indicators)
   - `POST /tournaments/{id}/comments` (editor+)
+  - Comment author must be either own player or `General` (`author_player_id = null`)
   - `PATCH /comments/{comment_id}` (editor+)
   - `DELETE /comments/{comment_id}` (admin)
   - `GET /comments/{comment_id}/image`
   - `PUT /comments/{comment_id}/image` (editor+)
   - `DELETE /comments/{comment_id}/image` (editor+)
-- Player avatars:
+- Players / profiles:
+  - `GET /players`
+  - `POST /players` (admin)
+  - `PATCH /players/{id}` (admin)
+  - `GET /players/{id}/profile`
+  - `PATCH /players/{id}/profile` (owner)
   - `GET /players/avatars` (meta)
   - `GET /players/{id}/avatar`
-  - `PUT /players/{id}/avatar` (admin, overwrites)
-  - `DELETE /players/{id}/avatar` (admin)
+  - `PUT /players/{id}/avatar` (owner, overwrites)
+  - `DELETE /players/{id}/avatar` (owner)
+  - `GET /players/headers` (meta)
+  - `GET /players/{id}/header-image`
+  - `PUT /players/{id}/header-image` (owner, overwrites)
+  - `DELETE /players/{id}/header-image` (owner)
+  - `GET /players/{id}/guestbook`
+  - `POST /players/{id}/guestbook` (editor+)
+  - `DELETE /players/guestbook/{entry_id}` (entry author / profile owner / admin)
+- Friendlies:
+  - `GET /friendlies`
+  - `POST /friendlies` (editor+)
+  - `DELETE /friendlies/{friendly_id}` (admin)
 - Stats:
   - `GET /stats/players`
   - `GET /stats/h2h`
+  - `POST /stats/h2h-matches`
   - `GET /stats/streaks`
   - `GET /stats/ratings`
   - `GET /stats/player-matches`
+  - Most stats endpoints support `scope=tournaments|both|friendlies`
   - `POST /stats/odds`
