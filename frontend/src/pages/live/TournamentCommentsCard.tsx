@@ -7,6 +7,7 @@ import Textarea from "../../ui/primitives/Textarea";
 import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
 import { showErrorToast } from "../../ui/primitives/ErrorToast";
 import CommentImageCropper from "../../ui/primitives/CommentImageCropper";
+import ImageLightbox from "../../ui/primitives/ImageLightbox";
 import type { Club, Match, Player } from "../../api/types";
 import { clubLabelPartsById } from "../../ui/clubControls";
 import { StarsFA } from "../../ui/primitives/StarsFA";
@@ -217,6 +218,7 @@ function CommentCard({
   flash,
   surfaceClassName = "panel-subtle",
   avatarUpdatedAt,
+  onOpenImage,
 }: {
   c: TournamentComment;
   isEditing: boolean;
@@ -240,6 +242,7 @@ function CommentCard({
   flash: boolean;
   surfaceClassName?: string;
   avatarUpdatedAt?: string | null;
+  onOpenImage: (src: string) => void;
 }) {
   const edited = c.updatedAt > c.createdAt;
 
@@ -392,13 +395,20 @@ function CommentCard({
           {c.body ? <div className="whitespace-pre-wrap text-sm">{c.body}</div> : null}
           {c.hasImage ? (
             <div className="panel-subtle p-2">
-              <img
-                src={commentImageUrl(c.id, c.imageUpdatedAt)}
-                alt=""
-                className="w-full rounded-lg object-cover aspect-[4/3]"
-                loading="lazy"
-                decoding="async"
-              />
+              <button
+                type="button"
+                className="block w-full"
+                onClick={() => onOpenImage(commentImageUrl(c.id, c.imageUpdatedAt))}
+                title="Open image"
+              >
+                <img
+                  src={commentImageUrl(c.id, c.imageUpdatedAt)}
+                  alt=""
+                  className="w-full rounded-lg object-cover aspect-[4/3] cursor-zoom-in"
+                  loading="lazy"
+                  decoding="async"
+                />
+              </button>
             </div>
           ) : null}
         </div>
@@ -462,6 +472,7 @@ export default function TournamentCommentsCard({
   const [addTarget, setAddTarget] = useState<CommentScope | null>(null);
   const [pendingFocusId, setPendingFocusId] = useState<number | null>(null);
   const [flashId, setFlashId] = useState<number | null>(null);
+  const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
 
   const commentsQ = useQuery({
     queryKey: ["comments", tournamentId],
@@ -856,6 +867,7 @@ export default function TournamentCommentsCard({
                     avatarUpdatedAt={
                       c!.author.kind === "player" ? avatarUpdatedAtByPlayerId.get(c!.author.playerId) ?? null : null
                     }
+                    onOpenImage={(src) => setLightboxSrc(src)}
                     canPin={
                       c!.scope.kind === "tournament" &&
                       canWrite &&
@@ -994,12 +1006,13 @@ export default function TournamentCommentsCard({
                         isPinned={false}
                         isUnseen={!seen.has(c.id)}
                         onMarkSeen={() => markCommentSeen(tournamentId, c.id)}
-                        flash={flashId === c.id}
-                        surfaceClassName="panel-subtle"
-                        avatarUpdatedAt={
-                          c.author.kind === "player" ? avatarUpdatedAtByPlayerId.get(c.author.playerId) ?? null : null
-                        }
-                        canPin={false}
+                          flash={flashId === c.id}
+                          surfaceClassName="panel-subtle"
+                          avatarUpdatedAt={
+                            c.author.kind === "player" ? avatarUpdatedAtByPlayerId.get(c.author.playerId) ?? null : null
+                          }
+                          onOpenImage={(src) => setLightboxSrc(src)}
+                          canPin={false}
                         onTogglePin={null}
                         canWrite={canWrite}
                         canDelete={canDelete}
@@ -1030,6 +1043,7 @@ export default function TournamentCommentsCard({
       onClose={() => setImageCropOpen(false)}
       onApply={async (blob) => setDraftImage(blob)}
     />
+    <ImageLightbox open={!!lightboxSrc} src={lightboxSrc} onClose={() => setLightboxSrc(null)} />
     </>
   );
 }

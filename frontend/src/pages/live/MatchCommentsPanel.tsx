@@ -7,6 +7,7 @@ import Textarea from "../../ui/primitives/Textarea";
 import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
 import { showErrorToast } from "../../ui/primitives/ErrorToast";
 import CommentImageCropper from "../../ui/primitives/CommentImageCropper";
+import ImageLightbox from "../../ui/primitives/ImageLightbox";
 import type { Player } from "../../api/types";
 import { commentImageUrl, createTournamentComment, listTournamentComments, putCommentImage } from "../../api/comments.api";
 import { listPlayerAvatarMeta, playerAvatarUrl } from "../../api/playerAvatars.api";
@@ -49,6 +50,7 @@ export default function MatchCommentsPanel({
   const [pendingScrollId, setPendingScrollId] = useState<number | null>(null);
   const [composerOpen, setComposerOpen] = useState(false);
   const [flashId, setFlashId] = useState<number | null>(null);
+  const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
 
   const idsOk =
     typeof tournamentId === "number" &&
@@ -236,13 +238,20 @@ export default function MatchCommentsPanel({
                   {c.body ? <div className="whitespace-pre-wrap text-sm">{c.body}</div> : null}
                   {c.has_image ? (
                     <div className="panel-subtle p-2">
-                      <img
-                        src={commentImageUrl(c.id, c.image_updated_at ?? null)}
-                        alt=""
-                        className="w-full rounded-lg object-cover aspect-[4/3]"
-                        loading="lazy"
-                        decoding="async"
-                      />
+                      <button
+                        type="button"
+                        className="block w-full"
+                        onClick={() => setLightboxSrc(commentImageUrl(c.id, c.image_updated_at ?? null))}
+                        title="Open image"
+                      >
+                        <img
+                          src={commentImageUrl(c.id, c.image_updated_at ?? null)}
+                          alt=""
+                          className="w-full rounded-lg object-cover aspect-[4/3] cursor-zoom-in"
+                          loading="lazy"
+                          decoding="async"
+                        />
+                      </button>
                     </div>
                   ) : null}
                 </div>
@@ -372,6 +381,7 @@ export default function MatchCommentsPanel({
       onClose={() => setImageCropOpen(false)}
       onApply={async (blob) => setDraftImage(blob)}
     />
+    <ImageLightbox open={!!lightboxSrc} src={lightboxSrc} onClose={() => setLightboxSrc(null)} />
     </>
   );
 }
