@@ -11,11 +11,19 @@ from ..db import get_session
 from ..models import (
     Comment,
     CommentImage,
+    CommentImageFile,
     Match,
     Player,
     Tournament,
     TournamentPinnedComment,
     TournamentPlayer,
+)
+from ..services.file_storage import (
+    delete_media,
+    media_exists,
+    media_path_for_comment,
+    read_media,
+    write_media,
 )
 from ..services.comments_summary import tournament_comments_summary
 from ..ws import ws_manager
@@ -23,6 +31,46 @@ from ..ws import ws_manager
 log = logging.getLogger(__name__)
 router = APIRouter(tags=["comments"])
 MAX_COMMENT_IMAGE_BYTES = 8_000_000  # enough for cropped 1920x1440 webp/png
+
+
+def _upsert_comment_image_file(
+    s: Session,
+    *,
+    comment_id: int,
+    content_type: str,
+    data: bytes,
+    updated_at: datetime | None = None,
+) -> CommentImageFile:
+    now = updated_at or datetime.utcnow()
+    rel_path = media_path_for_comment(comment_id, content_type)
+    file_size = write_media(rel_path, data)
+
+    row = s.get(CommentImageFile, comment_id)
+    if row is None:
+        row = CommentImageFile(
+            comment_id=comment_id,
+            content_type=content_type,
+            file_path=rel_path,
+            file_size=file_size,
+            updated_at=now,
+        )
+    else:
+        if row.file_path != rel_path:
+            delete_media(row.file_path)
+        row.content_type = content_type
+        row.file_path = rel_path
+        row.file_size = file_size
+        row.updated_at = now
+    s.add(row)
+    return row
+
+
+def _comment_image_updated_at(s: Session, comment_id: int) -> datetime | None:
+    fs_row = s.get(CommentImageFile, comment_id)
+    if fs_row and media_exists(fs_row.file_path):
+        return fs_row.updated_at
+    blob_row = s.get(CommentImage, comment_id)
+    return blob_row.updated_at if blob_row is not None else None
 
 
 def _tournament_or_404(s: Session, tournament_id: int) -> Tournament:
@@ -40,12 +88,25 @@ def _comment_or_404(s: Session, comment_id: int) -> Comment:
 
 
 def _comment_image_meta_map(s: Session, tournament_id: int) -> dict[int, datetime]:
-    rows = s.exec(
+    rows_fs = s.exec(
+        select(CommentImageFile.comment_id, CommentImageFile.updated_at, CommentImageFile.file_path)
+        .join(Comment, Comment.id == CommentImageFile.comment_id)
+        .where(Comment.tournament_id == tournament_id)
+    ).all()
+    rows_blob = s.exec(
         select(CommentImage.comment_id, CommentImage.updated_at)
         .join(Comment, Comment.id == CommentImage.comment_id)
         .where(Comment.tournament_id == tournament_id)
     ).all()
-    return {int(comment_id): updated_at for (comment_id, updated_at) in rows}
+    out: dict[int, datetime] = {}
+    for comment_id, updated_at, file_path in rows_fs:
+        if media_exists(file_path):
+            out[int(comment_id)] = updated_at
+    for comment_id, updated_at in rows_blob:
+        comment_id_int = int(comment_id)
+        if comment_id_int not in out:
+            out[comment_id_int] = updated_at
+    return out
 
 
 def _comment_dict(c: Comment, image_updated_at: datetime | None = None) -> dict:
@@ -175,11 +236,11 @@ async def patch_comment(
     s: Session = Depends(get_session),
 ) -> dict:
     c = _comment_or_404(s, comment_id)
-    image_row = s.get(CommentImage, comment_id)
+    image_updated_at = _comment_image_updated_at(s, comment_id)
 
     if "body" in body:
         text = str(body.get("body", "")).strip()
-        if not text and image_row is None:
+        if not text and image_updated_at is None:
             raise HTTPException(status_code=400, detail="body cannot be empty")
         c.body = text
 
@@ -200,7 +261,6 @@ async def patch_comment(
         {"tournament_id": c.tournament_id, "comment_id": c.id, "action": "updated"},
     )
 
-    image_updated_at = image_row.updated_at if image_row is not None else None
     return _comment_dict(c, image_updated_at)
 
 
@@ -215,9 +275,13 @@ async def delete_comment(
     if pin and pin.comment_id == c.id:
         s.delete(pin)
 
-    image_row = s.get(CommentImage, comment_id)
-    if image_row:
-        s.delete(image_row)
+    image_row_fs = s.get(CommentImageFile, comment_id)
+    if image_row_fs:
+        delete_media(image_row_fs.file_path)
+        s.delete(image_row_fs)
+    image_row_blob = s.get(CommentImage, comment_id)
+    if image_row_blob:
+        s.delete(image_row_blob)
 
     s.delete(c)
     s.commit()
@@ -234,12 +298,30 @@ async def delete_comment(
 @router.get("/comments/{comment_id}/image")
 def get_comment_image(comment_id: int, s: Session = Depends(get_session)):
     c = _comment_or_404(s, comment_id)
-    img = s.get(CommentImage, comment_id)
-    if not img:
+    img_file = s.get(CommentImageFile, comment_id)
+    if img_file:
+        data = read_media(img_file.file_path)
+        if data is not None:
+            headers = {"Cache-Control": "public, max-age=604800"}
+            return Response(content=data, media_type=img_file.content_type, headers=headers)
+
+    img_blob = s.get(CommentImage, comment_id)
+    if not img_blob:
         raise HTTPException(status_code=404, detail="Comment image not found")
 
+    migrated = _upsert_comment_image_file(
+        s,
+        comment_id=comment_id,
+        content_type=img_blob.content_type,
+        data=img_blob.data,
+        updated_at=img_blob.updated_at,
+    )
+    s.delete(img_blob)
+    s.commit()
+    s.refresh(migrated)
+
     headers = {"Cache-Control": "public, max-age=604800"}
-    return Response(content=img.data, media_type=img.content_type, headers=headers)
+    return Response(content=img_blob.data, media_type=migrated.content_type, headers=headers)
 
 
 @router.put("/comments/{comment_id}/image", dependencies=[Depends(require_editor)])
@@ -263,36 +345,44 @@ async def put_comment_image(
         )
 
     now = datetime.utcnow()
-    img = s.get(CommentImage, comment_id)
-    if img is None:
-        img = CommentImage(comment_id=comment_id, content_type=ct, data=data, updated_at=now)
-    else:
-        img.content_type = ct
-        img.data = data
-        img.updated_at = now
-    s.add(img)
+    img_file = _upsert_comment_image_file(
+        s,
+        comment_id=comment_id,
+        content_type=ct,
+        data=data,
+        updated_at=now,
+    )
+    img_blob = s.get(CommentImage, comment_id)
+    if img_blob is not None:
+        s.delete(img_blob)
 
     c.updated_at = now
     s.add(c)
     s.commit()
     s.refresh(c)
+    s.refresh(img_file)
 
     await ws_manager.broadcast(
         c.tournament_id,
         "comments_updated",
         {"tournament_id": c.tournament_id, "comment_id": c.id, "action": "image_updated"},
     )
-    return _comment_dict(c, img.updated_at)
+    return _comment_dict(c, img_file.updated_at)
 
 
 @router.delete("/comments/{comment_id}/image", dependencies=[Depends(require_editor)])
 async def delete_comment_image(comment_id: int, s: Session = Depends(get_session)) -> dict:
     c = _comment_or_404(s, comment_id)
-    img = s.get(CommentImage, comment_id)
-    if img is None:
+    img_file = s.get(CommentImageFile, comment_id)
+    img_blob = s.get(CommentImage, comment_id)
+    if img_file is None and img_blob is None:
         return {"ok": True}
 
-    s.delete(img)
+    if img_file is not None:
+        delete_media(img_file.file_path)
+        s.delete(img_file)
+    if img_blob is not None:
+        s.delete(img_blob)
     c.updated_at = datetime.utcnow()
     s.add(c)
     s.commit()

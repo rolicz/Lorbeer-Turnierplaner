@@ -8,6 +8,7 @@ services:
       DB_URL: "sqlite:////data/app.db"
       # Put cups config at ./backend/data/cups.json (persisted on host) or override path via env.
       CUPS_CONFIG_PATH: "/data/cups.json"
+      UPLOADS_DIR: "/data/uploads"
     expose:
       - "8001"
 

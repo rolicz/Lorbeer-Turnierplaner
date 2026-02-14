@@ -61,6 +61,18 @@ class PlayerAvatar(SQLModel, table=True):
     updated_at: dt.datetime = Field(default_factory=dt.datetime.utcnow, index=True)
 
 
+class PlayerAvatarFile(SQLModel, table=True):
+    """
+    Preferred avatar storage (metadata in DB, bytes on disk/object storage).
+    Kept separate from PlayerAvatar blob table for backward compatibility.
+    """
+    player_id: int = Field(foreign_key="player.id", primary_key=True)
+    content_type: str
+    file_path: str = Field(index=True)
+    file_size: int
+    updated_at: dt.datetime = Field(default_factory=dt.datetime.utcnow, index=True)
+
+
 class League(SQLModel, table=True):
     """
     Backend-managed lookup table.
@@ -140,6 +152,18 @@ class CommentImage(SQLModel, table=True):
     comment_id: int = Field(foreign_key="comment.id", primary_key=True)
     content_type: str
     data: bytes
+    updated_at: dt.datetime = Field(default_factory=dt.datetime.utcnow, index=True)
+
+
+class CommentImageFile(SQLModel, table=True):
+    """
+    Preferred comment image storage (metadata in DB, bytes on disk/object storage).
+    Kept separate from CommentImage blob table for backward compatibility.
+    """
+    comment_id: int = Field(foreign_key="comment.id", primary_key=True)
+    content_type: str
+    file_path: str = Field(index=True)
+    file_size: int
     updated_at: dt.datetime = Field(default_factory=dt.datetime.utcnow, index=True)
 
 

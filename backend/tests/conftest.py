@@ -6,8 +6,9 @@ from app.settings import Settings
 
 
 @pytest.fixture()
-def client(tmp_path):
+def client(tmp_path, monkeypatch):
     db_path = tmp_path / "test.db"
+    monkeypatch.setenv("UPLOADS_DIR", str(tmp_path / "uploads"))
     settings = Settings(
         db_url=f"sqlite:///{db_path}",
         editor_password="editor-secret",

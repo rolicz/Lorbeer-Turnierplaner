@@ -29,6 +29,7 @@ backend/*.sqlite3
 backend/logs/
 *.log
 backend/secrets.json
+backend/data/uploads
 
 # --- Node / Frontend ---
 node_modules/
