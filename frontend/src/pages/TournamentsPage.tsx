@@ -5,6 +5,7 @@ import Card from "../ui/primitives/Card";
 import Button from "../ui/primitives/Button";
 import Input from "../ui/primitives/Input";
 import SectionHeader from "../ui/primitives/SectionHeader";
+import SegmentedSwitch from "../ui/primitives/SegmentedSwitch";
 import { Meta } from "../ui/primitives/Meta";
 import { Pill, statusPill, pillDate } from "../ui/primitives/Pill";
 import { ErrorToastOnError } from "../ui/primitives/ErrorToast";
@@ -189,40 +190,16 @@ export default function TournamentsPage() {
 
               <div>
                 <div className="input-label">Mode</div>
-                <div
-                  className="relative inline-flex w-full rounded-2xl p-1"
-                  style={{ backgroundColor: "rgb(var(--color-bg-card-chip) / 0.35)" }}
-                  role="group"
-                  aria-label="Tournament mode"
-                >
-                  <span
-                    className="absolute inset-y-1 left-1 w-1/2 rounded-xl shadow-sm transition-transform duration-200 ease-out"
-                    style={{
-                      backgroundColor: "rgb(var(--color-bg-card-inner))",
-                      transform: `translateX(${mode === "1v1" ? 0 : 100}%)`,
-                    }}
-                    aria-hidden="true"
-                  />
-                  {(
-                    [
-                      { k: "1v1" as const, label: "1v1" },
-                      { k: "2v2" as const, label: "2v2" },
-                    ] as const
-                  ).map((x) => (
-                    <button
-                      key={x.k}
-                      type="button"
-                      onClick={() => setMode(x.k)}
-                      className={
-                        "relative z-10 inline-flex h-10 w-1/2 items-center justify-center rounded-xl text-sm transition-colors " +
-                        (mode === x.k ? "text-text-normal" : "text-text-muted hover:text-text-normal")
-                      }
-                      aria-pressed={mode === x.k}
-                    >
-                      {x.label}
-                    </button>
-                  ))}
-                </div>
+                <SegmentedSwitch<"1v1" | "2v2">
+                  value={mode}
+                  onChange={setMode}
+                  options={[
+                    { key: "1v1", label: "1v1", icon: "fa-user" },
+                    { key: "2v2", label: "2v2", icon: "fa-users" },
+                  ]}
+                  ariaLabel="Tournament mode"
+                  title="Tournament mode"
+                />
               </div>
             </div>
 

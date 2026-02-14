@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import type { Club, Match, StatsPlayerMatchesTournament } from "../../api/types";
 import { sideBy } from "../../helpers";
 import { clubLabelPartsById } from "../../ui/clubControls";
@@ -157,11 +158,13 @@ export function MatchHistoryTournamentBlock({
   focusId,
   clubs,
   showMeta,
+  actions,
 }: {
   t: StatsPlayerMatchesTournament;
   focusId?: number | null;
   clubs: Club[];
   showMeta: boolean;
+  actions?: ReactNode;
 }) {
   return (
     <div className="card-inner-flat rounded-2xl space-y-2">
@@ -173,7 +176,10 @@ export function MatchHistoryTournamentBlock({
             <Pill className="pill-default">{t.mode}</Pill>
           </div>
         </div>
-        <div className="shrink-0 text-[11px] text-text-muted">{t.matches.length} matches</div>
+        <div className="shrink-0 flex items-center gap-2">
+          <div className="text-[11px] text-text-muted">{t.matches.length} matches</div>
+          {actions ?? null}
+        </div>
       </div>
 
       <div className="space-y-2">
@@ -190,16 +196,25 @@ export function MatchHistoryList({
   focusId,
   clubs,
   showMeta,
+  renderTournamentActions,
 }: {
   tournaments: StatsPlayerMatchesTournament[];
   focusId?: number | null;
   clubs: Club[];
   showMeta: boolean;
+  renderTournamentActions?: (t: StatsPlayerMatchesTournament) => ReactNode;
 }) {
   return (
     <div className="space-y-3">
       {tournaments.map((t) => (
-        <MatchHistoryTournamentBlock key={t.id} t={t} focusId={focusId} clubs={clubs} showMeta={showMeta} />
+        <MatchHistoryTournamentBlock
+          key={t.id}
+          t={t}
+          focusId={focusId}
+          clubs={clubs}
+          showMeta={showMeta}
+          actions={renderTournamentActions ? renderTournamentActions(t) : undefined}
+        />
       ))}
     </div>
   );

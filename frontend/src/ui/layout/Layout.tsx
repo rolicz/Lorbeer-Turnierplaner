@@ -55,7 +55,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     { to: "/stats", label: "Stats", min: "reader" },
     { to: "/players", label: "Players", min: "admin" },
     { to: "/clubs", label: "Clubs", min: "editor" },
-    { to: "/tools", label: "Tools", min: "reader" },
+    { to: "/friendlies", label: "Friendlies", min: "reader" },
   ];
 
   const rank: Record<Role, number> = { reader: 1, editor: 2, admin: 3 };

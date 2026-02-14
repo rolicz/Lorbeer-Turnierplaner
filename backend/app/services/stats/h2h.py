@@ -2,12 +2,14 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
+from types import SimpleNamespace
 from typing import Any, Iterable
 
 from sqlalchemy.orm import selectinload
 from sqlmodel import Session, select
 
-from ...models import Match, MatchSide, Player, Tournament
+from ...models import FriendlyMatch, FriendlyMatchSide, Match, MatchSide, Player, Tournament
+from .scope import include_friendlies, include_tournaments, normalize_scope
 
 
 def _side_by(m: Match, side: str) -> MatchSide | None:
@@ -143,16 +145,48 @@ def _iter_opponent_pairs(a_ids: Iterable[int], b_ids: Iterable[int]) -> Iterable
             yield pid, qid
 
 
-def _load_finished_matches(s: Session) -> list[Match]:
-    stmt = (
-        select(Match)
-        .where(Match.state == "finished")
-        .options(
-            selectinload(Match.tournament),
-            selectinload(Match.sides).selectinload(MatchSide.players),
-        )
+def _friendly_as_match_like(fm: FriendlyMatch) -> Any:
+    fid = int(fm.id or 0)
+    # keep a stable synthetic tournament-like object so existing logic stays unchanged
+    t = SimpleNamespace(
+        id=1_000_000_000 + fid,
+        mode=fm.mode,
+        date=fm.date,
     )
-    return list(s.exec(stmt).all())
+    return SimpleNamespace(
+        id=2_000_000_000 + fid,
+        tournament=t,
+        order_index=0,
+        sides=fm.sides,
+    )
+
+
+def _load_finished_matches(s: Session, *, scope: str) -> list[Any]:
+    scope_norm = normalize_scope(scope)
+    out: list[Any] = []
+
+    if include_tournaments(scope_norm):
+        stmt = (
+            select(Match)
+            .where(Match.state == "finished")
+            .options(
+                selectinload(Match.tournament),
+                selectinload(Match.sides).selectinload(MatchSide.players),
+            )
+        )
+        out.extend(list(s.exec(stmt).all()))
+
+    if include_friendlies(scope_norm):
+        fstmt = (
+            select(FriendlyMatch)
+            .where(FriendlyMatch.state == "finished")
+            .options(
+                selectinload(FriendlyMatch.sides).selectinload(FriendlyMatchSide.players),
+            )
+        )
+        out.extend(_friendly_as_match_like(fm) for fm in s.exec(fstmt).all())
+
+    return out
 
 
 def _load_players_by_id(s: Session) -> dict[int, Player]:
@@ -218,6 +252,7 @@ def compute_stats_h2h(
     player_id: int | None,
     limit: int,
     order: str = "rivalry",
+    scope: str = "tournaments",
 ) -> dict[str, Any]:
     """
     Head-to-head + 2v2 synergy stats.
@@ -231,7 +266,8 @@ def compute_stats_h2h(
     - Best teammates: 2v2 only, player pairs on the same side.
     """
     players_by_id = _load_players_by_id(s)
-    matches = _load_finished_matches(s)
+    scope_norm = normalize_scope(scope)
+    matches = _load_finished_matches(s, scope=scope_norm)
 
     # "rivalry" = prioritize close + frequent matchups, "played" = raw volume
     order_norm = str(order or "rivalry").strip().lower()
@@ -532,6 +568,7 @@ def compute_stats_h2h(
         "generated_at": datetime.utcnow().isoformat(),
         "limit": limit,
         "order": order_norm,
+        "scope": scope_norm,
         "player": (
             {"id": int(player_id), "display_name": players_by_id[int(player_id)].display_name}
             if player_id is not None and int(player_id) in players_by_id

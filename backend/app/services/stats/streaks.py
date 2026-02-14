@@ -2,15 +2,17 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date, datetime, time
+from types import SimpleNamespace
 from typing import Any, Callable
 
 from sqlalchemy.orm import selectinload
 from sqlmodel import Session, select
 
-from ...models import Match, MatchSide, Player, Tournament
+from ...models import FriendlyMatch, FriendlyMatchSide, Match, MatchSide, Player, Tournament
+from .scope import include_friendlies, include_tournaments, normalize_scope
 
 
-def _side_by(m: Match, side: str) -> MatchSide | None:
+def _side_by(m: Any, side: str) -> Any | None:
     for s in m.sides:
         if s.side == side:
             return s
@@ -39,7 +41,7 @@ def _tournament_day(t: Tournament | None) -> datetime | None:
     return created
 
 
-def _sort_key(m: Match) -> tuple[datetime, int, int, int]:
+def _sort_key(m: Any) -> tuple[datetime, int, int, int]:
     """
     Stable ordering for streak computations.
 
@@ -56,20 +58,50 @@ def _sort_key(m: Match) -> tuple[datetime, int, int, int]:
     return (ts, tid, order_index, mid)
 
 
-def _ts_for(m: Match) -> datetime:
+def _ts_for(m: Any) -> datetime:
     return _sort_key(m)[0]
 
 
-def _load_finished_matches(s: Session) -> list[Match]:
-    stmt = (
-        select(Match)
-        .where(Match.state == "finished")
-        .options(
-            selectinload(Match.tournament),
-            selectinload(Match.sides).selectinload(MatchSide.players),
-        )
+def _friendly_as_match_like(fm: FriendlyMatch) -> Any:
+    fid = int(fm.id or 0)
+    t = SimpleNamespace(
+        id=1_000_000_000 + fid,
+        mode=fm.mode,
+        date=fm.date,
     )
-    ms = list(s.exec(stmt).all())
+    return SimpleNamespace(
+        id=2_000_000_000 + fid,
+        tournament=t,
+        order_index=0,
+        sides=fm.sides,
+    )
+
+
+def _load_finished_matches(s: Session, *, scope: str) -> list[Any]:
+    scope_norm = normalize_scope(scope)
+    ms: list[Any] = []
+
+    if include_tournaments(scope_norm):
+        stmt = (
+            select(Match)
+            .where(Match.state == "finished")
+            .options(
+                selectinload(Match.tournament),
+                selectinload(Match.sides).selectinload(MatchSide.players),
+            )
+        )
+        ms.extend(list(s.exec(stmt).all()))
+
+    if include_friendlies(scope_norm):
+        fstmt = (
+            select(FriendlyMatch)
+            .where(FriendlyMatch.state == "finished")
+            .options(
+                selectinload(FriendlyMatch.sides).selectinload(FriendlyMatchSide.players),
+            )
+        )
+        ms.extend(_friendly_as_match_like(fm) for fm in s.exec(fstmt).all())
+
     ms.sort(key=_sort_key)
     return ms
 
@@ -148,17 +180,19 @@ def compute_stats_streaks(
     mode: str = "overall",  # "overall"|"1v1"|"2v2"
     player_id: int | None = None,
     limit: int = 10,
+    scope: str = "tournaments",
 ) -> dict[str, Any]:
     mode_norm = str(mode or "overall").strip().lower()
     if mode_norm not in ("overall", "1v1", "2v2"):
         mode_norm = "overall"
+    scope_norm = normalize_scope(scope)
 
     players = list(s.exec(select(Player).order_by(Player.display_name)).all())
     players_by_id = {int(p.id): p for p in players}
 
     events_by_pid: dict[int, list[Event]] = {int(p.id): [] for p in players}
 
-    matches = _load_finished_matches(s)
+    matches = _load_finished_matches(s, scope=scope_norm)
     for seq, m in enumerate(matches):
         t: Tournament | None = getattr(m, "tournament", None)
         t_mode = getattr(t, "mode", None)
@@ -257,6 +291,7 @@ def compute_stats_streaks(
     return {
         "generated_at": datetime.utcnow().isoformat(),
         "mode": mode_norm,
+        "scope": scope_norm,
         "player": (
             {"id": int(player_id), "display_name": players_by_id[int(player_id)].display_name}
             if player_id is not None and int(player_id) in players_by_id

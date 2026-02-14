@@ -7,12 +7,12 @@ import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
 import { listClubs } from "../../api/clubs.api";
 import { listPlayers } from "../../api/players.api";
 import { getStatsH2H, getStatsH2HMatches, type StatsH2HMatchesRequest } from "../../api/stats.api";
-import type { StatsH2HDuo, StatsH2HOpponentRow, StatsH2HPair, StatsH2HTeamRivalry } from "../../api/types";
+import type { StatsH2HDuo, StatsH2HOpponentRow, StatsH2HPair, StatsH2HTeamRivalry, StatsScope } from "../../api/types";
 import { usePlayerAvatarMap } from "../../hooks/usePlayerAvatarMap";
 import {
   StatsAvatarSelector,
   StatsControlLabel,
-  StatsModeSwitch,
+  StatsFilterDataControls,
   StatsSegmentedSwitch,
   type StatsMode,
 } from "./StatsControls";
@@ -281,6 +281,7 @@ export default function HeadToHeadCard() {
 
   const [playerId, setPlayerId] = useState<number | "">("");
   const [mode, setMode] = useState<StatsMode>("overall");
+  const [scope, setScope] = useState<StatsScope>("tournaments");
   const [order, setOrder] = useState<RivalryOrder>("played");
   const [view, setView] = useState<View>("lists");
   const [detailView, setDetailView] = useState<DetailView>("compact");
@@ -295,20 +296,24 @@ export default function HeadToHeadCard() {
 
     const ids: Array<number | null> = [null, ...players.map((p) => p.id)];
     const orders: RivalryOrder[] = ["played", "rivalry"];
+    const scopes: StatsScope[] = ["tournaments", "both", "friendlies"];
     for (const pid of ids) {
       for (const o of orders) {
-        void qc.prefetchQuery({
-          queryKey: ["stats", "h2h", pid ?? "all", FETCH_LIMIT, o],
-          queryFn: () => getStatsH2H({ playerId: pid, limit: FETCH_LIMIT, order: o }),
-          staleTime: 30_000,
-        });
+        for (const sc of scopes) {
+          void qc.prefetchQuery({
+            queryKey: ["stats", "h2h", pid ?? "all", FETCH_LIMIT, o, sc],
+            queryFn: () => getStatsH2H({ playerId: pid, limit: FETCH_LIMIT, order: o, scope: sc }),
+            staleTime: 30_000,
+          });
+        }
       }
     }
   }, [FETCH_LIMIT, isOpen, players, qc]);
 
   const h2hQ = useQuery({
-    queryKey: ["stats", "h2h", playerId || "all", FETCH_LIMIT, order],
-    queryFn: () => getStatsH2H({ playerId: playerId === "" ? null : playerId, limit: FETCH_LIMIT, order }),
+    queryKey: ["stats", "h2h", playerId || "all", FETCH_LIMIT, order, scope],
+    queryFn: () =>
+      getStatsH2H({ playerId: playerId === "" ? null : playerId, limit: FETCH_LIMIT, order, scope }),
     placeholderData: keepPreviousData,
     staleTime: 0,
     // Avoid surprise reflows while the user is interacting (mobile scroll anchoring can look like "jumps").
@@ -333,6 +338,7 @@ export default function HeadToHeadCard() {
       (historyModal?.req.left_player_ids ?? []).join("-"),
       (historyModal?.req.right_player_ids ?? []).join("-"),
       historyModal?.req.exact_teams ? "exact" : "subset",
+      historyModal?.req.scope ?? "tournaments",
     ],
     queryFn: () => getStatsH2HMatches(historyModal!.req),
     enabled: !!historyModal,
@@ -352,6 +358,7 @@ export default function HeadToHeadCard() {
   }, [players]);
 
   const modeTitle = mode === "overall" ? "Overall" : mode === "1v1" ? "1v1" : "2v2";
+  const scopeTitle = scope === "tournaments" ? "tournaments" : scope === "both" ? "all" : "friendlies";
   const orderTitle = order === "played" ? "Most played" : "Legendary";
   const DEFAULT_SHOW = 5;
   const [showAllByKey, setShowAllByKey] = useState<Record<string, boolean>>({});
@@ -393,6 +400,7 @@ export default function HeadToHeadCard() {
         left_player_ids: args.leftPlayerIds,
         right_player_ids: args.rightPlayerIds,
         exact_teams: !!args.exactTeams,
+        scope,
       },
       focusPlayerId: args.focusPlayerId ?? selected?.id ?? null,
     });
@@ -406,6 +414,7 @@ export default function HeadToHeadCard() {
         relation: "teammates",
         left_player_ids: args.leftPlayerIds,
         right_player_ids: [],
+        scope,
       },
       focusPlayerId: args.focusPlayerId ?? selected?.id ?? null,
     });
@@ -439,11 +448,8 @@ export default function HeadToHeadCard() {
       <ErrorToastOnError error={historyQ.error} title="Match history loading failed" />
       <ErrorToastOnError error={clubsQ.error} title="Club data loading failed" />
       <div className="card-inner-flat rounded-2xl space-y-2">
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="flex min-w-0 flex-wrap items-center gap-2">
-            <StatsControlLabel icon="fa-filter" text="Filter" />
-            <StatsModeSwitch value={mode} onChange={setMode} />
-          </div>
+        <div className="flex flex-wrap items-start gap-2">
+          <StatsFilterDataControls mode={mode} onModeChange={setMode} scope={scope} onScopeChange={setScope} />
 
           <div className="flex min-w-0 flex-wrap items-center gap-2">
             <StatsControlLabel icon="fa-arrow-down-wide-short" text="Order" />
@@ -496,7 +502,7 @@ export default function HeadToHeadCard() {
             {view === "matrix" ? (
               <div className="card-inner-flat rounded-2xl space-y-2">
                 <div className="text-sm font-semibold text-text-normal">
-                  Matrix <span className="text-text-muted">· {modeTitle}</span>
+                  Matrix <span className="text-text-muted">· {modeTitle} · {scopeTitle}</span>
                 </div>
                 <div className="text-[11px] text-text-muted">
                   Cells show <span className="text-text-normal">W</span> (top) / <span className="text-text-normal">D</span>{" "}
@@ -681,7 +687,7 @@ export default function HeadToHeadCard() {
                 {!selected ? (
                   <div className="card-inner-flat rounded-2xl space-y-2">
                     {(() => {
-                      const k = `legendary-${mode}-${order}`;
+                      const k = `legendary-${mode}-${order}-${scope}`;
                       const list =
                         mode === "2v2"
                           ? (h2hQ.data.team_rivalries_2v2 ?? [])
@@ -698,7 +704,7 @@ export default function HeadToHeadCard() {
                           <div className="flex items-start justify-between gap-3">
                             <div className="min-w-0">
                               <div className="text-sm font-semibold text-text-normal">
-                                Legendary rivalries <span className="text-text-muted">· {modeTitle}</span>
+                                Legendary rivalries <span className="text-text-muted">· {modeTitle} · {scopeTitle}</span>
                               </div>
                               <div className="mt-1 text-[11px] text-text-muted">
                                 {orderTitle === "Legendary" ? (
@@ -770,7 +776,7 @@ export default function HeadToHeadCard() {
                 {mode === "2v2" && !selected ? (
                   <div className="card-inner-flat rounded-2xl space-y-2">
                     {(() => {
-                      const k = `best-teammates-${mode}-${order}`;
+                      const k = `best-teammates-${mode}-${order}-${scope}`;
                       const list = h2hQ.data.best_teammates_2v2 ?? [];
                       const showAll = getShowAll(k);
                       const hasMore = list.length > DEFAULT_SHOW;
@@ -778,7 +784,9 @@ export default function HeadToHeadCard() {
                       return (
                         <>
                           <div className="flex items-start justify-between gap-3">
-                            <div className="text-sm font-semibold text-text-normal">Best teammates (2v2)</div>
+                            <div className="text-sm font-semibold text-text-normal">
+                              Best teammates <span className="text-text-muted">· 2v2 · {scopeTitle}</span>
+                            </div>
                             {hasMore ? (
                               <button
                                 type="button"
@@ -820,7 +828,7 @@ export default function HeadToHeadCard() {
                   <div className="card-inner-flat rounded-2xl space-y-2">
                     <div className="text-sm font-semibold text-text-normal">
                       {selected.display_name}
-                      <span className="text-text-muted"> · matchups ({modeTitle})</span>
+                      <span className="text-text-muted"> · matchups ({modeTitle}) · {scopeTitle}</span>
                     </div>
                     <div className="text-[11px] text-text-muted">
                       {order === "played" ? (
@@ -834,7 +842,7 @@ export default function HeadToHeadCard() {
                     </div>
                     <div className="space-y-2">
                       {(() => {
-                        const k = `matchups-focus-${mode}-${order}-${selected.id}`;
+                        const k = `matchups-focus-${mode}-${order}-${scope}-${selected.id}`;
                         const list =
                           mode === "1v1"
                             ? (h2hQ.data.vs_1v1 ?? [])
@@ -895,7 +903,7 @@ export default function HeadToHeadCard() {
                     <div className="card-inner-flat rounded-2xl space-y-2">
                       <div className="text-sm font-semibold text-text-normal">
                         {selected.display_name}
-                        <span className="text-text-muted"> · teammates (2v2)</span>
+                        <span className="text-text-muted"> · teammates (2v2) · {scopeTitle}</span>
                       </div>
                       <div className="text-[11px] text-text-muted">
                         {order === "played" ? (
@@ -908,7 +916,7 @@ export default function HeadToHeadCard() {
                       </div>
                       <div className="space-y-2">
                         {(() => {
-                          const k = `teammates-focus-${mode}-${order}-${selected.id}`;
+                          const k = `teammates-focus-${mode}-${order}-${scope}-${selected.id}`;
                           const list = h2hQ.data.with_2v2 ?? [];
                           const showAll = getShowAll(k);
                           const hasMore = list.length > DEFAULT_SHOW;
@@ -956,7 +964,7 @@ export default function HeadToHeadCard() {
                 const TeamRivalries = (
                   <div className="card-inner-flat rounded-2xl space-y-2">
                     {(() => {
-                      const k = `team-rivalries-focus-${mode}-${order}-${selected.id}`;
+                      const k = `team-rivalries-focus-${mode}-${order}-${scope}-${selected.id}`;
                       const list = h2hQ.data.team_rivalries_2v2_for_player ?? [];
                       const showAll = getShowAll(k);
                       const hasMore = list.length > DEFAULT_SHOW;
@@ -967,7 +975,7 @@ export default function HeadToHeadCard() {
                           <div className="flex items-start justify-between gap-3">
                             <div className="text-sm font-semibold text-text-normal">
                               {selected.display_name}
-                              <span className="text-text-muted"> · team rivalries (2v2)</span>
+                              <span className="text-text-muted"> · team rivalries (2v2) · {scopeTitle}</span>
                             </div>
                             {hasMore ? (
                               <button
@@ -1065,7 +1073,6 @@ export default function HeadToHeadCard() {
                       { key: "compact", label: "Compact", icon: "fa-compress" },
                       { key: "details", label: "Details", icon: "fa-list" },
                     ]}
-                    widthClass="w-20 sm:w-28"
                     ariaLabel="History details"
                     title="Toggle details (clubs / leagues / stars)"
                   />

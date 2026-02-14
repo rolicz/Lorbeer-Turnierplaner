@@ -1,19 +1,25 @@
-import type { Player } from "../../api/types";
+import type { Player, StatsScope } from "../../api/types";
 import AvatarButton from "../../ui/primitives/AvatarButton";
 import SegmentedSwitch, { type SegmentedOption } from "../../ui/primitives/SegmentedSwitch";
 
 export type StatsMode = "overall" | "1v1" | "2v2";
 
 const MODE_OPTIONS: ReadonlyArray<SegmentedOption<StatsMode>> = [
-  { key: "overall", label: "Overall", icon: "fa-layer-group" },
-  { key: "1v1", label: "1v1", icon: "fa-user" },
-  { key: "2v2", label: "2v2", icon: "fa-users" },
+  { key: "overall", label: "Overall" },
+  { key: "1v1", label: "1v1" },
+  { key: "2v2", label: "2v2" },
+];
+
+const SCOPE_OPTIONS: ReadonlyArray<SegmentedOption<StatsScope>> = [
+  { key: "tournaments", label: "Tourneys", icon: "fa-trophy" },
+  { key: "both", label: "Both", icon: "fa-object-group" },
+  { key: "friendlies", label: "Friendlies", icon: "fa-handshake" },
 ];
 
 export function StatsControlLabel({
   icon,
   text,
-  widthClass = "w-20",
+  widthClass = "w-16 sm:w-20",
 }: {
   icon: string;
   text: string;
@@ -36,7 +42,7 @@ export function StatsSegmentedSwitch<T extends string | number | boolean>({
   value,
   onChange,
   options,
-  widthClass = "w-16 sm:w-24",
+  widthClass = "w-14 sm:w-20",
   ariaLabel,
   title,
 }: {
@@ -78,6 +84,56 @@ export function StatsModeSwitch({
       ariaLabel={ariaLabel}
       title={title}
     />
+  );
+}
+
+export function StatsScopeSwitch({
+  value,
+  onChange,
+  ariaLabel = "Data source",
+  title = "Data source: Tournaments / Both / Friendlies",
+  widthClass = "w-14 sm:w-20",
+}: {
+  value: StatsScope;
+  onChange: (s: StatsScope) => void;
+  ariaLabel?: string;
+  title?: string;
+  widthClass?: string;
+}) {
+  return (
+    <StatsSegmentedSwitch<StatsScope>
+      value={value}
+      onChange={onChange}
+      options={SCOPE_OPTIONS}
+      widthClass={widthClass}
+      ariaLabel={ariaLabel}
+      title={title}
+    />
+  );
+}
+
+export function StatsFilterDataControls({
+  mode,
+  onModeChange,
+  scope,
+  onScopeChange,
+}: {
+  mode: StatsMode;
+  onModeChange: (m: StatsMode) => void;
+  scope: StatsScope;
+  onScopeChange: (s: StatsScope) => void;
+}) {
+  return (
+    <div className="flex min-w-0 shrink-0 flex-col items-start gap-2">
+      <div className="flex flex-nowrap items-center gap-2">
+        <StatsControlLabel icon="fa-filter" text="Filter" />
+        <StatsModeSwitch value={mode} onChange={onModeChange} />
+      </div>
+      <div className="flex flex-nowrap items-center gap-2">
+        <StatsControlLabel icon="fa-database" text="Data" />
+        <StatsScopeSwitch value={scope} onChange={onScopeChange} />
+      </div>
+    </div>
   );
 }
 

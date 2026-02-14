@@ -6,10 +6,10 @@ import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
 import { listPlayers } from "../../api/players.api";
 import { listClubs } from "../../api/clubs.api";
 import { getStatsPlayerMatches } from "../../api/stats.api";
-import type { Club, Match } from "../../api/types";
+import type { Club, Match, StatsScope } from "../../api/types";
 import { sideBy } from "../../helpers";
 import { StarsFA } from "../../ui/primitives/StarsFA";
-import { StatsAvatarSelector, StatsControlLabel, StatsModeSwitch, type StatsMode } from "./StatsControls";
+import { StatsAvatarSelector, StatsFilterDataControls, type StatsMode } from "./StatsControls";
 import { usePlayerAvatarMap } from "../../hooks/usePlayerAvatarMap";
 
 type Outcome = "W" | "D" | "L";
@@ -41,6 +41,12 @@ function outcomeForPlayer(m: Match, playerId: number): { outcome: Outcome; point
 
 function modeLabel(mode: StatsMode) {
   return mode === "overall" ? "overall" : mode;
+}
+
+function scopeLabel(scope: StatsScope) {
+  if (scope === "tournaments") return "tournaments";
+  if (scope === "both") return "all";
+  return "friendlies";
 }
 
 type StarBucket = {
@@ -180,21 +186,25 @@ export default function StarsPerformanceCard() {
   const clubs = useMemo(() => clubsQ.data ?? [], [clubsQ.data]);
   const [playerId, setPlayerId] = useState<number | "">("");
   const [mode, setMode] = useState<StatsMode>("overall");
+  const [scope, setScope] = useState<StatsScope>("tournaments");
 
   useEffect(() => {
     if (!players.length) return;
+    const scopes: StatsScope[] = ["tournaments", "both", "friendlies"];
     for (const p of players) {
-      void qc.prefetchQuery({
-        queryKey: ["stats", "starsPerformance", p.id],
-        queryFn: () => getStatsPlayerMatches({ playerId: p.id }),
-        staleTime: 30_000,
-      });
+      for (const sc of scopes) {
+        void qc.prefetchQuery({
+          queryKey: ["stats", "starsPerformance", p.id, sc],
+          queryFn: () => getStatsPlayerMatches({ playerId: p.id, scope: sc }),
+          staleTime: 30_000,
+        });
+      }
     }
   }, [players, qc]);
 
   const matchesQ = useQuery({
-    queryKey: ["stats", "starsPerformance", playerId || "none"],
-    queryFn: () => getStatsPlayerMatches({ playerId: Number(playerId) }),
+    queryKey: ["stats", "starsPerformance", playerId || "none", scope],
+    queryFn: () => getStatsPlayerMatches({ playerId: Number(playerId), scope }),
     enabled: playerId !== "",
     placeholderData: keepPreviousData,
     staleTime: 30_000,
@@ -247,9 +257,8 @@ export default function StarsPerformanceCard() {
       <ErrorToastOnError error={matchesQ.error} title="Stars performance loading failed" />
       <ErrorToastOnError error={clubsQ.error} title="Club data loading failed" />
       <div className="card-inner-flat rounded-2xl space-y-2">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <StatsControlLabel icon="fa-filter" text="Filter" widthClass="w-auto" />
-          <StatsModeSwitch value={mode} onChange={setMode} />
+        <div className="flex flex-wrap items-center gap-2">
+          <StatsFilterDataControls mode={mode} onModeChange={setMode} scope={scope} onScopeChange={setScope} />
         </div>
         <div className="h-px bg-border-card-inner/70" />
         <div className="text-[11px] text-text-muted">Player</div>
@@ -273,7 +282,7 @@ export default function StarsPerformanceCard() {
               <div className="card-inner-flat rounded-2xl space-y-1">
                 <div className="flex items-center justify-between gap-3">
                   <div className="text-sm text-text-normal">
-                    {selected.display_name} · {modeLabel(mode)}
+                    {selected.display_name} · {modeLabel(mode)} · {scopeLabel(scope)}
                   </div>
                   <div className="font-mono text-sm tabular-nums text-text-normal">
                     {summary.ppm.toFixed(2)} ppm · {summary.played} m
@@ -292,7 +301,7 @@ export default function StarsPerformanceCard() {
 
         {selected && !matchesQ.isLoading && !rows.some((r) => r.played > 0) ? (
           <div className="card-inner-flat rounded-2xl text-sm text-text-muted">
-            No finished matches with selected clubs found for {selected.display_name} ({modeLabel(mode)}).
+            No finished matches with selected clubs found for {selected.display_name} ({modeLabel(mode)} · {scopeLabel(scope)}).
           </div>
         ) : null}
       </div>

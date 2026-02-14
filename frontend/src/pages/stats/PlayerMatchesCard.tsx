@@ -7,9 +7,15 @@ import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
 import { listClubs } from "../../api/clubs.api";
 import { listPlayers } from "../../api/players.api";
 import { getStatsPlayerMatches } from "../../api/stats.api";
-import type { Match } from "../../api/types";
+import type { Match, StatsScope } from "../../api/types";
 import { usePlayerAvatarMap } from "../../hooks/usePlayerAvatarMap";
-import { StatsAvatarSelector, StatsControlLabel, StatsSegmentedSwitch } from "./StatsControls";
+import {
+  StatsAvatarSelector,
+  StatsControlLabel,
+  StatsFilterDataControls,
+  StatsSegmentedSwitch,
+  type StatsMode,
+} from "./StatsControls";
 import { MatchHistoryList } from "./MatchHistoryList";
 
 function fmtDate(s?: string | null) {
@@ -202,12 +208,14 @@ export default function PlayerMatchesCard() {
   const clubs = clubsQ.data ?? [];
 
   const [playerId, setPlayerId] = useState<number | "">("");
+  const [mode, setMode] = useState<StatsMode>("overall");
+  const [scope, setScope] = useState<StatsScope>("tournaments");
   const [showMeta, setShowMeta] = useState(false);
   // Intentionally no auto-scroll on avatar selection; it feels jumpy on mobile and is easy to trigger accidentally.
 
   const matchesQ = useQuery({
-    queryKey: ["stats", "playerMatches", playerId || "none"],
-    queryFn: () => getStatsPlayerMatches({ playerId: Number(playerId) }),
+    queryKey: ["stats", "playerMatches", playerId || "none", scope],
+    queryFn: () => getStatsPlayerMatches({ playerId: Number(playerId), scope }),
     enabled: playerId !== "",
     placeholderData: keepPreviousData,
     staleTime: 0,
@@ -226,7 +234,11 @@ export default function PlayerMatchesCard() {
     return [...players].sort((a, b) => a.display_name.localeCompare(b.display_name));
   }, [players]);
 
-  const tournaments = useMemo(() => matchesQ.data?.tournaments ?? [], [matchesQ.data?.tournaments]);
+  const tournaments = useMemo(() => {
+    const rows = matchesQ.data?.tournaments ?? [];
+    if (mode === "overall") return rows;
+    return rows.filter((t) => t.mode === mode);
+  }, [matchesQ.data?.tournaments, mode]);
   const form = useMemo(() => {
     if (!selected) return null;
     const flat = tournaments.flatMap((t) =>
@@ -278,19 +290,21 @@ export default function PlayerMatchesCard() {
       <ErrorToastOnError error={matchesQ.error} title="Player matches loading failed" />
       <ErrorToastOnError error={clubsQ.error} title="Club data loading failed" />
       <div className="card-inner-flat rounded-2xl space-y-2 scroll-mt-[calc(env(safe-area-inset-top,0px)+128px)] sm:scroll-mt-[calc(env(safe-area-inset-top,0px)+144px)]">
-        <div className="flex flex-wrap items-center gap-2">
-          <StatsControlLabel icon="fa-sliders" text="View" />
-          <StatsSegmentedSwitch<boolean>
-            value={showMeta}
-            onChange={setShowMeta}
-            options={[
-              { key: false, label: "Compact", icon: "fa-compress" },
-              { key: true, label: "Details", icon: "fa-list" },
-            ]}
-            widthClass="w-20 sm:w-28"
-            ariaLabel="Details"
-            title="Toggle details (clubs / leagues / stars)"
-          />
+        <div className="flex flex-wrap items-start gap-2">
+          <StatsFilterDataControls mode={mode} onModeChange={setMode} scope={scope} onScopeChange={setScope} />
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <StatsControlLabel icon="fa-sliders" text="View" />
+            <StatsSegmentedSwitch<boolean>
+              value={showMeta}
+              onChange={setShowMeta}
+              options={[
+                { key: false, label: "Compact", icon: "fa-compress" },
+                { key: true, label: "Details", icon: "fa-list" },
+              ]}
+              ariaLabel="Details"
+              title="Toggle details (clubs / leagues / stars)"
+            />
+          </div>
         </div>
 
         <div className="h-px bg-border-card-inner/70" />

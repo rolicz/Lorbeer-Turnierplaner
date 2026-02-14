@@ -37,6 +37,7 @@ class StatsH2HMatchesRequest(BaseModel):
     left_player_ids: list[int] = Field(default_factory=list, min_length=1, max_length=2)
     right_player_ids: list[int] = Field(default_factory=list, max_length=2)
     exact_teams: bool = False
+    scope: Literal["tournaments", "both", "friendlies"] = "tournaments"
 
 
 @router.get("/overview")
@@ -57,9 +58,10 @@ def stats_h2h(
     player_id: int | None = Query(None, ge=1, description="Optional player to focus on"),
     limit: int = Query(12, ge=1, le=200, description="Max entries per section"),
     order: str = Query("rivalry", description='Sorting for "rivalries" lists: "rivalry" (default) or "played"'),
+    scope: Literal["tournaments", "both", "friendlies"] = Query("tournaments", description='Data source scope: "tournaments" (default), "both", or "friendlies"'),
     s: Session = Depends(get_session),
 ) -> dict[str, Any]:
-    return compute_stats_h2h(s, player_id=player_id, limit=limit, order=order)
+    return compute_stats_h2h(s, player_id=player_id, limit=limit, order=order, scope=scope)
 
 
 @router.post("/h2h-matches")
@@ -74,6 +76,7 @@ def stats_h2h_matches(
         left_player_ids=req.left_player_ids,
         right_player_ids=req.right_player_ids,
         exact_teams=req.exact_teams,
+        scope=req.scope,
     )
 
 
@@ -82,24 +85,27 @@ def stats_streaks(
     mode: str = Query("overall", description='Match mode filter: "overall" (default), "1v1", or "2v2"'),
     player_id: int | None = Query(None, ge=1, description="Optional player to focus on"),
     limit: int = Query(10, ge=1, le=200, description="Max rows per section"),
+    scope: Literal["tournaments", "both", "friendlies"] = Query("tournaments", description='Data source scope: "tournaments" (default), "both", or "friendlies"'),
     s: Session = Depends(get_session),
 ) -> dict[str, Any]:
-    return compute_stats_streaks(s, mode=mode, player_id=player_id, limit=limit)
+    return compute_stats_streaks(s, mode=mode, player_id=player_id, limit=limit, scope=scope)
 
 
 @router.get("/player-matches")
 def stats_player_matches(
     player_id: int = Query(..., ge=1, description="Player id"),
+    scope: Literal["tournaments", "both", "friendlies"] = Query("tournaments", description='Data source scope: "tournaments" (default), "both", or "friendlies"'),
     s: Session = Depends(get_session),
 ) -> dict[str, Any]:
-    return compute_stats_player_matches(s, player_id=player_id)
+    return compute_stats_player_matches(s, player_id=player_id, scope=scope)
 
 @router.get("/ratings")
 def stats_ratings(
     mode: str = Query("overall", description='Match mode filter: "overall" (default), "1v1", or "2v2"'),
+    scope: Literal["tournaments", "both", "friendlies"] = Query("tournaments", description='Data source scope: "tournaments" (default), "both", or "friendlies"'),
     s: Session = Depends(get_session),
 ) -> dict[str, Any]:
-    return compute_stats_ratings(s, mode=mode)
+    return compute_stats_ratings(s, mode=mode, scope=scope)
 
 
 @router.post("/odds")

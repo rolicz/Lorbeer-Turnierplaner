@@ -1,15 +1,17 @@
 from __future__ import annotations
 
 from datetime import datetime
+from types import SimpleNamespace
 from typing import Any
 
 from sqlalchemy.orm import selectinload
 from sqlmodel import Session, select
 
-from ...models import Match, MatchSide, Player, Tournament
+from ...models import FriendlyMatch, FriendlyMatchSide, Match, MatchSide, Player, Tournament
+from .scope import include_friendlies, include_tournaments, normalize_scope
 
 
-def _side_by(m: Match, side: str) -> MatchSide | None:
+def _side_by(m: Any, side: str) -> Any | None:
     for s in m.sides:
         if s.side == side:
             return s
@@ -20,7 +22,7 @@ def _player_dict(p: Player) -> dict[str, Any]:
     return {"id": int(p.id), "display_name": p.display_name}
 
 
-def _match_dict(m: Match) -> dict[str, Any]:
+def _match_dict(m: Any) -> dict[str, Any]:
     sides: list[dict[str, Any]] = []
     for side in sorted(m.sides, key=lambda x: x.side):
         sides.append(
@@ -33,12 +35,12 @@ def _match_dict(m: Match) -> dict[str, Any]:
             }
         )
     return {
-        "id": int(m.id),
-        "leg": int(m.leg),
+        "id": int(getattr(m, "id", 0) or 0),
+        "leg": int(getattr(m, "leg", 1) or 1),
         "order_index": int(m.order_index or 0),
         "state": m.state,
-        "started_at": m.started_at,
-        "finished_at": m.finished_at,
+        "started_at": getattr(m, "started_at", None),
+        "finished_at": getattr(m, "finished_at", None),
         "sides": sides,
     }
 
@@ -71,6 +73,27 @@ def _is_teammates(*, a_ids: set[int], b_ids: set[int], left_ids: set[int]) -> bo
     return left_ids <= a_ids or left_ids <= b_ids
 
 
+def _friendly_as_match_like(fm: FriendlyMatch) -> Any:
+    fid = int(fm.id or 0)
+    t = SimpleNamespace(
+        id=-(1_000_000 + fid),
+        name=f"Friendly #{fid}",
+        date=fm.date,
+        mode=fm.mode,
+        status="friendly",
+    )
+    return SimpleNamespace(
+        id=2_000_000_000 + fid,
+        leg=1,
+        order_index=0,
+        state=fm.state,
+        started_at=fm.created_at,
+        finished_at=fm.updated_at,
+        tournament=t,
+        sides=fm.sides,
+    )
+
+
 def compute_stats_h2h_matches(
     s: Session,
     *,
@@ -79,6 +102,7 @@ def compute_stats_h2h_matches(
     left_player_ids: list[int],
     right_player_ids: list[int],
     exact_teams: bool,
+    scope: str = "tournaments",
 ) -> dict[str, Any]:
     mode_norm = str(mode or "overall").strip().lower()
     if mode_norm not in ("overall", "1v1", "2v2"):
@@ -87,6 +111,7 @@ def compute_stats_h2h_matches(
     relation_norm = str(relation or "opposed").strip().lower()
     if relation_norm not in ("opposed", "teammates"):
         relation_norm = "opposed"
+    scope_norm = normalize_scope(scope)
 
     left_ids = _normalize_ids(left_player_ids)
     right_ids = _normalize_ids(right_player_ids)
@@ -96,6 +121,7 @@ def compute_stats_h2h_matches(
             "generated_at": datetime.utcnow().isoformat(),
             "mode": mode_norm,
             "relation": relation_norm,
+            "scope": scope_norm,
             "left_player_ids": [],
             "right_player_ids": [],
             "tournaments": [],
@@ -106,25 +132,38 @@ def compute_stats_h2h_matches(
             "generated_at": datetime.utcnow().isoformat(),
             "mode": mode_norm,
             "relation": relation_norm,
+            "scope": scope_norm,
             "left_player_ids": left_ids,
             "right_player_ids": [],
             "tournaments": [],
         }
 
-    stmt = (
-        select(Match)
-        .where(Match.state == "finished")
-        .options(
-            selectinload(Match.tournament),
-            selectinload(Match.sides).selectinload(MatchSide.players),
+    matches: list[Any] = []
+    if include_tournaments(scope_norm):
+        stmt = (
+            select(Match)
+            .where(Match.state == "finished")
+            .options(
+                selectinload(Match.tournament),
+                selectinload(Match.sides).selectinload(MatchSide.players),
+            )
         )
-    )
-    matches = list(s.exec(stmt).all())
+        matches.extend(list(s.exec(stmt).all()))
+
+    if include_friendlies(scope_norm):
+        fstmt = (
+            select(FriendlyMatch)
+            .where(FriendlyMatch.state == "finished")
+            .options(
+                selectinload(FriendlyMatch.sides).selectinload(FriendlyMatchSide.players),
+            )
+        )
+        matches.extend(_friendly_as_match_like(fm) for fm in s.exec(fstmt).all())
 
     left_set = set(left_ids)
     right_set = set(right_ids)
 
-    filtered: list[Match] = []
+    filtered: list[Any] = []
     for m in matches:
         t: Tournament | None = getattr(m, "tournament", None)
         if not t or not _mode_ok(getattr(t, "mode", None), mode_norm):
@@ -187,8 +226,8 @@ def compute_stats_h2h_matches(
         "generated_at": datetime.utcnow().isoformat(),
         "mode": mode_norm,
         "relation": relation_norm,
+        "scope": scope_norm,
         "left_player_ids": left_ids,
         "right_player_ids": right_ids,
         "tournaments": tournaments_out,
     }
-

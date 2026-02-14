@@ -6,8 +6,13 @@ import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
 
 import { listPlayers } from "../../api/players.api";
 import { getStatsStreaks } from "../../api/stats.api";
-import type { StatsStreakCategory, StatsStreakRow } from "../../api/types";
-import { StatsControlLabel, StatsModeSwitch, StatsSegmentedSwitch, type StatsMode } from "./StatsControls";
+import type { StatsScope, StatsStreakCategory, StatsStreakRow } from "../../api/types";
+import {
+  StatsControlLabel,
+  StatsFilterDataControls,
+  StatsSegmentedSwitch,
+  type StatsMode,
+} from "./StatsControls";
 
 type View = "records" | "current";
 
@@ -108,6 +113,7 @@ export default function StreaksCard() {
   useQuery({ queryKey: ["players"], queryFn: listPlayers, refetchOnReconnect: false, refetchOnWindowFocus: false });
 
   const [mode, setMode] = useState<StatsMode>("overall");
+  const [scope, setScope] = useState<StatsScope>("tournaments");
   const [view, setView] = useState<View>("current");
   const [showAllByKey, setShowAllByKey] = useState<Record<string, boolean>>({});
 
@@ -117,18 +123,21 @@ export default function StreaksCard() {
   // Warmup: prefetch all modes so switching doesn't cause a cold-load reflow.
   useEffect(() => {
     const modes: StatsMode[] = ["overall", "1v1", "2v2"];
+    const scopes: StatsScope[] = ["tournaments", "both", "friendlies"];
     for (const m of modes) {
-      void qc.prefetchQuery({
-        queryKey: ["stats", "streaks", m, FETCH_LIMIT],
-        queryFn: () => getStatsStreaks({ mode: m, playerId: null, limit: FETCH_LIMIT }),
-        staleTime: 30_000,
-      });
+      for (const sc of scopes) {
+        void qc.prefetchQuery({
+          queryKey: ["stats", "streaks", m, FETCH_LIMIT, sc],
+          queryFn: () => getStatsStreaks({ mode: m, playerId: null, limit: FETCH_LIMIT, scope: sc }),
+          staleTime: 30_000,
+        });
+      }
     }
   }, [FETCH_LIMIT, qc]);
 
   const q = useQuery({
-    queryKey: ["stats", "streaks", mode, FETCH_LIMIT],
-    queryFn: () => getStatsStreaks({ mode, playerId: null, limit: FETCH_LIMIT }),
+    queryKey: ["stats", "streaks", mode, FETCH_LIMIT, scope],
+    queryFn: () => getStatsStreaks({ mode, playerId: null, limit: FETCH_LIMIT, scope }),
     placeholderData: keepPreviousData,
     staleTime: 30_000,
     refetchOnReconnect: false,
@@ -151,11 +160,8 @@ export default function StreaksCard() {
     >
       <ErrorToastOnError error={q.error} title="Streaks loading failed" />
       <div className="card-inner-flat rounded-2xl space-y-2">
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="flex min-w-0 flex-wrap items-center gap-2">
-            <StatsControlLabel icon="fa-filter" text="Filter" />
-            <StatsModeSwitch value={mode} onChange={setMode} />
-          </div>
+        <div className="flex flex-wrap items-start gap-2">
+          <StatsFilterDataControls mode={mode} onModeChange={setMode} scope={scope} onScopeChange={setScope} />
 
           <div className="flex min-w-0 flex-wrap items-center gap-2">
             <StatsControlLabel icon="fa-eye" text="View" />
@@ -178,7 +184,7 @@ export default function StreaksCard() {
       {q.data ? (
         <div className="grid gap-3 lg:grid-cols-2" style={{ overflowAnchor: "none" }}>
           {(q.data.categories ?? []).map((c) => {
-            const k = `${view}-${mode}-${c.key}`;
+            const k = `${view}-${mode}-${scope}-${c.key}`;
             const showAll = !!showAllByKey[k];
             const total = view === "records" ? c.records_total : c.current_total;
             const list = view === "records" ? c.records : c.current;

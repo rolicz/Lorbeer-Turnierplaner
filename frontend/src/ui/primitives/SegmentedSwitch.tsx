@@ -10,7 +10,7 @@ export default function SegmentedSwitch<T extends Primitive>({
   value,
   onChange,
   options,
-  widthClass = "w-16 sm:w-24",
+  widthClass = "w-14 sm:w-20",
   ariaLabel,
   title,
 }: {
@@ -55,8 +55,8 @@ export default function SegmentedSwitch<T extends Primitive>({
           }
           aria-pressed={value === x.key}
         >
-          {x.icon ? <i className={"fa-solid " + x.icon + " hidden sm:inline"} aria-hidden="true" /> : null}
-          <span>{x.label}</span>
+          {x.icon ? <i className={"fa-solid " + x.icon} aria-hidden="true" /> : null}
+          <span className={x.icon ? "hidden sm:inline" : undefined}>{x.label}</span>
         </button>
       ))}
     </div>

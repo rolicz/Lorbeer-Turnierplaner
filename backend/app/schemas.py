@@ -104,3 +104,13 @@ class MatchPatchBody(BaseModel):
     state: str | None = None
     sideA: MatchSidePatchBody | None = None
     sideB: MatchSidePatchBody | None = None
+
+
+class FriendlyMatchCreateBody(BaseModel):
+    mode: Literal["1v1", "2v2"]
+    teamA_player_ids: list[int] = Field(default_factory=list)
+    teamB_player_ids: list[int] = Field(default_factory=list)
+    clubA_id: int | str | None = None
+    clubB_id: int | str | None = None
+    a_goals: int | str = 0
+    b_goals: int | str = 0

@@ -15,6 +15,12 @@ class MatchSidePlayer(SQLModel, table=True):
     player_id: int = Field(foreign_key="player.id", primary_key=True)
 
 
+class FriendlyMatchSidePlayer(SQLModel, table=True):
+    __mapper_args__ = {"confirm_deleted_rows": False}
+    friendly_match_side_id: int = Field(foreign_key="friendlymatchside.id", primary_key=True)
+    player_id: int = Field(foreign_key="player.id", primary_key=True)
+
+
 class Tournament(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
 
@@ -101,6 +107,21 @@ class Match(SQLModel, table=True):
     sides: List["MatchSide"] = Relationship(back_populates="match")
 
 
+class FriendlyMatch(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+
+    mode: str = Field(index=True)  # "1v1" | "2v2"
+    state: str = Field(default="finished", index=True)  # scheduled/playing/finished
+
+    date: dt.date = Field(default_factory=dt.date.today, index=True)
+    created_at: dt.datetime = Field(default_factory=dt.datetime.utcnow, index=True)
+    updated_at: dt.datetime = Field(default_factory=dt.datetime.utcnow, index=True)
+
+    source: str = Field(default="tools", index=True)
+
+    sides: List["FriendlyMatchSide"] = Relationship(back_populates="friendly_match")
+
+
 class MatchSide(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     match_id: int = Field(foreign_key="match.id", index=True)
@@ -111,6 +132,18 @@ class MatchSide(SQLModel, table=True):
 
     match: "Match" = Relationship(back_populates="sides")
     players: List["Player"] = Relationship(link_model=MatchSidePlayer)
+
+
+class FriendlyMatchSide(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    friendly_match_id: int = Field(foreign_key="friendlymatch.id", index=True)
+
+    side: str = Field(index=True)  # "A" | "B"
+    club_id: Optional[int] = Field(default=None, foreign_key="club.id")
+    goals: int = Field(default=0)
+
+    friendly_match: "FriendlyMatch" = Relationship(back_populates="sides")
+    players: List["Player"] = Relationship(link_model=FriendlyMatchSidePlayer)
 
 
 class Comment(SQLModel, table=True):

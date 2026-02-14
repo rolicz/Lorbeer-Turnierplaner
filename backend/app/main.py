@@ -22,6 +22,7 @@ from .routers.players import router as players_router
 from .routers.cup import router as cup_router
 from .routers.stats import router as stats_router
 from .routers.comments import router as comments_router
+from .routers.friendlies import router as friendlies_router
 
 log = logging.getLogger(__name__)
 
@@ -63,6 +64,7 @@ def create_app(settings: Settings) -> FastAPI:
     app.include_router(cup_router)
     app.include_router(stats_router)
     app.include_router(comments_router)
+    app.include_router(friendlies_router)
 
     def _ws_token_from_request(ws: WebSocket) -> str | None:
         auth = ws.headers.get("authorization")

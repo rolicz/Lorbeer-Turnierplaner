@@ -102,7 +102,6 @@ export default function MatchList({
               { key: "compact", label: "Compact", icon: "fa-compress" },
               { key: "comfort", label: "Details", icon: "fa-list" },
             ]}
-            widthClass="w-20 sm:w-24"
             ariaLabel="Matches view"
             title="Matches view"
           />

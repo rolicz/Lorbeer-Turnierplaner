@@ -5,6 +5,7 @@ export type Role = "reader" | "editor" | "admin";
 export type TournamentMode = "1v1" | "2v2";
 export type TournamentStatus = "draft" | "live" | "done";
 export type MatchState = "scheduled" | "playing" | "finished";
+export type StatsScope = "tournaments" | "both" | "friendlies";
 
 export type DeciderType = "none" | "penalties" | "match" | "scheresteinpapier";
 
@@ -299,6 +300,7 @@ export type StatsH2HOpponentRow = {
 
 export type StatsH2HResponse = {
   generated_at: string;
+  scope?: StatsScope;
   limit: number;
   order?: "rivalry" | "played";
   player: StatsH2HPlayerLite | null;
@@ -327,6 +329,7 @@ export type StatsH2HMatchesResponse = {
   generated_at: string;
   mode: "overall" | "1v1" | "2v2";
   relation: "opposed" | "teammates";
+  scope?: StatsScope;
   left_player_ids: number[];
   right_player_ids: number[];
   tournaments: StatsPlayerMatchesTournament[];
@@ -353,6 +356,7 @@ export type StatsRatingsRow = {
 export type StatsRatingsResponse = {
   generated_at: string;
   mode: "overall" | "1v1" | "2v2";
+  scope?: StatsScope;
   base_rating: number;
   k: number;
   rows: StatsRatingsRow[];
@@ -386,6 +390,7 @@ export type StatsStreakCategory = {
 export type StatsStreaksResponse = {
   generated_at: string;
   mode: "overall" | "1v1" | "2v2";
+  scope?: StatsScope;
   player: StatsStreaksPlayerLite | null;
   categories: StatsStreakCategory[];
 };
@@ -406,6 +411,7 @@ export type StatsPlayerMatchesTournament = {
 
 export type StatsPlayerMatchesResponse = {
   generated_at: string;
+  scope?: StatsScope;
   player: StatsPlayerMatchesPlayerLite | null;
   tournaments: StatsPlayerMatchesTournament[];
 };

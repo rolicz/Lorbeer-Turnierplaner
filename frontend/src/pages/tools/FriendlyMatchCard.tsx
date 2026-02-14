@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import CollapsibleCard from "../../ui/primitives/CollapsibleCard";
 import Input from "../../ui/primitives/Input";
@@ -14,8 +14,10 @@ import SegmentedSwitch from "../../ui/primitives/SegmentedSwitch";
 
 import { listClubs } from "../../api/clubs.api";
 import { listPlayers } from "../../api/players.api";
+import { createFriendlyMatch } from "../../api/friendlies.api";
 import { getStatsOdds, type StatsOddsRequest } from "../../api/stats.api";
 import { usePlayerAvatarMap } from "../../hooks/usePlayerAvatarMap";
+import { useAuth } from "../../auth/AuthContext";
 
 const FRIENDLY_MATCH_STORAGE_KEY = "friendly_match_state_v1";
 
@@ -177,6 +179,9 @@ function AvatarPlayerSelect({
 }
 
 export default function FriendlyMatchCard() {
+  const qc = useQueryClient();
+  const { role, token } = useAuth();
+  const canStore = role === "editor" || role === "admin";
   const [initialState] = useState<FriendlyMatchPersistedState>(() => loadFriendlyState());
 
   const [open, setOpen] = useState(true);
@@ -194,6 +199,7 @@ export default function FriendlyMatchCard() {
 
   const [aGoals, setAGoals] = useState(initialState.aGoals);
   const [bGoals, setBGoals] = useState(initialState.bGoals);
+  const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
 
   const clubsQ = useQuery({
     queryKey: ["clubs", clubGame],
@@ -266,6 +272,28 @@ export default function FriendlyMatchCard() {
     refetchOnWindowFocus: false,
   });
   const odds = oddsQ.data?.odds ?? null;
+  const neededPerTeam = mode === "1v1" ? 1 : 2;
+  const canSave = aTeamIds.length === neededPerTeam && bTeamIds.length === neededPerTeam;
+
+  const saveMut = useMutation({
+    mutationFn: () => {
+      if (!token) throw new Error("Missing token");
+      return createFriendlyMatch(token, {
+        mode,
+        teamA_player_ids: aTeamIds,
+        teamB_player_ids: bTeamIds,
+        clubA_id: aClub,
+        clubB_id: bClub,
+        a_goals: aGoals,
+        b_goals: bGoals,
+      });
+    },
+    onSuccess: () => {
+      setLastSavedAt(new Date().toISOString());
+      void qc.invalidateQueries({ queryKey: ["friendlies"] });
+      void qc.invalidateQueries({ queryKey: ["stats"] });
+    },
+  });
 
   useEffect(() => {
     saveFriendlyState({
@@ -295,7 +323,7 @@ export default function FriendlyMatchCard() {
 
   return (
     <CollapsibleCard
-      title="Friendly match"
+      title="New Friendly"
       defaultOpen={true}
       variant="outer"
       onOpenChange={setOpen}
@@ -305,6 +333,7 @@ export default function FriendlyMatchCard() {
         <ErrorToastOnError error={oddsQ.error} title="Odds loading failed" />
         <ErrorToastOnError error={playersQ.error} title="Players loading failed" />
         <ErrorToastOnError error={clubsQ.error} title="Clubs loading failed" />
+        <ErrorToastOnError error={saveMut.error} title="Could not save friendly match" />
         <div className="flex items-end gap-2">
           <div className="flex-1 min-w-0">
             <Input label="Game" value={clubGame} onChange={(e) => setClubGame(e.target.value)} />
@@ -336,7 +365,25 @@ export default function FriendlyMatchCard() {
             <i className="fa-solid fa-rotate-right md:hidden" aria-hidden="true" />
             <span className="hidden md:inline">Refresh</span>
           </Button>
+
+          <Button
+            variant="solid"
+            onClick={() => saveMut.mutate()}
+            type="button"
+            disabled={!open || !canStore || !token || !canSave || saveMut.isPending}
+            title={canStore && token ? "Save friendly match" : "Login as editor/admin to save"}
+            className="h-10 w-10 p-0 inline-flex items-center justify-center md:w-auto md:px-4 md:py-2"
+          >
+            <i className="fa-solid fa-floppy-disk md:hidden" aria-hidden="true" />
+            <span className="hidden md:inline">{saveMut.isPending ? "Saving…" : "Save"}</span>
+          </Button>
         </div>
+        {lastSavedAt ? (
+          <div className="text-xs text-text-muted">Saved {new Date(lastSavedAt).toLocaleTimeString()}.</div>
+        ) : null}
+        {!canStore ? (
+          <div className="text-xs text-text-muted">Login as editor/admin to store friendlies for stats.</div>
+        ) : null}
 
         {/* Match card (styled like "Current game") */}
         <div className="panel-subtle p-3">

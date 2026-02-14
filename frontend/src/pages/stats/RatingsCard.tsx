@@ -2,10 +2,9 @@ import { useEffect, useMemo, useState } from "react";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import CollapsibleCard from "../../ui/primitives/CollapsibleCard";
-import { MetaRow } from "../../ui/primitives/Meta";
 import { getStatsRatings } from "../../api/stats.api";
-import type { StatsRatingsRow } from "../../api/types";
-import { StatsModeSwitch, type StatsMode } from "./StatsControls";
+import type { StatsRatingsRow, StatsScope } from "../../api/types";
+import { StatsFilterDataControls, type StatsMode } from "./StatsControls";
 
 function fmtRating(x: number) {
   if (!Number.isFinite(x)) return "1000";
@@ -42,23 +41,27 @@ function Row({ i, r }: { i: number; r: StatsRatingsRow }) {
 
 export default function RatingsCard() {
   const [mode, setMode] = useState<StatsMode>("overall");
+  const [scope, setScope] = useState<StatsScope>("tournaments");
   const qc = useQueryClient();
 
   // Warmup: prefetch all modes so switching doesn't cause a "blank -> filled" layout jump on cold load.
   useEffect(() => {
     const modes: StatsMode[] = ["overall", "1v1", "2v2"];
+    const scopes: StatsScope[] = ["tournaments", "both", "friendlies"];
     for (const m of modes) {
-      void qc.prefetchQuery({
-        queryKey: ["stats", "ratings", m],
-        queryFn: () => getStatsRatings({ mode: m }),
-        staleTime: 30_000,
-      });
+      for (const sc of scopes) {
+        void qc.prefetchQuery({
+          queryKey: ["stats", "ratings", m, sc],
+          queryFn: () => getStatsRatings({ mode: m, scope: sc }),
+          staleTime: 30_000,
+        });
+      }
     }
   }, [qc]);
 
   const q = useQuery({
-    queryKey: ["stats", "ratings", mode],
-    queryFn: () => getStatsRatings({ mode }),
+    queryKey: ["stats", "ratings", mode, scope],
+    queryFn: () => getStatsRatings({ mode, scope }),
     placeholderData: keepPreviousData,
     staleTime: 30_000,
     refetchOnReconnect: false,
@@ -81,12 +84,8 @@ export default function RatingsCard() {
       bodyVariant="none"
     >
       <div className="card-inner space-y-3">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <MetaRow>
-            <i className="fa-solid fa-filter" aria-hidden="true" />
-            <span>Mode</span>
-          </MetaRow>
-          <StatsModeSwitch value={mode} onChange={setMode} />
+        <div className="flex flex-wrap items-center gap-2">
+          <StatsFilterDataControls mode={mode} onModeChange={setMode} scope={scope} onScopeChange={setScope} />
         </div>
         <div className="grid gap-2" style={{ overflowAnchor: "none" }}>
           {rows.map((r, i) => (

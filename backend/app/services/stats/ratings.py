@@ -2,15 +2,17 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date, datetime, time
+from types import SimpleNamespace
 from typing import Any
 
 from sqlalchemy.orm import selectinload
 from sqlmodel import Session, select
 
-from ...models import Match, MatchSide, Player, Tournament
+from ...models import FriendlyMatch, FriendlyMatchSide, Match, MatchSide, Player, Tournament
+from .scope import include_friendlies, include_tournaments, normalize_scope
 
 
-def _side_by(m: Match, side: str) -> MatchSide | None:
+def _side_by(m: Any, side: str) -> Any | None:
     for s in m.sides:
         if s.side == side:
             return s
@@ -26,7 +28,7 @@ def _tournament_day(t: Tournament | None) -> datetime:
     return datetime(1970, 1, 1)
 
 
-def _sort_key(m: Match) -> tuple[datetime, int, int, int]:
+def _sort_key(m: Any) -> tuple[datetime, int, int, int]:
     """
     Stable chronological ordering: tournament.date + order_index.
 
@@ -57,24 +59,59 @@ def _expected(ra: float, rb: float) -> float:
     return 1.0 / (1.0 + 10.0 ** ((rb - ra) / 400.0))
 
 
-def compute_stats_ratings(s: Session, *, mode: str) -> dict[str, Any]:
+def _friendly_as_match_like(fm: FriendlyMatch) -> Any:
+    fid = int(fm.id or 0)
+    t = SimpleNamespace(
+        id=1_000_000_000 + fid,
+        mode=fm.mode,
+        date=fm.date,
+    )
+    return SimpleNamespace(
+        id=2_000_000_000 + fid,
+        tournament=t,
+        order_index=0,
+        sides=fm.sides,
+    )
+
+
+def _load_finished_matches(s: Session, *, scope: str) -> list[Any]:
+    scope_norm = normalize_scope(scope)
+    matches: list[Any] = []
+    if include_tournaments(scope_norm):
+        stmt = (
+            select(Match)
+            .where(Match.state == "finished")
+            .options(
+                selectinload(Match.tournament),
+                selectinload(Match.sides).selectinload(MatchSide.players),
+            )
+        )
+        matches.extend(list(s.exec(stmt).all()))
+
+    if include_friendlies(scope_norm):
+        fstmt = (
+            select(FriendlyMatch)
+            .where(FriendlyMatch.state == "finished")
+            .options(
+                selectinload(FriendlyMatch.sides).selectinload(FriendlyMatchSide.players),
+            )
+        )
+        matches.extend(_friendly_as_match_like(fm) for fm in s.exec(fstmt).all())
+
+    matches.sort(key=_sort_key)
+    return matches
+
+
+def compute_stats_ratings(s: Session, *, mode: str, scope: str = "tournaments") -> dict[str, Any]:
     mode_norm = str(mode or "overall").strip().lower()
     if mode_norm not in ("overall", "1v1", "2v2"):
         mode_norm = "overall"
+    scope_norm = normalize_scope(scope)
 
     players = list(s.exec(select(Player)).all())
     players_by_id = {int(p.id): p for p in players if p.id is not None}
 
-    stmt = (
-        select(Match)
-        .where(Match.state == "finished")
-        .options(
-            selectinload(Match.tournament),
-            selectinload(Match.sides).selectinload(MatchSide.players),
-        )
-    )
-    matches = list(s.exec(stmt).all())
-    matches.sort(key=_sort_key)
+    matches = _load_finished_matches(s, scope=scope_norm)
 
     base_rating = 1000.0
     k_base = 24.0
@@ -180,8 +217,8 @@ def compute_stats_ratings(s: Session, *, mode: str) -> dict[str, Any]:
     return {
         "generated_at": datetime.utcnow().isoformat(),
         "mode": mode_norm,
+        "scope": scope_norm,
         "base_rating": base_rating,
         "k": k_base,
         "rows": rows,
     }
-
