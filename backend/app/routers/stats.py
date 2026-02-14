@@ -1,7 +1,7 @@
 # backend/app/routers/stats.py
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import APIRouter, Body, Depends, Query
 from pydantic import BaseModel, Field
@@ -11,6 +11,7 @@ from ..db import get_session
 from ..services.stats.players import compute_stats_players
 from ..services.stats.registry import stats_overview
 from ..services.stats.h2h import compute_stats_h2h
+from ..services.stats.h2h_matches import compute_stats_h2h_matches
 from ..services.stats.streaks import compute_stats_streaks
 from ..services.stats.player_matches import compute_stats_player_matches
 from ..services.stats.odds import compute_single_match_odds
@@ -28,6 +29,14 @@ class StatsOddsRequest(BaseModel):
     state: str = Field("scheduled", description='Match state: "scheduled" or "playing"')
     a_goals: int = Field(0, ge=0, le=99)
     b_goals: int = Field(0, ge=0, le=99)
+
+
+class StatsH2HMatchesRequest(BaseModel):
+    mode: Literal["overall", "1v1", "2v2"] = Field("overall")
+    relation: Literal["opposed", "teammates"] = Field("opposed")
+    left_player_ids: list[int] = Field(default_factory=list, min_length=1, max_length=2)
+    right_player_ids: list[int] = Field(default_factory=list, max_length=2)
+    exact_teams: bool = False
 
 
 @router.get("/overview")
@@ -51,6 +60,21 @@ def stats_h2h(
     s: Session = Depends(get_session),
 ) -> dict[str, Any]:
     return compute_stats_h2h(s, player_id=player_id, limit=limit, order=order)
+
+
+@router.post("/h2h-matches")
+def stats_h2h_matches(
+    req: StatsH2HMatchesRequest = Body(...),
+    s: Session = Depends(get_session),
+) -> dict[str, Any]:
+    return compute_stats_h2h_matches(
+        s,
+        mode=req.mode,
+        relation=req.relation,
+        left_player_ids=req.left_player_ids,
+        right_player_ids=req.right_player_ids,
+        exact_teams=req.exact_teams,
+    )
 
 
 @router.get("/streaks")

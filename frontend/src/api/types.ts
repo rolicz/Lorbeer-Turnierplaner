@@ -323,6 +323,15 @@ export type StatsH2HResponse = {
   favorite_victim_2v2?: StatsH2HOpponentRow | null;
 };
 
+export type StatsH2HMatchesResponse = {
+  generated_at: string;
+  mode: "overall" | "1v1" | "2v2";
+  relation: "opposed" | "teammates";
+  left_player_ids: number[];
+  right_player_ids: number[];
+  tournaments: StatsPlayerMatchesTournament[];
+};
+
 export type StatsRatingsPlayerLite = {
   id: number;
   display_name: string;

@@ -1,11 +1,12 @@
-import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, type CSSProperties, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import CollapsibleCard from "../../ui/primitives/CollapsibleCard";
 import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
 
+import { listClubs } from "../../api/clubs.api";
 import { listPlayers } from "../../api/players.api";
-import { getStatsH2H } from "../../api/stats.api";
+import { getStatsH2H, getStatsH2HMatches, type StatsH2HMatchesRequest } from "../../api/stats.api";
 import type { StatsH2HDuo, StatsH2HOpponentRow, StatsH2HPair, StatsH2HTeamRivalry } from "../../api/types";
 import { usePlayerAvatarMap } from "../../hooks/usePlayerAvatarMap";
 import {
@@ -15,6 +16,7 @@ import {
   StatsSegmentedSwitch,
   type StatsMode,
 } from "./StatsControls";
+import { MatchHistoryList } from "./MatchHistoryList";
 
 function pct(n: number) {
   if (!Number.isFinite(n)) return "0%";
@@ -26,10 +28,43 @@ function fmtInt(n: number) {
   return String(Math.trunc(n));
 }
 
-function PairRow({ r }: { r: StatsH2HPair }) {
+function RowShell({
+  onClick,
+  className,
+  style,
+  children,
+}: {
+  onClick?: (() => void) | null;
+  className: string;
+  style?: CSSProperties;
+  children: ReactNode;
+}) {
+  if (onClick) {
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        className={`${className} w-full appearance-none border-0 text-left transition hover:bg-bg-card-chip/40 active:bg-bg-card-chip/50`}
+        style={style}
+      >
+        {children}
+      </button>
+    );
+  }
+  return (
+    <div className={className} style={style}>
+      {children}
+    </div>
+  );
+}
+
+function PairRow({ r, onOpenMatches }: { r: StatsH2HPair; onOpenMatches?: ((r: StatsH2HPair) => void) | null }) {
   const closePct = pct(r.rivalry_score / Math.max(1, r.played));
   return (
-    <div className="panel-subtle flex items-center justify-between gap-3 rounded-xl px-3 py-2">
+    <RowShell
+      onClick={onOpenMatches ? () => onOpenMatches(r) : null}
+      className="panel-subtle flex items-center justify-between gap-3 rounded-xl px-3 py-2"
+    >
       <div className="min-w-0">
         <div className="truncate text-sm font-semibold text-text-normal">
           {r.a.display_name} <span className="text-text-muted">vs</span> {r.b.display_name}
@@ -51,21 +86,24 @@ function PairRow({ r }: { r: StatsH2HPair }) {
           {fmtInt(r.a_gf)}:{fmtInt(r.a_ga)}
         </div>
       </div>
-    </div>
+    </RowShell>
   );
 }
 
 function OpponentRow({
   r,
   tone,
+  onOpenMatches,
 }: {
   r: StatsH2HOpponentRow;
   tone?: "favorite" | "nemesis" | null;
+  onOpenMatches?: ((r: StatsH2HOpponentRow) => void) | null;
 }) {
   const isFav = tone === "favorite";
   const isNem = tone === "nemesis";
   return (
-    <div
+    <RowShell
+      onClick={onOpenMatches ? () => onOpenMatches(r) : null}
       className={
         "panel-subtle flex items-center justify-between gap-3 rounded-xl px-3 py-2 " +
         (isFav ? "ring-1 ring-[color:rgb(var(--color-status-border-green)/0.6)]" : "") +
@@ -95,11 +133,19 @@ function OpponentRow({
         </div>
         <div className="font-mono tabular-nums text-[11px] text-text-muted">{r.pts_per_match.toFixed(2)} ppm</div>
       </div>
-    </div>
+    </RowShell>
   );
 }
 
-function DuoRow({ r, focusPlayerId }: { r: StatsH2HDuo; focusPlayerId?: number | null }) {
+function DuoRow({
+  r,
+  focusPlayerId,
+  onOpenMatches,
+}: {
+  r: StatsH2HDuo;
+  focusPlayerId?: number | null;
+  onOpenMatches?: ((r: StatsH2HDuo) => void) | null;
+}) {
   const rr = useMemo(() => {
     const pid = focusPlayerId ?? null;
     if (!pid) return r;
@@ -109,7 +155,10 @@ function DuoRow({ r, focusPlayerId }: { r: StatsH2HDuo; focusPlayerId?: number |
   }, [r, focusPlayerId]);
 
   return (
-    <div className="panel-subtle flex items-center justify-between gap-3 rounded-xl px-3 py-2">
+    <RowShell
+      onClick={onOpenMatches ? () => onOpenMatches(rr) : null}
+      className="panel-subtle flex items-center justify-between gap-3 rounded-xl px-3 py-2"
+    >
       <div className="min-w-0">
         <div className="truncate text-sm font-semibold text-text-normal">
           {rr.p1.display_name} <span className="text-text-muted">/</span> {rr.p2.display_name}
@@ -128,7 +177,7 @@ function DuoRow({ r, focusPlayerId }: { r: StatsH2HDuo; focusPlayerId?: number |
           <span className="text-red-300">{fmtInt(rr.losses)}</span>
         </div>
       </div>
-    </div>
+    </RowShell>
   );
 }
 
@@ -155,7 +204,15 @@ function normalizeTeamRivalryForFocus(r: StatsH2HTeamRivalry, focusPlayerId: num
   };
 }
 
-function TeamRivalryRow({ r, focusPlayerId }: { r: StatsH2HTeamRivalry; focusPlayerId?: number | null }) {
+function TeamRivalryRow({
+  r,
+  focusPlayerId,
+  onOpenMatches,
+}: {
+  r: StatsH2HTeamRivalry;
+  focusPlayerId?: number | null;
+  onOpenMatches?: ((r: StatsH2HTeamRivalry) => void) | null;
+}) {
   const rr = useMemo(() => normalizeTeamRivalryForFocus(r, focusPlayerId ?? null), [r, focusPlayerId]);
   const team1 = useMemo(() => {
     const pid = focusPlayerId ?? null;
@@ -170,7 +227,10 @@ function TeamRivalryRow({ r, focusPlayerId }: { r: StatsH2HTeamRivalry; focusPla
   const t2 = rr.team2.map((p) => p.display_name).join("/");
   const closePct = pct(rr.rivalry_score / Math.max(1, rr.played));
   return (
-    <div className="panel-subtle rounded-xl px-3 py-2">
+    <RowShell
+      onClick={onOpenMatches ? () => onOpenMatches(rr) : null}
+      className="panel-subtle rounded-xl px-3 py-2"
+    >
       <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
         <div className="min-w-0">
           <div className="truncate text-sm font-semibold text-text-normal">{t1}</div>
@@ -195,12 +255,19 @@ function TeamRivalryRow({ r, focusPlayerId }: { r: StatsH2HTeamRivalry; focusPla
           {fmtInt(rr.team1_gf)}:{fmtInt(rr.team1_ga)}
         </span>
       </div>
-    </div>
+    </RowShell>
   );
 }
 
 type RivalryOrder = "rivalry" | "played";
 type View = "lists" | "matrix";
+type DetailView = "compact" | "details";
+
+type MatchupHistoryModalState = {
+  title: string;
+  req: StatsH2HMatchesRequest;
+  focusPlayerId: number | null;
+};
 
 export default function HeadToHeadCard() {
   const qc = useQueryClient();
@@ -216,6 +283,8 @@ export default function HeadToHeadCard() {
   const [mode, setMode] = useState<StatsMode>("overall");
   const [order, setOrder] = useState<RivalryOrder>("played");
   const [view, setView] = useState<View>("lists");
+  const [detailView, setDetailView] = useState<DetailView>("compact");
+  const [historyModal, setHistoryModal] = useState<MatchupHistoryModalState | null>(null);
 
   // Warmup: prefetch H2H for all players so avatar clicks don't trigger a first-time loading/layout shift.
   useEffect(() => {
@@ -244,6 +313,31 @@ export default function HeadToHeadCard() {
     staleTime: 0,
     // Avoid surprise reflows while the user is interacting (mobile scroll anchoring can look like "jumps").
     // WS invalidation still refreshes stats when tournaments change.
+    refetchOnReconnect: false,
+    refetchOnWindowFocus: false,
+  });
+
+  const clubsQ = useQuery({
+    queryKey: ["clubs"],
+    queryFn: () => listClubs(),
+    enabled: !!historyModal,
+    staleTime: 5 * 60_000,
+  });
+
+  const historyQ = useQuery({
+    queryKey: [
+      "stats",
+      "h2hMatches",
+      historyModal?.req.mode ?? "overall",
+      historyModal?.req.relation ?? "opposed",
+      (historyModal?.req.left_player_ids ?? []).join("-"),
+      (historyModal?.req.right_player_ids ?? []).join("-"),
+      historyModal?.req.exact_teams ? "exact" : "subset",
+    ],
+    queryFn: () => getStatsH2HMatches(historyModal!.req),
+    enabled: !!historyModal,
+    placeholderData: keepPreviousData,
+    staleTime: 0,
     refetchOnReconnect: false,
     refetchOnWindowFocus: false,
   });
@@ -282,6 +376,49 @@ export default function HeadToHeadCard() {
 
   const favoriteOpponentId = victim?.opponent?.id ?? null;
   const nemesisOpponentId = nemesis?.opponent?.id ?? null;
+  const clubs = clubsQ.data ?? [];
+
+  const openOpposedModal = (args: {
+    title: string;
+    leftPlayerIds: number[];
+    rightPlayerIds: number[];
+    exactTeams?: boolean;
+    focusPlayerId?: number | null;
+  }) => {
+    setHistoryModal({
+      title: args.title,
+      req: {
+        mode,
+        relation: "opposed",
+        left_player_ids: args.leftPlayerIds,
+        right_player_ids: args.rightPlayerIds,
+        exact_teams: !!args.exactTeams,
+      },
+      focusPlayerId: args.focusPlayerId ?? selected?.id ?? null,
+    });
+  };
+
+  const openTeammatesModal = (args: { title: string; leftPlayerIds: number[]; focusPlayerId?: number | null }) => {
+    setHistoryModal({
+      title: args.title,
+      req: {
+        mode,
+        relation: "teammates",
+        left_player_ids: args.leftPlayerIds,
+        right_player_ids: [],
+      },
+      focusPlayerId: args.focusPlayerId ?? selected?.id ?? null,
+    });
+  };
+
+  useEffect(() => {
+    if (!historyModal) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setHistoryModal(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [historyModal]);
 
   return (
     <CollapsibleCard
@@ -299,6 +436,8 @@ export default function HeadToHeadCard() {
       bodyClassName="space-y-3"
     >
       <ErrorToastOnError error={h2hQ.error} title="H2H loading failed" />
+      <ErrorToastOnError error={historyQ.error} title="Match history loading failed" />
+      <ErrorToastOnError error={clubsQ.error} title="Club data loading failed" />
       <div className="card-inner-flat rounded-2xl space-y-2">
         <div className="flex flex-wrap items-center gap-2">
           <div className="flex min-w-0 flex-wrap items-center gap-2">
@@ -489,19 +628,20 @@ export default function HeadToHeadCard() {
                                   </div>
                                 );
                               }
-                                const rowIsA = r.a.id === rowP.id;
-                                const w = rowIsA ? r.a_wins : r.b_wins;
-                                const l = rowIsA ? r.b_wins : r.a_wins;
-                                const d = r.draws;
-                                const t = Math.max(0, Math.min(1, metric(r) / maxMetric));
-                                const alpha = 0.03 + 0.14 * t; // subtle highlight, scaled to current mode/order
-                                return (
-                                  <div
-                                    key={`c-${rowP.id}-${colP.id}`}
-                                    className={
-                                      "flex h-9 items-center justify-center rounded-md px-1 text-center overflow-hidden " +
-                                      cellBaseCls
-                                    }
+                              const rowIsA = r.a.id === rowP.id;
+                              const w = rowIsA ? r.a_wins : r.b_wins;
+                              const l = rowIsA ? r.b_wins : r.a_wins;
+                              const d = r.draws;
+                              const t = Math.max(0, Math.min(1, metric(r) / maxMetric));
+                              const alpha = 0.03 + 0.14 * t; // subtle highlight, scaled to current mode/order
+                              return (
+                                <button
+                                  key={`c-${rowP.id}-${colP.id}`}
+                                  type="button"
+                                  className={
+                                    "flex h-9 w-full items-center justify-center appearance-none border-0 rounded-md px-1 text-center overflow-hidden transition hover:bg-bg-card-chip/40 active:bg-bg-card-chip/50 " +
+                                    cellBaseCls
+                                  }
                                   style={{
                                     backgroundImage: rowIsFocus
                                       ? `linear-gradient(0deg, rgb(var(--color-accent) / ${alpha}), rgb(var(--color-accent) / ${alpha})), linear-gradient(0deg, rgb(var(--color-accent) / 0.06), rgb(var(--color-accent) / 0.06))`
@@ -509,14 +649,22 @@ export default function HeadToHeadCard() {
                                     boxShadow: cellBoxShadow,
                                   }}
                                   title={`${rowP.display_name} vs ${colP.display_name} · ${r.played} games`}
+                                  onClick={() =>
+                                    openOpposedModal({
+                                      title: `${rowP.display_name} vs ${colP.display_name}`,
+                                      leftPlayerIds: [rowP.id],
+                                      rightPlayerIds: [colP.id],
+                                      focusPlayerId: rowP.id,
+                                    })
+                                  }
                                 >
-                                    <div className="mx-auto inline-flex flex-col items-center justify-center font-mono text-[10px] leading-[10px] tabular-nums">
-                                      <span className="text-status-text-green">{fmtInt(w)}</span>
-                                      <span className="text-amber-300">{fmtInt(d)}</span>
-                                      <span className="text-[color:rgb(var(--delta-down)/1)]">{fmtInt(l)}</span>
-                                    </div>
+                                  <div className="inline-flex flex-col items-center justify-center font-mono text-[10px] leading-[10px] tabular-nums">
+                                    <span className="text-status-text-green">{fmtInt(w)}</span>
+                                    <span className="text-amber-300">{fmtInt(d)}</span>
+                                    <span className="text-[color:rgb(var(--delta-down)/1)]">{fmtInt(l)}</span>
                                   </div>
-                                );
+                                </button>
+                              );
                               })}
                             </Fragment>
                           ))}
@@ -584,11 +732,29 @@ export default function HeadToHeadCard() {
                                   <TeamRivalryRow
                                     key={`t2-${r.team1.map((p) => p.id).join("-")}-${r.team2.map((p) => p.id).join("-")}`}
                                     r={r}
+                                    onOpenMatches={(rr) =>
+                                      openOpposedModal({
+                                        title: `${rr.team1.map((p) => p.display_name).join("/")} vs ${rr.team2.map((p) => p.display_name).join("/")}`,
+                                        leftPlayerIds: rr.team1.map((p) => p.id),
+                                        rightPlayerIds: rr.team2.map((p) => p.id),
+                                        exactTeams: true,
+                                      })
+                                    }
                                   />
                                 ))
                               ) : (
                                 (visible as StatsH2HPair[]).map((r) => (
-                                  <PairRow key={`${mode}-${r.a.id}-${r.b.id}`} r={r} />
+                                  <PairRow
+                                    key={`${mode}-${r.a.id}-${r.b.id}`}
+                                    r={r}
+                                    onOpenMatches={(rr) =>
+                                      openOpposedModal({
+                                        title: `${rr.a.display_name} vs ${rr.b.display_name}`,
+                                        leftPlayerIds: [rr.a.id],
+                                        rightPlayerIds: [rr.b.id],
+                                      })
+                                    }
+                                  />
                                 ))
                               )
                             ) : (
@@ -626,7 +792,18 @@ export default function HeadToHeadCard() {
                           </div>
                           <div className="space-y-2">
                             {visible.length ? (
-                              visible.map((r) => <DuoRow key={`duo-${r.p1.id}-${r.p2.id}`} r={r} />)
+                              visible.map((r) => (
+                                <DuoRow
+                                  key={`duo-${r.p1.id}-${r.p2.id}`}
+                                  r={r}
+                                  onOpenMatches={(rr) =>
+                                    openTeammatesModal({
+                                      title: `${rr.p1.display_name} / ${rr.p2.display_name}`,
+                                      leftPlayerIds: [rr.p1.id, rr.p2.id],
+                                    })
+                                  }
+                                />
+                              ))
                             ) : (
                               <div className="text-sm text-text-muted">No data yet.</div>
                             )}
@@ -694,6 +871,14 @@ export default function HeadToHeadCard() {
                                       ? "nemesis"
                                       : null
                                 }
+                                onOpenMatches={() =>
+                                  openOpposedModal({
+                                    title: `${selected.display_name} vs ${r.opponent.display_name}`,
+                                    leftPlayerIds: [selected.id],
+                                    rightPlayerIds: [r.opponent.id],
+                                    focusPlayerId: selected.id,
+                                  })
+                                }
                               />
                             ))}
                           </>
@@ -744,7 +929,18 @@ export default function HeadToHeadCard() {
                                 </div>
                               ) : null}
                               {visible.map((r) => (
-                                <DuoRow key={`with-${r.p1.id}-${r.p2.id}`} r={r} focusPlayerId={selected.id} />
+                                <DuoRow
+                                  key={`with-${r.p1.id}-${r.p2.id}`}
+                                  r={r}
+                                  focusPlayerId={selected.id}
+                                  onOpenMatches={(rr) =>
+                                    openTeammatesModal({
+                                      title: `${rr.p1.display_name} / ${rr.p2.display_name}`,
+                                      leftPlayerIds: [rr.p1.id, rr.p2.id],
+                                      focusPlayerId: selected.id,
+                                    })
+                                  }
+                                />
                               ))}
                             </>
                           ) : (
@@ -802,6 +998,15 @@ export default function HeadToHeadCard() {
                                   key={`tm-${r.team1.map((p) => p.id).join("-")}-${r.team2.map((p) => p.id).join("-")}`}
                                   r={r}
                                   focusPlayerId={selected.id}
+                                  onOpenMatches={(rr) =>
+                                    openOpposedModal({
+                                      title: `${rr.team1.map((p) => p.display_name).join("/")} vs ${rr.team2.map((p) => p.display_name).join("/")}`,
+                                      leftPlayerIds: rr.team1.map((p) => p.id),
+                                      rightPlayerIds: rr.team2.map((p) => p.id),
+                                      exactTeams: true,
+                                      focusPlayerId: selected.id,
+                                    })
+                                  }
                                 />
                               ))
                             ) : (
@@ -828,6 +1033,67 @@ export default function HeadToHeadCard() {
 
           </div>
         ) : null}
+
+      {historyModal ? (
+        <div className="fixed inset-0 z-50">
+          <div className="absolute inset-0 bg-black/65" onClick={() => setHistoryModal(null)} />
+          <div className="absolute inset-x-0 bottom-0 sm:inset-0 sm:flex sm:items-center sm:justify-center p-3 sm:p-6">
+            <div className="card-outer w-full max-w-4xl p-3 sm:p-4 max-h-[88vh] overflow-hidden">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="truncate text-sm font-semibold text-text-normal">{historyModal.title}</div>
+                  <div className="text-[11px] text-text-muted">Match history</div>
+                </div>
+                <button
+                  type="button"
+                  className="icon-button h-10 w-10 p-0 inline-flex items-center justify-center"
+                  onClick={() => setHistoryModal(null)}
+                  aria-label="Close"
+                  title="Close"
+                >
+                  <i className="fa-solid fa-xmark" aria-hidden="true" />
+                </button>
+              </div>
+
+              <div className="mt-3 card-inner-flat rounded-2xl p-2.5">
+                <div className="flex flex-wrap items-center gap-2">
+                  <StatsControlLabel icon="fa-sliders" text="View" />
+                  <StatsSegmentedSwitch<DetailView>
+                    value={detailView}
+                    onChange={setDetailView}
+                    options={[
+                      { key: "compact", label: "Compact", icon: "fa-compress" },
+                      { key: "details", label: "Details", icon: "fa-list" },
+                    ]}
+                    widthClass="w-20 sm:w-28"
+                    ariaLabel="History details"
+                    title="Toggle details (clubs / leagues / stars)"
+                  />
+                </div>
+              </div>
+
+              <div className="mt-3 max-h-[calc(88vh-10rem)] overflow-y-auto pr-1">
+                {historyQ.isLoading ? (
+                  <div className="card-inner-flat rounded-2xl text-sm text-text-muted">Loading…</div>
+                ) : null}
+
+                {!historyQ.isLoading && !(historyQ.data?.tournaments?.length ?? 0) ? (
+                  <div className="card-inner-flat rounded-2xl text-sm text-text-muted">No matches found for this matchup.</div>
+                ) : null}
+
+                {historyQ.data?.tournaments?.length ? (
+                  <MatchHistoryList
+                    tournaments={historyQ.data.tournaments}
+                    focusId={historyModal.focusPlayerId}
+                    clubs={clubs}
+                    showMeta={detailView === "details"}
+                  />
+                ) : null}
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </CollapsibleCard>
   );
 }

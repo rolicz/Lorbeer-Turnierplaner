@@ -1,6 +1,7 @@
 import { apiFetch } from "./client";
 import {
   MatchOdds,
+  StatsH2HMatchesResponse,
   StatsH2HResponse,
   StatsPlayerMatchesResponse,
   StatsPlayersResponse,
@@ -27,6 +28,27 @@ export function getStatsH2H(opts?: {
     if (opts?.order != null) qs.set("order", String(opts.order));
     const suffix = qs.toString() ? `?${qs.toString()}` : "";
     return apiFetch(`/stats/h2h${suffix}`, { method: "GET" });
+}
+
+export type StatsH2HMatchesRequest = {
+  mode: "overall" | "1v1" | "2v2";
+  relation: "opposed" | "teammates";
+  left_player_ids: number[];
+  right_player_ids?: number[];
+  exact_teams?: boolean;
+};
+
+export function getStatsH2HMatches(req: StatsH2HMatchesRequest): Promise<StatsH2HMatchesResponse> {
+  return apiFetch(`/stats/h2h-matches`, {
+    method: "POST",
+    body: JSON.stringify({
+      mode: req.mode,
+      relation: req.relation,
+      left_player_ids: req.left_player_ids,
+      right_player_ids: req.right_player_ids ?? [],
+      exact_teams: !!req.exact_teams,
+    }),
+  });
 }
 
 export function getStatsStreaks(opts?: {

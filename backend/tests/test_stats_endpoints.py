@@ -131,6 +131,42 @@ def test_stats_odds_endpoint_basic(client, admin_headers, editor_headers):
     assert float(odds.get("away")) >= 1.01
 
 
+def test_stats_h2h_matches_endpoint_basic(client, admin_headers, editor_headers):
+    ids = [create_player(client, admin_headers, n) for n in ["HM1", "HM2", "HM3"]]
+    tid = create_tournament(client, editor_headers, "h2h-matches", "1v1", ids)
+    generate(client, editor_headers, tid, randomize=False)
+
+    t = client.get(f"/tournaments/{tid}")
+    assert t.status_code == 200, t.text
+    first = t.json()["matches"][0]
+    mid = first["id"]
+    left = int(first["sides"][0]["players"][0]["id"])
+    right = int(first["sides"][1]["players"][0]["id"])
+
+    rp = client.patch(f"/matches/{mid}", json={"state": "playing"}, headers=editor_headers)
+    assert rp.status_code == 200, rp.text
+    rf = client.patch(f"/matches/{mid}", json={"state": "finished"}, headers=editor_headers)
+    assert rf.status_code == 200, rf.text
+
+    r = client.post(
+        "/stats/h2h-matches",
+        json={
+            "mode": "1v1",
+            "relation": "opposed",
+            "left_player_ids": [left],
+            "right_player_ids": [right],
+        },
+    )
+    assert r.status_code == 200, r.text
+    data = r.json()
+    assert "tournaments" in data
+    tournaments = data["tournaments"]
+    assert isinstance(tournaments, list)
+    assert tournaments
+    assert int(tournaments[0]["id"]) == tid
+    assert tournaments[0]["matches"]
+
+
 def test_tournament_stats_are_scoped_to_tournament(client, editor_headers, admin_headers):
     # Tournament A players
     a1 = create_player(client, admin_headers, "TA1")
