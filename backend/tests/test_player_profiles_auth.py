@@ -109,3 +109,33 @@ def test_profile_guestbook_create_list_delete(client, editor_headers, admin_head
     row2 = r_create2.json()
     r_del_author = client.delete(f"/players/guestbook/{row2['id']}", headers=editor_headers)
     assert r_del_author.status_code == 204, r_del_author.text
+
+
+def test_profile_guestbook_summary(client, editor_headers, admin_headers):
+    target_id = client.post("/players", json={"display_name": "GuestbookSummaryTarget"}, headers=admin_headers).json()["id"]
+
+    r_create1 = client.post(
+        f"/players/{target_id}/guestbook",
+        json={"body": "first"},
+        headers=editor_headers,
+    )
+    assert r_create1.status_code == 200, r_create1.text
+    row1 = r_create1.json()
+
+    r_create2 = client.post(
+        f"/players/{target_id}/guestbook",
+        json={"body": "second"},
+        headers=admin_headers,
+    )
+    assert r_create2.status_code == 200, r_create2.text
+    row2 = r_create2.json()
+
+    r_sum = client.get("/players/guestbook-summary")
+    assert r_sum.status_code == 200, r_sum.text
+    rows = r_sum.json() or []
+    row = next((x for x in rows if int(x.get("profile_player_id", 0)) == int(target_id)), None)
+    assert row is not None
+    assert int(row["total_entries"]) == 2
+    ids = [int(x) for x in (row.get("entry_ids") or [])]
+    assert int(row1["id"]) in ids
+    assert int(row2["id"]) in ids

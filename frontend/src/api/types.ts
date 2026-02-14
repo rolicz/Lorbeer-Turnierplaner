@@ -33,6 +33,14 @@ export type PlayerGuestbookEntry = {
   updated_at: string;
 };
 
+export type PlayerGuestbookSummary = {
+  profile_player_id: number;
+  total_entries: number;
+  latest_entry_id: number;
+  latest_created_at: string | null;
+  entry_ids: number[];
+};
+
 export type League = {
   id: number;
   name: string;

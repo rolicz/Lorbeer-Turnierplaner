@@ -15,6 +15,7 @@ from ..services.file_storage import (
     read_media,
     write_media,
 )
+from ..services.guestbook_summary import player_guestbook_summary
 
 log = logging.getLogger(__name__)
 router = APIRouter(prefix="/players", tags=["players"])
@@ -173,6 +174,11 @@ def list_player_profiles(s: Session = Depends(get_session)):
         }
         for row in rows
     ]
+
+
+@router.get("/guestbook-summary")
+def list_player_guestbook_summary(s: Session = Depends(get_session)) -> list[dict]:
+    return player_guestbook_summary(s)
 
 
 @router.get("/{player_id}/profile")

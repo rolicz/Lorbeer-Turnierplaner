@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Link, useParams, useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import Card from "../ui/primitives/Card";
@@ -9,6 +9,7 @@ import AvatarCircle from "../ui/primitives/AvatarCircle";
 import { ErrorToastOnError } from "../ui/primitives/ErrorToast";
 import CommentImageCropper from "../ui/primitives/CommentImageCropper";
 import ImageLightbox from "../ui/primitives/ImageLightbox";
+import { Pill } from "../ui/primitives/Pill";
 
 import { useAuth } from "../auth/AuthContext";
 import {
@@ -31,6 +32,8 @@ import { MatchHistoryList } from "./stats/MatchHistoryList";
 import PlayerAvatarEditor from "./players/PlayerAvatarEditor";
 import { usePlayerAvatarMap } from "../hooks/usePlayerAvatarMap";
 import { usePlayerHeaderMap } from "../hooks/usePlayerHeaderMap";
+import { useSeenGuestbookSet } from "../hooks/useSeenGuestbook";
+import { markGuestbookEntrySeen } from "../seenGuestbook";
 
 function fmtDateTime(iso?: string | null) {
   if (!iso) return "";
@@ -72,6 +75,7 @@ function streakIconForKey(key: string) {
 
 export default function ProfilePage() {
   const { id } = useParams<{ id: string }>();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { token, role, playerId: currentPlayerId, playerName: currentPlayerName } = useAuth();
   const qc = useQueryClient();
 
@@ -152,6 +156,7 @@ export default function ProfilePage() {
   const [headerEditorOpen, setHeaderEditorOpen] = useState(false);
   const [headerLightboxSrc, setHeaderLightboxSrc] = useState<string | null>(null);
   const [showAllMatchTournaments, setShowAllMatchTournaments] = useState(false);
+  const unreadJumpHandledRef = useRef<number | null>(null);
 
   const bioDraft =
     targetPlayerId != null ? (bioDraftByPlayerId[targetPlayerId] ?? (profileQ.data?.bio ?? "")) : "";
@@ -166,6 +171,7 @@ export default function ProfilePage() {
   const isOwnProfile = !!currentPlayerId && !!targetPlayerId && currentPlayerId === targetPlayerId;
   const canEdit = !!token && role !== "reader" && isOwnProfile;
   const canPostGuestbook = !!token && role !== "reader";
+  const seenGuestbook = useSeenGuestbookSet(targetPlayerId ?? 0);
   const avatarUpdatedAt = targetPlayerId ? avatarUpdatedAtByPlayerId.get(targetPlayerId) ?? null : null;
   const headerUpdatedAt = targetPlayerId
     ? headerUpdatedAtByPlayerId.get(targetPlayerId) ?? profileQ.data?.header_image_updated_at ?? null
@@ -209,6 +215,57 @@ export default function ProfilePage() {
 
   const allMatchTournaments = statsMatchesQ.data?.tournaments ?? [];
   const visibleMatchTournaments = showAllMatchTournaments ? allMatchTournaments : allMatchTournaments.slice(0, 2);
+  const unreadGuestbookCount = useMemo(() => {
+    let n = 0;
+    for (const row of guestbookQ.data ?? []) {
+      if (!seenGuestbook.has(row.id)) n++;
+    }
+    return n;
+  }, [guestbookQ.data, seenGuestbook]);
+  const unreadGuestbookIds = useMemo(
+    () => (guestbookQ.data ?? []).filter((row) => !seenGuestbook.has(row.id)).map((row) => row.id),
+    [guestbookQ.data, seenGuestbook]
+  );
+  const latestUnreadGuestbookId = useMemo(() => {
+    let bestId: number | null = null;
+    let bestTs = -1;
+    for (const row of guestbookQ.data ?? []) {
+      if (seenGuestbook.has(row.id)) continue;
+      const ts = Date.parse(row.created_at);
+      const tsSafe = Number.isFinite(ts) ? ts : 0;
+      if (bestId == null || tsSafe > bestTs || (tsSafe === bestTs && row.id > bestId)) {
+        bestId = row.id;
+        bestTs = tsSafe;
+      }
+    }
+    return bestId;
+  }, [guestbookQ.data, seenGuestbook]);
+
+  const focusGuestbookEntry = (entryId: number) => {
+    let tries = 0;
+    const maxTries = 80;
+    const run = () => {
+      const el = document.getElementById(`guestbook-entry-${entryId}`);
+      if (!el) {
+        if (tries >= maxTries) return;
+        tries += 1;
+        window.setTimeout(run, 120);
+        return;
+      }
+      window.requestAnimationFrame(() => {
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+      });
+      window.setTimeout(() => {
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+      }, 320);
+      el.classList.remove("comment-attn");
+      // force reflow so the animation restarts when re-focused quickly
+      void el.offsetHeight;
+      el.classList.add("comment-attn");
+      window.setTimeout(() => el.classList.remove("comment-attn"), 1700);
+    };
+    run();
+  };
 
   const saveProfileMut = useMutation({
     mutationFn: async () => {
@@ -282,6 +339,7 @@ export default function ProfilePage() {
     onSuccess: async () => {
       if (targetPlayerId) setGuestbookDraftByPlayerId((prev) => ({ ...prev, [targetPlayerId]: "" }));
       await qc.invalidateQueries({ queryKey: ["players", "guestbook", targetPlayerId ?? "none"] });
+      await qc.invalidateQueries({ queryKey: ["players", "guestbook", "summary"] });
     },
   });
 
@@ -292,8 +350,26 @@ export default function ProfilePage() {
     },
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: ["players", "guestbook", targetPlayerId ?? "none"] });
+      await qc.invalidateQueries({ queryKey: ["players", "guestbook", "summary"] });
     },
   });
+
+  useEffect(() => {
+    const jumpUnread = searchParams.get("unread") === "1";
+    if (!jumpUnread) {
+      unreadJumpHandledRef.current = null;
+      return;
+    }
+    if (!latestUnreadGuestbookId) return;
+    if (unreadJumpHandledRef.current === latestUnreadGuestbookId) return;
+    unreadJumpHandledRef.current = latestUnreadGuestbookId;
+    focusGuestbookEntry(latestUnreadGuestbookId);
+    window.setTimeout(() => {
+      const next = new URLSearchParams(searchParams);
+      next.delete("unread");
+      setSearchParams(next, { replace: true });
+    }, 420);
+  }, [latestUnreadGuestbookId, searchParams, setSearchParams]);
 
   if (!targetPlayerId) {
     return (
@@ -586,6 +662,39 @@ export default function ProfilePage() {
             Guestbook
           </span>
         }
+        right={
+          unreadGuestbookCount > 0 ? (
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                title="Jump to latest unread guestbook message"
+                onClick={() => {
+                  if (!latestUnreadGuestbookId) return;
+                  focusGuestbookEntry(latestUnreadGuestbookId);
+                }}
+              >
+                <Pill title="Unread guestbook messages">
+                  <i className="fa-solid fa-envelope text-accent" aria-hidden="true" />
+                  <span className="tabular-nums text-text-normal">{unreadGuestbookCount}</span>
+                </Pill>
+              </button>
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => {
+                  if (!targetPlayerId || unreadGuestbookIds.length === 0) return;
+                  const ok = window.confirm(`Mark ${unreadGuestbookIds.length} unread guestbook message(s) as read?`);
+                  if (!ok) return;
+                  for (const entryId of unreadGuestbookIds) markGuestbookEntrySeen(targetPlayerId, entryId);
+                }}
+                title="Mark all unread guestbook messages as read"
+              >
+                <i className="fa-solid fa-envelope-open md:hidden" aria-hidden="true" />
+                <span className="hidden md:inline">Read all</span>
+              </Button>
+            </div>
+          ) : null
+        }
         variant="outer"
         bodyClassName="space-y-3"
       >
@@ -632,8 +741,17 @@ export default function ProfilePage() {
             const canDeleteEntry =
               !!token &&
               (role === "admin" || isOwnProfile || currentPlayerId === entry.author_player_id);
+            const isUnseen = !seenGuestbook.has(entry.id);
             return (
-              <div key={entry.id} className="panel-subtle p-3">
+              <div
+                key={entry.id}
+                id={`guestbook-entry-${entry.id}`}
+                className="panel-subtle p-3 scroll-mt-28 sm:scroll-mt-32"
+                onClick={() => {
+                  if (!targetPlayerId || !isUnseen) return;
+                  markGuestbookEntrySeen(targetPlayerId, entry.id);
+                }}
+              >
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0 flex items-center gap-2">
                     <AvatarCircle
@@ -651,21 +769,41 @@ export default function ProfilePage() {
                       </div>
                     </div>
                   </div>
-                  {canDeleteEntry ? (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      onClick={() => {
-                        const ok = window.confirm("Delete this message?");
-                        if (!ok) return;
-                        void deleteGuestbookMut.mutateAsync(entry.id);
-                      }}
-                      title="Delete message"
-                      className="h-8 w-8 p-0 inline-flex items-center justify-center"
-                    >
-                      <i className="fa-solid fa-trash" aria-hidden="true" />
-                    </Button>
-                  ) : null}
+                  <div className="shrink-0 flex items-center gap-2">
+                    {isUnseen ? (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          if (!targetPlayerId) return;
+                          markGuestbookEntrySeen(targetPlayerId, entry.id);
+                        }}
+                        title="Mark as read"
+                        className="h-8 w-8 p-0 inline-flex items-center justify-center"
+                      >
+                        <i className="fa-solid fa-envelope text-accent motion-safe:animate-pulse" aria-hidden="true" />
+                      </Button>
+                    ) : null}
+                    {canDeleteEntry ? (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          const ok = window.confirm("Delete this message?");
+                          if (!ok) return;
+                          void deleteGuestbookMut.mutateAsync(entry.id);
+                        }}
+                        title="Delete message"
+                        className="h-8 w-8 p-0 inline-flex items-center justify-center"
+                      >
+                        <i className="fa-solid fa-trash" aria-hidden="true" />
+                      </Button>
+                    ) : null}
+                  </div>
                 </div>
                 <div className="mt-2 text-sm whitespace-pre-wrap">{entry.body}</div>
               </div>

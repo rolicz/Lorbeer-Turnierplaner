@@ -1,5 +1,5 @@
 import { apiFetch } from "./client";
-import type { Player, PlayerGuestbookEntry, PlayerProfile } from "./types";
+import type { Player, PlayerGuestbookEntry, PlayerGuestbookSummary, PlayerProfile } from "./types";
 
 export function listPlayers(): Promise<Player[]> {
   return apiFetch("/players", { method: "GET" });
@@ -35,6 +35,10 @@ export function patchPlayerProfile(token: string, playerId: number, body: { bio?
 
 export function listPlayerGuestbook(playerId: number): Promise<PlayerGuestbookEntry[]> {
   return apiFetch(`/players/${playerId}/guestbook`, { method: "GET" });
+}
+
+export function listPlayerGuestbookSummary(): Promise<PlayerGuestbookSummary[]> {
+  return apiFetch("/players/guestbook-summary", { method: "GET" });
 }
 
 export function createPlayerGuestbookEntry(

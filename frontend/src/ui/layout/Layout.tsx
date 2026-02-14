@@ -8,6 +8,7 @@ import { ErrorToastViewport } from "../primitives/ErrorToast";
 import { useAnyTournamentWS } from "../../hooks/useTournamentWS";
 import { THEMES } from "../../themes";
 import { listTournamentCommentsSummary } from "../../api/comments.api";
+import { listPlayerGuestbookSummary } from "../../api/players.api";
 
 type Role = "reader" | "editor" | "admin";
 type ThemeName = string;
@@ -38,6 +39,13 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       staleTime: 15_000,
     }).catch(() => {
       // ignore (older backend may not have this endpoint)
+    });
+    qc.prefetchQuery({
+      queryKey: ["players", "guestbook", "summary"],
+      queryFn: listPlayerGuestbookSummary,
+      staleTime: 15_000,
+    }).catch(() => {
+      // ignore
     });
   }, [qc]);
 
@@ -94,7 +102,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     if (to === "/tournaments") return pathname === "/tournaments" || pathname.startsWith("/tournaments/") || pathname.startsWith("/live/");
     return pathname === to || pathname.startsWith(`${to}/`);
   };
-
   return (
     <div className="min-h-screen">
       {/* Fixed top bar, respecting mobile safe-area insets */}
