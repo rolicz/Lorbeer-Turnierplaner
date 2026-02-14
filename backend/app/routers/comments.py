@@ -10,7 +10,6 @@ from ..auth import require_admin, require_editor
 from ..db import get_session
 from ..models import (
     Comment,
-    CommentImage,
     CommentImageFile,
     Match,
     Player,
@@ -69,8 +68,7 @@ def _comment_image_updated_at(s: Session, comment_id: int) -> datetime | None:
     fs_row = s.get(CommentImageFile, comment_id)
     if fs_row and media_exists(fs_row.file_path):
         return fs_row.updated_at
-    blob_row = s.get(CommentImage, comment_id)
-    return blob_row.updated_at if blob_row is not None else None
+    return None
 
 
 def _tournament_or_404(s: Session, tournament_id: int) -> Tournament:
@@ -93,19 +91,10 @@ def _comment_image_meta_map(s: Session, tournament_id: int) -> dict[int, datetim
         .join(Comment, Comment.id == CommentImageFile.comment_id)
         .where(Comment.tournament_id == tournament_id)
     ).all()
-    rows_blob = s.exec(
-        select(CommentImage.comment_id, CommentImage.updated_at)
-        .join(Comment, Comment.id == CommentImage.comment_id)
-        .where(Comment.tournament_id == tournament_id)
-    ).all()
     out: dict[int, datetime] = {}
     for comment_id, updated_at, file_path in rows_fs:
         if media_exists(file_path):
             out[int(comment_id)] = updated_at
-    for comment_id, updated_at in rows_blob:
-        comment_id_int = int(comment_id)
-        if comment_id_int not in out:
-            out[comment_id_int] = updated_at
     return out
 
 
@@ -279,9 +268,6 @@ async def delete_comment(
     if image_row_fs:
         delete_media(image_row_fs.file_path)
         s.delete(image_row_fs)
-    image_row_blob = s.get(CommentImage, comment_id)
-    if image_row_blob:
-        s.delete(image_row_blob)
 
     s.delete(c)
     s.commit()
@@ -299,29 +285,14 @@ async def delete_comment(
 def get_comment_image(comment_id: int, s: Session = Depends(get_session)):
     c = _comment_or_404(s, comment_id)
     img_file = s.get(CommentImageFile, comment_id)
-    if img_file:
-        data = read_media(img_file.file_path)
-        if data is not None:
-            headers = {"Cache-Control": "public, max-age=604800"}
-            return Response(content=data, media_type=img_file.content_type, headers=headers)
-
-    img_blob = s.get(CommentImage, comment_id)
-    if not img_blob:
+    if not img_file:
         raise HTTPException(status_code=404, detail="Comment image not found")
-
-    migrated = _upsert_comment_image_file(
-        s,
-        comment_id=comment_id,
-        content_type=img_blob.content_type,
-        data=img_blob.data,
-        updated_at=img_blob.updated_at,
-    )
-    s.delete(img_blob)
-    s.commit()
-    s.refresh(migrated)
+    data = read_media(img_file.file_path)
+    if data is None:
+        raise HTTPException(status_code=404, detail="Comment image file missing")
 
     headers = {"Cache-Control": "public, max-age=604800"}
-    return Response(content=img_blob.data, media_type=migrated.content_type, headers=headers)
+    return Response(content=data, media_type=img_file.content_type, headers=headers)
 
 
 @router.put("/comments/{comment_id}/image", dependencies=[Depends(require_editor)])
@@ -352,9 +323,6 @@ async def put_comment_image(
         data=data,
         updated_at=now,
     )
-    img_blob = s.get(CommentImage, comment_id)
-    if img_blob is not None:
-        s.delete(img_blob)
 
     c.updated_at = now
     s.add(c)
@@ -374,15 +342,11 @@ async def put_comment_image(
 async def delete_comment_image(comment_id: int, s: Session = Depends(get_session)) -> dict:
     c = _comment_or_404(s, comment_id)
     img_file = s.get(CommentImageFile, comment_id)
-    img_blob = s.get(CommentImage, comment_id)
-    if img_file is None and img_blob is None:
+    if img_file is None:
         return {"ok": True}
 
-    if img_file is not None:
-        delete_media(img_file.file_path)
-        s.delete(img_file)
-    if img_blob is not None:
-        s.delete(img_blob)
+    delete_media(img_file.file_path)
+    s.delete(img_file)
     c.updated_at = datetime.utcnow()
     s.add(c)
     s.commit()

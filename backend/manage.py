@@ -8,7 +8,6 @@ from app.db import configure_db, init_db, get_engine
 from sqlmodel import Session
 
 from app.seed import load_seed_file, seed_from_json, insert_match
-from app.services.media_migration import migrate_blob_media_to_files
 
 
 def parse_args() -> argparse.Namespace:
@@ -24,9 +23,6 @@ def parse_args() -> argparse.Namespace:
 
     add_match = sub.add_parser("add-match", help="Add a match from JSON file")
     add_match.add_argument("--file", required=True, help="Path to match JSON file")
-
-    migrate_media = sub.add_parser("migrate-media", help="Move legacy image blobs to filesystem storage")
-    migrate_media.add_argument("--dry-run", action="store_true", help="Compute and log migration counts only")
 
     vacuum_db = sub.add_parser("vacuum-db", help="Run SQLite VACUUM (optional ANALYZE)")
     vacuum_db.add_argument("--analyze", action="store_true", help="Run ANALYZE after VACUUM")
@@ -65,15 +61,6 @@ def main() -> None:
         with Session(get_engine()) as s:
             res = insert_match(s, data)
         log.info("Add match complete: %s", res)
-
-    if args.cmd == "migrate-media":
-        with Session(get_engine()) as s:
-            res = migrate_blob_media_to_files(s, dry_run=bool(args.dry_run))
-            if args.dry_run:
-                s.rollback()
-            else:
-                s.commit()
-        log.info("Media migration complete: %s", res.as_dict())
 
     if args.cmd == "vacuum-db":
         engine = get_engine()

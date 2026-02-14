@@ -49,22 +49,10 @@ class Player(SQLModel, table=True):
     tournaments: List["Tournament"] = Relationship(back_populates="players", link_model=TournamentPlayer)
 
 
-class PlayerAvatar(SQLModel, table=True):
-    """
-    Optional player avatar stored as a small blob.
-    This is a separate table (not a Player column) because this project uses create_all()
-    without migrations, and we don't want to break existing DBs.
-    """
-    player_id: int = Field(foreign_key="player.id", primary_key=True)
-    content_type: str
-    data: bytes
-    updated_at: dt.datetime = Field(default_factory=dt.datetime.utcnow, index=True)
-
-
 class PlayerAvatarFile(SQLModel, table=True):
     """
     Preferred avatar storage (metadata in DB, bytes on disk/object storage).
-    Kept separate from PlayerAvatar blob table for backward compatibility.
+    Metadata-only row for filesystem-backed avatar storage.
     """
     player_id: int = Field(foreign_key="player.id", primary_key=True)
     content_type: str
@@ -144,21 +132,10 @@ class Comment(SQLModel, table=True):
     updated_at: dt.datetime = Field(default_factory=dt.datetime.utcnow, index=True)
 
 
-class CommentImage(SQLModel, table=True):
-    """
-    Optional image attachment for a comment.
-    Separate table to keep existing Comment rows/schema intact in create_all()-based deployments.
-    """
-    comment_id: int = Field(foreign_key="comment.id", primary_key=True)
-    content_type: str
-    data: bytes
-    updated_at: dt.datetime = Field(default_factory=dt.datetime.utcnow, index=True)
-
-
 class CommentImageFile(SQLModel, table=True):
     """
     Preferred comment image storage (metadata in DB, bytes on disk/object storage).
-    Kept separate from CommentImage blob table for backward compatibility.
+    Metadata-only row for filesystem-backed comment-image storage.
     """
     comment_id: int = Field(foreign_key="comment.id", primary_key=True)
     content_type: str

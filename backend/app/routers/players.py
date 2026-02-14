@@ -6,7 +6,7 @@ from sqlmodel import Session, select
 
 from ..auth import require_admin
 from ..db import get_session
-from ..models import Player, PlayerAvatar, PlayerAvatarFile
+from ..models import Player, PlayerAvatarFile
 from ..services.file_storage import delete_media, media_path_for_avatar, read_media, write_media
 
 log = logging.getLogger(__name__)
@@ -112,50 +112,22 @@ def list_player_avatar_meta(s: Session = Depends(get_session)):
     Lightweight avatar metadata used by the frontend to avoid spamming 404 requests.
     Returns only player_id + updated_at for players who have an avatar.
     """
-    meta: dict[int, dt.datetime] = {}
-    fs_rows = s.exec(select(PlayerAvatarFile.player_id, PlayerAvatarFile.updated_at)).all()
-    for pid, updated_at in fs_rows:
-        meta[int(pid)] = updated_at
-
-    # Backward-compatible fallback (old blob rows not migrated yet).
-    blob_rows = s.exec(select(PlayerAvatar.player_id, PlayerAvatar.updated_at)).all()
-    for pid, updated_at in blob_rows:
-        pid_int = int(pid)
-        if pid_int not in meta:
-            meta[pid_int] = updated_at
-
-    return [{"player_id": pid, "updated_at": updated_at} for pid, updated_at in meta.items()]
+    rows = s.exec(select(PlayerAvatarFile.player_id, PlayerAvatarFile.updated_at)).all()
+    return [{"player_id": int(pid), "updated_at": updated_at} for pid, updated_at in rows]
 
 
 @router.get("/{player_id}/avatar")
 def get_player_avatar(player_id: int, s: Session = Depends(get_session)):
-    # Preferred storage path first.
     fs_row = s.get(PlayerAvatarFile, player_id)
-    if fs_row:
-        data = read_media(fs_row.file_path)
-        if data is not None:
-            headers = {"Cache-Control": "public, max-age=604800"}
-            return Response(content=data, media_type=fs_row.content_type, headers=headers)
-
-    # Backward-compatible blob fallback (+ lazy migration).
-    av = s.get(PlayerAvatar, player_id)
-    if not av:
+    if not fs_row:
         raise HTTPException(status_code=404, detail="Avatar not found")
-
-    migrated = _upsert_avatar_file(
-        s,
-        player_id=player_id,
-        content_type=av.content_type,
-        data=av.data,
-        updated_at=av.updated_at,
-    )
-    s.delete(av)
-    s.commit()
-    s.refresh(migrated)
+    data = read_media(fs_row.file_path)
+    if data is None:
+        raise HTTPException(status_code=404, detail="Avatar file missing")
 
     # Cache: avatar changes rarely; frontend uses updated_at as a cache buster.
     headers = {"Cache-Control": "public, max-age=604800"}
-    return Response(content=av.data, media_type=migrated.content_type, headers=headers)
+    return Response(content=data, media_type=fs_row.content_type, headers=headers)
 
 
 @router.put("/{player_id}/avatar", dependencies=[Depends(require_admin)])
@@ -185,9 +157,6 @@ async def put_player_avatar(
         data=data,
         updated_at=dt.datetime.utcnow(),
     )
-    av_blob = s.get(PlayerAvatar, player_id)
-    if av_blob is not None:
-        s.delete(av_blob)
     s.commit()
     s.refresh(av_file)
     return {"player_id": av_file.player_id, "updated_at": av_file.updated_at}
@@ -196,13 +165,9 @@ async def put_player_avatar(
 @router.delete("/{player_id}/avatar", dependencies=[Depends(require_admin)])
 def delete_player_avatar(player_id: int, s: Session = Depends(get_session)):
     av_file = s.get(PlayerAvatarFile, player_id)
-    av_blob = s.get(PlayerAvatar, player_id)
-    if not av_file and not av_blob:
+    if not av_file:
         return Response(status_code=204)
-    if av_file is not None:
-        delete_media(av_file.file_path)
-        s.delete(av_file)
-    if av_blob is not None:
-        s.delete(av_blob)
+    delete_media(av_file.file_path)
+    s.delete(av_file)
     s.commit()
     return Response(status_code=204)
