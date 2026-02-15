@@ -46,6 +46,7 @@ export default function FriendliesPage() {
         lockMs: 600,
         retries: 20,
         offsetPx: computeAllFriendliesOffset(),
+        behavior: "auto",
       });
     }, 0);
   }, [computeAllFriendliesOffset, jumpToSection]);

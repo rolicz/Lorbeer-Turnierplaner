@@ -571,7 +571,7 @@ export default function LiveTournamentPage() {
       ? { key: "standings", id: "section-standings" }
       : { key: "current", id: "section-current-game" };
     window.setTimeout(() => {
-      jumpToSection(next.key, next.id, { lockMs: 650, blink: false, retries: 12 });
+      jumpToSection(next.key, next.id, { lockMs: 650, blink: false, retries: 12, behavior: "auto" });
     }, 0);
   }, [jumpToSection, showCurrentGameSection, tQ.data]);
 

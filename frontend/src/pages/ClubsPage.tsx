@@ -279,6 +279,7 @@ export default function ClubsPage() {
         lockMs: 600,
         retries: 20,
         offsetPx: computeBrowseOffset(),
+        behavior: "auto",
       });
     }, 0);
   }, [computeBrowseOffset, jumpToSection]);

@@ -41,11 +41,13 @@ export function useSectionSubnav({
         lockMs = 700,
         retries = 12,
         offsetPx = 0,
+        behavior = "smooth",
       }: {
         blink?: boolean;
         lockMs?: number;
         retries?: number;
         offsetPx?: number;
+        behavior?: ScrollBehavior;
       } = {}
     ) => {
       setActiveKey(key);
@@ -59,7 +61,7 @@ export function useSectionSubnav({
       }
 
       window.setTimeout(() => {
-        scrollToSectionById(id, retries, offsetPx);
+        scrollToSectionById(id, retries, offsetPx, behavior);
       }, 0);
 
       window.setTimeout(() => {

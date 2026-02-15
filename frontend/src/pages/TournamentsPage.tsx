@@ -175,6 +175,7 @@ export default function TournamentsPage() {
         lockMs: 600,
         retries: 20,
         offsetPx: computeAllTournamentsOffset(),
+        behavior: "auto",
       });
     }, 0);
   }, [computeAllTournamentsOffset, jumpToSection, tournamentsQ.data]);

@@ -128,6 +128,7 @@ export default function StatsPage() {
         blink: false,
         lockMs: 600,
         retries: 20,
+        behavior: "auto",
       });
     }, 0);
   }, [focusTrends, jumpToSection, location.key]);

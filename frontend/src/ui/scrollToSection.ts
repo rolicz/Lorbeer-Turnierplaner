@@ -1,4 +1,9 @@
-export function scrollToSectionById(id: string, retries = 0, extraOffsetPx = 0) {
+export function scrollToSectionById(
+  id: string,
+  retries = 0,
+  extraOffsetPx = 0,
+  behavior: ScrollBehavior = "smooth"
+) {
   let tries = 0;
   const maxTries = Math.max(0, retries);
 
@@ -19,7 +24,7 @@ export function scrollToSectionById(id: string, retries = 0, extraOffsetPx = 0) 
         0,
         window.scrollY + el.getBoundingClientRect().top - headerHeight - extraOffsetPx
       );
-      window.scrollTo({ top: targetTop, behavior: "smooth" });
+      window.scrollTo({ top: targetTop, behavior });
     });
   };
 

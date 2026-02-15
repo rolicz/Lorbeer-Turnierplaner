@@ -169,6 +169,7 @@ export default function ProfilePage() {
       queryFn: () => getCup(c.key),
     })),
   });
+  const cupsLoading = cupsQ.some((q) => q.isLoading);
 
   const { avatarUpdatedAtById: avatarUpdatedAtByPlayerId } = usePlayerAvatarMap();
   const { headerUpdatedAtById: headerUpdatedAtByPlayerId } = usePlayerHeaderMap();
@@ -316,19 +317,21 @@ export default function ProfilePage() {
   }, [computeGuestbookMetrics]);
 
   const scrollToGuestbookSection = useCallback(
-    (blink = true) => {
+    (blink = true, behavior: ScrollBehavior = "smooth") => {
       jumpToSection("profile-guestbook", "profile-section-guestbook", {
         blink,
         retries: 20,
         offsetPx: computeGuestbookOffset(),
+        behavior,
       });
     },
     [computeGuestbookOffset, jumpToSection]
   );
 
   const focusGuestbookEntry = useCallback(
-    (entryId: number, options?: { blink?: boolean }) => {
-      scrollToGuestbookSection(options?.blink ?? false);
+    (entryId: number, options?: { blink?: boolean; behavior?: ScrollBehavior }) => {
+      const behavior = options?.behavior ?? "smooth";
+      scrollToGuestbookSection(options?.blink ?? false, behavior);
       let tries = 0;
       const maxTries = 80;
       const run = () => {
@@ -351,9 +354,9 @@ export default function ProfilePage() {
         const centeredTarget = entryTop - headerHeight - Math.max(12, Math.floor((usableViewport - rect.height) / 2));
         const targetTop = Math.max(0, Math.max(minTarget, centeredTarget));
 
-        window.scrollTo({ top: targetTop, behavior: "smooth" });
+        window.scrollTo({ top: targetTop, behavior });
         window.setTimeout(() => {
-          window.scrollTo({ top: targetTop, behavior: "smooth" });
+          window.scrollTo({ top: targetTop, behavior });
         }, 320);
 
         el.classList.remove("comment-attn");
@@ -527,6 +530,36 @@ export default function ProfilePage() {
     },
   });
 
+  const unreadJumpReady = useMemo(() => {
+    return !(
+      playersQ.isLoading ||
+      profileQ.isLoading ||
+      guestbookQ.isLoading ||
+      clubsQ.isLoading ||
+      statsPlayersQ.isLoading ||
+      statsStreaksQ.isLoading ||
+      statsStreaksGlobalQ.isLoading ||
+      statsH2HQ.isLoading ||
+      statsRatingsQ.isLoading ||
+      statsMatchesQ.isLoading ||
+      cupDefsQ.isLoading ||
+      cupsLoading
+    );
+  }, [
+    clubsQ.isLoading,
+    cupDefsQ.isLoading,
+    cupsLoading,
+    guestbookQ.isLoading,
+    playersQ.isLoading,
+    profileQ.isLoading,
+    statsH2HQ.isLoading,
+    statsMatchesQ.isLoading,
+    statsPlayersQ.isLoading,
+    statsRatingsQ.isLoading,
+    statsStreaksGlobalQ.isLoading,
+    statsStreaksQ.isLoading,
+  ]);
+
   useEffect(() => {
     const jumpUnread = searchParams.get("unread") === "1";
     if (!jumpUnread) {
@@ -534,15 +567,16 @@ export default function ProfilePage() {
       return;
     }
     if (!latestUnreadGuestbookId) return;
+    if (!unreadJumpReady) return;
     if (unreadJumpHandledRef.current === latestUnreadGuestbookId) return;
     unreadJumpHandledRef.current = latestUnreadGuestbookId;
-    focusGuestbookEntry(latestUnreadGuestbookId, { blink: false });
+    focusGuestbookEntry(latestUnreadGuestbookId, { blink: false, behavior: "auto" });
     window.setTimeout(() => {
       const next = new URLSearchParams(searchParams);
       next.delete("unread");
       setSearchParams(next, { replace: true });
     }, 420);
-  }, [focusGuestbookEntry, latestUnreadGuestbookId, searchParams, setSearchParams]);
+  }, [focusGuestbookEntry, latestUnreadGuestbookId, searchParams, setSearchParams, unreadJumpReady]);
 
   if (!targetPlayerId) {
     return (
