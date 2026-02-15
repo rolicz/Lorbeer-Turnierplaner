@@ -7,13 +7,13 @@ import CollapsibleCard from "../../ui/primitives/CollapsibleCard";
 import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
 import { MetaRow } from "../../ui/primitives/Meta";
 import AvatarCircle from "../../ui/primitives/AvatarCircle";
+import CupOwnerBadge from "../../ui/primitives/CupOwnerBadge";
 
 import { listPlayers } from "../../api/players.api";
 import { getStatsPlayers } from "../../api/stats.api";
 import type { StatsPlayersResponse, StatsTournamentLite, StatsPlayerRow } from "../../api/types";
 
 import { getCup, listCupDefs } from "../../api/cup.api";
-import { cupColorVarForKey } from "../../cupColors";
 
 import { StatsControlLabel, StatsModeSwitch, StatsSegmentedSwitch, type StatsMode } from "./StatsControls";
 import { usePlayerAvatarMap } from "../../hooks/usePlayerAvatarMap";
@@ -39,23 +39,6 @@ function parseDateSafe(s?: string | null): number | null {
   if (!s) return null;
   const t = Date.parse(s);
   return Number.isFinite(t) ? t : null;
-}
-
-function CupOwnerMark({ cupKey, cupName }: { cupKey: string; cupName: string }) {
-  const varName = cupColorVarForKey(cupKey);
-  return (
-    <span
-      className="inline-flex h-7 w-7 items-center justify-center rounded-full border shadow-sm"
-      style={{
-        borderColor: `rgb(var(${varName}) / 0.55)`,
-        backgroundColor: `rgb(var(${varName}) / 0.14)`,
-        color: `rgb(var(${varName}))`,
-      }}
-      title={`${cupName} owner`}
-    >
-      <i className="fa-solid fa-crown text-[13px]" aria-hidden="true" />
-    </span>
-  );
 }
 
 function StatsPill({
@@ -597,7 +580,7 @@ export default function PlayersStatsCard() {
                     {ownedCups.length ? (
                       <span className="inline-flex items-center gap-1.5">
                         {ownedCups.map((c) => (
-                          <CupOwnerMark key={c.key} cupKey={c.key} cupName={c.name} />
+                          <CupOwnerBadge key={c.key} cupKey={c.key} cupName={c.name} size="md" />
                         ))}
                       </span>
                     ) : null}

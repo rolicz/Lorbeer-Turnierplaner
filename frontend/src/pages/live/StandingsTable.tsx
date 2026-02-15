@@ -5,8 +5,8 @@ import type { Match, Player } from "../../api/types";
 import { sideBy } from "../../helpers";
 import Card from "../../ui/primitives/Card";
 import AvatarCircle from "../../ui/primitives/AvatarCircle";
+import CupOwnerBadge from "../../ui/primitives/CupOwnerBadge";
 import { getCup, listCupDefs } from "../../api/cup.api";
-import { cupColorVarForKey } from "../../cupColors";
 import { getStatsStreaks } from "../../api/stats.api";
 import type { StatsStreakRow, StatsStreaksResponse } from "../../api/types";
 import { StreakPatch, type ActiveStreak } from "../../ui/StreakPatches";
@@ -118,23 +118,6 @@ function Arrow({ delta }: { delta: number | null }) {
   return <span className="text-text-muted">–</span>;
 }
 
-function CupMark({ cupKey, cupName }: { cupKey: string; cupName: string }) {
-  const varName = cupColorVarForKey(cupKey);
-  return (
-    <span
-      className="inline-flex h-6 w-6 items-center justify-center rounded-full border shrink-0"
-      style={{
-        borderColor: `rgb(var(${varName}) / 0.50)`,
-        backgroundColor: `rgb(var(${varName}) / 0.14)`,
-        color: `rgb(var(${varName}))`,
-      }}
-      title={`${cupName} owner (before tournament)`}
-    >
-      <i className="fa-solid fa-crown text-[11px]" aria-hidden="true" />
-    </span>
-  );
-}
-
 function MobileRow({
   r,
   rank,
@@ -184,7 +167,12 @@ function MobileRow({
               {cupMarks.length ? (
                 <div className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap pl-0.5">
                   {cupMarks.slice(0, 2).map((c) => (
-                    <CupMark key={c.key} cupKey={c.key} cupName={c.name} />
+                    <CupOwnerBadge
+                      key={c.key}
+                      cupKey={c.key}
+                      cupName={c.name}
+                      title={`${c.name} owner (before tournament)`}
+                    />
                   ))}
                   {cupMarks.length > 2 ? <span className="text-[11px] text-text-muted">+{cupMarks.length - 2}</span> : null}
                 </div>
@@ -537,7 +525,12 @@ export default function StandingsTable({
                       {(cupMarksByPlayerId.get(r.playerId) ?? []).length || streaks.length ? (
                         <span className="inline-flex items-center gap-1 overflow-hidden whitespace-nowrap">
                           {(cupMarksByPlayerId.get(r.playerId) ?? []).slice(0, 2).map((c) => (
-                            <CupMark key={c.key} cupKey={c.key} cupName={c.name} />
+                            <CupOwnerBadge
+                              key={c.key}
+                              cupKey={c.key}
+                              cupName={c.name}
+                              title={`${c.name} owner (before tournament)`}
+                            />
                           ))}
                           {streaks.slice(0, 2).map((s, i) => (
                             <StreakPatch key={s.key + "-" + i} streak={s} className="streak-compact" />

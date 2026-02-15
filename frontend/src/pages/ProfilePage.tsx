@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import Card from "../ui/primitives/Card";
 import Button from "../ui/primitives/Button";
 import Textarea from "../ui/primitives/Textarea";
 import AvatarCircle from "../ui/primitives/AvatarCircle";
+import CupOwnerBadge from "../ui/primitives/CupOwnerBadge";
 import { ErrorToastOnError } from "../ui/primitives/ErrorToast";
 import CommentImageCropper from "../ui/primitives/CommentImageCropper";
 import ImageLightbox from "../ui/primitives/ImageLightbox";
@@ -29,6 +30,7 @@ import {
   playerHeaderImageUrl,
   putPlayerHeaderImage,
 } from "../api/playerHeaders.api";
+import { getCup, listCupDefs } from "../api/cup.api";
 import { getStatsH2H, getStatsPlayerMatches, getStatsPlayers, getStatsRatings, getStatsStreaks } from "../api/stats.api";
 import { listClubs } from "../api/clubs.api";
 import { MatchHistoryList } from "./stats/MatchHistoryList";
@@ -152,6 +154,19 @@ export default function ProfilePage() {
     queryFn: () => getStatsPlayerMatches({ playerId: targetPlayerId as number, scope: "tournaments" }),
     enabled: Number.isFinite(targetPlayerId) && (targetPlayerId ?? 0) > 0,
   });
+  const cupDefsQ = useQuery({ queryKey: ["cup", "defs"], queryFn: listCupDefs });
+  const cups = useMemo(() => {
+    const raw = cupDefsQ.data?.cups?.length ? cupDefsQ.data.cups : [{ key: "default", name: "Cup", since_date: null }];
+    const nonDefault = raw.filter((c) => c.key !== "default");
+    const defaults = raw.filter((c) => c.key === "default");
+    return [...nonDefault, ...defaults];
+  }, [cupDefsQ.data]);
+  const cupsQ = useQueries({
+    queries: cups.map((c) => ({
+      queryKey: ["cup", c.key],
+      queryFn: () => getCup(c.key),
+    })),
+  });
 
   const { avatarUpdatedAtById: avatarUpdatedAtByPlayerId } = usePlayerAvatarMap();
   const { headerUpdatedAtById: headerUpdatedAtByPlayerId } = usePlayerHeaderMap();
@@ -221,6 +236,17 @@ export default function ProfilePage() {
     const idx = rows.findIndex((r) => r.player.id === targetPlayerId);
     return idx >= 0 ? idx + 1 : null;
   }, [statsRatingsQ.data?.rows, targetPlayerId]);
+  const ownedCups = useMemo(() => {
+    if (!targetPlayerId) return [] as { key: string; name: string }[];
+    const out: { key: string; name: string }[] = [];
+    for (let i = 0; i < cups.length; i++) {
+      const def = cups[i];
+      const q = cupsQ[i];
+      if (q?.data?.owner?.id !== targetPlayerId) continue;
+      out.push({ key: def.key, name: q.data.cup?.name ?? def.name ?? def.key });
+    }
+    return out;
+  }, [cups, cupsQ, targetPlayerId]);
 
   const allMatchTournaments = statsMatchesQ.data?.tournaments ?? [];
   const visibleMatchTournaments = showAllMatchTournaments ? allMatchTournaments : allMatchTournaments.slice(0, 2);
@@ -459,8 +485,17 @@ export default function ProfilePage() {
               sizeClass="h-14 w-14"
             />
             <div className="min-w-0">
-              <div className="truncate text-base font-semibold text-text-normal">
-                {player?.display_name ?? profileQ.data?.display_name ?? `Player #${targetPlayerId}`}
+              <div className="min-w-0 flex items-center gap-2">
+                <span className="truncate text-base font-semibold text-text-normal">
+                  {player?.display_name ?? profileQ.data?.display_name ?? `Player #${targetPlayerId}`}
+                </span>
+                {ownedCups.length ? (
+                  <span className="inline-flex items-center gap-1.5">
+                    {ownedCups.map((c) => (
+                      <CupOwnerBadge key={c.key} cupKey={c.key} cupName={c.name} />
+                    ))}
+                  </span>
+                ) : null}
               </div>
               <div className="text-xs text-text-muted">{isOwnProfile ? "This is your profile" : "Public profile"}</div>
             </div>
