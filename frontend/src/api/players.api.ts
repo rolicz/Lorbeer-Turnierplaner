@@ -1,5 +1,12 @@
 import { apiFetch } from "./client";
-import type { Player, PlayerGuestbookEntry, PlayerGuestbookSummary, PlayerProfile } from "./types";
+import type {
+  Player,
+  PlayerGuestbookEntry,
+  PlayerGuestbookReadIds,
+  PlayerGuestbookReadMapRow,
+  PlayerGuestbookSummary,
+  PlayerProfile,
+} from "./types";
 
 export function listPlayers(): Promise<Player[]> {
   return apiFetch("/players", { method: "GET" });
@@ -39,6 +46,25 @@ export function listPlayerGuestbook(playerId: number): Promise<PlayerGuestbookEn
 
 export function listPlayerGuestbookSummary(): Promise<PlayerGuestbookSummary[]> {
   return apiFetch("/players/guestbook-summary", { method: "GET" });
+}
+
+export function listPlayerGuestbookReadIds(token: string, playerId: number): Promise<PlayerGuestbookReadIds> {
+  return apiFetch(`/players/${playerId}/guestbook/read`, { method: "GET", token });
+}
+
+export function listPlayerGuestbookReadMap(token: string): Promise<PlayerGuestbookReadMapRow[]> {
+  return apiFetch("/players/guestbook-read-map", { method: "GET", token });
+}
+
+export function markPlayerGuestbookEntryRead(token: string, entryId: number): Promise<{ ok: boolean }> {
+  return apiFetch(`/players/guestbook/${entryId}/read`, { method: "PUT", token });
+}
+
+export function markAllPlayerGuestbookEntriesRead(
+  token: string,
+  playerId: number
+): Promise<{ ok: boolean; marked: number }> {
+  return apiFetch(`/players/${playerId}/guestbook/read-all`, { method: "PUT", token });
 }
 
 export function createPlayerGuestbookEntry(

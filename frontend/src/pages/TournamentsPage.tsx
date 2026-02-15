@@ -254,7 +254,7 @@ export default function TournamentsPage() {
             const seen = seenIdsByTid.get(tid) ?? new Set<number>();
             const unseenIds = (sum?.comment_ids ?? []).filter((cid) => !seen.has(cid));
             const unseenCount = unseenIds.length;
-            const hasUnseen = unseenCount > 0;
+            const hasUnseen = !!token && unseenCount > 0;
 
             return (
               <Link

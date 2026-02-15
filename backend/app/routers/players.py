@@ -4,9 +4,16 @@ import datetime as dt
 from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFile
 from sqlmodel import Session, select
 
-from ..auth import require_admin, require_editor_claims
+from ..auth import require_admin, require_auth_claims, require_editor_claims
 from ..db import get_session
-from ..models import Player, PlayerAvatarFile, PlayerGuestbookEntry, PlayerHeaderImageFile, PlayerProfile
+from ..models import (
+    Player,
+    PlayerAvatarFile,
+    PlayerGuestbookEntry,
+    PlayerGuestbookRead,
+    PlayerHeaderImageFile,
+    PlayerProfile,
+)
 from ..schemas import PlayerCreateBody, PlayerGuestbookCreateBody, PlayerPatchBody, PlayerProfilePatchBody
 from ..services.file_storage import (
     delete_media,
@@ -179,6 +186,25 @@ def list_player_profiles(s: Session = Depends(get_session)):
 @router.get("/guestbook-summary")
 def list_player_guestbook_summary(s: Session = Depends(get_session)) -> list[dict]:
     return player_guestbook_summary(s)
+
+
+@router.get("/guestbook-read-map")
+def list_player_guestbook_read_map(
+    s: Session = Depends(get_session),
+    claims: dict = Depends(require_auth_claims),
+) -> list[dict]:
+    player_id = int(claims.get("player_id"))
+    rows = s.exec(
+        select(PlayerGuestbookEntry.profile_player_id, PlayerGuestbookRead.guestbook_entry_id)
+        .join(PlayerGuestbookEntry, PlayerGuestbookEntry.id == PlayerGuestbookRead.guestbook_entry_id)
+        .where(PlayerGuestbookRead.player_id == player_id)
+        .order_by(PlayerGuestbookEntry.profile_player_id, PlayerGuestbookRead.guestbook_entry_id)
+    ).all()
+    out: dict[int, list[int]] = {}
+    for profile_player_id, entry_id in rows:
+        pid = int(profile_player_id)
+        out.setdefault(pid, []).append(int(entry_id))
+    return [{"profile_player_id": pid, "entry_ids": ids} for pid, ids in out.items()]
 
 
 @router.get("/{player_id}/profile")
@@ -411,6 +437,29 @@ def list_player_guestbook(player_id: int, s: Session = Depends(get_session)):
     ]
 
 
+@router.get("/{player_id}/guestbook/read")
+def list_player_guestbook_reads(
+    player_id: int,
+    s: Session = Depends(get_session),
+    claims: dict = Depends(require_auth_claims),
+) -> dict:
+    player = s.get(Player, player_id)
+    if not player:
+        raise HTTPException(status_code=404, detail="Player not found")
+
+    viewer_player_id = int(claims.get("player_id"))
+    rows = s.exec(
+        select(PlayerGuestbookRead.guestbook_entry_id)
+        .join(PlayerGuestbookEntry, PlayerGuestbookEntry.id == PlayerGuestbookRead.guestbook_entry_id)
+        .where(
+            PlayerGuestbookRead.player_id == viewer_player_id,
+            PlayerGuestbookEntry.profile_player_id == player_id,
+        )
+        .order_by(PlayerGuestbookRead.guestbook_entry_id)
+    ).all()
+    return {"entry_ids": [int(x) for x in rows]}
+
+
 @router.post("/{player_id}/guestbook")
 def create_player_guestbook_entry(
     player_id: int,
@@ -444,7 +493,71 @@ def create_player_guestbook_entry(
     s.add(row)
     s.commit()
     s.refresh(row)
+    read_row = s.get(PlayerGuestbookRead, (author_player_id, int(row.id)))
+    if read_row is None:
+        s.add(PlayerGuestbookRead(player_id=author_player_id, guestbook_entry_id=int(row.id), read_at=now))
+        s.commit()
     return _guestbook_entry_payload(entry=row, author_display_name=author_player.display_name)
+
+
+@router.put("/guestbook/{entry_id}/read")
+def mark_player_guestbook_entry_read(
+    entry_id: int,
+    s: Session = Depends(get_session),
+    claims: dict = Depends(require_auth_claims),
+) -> dict:
+    row = s.get(PlayerGuestbookEntry, entry_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="Guestbook entry not found")
+    player_id = int(claims.get("player_id"))
+    now = dt.datetime.utcnow()
+    read_row = s.get(PlayerGuestbookRead, (player_id, int(entry_id)))
+    if read_row is None:
+        read_row = PlayerGuestbookRead(player_id=player_id, guestbook_entry_id=int(entry_id), read_at=now)
+    else:
+        read_row.read_at = now
+    s.add(read_row)
+    s.commit()
+    return {"ok": True}
+
+
+@router.put("/{player_id}/guestbook/read-all")
+def mark_player_guestbook_read_all(
+    player_id: int,
+    s: Session = Depends(get_session),
+    claims: dict = Depends(require_auth_claims),
+) -> dict:
+    player = s.get(Player, player_id)
+    if not player:
+        raise HTTPException(status_code=404, detail="Player not found")
+
+    viewer_player_id = int(claims.get("player_id"))
+    entry_ids = [
+        int(eid)
+        for eid in s.exec(select(PlayerGuestbookEntry.id).where(PlayerGuestbookEntry.profile_player_id == player_id)).all()
+    ]
+    if not entry_ids:
+        return {"ok": True, "marked": 0}
+
+    existing = {
+        int(eid)
+        for eid in s.exec(
+            select(PlayerGuestbookRead.guestbook_entry_id).where(
+                PlayerGuestbookRead.player_id == viewer_player_id,
+                PlayerGuestbookRead.guestbook_entry_id.in_(entry_ids),
+            )
+        ).all()
+    }
+    now = dt.datetime.utcnow()
+    marked = 0
+    for eid in entry_ids:
+        if eid in existing:
+            continue
+        s.add(PlayerGuestbookRead(player_id=viewer_player_id, guestbook_entry_id=eid, read_at=now))
+        marked += 1
+    if marked:
+        s.commit()
+    return {"ok": True, "marked": marked}
 
 
 @router.delete("/guestbook/{entry_id}")
@@ -463,6 +576,11 @@ def delete_player_guestbook_entry(
     if not allowed:
         raise HTTPException(status_code=403, detail="Insufficient privileges")
 
+    read_rows = s.exec(
+        select(PlayerGuestbookRead).where(PlayerGuestbookRead.guestbook_entry_id == int(entry_id))
+    ).all()
+    for rr in read_rows:
+        s.delete(rr)
     s.delete(row)
     s.commit()
     return Response(status_code=204)

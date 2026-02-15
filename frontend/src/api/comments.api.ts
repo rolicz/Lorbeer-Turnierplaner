@@ -1,6 +1,12 @@
 import { apiFetch } from "./client";
 import { API_BASE } from "./client";
-import type { TournamentCommentsResponse, TournamentCommentsSummary, Comment } from "./types";
+import type {
+  TournamentCommentsResponse,
+  TournamentCommentsSummary,
+  TournamentCommentReadIds,
+  TournamentCommentReadMapRow,
+  Comment,
+} from "./types";
 
 export function listTournamentComments(tournamentId: number): Promise<TournamentCommentsResponse> {
   return apiFetch(`/tournaments/${tournamentId}/comments`, { method: "GET" });
@@ -9,6 +15,25 @@ export function listTournamentComments(tournamentId: number): Promise<Tournament
 export function listTournamentCommentsSummary(): Promise<TournamentCommentsSummary[]> {
   // Served by the tournaments router to avoid being shadowed by "/tournaments/{tournament_id}".
   return apiFetch(`/tournaments/comments-summary`, { method: "GET" });
+}
+
+export function listTournamentCommentReadIds(token: string, tournamentId: number): Promise<TournamentCommentReadIds> {
+  return apiFetch(`/tournaments/${tournamentId}/comments/read`, { method: "GET", token });
+}
+
+export function listTournamentCommentReadMap(token: string): Promise<TournamentCommentReadMapRow[]> {
+  return apiFetch(`/comments/read-map`, { method: "GET", token });
+}
+
+export function markCommentRead(token: string, commentId: number): Promise<{ ok: boolean }> {
+  return apiFetch(`/comments/${commentId}/read`, { method: "PUT", token });
+}
+
+export function markAllTournamentCommentsRead(
+  token: string,
+  tournamentId: number
+): Promise<{ ok: boolean; marked: number }> {
+  return apiFetch(`/tournaments/${tournamentId}/comments/read-all`, { method: "PUT", token });
 }
 
 export function createTournamentComment(

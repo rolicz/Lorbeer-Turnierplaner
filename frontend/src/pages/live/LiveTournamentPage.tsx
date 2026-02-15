@@ -27,7 +27,6 @@ import type { Match, Club, PatchMatchBody } from "../../api/types";
 import { useTournamentWS } from "../../hooks/useTournamentWS";
 import { useAuth } from "../../auth/AuthContext";
 import { useSeenSet } from "../../hooks/useSeenComments";
-import { markCommentSeen } from "../../seenComments";
 
 import AdminPanel from "./AdminPanel";
 import MatchList from "./MatchList";
@@ -38,7 +37,7 @@ import TournamentCommentsCard from "./TournamentCommentsCard";
 import { shuffle, sideBy } from "../../helpers";
 
 import { fmtDate } from "../../utils/format";
-import { listTournamentComments } from "../../api/comments.api";
+import { listTournamentComments, markAllTournamentCommentsRead } from "../../api/comments.api";
 
 type PlayerLite = { id: number; display_name: string };
 
@@ -131,20 +130,32 @@ export default function LiveTournamentPage() {
     enabled: !!tid,
   });
   const unreadCommentsCount = useMemo(() => {
+    if (!token) return 0;
     const cs = commentsQ.data?.comments ?? [];
     let n = 0;
     for (const c of cs) {
       if (!seenCommentIds.has(c.id)) n++;
     }
     return n;
-  }, [commentsQ.data?.comments, seenCommentIds]);
+  }, [commentsQ.data?.comments, seenCommentIds, token]);
   const unreadCommentIds = useMemo(() => {
+    if (!token) return [];
     const cs = commentsQ.data?.comments ?? [];
     return cs
       .map((c) => Number(c.id))
       .filter((id) => Number.isFinite(id) && id > 0 && !seenCommentIds.has(id))
       .map((id) => Math.trunc(id));
-  }, [commentsQ.data?.comments, seenCommentIds]);
+  }, [commentsQ.data?.comments, seenCommentIds, token]);
+  const markAllReadMut = useMutation({
+    mutationFn: async () => {
+      if (!token || !tid) throw new Error("Not logged in");
+      return markAllTournamentCommentsRead(token, tid);
+    },
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ["comments", "read", tid, token ?? "none"] });
+      await qc.invalidateQueries({ queryKey: ["comments", "read-map", token ?? "none"] });
+    },
+  });
   const parseApiTs = (raw?: string | null): number => {
     if (!raw) return 0;
     let ts = Date.parse(raw);
@@ -152,6 +163,7 @@ export default function LiveTournamentPage() {
     return Number.isFinite(ts) ? ts : 0;
   };
   const latestUnreadCommentId = useMemo(() => {
+    if (!token) return null;
     const cs = commentsQ.data?.comments ?? [];
     let bestId: number | null = null;
     let bestTs = -1;
@@ -165,7 +177,7 @@ export default function LiveTournamentPage() {
       }
     }
     return bestId;
-  }, [commentsQ.data?.comments, seenCommentIds]);
+  }, [commentsQ.data?.comments, seenCommentIds, token]);
   const [focusCommentRequest, setFocusCommentRequest] = useState<{ id: number; nonce: number } | null>(null);
 
   useEffect(() => {
@@ -513,12 +525,18 @@ export default function LiveTournamentPage() {
       qc.invalidateQueries({ queryKey: ["comments", tid], refetchType: "active" }),
       qc.invalidateQueries({ queryKey: ["clubs", clubGame], refetchType: "active" }),
       qc.invalidateQueries({ queryKey: ["players", "avatars"], refetchType: "active" }),
-      qc.invalidateQueries({ queryKey: ["comments", "summary"], refetchType: "active" }),
+      qc.invalidateQueries({ queryKey: ["comments", "summary"], refetchType: "all" }),
       qc.invalidateQueries({ queryKey: ["tournaments"], refetchType: "active" }),
       qc.invalidateQueries({ queryKey: ["tournaments", "live"], refetchType: "active" }),
       qc.invalidateQueries({ queryKey: ["cup"], refetchType: "active" }),
       qc.invalidateQueries({ queryKey: ["stats"], refetchType: "active" }),
     ];
+    if (token) {
+      jobs.push(
+        qc.invalidateQueries({ queryKey: ["comments", "read", tid, token], refetchType: "active" }),
+        qc.invalidateQueries({ queryKey: ["comments", "read-map", token], refetchType: "all" })
+      );
+    }
     await Promise.allSettled(jobs);
   }
 
@@ -540,11 +558,12 @@ export default function LiveTournamentPage() {
                 type="button"
                 title="Mark all unread comments as read"
                 onClick={() => {
-                  if (!tid || unreadCommentIds.length === 0) return;
+                  if (!token || !tid || unreadCommentIds.length === 0 || markAllReadMut.isPending) return;
                   const ok = window.confirm(`Mark ${unreadCommentIds.length} unread comment(s) as read?`);
                   if (!ok) return;
-                  for (const cid of unreadCommentIds) markCommentSeen(tid, cid);
+                  markAllReadMut.mutate();
                 }}
+                disabled={!token || markAllReadMut.isPending}
               >
                 <i className="fa-solid fa-envelope-open md:hidden" aria-hidden="true" />
                 <span className="hidden md:inline">Read all</span>

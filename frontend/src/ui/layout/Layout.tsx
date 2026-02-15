@@ -7,8 +7,8 @@ import SectionHeader from "../primitives/SectionHeader";
 import { ErrorToastViewport } from "../primitives/ErrorToast";
 import { useAnyTournamentWS } from "../../hooks/useTournamentWS";
 import { THEMES } from "../../themes";
-import { listTournamentCommentsSummary } from "../../api/comments.api";
-import { listPlayerGuestbookSummary } from "../../api/players.api";
+import { listTournamentCommentReadMap, listTournamentCommentsSummary } from "../../api/comments.api";
+import { listPlayerGuestbookReadMap, listPlayerGuestbookSummary } from "../../api/players.api";
 
 type Role = "reader" | "editor" | "admin";
 type ThemeName = string;
@@ -40,6 +40,15 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     }).catch(() => {
       // ignore (older backend may not have this endpoint)
     });
+    if (token) {
+      qc.prefetchQuery({
+        queryKey: ["comments", "read-map", token],
+        queryFn: () => listTournamentCommentReadMap(token),
+        staleTime: 15_000,
+      }).catch(() => {
+        // ignore
+      });
+    }
     qc.prefetchQuery({
       queryKey: ["players", "guestbook", "summary"],
       queryFn: listPlayerGuestbookSummary,
@@ -47,7 +56,16 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     }).catch(() => {
       // ignore
     });
-  }, [qc]);
+    if (token) {
+      qc.prefetchQuery({
+        queryKey: ["players", "guestbook", "read-map", token],
+        queryFn: () => listPlayerGuestbookReadMap(token),
+        staleTime: 15_000,
+      }).catch(() => {
+        // ignore
+      });
+    }
+  }, [qc, token]);
 
   const [theme, setTheme] = useState<ThemeName>(() => {
     const storedRaw = localStorage.getItem("theme");

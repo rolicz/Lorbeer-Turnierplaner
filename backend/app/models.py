@@ -98,6 +98,15 @@ class PlayerGuestbookEntry(SQLModel, table=True):
     updated_at: dt.datetime = Field(default_factory=dt.datetime.utcnow, index=True)
 
 
+class PlayerGuestbookRead(SQLModel, table=True):
+    """
+    Per-player read tracking for guestbook entries.
+    """
+    player_id: int = Field(foreign_key="player.id", primary_key=True)
+    guestbook_entry_id: int = Field(foreign_key="playerguestbookentry.id", primary_key=True)
+    read_at: dt.datetime = Field(default_factory=dt.datetime.utcnow, index=True)
+
+
 class League(SQLModel, table=True):
     """
     Backend-managed lookup table.
@@ -194,6 +203,15 @@ class Comment(SQLModel, table=True):
 
     created_at: dt.datetime = Field(default_factory=dt.datetime.utcnow, index=True)
     updated_at: dt.datetime = Field(default_factory=dt.datetime.utcnow, index=True)
+
+
+class CommentRead(SQLModel, table=True):
+    """
+    Per-player read tracking for tournament comments.
+    """
+    player_id: int = Field(foreign_key="player.id", primary_key=True)
+    comment_id: int = Field(foreign_key="comment.id", primary_key=True)
+    read_at: dt.datetime = Field(default_factory=dt.datetime.utcnow, index=True)
 
 
 class CommentImageFile(SQLModel, table=True):

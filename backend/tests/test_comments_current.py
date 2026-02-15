@@ -81,6 +81,62 @@ def test_comments_summary_endpoints(client, editor_headers, admin_headers):
     assert s2.status_code == 200, s2.text
 
 
+def test_comments_read_tracking_per_player(client, editor_headers, admin_headers):
+    players = client.get("/players").json()
+    editor_player_id = next(int(p["id"]) for p in players if p["display_name"] == "Editor")
+    admin_player_id = next(int(p["id"]) for p in players if p["display_name"] == "Admin")
+    tid = client.post(
+        "/tournaments",
+        json={"name": "comments-read", "mode": "1v1", "player_ids": [editor_player_id, admin_player_id]},
+        headers=editor_headers,
+    ).json()["id"]
+
+    c_editor = client.post(
+        f"/tournaments/{tid}/comments",
+        json={"body": "from editor", "author_player_id": editor_player_id},
+        headers=editor_headers,
+    )
+    assert c_editor.status_code == 200, c_editor.text
+    cid_editor = int(c_editor.json()["id"])
+
+    c_admin = client.post(
+        f"/tournaments/{tid}/comments",
+        json={"body": "from admin", "author_player_id": admin_player_id},
+        headers=admin_headers,
+    )
+    assert c_admin.status_code == 200, c_admin.text
+    cid_admin = int(c_admin.json()["id"])
+
+    # Author's own comment is auto-marked as read.
+    r0 = client.get(f"/tournaments/{tid}/comments/read", headers=editor_headers)
+    assert r0.status_code == 200, r0.text
+    assert cid_editor in (r0.json().get("comment_ids") or [])
+    assert cid_admin not in (r0.json().get("comment_ids") or [])
+
+    # Mark one as read.
+    r1 = client.put(f"/comments/{cid_admin}/read", headers=editor_headers)
+    assert r1.status_code == 200, r1.text
+    assert r1.json().get("ok") is True
+
+    r2 = client.get(f"/tournaments/{tid}/comments/read", headers=editor_headers)
+    assert r2.status_code == 200, r2.text
+    ids2 = [int(x) for x in (r2.json().get("comment_ids") or [])]
+    assert cid_editor in ids2 and cid_admin in ids2
+
+    # Read map includes this tournament.
+    rmap = client.get("/comments/read-map", headers=editor_headers)
+    assert rmap.status_code == 200, rmap.text
+    row = next((x for x in (rmap.json() or []) if int(x.get("tournament_id", 0)) == int(tid)), None)
+    assert row is not None
+    assert cid_editor in [int(x) for x in (row.get("comment_ids") or [])]
+    assert cid_admin in [int(x) for x in (row.get("comment_ids") or [])]
+
+    # Read-all is idempotent and should mark 0 now.
+    rall = client.put(f"/tournaments/{tid}/comments/read-all", headers=editor_headers)
+    assert rall.status_code == 200, rall.text
+    assert int(rall.json().get("marked", -1)) == 0
+
+
 def test_comment_author_must_be_tournament_player(client, editor_headers, admin_headers):
     p1 = client.post("/players", json={"display_name": "A1"}, headers=admin_headers).json()["id"]
     p2 = client.post("/players", json={"display_name": "A2"}, headers=admin_headers).json()["id"]

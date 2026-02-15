@@ -16,7 +16,10 @@ import {
   createPlayerGuestbookEntry,
   deletePlayerGuestbookEntry,
   getPlayerProfile,
+  listPlayerGuestbookReadIds,
   listPlayerGuestbook,
+  markAllPlayerGuestbookEntriesRead,
+  markPlayerGuestbookEntryRead,
   listPlayers,
   patchPlayerProfile,
 } from "../api/players.api";
@@ -32,8 +35,6 @@ import { MatchHistoryList } from "./stats/MatchHistoryList";
 import PlayerAvatarEditor from "./players/PlayerAvatarEditor";
 import { usePlayerAvatarMap } from "../hooks/usePlayerAvatarMap";
 import { usePlayerHeaderMap } from "../hooks/usePlayerHeaderMap";
-import { useSeenGuestbookSet } from "../hooks/useSeenGuestbook";
-import { markGuestbookEntrySeen } from "../seenGuestbook";
 
 function fmtDateTime(iso?: string | null) {
   if (!iso) return "";
@@ -93,6 +94,11 @@ export default function ProfilePage() {
     queryKey: ["players", "guestbook", targetPlayerId ?? "none"],
     queryFn: () => listPlayerGuestbook(targetPlayerId as number),
     enabled: Number.isFinite(targetPlayerId) && (targetPlayerId ?? 0) > 0,
+  });
+  const guestbookReadQ = useQuery({
+    queryKey: ["players", "guestbook", "read", targetPlayerId ?? "none", token ?? "none"],
+    queryFn: () => listPlayerGuestbookReadIds(token as string, targetPlayerId as number),
+    enabled: !!token && Number.isFinite(targetPlayerId) && (targetPlayerId ?? 0) > 0,
   });
   const clubsQ = useQuery({ queryKey: ["clubs"], queryFn: () => listClubs() });
   const statsPlayersQ = useQuery({
@@ -171,7 +177,10 @@ export default function ProfilePage() {
   const isOwnProfile = !!currentPlayerId && !!targetPlayerId && currentPlayerId === targetPlayerId;
   const canEdit = !!token && role !== "reader" && isOwnProfile;
   const canPostGuestbook = !!token && role !== "reader";
-  const seenGuestbook = useSeenGuestbookSet(targetPlayerId ?? 0);
+  const seenGuestbook = useMemo(
+    () => new Set((guestbookReadQ.data?.entry_ids ?? []).map((x) => Number(x))),
+    [guestbookReadQ.data?.entry_ids]
+  );
   const avatarUpdatedAt = targetPlayerId ? avatarUpdatedAtByPlayerId.get(targetPlayerId) ?? null : null;
   const headerUpdatedAt = targetPlayerId
     ? headerUpdatedAtByPlayerId.get(targetPlayerId) ?? profileQ.data?.header_image_updated_at ?? null
@@ -216,17 +225,19 @@ export default function ProfilePage() {
   const allMatchTournaments = statsMatchesQ.data?.tournaments ?? [];
   const visibleMatchTournaments = showAllMatchTournaments ? allMatchTournaments : allMatchTournaments.slice(0, 2);
   const unreadGuestbookCount = useMemo(() => {
+    if (!token) return 0;
     let n = 0;
     for (const row of guestbookQ.data ?? []) {
       if (!seenGuestbook.has(row.id)) n++;
     }
     return n;
-  }, [guestbookQ.data, seenGuestbook]);
+  }, [guestbookQ.data, seenGuestbook, token]);
   const unreadGuestbookIds = useMemo(
-    () => (guestbookQ.data ?? []).filter((row) => !seenGuestbook.has(row.id)).map((row) => row.id),
-    [guestbookQ.data, seenGuestbook]
+    () => (!token ? [] : (guestbookQ.data ?? []).filter((row) => !seenGuestbook.has(row.id)).map((row) => row.id)),
+    [guestbookQ.data, seenGuestbook, token]
   );
   const latestUnreadGuestbookId = useMemo(() => {
+    if (!token) return null;
     let bestId: number | null = null;
     let bestTs = -1;
     for (const row of guestbookQ.data ?? []) {
@@ -239,7 +250,7 @@ export default function ProfilePage() {
       }
     }
     return bestId;
-  }, [guestbookQ.data, seenGuestbook]);
+  }, [guestbookQ.data, seenGuestbook, token]);
 
   const focusGuestbookEntry = (entryId: number) => {
     let tries = 0;
@@ -340,6 +351,7 @@ export default function ProfilePage() {
       if (targetPlayerId) setGuestbookDraftByPlayerId((prev) => ({ ...prev, [targetPlayerId]: "" }));
       await qc.invalidateQueries({ queryKey: ["players", "guestbook", targetPlayerId ?? "none"] });
       await qc.invalidateQueries({ queryKey: ["players", "guestbook", "summary"] });
+      await qc.invalidateQueries({ queryKey: ["players", "guestbook", "read", targetPlayerId ?? "none", token ?? "none"] });
     },
   });
 
@@ -351,6 +363,27 @@ export default function ProfilePage() {
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: ["players", "guestbook", targetPlayerId ?? "none"] });
       await qc.invalidateQueries({ queryKey: ["players", "guestbook", "summary"] });
+      await qc.invalidateQueries({ queryKey: ["players", "guestbook", "read", targetPlayerId ?? "none", token ?? "none"] });
+    },
+  });
+  const markGuestbookReadMut = useMutation({
+    mutationFn: async (entryId: number) => {
+      if (!token) throw new Error("Not logged in");
+      return markPlayerGuestbookEntryRead(token, entryId);
+    },
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ["players", "guestbook", "read", targetPlayerId ?? "none", token ?? "none"] });
+      await qc.invalidateQueries({ queryKey: ["players", "guestbook", "read-map", token ?? "none"] });
+    },
+  });
+  const markGuestbookReadAllMut = useMutation({
+    mutationFn: async () => {
+      if (!token || !targetPlayerId) throw new Error("Not logged in");
+      return markAllPlayerGuestbookEntriesRead(token, targetPlayerId);
+    },
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ["players", "guestbook", "read", targetPlayerId ?? "none", token ?? "none"] });
+      await qc.invalidateQueries({ queryKey: ["players", "guestbook", "read-map", token ?? "none"] });
     },
   });
 
@@ -682,12 +715,13 @@ export default function ProfilePage() {
                 type="button"
                 variant="ghost"
                 onClick={() => {
-                  if (!targetPlayerId || unreadGuestbookIds.length === 0) return;
+                  if (!targetPlayerId || unreadGuestbookIds.length === 0 || markGuestbookReadAllMut.isPending) return;
                   const ok = window.confirm(`Mark ${unreadGuestbookIds.length} unread guestbook message(s) as read?`);
                   if (!ok) return;
-                  for (const entryId of unreadGuestbookIds) markGuestbookEntrySeen(targetPlayerId, entryId);
+                  markGuestbookReadAllMut.mutate();
                 }}
                 title="Mark all unread guestbook messages as read"
+                disabled={markGuestbookReadAllMut.isPending}
               >
                 <i className="fa-solid fa-envelope-open md:hidden" aria-hidden="true" />
                 <span className="hidden md:inline">Read all</span>
@@ -699,8 +733,11 @@ export default function ProfilePage() {
         bodyClassName="space-y-3"
       >
         <ErrorToastOnError error={guestbookQ.error} title="Guestbook loading failed" />
+        <ErrorToastOnError error={guestbookReadQ.error} title="Guestbook read-status loading failed" />
         <ErrorToastOnError error={createGuestbookMut.error} title="Could not post guestbook message" />
         <ErrorToastOnError error={deleteGuestbookMut.error} title="Could not delete guestbook message" />
+        <ErrorToastOnError error={markGuestbookReadMut.error} title="Could not mark guestbook entry as read" />
+        <ErrorToastOnError error={markGuestbookReadAllMut.error} title="Could not mark guestbook as read" />
 
         {canPostGuestbook ? (
           <div className="panel-subtle p-3 space-y-2">
@@ -741,15 +778,15 @@ export default function ProfilePage() {
             const canDeleteEntry =
               !!token &&
               (role === "admin" || isOwnProfile || currentPlayerId === entry.author_player_id);
-            const isUnseen = !seenGuestbook.has(entry.id);
+            const isUnseen = !!token && !seenGuestbook.has(entry.id);
             return (
               <div
                 key={entry.id}
                 id={`guestbook-entry-${entry.id}`}
                 className="panel-subtle p-3 scroll-mt-28 sm:scroll-mt-32"
                 onClick={() => {
-                  if (!targetPlayerId || !isUnseen) return;
-                  markGuestbookEntrySeen(targetPlayerId, entry.id);
+                  if (!token || !isUnseen || markGuestbookReadMut.isPending) return;
+                  markGuestbookReadMut.mutate(entry.id);
                 }}
               >
                 <div className="flex items-start justify-between gap-3">
@@ -777,8 +814,8 @@ export default function ProfilePage() {
                         onClick={(e) => {
                           e.preventDefault();
                           e.stopPropagation();
-                          if (!targetPlayerId) return;
-                          markGuestbookEntrySeen(targetPlayerId, entry.id);
+                          if (!token || markGuestbookReadMut.isPending) return;
+                          markGuestbookReadMut.mutate(entry.id);
                         }}
                         title="Mark as read"
                         className="h-8 w-8 p-0 inline-flex items-center justify-center"

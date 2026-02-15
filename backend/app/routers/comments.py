@@ -6,11 +6,12 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFile
 from sqlmodel import Session, select
 
-from ..auth import require_admin, require_editor, require_editor_claims
+from ..auth import require_admin, require_auth_claims, require_editor, require_editor_claims
 from ..db import get_session
 from ..schemas import CommentCreateBody, CommentPatchBody, CommentsPinBody
 from ..models import (
     Comment,
+    CommentRead,
     CommentImageFile,
     Match,
     Player,
@@ -175,6 +176,96 @@ def comments_summary(s: Session = Depends(get_session)) -> list[dict]:
     return tournament_comments_summary(s)
 
 
+@router.get("/tournaments/{tournament_id}/comments/read")
+def list_tournament_comment_reads(
+    tournament_id: int,
+    s: Session = Depends(get_session),
+    claims: dict = Depends(require_auth_claims),
+) -> dict:
+    _tournament_or_404(s, tournament_id)
+    player_id = int(claims.get("player_id"))
+    rows = s.exec(
+        select(CommentRead.comment_id)
+        .join(Comment, Comment.id == CommentRead.comment_id)
+        .where(CommentRead.player_id == player_id, Comment.tournament_id == tournament_id)
+        .order_by(CommentRead.comment_id)
+    ).all()
+    return {"comment_ids": [int(cid) for cid in rows]}
+
+
+@router.get("/comments/read-map")
+def list_comment_read_map(
+    s: Session = Depends(get_session),
+    claims: dict = Depends(require_auth_claims),
+) -> list[dict]:
+    player_id = int(claims.get("player_id"))
+    rows = s.exec(
+        select(Comment.tournament_id, CommentRead.comment_id)
+        .join(Comment, Comment.id == CommentRead.comment_id)
+        .where(CommentRead.player_id == player_id)
+        .order_by(Comment.tournament_id, CommentRead.comment_id)
+    ).all()
+    out: dict[int, list[int]] = {}
+    for tid, cid in rows:
+        tid_i = int(tid)
+        out.setdefault(tid_i, []).append(int(cid))
+    return [{"tournament_id": tid, "comment_ids": ids} for tid, ids in out.items()]
+
+
+@router.put("/comments/{comment_id}/read")
+def mark_comment_read(
+    comment_id: int,
+    s: Session = Depends(get_session),
+    claims: dict = Depends(require_auth_claims),
+) -> dict:
+    _comment_or_404(s, comment_id)
+    player_id = int(claims.get("player_id"))
+    now = datetime.utcnow()
+    row = s.get(CommentRead, (player_id, comment_id))
+    if row is None:
+        row = CommentRead(player_id=player_id, comment_id=comment_id, read_at=now)
+    else:
+        row.read_at = now
+    s.add(row)
+    s.commit()
+    return {"ok": True}
+
+
+@router.put("/tournaments/{tournament_id}/comments/read-all")
+def mark_tournament_comments_read_all(
+    tournament_id: int,
+    s: Session = Depends(get_session),
+    claims: dict = Depends(require_auth_claims),
+) -> dict:
+    _tournament_or_404(s, tournament_id)
+    player_id = int(claims.get("player_id"))
+
+    comment_ids = [int(cid) for cid in s.exec(select(Comment.id).where(Comment.tournament_id == tournament_id)).all()]
+    if not comment_ids:
+        return {"ok": True, "marked": 0}
+
+    existing = {
+        int(cid)
+        for cid in s.exec(
+            select(CommentRead.comment_id).where(
+                CommentRead.player_id == player_id,
+                CommentRead.comment_id.in_(comment_ids),
+            )
+        ).all()
+    }
+
+    now = datetime.utcnow()
+    marked = 0
+    for cid in comment_ids:
+        if cid in existing:
+            continue
+        s.add(CommentRead(player_id=player_id, comment_id=cid, read_at=now))
+        marked += 1
+    if marked:
+        s.commit()
+    return {"ok": True, "marked": marked}
+
+
 @router.post("/tournaments/{tournament_id}/comments")
 async def create_comment(
     tournament_id: int,
@@ -210,6 +301,13 @@ async def create_comment(
     s.add(c)
     s.commit()
     s.refresh(c)
+
+    if c.author_player_id is not None:
+        pid = int(c.author_player_id)
+        row = s.get(CommentRead, (pid, int(c.id)))
+        if row is None:
+            s.add(CommentRead(player_id=pid, comment_id=int(c.id), read_at=now))
+            s.commit()
 
     await ws_manager.broadcast(
         tournament_id,
@@ -273,6 +371,10 @@ async def delete_comment(
     if image_row_fs:
         delete_media(image_row_fs.file_path)
         s.delete(image_row_fs)
+
+    read_rows = s.exec(select(CommentRead).where(CommentRead.comment_id == int(comment_id))).all()
+    for rr in read_rows:
+        s.delete(rr)
 
     s.delete(c)
     s.commit()

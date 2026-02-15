@@ -41,6 +41,15 @@ export type PlayerGuestbookSummary = {
   entry_ids: number[];
 };
 
+export type PlayerGuestbookReadIds = {
+  entry_ids: number[];
+};
+
+export type PlayerGuestbookReadMapRow = {
+  profile_player_id: number;
+  entry_ids: number[];
+};
+
 export type League = {
   id: number;
   name: string;
@@ -112,6 +121,15 @@ export type TournamentCommentsSummary = {
   total_comments: number;
   latest_comment_id: number;
   latest_updated_at: string | null;
+  comment_ids: number[];
+};
+
+export type TournamentCommentReadIds = {
+  comment_ids: number[];
+};
+
+export type TournamentCommentReadMapRow = {
+  tournament_id: number;
   comment_ids: number[];
 };
 

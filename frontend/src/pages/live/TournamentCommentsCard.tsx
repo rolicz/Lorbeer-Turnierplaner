@@ -18,12 +18,12 @@ import {
   putCommentImage,
   deleteComment as apiDeleteComment,
   listTournamentComments,
+  markCommentRead,
   patchComment as apiPatchComment,
   setPinnedTournamentComment,
 } from "../../api/comments.api";
 import { useAuth } from "../../auth/AuthContext";
 import { useSeenSet } from "../../hooks/useSeenComments";
-import { markCommentSeen } from "../../seenComments";
 import { usePlayerAvatarMap } from "../../hooks/usePlayerAvatarMap";
 
 type CommentScope =
@@ -628,6 +628,8 @@ export default function TournamentCommentsCard({
     },
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: ["comments", tournamentId] });
+      await qc.invalidateQueries({ queryKey: ["comments", "read", tournamentId, token ?? "none"] });
+      await qc.invalidateQueries({ queryKey: ["comments", "read-map", token ?? "none"] });
     },
   });
 
@@ -651,6 +653,8 @@ export default function TournamentCommentsCard({
     },
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: ["comments", tournamentId] });
+      await qc.invalidateQueries({ queryKey: ["comments", "read", tournamentId, token ?? "none"] });
+      await qc.invalidateQueries({ queryKey: ["comments", "read-map", token ?? "none"] });
     },
   });
 
@@ -664,7 +668,18 @@ export default function TournamentCommentsCard({
     },
   });
 
-  const actionError: unknown = createMut.error ?? patchMut.error ?? deleteMut.error ?? pinMut.error;
+  const markReadMut = useMutation({
+    mutationFn: async (commentId: number) => {
+      if (!token) throw new Error("Not logged in");
+      return markCommentRead(token, commentId);
+    },
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ["comments", "read", tournamentId, token ?? "none"] });
+      await qc.invalidateQueries({ queryKey: ["comments", "read-map", token ?? "none"] });
+    },
+  });
+
+  const actionError: unknown = createMut.error ?? patchMut.error ?? deleteMut.error ?? pinMut.error ?? markReadMut.error;
 
   async function deleteComment(commentId: number) {
     const ok = window.confirm("Delete comment?");
@@ -887,8 +902,11 @@ export default function TournamentCommentsCard({
                     c={c!}
                     isEditing={editingId === c!.id}
                     isPinned={pinnedTournamentCommentId === c!.id}
-                    isUnseen={!seen.has(c!.id)}
-                    onMarkSeen={() => markCommentSeen(tournamentId, c!.id)}
+                    isUnseen={!!token && !seen.has(c!.id)}
+                    onMarkSeen={() => {
+                      if (!token || markReadMut.isPending) return;
+                      markReadMut.mutate(c!.id);
+                    }}
                     flash={flashId === c!.id}
                     surfaceClassName="panel"
                     avatarUpdatedAt={
@@ -1041,8 +1059,11 @@ export default function TournamentCommentsCard({
                         c={c}
                         isEditing={editingId === c.id}
                         isPinned={false}
-                        isUnseen={!seen.has(c.id)}
-                        onMarkSeen={() => markCommentSeen(tournamentId, c.id)}
+                        isUnseen={!!token && !seen.has(c.id)}
+                        onMarkSeen={() => {
+                          if (!token || markReadMut.isPending) return;
+                          markReadMut.mutate(c.id);
+                        }}
                           flash={flashId === c.id}
                           surfaceClassName="panel-subtle"
                           avatarUpdatedAt={

@@ -137,7 +137,7 @@ export default function PlayersAdminPage() {
             const seen = seenGuestbookByPid.get(p.id) ?? new Set<number>();
             const entryIds = guestbookSummaryByPid.get(p.id)?.entry_ids ?? [];
             const unseenCount = entryIds.filter((eid) => !seen.has(eid)).length;
-            const hasUnseen = unseenCount > 0;
+            const hasUnseen = !!token && unseenCount > 0;
 
             return (
               <div key={p.id} className={"border-b border-border-card-inner last:border-b-0 " + zebra}>

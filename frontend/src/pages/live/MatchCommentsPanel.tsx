@@ -10,10 +10,15 @@ import AvatarCircle from "../../ui/primitives/AvatarCircle";
 import CommentImageCropper from "../../ui/primitives/CommentImageCropper";
 import ImageLightbox from "../../ui/primitives/ImageLightbox";
 import type { Player } from "../../api/types";
-import { commentImageUrl, createTournamentComment, listTournamentComments, putCommentImage } from "../../api/comments.api";
+import {
+  commentImageUrl,
+  createTournamentComment,
+  listTournamentComments,
+  markCommentRead,
+  putCommentImage,
+} from "../../api/comments.api";
 import { useAuth } from "../../auth/AuthContext";
 import { useSeenSet } from "../../hooks/useSeenComments";
-import { markCommentSeen } from "../../seenComments";
 import { usePlayerAvatarMap } from "../../hooks/usePlayerAvatarMap";
 
 function fmtTs(ms: number) {
@@ -125,6 +130,18 @@ export default function MatchCommentsPanel({
       setImageCropOpen(false);
       setComposerOpen(false);
       await qc.invalidateQueries({ queryKey: ["comments", tournamentId] });
+      await qc.invalidateQueries({ queryKey: ["comments", "read", tournamentId, token ?? "none"] });
+      await qc.invalidateQueries({ queryKey: ["comments", "read-map", token ?? "none"] });
+    },
+  });
+  const markReadMut = useMutation({
+    mutationFn: async (commentId: number) => {
+      if (!token) throw new Error("Not logged in");
+      return markCommentRead(token, commentId);
+    },
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ["comments", "read", tournamentId, token ?? "none"] });
+      await qc.invalidateQueries({ queryKey: ["comments", "read-map", token ?? "none"] });
     },
   });
 
@@ -195,14 +212,15 @@ export default function MatchCommentsPanel({
 	                  <div className="text-xs font-semibold text-text-normal truncate">{authorLabel(c.author_player_id)}</div>
                     </div>
 
-                    {!seen.has(c.id) ? (
+                    {!!token && !seen.has(c.id) ? (
                       <Button
                         variant="ghost"
                         type="button"
                         onClick={(e) => {
                           e.preventDefault();
                           e.stopPropagation();
-                          markCommentSeen(tournamentId, c.id);
+                          if (markReadMut.isPending) return;
+                          markReadMut.mutate(c.id);
                         }}
                         title="Mark as read"
                         className="h-8 w-8 p-0 inline-flex items-center justify-center shrink-0"

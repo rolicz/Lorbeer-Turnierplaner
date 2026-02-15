@@ -139,3 +139,49 @@ def test_profile_guestbook_summary(client, editor_headers, admin_headers):
     ids = [int(x) for x in (row.get("entry_ids") or [])]
     assert int(row1["id"]) in ids
     assert int(row2["id"]) in ids
+
+
+def test_profile_guestbook_read_tracking_per_player(client, editor_headers, admin_headers):
+    target_id = client.post("/players", json={"display_name": "GuestbookReadTarget"}, headers=admin_headers).json()["id"]
+
+    r_editor = client.post(
+        f"/players/{target_id}/guestbook",
+        json={"body": "from editor"},
+        headers=editor_headers,
+    )
+    assert r_editor.status_code == 200, r_editor.text
+    eid_editor = int(r_editor.json()["id"])
+
+    r_admin = client.post(
+        f"/players/{target_id}/guestbook",
+        json={"body": "from admin"},
+        headers=admin_headers,
+    )
+    assert r_admin.status_code == 200, r_admin.text
+    eid_admin = int(r_admin.json()["id"])
+
+    # Author's own entry is auto-marked as read.
+    r0 = client.get(f"/players/{target_id}/guestbook/read", headers=editor_headers)
+    assert r0.status_code == 200, r0.text
+    assert eid_editor in (r0.json().get("entry_ids") or [])
+    assert eid_admin not in (r0.json().get("entry_ids") or [])
+
+    r1 = client.put(f"/players/guestbook/{eid_admin}/read", headers=editor_headers)
+    assert r1.status_code == 200, r1.text
+    assert r1.json().get("ok") is True
+
+    r2 = client.get(f"/players/{target_id}/guestbook/read", headers=editor_headers)
+    assert r2.status_code == 200, r2.text
+    ids2 = [int(x) for x in (r2.json().get("entry_ids") or [])]
+    assert eid_editor in ids2 and eid_admin in ids2
+
+    rmap = client.get("/players/guestbook-read-map", headers=editor_headers)
+    assert rmap.status_code == 200, rmap.text
+    row = next((x for x in (rmap.json() or []) if int(x.get("profile_player_id", 0)) == int(target_id)), None)
+    assert row is not None
+    ids_map = [int(x) for x in (row.get("entry_ids") or [])]
+    assert eid_editor in ids_map and eid_admin in ids_map
+
+    rall = client.put(f"/players/{target_id}/guestbook/read-all", headers=editor_headers)
+    assert rall.status_code == 200, rall.text
+    assert int(rall.json().get("marked", -1)) == 0
