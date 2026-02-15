@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 
 import CollapsibleCard from "../../ui/primitives/CollapsibleCard";
 import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
@@ -118,22 +118,6 @@ export default function StreaksCard({ embedded = false }: { embedded?: boolean }
   const [showAllByKey, setShowAllByKey] = useState<Record<string, boolean>>({});
 
   const FETCH_LIMIT = 200;
-  const qc = useQueryClient();
-
-  // Warmup: prefetch all modes so switching doesn't cause a cold-load reflow.
-  useEffect(() => {
-    const modes: StatsMode[] = ["overall", "1v1", "2v2"];
-    const scopes: StatsScope[] = ["tournaments", "both", "friendlies"];
-    for (const m of modes) {
-      for (const sc of scopes) {
-        void qc.prefetchQuery({
-          queryKey: ["stats", "streaks", m, FETCH_LIMIT, sc],
-          queryFn: () => getStatsStreaks({ mode: m, playerId: null, limit: FETCH_LIMIT, scope: sc }),
-          staleTime: 30_000,
-        });
-      }
-    }
-  }, [FETCH_LIMIT, qc]);
 
   const q = useQuery({
     queryKey: ["stats", "streaks", mode, FETCH_LIMIT, scope],

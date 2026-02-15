@@ -1,5 +1,5 @@
-import { Fragment, type CSSProperties, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
-import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Fragment, type CSSProperties, type ReactNode, useEffect, useMemo, useState } from "react";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 
 import CollapsibleCard from "../../ui/primitives/CollapsibleCard";
 import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
@@ -270,15 +270,11 @@ type MatchupHistoryModalState = {
 };
 
 export default function HeadToHeadCard({ embedded = false }: { embedded?: boolean } = {}) {
-  const qc = useQueryClient();
   const playersQ = useQuery({ queryKey: ["players"], queryFn: listPlayers });
   const players = useMemo(() => playersQ.data ?? [], [playersQ.data]);
   const { avatarUpdatedAtById } = usePlayerAvatarMap();
 
   const FETCH_LIMIT = 200; // keep UI trimmed to 5 by default, but don't hide data due to API limit
-  const [isOpenState, setIsOpenState] = useState(false);
-  const isOpen = embedded || isOpenState;
-  const didWarmRef = useRef(false);
 
   const [playerId, setPlayerId] = useState<number | "">("");
   const [mode, setMode] = useState<StatsMode>("overall");
@@ -287,29 +283,6 @@ export default function HeadToHeadCard({ embedded = false }: { embedded?: boolea
   const [view, setView] = useState<View>("lists");
   const [detailView, setDetailView] = useState<DetailView>("compact");
   const [historyModal, setHistoryModal] = useState<MatchupHistoryModalState | null>(null);
-
-  // Warmup: prefetch H2H for all players so avatar clicks don't trigger a first-time loading/layout shift.
-  useEffect(() => {
-    if (!isOpen) return;
-    if (didWarmRef.current) return;
-    if (!players.length) return;
-    didWarmRef.current = true;
-
-    const ids: Array<number | null> = [null, ...players.map((p) => p.id)];
-    const orders: RivalryOrder[] = ["played", "rivalry"];
-    const scopes: StatsScope[] = ["tournaments", "both", "friendlies"];
-    for (const pid of ids) {
-      for (const o of orders) {
-        for (const sc of scopes) {
-          void qc.prefetchQuery({
-            queryKey: ["stats", "h2h", pid ?? "all", FETCH_LIMIT, o, sc],
-            queryFn: () => getStatsH2H({ playerId: pid, limit: FETCH_LIMIT, order: o, scope: sc }),
-            staleTime: 30_000,
-          });
-        }
-      }
-    }
-  }, [FETCH_LIMIT, isOpen, players, qc]);
 
   const h2hQ = useQuery({
     queryKey: ["stats", "h2h", playerId || "all", FETCH_LIMIT, order, scope],
@@ -1104,7 +1077,6 @@ export default function HeadToHeadCard({ embedded = false }: { embedded?: boolea
       }
       defaultOpen={false}
       scrollOnOpen={true}
-      onOpenChange={setIsOpenState}
       variant="outer"
       bodyVariant="none"
       bodyClassName="space-y-3"

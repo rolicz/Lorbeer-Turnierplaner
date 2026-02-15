@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
-import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMemo, useState } from "react";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 
 import CollapsibleCard from "../../ui/primitives/CollapsibleCard";
 import { getStatsRatings } from "../../api/stats.api";
@@ -42,22 +42,6 @@ function Row({ i, r }: { i: number; r: StatsRatingsRow }) {
 export default function RatingsCard({ embedded = false }: { embedded?: boolean } = {}) {
   const [mode, setMode] = useState<StatsMode>("overall");
   const [scope, setScope] = useState<StatsScope>("tournaments");
-  const qc = useQueryClient();
-
-  // Warmup: prefetch all modes so switching doesn't cause a "blank -> filled" layout jump on cold load.
-  useEffect(() => {
-    const modes: StatsMode[] = ["overall", "1v1", "2v2"];
-    const scopes: StatsScope[] = ["tournaments", "both", "friendlies"];
-    for (const m of modes) {
-      for (const sc of scopes) {
-        void qc.prefetchQuery({
-          queryKey: ["stats", "ratings", m, sc],
-          queryFn: () => getStatsRatings({ mode: m, scope: sc }),
-          staleTime: 30_000,
-        });
-      }
-    }
-  }, [qc]);
 
   const q = useQuery({
     queryKey: ["stats", "ratings", mode, scope],

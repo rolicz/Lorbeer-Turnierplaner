@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
-import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMemo, useState } from "react";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 
 import CollapsibleCard from "../../ui/primitives/CollapsibleCard";
 import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
@@ -179,7 +179,6 @@ function StarRow({ r }: { r: StarBucket }) {
 
 export default function StarsPerformanceCard({ embedded = false }: { embedded?: boolean } = {}) {
   const { playerId: loggedInPlayerId } = useAuth();
-  const qc = useQueryClient();
   const playersQ = useQuery({ queryKey: ["players"], queryFn: listPlayers });
   const clubsQ = useQuery({ queryKey: ["clubs"], queryFn: () => listClubs() });
   const { avatarUpdatedAtById } = usePlayerAvatarMap();
@@ -196,20 +195,6 @@ export default function StarsPerformanceCard({ embedded = false }: { embedded?: 
     return loggedInPlayerId;
   }, [loggedInPlayerId, players]);
   const selectedPlayerId: number | "" = playerId === "" ? defaultSelectedPlayerId : playerId;
-
-  useEffect(() => {
-    if (!players.length) return;
-    const scopes: StatsScope[] = ["tournaments", "both", "friendlies"];
-    for (const p of players) {
-      for (const sc of scopes) {
-        void qc.prefetchQuery({
-          queryKey: ["stats", "starsPerformance", p.id, sc],
-          queryFn: () => getStatsPlayerMatches({ playerId: p.id, scope: sc }),
-          staleTime: 30_000,
-        });
-      }
-    }
-  }, [players, qc]);
 
   const matchesQ = useQuery({
     queryKey: ["stats", "starsPerformance", selectedPlayerId || "none", scope],

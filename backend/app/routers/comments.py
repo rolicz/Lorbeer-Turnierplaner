@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFil
 from sqlmodel import Session, select
 
 from ..auth import require_admin, require_auth_claims, require_editor, require_editor_claims
-from ..db import get_session
+from ..db import get_engine, get_session
 from ..schemas import CommentCreateBody, CommentPatchBody, CommentsPinBody
 from ..models import (
     Comment,
@@ -389,17 +389,21 @@ async def delete_comment(
 
 
 @router.get("/comments/{comment_id}/image")
-def get_comment_image(comment_id: int, s: Session = Depends(get_session)):
-    c = _comment_or_404(s, comment_id)
-    img_file = s.get(CommentImageFile, comment_id)
-    if not img_file:
-        raise HTTPException(status_code=404, detail="Comment image not found")
-    data = read_media(img_file.file_path)
+def get_comment_image(comment_id: int):
+    with Session(get_engine()) as s:
+        _ = _comment_or_404(s, comment_id)
+        img_file = s.get(CommentImageFile, comment_id)
+        if not img_file:
+            raise HTTPException(status_code=404, detail="Comment image not found")
+        content_type = img_file.content_type
+        file_path = img_file.file_path
+
+    data = read_media(file_path)
     if data is None:
         raise HTTPException(status_code=404, detail="Comment image file missing")
 
     headers = {"Cache-Control": "public, max-age=604800"}
-    return Response(content=data, media_type=img_file.content_type, headers=headers)
+    return Response(content=data, media_type=content_type, headers=headers)
 
 
 @router.put("/comments/{comment_id}/image", dependencies=[Depends(require_editor)])

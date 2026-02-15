@@ -9,7 +9,13 @@ from sqlalchemy.orm import selectinload
 from sqlmodel import Session, select
 
 from ...models import FriendlyMatch, FriendlyMatchSide, Match, MatchSide, Player, Tournament
-from .scope import include_friendlies, include_tournaments, normalize_scope
+from .scope import (
+    friendlies_schema_ready,
+    include_friendlies,
+    include_tournaments,
+    normalize_scope,
+    safe_exec_all,
+)
 
 
 def _side_by(m: Any, side: str) -> Any | None:
@@ -86,9 +92,9 @@ def _load_finished_matches(s: Session, *, scope: str) -> list[Any]:
                 selectinload(Match.sides).selectinload(MatchSide.players),
             )
         )
-        matches.extend(list(s.exec(stmt).all()))
+        matches.extend(safe_exec_all(s, stmt))
 
-    if include_friendlies(scope_norm):
+    if include_friendlies(scope_norm) and friendlies_schema_ready(s):
         fstmt = (
             select(FriendlyMatch)
             .where(FriendlyMatch.state == "finished")
@@ -96,7 +102,7 @@ def _load_finished_matches(s: Session, *, scope: str) -> list[Any]:
                 selectinload(FriendlyMatch.sides).selectinload(FriendlyMatchSide.players),
             )
         )
-        matches.extend(_friendly_as_match_like(fm) for fm in s.exec(fstmt).all())
+        matches.extend(_friendly_as_match_like(fm) for fm in safe_exec_all(s, fstmt))
 
     matches.sort(key=_sort_key)
     return matches

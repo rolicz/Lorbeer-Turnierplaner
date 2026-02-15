@@ -16,7 +16,13 @@ from ...models import (
     Player,
     Tournament,
 )
-from .scope import include_friendlies, include_tournaments, normalize_scope
+from .scope import (
+    friendlies_schema_ready,
+    include_friendlies,
+    include_tournaments,
+    normalize_scope,
+    safe_exec_all,
+)
 
 
 def compute_stats_player_matches(s: Session, *, player_id: int, scope: str = "tournaments") -> dict[str, Any]:
@@ -46,10 +52,10 @@ def compute_stats_player_matches(s: Session, *, player_id: int, scope: str = "to
                 selectinload(Match.sides).selectinload(MatchSide.players),
             )
         )
-        matches = list(s.exec(stmt).all())
+        matches = safe_exec_all(s, stmt)
 
     friendlies: list[FriendlyMatch] = []
-    if include_friendlies(scope_norm):
+    if include_friendlies(scope_norm) and friendlies_schema_ready(s):
         fstmt = (
             select(FriendlyMatch)
             .join(FriendlyMatchSide, FriendlyMatchSide.friendly_match_id == FriendlyMatch.id)
@@ -61,7 +67,7 @@ def compute_stats_player_matches(s: Session, *, player_id: int, scope: str = "to
                 selectinload(FriendlyMatch.sides).selectinload(FriendlyMatchSide.players),
             )
         )
-        friendlies = list(s.exec(fstmt).all())
+        friendlies = safe_exec_all(s, fstmt)
 
     def player_dict(pp: Player) -> dict[str, Any]:
         return {"id": int(pp.id), "display_name": pp.display_name}

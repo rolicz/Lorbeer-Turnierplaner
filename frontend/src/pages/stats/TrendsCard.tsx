@@ -1,6 +1,6 @@
 /* eslint-disable react-refresh/only-export-components */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { keepPreviousData, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useQueries, useQuery } from "@tanstack/react-query";
 
 import CollapsibleCard from "../../ui/primitives/CollapsibleCard";
 import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
@@ -1165,8 +1165,6 @@ export default function TrendsCard({
   const [formN, setFormN] = useState(10);
 
   const wrapRef = useRef<HTMLDivElement | null>(null);
-  const qc = useQueryClient();
-
   // lastN irrelevant here, but keep it small (we only use tournaments + positions).
   const statsQ = useQuery<StatsPlayersResponse>({
     queryKey: ["stats", "players", mode, 0],
@@ -1178,18 +1176,6 @@ export default function TrendsCard({
   });
 
   const players = useMemo(() => statsQ.data?.players ?? [], [statsQ.data?.players]);
-
-  // Warmup: prefetch the lightweight players+tourneys payload for other modes so toggling is instant.
-  useEffect(() => {
-    const modes: StatsMode[] = ["overall", "1v1", "2v2"];
-    for (const m of modes) {
-      void qc.prefetchQuery({
-        queryKey: ["stats", "players", m, 0],
-        queryFn: () => getStatsPlayers({ mode: m, lastN: 0 }),
-        staleTime: 30_000,
-      });
-    }
-  }, [qc]);
 
   // Needed for form/cumulative
   const needMatches = view === "lastN" || view === "total";

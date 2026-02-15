@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFil
 from sqlmodel import Session, select
 
 from ..auth import require_admin, require_auth_claims, require_editor_claims
-from ..db import get_session
+from ..db import get_engine, get_session
 from ..models import (
     Player,
     PlayerAvatarFile,
@@ -265,17 +265,21 @@ def list_player_header_meta(s: Session = Depends(get_session)):
 
 
 @router.get("/{player_id}/avatar")
-def get_player_avatar(player_id: int, s: Session = Depends(get_session)):
-    fs_row = s.get(PlayerAvatarFile, player_id)
-    if not fs_row:
-        raise HTTPException(status_code=404, detail="Avatar not found")
-    data = read_media(fs_row.file_path)
+def get_player_avatar(player_id: int):
+    with Session(get_engine()) as s:
+        fs_row = s.get(PlayerAvatarFile, player_id)
+        if not fs_row:
+            raise HTTPException(status_code=404, detail="Avatar not found")
+        content_type = fs_row.content_type
+        file_path = fs_row.file_path
+
+    data = read_media(file_path)
     if data is None:
         raise HTTPException(status_code=404, detail="Avatar file missing")
 
     # Cache: avatar changes rarely; frontend uses updated_at as a cache buster.
     headers = {"Cache-Control": "public, max-age=604800"}
-    return Response(content=data, media_type=fs_row.content_type, headers=headers)
+    return Response(content=data, media_type=content_type, headers=headers)
 
 
 @router.put("/{player_id}/avatar")
@@ -333,15 +337,19 @@ def delete_player_avatar(
 
 
 @router.get("/{player_id}/header-image")
-def get_player_header_image(player_id: int, s: Session = Depends(get_session)):
-    fs_row = s.get(PlayerHeaderImageFile, player_id)
-    if not fs_row:
-        raise HTTPException(status_code=404, detail="Header image not found")
-    data = read_media(fs_row.file_path)
+def get_player_header_image(player_id: int):
+    with Session(get_engine()) as s:
+        fs_row = s.get(PlayerHeaderImageFile, player_id)
+        if not fs_row:
+            raise HTTPException(status_code=404, detail="Header image not found")
+        content_type = fs_row.content_type
+        file_path = fs_row.file_path
+
+    data = read_media(file_path)
     if data is None:
         raise HTTPException(status_code=404, detail="Header image file missing")
     headers = {"Cache-Control": "public, max-age=604800"}
-    return Response(content=data, media_type=fs_row.content_type, headers=headers)
+    return Response(content=data, media_type=content_type, headers=headers)
 
 
 @router.put("/{player_id}/header-image")
