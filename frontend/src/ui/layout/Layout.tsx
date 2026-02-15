@@ -9,6 +9,7 @@ import { useAnyTournamentWS } from "../../hooks/useTournamentWS";
 import { THEMES } from "../../themes";
 import { listTournamentCommentReadMap, listTournamentCommentsSummary } from "../../api/comments.api";
 import { listPlayerGuestbookReadMap, listPlayerGuestbookSummary } from "../../api/players.api";
+import { SubNavProvider, useSubNavContext } from "./SubNavContext";
 
 type Role = "reader" | "editor" | "admin";
 type ThemeName = string;
@@ -23,12 +24,14 @@ const THEME_SWATCHES: Record<string, string[]> = {
 
 const THEME_OPTIONS: ThemeName[] = THEMES;
 
-export default function Layout({ children }: { children: React.ReactNode }) {
+function LayoutInner({ children }: { children: React.ReactNode }) {
   const { token, role, accountRole, playerName, logout, canCycleRole, cycleRole } = useAuth();
   const loc = useLocation();
   useAnyTournamentWS();
   const qc = useQueryClient();
   const themeMenuRef = useRef<HTMLDivElement | null>(null);
+  const headerRef = useRef<HTMLDivElement | null>(null);
+  const { items: subNavItems } = useSubNavContext();
 
   // Warm cache so "unread comments" indicators appear quickly after navigation.
   // Using prefetch avoids any rendering dependencies and works well with StrictMode.
@@ -76,6 +79,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     return "blue";
   });
   const [themeMenuOpen, setThemeMenuOpen] = useState(false);
+  const [headerHeight, setHeaderHeight] = useState(120);
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -102,21 +106,43 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     };
   }, [themeMenuOpen]);
 
+  useEffect(() => {
+    const el = headerRef.current;
+    if (!el) return;
+
+    const update = () => {
+      // Use layout height (ignores visual transforms like click-blink animations)
+      // so content offset stays stable across tabs.
+      const next = Math.ceil(el.offsetHeight);
+      if (Number.isFinite(next) && next > 0) setHeaderHeight(next);
+    };
+    update();
+
+    const obs = new ResizeObserver(() => update());
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [subNavItems.length]);
+
   const nav: { to: string; label: string; icon: string; min: Role }[] = [
     { to: "/dashboard", label: "Dashboard", icon: "fa-gauge-high", min: "reader" },
     { to: "/tournaments", label: "Tournaments", icon: "fa-trophy", min: "reader" },
     { to: "/friendlies", label: "Friendlies", icon: "fa-handshake", min: "reader" },
     { to: "/stats", label: "Stats", icon: "fa-chart-line", min: "reader" },
     { to: "/players", label: "Players", icon: "fa-users", min: "reader" },
-    { to: "/profile", label: "Profile", icon: "fa-user", min: "editor" },
     { to: "/clubs", label: "Clubs", icon: "fa-shield-halved", min: "editor" },
   ];
 
   const rank: Record<Role, number> = { reader: 1, editor: 2, admin: 3 };
   const visible = nav.filter((n) => rank[role] >= rank[n.min]);
   const isNavActive = (to: string, pathname: string) => {
-    if (to === "/profile") return pathname === "/profile";
-    if (to === "/players") return pathname === "/players" || pathname.startsWith("/players/") || pathname.startsWith("/profiles/");
+    if (to === "/players") {
+      return (
+        pathname === "/players" ||
+        pathname === "/profile" ||
+        pathname.startsWith("/players/") ||
+        pathname.startsWith("/profiles/")
+      );
+    }
     if (to === "/tournaments") return pathname === "/tournaments" || pathname.startsWith("/tournaments/") || pathname.startsWith("/live/");
     return pathname === to || pathname.startsWith(`${to}/`);
   };
@@ -124,6 +150,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     <div className="min-h-screen">
       {/* Fixed top bar, respecting mobile safe-area insets */}
       <div
+        id="app-top-nav"
+        ref={headerRef}
         className="
           fixed inset-x-0 top-0 z-30
           nav-shell backdrop-blur-md backdrop-saturate-150
@@ -276,11 +304,87 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               })}
             </div>
           </nav>
+
+          {subNavItems.length ? (
+            <>
+              <div className="mt-2 border-t border-border-card-outer/70" />
+              <div className="page-x-bleed mt-2 pb-1 sm:pb-0">
+                <div className="flex w-full items-center gap-1 overflow-x-auto py-1">
+                  {subNavItems.map((item) => {
+                    const commonCls =
+                      "btn-base inline-flex h-9 items-center justify-center rounded-xl transition-none disabled:opacity-60";
+                    const activeCls = item.active
+                      ? ((item.activeClassName ?? "bg-bg-card-chip/45 border border-border-card-chip/70") + " subnav-active-glow")
+                      : "btn-ghost";
+                    const extraCls = item.className ?? "";
+                    const icon = item.icon ? <i className={`fa-solid ${item.icon}`} aria-hidden="true" /> : null;
+                    const compactMobile = !!item.iconOnlyMobile;
+                    const buttonSizeCls = item.iconOnly
+                      ? "w-9 px-0"
+                      : compactMobile
+                        ? "w-9 px-0 md:w-auto md:px-3"
+                        : "px-3";
+                    const iconGapCls = item.iconOnly
+                      ? ""
+                      : compactMobile
+                        ? "md:mr-2"
+                        : "mr-2";
+                    const showLabel = !item.iconOnly;
+                    const labelCls = compactMobile ? "hidden md:inline whitespace-nowrap text-xs font-medium" : "whitespace-nowrap text-xs font-medium";
+
+                    if (item.to) {
+                      return (
+                        <Link
+                          key={item.key}
+                          to={item.to}
+                          title={item.title ?? item.label}
+                          className={
+                            commonCls +
+                            " " +
+                            activeCls +
+                            " " +
+                            buttonSizeCls +
+                            " " +
+                            extraCls
+                          }
+                        >
+                          {icon ? <span className={iconGapCls}>{icon}</span> : null}
+                          {showLabel ? <span className={labelCls}>{item.label}</span> : null}
+                        </Link>
+                      );
+                    }
+
+                    return (
+                      <button
+                        key={item.key}
+                        type="button"
+                        title={item.title ?? item.label}
+                        onClick={item.onClick}
+                        disabled={item.disabled}
+                        className={
+                          commonCls +
+                          " " +
+                          activeCls +
+                          " " +
+                          buttonSizeCls +
+                          " " +
+                          extraCls
+                        }
+                      >
+                        {icon ? <span className={iconGapCls}>{icon}</span> : null}
+                        {showLabel ? <span className={labelCls}>{item.label}</span> : null}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </>
+          ) : null}
         </div>
       </div>
 
-      {/* Content offset: header height + safe-area inset top */}
-      <div className="pt-[calc(env(safe-area-inset-top,0px)+104px)] sm:pt-[calc(env(safe-area-inset-top,0px)+120px)]">
+      {/* Content offset: measured header height already includes safe-area top padding */}
+      <div style={{ paddingTop: `${headerHeight}px` }}>
         <main
           className="
             mx-auto max-w-6xl xl:max-w-7xl page-x py-4 sm:py-6
@@ -292,5 +396,13 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       </div>
       <ErrorToastViewport />
     </div>
+  );
+}
+
+export default function Layout({ children }: { children: React.ReactNode }) {
+  return (
+    <SubNavProvider>
+      <LayoutInner>{children}</LayoutInner>
+    </SubNavProvider>
   );
 }

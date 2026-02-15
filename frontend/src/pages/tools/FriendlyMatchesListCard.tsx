@@ -19,7 +19,7 @@ function normalizeState(state: string): "scheduled" | "playing" | "finished" {
   return "finished";
 }
 
-export default function FriendlyMatchesListCard() {
+export default function FriendlyMatchesListCard({ embedded = false }: { embedded?: boolean }) {
   const qc = useQueryClient();
   const { role, token } = useAuth();
   const canDelete = role === "admin" && !!token;
@@ -113,19 +113,8 @@ export default function FriendlyMatchesListCard() {
     return fid > 0 ? fid : null;
   }
 
-  return (
-    <CollapsibleCard
-      title={
-        <span className="inline-flex items-center gap-2">
-          <i className="fa-solid fa-list text-text-muted" aria-hidden="true" />
-          All Friendlies
-        </span>
-      }
-      defaultOpen={true}
-      variant="outer"
-      bodyVariant="none"
-      bodyClassName="space-y-3"
-    >
+  const content = (
+    <>
       <ErrorToastOnError error={friendliesQ.error} title="Friendly matches loading failed" />
       <ErrorToastOnError error={clubsQ.error} title="Clubs loading failed" />
       <ErrorToastOnError error={deleteMut.error} title="Could not delete friendly" />
@@ -209,6 +198,25 @@ export default function FriendlyMatchesListCard() {
           />
         </div>
       ) : null}
+    </>
+  );
+
+  if (embedded) return <div className="space-y-3">{content}</div>;
+
+  return (
+    <CollapsibleCard
+      title={
+        <span className="inline-flex items-center gap-2">
+          <i className="fa-solid fa-list text-text-muted" aria-hidden="true" />
+          All Friendlies
+        </span>
+      }
+      defaultOpen={true}
+      variant="outer"
+      bodyVariant="none"
+      bodyClassName="space-y-3"
+    >
+      {content}
     </CollapsibleCard>
   );
 }

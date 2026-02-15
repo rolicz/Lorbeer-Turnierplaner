@@ -1154,9 +1154,11 @@ function PanZoomTrendsChart({
 export default function TrendsCard({
   defaultOpen = false,
   initialView = "lastN",
+  embedded = false,
 }: {
   defaultOpen?: boolean;
   initialView?: View;
+  embedded?: boolean;
 } = {}) {
   const [mode, setMode] = useState<StatsMode>("overall");
   const [view, setView] = useState<View>(initialView);
@@ -1444,6 +1446,14 @@ export default function TrendsCard({
       </div>
     </div>
   );
+
+  if (embedded) {
+    return (
+      <div ref={wrapRef}>
+        {Body}
+      </div>
+    );
+  }
 
   return (
     <div

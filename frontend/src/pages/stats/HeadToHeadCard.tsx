@@ -269,14 +269,15 @@ type MatchupHistoryModalState = {
   focusPlayerId: number | null;
 };
 
-export default function HeadToHeadCard() {
+export default function HeadToHeadCard({ embedded = false }: { embedded?: boolean } = {}) {
   const qc = useQueryClient();
   const playersQ = useQuery({ queryKey: ["players"], queryFn: listPlayers });
   const players = useMemo(() => playersQ.data ?? [], [playersQ.data]);
   const { avatarUpdatedAtById } = usePlayerAvatarMap();
 
   const FETCH_LIMIT = 200; // keep UI trimmed to 5 by default, but don't hide data due to API limit
-  const [isOpen, setIsOpen] = useState(false);
+  const [isOpenState, setIsOpenState] = useState(false);
+  const isOpen = embedded || isOpenState;
   const didWarmRef = useRef(false);
 
   const [playerId, setPlayerId] = useState<number | "">("");
@@ -429,21 +430,8 @@ export default function HeadToHeadCard() {
     return () => window.removeEventListener("keydown", onKey);
   }, [historyModal]);
 
-  return (
-    <CollapsibleCard
-      title={
-        <span className="inline-flex items-center gap-2">
-          <i className="fa-solid fa-user-group text-text-muted" aria-hidden="true" />
-          Head-to-Head
-        </span>
-      }
-      defaultOpen={false}
-      scrollOnOpen={true}
-      onOpenChange={setIsOpen}
-      variant="outer"
-      bodyVariant="none"
-      bodyClassName="space-y-3"
-    >
+  const content = (
+    <>
       <ErrorToastOnError error={h2hQ.error} title="H2H loading failed" />
       <ErrorToastOnError error={historyQ.error} title="Match history loading failed" />
       <ErrorToastOnError error={clubsQ.error} title="Club data loading failed" />
@@ -1101,6 +1089,27 @@ export default function HeadToHeadCard() {
           </div>
         </div>
       ) : null}
+    </>
+  );
+
+  if (embedded) return <div className="space-y-3">{content}</div>;
+
+  return (
+    <CollapsibleCard
+      title={
+        <span className="inline-flex items-center gap-2">
+          <i className="fa-solid fa-user-group text-text-muted" aria-hidden="true" />
+          Head-to-Head
+        </span>
+      }
+      defaultOpen={false}
+      scrollOnOpen={true}
+      onOpenChange={setIsOpenState}
+      variant="outer"
+      bodyVariant="none"
+      bodyClassName="space-y-3"
+    >
+      {content}
     </CollapsibleCard>
   );
 }

@@ -436,6 +436,7 @@ export default function TournamentCommentsCard({
   canWrite,
   canDelete,
   focusCommentRequest,
+  collapsible = true,
 }: {
   tournamentId: number;
   matches: Match[];
@@ -444,6 +445,7 @@ export default function TournamentCommentsCard({
   canWrite: boolean;
   canDelete: boolean;
   focusCommentRequest?: { id: number; nonce: number } | null;
+  collapsible?: boolean;
 }) {
   const qc = useQueryClient();
   const { token, role, playerId: currentPlayerId, playerName: currentPlayerName } = useAuth();
@@ -844,9 +846,8 @@ export default function TournamentCommentsCard({
     });
   }
 
-  return (
+  const commentsContent = (
     <>
-    <CollapsibleCard title="Comments" defaultOpen={true} variant="outer" bodyVariant="none" bodyClassName="space-y-3">
         <ErrorToastOnError error={commentsQ.error} title="Comments loading failed" />
         <ErrorToastOnError error={actionError} title="Comment action failed" />
         {commentsQ.isLoading ? (
@@ -1100,7 +1101,18 @@ export default function TournamentCommentsCard({
             );
           })}
         </div>
-    </CollapsibleCard>
+    </>
+  );
+
+  return (
+    <>
+    {collapsible ? (
+      <CollapsibleCard title="Comments" defaultOpen={true} variant="outer" bodyVariant="none" bodyClassName="space-y-3">
+        {commentsContent}
+      </CollapsibleCard>
+    ) : (
+      <div className="space-y-3">{commentsContent}</div>
+    )}
     <CommentImageCropper
       open={imageCropOpen}
       title="Attach comment image"

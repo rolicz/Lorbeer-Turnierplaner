@@ -248,7 +248,9 @@ export default function AdminPanel({
         )}
 
         {!canReorder && role === "editor" && done && (
-          <div className="text-sm text-text-muted">Tournament is done.</div>
+          <div className="inline-flex h-10 items-center px-1 text-sm text-text-muted">
+            Tournament is done.
+          </div>
         )}
       </div>
 

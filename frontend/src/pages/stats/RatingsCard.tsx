@@ -39,7 +39,7 @@ function Row({ i, r }: { i: number; r: StatsRatingsRow }) {
   );
 }
 
-export default function RatingsCard() {
+export default function RatingsCard({ embedded = false }: { embedded?: boolean } = {}) {
   const [mode, setMode] = useState<StatsMode>("overall");
   const [scope, setScope] = useState<StatsScope>("tournaments");
   const qc = useQueryClient();
@@ -70,6 +70,29 @@ export default function RatingsCard() {
 
   const rows = useMemo(() => q.data?.rows ?? [], [q.data?.rows]);
 
+  const content = (
+    <div className="card-inner space-y-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <StatsFilterDataControls mode={mode} onModeChange={setMode} scope={scope} onScopeChange={setScope} />
+      </div>
+      <div className="grid gap-2" style={{ overflowAnchor: "none" }}>
+        {rows.map((r, i) => (
+          <Row key={r.player.id} i={i} r={r} />
+        ))}
+      </div>
+
+      <div className="panel-subtle rounded-xl px-3 py-2 text-[11px] text-text-muted">
+        Elo-like ladder: start <span className="font-mono text-text-normal">1000</span>, expected score uses the standard{" "}
+        <span className="font-mono text-text-normal">400</span>-scale logistic curve,{" "}
+        <span className="font-mono text-text-normal">K=24</span>. Goal difference boosts the update up to{" "}
+        <span className="font-mono text-text-normal">3x</span> (capped). In 2v2, team rating is the average and the change is
+        split across teammates.
+      </div>
+    </div>
+  );
+
+  if (embedded) return content;
+
   return (
     <CollapsibleCard
       title={
@@ -83,24 +106,7 @@ export default function RatingsCard() {
       variant="outer"
       bodyVariant="none"
     >
-      <div className="card-inner space-y-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <StatsFilterDataControls mode={mode} onModeChange={setMode} scope={scope} onScopeChange={setScope} />
-        </div>
-        <div className="grid gap-2" style={{ overflowAnchor: "none" }}>
-          {rows.map((r, i) => (
-            <Row key={r.player.id} i={i} r={r} />
-          ))}
-        </div>
-
-        <div className="panel-subtle rounded-xl px-3 py-2 text-[11px] text-text-muted">
-          Elo-like ladder: start <span className="font-mono text-text-normal">1000</span>, expected score uses the standard{" "}
-          <span className="font-mono text-text-normal">400</span>-scale logistic curve,{" "}
-          <span className="font-mono text-text-normal">K=24</span>. Goal difference boosts the update up to{" "}
-          <span className="font-mono text-text-normal">3x</span> (capped). In 2v2, team rating is the average and the change is
-          split across teammates.
-        </div>
-      </div>
+      {content}
     </CollapsibleCard>
   );
 }

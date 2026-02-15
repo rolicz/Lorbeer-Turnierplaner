@@ -1,11 +1,14 @@
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import Card from "../ui/primitives/Card";
 import Input from "../ui/primitives/Input";
 import Button from "../ui/primitives/Button";
 import CollapsibleCard from "../ui/primitives/CollapsibleCard";
+import SegmentedSwitch from "../ui/primitives/SegmentedSwitch";
 import { ErrorToastOnError } from "../ui/primitives/ErrorToast";
+import { usePageSubNav, type SubNavItem } from "../ui/layout/SubNavContext";
+import { useSectionSubnav } from "../ui/layout/useSectionSubnav";
+import SectionSeparator from "../ui/primitives/SectionSeparator";
 
 import { useAuth } from "../auth/AuthContext";
 import { createClub, deleteClub, listClubs, listLeagues, patchClub } from "../api/clubs.api";
@@ -83,6 +86,7 @@ function groupByLeague(clubs: Club[], leaguesById: Map<number, string>) {
 export default function ClubsPage() {
   const { token, role } = useAuth();
   const qc = useQueryClient();
+  const defaultScrollDoneRef = useRef(false);
 
   const isAdmin = role === "admin";
   const isEditorOrAdmin = role === "editor" || role === "admin";
@@ -220,42 +224,137 @@ export default function ClubsPage() {
     return groupByStars(filteredClubs, leaguesById);
   }, [filteredClubs, leaguesById, groupMode]);
 
+  const pageSections = useMemo(
+    () => [
+      { key: "create-new", id: "section-clubs-create" },
+      { key: "browse-filter", id: "section-clubs-browse" },
+      { key: "clubs-list", id: "section-clubs-list" },
+    ],
+    []
+  );
+
+  const { activeKey: activeSubKey, blinkKey: subnavBlinkKey, jumpToSection } = useSectionSubnav({
+    sections: pageSections,
+    enabled: true,
+  });
+
+  const computeBrowseOffset = useCallback((): number => {
+    const browseEl = document.getElementById("section-clubs-browse");
+    const createEl = document.getElementById("section-clubs-create");
+    const headerEl = document.getElementById("app-top-nav");
+    if (!browseEl || !createEl || !headerEl) return 0;
+
+    const headerHeight = Math.ceil(headerEl.getBoundingClientRect().height);
+    const browseTop = window.scrollY + browseEl.getBoundingClientRect().top;
+    const createBottom = window.scrollY + createEl.getBoundingClientRect().bottom;
+
+    const baseTarget = Math.max(0, browseTop - headerHeight);
+    const minTargetToHideCreate = Math.max(0, createBottom - headerHeight + 1);
+    const target = Math.max(baseTarget, minTargetToHideCreate);
+    return baseTarget - target;
+  }, []);
+
+  const computeListOffset = useCallback((): number => {
+    const listEl = document.getElementById("section-clubs-list");
+    const browseEl = document.getElementById("section-clubs-browse");
+    const headerEl = document.getElementById("app-top-nav");
+    if (!listEl || !browseEl || !headerEl) return 0;
+
+    const headerHeight = Math.ceil(headerEl.getBoundingClientRect().height);
+    const listTop = window.scrollY + listEl.getBoundingClientRect().top;
+    const browseBottom = window.scrollY + browseEl.getBoundingClientRect().bottom;
+
+    const baseTarget = Math.max(0, listTop - headerHeight);
+    const minTargetToHideBrowse = Math.max(0, browseBottom - headerHeight + 1);
+    const target = Math.max(baseTarget, minTargetToHideBrowse);
+    return baseTarget - target;
+  }, []);
+
+  useEffect(() => {
+    if (defaultScrollDoneRef.current) return;
+    defaultScrollDoneRef.current = true;
+    window.setTimeout(() => {
+      jumpToSection("browse-filter", "section-clubs-browse", {
+        blink: false,
+        lockMs: 600,
+        retries: 20,
+        offsetPx: computeBrowseOffset(),
+      });
+    }, 0);
+  }, [computeBrowseOffset, jumpToSection]);
+
+  const subNavItems = useMemo<SubNavItem[]>(
+    () => [
+      {
+        key: "create-new",
+        label: "Create New",
+        icon: "fa-plus",
+        active: activeSubKey === "create-new",
+        className: subnavBlinkKey === "create-new" ? "subnav-click-blink" : "",
+        onClick: () =>
+          jumpToSection("create-new", "section-clubs-create", {
+            blink: true,
+            lockMs: 700,
+            retries: 20,
+          }),
+      },
+      {
+        key: "browse-filter",
+        label: "Browse & Filter",
+        icon: "fa-filter",
+        active: activeSubKey === "browse-filter",
+        className: subnavBlinkKey === "browse-filter" ? "subnav-click-blink" : "",
+        onClick: () =>
+          jumpToSection("browse-filter", "section-clubs-browse", {
+            blink: true,
+            lockMs: 700,
+            retries: 20,
+            offsetPx: computeBrowseOffset(),
+          }),
+      },
+      {
+        key: "clubs-list",
+        label: "Clubs List",
+        icon: "fa-list",
+        active: activeSubKey === "clubs-list",
+        className: subnavBlinkKey === "clubs-list" ? "subnav-click-blink" : "",
+        onClick: () =>
+          jumpToSection("clubs-list", "section-clubs-list", {
+            blink: true,
+            lockMs: 700,
+            retries: 20,
+            offsetPx: computeListOffset(),
+          }),
+      },
+    ],
+    [activeSubKey, computeBrowseOffset, computeListOffset, jumpToSection, subnavBlinkKey]
+  );
+
+  usePageSubNav(subNavItems);
+
   return (
     <div className="page">
       <ErrorToastOnError error={createMut.error} title="Could not create club" />
       <ErrorToastOnError error={clubsQ.error} title="Clubs loading failed" />
       <ErrorToastOnError error={patchMut.error} title="Could not update club" />
       <ErrorToastOnError error={deleteMut.error} title="Could not delete club" />
-      <Card
-        title="Clubs"
-        variant="outer"
-        right={
-          <Button variant="ghost" onClick={() => void qc.invalidateQueries({ queryKey: ["clubs", game] })} title="Refresh">
-            <i className="fa-solid fa-rotate-right" aria-hidden="true" />
-          </Button>
-        }
-        bodyClassName="space-y-3"
-      >
-        <div className="panel-subtle px-3 py-2 text-sm text-text-muted flex flex-wrap items-center gap-3">
-          <span>{filteredClubs.length} shown</span>
-          <span className="text-subtle">|</span>
-          <span>{clubs.length} total</span>
-        </div>
-      </Card>
 
-      <CollapsibleCard title="Create club" defaultOpen={false} variant="outer" bodyVariant="none">
-        <div className="card-inner space-y-3">
-          <div className="grid gap-2 md:grid-cols-3">
-            <Input
-              label="Club name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. SV Phönix Hönigsberg"
-            />
+      <SectionSeparator id="section-clubs-create" title="Create New" className="mt-0 border-t-0 pt-0">
+        <div className="panel-subtle p-3 space-y-3">
+          <div className="space-y-2">
+            <label className="flex items-center gap-3">
+              <span className="w-24 shrink-0 text-sm font-medium text-text-normal">Name</span>
+              <input
+                className="input-field min-w-0 flex-1"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="e.g. SV Phönix Hönigsberg"
+              />
+            </label>
 
-            <label className="block">
-              <div className="input-label">Stars (0.5–5.0)</div>
-              <select className="input-field" value={stars} onChange={(e) => setStars(e.target.value)}>
+            <label className="flex items-center gap-3">
+              <span className="w-24 shrink-0 text-sm font-medium text-text-normal">Stars</span>
+              <select className="input-field min-w-0 flex-1" value={stars} onChange={(e) => setStars(e.target.value)}>
                 {starValues().map((v) => (
                   <option key={v} value={String(v)}>
                     {starsLabel(v)}★
@@ -264,10 +363,10 @@ export default function ClubsPage() {
               </select>
             </label>
 
-            <label className="block">
-              <div className="input-label">League</div>
+            <label className="flex items-center gap-3">
+              <span className="w-24 shrink-0 text-sm font-medium text-text-normal">League</span>
               <select
-                className="input-field"
+                className="input-field min-w-0 flex-1"
                 value={effectiveCreateLeagueId}
                 onChange={(e) => setLeagueId(e.target.value ? Number(e.target.value) : "")}
               >
@@ -294,35 +393,45 @@ export default function ClubsPage() {
             ) : null}
           </div>
         </div>
-      </CollapsibleCard>
+      </SectionSeparator>
 
-      <CollapsibleCard
-        title="Browse & filter"
-        defaultOpen={true}
-        right={<span className="text-xs text-text-muted">{filteredClubs.length} clubs</span>}
-        variant="outer"
-        bodyVariant="none"
-      >
-        <div className="card-inner">
-          <div className="grid gap-2 md:grid-cols-4">
-            <label className="block">
-              <div className="input-label">Group</div>
-              <select
-                className="input-field"
-                value={groupMode}
-                onChange={(e) => {
-                  const v = e.target.value;
-                  if (v === "stars" || v === "league") setGroupMode(v);
-                }}
-              >
-                <option value="stars">Stars</option>
-                <option value="league">League</option>
-              </select>
-            </label>
+      <SectionSeparator id="section-clubs-browse" title="Browse & Filter">
+        <div className="space-y-3">
+        <div className="panel-subtle p-3 space-y-3">
+          <div className="space-y-2">
+            <div className="flex items-center gap-3">
+              <span className="w-24 shrink-0 text-sm font-medium text-text-normal">Group</span>
+              <div className="min-w-0 flex flex-1 items-center justify-between gap-2">
+                <SegmentedSwitch<"stars" | "league">
+                  value={groupMode}
+                  onChange={setGroupMode}
+                  options={[
+                    { key: "stars", label: "Stars", icon: "fa-star" },
+                    { key: "league", label: "League", icon: "fa-shield-halved" },
+                  ]}
+                  ariaLabel="Group clubs"
+                  title="Group by stars or league"
+                  widthClass="w-20 sm:w-24"
+                />
+                <Button
+                  variant="ghost"
+                  onClick={() => {
+                    setFilterStars("");
+                    setFilterLeagueId("");
+                    setSearch("");
+                  }}
+                  type="button"
+                  title="Clear filters"
+                >
+                  <i className="fa-solid fa-eraser md:hidden" aria-hidden="true" />
+                  <span className="hidden md:inline">Clear</span>
+                </Button>
+              </div>
+            </div>
 
-            <label className="block">
-              <div className="input-label">Filter stars</div>
-              <select className="input-field" value={filterStars} onChange={(e) => setFilterStars(e.target.value)}>
+            <label className="flex items-center gap-3">
+              <span className="w-24 shrink-0 text-sm font-medium text-text-normal">Stars</span>
+              <select className="input-field min-w-0 flex-1" value={filterStars} onChange={(e) => setFilterStars(e.target.value)}>
                 <option value="">Any</option>
                 {starValues().map((v) => {
                   const s = starsLabel(v);
@@ -335,10 +444,10 @@ export default function ClubsPage() {
               </select>
             </label>
 
-            <label className="block">
-              <div className="input-label">Filter league</div>
+            <label className="flex items-center gap-3">
+              <span className="w-24 shrink-0 text-sm font-medium text-text-normal">League</span>
               <select
-                className="input-field"
+                className="input-field min-w-0 flex-1"
                 value={filterLeagueId === "" ? "" : String(filterLeagueId)}
                 onChange={(e) => setFilterLeagueId(e.target.value ? Number(e.target.value) : "")}
               >
@@ -351,38 +460,37 @@ export default function ClubsPage() {
               </select>
             </label>
 
-            <Input
-              label="Search"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="e.g. Hönigsberg"
-            />
+            <label className="flex items-center gap-3">
+              <span className="w-24 shrink-0 text-sm font-medium text-text-normal">Search</span>
+              <input
+                className="input-field min-w-0 flex-1"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="e.g. Hönigsberg"
+              />
+            </label>
 
-            <div className="flex items-end gap-2 md:col-span-4">
-              <Button
-                variant="ghost"
-                onClick={() => {
-                  setFilterStars("");
-                  setFilterLeagueId("");
-                  setSearch("");
-                }}
-                type="button"
-              >
-                Clear
-              </Button>
-            </div>
           </div>
         </div>
-      </CollapsibleCard>
 
-      <CollapsibleCard
-        title="Clubs list"
-        defaultOpen={true}
-        right={<span className="text-xs text-text-muted">{filteredClubs.length} clubs</span>}
-        variant="outer"
-        bodyVariant="none"
-      >
-        <div className="card-inner space-y-2">
+        </div>
+      </SectionSeparator>
+
+      <SectionSeparator id="section-clubs-list" title="Clubs List" className="min-h-[100svh]">
+        <div className="mb-2 border-b border-border-card-chip/60 pb-2">
+          <div className="flex items-center justify-between gap-2 text-sm text-text-muted">
+            <div className="flex items-center gap-3">
+              <span>{filteredClubs.length} shown</span>
+              <span className="text-subtle">|</span>
+              <span>{clubs.length} total</span>
+            </div>
+            <Button variant="ghost" onClick={() => void qc.invalidateQueries({ queryKey: ["clubs", game] })} title="Refresh">
+              <i className="fa-solid fa-rotate-right md:hidden" aria-hidden="true" />
+              <span className="hidden md:inline">Refresh</span>
+            </Button>
+          </div>
+        </div>
+        <div className="panel-subtle p-3 space-y-2">
           {clubsQ.isLoading ? <div className="text-text-muted">Loading…</div> : null}
 
           {!clubsQ.isLoading && grouped.length === 0 ? (
@@ -523,7 +631,7 @@ export default function ClubsPage() {
             );
           })}
         </div>
-      </CollapsibleCard>
+      </SectionSeparator>
     </div>
   );
 }

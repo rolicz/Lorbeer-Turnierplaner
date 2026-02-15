@@ -1,8 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { Link, useParams, useSearchParams } from "react-router-dom";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useParams, useSearchParams } from "react-router-dom";
 import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import Card from "../ui/primitives/Card";
 import Button from "../ui/primitives/Button";
 import Textarea from "../ui/primitives/Textarea";
 import AvatarCircle from "../ui/primitives/AvatarCircle";
@@ -37,6 +36,9 @@ import { MatchHistoryList } from "./stats/MatchHistoryList";
 import PlayerAvatarEditor from "./players/PlayerAvatarEditor";
 import { usePlayerAvatarMap } from "../hooks/usePlayerAvatarMap";
 import { usePlayerHeaderMap } from "../hooks/usePlayerHeaderMap";
+import { usePageSubNav, type SubNavItem } from "../ui/layout/SubNavContext";
+import { useSectionSubnav } from "../ui/layout/useSectionSubnav";
+import SectionSeparator from "../ui/primitives/SectionSeparator";
 
 function fmtDateTime(iso?: string | null) {
   if (!iso) return "";
@@ -79,7 +81,7 @@ function streakIconForKey(key: string) {
 export default function ProfilePage() {
   const { id } = useParams<{ id: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
-  const { token, role, playerId: currentPlayerId, playerName: currentPlayerName } = useAuth();
+  const { token, role, playerId: currentPlayerId } = useAuth();
   const qc = useQueryClient();
 
   const routePlayerId = id ? Number(id) : null;
@@ -278,31 +280,143 @@ export default function ProfilePage() {
     return bestId;
   }, [guestbookQ.data, seenGuestbook, token]);
 
-  const focusGuestbookEntry = (entryId: number) => {
-    let tries = 0;
-    const maxTries = 80;
-    const run = () => {
-      const el = document.getElementById(`guestbook-entry-${entryId}`);
-      if (!el) {
-        if (tries >= maxTries) return;
-        tries += 1;
-        window.setTimeout(run, 120);
-        return;
-      }
-      window.requestAnimationFrame(() => {
-        el.scrollIntoView({ behavior: "smooth", block: "center" });
+  const sections = useMemo(
+    () => [
+      { key: "profile-main", id: "profile-section-main" },
+      { key: "profile-guestbook", id: "profile-section-guestbook" },
+    ],
+    []
+  );
+  const { activeKey: activeSubKey, blinkKey: subnavBlinkKey, jumpToSection } = useSectionSubnav({
+    sections,
+    enabled: !!targetPlayerId,
+  });
+
+  const computeGuestbookMetrics = useCallback(() => {
+    const mainEl = document.getElementById("profile-section-main");
+    const guestEl = document.getElementById("profile-section-guestbook");
+    const headerEl = document.getElementById("app-top-nav");
+    if (!mainEl || !guestEl || !headerEl) return null;
+
+    const headerHeight = Math.ceil(headerEl.getBoundingClientRect().height);
+    const guestTop = window.scrollY + guestEl.getBoundingClientRect().top;
+    const mainBottom = window.scrollY + mainEl.getBoundingClientRect().bottom;
+
+    const baseTarget = Math.max(0, guestTop - headerHeight - 2);
+    const minTargetToHideMain = Math.max(0, mainBottom - headerHeight + 1);
+    const sectionTarget = Math.max(baseTarget, minTargetToHideMain);
+
+    return { headerHeight, minTargetToHideMain, baseTarget, sectionTarget };
+  }, []);
+
+  const computeGuestbookOffset = useCallback((): number => {
+    const m = computeGuestbookMetrics();
+    if (!m) return 0;
+    return m.baseTarget - m.sectionTarget;
+  }, [computeGuestbookMetrics]);
+
+  const scrollToGuestbookSection = useCallback(
+    (blink = true) => {
+      jumpToSection("profile-guestbook", "profile-section-guestbook", {
+        blink,
+        retries: 20,
+        offsetPx: computeGuestbookOffset(),
       });
-      window.setTimeout(() => {
-        el.scrollIntoView({ behavior: "smooth", block: "center" });
-      }, 320);
-      el.classList.remove("comment-attn");
-      // force reflow so the animation restarts when re-focused quickly
-      void el.offsetHeight;
-      el.classList.add("comment-attn");
-      window.setTimeout(() => el.classList.remove("comment-attn"), 1700);
-    };
-    run();
-  };
+    },
+    [computeGuestbookOffset, jumpToSection]
+  );
+
+  const focusGuestbookEntry = useCallback(
+    (entryId: number, options?: { blink?: boolean }) => {
+      scrollToGuestbookSection(options?.blink ?? false);
+      let tries = 0;
+      const maxTries = 80;
+      const run = () => {
+        const el = document.getElementById(`guestbook-entry-${entryId}`);
+        if (!el) {
+          if (tries >= maxTries) return;
+          tries += 1;
+          window.setTimeout(run, 120);
+          return;
+        }
+
+        const m = computeGuestbookMetrics();
+        const headerHeight =
+          m?.headerHeight ??
+          Math.ceil(document.getElementById("app-top-nav")?.getBoundingClientRect().height ?? 0);
+        const minTarget = m?.minTargetToHideMain ?? 0;
+        const rect = el.getBoundingClientRect();
+        const entryTop = window.scrollY + rect.top;
+        const usableViewport = Math.max(140, window.innerHeight - headerHeight);
+        const centeredTarget = entryTop - headerHeight - Math.max(12, Math.floor((usableViewport - rect.height) / 2));
+        const targetTop = Math.max(0, Math.max(minTarget, centeredTarget));
+
+        window.scrollTo({ top: targetTop, behavior: "smooth" });
+        window.setTimeout(() => {
+          window.scrollTo({ top: targetTop, behavior: "smooth" });
+        }, 320);
+
+        el.classList.remove("comment-attn");
+        void el.offsetHeight;
+        el.classList.add("comment-attn");
+        window.setTimeout(() => el.classList.remove("comment-attn"), 1700);
+      };
+      run();
+    },
+    [computeGuestbookMetrics, scrollToGuestbookSection]
+  );
+
+  const subNavItems = useMemo<SubNavItem[]>(() => {
+    if (!targetPlayerId) {
+      return [
+        {
+          key: "all-players",
+          label: "All Players",
+          icon: "fa-users",
+          active: true,
+          to: "/players",
+        },
+      ];
+    }
+
+    const profileLabel = (player?.display_name ?? profileQ.data?.display_name ?? "Profile").trim() || "Profile";
+
+    return [
+      {
+        key: "all-players",
+        label: "All Players",
+        icon: "fa-users",
+        active: false,
+        to: "/players",
+      },
+      {
+        key: "profile-main",
+        label: profileLabel,
+        icon: "fa-id-badge",
+        active: activeSubKey === "profile-main",
+        className: `md:ml-1 md:rounded-r-none ${subnavBlinkKey === "profile-main" ? "subnav-click-blink" : ""}`.trim(),
+        onClick: () => jumpToSection("profile-main", "profile-section-main", { blink: true, retries: 20 }),
+      },
+      {
+        key: "profile-guestbook",
+        label: "Guestbook",
+        icon: "fa-book",
+        active: activeSubKey === "profile-guestbook",
+        className: `md:rounded-l-none ${subnavBlinkKey === "profile-guestbook" ? "subnav-click-blink" : ""}`.trim(),
+        onClick: () => scrollToGuestbookSection(true),
+      },
+    ];
+  }, [
+    activeSubKey,
+    jumpToSection,
+    player?.display_name,
+    profileQ.data?.display_name,
+    scrollToGuestbookSection,
+    subnavBlinkKey,
+    targetPlayerId,
+  ]);
+
+  usePageSubNav(subNavItems);
 
   const saveProfileMut = useMutation({
     mutationFn: async () => {
@@ -422,34 +536,44 @@ export default function ProfilePage() {
     if (!latestUnreadGuestbookId) return;
     if (unreadJumpHandledRef.current === latestUnreadGuestbookId) return;
     unreadJumpHandledRef.current = latestUnreadGuestbookId;
-    focusGuestbookEntry(latestUnreadGuestbookId);
+    focusGuestbookEntry(latestUnreadGuestbookId, { blink: false });
     window.setTimeout(() => {
       const next = new URLSearchParams(searchParams);
       next.delete("unread");
       setSearchParams(next, { replace: true });
     }, 420);
-  }, [latestUnreadGuestbookId, searchParams, setSearchParams]);
+  }, [focusGuestbookEntry, latestUnreadGuestbookId, searchParams, setSearchParams]);
 
   if (!targetPlayerId) {
     return (
-      <Card title="Profile" variant="outer">
-        <div className="text-sm text-text-muted">Login to open your profile.</div>
-      </Card>
-    );
-  }
-
-  return (
-    <div className="space-y-3">
-      <Card
+      <SectionSeparator
+        id="profile-section-main"
         title={
           <span className="inline-flex items-center gap-2">
             <i className="fa-solid fa-id-badge text-text-muted" aria-hidden="true" />
             Profile
           </span>
         }
-        variant="outer"
-        bodyClassName="space-y-3"
+        className="mt-0 border-t-0 pt-0"
       >
+        <div className="text-sm text-text-muted">Login to open your profile.</div>
+      </SectionSeparator>
+    );
+  }
+
+  return (
+    <div className="page">
+      <SectionSeparator
+        id="profile-section-main"
+        title={
+          <span className="inline-flex items-center gap-2">
+            <i className="fa-solid fa-id-badge text-text-muted" aria-hidden="true" />
+            Profile
+          </span>
+        }
+        className="mt-0 border-t-0 pt-0"
+      >
+      <div className="space-y-3">
         <ErrorToastOnError error={playersQ.error} title="Players loading failed" />
         <ErrorToastOnError error={profileQ.error} title="Profile loading failed" />
         <ErrorToastOnError error={saveProfileMut.error} title="Could not save profile text" />
@@ -712,61 +836,52 @@ export default function ProfilePage() {
           </div>
         </div>
 
-        {!isOwnProfile ? (
-          <div className="text-xs text-text-muted">
-            Want to edit your profile?{" "}
-            <Link className="accent underline underline-offset-2" to="/profile">
-              Open my profile
-            </Link>
-            {currentPlayerName ? <span> ({currentPlayerName})</span> : null}.
-          </div>
-        ) : null}
-      </Card>
+      </div>
+      </SectionSeparator>
 
-      <Card
+      <SectionSeparator
+        id="profile-section-guestbook"
         title={
           <span className="inline-flex items-center gap-2">
             <i className="fa-solid fa-book text-text-muted" aria-hidden="true" />
             Guestbook
           </span>
         }
-        right={
-          unreadGuestbookCount > 0 ? (
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                title="Jump to latest unread guestbook message"
-                onClick={() => {
-                  if (!latestUnreadGuestbookId) return;
-                  focusGuestbookEntry(latestUnreadGuestbookId);
-                }}
-              >
-                <Pill title="Unread guestbook messages">
-                  <i className="fa-solid fa-envelope text-accent" aria-hidden="true" />
-                  <span className="tabular-nums text-text-normal">{unreadGuestbookCount}</span>
-                </Pill>
-              </button>
-              <Button
-                type="button"
-                variant="ghost"
-                onClick={() => {
-                  if (!targetPlayerId || unreadGuestbookIds.length === 0 || markGuestbookReadAllMut.isPending) return;
-                  const ok = window.confirm(`Mark ${unreadGuestbookIds.length} unread guestbook message(s) as read?`);
-                  if (!ok) return;
-                  markGuestbookReadAllMut.mutate();
-                }}
-                title="Mark all unread guestbook messages as read"
-                disabled={markGuestbookReadAllMut.isPending}
-              >
-                <i className="fa-solid fa-envelope-open md:hidden" aria-hidden="true" />
-                <span className="hidden md:inline">Read all</span>
-              </Button>
-            </div>
-          ) : null
-        }
-        variant="outer"
-        bodyClassName="space-y-3"
+        className="min-h-[100svh]"
       >
+      <div className="space-y-3">
+        {unreadGuestbookCount > 0 ? (
+          <div className="flex items-center justify-end gap-2">
+            <button
+              type="button"
+              title="Jump to latest unread guestbook message"
+              onClick={() => {
+                if (!latestUnreadGuestbookId) return;
+                focusGuestbookEntry(latestUnreadGuestbookId, { blink: false });
+              }}
+            >
+              <Pill title="Unread guestbook messages">
+                <i className="fa-solid fa-envelope text-accent" aria-hidden="true" />
+                <span className="tabular-nums text-text-normal">{unreadGuestbookCount}</span>
+              </Pill>
+            </button>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => {
+                if (!targetPlayerId || unreadGuestbookIds.length === 0 || markGuestbookReadAllMut.isPending) return;
+                const ok = window.confirm(`Mark ${unreadGuestbookIds.length} unread guestbook message(s) as read?`);
+                if (!ok) return;
+                markGuestbookReadAllMut.mutate();
+              }}
+              title="Mark all unread guestbook messages as read"
+              disabled={markGuestbookReadAllMut.isPending}
+            >
+              <i className="fa-solid fa-envelope-open md:hidden" aria-hidden="true" />
+              <span className="hidden md:inline">Read all</span>
+            </Button>
+          </div>
+        ) : null}
         <ErrorToastOnError error={guestbookQ.error} title="Guestbook loading failed" />
         <ErrorToastOnError error={guestbookReadQ.error} title="Guestbook read-status loading failed" />
         <ErrorToastOnError error={createGuestbookMut.error} title="Could not post guestbook message" />
@@ -882,7 +997,8 @@ export default function ProfilePage() {
             );
           })}
         </div>
-      </Card>
+      </div>
+      </SectionSeparator>
 
       <PlayerAvatarEditor
         open={avatarEditorOpen}

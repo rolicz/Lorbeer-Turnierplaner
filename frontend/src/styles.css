@@ -310,10 +310,40 @@
     will-change: transform, box-shadow;
   }
 
+  @keyframes subnav-click-blink {
+    0% {
+      box-shadow: inset 0 0 0 0 rgb(var(--color-accent) / 0);
+      filter: brightness(1);
+    }
+    30% {
+      box-shadow: inset 0 0 0 2px rgb(var(--color-accent) / 0.28), inset 0 0 14px rgb(var(--color-accent) / 0.18);
+      filter: brightness(1.08);
+    }
+    100% {
+      box-shadow: inset 0 0 0 0 rgb(var(--color-accent) / 0);
+      filter: brightness(1);
+    }
+  }
+
+  .subnav-click-blink {
+    animation: subnav-click-blink 420ms ease-out 1;
+    will-change: box-shadow, filter;
+  }
+
+  .subnav-active-glow {
+    box-shadow:
+      inset 0 0 0 1px rgb(var(--color-accent) / 0.42),
+      inset 0 0 12px rgb(var(--color-accent) / 0.16);
+  }
+
   @media (prefers-reduced-motion: reduce) {
     .comment-attn {
       animation: none;
       box-shadow: 0 0 0 2px rgb(var(--color-accent) / 0.20);
+    }
+    .subnav-click-blink {
+      animation: none;
+      box-shadow: inset 0 0 0 2px rgb(var(--color-accent) / 0.20);
     }
   }
 
@@ -353,12 +383,6 @@ body {
   touch-action: pan-x pan-y;
   padding-left: env(safe-area-inset-left);
   padding-right: env(safe-area-inset-right);
-}
-
-/* Minimal notch fix: keep ONLY the sticky header out of the unsafe area
-   (requires viewport-fit=cover in index.html) */
-header {
-  padding-top: env(safe-area-inset-top);
 }
 
 /* iOS Safari: prevent auto-zoom on input focus (needs >= 16px) */

@@ -313,7 +313,7 @@ function TilesScopeSwitch({
   );
 }
 
-export default function PlayersStatsCard() {
+export default function PlayersStatsCard({ embedded = false }: { embedded?: boolean } = {}) {
   const playersQ = useQuery({ queryKey: ["players"], queryFn: listPlayers });
 
   const LASTN_FETCH = 25;
@@ -448,20 +448,8 @@ export default function PlayersStatsCard() {
 
   const allExpanded = rows.length > 0 && rows.every((r) => !!openByPlayerId[r.p.id]);
 
-  return (
-    <CollapsibleCard
-      title={
-        <span className="inline-flex items-center gap-2">
-          <i className="fa-regular fa-user text-text-muted" aria-hidden="true" />
-          Players
-        </span>
-      }
-      bodyClassName="space-y-3"
-      defaultOpen={true}
-      scrollOnOpen={true}
-      variant="outer"
-      bodyVariant="none"
-    >
+  const content = (
+    <>
       <div className="card-inner-flat rounded-2xl space-y-2">
         <div className="flex flex-wrap items-center gap-2">
           <div className="flex min-w-0 flex-wrap items-center gap-2">
@@ -617,6 +605,26 @@ export default function PlayersStatsCard() {
           );
         })}
       </div>
+    </>
+  );
+
+  if (embedded) return <div className="space-y-3">{content}</div>;
+
+  return (
+    <CollapsibleCard
+      title={
+        <span className="inline-flex items-center gap-2">
+          <i className="fa-regular fa-user text-text-muted" aria-hidden="true" />
+          Players
+        </span>
+      }
+      bodyClassName="space-y-3"
+      defaultOpen={true}
+      scrollOnOpen={true}
+      variant="outer"
+      bodyVariant="none"
+    >
+      {content}
     </CollapsibleCard>
   );
 }

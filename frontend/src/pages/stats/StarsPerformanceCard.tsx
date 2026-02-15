@@ -11,6 +11,7 @@ import { sideBy } from "../../helpers";
 import { StarsFA } from "../../ui/primitives/StarsFA";
 import { StatsAvatarSelector, StatsFilterDataControls, type StatsMode } from "./StatsControls";
 import { usePlayerAvatarMap } from "../../hooks/usePlayerAvatarMap";
+import { useAuth } from "../../auth/AuthContext";
 
 type Outcome = "W" | "D" | "L";
 
@@ -176,7 +177,8 @@ function StarRow({ r }: { r: StarBucket }) {
   );
 }
 
-export default function StarsPerformanceCard() {
+export default function StarsPerformanceCard({ embedded = false }: { embedded?: boolean } = {}) {
+  const { playerId: loggedInPlayerId } = useAuth();
   const qc = useQueryClient();
   const playersQ = useQuery({ queryKey: ["players"], queryFn: listPlayers });
   const clubsQ = useQuery({ queryKey: ["clubs"], queryFn: () => listClubs() });
@@ -187,6 +189,13 @@ export default function StarsPerformanceCard() {
   const [playerId, setPlayerId] = useState<number | "">("");
   const [mode, setMode] = useState<StatsMode>("overall");
   const [scope, setScope] = useState<StatsScope>("tournaments");
+
+  const defaultSelectedPlayerId = useMemo<number | "">(() => {
+    if (!loggedInPlayerId) return "";
+    if (players.length && !players.some((p) => p.id === loggedInPlayerId)) return "";
+    return loggedInPlayerId;
+  }, [loggedInPlayerId, players]);
+  const selectedPlayerId: number | "" = playerId === "" ? defaultSelectedPlayerId : playerId;
 
   useEffect(() => {
     if (!players.length) return;
@@ -203,9 +212,9 @@ export default function StarsPerformanceCard() {
   }, [players, qc]);
 
   const matchesQ = useQuery({
-    queryKey: ["stats", "starsPerformance", playerId || "none", scope],
-    queryFn: () => getStatsPlayerMatches({ playerId: Number(playerId), scope }),
-    enabled: playerId !== "",
+    queryKey: ["stats", "starsPerformance", selectedPlayerId || "none", scope],
+    queryFn: () => getStatsPlayerMatches({ playerId: Number(selectedPlayerId), scope }),
+    enabled: selectedPlayerId !== "",
     placeholderData: keepPreviousData,
     staleTime: 30_000,
     refetchOnReconnect: false,
@@ -213,9 +222,9 @@ export default function StarsPerformanceCard() {
   });
 
   const selected = useMemo(() => {
-    if (playerId === "") return null;
-    return players.find((p) => p.id === playerId) ?? null;
-  }, [players, playerId]);
+    if (selectedPlayerId === "") return null;
+    return players.find((p) => p.id === selectedPlayerId) ?? null;
+  }, [players, selectedPlayerId]);
 
   const sortedPlayers = useMemo(() => {
     return [...players].sort((a, b) => a.display_name.localeCompare(b.display_name));
@@ -239,21 +248,8 @@ export default function StarsPerformanceCard() {
 
   const knownClubMatches = useMemo(() => rows.reduce((s, r) => s + r.played, 0), [rows]);
 
-  return (
-    <CollapsibleCard
-      title={
-        <span className="inline-flex items-center gap-2">
-          <i className="fa-solid fa-chart-bar text-text-muted" aria-hidden="true" />
-          Club Stars Performance
-        </span>
-      }
-      defaultOpen={false}
-      scrollOnOpen={true}
-      variant="outer"
-      bodyVariant="none"
-      bodyClassName="space-y-3"
-      className="lg:col-start-2"
-    >
+  const content = (
+    <>
       <ErrorToastOnError error={matchesQ.error} title="Stars performance loading failed" />
       <ErrorToastOnError error={clubsQ.error} title="Club data loading failed" />
       <div className="card-inner-flat rounded-2xl space-y-2">
@@ -264,14 +260,14 @@ export default function StarsPerformanceCard() {
         <div className="text-[11px] text-text-muted">Player</div>
         <StatsAvatarSelector
           players={sortedPlayers}
-          selectedId={playerId}
+          selectedId={selectedPlayerId}
           onSelect={setPlayerId}
           avatarUpdatedAtById={avatarUpdatedAtById}
         />
       </div>
 
       <div style={{ overflowAnchor: "none" }}>
-        {playerId === "" ? (
+        {selectedPlayerId === "" ? (
           <div className="card-inner-flat rounded-2xl text-sm text-text-muted">Pick a player to see PPM by club stars.</div>
         ) : null}
         {matchesQ.isLoading ? <div className="card-inner-flat rounded-2xl text-sm text-text-muted">Loading…</div> : null}
@@ -305,6 +301,27 @@ export default function StarsPerformanceCard() {
           </div>
         ) : null}
       </div>
+    </>
+  );
+
+  if (embedded) return <div className="space-y-3">{content}</div>;
+
+  return (
+    <CollapsibleCard
+      title={
+        <span className="inline-flex items-center gap-2">
+          <i className="fa-solid fa-chart-bar text-text-muted" aria-hidden="true" />
+          Club Stars Performance
+        </span>
+      }
+      defaultOpen={false}
+      scrollOnOpen={true}
+      variant="outer"
+      bodyVariant="none"
+      bodyClassName="space-y-3"
+      className="lg:col-start-2"
+    >
+      {content}
     </CollapsibleCard>
   );
 }

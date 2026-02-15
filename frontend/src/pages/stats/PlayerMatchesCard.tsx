@@ -17,6 +17,7 @@ import {
   type StatsMode,
 } from "./StatsControls";
 import { MatchHistoryList } from "./MatchHistoryList";
+import { useAuth } from "../../auth/AuthContext";
 
 function fmtDate(s?: string | null) {
   if (!s) return "";
@@ -199,7 +200,8 @@ function Sparkline({
   );
 }
 
-export default function PlayerMatchesCard() {
+export default function PlayerMatchesCard({ embedded = false }: { embedded?: boolean } = {}) {
+  const { playerId: loggedInPlayerId } = useAuth();
   const playersQ = useQuery({ queryKey: ["players"], queryFn: listPlayers });
   const players = useMemo(() => playersQ.data ?? [], [playersQ.data]);
   const { avatarUpdatedAtById } = usePlayerAvatarMap();
@@ -213,10 +215,17 @@ export default function PlayerMatchesCard() {
   const [showMeta, setShowMeta] = useState(false);
   // Intentionally no auto-scroll on avatar selection; it feels jumpy on mobile and is easy to trigger accidentally.
 
+  const defaultSelectedPlayerId = useMemo<number | "">(() => {
+    if (!loggedInPlayerId) return "";
+    if (players.length && !players.some((p) => p.id === loggedInPlayerId)) return "";
+    return loggedInPlayerId;
+  }, [loggedInPlayerId, players]);
+  const selectedPlayerId: number | "" = playerId === "" ? defaultSelectedPlayerId : playerId;
+
   const matchesQ = useQuery({
-    queryKey: ["stats", "playerMatches", playerId || "none", scope],
-    queryFn: () => getStatsPlayerMatches({ playerId: Number(playerId), scope }),
-    enabled: playerId !== "",
+    queryKey: ["stats", "playerMatches", selectedPlayerId || "none", scope],
+    queryFn: () => getStatsPlayerMatches({ playerId: Number(selectedPlayerId), scope }),
+    enabled: selectedPlayerId !== "",
     placeholderData: keepPreviousData,
     staleTime: 0,
     // Avoid surprise reflows while the user is interacting (mobile scroll anchoring can look like "jumps").
@@ -226,9 +235,9 @@ export default function PlayerMatchesCard() {
   });
 
   const selected = useMemo(() => {
-    if (playerId === "") return null;
-    return players.find((p) => p.id === playerId) ?? null;
-  }, [players, playerId]);
+    if (selectedPlayerId === "") return null;
+    return players.find((p) => p.id === selectedPlayerId) ?? null;
+  }, [players, selectedPlayerId]);
 
   const sortedPlayers = useMemo(() => {
     return [...players].sort((a, b) => a.display_name.localeCompare(b.display_name));
@@ -273,20 +282,8 @@ export default function PlayerMatchesCard() {
     };
   }, [selected, tournaments]);
 
-  return (
-    <CollapsibleCard
-      title={
-        <span className="inline-flex items-center gap-2">
-          <i className="fa-solid fa-list text-text-muted" aria-hidden="true" />
-          Player Matches
-        </span>
-      }
-      defaultOpen={false}
-      scrollOnOpen={true}
-      variant="outer"
-      bodyVariant="none"
-      bodyClassName="space-y-3"
-    >
+  const content = (
+    <>
       <ErrorToastOnError error={matchesQ.error} title="Player matches loading failed" />
       <ErrorToastOnError error={clubsQ.error} title="Club data loading failed" />
       <div className="card-inner-flat rounded-2xl space-y-2 scroll-mt-[calc(env(safe-area-inset-top,0px)+128px)] sm:scroll-mt-[calc(env(safe-area-inset-top,0px)+144px)]">
@@ -311,7 +308,7 @@ export default function PlayerMatchesCard() {
 
         <StatsAvatarSelector
           players={sortedPlayers}
-          selectedId={playerId}
+          selectedId={selectedPlayerId}
           onSelect={setPlayerId}
           avatarUpdatedAtById={avatarUpdatedAtById}
           avatarClassName="h-8 w-8"
@@ -319,7 +316,7 @@ export default function PlayerMatchesCard() {
       </div>
 
       <div style={{ overflowAnchor: "none" }}>
-        {playerId === "" ? (
+        {selectedPlayerId === "" ? (
           <div className="card-inner-flat rounded-2xl text-sm text-text-muted">Pick a player to see their match history.</div>
         ) : null}
         {matchesQ.isLoading ? <div className="card-inner-flat rounded-2xl text-sm text-text-muted">Loading…</div> : null}
@@ -335,6 +332,26 @@ export default function PlayerMatchesCard() {
           <div className="card-inner-flat rounded-2xl text-sm text-text-muted">No matches found for {selected.display_name}.</div>
         ) : null}
       </div>
+    </>
+  );
+
+  if (embedded) return <div className="space-y-3">{content}</div>;
+
+  return (
+    <CollapsibleCard
+      title={
+        <span className="inline-flex items-center gap-2">
+          <i className="fa-solid fa-list text-text-muted" aria-hidden="true" />
+          Player Matches
+        </span>
+      }
+      defaultOpen={false}
+      scrollOnOpen={true}
+      variant="outer"
+      bodyVariant="none"
+      bodyClassName="space-y-3"
+    >
+      {content}
     </CollapsibleCard>
   );
 }

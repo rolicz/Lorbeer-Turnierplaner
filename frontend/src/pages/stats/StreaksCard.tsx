@@ -108,7 +108,7 @@ function CatBlock({
   );
 }
 
-export default function StreaksCard() {
+export default function StreaksCard({ embedded = false }: { embedded?: boolean } = {}) {
   // Keep the players query around for cache warmup / consistency with other cards.
   useQuery({ queryKey: ["players"], queryFn: listPlayers, refetchOnReconnect: false, refetchOnWindowFocus: false });
 
@@ -144,20 +144,8 @@ export default function StreaksCard() {
     refetchOnWindowFocus: false,
   });
 
-  return (
-    <CollapsibleCard
-      title={
-        <span className="inline-flex items-center gap-2">
-          <i className="fa-solid fa-fire-flame-curved text-text-muted" aria-hidden="true" />
-          Streaks
-        </span>
-      }
-      defaultOpen={false}
-      scrollOnOpen={true}
-      variant="outer"
-      bodyVariant="none"
-      bodyClassName="space-y-3"
-    >
+  const content = (
+    <>
       <ErrorToastOnError error={q.error} title="Streaks loading failed" />
       <div className="card-inner-flat rounded-2xl space-y-2">
         <div className="flex flex-wrap items-start gap-2">
@@ -203,6 +191,26 @@ export default function StreaksCard() {
           })}
         </div>
       ) : null}
+    </>
+  );
+
+  if (embedded) return <div className="space-y-3">{content}</div>;
+
+  return (
+    <CollapsibleCard
+      title={
+        <span className="inline-flex items-center gap-2">
+          <i className="fa-solid fa-fire-flame-curved text-text-muted" aria-hidden="true" />
+          Streaks
+        </span>
+      }
+      defaultOpen={false}
+      scrollOnOpen={true}
+      variant="outer"
+      bodyVariant="none"
+      bodyClassName="space-y-3"
+    >
+      {content}
     </CollapsibleCard>
   );
 }

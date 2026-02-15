@@ -7,6 +7,7 @@ export default function CollapsibleCard({
   defaultOpen = true,
   right,
   onOpenChange,
+  hideHeader = false,
   children,
   className = "",
   variant = "none",
@@ -18,6 +19,7 @@ export default function CollapsibleCard({
   defaultOpen?: boolean;
   right?: React.ReactNode;
   onOpenChange?: (open: boolean) => void;
+  hideHeader?: boolean;
   children: React.ReactNode | ((open: boolean) => React.ReactNode);
   className?: string;
   variant?: "outer" | "inner" | "none";
@@ -86,29 +88,31 @@ export default function CollapsibleCard({
         className,
       )}
     >
-      <button
-        type="button"
-        className={cn("flex w-full items-center justify-between gap-3", pad)}
-        onClick={() =>
-          setOpen((v) => {
-            const next = !v;
-            onOpenChange?.(next);
-            return next;
-          })
-        }
-      >
-        <div className="min-w-0 text-left">
-          <div className="text-sm font-semibold">{title}</div>
-        </div>
+      {!hideHeader ? (
+        <button
+          type="button"
+          className={cn("flex w-full items-center justify-between gap-3", pad)}
+          onClick={() =>
+            setOpen((v) => {
+              const next = !v;
+              onOpenChange?.(next);
+              return next;
+            })
+          }
+        >
+          <div className="min-w-0 text-left">
+            <div className="text-sm font-semibold">{title}</div>
+          </div>
 
-        <div className="flex items-center gap-2">
-          {right}
-          <span className="text-subtle">{open ? "▾" : "▸"}</span>
-        </div>
-      </button>
+          <div className="flex items-center gap-2">
+            {right}
+            <span className="text-subtle">{open ? "▾" : "▸"}</span>
+          </div>
+        </button>
+      ) : null}
 
       {open && (
-        <div className={cn(bodyTopGap, bodyPad)}>
+        <div className={cn(hideHeader ? "" : bodyTopGap, bodyPad)}>
           {resolvedBodyVariant === "inner" ? (
             <div className={cn(innerBodyCls, bodyClassName)}>
               {typeof children === "function" ? children(open) : children}

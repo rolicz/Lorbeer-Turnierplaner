@@ -1,12 +1,12 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import Card from "../../ui/primitives/Card";
 import Button from "../../ui/primitives/Button";
-import CollapsibleCard from "../../ui/primitives/CollapsibleCard";
 import { Pill, pillDate, statusPill } from "../../ui/primitives/Pill";
 import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
+import PageLoadingScreen from "../../ui/primitives/PageLoadingScreen";
+import SectionSeparator from "../../ui/primitives/SectionSeparator";
 
 import {
   getTournament,
@@ -38,6 +38,8 @@ import { shuffle, sideBy } from "../../helpers";
 
 import { fmtDate } from "../../utils/format";
 import { listTournamentComments, markAllTournamentCommentsRead } from "../../api/comments.api";
+import { usePageSubNav, type SubNavItem } from "../../ui/layout/SubNavContext";
+import { useSectionSubnav } from "../../ui/layout/useSectionSubnav";
 
 type PlayerLite = { id: number; display_name: string };
 
@@ -185,9 +187,8 @@ export default function LiveTournamentPage() {
     if (!raw) return;
     const cid = Number(raw);
     if (!Number.isFinite(cid) || cid <= 0) return;
-    /* eslint-disable react-hooks/set-state-in-effect */
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setFocusCommentRequest((prev) => ({ id: Math.trunc(cid), nonce: (prev?.nonce ?? 0) + 1 }));
-    /* eslint-enable react-hooks/set-state-in-effect */
     const next = new URLSearchParams(location.search);
     next.delete("comment");
     setSearchParams(next, { replace: true });
@@ -198,9 +199,8 @@ export default function LiveTournamentPage() {
     const jumpUnread = sp.get("unread") === "1";
     if (!jumpUnread) return;
     if (latestUnreadCommentId) {
-      /* eslint-disable react-hooks/set-state-in-effect */
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setFocusCommentRequest((prev) => ({ id: latestUnreadCommentId, nonce: (prev?.nonce ?? 0) + 1 }));
-      /* eslint-enable react-hooks/set-state-in-effect */
     }
     sp.delete("unread");
     setSearchParams(sp, { replace: true });
@@ -351,9 +351,8 @@ export default function LiveTournamentPage() {
   // --- date/name (admin only) ---
   const [editDate, setEditDate] = useState("");
   useEffect(() => {
-    /* eslint-disable react-hooks/set-state-in-effect */
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (tQ.data?.date) setEditDate(tQ.data.date);
-    /* eslint-enable react-hooks/set-state-in-effect */
   }, [tQ.data?.date]);
 
   const dateMut = useMutation({
@@ -371,9 +370,8 @@ export default function LiveTournamentPage() {
 
   const [editName, setEditName] = useState("");
   useEffect(() => {
-    /* eslint-disable react-hooks/set-state-in-effect */
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (tQ.data?.name) setEditName(tQ.data.name);
-    /* eslint-enable react-hooks/set-state-in-effect */
   }, [tQ.data?.name]);
 
   const nameMut = useMutation({
@@ -540,18 +538,213 @@ export default function LiveTournamentPage() {
     await Promise.allSettled(jobs);
   }
 
-  if (!tid) return <Card title="Tournament" variant="outer">Invalid tournament id</Card>;
-
   const showControls = isEditorOrAdmin;
-  const cardTitle = tQ.data?.name ? tQ.data.name : `Tournament #${tid}`;
+  const cardTitle = tQ.data?.name ? tQ.data.name : `Tournament #${tid ?? "?"}`;
+  const showCurrentGameSection = (status === "draft" || status === "live") && !!currentMatch;
+  const autoJumpDoneRef = useRef(false);
+  const activeSections = useMemo(() => {
+    const items: Array<{ key: string; id: string }> = [{ key: "tournament", id: "section-live-top" }];
+    if (showControls) items.push({ key: "controls", id: "section-editor-controls" });
+    if (showCurrentGameSection) items.push({ key: "current", id: "section-current-game" });
+    if (showDeciderReadOnly) items.push({ key: "decider", id: "section-decider" });
+    items.push(
+      { key: "standings", id: "section-standings" },
+      { key: "matches", id: "section-matches" },
+      { key: "comments", id: "section-comments" }
+    );
+    return items;
+  }, [showControls, showCurrentGameSection, showDeciderReadOnly]);
+
+  const { activeKey: activeSubKey, blinkKey: clickBlinkKey, jumpToSection } = useSectionSubnav({
+    sections: activeSections,
+    enabled: !!tQ.data,
+  });
+
+  useEffect(() => {
+    autoJumpDoneRef.current = false;
+  }, [tid]);
+
+  useEffect(() => {
+    if (!tQ.data || autoJumpDoneRef.current) return;
+    autoJumpDoneRef.current = true;
+    const next = tQ.data.status === "done" || !showCurrentGameSection
+      ? { key: "standings", id: "section-standings" }
+      : { key: "current", id: "section-current-game" };
+    window.setTimeout(() => {
+      jumpToSection(next.key, next.id, { lockMs: 650, blink: false, retries: 12 });
+    }, 0);
+  }, [jumpToSection, showCurrentGameSection, tQ.data]);
+
+  const tournamentClassName =
+    status === "live"
+      ? "border border-status-border-green/80"
+      : status === "draft"
+        ? "border border-status-border-blue/80"
+        : "border border-border-card-chip/70";
+  const tournamentActiveClass =
+    status === "live"
+      ? "bg-bg-card-chip/45 border border-status-border-green"
+      : status === "draft"
+        ? "bg-bg-card-chip/45 border border-status-border-blue"
+        : "bg-bg-card-chip/45 border border-border-card-chip/70";
+
+  const liveSubNavItems = useMemo<SubNavItem[]>(() => {
+    if (!tid) return [];
+    const items: SubNavItem[] = [
+      {
+        key: "all-tournaments",
+        label: "All Tournaments",
+        icon: "fa-list",
+        iconOnlyMobile: true,
+        to: "/tournaments",
+      },
+      {
+        key: "tournament",
+        label: cardTitle,
+        icon: "fa-trophy",
+        active: activeSubKey === "tournament",
+        className: tournamentClassName + (clickBlinkKey === "tournament" ? " subnav-click-blink" : ""),
+        activeClassName: tournamentActiveClass,
+        onClick: () => jumpToSection("tournament", "section-live-top", { blink: true, lockMs: 700, retries: 12 }),
+      },
+    ];
+
+    if (showControls) {
+      items.push({
+        key: "controls",
+        label: "Editor controls",
+        icon: "fa-sliders",
+        iconOnly: true,
+        title: "Editor controls",
+        active: activeSubKey === "controls",
+        className: clickBlinkKey === "controls" ? "subnav-click-blink" : "",
+        onClick: () => jumpToSection("controls", "section-editor-controls", { blink: true, lockMs: 700, retries: 12 }),
+      });
+    }
+    if (showCurrentGameSection) {
+      items.push({
+        key: "current",
+        label: "Current game",
+        icon: "fa-gamepad",
+        iconOnly: true,
+        title: "Current game",
+        active: activeSubKey === "current",
+        className: clickBlinkKey === "current" ? "subnav-click-blink" : "",
+        onClick: () => jumpToSection("current", "section-current-game", { blink: true, lockMs: 700, retries: 12 }),
+      });
+    }
+    if (showDeciderReadOnly) {
+      items.push({
+        key: "decider",
+        label: "Decider",
+        icon: "fa-scale-balanced",
+        iconOnly: true,
+        title: "Decider",
+        active: activeSubKey === "decider",
+        className: clickBlinkKey === "decider" ? "subnav-click-blink" : "",
+        onClick: () => jumpToSection("decider", "section-decider", { blink: true, lockMs: 700, retries: 12 }),
+      });
+    }
+
+    items.push(
+      {
+        key: "standings",
+        label: "Standings",
+        icon: "fa-table-list",
+        iconOnly: true,
+        title: "Standings table",
+        active: activeSubKey === "standings",
+        className: clickBlinkKey === "standings" ? "subnav-click-blink" : "",
+        onClick: () => jumpToSection("standings", "section-standings", { blink: true, lockMs: 700, retries: 12 }),
+      },
+      {
+        key: "matches",
+        label: "Matches",
+        icon: "fa-list-check",
+        iconOnly: true,
+        title: "Matches",
+        active: activeSubKey === "matches",
+        className: clickBlinkKey === "matches" ? "subnav-click-blink" : "",
+        onClick: () => jumpToSection("matches", "section-matches", { blink: true, lockMs: 700, retries: 12 }),
+      },
+      {
+        key: "comments",
+        label: "Comments",
+        icon: "fa-comments",
+        iconOnly: true,
+        title: "Comments",
+        active: activeSubKey === "comments",
+        className: clickBlinkKey === "comments" ? "subnav-click-blink" : "",
+        onClick: () => jumpToSection("comments", "section-comments", { blink: true, lockMs: 700, retries: 12 }),
+      }
+    );
+    return items;
+  }, [
+    activeSubKey,
+    cardTitle,
+    clickBlinkKey,
+    jumpToSection,
+    showControls,
+    showCurrentGameSection,
+    showDeciderReadOnly,
+    tid,
+    tournamentClassName,
+    tournamentActiveClass,
+  ]);
+
+  usePageSubNav(liveSubNavItems);
+
+  if (!tid) return <div className="panel-subtle px-3 py-2 text-sm text-text-muted">Invalid tournament id</div>;
+
+  const initialLoading = !tQ.error && !tQ.data && (tQ.isLoading || clubsQ.isLoading || commentsQ.isLoading);
+  if (initialLoading) {
+    return (
+      <div className="page">
+        <PageLoadingScreen sectionCount={5} />
+      </div>
+    );
+  }
 
   return (
     <div className="page">
-      <Card
-        title={cardTitle}
-        variant="outer"
-        right={
-          <div className="inline-flex items-center gap-2">
+      <SectionSeparator id="section-live-top" className="mt-0 border-t-0 pt-0">
+        <div className="mb-2 flex items-start justify-between gap-2">
+          <div className="min-w-0 flex-1">
+            <div className="truncate text-base font-semibold text-text-normal sm:text-lg">
+              {cardTitle}
+            </div>
+            {tQ.data ? (
+              <div className="mt-1 inline-flex min-w-0 flex-wrap items-center gap-1.5 text-sm">
+                <Pill>{tQ.data.mode}</Pill>
+                <Pill className={`${statusPill(tQ.data.status)}`}>
+                  {tQ.data.status.at(0)?.toUpperCase() + tQ.data.status.slice(1)}
+                </Pill>
+                <Pill className={pillDate()} title="Date">
+                  {fmtDate(tQ.data.date)}
+                </Pill>
+              </div>
+            ) : null}
+          </div>
+          <div className="ml-auto inline-flex shrink-0 items-center gap-2">
+            {unreadCommentsCount > 0 ? (
+              <button
+                type="button"
+                className="shrink-0 inline-flex items-center"
+                title="Jump to latest unread comment"
+                onClick={() => {
+                  if (!latestUnreadCommentId) return;
+                  setFocusCommentRequest((prev) => ({
+                    id: latestUnreadCommentId,
+                    nonce: (prev?.nonce ?? 0) + 1,
+                  }));
+                }}
+              >
+                <Pill title="Unread comments">
+                  <i className="fa-solid fa-comment text-accent" aria-hidden="true" />
+                  <span className="tabular-nums text-text-normal">{unreadCommentsCount}</span>
+                </Pill>
+              </button>
+            ) : null}
             {unreadCommentsCount > 0 ? (
               <Button
                 variant="ghost"
@@ -579,58 +772,20 @@ export default function LiveTournamentPage() {
               <i className="fa fa-arrows-rotate" aria-hidden="true" />
             </Button>
           </div>
-        }
-        bodyClassName="space-y-3"
-      >
+        </div>
+
         <ErrorToastOnError error={tQ.error} title="Tournament loading failed" />
-        {tQ.isLoading ? <div className="text-text-muted">Loading…</div> : null}
-
-        {tQ.data ? (
-          <div className="grid grid-cols-[1fr_auto] items-center gap-2">
-            <div className="min-w-0 flex flex-wrap items-center gap-2 text-sm">
-              <Pill>{tQ.data.mode}</Pill>
-              <Pill className={`${statusPill(tQ.data.status)}`}>
-                {tQ.data.status.at(0)?.toUpperCase() + tQ.data.status.slice(1)}
-              </Pill>
-              <Pill className={pillDate()} title="Date">
-                {fmtDate(tQ.data.date)}
-              </Pill>
-            </div>
-
-            {unreadCommentsCount > 0 ? (
-              <button
-                type="button"
-                className="shrink-0 justify-self-end inline-flex items-center"
-                title="Jump to latest unread comment"
-                onClick={() => {
-                  if (!latestUnreadCommentId) return;
-                  setFocusCommentRequest((prev) => ({
-                    id: latestUnreadCommentId,
-                    nonce: (prev?.nonce ?? 0) + 1,
-                  }));
-                }}
-              >
-                <Pill title="Unread comments">
-                  <i className="fa-solid fa-comment text-accent" aria-hidden="true" />
-                  <span className="tabular-nums text-text-normal">{unreadCommentsCount}</span>
-                </Pill>
-              </button>
-            ) : null}
-          </div>
-        ) : null}
-      </Card>
+      </SectionSeparator>
 
       {tQ.data ? (
         <>
           {showControls ? (
-            <CollapsibleCard
+            <SectionSeparator
+              id="section-editor-controls"
               title={role === "admin" ? "Admin controls" : "Editor controls"}
-              defaultOpen={false}
-              variant="outer"
-              bodyVariant="none"
             >
               <AdminPanel
-                wrap={false}
+                wrap={true}
                 role={role}
                 status={tQ.data.status}
                 secondLegEnabled={secondLegEnabled}
@@ -698,12 +853,12 @@ export default function LiveTournamentPage() {
                 }
                 deciderBusy={deciderMut.isPending}
               />
-            </CollapsibleCard>
+            </SectionSeparator>
           ) : null}
 
           {/* Current game: show even in draft (next scheduled) */}
-          {(status === "draft" || status === "live") && currentMatch ? (
-            <CollapsibleCard title="Current game" defaultOpen={true} variant="outer" bodyVariant="none">
+          {showCurrentGameSection ? (
+            <SectionSeparator id="section-current-game" title="Current game">
               <CurrentGameSection
                 status={status}
                 tournamentId={tid}
@@ -716,36 +871,36 @@ export default function LiveTournamentPage() {
                   await swapSidesMut.mutateAsync(matchId);
                 }}
               />
-            </CollapsibleCard>
+            </SectionSeparator>
           ) : null}
 
           {showDeciderReadOnly ? (
-            <Card title="Decider" variant="outer" bodyClassName="space-y-1">
-              <div className="text-sm text-text-muted">{deciderSummary}</div>
-              {decider.type === "none" && topDrawInfo.isTopDraw ? (
-                <div className="text-xs text-text-muted">Tournament ended tied at the top. A decider can be set.</div>
-              ) : null}
-            </Card>
+            <SectionSeparator id="section-decider" title="Decider">
+              <div className="panel-subtle px-3 py-2 space-y-1">
+                <div className="text-sm text-text-muted">{deciderSummary}</div>
+                {decider.type === "none" && topDrawInfo.isTopDraw ? (
+                  <div className="text-xs text-text-muted">Tournament ended tied at the top. A decider can be set.</div>
+                ) : null}
+              </div>
+            </SectionSeparator>
           ) : null}
 
-          <CollapsibleCard
+          <SectionSeparator
+            id="section-standings"
             title={tQ.data.status === "done" ? "Results" : "Standings (live)"}
-            defaultOpen={true}
-            variant="outer"
-            bodyVariant="none"
-	          >
-	            <StandingsTable
+          >
+            <StandingsTable
               tournamentId={tid}
-	              tournamentDate={tQ.data?.date ?? null}
-	              tournamentMode={tQ.data?.mode === "2v2" ? "2v2" : "1v1"}
-	              tournamentStatus={tQ.data?.status ?? undefined}
-	              wrap={false}
-	              matches={matchesSorted}
-	              players={tQ.data.players}
-	            />
-	          </CollapsibleCard>
+              tournamentDate={tQ.data?.date ?? null}
+              tournamentMode={tQ.data?.mode === "2v2" ? "2v2" : "1v1"}
+              tournamentStatus={tQ.data?.status ?? undefined}
+              wrap={false}
+              matches={matchesSorted}
+              players={tQ.data.players}
+            />
+          </SectionSeparator>
 
-          <CollapsibleCard title="Matches" defaultOpen={!isDone} variant="outer" bodyVariant="none">
+          <SectionSeparator id="section-matches" title="Matches">
             <MatchList
               matches={matchesSorted}
               clubs={clubs}
@@ -773,18 +928,21 @@ export default function LiveTournamentPage() {
                 reorderMut.mutate(ids);
               }}
             />
-          </CollapsibleCard>
+          </SectionSeparator>
 
           {tid ? (
-            <TournamentCommentsCard
-              tournamentId={tid}
-              matches={matchesSorted}
-              clubs={clubs}
-              players={tQ.data?.players ?? []}
-              canWrite={isEditorOrAdmin}
-              canDelete={isAdmin}
-              focusCommentRequest={focusCommentRequest}
-            />
+            <SectionSeparator id="section-comments" title="Comments">
+              <TournamentCommentsCard
+                tournamentId={tid}
+                matches={matchesSorted}
+                clubs={clubs}
+                players={tQ.data?.players ?? []}
+                canWrite={isEditorOrAdmin}
+                canDelete={isAdmin}
+                focusCommentRequest={focusCommentRequest}
+                collapsible={false}
+              />
+            </SectionSeparator>
           ) : null}
 
           {!isEditorOrAdmin ? (

@@ -178,13 +178,14 @@ function AvatarPlayerSelect({
   );
 }
 
-export default function FriendlyMatchCard() {
+export default function FriendlyMatchCard({ embedded = false }: { embedded?: boolean }) {
   const qc = useQueryClient();
   const { role, token } = useAuth();
   const canStore = role === "editor" || role === "admin";
   const [initialState] = useState<FriendlyMatchPersistedState>(() => loadFriendlyState());
 
-  const [open, setOpen] = useState(false);
+  const [collapsibleOpen, setCollapsibleOpen] = useState(false);
+  const open = embedded || collapsibleOpen;
   const [clubGame, setClubGame] = useState(initialState.clubGame);
 
   const [mode, setMode] = useState<"1v1" | "2v2">(initialState.mode);
@@ -321,15 +322,8 @@ export default function FriendlyMatchCard() {
     setBGoals(0);
   }
 
-  return (
-    <CollapsibleCard
-      title="New Friendly"
-      defaultOpen={false}
-      variant="outer"
-      onOpenChange={setOpen}
-      bodyVariant="none"
-    >
-      <div className="card-inner space-y-3">
+  const content = (
+    <div className={embedded ? "panel-subtle p-3 space-y-3" : "card-inner space-y-3"}>
         <ErrorToastOnError error={oddsQ.error} title="Odds loading failed" />
         <ErrorToastOnError error={playersQ.error} title="Players loading failed" />
         <ErrorToastOnError error={clubsQ.error} title="Clubs loading failed" />
@@ -563,7 +557,20 @@ export default function FriendlyMatchCard() {
           // Use the subtle chip surface for a clear, consistent separation like in live views.
           wrapClassName="panel-subtle"
         />
-      </div>
+    </div>
+  );
+
+  if (embedded) return content;
+
+  return (
+    <CollapsibleCard
+      title="New Friendly"
+      defaultOpen={false}
+      variant="outer"
+      onOpenChange={setCollapsibleOpen}
+      bodyVariant="none"
+    >
+      {content}
     </CollapsibleCard>
   );
 }
