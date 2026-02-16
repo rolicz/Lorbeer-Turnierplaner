@@ -1,4 +1,8 @@
 :root[data-theme="dark"] {
   /* Dark is the baseline in themes/defaults.css. Keep this file for theme selection. */
   color-scheme: dark;
+
+  /* Slightly increase separation between page bg and inner cards. */
+  --color-bg-default: 10 10 13;
+  --color-bg-card-inner: 23 23 27;
 }

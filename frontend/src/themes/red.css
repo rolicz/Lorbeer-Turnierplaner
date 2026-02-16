@@ -2,9 +2,9 @@
   color-scheme: dark;
 
   /* Backgrounds (dark baseline with a subtle red tint) */
-  --color-bg-default: 15 10 12;
+  --color-bg-default: 13 9 11;
   --color-bg-card-outer: 8 5 7;
-  --color-bg-card-inner: 24 15 18;
+  --color-bg-card-inner: 27 17 21;
   --color-bg-card-chip: 42 26 31;
 
   /* Text */

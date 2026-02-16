@@ -264,7 +264,7 @@ export default function TournamentsPage() {
 
       {canWrite ? (
         <SectionSeparator id="section-tournaments-create" title="Create New" className="mt-0 border-t-0 pt-0">
-          <div className="panel-subtle p-3 space-y-3">
+          <div className="card-inner space-y-3">
             <div className="space-y-2">
               <label className="flex items-center gap-3">
                 <span className="w-12 shrink-0 text-sm font-medium text-text-normal">Name</span>

@@ -444,7 +444,7 @@ export default function AdminPanel({
   if (!wrap) return content;
 
   return (
-    <div className="card-subtle">
+    <div className="card-inner">
       <div className="mb-2 text-base font-semibold">{role === "admin" ? "Admin controls" : "Editor controls"}</div>
       {content}
     </div>

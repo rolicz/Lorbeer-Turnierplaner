@@ -210,7 +210,7 @@ export default function CurrentGameSection({
   return (
     <div className="space-y-3">
       {/* Match container: score card + score input */}
-      <div className="panel-subtle p-3 space-y-2">
+      <div className="card-inner space-y-2">
         <div className="flex items-center justify-end gap-3">
           <div className="flex items-center gap-2">
             <Button
@@ -296,7 +296,7 @@ export default function CurrentGameSection({
           bGoals={bGoals}
           showModePill={true}
           showOdds={true}
-          surface="panel-inner"
+          surface="panel"
         />
 
         {showGoalInputs ? (
@@ -356,7 +356,7 @@ export default function CurrentGameSection({
               queueAutosave({ bClub: v });
             }}
             defaultOpen={false}
-            wrapClassName="panel-subtle"
+            wrapClassName="card-inner"
           />
         )}
       </div>

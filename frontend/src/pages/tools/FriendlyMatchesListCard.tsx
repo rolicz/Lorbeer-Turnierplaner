@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import CollapsibleCard from "../../ui/primitives/CollapsibleCard";
@@ -20,12 +20,19 @@ function normalizeState(state: string): "scheduled" | "playing" | "finished" {
   return "finished";
 }
 
-export default function FriendlyMatchesListCard({ embedded = false }: { embedded?: boolean }) {
+export default function FriendlyMatchesListCard({
+  embedded = false,
+  onInitialReady,
+}: {
+  embedded?: boolean;
+  onInitialReady?: () => void;
+}) {
   const qc = useQueryClient();
   const { role, token } = useAuth();
   const canDelete = role === "admin" && !!token;
   const [mode, setMode] = useState<ModeFilter>("all");
   const [showMeta, setShowMeta] = useState(false);
+  const initialReadyFiredRef = useRef(false);
 
   const clubsQ = useQuery({
     queryKey: ["clubs"],
@@ -109,6 +116,13 @@ export default function FriendlyMatchesListCard({ embedded = false }: { embedded
 
   const pendingDeleteId = deleteMut.variables ?? null;
 
+  useEffect(() => {
+    if (initialReadyFiredRef.current) return;
+    if (friendliesQ.isLoading || clubsQ.isLoading) return;
+    initialReadyFiredRef.current = true;
+    onInitialReady?.();
+  }, [friendliesQ.isLoading, clubsQ.isLoading, onInitialReady]);
+
   function friendlyIdFromMatchId(mid: number): number | null {
     const fid = Math.trunc(mid) - 2_100_000_000;
     return fid > 0 ? fid : null;
@@ -120,7 +134,7 @@ export default function FriendlyMatchesListCard({ embedded = false }: { embedded
       <ErrorToastOnError error={clubsQ.error} title="Clubs loading failed" />
       <ErrorToastOnError error={deleteMut.error} title="Could not delete friendly" />
 
-      <div className="card-inner-flat rounded-2xl space-y-2">
+      <div className="rounded-xl bg-bg-card-inner p-2 space-y-2">
         <div className="flex flex-wrap items-center gap-2">
           <div className="flex min-w-0 flex-wrap items-center gap-2">
             <div className="inline-flex h-9 w-16 sm:w-20 items-center justify-center gap-2 rounded-xl px-2 text-[11px] font-medium text-text-muted">
@@ -166,7 +180,7 @@ export default function FriendlyMatchesListCard({ embedded = false }: { embedded
       ) : null}
 
       {!friendliesQ.isLoading && tournaments.length === 0 ? (
-        <div className="card-inner-flat rounded-2xl text-sm text-text-muted">No friendlies yet.</div>
+        <div className="rounded-xl bg-bg-card-inner p-2 text-sm text-text-muted">No friendlies yet.</div>
       ) : null}
 
       {tournaments.length ? (
@@ -175,6 +189,7 @@ export default function FriendlyMatchesListCard({ embedded = false }: { embedded
             tournaments={tournaments}
             clubs={clubsQ.data ?? []}
             showMeta={showMeta}
+            nameColorByResult
             hideModePill
             renderMatchActions={(_t, m) => {
               if (!canDelete) return null;
@@ -202,7 +217,9 @@ export default function FriendlyMatchesListCard({ embedded = false }: { embedded
     </>
   );
 
-  if (embedded) return <div className="space-y-3">{content}</div>;
+  if (embedded) {
+    return <div className="rounded-xl border border-border-card-inner/45 bg-bg-card-inner p-2 space-y-3">{content}</div>;
+  }
 
   return (
     <CollapsibleCard

@@ -139,7 +139,7 @@ function MobileRow({
 }) {
   return (
     <div
-      className="panel-subtle relative overflow-hidden px-3 py-2 cursor-pointer"
+      className="panel relative overflow-hidden px-3 py-2 cursor-pointer"
       title={`Open profile: ${r.name}`}
       onClick={() => onOpenProfile(r.playerId)}
       onKeyDown={(e) => {

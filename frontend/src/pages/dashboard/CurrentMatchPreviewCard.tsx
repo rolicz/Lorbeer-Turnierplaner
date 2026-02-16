@@ -109,7 +109,7 @@ export default function CurrentMatchPreviewCard() {
             >
               <MatchOverviewPanel
                 className=""
-                surface="panel-subtle"
+                surface="panel"
                 match={match}
                 clubs={clubs}
                 mode={tQ.data?.mode}

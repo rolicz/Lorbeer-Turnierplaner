@@ -116,9 +116,9 @@ function Scoreline({
 
 function InfoLegend() {
   return (
-    <div className="space-y-3">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-3 text-[11px] text-text-muted">
+    <div className="space-y-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center gap-2 text-[11px] text-text-muted">
           <span className="inline-flex items-center gap-2">
             <i className="fa-regular fa-flag text-text-muted" aria-hidden="true" />
             Tournament positions
@@ -517,12 +517,12 @@ export default function PlayersStatsCard({ embedded = false }: { embedded?: bool
           </span>
         }
         defaultOpen={false}
-        className="panel-subtle"
+        variant="inner"
       >
         <InfoLegend />
       </CollapsibleCard>
 
-      <div className="panel-subtle rounded-2xl overflow-hidden">
+      <div className="card-inner-flat rounded-2xl overflow-hidden">
         <ErrorToastOnError error={playersQ.error} title="Players loading failed" />
         <ErrorToastOnError error={statsQ.error} title="Stats loading failed" />
         <div className="grid grid-cols-12 items-center gap-2 border-b border-border-card-inner bg-bg-card-chip/20 px-3 py-2 text-[11px] text-text-muted">

@@ -89,23 +89,22 @@ export default function MatchList({
 
   return (
     <div className="space-y-2">
-      <div className="card-inner-flat rounded-2xl">
-        <div className="flex items-center justify-between gap-2">
-          <div className="text-[11px] font-medium text-text-muted inline-flex items-center gap-2">
-            <i className="fa-solid fa-layer-group" aria-hidden="true" />
-            <span>View</span>
-          </div>
-          <SegmentedSwitch<MatchListView>
-            value={view}
-            onChange={setView}
-            options={[
-              { key: "compact", label: "Compact", icon: "fa-compress" },
-              { key: "comfort", label: "Details", icon: "fa-list" },
-            ]}
-            ariaLabel="Matches view"
-            title="Matches view"
-          />
+      <div className="flex items-center justify-between gap-2 px-1">
+        <div className="text-[11px] font-medium text-text-muted inline-flex items-center gap-2">
+          <i className="fa-solid fa-layer-group" aria-hidden="true" />
+          <span>View</span>
         </div>
+        <SegmentedSwitch<MatchListView>
+          value={view}
+          onChange={setView}
+          options={[
+            { key: "compact", label: "Compact", icon: "fa-compress" },
+            { key: "comfort", label: "Details", icon: "fa-list" },
+          ]}
+          widthClass="w-12 sm:w-16"
+          ariaLabel="Matches view"
+          title="Matches view"
+        />
       </div>
 
       {matches.map((m) => {

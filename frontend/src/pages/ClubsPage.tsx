@@ -356,7 +356,7 @@ export default function ClubsPage() {
       <ErrorToastOnError error={deleteMut.error} title="Could not delete club" />
 
       <SectionSeparator id="section-clubs-create" title="Create New" className="mt-0 border-t-0 pt-0">
-        <div className="panel-subtle p-3 space-y-3">
+        <div className="card-inner space-y-3">
           <div className="space-y-2">
             <label className="flex items-center gap-3">
               <span className="w-24 shrink-0 text-sm font-medium text-text-normal">Name</span>
@@ -412,7 +412,7 @@ export default function ClubsPage() {
       </SectionSeparator>
 
       <SectionSeparator id="section-clubs-browse" title="Browse & Filter">
-        <div className="card-inner-flat rounded-2xl space-y-2">
+        <div className="rounded-xl border border-border-card-inner/45 bg-bg-card-inner p-2 space-y-2">
             <div className="flex items-center gap-3">
               <span className="inline-flex h-9 w-24 shrink-0 items-center text-sm font-medium text-text-muted">Group</span>
               <div className="min-w-0 flex flex-1 items-center justify-between gap-2">
@@ -500,7 +500,7 @@ export default function ClubsPage() {
             </Button>
           </div>
         </div>
-        <div className="card-inner-flat rounded-2xl space-y-2">
+        <div className="card-inner space-y-2">
           {clubsQ.isLoading ? <div className="text-text-muted">Loading…</div> : null}
 
           {!clubsQ.isLoading && grouped.length === 0 ? (
@@ -521,7 +521,7 @@ export default function ClubsPage() {
                 right={<span className="text-xs text-text-muted">{clubsInGroup.length}</span>}
                 defaultOpen={hasActiveFilters}
                 variant="none"
-                className="panel-subtle"
+                className="rounded-xl bg-bg-card-inner"
               >
                 {() => (
                   <div className="space-y-2">
@@ -531,7 +531,7 @@ export default function ClubsPage() {
                       const cid = c.league_id;
 
                       return (
-                        <div key={c.id} className="panel-subtle px-3 py-2 transition hover:bg-hover-default/40">
+                        <div key={c.id} className="panel px-3 py-2 transition hover:bg-hover-default/40">
                           <div className="flex items-start justify-between gap-3">
                             <div className="min-w-0">
                               <div className="truncate font-medium">{c.name}</div>
@@ -578,7 +578,7 @@ export default function ClubsPage() {
                           </div>
 
                           {isEditing ? (
-                            <div className="card-inner-flat mt-2 p-2">
+                            <div className="panel-inner mt-2 p-2">
                               <div className="grid gap-2 md:grid-cols-3">
                                 {isAdmin ? (
                                   <Input

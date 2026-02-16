@@ -894,7 +894,7 @@ export default function LiveTournamentPage() {
             id="section-standings"
             title={tQ.data.status === "done" ? "Results" : "Standings (live)"}
           >
-            <div className="panel-subtle p-3">
+            <div className="card-inner">
               <StandingsTable
                 tournamentId={tid}
                 tournamentDate={tQ.data?.date ?? null}
@@ -908,33 +908,35 @@ export default function LiveTournamentPage() {
           </SectionSeparator>
 
           <SectionSeparator id="section-matches" title="Matches">
-            <MatchList
-              matches={matchesSorted}
-              clubs={clubs}
-              canEdit={canEditMatch}
-              canReorder={canReorder}
-              busyReorder={reorderMut.isPending}
-              onEditMatch={openEditor}
-              onSwapSides={async (matchId) => {
-                await swapSidesMut.mutateAsync(matchId);
-              }}
-              onMoveUp={(matchId) => {
-                if (!canReorder) return;
-                const idx = matchesSorted.findIndex((x) => x.id === matchId);
-                if (idx <= 0) return;
-                const ids = matchesSorted.map((x) => x.id);
-                [ids[idx - 1], ids[idx]] = [ids[idx], ids[idx - 1]];
-                reorderMut.mutate(ids);
-              }}
-              onMoveDown={(matchId) => {
-                if (!canReorder) return;
-                const idx = matchesSorted.findIndex((x) => x.id === matchId);
-                if (idx < 0 || idx >= matchesSorted.length - 1) return;
-                const ids = matchesSorted.map((x) => x.id);
-                [ids[idx], ids[idx + 1]] = [ids[idx + 1], ids[idx]];
-                reorderMut.mutate(ids);
-              }}
-            />
+            <div className="card-inner">
+              <MatchList
+                matches={matchesSorted}
+                clubs={clubs}
+                canEdit={canEditMatch}
+                canReorder={canReorder}
+                busyReorder={reorderMut.isPending}
+                onEditMatch={openEditor}
+                onSwapSides={async (matchId) => {
+                  await swapSidesMut.mutateAsync(matchId);
+                }}
+                onMoveUp={(matchId) => {
+                  if (!canReorder) return;
+                  const idx = matchesSorted.findIndex((x) => x.id === matchId);
+                  if (idx <= 0) return;
+                  const ids = matchesSorted.map((x) => x.id);
+                  [ids[idx - 1], ids[idx]] = [ids[idx], ids[idx - 1]];
+                  reorderMut.mutate(ids);
+                }}
+                onMoveDown={(matchId) => {
+                  if (!canReorder) return;
+                  const idx = matchesSorted.findIndex((x) => x.id === matchId);
+                  if (idx < 0 || idx >= matchesSorted.length - 1) return;
+                  const ids = matchesSorted.map((x) => x.id);
+                  [ids[idx], ids[idx + 1]] = [ids[idx + 1], ids[idx]];
+                  reorderMut.mutate(ids);
+                }}
+              />
+            </div>
           </SectionSeparator>
 
           {tid ? (

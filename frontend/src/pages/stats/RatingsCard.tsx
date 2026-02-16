@@ -55,7 +55,7 @@ export default function RatingsCard({ embedded = false }: { embedded?: boolean }
   const rows = useMemo(() => q.data?.rows ?? [], [q.data?.rows]);
 
   const content = (
-    <div className="card-inner space-y-3">
+    <div className="card-inner-flat space-y-3">
       <div className="flex flex-wrap items-center gap-2">
         <StatsFilterDataControls mode={mode} onModeChange={setMode} scope={scope} onScopeChange={setScope} />
       </div>

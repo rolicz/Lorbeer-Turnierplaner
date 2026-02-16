@@ -4,6 +4,7 @@ import { sideBy } from "../../helpers";
 import { clubLabelPartsById } from "../../ui/clubControls";
 import { Pill, pillDate } from "../../ui/primitives/Pill";
 import { StarsFA } from "../../ui/primitives/StarsFA";
+import { matchPalette } from "../../ui/theme";
 
 function fmtDate(s?: string | null) {
   if (!s) return "";
@@ -27,12 +28,14 @@ export function MatchRowWithClubs({
   focusId,
   clubs,
   showMeta,
+  nameColorByResult = false,
   action,
 }: {
   m: Match;
   focusId?: number | null;
   clubs: Club[];
   showMeta: boolean;
+  nameColorByResult?: boolean;
   action?: ReactNode;
 }) {
   const a = sideBy(m, "A");
@@ -64,6 +67,13 @@ export function MatchRowWithClubs({
   })();
 
   const w = winnerSide(m);
+  const hasWinner = w !== null;
+  const isDraw = w === null && m.state === "finished" && ag === bg;
+  const aWin = w === "A";
+  const bWin = w === "B";
+  const pal = matchPalette(m.state);
+  const aNameColorClass = nameColorByResult && hasWinner && !isDraw ? (aWin ? pal.win : pal.lose) : "text-text-normal";
+  const bNameColorClass = nameColorByResult && hasWinner && !isDraw ? (bWin ? pal.win : pal.lose) : "text-text-normal";
 
   const res = (() => {
     if (m.state !== "finished" || !focusSide) return null;
@@ -95,9 +105,7 @@ export function MatchRowWithClubs({
               {aDisplay.map((p, i) => (
                 <div
                   key={`${p.display_name}-${i}`}
-                  className={
-                    nameText + " whitespace-normal md:truncate break-words leading-tight font-medium text-text-normal"
-                  }
+                  className={nameText + " whitespace-normal md:truncate break-words leading-tight font-medium " + aNameColorClass}
                 >
                   {p.display_name}
                 </div>
@@ -116,9 +124,7 @@ export function MatchRowWithClubs({
               {bDisplay.map((p, i) => (
                 <div
                   key={`${p.display_name}-${i}`}
-                  className={
-                    nameText + " whitespace-normal md:truncate break-words leading-tight font-medium text-text-normal"
-                  }
+                  className={nameText + " whitespace-normal md:truncate break-words leading-tight font-medium " + bNameColorClass}
                 >
                   {p.display_name}
                 </div>
@@ -163,6 +169,7 @@ export function MatchHistoryTournamentBlock({
   focusId,
   clubs,
   showMeta,
+  nameColorByResult = false,
   actions,
   hideModePill = false,
   renderMatchAction,
@@ -171,6 +178,7 @@ export function MatchHistoryTournamentBlock({
   focusId?: number | null;
   clubs: Club[];
   showMeta: boolean;
+  nameColorByResult?: boolean;
   actions?: ReactNode;
   hideModePill?: boolean;
   renderMatchAction?: (t: StatsPlayerMatchesTournament, m: Match) => ReactNode;
@@ -199,6 +207,7 @@ export function MatchHistoryTournamentBlock({
             focusId={focusId}
             clubs={clubs}
             showMeta={showMeta}
+            nameColorByResult={nameColorByResult}
             action={renderMatchAction ? renderMatchAction(t, m) : undefined}
           />
         ))}
@@ -212,6 +221,7 @@ export function MatchHistoryList({
   focusId,
   clubs,
   showMeta,
+  nameColorByResult = false,
   renderTournamentActions,
   renderMatchActions,
   hideModePill = false,
@@ -220,6 +230,7 @@ export function MatchHistoryList({
   focusId?: number | null;
   clubs: Club[];
   showMeta: boolean;
+  nameColorByResult?: boolean;
   renderTournamentActions?: (t: StatsPlayerMatchesTournament) => ReactNode;
   renderMatchActions?: (t: StatsPlayerMatchesTournament, m: Match) => ReactNode;
   hideModePill?: boolean;
@@ -233,6 +244,7 @@ export function MatchHistoryList({
           focusId={focusId}
           clubs={clubs}
           showMeta={showMeta}
+          nameColorByResult={nameColorByResult}
           actions={renderTournamentActions ? renderTournamentActions(t) : undefined}
           hideModePill={hideModePill}
           renderMatchAction={renderMatchActions}

@@ -159,6 +159,11 @@ export default function PlayersAdminPage() {
         </div>
       ) : null}
 
+      <div className="inline-flex items-center gap-2 text-sm font-semibold text-text-normal">
+        <i className="fa-solid fa-users text-text-muted" aria-hidden="true" />
+        <span>All Players</span>
+      </div>
+
       <div className="panel-subtle rounded-2xl overflow-hidden">
         <div className="grid grid-cols-12 items-center gap-2 border-b border-border-card-inner bg-bg-card-chip/20 px-3 py-2 text-[11px] text-text-muted">
           <div className="col-span-8">Player</div>

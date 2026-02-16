@@ -58,7 +58,7 @@ export default function MatchOverviewPanel({
   showModePill?: boolean;
   showOdds?: boolean;
   scheduledScoreStyle?: "dash" | "emdash-zero";
-  surface?: "panel-subtle" | "panel-inner" | "none";
+  surface?: "panel-subtle" | "panel-inner" | "panel" | "none";
   className?: string;
 }) {
   const a = sideBy(match, "A");
@@ -74,11 +74,15 @@ export default function MatchOverviewPanel({
     scheduledScoreStyle === "emdash-zero" && isScheduled && aGoals === 0 && bGoals === 0;
   const scoreLeft = isScheduled && !useEmDash ? "-" : useEmDash ? "—" : String(aGoals);
   const scoreRight = isScheduled && !useEmDash ? "-" : useEmDash ? "—" : String(bGoals);
+  const scoreBoxClass = isScheduled
+    ? "card-chip"
+    : "rounded-lg border border-border-card-inner/70 bg-bg-card-inner px-3 py-1.5";
   const leader: "A" | "B" | null = isScheduled || aGoals === bGoals ? null : aGoals > bGoals ? "A" : "B";
 
   return (
     <div
       className={cn(
+        surface === "panel" ? "panel p-3" : "",
         surface === "panel-subtle" ? "panel-subtle p-3" : "",
         surface === "panel-inner" ? "panel-inner p-3" : "",
         className,
@@ -113,7 +117,7 @@ export default function MatchOverviewPanel({
             ))}
           </div>
 
-          <div className="card-chip justify-self-center flex items-center justify-center gap-2">
+          <div className={`${scoreBoxClass} justify-self-center flex items-center justify-center gap-2`}>
             <span className="text-xl font-semibold tabular-nums">{scoreLeft}</span>
             <span className="text-text-muted">:</span>
             <span className="text-xl font-semibold tabular-nums">{scoreRight}</span>

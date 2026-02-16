@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import CollapsibleCard from "../../ui/primitives/CollapsibleCard";
@@ -8,14 +8,14 @@ import AvatarButton from "../../ui/primitives/AvatarButton";
 import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
 import SelectClubsPanel from "../../ui/SelectClubsPanel";
 import { GoalStepper } from "../../ui/clubControls";
-import { StarsFA } from "../../ui/primitives/StarsFA";
-import { clubLabelPartsById } from "../../ui/clubControls";
+import MatchOverviewPanel from "../../ui/primitives/MatchOverviewPanel";
 import SegmentedSwitch from "../../ui/primitives/SegmentedSwitch";
 
 import { listClubs } from "../../api/clubs.api";
 import { listPlayers } from "../../api/players.api";
 import { createFriendlyMatch } from "../../api/friendlies.api";
 import { getStatsOdds, type StatsOddsRequest } from "../../api/stats.api";
+import type { Match } from "../../api/types";
 import { usePlayerAvatarMap } from "../../hooks/usePlayerAvatarMap";
 import { useAuth } from "../../auth/AuthContext";
 
@@ -92,33 +92,6 @@ function saveFriendlyState(state: FriendlyMatchPersistedState) {
   }
 }
 
-function fmtOdd(x: number) {
-  return Number.isFinite(x) ? x.toFixed(2) : "—";
-}
-
-function OddsInline({ odds }: { odds: { home: number; draw: number; away: number } }) {
-  return (
-    <div className="flex items-center justify-center">
-      <div className="inline-flex items-center gap-2 text-[11px] sm:text-xs">
-        <span className="inline-flex items-baseline gap-1">
-          <span className="text-text-muted font-semibold">1</span>
-          <span className="font-mono tabular-nums text-text-normal">{fmtOdd(Number(odds.home))}</span>
-        </span>
-        <span className="text-text-muted/60">|</span>
-        <span className="inline-flex items-baseline gap-1">
-          <span className="text-text-muted font-semibold">X</span>
-          <span className="font-mono tabular-nums text-text-normal">{fmtOdd(Number(odds.draw))}</span>
-        </span>
-        <span className="text-text-muted/60">|</span>
-        <span className="inline-flex items-baseline gap-1">
-          <span className="text-text-muted font-semibold">2</span>
-          <span className="font-mono tabular-nums text-text-normal">{fmtOdd(Number(odds.away))}</span>
-        </span>
-      </div>
-    </div>
-  );
-}
-
 function AvatarPlayerSelect({
   label,
   value,
@@ -178,7 +151,13 @@ function AvatarPlayerSelect({
   );
 }
 
-export default function FriendlyMatchCard({ embedded = false }: { embedded?: boolean }) {
+export default function FriendlyMatchCard({
+  embedded = false,
+  onInitialReady,
+}: {
+  embedded?: boolean;
+  onInitialReady?: () => void;
+}) {
   const qc = useQueryClient();
   const { role, token } = useAuth();
   const canStore = role === "editor" || role === "admin";
@@ -201,6 +180,7 @@ export default function FriendlyMatchCard({ embedded = false }: { embedded?: boo
   const [aGoals, setAGoals] = useState(initialState.aGoals);
   const [bGoals, setBGoals] = useState(initialState.bGoals);
   const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
+  const initialReadyFiredRef = useRef(false);
 
   const clubsQ = useQuery({
     queryKey: ["clubs", clubGame],
@@ -236,20 +216,6 @@ export default function FriendlyMatchCard({ embedded = false }: { embedded?: boo
     return names.length ? names.join("/") : "Team B";
   }, [bTeamIds, players]);
 
-  const aNames = useMemo(() => {
-    const names = aTeamIds.map((id) => players.find((p) => p.id === id)?.display_name).filter(Boolean) as string[];
-    return names.length ? names : ["—"];
-  }, [aTeamIds, players]);
-  const bNames = useMemo(() => {
-    const names = bTeamIds.map((id) => players.find((p) => p.id === id)?.display_name).filter(Boolean) as string[];
-    return names.length ? names : ["—"];
-  }, [bTeamIds, players]);
-
-  const leader: "A" | "B" | null = aGoals === bGoals ? null : aGoals > bGoals ? "A" : "B";
-
-  const aClubParts = useMemo(() => clubLabelPartsById(clubs, aClub), [clubs, aClub]);
-  const bClubParts = useMemo(() => clubLabelPartsById(clubs, bClub), [clubs, bClub]);
-
   const oddsReq = useMemo<StatsOddsRequest | null>(() => {
     const need = mode === "1v1" ? 1 : 2;
     if (aTeamIds.length !== need || bTeamIds.length !== need) return null;
@@ -275,6 +241,30 @@ export default function FriendlyMatchCard({ embedded = false }: { embedded?: boo
   const odds = oddsQ.data?.odds ?? null;
   const neededPerTeam = mode === "1v1" ? 1 : 2;
   const canSave = aTeamIds.length === neededPerTeam && bTeamIds.length === neededPerTeam;
+
+  const previewMatch = useMemo<Match>(() => {
+    const aPlayers = aTeamIds
+      .map((id) => players.find((p) => p.id === id))
+      .filter((p): p is { id: number; display_name: string } => !!p)
+      .map((p) => ({ id: p.id, display_name: p.display_name }));
+    const bPlayers = bTeamIds
+      .map((id) => players.find((p) => p.id === id))
+      .filter((p): p is { id: number; display_name: string } => !!p)
+      .map((p) => ({ id: p.id, display_name: p.display_name }));
+
+    return {
+      id: -1,
+      tournament_id: -1,
+      order_index: 0,
+      leg: 1,
+      state: aGoals !== 0 || bGoals !== 0 ? "playing" : "scheduled",
+      sides: [
+        { id: -11, side: "A", players: aPlayers, club_id: aClub, goals: aGoals },
+        { id: -12, side: "B", players: bPlayers, club_id: bClub, goals: bGoals },
+      ],
+      odds,
+    };
+  }, [aTeamIds, bTeamIds, players, aClub, bClub, aGoals, bGoals, odds]);
 
   const saveMut = useMutation({
     mutationFn: () => {
@@ -311,6 +301,14 @@ export default function FriendlyMatchCard({ embedded = false }: { embedded?: boo
     });
   }, [clubGame, mode, a1, a2, b1, b2, aClub, bClub, aGoals, bGoals]);
 
+  useEffect(() => {
+    if (initialReadyFiredRef.current) return;
+    if (!open) return;
+    if (playersQ.isLoading || clubsQ.isLoading) return;
+    initialReadyFiredRef.current = true;
+    onInitialReady?.();
+  }, [open, playersQ.isLoading, clubsQ.isLoading, onInitialReady]);
+
   function clearAll() {
     setA1(null);
     setA2(null);
@@ -323,7 +321,7 @@ export default function FriendlyMatchCard({ embedded = false }: { embedded?: boo
   }
 
   const content = (
-    <div className={embedded ? "panel-subtle p-3 space-y-3" : "card-inner space-y-3"}>
+    <div className="card-inner space-y-3">
         <ErrorToastOnError error={oddsQ.error} title="Odds loading failed" />
         <ErrorToastOnError error={playersQ.error} title="Players loading failed" />
         <ErrorToastOnError error={clubsQ.error} title="Clubs loading failed" />
@@ -379,88 +377,31 @@ export default function FriendlyMatchCard({ embedded = false }: { embedded?: boo
           <div className="text-xs text-text-muted">Login as editor/admin to store friendlies for stats.</div>
         ) : null}
 
-        {/* Match card (styled like "Current game") */}
-        <div className="panel-subtle p-3">
-          <div className="mt-1 flex items-center justify-between gap-3">
-            <div className="text-[11px] sm:text-xs text-text-muted">Friendly match</div>
-            <div className="text-[11px] sm:text-xs text-text-muted">{mode}</div>
-          </div>
+        <div className="panel-subtle p-3 space-y-2">
+          <MatchOverviewPanel
+            match={previewMatch}
+            clubs={clubs}
+            mode={mode}
+            aGoals={aGoals}
+            bGoals={bGoals}
+            showModePill={true}
+            showOdds={true}
+            surface="panel"
+          />
 
-          {odds ? <OddsInline odds={odds} /> : null}
-
-          <div className="mt-3 border-y border-border-card-inner/60 py-3">
+          <div className="pt-2">
             <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 md:gap-4">
-              <div className="min-w-0">
-                {aNames.map((n, i) => (
-                  <div
-                    key={`${n}-${i}`}
-                    className={
-                      "text-[15px] md:text-lg text-text-normal whitespace-normal md:truncate break-words leading-tight " +
-                      (leader === "A" ? "font-black" : "font-medium")
-                    }
-                  >
-                    {n}
-                  </div>
-                ))}
+              <div className="flex justify-start">
+                <GoalStepper value={aGoals} onChange={setAGoals} disabled={!open} ariaLabel="Goals left" />
               </div>
-
-              <div className="card-chip justify-self-center flex items-center justify-center gap-2">
-                <span className="text-xl font-semibold tabular-nums">{String(aGoals)}</span>
-                <span className="text-text-muted">:</span>
-                <span className="text-xl font-semibold tabular-nums">{String(bGoals)}</span>
-              </div>
-
-              <div className="min-w-0 text-right">
-                {bNames.map((n, i) => (
-                  <div
-                    key={`${n}-${i}`}
-                    className={
-                      "text-[15px] md:text-lg text-text-normal whitespace-normal md:truncate break-words leading-tight " +
-                      (leader === "B" ? "font-black" : "font-medium")
-                    }
-                  >
-                    {n}
-                  </div>
-                ))}
+              <div />
+              <div className="flex justify-end">
+                <GoalStepper value={bGoals} onChange={setBGoals} disabled={!open} ariaLabel="Goals right" />
               </div>
             </div>
           </div>
 
-          {/* Clubs */}
-          <div className="mt-2 md:mt-3 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-start gap-3 md:gap-4 text-xs md:text-sm text-text-muted">
-            <div className="min-w-0 whitespace-normal md:truncate break-words leading-tight">{aClubParts.name}</div>
-            <div />
-            <div className="min-w-0 whitespace-normal md:truncate break-words leading-tight text-right">{bClubParts.name}</div>
-          </div>
-          {/* Leagues */}
-          <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-start gap-3 md:gap-4 text-xs md:text-sm text-text-muted">
-            <div className="min-w-0 whitespace-normal md:truncate break-words leading-tight">{aClubParts.league_name}</div>
-            <div />
-            <div className="min-w-0 whitespace-normal md:truncate break-words leading-tight text-right">{bClubParts.league_name}</div>
-          </div>
-          {/* Stars */}
-          <div className="mt-1 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 md:gap-4 text-[11px] md:text-sm text-text-muted">
-            <div className="min-w-0">
-              <StarsFA rating={aClubParts.rating ?? 0} textClassName="text-text-muted" />
-            </div>
-            <div />
-            <div className="min-w-0 flex justify-end">
-              <StarsFA rating={bClubParts.rating ?? 0} textClassName="text-text-muted" />
-            </div>
-          </div>
-
-          {/* Inputs */}
-          <div className="mt-3 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 md:gap-4">
-            <div className="flex justify-start">
-              <GoalStepper value={aGoals} onChange={setAGoals} disabled={!open} ariaLabel="Goals left" />
-            </div>
-            <div />
-            <div className="flex justify-end">
-              <GoalStepper value={bGoals} onChange={setBGoals} disabled={!open} ariaLabel="Goals right" />
-            </div>
-          </div>
-
-          {oddsQ.isFetching ? <div className="mt-2 text-xs text-text-muted">Computing odds…</div> : null}
+          {oddsQ.isFetching ? <div className="text-xs text-text-muted">Computing odds…</div> : null}
         </div>
 
         <div className="panel-subtle p-3 space-y-3">

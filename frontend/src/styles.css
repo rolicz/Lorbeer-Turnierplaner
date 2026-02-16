@@ -101,7 +101,7 @@
   .card-outer {
     @apply rounded-2xl p-3;
     background-color: rgb(var(--color-bg-card-outer));
-    border: 1px solid rgb(var(--color-border-card-outer));
+    border: 0;
   }
   .card-inner {
     @apply rounded-xl p-3;

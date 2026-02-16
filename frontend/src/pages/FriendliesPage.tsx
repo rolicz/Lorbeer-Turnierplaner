@@ -1,4 +1,4 @@
-import { useCallback, useLayoutEffect, useMemo, useRef } from "react";
+import { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
 import FriendlyMatchCard from "./tools/FriendlyMatchCard";
 import FriendlyMatchesListCard from "./tools/FriendlyMatchesListCard";
 import SectionSeparator from "../ui/primitives/SectionSeparator";
@@ -10,6 +10,9 @@ import PageLoadingScreen from "../ui/primitives/PageLoadingScreen";
 export default function FriendliesPage() {
   const defaultScrollDoneRef = useRef(false);
   const pageEntered = useRouteEntryLoading();
+  const [createReady, setCreateReady] = useState(false);
+  const [listReady, setListReady] = useState(false);
+  const initialReady = createReady && listReady;
 
   const pageSections = useMemo(
     () => [
@@ -25,33 +28,20 @@ export default function FriendliesPage() {
     initialKey: "all-friendlies",
   });
 
-  const computeAllFriendliesOffset = useCallback((): number => {
-    const allEl = document.getElementById("section-friendlies-all");
-    const createEl = document.getElementById("section-friendlies-create");
-    const headerEl = document.getElementById("app-top-nav");
-    if (!allEl || !createEl || !headerEl) return 0;
-
-    const headerHeight = Math.ceil(headerEl.getBoundingClientRect().height);
-    const allTop = window.scrollY + allEl.getBoundingClientRect().top;
-    const createBottom = window.scrollY + createEl.getBoundingClientRect().bottom;
-
-    const baseTarget = Math.max(0, allTop - headerHeight);
-    const minTargetToHideCreate = Math.max(0, createBottom - headerHeight + 1);
-    const target = Math.max(baseTarget, minTargetToHideCreate);
-    return baseTarget - target;
-  }, []);
-
   useLayoutEffect(() => {
     if (defaultScrollDoneRef.current) return;
+    if (!pageEntered || !initialReady) return;
     defaultScrollDoneRef.current = true;
     jumpToSection("all-friendlies", "section-friendlies-all", {
       blink: false,
       lockMs: 600,
       retries: 20,
-      offsetPx: computeAllFriendliesOffset(),
       behavior: "auto",
     });
-  }, [computeAllFriendliesOffset, jumpToSection]);
+  }, [initialReady, jumpToSection, pageEntered]);
+
+  const handleCreateReady = useCallback(() => setCreateReady(true), []);
+  const handleListReady = useCallback(() => setListReady(true), []);
 
   const subNavItems = useMemo<SubNavItem[]>(
     () => [
@@ -79,11 +69,10 @@ export default function FriendliesPage() {
             blink: true,
             lockMs: 700,
             retries: 20,
-            offsetPx: computeAllFriendliesOffset(),
           }),
       },
     ],
-    [activeSubKey, subnavBlinkKey, jumpToSection, computeAllFriendliesOffset]
+    [activeSubKey, subnavBlinkKey, jumpToSection]
   );
 
   usePageSubNav(subNavItems);
@@ -99,10 +88,10 @@ export default function FriendliesPage() {
   return (
     <div className="page">
       <SectionSeparator id="section-friendlies-create" title="Create New" className="mt-0 border-t-0 pt-0">
-        <FriendlyMatchCard embedded />
+        <FriendlyMatchCard embedded onInitialReady={handleCreateReady} />
       </SectionSeparator>
       <SectionSeparator id="section-friendlies-all" title="All Friendlies" className="min-h-[100svh]">
-        <FriendlyMatchesListCard embedded />
+        <FriendlyMatchesListCard embedded onInitialReady={handleListReady} />
       </SectionSeparator>
     </div>
   );

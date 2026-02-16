@@ -2,9 +2,9 @@
   color-scheme: dark;
 
   /* Backgrounds */
-  --color-bg-default: 24 33 49; /* Darker page backdrop for more surface separation */
+  --color-bg-default: 21 30 46; /* Slightly darker for clearer separation from inner cards */
   --color-bg-card-outer: 15 23 42; /* Original zinc-900 */
-  --color-bg-card-inner: 30 41 59; /* Original zinc-800 */
+  --color-bg-card-inner: 34 46 65; /* Slightly lighter while keeping the same blue tone */
   --color-bg-card-chip: 51 65 85; /* slate-700 (brighter than inner, like dark.css' chip layer) */
 
   /* Text */
@@ -22,15 +22,15 @@
   --color-table-row-b: 35 46 66; /* Slightly bluer zinc-800 */
 
   /* Button */
-  --color-btn-bg: 100 143 255; /* Original emerald-500 */
-  --color-btn-text: 15 23 42; /* Original zinc-900 */
+  --color-btn-bg: 59 130 246; /* bright blue */
+  --color-btn-text: 255 255 255; /* white for contrast */
 
   /* Accent */
   --color-accent: 254 97 0; /* Original amber-400 */
   --color-accent-text: 15 23 42; /* Original zinc-900 */
 
   /* Hover */
-  --color-hover-btn-bg: 129 140 248; /* Original emerald-400 */
+  --color-hover-btn-bg: 96 165 250; /* lighter bright blue */
   --color-hover-nav: 51 65 85; /* Original zinc-700 */
   --color-hover-default: 51 65 85; /* Original zinc-700 */
 
