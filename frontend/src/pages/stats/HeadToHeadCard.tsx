@@ -3,6 +3,7 @@ import { keepPreviousData, useQuery } from "@tanstack/react-query";
 
 import CollapsibleCard from "../../ui/primitives/CollapsibleCard";
 import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
+import InlineLoading from "../../ui/primitives/InlineLoading";
 
 import { listClubs } from "../../api/clubs.api";
 import { listPlayers } from "../../api/players.api";
@@ -456,7 +457,7 @@ export default function HeadToHeadCard({ embedded = false }: { embedded?: boolea
         />
       </div>
 
-        {h2hQ.isLoading ? <div className="card-inner-flat rounded-2xl text-sm text-text-muted">Loading…</div> : null}
+        {h2hQ.isLoading ? <InlineLoading label="Loading…" /> : null}
 
         {h2hQ.data ? (
           <div className="space-y-3" style={{ overflowAnchor: "none" }}>
@@ -1041,9 +1042,7 @@ export default function HeadToHeadCard({ embedded = false }: { embedded?: boolea
               </div>
 
               <div className="mt-3 max-h-[calc(88vh-10rem)] overflow-y-auto pr-1">
-                {historyQ.isLoading ? (
-                  <div className="card-inner-flat rounded-2xl text-sm text-text-muted">Loading…</div>
-                ) : null}
+                {historyQ.isLoading ? <InlineLoading label="Loading…" /> : null}
 
                 {!historyQ.isLoading && !(historyQ.data?.tournaments?.length ?? 0) ? (
                   <div className="card-inner-flat rounded-2xl text-sm text-text-muted">No matches found for this matchup.</div>

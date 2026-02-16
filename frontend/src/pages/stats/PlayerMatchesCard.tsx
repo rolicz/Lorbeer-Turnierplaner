@@ -3,6 +3,7 @@ import { keepPreviousData, useQuery } from "@tanstack/react-query";
 
 import CollapsibleCard from "../../ui/primitives/CollapsibleCard";
 import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
+import InlineLoading from "../../ui/primitives/InlineLoading";
 
 import { listClubs } from "../../api/clubs.api";
 import { listPlayers } from "../../api/players.api";
@@ -319,7 +320,7 @@ export default function PlayerMatchesCard({ embedded = false }: { embedded?: boo
         {selectedPlayerId === "" ? (
           <div className="card-inner-flat rounded-2xl text-sm text-text-muted">Pick a player to see their match history.</div>
         ) : null}
-        {matchesQ.isLoading ? <div className="card-inner-flat rounded-2xl text-sm text-text-muted">Loading…</div> : null}
+        {matchesQ.isLoading ? <InlineLoading label="Loading…" /> : null}
 
         {selected && tournaments.length ? (
           <div className="space-y-3">

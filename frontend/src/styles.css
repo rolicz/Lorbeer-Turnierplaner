@@ -57,11 +57,44 @@
   .nav-link {
     @apply rounded-xl px-3 py-2 text-sm;
   }
-  .nav-link:hover {
-    background-color: rgb(var(--color-hover-nav));
+  @media (hover: hover) and (pointer: fine) {
+    .nav-link:hover {
+      background-color: rgb(var(--color-hover-nav));
+    }
   }
   .nav-link-active {
     background-color: rgb(var(--color-hover-nav));
+  }
+  .nav-link-current {
+    color: rgb(var(--color-text-normal));
+    font-weight: 600;
+  }
+  .main-nav-row {
+    position: relative;
+    isolation: isolate;
+    --main-nav-indicator-left: 0px;
+    --main-nav-indicator-width: 0px;
+    --main-nav-indicator-opacity: 0;
+  }
+  .main-nav-indicator {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: var(--main-nav-indicator-width);
+    transform: translateX(var(--main-nav-indicator-left));
+    opacity: var(--main-nav-indicator-opacity);
+    border-radius: 0.75rem;
+    pointer-events: none;
+    border: 1px solid rgb(var(--color-border-card-chip) / 0.72);
+    background-color: rgb(var(--color-hover-nav));
+    box-shadow:
+      inset 0 0 0 1px rgb(var(--color-accent) / 0.22),
+      0 0 0 1px rgb(var(--color-accent) / 0.08);
+    transition:
+      transform 320ms cubic-bezier(0.22, 1, 0.36, 1),
+      width 320ms cubic-bezier(0.22, 1, 0.36, 1),
+      opacity 160ms ease-out;
   }
 
   /* Cards and Panels */
@@ -336,6 +369,174 @@
       inset 0 0 12px rgb(var(--color-accent) / 0.16);
   }
 
+  @keyframes page-slide-in-right {
+    0% { transform: translateX(30vw); opacity: 0.38; }
+    60% { opacity: 0.82; }
+    100% { transform: translateX(0); opacity: 1; }
+  }
+  @keyframes page-slide-in-left {
+    0% { transform: translateX(-30vw); opacity: 0.38; }
+    60% { opacity: 0.82; }
+    100% { transform: translateX(0); opacity: 1; }
+  }
+
+  .page-slide-in-right {
+    animation: page-slide-in-right 420ms cubic-bezier(0.16, 1, 0.3, 1) both;
+    will-change: transform, opacity;
+  }
+  .page-slide-in-left {
+    animation: page-slide-in-left 420ms cubic-bezier(0.16, 1, 0.3, 1) both;
+    will-change: transform, opacity;
+  }
+
+  @keyframes subnav-slide-in-right {
+    0% { transform: translateX(110vw); opacity: 0; }
+    100% { transform: translateX(0); opacity: 1; }
+  }
+  @keyframes subnav-slide-in-left {
+    0% { transform: translateX(-110vw); opacity: 0; }
+    100% { transform: translateX(0); opacity: 1; }
+  }
+  @keyframes subnav-slide-out-left {
+    0% { transform: translateX(0); opacity: 1; }
+    100% { transform: translateX(-110vw); opacity: 0; }
+  }
+  @keyframes subnav-slide-out-right {
+    0% { transform: translateX(0); opacity: 1; }
+    100% { transform: translateX(110vw); opacity: 0; }
+  }
+
+  .subnav-slide-in-right {
+    animation: subnav-slide-in-right 210ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+    will-change: transform, opacity;
+  }
+  .subnav-slide-in-left {
+    animation: subnav-slide-in-left 210ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+    will-change: transform, opacity;
+  }
+  .subnav-slide-out-left {
+    animation: subnav-slide-out-left 170ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+    will-change: transform, opacity;
+  }
+  .subnav-slide-out-right {
+    animation: subnav-slide-out-right 170ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+    will-change: transform, opacity;
+  }
+
+  :root {
+    --subnav-anchor-w: 2.25rem; /* icon-only button (h-9 w-9) */
+    --subnav-create-w: 6.25rem; /* approximate "Create New" width */
+    --subnav-all-w: 9.75rem; /* approximate "All Tournaments" width */
+    --subnav-gap-w: 0.25rem; /* gap-1 */
+  }
+
+  @keyframes subnav-enter-create-slot-collapse {
+    0% { width: var(--subnav-create-w); margin-right: 0; }
+    100% { width: 0; margin-right: calc(var(--subnav-gap-w) * -1); }
+  }
+  @keyframes subnav-enter-create-item-out {
+    0% { transform: translateX(0); opacity: 1; }
+    100% { transform: translateX(-120%); opacity: 0; }
+  }
+  @keyframes subnav-enter-anchor-slot-shrink {
+    0% { width: var(--subnav-all-w); }
+    100% { width: var(--subnav-anchor-w); }
+  }
+  @keyframes subnav-enter-rest-in {
+    0% { transform: translateX(-14px); opacity: 0; }
+    100% { transform: translateX(0); opacity: 1; }
+  }
+
+  @keyframes subnav-exit-rest-out {
+    0% { transform: translateX(0); opacity: 1; }
+    100% { transform: translateX(-16px); opacity: 0; }
+  }
+  @keyframes subnav-exit-create-slot-expand {
+    0% { width: 0; margin-right: calc(var(--subnav-gap-w) * -1); }
+    100% { width: var(--subnav-create-w); margin-right: 0; }
+  }
+  @keyframes subnav-exit-create-item-in {
+    0% { transform: translateX(-90%); opacity: 0; }
+    100% { transform: translateX(0); opacity: 1; }
+  }
+  @keyframes subnav-exit-anchor-slot-grow {
+    0% { width: var(--subnav-anchor-w); }
+    100% { width: var(--subnav-all-w); }
+  }
+  @keyframes subnav-exit-anchor-label-in {
+    0% { opacity: 0; }
+    100% { opacity: 1; }
+  }
+
+  /* Tournaments list -> live subnav morph */
+  .subnav-morph-enter-create-slot {
+    width: var(--subnav-create-w);
+    margin-right: 0;
+    animation: subnav-enter-create-slot-collapse 200ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+    will-change: width, margin-right;
+  }
+  .subnav-morph-enter-create-item [data-subnav-key="create-new"] {
+    animation: subnav-enter-create-item-out 200ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+    will-change: transform, opacity;
+  }
+  .subnav-morph-enter-anchor-slot {
+    width: var(--subnav-all-w);
+    overflow: hidden;
+    animation: subnav-enter-anchor-slot-shrink 210ms cubic-bezier(0.16, 1, 0.3, 1) 200ms both;
+    will-change: width;
+  }
+  .subnav-morph-enter-anchor-item [data-subnav-key="all-tournaments"] {
+    width: 100%;
+    justify-content: center;
+    padding-left: 0;
+    padding-right: 0;
+  }
+  .subnav-morph-enter-anchor-item [data-subnav-key="all-tournaments"] [data-subnav-label] {
+    display: none;
+  }
+  .subnav-morph-enter-anchor-item [data-subnav-key="all-tournaments"] > span:first-child {
+    margin-right: 0 !important;
+  }
+  .subnav-morph-enter-rest [data-subnav-key] {
+    animation: subnav-enter-rest-in 240ms cubic-bezier(0.16, 1, 0.3, 1) 410ms both;
+    will-change: transform, opacity;
+  }
+
+  /* Live -> tournaments list subnav morph */
+  .subnav-morph-exit-rest [data-subnav-key] {
+    animation: subnav-exit-rest-out 180ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+    will-change: transform, opacity;
+  }
+  .subnav-morph-exit-create-slot {
+    width: 0;
+    margin-right: calc(var(--subnav-gap-w) * -1);
+    animation: subnav-exit-create-slot-expand 200ms cubic-bezier(0.16, 1, 0.3, 1) 400ms both;
+    will-change: width, margin-right;
+  }
+  .subnav-morph-exit-create-item [data-subnav-key="create-new"] {
+    animation: subnav-exit-create-item-in 200ms cubic-bezier(0.16, 1, 0.3, 1) 400ms both;
+    will-change: transform, opacity;
+  }
+  .subnav-morph-exit-anchor-slot {
+    width: var(--subnav-anchor-w);
+    overflow: hidden;
+    animation: subnav-exit-anchor-slot-grow 220ms cubic-bezier(0.16, 1, 0.3, 1) 180ms both;
+    will-change: width;
+  }
+  .subnav-morph-exit-anchor-item [data-subnav-key="all-tournaments"] {
+    width: 100%;
+    justify-content: center;
+    padding-left: 0;
+    padding-right: 0;
+  }
+  .subnav-morph-exit-anchor-item [data-subnav-key="all-tournaments"] [data-subnav-label] {
+    opacity: 0;
+    animation: subnav-exit-anchor-label-in 90ms ease-out 330ms both;
+  }
+  .subnav-morph-exit-anchor-item [data-subnav-key="all-tournaments"] > span:first-child {
+    margin-right: 0 !important;
+  }
+
   @media (prefers-reduced-motion: reduce) {
     .comment-attn {
       animation: none;
@@ -344,6 +545,30 @@
     .subnav-click-blink {
       animation: none;
       box-shadow: inset 0 0 0 2px rgb(var(--color-accent) / 0.20);
+    }
+    .subnav-slide-in-right,
+    .subnav-slide-in-left,
+    .subnav-slide-out-left,
+    .subnav-slide-out-right,
+    .subnav-morph-enter-create-slot,
+    .subnav-morph-enter-create-item [data-subnav-key],
+    .subnav-morph-enter-anchor-slot,
+    .subnav-morph-enter-anchor-item [data-subnav-key],
+    .subnav-morph-enter-rest [data-subnav-key],
+    .subnav-morph-exit-create-slot,
+    .subnav-morph-exit-create-item [data-subnav-key],
+    .subnav-morph-exit-anchor-slot,
+    .subnav-morph-exit-anchor-item [data-subnav-key],
+    .subnav-morph-exit-rest [data-subnav-key] {
+      animation: none;
+      transform: none;
+      opacity: 1;
+    }
+    .page-slide-in-right,
+    .page-slide-in-left {
+      animation: none;
+      transform: none;
+      opacity: 1;
     }
   }
 

@@ -4,8 +4,8 @@ import type { Club, Match, MatchSide, TournamentMode } from "../../api/types";
 // import { useTournamentWS } from "../../hooks/useTournamentWS";
 import MatchOverviewPanel from "../../ui/primitives/MatchOverviewPanel";
 import SelectClubsPanel from "../../ui/SelectClubsPanel";
-import MatchCommentsPanel from "./MatchCommentsPanel";
 import { GoalStepper } from "../../ui/clubControls";
+import { scrollToSectionById } from "../../ui/scrollToSection";
 
 
 function sideBy(m: Match, side: "A" | "B"): MatchSide | undefined {
@@ -32,7 +32,6 @@ type MatchPatchBody = {
 
 export default function CurrentGameSection({
   status,
-  tournamentId,
   tournamentMode,
   match,
   clubs,
@@ -42,7 +41,6 @@ export default function CurrentGameSection({
   onSwapSides,
 }: {
   status: "draft" | "live" | "done";
-  tournamentId?: number | null;
   tournamentMode?: TournamentMode | null;
   match: Match | null;
   clubs: Club[];
@@ -56,29 +54,11 @@ export default function CurrentGameSection({
   const activeMatch = match;
   const isVisible = status !== "done" && !!activeMatch;
 
-  const tidComments = useMemo(() => {
-    if (tournamentId != null && Number.isFinite(tournamentId) && tournamentId > 0) return tournamentId;
-    const raw = activeMatch?.tournament_id;
-    const n = typeof raw === "string" ? Number(raw) : raw ?? null;
-    return typeof n === "number" && Number.isFinite(n) && n > 0 ? n : NaN;
-  }, [activeMatch?.tournament_id, tournamentId]);
-
   const a = activeMatch ? sideBy(activeMatch, "A") : undefined;
   const b = activeMatch ? sideBy(activeMatch, "B") : undefined;
 
   const aInline = useMemo(() => namesInline(a), [a]);
   const bInline = useMemo(() => namesInline(b), [b]);
-
-  const playersInMatch = useMemo(() => {
-    const out: { id: number; display_name: string }[] = [];
-    const seen = new Set<number>();
-    for (const p of [...(a?.players ?? []), ...(b?.players ?? [])]) {
-      if (seen.has(p.id)) continue;
-      seen.add(p.id);
-      out.push(p);
-    }
-    return out;
-  }, [a, b]);
 
   const [aClub, setAClub] = useState<number | null>(a?.club_id ?? null);
   const [bClub, setBClub] = useState<number | null>(b?.club_id ?? null);
@@ -233,6 +213,17 @@ export default function CurrentGameSection({
       <div className="panel-subtle p-3 space-y-2">
         <div className="flex items-center justify-end gap-3">
           <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              onClick={() => {
+                scrollToSectionById(`comments-block-match-${activeMatch.id}`, 16, 0, "smooth");
+              }}
+              title="Open comments for this match"
+            >
+              <i className="fa fa-comments md:hidden" aria-hidden="true" />
+              <span className="hidden md:inline">Comments</span>
+            </Button>
+
             {canControl && onSwapSides && (
               <Button
                 variant="ghost"
@@ -368,13 +359,6 @@ export default function CurrentGameSection({
             wrapClassName="panel-subtle"
           />
         )}
-
-        <MatchCommentsPanel
-          tournamentId={tidComments}
-          matchId={activeMatch.id}
-          canWrite={canControl}
-          playersInMatch={playersInMatch}
-        />
       </div>
     </div>
   );

@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 
 import CollapsibleCard from "../../ui/primitives/CollapsibleCard";
 import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
+import InlineLoading from "../../ui/primitives/InlineLoading";
 
 import { getStatsPlayerMatches, getStatsPlayers } from "../../api/stats.api";
 import type { Match, StatsPlayerMatchesResponse, StatsPlayersResponse, StatsTournamentLite } from "../../api/types";
@@ -296,8 +297,8 @@ export default function TrendsPreviewCard() {
           ) : null}
         </div>
 
-        {statsQ.isLoading ? <div className="card-inner-flat rounded-2xl text-sm text-text-muted">Loading…</div> : null}
-        {matchesLoading ? <div className="card-inner-flat rounded-2xl text-sm text-text-muted">Loading match trends…</div> : null}
+        {statsQ.isLoading ? <InlineLoading label="Loading…" /> : null}
+        {matchesLoading ? <InlineLoading label="Loading match trends…" /> : null}
 
         {players.length && tournaments.length ? (
           <button

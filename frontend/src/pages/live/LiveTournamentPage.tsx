@@ -599,7 +599,8 @@ export default function LiveTournamentPage() {
         key: "all-tournaments",
         label: "All Tournaments",
         icon: "fa-list",
-        iconOnlyMobile: true,
+        iconOnly: true,
+        title: "All tournaments",
         to: "/tournaments",
       },
       {
@@ -865,7 +866,6 @@ export default function LiveTournamentPage() {
             <SectionSeparator id="section-current-game" title="Current game">
               <CurrentGameSection
                 status={status}
-                tournamentId={tid}
                 tournamentMode={tQ.data?.mode}
                 match={currentMatch}
                 clubs={clubs}

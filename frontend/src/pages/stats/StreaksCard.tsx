@@ -3,6 +3,7 @@ import { keepPreviousData, useQuery } from "@tanstack/react-query";
 
 import CollapsibleCard from "../../ui/primitives/CollapsibleCard";
 import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
+import InlineLoading from "../../ui/primitives/InlineLoading";
 
 import { listPlayers } from "../../api/players.api";
 import { getStatsStreaks } from "../../api/stats.api";
@@ -151,7 +152,7 @@ export default function StreaksCard({ embedded = false }: { embedded?: boolean }
         </div>
       </div>
 
-      {q.isLoading && !q.data ? <div className="card-inner-flat rounded-2xl text-sm text-text-muted">Loading…</div> : null}
+      {q.isLoading && !q.data ? <InlineLoading label="Loading…" /> : null}
 
       {q.data ? (
         <div className="grid gap-3 lg:grid-cols-2" style={{ overflowAnchor: "none" }}>

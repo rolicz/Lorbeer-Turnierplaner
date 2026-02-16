@@ -7,24 +7,28 @@ export default function PageLoadingScreen({
   className?: string;
   sectionCount?: number;
 }) {
-  const sections = Array.from({ length: Math.max(1, sectionCount) }, (_, i) => i);
+  const dots = Math.max(3, Math.min(7, sectionCount + 1));
   return (
-    <div className={cn("space-y-3", className)} aria-hidden="true">
-      <div className="card-outer p-3">
-        <div className="space-y-2 animate-pulse">
-          <div className="h-8 w-full rounded-xl bg-bg-card-chip/45" />
-          <div className="h-9 w-44 rounded-xl bg-bg-card-chip/35" />
-        </div>
+    <div className={cn("min-h-[38svh] grid place-items-center", className)} aria-hidden="true">
+      <div className="inline-flex flex-col items-center gap-2 text-sm text-text-muted">
+        <span className="relative inline-flex h-10 w-10 items-center justify-center">
+          <span className="absolute inset-0 rounded-full border border-border-card-chip/80" />
+          <span className="absolute inset-0 rounded-full border-2 border-transparent border-t-accent border-r-accent motion-safe:animate-spin" />
+          <span className="absolute inset-[9px] rounded-full bg-accent/20 motion-safe:animate-pulse" />
+        </span>
+        <span className="inline-flex items-center gap-2">
+          <span>Loading</span>
+          <span className="inline-flex items-center gap-1">
+            {Array.from({ length: dots }, (_, i) => (
+              <span
+                key={i}
+                className="h-1.5 w-1.5 rounded-full bg-bg-card-chip/70 animate-pulse"
+                style={{ animationDelay: `${i * 80}ms` }}
+              />
+            ))}
+          </span>
+        </span>
       </div>
-
-      {sections.map((i) => (
-        <div key={i} className="panel-subtle p-3 animate-pulse">
-          <div className="space-y-2">
-            <div className="h-4 w-32 rounded bg-bg-card-chip/45" />
-            <div className="h-10 w-full rounded-xl bg-bg-card-chip/30" />
-          </div>
-        </div>
-      ))}
     </div>
   );
 }

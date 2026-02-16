@@ -11,6 +11,7 @@ import CollapsibleCard from "../../ui/primitives/CollapsibleCard";
 import { useTournamentWS } from "../../hooks/useTournamentWS";
 import { sideBy } from "../../helpers";
 import MatchOverviewPanel from "../../ui/primitives/MatchOverviewPanel";
+import InlineLoading from "../../ui/primitives/InlineLoading";
 
 type LiveTournamentLite = {
   id: number;
@@ -90,7 +91,7 @@ export default function CurrentMatchPreviewCard() {
     >
       <div className="card-inner">
         {!match ? (
-          <div className="panel-subtle p-3 text-sm text-text-muted">Loading live match…</div>
+          <InlineLoading label="Loading live match…" className="py-2" />
         ) : (
           <div>
             <div className="grid grid-cols-1 items-center">

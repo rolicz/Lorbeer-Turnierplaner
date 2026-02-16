@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import CollapsibleCard from "../../ui/primitives/CollapsibleCard";
 import SegmentedSwitch from "../../ui/primitives/SegmentedSwitch";
 import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
+import InlineLoading from "../../ui/primitives/InlineLoading";
 
 import { listClubs } from "../../api/clubs.api";
 import { deleteFriendlyMatch, listFriendlies } from "../../api/friendlies.api";
@@ -161,7 +162,7 @@ export default function FriendlyMatchesListCard({ embedded = false }: { embedded
       </div>
 
       {friendliesQ.isLoading && !friendliesQ.data ? (
-        <div className="card-inner-flat rounded-2xl text-sm text-text-muted">Loading…</div>
+        <InlineLoading label="Loading…" />
       ) : null}
 
       {!friendliesQ.isLoading && tournaments.length === 0 ? (
