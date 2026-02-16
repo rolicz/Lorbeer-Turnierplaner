@@ -397,11 +397,9 @@ export default function ClubsPage() {
       </SectionSeparator>
 
       <SectionSeparator id="section-clubs-browse" title="Browse & Filter">
-        <div className="space-y-3">
-        <div className="panel-subtle p-3 space-y-3">
-          <div className="space-y-2">
+        <div className="card-inner-flat rounded-2xl space-y-2">
             <div className="flex items-center gap-3">
-              <span className="w-24 shrink-0 text-sm font-medium text-text-normal">Group</span>
+              <span className="inline-flex h-9 w-24 shrink-0 items-center text-sm font-medium text-text-muted">Group</span>
               <div className="min-w-0 flex flex-1 items-center justify-between gap-2">
                 <SegmentedSwitch<"stars" | "league">
                   value={groupMode}
@@ -431,7 +429,7 @@ export default function ClubsPage() {
             </div>
 
             <label className="flex items-center gap-3">
-              <span className="w-24 shrink-0 text-sm font-medium text-text-normal">Stars</span>
+              <span className="inline-flex h-9 w-24 shrink-0 items-center text-sm font-medium text-text-muted">Stars</span>
               <select className="input-field min-w-0 flex-1" value={filterStars} onChange={(e) => setFilterStars(e.target.value)}>
                 <option value="">Any</option>
                 {starValues().map((v) => {
@@ -446,7 +444,7 @@ export default function ClubsPage() {
             </label>
 
             <label className="flex items-center gap-3">
-              <span className="w-24 shrink-0 text-sm font-medium text-text-normal">League</span>
+              <span className="inline-flex h-9 w-24 shrink-0 items-center text-sm font-medium text-text-muted">League</span>
               <select
                 className="input-field min-w-0 flex-1"
                 value={filterLeagueId === "" ? "" : String(filterLeagueId)}
@@ -462,7 +460,7 @@ export default function ClubsPage() {
             </label>
 
             <label className="flex items-center gap-3">
-              <span className="w-24 shrink-0 text-sm font-medium text-text-normal">Search</span>
+              <span className="inline-flex h-9 w-24 shrink-0 items-center text-sm font-medium text-text-muted">Search</span>
               <input
                 className="input-field min-w-0 flex-1"
                 value={search}
@@ -470,10 +468,6 @@ export default function ClubsPage() {
                 placeholder="e.g. Hönigsberg"
               />
             </label>
-
-          </div>
-        </div>
-
         </div>
       </SectionSeparator>
 
@@ -491,7 +485,7 @@ export default function ClubsPage() {
             </Button>
           </div>
         </div>
-        <div className="panel-subtle p-3 space-y-2">
+        <div className="card-inner-flat rounded-2xl space-y-2">
           {clubsQ.isLoading ? <div className="text-text-muted">Loading…</div> : null}
 
           {!clubsQ.isLoading && grouped.length === 0 ? (
@@ -569,7 +563,7 @@ export default function ClubsPage() {
                           </div>
 
                           {isEditing ? (
-                            <div className="panel-subtle mt-2 p-2">
+                            <div className="card-inner-flat mt-2 p-2">
                               <div className="grid gap-2 md:grid-cols-3">
                                 {isAdmin ? (
                                   <Input

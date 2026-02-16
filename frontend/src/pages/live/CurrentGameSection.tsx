@@ -1,58 +1,21 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Button from "../../ui/primitives/Button";
-import type { Club, Match, MatchSide } from "../../api/types";
+import type { Club, Match, MatchSide, TournamentMode } from "../../api/types";
 // import { useTournamentWS } from "../../hooks/useTournamentWS";
-import { StarsFA } from "../../ui/primitives/StarsFA";
-import { Pill, statusMatchPill } from "../../ui/primitives/Pill";
+import MatchOverviewPanel from "../../ui/primitives/MatchOverviewPanel";
 import SelectClubsPanel from "../../ui/SelectClubsPanel";
 import MatchCommentsPanel from "./MatchCommentsPanel";
-import {
-  GoalStepper,
-  clubLabelPartsById,
-} from "../../ui/clubControls";
+import { GoalStepper } from "../../ui/clubControls";
 
 
 function sideBy(m: Match, side: "A" | "B"): MatchSide | undefined {
   return m.sides.find((s) => s.side === side);
 }
 
-function namesStack(side?: MatchSide) {
-  const ps = side?.players ?? [];
-  if (!ps.length) return ["—"];
-  return ps.map((p) => p.display_name);
-}
-
 function namesInline(side?: MatchSide) {
   const ps = side?.players ?? [];
   if (!ps.length) return "—";
   return ps.map((p) => p.display_name).join(" + ");
-}
-
-function fmtOdd(x: number) {
-  return Number.isFinite(x) ? x.toFixed(2) : "—";
-}
-
-function OddsInline({ odds }: { odds: { home: number; draw: number; away: number } }) {
-  return (
-    <div className="mt-2 flex items-center justify-center">
-      <div className="inline-flex items-center gap-2 text-[11px] sm:text-xs">
-        <span className="inline-flex items-baseline gap-1">
-          <span className="text-text-muted font-semibold">1</span>
-          <span className="font-mono tabular-nums text-text-normal">{fmtOdd(Number(odds.home))}</span>
-        </span>
-        <span className="text-text-muted/60">|</span>
-        <span className="inline-flex items-baseline gap-1">
-          <span className="text-text-muted font-semibold">X</span>
-          <span className="font-mono tabular-nums text-text-normal">{fmtOdd(Number(odds.draw))}</span>
-        </span>
-        <span className="text-text-muted/60">|</span>
-        <span className="inline-flex items-baseline gap-1">
-          <span className="text-text-muted font-semibold">2</span>
-          <span className="font-mono tabular-nums text-text-normal">{fmtOdd(Number(odds.away))}</span>
-        </span>
-      </div>
-    </div>
-  );
 }
 
 type PatchPayload = {
@@ -70,6 +33,7 @@ type MatchPatchBody = {
 export default function CurrentGameSection({
   status,
   tournamentId,
+  tournamentMode,
   match,
   clubs,
   canControl,
@@ -79,6 +43,7 @@ export default function CurrentGameSection({
 }: {
   status: "draft" | "live" | "done";
   tournamentId?: number | null;
+  tournamentMode?: TournamentMode | null;
   match: Match | null;
   clubs: Club[];
   canControl: boolean;
@@ -101,9 +66,6 @@ export default function CurrentGameSection({
   const a = activeMatch ? sideBy(activeMatch, "A") : undefined;
   const b = activeMatch ? sideBy(activeMatch, "B") : undefined;
 
-  const aNames = useMemo(() => namesStack(a), [a]);
-  const bNames = useMemo(() => namesStack(b), [b]);
-
   const aInline = useMemo(() => namesInline(a), [a]);
   const bInline = useMemo(() => namesInline(b), [b]);
 
@@ -122,9 +84,6 @@ export default function CurrentGameSection({
   const [bClub, setBClub] = useState<number | null>(b?.club_id ?? null);
   const [aGoals, setAGoals] = useState<number>(Number(a?.goals ?? 0));
   const [bGoals, setBGoals] = useState<number>(Number(b?.goals ?? 0));
-
-  const aClubParts = useMemo(() => clubLabelPartsById(clubs, aClub), [clubs, aClub]);
-  const bClubParts = useMemo(() => clubLabelPartsById(clubs, bClub), [clubs, bClub]);
 
   // -------------------------
   // AUTO-SAVE (debounced)
@@ -232,9 +191,6 @@ export default function CurrentGameSection({
 
   const isScheduled = activeMatch?.state === "scheduled";
   const showGoalInputs = canControl && !isScheduled;
-  const scoreLeft = isScheduled ? "-" : String(aGoals);
-  const scoreRight = isScheduled ? "-" : String(bGoals);
-  const leader: "A" | "B" | null = isScheduled || aGoals === bGoals ? null : aGoals > bGoals ? "A" : "B";
 
   async function save(stateOverride?: "scheduled" | "playing" | "finished", override?: Partial<PatchPayload>) {
     if (!canControl) return;
@@ -273,180 +229,114 @@ export default function CurrentGameSection({
 
   return (
     <div className="space-y-3">
-      {/* Top row */}
-      <div className="flex items-center justify-end gap-3">
-        <div className="flex items-center gap-2">
-          {canControl && onSwapSides && (
-            <Button
-              variant="ghost"
-              onClick={() => {
-                void onSwapSides(activeMatch.id);
-              }}
-              disabled={busy}
-              title="Swap home/away (A↔B)"
-            >
-              <i className="fa fa-arrow-right-arrow-left md:hidden" aria-hidden="true" />
-              <span className="hidden md:inline">Swap Home/Away</span>
-            </Button>
-          )}
+      {/* Match container: score card + score input */}
+      <div className="panel-subtle p-3 space-y-2">
+        <div className="flex items-center justify-end gap-3">
+          <div className="flex items-center gap-2">
+            {canControl && onSwapSides && (
+              <Button
+                variant="ghost"
+                onClick={() => {
+                  void onSwapSides(activeMatch.id);
+                }}
+                disabled={busy}
+                title="Swap home/away (A↔B)"
+              >
+                <i className="fa fa-arrow-right-arrow-left md:hidden" aria-hidden="true" />
+                <span className="hidden md:inline">Swap Home/Away</span>
+              </Button>
+            )}
 
-          {canControl && activeMatch.state === "scheduled" && (
-            <Button
-              variant="ghost"
-              onClick={() => {
-                void save("playing");
-              }}
-              disabled={busy}
-              title="Start"
-            >
-              <i className="fa fa-play md:hidden" aria-hidden="true" />
-              <span className="hidden md:inline">Start</span>
-            </Button>
-          )}
+            {canControl && activeMatch.state === "scheduled" && (
+              <Button
+                variant="ghost"
+                onClick={() => {
+                  void save("playing");
+                }}
+                disabled={busy}
+                title="Start"
+              >
+                <i className="fa fa-play md:hidden" aria-hidden="true" />
+                <span className="hidden md:inline">Start</span>
+              </Button>
+            )}
 
-          {canControl && activeMatch.state !== "scheduled" && (
-            <Button
-              variant="ghost"
-              onClick={() => {
-                const text = "This will reset the match to 0:0 and scheduled state. Are you sure?";
-                if (!window.confirm(text)) return;
-                void reset();
-              }}
-              disabled={busy}
-              title="Reset"
-            >
-              <i className="fa fa-rotate-left md:hidden" aria-hidden="true" />
-              <span className="hidden md:inline">Reset</span>
-            </Button>
-          )}
+            {canControl && activeMatch.state !== "scheduled" && (
+              <Button
+                variant="ghost"
+                onClick={() => {
+                  const text = "This will reset the match to 0:0 and scheduled state. Are you sure?";
+                  if (!window.confirm(text)) return;
+                  void reset();
+                }}
+                disabled={busy}
+                title="Reset"
+              >
+                <i className="fa fa-rotate-left md:hidden" aria-hidden="true" />
+                <span className="hidden md:inline">Reset</span>
+              </Button>
+            )}
 
-          {canControl && (
-            <Button
-              disabled={busy}
-              onClick={() => {
-                const text =
-                  activeMatch.state === "scheduled"
-                    ? "Match not started. Are you sure you want to finish this match (0:0)?"
-                    : undefined;
-                if (text && !window.confirm(text)) return;
-                void save("finished");
-              }}
-              title="Finish match"
-            >
-              <i className="fa fa-flag-checkered md:hidden" aria-hidden="true" />
-              <span className="hidden md:inline">Finish</span>
-            </Button>
-          )}
-        </div>
-      </div>
-
-      {/* Match card */}
-      <div className="panel-subtle p-3">
-        {/* Row 1: Leg, match number, state pill */}
-        <div className="mt-1 flex items-center justify-between gap-3">
-          <div className="text-[11px] sm:text-xs text-text-muted">Match #{activeMatch.order_index + 1}</div>
-          <div className="flex items-center gap-2 flex-nowrap whitespace-nowrap">
-            <Pill>leg {activeMatch.leg}</Pill>
-            <Pill className={`${statusMatchPill(activeMatch.state)}`}>{activeMatch.state}</Pill>
+            {canControl && (
+              <Button
+                disabled={busy}
+                onClick={() => {
+                  const text =
+                    activeMatch.state === "scheduled"
+                      ? "Match not started. Are you sure you want to finish this match (0:0)?"
+                      : undefined;
+                  if (text && !window.confirm(text)) return;
+                  void save("finished");
+                }}
+                title="Finish match"
+              >
+                <i className="fa fa-flag-checkered md:hidden" aria-hidden="true" />
+                <span className="hidden md:inline">Finish</span>
+              </Button>
+            )}
           </div>
         </div>
 
-        {/* Odds (scheduled/live only) */}
-        {(activeMatch.state === "scheduled" || activeMatch.state === "playing") && activeMatch.odds ? (
-          <OddsInline odds={activeMatch.odds} />
+        <MatchOverviewPanel
+          match={activeMatch}
+          clubs={clubs}
+          mode={tournamentMode}
+          aGoals={aGoals}
+          bGoals={bGoals}
+          showModePill={true}
+          showOdds={true}
+          surface="panel-inner"
+        />
+
+        {showGoalInputs ? (
+          <div className="pt-2">
+            <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 md:gap-4">
+              <div className="flex justify-start">
+                <GoalStepper
+                  value={aGoals}
+                  onChange={(v) => {
+                    setAGoals(v);
+                    queueAutosave({ aGoals: v });
+                  }}
+                  disabled={busy}
+                  ariaLabel="Goals left"
+                />
+              </div>
+              <div />
+              <div className="flex justify-end">
+                <GoalStepper
+                  value={bGoals}
+                  onChange={(v) => {
+                    setBGoals(v);
+                    queueAutosave({ bGoals: v });
+                  }}
+                  disabled={busy}
+                  ariaLabel="Goals right"
+                />
+              </div>
+            </div>
+          </div>
         ) : null}
-
-        {/* Row 2: NAMES + SCORE (with guide lines for alignment) */}
-        <div className="mt-3 border-y border-border-card-inner/60 py-3">
-          <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 md:gap-4">
-            <div className="min-w-0">
-              {aNames.map((n, i) => (
-                <div
-                  key={`${n}-${i}`}
-                  className={
-                    "text-[15px] md:text-lg text-text-normal whitespace-normal md:truncate break-words leading-tight " +
-                    (leader === "A" ? "font-black" : "font-medium")
-                  }
-                >
-                  {n}
-                </div>
-              ))}
-            </div>
-
-            <div className="card-chip justify-self-center flex items-center justify-center gap-2">
-              <span className="text-xl font-semibold tabular-nums">{scoreLeft}</span>
-              <span className="text-text-muted">:</span>
-              <span className="text-xl font-semibold tabular-nums">{scoreRight}</span>
-            </div>
-
-            <div className="min-w-0 text-right">
-              {bNames.map((n, i) => (
-                <div
-                  key={`${n}-${i}`}
-                  className={
-                    "text-[15px] md:text-lg text-text-normal whitespace-normal md:truncate break-words leading-tight " +
-                    (leader === "B" ? "font-black" : "font-medium")
-                  }
-                >
-                  {n}
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* Row 3: CLUBS */}
-        <div className="mt-2 md:mt-3 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-start gap-3 md:gap-4 text-xs md:text-sm text-text-muted">
-          <div className="min-w-0 whitespace-normal md:truncate break-words leading-tight">{aClubParts.name}</div>
-          <div />
-          <div className="min-w-0 whitespace-normal md:truncate break-words leading-tight text-right">{bClubParts.name}</div>
-        </div>
-        {/* Row 4: LEAGUES */}
-        <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-start gap-3 md:gap-4 text-xs md:text-sm text-text-muted">
-          <div className="min-w-0 whitespace-normal md:truncate break-words leading-tight">{aClubParts.league_name}</div>
-          <div />
-          <div className="min-w-0 whitespace-normal md:truncate break-words leading-tight text-right">{bClubParts.league_name}</div>
-        </div>
-
-        {/* Row 5: STARS */}
-        <div className="mt-1 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 md:gap-4 text-[11px] md:text-sm text-text-muted">
-          <div className="min-w-0">
-            <StarsFA rating={aClubParts.rating ?? 0} textClassName="text-text-muted" />
-          </div>
-          <div />
-          <div className="min-w-0 flex justify-end">
-            <StarsFA rating={bClubParts.rating ?? 0} textClassName="text-text-muted" />
-          </div>
-        </div>
-
-        {/* Row 6: INPUTS (only when NOT scheduled) */}
-        {showGoalInputs && (
-          <div className="mt-3 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 md:gap-4">
-            <div className="flex justify-start">
-              <GoalStepper
-                value={aGoals}
-                onChange={(v) => {
-                  setAGoals(v);
-                  queueAutosave({ aGoals: v });
-                }}
-                disabled={busy}
-                ariaLabel="Goals left"
-              />
-            </div>
-            <div />
-            <div className="flex justify-end">
-              <GoalStepper
-                value={bGoals}
-                onChange={(v) => {
-                  setBGoals(v);
-                  queueAutosave({ bGoals: v });
-                }}
-                disabled={busy}
-                ariaLabel="Goals right"
-              />
-            </div>
-          </div>
-        )}
       </div>
 
       <div className="mt-3 space-y-2">
@@ -475,7 +365,7 @@ export default function CurrentGameSection({
               queueAutosave({ bClub: v });
             }}
             defaultOpen={false}
-            wrapClassName="panel-inner"
+            wrapClassName="panel-subtle"
           />
         )}
 

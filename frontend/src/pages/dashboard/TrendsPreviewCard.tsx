@@ -271,17 +271,17 @@ export default function TrendsPreviewCard() {
         <ErrorToastOnError error={matchesError} title="Trends loading failed" />
         <div className="grid grid-cols-[auto,1fr] items-start gap-3">
           <div className="shrink-0">
-              <SegmentedSwitch<View>
-                value={view}
-                onChange={setView}
-                options={[
-                  { key: "lastN", label: "Last 10", icon: "fa-bolt" },
-                  { key: "total", label: "Total", icon: "fa-layer-group" },
-                ]}
-                ariaLabel="Trends view"
-                title="View"
-              />
-            </div>
+            <SegmentedSwitch<View>
+              value={view}
+              onChange={setView}
+              options={[
+                { key: "lastN", label: "Last 10", icon: "fa-bolt" },
+                { key: "total", label: "Total", icon: "fa-layer-group" },
+              ]}
+              ariaLabel="Trends view"
+              title="View"
+            />
+          </div>
           {players.length ? (
             <div className="min-w-0 pt-1">
               <div className="grid grid-cols-3 gap-x-3 gap-y-1">

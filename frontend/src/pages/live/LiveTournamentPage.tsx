@@ -862,6 +862,7 @@ export default function LiveTournamentPage() {
               <CurrentGameSection
                 status={status}
                 tournamentId={tid}
+                tournamentMode={tQ.data?.mode}
                 match={currentMatch}
                 clubs={clubs}
                 canControl={isEditorOrAdmin && !isDone}
@@ -889,15 +890,17 @@ export default function LiveTournamentPage() {
             id="section-standings"
             title={tQ.data.status === "done" ? "Results" : "Standings (live)"}
           >
-            <StandingsTable
-              tournamentId={tid}
-              tournamentDate={tQ.data?.date ?? null}
-              tournamentMode={tQ.data?.mode === "2v2" ? "2v2" : "1v1"}
-              tournamentStatus={tQ.data?.status ?? undefined}
-              wrap={false}
-              matches={matchesSorted}
-              players={tQ.data.players}
-            />
+            <div className="panel-subtle p-3">
+              <StandingsTable
+                tournamentId={tid}
+                tournamentDate={tQ.data?.date ?? null}
+                tournamentMode={tQ.data?.mode === "2v2" ? "2v2" : "1v1"}
+                tournamentStatus={tQ.data?.status ?? undefined}
+                wrap={false}
+                matches={matchesSorted}
+                players={tQ.data.players}
+              />
+            </div>
           </SectionSeparator>
 
           <SectionSeparator id="section-matches" title="Matches">

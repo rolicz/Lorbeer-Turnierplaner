@@ -174,7 +174,7 @@ export default function MatchCommentsPanel({
       <CollapsibleCard
         title="Match comments"
         defaultOpen={false}
-        className="panel-inner"
+        className="panel-subtle"
         right={
           matchComments.length ? (
             <span className="text-xs text-text-muted">{matchComments.length}</span>
@@ -195,7 +195,7 @@ export default function MatchCommentsPanel({
 	                key={c.id}
 	                id={`match-comment-${c.id}`}
 	                className={
-	                  "panel-subtle p-3 scroll-mt-28 sm:scroll-mt-32 " + (flashId === c.id ? "comment-attn" : "")
+	                  "panel-inner p-3 scroll-mt-28 sm:scroll-mt-32 " + (flashId === c.id ? "comment-attn" : "")
 	                }
 	              >
 	                <div className="flex items-center justify-between gap-3">
@@ -293,7 +293,7 @@ export default function MatchCommentsPanel({
             </div>
 
             {composerOpen ? (
-              <div className="panel-subtle p-3 space-y-2">
+              <div className="panel-inner p-3 space-y-2">
                 <label className="block">
                   <div className="input-label">Posted as</div>
                   <select
