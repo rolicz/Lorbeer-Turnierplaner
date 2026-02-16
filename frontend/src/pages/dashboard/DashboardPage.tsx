@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useLayoutEffect, useMemo, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import CupCard from "./CupCard";
@@ -12,6 +12,8 @@ import { useAnyTournamentWS } from "../../hooks/useTournamentWS";
 import { cupColorVarForKey, rgbFromCssVar } from "../../cupColors";
 import { usePageSubNav, type SubNavItem } from "../../ui/layout/SubNavContext";
 import { useSectionSubnav } from "../../ui/layout/useSectionSubnav";
+import { useRouteEntryLoading } from "../../ui/layout/useRouteEntryLoading";
+import PageLoadingScreen from "../../ui/primitives/PageLoadingScreen";
 
 type LiveTournamentLite = {
   id: number;
@@ -24,6 +26,7 @@ type LiveTournamentLite = {
 export default function DashboardPage() {
   useAnyTournamentWS();
   const defaultScrollDoneRef = useRef(false);
+  const pageEntered = useRouteEntryLoading();
 
   const defsQ = useQuery({ queryKey: ["cup", "defs"], queryFn: listCupDefs });
   const liveQ = useQuery({
@@ -54,21 +57,20 @@ export default function DashboardPage() {
 
   const { activeKey: activeSubKey, blinkKey: subnavBlinkKey, jumpToSection } = useSectionSubnav({
     sections: pageSections,
-    enabled: true,
+    enabled: pageEntered,
+    initialKey: hasLiveNow ? "live-now" : "trends",
   });
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (defaultScrollDoneRef.current) return;
     if (!pageSections.length) return;
     defaultScrollDoneRef.current = true;
-    window.setTimeout(() => {
-      jumpToSection(pageSections[0].key, pageSections[0].id, {
-        blink: false,
-        lockMs: 600,
-        retries: 14,
-        behavior: "auto",
-      });
-    }, 0);
+    jumpToSection(pageSections[0].key, pageSections[0].id, {
+      blink: false,
+      lockMs: 600,
+      retries: 14,
+      behavior: "auto",
+    });
   }, [jumpToSection, pageSections]);
 
   const subNavItems = useMemo<SubNavItem[]>(() => {
@@ -109,6 +111,19 @@ export default function DashboardPage() {
   }, [activeSubKey, cups, hasLiveNow, jumpToSection, subnavBlinkKey]);
 
   usePageSubNav(subNavItems);
+
+  const initialLoading =
+    !pageEntered ||
+    (!defsQ.error && !defsQ.data && defsQ.isLoading) ||
+    (!liveQ.error && typeof liveQ.data === "undefined" && liveQ.isLoading);
+
+  if (initialLoading) {
+    return (
+      <div className="page">
+        <PageLoadingScreen sectionCount={4} />
+      </div>
+    );
+  }
 
   return (
     <div className="page">

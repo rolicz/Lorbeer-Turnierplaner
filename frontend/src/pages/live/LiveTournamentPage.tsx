@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
@@ -40,6 +40,7 @@ import { fmtDate } from "../../utils/format";
 import { listTournamentComments, markAllTournamentCommentsRead } from "../../api/comments.api";
 import { usePageSubNav, type SubNavItem } from "../../ui/layout/SubNavContext";
 import { useSectionSubnav } from "../../ui/layout/useSectionSubnav";
+import { useRouteEntryLoading } from "../../ui/layout/useRouteEntryLoading";
 
 type PlayerLite = { id: number; display_name: string };
 
@@ -109,6 +110,7 @@ export default function LiveTournamentPage() {
   const tid = id ? Number(id) : null;
 
   const qc = useQueryClient();
+  const pageEntered = useRouteEntryLoading();
   const location = useLocation();
   const [, setSearchParams] = useSearchParams();
   const nav = useNavigate();
@@ -557,22 +559,24 @@ export default function LiveTournamentPage() {
 
   const { activeKey: activeSubKey, blinkKey: clickBlinkKey, jumpToSection } = useSectionSubnav({
     sections: activeSections,
-    enabled: !!tQ.data,
+    enabled: !!tQ.data && pageEntered,
+    initialKey:
+      tQ.data?.status === "done" || !showCurrentGameSection
+        ? "standings"
+        : "current",
   });
 
   useEffect(() => {
     autoJumpDoneRef.current = false;
   }, [tid]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!tQ.data || autoJumpDoneRef.current) return;
     autoJumpDoneRef.current = true;
     const next = tQ.data.status === "done" || !showCurrentGameSection
       ? { key: "standings", id: "section-standings" }
       : { key: "current", id: "section-current-game" };
-    window.setTimeout(() => {
-      jumpToSection(next.key, next.id, { lockMs: 650, blink: false, retries: 12, behavior: "auto" });
-    }, 0);
+    jumpToSection(next.key, next.id, { lockMs: 650, blink: false, retries: 12, behavior: "auto" });
   }, [jumpToSection, showCurrentGameSection, tQ.data]);
 
   const tournamentClassName =
@@ -696,7 +700,7 @@ export default function LiveTournamentPage() {
 
   if (!tid) return <div className="panel-subtle px-3 py-2 text-sm text-text-muted">Invalid tournament id</div>;
 
-  const initialLoading = !tQ.error && !tQ.data && (tQ.isLoading || clubsQ.isLoading || commentsQ.isLoading);
+  const initialLoading = !pageEntered || (!tQ.error && !tQ.data && (tQ.isLoading || clubsQ.isLoading || commentsQ.isLoading));
   if (initialLoading) {
     return (
       <div className="page">

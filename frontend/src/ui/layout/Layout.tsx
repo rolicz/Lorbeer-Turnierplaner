@@ -9,10 +9,74 @@ import { useAnyTournamentWS } from "../../hooks/useTournamentWS";
 import { THEMES } from "../../themes";
 import { listTournamentCommentReadMap, listTournamentCommentsSummary } from "../../api/comments.api";
 import { listPlayerGuestbookReadMap, listPlayerGuestbookSummary } from "../../api/players.api";
-import { SubNavProvider, useSubNavContext } from "./SubNavContext";
+import { SubNavProvider, useSubNavContext, type SubNavItem } from "./SubNavContext";
 
 type Role = "reader" | "editor" | "admin";
 type ThemeName = string;
+type MainNavKey = "dashboard" | "tournaments" | "friendlies" | "stats" | "players" | "clubs" | "login" | "other";
+
+function subNavSkeletonForMainNav(key: MainNavKey): SubNavItem[] {
+  switch (key) {
+    case "tournaments":
+      return [
+        { key: "create-new", label: "Create New", icon: "fa-plus", disabled: true },
+        { key: "all-tournaments", label: "All Tournaments", icon: "fa-list", disabled: true },
+      ];
+    case "friendlies":
+      return [
+        { key: "create-new", label: "Create New", icon: "fa-plus", disabled: true },
+        { key: "all-friendlies", label: "All Friendlies", icon: "fa-list", disabled: true },
+      ];
+    case "stats":
+      return [
+        { key: "players", label: "Players", icon: "fa-users", iconOnlyMobile: true, disabled: true },
+        { key: "trends", label: "Trends", icon: "fa-chart-area", iconOnlyMobile: true, disabled: true },
+        { key: "h2h", label: "H2H", icon: "fa-user-group", iconOnlyMobile: true, disabled: true },
+        { key: "streaks", label: "Streaks", icon: "fa-fire", iconOnlyMobile: true, disabled: true },
+        { key: "ratings", label: "Ratings", icon: "fa-ranking-star", iconOnlyMobile: true, disabled: true },
+        { key: "stars", label: "Stars", icon: "fa-star-half-stroke", iconOnlyMobile: true, disabled: true },
+        { key: "matches", label: "Matches", icon: "fa-list-check", iconOnlyMobile: true, disabled: true },
+      ];
+    case "players":
+      return [
+        { key: "all-players", label: "All Players", icon: "fa-users", disabled: true },
+        { key: "edit-profile", label: "Edit Profile", icon: "fa-id-badge", disabled: true },
+      ];
+    case "clubs":
+      return [
+        { key: "create-new", label: "Create New", icon: "fa-plus", disabled: true },
+        { key: "browse-filter", label: "Browse & Filter", icon: "fa-filter", disabled: true },
+        { key: "clubs-list", label: "Clubs List", icon: "fa-list", disabled: true },
+      ];
+    case "dashboard":
+      return [
+        { key: "trends", label: "Trends", icon: "fa-chart-line", disabled: true },
+      ];
+    default:
+      return [];
+  }
+}
+
+function mainNavKeyForPath(pathname: string): MainNavKey {
+  if (pathname === "/dashboard" || pathname.startsWith("/dashboard/")) return "dashboard";
+  if (pathname === "/tournaments" || pathname.startsWith("/tournaments/") || pathname.startsWith("/live/")) return "tournaments";
+  if (pathname === "/friendlies" || pathname.startsWith("/friendlies/")) return "friendlies";
+  if (pathname === "/stats" || pathname.startsWith("/stats/")) return "stats";
+  if (
+    pathname === "/players" ||
+    pathname.startsWith("/players/") ||
+    pathname === "/profile" ||
+    pathname.startsWith("/profiles/")
+  ) return "players";
+  if (pathname === "/clubs" || pathname.startsWith("/clubs/")) return "clubs";
+  if (pathname === "/login") return "login";
+  return "other";
+}
+
+function routeHasSubnav(pathname: string): boolean {
+  const k = mainNavKeyForPath(pathname);
+  return k === "dashboard" || k === "tournaments" || k === "friendlies" || k === "stats" || k === "players" || k === "clubs";
+}
 
 const THEME_SWATCHES: Record<string, string[]> = {
   blue: ["#0f172a", "#1e293b", "#334155", "#fe6100"],
@@ -31,7 +95,7 @@ function LayoutInner({ children }: { children: React.ReactNode }) {
   const qc = useQueryClient();
   const themeMenuRef = useRef<HTMLDivElement | null>(null);
   const headerRef = useRef<HTMLDivElement | null>(null);
-  const { items: subNavItems } = useSubNavContext();
+  const { items: subNavItems, setItems: setSubNavItems } = useSubNavContext();
 
   // Warm cache so "unread comments" indicators appear quickly after navigation.
   // Using prefetch avoids any rendering dependencies and works well with StrictMode.
@@ -123,13 +187,19 @@ function LayoutInner({ children }: { children: React.ReactNode }) {
     return () => obs.disconnect();
   }, [subNavItems.length]);
 
-  const nav: { to: string; label: string; icon: string; min: Role }[] = [
-    { to: "/dashboard", label: "Dashboard", icon: "fa-gauge-high", min: "reader" },
-    { to: "/tournaments", label: "Tournaments", icon: "fa-trophy", min: "reader" },
-    { to: "/friendlies", label: "Friendlies", icon: "fa-handshake", min: "reader" },
-    { to: "/stats", label: "Stats", icon: "fa-chart-line", min: "reader" },
-    { to: "/players", label: "Players", icon: "fa-users", min: "reader" },
-    { to: "/clubs", label: "Clubs", icon: "fa-shield-halved", min: "editor" },
+  useEffect(() => {
+    if (!routeHasSubnav(loc.pathname)) {
+      setSubNavItems([]);
+    }
+  }, [loc.pathname, setSubNavItems]);
+
+  const nav: { key: MainNavKey; to: string; label: string; icon: string; min: Role }[] = [
+    { key: "dashboard", to: "/dashboard", label: "Dashboard", icon: "fa-gauge-high", min: "reader" },
+    { key: "tournaments", to: "/tournaments", label: "Tournaments", icon: "fa-trophy", min: "reader" },
+    { key: "friendlies", to: "/friendlies", label: "Friendlies", icon: "fa-handshake", min: "reader" },
+    { key: "stats", to: "/stats", label: "Stats", icon: "fa-chart-line", min: "reader" },
+    { key: "players", to: "/players", label: "Players", icon: "fa-users", min: "reader" },
+    { key: "clubs", to: "/clubs", label: "Clubs", icon: "fa-shield-halved", min: "editor" },
   ];
 
   const rank: Record<Role, number> = { reader: 1, editor: 2, admin: 3 };
@@ -289,13 +359,16 @@ function LayoutInner({ children }: { children: React.ReactNode }) {
                     className={`nav-link inline-flex min-w-0 flex-1 items-center justify-center ${active ? "nav-link-active" : ""}`}
                     title={n.label}
                     aria-label={n.label}
-                    onClick={
-                      n.to === "/dashboard"
-                        ? () => {
-                            window.scrollTo({ top: 0, behavior: "auto" });
-                          }
-                        : undefined
-                    }
+                    onClick={() => {
+                      const from = mainNavKeyForPath(loc.pathname);
+                      const to = n.key;
+                      if (from === to) {
+                        window.scrollTo({ top: 0, behavior: "auto" });
+                        return;
+                      }
+                      setSubNavItems(subNavSkeletonForMainNav(to));
+                      window.scrollTo({ top: 0, behavior: "auto" });
+                    }}
                   >
                     <i className={`fa-solid ${n.icon} md:hidden`} aria-hidden="true" />
                     <span className="hidden md:inline truncate">{n.label}</span>
@@ -308,7 +381,7 @@ function LayoutInner({ children }: { children: React.ReactNode }) {
           {subNavItems.length ? (
             <>
               <div className="mt-2 border-t border-border-card-outer/70" />
-              <div className="page-x-bleed mt-2 pb-1 sm:pb-0">
+              <div className="page-x-bleed mt-2 pb-1 sm:pb-0 overflow-hidden">
                 <div className="flex w-full items-center gap-1 overflow-x-auto py-1">
                   {subNavItems.map((item) => {
                     const commonCls =

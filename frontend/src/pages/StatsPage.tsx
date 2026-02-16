@@ -5,14 +5,14 @@ import StreaksCard from "./stats/StreaksCard";
 import PlayerMatchesCard from "./stats/PlayerMatchesCard";
 import RatingsCard from "./stats/RatingsCard";
 import StarsPerformanceCard from "./stats/StarsPerformanceCard";
-import { useMemo } from "react";
+import { useLayoutEffect, useMemo } from "react";
 import { useLocation } from "react-router-dom";
-import { useEffect } from "react";
-import { prefersReducedMotion } from "../ui/scroll";
 import { usePageSubNav, type SubNavItem } from "../ui/layout/SubNavContext";
 import { useSectionSubnav } from "../ui/layout/useSectionSubnav";
+import { useRouteEntryLoading } from "../ui/layout/useRouteEntryLoading";
 import SectionSeparator from "../ui/primitives/SectionSeparator";
 import CollapsibleCard from "../ui/primitives/CollapsibleCard";
+import PageLoadingScreen from "../ui/primitives/PageLoadingScreen";
 
 type StatsLocationState = {
   focus?: string;
@@ -21,6 +21,7 @@ type StatsLocationState = {
 
 export default function StatsPage() {
   const location = useLocation();
+  const pageEntered = useRouteEntryLoading();
   const state = (location.state as StatsLocationState | null) ?? null;
   const focusTrends = useMemo(() => {
     return location.hash === "#trends" || location.hash === "#stats-trends" || state?.focus === "trends";
@@ -44,7 +45,8 @@ export default function StatsPage() {
 
   const { activeKey: activeSubKey, blinkKey: subnavBlinkKey, jumpToSection } = useSectionSubnav({
     sections,
-    enabled: true,
+    enabled: pageEntered,
+    initialKey: "players",
   });
 
   const subNavItems = useMemo<SubNavItem[]>(
@@ -121,78 +123,31 @@ export default function StatsPage() {
 
   usePageSubNav(subNavItems);
 
-  useEffect(() => {
-    if (focusTrends) return;
-    window.setTimeout(() => {
-      jumpToSection("players", "stats-section-players", {
+  useLayoutEffect(() => {
+    if (focusTrends) {
+      jumpToSection("trends", "stats-section-trends", {
         blink: false,
-        lockMs: 600,
+        lockMs: 700,
         retries: 20,
         behavior: "auto",
       });
-    }, 0);
+      return;
+    }
+    jumpToSection("players", "stats-section-players", {
+      blink: false,
+      lockMs: 700,
+      retries: 20,
+      behavior: "auto",
+    });
   }, [focusTrends, jumpToSection, location.key]);
 
-  useEffect(() => {
-    if (!focusTrends) return;
-    let canceled = false;
-    const el = document.getElementById("stats-section-trends");
-    if (!el) return;
-
-    const alignSnap = () => {
-      if (canceled) return;
-      try {
-        el.scrollIntoView({ behavior: "auto", block: "start" });
-      } catch {
-        // ignore
-      }
-    };
-
-    // Ensure alignment after first paint as well (some browsers ignore pre-paint scroll in rare cases).
-    const raf = requestAnimationFrame(() => {
-      if (canceled) return;
-      try {
-        el.scrollIntoView({ behavior: prefersReducedMotion() ? "auto" : "smooth", block: "start" });
-      } catch {
-        // ignore
-      }
-    });
-
-    // If content above loads a moment later (avatars/data), the Trends card can get pushed down again.
-    // Observe short-lived resizes and re-align, then stop (no autoscroll during normal interaction).
-    const page = document.querySelector<HTMLElement>(".page");
-    const hasRO = typeof window.ResizeObserver !== "undefined";
-    const stopAfterMs = 1200;
-    const start = Date.now();
-    let ro: ResizeObserver | null = null;
-    let resizeRaf = 0;
-
-    if (page && hasRO) {
-      ro = new ResizeObserver(() => {
-        if (canceled) return;
-        if (Date.now() - start > stopAfterMs) return;
-        if (resizeRaf) return;
-        resizeRaf = requestAnimationFrame(() => {
-          resizeRaf = 0;
-          alignSnap();
-        });
-      });
-      ro.observe(page);
-    }
-
-    const tStop = window.setTimeout(() => {
-      if (ro) ro.disconnect();
-      ro = null;
-    }, stopAfterMs);
-
-    return () => {
-      canceled = true;
-      cancelAnimationFrame(raf);
-      if (resizeRaf) cancelAnimationFrame(resizeRaf);
-      window.clearTimeout(tStop);
-      if (ro) ro.disconnect();
-    };
-  }, [focusTrends, location.key]);
+  if (!pageEntered) {
+    return (
+      <div className="page">
+        <PageLoadingScreen sectionCount={6} />
+      </div>
+    );
+  }
 
   return (
     <div className="page no-scroll-anchor">

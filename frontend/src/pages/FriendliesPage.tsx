@@ -1,12 +1,15 @@
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useLayoutEffect, useMemo, useRef } from "react";
 import FriendlyMatchCard from "./tools/FriendlyMatchCard";
 import FriendlyMatchesListCard from "./tools/FriendlyMatchesListCard";
 import SectionSeparator from "../ui/primitives/SectionSeparator";
 import { usePageSubNav, type SubNavItem } from "../ui/layout/SubNavContext";
 import { useSectionSubnav } from "../ui/layout/useSectionSubnav";
+import { useRouteEntryLoading } from "../ui/layout/useRouteEntryLoading";
+import PageLoadingScreen from "../ui/primitives/PageLoadingScreen";
 
 export default function FriendliesPage() {
   const defaultScrollDoneRef = useRef(false);
+  const pageEntered = useRouteEntryLoading();
 
   const pageSections = useMemo(
     () => [
@@ -18,7 +21,8 @@ export default function FriendliesPage() {
 
   const { activeKey: activeSubKey, blinkKey: subnavBlinkKey, jumpToSection } = useSectionSubnav({
     sections: pageSections,
-    enabled: true,
+    enabled: pageEntered,
+    initialKey: "all-friendlies",
   });
 
   const computeAllFriendliesOffset = useCallback((): number => {
@@ -37,18 +41,16 @@ export default function FriendliesPage() {
     return baseTarget - target;
   }, []);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (defaultScrollDoneRef.current) return;
     defaultScrollDoneRef.current = true;
-    window.setTimeout(() => {
-      jumpToSection("all-friendlies", "section-friendlies-all", {
-        blink: false,
-        lockMs: 600,
-        retries: 20,
-        offsetPx: computeAllFriendliesOffset(),
-        behavior: "auto",
-      });
-    }, 0);
+    jumpToSection("all-friendlies", "section-friendlies-all", {
+      blink: false,
+      lockMs: 600,
+      retries: 20,
+      offsetPx: computeAllFriendliesOffset(),
+      behavior: "auto",
+    });
   }, [computeAllFriendliesOffset, jumpToSection]);
 
   const subNavItems = useMemo<SubNavItem[]>(
@@ -85,6 +87,14 @@ export default function FriendliesPage() {
   );
 
   usePageSubNav(subNavItems);
+
+  if (!pageEntered) {
+    return (
+      <div className="page">
+        <PageLoadingScreen sectionCount={3} />
+      </div>
+    );
+  }
 
   return (
     <div className="page">

@@ -1,5 +1,5 @@
 /* eslint-disable react-refresh/only-export-components */
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useContext, useLayoutEffect, useMemo, useState } from "react";
 
 export type SubNavItem = {
   key: string;
@@ -37,8 +37,7 @@ export function useSubNavContext() {
 
 export function usePageSubNav(items: SubNavItem[]) {
   const { setItems } = useSubNavContext();
-  useEffect(() => {
+  useLayoutEffect(() => {
     setItems(items);
-    return () => setItems([]);
   }, [items, setItems]);
 }

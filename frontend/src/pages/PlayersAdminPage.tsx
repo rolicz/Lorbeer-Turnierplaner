@@ -5,9 +5,11 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Input from "../ui/primitives/Input";
 import Button from "../ui/primitives/Button";
 import { ErrorToastOnError } from "../ui/primitives/ErrorToast";
+import PageLoadingScreen from "../ui/primitives/PageLoadingScreen";
 import AvatarCircle from "../ui/primitives/AvatarCircle";
 import { Pill } from "../ui/primitives/Pill";
 import { usePageSubNav, type SubNavItem } from "../ui/layout/SubNavContext";
+import { useRouteEntryLoading } from "../ui/layout/useRouteEntryLoading";
 
 import { useAuth } from "../auth/AuthContext";
 import { createPlayer, listPlayerGuestbookSummary, listPlayerProfiles, listPlayers, patchPlayer } from "../api/players.api";
@@ -17,6 +19,7 @@ import { scrollToSectionById } from "../ui/scrollToSection";
 
 export default function PlayersAdminPage() {
   const { token, role, playerId: currentPlayerId } = useAuth();
+  const pageEntered = useRouteEntryLoading();
   const isAdmin = role === "admin";
   const canEditProfile = role !== "reader" && !!currentPlayerId;
   const navigate = useNavigate();
@@ -110,6 +113,20 @@ export default function PlayersAdminPage() {
   }, [canEditProfile, navigate]);
 
   usePageSubNav(subNavItems);
+
+  const initialLoading =
+    !pageEntered ||
+    (playersQ.isLoading && !playersQ.data) ||
+    (profilesQ.isLoading && !profilesQ.data) ||
+    (guestbookSummaryQ.isLoading && !guestbookSummaryQ.data);
+
+  if (initialLoading) {
+    return (
+      <div className="page">
+        <PageLoadingScreen sectionCount={4} />
+      </div>
+    );
+  }
 
   const openProfile = (playerId: number, jumpUnread: boolean) => {
     navigate(`/profiles/${playerId}${jumpUnread ? "?unread=1" : ""}`);

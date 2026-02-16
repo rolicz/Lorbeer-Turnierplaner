@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import Input from "../ui/primitives/Input";
@@ -6,8 +6,10 @@ import Button from "../ui/primitives/Button";
 import CollapsibleCard from "../ui/primitives/CollapsibleCard";
 import SegmentedSwitch from "../ui/primitives/SegmentedSwitch";
 import { ErrorToastOnError } from "../ui/primitives/ErrorToast";
+import PageLoadingScreen from "../ui/primitives/PageLoadingScreen";
 import { usePageSubNav, type SubNavItem } from "../ui/layout/SubNavContext";
 import { useSectionSubnav } from "../ui/layout/useSectionSubnav";
+import { useRouteEntryLoading } from "../ui/layout/useRouteEntryLoading";
 import SectionSeparator from "../ui/primitives/SectionSeparator";
 
 import { useAuth } from "../auth/AuthContext";
@@ -87,6 +89,7 @@ export default function ClubsPage() {
   const { token, role } = useAuth();
   const qc = useQueryClient();
   const defaultScrollDoneRef = useRef(false);
+  const pageEntered = useRouteEntryLoading();
 
   const isAdmin = role === "admin";
   const isEditorOrAdmin = role === "editor" || role === "admin";
@@ -235,7 +238,8 @@ export default function ClubsPage() {
 
   const { activeKey: activeSubKey, blinkKey: subnavBlinkKey, jumpToSection } = useSectionSubnav({
     sections: pageSections,
-    enabled: true,
+    enabled: pageEntered,
+    initialKey: "browse-filter",
   });
 
   const computeBrowseOffset = useCallback((): number => {
@@ -270,18 +274,16 @@ export default function ClubsPage() {
     return baseTarget - target;
   }, []);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (defaultScrollDoneRef.current) return;
     defaultScrollDoneRef.current = true;
-    window.setTimeout(() => {
-      jumpToSection("browse-filter", "section-clubs-browse", {
-        blink: false,
-        lockMs: 600,
-        retries: 20,
-        offsetPx: computeBrowseOffset(),
-        behavior: "auto",
-      });
-    }, 0);
+    jumpToSection("browse-filter", "section-clubs-browse", {
+      blink: false,
+      lockMs: 600,
+      retries: 20,
+      offsetPx: computeBrowseOffset(),
+      behavior: "auto",
+    });
   }, [computeBrowseOffset, jumpToSection]);
 
   const subNavItems = useMemo<SubNavItem[]>(
@@ -332,6 +334,19 @@ export default function ClubsPage() {
   );
 
   usePageSubNav(subNavItems);
+
+  const initialLoading =
+    !pageEntered ||
+    (!clubsQ.error && !clubsQ.data && clubsQ.isLoading) ||
+    (!leaguesQ.error && !leaguesQ.data && leaguesQ.isLoading);
+
+  if (initialLoading) {
+    return (
+      <div className="page">
+        <PageLoadingScreen sectionCount={4} />
+      </div>
+    );
+  }
 
   return (
     <div className="page">

@@ -10,6 +10,7 @@ import { ErrorToastOnError } from "../ui/primitives/ErrorToast";
 import CommentImageCropper from "../ui/primitives/CommentImageCropper";
 import ImageLightbox from "../ui/primitives/ImageLightbox";
 import { Pill } from "../ui/primitives/Pill";
+import PageLoadingScreen from "../ui/primitives/PageLoadingScreen";
 
 import { useAuth } from "../auth/AuthContext";
 import {
@@ -38,6 +39,7 @@ import { usePlayerAvatarMap } from "../hooks/usePlayerAvatarMap";
 import { usePlayerHeaderMap } from "../hooks/usePlayerHeaderMap";
 import { usePageSubNav, type SubNavItem } from "../ui/layout/SubNavContext";
 import { useSectionSubnav } from "../ui/layout/useSectionSubnav";
+import { useRouteEntryLoading } from "../ui/layout/useRouteEntryLoading";
 import SectionSeparator from "../ui/primitives/SectionSeparator";
 
 function fmtDateTime(iso?: string | null) {
@@ -82,6 +84,7 @@ export default function ProfilePage() {
   const { id } = useParams<{ id: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
   const { token, role, playerId: currentPlayerId } = useAuth();
+  const pageEntered = useRouteEntryLoading();
   const qc = useQueryClient();
 
   const routePlayerId = id ? Number(id) : null;
@@ -290,7 +293,8 @@ export default function ProfilePage() {
   );
   const { activeKey: activeSubKey, blinkKey: subnavBlinkKey, jumpToSection } = useSectionSubnav({
     sections,
-    enabled: !!targetPlayerId,
+    enabled: !!targetPlayerId && pageEntered,
+    initialKey: "profile-main",
   });
 
   const computeGuestbookMetrics = useCallback(() => {
@@ -577,6 +581,14 @@ export default function ProfilePage() {
       setSearchParams(next, { replace: true });
     }, 420);
   }, [focusGuestbookEntry, latestUnreadGuestbookId, searchParams, setSearchParams, unreadJumpReady]);
+
+  if (!pageEntered) {
+    return (
+      <div className="page">
+        <PageLoadingScreen sectionCount={5} />
+      </div>
+    );
+  }
 
   if (!targetPlayerId) {
     return (

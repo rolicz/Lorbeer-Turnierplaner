@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { scrollToSectionById } from "../scrollToSection";
 
@@ -10,27 +10,27 @@ export type SubnavSection = {
 export function useSectionSubnav({
   sections,
   enabled = true,
+  initialKey,
 }: {
   sections: ReadonlyArray<SubnavSection>;
   enabled?: boolean;
+  initialKey?: string;
 }) {
-  const [activeKey, setActiveKey] = useState<string>(sections[0]?.key ?? "");
+  const [activeKey, setActiveKey] = useState<string>(() => {
+    if (initialKey && sections.some((s) => s.key === initialKey)) return initialKey;
+    return sections[0]?.key ?? "";
+  });
   const [blinkKey, setBlinkKey] = useState<string | null>(null);
   const [scrollLock, setScrollLock] = useState<{ untilTs: number; key: string | null }>({
     untilTs: 0,
     key: null,
   });
 
-  // Keep active key valid when available sections change.
-  useEffect(() => {
-    if (!enabled) return;
-    if (!sections.length) return;
-    const valid = sections.some((s) => s.key === activeKey);
-    if (valid) return;
-    const next = sections[0]?.key ?? "";
-    if (!next) return;
-    window.setTimeout(() => setActiveKey(next), 0);
-  }, [activeKey, enabled, sections]);
+  const computedActiveKey = useMemo(() => {
+    if (sections.some((s) => s.key === activeKey)) return activeKey;
+    if (initialKey && sections.some((s) => s.key === initialKey)) return initialKey;
+    return sections[0]?.key ?? "";
+  }, [activeKey, initialKey, sections]);
 
   const jumpToSection = useCallback(
     (
@@ -60,9 +60,7 @@ export function useSectionSubnav({
         }, 460);
       }
 
-      window.setTimeout(() => {
-        scrollToSectionById(id, retries, offsetPx, behavior);
-      }, 0);
+      scrollToSectionById(id, retries, offsetPx, behavior);
 
       window.setTimeout(() => {
         setScrollLock((cur) => (cur.key === key ? { untilTs: 0, key: null } : cur));
@@ -122,7 +120,7 @@ export function useSectionSubnav({
   }, [enabled, scrollLock, sections]);
 
   return {
-    activeKey,
+    activeKey: computedActiveKey,
     blinkKey,
     jumpToSection,
   };

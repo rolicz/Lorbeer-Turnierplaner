@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
@@ -23,6 +23,7 @@ import { useAnyTournamentWS } from "../hooks/useTournamentWS";
 import { usePlayerAvatarMap } from "../hooks/usePlayerAvatarMap";
 import { usePageSubNav, type SubNavItem } from "../ui/layout/SubNavContext";
 import { useSectionSubnav } from "../ui/layout/useSectionSubnav";
+import { useRouteEntryLoading } from "../ui/layout/useRouteEntryLoading";
 import { fmtDate } from "../utils/format";
 
 type Status = "draft" | "live" | "done";
@@ -59,6 +60,7 @@ export default function TournamentsPage() {
 
   const [createToast, setCreateToast] = useState<string | null>(null);
   const defaultScrollDoneRef = useRef(false);
+  const pageEntered = useRouteEntryLoading();
 
   const [name, setName] = useState("");
   const [mode, setMode] = useState<"1v1" | "2v2">("1v1");
@@ -102,7 +104,8 @@ export default function TournamentsPage() {
 
   const { activeKey: activeSubKey, blinkKey: subnavBlinkKey, jumpToSection } = useSectionSubnav({
     sections: pageSections,
-    enabled: true,
+    enabled: pageEntered,
+    initialKey: "all-tournaments",
   });
 
   const computeAllTournamentsOffset = useCallback((): number => {
@@ -145,14 +148,13 @@ export default function TournamentsPage() {
       setName("");
       setSelected({});
       await qc.invalidateQueries({ queryKey: ["tournaments"] });
-      window.setTimeout(() => {
-        jumpToSection("all-tournaments", "section-tournaments-all", {
-          blink: false,
-          lockMs: 600,
-          retries: 20,
-          offsetPx: computeAllTournamentsOffset(),
-        });
-      }, 0);
+      jumpToSection("all-tournaments", "section-tournaments-all", {
+        blink: false,
+        lockMs: 600,
+        retries: 20,
+        offsetPx: computeAllTournamentsOffset(),
+        behavior: "auto",
+      });
     },
     onError: (err: unknown) => {
       setCreateToast(errText(err));
@@ -165,19 +167,17 @@ export default function TournamentsPage() {
     return () => window.clearTimeout(t);
   }, [createToast]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (defaultScrollDoneRef.current) return;
     if (!tournamentsQ.data) return;
     defaultScrollDoneRef.current = true;
-    window.setTimeout(() => {
-      jumpToSection("all-tournaments", "section-tournaments-all", {
-        blink: false,
-        lockMs: 600,
-        retries: 20,
-        offsetPx: computeAllTournamentsOffset(),
-        behavior: "auto",
-      });
-    }, 0);
+    jumpToSection("all-tournaments", "section-tournaments-all", {
+      blink: false,
+      lockMs: 600,
+      retries: 20,
+      offsetPx: computeAllTournamentsOffset(),
+      behavior: "auto",
+    });
   }, [computeAllTournamentsOffset, jumpToSection, tournamentsQ.data]);
 
   const subNavItems = useMemo<SubNavItem[]>(() => {
@@ -218,6 +218,7 @@ export default function TournamentsPage() {
   usePageSubNav(subNavItems);
 
   const initialLoading =
+    !pageEntered ||
     !tournamentsQ.error &&
     !tournamentsQ.data &&
     (
