@@ -120,7 +120,7 @@ export default function ProfilePage() {
   const authoredUnreadPokesQ = useQuery({
     queryKey: ["players", "pokes", "authored-unread", token ?? "none"],
     queryFn: () => listPlayerPokeAuthoredUnreadSummary(token as string),
-    enabled: !!token && isOwnProfileView,
+    enabled: !!token,
   });
   const pokesQ = useQuery({
     queryKey: ["players", "pokes", targetPlayerId ?? "none"],
@@ -406,20 +406,13 @@ export default function ProfilePage() {
     return (pokesSummaryQ.data ?? []).find((row) => Number(row.profile_player_id) === Number(targetPlayerId)) ?? null;
   }, [pokesSummaryQ.data, targetPlayerId]);
   const unreadPokeCount = useMemo(() => {
-    if (!token || !isOwnProfile) return 0;
+    if (!token) return 0;
     const ids = pokeSummaryRow?.poke_ids ?? [];
     if (!ids.length) return 0;
     return ids.filter((id) => !seenPokes.has(Number(id))).length;
-  }, [token, isOwnProfile, pokeSummaryRow?.poke_ids, seenPokes]);
-  const playerNameById = useMemo(() => {
-    const map = new Map<number, string>();
-    for (const row of playersQ.data ?? []) {
-      map.set(Number(row.id), row.display_name ?? `Player #${Number(row.id)}`);
-    }
-    return map;
-  }, [playersQ.data]);
+  }, [token, pokeSummaryRow?.poke_ids, seenPokes]);
   const unreadPokeAuthorsText = useMemo(() => {
-    if (!token || !isOwnProfile) return "";
+    if (!token) return "";
     const rows = (pokesQ.data ?? []).filter((row) => !seenPokes.has(Number(row.id)));
     if (!rows.length) return "";
     const byAuthor = new Map<number, { name: string; count: number }>();
@@ -439,39 +432,22 @@ export default function ProfilePage() {
     const names = top.map((x) => `${x.name} x${x.count}`);
     const rest = byAuthor.size - top.length;
     return rest > 0 ? `${names.join(", ")} +${rest}` : names.join(", ");
-  }, [isOwnProfile, pokesQ.data, seenPokes, token]);
+  }, [pokesQ.data, seenPokes, token]);
   const unreadPokeAuthorCount = useMemo(() => {
-    if (!token || !isOwnProfile) return 0;
+    if (!token) return 0;
     const rows = (pokesQ.data ?? []).filter((row) => !seenPokes.has(Number(row.id)));
     if (!rows.length) return 0;
     return new Set(rows.map((row) => Number(row.author_player_id))).size;
-  }, [isOwnProfile, pokesQ.data, seenPokes, token]);
+  }, [pokesQ.data, seenPokes, token]);
   const authoredUnreadRows = useMemo(
-    () => (token && isOwnProfile ? authoredUnreadPokesQ.data ?? [] : []),
-    [authoredUnreadPokesQ.data, isOwnProfile, token]
+    () => (!token ? [] : authoredUnreadPokesQ.data ?? []),
+    [authoredUnreadPokesQ.data, token]
   );
-  const authoredUnreadTotal = useMemo(
-    () => authoredUnreadRows.reduce((sum, row) => sum + Number(row.unread_count ?? 0), 0),
-    [authoredUnreadRows]
-  );
-  const authoredUnreadPlayersCount = authoredUnreadRows.length;
-  const authoredUnreadDetailsText = useMemo(() => {
-    if (!authoredUnreadRows.length) return "";
-    const sorted = [...authoredUnreadRows].sort((a, b) => {
-      const d = Number(b.unread_count ?? 0) - Number(a.unread_count ?? 0);
-      if (d !== 0) return d;
-      const ta = Date.parse(a.latest_created_at ?? "");
-      const tb = Date.parse(b.latest_created_at ?? "");
-      return (Number.isFinite(tb) ? tb : 0) - (Number.isFinite(ta) ? ta : 0);
-    });
-    const top = sorted.slice(0, 4).map((row) => {
-      const pid = Number(row.profile_player_id);
-      const name = playerNameById.get(pid) ?? `Player #${pid}`;
-      return `${name} x${Number(row.unread_count ?? 0)}`;
-    });
-    const rest = sorted.length - top.length;
-    return rest > 0 ? `${top.join(", ")} +${rest}` : top.join(", ");
-  }, [authoredUnreadRows, playerNameById]);
+  const authoredUnreadOnProfileCount = useMemo(() => {
+    if (!targetPlayerId) return 0;
+    const row = authoredUnreadRows.find((x) => Number(x.profile_player_id) === Number(targetPlayerId));
+    return Number(row?.unread_count ?? 0);
+  }, [authoredUnreadRows, targetPlayerId]);
   const totalPokeCount = Number(pokeSummaryRow?.total_pokes ?? 0);
 
   usePlayerProfileWS(targetPlayerId, token);
@@ -835,6 +811,7 @@ export default function ProfilePage() {
     Number(pokeButtonFlash.playerId) === Number(targetPlayerId)
       ? pokeButtonFlash.kind
       : "none";
+  const unreadPokesLabel = isOwnProfile ? "New pokes on you" : "New pokes";
 
   useEffect(() => {
     const jumpUnread = searchParams.get("unread") === "1";
@@ -1174,7 +1151,7 @@ export default function ProfilePage() {
             </div>
             <div className="ml-auto shrink-0">
               <div className="flex items-center gap-2">
-                {isOwnProfile && unreadPokeCount > 0 ? (
+                {unreadPokeCount > 0 ? (
                   <Button
                     type="button"
                     variant="ghost"
@@ -1232,10 +1209,10 @@ export default function ProfilePage() {
               </div>
             </div>
           </div>
-          {isOwnProfile &&
-          (unreadGuestbookCount > 0 || unreadPokeCount > 0 || authoredUnreadTotal > 0) ? (
+          {token &&
+          ((isOwnProfile && unreadGuestbookCount > 0) || unreadPokeCount > 0 || authoredUnreadOnProfileCount > 0) ? (
             <div className="pt-1">
-              {unreadGuestbookCount > 0 ? (
+              {isOwnProfile && unreadGuestbookCount > 0 ? (
                 <div className="inline-flex max-w-full items-center gap-1.5 text-[11px] text-text-muted">
                   <i className="fa-solid fa-envelope text-accent" aria-hidden="true" />
                   <span className="truncate">
@@ -1250,21 +1227,18 @@ export default function ProfilePage() {
                 <div className="inline-flex max-w-full items-center gap-1.5 text-[11px] text-text-muted">
                   <i className="fa-solid fa-bell" aria-hidden="true" />
                   <span className="truncate">
-                    New pokes on you: <span className="tabular-nums text-accent">{unreadPokeCount}</span>
+                    {unreadPokesLabel}: <span className="tabular-nums text-accent">{unreadPokeCount}</span>
                     {unreadPokeAuthorsText
                       ? ` · ${unreadPokeAuthorCount > 1 ? `(${unreadPokeAuthorCount}) ` : ""}${unreadPokeAuthorsText}`
                       : ""}
                   </span>
                 </div>
               ) : null}
-              {authoredUnreadTotal > 0 ? (
+              {authoredUnreadOnProfileCount > 0 ? (
                 <div className="inline-flex max-w-full items-center gap-1.5 text-[11px] text-text-muted">
                   <i className="fa-solid fa-hand-fist" aria-hidden="true" />
                   <span className="truncate">
-                    New pokes by you: <span className="tabular-nums text-accent">{authoredUnreadTotal}</span>
-                    {authoredUnreadDetailsText
-                      ? ` · ${authoredUnreadPlayersCount > 1 ? `(${authoredUnreadPlayersCount}) ` : ""}${authoredUnreadDetailsText}`
-                      : ""}
+                    New pokes by you: <span className="tabular-nums text-accent">{authoredUnreadOnProfileCount}</span>
                   </span>
                 </div>
               ) : null}

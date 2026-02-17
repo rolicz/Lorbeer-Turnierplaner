@@ -18,7 +18,7 @@ import { getCup, listCupDefs } from "../../api/cup.api";
 import { StatsControlLabel, StatsModeSwitch, StatsSegmentedSwitch, type StatsMode } from "./StatsControls";
 import { usePlayerAvatarMap } from "../../hooks/usePlayerAvatarMap";
 
-type SortMode = "overall" | "lastN";
+type SortMode = "overallPts" | "overallPpm" | "lastN";
 type ModeFilter = StatsMode;
 
 function fmtAvg(n: number) {
@@ -281,11 +281,12 @@ function PlayersViewSwitch({ value, onChange }: { value: SortMode; onChange: (v:
       value={value}
       onChange={onChange}
       options={[
-        { key: "overall", label: "Overall", icon: "fa-trophy" },
+        { key: "overallPts", label: "Points", icon: "fa-trophy" },
+        { key: "overallPpm", label: "PPM", icon: "fa-chart-simple" },
         { key: "lastN", label: "Form", icon: "fa-chart-line" },
       ]}
       ariaLabel="Players view"
-      title="View: Overall or form"
+      title="View: points, all-match PPM, or form"
     />
   );
 }
@@ -427,7 +428,7 @@ export default function PlayersStatsCard({
     return m;
   }, [statsQ.data]);
 
-  const [sortMode, setSortMode] = useState<SortMode>("overall");
+  const [sortMode, setSortMode] = useState<SortMode>("overallPts");
   const [openByPlayerId, setOpenByPlayerId] = useState<Record<number, boolean>>({});
   const [showAllTournamentTiles, setShowAllTournamentTiles] = useState(false);
   const tileCols = useTournamentCols();
@@ -442,7 +443,13 @@ export default function PlayersStatsCard({
     }
 
     out.sort((a, b) => {
-      if (sortMode === "overall") return b.s.pts - a.s.pts || a.p.display_name.localeCompare(b.p.display_name);
+      if (sortMode === "overallPts") return b.s.pts - a.s.pts || a.p.display_name.localeCompare(b.p.display_name);
+      if (sortMode === "overallPpm") {
+        const av = a.s.played > 0 ? a.s.pts / a.s.played : 0;
+        const bv = b.s.played > 0 ? b.s.pts / b.s.played : 0;
+        if (bv !== av) return bv - av;
+        return b.s.pts - a.s.pts || a.p.display_name.localeCompare(b.p.display_name);
+      }
       const av = avgLastN(a.s);
       const bv = avgLastN(b.s);
       if (bv !== av) return bv - av;
@@ -543,7 +550,11 @@ export default function PlayersStatsCard({
         <div className="grid grid-cols-12 items-center gap-2 border-b border-border-card-inner bg-bg-card-chip/20 px-3 py-2 text-[11px] text-text-muted">
           <div className="col-span-7 inline-flex items-center gap-2">Player</div>
           <div className="col-span-5 text-right inline-flex items-center justify-end gap-2">
-            {sortMode === "overall" ? "Overall points" : `Last ${lastNView} avg`}
+            {sortMode === "overallPts"
+              ? "Overall points"
+              : sortMode === "overallPpm"
+                ? "All-match PPM"
+                : `Last ${lastNView} avg`}
           </div>
         </div>
 
@@ -551,17 +562,19 @@ export default function PlayersStatsCard({
         {statsQ.isLoading && <div className="px-3 py-3 text-text-muted">Loading stats…</div>}
 
         {rows.map(({ p, s, rank }, idx) => {
-	          const metric =
-	            sortMode === "overall"
-	              ? { icon: "fa-solid fa-trophy", label: "P", value: String(s.pts) }
-	              : { icon: "fa-solid fa-chart-line", label: "P", value: fmtAvg(avgLastN(s)) };
+          const metric =
+            sortMode === "overallPts"
+              ? { icon: "fa-solid fa-trophy", label: "P", value: String(s.pts) }
+              : sortMode === "overallPpm"
+                ? { icon: "fa-solid fa-chart-simple", label: "PPM", value: fmtAvg(s.played > 0 ? s.pts / s.played : 0) }
+                : { icon: "fa-solid fa-chart-line", label: "P", value: fmtAvg(avgLastN(s)) };
 
-	          const rowOpen = !!openByPlayerId[p.id];
-	          const toggleRow = () =>
-	            setOpenByPlayerId((prev) => ({
-	              ...prev,
-	              [p.id]: !prev[p.id],
-	            }));
+          const rowOpen = !!openByPlayerId[p.id];
+          const toggleRow = () =>
+            setOpenByPlayerId((prev) => ({
+              ...prev,
+              [p.id]: !prev[p.id],
+            }));
 
           const ownedCups = cupsOwnedByPlayerId.get(p.id) ?? [];
           const avatarUpdatedAt = avatarUpdatedAtByPlayerId.get(p.id) ?? null;
