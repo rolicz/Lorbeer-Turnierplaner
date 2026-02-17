@@ -91,6 +91,7 @@ export default function SelectClubsPanel({
   wrap = true,
   showSelectedMeta = false,
   wrapClassName,
+  narrowLayout = false,
 }: {
   clubs: Club[];
   disabled: boolean;
@@ -110,6 +111,8 @@ export default function SelectClubsPanel({
   showSelectedMeta?: boolean;
   /** Wrapper class for the CollapsibleCard when `wrap` is true. */
   wrapClassName?: string;
+  /** Force stacked layout (useful inside narrow drawers/sheets where viewport breakpoints are misleading). */
+  narrowLayout?: boolean;
 }) {
   const clubsSorted = useMemo(() => sortClubsForDropdown(clubs), [clubs]);
 
@@ -223,12 +226,12 @@ export default function SelectClubsPanel({
     <div className="grid gap-4">
       {extraTop ? <div>{extraTop}</div> : null}
 
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-[auto_auto_1fr] md:items-end">
+      <div className={"grid grid-cols-1 gap-3 " + (narrowLayout ? "" : "md:grid-cols-[auto_auto_1fr] md:items-end")}>
         <StarFilter
           value={starFilter}
           onChange={setStarFilter}
           disabled={disabled}
-          compact
+          compact={!narrowLayout}
           right={
             <button
               type="button"
@@ -249,7 +252,7 @@ export default function SelectClubsPanel({
           onChange={setLeagueFilter}
           disabled={disabled}
           options={leagueOptions}
-          compact
+          compact={!narrowLayout}
         />
 
         <div className="flex md:justify-end">
@@ -267,9 +270,9 @@ export default function SelectClubsPanel({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+      <div className={"grid grid-cols-1 gap-3 " + (narrowLayout ? "" : "md:grid-cols-2")}>
         <div className="space-y-1.5">
-          <div className="grid grid-cols-[1fr_auto] items-end gap-2">
+          <div className="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-2">
             <div className="min-w-0">
               <ClubSelect
                 label={aLabel}
@@ -294,7 +297,7 @@ export default function SelectClubsPanel({
         </div>
 
         <div className="space-y-1.5">
-          <div className="grid grid-cols-[1fr_auto] items-end gap-2">
+          <div className="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-2">
             <div className="min-w-0">
               <ClubSelect
                 label={bLabel}

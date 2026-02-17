@@ -386,6 +386,7 @@ export default function FriendlyMatchCard({
             bGoals={bGoals}
             showModePill={true}
             showOdds={true}
+            scoreBoxStyle="inner"
             surface="panel"
           />
 

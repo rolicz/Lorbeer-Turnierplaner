@@ -1,6 +1,6 @@
-# EA FC Tournament Planner (Monorepo)
+# Lorbeerkranz Tournament Planner (Monorepo)
 
-A small tournament planner for EA FC nights.
+A small tournament planner for EA FC nights, branded as **Lorbeerkranz**.
 Supports **1v1** and **2v2** formats for small groups, generates fixtures, lets you enter live results, assign clubs **per match**, and keeps tournament history.
 Designed to be snappy and work well on both mobile and desktop.
 

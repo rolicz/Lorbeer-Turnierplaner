@@ -229,10 +229,10 @@ export function ClubSelect({
   placeholder: string;
 }) {
   return (
-    <label className="block">
+    <label className="block min-w-0">
       <div className="input-label">{label}</div>
       <select
-        className="select-field"
+        className="select-field min-w-0 max-w-full"
         value={value ?? ""}
         onChange={(e) => onChange(e.target.value ? Number(e.target.value) : null)}
         disabled={disabled}

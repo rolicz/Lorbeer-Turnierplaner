@@ -80,15 +80,6 @@ function isLiveTournamentPath(pathname: string): boolean {
   return pathname.startsWith("/live/");
 }
 
-const LAST_LIVE_TOURNAMENT_KEY = "last_live_tournament_id";
-
-function parseLiveTournamentId(pathname: string): number | null {
-  const m = pathname.match(/^\/live\/(\d+)(?:\/|$)/);
-  if (!m) return null;
-  const id = Number(m[1]);
-  return Number.isFinite(id) && id > 0 ? Math.trunc(id) : null;
-}
-
 function LayoutInner({ children }: { children: React.ReactNode }) {
   const { token, role, accountRole, playerName, logout, canCycleRole, cycleRole } = useAuth();
   const loc = useLocation();
@@ -240,24 +231,6 @@ function LayoutInner({ children }: { children: React.ReactNode }) {
     prevShownSubNavRef.current = shownSubNavItems;
   }, [loc.pathname, shownSubNavItems]);
 
-  const liveTournamentIdInPath = parseLiveTournamentId(loc.pathname);
-  const persistedLastLiveTournamentId = (() => {
-    const raw = localStorage.getItem(LAST_LIVE_TOURNAMENT_KEY);
-    const parsed = Number(raw);
-    return Number.isFinite(parsed) && parsed > 0 ? Math.trunc(parsed) : null;
-  })();
-  const preferredLiveTournamentId = liveTournamentIdInPath ?? persistedLastLiveTournamentId;
-
-  useEffect(() => {
-    if (!liveTournamentIdInPath) return;
-    localStorage.setItem(LAST_LIVE_TOURNAMENT_KEY, String(liveTournamentIdInPath));
-  }, [liveTournamentIdInPath]);
-
-  useEffect(() => {
-    if (loc.pathname !== "/tournaments") return;
-    localStorage.removeItem(LAST_LIVE_TOURNAMENT_KEY);
-  }, [loc.pathname]);
-
   useEffect(() => {
     const dir = pendingSubnavDirRef.current;
     if (!dir) return;
@@ -327,10 +300,9 @@ function LayoutInner({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
-  const tournamentsNavTo = preferredLiveTournamentId ? `/live/${preferredLiveTournamentId}` : "/tournaments";
   const nav: { key: MainNavKey; to: string; label: string; icon: string; min: Role }[] = [
     { key: "dashboard", to: "/dashboard", label: "Dashboard", icon: "fa-gauge-high", min: "reader" },
-    { key: "tournaments", to: tournamentsNavTo, label: "Tournaments", icon: "fa-trophy", min: "reader" },
+    { key: "tournaments", to: "/tournaments", label: "Tournaments", icon: "fa-trophy", min: "reader" },
     { key: "friendlies", to: "/friendlies", label: "Friendlies", icon: "fa-handshake", min: "reader" },
     { key: "stats", to: "/stats", label: "Stats", icon: "fa-chart-line", min: "reader" },
     { key: "players", to: "/players", label: "Players", icon: "fa-users", min: "reader" },

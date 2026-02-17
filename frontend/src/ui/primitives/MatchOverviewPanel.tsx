@@ -46,6 +46,8 @@ export default function MatchOverviewPanel({
   bGoals,
   showModePill = false,
   showOdds = true,
+  showOddsWhenFinished = false,
+  scoreBoxStyle = "auto",
   scheduledScoreStyle = "dash",
   surface = "panel-subtle",
   className,
@@ -57,6 +59,8 @@ export default function MatchOverviewPanel({
   bGoals: number;
   showModePill?: boolean;
   showOdds?: boolean;
+  showOddsWhenFinished?: boolean;
+  scoreBoxStyle?: "auto" | "inner" | "chip";
   scheduledScoreStyle?: "dash" | "emdash-zero";
   surface?: "panel-subtle" | "panel-inner" | "panel" | "none";
   className?: string;
@@ -74,9 +78,14 @@ export default function MatchOverviewPanel({
     scheduledScoreStyle === "emdash-zero" && isScheduled && aGoals === 0 && bGoals === 0;
   const scoreLeft = isScheduled && !useEmDash ? "-" : useEmDash ? "—" : String(aGoals);
   const scoreRight = isScheduled && !useEmDash ? "-" : useEmDash ? "—" : String(bGoals);
-  const scoreBoxClass = isScheduled
-    ? "card-chip"
-    : "rounded-lg border border-border-card-inner/70 bg-bg-card-inner px-3 py-1.5";
+  const scoreBoxClass =
+    scoreBoxStyle === "inner"
+      ? "rounded-lg border border-border-card-inner/70 bg-bg-card-inner px-3 py-1.5"
+      : scoreBoxStyle === "chip"
+        ? "card-chip"
+        : isScheduled
+          ? "card-chip"
+          : "rounded-lg border border-border-card-inner/70 bg-bg-card-inner px-3 py-1.5";
   const leader: "A" | "B" | null = isScheduled || aGoals === bGoals ? null : aGoals > bGoals ? "A" : "B";
 
   return (
@@ -97,7 +106,7 @@ export default function MatchOverviewPanel({
         </div>
       </div>
 
-      {showOdds && (match.state === "scheduled" || match.state === "playing") && match.odds ? (
+      {showOdds && (showOddsWhenFinished || match.state === "scheduled" || match.state === "playing") && match.odds ? (
         <OddsInline odds={match.odds} />
       ) : null}
 

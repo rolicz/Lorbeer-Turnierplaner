@@ -5,12 +5,11 @@ import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
 import type { Club, Match } from "../../api/types";
 import { sideBy } from "../../helpers";
 import { useMemo } from "react";
-import { StarsFA } from "../../ui/primitives/StarsFA";
-import { Pill, statusMatchPill } from "../../ui/primitives/Pill";
+import MatchOverviewPanel from "../../ui/primitives/MatchOverviewPanel";
 import SelectClubsPanel from "../../ui/SelectClubsPanel";
+import SegmentedSwitch from "../../ui/primitives/SegmentedSwitch";
 import {
   GoalStepper,
-  clubLabelPartsById,
 } from "../../ui/clubControls";
 
 export default function MatchEditorSheet({
@@ -61,22 +60,37 @@ export default function MatchEditorSheet({
   const aSide = match ? sideBy(match, "A") : undefined;
   const bSide = match ? sideBy(match, "B") : undefined;
 
-  const aNames = useMemo(() => aSide?.players?.map((p) => p.display_name) ?? ["—"], [aSide]);
-  const bNames = useMemo(() => bSide?.players?.map((p) => p.display_name) ?? ["—"], [bSide]);
-
   const aPlayers = aSide?.players.map((p) => p.display_name).join(" + ") ?? "—";
   const bPlayers = bSide?.players.map((p) => p.display_name).join(" + ") ?? "—";
 
-  const aClubParts = useMemo(() => clubLabelPartsById(clubs, aClub), [clubs, aClub]);
-  const bClubParts = useMemo(() => clubLabelPartsById(clubs, bClub), [clubs, bClub]);
-
   const aGoalsNum = parseGoal(aGoals);
   const bGoalsNum = parseGoal(bGoals);
-  const showGoalInputs = state !== "scheduled";
-  const leader: "A" | "B" | null = !showGoalInputs || aGoalsNum === bGoalsNum ? null : aGoalsNum > bGoalsNum ? "A" : "B";
 
-  const scoreLeft = showGoalInputs ? String(aGoalsNum) : "-";
-  const scoreRight = showGoalInputs ? String(bGoalsNum) : "-";
+  const previewMatch = useMemo<Match | null>(() => {
+    if (!match) return null;
+    const a = sideBy(match, "A");
+    const b = sideBy(match, "B");
+    return {
+      ...match,
+      state,
+      sides: [
+        {
+          id: a?.id ?? -11,
+          side: "A",
+          players: a?.players ?? [],
+          club_id: aClub,
+          goals: aGoalsNum,
+        },
+        {
+          id: b?.id ?? -12,
+          side: "B",
+          players: b?.players ?? [],
+          club_id: bClub,
+          goals: bGoalsNum,
+        },
+      ],
+    };
+  }, [aClub, aGoalsNum, bClub, bGoalsNum, match, state]);
 
   return (
     <Sheet open={open} title={`Edit Match #${match?.id ?? "—"}`} onClose={onClose}>
@@ -88,129 +102,63 @@ export default function MatchEditorSheet({
         <div className="flex max-h-[80vh] flex-col">
           {/* Scroll area */}
           <div className="flex-1 space-y-4 overflow-y-auto pr-1 [-webkit-overflow-scrolling:touch]">
-            <div className="panel p-3">
+            <div className="card-inner space-y-2">
               <div className="mb-2 text-sm font-medium">Match State</div>
-              <div className="grid grid-cols-3 gap-2">
-                {(["scheduled", "playing", "finished"] as const).map((s) => (
-                  <button
-                    key={s}
-                    type="button"
-                    className={`rounded-xl border px-3 py-2 text-sm ${
-                      state === s
-                        ? "border-accent/60 bg-bg-card-inner"
-                        : "border-border-card-inner/70 transition hover:bg-hover-default/40"
-                    }`}
-                    onClick={() => setState(s)}
-                  >
-                    {s}
-                  </button>
-                ))}
-              </div>
-
-              <div className="mt-2 text-xs text-text-muted">
-                <span className="break-anywhere">{aPlayers}</span>{" "}
-                <span className="text-text-muted">vs</span>{" "}
-                <span className="break-anywhere">{bPlayers}</span>
+              <div className="flex">
+                <SegmentedSwitch<"scheduled" | "playing" | "finished">
+                  value={state}
+                  onChange={setState}
+                  options={[
+                    { key: "scheduled", label: "Scheduled" },
+                    { key: "playing", label: "Playing" },
+                    { key: "finished", label: "Finished" },
+                  ]}
+                  widthClass="w-[98px]"
+                  ariaLabel="Match state"
+                  title="Match state"
+                />
               </div>
             </div>
 
-            {/* Match display (like Current Game) */}
-            <div className="card-subtle">
-              {/* Row 1: match number + pills */}
-              <div className="mt-1 flex items-center justify-between gap-3">
-                <div className="text-[11px] sm:text-xs text-text-muted">Match #{match.order_index + 1}</div>
-                <div className="flex items-center gap-2 flex-nowrap whitespace-nowrap">
-                  <Pill>leg {match.leg}</Pill>
-                  <Pill className={statusMatchPill(state)}>{state}</Pill>
-                </div>
-              </div>
+            {/* Match panel (shared with live current game/dashboard) */}
+            <div className="card-inner space-y-2">
+              {previewMatch ? (
+                <MatchOverviewPanel
+                  match={previewMatch}
+                  clubs={clubs}
+                  aGoals={aGoalsNum}
+                  bGoals={bGoalsNum}
+                  showModePill={false}
+                  showOdds={true}
+                  showOddsWhenFinished={true}
+                  surface="panel"
+                />
+              ) : null}
 
-              {/* Row 2: names + score */}
-              <div className="mt-3 border-y border-border-card-inner/60 py-3">
-                <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 md:gap-4">
-                  <div className="min-w-0">
-                    {aNames.map((n, i) => (
-                      <div
-                        key={`${n}-${i}`}
-                        className={
-                          "text-[15px] md:text-lg text-text-normal whitespace-normal md:truncate break-words leading-tight " +
-                          (leader === "A" ? "font-black" : "font-medium")
-                        }
-                      >
-                        {n}
-                      </div>
-                    ))}
-                  </div>
-
-                  <div className="card-chip justify-self-center flex items-center justify-center gap-2">
-                    <span className="text-xl font-semibold tabular-nums">{scoreLeft}</span>
-                    <span className="text-text-muted">:</span>
-                    <span className="text-xl font-semibold tabular-nums">{scoreRight}</span>
-                  </div>
-
-                  <div className="min-w-0 text-right">
-                    {bNames.map((n, i) => (
-                      <div
-                        key={`${n}-${i}`}
-                        className={
-                          "text-[15px] md:text-lg text-text-normal whitespace-normal md:truncate break-words leading-tight " +
-                          (leader === "B" ? "font-black" : "font-medium")
-                        }
-                      >
-                        {n}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              {/* Row 3: clubs */}
-              <div className="mt-2 md:mt-3 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-start gap-3 md:gap-4 text-xs md:text-sm text-text-muted">
-                <div className="min-w-0 whitespace-normal md:truncate break-words leading-tight">{aClubParts.name}</div>
-                <div />
-                <div className="min-w-0 whitespace-normal md:truncate break-words leading-tight text-right">{bClubParts.name}</div>
-              </div>
-
-              {/* Row 4: leagues */}
-              <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-start gap-3 md:gap-4 text-xs md:text-sm text-text-muted">
-                <div className="min-w-0 whitespace-normal md:truncate break-words leading-tight">{aClubParts.league_name}</div>
-                <div />
-                <div className="min-w-0 whitespace-normal md:truncate break-words leading-tight text-right">{bClubParts.league_name}</div>
-              </div>
-
-              {/* Row 5: stars */}
-              <div className="mt-1 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 md:gap-4 text-[11px] md:text-sm text-text-muted">
-                <div className="min-w-0">
-                  <StarsFA rating={aClubParts.rating ?? 0} textClassName="text-text-muted" />
+              <div
+                className={
+                  "pt-2 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 md:gap-4 " +
+                  (state === "scheduled" ? "opacity-55" : "")
+                }
+              >
+                <div className="flex justify-start">
+                  <GoalStepper
+                    value={aGoalsNum}
+                    onChange={(v) => setAGoals(String(v))}
+                    disabled={saving || state === "scheduled"}
+                    ariaLabel="Goals left"
+                  />
                 </div>
                 <div />
-                <div className="min-w-0 flex justify-end">
-                  <StarsFA rating={bClubParts.rating ?? 0} textClassName="text-text-muted" />
+                <div className="flex justify-end">
+                  <GoalStepper
+                    value={bGoalsNum}
+                    onChange={(v) => setBGoals(String(v))}
+                    disabled={saving || state === "scheduled"}
+                    ariaLabel="Goals right"
+                  />
                 </div>
               </div>
-
-              {/* Row 6: score inputs */}
-              {showGoalInputs && (
-                <div className="mt-3 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 md:gap-4">
-                  <div className="flex justify-start">
-                    <GoalStepper
-                      value={aGoalsNum}
-                      onChange={(v) => setAGoals(String(v))}
-                      disabled={saving}
-                      ariaLabel="Goals left"
-                    />
-                  </div>
-                  <div />
-                  <div className="flex justify-end">
-                    <GoalStepper
-                      value={bGoalsNum}
-                      onChange={(v) => setBGoals(String(v))}
-                      disabled={saving}
-                      ariaLabel="Goals right"
-                    />
-                  </div>
-                </div>
-              )}
             </div>
 
             {/* Clubs (re-used from Current Game) */}
@@ -224,6 +172,8 @@ export default function MatchEditorSheet({
               onChangeAClub={setAClub}
               onChangeBClub={setBClub}
               defaultOpen={false}
+              wrapClassName="card-inner"
+              narrowLayout
               extraTop={
                 <div className="grid grid-cols-1 gap-2">
                   <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
