@@ -64,6 +64,10 @@ export function listPlayerPokeSummary(): Promise<PlayerPokeSummary[]> {
   return apiFetch("/players/pokes-summary", { method: "GET" });
 }
 
+export function listPlayerPokes(playerId: number, limit = 40): Promise<PlayerPoke[]> {
+  return apiFetch(`/players/${playerId}/pokes?limit=${encodeURIComponent(String(limit))}`, { method: "GET" });
+}
+
 export function listPlayerPokeReadIds(token: string, playerId: number): Promise<PlayerPokeReadIds> {
   return apiFetch(`/players/${playerId}/pokes/read`, { method: "GET", token });
 }

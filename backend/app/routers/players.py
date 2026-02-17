@@ -449,6 +449,20 @@ def _guestbook_entry_payload(
     }
 
 
+def _poke_payload(
+    *,
+    poke: PlayerPoke,
+    author_display_name: str,
+) -> dict:
+    return {
+        "id": int(poke.id),
+        "profile_player_id": int(poke.profile_player_id),
+        "author_player_id": int(poke.author_player_id),
+        "author_display_name": author_display_name,
+        "created_at": poke.created_at,
+    }
+
+
 @router.get("/{player_id}/guestbook")
 def list_player_guestbook(player_id: int, s: Session = Depends(get_session)):
     player = s.get(Player, player_id)
@@ -466,6 +480,35 @@ def list_player_guestbook(player_id: int, s: Session = Depends(get_session)):
     return [
         _guestbook_entry_payload(
             entry=row,
+            author_display_name=author_name_by_id.get(int(row.author_player_id), f"Player #{int(row.author_player_id)}"),
+        )
+        for row in rows
+    ]
+
+
+@router.get("/{player_id}/pokes")
+def list_player_pokes(
+    player_id: int,
+    limit: int = 40,
+    s: Session = Depends(get_session),
+):
+    player = s.get(Player, player_id)
+    if not player:
+        raise HTTPException(status_code=404, detail="Player not found")
+
+    lim = max(1, min(int(limit), 250))
+    rows = s.exec(
+        select(PlayerPoke)
+        .where(PlayerPoke.profile_player_id == player_id)
+        .order_by(PlayerPoke.created_at.desc(), PlayerPoke.id.desc())
+        .limit(lim)
+    ).all()
+    author_ids = sorted({int(row.author_player_id) for row in rows})
+    authors = s.exec(select(Player).where(Player.id.in_(author_ids))).all() if author_ids else []
+    author_name_by_id = {int(p.id): p.display_name for p in authors}
+    return [
+        _poke_payload(
+            poke=row,
             author_display_name=author_name_by_id.get(int(row.author_player_id), f"Player #{int(row.author_player_id)}"),
         )
         for row in rows
@@ -592,13 +635,7 @@ def create_player_poke(
         s.add(PlayerPokeRead(player_id=author_player_id, poke_id=int(row.id), read_at=now))
         s.commit()
 
-    return {
-        "id": int(row.id),
-        "profile_player_id": int(row.profile_player_id),
-        "author_player_id": int(row.author_player_id),
-        "author_display_name": author_player.display_name,
-        "created_at": row.created_at,
-    }
+    return _poke_payload(poke=row, author_display_name=author_player.display_name)
 
 
 @router.put("/guestbook/{entry_id}/read")

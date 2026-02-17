@@ -189,7 +189,7 @@ def test_profile_guestbook_read_tracking_per_player(client, editor_headers, admi
 
 def test_profile_poke_tracking_per_player(client, editor_headers, admin_headers):
     editor_id = _player_id_by_name(client, "Editor")
-    admin_id = _player_id_by_name(client, "Admin")
+    editor_name = "Editor"
     target_id = client.post("/players", json={"display_name": "PokeTarget"}, headers=admin_headers).json()["id"]
 
     # Can poke others, but not self.
@@ -201,6 +201,15 @@ def test_profile_poke_tracking_per_player(client, editor_headers, admin_headers)
     poke_id = int(r_poke.json()["id"])
     assert int(r_poke.json()["author_player_id"]) == editor_id
     assert int(r_poke.json()["profile_player_id"]) == target_id
+
+    # Public poke list shows who poked.
+    r_list = client.get(f"/players/{target_id}/pokes")
+    assert r_list.status_code == 200, r_list.text
+    rows = r_list.json() or []
+    assert len(rows) >= 1
+    assert int(rows[0]["id"]) == poke_id
+    assert int(rows[0]["author_player_id"]) == editor_id
+    assert rows[0]["author_display_name"] == editor_name
 
     # Summary includes this poke under target profile.
     r_sum = client.get("/players/pokes-summary")

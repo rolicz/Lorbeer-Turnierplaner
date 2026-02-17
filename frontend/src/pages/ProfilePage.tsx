@@ -18,6 +18,7 @@ import {
   createPlayerGuestbookEntry,
   deletePlayerGuestbookEntry,
   getPlayerProfile,
+  listPlayerPokes,
   listPlayerPokeReadIds,
   listPlayerPokeSummary,
   listPlayerGuestbookReadIds,
@@ -110,6 +111,17 @@ export default function ProfilePage() {
     queryKey: ["players", "pokes", "summary"],
     queryFn: listPlayerPokeSummary,
     enabled: Number.isFinite(targetPlayerId) && (targetPlayerId ?? 0) > 0,
+  });
+  const pokesQ = useQuery({
+    queryKey: ["players", "pokes", targetPlayerId ?? "none"],
+    queryFn: () => listPlayerPokes(targetPlayerId as number, 80),
+    enabled:
+      !!token &&
+      !!currentPlayerId &&
+      !!targetPlayerId &&
+      currentPlayerId === targetPlayerId &&
+      Number.isFinite(targetPlayerId) &&
+      (targetPlayerId ?? 0) > 0,
   });
   const pokeReadQ = useQuery({
     queryKey: ["players", "pokes", "read", targetPlayerId ?? "none", token ?? "none"],
@@ -315,6 +327,28 @@ export default function ProfilePage() {
     if (!ids.length) return 0;
     return ids.filter((id) => !seenPokes.has(Number(id))).length;
   }, [token, isOwnProfile, pokeSummaryRow?.poke_ids, seenPokes]);
+  const unreadPokeAuthorsText = useMemo(() => {
+    if (!token || !isOwnProfile) return "";
+    const unreadRows = (pokesQ.data ?? []).filter((row) => !seenPokes.has(Number(row.id)));
+    if (!unreadRows.length) return "";
+    const byAuthor = new Map<number, { name: string; count: number }>();
+    for (const row of unreadRows) {
+      const authorId = Number(row.author_player_id);
+      const prev = byAuthor.get(authorId);
+      if (prev) {
+        prev.count += 1;
+      } else {
+        byAuthor.set(authorId, {
+          name: row.author_display_name || `Player #${authorId}`,
+          count: 1,
+        });
+      }
+    }
+    const top = Array.from(byAuthor.values()).slice(0, 3);
+    const names = top.map((x) => (x.count > 1 ? `${x.name} x${x.count}` : x.name));
+    const rest = byAuthor.size - top.length;
+    return rest > 0 ? `${names.join(", ")} +${rest}` : names.join(", ");
+  }, [isOwnProfile, pokesQ.data, seenPokes, token]);
 
   const sections = useMemo(
     () => [
@@ -573,6 +607,7 @@ export default function ProfilePage() {
     onSuccess: async () => {
       setPokeButtonFlash({ kind: "sent", playerId: targetPlayerId ?? null });
       await qc.invalidateQueries({ queryKey: ["players", "pokes", "summary"] });
+      await qc.invalidateQueries({ queryKey: ["players", "pokes", targetPlayerId ?? "none"] });
       await qc.invalidateQueries({ queryKey: ["players", "pokes", "read", targetPlayerId ?? "none"] });
       await qc.invalidateQueries({ queryKey: ["players", "pokes", "read-map", token ?? "none"] });
     },
@@ -585,6 +620,7 @@ export default function ProfilePage() {
     onSuccess: async () => {
       setPokeButtonFlash({ kind: "read", playerId: targetPlayerId ?? null });
       await qc.invalidateQueries({ queryKey: ["players", "pokes", "summary"] });
+      await qc.invalidateQueries({ queryKey: ["players", "pokes", targetPlayerId ?? "none"] });
       await qc.invalidateQueries({ queryKey: ["players", "pokes", "read", targetPlayerId ?? "none", token ?? "none"] });
       await qc.invalidateQueries({ queryKey: ["players", "pokes", "read-map", token ?? "none"] });
     },
@@ -601,6 +637,7 @@ export default function ProfilePage() {
       playersQ.isLoading ||
       profileQ.isLoading ||
       guestbookQ.isLoading ||
+      pokesQ.isLoading ||
       pokesSummaryQ.isLoading ||
       pokeReadQ.isLoading ||
       clubsQ.isLoading ||
@@ -618,6 +655,7 @@ export default function ProfilePage() {
     cupDefsQ.isLoading,
     cupsLoading,
     guestbookQ.isLoading,
+    pokesQ.isLoading,
     pokesSummaryQ.isLoading,
     pokeReadQ.isLoading,
     playersQ.isLoading,
@@ -694,6 +732,7 @@ export default function ProfilePage() {
       <div className="space-y-3">
         <ErrorToastOnError error={playersQ.error} title="Players loading failed" />
         <ErrorToastOnError error={profileQ.error} title="Profile loading failed" />
+        <ErrorToastOnError error={pokesQ.error} title="Pokes loading failed" />
         <ErrorToastOnError error={pokesSummaryQ.error} title="Poke notifications loading failed" />
         <ErrorToastOnError error={pokeReadQ.error} title="Poke notifications loading failed" />
         <ErrorToastOnError error={saveProfileMut.error} title="Could not save profile text" />
@@ -744,6 +783,12 @@ export default function ProfilePage() {
                 ) : null}
               </div>
               <div className="text-xs text-text-muted">{isOwnProfile ? "This is your profile" : "Public profile"}</div>
+              {isOwnProfile && unreadPokeCount > 0 && unreadPokeAuthorsText ? (
+                <div className="mt-0.5 inline-flex max-w-full items-center gap-1 text-[11px] text-text-muted">
+                  <i className="fa-solid fa-bell text-accent" aria-hidden="true" />
+                  <span className="truncate">Angepöbelt von: {unreadPokeAuthorsText}</span>
+                </div>
+              ) : null}
             </div>
             <div className="ml-auto shrink-0">
               <div className="flex items-center gap-2">
@@ -784,19 +829,21 @@ export default function ProfilePage() {
                     title="Anpöbeln"
                     className="active:scale-95"
                   >
-                    <i
-                      className={
-                        "md:hidden fa-solid " +
-                        (pokeMut.isPending
-                          ? "fa-spinner fa-spin"
-                          : pokeFlashKind === "sent"
-                            ? "fa-circle-check text-accent"
-                            : "fa-hand-point-up")
-                      }
-                      aria-hidden="true"
-                    />
-                    <span className="hidden md:inline">
-                      {pokeMut.isPending ? "Anpöbeln…" : pokeFlashKind === "sent" ? "Gesendet" : "Anpöbeln"}
+                    <span className="inline-flex items-center gap-2">
+                      <i
+                        className={
+                          "fa-solid " +
+                          (pokeMut.isPending
+                            ? "fa-spinner fa-spin"
+                            : pokeFlashKind === "sent"
+                              ? "fa-circle-check text-accent"
+                              : "fa-hand-fist")
+                        }
+                        aria-hidden="true"
+                      />
+                      <span>
+                        {pokeMut.isPending ? "Anpöbeln…" : pokeFlashKind === "sent" ? "Gesendet" : "Anpöbeln"}
+                      </span>
                     </span>
                   </Button>
                 ) : null}
