@@ -95,6 +95,8 @@ export default function ProfilePage() {
   const routePlayerId = id ? Number(id) : null;
   const targetPlayerId =
     Number.isFinite(routePlayerId) && (routePlayerId ?? 0) > 0 ? (routePlayerId as number) : currentPlayerId;
+  const isOwnProfileView = !!currentPlayerId && !!targetPlayerId && currentPlayerId === targetPlayerId;
+  const pokeAutoRefreshMs = 4000;
 
   const playersQ = useQuery({ queryKey: ["players"], queryFn: listPlayers });
   const profileQ = useQuery({
@@ -111,6 +113,8 @@ export default function ProfilePage() {
     queryKey: ["players", "pokes", "summary"],
     queryFn: listPlayerPokeSummary,
     enabled: Number.isFinite(targetPlayerId) && (targetPlayerId ?? 0) > 0,
+    refetchInterval: isOwnProfileView ? pokeAutoRefreshMs : false,
+    refetchIntervalInBackground: false,
   });
   const pokesQ = useQuery({
     queryKey: ["players", "pokes", targetPlayerId ?? "none"],
@@ -119,14 +123,18 @@ export default function ProfilePage() {
       !!token &&
       !!currentPlayerId &&
       !!targetPlayerId &&
-      currentPlayerId === targetPlayerId &&
+      isOwnProfileView &&
       Number.isFinite(targetPlayerId) &&
       (targetPlayerId ?? 0) > 0,
+    refetchInterval: pokeAutoRefreshMs,
+    refetchIntervalInBackground: false,
   });
   const pokeReadQ = useQuery({
     queryKey: ["players", "pokes", "read", targetPlayerId ?? "none", token ?? "none"],
     queryFn: () => listPlayerPokeReadIds(token as string, targetPlayerId as number),
     enabled: !!token && Number.isFinite(targetPlayerId) && (targetPlayerId ?? 0) > 0,
+    refetchInterval: isOwnProfileView ? pokeAutoRefreshMs : false,
+    refetchIntervalInBackground: false,
   });
   const guestbookReadQ = useQuery({
     queryKey: ["players", "guestbook", "read", targetPlayerId ?? "none", token ?? "none"],
@@ -225,7 +233,7 @@ export default function ProfilePage() {
     return rows.find((p) => p.id === targetPlayerId) ?? null;
   }, [playersQ.data, targetPlayerId]);
 
-  const isOwnProfile = !!currentPlayerId && !!targetPlayerId && currentPlayerId === targetPlayerId;
+  const isOwnProfile = isOwnProfileView;
   const canEdit = !!token && role !== "reader" && isOwnProfile;
   const canPostGuestbook = !!token && role !== "reader";
   const seenGuestbook = useMemo(
