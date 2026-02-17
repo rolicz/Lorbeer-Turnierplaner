@@ -1156,12 +1156,21 @@ export default function ProfilePage() {
                 ) : null}
               </div>
               <div className="text-xs text-text-muted">{isOwnProfile ? "This is your profile" : "Public profile"}</div>
-              {isOwnProfile ? (
-                <div className="mt-0.5 text-[11px] text-text-muted">
-                  Guestbook: <span className="tabular-nums text-text-normal">{totalGuestbookCount}</span> · Pokes:{" "}
-                  <span className="tabular-nums text-text-normal">{totalPokeCount}</span>
-                </div>
-              ) : null}
+              <div className="mt-0.5 text-[11px] text-text-muted">
+                {isOwnProfile ? (
+                  <>
+                    Guestbook: <span className="tabular-nums text-text-normal">{totalGuestbookCount}</span> · Angepöbelt:{" "}
+                    <span className="tabular-nums text-text-normal">{totalPokeCount}</span>
+                  </>
+                ) : (
+                  <span className="inline-flex items-center gap-1.5">
+                    <i className="fa-solid fa-hand-fist" aria-hidden="true" />
+                    <span>
+                      Angepöbelt: <span className="tabular-nums text-text-normal">{totalPokeCount}</span>
+                    </span>
+                  </span>
+                )}
+              </div>
             </div>
             <div className="ml-auto shrink-0">
               <div className="flex items-center gap-2">
