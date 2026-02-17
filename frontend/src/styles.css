@@ -423,6 +423,18 @@
     will-change: transform, opacity;
   }
 
+  .pull-refresh-indicator {
+    @apply mt-1 inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs;
+    color: rgb(var(--color-text-muted));
+    background-color: rgb(var(--color-bg-card-inner) / 0.92);
+    border: 1px solid rgb(var(--color-border-card-chip) / 0.6);
+    box-shadow: 0 6px 18px rgb(0 0 0 / 0.16);
+    transition:
+      opacity 150ms ease-out,
+      transform 180ms ease-out;
+    will-change: opacity, transform;
+  }
+
   :root {
     --subnav-anchor-w: 2.25rem; /* icon-only button (h-9 w-9) */
     --subnav-create-w: 6.25rem; /* approximate "Create New" width */

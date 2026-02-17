@@ -323,8 +323,9 @@ export default function ProfilePage() {
     if (!ids.length) return 0;
     return ids.filter((id) => !seenPokes.has(Number(id))).length;
   }, [token, isOwnProfile, pokeSummaryRow?.poke_ids, seenPokes]);
-  const pokeAuthorsText = useMemo(() => {
-    const rows = pokesQ.data ?? [];
+  const unreadPokeAuthorsText = useMemo(() => {
+    if (!token || !isOwnProfile) return "";
+    const rows = (pokesQ.data ?? []).filter((row) => !seenPokes.has(Number(row.id)));
     if (!rows.length) return "";
     const byAuthor = new Map<number, { name: string; count: number }>();
     for (const row of rows) {
@@ -343,12 +344,13 @@ export default function ProfilePage() {
     const names = top.map((x) => `${x.name} x${x.count}`);
     const rest = byAuthor.size - top.length;
     return rest > 0 ? `${names.join(", ")} +${rest}` : names.join(", ");
-  }, [pokesQ.data]);
-  const pokeAuthorCount = useMemo(() => {
-    const rows = pokesQ.data ?? [];
+  }, [isOwnProfile, pokesQ.data, seenPokes, token]);
+  const unreadPokeAuthorCount = useMemo(() => {
+    if (!token || !isOwnProfile) return 0;
+    const rows = (pokesQ.data ?? []).filter((row) => !seenPokes.has(Number(row.id)));
     if (!rows.length) return 0;
     return new Set(rows.map((row) => Number(row.author_player_id))).size;
-  }, [pokesQ.data]);
+  }, [isOwnProfile, pokesQ.data, seenPokes, token]);
   const totalPokeCount = Number(pokeSummaryRow?.total_pokes ?? 0);
 
   usePlayerProfileWS(targetPlayerId, token);
@@ -853,13 +855,12 @@ export default function ProfilePage() {
               </div>
             </div>
           </div>
-          {totalPokeCount > 0 && pokeAuthorsText ? (
+          {isOwnProfile && unreadPokeCount > 0 && unreadPokeAuthorsText ? (
             <div className="pt-1">
               <div className="inline-flex max-w-full items-center gap-1.5 text-[11px] text-text-muted">
                 <i className="fa-solid fa-hand-fist" aria-hidden="true" />
                 <span className="truncate">
-                  Angepöbelt von{pokeAuthorCount > 1 ? ` (${pokeAuthorCount})` : ""}: {pokeAuthorsText}
-                  {isOwnProfile && unreadPokeCount > 0 ? ` · Neu: ${unreadPokeCount}` : ""}
+                  Neu angepöbelt von{unreadPokeAuthorCount > 1 ? ` (${unreadPokeAuthorCount})` : ""}: {unreadPokeAuthorsText}
                 </span>
               </div>
             </div>

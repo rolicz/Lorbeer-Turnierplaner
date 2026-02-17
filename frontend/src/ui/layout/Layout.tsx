@@ -15,6 +15,7 @@ import {
   listPlayerPokeSummary,
 } from "../../api/players.api";
 import { SubNavProvider, useSubNavContext, type SubNavItem } from "./SubNavContext";
+import { usePullToRefresh } from "./usePullToRefresh";
 
 type Role = "reader" | "editor" | "admin";
 type ThemeName = string;
@@ -93,6 +94,12 @@ function LayoutInner({ children }: { children: React.ReactNode }) {
   const themeMenuRef = useRef<HTMLDivElement | null>(null);
   const headerRef = useRef<HTMLDivElement | null>(null);
   const { items: subNavItems, setItems: setSubNavItems } = useSubNavContext();
+  const pull = usePullToRefresh({
+    enabled: true,
+    onRefresh: async () => {
+      await qc.invalidateQueries({ refetchType: "active" });
+    },
+  });
 
   // Warm cache so "unread comments" indicators appear quickly after navigation.
   // Using prefetch avoids any rendering dependencies and works well with StrictMode.
@@ -708,6 +715,41 @@ function LayoutInner({ children }: { children: React.ReactNode }) {
               </div>
             </>
           ) : null}
+        </div>
+      </div>
+
+      <div
+        className="fixed inset-x-0 z-20 pointer-events-none"
+        style={{ top: `${headerHeight}px` }}
+        aria-hidden="true"
+      >
+        <div className="mx-auto max-w-6xl xl:max-w-7xl page-x">
+          <div className="flex justify-center">
+            <div
+              className={
+                "pull-refresh-indicator " +
+                (pull.active || pull.refreshing ? "opacity-100" : "opacity-0")
+              }
+              style={{
+                transform: `translateY(${Math.max(-44, Math.min(28, pull.distance - 44))}px)`,
+              }}
+            >
+              <i
+                className={
+                  "fa-solid " +
+                  (pull.refreshing
+                    ? "fa-spinner fa-spin"
+                    : pull.ready
+                      ? "fa-arrows-rotate"
+                      : "fa-arrow-down")
+                }
+                aria-hidden="true"
+              />
+              <span>
+                {pull.refreshing ? "Refreshing…" : pull.ready ? "Release to refresh" : "Pull to refresh"}
+              </span>
+            </div>
+          </div>
         </div>
       </div>
 
