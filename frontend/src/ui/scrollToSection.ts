@@ -16,13 +16,14 @@ export function scrollToSectionById(
       return;
     }
 
-    // Measure after layout has settled for this frame, then scroll once.
+    // Deterministic one-shot jump based on current sticky header height.
     window.requestAnimationFrame(() => {
       const header = document.getElementById("app-top-nav");
       const headerHeight = header ? Math.ceil(header.getBoundingClientRect().height) : 0;
+      const gap = 4; // small breathing room below sticky header
       const targetTop = Math.max(
         0,
-        window.scrollY + el.getBoundingClientRect().top - headerHeight - extraOffsetPx
+        window.scrollY + el.getBoundingClientRect().top - headerHeight - gap - extraOffsetPx
       );
       window.scrollTo({ top: targetTop, behavior });
     });

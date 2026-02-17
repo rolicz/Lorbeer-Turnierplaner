@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import { useQueries, useQuery } from "@tanstack/react-query";
 
@@ -313,7 +313,14 @@ function TilesScopeSwitch({
   );
 }
 
-export default function PlayersStatsCard({ embedded = false }: { embedded?: boolean } = {}) {
+export default function PlayersStatsCard({
+  embedded = false,
+  onInitialReady,
+}: {
+  embedded?: boolean;
+  onInitialReady?: () => void;
+} = {}) {
+  const initialReadyFiredRef = useRef(false);
   const playersQ = useQuery({ queryKey: ["players"], queryFn: listPlayers });
 
   const LASTN_FETCH = 25;
@@ -342,6 +349,14 @@ export default function PlayersStatsCard({ embedded = false }: { embedded?: bool
       queryFn: () => getCup(c.key),
     })),
   });
+  const cupsLoading = cupsQ.some((q) => q.isLoading);
+
+  useEffect(() => {
+    if (initialReadyFiredRef.current) return;
+    if (playersQ.isLoading || statsQ.isLoading || cupDefsQ.isLoading || cupsLoading) return;
+    initialReadyFiredRef.current = true;
+    onInitialReady?.();
+  }, [playersQ.isLoading, statsQ.isLoading, cupDefsQ.isLoading, cupsLoading, onInitialReady]);
 
   const cupOwnerIdLegacy = statsQ.data?.cup_owner_player_id ?? null;
   const cupsOwnedByPlayerId = useMemo(() => {

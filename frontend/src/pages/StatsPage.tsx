@@ -5,7 +5,7 @@ import StreaksCard from "./stats/StreaksCard";
 import PlayerMatchesCard from "./stats/PlayerMatchesCard";
 import RatingsCard from "./stats/RatingsCard";
 import StarsPerformanceCard from "./stats/StarsPerformanceCard";
-import { useLayoutEffect, useMemo } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { usePageSubNav, type SubNavItem } from "../ui/layout/SubNavContext";
 import { useSectionSubnav } from "../ui/layout/useSectionSubnav";
@@ -29,6 +29,13 @@ export default function StatsPage() {
 
   const initialTrendsView = state?.trendsView ?? undefined;
 
+  const [playersSectionReady, setPlayersSectionReady] = useState(false);
+  const [jumpDoneForKey, setJumpDoneForKey] = useState<string>("");
+  const handlePlayersInitialReady = useCallback(() => {
+    setPlayersSectionReady(true);
+  }, []);
+  const hideUntilInitialJump = focusTrends && jumpDoneForKey !== location.key;
+
   const sections = useMemo(
     () => [
       { key: "players", id: "stats-section-players" },
@@ -46,7 +53,7 @@ export default function StatsPage() {
   const { activeKey: activeSubKey, blinkKey: subnavBlinkKey, jumpToSection } = useSectionSubnav({
     sections,
     enabled: pageEntered,
-    initialKey: "players",
+    initialKey: focusTrends ? "trends" : "players",
   });
 
   const subNavItems = useMemo<SubNavItem[]>(
@@ -125,13 +132,15 @@ export default function StatsPage() {
 
   useLayoutEffect(() => {
     if (focusTrends) {
+      if (!playersSectionReady) return;
       jumpToSection("trends", "stats-section-trends", {
         blink: false,
         lockMs: 700,
         retries: 20,
         behavior: "auto",
       });
-      return;
+      const t = window.setTimeout(() => setJumpDoneForKey(location.key), 120);
+      return () => window.clearTimeout(t);
     }
     jumpToSection("players", "stats-section-players", {
       blink: false,
@@ -139,7 +148,13 @@ export default function StatsPage() {
       retries: 20,
       behavior: "auto",
     });
-  }, [focusTrends, jumpToSection, location.key]);
+  }, [focusTrends, jumpToSection, location.key, playersSectionReady]);
+
+  useEffect(() => {
+    if (!hideUntilInitialJump) return;
+    const fallback = window.setTimeout(() => setJumpDoneForKey(location.key), 1200);
+    return () => window.clearTimeout(fallback);
+  }, [hideUntilInitialJump, location.key]);
 
   if (!pageEntered) {
     return (
@@ -150,8 +165,13 @@ export default function StatsPage() {
   }
 
   return (
-    <div className="page no-scroll-anchor">
-      <div className="grid gap-3 lg:grid-cols-2">
+    <div className="page no-scroll-anchor relative">
+      {hideUntilInitialJump ? (
+        <div className="absolute inset-0 z-20 grid place-items-center bg-bg-default/92 backdrop-blur-[1px] pointer-events-none">
+          <PageLoadingScreen sectionCount={6} className="min-h-0" />
+        </div>
+      ) : null}
+      <div className={"grid gap-3 lg:grid-cols-2 " + (hideUntilInitialJump ? "opacity-0" : "")}>
         <SectionSeparator
           id="stats-section-players"
           title={
@@ -162,7 +182,7 @@ export default function StatsPage() {
           }
           className="mt-0 border-t-0 pt-0"
         >
-          <PlayersStatsCard embedded />
+          <PlayersStatsCard embedded onInitialReady={handlePlayersInitialReady} />
         </SectionSeparator>
         <SectionSeparator
           id="stats-section-trends"
