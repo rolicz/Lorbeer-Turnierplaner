@@ -98,6 +98,15 @@ class PlayerGuestbookEntry(SQLModel, table=True):
     updated_at: dt.datetime = Field(default_factory=dt.datetime.utcnow, index=True)
 
 
+class PlayerGuestbookThreadLink(SQLModel, table=True):
+    """
+    Optional parent-child relation for guestbook threads.
+    Top-level entries have no row in this table.
+    """
+    entry_id: int = Field(foreign_key="playerguestbookentry.id", primary_key=True)
+    parent_entry_id: int = Field(foreign_key="playerguestbookentry.id", index=True)
+
+
 class PlayerGuestbookRead(SQLModel, table=True):
     """
     Per-player read tracking for guestbook entries.

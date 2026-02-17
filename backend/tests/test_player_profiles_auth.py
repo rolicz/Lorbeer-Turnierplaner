@@ -111,6 +111,72 @@ def test_profile_guestbook_create_list_delete(client, editor_headers, admin_head
     assert r_del_author.status_code == 204, r_del_author.text
 
 
+def test_profile_guestbook_threads_recursive_delete(client, editor_headers, admin_headers):
+    target_id = client.post("/players", json={"display_name": "GuestbookThreadTarget"}, headers=admin_headers).json()["id"]
+
+    r_root = client.post(
+        f"/players/{target_id}/guestbook",
+        json={"body": "root"},
+        headers=editor_headers,
+    )
+    assert r_root.status_code == 200, r_root.text
+    root_id = int(r_root.json()["id"])
+    assert r_root.json().get("parent_entry_id") is None
+
+    r_reply = client.post(
+        f"/players/{target_id}/guestbook",
+        json={"body": "reply", "parent_entry_id": root_id},
+        headers=admin_headers,
+    )
+    assert r_reply.status_code == 200, r_reply.text
+    reply_id = int(r_reply.json()["id"])
+    assert int(r_reply.json().get("parent_entry_id")) == root_id
+
+    r_reply2 = client.post(
+        f"/players/{target_id}/guestbook",
+        json={"body": "reply2", "parent_entry_id": reply_id},
+        headers=editor_headers,
+    )
+    assert r_reply2.status_code == 200, r_reply2.text
+    reply2_id = int(r_reply2.json()["id"])
+    assert int(r_reply2.json().get("parent_entry_id")) == reply_id
+
+    r_list = client.get(f"/players/{target_id}/guestbook")
+    assert r_list.status_code == 200, r_list.text
+    rows = r_list.json() or []
+    by_id = {int(x["id"]): x for x in rows}
+    assert by_id[root_id]["parent_entry_id"] is None
+    assert int(by_id[reply_id]["parent_entry_id"]) == root_id
+    assert int(by_id[reply2_id]["parent_entry_id"]) == reply_id
+
+    r_del = client.delete(f"/players/guestbook/{root_id}", headers=admin_headers)
+    assert r_del.status_code == 204, r_del.text
+
+    r_list2 = client.get(f"/players/{target_id}/guestbook")
+    assert r_list2.status_code == 200, r_list2.text
+    assert (r_list2.json() or []) == []
+
+
+def test_profile_guestbook_reply_parent_must_match_profile(client, editor_headers, admin_headers):
+    target_a = client.post("/players", json={"display_name": "GuestbookParentA"}, headers=admin_headers).json()["id"]
+    target_b = client.post("/players", json={"display_name": "GuestbookParentB"}, headers=admin_headers).json()["id"]
+
+    r_root = client.post(
+        f"/players/{target_a}/guestbook",
+        json={"body": "root-a"},
+        headers=editor_headers,
+    )
+    assert r_root.status_code == 200, r_root.text
+    root_id = int(r_root.json()["id"])
+
+    r_bad = client.post(
+        f"/players/{target_b}/guestbook",
+        json={"body": "cross-profile-reply", "parent_entry_id": root_id},
+        headers=admin_headers,
+    )
+    assert r_bad.status_code == 400, r_bad.text
+
+
 def test_profile_guestbook_summary(client, editor_headers, admin_headers):
     target_id = client.post("/players", json={"display_name": "GuestbookSummaryTarget"}, headers=admin_headers).json()["id"]
 
@@ -243,3 +309,36 @@ def test_profile_poke_tracking_per_player(client, editor_headers, admin_headers)
     r_admin_read2 = client.get(f"/players/{target_id}/pokes/read", headers=admin_headers)
     assert r_admin_read2.status_code == 200, r_admin_read2.text
     assert poke_id in [int(x) for x in (r_admin_read2.json().get("poke_ids") or [])]
+
+
+def test_profile_poke_authored_unread_summary(client, editor_headers, admin_headers):
+    editor_id = _player_id_by_name(client, "Editor")
+    admin_id = _player_id_by_name(client, "Admin")
+    target_id = client.post("/players", json={"display_name": "PokeAuthoredUnreadTarget"}, headers=admin_headers).json()["id"]
+
+    # Editor pokes two different profiles.
+    r_p1 = client.post(f"/players/{admin_id}/pokes", headers=editor_headers)
+    assert r_p1.status_code == 200, r_p1.text
+    r_p2 = client.post(f"/players/{target_id}/pokes", headers=editor_headers)
+    assert r_p2.status_code == 200, r_p2.text
+
+    r_sum = client.get("/players/pokes-authored-unread-summary", headers=editor_headers)
+    assert r_sum.status_code == 200, r_sum.text
+    rows = r_sum.json() or []
+    row_admin = next((x for x in rows if int(x.get("profile_player_id", 0)) == int(admin_id)), None)
+    row_target = next((x for x in rows if int(x.get("profile_player_id", 0)) == int(target_id)), None)
+    assert row_admin is not None
+    assert row_target is not None
+    assert int(row_admin.get("unread_count", 0)) >= 1
+    assert int(row_target.get("unread_count", 0)) >= 1
+
+    # Admin marks own profile pokes as read -> authored unread for admin profile disappears.
+    r_mark = client.put(f"/players/{admin_id}/pokes/read-all", headers=admin_headers)
+    assert r_mark.status_code == 200, r_mark.text
+    assert int(r_mark.json().get("marked", 0)) >= 1
+
+    r_sum2 = client.get("/players/pokes-authored-unread-summary", headers=editor_headers)
+    assert r_sum2.status_code == 200, r_sum2.text
+    rows2 = r_sum2.json() or []
+    row_admin2 = next((x for x in rows2 if int(x.get("profile_player_id", 0)) == int(admin_id)), None)
+    assert row_admin2 is None or int(row_admin2.get("unread_count", 0)) == 0

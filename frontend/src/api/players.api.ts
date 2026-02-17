@@ -6,6 +6,7 @@ import type {
   PlayerGuestbookReadMapRow,
   PlayerGuestbookSummary,
   PlayerPoke,
+  PlayerPokeAuthoredUnreadSummary,
   PlayerPokeReadIds,
   PlayerPokeReadMapRow,
   PlayerPokeSummary,
@@ -64,6 +65,10 @@ export function listPlayerPokeSummary(): Promise<PlayerPokeSummary[]> {
   return apiFetch("/players/pokes-summary", { method: "GET" });
 }
 
+export function listPlayerPokeAuthoredUnreadSummary(token: string): Promise<PlayerPokeAuthoredUnreadSummary[]> {
+  return apiFetch("/players/pokes-authored-unread-summary", { method: "GET", token });
+}
+
 export function listPlayerPokes(playerId: number, limit = 40): Promise<PlayerPoke[]> {
   return apiFetch(`/players/${playerId}/pokes?limit=${encodeURIComponent(String(limit))}`, { method: "GET" });
 }
@@ -105,11 +110,15 @@ export function createPlayerGuestbookEntry(
   token: string,
   playerId: number,
   body: string,
+  parentEntryId?: number | null,
 ): Promise<PlayerGuestbookEntry> {
   return apiFetch(`/players/${playerId}/guestbook`, {
     method: "POST",
     token,
-    body: JSON.stringify({ body }),
+    body: JSON.stringify({
+      body,
+      parent_entry_id: parentEntryId ?? null,
+    }),
   });
 }
 

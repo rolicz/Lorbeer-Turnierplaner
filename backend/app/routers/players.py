@@ -12,6 +12,7 @@ from ..models import (
     PlayerAvatarFile,
     PlayerGuestbookEntry,
     PlayerGuestbookRead,
+    PlayerGuestbookThreadLink,
     PlayerPoke,
     PlayerPokeRead,
     PlayerHeaderImageFile,
@@ -209,6 +210,59 @@ def list_player_guestbook_summary(s: Session = Depends(get_session)) -> list[dic
 @router.get("/pokes-summary")
 def list_player_poke_summary(s: Session = Depends(get_session)) -> list[dict]:
     return player_poke_summary(s)
+
+
+@router.get("/pokes-authored-unread-summary")
+def list_player_pokes_authored_unread_summary(
+    s: Session = Depends(get_session),
+    claims: dict = Depends(require_auth_claims),
+) -> list[dict]:
+    author_player_id = int(claims.get("player_id"))
+    rows = s.exec(
+        select(
+            PlayerPoke.profile_player_id,
+            PlayerPoke.id,
+            PlayerPoke.created_at,
+        )
+        .outerjoin(
+            PlayerPokeRead,
+            (PlayerPokeRead.poke_id == PlayerPoke.id)
+            & (PlayerPokeRead.player_id == PlayerPoke.profile_player_id),
+        )
+        .where(
+            PlayerPoke.author_player_id == author_player_id,
+            PlayerPokeRead.poke_id.is_(None),
+        )
+        .order_by(
+            PlayerPoke.profile_player_id,
+            PlayerPoke.created_at,
+            PlayerPoke.id,
+        )
+    ).all()
+
+    out: dict[int, dict] = {}
+    for profile_player_id, poke_id, created_at in rows:
+        pid = int(profile_player_id)
+        eid = int(poke_id)
+        item = out.get(pid)
+        if not item:
+            item = {
+                "profile_player_id": pid,
+                "unread_count": 0,
+                "latest_created_at": None,
+                "poke_ids": [],
+            }
+            out[pid] = item
+
+        item["unread_count"] += 1
+        item["latest_created_at"] = (
+            created_at
+            if item["latest_created_at"] is None
+            else max(item["latest_created_at"], created_at)
+        )
+        item["poke_ids"].append(eid)
+
+    return list(out.values())
 
 
 @router.get("/guestbook-read-map")
@@ -452,12 +506,14 @@ def _guestbook_entry_payload(
     *,
     entry: PlayerGuestbookEntry,
     author_display_name: str,
+    parent_entry_id: int | None = None,
 ) -> dict:
     return {
         "id": int(entry.id),
         "profile_player_id": int(entry.profile_player_id),
         "author_player_id": int(entry.author_player_id),
         "author_display_name": author_display_name,
+        "parent_entry_id": int(parent_entry_id) if parent_entry_id is not None else None,
         "body": entry.body,
         "created_at": entry.created_at,
         "updated_at": entry.updated_at,
@@ -489,6 +545,15 @@ def list_player_guestbook(player_id: int, s: Session = Depends(get_session)):
         .where(PlayerGuestbookEntry.profile_player_id == player_id)
         .order_by(PlayerGuestbookEntry.created_at.desc(), PlayerGuestbookEntry.id.desc())
     ).all()
+    entry_ids = [int(row.id) for row in rows]
+    parent_by_entry_id: dict[int, int | None] = {}
+    if entry_ids:
+        links = s.exec(
+            select(PlayerGuestbookThreadLink.entry_id, PlayerGuestbookThreadLink.parent_entry_id).where(
+                PlayerGuestbookThreadLink.entry_id.in_(entry_ids)
+            )
+        ).all()
+        parent_by_entry_id = {int(entry_id): int(parent_entry_id) for entry_id, parent_entry_id in links}
     author_ids = sorted({int(row.author_player_id) for row in rows})
     authors = s.exec(select(Player).where(Player.id.in_(author_ids))).all() if author_ids else []
     author_name_by_id = {int(p.id): p.display_name for p in authors}
@@ -496,6 +561,7 @@ def list_player_guestbook(player_id: int, s: Session = Depends(get_session)):
         _guestbook_entry_payload(
             entry=row,
             author_display_name=author_name_by_id.get(int(row.author_player_id), f"Player #{int(row.author_player_id)}"),
+            parent_entry_id=parent_by_entry_id.get(int(row.id)),
         )
         for row in rows
     ]
@@ -598,6 +664,15 @@ def create_player_guestbook_entry(
     if not author_player:
         raise HTTPException(status_code=401, detail="Invalid token payload")
 
+    parent_entry_id: int | None = None
+    if body.parent_entry_id is not None:
+        parent_entry_id = int(body.parent_entry_id)
+        parent_row = s.get(PlayerGuestbookEntry, parent_entry_id)
+        if parent_row is None:
+            raise HTTPException(status_code=404, detail="Parent guestbook entry not found")
+        if int(parent_row.profile_player_id) != int(player_id):
+            raise HTTPException(status_code=400, detail="Parent entry belongs to a different profile")
+
     now = dt.datetime.utcnow()
     row = PlayerGuestbookEntry(
         profile_player_id=int(player_id),
@@ -607,13 +682,26 @@ def create_player_guestbook_entry(
         updated_at=now,
     )
     s.add(row)
-    s.commit()
-    s.refresh(row)
+    s.flush()
+
+    if parent_entry_id is not None:
+        s.add(
+            PlayerGuestbookThreadLink(
+                entry_id=int(row.id),
+                parent_entry_id=parent_entry_id,
+            )
+        )
+
     read_row = s.get(PlayerGuestbookRead, (author_player_id, int(row.id)))
     if read_row is None:
         s.add(PlayerGuestbookRead(player_id=author_player_id, guestbook_entry_id=int(row.id), read_at=now))
-        s.commit()
-    return _guestbook_entry_payload(entry=row, author_display_name=author_player.display_name)
+    s.commit()
+    s.refresh(row)
+    return _guestbook_entry_payload(
+        entry=row,
+        author_display_name=author_player.display_name,
+        parent_entry_id=parent_entry_id,
+    )
 
 
 @router.post("/{player_id}/pokes")
@@ -789,11 +877,52 @@ def delete_player_guestbook_entry(
     if not allowed:
         raise HTTPException(status_code=403, detail="Insufficient privileges")
 
+    root_id = int(entry_id)
+    profile_player_id = int(row.profile_player_id)
+
+    links = s.exec(
+        select(PlayerGuestbookThreadLink.entry_id, PlayerGuestbookThreadLink.parent_entry_id)
+        .join(PlayerGuestbookEntry, PlayerGuestbookEntry.id == PlayerGuestbookThreadLink.entry_id)
+        .where(PlayerGuestbookEntry.profile_player_id == profile_player_id)
+    ).all()
+    children_by_parent: dict[int, list[int]] = {}
+    for child_id, parent_id in links:
+        pid = int(parent_id)
+        children_by_parent.setdefault(pid, []).append(int(child_id))
+
+    to_delete: set[int] = set()
+    stack = [root_id]
+    while stack:
+        current = stack.pop()
+        if current in to_delete:
+            continue
+        to_delete.add(current)
+        stack.extend(children_by_parent.get(current, []))
+
+    if not to_delete:
+        return Response(status_code=204)
+
+    link_rows = s.exec(
+        select(PlayerGuestbookThreadLink).where(
+            PlayerGuestbookThreadLink.entry_id.in_(list(to_delete))
+        )
+    ).all()
+    for lrow in link_rows:
+        s.delete(lrow)
+
     read_rows = s.exec(
-        select(PlayerGuestbookRead).where(PlayerGuestbookRead.guestbook_entry_id == int(entry_id))
+        select(PlayerGuestbookRead).where(
+            PlayerGuestbookRead.guestbook_entry_id.in_(list(to_delete))
+        )
     ).all()
     for rr in read_rows:
         s.delete(rr)
-    s.delete(row)
+
+    entry_rows = s.exec(
+        select(PlayerGuestbookEntry).where(PlayerGuestbookEntry.id.in_(list(to_delete)))
+    ).all()
+    for erow in entry_rows:
+        s.delete(erow)
+
     s.commit()
     return Response(status_code=204)

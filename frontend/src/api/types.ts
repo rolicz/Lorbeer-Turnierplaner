@@ -28,6 +28,7 @@ export type PlayerGuestbookEntry = {
   profile_player_id: number;
   author_player_id: number;
   author_display_name: string;
+  parent_entry_id: number | null;
   body: string;
   created_at: string;
   updated_at: string;
@@ -62,6 +63,13 @@ export type PlayerPokeSummary = {
   profile_player_id: number;
   total_pokes: number;
   latest_poke_id: number;
+  latest_created_at: string | null;
+  poke_ids: number[];
+};
+
+export type PlayerPokeAuthoredUnreadSummary = {
+  profile_player_id: number;
+  unread_count: number;
   latest_created_at: string | null;
   poke_ids: number[];
 };

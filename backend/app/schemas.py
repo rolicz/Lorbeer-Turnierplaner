@@ -24,6 +24,7 @@ class PlayerProfilePatchBody(BaseModel):
 
 class PlayerGuestbookCreateBody(BaseModel):
     body: str = ""
+    parent_entry_id: int | None = None
 
 
 class TournamentCreateBody(BaseModel):

@@ -14,6 +14,7 @@ import { useRouteEntryLoading } from "../ui/layout/useRouteEntryLoading";
 import { useAuth } from "../auth/AuthContext";
 import {
   createPlayer,
+  listPlayerPokeAuthoredUnreadSummary,
   listPlayerGuestbookSummary,
   listPlayerPokeSummary,
   listPlayerProfiles,
@@ -42,6 +43,11 @@ export default function PlayersAdminPage() {
   const pokesSummaryQ = useQuery({
     queryKey: ["players", "pokes", "summary"],
     queryFn: listPlayerPokeSummary,
+  });
+  const authoredUnreadPokesQ = useQuery({
+    queryKey: ["players", "pokes", "authored-unread", token ?? "none"],
+    queryFn: () => listPlayerPokeAuthoredUnreadSummary(token as string),
+    enabled: !!token,
   });
   const { avatarUpdatedAtById: avatarUpdatedAtByPlayerId } = usePlayerAvatarMap();
 
@@ -97,6 +103,17 @@ export default function PlayersAdminPage() {
     }
     return map;
   }, [pokesSummaryQ.data]);
+  const authoredUnreadByPid = useMemo(() => {
+    const map = new Map<number, number>();
+    for (const row of authoredUnreadPokesQ.data ?? []) {
+      map.set(Number(row.profile_player_id), Number(row.unread_count ?? 0));
+    }
+    return map;
+  }, [authoredUnreadPokesQ.data]);
+  const myOutgoingUnreadTotal = useMemo(
+    () => (authoredUnreadPokesQ.data ?? []).reduce((sum, row) => sum + Number(row.unread_count ?? 0), 0),
+    [authoredUnreadPokesQ.data]
+  );
   const bioByPlayerId = useMemo(() => {
     const map = new Map<number, string>();
     for (const p of profilesQ.data ?? []) {
@@ -139,7 +156,8 @@ export default function PlayersAdminPage() {
     (playersQ.isLoading && !playersQ.data) ||
     (profilesQ.isLoading && !profilesQ.data) ||
     (guestbookSummaryQ.isLoading && !guestbookSummaryQ.data) ||
-    (pokesSummaryQ.isLoading && !pokesSummaryQ.data);
+    (pokesSummaryQ.isLoading && !pokesSummaryQ.data) ||
+    (!!token && authoredUnreadPokesQ.isLoading && !authoredUnreadPokesQ.data);
 
   if (initialLoading) {
     return (
@@ -164,6 +182,7 @@ export default function PlayersAdminPage() {
       <ErrorToastOnError error={patchMut.error} title="Could not save player" />
       <ErrorToastOnError error={guestbookSummaryQ.error} title="Guestbook summary loading failed" />
       <ErrorToastOnError error={pokesSummaryQ.error} title="Poke summary loading failed" />
+      <ErrorToastOnError error={authoredUnreadPokesQ.error} title="Own poke status loading failed" />
       {isAdmin ? (
         <div className="panel-subtle p-3 space-y-2">
           <div className="text-xs text-text-muted">Create player</div>
@@ -184,6 +203,13 @@ export default function PlayersAdminPage() {
       <div className="inline-flex items-center gap-2 text-sm font-semibold text-text-normal">
         <i className="fa-solid fa-users text-text-muted" aria-hidden="true" />
         <span>All Players</span>
+        {token ? (
+          <span className="inline-flex items-center gap-1 rounded-full border border-border-card-inner px-2 py-0.5 text-[11px] font-normal text-text-muted">
+            <i className="fa-solid fa-hand-fist" aria-hidden="true" />
+            <span>New by you</span>
+            <span className="tabular-nums text-text-normal">{myOutgoingUnreadTotal}</span>
+          </span>
+        ) : null}
       </div>
 
       <div className="panel-subtle rounded-2xl overflow-hidden">
@@ -207,6 +233,7 @@ export default function PlayersAdminPage() {
           const pokeIds = pokeSummaryByPid.get(p.id)?.poke_ids ?? [];
           const unseenPokes = pokeIds.filter((eid) => !seenPokes.has(eid)).length;
           const hasUnreadPokes = !!token && unseenPokes > 0;
+          const myOutgoingUnseenPokes = authoredUnreadByPid.get(p.id) ?? 0;
 
           return (
             <div key={p.id} className={"border-b border-border-card-inner last:border-b-0 " + zebra}>
@@ -232,24 +259,42 @@ export default function PlayersAdminPage() {
                 </div>
 
                 <div className="col-span-4 flex items-center justify-end gap-2">
-                  {hasUnreadPokes ? (
-                    <button
-                      type="button"
-                      title="Unread anpöbel notifications"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        navigate(`/profiles/${p.id}`);
-                        window.setTimeout(() => {
-                          scrollToSectionById("profile-section-main", 24);
-                        }, 0);
-                      }}
-                    >
+                  {token ? (
+                    hasUnreadPokes ? (
+                      <button
+                        type="button"
+                        title="Unread anpöbel notifications"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          navigate(`/profiles/${p.id}`);
+                          window.setTimeout(() => {
+                            scrollToSectionById("profile-section-main", 24);
+                          }, 0);
+                        }}
+                      >
+                        <Pill title="Unread anpöbel notifications">
+                          <i className="fa-solid fa-bell text-accent" aria-hidden="true" />
+                          <span className="tabular-nums text-text-normal">{unseenPokes}</span>
+                        </Pill>
+                      </button>
+                    ) : (
                       <Pill title="Unread anpöbel notifications">
-                        <i className="fa-solid fa-bell text-accent" aria-hidden="true" />
-                        <span className="tabular-nums text-text-normal">{unseenPokes}</span>
+                        <i className="fa-solid fa-bell text-text-muted" aria-hidden="true" />
+                        <span className="tabular-nums text-text-normal">0</span>
                       </Pill>
-                    </button>
+                    )
+                  ) : null}
+                  {token ? (
+                    <Pill title="Your unread anpöbeln on this profile">
+                      <i
+                        className={
+                          "fa-solid fa-hand-fist " + (myOutgoingUnseenPokes > 0 ? "text-accent" : "text-text-muted")
+                        }
+                        aria-hidden="true"
+                      />
+                      <span className="tabular-nums text-text-normal">{myOutgoingUnseenPokes}</span>
+                    </Pill>
                   ) : null}
                   {hasUnseen ? (
                     <button

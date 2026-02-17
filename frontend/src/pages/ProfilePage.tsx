@@ -19,6 +19,7 @@ import {
   deletePlayerGuestbookEntry,
   getPlayerProfile,
   listPlayerPokes,
+  listPlayerPokeAuthoredUnreadSummary,
   listPlayerPokeReadIds,
   listPlayerPokeSummary,
   listPlayerGuestbookReadIds,
@@ -38,6 +39,7 @@ import {
 import { getCup, listCupDefs } from "../api/cup.api";
 import { getStatsH2H, getStatsPlayerMatches, getStatsPlayers, getStatsRatings, getStatsStreaks } from "../api/stats.api";
 import { listClubs } from "../api/clubs.api";
+import type { PlayerGuestbookEntry } from "../api/types";
 import { MatchHistoryList } from "./stats/MatchHistoryList";
 import PlayerAvatarEditor from "./players/PlayerAvatarEditor";
 import { usePlayerAvatarMap } from "../hooks/usePlayerAvatarMap";
@@ -113,6 +115,11 @@ export default function ProfilePage() {
     queryKey: ["players", "pokes", "summary"],
     queryFn: listPlayerPokeSummary,
     enabled: Number.isFinite(targetPlayerId) && (targetPlayerId ?? 0) > 0,
+  });
+  const authoredUnreadPokesQ = useQuery({
+    queryKey: ["players", "pokes", "authored-unread", token ?? "none"],
+    queryFn: () => listPlayerPokeAuthoredUnreadSummary(token as string),
+    enabled: !!token && isOwnProfileView,
   });
   const pokesQ = useQuery({
     queryKey: ["players", "pokes", targetPlayerId ?? "none"],
@@ -201,6 +208,10 @@ export default function ProfilePage() {
 
   const [bioDraftByPlayerId, setBioDraftByPlayerId] = useState<Record<number, string>>({});
   const [guestbookDraftByPlayerId, setGuestbookDraftByPlayerId] = useState<Record<number, string>>({});
+  const [replyDraftByProfileAndEntry, setReplyDraftByProfileAndEntry] = useState<
+    Record<number, Record<number, string>>
+  >({});
+  const [replyOpenEntryByProfileId, setReplyOpenEntryByProfileId] = useState<Record<number, number | null>>({});
   const [avatarEditorOpen, setAvatarEditorOpen] = useState(false);
   const [headerEditorOpen, setHeaderEditorOpen] = useState(false);
   const [headerLightboxSrc, setHeaderLightboxSrc] = useState<string | null>(null);
@@ -214,6 +225,8 @@ export default function ProfilePage() {
   const bioDraft =
     targetPlayerId != null ? (bioDraftByPlayerId[targetPlayerId] ?? (profileQ.data?.bio ?? "")) : "";
   const guestbookDraft = targetPlayerId != null ? (guestbookDraftByPlayerId[targetPlayerId] ?? "") : "";
+  const replyDraftByEntryId = targetPlayerId != null ? (replyDraftByProfileAndEntry[targetPlayerId] ?? {}) : {};
+  const replyOpenEntryId = targetPlayerId != null ? (replyOpenEntryByProfileId[targetPlayerId] ?? null) : null;
 
   const player = useMemo(() => {
     const rows = playersQ.data ?? [];
@@ -313,6 +326,57 @@ export default function ProfilePage() {
     }
     return bestId;
   }, [guestbookQ.data, seenGuestbook, token]);
+  const guestbookRootsAndChildren = useMemo(() => {
+    const rows = guestbookQ.data ?? [];
+    const byId = new Map<number, PlayerGuestbookEntry>();
+    for (const row of rows) byId.set(row.id, row);
+
+    const childrenByParent = new Map<number, PlayerGuestbookEntry[]>();
+    const roots: PlayerGuestbookEntry[] = [];
+
+    for (const row of rows) {
+      const parentId = row.parent_entry_id;
+      if (parentId != null && byId.has(parentId)) {
+        const list = childrenByParent.get(parentId);
+        if (list) list.push(row);
+        else childrenByParent.set(parentId, [row]);
+      } else {
+        roots.push(row);
+      }
+    }
+
+    const sortByCreatedAsc = (a: PlayerGuestbookEntry, b: PlayerGuestbookEntry) => {
+      const ta = Date.parse(a.created_at);
+      const tb = Date.parse(b.created_at);
+      const aSafe = Number.isFinite(ta) ? ta : 0;
+      const bSafe = Number.isFinite(tb) ? tb : 0;
+      if (aSafe !== bSafe) return aSafe - bSafe;
+      return a.id - b.id;
+    };
+    const sortByCreatedDesc = (a: PlayerGuestbookEntry, b: PlayerGuestbookEntry) => sortByCreatedAsc(b, a);
+
+    roots.sort(sortByCreatedDesc);
+    for (const list of childrenByParent.values()) {
+      list.sort(sortByCreatedAsc);
+    }
+
+    return { roots, childrenByParent };
+  }, [guestbookQ.data]);
+  const unreadReplyCountByEntryId = useMemo(() => {
+    const out = new Map<number, number>();
+    const walk = (entryId: number): number => {
+      const children = guestbookRootsAndChildren.childrenByParent.get(entryId) ?? [];
+      let total = 0;
+      for (const child of children) {
+        if (token && !seenGuestbook.has(child.id)) total += 1;
+        total += walk(child.id);
+      }
+      out.set(entryId, total);
+      return total;
+    };
+    for (const root of guestbookRootsAndChildren.roots) walk(root.id);
+    return out;
+  }, [guestbookRootsAndChildren, seenGuestbook, token]);
   const pokeSummaryRow = useMemo(() => {
     if (!targetPlayerId) return null;
     return (pokesSummaryQ.data ?? []).find((row) => Number(row.profile_player_id) === Number(targetPlayerId)) ?? null;
@@ -323,6 +387,13 @@ export default function ProfilePage() {
     if (!ids.length) return 0;
     return ids.filter((id) => !seenPokes.has(Number(id))).length;
   }, [token, isOwnProfile, pokeSummaryRow?.poke_ids, seenPokes]);
+  const playerNameById = useMemo(() => {
+    const map = new Map<number, string>();
+    for (const row of playersQ.data ?? []) {
+      map.set(Number(row.id), row.display_name ?? `Player #${Number(row.id)}`);
+    }
+    return map;
+  }, [playersQ.data]);
   const unreadPokeAuthorsText = useMemo(() => {
     if (!token || !isOwnProfile) return "";
     const rows = (pokesQ.data ?? []).filter((row) => !seenPokes.has(Number(row.id)));
@@ -351,6 +422,32 @@ export default function ProfilePage() {
     if (!rows.length) return 0;
     return new Set(rows.map((row) => Number(row.author_player_id))).size;
   }, [isOwnProfile, pokesQ.data, seenPokes, token]);
+  const authoredUnreadRows = useMemo(
+    () => (token && isOwnProfile ? authoredUnreadPokesQ.data ?? [] : []),
+    [authoredUnreadPokesQ.data, isOwnProfile, token]
+  );
+  const authoredUnreadTotal = useMemo(
+    () => authoredUnreadRows.reduce((sum, row) => sum + Number(row.unread_count ?? 0), 0),
+    [authoredUnreadRows]
+  );
+  const authoredUnreadPlayersCount = authoredUnreadRows.length;
+  const authoredUnreadDetailsText = useMemo(() => {
+    if (!authoredUnreadRows.length) return "";
+    const sorted = [...authoredUnreadRows].sort((a, b) => {
+      const d = Number(b.unread_count ?? 0) - Number(a.unread_count ?? 0);
+      if (d !== 0) return d;
+      const ta = Date.parse(a.latest_created_at ?? "");
+      const tb = Date.parse(b.latest_created_at ?? "");
+      return (Number.isFinite(tb) ? tb : 0) - (Number.isFinite(ta) ? ta : 0);
+    });
+    const top = sorted.slice(0, 4).map((row) => {
+      const pid = Number(row.profile_player_id);
+      const name = playerNameById.get(pid) ?? `Player #${pid}`;
+      return `${name} x${Number(row.unread_count ?? 0)}`;
+    });
+    const rest = sorted.length - top.length;
+    return rest > 0 ? `${top.join(", ")} +${rest}` : top.join(", ");
+  }, [authoredUnreadRows, playerNameById]);
   const totalPokeCount = Number(pokeSummaryRow?.total_pokes ?? 0);
 
   usePlayerProfileWS(targetPlayerId, token);
@@ -560,13 +657,35 @@ export default function ProfilePage() {
   });
 
   const createGuestbookMut = useMutation({
-    mutationFn: async () => {
+    mutationFn: async ({
+      body,
+      parentEntryId,
+    }: {
+      body: string;
+      parentEntryId: number | null;
+    }) => {
       if (!token) throw new Error("Not logged in");
       if (!targetPlayerId) throw new Error("Invalid player");
-      return createPlayerGuestbookEntry(token, targetPlayerId, guestbookDraft.trim());
+      return createPlayerGuestbookEntry(token, targetPlayerId, body, parentEntryId);
     },
-    onSuccess: async () => {
-      if (targetPlayerId) setGuestbookDraftByPlayerId((prev) => ({ ...prev, [targetPlayerId]: "" }));
+    onSuccess: async (_result, vars) => {
+      if (targetPlayerId && vars.parentEntryId == null) {
+        setGuestbookDraftByPlayerId((prev) => ({ ...prev, [targetPlayerId]: "" }));
+      }
+      if (targetPlayerId && vars.parentEntryId != null) {
+        const parentEntryId = vars.parentEntryId;
+        setReplyDraftByProfileAndEntry((prev) => ({
+          ...prev,
+          [targetPlayerId]: {
+            ...(prev[targetPlayerId] ?? {}),
+            [parentEntryId]: "",
+          },
+        }));
+        setReplyOpenEntryByProfileId((prev) => ({
+          ...prev,
+          [targetPlayerId]: prev[targetPlayerId] === parentEntryId ? null : prev[targetPlayerId] ?? null,
+        }));
+      }
       await qc.invalidateQueries({ queryKey: ["players", "guestbook", targetPlayerId ?? "none"] });
       await qc.invalidateQueries({ queryKey: ["players", "guestbook", "summary"] });
       await qc.invalidateQueries({ queryKey: ["players", "guestbook", "read", targetPlayerId ?? "none", token ?? "none"] });
@@ -615,6 +734,7 @@ export default function ProfilePage() {
       await qc.invalidateQueries({ queryKey: ["players", "pokes", targetPlayerId ?? "none"] });
       await qc.invalidateQueries({ queryKey: ["players", "pokes", "read", targetPlayerId ?? "none"] });
       await qc.invalidateQueries({ queryKey: ["players", "pokes", "read-map", token ?? "none"] });
+      await qc.invalidateQueries({ queryKey: ["players", "pokes", "authored-unread", token ?? "none"] });
     },
   });
   const markPokesReadAllMut = useMutation({
@@ -628,6 +748,7 @@ export default function ProfilePage() {
       await qc.invalidateQueries({ queryKey: ["players", "pokes", targetPlayerId ?? "none"] });
       await qc.invalidateQueries({ queryKey: ["players", "pokes", "read", targetPlayerId ?? "none", token ?? "none"] });
       await qc.invalidateQueries({ queryKey: ["players", "pokes", "read-map", token ?? "none"] });
+      await qc.invalidateQueries({ queryKey: ["players", "pokes", "authored-unread", token ?? "none"] });
     },
   });
 
@@ -644,6 +765,7 @@ export default function ProfilePage() {
       guestbookQ.isLoading ||
       pokesQ.isLoading ||
       pokesSummaryQ.isLoading ||
+      (isOwnProfile && authoredUnreadPokesQ.isLoading) ||
       pokeReadQ.isLoading ||
       clubsQ.isLoading ||
       statsPlayersQ.isLoading ||
@@ -660,7 +782,9 @@ export default function ProfilePage() {
     cupDefsQ.isLoading,
     cupsLoading,
     guestbookQ.isLoading,
+    isOwnProfile,
     pokesQ.isLoading,
+    authoredUnreadPokesQ.isLoading,
     pokesSummaryQ.isLoading,
     pokeReadQ.isLoading,
     playersQ.isLoading,
@@ -696,6 +820,177 @@ export default function ProfilePage() {
       setSearchParams(next, { replace: true });
     }, 420);
   }, [focusGuestbookEntry, latestUnreadGuestbookId, searchParams, setSearchParams, unreadJumpReady]);
+
+  const renderGuestbookEntry = (entry: PlayerGuestbookEntry, depth = 0): JSX.Element => {
+    const children = guestbookRootsAndChildren.childrenByParent.get(entry.id) ?? [];
+    const authorAvatarUpdatedAt = avatarUpdatedAtByPlayerId.get(entry.author_player_id) ?? null;
+    const canDeleteEntry =
+      !!token &&
+      (role === "admin" || isOwnProfile || currentPlayerId === entry.author_player_id);
+    const isUnseen = !!token && !seenGuestbook.has(entry.id);
+    const unreadReplies = unreadReplyCountByEntryId.get(entry.id) ?? 0;
+    const replyDraft = replyDraftByEntryId[entry.id] ?? "";
+    const replyOpen = replyOpenEntryId === entry.id;
+    const surfaceClass = depth === 0 ? "panel-subtle" : "panel-inner";
+    const indentPx = Math.min(depth, 8) * 14;
+
+    return (
+      <div key={entry.id} className="space-y-2" style={indentPx > 0 ? { marginLeft: `${indentPx}px` } : undefined}>
+        <div
+          id={`guestbook-entry-${entry.id}`}
+          className={`${surfaceClass} p-3 scroll-mt-28 sm:scroll-mt-32`}
+          onClick={() => {
+            if (!token || !isUnseen || markGuestbookReadMut.isPending) return;
+            markGuestbookReadMut.mutate(entry.id);
+          }}
+        >
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0 flex items-center gap-2">
+              <AvatarCircle
+                playerId={entry.author_player_id}
+                name={entry.author_display_name}
+                updatedAt={authorAvatarUpdatedAt}
+                sizeClass="h-8 w-8"
+                fallbackClassName="text-xs font-semibold text-text-muted"
+              />
+              <div className="min-w-0">
+                <div className="truncate text-xs font-semibold text-text-normal">{entry.author_display_name}</div>
+                <div className="text-[11px] text-text-muted">
+                  {fmtDateTime(entry.created_at)}
+                  {entry.updated_at !== entry.created_at ? " · edited" : ""}
+                </div>
+              </div>
+            </div>
+            <div className="shrink-0 flex items-center gap-2">
+              {isUnseen ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (!token || markGuestbookReadMut.isPending) return;
+                    markGuestbookReadMut.mutate(entry.id);
+                  }}
+                  title="Mark as read"
+                  className="h-8 w-8 p-0 inline-flex items-center justify-center"
+                >
+                  <i className="fa-solid fa-envelope text-accent motion-safe:animate-pulse" aria-hidden="true" />
+                </Button>
+              ) : null}
+              {!isUnseen && unreadReplies > 0 ? (
+                <span
+                  title={`Unread replies: ${unreadReplies}`}
+                  className="inline-flex h-8 items-center gap-1 rounded-full border border-border-card-inner bg-bg-card-chip/25 px-2 text-[11px]"
+                >
+                  <i className="fa-solid fa-reply text-accent" aria-hidden="true" />
+                  <span className="tabular-nums text-text-normal">{unreadReplies}</span>
+                </span>
+              ) : null}
+              {canPostGuestbook ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (!targetPlayerId) return;
+                    setReplyOpenEntryByProfileId((prev) => ({
+                      ...prev,
+                      [targetPlayerId]: prev[targetPlayerId] === entry.id ? null : entry.id,
+                    }));
+                  }}
+                  title="Reply"
+                  className="h-8 w-8 p-0 inline-flex items-center justify-center"
+                >
+                  <i className="fa-solid fa-reply" aria-hidden="true" />
+                </Button>
+              ) : null}
+              {canDeleteEntry ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const hasReplies = children.length > 0;
+                    const ok = window.confirm(hasReplies ? "Delete this message and all replies?" : "Delete this message?");
+                    if (!ok) return;
+                    void deleteGuestbookMut.mutateAsync(entry.id);
+                  }}
+                  title="Delete message"
+                  className="h-8 w-8 p-0 inline-flex items-center justify-center"
+                >
+                  <i className="fa-solid fa-trash" aria-hidden="true" />
+                </Button>
+              ) : null}
+            </div>
+          </div>
+          <div className="mt-2 text-sm whitespace-pre-wrap">{entry.body}</div>
+
+          {replyOpen && canPostGuestbook ? (
+            <div
+              className="mt-2 panel-inner p-2 space-y-2"
+              onClick={(e) => {
+                e.stopPropagation();
+              }}
+            >
+              <Textarea
+                label={`Reply to ${entry.author_display_name}`}
+                value={replyDraft}
+                onChange={(e) => {
+                  if (!targetPlayerId) return;
+                  const next = e.target.value;
+                  setReplyDraftByProfileAndEntry((prev) => ({
+                    ...prev,
+                    [targetPlayerId]: {
+                      ...(prev[targetPlayerId] ?? {}),
+                      [entry.id]: next,
+                    },
+                  }));
+                }}
+                placeholder="Write a reply…"
+              />
+              <div className="flex items-center justify-end gap-2">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => {
+                    if (!targetPlayerId) return;
+                    setReplyOpenEntryByProfileId((prev) => ({
+                      ...prev,
+                      [targetPlayerId]: prev[targetPlayerId] === entry.id ? null : prev[targetPlayerId] ?? null,
+                    }));
+                  }}
+                  title="Cancel"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  onClick={() => {
+                    const text = replyDraft.trim();
+                    if (!text) return;
+                    createGuestbookMut.mutate({ body: text, parentEntryId: entry.id });
+                  }}
+                  disabled={createGuestbookMut.isPending || !replyDraft.trim()}
+                  title="Post reply"
+                >
+                  {createGuestbookMut.isPending ? "Posting…" : "Reply"}
+                </Button>
+              </div>
+            </div>
+          ) : null}
+        </div>
+
+        {children.length > 0 ? (
+          <div className="space-y-2">
+            {children.map((child) => renderGuestbookEntry(child, depth + 1))}
+          </div>
+        ) : null}
+      </div>
+    );
+  };
 
   if (!pageEntered) {
     return (
@@ -739,6 +1034,7 @@ export default function ProfilePage() {
         <ErrorToastOnError error={profileQ.error} title="Profile loading failed" />
         <ErrorToastOnError error={pokesQ.error} title="Pokes loading failed" />
         <ErrorToastOnError error={pokesSummaryQ.error} title="Poke notifications loading failed" />
+        <ErrorToastOnError error={authoredUnreadPokesQ.error} title="Own poke status loading failed" />
         <ErrorToastOnError error={pokeReadQ.error} title="Poke notifications loading failed" />
         <ErrorToastOnError error={saveProfileMut.error} title="Could not save profile text" />
         <ErrorToastOnError error={putAvatarMut.error} title="Could not save avatar" />
@@ -855,14 +1151,30 @@ export default function ProfilePage() {
               </div>
             </div>
           </div>
-          {isOwnProfile && unreadPokeCount > 0 && unreadPokeAuthorsText ? (
+          {isOwnProfile && (unreadPokeCount > 0 || authoredUnreadTotal > 0) ? (
             <div className="pt-1">
-              <div className="inline-flex max-w-full items-center gap-1.5 text-[11px] text-text-muted">
-                <i className="fa-solid fa-hand-fist" aria-hidden="true" />
-                <span className="truncate">
-                  Neu angepöbelt von{unreadPokeAuthorCount > 1 ? ` (${unreadPokeAuthorCount})` : ""}: {unreadPokeAuthorsText}
-                </span>
-              </div>
+              {unreadPokeCount > 0 ? (
+                <div className="inline-flex max-w-full items-center gap-1.5 text-[11px] text-text-muted">
+                  <i className="fa-solid fa-bell" aria-hidden="true" />
+                  <span className="truncate">
+                    Neu bei dir: <span className="text-text-normal tabular-nums">{unreadPokeCount}</span>
+                    {unreadPokeAuthorsText
+                      ? ` · ${unreadPokeAuthorCount > 1 ? `(${unreadPokeAuthorCount}) ` : ""}${unreadPokeAuthorsText}`
+                      : ""}
+                  </span>
+                </div>
+              ) : null}
+              {authoredUnreadTotal > 0 ? (
+                <div className="inline-flex max-w-full items-center gap-1.5 text-[11px] text-text-muted">
+                  <i className="fa-solid fa-hand-fist" aria-hidden="true" />
+                  <span className="truncate">
+                    Neu bei anderen: <span className="text-text-normal tabular-nums">{authoredUnreadTotal}</span>
+                    {authoredUnreadDetailsText
+                      ? ` · ${authoredUnreadPlayersCount > 1 ? `(${authoredUnreadPlayersCount}) ` : ""}${authoredUnreadDetailsText}`
+                      : ""}
+                  </span>
+                </div>
+              ) : null}
             </div>
           ) : null}
           {!isOwnProfile && canPostGuestbook ? (
@@ -1143,7 +1455,7 @@ export default function ProfilePage() {
             <div className="flex justify-end">
               <Button
                 type="button"
-                onClick={() => createGuestbookMut.mutate()}
+                onClick={() => createGuestbookMut.mutate({ body: guestbookDraft.trim(), parentEntryId: null })}
                 disabled={createGuestbookMut.isPending || !guestbookDraft.trim()}
                 title="Post message"
               >
@@ -1161,81 +1473,7 @@ export default function ProfilePage() {
           <div className="panel-subtle p-3 text-sm text-text-muted">No messages yet.</div>
         ) : null}
 
-        <div className="space-y-2">
-          {(guestbookQ.data ?? []).map((entry) => {
-            const authorAvatarUpdatedAt = avatarUpdatedAtByPlayerId.get(entry.author_player_id) ?? null;
-            const canDeleteEntry =
-              !!token &&
-              (role === "admin" || isOwnProfile || currentPlayerId === entry.author_player_id);
-            const isUnseen = !!token && !seenGuestbook.has(entry.id);
-            return (
-              <div
-                key={entry.id}
-                id={`guestbook-entry-${entry.id}`}
-                className="panel-subtle p-3 scroll-mt-28 sm:scroll-mt-32"
-                onClick={() => {
-                  if (!token || !isUnseen || markGuestbookReadMut.isPending) return;
-                  markGuestbookReadMut.mutate(entry.id);
-                }}
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0 flex items-center gap-2">
-                    <AvatarCircle
-                      playerId={entry.author_player_id}
-                      name={entry.author_display_name}
-                      updatedAt={authorAvatarUpdatedAt}
-                      sizeClass="h-8 w-8"
-                      fallbackClassName="text-xs font-semibold text-text-muted"
-                    />
-                    <div className="min-w-0">
-                      <div className="truncate text-xs font-semibold text-text-normal">{entry.author_display_name}</div>
-                      <div className="text-[11px] text-text-muted">
-                        {fmtDateTime(entry.created_at)}
-                        {entry.updated_at !== entry.created_at ? " · edited" : ""}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="shrink-0 flex items-center gap-2">
-                    {isUnseen ? (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          if (!token || markGuestbookReadMut.isPending) return;
-                          markGuestbookReadMut.mutate(entry.id);
-                        }}
-                        title="Mark as read"
-                        className="h-8 w-8 p-0 inline-flex items-center justify-center"
-                      >
-                        <i className="fa-solid fa-envelope text-accent motion-safe:animate-pulse" aria-hidden="true" />
-                      </Button>
-                    ) : null}
-                    {canDeleteEntry ? (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          const ok = window.confirm("Delete this message?");
-                          if (!ok) return;
-                          void deleteGuestbookMut.mutateAsync(entry.id);
-                        }}
-                        title="Delete message"
-                        className="h-8 w-8 p-0 inline-flex items-center justify-center"
-                      >
-                        <i className="fa-solid fa-trash" aria-hidden="true" />
-                      </Button>
-                    ) : null}
-                  </div>
-                </div>
-                <div className="mt-2 text-sm whitespace-pre-wrap">{entry.body}</div>
-              </div>
-            );
-          })}
-        </div>
+        <div className="space-y-2">{guestbookRootsAndChildren.roots.map((entry) => renderGuestbookEntry(entry))}</div>
       </div>
       </SectionSeparator>
 

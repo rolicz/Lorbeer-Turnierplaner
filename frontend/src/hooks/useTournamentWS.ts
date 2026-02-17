@@ -278,6 +278,7 @@ function invalidatePlayerPokeRelated(qc: QueryClient, playerId: number, token?: 
   void qc.invalidateQueries({ queryKey: ["players", "pokes", "read", playerId, token ?? "none"] });
   if (token) {
     void qc.invalidateQueries({ queryKey: ["players", "pokes", "read-map", token] });
+    void qc.invalidateQueries({ queryKey: ["players", "pokes", "authored-unread", token] });
   }
 }
 
