@@ -349,6 +349,12 @@ export default function ProfilePage() {
     const rest = byAuthor.size - top.length;
     return rest > 0 ? `${names.join(", ")} +${rest}` : names.join(", ");
   }, [isOwnProfile, pokesQ.data, seenPokes, token]);
+  const unreadPokeAuthorCount = useMemo(() => {
+    if (!token || !isOwnProfile) return 0;
+    const unreadRows = (pokesQ.data ?? []).filter((row) => !seenPokes.has(Number(row.id)));
+    if (!unreadRows.length) return 0;
+    return new Set(unreadRows.map((row) => Number(row.author_player_id))).size;
+  }, [isOwnProfile, pokesQ.data, seenPokes, token]);
 
   const sections = useMemo(
     () => [
@@ -783,12 +789,6 @@ export default function ProfilePage() {
                 ) : null}
               </div>
               <div className="text-xs text-text-muted">{isOwnProfile ? "This is your profile" : "Public profile"}</div>
-              {isOwnProfile && unreadPokeCount > 0 && unreadPokeAuthorsText ? (
-                <div className="mt-0.5 inline-flex max-w-full items-center gap-1 text-[11px] text-text-muted">
-                  <i className="fa-solid fa-bell text-accent" aria-hidden="true" />
-                  <span className="truncate">Angepöbelt von: {unreadPokeAuthorsText}</span>
-                </div>
-              ) : null}
             </div>
             <div className="ml-auto shrink-0">
               <div className="flex items-center gap-2">
@@ -814,37 +814,6 @@ export default function ProfilePage() {
                         <span className="text-[11px] tabular-nums text-text-normal">{unreadPokeCount}</span>
                       </span>
                     )}
-                  </Button>
-                ) : null}
-
-                {!isOwnProfile && canPostGuestbook ? (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    onClick={() => {
-                      if (pokeMut.isPending) return;
-                      void pokeMut.mutateAsync();
-                    }}
-                    disabled={pokeMut.isPending}
-                    title="Anpöbeln"
-                    className="active:scale-95"
-                  >
-                    <span className="inline-flex items-center gap-2">
-                      <i
-                        className={
-                          "fa-solid " +
-                          (pokeMut.isPending
-                            ? "fa-spinner fa-spin"
-                            : pokeFlashKind === "sent"
-                              ? "fa-circle-check text-accent"
-                              : "fa-hand-fist")
-                        }
-                        aria-hidden="true"
-                      />
-                      <span>
-                        {pokeMut.isPending ? "Anpöbeln…" : pokeFlashKind === "sent" ? "Gesendet" : "Anpöbeln"}
-                      </span>
-                    </span>
                   </Button>
                 ) : null}
 
@@ -881,6 +850,46 @@ export default function ProfilePage() {
               </div>
             </div>
           </div>
+          {isOwnProfile && unreadPokeCount > 0 && unreadPokeAuthorsText ? (
+            <div className="pt-1">
+              <div className="inline-flex max-w-full items-center gap-1.5 text-[11px] text-text-muted">
+                <i className="fa-solid fa-bell text-accent" aria-hidden="true" />
+                <span className="truncate">
+                  Angepöbelt von{unreadPokeAuthorCount > 1 ? ` (${unreadPokeAuthorCount})` : ""}: {unreadPokeAuthorsText}
+                </span>
+              </div>
+            </div>
+          ) : null}
+          {!isOwnProfile && canPostGuestbook ? (
+            <div className="pt-1">
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => {
+                  if (pokeMut.isPending) return;
+                  void pokeMut.mutateAsync();
+                }}
+                disabled={pokeMut.isPending}
+                title="Anpöbeln"
+                className="active:scale-95 w-full sm:w-auto sm:ml-auto sm:flex"
+              >
+                <span className="inline-flex items-center gap-2">
+                  <i
+                    className={
+                      "fa-solid " +
+                      (pokeMut.isPending
+                        ? "fa-spinner fa-spin"
+                        : pokeFlashKind === "sent"
+                          ? "fa-circle-check text-accent"
+                          : "fa-hand-fist")
+                    }
+                    aria-hidden="true"
+                  />
+                  <span>{pokeMut.isPending ? "Anpöbeln…" : pokeFlashKind === "sent" ? "Gesendet" : "Anpöbeln"}</span>
+                </span>
+              </Button>
+            </div>
+          ) : null}
         </div>
 
         <div className="panel-subtle p-3 space-y-2">
