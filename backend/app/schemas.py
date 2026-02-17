@@ -27,6 +27,10 @@ class PlayerGuestbookCreateBody(BaseModel):
     parent_entry_id: int | None = None
 
 
+class PlayerGuestbookVoteBody(BaseModel):
+    value: int | str | None = 0
+
+
 class TournamentCreateBody(BaseModel):
     name: str
     mode: Literal["1v1", "2v2"]
@@ -80,6 +84,10 @@ class CommentCreateBody(BaseModel):
 class CommentPatchBody(BaseModel):
     body: str | None = None
     author_player_id: int | None = None
+
+
+class CommentVoteBody(BaseModel):
+    value: int | str | None = 0
 
 
 class CommentsPinBody(BaseModel):

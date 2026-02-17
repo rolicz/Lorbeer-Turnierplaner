@@ -107,6 +107,17 @@ class PlayerGuestbookThreadLink(SQLModel, table=True):
     parent_entry_id: int = Field(foreign_key="playerguestbookentry.id", index=True)
 
 
+class PlayerGuestbookVote(SQLModel, table=True):
+    """
+    Per-player vote for a guestbook entry.
+    value: +1 (upvote) or -1 (downvote)
+    """
+    player_id: int = Field(foreign_key="player.id", primary_key=True)
+    guestbook_entry_id: int = Field(foreign_key="playerguestbookentry.id", primary_key=True)
+    value: int = Field(default=1)
+    updated_at: dt.datetime = Field(default_factory=dt.datetime.utcnow, index=True)
+
+
 class PlayerGuestbookRead(SQLModel, table=True):
     """
     Per-player read tracking for guestbook entries.
@@ -237,6 +248,17 @@ class CommentRead(SQLModel, table=True):
     player_id: int = Field(foreign_key="player.id", primary_key=True)
     comment_id: int = Field(foreign_key="comment.id", primary_key=True)
     read_at: dt.datetime = Field(default_factory=dt.datetime.utcnow, index=True)
+
+
+class CommentVote(SQLModel, table=True):
+    """
+    Per-player vote for a tournament comment.
+    value: +1 (upvote) or -1 (downvote)
+    """
+    player_id: int = Field(foreign_key="player.id", primary_key=True)
+    comment_id: int = Field(foreign_key="comment.id", primary_key=True)
+    value: int = Field(default=1)
+    updated_at: dt.datetime = Field(default_factory=dt.datetime.utcnow, index=True)
 
 
 class CommentImageFile(SQLModel, table=True):

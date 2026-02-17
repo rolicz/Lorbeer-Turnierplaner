@@ -137,6 +137,72 @@ def test_comments_read_tracking_per_player(client, editor_headers, admin_headers
     assert int(rall.json().get("marked", -1)) == 0
 
 
+def test_comment_votes_up_down_and_my_vote(client, editor_headers, admin_headers):
+    players = client.get("/players").json()
+    editor_player_id = next(int(p["id"]) for p in players if p["display_name"] == "Editor")
+    admin_player_id = next(int(p["id"]) for p in players if p["display_name"] == "Admin")
+    tid = client.post(
+        "/tournaments",
+        json={"name": "comments-votes", "mode": "1v1", "player_ids": [editor_player_id, admin_player_id]},
+        headers=editor_headers,
+    ).json()["id"]
+
+    c_editor = client.post(
+        f"/tournaments/{tid}/comments",
+        json={"body": "vote me", "author_player_id": editor_player_id},
+        headers=editor_headers,
+    )
+    assert c_editor.status_code == 200, c_editor.text
+    cid = int(c_editor.json()["id"])
+
+    # Public list has vote counters and neutral my_vote.
+    r0 = client.get(f"/tournaments/{tid}/comments")
+    assert r0.status_code == 200, r0.text
+    row0 = next((x for x in (r0.json().get("comments") or []) if int(x["id"]) == cid), None)
+    assert row0 is not None
+    assert int(row0.get("upvotes", -1)) == 0
+    assert int(row0.get("downvotes", -1)) == 0
+    assert int(row0.get("my_vote", 99)) == 0
+
+    rv1 = client.put(f"/comments/{cid}/vote", json={"value": 1}, headers=editor_headers)
+    assert rv1.status_code == 200, rv1.text
+    assert int(rv1.json().get("value", 99)) == 1
+
+    rv2 = client.put(f"/comments/{cid}/vote", json={"value": -1}, headers=admin_headers)
+    assert rv2.status_code == 200, rv2.text
+    assert int(rv2.json().get("value", 99)) == -1
+
+    r_editor = client.get(f"/tournaments/{tid}/comments", headers=editor_headers)
+    assert r_editor.status_code == 200, r_editor.text
+    row_editor = next((x for x in (r_editor.json().get("comments") or []) if int(x["id"]) == cid), None)
+    assert row_editor is not None
+    assert int(row_editor.get("upvotes", -1)) == 1
+    assert int(row_editor.get("downvotes", -1)) == 1
+    assert int(row_editor.get("my_vote", 99)) == 1
+
+    r_admin = client.get(f"/tournaments/{tid}/comments", headers=admin_headers)
+    assert r_admin.status_code == 200, r_admin.text
+    row_admin = next((x for x in (r_admin.json().get("comments") or []) if int(x["id"]) == cid), None)
+    assert row_admin is not None
+    assert int(row_admin.get("my_vote", 99)) == -1
+
+    # Clear editor vote.
+    rv3 = client.put(f"/comments/{cid}/vote", json={"value": 0}, headers=editor_headers)
+    assert rv3.status_code == 200, rv3.text
+    assert int(rv3.json().get("value", 99)) == 0
+
+    r_after = client.get(f"/tournaments/{tid}/comments", headers=editor_headers)
+    assert r_after.status_code == 200, r_after.text
+    row_after = next((x for x in (r_after.json().get("comments") or []) if int(x["id"]) == cid), None)
+    assert row_after is not None
+    assert int(row_after.get("upvotes", -1)) == 0
+    assert int(row_after.get("downvotes", -1)) == 1
+    assert int(row_after.get("my_vote", 99)) == 0
+
+    rv_bad = client.put(f"/comments/{cid}/vote", json={"value": 2}, headers=editor_headers)
+    assert rv_bad.status_code == 400, rv_bad.text
+
+
 def test_comment_author_must_be_tournament_player(client, editor_headers, admin_headers):
     p1 = client.post("/players", json={"display_name": "A1"}, headers=admin_headers).json()["id"]
     p2 = client.post("/players", json={"display_name": "A2"}, headers=admin_headers).json()["id"]

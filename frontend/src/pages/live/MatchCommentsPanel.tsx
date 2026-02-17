@@ -16,6 +16,7 @@ import {
   listTournamentComments,
   markCommentRead,
   putCommentImage,
+  voteComment,
 } from "../../api/comments.api";
 import { useAuth } from "../../auth/AuthContext";
 import { useSeenSet } from "../../hooks/useSeenComments";
@@ -67,8 +68,8 @@ export default function MatchCommentsPanel({
     matchId > 0;
 
   const commentsQ = useQuery({
-    queryKey: ["comments", tournamentId],
-    queryFn: () => listTournamentComments(tournamentId),
+    queryKey: ["comments", tournamentId, token ?? "none"],
+    queryFn: () => listTournamentComments(tournamentId, token),
     enabled: Number.isFinite(tournamentId) && tournamentId > 0,
   });
 
@@ -144,6 +145,15 @@ export default function MatchCommentsPanel({
       await qc.invalidateQueries({ queryKey: ["comments", "read-map", token ?? "none"] });
     },
   });
+  const voteMut = useMutation({
+    mutationFn: async (payload: { commentId: number; value: -1 | 0 | 1 }) => {
+      if (!token) throw new Error("Not logged in");
+      return voteComment(token, payload.commentId, payload.value);
+    },
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ["comments", tournamentId] });
+    },
+  });
 
   useEffect(() => {
     if (!pendingScrollId) return;
@@ -190,7 +200,11 @@ export default function MatchCommentsPanel({
           <div className="text-sm text-text-muted">No comments yet.</div>
         ) : (
           <div className="space-y-2">
-	            {matchComments.map((c) => (
+	            {matchComments.map((c) => {
+                const myVote = c.my_vote ?? 0;
+                const upvotes = Number(c.upvotes ?? 0);
+                const downvotes = Number(c.downvotes ?? 0);
+                return (
 	              <div
 	                key={c.id}
 	                id={`match-comment-${c.id}`}
@@ -256,8 +270,41 @@ export default function MatchCommentsPanel({
                     </div>
                   ) : null}
                 </div>
+                <div className="mt-2 flex items-center gap-2 text-[11px] text-text-muted">
+                  <Button
+                    variant="ghost"
+                    type="button"
+                    onClick={() => {
+                      if (!token || voteMut.isPending) return;
+                      const next: -1 | 0 | 1 = myVote === 1 ? 0 : 1;
+                      voteMut.mutate({ commentId: c.id, value: next });
+                    }}
+                    title="Upvote"
+                    disabled={!token || voteMut.isPending}
+                    className="h-8 px-2 inline-flex items-center justify-center gap-1"
+                  >
+                    <i className={"fa-solid fa-thumbs-up " + (myVote === 1 ? "text-accent" : "")} aria-hidden="true" />
+                    <span className="tabular-nums">{upvotes}</span>
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    type="button"
+                    onClick={() => {
+                      if (!token || voteMut.isPending) return;
+                      const next: -1 | 0 | 1 = myVote === -1 ? 0 : -1;
+                      voteMut.mutate({ commentId: c.id, value: next });
+                    }}
+                    title="Downvote"
+                    disabled={!token || voteMut.isPending}
+                    className="h-8 px-2 inline-flex items-center justify-center gap-1"
+                  >
+                    <i className={"fa-solid fa-thumbs-down " + (myVote === -1 ? "text-accent" : "")} aria-hidden="true" />
+                    <span className="tabular-nums">{downvotes}</span>
+                  </Button>
+                </div>
               </div>
-            ))}
+            );
+            })}
           </div>
         )}
 

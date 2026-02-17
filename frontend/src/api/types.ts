@@ -30,6 +30,9 @@ export type PlayerGuestbookEntry = {
   author_display_name: string;
   parent_entry_id: number | null;
   body: string;
+  upvotes: number;
+  downvotes: number;
+  my_vote: -1 | 0 | 1;
   created_at: string;
   updated_at: string;
 };
@@ -140,6 +143,9 @@ export type Comment = {
   body: string;
   has_image?: boolean;
   image_updated_at?: string | null;
+  upvotes: number;
+  downvotes: number;
+  my_vote: -1 | 0 | 1;
   created_at: string;
   updated_at: string;
 };

@@ -133,8 +133,8 @@ export default function LiveTournamentPage() {
 
   const seenCommentIds = useSeenSet(tid ?? 0);
   const commentsQ = useQuery({
-    queryKey: ["comments", tid],
-    queryFn: () => listTournamentComments(tid!),
+    queryKey: ["comments", tid, token ?? "none"],
+    queryFn: () => listTournamentComments(tid!, token),
     enabled: !!tid,
   });
   const unreadCommentsCount = useMemo(() => {

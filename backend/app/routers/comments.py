@@ -6,12 +6,13 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFile
 from sqlmodel import Session, select
 
-from ..auth import require_admin, require_auth_claims, require_editor, require_editor_claims
+from ..auth import decode_token, require_admin, require_auth_claims, require_editor, require_editor_claims
 from ..db import get_engine, get_session
-from ..schemas import CommentCreateBody, CommentPatchBody, CommentsPinBody
+from ..schemas import CommentCreateBody, CommentPatchBody, CommentsPinBody, CommentVoteBody
 from ..models import (
     Comment,
     CommentRead,
+    CommentVote,
     CommentImageFile,
     Match,
     Player,
@@ -100,7 +101,14 @@ def _comment_image_meta_map(s: Session, tournament_id: int) -> dict[int, datetim
     return out
 
 
-def _comment_dict(c: Comment, image_updated_at: datetime | None = None) -> dict:
+def _comment_dict(
+    c: Comment,
+    image_updated_at: datetime | None = None,
+    *,
+    upvotes: int = 0,
+    downvotes: int = 0,
+    my_vote: int | None = None,
+) -> dict:
     return {
         "id": c.id,
         "tournament_id": c.tournament_id,
@@ -111,6 +119,9 @@ def _comment_dict(c: Comment, image_updated_at: datetime | None = None) -> dict:
         "updated_at": c.updated_at,
         "has_image": image_updated_at is not None,
         "image_updated_at": image_updated_at,
+        "upvotes": int(upvotes),
+        "downvotes": int(downvotes),
+        "my_vote": int(my_vote) if my_vote in (-1, 1) else 0,
     }
 
 
@@ -141,7 +152,11 @@ def _validate_match_ref(s: Session, tournament_id: int, match_id: int | None) ->
 
 
 @router.get("/tournaments/{tournament_id}/comments")
-def list_comments(tournament_id: int, s: Session = Depends(get_session)) -> dict:
+def list_comments(
+    tournament_id: int,
+    s: Session = Depends(get_session),
+    claims: dict | None = Depends(decode_token),
+) -> dict:
     _tournament_or_404(s, tournament_id)
 
     pin = s.get(TournamentPinnedComment, tournament_id)
@@ -164,10 +179,44 @@ def list_comments(tournament_id: int, s: Session = Depends(get_session)) -> dict
         .order_by(Comment.created_at, Comment.id)
     ).all()
     image_meta = _comment_image_meta_map(s, tournament_id)
+    comment_ids = [int(c.id) for c in comments]
+
+    votes_by_comment_id: dict[int, dict[str, int]] = {}
+    my_vote_by_comment_id: dict[int, int] = {}
+    if comment_ids:
+        vote_rows = s.exec(
+            select(CommentVote.comment_id, CommentVote.value).where(CommentVote.comment_id.in_(comment_ids))
+        ).all()
+        for cid, value in vote_rows:
+            cid_i = int(cid)
+            slot = votes_by_comment_id.setdefault(cid_i, {"up": 0, "down": 0})
+            if int(value) > 0:
+                slot["up"] += 1
+            elif int(value) < 0:
+                slot["down"] += 1
+
+        if claims and claims.get("player_id") is not None:
+            viewer_player_id = int(claims.get("player_id"))
+            my_rows = s.exec(
+                select(CommentVote.comment_id, CommentVote.value).where(
+                    CommentVote.player_id == viewer_player_id,
+                    CommentVote.comment_id.in_(comment_ids),
+                )
+            ).all()
+            my_vote_by_comment_id = {int(cid): int(value) for cid, value in my_rows}
 
     return {
         "pinned_comment_id": pinned_comment_id,
-        "comments": [_comment_dict(c, image_meta.get(int(c.id))) for c in comments],
+        "comments": [
+            _comment_dict(
+                c,
+                image_meta.get(int(c.id)),
+                upvotes=votes_by_comment_id.get(int(c.id), {}).get("up", 0),
+                downvotes=votes_by_comment_id.get(int(c.id), {}).get("down", 0),
+                my_vote=my_vote_by_comment_id.get(int(c.id), 0),
+            )
+            for c in comments
+        ],
     }
 
 
@@ -229,6 +278,51 @@ def mark_comment_read(
     s.add(row)
     s.commit()
     return {"ok": True}
+
+
+@router.put("/comments/{comment_id}/vote")
+async def vote_comment(
+    comment_id: int,
+    body: CommentVoteBody,
+    s: Session = Depends(get_session),
+    claims: dict = Depends(require_auth_claims),
+) -> dict:
+    c = _comment_or_404(s, comment_id)
+    player_id = int(claims.get("player_id"))
+    raw = body.value
+    try:
+        value = int(0 if raw in (None, "") else raw)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid vote value")
+    if value not in (-1, 0, 1):
+        raise HTTPException(status_code=400, detail="vote value must be one of -1, 0, 1")
+
+    now = datetime.utcnow()
+    row = s.get(CommentVote, (player_id, comment_id))
+    if value == 0:
+        if row is not None:
+            s.delete(row)
+            s.commit()
+    else:
+        if row is None:
+            row = CommentVote(
+                player_id=player_id,
+                comment_id=comment_id,
+                value=value,
+                updated_at=now,
+            )
+        else:
+            row.value = value
+            row.updated_at = now
+        s.add(row)
+        s.commit()
+
+    await ws_manager.broadcast(
+        c.tournament_id,
+        "comments_updated",
+        {"tournament_id": c.tournament_id, "comment_id": c.id, "action": "voted"},
+    )
+    return {"ok": True, "value": value}
 
 
 @router.put("/tournaments/{tournament_id}/comments/read-all")
@@ -375,6 +469,10 @@ async def delete_comment(
     read_rows = s.exec(select(CommentRead).where(CommentRead.comment_id == int(comment_id))).all()
     for rr in read_rows:
         s.delete(rr)
+
+    vote_rows = s.exec(select(CommentVote).where(CommentVote.comment_id == int(comment_id))).all()
+    for vr in vote_rows:
+        s.delete(vr)
 
     s.delete(c)
     s.commit()

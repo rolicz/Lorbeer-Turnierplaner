@@ -99,6 +99,18 @@ export function markPlayerGuestbookEntryRead(token: string, entryId: number): Pr
   return apiFetch(`/players/guestbook/${entryId}/read`, { method: "PUT", token });
 }
 
+export function votePlayerGuestbookEntry(
+  token: string,
+  entryId: number,
+  value: -1 | 0 | 1
+): Promise<{ ok: boolean; value: number }> {
+  return apiFetch(`/players/guestbook/${entryId}/vote`, {
+    method: "PUT",
+    token,
+    body: JSON.stringify({ value }),
+  });
+}
+
 export function markAllPlayerGuestbookEntriesRead(
   token: string,
   playerId: number

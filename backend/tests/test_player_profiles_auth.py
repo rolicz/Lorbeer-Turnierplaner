@@ -253,6 +253,65 @@ def test_profile_guestbook_read_tracking_per_player(client, editor_headers, admi
     assert int(rall.json().get("marked", -1)) == 0
 
 
+def test_profile_guestbook_votes_up_down_and_my_vote(client, editor_headers, admin_headers):
+    target_id = client.post("/players", json={"display_name": "GuestbookVoteTarget"}, headers=admin_headers).json()["id"]
+
+    r_entry = client.post(
+        f"/players/{target_id}/guestbook",
+        json={"body": "vote me"},
+        headers=editor_headers,
+    )
+    assert r_entry.status_code == 200, r_entry.text
+    entry_id = int(r_entry.json()["id"])
+
+    # Public list: counters exist, my_vote neutral.
+    r0 = client.get(f"/players/{target_id}/guestbook")
+    assert r0.status_code == 200, r0.text
+    row0 = next((x for x in (r0.json() or []) if int(x["id"]) == entry_id), None)
+    assert row0 is not None
+    assert int(row0.get("upvotes", -1)) == 0
+    assert int(row0.get("downvotes", -1)) == 0
+    assert int(row0.get("my_vote", 99)) == 0
+
+    rv1 = client.put(f"/players/guestbook/{entry_id}/vote", json={"value": 1}, headers=editor_headers)
+    assert rv1.status_code == 200, rv1.text
+    assert int(rv1.json().get("value", 99)) == 1
+
+    rv2 = client.put(f"/players/guestbook/{entry_id}/vote", json={"value": -1}, headers=admin_headers)
+    assert rv2.status_code == 200, rv2.text
+    assert int(rv2.json().get("value", 99)) == -1
+
+    r_editor = client.get(f"/players/{target_id}/guestbook", headers=editor_headers)
+    assert r_editor.status_code == 200, r_editor.text
+    row_editor = next((x for x in (r_editor.json() or []) if int(x["id"]) == entry_id), None)
+    assert row_editor is not None
+    assert int(row_editor.get("upvotes", -1)) == 1
+    assert int(row_editor.get("downvotes", -1)) == 1
+    assert int(row_editor.get("my_vote", 99)) == 1
+
+    r_admin = client.get(f"/players/{target_id}/guestbook", headers=admin_headers)
+    assert r_admin.status_code == 200, r_admin.text
+    row_admin = next((x for x in (r_admin.json() or []) if int(x["id"]) == entry_id), None)
+    assert row_admin is not None
+    assert int(row_admin.get("my_vote", 99)) == -1
+
+    # Clear editor vote.
+    rv3 = client.put(f"/players/guestbook/{entry_id}/vote", json={"value": 0}, headers=editor_headers)
+    assert rv3.status_code == 200, rv3.text
+    assert int(rv3.json().get("value", 99)) == 0
+
+    r_after = client.get(f"/players/{target_id}/guestbook", headers=editor_headers)
+    assert r_after.status_code == 200, r_after.text
+    row_after = next((x for x in (r_after.json() or []) if int(x["id"]) == entry_id), None)
+    assert row_after is not None
+    assert int(row_after.get("upvotes", -1)) == 0
+    assert int(row_after.get("downvotes", -1)) == 1
+    assert int(row_after.get("my_vote", 99)) == 0
+
+    rv_bad = client.put(f"/players/guestbook/{entry_id}/vote", json={"value": 2}, headers=editor_headers)
+    assert rv_bad.status_code == 400, rv_bad.text
+
+
 def test_profile_poke_tracking_per_player(client, editor_headers, admin_headers):
     editor_id = _player_id_by_name(client, "Editor")
     editor_name = "Editor"

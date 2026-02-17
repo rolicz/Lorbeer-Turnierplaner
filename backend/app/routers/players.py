@@ -5,7 +5,7 @@ from anyio import from_thread
 from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFile
 from sqlmodel import Session, select
 
-from ..auth import require_admin, require_auth_claims, require_editor_claims
+from ..auth import decode_token, require_admin, require_auth_claims, require_editor_claims
 from ..db import get_engine, get_session
 from ..models import (
     Player,
@@ -13,12 +13,19 @@ from ..models import (
     PlayerGuestbookEntry,
     PlayerGuestbookRead,
     PlayerGuestbookThreadLink,
+    PlayerGuestbookVote,
     PlayerPoke,
     PlayerPokeRead,
     PlayerHeaderImageFile,
     PlayerProfile,
 )
-from ..schemas import PlayerCreateBody, PlayerGuestbookCreateBody, PlayerPatchBody, PlayerProfilePatchBody
+from ..schemas import (
+    PlayerCreateBody,
+    PlayerGuestbookCreateBody,
+    PlayerGuestbookVoteBody,
+    PlayerPatchBody,
+    PlayerProfilePatchBody,
+)
 from ..services.file_storage import (
     delete_media,
     media_path_for_avatar,
@@ -507,6 +514,9 @@ def _guestbook_entry_payload(
     entry: PlayerGuestbookEntry,
     author_display_name: str,
     parent_entry_id: int | None = None,
+    upvotes: int = 0,
+    downvotes: int = 0,
+    my_vote: int | None = None,
 ) -> dict:
     return {
         "id": int(entry.id),
@@ -517,6 +527,9 @@ def _guestbook_entry_payload(
         "body": entry.body,
         "created_at": entry.created_at,
         "updated_at": entry.updated_at,
+        "upvotes": int(upvotes),
+        "downvotes": int(downvotes),
+        "my_vote": int(my_vote) if my_vote in (-1, 1) else 0,
     }
 
 
@@ -535,7 +548,11 @@ def _poke_payload(
 
 
 @router.get("/{player_id}/guestbook")
-def list_player_guestbook(player_id: int, s: Session = Depends(get_session)):
+def list_player_guestbook(
+    player_id: int,
+    s: Session = Depends(get_session),
+    claims: dict | None = Depends(decode_token),
+):
     player = s.get(Player, player_id)
     if not player:
         raise HTTPException(status_code=404, detail="Player not found")
@@ -547,6 +564,8 @@ def list_player_guestbook(player_id: int, s: Session = Depends(get_session)):
     ).all()
     entry_ids = [int(row.id) for row in rows]
     parent_by_entry_id: dict[int, int | None] = {}
+    votes_by_entry_id: dict[int, dict[str, int]] = {}
+    my_vote_by_entry_id: dict[int, int] = {}
     if entry_ids:
         links = s.exec(
             select(PlayerGuestbookThreadLink.entry_id, PlayerGuestbookThreadLink.parent_entry_id).where(
@@ -554,6 +573,30 @@ def list_player_guestbook(player_id: int, s: Session = Depends(get_session)):
             )
         ).all()
         parent_by_entry_id = {int(entry_id): int(parent_entry_id) for entry_id, parent_entry_id in links}
+
+        vote_rows = s.exec(
+            select(PlayerGuestbookVote.guestbook_entry_id, PlayerGuestbookVote.value).where(
+                PlayerGuestbookVote.guestbook_entry_id.in_(entry_ids)
+            )
+        ).all()
+        for entry_id, value in vote_rows:
+            eid = int(entry_id)
+            slot = votes_by_entry_id.setdefault(eid, {"up": 0, "down": 0})
+            if int(value) > 0:
+                slot["up"] += 1
+            elif int(value) < 0:
+                slot["down"] += 1
+
+        if claims and claims.get("player_id") is not None:
+            viewer_player_id = int(claims.get("player_id"))
+            my_rows = s.exec(
+                select(PlayerGuestbookVote.guestbook_entry_id, PlayerGuestbookVote.value).where(
+                    PlayerGuestbookVote.player_id == viewer_player_id,
+                    PlayerGuestbookVote.guestbook_entry_id.in_(entry_ids),
+                )
+            ).all()
+            my_vote_by_entry_id = {int(entry_id): int(value) for entry_id, value in my_rows}
+
     author_ids = sorted({int(row.author_player_id) for row in rows})
     authors = s.exec(select(Player).where(Player.id.in_(author_ids))).all() if author_ids else []
     author_name_by_id = {int(p.id): p.display_name for p in authors}
@@ -562,6 +605,9 @@ def list_player_guestbook(player_id: int, s: Session = Depends(get_session)):
             entry=row,
             author_display_name=author_name_by_id.get(int(row.author_player_id), f"Player #{int(row.author_player_id)}"),
             parent_entry_id=parent_by_entry_id.get(int(row.id)),
+            upvotes=votes_by_entry_id.get(int(row.id), {}).get("up", 0),
+            downvotes=votes_by_entry_id.get(int(row.id), {}).get("down", 0),
+            my_vote=my_vote_by_entry_id.get(int(row.id), 0),
         )
         for row in rows
     ]
@@ -773,6 +819,48 @@ def mark_player_guestbook_entry_read(
     return {"ok": True}
 
 
+@router.put("/guestbook/{entry_id}/vote")
+def vote_player_guestbook_entry(
+    entry_id: int,
+    body: PlayerGuestbookVoteBody,
+    s: Session = Depends(get_session),
+    claims: dict = Depends(require_auth_claims),
+) -> dict:
+    row = s.get(PlayerGuestbookEntry, entry_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="Guestbook entry not found")
+
+    player_id = int(claims.get("player_id"))
+    raw = body.value
+    try:
+        value = int(0 if raw in (None, "") else raw)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid vote value")
+    if value not in (-1, 0, 1):
+        raise HTTPException(status_code=400, detail="vote value must be one of -1, 0, 1")
+
+    now = dt.datetime.utcnow()
+    vote_row = s.get(PlayerGuestbookVote, (player_id, int(entry_id)))
+    if value == 0:
+        if vote_row is not None:
+            s.delete(vote_row)
+            s.commit()
+    else:
+        if vote_row is None:
+            vote_row = PlayerGuestbookVote(
+                player_id=player_id,
+                guestbook_entry_id=int(entry_id),
+                value=value,
+                updated_at=now,
+            )
+        else:
+            vote_row.value = value
+            vote_row.updated_at = now
+        s.add(vote_row)
+        s.commit()
+    return {"ok": True, "value": value}
+
+
 @router.put("/{player_id}/guestbook/read-all")
 def mark_player_guestbook_read_all(
     player_id: int,
@@ -917,6 +1005,14 @@ def delete_player_guestbook_entry(
     ).all()
     for rr in read_rows:
         s.delete(rr)
+
+    vote_rows = s.exec(
+        select(PlayerGuestbookVote).where(
+            PlayerGuestbookVote.guestbook_entry_id.in_(list(to_delete))
+        )
+    ).all()
+    for vrow in vote_rows:
+        s.delete(vrow)
 
     entry_rows = s.exec(
         select(PlayerGuestbookEntry).where(PlayerGuestbookEntry.id.in_(list(to_delete)))

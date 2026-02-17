@@ -8,8 +8,14 @@ import type {
   Comment,
 } from "./types";
 
-export function listTournamentComments(tournamentId: number): Promise<TournamentCommentsResponse> {
-  return apiFetch(`/tournaments/${tournamentId}/comments`, { method: "GET" });
+export function listTournamentComments(
+  tournamentId: number,
+  token?: string | null
+): Promise<TournamentCommentsResponse> {
+  return apiFetch(`/tournaments/${tournamentId}/comments`, {
+    method: "GET",
+    token: token ?? undefined,
+  });
 }
 
 export function listTournamentCommentsSummary(): Promise<TournamentCommentsSummary[]> {
@@ -27,6 +33,14 @@ export function listTournamentCommentReadMap(token: string): Promise<TournamentC
 
 export function markCommentRead(token: string, commentId: number): Promise<{ ok: boolean }> {
   return apiFetch(`/comments/${commentId}/read`, { method: "PUT", token });
+}
+
+export function voteComment(token: string, commentId: number, value: -1 | 0 | 1): Promise<{ ok: boolean; value: number }> {
+  return apiFetch(`/comments/${commentId}/vote`, {
+    method: "PUT",
+    token,
+    body: JSON.stringify({ value }),
+  });
 }
 
 export function markAllTournamentCommentsRead(

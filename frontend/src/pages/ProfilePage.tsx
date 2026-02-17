@@ -27,6 +27,7 @@ import {
   markAllPlayerPokesRead,
   markAllPlayerGuestbookEntriesRead,
   markPlayerGuestbookEntryRead,
+  votePlayerGuestbookEntry,
   listPlayers,
   patchPlayerProfile,
 } from "../api/players.api";
@@ -311,6 +312,29 @@ export default function ProfilePage() {
     () => (!token ? [] : (guestbookQ.data ?? []).filter((row) => !seenGuestbook.has(row.id)).map((row) => row.id)),
     [guestbookQ.data, seenGuestbook, token]
   );
+  const totalGuestbookCount = Number(guestbookQ.data?.length ?? 0);
+  const unreadGuestbookAuthorsText = useMemo(() => {
+    if (!token || !isOwnProfile) return "";
+    const rows = (guestbookQ.data ?? []).filter((row) => !seenGuestbook.has(row.id));
+    if (!rows.length) return "";
+    const byAuthor = new Map<number, { name: string; count: number }>();
+    for (const row of rows) {
+      const authorId = Number(row.author_player_id);
+      const prev = byAuthor.get(authorId);
+      if (prev) prev.count += 1;
+      else byAuthor.set(authorId, { name: row.author_display_name || `Player #${authorId}`, count: 1 });
+    }
+    const top = Array.from(byAuthor.values()).slice(0, 4);
+    const parts = top.map((x) => `${x.name} x${x.count}`);
+    const rest = byAuthor.size - top.length;
+    return rest > 0 ? `${parts.join(", ")} +${rest}` : parts.join(", ");
+  }, [guestbookQ.data, isOwnProfile, seenGuestbook, token]);
+  const unreadGuestbookAuthorCount = useMemo(() => {
+    if (!token || !isOwnProfile) return 0;
+    const rows = (guestbookQ.data ?? []).filter((row) => !seenGuestbook.has(row.id));
+    if (!rows.length) return 0;
+    return new Set(rows.map((row) => Number(row.author_player_id))).size;
+  }, [guestbookQ.data, isOwnProfile, seenGuestbook, token]);
   const latestUnreadGuestbookId = useMemo(() => {
     if (!token) return null;
     let bestId: number | null = null;
@@ -723,6 +747,15 @@ export default function ProfilePage() {
       await qc.invalidateQueries({ queryKey: ["players", "guestbook", "read-map", token ?? "none"] });
     },
   });
+  const voteGuestbookMut = useMutation({
+    mutationFn: async (payload: { entryId: number; value: -1 | 0 | 1 }) => {
+      if (!token) throw new Error("Not logged in");
+      return votePlayerGuestbookEntry(token, payload.entryId, payload.value);
+    },
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ["players", "guestbook", targetPlayerId ?? "none"] });
+    },
+  });
   const pokeMut = useMutation({
     mutationFn: async () => {
       if (!token || !targetPlayerId) throw new Error("Not logged in");
@@ -829,6 +862,9 @@ export default function ProfilePage() {
       (role === "admin" || isOwnProfile || currentPlayerId === entry.author_player_id);
     const isUnseen = !!token && !seenGuestbook.has(entry.id);
     const unreadReplies = unreadReplyCountByEntryId.get(entry.id) ?? 0;
+    const myVote = entry.my_vote ?? 0;
+    const upvotes = Number(entry.upvotes ?? 0);
+    const downvotes = Number(entry.downvotes ?? 0);
     const replyDraft = replyDraftByEntryId[entry.id] ?? "";
     const replyOpen = replyOpenEntryId === entry.id;
     const surfaceClass = depth === 0 ? "panel-subtle" : "panel-inner";
@@ -927,6 +963,42 @@ export default function ProfilePage() {
             </div>
           </div>
           <div className="mt-2 text-sm whitespace-pre-wrap">{entry.body}</div>
+          <div className="mt-2 flex items-center gap-2 text-[11px] text-text-muted">
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                if (!token || voteGuestbookMut.isPending) return;
+                const next: -1 | 0 | 1 = myVote === 1 ? 0 : 1;
+                voteGuestbookMut.mutate({ entryId: entry.id, value: next });
+              }}
+              disabled={!token || voteGuestbookMut.isPending}
+              title="Upvote"
+              className="h-8 px-2 inline-flex items-center justify-center gap-1"
+            >
+              <i className={"fa-solid fa-thumbs-up " + (myVote === 1 ? "text-accent" : "")} aria-hidden="true" />
+              <span className="tabular-nums">{upvotes}</span>
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                if (!token || voteGuestbookMut.isPending) return;
+                const next: -1 | 0 | 1 = myVote === -1 ? 0 : -1;
+                voteGuestbookMut.mutate({ entryId: entry.id, value: next });
+              }}
+              disabled={!token || voteGuestbookMut.isPending}
+              title="Downvote"
+              className="h-8 px-2 inline-flex items-center justify-center gap-1"
+            >
+              <i className={"fa-solid fa-thumbs-down " + (myVote === -1 ? "text-accent" : "")} aria-hidden="true" />
+              <span className="tabular-nums">{downvotes}</span>
+            </Button>
+          </div>
 
           {replyOpen && canPostGuestbook ? (
             <div
@@ -1084,10 +1156,10 @@ export default function ProfilePage() {
                 ) : null}
               </div>
               <div className="text-xs text-text-muted">{isOwnProfile ? "This is your profile" : "Public profile"}</div>
-              {totalPokeCount > 0 ? (
-                <div className="mt-0.5 inline-flex items-center gap-1.5 text-[11px] text-text-muted">
-                  <i className="fa-solid fa-hand-fist" aria-hidden="true" />
-                  <span>Angepöbelt: {totalPokeCount}</span>
+              {isOwnProfile ? (
+                <div className="mt-0.5 text-[11px] text-text-muted">
+                  Guestbook: <span className="tabular-nums text-text-normal">{totalGuestbookCount}</span> · Pokes:{" "}
+                  <span className="tabular-nums text-text-normal">{totalPokeCount}</span>
                 </div>
               ) : null}
             </div>
@@ -1151,13 +1223,25 @@ export default function ProfilePage() {
               </div>
             </div>
           </div>
-          {isOwnProfile && (unreadPokeCount > 0 || authoredUnreadTotal > 0) ? (
+          {isOwnProfile &&
+          (unreadGuestbookCount > 0 || unreadPokeCount > 0 || authoredUnreadTotal > 0) ? (
             <div className="pt-1">
+              {unreadGuestbookCount > 0 ? (
+                <div className="inline-flex max-w-full items-center gap-1.5 text-[11px] text-text-muted">
+                  <i className="fa-solid fa-envelope text-accent" aria-hidden="true" />
+                  <span className="truncate">
+                    New guestbook: <span className="tabular-nums text-accent">{unreadGuestbookCount}</span>
+                    {unreadGuestbookAuthorsText
+                      ? ` · ${unreadGuestbookAuthorCount > 1 ? `(${unreadGuestbookAuthorCount}) ` : ""}${unreadGuestbookAuthorsText}`
+                      : ""}
+                  </span>
+                </div>
+              ) : null}
               {unreadPokeCount > 0 ? (
                 <div className="inline-flex max-w-full items-center gap-1.5 text-[11px] text-text-muted">
                   <i className="fa-solid fa-bell" aria-hidden="true" />
                   <span className="truncate">
-                    Neu bei dir: <span className="text-text-normal tabular-nums">{unreadPokeCount}</span>
+                    New pokes on you: <span className="tabular-nums text-accent">{unreadPokeCount}</span>
                     {unreadPokeAuthorsText
                       ? ` · ${unreadPokeAuthorCount > 1 ? `(${unreadPokeAuthorCount}) ` : ""}${unreadPokeAuthorsText}`
                       : ""}
@@ -1168,7 +1252,7 @@ export default function ProfilePage() {
                 <div className="inline-flex max-w-full items-center gap-1.5 text-[11px] text-text-muted">
                   <i className="fa-solid fa-hand-fist" aria-hidden="true" />
                   <span className="truncate">
-                    Neu bei anderen: <span className="text-text-normal tabular-nums">{authoredUnreadTotal}</span>
+                    New pokes by you: <span className="tabular-nums text-accent">{authoredUnreadTotal}</span>
                     {authoredUnreadDetailsText
                       ? ` · ${authoredUnreadPlayersCount > 1 ? `(${authoredUnreadPlayersCount}) ` : ""}${authoredUnreadDetailsText}`
                       : ""}
@@ -1439,6 +1523,7 @@ export default function ProfilePage() {
         <ErrorToastOnError error={deleteGuestbookMut.error} title="Could not delete guestbook message" />
         <ErrorToastOnError error={markGuestbookReadMut.error} title="Could not mark guestbook entry as read" />
         <ErrorToastOnError error={markGuestbookReadAllMut.error} title="Could not mark guestbook as read" />
+        <ErrorToastOnError error={voteGuestbookMut.error} title="Could not vote guestbook message" />
 
         {canPostGuestbook ? (
           <div className="panel-subtle p-3 space-y-2">

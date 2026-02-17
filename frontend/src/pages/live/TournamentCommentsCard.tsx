@@ -21,6 +21,7 @@ import {
   markCommentRead,
   patchComment as apiPatchComment,
   setPinnedTournamentComment,
+  voteComment,
 } from "../../api/comments.api";
 import { useAuth } from "../../auth/AuthContext";
 import { useSeenSet } from "../../hooks/useSeenComments";
@@ -43,6 +44,9 @@ type TournamentComment = {
   body: string;
   hasImage: boolean;
   imageUpdatedAt: string | null;
+  upvotes: number;
+  downvotes: number;
+  myVote: -1 | 0 | 1;
 };
 
 function sameScope(a: CommentScope | null | undefined, b: CommentScope) {
@@ -220,6 +224,7 @@ function CommentCard({
   authorLabel,
   onToggleEdit,
   onDelete,
+  onVote,
   draftAuthor,
   onChangeDraftAuthor,
   draftBody,
@@ -246,6 +251,7 @@ function CommentCard({
   authorLabel: (a: CommentAuthor) => string;
   onToggleEdit: () => void;
   onDelete: () => void;
+  onVote: (value: -1 | 0 | 1) => void;
   draftAuthor: "general" | number;
   onChangeDraftAuthor: (v: "general" | number) => void;
   draftBody: string;
@@ -422,6 +428,28 @@ function CommentCard({
               </button>
             </div>
           ) : null}
+          <div className="flex items-center gap-2 text-[11px] text-text-muted">
+            <Button
+              variant="ghost"
+              type="button"
+              onClick={() => onVote(c.myVote === 1 ? 0 : 1)}
+              title="Upvote"
+              className="h-8 px-2 inline-flex items-center justify-center gap-1"
+            >
+              <i className={"fa-solid fa-thumbs-up " + (c.myVote === 1 ? "text-accent" : "")} aria-hidden="true" />
+              <span className="tabular-nums">{c.upvotes}</span>
+            </Button>
+            <Button
+              variant="ghost"
+              type="button"
+              onClick={() => onVote(c.myVote === -1 ? 0 : -1)}
+              title="Downvote"
+              className="h-8 px-2 inline-flex items-center justify-center gap-1"
+            >
+              <i className={"fa-solid fa-thumbs-down " + (c.myVote === -1 ? "text-accent" : "")} aria-hidden="true" />
+              <span className="tabular-nums">{c.downvotes}</span>
+            </Button>
+          </div>
         </div>
       )}
     </div>
@@ -483,8 +511,8 @@ export default function TournamentCommentsCard({
   const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
 
   const commentsQ = useQuery({
-    queryKey: ["comments", tournamentId],
-    queryFn: () => listTournamentComments(tournamentId),
+    queryKey: ["comments", tournamentId, token ?? "none"],
+    queryFn: () => listTournamentComments(tournamentId, token),
     enabled: !!tournamentId,
   });
 
@@ -501,6 +529,9 @@ export default function TournamentCommentsCard({
       body: c.body ?? "",
       hasImage: !!c.has_image,
       imageUpdatedAt: c.image_updated_at ?? null,
+      upvotes: Number(c.upvotes ?? 0),
+      downvotes: Number(c.downvotes ?? 0),
+      myVote: c.my_vote ?? 0,
     }));
   }, [commentsQ.data]);
 
@@ -680,8 +711,18 @@ export default function TournamentCommentsCard({
       await qc.invalidateQueries({ queryKey: ["comments", "read-map", token ?? "none"] });
     },
   });
+  const voteMut = useMutation({
+    mutationFn: async (payload: { commentId: number; value: -1 | 0 | 1 }) => {
+      if (!token) throw new Error("Not logged in");
+      return voteComment(token, payload.commentId, payload.value);
+    },
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ["comments", tournamentId] });
+    },
+  });
 
-  const actionError: unknown = createMut.error ?? patchMut.error ?? deleteMut.error ?? pinMut.error ?? markReadMut.error;
+  const actionError: unknown =
+    createMut.error ?? patchMut.error ?? deleteMut.error ?? pinMut.error ?? markReadMut.error ?? voteMut.error;
 
   async function deleteComment(commentId: number) {
     const ok = window.confirm("Delete comment?");
@@ -939,6 +980,10 @@ export default function TournamentCommentsCard({
                     onDelete={() => {
                       void deleteComment(c!.id);
                     }}
+                    onVote={(value) => {
+                      if (!token || voteMut.isPending) return;
+                      voteMut.mutate({ commentId: c!.id, value });
+                    }}
                     draftAuthor={draftAuthor}
                     onChangeDraftAuthor={setDraftAuthor}
                     draftBody={draftBody}
@@ -1082,6 +1127,10 @@ export default function TournamentCommentsCard({
                         onToggleEdit={() => toggleEdit(c)}
                         onDelete={() => {
                           void deleteComment(c.id);
+                        }}
+                        onVote={(value) => {
+                          if (!token || voteMut.isPending) return;
+                          voteMut.mutate({ commentId: c.id, value });
                         }}
                         draftAuthor={draftAuthor}
                         onChangeDraftAuthor={setDraftAuthor}
