@@ -405,15 +405,16 @@ export default function ProfilePage() {
     if (!targetPlayerId) return null;
     return (pokesSummaryQ.data ?? []).find((row) => Number(row.profile_player_id) === Number(targetPlayerId)) ?? null;
   }, [pokesSummaryQ.data, targetPlayerId]);
-  const unreadPokeCount = useMemo(() => {
-    if (!token) return 0;
-    const ids = pokeSummaryRow?.poke_ids ?? [];
-    if (!ids.length) return 0;
-    return ids.filter((id) => !seenPokes.has(Number(id))).length;
-  }, [token, pokeSummaryRow?.poke_ids, seenPokes]);
+  const unreadPokesFromOthersRows = useMemo(() => {
+    if (!token) return [];
+    const unseen = (pokesQ.data ?? []).filter((row) => !seenPokes.has(Number(row.id)));
+    if (!currentPlayerId) return unseen;
+    return unseen.filter((row) => Number(row.author_player_id) !== Number(currentPlayerId));
+  }, [token, pokesQ.data, seenPokes, currentPlayerId]);
+  const unreadPokeCount = unreadPokesFromOthersRows.length;
   const unreadPokeAuthorsText = useMemo(() => {
     if (!token) return "";
-    const rows = (pokesQ.data ?? []).filter((row) => !seenPokes.has(Number(row.id)));
+    const rows = unreadPokesFromOthersRows;
     if (!rows.length) return "";
     const byAuthor = new Map<number, { name: string; count: number }>();
     for (const row of rows) {
@@ -432,13 +433,13 @@ export default function ProfilePage() {
     const names = top.map((x) => `${x.name} x${x.count}`);
     const rest = byAuthor.size - top.length;
     return rest > 0 ? `${names.join(", ")} +${rest}` : names.join(", ");
-  }, [pokesQ.data, seenPokes, token]);
+  }, [unreadPokesFromOthersRows, token]);
   const unreadPokeAuthorCount = useMemo(() => {
     if (!token) return 0;
-    const rows = (pokesQ.data ?? []).filter((row) => !seenPokes.has(Number(row.id)));
+    const rows = unreadPokesFromOthersRows;
     if (!rows.length) return 0;
     return new Set(rows.map((row) => Number(row.author_player_id))).size;
-  }, [pokesQ.data, seenPokes, token]);
+  }, [unreadPokesFromOthersRows, token]);
   const authoredUnreadRows = useMemo(
     () => (!token ? [] : authoredUnreadPokesQ.data ?? []),
     [authoredUnreadPokesQ.data, token]
@@ -811,7 +812,7 @@ export default function ProfilePage() {
     Number(pokeButtonFlash.playerId) === Number(targetPlayerId)
       ? pokeButtonFlash.kind
       : "none";
-  const unreadPokesLabel = isOwnProfile ? "New pokes on you" : "New pokes";
+  const unreadPokesLabel = isOwnProfile ? "New pokes on you" : "New pokes from others";
 
   useEffect(() => {
     const jumpUnread = searchParams.get("unread") === "1";
