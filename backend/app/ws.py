@@ -29,6 +29,7 @@ class WSManager:
 
 
 ws_manager = WSManager()
+ws_manager_player_profiles = WSManager()
 
 class WSManagerUpdateAllTournaments:
     def __init__(self) -> None:

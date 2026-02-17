@@ -1,6 +1,7 @@
 import logging
 import datetime as dt
 
+from anyio import from_thread
 from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFile
 from sqlmodel import Session, select
 
@@ -26,6 +27,7 @@ from ..services.file_storage import (
 )
 from ..services.guestbook_summary import player_guestbook_summary
 from ..services.poke_summary import player_poke_summary
+from ..ws import ws_manager_player_profiles
 
 log = logging.getLogger(__name__)
 router = APIRouter(prefix="/players", tags=["players"])
@@ -76,6 +78,19 @@ def _profile_payload(player: Player, profile: PlayerProfile | None) -> dict:
         "header_image_updated_at": None,
         "updated_at": profile.updated_at if profile else None,
     }
+
+
+def _broadcast_player_pokes_event(player_id: int, *, event: str, payload: dict) -> None:
+    try:
+        from_thread.run(
+            ws_manager_player_profiles.broadcast,
+            int(player_id),
+            event,
+            payload,
+        )
+    except Exception:
+        # WS notifications are best-effort and must never break API writes.
+        return
 
 
 def _upsert_profile_header_file(
@@ -635,6 +650,17 @@ def create_player_poke(
         s.add(PlayerPokeRead(player_id=author_player_id, poke_id=int(row.id), read_at=now))
         s.commit()
 
+    _broadcast_player_pokes_event(
+        int(player_id),
+        event="player:pokes:update",
+        payload={
+            "player_id": int(player_id),
+            "action": "created",
+            "poke_id": int(row.id),
+            "author_player_id": int(author_player_id),
+        },
+    )
+
     return _poke_payload(poke=row, author_display_name=author_player.display_name)
 
 
@@ -734,6 +760,16 @@ def mark_player_poke_read_all(
         marked += 1
     if marked:
         s.commit()
+        _broadcast_player_pokes_event(
+            int(player_id),
+            event="player:pokes:update",
+            payload={
+                "player_id": int(player_id),
+                "action": "read_all",
+                "viewer_player_id": int(viewer_player_id),
+                "marked": int(marked),
+            },
+        )
     return {"ok": True, "marked": marked}
 
 

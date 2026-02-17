@@ -42,6 +42,7 @@ import { MatchHistoryList } from "./stats/MatchHistoryList";
 import PlayerAvatarEditor from "./players/PlayerAvatarEditor";
 import { usePlayerAvatarMap } from "../hooks/usePlayerAvatarMap";
 import { usePlayerHeaderMap } from "../hooks/usePlayerHeaderMap";
+import { usePlayerProfileWS } from "../hooks/useTournamentWS";
 import { usePageSubNav, type SubNavItem } from "../ui/layout/SubNavContext";
 import { useSectionSubnav } from "../ui/layout/useSectionSubnav";
 import { useRouteEntryLoading } from "../ui/layout/useRouteEntryLoading";
@@ -96,7 +97,6 @@ export default function ProfilePage() {
   const targetPlayerId =
     Number.isFinite(routePlayerId) && (routePlayerId ?? 0) > 0 ? (routePlayerId as number) : currentPlayerId;
   const isOwnProfileView = !!currentPlayerId && !!targetPlayerId && currentPlayerId === targetPlayerId;
-  const pokeAutoRefreshMs = 4000;
 
   const playersQ = useQuery({ queryKey: ["players"], queryFn: listPlayers });
   const profileQ = useQuery({
@@ -113,28 +113,16 @@ export default function ProfilePage() {
     queryKey: ["players", "pokes", "summary"],
     queryFn: listPlayerPokeSummary,
     enabled: Number.isFinite(targetPlayerId) && (targetPlayerId ?? 0) > 0,
-    refetchInterval: isOwnProfileView ? pokeAutoRefreshMs : false,
-    refetchIntervalInBackground: false,
   });
   const pokesQ = useQuery({
     queryKey: ["players", "pokes", targetPlayerId ?? "none"],
     queryFn: () => listPlayerPokes(targetPlayerId as number, 80),
-    enabled:
-      !!token &&
-      !!currentPlayerId &&
-      !!targetPlayerId &&
-      isOwnProfileView &&
-      Number.isFinite(targetPlayerId) &&
-      (targetPlayerId ?? 0) > 0,
-    refetchInterval: pokeAutoRefreshMs,
-    refetchIntervalInBackground: false,
+    enabled: Number.isFinite(targetPlayerId) && (targetPlayerId ?? 0) > 0,
   });
   const pokeReadQ = useQuery({
     queryKey: ["players", "pokes", "read", targetPlayerId ?? "none", token ?? "none"],
     queryFn: () => listPlayerPokeReadIds(token as string, targetPlayerId as number),
     enabled: !!token && Number.isFinite(targetPlayerId) && (targetPlayerId ?? 0) > 0,
-    refetchInterval: isOwnProfileView ? pokeAutoRefreshMs : false,
-    refetchIntervalInBackground: false,
   });
   const guestbookReadQ = useQuery({
     queryKey: ["players", "guestbook", "read", targetPlayerId ?? "none", token ?? "none"],
@@ -335,12 +323,11 @@ export default function ProfilePage() {
     if (!ids.length) return 0;
     return ids.filter((id) => !seenPokes.has(Number(id))).length;
   }, [token, isOwnProfile, pokeSummaryRow?.poke_ids, seenPokes]);
-  const unreadPokeAuthorsText = useMemo(() => {
-    if (!token || !isOwnProfile) return "";
-    const unreadRows = (pokesQ.data ?? []).filter((row) => !seenPokes.has(Number(row.id)));
-    if (!unreadRows.length) return "";
+  const pokeAuthorsText = useMemo(() => {
+    const rows = pokesQ.data ?? [];
+    if (!rows.length) return "";
     const byAuthor = new Map<number, { name: string; count: number }>();
-    for (const row of unreadRows) {
+    for (const row of rows) {
       const authorId = Number(row.author_player_id);
       const prev = byAuthor.get(authorId);
       if (prev) {
@@ -353,16 +340,18 @@ export default function ProfilePage() {
       }
     }
     const top = Array.from(byAuthor.values()).slice(0, 3);
-    const names = top.map((x) => (x.count > 1 ? `${x.name} x${x.count}` : x.name));
+    const names = top.map((x) => `${x.name} x${x.count}`);
     const rest = byAuthor.size - top.length;
     return rest > 0 ? `${names.join(", ")} +${rest}` : names.join(", ");
-  }, [isOwnProfile, pokesQ.data, seenPokes, token]);
-  const unreadPokeAuthorCount = useMemo(() => {
-    if (!token || !isOwnProfile) return 0;
-    const unreadRows = (pokesQ.data ?? []).filter((row) => !seenPokes.has(Number(row.id)));
-    if (!unreadRows.length) return 0;
-    return new Set(unreadRows.map((row) => Number(row.author_player_id))).size;
-  }, [isOwnProfile, pokesQ.data, seenPokes, token]);
+  }, [pokesQ.data]);
+  const pokeAuthorCount = useMemo(() => {
+    const rows = pokesQ.data ?? [];
+    if (!rows.length) return 0;
+    return new Set(rows.map((row) => Number(row.author_player_id))).size;
+  }, [pokesQ.data]);
+  const totalPokeCount = Number(pokeSummaryRow?.total_pokes ?? 0);
+
+  usePlayerProfileWS(targetPlayerId, token);
 
   const sections = useMemo(
     () => [
@@ -797,6 +786,12 @@ export default function ProfilePage() {
                 ) : null}
               </div>
               <div className="text-xs text-text-muted">{isOwnProfile ? "This is your profile" : "Public profile"}</div>
+              {totalPokeCount > 0 ? (
+                <div className="mt-0.5 inline-flex items-center gap-1.5 text-[11px] text-text-muted">
+                  <i className="fa-solid fa-hand-fist" aria-hidden="true" />
+                  <span>Angepöbelt: {totalPokeCount}</span>
+                </div>
+              ) : null}
             </div>
             <div className="ml-auto shrink-0">
               <div className="flex items-center gap-2">
@@ -858,12 +853,13 @@ export default function ProfilePage() {
               </div>
             </div>
           </div>
-          {isOwnProfile && unreadPokeCount > 0 && unreadPokeAuthorsText ? (
+          {totalPokeCount > 0 && pokeAuthorsText ? (
             <div className="pt-1">
               <div className="inline-flex max-w-full items-center gap-1.5 text-[11px] text-text-muted">
-                <i className="fa-solid fa-bell text-accent" aria-hidden="true" />
+                <i className="fa-solid fa-hand-fist" aria-hidden="true" />
                 <span className="truncate">
-                  Angepöbelt von{unreadPokeAuthorCount > 1 ? ` (${unreadPokeAuthorCount})` : ""}: {unreadPokeAuthorsText}
+                  Angepöbelt von{pokeAuthorCount > 1 ? ` (${pokeAuthorCount})` : ""}: {pokeAuthorsText}
+                  {isOwnProfile && unreadPokeCount > 0 ? ` · Neu: ${unreadPokeCount}` : ""}
                 </span>
               </div>
             </div>

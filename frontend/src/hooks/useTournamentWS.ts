@@ -13,22 +13,37 @@ function httpBaseToWsUrl(httpBase: string, path: string) {
   return u.toString();
 }
 
-function buildWsUrlForPath(path: string) {
+function addTokenToWsUrl(url: string, token?: string | null) {
+  if (!token) return url;
+  try {
+    const u = new URL(url);
+    u.searchParams.set("token", token);
+    return u.toString();
+  } catch {
+    const sep = url.includes("?") ? "&" : "?";
+    return `${url}${sep}token=${encodeURIComponent(token)}`;
+  }
+}
+
+function buildWsUrlForPath(path: string, token?: string | null) {
   const envValue = import.meta.env.VITE_WS_BASE_URL;
   const raw = typeof envValue === "string" ? envValue.trim() : "";
 
   if (raw) {
     if (raw.startsWith("ws://") || raw.startsWith("wss://")) {
-      return `${raw}${path.startsWith("/") ? "" : "/"}${path}`;
+      return addTokenToWsUrl(`${raw}${path.startsWith("/") ? "" : "/"}${path}`, token);
     }
     if (raw.startsWith("http://") || raw.startsWith("https://")) {
-      return httpBaseToWsUrl(raw, path.startsWith("/") ? path : `/${path}`);
+      return addTokenToWsUrl(httpBaseToWsUrl(raw, path.startsWith("/") ? path : `/${path}`), token);
     }
     throw new Error(`Invalid VITE_WS_BASE_URL: ${raw}`);
   }
 
   const proto = window.location.protocol === "https:" ? "wss" : "ws";
-  return `${proto}://${window.location.host}${path.startsWith("/") ? "" : "/"}${path}`;
+  return addTokenToWsUrl(
+    `${proto}://${window.location.host}${path.startsWith("/") ? "" : "/"}${path}`,
+    token
+  );
 }
 
 function buildWsUrl(tid: number) {
@@ -37,6 +52,10 @@ function buildWsUrl(tid: number) {
 
 function buildWsUrlUpdateAnyTournament() {
   return buildWsUrlForPath(`/ws/tournaments`);
+}
+
+function buildPlayerWsUrl(playerId: number, token?: string | null) {
+  return buildWsUrlForPath(`/ws/players/${playerId}`, token);
 }
 
 function safeJsonParse(s: string): unknown {
@@ -253,6 +272,15 @@ function invalidateAnyTournamentRelated(qc: QueryClient) {
   void qc.invalidateQueries({ queryKey: ["stats", "playerMatches"] });
 }
 
+function invalidatePlayerPokeRelated(qc: QueryClient, playerId: number, token?: string | null) {
+  void qc.invalidateQueries({ queryKey: ["players", "pokes", "summary"] });
+  void qc.invalidateQueries({ queryKey: ["players", "pokes", playerId] });
+  void qc.invalidateQueries({ queryKey: ["players", "pokes", "read", playerId, token ?? "none"] });
+  if (token) {
+    void qc.invalidateQueries({ queryKey: ["players", "pokes", "read-map", token] });
+  }
+}
+
 export function useTournamentWS(tid: number | null) {
   const qc = useQueryClient();
 
@@ -319,4 +347,42 @@ export function useAnyTournamentWS() {
       unsub();
     };
   }, [qc, url]);
+}
+
+export function usePlayerProfileWS(playerId: number | null, token?: string | null) {
+  const qc = useQueryClient();
+
+  const url = (() => {
+    if (!playerId) return null;
+    try {
+      return buildPlayerWsUrl(playerId, token);
+    } catch {
+      return null;
+    }
+  })();
+
+  const playerIdRef = useRef<number | null>(playerId);
+  useEffect(() => {
+    playerIdRef.current = playerId;
+  }, [playerId]);
+
+  useEffect(() => {
+    if (!playerId || !url) return;
+
+    const unsub = subscribe(url, (ev) => {
+      const data = typeof ev.data === "string" ? safeJsonParse(ev.data) : null;
+      const eventName = eventNameFromPayload(data);
+      if (shouldIgnoreEventName(eventName)) return;
+
+      scheduleInvalidate(`player-pokes:${playerId}`, () => {
+        const id = playerIdRef.current;
+        if (!id) return;
+        invalidatePlayerPokeRelated(qc, id, token);
+      });
+    });
+
+    return () => {
+      unsub();
+    };
+  }, [playerId, qc, token, url]);
 }
