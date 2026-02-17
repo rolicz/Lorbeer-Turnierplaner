@@ -112,6 +112,10 @@ export default function LiveTournamentPage() {
   const qc = useQueryClient();
   const pageEntered = useRouteEntryLoading();
   const location = useLocation();
+  const locationState = (location.state as {
+    tournamentName?: string;
+    tournamentStatus?: "draft" | "live" | "done";
+  } | null) ?? null;
   const [, setSearchParams] = useSearchParams();
   const nav = useNavigate();
   const { role, token } = useAuth();
@@ -208,7 +212,7 @@ export default function LiveTournamentPage() {
     setSearchParams(sp, { replace: true });
   }, [latestUnreadCommentId, location.search, setSearchParams]);
 
-  const status = tQ.data?.status ?? "draft";
+  const status = tQ.data?.status ?? locationState?.tournamentStatus ?? "draft";
   const isDone = status === "done";
 
   const matchesSorted = useMemo(() => {
@@ -541,7 +545,7 @@ export default function LiveTournamentPage() {
   }
 
   const showControls = isEditorOrAdmin;
-  const cardTitle = tQ.data?.name ? tQ.data.name : `Tournament #${tid ?? "?"}`;
+  const cardTitle = tQ.data?.name || locationState?.tournamentName || "Tournament";
   const showCurrentGameSection = (status === "draft" || status === "live") && !!currentMatch;
   const autoJumpDoneRef = useRef(false);
   const activeSections = useMemo(() => {

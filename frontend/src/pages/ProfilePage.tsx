@@ -14,11 +14,15 @@ import PageLoadingScreen from "../ui/primitives/PageLoadingScreen";
 
 import { useAuth } from "../auth/AuthContext";
 import {
+  createPlayerPoke,
   createPlayerGuestbookEntry,
   deletePlayerGuestbookEntry,
   getPlayerProfile,
+  listPlayerPokeReadIds,
+  listPlayerPokeSummary,
   listPlayerGuestbookReadIds,
   listPlayerGuestbook,
+  markAllPlayerPokesRead,
   markAllPlayerGuestbookEntriesRead,
   markPlayerGuestbookEntryRead,
   listPlayers,
@@ -102,6 +106,16 @@ export default function ProfilePage() {
     queryFn: () => listPlayerGuestbook(targetPlayerId as number),
     enabled: Number.isFinite(targetPlayerId) && (targetPlayerId ?? 0) > 0,
   });
+  const pokesSummaryQ = useQuery({
+    queryKey: ["players", "pokes", "summary"],
+    queryFn: listPlayerPokeSummary,
+    enabled: Number.isFinite(targetPlayerId) && (targetPlayerId ?? 0) > 0,
+  });
+  const pokeReadQ = useQuery({
+    queryKey: ["players", "pokes", "read", targetPlayerId ?? "none", token ?? "none"],
+    queryFn: () => listPlayerPokeReadIds(token as string, targetPlayerId as number),
+    enabled: !!token && Number.isFinite(targetPlayerId) && (targetPlayerId ?? 0) > 0,
+  });
   const guestbookReadQ = useQuery({
     queryKey: ["players", "guestbook", "read", targetPlayerId ?? "none", token ?? "none"],
     queryFn: () => listPlayerGuestbookReadIds(token as string, targetPlayerId as number),
@@ -183,6 +197,10 @@ export default function ProfilePage() {
   const [headerEditorOpen, setHeaderEditorOpen] = useState(false);
   const [headerLightboxSrc, setHeaderLightboxSrc] = useState<string | null>(null);
   const [showAllMatchTournaments, setShowAllMatchTournaments] = useState(false);
+  const [pokeButtonFlash, setPokeButtonFlash] = useState<{
+    kind: "none" | "sent" | "read";
+    playerId: number | null;
+  }>({ kind: "none", playerId: null });
   const unreadJumpHandledRef = useRef<number | null>(null);
 
   const bioDraft =
@@ -201,6 +219,10 @@ export default function ProfilePage() {
   const seenGuestbook = useMemo(
     () => new Set((guestbookReadQ.data?.entry_ids ?? []).map((x) => Number(x))),
     [guestbookReadQ.data?.entry_ids]
+  );
+  const seenPokes = useMemo(
+    () => new Set((pokeReadQ.data?.poke_ids ?? []).map((x) => Number(x))),
+    [pokeReadQ.data?.poke_ids]
   );
   const avatarUpdatedAt = targetPlayerId ? avatarUpdatedAtByPlayerId.get(targetPlayerId) ?? null : null;
   const headerUpdatedAt = targetPlayerId
@@ -283,6 +305,16 @@ export default function ProfilePage() {
     }
     return bestId;
   }, [guestbookQ.data, seenGuestbook, token]);
+  const pokeSummaryRow = useMemo(() => {
+    if (!targetPlayerId) return null;
+    return (pokesSummaryQ.data ?? []).find((row) => Number(row.profile_player_id) === Number(targetPlayerId)) ?? null;
+  }, [pokesSummaryQ.data, targetPlayerId]);
+  const unreadPokeCount = useMemo(() => {
+    if (!token || !isOwnProfile) return 0;
+    const ids = pokeSummaryRow?.poke_ids ?? [];
+    if (!ids.length) return 0;
+    return ids.filter((id) => !seenPokes.has(Number(id))).length;
+  }, [token, isOwnProfile, pokeSummaryRow?.poke_ids, seenPokes]);
 
   const sections = useMemo(
     () => [
@@ -533,12 +565,44 @@ export default function ProfilePage() {
       await qc.invalidateQueries({ queryKey: ["players", "guestbook", "read-map", token ?? "none"] });
     },
   });
+  const pokeMut = useMutation({
+    mutationFn: async () => {
+      if (!token || !targetPlayerId) throw new Error("Not logged in");
+      return createPlayerPoke(token, targetPlayerId);
+    },
+    onSuccess: async () => {
+      setPokeButtonFlash({ kind: "sent", playerId: targetPlayerId ?? null });
+      await qc.invalidateQueries({ queryKey: ["players", "pokes", "summary"] });
+      await qc.invalidateQueries({ queryKey: ["players", "pokes", "read", targetPlayerId ?? "none"] });
+      await qc.invalidateQueries({ queryKey: ["players", "pokes", "read-map", token ?? "none"] });
+    },
+  });
+  const markPokesReadAllMut = useMutation({
+    mutationFn: async () => {
+      if (!token || !targetPlayerId) throw new Error("Not logged in");
+      return markAllPlayerPokesRead(token, targetPlayerId);
+    },
+    onSuccess: async () => {
+      setPokeButtonFlash({ kind: "read", playerId: targetPlayerId ?? null });
+      await qc.invalidateQueries({ queryKey: ["players", "pokes", "summary"] });
+      await qc.invalidateQueries({ queryKey: ["players", "pokes", "read", targetPlayerId ?? "none", token ?? "none"] });
+      await qc.invalidateQueries({ queryKey: ["players", "pokes", "read-map", token ?? "none"] });
+    },
+  });
+
+  useEffect(() => {
+    if (pokeButtonFlash.kind === "none") return;
+    const t = window.setTimeout(() => setPokeButtonFlash({ kind: "none", playerId: null }), 1100);
+    return () => window.clearTimeout(t);
+  }, [pokeButtonFlash]);
 
   const unreadJumpReady = useMemo(() => {
     return !(
       playersQ.isLoading ||
       profileQ.isLoading ||
       guestbookQ.isLoading ||
+      pokesSummaryQ.isLoading ||
+      pokeReadQ.isLoading ||
       clubsQ.isLoading ||
       statsPlayersQ.isLoading ||
       statsStreaksQ.isLoading ||
@@ -554,6 +618,8 @@ export default function ProfilePage() {
     cupDefsQ.isLoading,
     cupsLoading,
     guestbookQ.isLoading,
+    pokesSummaryQ.isLoading,
+    pokeReadQ.isLoading,
     playersQ.isLoading,
     profileQ.isLoading,
     statsH2HQ.isLoading,
@@ -563,6 +629,12 @@ export default function ProfilePage() {
     statsStreaksGlobalQ.isLoading,
     statsStreaksQ.isLoading,
   ]);
+  const pokeFlashKind =
+    pokeButtonFlash.playerId != null &&
+    targetPlayerId != null &&
+    Number(pokeButtonFlash.playerId) === Number(targetPlayerId)
+      ? pokeButtonFlash.kind
+      : "none";
 
   useEffect(() => {
     const jumpUnread = searchParams.get("unread") === "1";
@@ -622,11 +694,15 @@ export default function ProfilePage() {
       <div className="space-y-3">
         <ErrorToastOnError error={playersQ.error} title="Players loading failed" />
         <ErrorToastOnError error={profileQ.error} title="Profile loading failed" />
+        <ErrorToastOnError error={pokesSummaryQ.error} title="Poke notifications loading failed" />
+        <ErrorToastOnError error={pokeReadQ.error} title="Poke notifications loading failed" />
         <ErrorToastOnError error={saveProfileMut.error} title="Could not save profile text" />
         <ErrorToastOnError error={putAvatarMut.error} title="Could not save avatar" />
         <ErrorToastOnError error={delAvatarMut.error} title="Could not delete avatar" />
         <ErrorToastOnError error={putHeaderMut.error} title="Could not save header image" />
         <ErrorToastOnError error={delHeaderMut.error} title="Could not delete header image" />
+        <ErrorToastOnError error={pokeMut.error} title="Could not anpöbeln" />
+        <ErrorToastOnError error={markPokesReadAllMut.error} title="Could not mark notifications as read" />
 
         <div className="panel-subtle p-3 space-y-3">
           <div className="relative overflow-hidden rounded-xl border border-border-card-inner/60 bg-bg-card-inner">
@@ -670,36 +746,92 @@ export default function ProfilePage() {
               <div className="text-xs text-text-muted">{isOwnProfile ? "This is your profile" : "Public profile"}</div>
             </div>
             <div className="ml-auto shrink-0">
-              {canEdit ? (
-                <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2">
+                {isOwnProfile && unreadPokeCount > 0 ? (
                   <Button
                     type="button"
                     variant="ghost"
-                    onClick={() => setHeaderEditorOpen(true)}
-                    title={headerImageSrc ? "Edit header image" : "Upload header image"}
+                    onClick={() => {
+                      if (markPokesReadAllMut.isPending) return;
+                      void markPokesReadAllMut.mutateAsync();
+                    }}
+                    disabled={markPokesReadAllMut.isPending}
+                    title="Mark all anpöbel notifications as read"
+                    className="h-9 w-9 p-0 inline-flex items-center justify-center active:scale-95"
                   >
-                    <i className="fa-solid fa-image md:hidden" aria-hidden="true" />
-                    <span className="hidden md:inline">{headerImageSrc ? "Edit header" : "Upload header"}</span>
+                    {markPokesReadAllMut.isPending ? (
+                      <i className="fa-solid fa-spinner fa-spin text-accent" aria-hidden="true" />
+                    ) : pokeFlashKind === "read" ? (
+                      <i className="fa-solid fa-circle-check text-accent" aria-hidden="true" />
+                    ) : (
+                      <span className="inline-flex items-center gap-1">
+                        <i className="fa-solid fa-bell text-accent" aria-hidden="true" />
+                        <span className="text-[11px] tabular-nums text-text-normal">{unreadPokeCount}</span>
+                      </span>
+                    )}
                   </Button>
-                  {headerImageSrc ? (
+                ) : null}
+
+                {!isOwnProfile && canPostGuestbook ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => {
+                      if (pokeMut.isPending) return;
+                      void pokeMut.mutateAsync();
+                    }}
+                    disabled={pokeMut.isPending}
+                    title="Anpöbeln"
+                    className="active:scale-95"
+                  >
+                    <i
+                      className={
+                        "md:hidden fa-solid " +
+                        (pokeMut.isPending
+                          ? "fa-spinner fa-spin"
+                          : pokeFlashKind === "sent"
+                            ? "fa-circle-check text-accent"
+                            : "fa-hand-point-up")
+                      }
+                      aria-hidden="true"
+                    />
+                    <span className="hidden md:inline">
+                      {pokeMut.isPending ? "Anpöbeln…" : pokeFlashKind === "sent" ? "Gesendet" : "Anpöbeln"}
+                    </span>
+                  </Button>
+                ) : null}
+
+                {canEdit ? (
+                  <>
                     <Button
                       type="button"
                       variant="ghost"
-                      onClick={() => {
-                        void delHeaderMut.mutateAsync();
-                      }}
-                      title="Delete header image"
-                      className="h-9 w-9 p-0 inline-flex items-center justify-center"
+                      onClick={() => setHeaderEditorOpen(true)}
+                      title={headerImageSrc ? "Edit header image" : "Upload header image"}
                     >
-                      <i className="fa-solid fa-trash" aria-hidden="true" />
+                      <i className="fa-solid fa-image md:hidden" aria-hidden="true" />
+                      <span className="hidden md:inline">{headerImageSrc ? "Edit header" : "Upload header"}</span>
                     </Button>
-                  ) : null}
-                  <Button type="button" variant="ghost" onClick={() => setAvatarEditorOpen(true)} title="Edit avatar">
-                    <i className="fa-solid fa-user-pen md:hidden" aria-hidden="true" />
-                    <span className="hidden md:inline">Edit avatar</span>
-                  </Button>
-                </div>
-              ) : null}
+                    {headerImageSrc ? (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        onClick={() => {
+                          void delHeaderMut.mutateAsync();
+                        }}
+                        title="Delete header image"
+                        className="h-9 w-9 p-0 inline-flex items-center justify-center"
+                      >
+                        <i className="fa-solid fa-trash" aria-hidden="true" />
+                      </Button>
+                    ) : null}
+                    <Button type="button" variant="ghost" onClick={() => setAvatarEditorOpen(true)} title="Edit avatar">
+                      <i className="fa-solid fa-user-pen md:hidden" aria-hidden="true" />
+                      <span className="hidden md:inline">Edit avatar</span>
+                    </Button>
+                  </>
+                ) : null}
+              </div>
             </div>
           </div>
         </div>

@@ -8,7 +8,12 @@ import { ErrorToastViewport } from "../primitives/ErrorToast";
 import { useAnyTournamentWS } from "../../hooks/useTournamentWS";
 import { THEMES } from "../../themes";
 import { listTournamentCommentReadMap, listTournamentCommentsSummary } from "../../api/comments.api";
-import { listPlayerGuestbookReadMap, listPlayerGuestbookSummary } from "../../api/players.api";
+import {
+  listPlayerGuestbookReadMap,
+  listPlayerGuestbookSummary,
+  listPlayerPokeReadMap,
+  listPlayerPokeSummary,
+} from "../../api/players.api";
 import { SubNavProvider, useSubNavContext, type SubNavItem } from "./SubNavContext";
 
 type Role = "reader" | "editor" | "admin";
@@ -115,10 +120,24 @@ function LayoutInner({ children }: { children: React.ReactNode }) {
     }).catch(() => {
       // ignore
     });
+    qc.prefetchQuery({
+      queryKey: ["players", "pokes", "summary"],
+      queryFn: listPlayerPokeSummary,
+      staleTime: 15_000,
+    }).catch(() => {
+      // ignore
+    });
     if (token) {
       qc.prefetchQuery({
         queryKey: ["players", "guestbook", "read-map", token],
         queryFn: () => listPlayerGuestbookReadMap(token),
+        staleTime: 15_000,
+      }).catch(() => {
+        // ignore
+      });
+      qc.prefetchQuery({
+        queryKey: ["players", "pokes", "read-map", token],
+        queryFn: () => listPlayerPokeReadMap(token),
         staleTime: 15_000,
       }).catch(() => {
         // ignore

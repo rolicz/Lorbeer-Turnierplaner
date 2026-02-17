@@ -11,6 +11,8 @@ from ..models import (
     PlayerAvatarFile,
     PlayerGuestbookEntry,
     PlayerGuestbookRead,
+    PlayerPoke,
+    PlayerPokeRead,
     PlayerHeaderImageFile,
     PlayerProfile,
 )
@@ -23,6 +25,7 @@ from ..services.file_storage import (
     write_media,
 )
 from ..services.guestbook_summary import player_guestbook_summary
+from ..services.poke_summary import player_poke_summary
 
 log = logging.getLogger(__name__)
 router = APIRouter(prefix="/players", tags=["players"])
@@ -188,6 +191,11 @@ def list_player_guestbook_summary(s: Session = Depends(get_session)) -> list[dic
     return player_guestbook_summary(s)
 
 
+@router.get("/pokes-summary")
+def list_player_poke_summary(s: Session = Depends(get_session)) -> list[dict]:
+    return player_poke_summary(s)
+
+
 @router.get("/guestbook-read-map")
 def list_player_guestbook_read_map(
     s: Session = Depends(get_session),
@@ -205,6 +213,25 @@ def list_player_guestbook_read_map(
         pid = int(profile_player_id)
         out.setdefault(pid, []).append(int(entry_id))
     return [{"profile_player_id": pid, "entry_ids": ids} for pid, ids in out.items()]
+
+
+@router.get("/pokes-read-map")
+def list_player_poke_read_map(
+    s: Session = Depends(get_session),
+    claims: dict = Depends(require_auth_claims),
+) -> list[dict]:
+    player_id = int(claims.get("player_id"))
+    rows = s.exec(
+        select(PlayerPoke.profile_player_id, PlayerPokeRead.poke_id)
+        .join(PlayerPoke, PlayerPoke.id == PlayerPokeRead.poke_id)
+        .where(PlayerPokeRead.player_id == player_id)
+        .order_by(PlayerPoke.profile_player_id, PlayerPokeRead.poke_id)
+    ).all()
+    out: dict[int, list[int]] = {}
+    for profile_player_id, poke_id in rows:
+        pid = int(profile_player_id)
+        out.setdefault(pid, []).append(int(poke_id))
+    return [{"profile_player_id": pid, "poke_ids": ids} for pid, ids in out.items()]
 
 
 @router.get("/{player_id}/profile")
@@ -468,6 +495,29 @@ def list_player_guestbook_reads(
     return {"entry_ids": [int(x) for x in rows]}
 
 
+@router.get("/{player_id}/pokes/read")
+def list_player_poke_reads(
+    player_id: int,
+    s: Session = Depends(get_session),
+    claims: dict = Depends(require_auth_claims),
+) -> dict:
+    player = s.get(Player, player_id)
+    if not player:
+        raise HTTPException(status_code=404, detail="Player not found")
+
+    viewer_player_id = int(claims.get("player_id"))
+    rows = s.exec(
+        select(PlayerPokeRead.poke_id)
+        .join(PlayerPoke, PlayerPoke.id == PlayerPokeRead.poke_id)
+        .where(
+            PlayerPokeRead.player_id == viewer_player_id,
+            PlayerPoke.profile_player_id == player_id,
+        )
+        .order_by(PlayerPokeRead.poke_id)
+    ).all()
+    return {"poke_ids": [int(x) for x in rows]}
+
+
 @router.post("/{player_id}/guestbook")
 def create_player_guestbook_entry(
     player_id: int,
@@ -506,6 +556,49 @@ def create_player_guestbook_entry(
         s.add(PlayerGuestbookRead(player_id=author_player_id, guestbook_entry_id=int(row.id), read_at=now))
         s.commit()
     return _guestbook_entry_payload(entry=row, author_display_name=author_player.display_name)
+
+
+@router.post("/{player_id}/pokes")
+def create_player_poke(
+    player_id: int,
+    s: Session = Depends(get_session),
+    claims: dict = Depends(require_editor_claims),
+) -> dict:
+    player = s.get(Player, player_id)
+    if not player:
+        raise HTTPException(status_code=404, detail="Player not found")
+
+    author_player_id = int(claims.get("player_id"))
+    if author_player_id == int(player_id):
+        raise HTTPException(status_code=400, detail="Cannot poke yourself")
+
+    author_player = s.get(Player, author_player_id)
+    if not author_player:
+        raise HTTPException(status_code=401, detail="Invalid token payload")
+
+    now = dt.datetime.utcnow()
+    row = PlayerPoke(
+        profile_player_id=int(player_id),
+        author_player_id=author_player_id,
+        created_at=now,
+    )
+    s.add(row)
+    s.commit()
+    s.refresh(row)
+
+    # Author's own poke is considered "read" for themselves.
+    read_row = s.get(PlayerPokeRead, (author_player_id, int(row.id)))
+    if read_row is None:
+        s.add(PlayerPokeRead(player_id=author_player_id, poke_id=int(row.id), read_at=now))
+        s.commit()
+
+    return {
+        "id": int(row.id),
+        "profile_player_id": int(row.profile_player_id),
+        "author_player_id": int(row.author_player_id),
+        "author_display_name": author_player.display_name,
+        "created_at": row.created_at,
+    }
 
 
 @router.put("/guestbook/{entry_id}/read")
@@ -562,6 +655,45 @@ def mark_player_guestbook_read_all(
         if eid in existing:
             continue
         s.add(PlayerGuestbookRead(player_id=viewer_player_id, guestbook_entry_id=eid, read_at=now))
+        marked += 1
+    if marked:
+        s.commit()
+    return {"ok": True, "marked": marked}
+
+
+@router.put("/{player_id}/pokes/read-all")
+def mark_player_poke_read_all(
+    player_id: int,
+    s: Session = Depends(get_session),
+    claims: dict = Depends(require_auth_claims),
+) -> dict:
+    player = s.get(Player, player_id)
+    if not player:
+        raise HTTPException(status_code=404, detail="Player not found")
+
+    viewer_player_id = int(claims.get("player_id"))
+    poke_ids = [
+        int(eid)
+        for eid in s.exec(select(PlayerPoke.id).where(PlayerPoke.profile_player_id == player_id)).all()
+    ]
+    if not poke_ids:
+        return {"ok": True, "marked": 0}
+
+    existing = {
+        int(eid)
+        for eid in s.exec(
+            select(PlayerPokeRead.poke_id).where(
+                PlayerPokeRead.player_id == viewer_player_id,
+                PlayerPokeRead.poke_id.in_(poke_ids),
+            )
+        ).all()
+    }
+    now = dt.datetime.utcnow()
+    marked = 0
+    for eid in poke_ids:
+        if eid in existing:
+            continue
+        s.add(PlayerPokeRead(player_id=viewer_player_id, poke_id=eid, read_at=now))
         marked += 1
     if marked:
         s.commit()

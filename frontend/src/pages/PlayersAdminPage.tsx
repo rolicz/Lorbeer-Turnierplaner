@@ -12,9 +12,17 @@ import { usePageSubNav, type SubNavItem } from "../ui/layout/SubNavContext";
 import { useRouteEntryLoading } from "../ui/layout/useRouteEntryLoading";
 
 import { useAuth } from "../auth/AuthContext";
-import { createPlayer, listPlayerGuestbookSummary, listPlayerProfiles, listPlayers, patchPlayer } from "../api/players.api";
+import {
+  createPlayer,
+  listPlayerGuestbookSummary,
+  listPlayerPokeSummary,
+  listPlayerProfiles,
+  listPlayers,
+  patchPlayer,
+} from "../api/players.api";
 import { usePlayerAvatarMap } from "../hooks/usePlayerAvatarMap";
 import { useSeenGuestbookIdsByProfileId } from "../hooks/useSeenGuestbook";
+import { useSeenPokesByProfileId } from "../hooks/useSeenPokes";
 import { scrollToSectionById } from "../ui/scrollToSection";
 
 export default function PlayersAdminPage() {
@@ -30,6 +38,10 @@ export default function PlayersAdminPage() {
   const guestbookSummaryQ = useQuery({
     queryKey: ["players", "guestbook", "summary"],
     queryFn: listPlayerGuestbookSummary,
+  });
+  const pokesSummaryQ = useQuery({
+    queryKey: ["players", "pokes", "summary"],
+    queryFn: listPlayerPokeSummary,
   });
   const { avatarUpdatedAtById: avatarUpdatedAtByPlayerId } = usePlayerAvatarMap();
 
@@ -70,6 +82,7 @@ export default function PlayersAdminPage() {
 
   const players = playersQ.data ?? [];
   const seenGuestbookByPid = useSeenGuestbookIdsByProfileId(players.map((p) => p.id));
+  const seenPokesByPid = useSeenPokesByProfileId(players.map((p) => p.id));
   const guestbookSummaryByPid = useMemo(() => {
     const map = new Map<number, { entry_ids: number[] }>();
     for (const row of guestbookSummaryQ.data ?? []) {
@@ -77,6 +90,13 @@ export default function PlayersAdminPage() {
     }
     return map;
   }, [guestbookSummaryQ.data]);
+  const pokeSummaryByPid = useMemo(() => {
+    const map = new Map<number, { poke_ids: number[] }>();
+    for (const row of pokesSummaryQ.data ?? []) {
+      map.set(Number(row.profile_player_id), { poke_ids: row.poke_ids ?? [] });
+    }
+    return map;
+  }, [pokesSummaryQ.data]);
   const bioByPlayerId = useMemo(() => {
     const map = new Map<number, string>();
     for (const p of profilesQ.data ?? []) {
@@ -118,7 +138,8 @@ export default function PlayersAdminPage() {
     !pageEntered ||
     (playersQ.isLoading && !playersQ.data) ||
     (profilesQ.isLoading && !profilesQ.data) ||
-    (guestbookSummaryQ.isLoading && !guestbookSummaryQ.data);
+    (guestbookSummaryQ.isLoading && !guestbookSummaryQ.data) ||
+    (pokesSummaryQ.isLoading && !pokesSummaryQ.data);
 
   if (initialLoading) {
     return (
@@ -142,6 +163,7 @@ export default function PlayersAdminPage() {
       <ErrorToastOnError error={playersQ.error} title="Players loading failed" />
       <ErrorToastOnError error={patchMut.error} title="Could not save player" />
       <ErrorToastOnError error={guestbookSummaryQ.error} title="Guestbook summary loading failed" />
+      <ErrorToastOnError error={pokesSummaryQ.error} title="Poke summary loading failed" />
       {isAdmin ? (
         <div className="panel-subtle p-3 space-y-2">
           <div className="text-xs text-text-muted">Create player</div>
@@ -181,6 +203,10 @@ export default function PlayersAdminPage() {
           const entryIds = guestbookSummaryByPid.get(p.id)?.entry_ids ?? [];
           const unseenCount = entryIds.filter((eid) => !seen.has(eid)).length;
           const hasUnseen = !!token && unseenCount > 0;
+          const seenPokes = seenPokesByPid.get(p.id) ?? new Set<number>();
+          const pokeIds = pokeSummaryByPid.get(p.id)?.poke_ids ?? [];
+          const unseenPokes = pokeIds.filter((eid) => !seenPokes.has(eid)).length;
+          const hasUnreadPokes = !!token && unseenPokes > 0;
 
           return (
             <div key={p.id} className={"border-b border-border-card-inner last:border-b-0 " + zebra}>
@@ -206,6 +232,25 @@ export default function PlayersAdminPage() {
                 </div>
 
                 <div className="col-span-4 flex items-center justify-end gap-2">
+                  {hasUnreadPokes ? (
+                    <button
+                      type="button"
+                      title="Unread anpöbel notifications"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        navigate(`/profiles/${p.id}`);
+                        window.setTimeout(() => {
+                          scrollToSectionById("profile-section-main", 24);
+                        }, 0);
+                      }}
+                    >
+                      <Pill title="Unread anpöbel notifications">
+                        <i className="fa-solid fa-bell text-accent" aria-hidden="true" />
+                        <span className="tabular-nums text-text-normal">{unseenPokes}</span>
+                      </Pill>
+                    </button>
+                  ) : null}
                   {hasUnseen ? (
                     <button
                       type="button"

@@ -373,6 +373,7 @@ export default function TournamentsPage() {
               <Link
                 key={t.id}
                 to={`/live/${t.id}`}
+                state={{ tournamentName: t.name, tournamentStatus: st }}
                 className={cn(
                   "relative block overflow-hidden rounded-xl border px-4 py-3 transition",
                   pal.wrap
@@ -421,7 +422,7 @@ export default function TournamentsPage() {
                         onClick={(e) => {
                           e.preventDefault();
                           e.stopPropagation();
-                          navigate(`/live/${t.id}?unread=1`);
+                          navigate(`/live/${t.id}?unread=1`, { state: { tournamentName: t.name, tournamentStatus: st } });
                         }}
                       >
                         <Pill title="Unread comments">

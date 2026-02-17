@@ -185,3 +185,52 @@ def test_profile_guestbook_read_tracking_per_player(client, editor_headers, admi
     rall = client.put(f"/players/{target_id}/guestbook/read-all", headers=editor_headers)
     assert rall.status_code == 200, rall.text
     assert int(rall.json().get("marked", -1)) == 0
+
+
+def test_profile_poke_tracking_per_player(client, editor_headers, admin_headers):
+    editor_id = _player_id_by_name(client, "Editor")
+    admin_id = _player_id_by_name(client, "Admin")
+    target_id = client.post("/players", json={"display_name": "PokeTarget"}, headers=admin_headers).json()["id"]
+
+    # Can poke others, but not self.
+    r_self = client.post(f"/players/{editor_id}/pokes", headers=editor_headers)
+    assert r_self.status_code == 400, r_self.text
+
+    r_poke = client.post(f"/players/{target_id}/pokes", headers=editor_headers)
+    assert r_poke.status_code == 200, r_poke.text
+    poke_id = int(r_poke.json()["id"])
+    assert int(r_poke.json()["author_player_id"]) == editor_id
+    assert int(r_poke.json()["profile_player_id"]) == target_id
+
+    # Summary includes this poke under target profile.
+    r_sum = client.get("/players/pokes-summary")
+    assert r_sum.status_code == 200, r_sum.text
+    row = next((x for x in (r_sum.json() or []) if int(x.get("profile_player_id", 0)) == int(target_id)), None)
+    assert row is not None
+    assert poke_id in [int(x) for x in (row.get("poke_ids") or [])]
+
+    # Author's own poke is auto-marked as read.
+    r_editor_read = client.get(f"/players/{target_id}/pokes/read", headers=editor_headers)
+    assert r_editor_read.status_code == 200, r_editor_read.text
+    assert poke_id in [int(x) for x in (r_editor_read.json().get("poke_ids") or [])]
+
+    # Other players do not have it marked yet.
+    r_admin_read = client.get(f"/players/{target_id}/pokes/read", headers=admin_headers)
+    assert r_admin_read.status_code == 200, r_admin_read.text
+    assert poke_id not in [int(x) for x in (r_admin_read.json().get("poke_ids") or [])]
+
+    # read-map reflects per-profile poke reads.
+    r_map = client.get("/players/pokes-read-map", headers=editor_headers)
+    assert r_map.status_code == 200, r_map.text
+    row_editor = next((x for x in (r_map.json() or []) if int(x.get("profile_player_id", 0)) == int(target_id)), None)
+    assert row_editor is not None
+    assert poke_id in [int(x) for x in (row_editor.get("poke_ids") or [])]
+
+    # Mark all read for another player.
+    r_mark = client.put(f"/players/{target_id}/pokes/read-all", headers=admin_headers)
+    assert r_mark.status_code == 200, r_mark.text
+    assert int(r_mark.json().get("marked", 0)) >= 1
+
+    r_admin_read2 = client.get(f"/players/{target_id}/pokes/read", headers=admin_headers)
+    assert r_admin_read2.status_code == 200, r_admin_read2.text
+    assert poke_id in [int(x) for x in (r_admin_read2.json().get("poke_ids") or [])]

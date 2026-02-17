@@ -50,6 +50,31 @@ export type PlayerGuestbookReadMapRow = {
   entry_ids: number[];
 };
 
+export type PlayerPoke = {
+  id: number;
+  profile_player_id: number;
+  author_player_id: number;
+  author_display_name: string;
+  created_at: string;
+};
+
+export type PlayerPokeSummary = {
+  profile_player_id: number;
+  total_pokes: number;
+  latest_poke_id: number;
+  latest_created_at: string | null;
+  poke_ids: number[];
+};
+
+export type PlayerPokeReadIds = {
+  poke_ids: number[];
+};
+
+export type PlayerPokeReadMapRow = {
+  profile_player_id: number;
+  poke_ids: number[];
+};
+
 export type League = {
   id: number;
   name: string;

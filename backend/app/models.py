@@ -107,6 +107,22 @@ class PlayerGuestbookRead(SQLModel, table=True):
     read_at: dt.datetime = Field(default_factory=dt.datetime.utcnow, index=True)
 
 
+class PlayerPoke(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    profile_player_id: int = Field(foreign_key="player.id", index=True)
+    author_player_id: int = Field(foreign_key="player.id", index=True)
+    created_at: dt.datetime = Field(default_factory=dt.datetime.utcnow, index=True)
+
+
+class PlayerPokeRead(SQLModel, table=True):
+    """
+    Per-player read tracking for profile pokes.
+    """
+    player_id: int = Field(foreign_key="player.id", primary_key=True)
+    poke_id: int = Field(foreign_key="playerpoke.id", primary_key=True)
+    read_at: dt.datetime = Field(default_factory=dt.datetime.utcnow, index=True)
+
+
 class League(SQLModel, table=True):
     """
     Backend-managed lookup table.

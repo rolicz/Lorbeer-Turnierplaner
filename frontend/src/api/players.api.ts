@@ -5,6 +5,10 @@ import type {
   PlayerGuestbookReadIds,
   PlayerGuestbookReadMapRow,
   PlayerGuestbookSummary,
+  PlayerPoke,
+  PlayerPokeReadIds,
+  PlayerPokeReadMapRow,
+  PlayerPokeSummary,
   PlayerProfile,
 } from "./types";
 
@@ -54,6 +58,32 @@ export function listPlayerGuestbookReadIds(token: string, playerId: number): Pro
 
 export function listPlayerGuestbookReadMap(token: string): Promise<PlayerGuestbookReadMapRow[]> {
   return apiFetch("/players/guestbook-read-map", { method: "GET", token });
+}
+
+export function listPlayerPokeSummary(): Promise<PlayerPokeSummary[]> {
+  return apiFetch("/players/pokes-summary", { method: "GET" });
+}
+
+export function listPlayerPokeReadIds(token: string, playerId: number): Promise<PlayerPokeReadIds> {
+  return apiFetch(`/players/${playerId}/pokes/read`, { method: "GET", token });
+}
+
+export function listPlayerPokeReadMap(token: string): Promise<PlayerPokeReadMapRow[]> {
+  return apiFetch("/players/pokes-read-map", { method: "GET", token });
+}
+
+export function createPlayerPoke(token: string, playerId: number): Promise<PlayerPoke> {
+  return apiFetch(`/players/${playerId}/pokes`, {
+    method: "POST",
+    token,
+  });
+}
+
+export function markAllPlayerPokesRead(
+  token: string,
+  playerId: number
+): Promise<{ ok: boolean; marked: number }> {
+  return apiFetch(`/players/${playerId}/pokes/read-all`, { method: "PUT", token });
 }
 
 export function markPlayerGuestbookEntryRead(token: string, entryId: number): Promise<{ ok: boolean }> {
