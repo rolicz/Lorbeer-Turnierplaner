@@ -14,6 +14,16 @@ export type Player = {
   display_name: string;
 };
 
+export type VoteVoter = {
+  id: number;
+  display_name: string;
+};
+
+export type VoteVotersResponse = {
+  upvoters: VoteVoter[];
+  downvoters: VoteVoter[];
+};
+
 export type PlayerProfile = {
   player_id: number;
   display_name: string;

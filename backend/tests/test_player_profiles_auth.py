@@ -316,6 +316,13 @@ def test_profile_guestbook_votes_up_down_and_my_vote(client, editor_headers, adm
     assert row_admin is not None
     assert int(row_admin.get("my_vote", 99)) == -1
 
+    rvoters = client.get(f"/players/guestbook/{entry_id}/voters")
+    assert rvoters.status_code == 200, rvoters.text
+    up = rvoters.json().get("upvoters") or []
+    down = rvoters.json().get("downvoters") or []
+    assert any(str(x.get("display_name")) == "Editor" for x in up)
+    assert any(str(x.get("display_name")) == "Admin" for x in down)
+
     # Clear editor vote.
     rv3 = client.put(f"/players/guestbook/{entry_id}/vote", json={"value": 0}, headers=editor_headers)
     assert rv3.status_code == 200, rv3.text

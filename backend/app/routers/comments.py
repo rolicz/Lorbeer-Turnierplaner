@@ -325,6 +325,26 @@ async def vote_comment(
     return {"ok": True, "value": value}
 
 
+@router.get("/comments/{comment_id}/voters")
+def list_comment_voters(comment_id: int, s: Session = Depends(get_session)) -> dict:
+    _comment_or_404(s, comment_id)
+    rows = s.exec(
+        select(CommentVote.value, Player.id, Player.display_name)
+        .join(Player, Player.id == CommentVote.player_id)
+        .where(CommentVote.comment_id == comment_id)
+        .order_by(Player.display_name.asc(), Player.id.asc())
+    ).all()
+    upvoters: list[dict] = []
+    downvoters: list[dict] = []
+    for value, player_id, display_name in rows:
+        payload = {"id": int(player_id), "display_name": display_name}
+        if int(value) > 0:
+            upvoters.append(payload)
+        elif int(value) < 0:
+            downvoters.append(payload)
+    return {"upvoters": upvoters, "downvoters": downvoters}
+
+
 @router.put("/tournaments/{tournament_id}/comments/read-all")
 def mark_tournament_comments_read_all(
     tournament_id: int,

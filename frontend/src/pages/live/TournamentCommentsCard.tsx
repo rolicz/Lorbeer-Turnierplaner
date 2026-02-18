@@ -9,6 +9,8 @@ import { showErrorToast } from "../../ui/primitives/ErrorToast";
 import AvatarCircle from "../../ui/primitives/AvatarCircle";
 import CommentImageCropper from "../../ui/primitives/CommentImageCropper";
 import ImageLightbox from "../../ui/primitives/ImageLightbox";
+import VoteButton from "../../ui/primitives/VoteButton";
+import VoteVotersModal from "../../ui/primitives/VoteVotersModal";
 import type { Club, Match, Player } from "../../api/types";
 import { clubLabelPartsById } from "../../ui/clubControls";
 import { StarsFA } from "../../ui/primitives/StarsFA";
@@ -18,6 +20,7 @@ import {
   putCommentImage,
   deleteComment as apiDeleteComment,
   listTournamentComments,
+  listCommentVoters,
   markCommentRead,
   patchComment as apiPatchComment,
   setPinnedTournamentComment,
@@ -225,6 +228,7 @@ function CommentCard({
   onToggleEdit,
   onDelete,
   onVote,
+  onOpenVoters,
   draftAuthor,
   onChangeDraftAuthor,
   draftBody,
@@ -252,6 +256,7 @@ function CommentCard({
   onToggleEdit: () => void;
   onDelete: () => void;
   onVote: (value: -1 | 0 | 1) => void;
+  onOpenVoters: () => void;
   draftAuthor: "general" | number;
   onChangeDraftAuthor: (v: "general" | number) => void;
   draftBody: string;
@@ -429,25 +434,32 @@ function CommentCard({
             </div>
           ) : null}
           <div className="flex items-center gap-2 text-[11px] text-text-muted">
-            <Button
-              variant="ghost"
-              type="button"
-              onClick={() => onVote(c.myVote === 1 ? 0 : 1)}
+            <VoteButton
+              direction="up"
+              active={c.myVote === 1}
+              count={c.upvotes}
+              onVote={() => onVote(c.myVote === 1 ? 0 : 1)}
               title="Upvote"
-              className="h-8 px-2 inline-flex items-center justify-center gap-1"
-            >
-              <i className={"fa-solid fa-thumbs-up " + (c.myVote === 1 ? "text-accent" : "")} aria-hidden="true" />
-              <span className="tabular-nums">{c.upvotes}</span>
-            </Button>
-            <Button
-              variant="ghost"
-              type="button"
-              onClick={() => onVote(c.myVote === -1 ? 0 : -1)}
+            />
+            <VoteButton
+              direction="down"
+              active={c.myVote === -1}
+              count={c.downvotes}
+              onVote={() => onVote(c.myVote === -1 ? 0 : -1)}
               title="Downvote"
-              className="h-8 px-2 inline-flex items-center justify-center gap-1"
+            />
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onOpenVoters();
+              }}
+              title="Show voters"
+              className="h-8 w-8 p-0 inline-flex items-center justify-center"
             >
-              <i className={"fa-solid fa-thumbs-down " + (c.myVote === -1 ? "text-accent" : "")} aria-hidden="true" />
-              <span className="tabular-nums">{c.downvotes}</span>
+              <i className="fa-solid fa-users text-text-muted" aria-hidden="true" />
             </Button>
           </div>
         </div>
@@ -509,6 +521,7 @@ export default function TournamentCommentsCard({
   const [pendingFocusId, setPendingFocusId] = useState<number | null>(null);
   const [flashId, setFlashId] = useState<number | null>(null);
   const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
+  const [voteVotersCommentId, setVoteVotersCommentId] = useState<number | null>(null);
 
   const commentsQ = useQuery({
     queryKey: ["comments", tournamentId, token ?? "none"],
@@ -984,6 +997,7 @@ export default function TournamentCommentsCard({
                       if (!token || voteMut.isPending) return;
                       voteMut.mutate({ commentId: c!.id, value });
                     }}
+                    onOpenVoters={() => setVoteVotersCommentId(c!.id)}
                     draftAuthor={draftAuthor}
                     onChangeDraftAuthor={setDraftAuthor}
                     draftBody={draftBody}
@@ -1132,6 +1146,7 @@ export default function TournamentCommentsCard({
                           if (!token || voteMut.isPending) return;
                           voteMut.mutate({ commentId: c.id, value });
                         }}
+                        onOpenVoters={() => setVoteVotersCommentId(c.id)}
                         draftAuthor={draftAuthor}
                         onChangeDraftAuthor={setDraftAuthor}
                         draftBody={draftBody}
@@ -1167,6 +1182,13 @@ export default function TournamentCommentsCard({
       title="Attach comment image"
       onClose={() => setImageCropOpen(false)}
       onApply={(blob) => setDraftImage(blob)}
+    />
+    <VoteVotersModal
+      open={voteVotersCommentId != null}
+      title="Comment votes"
+      queryKey={["comments", "voters", voteVotersCommentId ?? "none"]}
+      queryFn={() => listCommentVoters(voteVotersCommentId as number)}
+      onClose={() => setVoteVotersCommentId(null)}
     />
     <ImageLightbox open={!!lightboxSrc} src={lightboxSrc} onClose={() => setLightboxSrc(null)} />
     </>

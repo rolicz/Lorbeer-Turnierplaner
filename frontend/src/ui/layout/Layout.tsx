@@ -203,13 +203,12 @@ function LayoutInner({ children }: { children: React.ReactNode }) {
     staleTime: 30_000,
   });
   const actorOptions = useMemo(() => {
-    const rows = (playersQ.data ?? []).slice();
+    const rows = (playersQ.data ?? [])
+      .filter((p) => playerId == null || Number(p.id) !== Number(playerId))
+      .slice();
     rows.sort((a, b) => a.display_name.localeCompare(b.display_name));
-    if (playerId != null && !rows.some((p) => p.id === playerId)) {
-      rows.unshift({ id: playerId, display_name: playerName || `Player #${playerId}` });
-    }
     return rows;
-  }, [playersQ.data, playerId, playerName]);
+  }, [playersQ.data, playerId]);
   const actorDifferent = playerId != null && actorPlayerId != null && Number(playerId) !== Number(actorPlayerId);
 
   useEffect(() => {

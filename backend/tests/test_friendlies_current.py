@@ -95,3 +95,44 @@ def test_delete_friendly_admin_only(client, editor_headers, admin_headers):
 
     rows = client.get("/friendlies").json()
     assert all(int(x["id"]) != fid for x in rows)
+
+
+def test_patch_friendly_admin_only(client, editor_headers, admin_headers):
+    p1 = client.post("/players", json={"display_name": "F-G"}, headers=admin_headers).json()["id"]
+    p2 = client.post("/players", json={"display_name": "F-H"}, headers=admin_headers).json()["id"]
+
+    created = client.post(
+        "/friendlies",
+        json={
+            "mode": "1v1",
+            "teamA_player_ids": [p1],
+            "teamB_player_ids": [p2],
+            "clubA_id": None,
+            "clubB_id": None,
+            "a_goals": 1,
+            "b_goals": 0,
+        },
+        headers=editor_headers,
+    )
+    assert created.status_code == 200, created.text
+    fid = int(created.json()["id"])
+
+    forbidden = client.patch(
+        f"/friendlies/{fid}",
+        json={"state": "scheduled", "sideA": {"goals": 2}, "sideB": {"goals": 2}},
+        headers=editor_headers,
+    )
+    assert forbidden.status_code == 403, forbidden.text
+
+    updated = client.patch(
+        f"/friendlies/{fid}",
+        json={"state": "scheduled", "sideA": {"goals": 2}, "sideB": {"goals": 2}},
+        headers=admin_headers,
+    )
+    assert updated.status_code == 200, updated.text
+    out = updated.json()
+    assert out["id"] == fid
+    assert out["state"] == "scheduled"
+    sides = sorted(out["sides"], key=lambda x: x["side"])
+    assert sides[0]["goals"] == 2
+    assert sides[1]["goals"] == 2

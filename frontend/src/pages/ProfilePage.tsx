@@ -6,6 +6,8 @@ import Button from "../ui/primitives/Button";
 import Textarea from "../ui/primitives/Textarea";
 import AvatarCircle from "../ui/primitives/AvatarCircle";
 import CupOwnerBadge from "../ui/primitives/CupOwnerBadge";
+import VoteButton from "../ui/primitives/VoteButton";
+import VoteVotersModal from "../ui/primitives/VoteVotersModal";
 import { ErrorToastOnError } from "../ui/primitives/ErrorToast";
 import CommentImageCropper from "../ui/primitives/CommentImageCropper";
 import ImageLightbox from "../ui/primitives/ImageLightbox";
@@ -26,6 +28,7 @@ import {
   markAllPlayerGuestbookEntriesRead,
   markPlayerGuestbookEntryRead,
   votePlayerGuestbookEntry,
+  listPlayerGuestbookEntryVoters,
   listPlayers,
   patchPlayerProfile,
 } from "../api/players.api";
@@ -211,6 +214,7 @@ export default function ProfilePage() {
     kind: "none" | "sent" | "read";
     playerId: number | null;
   }>({ kind: "none", playerId: null });
+  const [voteVotersEntryId, setVoteVotersEntryId] = useState<number | null>(null);
   const unreadJumpHandledRef = useRef<number | null>(null);
 
   const bioDraft =
@@ -928,39 +932,42 @@ export default function ProfilePage() {
           </div>
           <div className="mt-2 text-sm whitespace-pre-wrap">{entry.body}</div>
           <div className="mt-2 flex items-center gap-2 text-[11px] text-text-muted">
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
+            <VoteButton
+              direction="up"
+              active={myVote === 1}
+              count={upvotes}
+              onVote={() => {
                 if (!token || voteGuestbookMut.isPending) return;
                 const next: -1 | 0 | 1 = myVote === 1 ? 0 : 1;
                 voteGuestbookMut.mutate({ entryId: entry.id, value: next });
               }}
-              disabled={!token || voteGuestbookMut.isPending}
+              voteDisabled={!token || voteGuestbookMut.isPending}
               title="Upvote"
-              className="h-8 px-2 inline-flex items-center justify-center gap-1"
-            >
-              <i className={"fa-solid fa-thumbs-up " + (myVote === 1 ? "text-accent" : "")} aria-hidden="true" />
-              <span className="tabular-nums">{upvotes}</span>
-            </Button>
+            />
+            <VoteButton
+              direction="down"
+              active={myVote === -1}
+              count={downvotes}
+              onVote={() => {
+                if (!token || voteGuestbookMut.isPending) return;
+                const next: -1 | 0 | 1 = myVote === -1 ? 0 : -1;
+                voteGuestbookMut.mutate({ entryId: entry.id, value: next });
+              }}
+              voteDisabled={!token || voteGuestbookMut.isPending}
+              title="Downvote"
+            />
             <Button
               type="button"
               variant="ghost"
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                if (!token || voteGuestbookMut.isPending) return;
-                const next: -1 | 0 | 1 = myVote === -1 ? 0 : -1;
-                voteGuestbookMut.mutate({ entryId: entry.id, value: next });
+                setVoteVotersEntryId(entry.id);
               }}
-              disabled={!token || voteGuestbookMut.isPending}
-              title="Downvote"
-              className="h-8 px-2 inline-flex items-center justify-center gap-1"
+              title="Show voters"
+              className="h-8 w-8 p-0 inline-flex items-center justify-center"
             >
-              <i className={"fa-solid fa-thumbs-down " + (myVote === -1 ? "text-accent" : "")} aria-hidden="true" />
-              <span className="tabular-nums">{downvotes}</span>
+              <i className="fa-solid fa-users text-text-muted" aria-hidden="true" />
             </Button>
           </div>
 
@@ -1586,6 +1593,13 @@ export default function ProfilePage() {
         }}
       />
 
+      <VoteVotersModal
+        open={voteVotersEntryId != null}
+        title="Guestbook votes"
+        queryKey={["players", "guestbook", "voters", voteVotersEntryId ?? "none"]}
+        queryFn={() => listPlayerGuestbookEntryVoters(voteVotersEntryId as number)}
+        onClose={() => setVoteVotersEntryId(null)}
+      />
       <ImageLightbox open={!!avatarLightboxSrc} src={avatarLightboxSrc} onClose={() => setAvatarLightboxSrc(null)} />
       <ImageLightbox open={!!headerLightboxSrc} src={headerLightboxSrc} onClose={() => setHeaderLightboxSrc(null)} />
     </div>

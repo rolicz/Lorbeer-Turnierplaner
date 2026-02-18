@@ -888,6 +888,28 @@ def vote_player_guestbook_entry(
     return {"ok": True, "value": value}
 
 
+@router.get("/guestbook/{entry_id}/voters")
+def list_player_guestbook_entry_voters(entry_id: int, s: Session = Depends(get_session)) -> dict:
+    row = s.get(PlayerGuestbookEntry, entry_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="Guestbook entry not found")
+    votes = s.exec(
+        select(PlayerGuestbookVote.value, Player.id, Player.display_name)
+        .join(Player, Player.id == PlayerGuestbookVote.player_id)
+        .where(PlayerGuestbookVote.guestbook_entry_id == int(entry_id))
+        .order_by(Player.display_name.asc(), Player.id.asc())
+    ).all()
+    upvoters: list[dict] = []
+    downvoters: list[dict] = []
+    for value, player_id, display_name in votes:
+        payload = {"id": int(player_id), "display_name": display_name}
+        if int(value) > 0:
+            upvoters.append(payload)
+        elif int(value) < 0:
+            downvoters.append(payload)
+    return {"upvoters": upvoters, "downvoters": downvoters}
+
+
 @router.put("/{player_id}/guestbook/read-all")
 def mark_player_guestbook_read_all(
     player_id: int,

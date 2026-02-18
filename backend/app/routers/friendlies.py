@@ -9,7 +9,7 @@ from sqlmodel import Session, delete, select
 from ..auth import require_admin, require_editor
 from ..db import get_session
 from ..models import Club, FriendlyMatch, FriendlyMatchSide, FriendlyMatchSidePlayer, Player
-from ..schemas import FriendlyMatchCreateBody
+from ..schemas import FriendlyMatchCreateBody, MatchPatchBody, MatchSidePatchBody
 
 router = APIRouter(prefix="/friendlies", tags=["friendlies"])
 
@@ -186,3 +186,62 @@ def delete_friendly(
     s.exec(delete(FriendlyMatch).where(FriendlyMatch.id == friendly_id))
     s.commit()
     return {"ok": True}
+
+
+@router.patch("/{friendly_id}", dependencies=[Depends(require_admin)])
+def patch_friendly(
+    friendly_id: int,
+    body: MatchPatchBody,
+    s: Session = Depends(get_session),
+):
+    fm = s.get(FriendlyMatch, friendly_id)
+    if not fm:
+        raise HTTPException(status_code=404, detail="Friendly match not found")
+
+    _ = fm.sides
+    fields = body.model_fields_set
+
+    if "state" in fields:
+        new_state = str(body.state or "").strip().lower()
+        if new_state not in ("scheduled", "playing", "finished"):
+            raise HTTPException(status_code=400, detail="Invalid state")
+        fm.state = new_state
+
+    sides = {side.side: side for side in fm.sides}
+
+    if "sideA" in fields and "A" in sides:
+        a = body.sideA or MatchSidePatchBody()
+        a_fields = a.model_fields_set if isinstance(a, MatchSidePatchBody) else set()
+        if "club_id" in a_fields:
+            cid = _to_optional_int(a.club_id, field="sideA.club_id")
+            if cid is not None and s.get(Club, cid) is None:
+                raise HTTPException(status_code=400, detail=f"Unknown club_id {cid}")
+            sides["A"].club_id = cid
+        if "goals" in a_fields:
+            sides["A"].goals = _to_non_negative_int(a.goals, field="sideA.goals")
+
+    if "sideB" in fields and "B" in sides:
+        b = body.sideB or MatchSidePatchBody()
+        b_fields = b.model_fields_set if isinstance(b, MatchSidePatchBody) else set()
+        if "club_id" in b_fields:
+            cid = _to_optional_int(b.club_id, field="sideB.club_id")
+            if cid is not None and s.get(Club, cid) is None:
+                raise HTTPException(status_code=400, detail=f"Unknown club_id {cid}")
+            sides["B"].club_id = cid
+        if "goals" in b_fields:
+            sides["B"].goals = _to_non_negative_int(b.goals, field="sideB.goals")
+
+    fm.updated_at = dt.datetime.utcnow()
+    s.add(fm)
+    for side in fm.sides:
+        s.add(side)
+    s.commit()
+
+    row = s.exec(
+        select(FriendlyMatch)
+        .where(FriendlyMatch.id == friendly_id)
+        .options(selectinload(FriendlyMatch.sides).selectinload(FriendlyMatchSide.players))
+    ).first()
+    if row is None:
+        raise HTTPException(status_code=404, detail="Friendly match not found")
+    return _friendly_dict(row)

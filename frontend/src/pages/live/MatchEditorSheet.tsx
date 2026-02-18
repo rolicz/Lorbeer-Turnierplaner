@@ -34,6 +34,7 @@ export default function MatchEditorSheet({
   onSave,
   saving,
   saveError,
+  showState = true,
 }: {
   open: boolean;
   onClose: () => void;
@@ -56,6 +57,7 @@ export default function MatchEditorSheet({
   onSave: () => void;
   saving: boolean;
   saveError: string | null;
+  showState?: boolean;
 }) {
   const aSide = match ? sideBy(match, "A") : undefined;
   const bSide = match ? sideBy(match, "B") : undefined;
@@ -102,23 +104,25 @@ export default function MatchEditorSheet({
         <div className="flex max-h-[80vh] flex-col">
           {/* Scroll area */}
           <div className="flex-1 space-y-4 overflow-y-auto pr-1 [-webkit-overflow-scrolling:touch]">
-            <div className="card-inner space-y-2">
-              <div className="mb-2 text-sm font-medium">Match State</div>
-              <div className="flex">
-                <SegmentedSwitch<"scheduled" | "playing" | "finished">
-                  value={state}
-                  onChange={setState}
-                  options={[
-                    { key: "scheduled", label: "Scheduled" },
-                    { key: "playing", label: "Playing" },
-                    { key: "finished", label: "Finished" },
-                  ]}
-                  widthClass="w-[98px]"
-                  ariaLabel="Match state"
-                  title="Match state"
-                />
+            {showState ? (
+              <div className="card-inner space-y-2">
+                <div className="mb-2 text-sm font-medium">Match State</div>
+                <div className="flex">
+                  <SegmentedSwitch<"scheduled" | "playing" | "finished">
+                    value={state}
+                    onChange={setState}
+                    options={[
+                      { key: "scheduled", label: "Scheduled" },
+                      { key: "playing", label: "Playing" },
+                      { key: "finished", label: "Finished" },
+                    ]}
+                    widthClass="w-[98px]"
+                    ariaLabel="Match state"
+                    title="Match state"
+                  />
+                </div>
               </div>
-            </div>
+            ) : null}
 
             {/* Match panel (shared with live current game/dashboard) */}
             <div className="card-inner space-y-2">

@@ -281,6 +281,7 @@ export default function FriendlyMatchCard({
     },
     onSuccess: () => {
       setLastSavedAt(new Date().toISOString());
+      clearAll();
       void qc.invalidateQueries({ queryKey: ["friendlies"] });
       void qc.invalidateQueries({ queryKey: ["stats"] });
     },

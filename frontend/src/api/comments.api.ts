@@ -6,6 +6,7 @@ import type {
   TournamentCommentReadIds,
   TournamentCommentReadMapRow,
   Comment,
+  VoteVotersResponse,
 } from "./types";
 
 export function listTournamentComments(
@@ -41,6 +42,10 @@ export function voteComment(token: string, commentId: number, value: -1 | 0 | 1)
     token,
     body: JSON.stringify({ value }),
   });
+}
+
+export function listCommentVoters(commentId: number): Promise<VoteVotersResponse> {
+  return apiFetch(`/comments/${commentId}/voters`, { method: "GET" });
 }
 
 export function markAllTournamentCommentsRead(

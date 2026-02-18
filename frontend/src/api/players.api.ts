@@ -11,6 +11,7 @@ import type {
   PlayerPokeReadMapRow,
   PlayerPokeSummary,
   PlayerProfile,
+  VoteVotersResponse,
 } from "./types";
 
 export function listPlayers(): Promise<Player[]> {
@@ -116,6 +117,10 @@ export function votePlayerGuestbookEntry(
     token,
     body: JSON.stringify({ value }),
   });
+}
+
+export function listPlayerGuestbookEntryVoters(entryId: number): Promise<VoteVotersResponse> {
+  return apiFetch(`/players/guestbook/${entryId}/voters`, { method: "GET" });
 }
 
 export function markAllPlayerGuestbookEntriesRead(

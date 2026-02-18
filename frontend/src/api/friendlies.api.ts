@@ -11,6 +11,12 @@ export type FriendlyMatchCreateBody = {
   b_goals: number;
 };
 
+export type FriendlyMatchPatchBody = {
+  state?: "scheduled" | "playing" | "finished";
+  sideA?: { club_id?: number | null; goals?: number };
+  sideB?: { club_id?: number | null; goals?: number };
+};
+
 export type FriendlyMatchResponse = {
   id: number;
   mode: "1v1" | "2v2";
@@ -37,6 +43,14 @@ export function listFriendlies(opts?: { mode?: "1v1" | "2v2"; limit?: number }):
 
 export function createFriendlyMatch(token: string, body: FriendlyMatchCreateBody): Promise<FriendlyMatchResponse> {
   return apiFetch("/friendlies", { method: "POST", token, body: JSON.stringify(body) });
+}
+
+export function patchFriendlyMatch(
+  token: string,
+  friendlyId: number,
+  body: FriendlyMatchPatchBody
+): Promise<FriendlyMatchResponse> {
+  return apiFetch(`/friendlies/${friendlyId}`, { method: "PATCH", token, body: JSON.stringify(body) });
 }
 
 export function deleteFriendlyMatch(token: string, friendlyId: number): Promise<{ ok: boolean }> {

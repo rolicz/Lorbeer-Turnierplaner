@@ -9,10 +9,13 @@ import { showErrorToast } from "../../ui/primitives/ErrorToast";
 import AvatarCircle from "../../ui/primitives/AvatarCircle";
 import CommentImageCropper from "../../ui/primitives/CommentImageCropper";
 import ImageLightbox from "../../ui/primitives/ImageLightbox";
+import VoteButton from "../../ui/primitives/VoteButton";
+import VoteVotersModal from "../../ui/primitives/VoteVotersModal";
 import type { Player } from "../../api/types";
 import {
   commentImageUrl,
   createTournamentComment,
+  listCommentVoters,
   listTournamentComments,
   markCommentRead,
   putCommentImage,
@@ -58,6 +61,7 @@ export default function MatchCommentsPanel({
   const [composerOpen, setComposerOpen] = useState(false);
   const [flashId, setFlashId] = useState<number | null>(null);
   const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
+  const [voteVotersCommentId, setVoteVotersCommentId] = useState<number | null>(null);
 
   const idsOk =
     typeof tournamentId === "number" &&
@@ -272,35 +276,42 @@ export default function MatchCommentsPanel({
                   ) : null}
                 </div>
                 <div className="mt-2 flex items-center gap-2 text-[11px] text-text-muted">
-                  <Button
-                    variant="ghost"
-                    type="button"
-                    onClick={() => {
+                  <VoteButton
+                    direction="up"
+                    active={myVote === 1}
+                    count={upvotes}
+                    onVote={() => {
                       if (!token || voteMut.isPending) return;
                       const next: -1 | 0 | 1 = myVote === 1 ? 0 : 1;
                       voteMut.mutate({ commentId: c.id, value: next });
                     }}
+                    voteDisabled={!token || voteMut.isPending}
                     title="Upvote"
-                    disabled={!token || voteMut.isPending}
-                    className="h-8 px-2 inline-flex items-center justify-center gap-1"
-                  >
-                    <i className={"fa-solid fa-thumbs-up " + (myVote === 1 ? "text-accent" : "")} aria-hidden="true" />
-                    <span className="tabular-nums">{upvotes}</span>
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    type="button"
-                    onClick={() => {
+                  />
+                  <VoteButton
+                    direction="down"
+                    active={myVote === -1}
+                    count={downvotes}
+                    onVote={() => {
                       if (!token || voteMut.isPending) return;
                       const next: -1 | 0 | 1 = myVote === -1 ? 0 : -1;
                       voteMut.mutate({ commentId: c.id, value: next });
                     }}
+                    voteDisabled={!token || voteMut.isPending}
                     title="Downvote"
-                    disabled={!token || voteMut.isPending}
-                    className="h-8 px-2 inline-flex items-center justify-center gap-1"
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setVoteVotersCommentId(c.id);
+                    }}
+                    title="Show voters"
+                    className="h-8 w-8 p-0 inline-flex items-center justify-center"
                   >
-                    <i className={"fa-solid fa-thumbs-down " + (myVote === -1 ? "text-accent" : "")} aria-hidden="true" />
-                    <span className="tabular-nums">{downvotes}</span>
+                    <i className="fa-solid fa-users text-text-muted" aria-hidden="true" />
                   </Button>
                 </div>
               </div>
@@ -429,6 +440,13 @@ export default function MatchCommentsPanel({
       title="Attach comment image"
       onClose={() => setImageCropOpen(false)}
       onApply={(blob) => setDraftImage(blob)}
+    />
+    <VoteVotersModal
+      open={voteVotersCommentId != null}
+      title="Comment votes"
+      queryKey={["comments", "voters", voteVotersCommentId ?? "none"]}
+      queryFn={() => listCommentVoters(voteVotersCommentId as number)}
+      onClose={() => setVoteVotersCommentId(null)}
     />
     <ImageLightbox open={!!lightboxSrc} src={lightboxSrc} onClose={() => setLightboxSrc(null)} />
     </>
