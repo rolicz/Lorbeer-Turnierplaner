@@ -29,7 +29,7 @@ import {
   listPlayers,
   patchPlayerProfile,
 } from "../api/players.api";
-import { deletePlayerAvatar, putPlayerAvatar } from "../api/playerAvatars.api";
+import { deletePlayerAvatar, playerAvatarUrl, putPlayerAvatar } from "../api/playerAvatars.api";
 import {
   deletePlayerHeaderImage,
   playerHeaderImageUrl,
@@ -40,6 +40,7 @@ import { getStatsH2H, getStatsPlayerMatches, getStatsPlayers, getStatsRatings, g
 import { listClubs } from "../api/clubs.api";
 import type { PlayerGuestbookEntry } from "../api/types";
 import { MatchHistoryList } from "./stats/MatchHistoryList";
+import { groupFriendlyTournamentsByDate } from "./stats/matchHistory";
 import PlayerAvatarEditor from "./players/PlayerAvatarEditor";
 import { usePlayerAvatarMap } from "../hooks/usePlayerAvatarMap";
 import { usePlayerHeaderMap } from "../hooks/usePlayerHeaderMap";
@@ -174,7 +175,7 @@ export default function ProfilePage() {
   });
   const statsMatchesQ = useQuery({
     queryKey: ["stats", "player-matches", "profile", targetPlayerId ?? "none"],
-    queryFn: () => getStatsPlayerMatches({ playerId: targetPlayerId as number, scope: "tournaments" }),
+    queryFn: () => getStatsPlayerMatches({ playerId: targetPlayerId as number, scope: "both" }),
     enabled: Number.isFinite(targetPlayerId) && (targetPlayerId ?? 0) > 0,
   });
   const cupDefsQ = useQuery({ queryKey: ["cup", "defs"], queryFn: listCupDefs });
@@ -203,6 +204,7 @@ export default function ProfilePage() {
   const [replyOpenEntryByProfileId, setReplyOpenEntryByProfileId] = useState<Record<number, number | null>>({});
   const [avatarEditorOpen, setAvatarEditorOpen] = useState(false);
   const [headerEditorOpen, setHeaderEditorOpen] = useState(false);
+  const [avatarLightboxSrc, setAvatarLightboxSrc] = useState<string | null>(null);
   const [headerLightboxSrc, setHeaderLightboxSrc] = useState<string | null>(null);
   const [showAllMatchTournaments, setShowAllMatchTournaments] = useState(false);
   const [pokeButtonFlash, setPokeButtonFlash] = useState<{
@@ -239,6 +241,7 @@ export default function ProfilePage() {
     [guestbookReadQ.data?.entry_ids]
   );
   const avatarUpdatedAt = targetPlayerId ? avatarUpdatedAtByPlayerId.get(targetPlayerId) ?? null : null;
+  const avatarImageSrc = targetPlayerId && avatarUpdatedAt ? playerAvatarUrl(targetPlayerId, avatarUpdatedAt) : null;
   const headerUpdatedAt = targetPlayerId
     ? headerUpdatedAtByPlayerId.get(targetPlayerId) ?? profileQ.data?.header_image_updated_at ?? null
     : null;
@@ -290,8 +293,24 @@ export default function ProfilePage() {
     return out;
   }, [cups, cupsQ, targetPlayerId]);
 
-  const allMatchTournaments = statsMatchesQ.data?.tournaments ?? [];
+  const allMatchTournaments = useMemo(
+    () => groupFriendlyTournamentsByDate(statsMatchesQ.data?.tournaments ?? []),
+    [statsMatchesQ.data?.tournaments]
+  );
   const visibleMatchTournaments = showAllMatchTournaments ? allMatchTournaments : allMatchTournaments.slice(0, 2);
+  const tournamentPlacementById = useMemo(() => {
+    const out = new Map<number, { position: number; total: number | null }>();
+    const byTournamentId = new Map<number, number>(
+      (statsPlayersQ.data?.tournaments ?? []).map((t) => [Number(t.id), Number(t.players_count)])
+    );
+    for (const [tidStr, pos] of Object.entries(playerStatsRow?.positions_by_tournament ?? {})) {
+      const tid = Number(tidStr);
+      if (!Number.isFinite(tid) || tid <= 0 || pos == null) continue;
+      const totalPlayers = byTournamentId.get(tid);
+      out.set(tid, { position: Number(pos), total: Number.isFinite(totalPlayers) ? Number(totalPlayers) : null });
+    }
+    return out;
+  }, [playerStatsRow?.positions_by_tournament, statsPlayersQ.data?.tournaments]);
   const unreadGuestbookCount = useMemo(() => {
     if (!token) return 0;
     let n = 0;
@@ -1079,12 +1098,28 @@ export default function ProfilePage() {
           </div>
 
           <div className="flex items-center gap-3">
-            <AvatarCircle
-              playerId={targetPlayerId}
-              name={player?.display_name ?? profileQ.data?.display_name ?? String(targetPlayerId)}
-              updatedAt={avatarUpdatedAt}
-              sizeClass="h-14 w-14"
-            />
+            {avatarImageSrc ? (
+              <button
+                type="button"
+                className="shrink-0 rounded-full cursor-zoom-in"
+                title="Open avatar"
+                onClick={() => setAvatarLightboxSrc(avatarImageSrc)}
+              >
+                <AvatarCircle
+                  playerId={targetPlayerId}
+                  name={player?.display_name ?? profileQ.data?.display_name ?? String(targetPlayerId)}
+                  updatedAt={avatarUpdatedAt}
+                  sizeClass="h-14 w-14"
+                />
+              </button>
+            ) : (
+              <AvatarCircle
+                playerId={targetPlayerId}
+                name={player?.display_name ?? profileQ.data?.display_name ?? String(targetPlayerId)}
+                updatedAt={avatarUpdatedAt}
+                sizeClass="h-14 w-14"
+              />
+            )}
             <div className="min-w-0">
               <div className="min-w-0 flex items-center gap-2">
                 <span className="truncate text-base font-semibold text-text-normal">
@@ -1416,6 +1451,15 @@ export default function ProfilePage() {
               focusId={targetPlayerId}
               clubs={clubsQ.data ?? []}
               showMeta={false}
+              renderTournamentPills={(t) => {
+                const row = tournamentPlacementById.get(Number(t.id));
+                if (!row) return null;
+                return (
+                  <Pill className="pill-default" title="Tournament position">
+                    #{row.position}/{row.total ?? "?"}
+                  </Pill>
+                );
+              }}
             />
           </div>
         </div>
@@ -1542,6 +1586,7 @@ export default function ProfilePage() {
         }}
       />
 
+      <ImageLightbox open={!!avatarLightboxSrc} src={avatarLightboxSrc} onClose={() => setAvatarLightboxSrc(null)} />
       <ImageLightbox open={!!headerLightboxSrc} src={headerLightboxSrc} onClose={() => setHeaderLightboxSrc(null)} />
     </div>
   );

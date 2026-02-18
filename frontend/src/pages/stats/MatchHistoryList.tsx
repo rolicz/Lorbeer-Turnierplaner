@@ -171,6 +171,7 @@ export function MatchHistoryTournamentBlock({
   showMeta,
   nameColorByResult = false,
   actions,
+  extraPills,
   hideModePill = false,
   renderMatchAction,
 }: {
@@ -180,6 +181,7 @@ export function MatchHistoryTournamentBlock({
   showMeta: boolean;
   nameColorByResult?: boolean;
   actions?: ReactNode;
+  extraPills?: ReactNode;
   hideModePill?: boolean;
   renderMatchAction?: (t: StatsPlayerMatchesTournament, m: Match) => ReactNode;
 }) {
@@ -191,6 +193,7 @@ export function MatchHistoryTournamentBlock({
           <div className="mt-1 flex flex-wrap items-center gap-2">
             <Pill className={pillDate()}>{fmtDate(t.date)}</Pill>
             {!hideModePill ? <Pill className="pill-default">{t.mode}</Pill> : null}
+            {extraPills}
           </div>
         </div>
         <div className="shrink-0 flex items-center gap-2">
@@ -223,6 +226,7 @@ export function MatchHistoryList({
   showMeta,
   nameColorByResult = false,
   renderTournamentActions,
+  renderTournamentPills,
   renderMatchActions,
   hideModePill = false,
 }: {
@@ -232,6 +236,7 @@ export function MatchHistoryList({
   showMeta: boolean;
   nameColorByResult?: boolean;
   renderTournamentActions?: (t: StatsPlayerMatchesTournament) => ReactNode;
+  renderTournamentPills?: (t: StatsPlayerMatchesTournament) => ReactNode;
   renderMatchActions?: (t: StatsPlayerMatchesTournament, m: Match) => ReactNode;
   hideModePill?: boolean;
 }) {
@@ -246,6 +251,7 @@ export function MatchHistoryList({
           showMeta={showMeta}
           nameColorByResult={nameColorByResult}
           actions={renderTournamentActions ? renderTournamentActions(t) : undefined}
+          extraPills={renderTournamentPills ? renderTournamentPills(t) : undefined}
           hideModePill={hideModePill}
           renderMatchAction={renderMatchActions}
         />
