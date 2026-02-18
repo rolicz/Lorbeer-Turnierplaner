@@ -22,7 +22,6 @@ import {
 } from "../api/players.api";
 import { usePlayerAvatarMap } from "../hooks/usePlayerAvatarMap";
 import { useSeenGuestbookIdsByProfileId } from "../hooks/useSeenGuestbook";
-import { useSeenPokesByProfileId } from "../hooks/useSeenPokes";
 import { scrollToSectionById } from "../ui/scrollToSection";
 
 export default function PlayersAdminPage() {
@@ -82,7 +81,6 @@ export default function PlayersAdminPage() {
 
   const players = playersQ.data ?? [];
   const seenGuestbookByPid = useSeenGuestbookIdsByProfileId(players.map((p) => p.id));
-  const seenPokesByPid = useSeenPokesByProfileId(players.map((p) => p.id));
   const guestbookSummaryByPid = useMemo(() => {
     const map = new Map<number, { entry_ids: number[] }>();
     for (const row of guestbookSummaryQ.data ?? []) {
@@ -91,9 +89,12 @@ export default function PlayersAdminPage() {
     return map;
   }, [guestbookSummaryQ.data]);
   const pokeSummaryByPid = useMemo(() => {
-    const map = new Map<number, { poke_ids: number[] }>();
+    const map = new Map<number, { poke_ids: number[]; unread_by_profile_owner_count: number }>();
     for (const row of pokesSummaryQ.data ?? []) {
-      map.set(Number(row.profile_player_id), { poke_ids: row.poke_ids ?? [] });
+      map.set(Number(row.profile_player_id), {
+        poke_ids: row.poke_ids ?? [],
+        unread_by_profile_owner_count: Number(row.unread_by_profile_owner_count ?? 0),
+      });
     }
     return map;
   }, [pokesSummaryQ.data]);
@@ -203,10 +204,8 @@ export default function PlayersAdminPage() {
           const entryIds = guestbookSummaryByPid.get(p.id)?.entry_ids ?? [];
           const unseenCount = entryIds.filter((eid) => !seen.has(eid)).length;
           const hasUnseen = !!token && unseenCount > 0;
-          const seenPokes = seenPokesByPid.get(p.id) ?? new Set<number>();
-          const pokeIds = pokeSummaryByPid.get(p.id)?.poke_ids ?? [];
-          const unseenPokes = pokeIds.filter((eid) => !seenPokes.has(eid)).length;
-          const hasUnreadPokes = !!token && unseenPokes > 0;
+          const unseenPokes = Number(pokeSummaryByPid.get(p.id)?.unread_by_profile_owner_count ?? 0);
+          const hasUnreadPokes = unseenPokes > 0;
 
           return (
             <div key={p.id} className={"border-b border-border-card-inner last:border-b-0 " + zebra}>
@@ -232,31 +231,24 @@ export default function PlayersAdminPage() {
                 </div>
 
                 <div className="col-span-4 flex items-center justify-end gap-2">
-                  {token ? (
-                    hasUnreadPokes ? (
-                      <button
-                        type="button"
-                        title="Unread anpöbel notifications"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          navigate(`/profiles/${p.id}`);
-                          window.setTimeout(() => {
-                            scrollToSectionById("profile-section-main", 24);
-                          }, 0);
-                        }}
-                      >
-                        <Pill title="Unread anpöbel notifications">
-                          <i className="fa-solid fa-bell text-accent" aria-hidden="true" />
-                          <span className="tabular-nums text-text-normal">{unseenPokes}</span>
-                        </Pill>
-                      </button>
-                    ) : (
+                  {hasUnreadPokes ? (
+                    <button
+                      type="button"
+                      title="Unread anpöbel notifications"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        navigate(`/profiles/${p.id}`);
+                        window.setTimeout(() => {
+                          scrollToSectionById("profile-section-main", 24);
+                        }, 0);
+                      }}
+                    >
                       <Pill title="Unread anpöbel notifications">
-                        <i className="fa-solid fa-bell text-text-muted" aria-hidden="true" />
-                        <span className="tabular-nums text-text-normal">0</span>
+                        <i className="fa-solid fa-bell text-accent" aria-hidden="true" />
+                        <span className="tabular-nums text-text-normal">{unseenPokes}</span>
                       </Pill>
-                    )
+                    </button>
                   ) : null}
                   {token ? (
                     hasUnseen ? (
@@ -274,12 +266,7 @@ export default function PlayersAdminPage() {
                           <span className="tabular-nums text-text-normal">{unseenCount}</span>
                         </Pill>
                       </button>
-                    ) : (
-                      <Pill title="Unread guestbook messages">
-                        <i className="fa-solid fa-envelope text-text-muted" aria-hidden="true" />
-                        <span className="tabular-nums text-text-normal">0</span>
-                      </Pill>
-                    )
+                    ) : null
                   ) : null}
                   {!editing && isAdmin ? (
                     <Button

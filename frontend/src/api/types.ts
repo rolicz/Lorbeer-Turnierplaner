@@ -59,12 +59,14 @@ export type PlayerPoke = {
   profile_player_id: number;
   author_player_id: number;
   author_display_name: string;
+  seen_by_profile_owner: boolean;
   created_at: string;
 };
 
 export type PlayerPokeSummary = {
   profile_player_id: number;
   total_pokes: number;
+  unread_by_profile_owner_count: number;
   latest_poke_id: number;
   latest_created_at: string | null;
   poke_ids: number[];

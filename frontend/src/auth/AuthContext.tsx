@@ -10,6 +10,8 @@ type AuthState = {
   role: Role;
   playerId: number | null;
   playerName: string | null;
+  actorPlayerId: number | null;
+  actorPlayerName: string | null;
 };
 
 type AuthCtx = AuthState & {
@@ -17,6 +19,8 @@ type AuthCtx = AuthState & {
   logout: () => void;
   canCycleRole: boolean;
   cycleRole: () => void;
+  canSwitchActor: boolean;
+  setActorPlayer: (playerId: number | null, playerName: string | null) => void;
 };
 
 const AuthContext = createContext<AuthCtx | null>(null);
@@ -26,6 +30,8 @@ const ROLE_KEY = "ea_fc_role";
 const PLAYER_ID_KEY = "ea_fc_player_id";
 const PLAYER_NAME_KEY = "ea_fc_player_name";
 const ROLE_OVERRIDE_KEY = "ea_fc_role_override";
+const ACTOR_PLAYER_ID_KEY = "ea_fc_actor_player_id";
+const ACTOR_PLAYER_NAME_KEY = "ea_fc_actor_player_name";
 const ROLE_RANK: Record<Role, number> = { reader: 1, editor: 2, admin: 3 };
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -43,6 +49,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (raw === "reader" || raw === "editor" || raw === "admin") return raw;
     return null;
   });
+  const [actorPlayerIdOverride, setActorPlayerIdOverride] = useState<number | null>(() => {
+    const raw = localStorage.getItem(ACTOR_PLAYER_ID_KEY);
+    if (!raw) return null;
+    const n = Number(raw);
+    return Number.isFinite(n) && n > 0 ? n : null;
+  });
+  const [actorPlayerNameOverride, setActorPlayerNameOverride] = useState<string | null>(
+    () => localStorage.getItem(ACTOR_PLAYER_NAME_KEY)
+  );
 
   const accountRole: Role = token ? storedRole : "reader";
   const normalizedOverride: Role | null =
@@ -51,6 +66,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const playerId = token ? storedPlayerId : null;
   const playerName = token ? storedPlayerName : null;
   const canCycleRole = !!token && accountRole === "admin";
+  const canSwitchActor = !!token && accountRole === "admin";
+  const actorPlayerId =
+    accountRole === "admin" && actorPlayerIdOverride && actorPlayerIdOverride > 0 ? actorPlayerIdOverride : playerId;
+  const actorPlayerName = canSwitchActor
+    ? actorPlayerNameOverride || playerName
+    : playerName;
 
   function clearAuth() {
     localStorage.removeItem(TOKEN_KEY);
@@ -58,11 +79,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     localStorage.removeItem(PLAYER_ID_KEY);
     localStorage.removeItem(PLAYER_NAME_KEY);
     localStorage.removeItem(ROLE_OVERRIDE_KEY);
+    localStorage.removeItem(ACTOR_PLAYER_ID_KEY);
+    localStorage.removeItem(ACTOR_PLAYER_NAME_KEY);
     setToken(null);
     setStoredRole("reader");
     setStoredPlayerId(null);
     setStoredPlayerName(null);
     setRoleOverride(null);
+    setActorPlayerIdOverride(null);
+    setActorPlayerNameOverride(null);
   }
 
   // Validate stored token against backend. This prevents "UI says admin" when the token is stale/invalid
@@ -119,12 +144,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setRoleOverride(next);
   }, [canCycleRole, normalizedOverride]);
 
+  const setActorPlayer = useCallback(
+    (pid: number | null, pname: string | null) => {
+      if (!token || accountRole !== "admin") return;
+      if (pid == null || (storedPlayerId != null && Number(pid) === Number(storedPlayerId))) {
+        localStorage.removeItem(ACTOR_PLAYER_ID_KEY);
+        localStorage.removeItem(ACTOR_PLAYER_NAME_KEY);
+        setActorPlayerIdOverride(null);
+        setActorPlayerNameOverride(null);
+        return;
+      }
+      const safePid = Number(pid);
+      if (!Number.isFinite(safePid) || safePid <= 0) return;
+      localStorage.setItem(ACTOR_PLAYER_ID_KEY, String(safePid));
+      if (pname) localStorage.setItem(ACTOR_PLAYER_NAME_KEY, pname);
+      else localStorage.removeItem(ACTOR_PLAYER_NAME_KEY);
+      setActorPlayerIdOverride(safePid);
+      setActorPlayerNameOverride(pname || null);
+    },
+    [accountRole, storedPlayerId, token]
+  );
+
   const value = useMemo<AuthCtx>(() => ({
     token,
     accountRole,
     role,
     playerId,
     playerName,
+    actorPlayerId,
+    actorPlayerName,
     login: (t, r, pid, pname) => {
       localStorage.setItem(TOKEN_KEY, t);
       localStorage.setItem(ROLE_KEY, r);
@@ -133,16 +181,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (!pname) localStorage.removeItem(PLAYER_NAME_KEY);
       else localStorage.setItem(PLAYER_NAME_KEY, pname);
       localStorage.removeItem(ROLE_OVERRIDE_KEY);
+      localStorage.removeItem(ACTOR_PLAYER_ID_KEY);
+      localStorage.removeItem(ACTOR_PLAYER_NAME_KEY);
       setToken(t);
       setStoredRole(r);
       setStoredPlayerId(pid);
       setStoredPlayerName(pname);
       setRoleOverride(null);
+      setActorPlayerIdOverride(null);
+      setActorPlayerNameOverride(null);
     },
     logout: clearAuth,
     canCycleRole,
     cycleRole,
-  }), [token, accountRole, role, playerId, playerName, canCycleRole, cycleRole]);
+    canSwitchActor,
+    setActorPlayer,
+  }), [
+    token,
+    accountRole,
+    role,
+    playerId,
+    playerName,
+    actorPlayerId,
+    actorPlayerName,
+    canCycleRole,
+    cycleRole,
+    canSwitchActor,
+    setActorPlayer,
+  ]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

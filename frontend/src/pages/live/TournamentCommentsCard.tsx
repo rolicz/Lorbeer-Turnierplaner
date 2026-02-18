@@ -476,7 +476,7 @@ export default function TournamentCommentsCard({
   collapsible?: boolean;
 }) {
   const qc = useQueryClient();
-  const { token, role, playerId: currentPlayerId, playerName: currentPlayerName } = useAuth();
+  const { token, role, actorPlayerId: currentPlayerId, actorPlayerName: currentPlayerName } = useAuth();
   const canAttachImage = role === "admin" || role === "editor";
   const seen = useSeenSet(tournamentId);
 

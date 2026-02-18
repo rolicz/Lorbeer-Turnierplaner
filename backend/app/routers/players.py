@@ -24,6 +24,7 @@ from ..schemas import (
     PlayerGuestbookCreateBody,
     PlayerGuestbookVoteBody,
     PlayerPatchBody,
+    PlayerPokeCreateBody,
     PlayerProfilePatchBody,
 )
 from ..services.file_storage import (
@@ -537,6 +538,7 @@ def _poke_payload(
     *,
     poke: PlayerPoke,
     author_display_name: str,
+    seen_by_profile_owner: bool = False,
 ) -> dict:
     return {
         "id": int(poke.id),
@@ -544,6 +546,7 @@ def _poke_payload(
         "author_player_id": int(poke.author_player_id),
         "author_display_name": author_display_name,
         "created_at": poke.created_at,
+        "seen_by_profile_owner": bool(seen_by_profile_owner),
     }
 
 
@@ -630,6 +633,18 @@ def list_player_pokes(
         .order_by(PlayerPoke.created_at.desc(), PlayerPoke.id.desc())
         .limit(lim)
     ).all()
+    poke_ids = [int(row.id) for row in rows]
+    seen_by_owner_ids: set[int] = set()
+    if poke_ids:
+        seen_by_owner_ids = {
+            int(pid)
+            for pid in s.exec(
+                select(PlayerPokeRead.poke_id).where(
+                    PlayerPokeRead.player_id == int(player_id),
+                    PlayerPokeRead.poke_id.in_(poke_ids),
+                )
+            ).all()
+        }
     author_ids = sorted({int(row.author_player_id) for row in rows})
     authors = s.exec(select(Player).where(Player.id.in_(author_ids))).all() if author_ids else []
     author_name_by_id = {int(p.id): p.display_name for p in authors}
@@ -637,6 +652,7 @@ def list_player_pokes(
         _poke_payload(
             poke=row,
             author_display_name=author_name_by_id.get(int(row.author_player_id), f"Player #{int(row.author_player_id)}"),
+            seen_by_profile_owner=int(row.id) in seen_by_owner_ids,
         )
         for row in rows
     ]
@@ -705,7 +721,12 @@ def create_player_guestbook_entry(
     if len(text) > MAX_GUESTBOOK_BODY_CHARS:
         raise HTTPException(status_code=413, detail=f"body too long (max {MAX_GUESTBOOK_BODY_CHARS} chars)")
 
-    author_player_id = int(claims.get("player_id"))
+    claims_player_id = int(claims.get("player_id"))
+    req_author_player_id = None if body.author_player_id in (None, "") else int(body.author_player_id)
+    is_admin = str(claims.get("role") or "") == "admin"
+    author_player_id = req_author_player_id if req_author_player_id is not None else claims_player_id
+    if author_player_id != claims_player_id and not is_admin:
+        raise HTTPException(status_code=403, detail="You can only post guestbook messages as yourself")
     author_player = s.get(Player, author_player_id)
     if not author_player:
         raise HTTPException(status_code=401, detail="Invalid token payload")
@@ -753,6 +774,7 @@ def create_player_guestbook_entry(
 @router.post("/{player_id}/pokes")
 def create_player_poke(
     player_id: int,
+    body: PlayerPokeCreateBody | None = None,
     s: Session = Depends(get_session),
     claims: dict = Depends(require_editor_claims),
 ) -> dict:
@@ -760,7 +782,12 @@ def create_player_poke(
     if not player:
         raise HTTPException(status_code=404, detail="Player not found")
 
-    author_player_id = int(claims.get("player_id"))
+    claims_player_id = int(claims.get("player_id"))
+    req_author_player_id = None if body is None or body.author_player_id in (None, "") else int(body.author_player_id)
+    is_admin = str(claims.get("role") or "") == "admin"
+    author_player_id = req_author_player_id if req_author_player_id is not None else claims_player_id
+    if author_player_id != claims_player_id and not is_admin:
+        raise HTTPException(status_code=403, detail="You can only poke as yourself")
     if author_player_id == int(player_id):
         raise HTTPException(status_code=400, detail="Cannot poke yourself")
 

@@ -1,6 +1,6 @@
 import { Link, useLocation } from "react-router-dom";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../../auth/AuthContext";
 import Button from "../primitives/Button";
 import SectionHeader from "../primitives/SectionHeader";
@@ -11,6 +11,7 @@ import { listTournamentCommentReadMap, listTournamentCommentsSummary } from "../
 import {
   listPlayerGuestbookReadMap,
   listPlayerGuestbookSummary,
+  listPlayers,
   listPlayerPokeReadMap,
   listPlayerPokeSummary,
 } from "../../api/players.api";
@@ -87,11 +88,25 @@ function isLiveTournamentPath(pathname: string): boolean {
 }
 
 function LayoutInner({ children }: { children: React.ReactNode }) {
-  const { token, role, accountRole, playerName, logout, canCycleRole, cycleRole } = useAuth();
+  const {
+    token,
+    role,
+    accountRole,
+    playerId,
+    playerName,
+    actorPlayerId,
+    actorPlayerName,
+    setActorPlayer,
+    logout,
+    canCycleRole,
+    cycleRole,
+    canSwitchActor,
+  } = useAuth();
   const loc = useLocation();
   useAnyTournamentWS();
   const qc = useQueryClient();
   const themeMenuRef = useRef<HTMLDivElement | null>(null);
+  const actorMenuRef = useRef<HTMLDivElement | null>(null);
   const headerRef = useRef<HTMLDivElement | null>(null);
   const { items: subNavItems, setItems: setSubNavItems } = useSubNavContext();
   const pull = usePullToRefresh({
@@ -161,6 +176,7 @@ function LayoutInner({ children }: { children: React.ReactNode }) {
     return "blue";
   });
   const [themeMenuOpen, setThemeMenuOpen] = useState(false);
+  const [actorMenuOpen, setActorMenuOpen] = useState(false);
   const [headerHeight, setHeaderHeight] = useState(120);
   const [subnavTransition, setSubnavTransition] = useState<SubNavTransition | null>(null);
   const subnavTransitionTimerRef = useRef<number | null>(null);
@@ -180,6 +196,21 @@ function LayoutInner({ children }: { children: React.ReactNode }) {
     [loc.pathname, subNavItems]
   );
   const showSubNav = !!subnavTransition || shownSubNavItems.length > 0;
+  const playersQ = useQuery({
+    queryKey: ["players"],
+    queryFn: listPlayers,
+    enabled: !!token && accountRole === "admin",
+    staleTime: 30_000,
+  });
+  const actorOptions = useMemo(() => {
+    const rows = (playersQ.data ?? []).slice();
+    rows.sort((a, b) => a.display_name.localeCompare(b.display_name));
+    if (playerId != null && !rows.some((p) => p.id === playerId)) {
+      rows.unshift({ id: playerId, display_name: playerName || `Player #${playerId}` });
+    }
+    return rows;
+  }, [playersQ.data, playerId, playerName]);
+  const actorDifferent = playerId != null && actorPlayerId != null && Number(playerId) !== Number(actorPlayerId);
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -205,6 +236,26 @@ function LayoutInner({ children }: { children: React.ReactNode }) {
       document.removeEventListener("keydown", onDocKeyDown);
     };
   }, [themeMenuOpen]);
+
+  useEffect(() => {
+    if (!actorMenuOpen || !canSwitchActor) return;
+    const onDocMouseDown = (e: MouseEvent) => {
+      const el = actorMenuRef.current;
+      if (!el) return;
+      if (e.target instanceof Node && !el.contains(e.target)) {
+        setActorMenuOpen(false);
+      }
+    };
+    const onDocKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setActorMenuOpen(false);
+    };
+    document.addEventListener("mousedown", onDocMouseDown);
+    document.addEventListener("keydown", onDocKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", onDocMouseDown);
+      document.removeEventListener("keydown", onDocKeyDown);
+    };
+  }, [actorMenuOpen, canSwitchActor]);
 
   useEffect(() => {
     const el = headerRef.current;
@@ -476,11 +527,77 @@ function LayoutInner({ children }: { children: React.ReactNode }) {
                     <i className="fa-solid fa-user-gear text-xs" aria-hidden="true" />
                   </button>
                 ) : null}
-                <div className="truncate text-xs text-muted sm:text-sm">
-                  <span className="accent">{playerName || "Guest"}</span>
-                  <span className="ml-1 text-text-normal">({role})</span>
-                  {accountRole === "admin" && role !== "admin" ? (
-                    <span className="ml-2 text-[11px] text-text-muted hidden sm:inline">ui override</span>
+                <div className="min-w-0 relative" ref={actorMenuRef}>
+                  {canSwitchActor ? (
+                    <button
+                      type="button"
+                      onClick={() => setActorMenuOpen((v) => !v)}
+                      title="Switch active comment identity"
+                      className="btn-base btn-ghost inline-flex h-8 max-w-full items-center gap-1 px-2"
+                    >
+                      <span className="truncate text-xs text-muted sm:text-sm">
+                        <span className="accent">{playerName || "Guest"}</span>
+                        <span className="ml-1 text-text-normal">({role})</span>
+                        {actorDifferent ? (
+                          <span className="ml-2">
+                            as <span className="text-text-normal">{actorPlayerName || `#${actorPlayerId}`}</span>
+                          </span>
+                        ) : null}
+                      </span>
+                      <i
+                        className={"fa-solid text-[10px] text-text-muted " + (actorMenuOpen ? "fa-chevron-up" : "fa-chevron-down")}
+                        aria-hidden="true"
+                      />
+                    </button>
+                  ) : (
+                    <div className="truncate text-xs text-muted sm:text-sm">
+                      <span className="accent">{playerName || "Guest"}</span>
+                      <span className="ml-1 text-text-normal">({role})</span>
+                      {accountRole === "admin" && role !== "admin" ? (
+                        <span className="ml-2 text-[11px] text-text-muted hidden sm:inline">ui override</span>
+                      ) : null}
+                    </div>
+                  )}
+                  {canSwitchActor && actorMenuOpen ? (
+                    <div className="absolute left-0 top-full z-50 mt-1 min-w-[196px] rounded-xl border border-border-card-chip bg-bg-card-inner p-1 shadow-xl">
+                      <button
+                        type="button"
+                        className={
+                          "w-full rounded-lg px-2 py-1.5 text-left transition " +
+                          (!actorDifferent ? "bg-bg-card-chip/45" : "hover:bg-hover-default/40")
+                        }
+                        onClick={() => {
+                          setActorPlayer(null, null);
+                          setActorMenuOpen(false);
+                        }}
+                      >
+                        <span className="text-xs text-text-normal">
+                          {playerName || "Me"} <span className="text-text-muted">(me)</span>
+                        </span>
+                      </button>
+                      <div className="my-1 border-t border-border-card-inner/60" />
+                      <div className="max-h-56 overflow-y-auto space-y-1">
+                        {actorOptions.map((p) => {
+                          const active = actorPlayerId != null && Number(actorPlayerId) === Number(p.id);
+                          return (
+                            <button
+                              key={p.id}
+                              type="button"
+                              className={
+                                "w-full rounded-lg px-2 py-1.5 text-left transition " +
+                                (active ? "bg-bg-card-chip/45" : "hover:bg-hover-default/40")
+                              }
+                              onClick={() => {
+                                setActorPlayer(p.id, p.display_name);
+                                setActorMenuOpen(false);
+                              }}
+                            >
+                              <span className="text-xs text-text-normal">{p.display_name}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
                   ) : null}
                 </div>
               </div>

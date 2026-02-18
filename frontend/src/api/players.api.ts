@@ -81,10 +81,17 @@ export function listPlayerPokeReadMap(token: string): Promise<PlayerPokeReadMapR
   return apiFetch("/players/pokes-read-map", { method: "GET", token });
 }
 
-export function createPlayerPoke(token: string, playerId: number): Promise<PlayerPoke> {
+export function createPlayerPoke(
+  token: string,
+  playerId: number,
+  authorPlayerId?: number | null
+): Promise<PlayerPoke> {
   return apiFetch(`/players/${playerId}/pokes`, {
     method: "POST",
     token,
+    body: JSON.stringify({
+      author_player_id: authorPlayerId ?? null,
+    }),
   });
 }
 
@@ -123,6 +130,7 @@ export function createPlayerGuestbookEntry(
   playerId: number,
   body: string,
   parentEntryId?: number | null,
+  authorPlayerId?: number | null,
 ): Promise<PlayerGuestbookEntry> {
   return apiFetch(`/players/${playerId}/guestbook`, {
     method: "POST",
@@ -130,6 +138,7 @@ export function createPlayerGuestbookEntry(
     body: JSON.stringify({
       body,
       parent_entry_id: parentEntryId ?? null,
+      author_player_id: authorPlayerId ?? null,
     }),
   });
 }

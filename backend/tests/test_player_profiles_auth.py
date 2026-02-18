@@ -111,6 +111,27 @@ def test_profile_guestbook_create_list_delete(client, editor_headers, admin_head
     assert r_del_author.status_code == 204, r_del_author.text
 
 
+def test_admin_can_post_guestbook_and_poke_as_other_player(client, editor_headers, admin_headers):
+    editor_id = _player_id_by_name(client, "Editor")
+    target_id = client.post("/players", json={"display_name": "ActorTarget"}, headers=admin_headers).json()["id"]
+
+    r_gb = client.post(
+        f"/players/{target_id}/guestbook",
+        json={"body": "admin acts as editor", "author_player_id": editor_id},
+        headers=admin_headers,
+    )
+    assert r_gb.status_code == 200, r_gb.text
+    assert int(r_gb.json()["author_player_id"]) == int(editor_id)
+
+    r_poke = client.post(
+        f"/players/{target_id}/pokes",
+        json={"author_player_id": editor_id},
+        headers=admin_headers,
+    )
+    assert r_poke.status_code == 200, r_poke.text
+    assert int(r_poke.json()["author_player_id"]) == int(editor_id)
+
+
 def test_profile_guestbook_threads_recursive_delete(client, editor_headers, admin_headers):
     target_id = client.post("/players", json={"display_name": "GuestbookThreadTarget"}, headers=admin_headers).json()["id"]
 

@@ -25,10 +25,15 @@ class PlayerProfilePatchBody(BaseModel):
 class PlayerGuestbookCreateBody(BaseModel):
     body: str = ""
     parent_entry_id: int | None = None
+    author_player_id: int | None = None
 
 
 class PlayerGuestbookVoteBody(BaseModel):
     value: int | str | None = 0
+
+
+class PlayerPokeCreateBody(BaseModel):
+    author_player_id: int | None = None
 
 
 class TournamentCreateBody(BaseModel):

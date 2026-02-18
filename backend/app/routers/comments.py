@@ -377,7 +377,8 @@ async def create_comment(
     match_id = None if body.match_id in (None, "") else int(body.match_id)
     author_player_id = None if body.author_player_id in (None, "") else int(body.author_player_id)
 
-    if author_player_id is not None and author_player_id != int(claims.get("player_id")):
+    is_admin = str(claims.get("role") or "") == "admin"
+    if author_player_id is not None and author_player_id != int(claims.get("player_id")) and not is_admin:
         raise HTTPException(status_code=403, detail="You can only post comments as yourself or General")
 
     _validate_match_ref(s, tournament_id, match_id)
@@ -431,7 +432,8 @@ async def patch_comment(
 
     if "author_player_id" in fields:
         author_player_id = None if body.author_player_id in (None, "") else int(body.author_player_id)
-        if author_player_id is not None and author_player_id != int(claims.get("player_id")):
+        is_admin = str(claims.get("role") or "") == "admin"
+        if author_player_id is not None and author_player_id != int(claims.get("player_id")) and not is_admin:
             raise HTTPException(status_code=403, detail="You can only post comments as yourself or General")
         _validate_author(s, c.tournament_id, author_player_id)
         c.author_player_id = author_player_id

@@ -19,8 +19,6 @@ import {
   deletePlayerGuestbookEntry,
   getPlayerProfile,
   listPlayerPokes,
-  listPlayerPokeAuthoredUnreadSummary,
-  listPlayerPokeReadIds,
   listPlayerPokeSummary,
   listPlayerGuestbookReadIds,
   listPlayerGuestbook,
@@ -92,7 +90,7 @@ function streakIconForKey(key: string) {
 export default function ProfilePage() {
   const { id } = useParams<{ id: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
-  const { token, role, playerId: currentPlayerId } = useAuth();
+  const { token, role, playerId: currentPlayerId, actorPlayerId } = useAuth();
   const pageEntered = useRouteEntryLoading();
   const qc = useQueryClient();
 
@@ -117,20 +115,10 @@ export default function ProfilePage() {
     queryFn: listPlayerPokeSummary,
     enabled: Number.isFinite(targetPlayerId) && (targetPlayerId ?? 0) > 0,
   });
-  const authoredUnreadPokesQ = useQuery({
-    queryKey: ["players", "pokes", "authored-unread", token ?? "none"],
-    queryFn: () => listPlayerPokeAuthoredUnreadSummary(token as string),
-    enabled: !!token,
-  });
   const pokesQ = useQuery({
     queryKey: ["players", "pokes", targetPlayerId ?? "none"],
     queryFn: () => listPlayerPokes(targetPlayerId as number, 80),
     enabled: Number.isFinite(targetPlayerId) && (targetPlayerId ?? 0) > 0,
-  });
-  const pokeReadQ = useQuery({
-    queryKey: ["players", "pokes", "read", targetPlayerId ?? "none", token ?? "none"],
-    queryFn: () => listPlayerPokeReadIds(token as string, targetPlayerId as number),
-    enabled: !!token && Number.isFinite(targetPlayerId) && (targetPlayerId ?? 0) > 0,
   });
   const guestbookReadQ = useQuery({
     queryKey: ["players", "guestbook", "read", targetPlayerId ?? "none", token ?? "none"],
@@ -238,13 +226,17 @@ export default function ProfilePage() {
   const isOwnProfile = isOwnProfileView;
   const canEdit = !!token && role !== "reader" && isOwnProfile;
   const canPostGuestbook = !!token && role !== "reader";
+  const canPokeAsActor =
+    !!token &&
+    role !== "reader" &&
+    Number.isFinite(actorPlayerId) &&
+    (actorPlayerId ?? 0) > 0 &&
+    Number.isFinite(targetPlayerId) &&
+    (targetPlayerId ?? 0) > 0 &&
+    Number(actorPlayerId) !== Number(targetPlayerId);
   const seenGuestbook = useMemo(
     () => new Set((guestbookReadQ.data?.entry_ids ?? []).map((x) => Number(x))),
     [guestbookReadQ.data?.entry_ids]
-  );
-  const seenPokes = useMemo(
-    () => new Set((pokeReadQ.data?.poke_ids ?? []).map((x) => Number(x))),
-    [pokeReadQ.data?.poke_ids]
   );
   const avatarUpdatedAt = targetPlayerId ? avatarUpdatedAtByPlayerId.get(targetPlayerId) ?? null : null;
   const headerUpdatedAt = targetPlayerId
@@ -405,19 +397,15 @@ export default function ProfilePage() {
     if (!targetPlayerId) return null;
     return (pokesSummaryQ.data ?? []).find((row) => Number(row.profile_player_id) === Number(targetPlayerId)) ?? null;
   }, [pokesSummaryQ.data, targetPlayerId]);
-  const unreadPokesFromOthersRows = useMemo(() => {
-    if (!token) return [];
-    const unseen = (pokesQ.data ?? []).filter((row) => !seenPokes.has(Number(row.id)));
-    if (!currentPlayerId) return unseen;
-    return unseen.filter((row) => Number(row.author_player_id) !== Number(currentPlayerId));
-  }, [token, pokesQ.data, seenPokes, currentPlayerId]);
-  const unreadPokeCount = unreadPokesFromOthersRows.length;
+  const ownerUnreadPokes = useMemo(
+    () => (pokesQ.data ?? []).filter((row) => !row.seen_by_profile_owner),
+    [pokesQ.data]
+  );
+  const unreadPokeCount = ownerUnreadPokes.length;
   const unreadPokeAuthorsText = useMemo(() => {
-    if (!token) return "";
-    const rows = unreadPokesFromOthersRows;
-    if (!rows.length) return "";
+    if (!ownerUnreadPokes.length) return "0";
     const byAuthor = new Map<number, { name: string; count: number }>();
-    for (const row of rows) {
+    for (const row of ownerUnreadPokes) {
       const authorId = Number(row.author_player_id);
       const prev = byAuthor.get(authorId);
       if (prev) {
@@ -429,26 +417,11 @@ export default function ProfilePage() {
         });
       }
     }
-    const top = Array.from(byAuthor.values()).slice(0, 3);
-    const names = top.map((x) => `${x.name} x${x.count}`);
-    const rest = byAuthor.size - top.length;
-    return rest > 0 ? `${names.join(", ")} +${rest}` : names.join(", ");
-  }, [unreadPokesFromOthersRows, token]);
-  const unreadPokeAuthorCount = useMemo(() => {
-    if (!token) return 0;
-    const rows = unreadPokesFromOthersRows;
-    if (!rows.length) return 0;
-    return new Set(rows.map((row) => Number(row.author_player_id))).size;
-  }, [unreadPokesFromOthersRows, token]);
-  const authoredUnreadRows = useMemo(
-    () => (!token ? [] : authoredUnreadPokesQ.data ?? []),
-    [authoredUnreadPokesQ.data, token]
-  );
-  const authoredUnreadOnProfileCount = useMemo(() => {
-    if (!targetPlayerId) return 0;
-    const row = authoredUnreadRows.find((x) => Number(x.profile_player_id) === Number(targetPlayerId));
-    return Number(row?.unread_count ?? 0);
-  }, [authoredUnreadRows, targetPlayerId]);
+    return Array.from(byAuthor.values())
+      .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name))
+      .map((x) => `${x.count}x ${x.name}`)
+      .join(", ");
+  }, [ownerUnreadPokes]);
   const totalPokeCount = Number(pokeSummaryRow?.total_pokes ?? 0);
 
   usePlayerProfileWS(targetPlayerId, token);
@@ -667,7 +640,7 @@ export default function ProfilePage() {
     }) => {
       if (!token) throw new Error("Not logged in");
       if (!targetPlayerId) throw new Error("Invalid player");
-      return createPlayerGuestbookEntry(token, targetPlayerId, body, parentEntryId);
+      return createPlayerGuestbookEntry(token, targetPlayerId, body, parentEntryId, actorPlayerId ?? null);
     },
     onSuccess: async (_result, vars) => {
       if (targetPlayerId && vars.parentEntryId == null) {
@@ -736,7 +709,7 @@ export default function ProfilePage() {
   const pokeMut = useMutation({
     mutationFn: async () => {
       if (!token || !targetPlayerId) throw new Error("Not logged in");
-      return createPlayerPoke(token, targetPlayerId);
+      return createPlayerPoke(token, targetPlayerId, actorPlayerId ?? null);
     },
     onSuccess: async () => {
       setPokeButtonFlash({ kind: "sent", playerId: targetPlayerId ?? null });
@@ -775,8 +748,6 @@ export default function ProfilePage() {
       guestbookQ.isLoading ||
       pokesQ.isLoading ||
       pokesSummaryQ.isLoading ||
-      (isOwnProfile && authoredUnreadPokesQ.isLoading) ||
-      pokeReadQ.isLoading ||
       clubsQ.isLoading ||
       statsPlayersQ.isLoading ||
       statsStreaksQ.isLoading ||
@@ -792,11 +763,8 @@ export default function ProfilePage() {
     cupDefsQ.isLoading,
     cupsLoading,
     guestbookQ.isLoading,
-    isOwnProfile,
     pokesQ.isLoading,
-    authoredUnreadPokesQ.isLoading,
     pokesSummaryQ.isLoading,
-    pokeReadQ.isLoading,
     playersQ.isLoading,
     profileQ.isLoading,
     statsH2HQ.isLoading,
@@ -812,7 +780,6 @@ export default function ProfilePage() {
     Number(pokeButtonFlash.playerId) === Number(targetPlayerId)
       ? pokeButtonFlash.kind
       : "none";
-  const unreadPokesLabel = isOwnProfile ? "New pokes on you" : "New pokes from others";
 
   useEffect(() => {
     const jumpUnread = searchParams.get("unread") === "1";
@@ -1084,8 +1051,6 @@ export default function ProfilePage() {
         <ErrorToastOnError error={profileQ.error} title="Profile loading failed" />
         <ErrorToastOnError error={pokesQ.error} title="Pokes loading failed" />
         <ErrorToastOnError error={pokesSummaryQ.error} title="Poke notifications loading failed" />
-        <ErrorToastOnError error={authoredUnreadPokesQ.error} title="Own poke status loading failed" />
-        <ErrorToastOnError error={pokeReadQ.error} title="Poke notifications loading failed" />
         <ErrorToastOnError error={saveProfileMut.error} title="Could not save profile text" />
         <ErrorToastOnError error={putAvatarMut.error} title="Could not save avatar" />
         <ErrorToastOnError error={delAvatarMut.error} title="Could not delete avatar" />
@@ -1152,7 +1117,7 @@ export default function ProfilePage() {
             </div>
             <div className="ml-auto shrink-0">
               <div className="flex items-center gap-2">
-                {unreadPokeCount > 0 ? (
+                {isOwnProfile && unreadPokeCount > 0 ? (
                   <Button
                     type="button"
                     variant="ghost"
@@ -1210,9 +1175,8 @@ export default function ProfilePage() {
               </div>
             </div>
           </div>
-          {token &&
-          ((isOwnProfile && unreadGuestbookCount > 0) || unreadPokeCount > 0 || authoredUnreadOnProfileCount > 0) ? (
-            <div className="pt-1">
+          {targetPlayerId ? (
+            <div className="pt-1 space-y-1">
               {isOwnProfile && unreadGuestbookCount > 0 ? (
                 <div className="inline-flex max-w-full items-center gap-1.5 text-[11px] text-text-muted">
                   <i className="fa-solid fa-envelope text-accent" aria-hidden="true" />
@@ -1224,28 +1188,23 @@ export default function ProfilePage() {
                   </span>
                 </div>
               ) : null}
-              {unreadPokeCount > 0 ? (
-                <div className="inline-flex max-w-full items-center gap-1.5 text-[11px] text-text-muted">
-                  <i className="fa-solid fa-bell" aria-hidden="true" />
-                  <span className="truncate">
-                    {unreadPokesLabel}: <span className="tabular-nums text-accent">{unreadPokeCount}</span>
-                    {unreadPokeAuthorsText
-                      ? ` · ${unreadPokeAuthorCount > 1 ? `(${unreadPokeAuthorCount}) ` : ""}${unreadPokeAuthorsText}`
-                      : ""}
-                  </span>
-                </div>
-              ) : null}
-              {authoredUnreadOnProfileCount > 0 ? (
-                <div className="inline-flex max-w-full items-center gap-1.5 text-[11px] text-text-muted">
-                  <i className="fa-solid fa-hand-fist" aria-hidden="true" />
-                  <span className="truncate">
-                    New pokes by you: <span className="tabular-nums text-accent">{authoredUnreadOnProfileCount}</span>
-                  </span>
-                </div>
-              ) : null}
+              <div className="inline-flex max-w-full items-center gap-1.5 text-[11px] text-text-muted">
+                <i
+                  className={"fa-solid fa-bell " + (unreadPokeCount > 0 ? "text-accent" : "text-text-muted")}
+                  aria-hidden="true"
+                />
+                <span className="truncate">
+                  New Angepöbelt from:{" "}
+                  {unreadPokeCount > 0 ? (
+                    <span className="text-accent">{unreadPokeAuthorsText}</span>
+                  ) : (
+                    <span className="tabular-nums text-text-normal">0</span>
+                  )}
+                </span>
+              </div>
             </div>
           ) : null}
-          {!isOwnProfile && canPostGuestbook ? (
+          {canPokeAsActor ? (
             <div className="pt-1">
               <Button
                 type="button"
@@ -1270,7 +1229,13 @@ export default function ProfilePage() {
                     }
                     aria-hidden="true"
                   />
-                  <span>{pokeMut.isPending ? "Anpöbeln…" : pokeFlashKind === "sent" ? "Gesendet" : "Anpöbeln"}</span>
+                  <span>
+                    {pokeMut.isPending
+                      ? "Anpöbeln…"
+                      : pokeFlashKind === "sent"
+                        ? "Gesendet"
+                        : "Anpöbeln"}
+                  </span>
                 </span>
               </Button>
             </div>

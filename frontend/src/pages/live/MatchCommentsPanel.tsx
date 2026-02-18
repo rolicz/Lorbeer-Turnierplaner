@@ -45,7 +45,7 @@ export default function MatchCommentsPanel({
   playersInMatch: Player[];
 }) {
   const qc = useQueryClient();
-  const { token, role, playerId: currentPlayerId, playerName: currentPlayerName } = useAuth();
+  const { token, role, actorPlayerId: currentPlayerId, actorPlayerName: currentPlayerName } = useAuth();
   const canAttachImage = role === "admin" || role === "editor";
   const seen = useSeenSet(tournamentId);
 
@@ -102,17 +102,18 @@ export default function MatchCommentsPanel({
     authorPlayerId == null ? "General" : byId.get(authorPlayerId) ?? `#${authorPlayerId}`;
 
   const createMut = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (payload: { authorPlayerId: number | null; body: string; hasImage: boolean }) => {
       if (!Number.isFinite(tournamentId) || tournamentId <= 0) throw new Error("Missing tournament id");
       if (!Number.isFinite(matchId) || matchId <= 0) throw new Error("Missing match id");
       if (!token) throw new Error("Not logged in");
-      if (!postAsGeneral && (!currentPlayerId || currentPlayerId <= 0)) throw new Error("Missing player identity");
-      const author_player_id = postAsGeneral ? null : currentPlayerId;
+      if (payload.authorPlayerId !== null && (!Number.isFinite(payload.authorPlayerId) || payload.authorPlayerId <= 0)) {
+        throw new Error("Missing player identity");
+      }
       const created = await createTournamentComment(token, tournamentId, {
         match_id: matchId,
-        author_player_id,
-        body: text.trim(),
-        has_image: !!draftImageBlob,
+        author_player_id: payload.authorPlayerId,
+        body: payload.body,
+        has_image: payload.hasImage,
       });
       if (draftImageBlob) {
         try {
@@ -401,7 +402,13 @@ export default function MatchCommentsPanel({
                 <div className="flex items-center justify-end">
                   <Button
                     type="button"
-                    onClick={() => void createMut.mutateAsync()}
+                    onClick={() =>
+                      void createMut.mutateAsync({
+                        authorPlayerId: postAsGeneral ? null : currentPlayerId ?? null,
+                        body: text.trim(),
+                        hasImage: !!draftImageBlob,
+                      })
+                    }
                     disabled={createMut.isPending || (!text.trim() && !draftImageBlob) || !idsOk}
                     title="Post comment"
                     className="h-10 w-10 p-0 inline-flex items-center justify-center md:w-auto md:px-4 md:py-2"

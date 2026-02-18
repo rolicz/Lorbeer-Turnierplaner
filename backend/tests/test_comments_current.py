@@ -222,6 +222,25 @@ def test_comment_author_must_be_tournament_player(client, editor_headers, admin_
     assert r.status_code == 403, r.text
 
 
+def test_admin_can_post_comment_as_other_participant(client, editor_headers, admin_headers):
+    players = client.get("/players").json()
+    editor_player_id = next(int(p["id"]) for p in players if p["display_name"] == "Editor")
+    admin_player_id = next(int(p["id"]) for p in players if p["display_name"] == "Admin")
+    tid = client.post(
+        "/tournaments",
+        json={"name": "comments-admin-impersonate", "mode": "1v1", "player_ids": [editor_player_id, admin_player_id]},
+        headers=editor_headers,
+    ).json()["id"]
+
+    r = client.post(
+        f"/tournaments/{tid}/comments",
+        json={"body": "from admin as editor", "author_player_id": editor_player_id},
+        headers=admin_headers,
+    )
+    assert r.status_code == 200, r.text
+    assert int(r.json().get("author_player_id", 0)) == int(editor_player_id)
+
+
 def test_match_comment_requires_match_in_tournament(client, editor_headers, admin_headers):
     p1 = client.post("/players", json={"display_name": "M1"}, headers=admin_headers).json()["id"]
     p2 = client.post("/players", json={"display_name": "M2"}, headers=admin_headers).json()["id"]
