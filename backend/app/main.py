@@ -66,6 +66,10 @@ def create_app(settings: Settings) -> FastAPI:
     app.include_router(comments_router)
     app.include_router(friendlies_router)
 
+    @app.get("/health")
+    def health() -> dict[str, str]:
+        return {"status": "ok"}
+
     def _ws_token_from_request(ws: WebSocket) -> str | None:
         auth = ws.headers.get("authorization")
         if auth and auth.lower().startswith("bearer "):
