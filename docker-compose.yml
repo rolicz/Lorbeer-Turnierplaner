@@ -1,6 +1,7 @@
 services:
   backend:
     build: ./backend
+    restart: unless-stopped
     # Run non-root to avoid root-owned files in mounted ./backend/data
     user: "${UID:-1000}:${GID:-1000}"
     volumes:
@@ -11,15 +12,32 @@ services:
       # Put cups config at ./backend/data/cups.json (persisted on host) or override path via env.
       CUPS_CONFIG_PATH: "/data/cups.json"
       UPLOADS_DIR: "/data/uploads"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/health', timeout=2).read()",
+        ]
+      interval: 15s
+      timeout: 3s
+      retries: 5
+      start_period: 20s
     expose:
       - "8001"
+    networks:
+      - app_net
 
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+    restart: unless-stopped
     expose:
       - "80"
+    networks:
+      - app_net
 
   caddy:
     image: caddy:2-alpine
@@ -28,13 +46,21 @@ services:
       - "80:80"
       - "443:443"
     depends_on:
-      - backend
-      - frontend
+      backend:
+        condition: service_healthy
+      frontend:
+        condition: service_started
     volumes:
       - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
       - caddy_config:/config
+    networks:
+      - app_net
 
 volumes:
   caddy_data:
   caddy_config:
+
+networks:
+  app_net:
+    driver: bridge
