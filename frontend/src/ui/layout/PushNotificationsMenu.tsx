@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import Button from "../primitives/Button";
 import { usePushNotifications } from "../../push/usePushNotifications";
 
@@ -23,16 +24,23 @@ function statusLabel(opts: {
 export default function PushNotificationsMenu({ token }: { token: string | null }) {
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
   const panelRef = useRef<HTMLDivElement | null>(null);
-  const [panelShiftX, setPanelShiftX] = useState(0);
+  const [panelPosition, setPanelPosition] = useState<{
+    top: number;
+    left: number;
+    width: number;
+    maxHeight: number;
+  } | null>(null);
   const push = usePushNotifications(token);
 
   useEffect(() => {
     if (!open) return undefined;
     const onDocMouseDown = (event: MouseEvent) => {
-      const el = menuRef.current;
-      if (!el) return;
-      if (event.target instanceof Node && !el.contains(event.target)) {
+      const menu = menuRef.current;
+      const panel = panelRef.current;
+      if (!menu) return;
+      if (event.target instanceof Node && !menu.contains(event.target) && !panel?.contains(event.target)) {
         setOpen(false);
       }
     };
@@ -56,28 +64,46 @@ export default function PushNotificationsMenu({ token }: { token: string | null 
   useLayoutEffect(() => {
     if (!open) return undefined;
 
-    const updatePanelShift = () => {
-      const panel = panelRef.current;
-      if (!panel) return;
-
+    const updatePanelPosition = () => {
+      const trigger = triggerRef.current;
+      const viewport = window.visualViewport;
       const gutter = 8;
-      const rect = panel.getBoundingClientRect();
-      let nextShift = 0;
-      if (rect.left < gutter) {
-        nextShift += gutter - rect.left;
-      }
-      if (rect.right > window.innerWidth - gutter) {
-        nextShift -= rect.right - (window.innerWidth - gutter);
-      }
-      const roundedShift = Math.round(nextShift);
-      setPanelShiftX((current) => (current === roundedShift ? current : roundedShift));
+      const viewportWidth = Math.round(viewport?.width ?? window.innerWidth);
+      const viewportHeight = Math.round(viewport?.height ?? window.innerHeight);
+      const offsetLeft = Math.round(viewport?.offsetLeft ?? 0);
+      const offsetTop = Math.round(viewport?.offsetTop ?? 0);
+      const width = Math.max(0, Math.min(352, viewportWidth - gutter * 2));
+      const rect = trigger?.getBoundingClientRect();
+      const anchorRight = rect ? rect.right + offsetLeft : offsetLeft + viewportWidth - gutter;
+      const top = rect ? Math.round(rect.bottom + offsetTop + 4) : offsetTop + gutter;
+      const left = Math.max(
+        offsetLeft + gutter,
+        Math.min(anchorRight - width, offsetLeft + viewportWidth - gutter - width)
+      );
+      const maxHeight = Math.max(160, viewportHeight - (top - offsetTop) - gutter);
+      setPanelPosition((current) =>
+        current &&
+        current.top === top &&
+        current.left === left &&
+        current.width === width &&
+        current.maxHeight === maxHeight
+          ? current
+          : { top, left, width, maxHeight }
+      );
     };
 
-    const frameId = window.requestAnimationFrame(updatePanelShift);
-    window.addEventListener("resize", updatePanelShift);
+    const frameId = window.requestAnimationFrame(updatePanelPosition);
+    const viewport = window.visualViewport;
+    window.addEventListener("resize", updatePanelPosition);
+    window.addEventListener("scroll", updatePanelPosition, true);
+    viewport?.addEventListener("resize", updatePanelPosition);
+    viewport?.addEventListener("scroll", updatePanelPosition);
     return () => {
       window.cancelAnimationFrame(frameId);
-      window.removeEventListener("resize", updatePanelShift);
+      window.removeEventListener("resize", updatePanelPosition);
+      window.removeEventListener("scroll", updatePanelPosition, true);
+      viewport?.removeEventListener("resize", updatePanelPosition);
+      viewport?.removeEventListener("scroll", updatePanelPosition);
     };
   }, [open]);
 
@@ -102,39 +128,26 @@ export default function PushNotificationsMenu({ token }: { token: string | null 
 
   if (!token) return null;
 
-  return (
-    <div className="relative" ref={menuRef}>
-      <button
-        type="button"
-        aria-label="Notifications"
-        title={`Notifications: ${label}`}
-        className="btn-base btn-ghost inline-flex h-9 sm:h-10 items-center justify-center gap-2 px-2 sm:px-3"
-        onClick={() => setOpen((value) => !value)}
-      >
-        <span className="relative inline-flex items-center justify-center">
-          <i
-            className={
-              "fa-solid fa-bell text-sm " +
-              (push.deviceEnabled ? "text-accent" : push.permission === "denied" ? "text-red-300" : "text-text-normal")
-            }
-            aria-hidden="true"
-          />
-          {push.deviceEnabled ? (
-            <span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-accent" aria-hidden="true" />
-          ) : null}
-        </span>
-        <span className={`hidden lg:inline text-xs ${statusToneClass}`}>{label}</span>
-        <i
-          className={"fa-solid text-[11px] text-text-muted " + (open ? "fa-chevron-up" : "fa-chevron-down")}
-          aria-hidden="true"
-        />
-      </button>
-
-      {open ? (
+  const panel = open
+    ? createPortal(
         <div
           ref={panelRef}
-          className="absolute right-0 top-full z-50 mt-1 max-h-[min(70svh,32rem)] w-[min(22rem,calc(100vw-1rem))] overflow-y-auto rounded-xl border border-border-card-chip bg-bg-card-inner p-3 shadow-xl overscroll-contain"
-          style={panelShiftX === 0 ? undefined : { transform: `translateX(${panelShiftX}px)` }}
+          className="fixed z-[70] overflow-y-auto rounded-xl border border-border-card-chip bg-bg-card-inner p-3 shadow-xl overscroll-contain"
+          style={
+            panelPosition
+              ? {
+                  top: `${panelPosition.top}px`,
+                  left: `${panelPosition.left}px`,
+                  width: `${panelPosition.width}px`,
+                  maxHeight: `${panelPosition.maxHeight}px`,
+                }
+              : {
+                  top: "3.5rem",
+                  left: "0.5rem",
+                  right: "0.5rem",
+                  maxHeight: "min(70svh, 32rem)",
+                }
+          }
         >
           <div className="flex items-start justify-between gap-3">
             <div>
@@ -221,8 +234,40 @@ export default function PushNotificationsMenu({ token }: { token: string | null 
               {push.testing ? "Sending..." : "Send Test"}
             </Button>
           </div>
-        </div>
-      ) : null}
+        </div>,
+        document.body
+      )
+    : null;
+
+  return (
+    <div className="relative" ref={menuRef}>
+      <button
+        ref={triggerRef}
+        type="button"
+        aria-label="Notifications"
+        title={`Notifications: ${label}`}
+        className="btn-base btn-ghost inline-flex h-9 sm:h-10 items-center justify-center gap-2 px-2 sm:px-3"
+        onClick={() => setOpen((value) => !value)}
+      >
+        <span className="relative inline-flex items-center justify-center">
+          <i
+            className={
+              "fa-solid fa-bell text-sm " +
+              (push.deviceEnabled ? "text-accent" : push.permission === "denied" ? "text-red-300" : "text-text-normal")
+            }
+            aria-hidden="true"
+          />
+          {push.deviceEnabled ? (
+            <span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-accent" aria-hidden="true" />
+          ) : null}
+        </span>
+        <span className={`hidden lg:inline text-xs ${statusToneClass}`}>{label}</span>
+        <i
+          className={"fa-solid text-[11px] text-text-muted " + (open ? "fa-chevron-up" : "fa-chevron-down")}
+          aria-hidden="true"
+        />
+      </button>
+      {panel}
     </div>
   );
 }
