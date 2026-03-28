@@ -160,18 +160,17 @@ export default function MatchList({
             <div className={`absolute left-0 top-0 h-full w-2 ${pal.bar}`} />
 
             <div
-              className={`block w-full text-left ${canEdit ? "cursor-pointer" : "cursor-default opacity-80"}`}
-              onClick={() => (canEdit ? onEditMatch(m) : undefined)}
+              className="block w-full cursor-pointer text-left"
+              onClick={() => onEditMatch(m)}
               onKeyDown={(e) => {
-                if (!canEdit) return;
                 if (e.key === "Enter" || e.key === " ") {
                   e.preventDefault();
                   onEditMatch(m);
                 }
               }}
               role="button"
-              tabIndex={canEdit ? 0 : -1}
-              title={canEdit ? "Edit match" : "Login as editor/admin to edit"}
+              tabIndex={0}
+              title={canEdit ? "Open H2H or edit match" : "Open H2H"}
             >
               {/* Top row: state + leg + actions */}
               {compact ? (

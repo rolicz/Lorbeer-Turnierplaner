@@ -5,7 +5,7 @@ import CollapsibleCard from "../../ui/primitives/CollapsibleCard";
 import SegmentedSwitch from "../../ui/primitives/SegmentedSwitch";
 import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
 import InlineLoading from "../../ui/primitives/InlineLoading";
-import MatchEditorSheet from "../live/MatchEditorSheet";
+import MatchEditorSheet, { type MatchEditorSheetTab } from "../live/MatchEditorSheet";
 
 import { listClubs } from "../../api/clubs.api";
 import {
@@ -68,6 +68,7 @@ export default function FriendlyMatchesListCard({
   const [mode, setMode] = useState<ModeFilter>("all");
   const [showMeta, setShowMeta] = useState(false);
   const [open, setOpen] = useState(false);
+  const [matchSheetTab, setMatchSheetTab] = useState<MatchEditorSheetTab>("h2h");
   const [selectedFriendlyId, setSelectedFriendlyId] = useState<number | null>(null);
   const [selectedMatch, setSelectedMatch] = useState<Match | null>(null);
   const [clubGame, setClubGame] = useState("EA FC 26");
@@ -198,6 +199,7 @@ export default function FriendlyMatchesListCard({
     if (gameFromClubs) setClubGame(gameFromClubs);
     setSelectedFriendlyId(fid);
     setSelectedMatch(m);
+    setMatchSheetTab("h2h");
     setAClub(aSide?.club_id ?? null);
     setBClub(bSide?.club_id ?? null);
     setAGoals(String(Math.max(0, Number(aSide?.goals ?? 0))));
@@ -317,6 +319,7 @@ export default function FriendlyMatchesListCard({
         match={selectedMatch}
         showState={false}
         clubs={editorClubsQ.data ?? []}
+        historyClubs={clubsQ.data ?? []}
         clubsLoading={editorClubsQ.isLoading}
         clubsError={editorClubsQ.error ? String(editorClubsQ.error) : null}
         clubGame={clubGame}
@@ -334,6 +337,9 @@ export default function FriendlyMatchesListCard({
         onSave={() => saveMut.mutate()}
         saving={saveMut.isPending}
         saveError={saveMut.error ? String(saveMut.error) : null}
+        tab={matchSheetTab}
+        onTabChange={setMatchSheetTab}
+        canEdit={canEdit}
       />
     </>
   );

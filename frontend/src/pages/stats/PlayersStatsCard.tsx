@@ -69,6 +69,8 @@ function Scoreline({
   gf,
   ga,
   gd,
+  goalRateMatches,
+  goalsPerMatch = false,
 }: {
   played: number;
   wins: number;
@@ -77,8 +79,16 @@ function Scoreline({
   gf: number;
   ga: number;
   gd: number;
+  goalRateMatches?: number;
+  goalsPerMatch?: boolean;
 }) {
   const gdCls = gd > 0 ? "text-status-text-green" : gd < 0 ? "text-red-300" : "text-text-muted";
+  const rateMatches = goalsPerMatch ? Math.max(0, goalRateMatches ?? played) : played;
+  const gfValue = goalsPerMatch ? fmtAvg(rateMatches > 0 ? gf / rateMatches : 0) : fmtInt(gf);
+  const gaValue = goalsPerMatch ? fmtAvg(rateMatches > 0 ? ga / rateMatches : 0) : fmtInt(ga);
+  const gdValue = goalsPerMatch ? fmtAvg(rateMatches > 0 ? gd / rateMatches : 0) : fmtInt(gd);
+  const goalsTitle = goalsPerMatch ? "Goals per match" : "Goals";
+  const goalDifferenceTitle = goalsPerMatch ? "Goal difference per match" : "Goal difference";
 
   return (
     <div className="mt-2 flex flex-wrap items-center gap-2">
@@ -102,12 +112,12 @@ function Scoreline({
       <span className="card-chip inline-flex items-center gap-2 px-2 py-1">
         <i className="fa-regular fa-futbol text-text-muted" aria-hidden="true" />
         <span className="text-[11px] text-text-muted">G</span>
-        <span className="text-[11px] font-mono tabular-nums text-text-chip">
-          {fmtInt(gf)}:{fmtInt(ga)}
+        <span className="text-[11px] font-mono tabular-nums text-text-chip" title={goalsTitle}>
+          {gfValue}:{gaValue}
         </span>
-        <span className={"text-[11px] font-mono tabular-nums " + gdCls} title="Goal difference">
+        <span className={"text-[11px] font-mono tabular-nums " + gdCls} title={goalDifferenceTitle}>
           ({gd > 0 ? "+" : ""}
-          {fmtInt(gd)})
+          {gdValue})
         </span>
       </span>
     </div>
@@ -397,6 +407,13 @@ export default function PlayersStatsCard({
     return sum / n;
   }, [lastNView]);
 
+  const sumLastN = useCallback((arr: number[]) => {
+    const cleaned = (arr ?? []).map((x) => Number(x)).filter((x) => Number.isFinite(x));
+    if (!cleaned.length) return 0;
+    const n = clamp(Math.trunc(lastNView) || 1, 1, LASTN_FETCH);
+    return cleaned.slice(-n).reduce((a, b) => a + b, 0);
+  }, [lastNView]);
+
   const tournamentsSorted = useMemo(() => {
     const ts = tournaments.slice();
     ts.sort((a, b) => {
@@ -626,7 +643,21 @@ export default function PlayersStatsCard({
                     cols={tileCols}
                   />
 
-                  <Scoreline played={s.played} wins={s.wins} draws={s.draws} losses={s.losses} gf={s.gf} ga={s.ga} gd={s.gd} />
+                  <Scoreline
+                    played={s.played}
+                    wins={s.wins}
+                    draws={s.draws}
+                    losses={s.losses}
+                    gf={sortMode === "lastN" ? sumLastN(s.lastN_gf ?? []) : s.gf}
+                    ga={sortMode === "lastN" ? sumLastN(s.lastN_ga ?? []) : s.ga}
+                    gd={
+                      sortMode === "lastN"
+                        ? sumLastN(s.lastN_gf ?? []) - sumLastN(s.lastN_ga ?? [])
+                        : s.gd
+                    }
+                    goalRateMatches={sortMode === "lastN" ? clamp(Math.trunc(lastNView) || 1, 1, LASTN_FETCH) : s.played}
+                    goalsPerMatch={sortMode === "overallPpm" || sortMode === "lastN"}
+                  />
                 </div>
               )}
             </div>

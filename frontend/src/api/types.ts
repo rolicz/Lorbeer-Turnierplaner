@@ -335,6 +335,8 @@ export type StatsPlayerRow = {
 
   // last N matches (points per match: 3/1/0)
   lastN_pts: number[];
+  lastN_gf: number[];
+  lastN_ga: number[];
   lastN_avg_pts: number;
 
   // tournament_id -> position (1 = best). null if player did not participate.

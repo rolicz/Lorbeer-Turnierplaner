@@ -6,6 +6,7 @@ import MatchOverviewPanel from "../../ui/primitives/MatchOverviewPanel";
 import SelectClubsPanel from "../../ui/SelectClubsPanel";
 import { GoalStepper } from "../../ui/clubControls";
 import { scrollToSectionById } from "../../ui/scrollToSection";
+import MatchCommentsPanel from "./MatchCommentsPanel";
 
 
 function sideBy(m: Match, side: "A" | "B"): MatchSide | undefined {
@@ -39,6 +40,7 @@ export default function CurrentGameSection({
   busy,
   onPatch,
   onSwapSides,
+  onOpenMatch,
 }: {
   status: "draft" | "live" | "done";
   tournamentMode?: TournamentMode | null;
@@ -48,6 +50,7 @@ export default function CurrentGameSection({
   busy: boolean;
   onPatch: (matchId: number, body: MatchPatchBody) => Promise<unknown>;
   onSwapSides?: (matchId: number) => Promise<unknown>;
+  onOpenMatch?: (match: Match) => void;
 }) {
   // const tid = match && (match as any).tournament_id != null ? Number((match as any).tournament_id) : null;
   // useTournamentWS(tid);
@@ -59,6 +62,16 @@ export default function CurrentGameSection({
 
   const aInline = useMemo(() => namesInline(a), [a]);
   const bInline = useMemo(() => namesInline(b), [b]);
+  const playersInMatch = useMemo(() => {
+    const seen = new Set<number>();
+    const out: MatchSide["players"] = [];
+    for (const p of [...(a?.players ?? []), ...(b?.players ?? [])]) {
+      if (!Number.isFinite(Number(p.id)) || seen.has(p.id)) continue;
+      seen.add(p.id);
+      out.push(p);
+    }
+    return out;
+  }, [a?.players, b?.players]);
 
   const [aClub, setAClub] = useState<number | null>(a?.club_id ?? null);
   const [bClub, setBClub] = useState<number | null>(b?.club_id ?? null);
@@ -216,7 +229,7 @@ export default function CurrentGameSection({
             <Button
               variant="ghost"
               onClick={() => {
-                scrollToSectionById(`comments-block-match-${activeMatch.id}`, 16, 0, "smooth");
+                scrollToSectionById(`current-match-comments-${activeMatch.id}`, 16, 0, "smooth");
               }}
               title="Open comments for this match"
             >
@@ -288,16 +301,36 @@ export default function CurrentGameSection({
           </div>
         </div>
 
-        <MatchOverviewPanel
-          match={activeMatch}
-          clubs={clubs}
-          mode={tournamentMode}
-          aGoals={aGoals}
-          bGoals={bGoals}
-          showModePill={true}
-          showOdds={true}
-          surface="panel"
-        />
+        {onOpenMatch ? (
+          <button
+            type="button"
+            className="block w-full appearance-none rounded-xl border-0 bg-transparent p-0 text-left"
+            onClick={() => onOpenMatch(activeMatch)}
+            title="Open match details"
+          >
+            <MatchOverviewPanel
+              match={activeMatch}
+              clubs={clubs}
+              mode={tournamentMode}
+              aGoals={aGoals}
+              bGoals={bGoals}
+              showModePill={true}
+              showOdds={true}
+              surface="panel"
+            />
+          </button>
+        ) : (
+          <MatchOverviewPanel
+            match={activeMatch}
+            clubs={clubs}
+            mode={tournamentMode}
+            aGoals={aGoals}
+            bGoals={bGoals}
+            showModePill={true}
+            showOdds={true}
+            surface="panel"
+          />
+        )}
 
         {showGoalInputs ? (
           <div className="pt-2">
@@ -359,6 +392,15 @@ export default function CurrentGameSection({
             wrapClassName="card-inner"
           />
         )}
+
+        {Number.isFinite(Number(activeMatch.tournament_id)) && activeMatch.tournament_id > 0 ? (
+          <MatchCommentsPanel
+            tournamentId={activeMatch.tournament_id}
+            matchId={activeMatch.id}
+            canWrite={canControl}
+            playersInMatch={playersInMatch}
+          />
+        ) : null}
       </div>
     </div>
   );

@@ -111,6 +111,8 @@ def compute_stats_players(s: Session, *, mode: str, lastN: int) -> dict[str, Any
             "gd": 0,
             "pts": 0,
             "lastN_pts": [],
+            "lastN_gf": [],
+            "lastN_ga": [],
             "lastN_avg_pts": 0.0,
         }
 
@@ -133,6 +135,8 @@ def compute_stats_players(s: Session, *, mode: str, lastN: int) -> dict[str, Any
                 "gd": int(o["gd"]),
                 "pts": int(o["pts"]),
                 "lastN_pts": list(o.get("lastN_pts") or []),
+                "lastN_gf": list(o.get("lastN_gf") or []),
+                "lastN_ga": list(o.get("lastN_ga") or []),
                 "lastN_avg_pts": float(o.get("lastN_avg_pts") or 0.0),
                 "positions_by_tournament": pos_by_tournament,
             }

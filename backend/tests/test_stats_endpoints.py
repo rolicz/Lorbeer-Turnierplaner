@@ -57,6 +57,42 @@ def test_stats_players_includes_live_tournament_when_matches_finished(client, ed
     assert tid in tids_after
 
 
+def test_stats_players_includes_last_n_goal_arrays(client, editor_headers, admin_headers):
+    ids = [create_player(client, admin_headers, n) for n in ["LG1", "LG2", "LG3"]]
+    tid = create_tournament(client, editor_headers, "last-n-goals", "1v1", ids)
+    generate(client, editor_headers, tid, randomize=False)
+
+    t = client.get(f"/tournaments/{tid}")
+    assert t.status_code == 200, t.text
+    first = t.json()["matches"][0]
+    mid = first["id"]
+    left = int(first["sides"][0]["players"][0]["id"])
+    right = int(first["sides"][1]["players"][0]["id"])
+
+    rp = client.patch(f"/matches/{mid}", json={"state": "playing"}, headers=editor_headers)
+    assert rp.status_code == 200, rp.text
+    rf = client.patch(
+        f"/matches/{mid}",
+        json={
+            "state": "finished",
+            "sideA": {"goals": 4},
+            "sideB": {"goals": 1},
+        },
+        headers=editor_headers,
+    )
+    assert rf.status_code == 200, rf.text
+
+    r = client.get("/stats/players?lastN=5")
+    assert r.status_code == 200, r.text
+    data = r.json()
+    rows = {int(row["player_id"]): row for row in data.get("players", [])}
+
+    assert rows[left]["lastN_gf"] == [4]
+    assert rows[left]["lastN_ga"] == [1]
+    assert rows[right]["lastN_gf"] == [1]
+    assert rows[right]["lastN_ga"] == [4]
+
+
 def test_stats_h2h_empty(client):
     r = client.get("/stats/h2h")
     assert r.status_code == 200, r.text

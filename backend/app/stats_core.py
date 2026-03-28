@@ -172,10 +172,57 @@ def iter_finished_match_points(matches: list[Match]) -> list[tuple[datetime, int
     return [(k[0], pid, pts) for k, pid, pts in out]
 
 
+def iter_finished_match_goals(matches: list[Match]) -> list[tuple[datetime, int, int, int]]:
+    """
+    Returns events: (timestamp, player_id, goals_for_that_match, goals_against_that_match).
+    Used for recent goal averages.
+    """
+    out: list[tuple[tuple[datetime, int, int, int], int, int, int]] = []
+
+    def sort_key(m: Match) -> tuple[datetime, int, int, int]:
+        t = getattr(m, "tournament", None)
+        tdate = getattr(t, "date", None) if t else None
+        if isinstance(tdate, date):
+            base = datetime.combine(tdate, time.min)
+        else:
+            if m.finished_at:
+                base = m.finished_at if isinstance(m.finished_at, datetime) else datetime.fromisoformat(str(m.finished_at))
+            elif m.started_at:
+                base = m.started_at if isinstance(m.started_at, datetime) else datetime.fromisoformat(str(m.started_at))
+            else:
+                base = datetime(1970, 1, 1)
+
+        tid = int(getattr(t, "id", 0) or 0) if t else 0
+        order_index = int(getattr(m, "order_index", 0) or 0)
+        mid = int(getattr(m, "id", 0) or 0)
+        return (base, tid, order_index, mid)
+
+    for m in matches:
+        if m.state != "finished":
+            continue
+        a = _side_by(m, "A")
+        b = _side_by(m, "B")
+        if not a or not b:
+            continue
+
+        a_goals = int(a.goals or 0)
+        b_goals = int(b.goals or 0)
+        key = sort_key(m)
+
+        for p in a.players:
+            out.append((key, int(p.id), a_goals, b_goals))
+        for p in b.players:
+            out.append((key, int(p.id), b_goals, a_goals))
+
+    out.sort(key=lambda x: x[0])
+    return [(k[0], pid, gf, ga) for k, pid, gf, ga in out]
+
+
 def compute_overall_and_lastN(matches: list[Match], all_players: list[Player], lastN: int = 5) -> dict[int, dict[str, Any]]:
     """
     Returns per player:
-      played, wins/draws/losses, gf/ga/gd, pts, lastN_pts(list), lastN_avg_pts(float)
+      played, wins/draws/losses, gf/ga/gd, pts,
+      lastN_pts(list), lastN_gf(list), lastN_ga(list), lastN_avg_pts(float)
     """
     # lastN=0 is allowed and means "disable recent form".
     lastN_eff = int(lastN or 0)
@@ -191,6 +238,13 @@ def compute_overall_and_lastN(matches: list[Match], all_players: list[Player], l
     pts_hist: dict[int, list[int]] = defaultdict(list)
     for _, pid, pts in events:
         pts_hist[pid].append(int(pts))
+
+    goal_events = iter_finished_match_goals(matches)
+    gf_hist: dict[int, list[int]] = defaultdict(list)
+    ga_hist: dict[int, list[int]] = defaultdict(list)
+    for _, pid, gf, ga in goal_events:
+        gf_hist[pid].append(int(gf))
+        ga_hist[pid].append(int(ga))
 
     for p in all_players:
         pid = int(p.id)
@@ -209,11 +263,17 @@ def compute_overall_and_lastN(matches: list[Match], all_players: list[Player], l
             }
         if lastN_eff <= 0:
             per[pid]["lastN_pts"] = []
+            per[pid]["lastN_gf"] = []
+            per[pid]["lastN_ga"] = []
             per[pid]["lastN_avg_pts"] = 0.0
             continue
 
         lastN_pts = pts_hist.get(pid, [])[-lastN_eff:]
+        lastN_gf = gf_hist.get(pid, [])[-lastN_eff:]
+        lastN_ga = ga_hist.get(pid, [])[-lastN_eff:]
         per[pid]["lastN_pts"] = lastN_pts
+        per[pid]["lastN_gf"] = lastN_gf
+        per[pid]["lastN_ga"] = lastN_ga
         per[pid]["lastN_avg_pts"] = (sum(lastN_pts) / lastN_eff) if lastN_pts else 0.0
 
     return per

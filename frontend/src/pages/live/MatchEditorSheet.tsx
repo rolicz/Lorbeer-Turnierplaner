@@ -8,15 +8,19 @@ import { useMemo } from "react";
 import MatchOverviewPanel from "../../ui/primitives/MatchOverviewPanel";
 import SelectClubsPanel from "../../ui/SelectClubsPanel";
 import SegmentedSwitch from "../../ui/primitives/SegmentedSwitch";
+import MatchH2HPanel from "./MatchH2HPanel";
 import {
   GoalStepper,
 } from "../../ui/clubControls";
+
+export type MatchEditorSheetTab = "h2h" | "edit";
 
 export default function MatchEditorSheet({
   open,
   onClose,
   match,
   clubs,
+  historyClubs,
   clubsLoading,
   clubsError,
   clubGame,
@@ -35,11 +39,15 @@ export default function MatchEditorSheet({
   saving,
   saveError,
   showState = true,
+  tab,
+  onTabChange,
+  canEdit = true,
 }: {
   open: boolean;
   onClose: () => void;
   match: Match | null;
   clubs: Club[];
+  historyClubs?: Club[];
   clubsLoading: boolean;
   clubsError: string | null;
   clubGame: string;
@@ -58,6 +66,9 @@ export default function MatchEditorSheet({
   saving: boolean;
   saveError: string | null;
   showState?: boolean;
+  tab: MatchEditorSheetTab;
+  onTabChange: (v: MatchEditorSheetTab) => void;
+  canEdit?: boolean;
 }) {
   const aSide = match ? sideBy(match, "A") : undefined;
   const bSide = match ? sideBy(match, "B") : undefined;
@@ -95,125 +106,146 @@ export default function MatchEditorSheet({
   }, [aClub, aGoalsNum, bClub, bGoalsNum, match, state]);
 
   return (
-    <Sheet open={open} title={`Edit Match #${match?.id ?? "—"}`} onClose={onClose}>
-      <ErrorToastOnError error={clubsError} title="Clubs loading failed" />
-      <ErrorToastOnError error={saveError} title="Could not save match" />
+    <Sheet open={open} title={`Match #${match?.id ?? "—"}`} onClose={onClose}>
+      <ErrorToastOnError error={tab === "edit" ? clubsError : null} title="Clubs loading failed" />
+      <ErrorToastOnError error={tab === "edit" ? saveError : null} title="Could not save match" />
       {!match ? (
         <div className="text-sm text-text-muted">No match selected.</div>
       ) : (
         <div className="flex max-h-[80vh] flex-col">
+          {canEdit ? (
+            <div className="mb-3">
+              <SegmentedSwitch<MatchEditorSheetTab>
+                value={tab}
+                onChange={onTabChange}
+                options={[
+                  { key: "h2h", label: "H2H" },
+                  { key: "edit", label: "Edit Match" },
+                ]}
+                widthClass="w-[120px]"
+                ariaLabel="Match sheet view"
+                title="Choose match sheet view"
+              />
+            </div>
+          ) : null}
+
           {/* Scroll area */}
           <div className="flex-1 space-y-4 overflow-y-auto pr-1 [-webkit-overflow-scrolling:touch]">
-            {showState ? (
-              <div className="card-inner space-y-2">
-                <div className="mb-2 text-sm font-medium">Match State</div>
-                <div className="flex">
-                  <SegmentedSwitch<"scheduled" | "playing" | "finished">
-                    value={state}
-                    onChange={setState}
-                    options={[
-                      { key: "scheduled", label: "Scheduled" },
-                      { key: "playing", label: "Playing" },
-                      { key: "finished", label: "Finished" },
-                    ]}
-                    widthClass="w-[98px]"
-                    ariaLabel="Match state"
-                    title="Match state"
-                  />
-                </div>
-              </div>
-            ) : null}
+            {tab === "h2h" ? <MatchH2HPanel match={match} clubs={historyClubs ?? clubs} /> : null}
 
-            {/* Match panel (shared with live current game/dashboard) */}
-            <div className="card-inner space-y-2">
-              {previewMatch ? (
-                <MatchOverviewPanel
-                  match={previewMatch}
-                  clubs={clubs}
-                  aGoals={aGoalsNum}
-                  bGoals={bGoalsNum}
-                  showModePill={false}
-                  showOdds={true}
-                  showOddsWhenFinished={true}
-                  surface="panel"
-                />
-              ) : null}
-
-              <div
-                className={
-                  "pt-2 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 md:gap-4 " +
-                  (state === "scheduled" ? "opacity-55" : "")
-                }
-              >
-                <div className="flex justify-start">
-                  <GoalStepper
-                    value={aGoalsNum}
-                    onChange={(v) => setAGoals(String(v))}
-                    disabled={saving || state === "scheduled"}
-                    ariaLabel="Goals left"
-                  />
-                </div>
-                <div />
-                <div className="flex justify-end">
-                  <GoalStepper
-                    value={bGoalsNum}
-                    onChange={(v) => setBGoals(String(v))}
-                    disabled={saving || state === "scheduled"}
-                    ariaLabel="Goals right"
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Clubs (re-used from Current Game) */}
-            <SelectClubsPanel
-              clubs={clubs}
-              disabled={saving}
-              aLabel={`${aPlayers} — club`}
-              bLabel={`${bPlayers} — club`}
-              aClub={aClub}
-              bClub={bClub}
-              onChangeAClub={setAClub}
-              onChangeBClub={setBClub}
-              defaultOpen={false}
-              wrapClassName="card-inner"
-              narrowLayout
-              extraTop={
-                <div className="grid grid-cols-1 gap-2">
-                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                    <Input label="Game" value={clubGame} onChange={(e) => setClubGame(e.target.value)} />
-                    <div className="hidden md:block" />
+            {tab === "edit" && canEdit ? (
+              <>
+                {showState ? (
+                  <div className="card-inner space-y-2">
+                    <div className="mb-2 text-sm font-medium">Match State</div>
+                    <div className="flex">
+                      <SegmentedSwitch<"scheduled" | "playing" | "finished">
+                        value={state}
+                        onChange={setState}
+                        options={[
+                          { key: "scheduled", label: "Scheduled" },
+                          { key: "playing", label: "Playing" },
+                          { key: "finished", label: "Finished" },
+                        ]}
+                        widthClass="w-[98px]"
+                        ariaLabel="Match state"
+                        title="Match state"
+                      />
+                    </div>
                   </div>
+                ) : null}
 
-                  {clubsLoading && <div className="text-sm text-text-muted">Loading clubs…</div>}
+                <div className="card-inner space-y-2">
+                  {previewMatch ? (
+                    <MatchOverviewPanel
+                      match={previewMatch}
+                      clubs={clubs}
+                      aGoals={aGoalsNum}
+                      bGoals={bGoalsNum}
+                      showModePill={false}
+                      showOdds={true}
+                      showOddsWhenFinished={true}
+                      surface="panel"
+                    />
+                  ) : null}
+
+                  <div
+                    className={
+                      "pt-2 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 md:gap-4 " +
+                      (state === "scheduled" ? "opacity-55" : "")
+                    }
+                  >
+                    <div className="flex justify-start">
+                      <GoalStepper
+                        value={aGoalsNum}
+                        onChange={(v) => setAGoals(String(v))}
+                        disabled={saving || state === "scheduled"}
+                        ariaLabel="Goals left"
+                      />
+                    </div>
+                    <div />
+                    <div className="flex justify-end">
+                      <GoalStepper
+                        value={bGoalsNum}
+                        onChange={(v) => setBGoals(String(v))}
+                        disabled={saving || state === "scheduled"}
+                        ariaLabel="Goals right"
+                      />
+                    </div>
+                  </div>
                 </div>
-              }
-              extraBottom={
-                <div className="text-xs text-text-muted">Tip: change clubs anytime before saving results.</div>
-              }
-            />
+
+                <SelectClubsPanel
+                  clubs={clubs}
+                  disabled={saving}
+                  aLabel={`${aPlayers} — club`}
+                  bLabel={`${bPlayers} — club`}
+                  aClub={aClub}
+                  bClub={bClub}
+                  onChangeAClub={setAClub}
+                  onChangeBClub={setBClub}
+                  defaultOpen={false}
+                  wrapClassName="card-inner"
+                  narrowLayout
+                  extraTop={
+                    <div className="grid grid-cols-1 gap-2">
+                      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                        <Input label="Game" value={clubGame} onChange={(e) => setClubGame(e.target.value)} />
+                        <div className="hidden md:block" />
+                      </div>
+
+                      {clubsLoading && <div className="text-sm text-text-muted">Loading clubs…</div>}
+                    </div>
+                  }
+                  extraBottom={
+                    <div className="text-xs text-text-muted">Tip: change clubs anytime before saving results.</div>
+                  }
+                />
+              </>
+            ) : null}
 
             <div className="h-2" />
           </div>
 
-          {/* Fixed footer */}
-          <div
-            className="sticky bottom-0 shrink-0 border-t border-border-card-inner bg-bg-card-outer/95 backdrop-blur"
-            style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 1.5rem)" }}
-          >
-            <div className="px-0 pt-3">
-              <div className="flex items-center justify-end gap-2">
-                <Button variant="ghost" onClick={onClose} type="button" title="Cancel">
-                  <i className="fa fa-xmark md:hidden" aria-hidden="true" />
-                  <span className="hidden md:inline">Cancel</span>
-                </Button>
-                <Button onClick={onSave} disabled={saving} type="button" title="Save">
-                  <i className="fa fa-check md:hidden" aria-hidden="true" />
-                  <span className="hidden md:inline">{saving ? "Saving…" : "Save"}</span>
-                </Button>
+          {tab === "edit" && canEdit ? (
+            <div
+              className="sticky bottom-0 shrink-0 border-t border-border-card-inner bg-bg-card-outer/95 backdrop-blur"
+              style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 1.5rem)" }}
+            >
+              <div className="px-0 pt-3">
+                <div className="flex items-center justify-end gap-2">
+                  <Button variant="ghost" onClick={onClose} type="button" title="Cancel">
+                    <i className="fa fa-xmark md:hidden" aria-hidden="true" />
+                    <span className="hidden md:inline">Cancel</span>
+                  </Button>
+                  <Button onClick={onSave} disabled={saving} type="button" title="Save">
+                    <i className="fa fa-check md:hidden" aria-hidden="true" />
+                    <span className="hidden md:inline">{saving ? "Saving…" : "Save"}</span>
+                  </Button>
+                </div>
               </div>
             </div>
-          </div>
+          ) : null}
         </div>
       )}
     </Sheet>

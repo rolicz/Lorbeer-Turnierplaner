@@ -30,7 +30,7 @@ import { useSeenSet } from "../../hooks/useSeenComments";
 
 import AdminPanel from "./AdminPanel";
 import MatchList from "./MatchList";
-import MatchEditorSheet from "./MatchEditorSheet";
+import MatchEditorSheet, { type MatchEditorSheetTab } from "./MatchEditorSheet";
 import StandingsTable from "./StandingsTable";
 import CurrentGameSection from "./CurrentGameSection";
 import TournamentCommentsCard from "./TournamentCommentsCard";
@@ -447,6 +447,7 @@ export default function LiveTournamentPage() {
   // --- match editor sheet ---
   const [open, setOpen] = useState(false);
   const [selectedMatchId, setSelectedMatchId] = useState<number | null>(null);
+  const [matchSheetTab, setMatchSheetTab] = useState<MatchEditorSheetTab>("h2h");
   const selectedMatch = useMemo(
     () => matchesSorted.find((m) => m.id === selectedMatchId) || null,
     [matchesSorted, selectedMatchId]
@@ -468,6 +469,7 @@ export default function LiveTournamentPage() {
 
   function openEditor(m: Match) {
     setSelectedMatchId(m.id);
+    setMatchSheetTab("h2h");
     const a = sideBy(m, "A");
     const b = sideBy(m, "B");
     setAClub(a?.club_id ?? null);
@@ -879,6 +881,7 @@ export default function LiveTournamentPage() {
                 onSwapSides={async (matchId) => {
                   await swapSidesMut.mutateAsync(matchId);
                 }}
+                onOpenMatch={openEditor}
               />
             </SectionSeparator>
           ) : null}
@@ -969,6 +972,7 @@ export default function LiveTournamentPage() {
         onClose={() => setOpen(false)}
         match={selectedMatch}
         clubs={clubs}
+        historyClubs={clubs}
         clubsLoading={clubsQ.isLoading}
         clubsError={clubsQ.error ? String(clubsQ.error) : null}
         clubGame={clubGame}
@@ -986,6 +990,9 @@ export default function LiveTournamentPage() {
         onSave={() => saveMut.mutate()}
         saving={saveMut.isPending}
         saveError={saveMut.error ? String(saveMut.error) : null}
+        tab={matchSheetTab}
+        onTabChange={setMatchSheetTab}
+        canEdit={canEditMatch}
       />
     </div>
   );

@@ -40,6 +40,8 @@ def compute_stats(s: Session) -> dict[str, Any]:
                 "pts": row["pts"],
                 "lastN_avg_pts": row["lastN_avg_pts"],
                 "lastN_pts": row["lastN_pts"],
+                "lastN_gf": row.get("lastN_gf", []),
+                "lastN_ga": row.get("lastN_ga", []),
             }
             for pid, row in per.items()
         ]
@@ -82,6 +84,8 @@ def compute_tournament_stats(s: Session, tournament_id: int) -> dict[str, Any]:
                 "pts": row["pts"],
                 "lastN_avg_pts": row["lastN_avg_pts"],
                 "lastN_pts": row["lastN_pts"],
+                "lastN_gf": row.get("lastN_gf", []),
+                "lastN_ga": row.get("lastN_ga", []),
             }
             for pid, row in per.items()
         ]

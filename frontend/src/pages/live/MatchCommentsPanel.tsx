@@ -189,7 +189,8 @@ export default function MatchCommentsPanel({
       <CollapsibleCard
         title="Match comments"
         defaultOpen={false}
-        className="panel-subtle"
+        className="card-inner"
+        bodyClassName="-mt-1 space-y-2"
         right={
           matchComments.length ? (
             <span className="text-xs text-text-muted">{matchComments.length}</span>
