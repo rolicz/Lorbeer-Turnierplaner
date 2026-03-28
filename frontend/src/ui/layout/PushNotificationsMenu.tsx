@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import Button from "../primitives/Button";
 import { usePushNotifications } from "../../push/usePushNotifications";
 
@@ -23,6 +23,8 @@ function statusLabel(opts: {
 export default function PushNotificationsMenu({ token }: { token: string | null }) {
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
+  const panelRef = useRef<HTMLDivElement | null>(null);
+  const [panelShiftX, setPanelShiftX] = useState(0);
   const push = usePushNotifications(token);
 
   useEffect(() => {
@@ -50,6 +52,34 @@ export default function PushNotificationsMenu({ token }: { token: string | null 
     const timer = window.setTimeout(() => setOpen(false), 0);
     return () => window.clearTimeout(timer);
   }, [open, token]);
+
+  useLayoutEffect(() => {
+    if (!open) return undefined;
+
+    const updatePanelShift = () => {
+      const panel = panelRef.current;
+      if (!panel) return;
+
+      const gutter = 8;
+      const rect = panel.getBoundingClientRect();
+      let nextShift = 0;
+      if (rect.left < gutter) {
+        nextShift += gutter - rect.left;
+      }
+      if (rect.right > window.innerWidth - gutter) {
+        nextShift -= rect.right - (window.innerWidth - gutter);
+      }
+      const roundedShift = Math.round(nextShift);
+      setPanelShiftX((current) => (current === roundedShift ? current : roundedShift));
+    };
+
+    const frameId = window.requestAnimationFrame(updatePanelShift);
+    window.addEventListener("resize", updatePanelShift);
+    return () => {
+      window.cancelAnimationFrame(frameId);
+      window.removeEventListener("resize", updatePanelShift);
+    };
+  }, [open]);
 
   const label = useMemo(
     () =>
@@ -101,7 +131,11 @@ export default function PushNotificationsMenu({ token }: { token: string | null 
       </button>
 
       {open ? (
-        <div className="absolute right-0 top-full z-50 mt-1 w-[min(22rem,calc(100vw-2rem))] rounded-xl border border-border-card-chip bg-bg-card-inner p-3 shadow-xl">
+        <div
+          ref={panelRef}
+          className="absolute right-0 top-full z-50 mt-1 max-h-[min(70svh,32rem)] w-[min(22rem,calc(100vw-1rem))] overflow-y-auto rounded-xl border border-border-card-chip bg-bg-card-inner p-3 shadow-xl overscroll-contain"
+          style={panelShiftX === 0 ? undefined : { transform: `translateX(${panelShiftX}px)` }}
+        >
           <div className="flex items-start justify-between gap-3">
             <div>
               <div className="text-sm font-semibold text-text-normal">Notifications</div>
