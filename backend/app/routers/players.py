@@ -2,7 +2,7 @@ import logging
 import datetime as dt
 
 from anyio import from_thread
-from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Request, Response, UploadFile
 from sqlmodel import Session, select
 
 from ..auth import decode_token, require_admin, require_auth_claims, require_editor_claims
@@ -35,6 +35,7 @@ from ..services.file_storage import (
     write_media,
 )
 from ..services.guestbook_summary import player_guestbook_summary
+from ..services.notifications import PushMessage, enqueue_global_push
 from ..services.poke_summary import player_poke_summary
 from ..ws import ws_manager_player_profiles
 
@@ -708,6 +709,7 @@ def list_player_poke_reads(
 def create_player_guestbook_entry(
     player_id: int,
     body: PlayerGuestbookCreateBody,
+    request: Request,
     s: Session = Depends(get_session),
     claims: dict = Depends(require_editor_claims),
 ):
@@ -764,6 +766,18 @@ def create_player_guestbook_entry(
         s.add(PlayerGuestbookRead(player_id=author_player_id, guestbook_entry_id=int(row.id), read_at=now))
     s.commit()
     s.refresh(row)
+    preview = text if len(text) <= 120 else text[:117].rstrip() + "..."
+    enqueue_global_push(
+        request,
+        PushMessage(
+            title=f"New guestbook entry on {player.display_name}",
+            body=f"{author_player.display_name}: {preview}",
+            path=f"/profiles/{int(player_id)}",
+            tag=f"guestbook-{int(player_id)}",
+            event_type="guestbook_created",
+            data={"profile_player_id": int(player_id), "entry_id": int(row.id)},
+        ),
+    )
     return _guestbook_entry_payload(
         entry=row,
         author_display_name=author_player.display_name,
@@ -774,6 +788,7 @@ def create_player_guestbook_entry(
 @router.post("/{player_id}/pokes")
 def create_player_poke(
     player_id: int,
+    request: Request,
     body: PlayerPokeCreateBody | None = None,
     s: Session = Depends(get_session),
     claims: dict = Depends(require_editor_claims),
@@ -820,6 +835,18 @@ def create_player_poke(
             "poke_id": int(row.id),
             "author_player_id": int(author_player_id),
         },
+    )
+
+    enqueue_global_push(
+        request,
+        PushMessage(
+            title=f"New anpöbeln for {player.display_name}",
+            body=f"{author_player.display_name} hat {player.display_name} angepöbelt.",
+            path=f"/profiles/{int(player_id)}",
+            tag=f"poke-{int(player_id)}",
+            event_type="poke_created",
+            data={"profile_player_id": int(player_id), "poke_id": int(row.id)},
+        ),
     )
 
     return _poke_payload(poke=row, author_display_name=author_player.display_name)

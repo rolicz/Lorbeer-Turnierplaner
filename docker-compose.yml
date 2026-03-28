@@ -12,6 +12,11 @@ services:
       # Put cups config at ./backend/data/cups.json (persisted on host) or override path via env.
       CUPS_CONFIG_PATH: "/data/cups.json"
       UPLOADS_DIR: "/data/uploads"
+      # Optional PWA push config. Generate the private key into ./backend/data so the container sees it at /data.
+      PUSH_VAPID_PUBLIC_KEY: "${PUSH_VAPID_PUBLIC_KEY:-}"
+      PUSH_VAPID_PRIVATE_KEY_FILE: "${PUSH_VAPID_PRIVATE_KEY_FILE:-/data/vapid_private_key.pem}"
+      PUSH_VAPID_SUBJECT: "${PUSH_VAPID_SUBJECT:-}"
+      PUSH_TTL_SECONDS: "${PUSH_TTL_SECONDS:-300}"
     healthcheck:
       test:
         [

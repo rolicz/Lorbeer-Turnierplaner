@@ -2,7 +2,7 @@ import json
 import logging
 import random
 from datetime import datetime, date
-from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from sqlmodel import Session, delete, select
 from sqlalchemy import case, func
 
@@ -24,6 +24,7 @@ from ..stats import compute_tournament_stats
 from ..ws import ws_manager, ws_manager_update_tournaments
 from ..tournament_status import compute_status_for_tournament, compute_status_map, find_other_live_tournament_id
 from ..services.comments_summary import tournament_comments_summary
+from ..services.notifications import PushMessage, enqueue_global_push
 from ..services.stats.odds import compute_match_odds_for_tournament
 
 log = logging.getLogger(__name__)
@@ -453,7 +454,7 @@ def get_tournament(tournament_id: int, s: Session = Depends(get_session)):
 
 
 @router.post("", dependencies=[Depends(require_editor)])
-async def create_tournament(body: TournamentCreateBody, s: Session = Depends(get_session)):
+async def create_tournament(body: TournamentCreateBody, request: Request, s: Session = Depends(get_session)):
     name = (body.name or "").strip()
     mode = body.mode
     settings = body.settings or {}
@@ -505,6 +506,17 @@ async def create_tournament(body: TournamentCreateBody, s: Session = Depends(get
     log.info("Created tournament '%s' (id=%s, mode=%s)", t.name, t.id, t.mode)
 
     await ws_manager_update_tournaments.broadcast("tournament_created", {})
+    enqueue_global_push(
+        request,
+        PushMessage(
+            title="Tournament created",
+            body=f"{t.name} is ready.",
+            path=f"/live/{int(t.id)}",
+            tag=f"tournament-created-{int(t.id)}",
+            event_type="tournament_created",
+            data={"tournament_id": int(t.id)},
+        ),
+    )
     return t
 
 
@@ -517,6 +529,7 @@ async def create_tournament(body: TournamentCreateBody, s: Session = Depends(get
 async def patch_tournament(
     tournament_id: int,
     body: TournamentPatchBody,
+    request: Request,
     s: Session = Depends(get_session),
     role: str = Depends(require_editor),
 ):
@@ -552,6 +565,17 @@ async def patch_tournament(
 
     await ws_manager.broadcast(tournament_id, "tournament_updated", {"tournament_id": tournament_id})
     await ws_manager_update_tournaments.broadcast("tournament_updated", {"tournament_id": tournament_id}) 
+    enqueue_global_push(
+        request,
+        PushMessage(
+            title="Tournament updated",
+            body=f"{t.name} was updated.",
+            path=f"/live/{int(tournament_id)}",
+            tag=f"tournament-updated-{int(tournament_id)}",
+            event_type="tournament_updated",
+            data={"tournament_id": int(tournament_id)},
+        ),
+    )
     return t
 
 
@@ -559,6 +583,7 @@ async def patch_tournament(
 async def patch_date(
     tournament_id: int,
     body: TournamentDatePatchBody,
+    request: Request,
     s: Session = Depends(get_session),
     role: str = Depends(require_admin),
 ):
@@ -581,6 +606,17 @@ async def patch_date(
     await ws_manager.broadcast(tournament_id, "tournament_updated", {"tournament_id": tournament_id})
     await ws_manager_update_tournaments.broadcast("tournament_updated", {"tournament_id": tournament_id}) 
     log.info("Tournament date changed: tournament_id=%s date=%s by=%s", tournament_id, t.date, role)
+    enqueue_global_push(
+        request,
+        PushMessage(
+            title="Tournament date changed",
+            body=f"{t.name} is now scheduled for {t.date}.",
+            path=f"/live/{int(tournament_id)}",
+            tag=f"tournament-date-{int(tournament_id)}",
+            event_type="tournament_date_changed",
+            data={"tournament_id": int(tournament_id)},
+        ),
+    )
     return {"ok": True, "date": t.date}
 
 
@@ -588,6 +624,7 @@ async def patch_date(
 async def generate_schedule(
     tournament_id: int,
     body: TournamentGenerateBody,
+    request: Request,
     s: Session = Depends(get_session),
     role: str = Depends(require_editor),
 ):
@@ -610,6 +647,17 @@ async def generate_schedule(
         created_matches,
         t.mode,
         len(t.players),
+    )
+    enqueue_global_push(
+        request,
+        PushMessage(
+            title="Schedule generated",
+            body=f"{t.name}: {created_matches} match(es) created.",
+            path=f"/live/{int(tournament_id)}",
+            tag=f"schedule-generated-{int(tournament_id)}",
+            event_type="schedule_generated",
+            data={"tournament_id": int(tournament_id), "matches": int(created_matches)},
+        ),
     )
     return {"ok": True, "matches": created_matches, "labels": label_to_name}
 
@@ -800,15 +848,27 @@ def stats(tournament_id: int, s: Session = Depends(get_session)):
 @router.delete("/{tournament_id}", dependencies=[Depends(require_admin)])
 async def delete_tournament(
     tournament_id: int,
+    request: Request,
     s: Session = Depends(get_session),
     role: str = Depends(require_admin),
 ):
-    _tournament_or_404(s, tournament_id)
+    tournament = _tournament_or_404(s, tournament_id)
     _delete_tournament_graph(s, tournament_id)
 
     await ws_manager.broadcast(tournament_id, "tournament_deleted", {"tournament_id": tournament_id})
     await ws_manager_update_tournaments.broadcast("tournament_deleted", {"tournament_id": tournament_id}) 
     log.info("Tournament deleted: tournament_id=%s by=%s", tournament_id, role)
+    enqueue_global_push(
+        request,
+        PushMessage(
+            title="Tournament deleted",
+            body=f"{tournament.name} was deleted.",
+            path="/tournaments",
+            tag=f"tournament-deleted-{int(tournament_id)}",
+            event_type="tournament_deleted",
+            data={"tournament_id": int(tournament_id)},
+        ),
+    )
 
     return Response(status_code=204)
 

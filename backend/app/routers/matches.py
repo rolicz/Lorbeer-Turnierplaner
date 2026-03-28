@@ -1,13 +1,14 @@
 from datetime import datetime
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlmodel import Session, select
 
 from ..auth import require_editor
 from ..db import get_session
 from ..models import Match, MatchSide, Tournament, Club
 from ..schemas import MatchPatchBody, MatchSidePatchBody
+from ..services.notifications import PushMessage, enqueue_global_push
 from ..tournament_status import compute_status_for_tournament, find_other_live_tournament_id
 from ..ws import ws_manager, ws_manager_update_tournaments
 
@@ -57,11 +58,14 @@ def _validate_tournament_state_order(s: Session, tournament_id: int) -> None:
 async def patch_match(
     match_id: int,
     body: MatchPatchBody,
+    request: Request,
     s: Session = Depends(get_session),
     role: str = Depends(require_editor),
 ):
     m = _match_or_404(s, match_id)
     t = s.exec(select(Tournament).where(Tournament.id == m.tournament_id)).first()
+    old_state = m.state
+    old_scores = {side.side: int(side.goals or 0) for side in m.sides}
 
     fields = body.model_fields_set
 
@@ -189,6 +193,61 @@ async def patch_match(
     )
 
     await ws_manager_update_tournaments.broadcast("match_patched", {"tournament_id": m.tournament_id}) 
+
+    new_scores = {side.side: int(side.goals or 0) for side in m.sides}
+    scoreline = f"{new_scores.get('A', 0)}:{new_scores.get('B', 0)}"
+    tournament_name = t.name if t is not None else f"Tournament {m.tournament_id}"
+    match_label = f"Match {int(m.order_index) + 1}"
+
+    if old_state != "playing" and m.state == "playing":
+        enqueue_global_push(
+            request,
+            PushMessage(
+                title=f"Match started in {tournament_name}",
+                body=f"{match_label} is now live.",
+                path=f"/live/{int(m.tournament_id)}",
+                tag=f"match-start-{int(m.id)}",
+                event_type="match_started",
+                data={"tournament_id": int(m.tournament_id), "match_id": int(m.id)},
+            ),
+        )
+
+    if old_state != "finished" and m.state == "finished":
+        enqueue_global_push(
+            request,
+            PushMessage(
+                title=f"Match finished in {tournament_name}",
+                body=f"{match_label} ended {scoreline}.",
+                path=f"/live/{int(m.tournament_id)}",
+                tag=f"match-finished-{int(m.id)}",
+                event_type="match_finished",
+                data={"tournament_id": int(m.tournament_id), "match_id": int(m.id)},
+            ),
+        )
+
+    goals_changed = new_scores.get("A", 0) != old_scores.get("A", 0) or new_scores.get("B", 0) != old_scores.get("B", 0)
+    goals_added = max(0, new_scores.get("A", 0) - old_scores.get("A", 0)) + max(
+        0, new_scores.get("B", 0) - old_scores.get("B", 0)
+    )
+    if goals_changed:
+        title = f"Goal in {tournament_name}" if goals_added == 1 else f"Score updated in {tournament_name}"
+        enqueue_global_push(
+            request,
+            PushMessage(
+                title=title,
+                body=f"{match_label}: {scoreline}",
+                path=f"/live/{int(m.tournament_id)}",
+                tag=f"match-score-{int(m.id)}",
+                event_type="match_score_changed",
+                data={
+                    "tournament_id": int(m.tournament_id),
+                    "match_id": int(m.id),
+                    "score_a": new_scores.get("A", 0),
+                    "score_b": new_scores.get("B", 0),
+                    "goals_added": goals_added,
+                },
+            ),
+        )
 
     return {"ok": True, "id": m.id, "state": m.state, "leg": m.leg, "tournament_status": status_after}
 

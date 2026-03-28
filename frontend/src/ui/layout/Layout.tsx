@@ -17,6 +17,7 @@ import {
 } from "../../api/players.api";
 import { SubNavProvider, useSubNavContext, type SubNavItem } from "./SubNavContext";
 import { usePullToRefresh } from "./usePullToRefresh";
+import PushNotificationsMenu from "./PushNotificationsMenu";
 
 type Role = "reader" | "editor" | "admin";
 type ThemeName = string;
@@ -604,6 +605,7 @@ function LayoutInner({ children }: { children: React.ReactNode }) {
             right={
               <>
                 <div className="flex items-center gap-2">
+                  <PushNotificationsMenu token={token} />
                   <div className="relative" ref={themeMenuRef}>
                     <button
                       type="button"

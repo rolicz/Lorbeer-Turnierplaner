@@ -248,6 +248,28 @@ export type MeResponse = {
   exp: number;
 };
 
+export type PushConfigResponse = {
+  enabled: boolean;
+  configured: boolean;
+  vapid_public_key: string;
+  reason?: string | null;
+  ios_home_screen_required?: boolean;
+};
+
+export type PushSubscriptionPutResponse = {
+  ok: boolean;
+  id: number;
+  player_id: number;
+  endpoint: string;
+  disabled: boolean;
+  updated_at: string;
+};
+
+export type PushSubscriptionsMineResponse = {
+  count: number;
+  endpoints: string[];
+};
+
 // ---- API payload helpers ----
 export type PatchMatchBody = {
   state: MatchState;

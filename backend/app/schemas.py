@@ -137,3 +137,22 @@ class FriendlyMatchCreateBody(BaseModel):
     clubB_id: int | str | None = None
     a_goals: int | str = 0
     b_goals: int | str = 0
+
+
+class PushSubscriptionKeysBody(BaseModel):
+    p256dh: str
+    auth: str
+
+
+class PushSubscriptionBody(BaseModel):
+    endpoint: str
+    expirationTime: int | float | None = None
+    keys: PushSubscriptionKeysBody
+    contentEncoding: str | None = "aes128gcm"
+    app_platform: str | None = None
+    app_standalone: bool | None = False
+    user_agent: str | None = None
+
+
+class PushSubscriptionDeleteBody(BaseModel):
+    endpoint: str

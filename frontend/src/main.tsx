@@ -4,6 +4,7 @@ import { BrowserRouter } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AuthProvider } from "./auth/AuthContext";
 import App from "./app/App";
+import { registerNotificationServiceWorker } from "./push/push";
 import "./styles.css";
 import { THEMES } from "./themes";
 
@@ -15,6 +16,10 @@ document.documentElement.dataset.theme = resolvedTheme;
 if (storedTheme !== resolvedTheme) {
   localStorage.setItem("theme", resolvedTheme);
 }
+
+void registerNotificationServiceWorker().catch(() => {
+  // notification setup is optional
+});
 
 const qc = new QueryClient({
   defaultOptions: {

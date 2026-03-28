@@ -7,8 +7,8 @@ import InlineLoading from "../../ui/primitives/InlineLoading";
 
 import { listClubs } from "../../api/clubs.api";
 import { listPlayers } from "../../api/players.api";
-import { getStatsPlayerMatches } from "../../api/stats.api";
-import type { Match, StatsScope } from "../../api/types";
+import { getStatsPlayerMatches, getStatsPlayers } from "../../api/stats.api";
+import type { Match, StatsPlayerRow, StatsPlayersResponse, StatsScope } from "../../api/types";
 import { usePlayerAvatarMap } from "../../hooks/usePlayerAvatarMap";
 import {
   StatsAvatarSelector,
@@ -18,6 +18,7 @@ import {
   type StatsMode,
 } from "./StatsControls";
 import { MatchHistoryList } from "./MatchHistoryList";
+import TournamentPositionsGrid from "./TournamentPositionsGrid";
 import { useAuth } from "../../auth/AuthContext";
 
 function fmtDate(s?: string | null) {
@@ -214,6 +215,7 @@ export default function PlayerMatchesCard({ embedded = false }: { embedded?: boo
   const [mode, setMode] = useState<StatsMode>("overall");
   const [scope, setScope] = useState<StatsScope>("tournaments");
   const [showMeta, setShowMeta] = useState(false);
+  const [showAllTournamentTiles, setShowAllTournamentTiles] = useState(false);
   // Intentionally no auto-scroll on avatar selection; it feels jumpy on mobile and is easy to trigger accidentally.
 
   const defaultSelectedPlayerId = useMemo<number | "">(() => {
@@ -234,6 +236,15 @@ export default function PlayerMatchesCard({ embedded = false }: { embedded?: boo
     refetchOnReconnect: false,
     refetchOnWindowFocus: false,
   });
+  const positionsQ = useQuery<StatsPlayersResponse>({
+    queryKey: ["stats", "playerTiles", selectedPlayerId || "none", mode],
+    queryFn: () => getStatsPlayers({ mode, lastN: 10 }),
+    enabled: selectedPlayerId !== "" && scope !== "friendlies",
+    placeholderData: keepPreviousData,
+    staleTime: 0,
+    refetchOnReconnect: false,
+    refetchOnWindowFocus: false,
+  });
 
   const selected = useMemo(() => {
     if (selectedPlayerId === "") return null;
@@ -249,6 +260,13 @@ export default function PlayerMatchesCard({ embedded = false }: { embedded?: boo
     if (mode === "overall") return rows;
     return rows.filter((t) => t.mode === mode);
   }, [matchesQ.data?.tournaments, mode]);
+  const tournamentTiles = useMemo(() => positionsQ.data?.tournaments ?? [], [positionsQ.data?.tournaments]);
+  const tournamentStatsRow = useMemo<StatsPlayerRow | null>(() => {
+    if (selectedPlayerId === "") return null;
+    return (positionsQ.data?.players ?? []).find((row) => row.player_id === Number(selectedPlayerId)) ?? null;
+  }, [positionsQ.data?.players, selectedPlayerId]);
+  const showTournamentTiles =
+    scope !== "friendlies" && tournamentTiles.length > 0 && tournamentStatsRow != null;
   const form = useMemo(() => {
     if (!selected) return null;
     const flat = tournaments.flatMap((t) =>
@@ -286,6 +304,7 @@ export default function PlayerMatchesCard({ embedded = false }: { embedded?: boo
   const content = (
     <>
       <ErrorToastOnError error={matchesQ.error} title="Player matches loading failed" />
+      <ErrorToastOnError error={positionsQ.error} title="Tournament tiles loading failed" />
       <ErrorToastOnError error={clubsQ.error} title="Club data loading failed" />
       <div className="card-inner-flat rounded-2xl space-y-2 scroll-mt-[calc(env(safe-area-inset-top,0px)+128px)] sm:scroll-mt-[calc(env(safe-area-inset-top,0px)+144px)]">
         <div className="flex flex-wrap items-start gap-2">
@@ -324,6 +343,30 @@ export default function PlayerMatchesCard({ embedded = false }: { embedded?: boo
 
         {selected && tournaments.length ? (
           <div className="space-y-3">
+            {showTournamentTiles ? (
+              <div className="panel-subtle rounded-2xl p-3 space-y-3">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="text-[11px] font-medium text-text-muted">Tournament positions</div>
+                  <button
+                    type="button"
+                    className="btn-base btn-ghost inline-flex h-8 items-center gap-2 rounded-xl px-3 py-0 text-[11px]"
+                    onClick={() => setShowAllTournamentTiles((value) => !value)}
+                    title={showAllTournamentTiles ? "Show recent tournament tiles" : "Show all tournament tiles"}
+                  >
+                    <i
+                      className={"fa-solid " + (showAllTournamentTiles ? "fa-clock" : "fa-layer-group")}
+                      aria-hidden="true"
+                    />
+                    <span>{showAllTournamentTiles ? "Recent" : "All"}</span>
+                  </button>
+                </div>
+                <TournamentPositionsGrid
+                  tournaments={tournamentTiles}
+                  positionsByTournament={tournamentStatsRow?.positions_by_tournament ?? {}}
+                  expanded={showAllTournamentTiles}
+                />
+              </div>
+            ) : null}
             {form ? <Sparkline series={form.pts} outcomes={form.out} xMinLabel={form.startLabel} xMaxLabel={form.endLabel} /> : null}
             <MatchHistoryList tournaments={tournaments} focusId={selected.id} clubs={clubs} showMeta={showMeta} />
           </div>

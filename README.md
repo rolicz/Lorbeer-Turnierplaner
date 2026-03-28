@@ -6,6 +6,55 @@ Designed to be snappy and work well on both mobile and desktop.
 
 ---
 
+## Important first
+
+### Push notifications (PWA)
+
+Push notifications are now built in for the installed PWA on:
+- Android
+- iPhone / iPad Home Screen web app
+
+Covered events:
+- Tournament comments
+- Guestbook entries
+- Anpoebeln / pokes
+- Tournament created / updated / date changed / schedule generated / deleted
+- Match started / finished / score changed
+- Friendlies created / started / finished / score changed
+
+Quick setup:
+
+```bash
+cd backend
+python3 -m venv .venv
+./.venv/bin/python -m pip install -r requirements.txt
+./.venv/bin/python manage.py generate-vapid --private-key-out ./vapid_private_key.pem
+```
+
+Then add the generated values to `backend/secrets.json`:
+
+```json
+{
+  "push_vapid_public_key": "YOUR_PUBLIC_KEY",
+  "push_vapid_private_key_file": "./vapid_private_key.pem",
+  "push_vapid_subject": "mailto:you@example.com",
+  "push_ttl_seconds": 300
+}
+```
+
+Client usage:
+- Logged-in users enable notifications from the bell menu in the top bar.
+- iOS requires the app to be installed to the Home Screen first.
+- Standard web push uses a service worker; the app includes `frontend/public/sw.js` for background delivery.
+
+Production / Docker:
+- Generate the private key into `backend/data/vapid_private_key.pem`.
+- Set `PUSH_VAPID_PUBLIC_KEY` and `PUSH_VAPID_SUBJECT` in the compose environment or `.env`.
+- `docker-compose.yml` already points `PUSH_VAPID_PRIVATE_KEY_FILE` at `/data/vapid_private_key.pem`.
+- The frontend/proxy config now serves `sw.js` as `no-store`, and Caddy forwards `/ws/...` without stripping the `/ws` prefix.
+
+---
+
 ## Repo structure
 
 ```
@@ -31,6 +80,7 @@ Designed to be snappy and work well on both mobile and desktop.
 - Tournament & match **comments** (edit, delete, pin one tournament comment), real-time updates
 - **Unread comments** indicators/actions (stored locally in the browser): jump to latest unread + mark all read
 - Comment images + profile images (cropped in UI), stored on disk
+- Push notifications for installed PWAs (Android and iOS Home Screen)
 - Stats page: trends (pan/zoom), h2h (lists + matrix + matchup history), streaks, ratings (Elo-like), player match history, stars performance
 - Friendlies page: create friendly matches and store them in DB (admin can delete); supported as optional data scope in stats
 - “Bookmaker-style” prematch odds (form, ratings, direct duels, partner synergy, club stars, etc.)
@@ -66,7 +116,11 @@ Create `backend/secrets.json`:
   ],
   "jwt_secret": "dev-change-me",
   "ws_require_auth": false,
-  "log_level": "INFO"
+  "log_level": "INFO",
+  "push_vapid_public_key": "",
+  "push_vapid_private_key_file": "./vapid_private_key.pem",
+  "push_vapid_subject": "mailto:you@example.com",
+  "push_ttl_seconds": 300
 }
 ```
 
@@ -75,6 +129,7 @@ Notes:
 - `db_url` uses `/data/app.db` so it can be persisted via a volume/bind mount in Docker.
 - `player_accounts[].name` must match an existing player name (case-insensitive login).
 - `admin: true` enables admin privileges for that player account.
+- `push_vapid_*` enables browser push delivery for the PWA.
 
 ### Media storage (avatars + comment images)
 

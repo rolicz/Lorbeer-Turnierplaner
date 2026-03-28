@@ -11,6 +11,7 @@ export default [
       "eslint.config.js",
       "postcss.config.cjs",
       "tailwind.config.cjs",
+      "public/sw.js",
       "vite.config.ts",
     ],
   },

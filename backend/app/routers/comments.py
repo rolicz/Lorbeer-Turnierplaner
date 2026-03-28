@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Request, Response, UploadFile
 from sqlmodel import Session, select
 
 from ..auth import decode_token, require_admin, require_auth_claims, require_editor, require_editor_claims
@@ -28,6 +28,7 @@ from ..services.file_storage import (
     write_media,
 )
 from ..services.comments_summary import tournament_comments_summary
+from ..services.notifications import PushMessage, enqueue_global_push
 from ..ws import ws_manager
 
 log = logging.getLogger(__name__)
@@ -384,10 +385,11 @@ def mark_tournament_comments_read_all(
 async def create_comment(
     tournament_id: int,
     body: CommentCreateBody,
+    request: Request,
     s: Session = Depends(get_session),
     claims: dict = Depends(require_editor_claims),
 ) -> dict:
-    _tournament_or_404(s, tournament_id)
+    tournament = _tournament_or_404(s, tournament_id)
 
     text = str(body.body or "").strip()
     has_image_hint = bool(body.has_image)
@@ -428,6 +430,26 @@ async def create_comment(
         tournament_id,
         "comments_updated",
         {"tournament_id": tournament_id, "comment_id": c.id, "action": "created"},
+    )
+
+    author_name = "General"
+    if c.author_player_id is not None:
+        author = s.get(Player, int(c.author_player_id))
+        if author is not None:
+            author_name = author.display_name
+    preview = text if text else "Image comment"
+    if len(preview) > 120:
+        preview = preview[:117].rstrip() + "..."
+    enqueue_global_push(
+        request,
+        PushMessage(
+            title=f"New comment in {tournament.name}",
+            body=f"{author_name}: {preview}",
+            path=f"/live/{tournament_id}?comment={int(c.id)}",
+            tag=f"comment-{tournament_id}",
+            event_type="comment_created",
+            data={"tournament_id": tournament_id, "comment_id": int(c.id), "match_id": match_id},
+        ),
     )
 
     return _comment_dict(c, None)

@@ -23,6 +23,8 @@ from .routers.cup import router as cup_router
 from .routers.stats import router as stats_router
 from .routers.comments import router as comments_router
 from .routers.friendlies import router as friendlies_router
+from .routers.push import router as push_router
+from .services.notifications import NotificationDispatcher
 
 log = logging.getLogger(__name__)
 
@@ -37,7 +39,13 @@ def create_app(settings: Settings) -> FastAPI:
         init_db()
         log.info("DB initialized")
 
+        push_dispatcher = NotificationDispatcher(get_engine(), settings)
+        app.state.push_dispatcher = push_dispatcher
+        await push_dispatcher.start()
+
         yield
+
+        await push_dispatcher.stop()
 
     app = FastAPI(
         title="EA FC Tournament Planner",
@@ -65,6 +73,7 @@ def create_app(settings: Settings) -> FastAPI:
     app.include_router(stats_router)
     app.include_router(comments_router)
     app.include_router(friendlies_router)
+    app.include_router(push_router)
 
     @app.get("/health")
     def health() -> dict[str, str]:

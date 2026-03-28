@@ -1,5 +1,6 @@
 import argparse
 import logging
+import subprocess
 from pathlib import Path
 
 from app.logging_config import setup_logging
@@ -8,6 +9,7 @@ from app.db import configure_db, init_db, get_engine
 from sqlmodel import Session
 
 from app.seed import load_seed_file, seed_from_json, insert_match
+from app.services.webpush import derive_public_key_from_private_pem
 
 
 def parse_args() -> argparse.Namespace:
@@ -26,6 +28,10 @@ def parse_args() -> argparse.Namespace:
 
     vacuum_db = sub.add_parser("vacuum-db", help="Run SQLite VACUUM (optional ANALYZE)")
     vacuum_db.add_argument("--analyze", action="store_true", help="Run ANALYZE after VACUUM")
+
+    vapid = sub.add_parser("generate-vapid", help="Generate a VAPID private key and matching public key")
+    vapid.add_argument("--private-key-out", default="./vapid_private_key.pem", help="Where to write the PEM private key")
+    vapid.add_argument("--force", action="store_true", help="Overwrite the private key file if it already exists")
 
     return p.parse_args()
 
@@ -92,6 +98,33 @@ def main() -> None:
             log.info("VACUUM complete")
         if args.analyze:
             log.info("ANALYZE complete")
+
+    if args.cmd == "generate-vapid":
+        out_path = Path(args.private_key_out)
+        if out_path.exists() and not args.force:
+            raise RuntimeError(f"Refusing to overwrite existing file: {out_path}")
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+
+        subprocess.run(
+            [
+                "openssl",
+                "ecparam",
+                "-name",
+                "prime256v1",
+                "-genkey",
+                "-noout",
+                "-out",
+                str(out_path),
+            ],
+            check=True,
+        )
+        private_key_pem = out_path.read_text(encoding="utf-8").strip()
+        public_key = derive_public_key_from_private_pem(private_key_pem)
+
+        log.info("VAPID private key written to %s", out_path)
+        print(f"push_vapid_public_key={public_key}")
+        print(f"push_vapid_private_key_file={out_path}")
+        print("push_vapid_subject=mailto:you@example.com")
 
 
 if __name__ == "__main__":

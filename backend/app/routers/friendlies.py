@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import datetime as dt
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import selectinload
 from sqlmodel import Session, delete, select
 
@@ -10,6 +10,7 @@ from ..auth import require_admin, require_editor
 from ..db import get_session
 from ..models import Club, FriendlyMatch, FriendlyMatchSide, FriendlyMatchSidePlayer, Player
 from ..schemas import FriendlyMatchCreateBody, MatchPatchBody, MatchSidePatchBody
+from ..services.notifications import PushMessage, enqueue_global_push
 
 router = APIRouter(prefix="/friendlies", tags=["friendlies"])
 
@@ -97,6 +98,7 @@ def list_friendlies(
 @router.post("", dependencies=[Depends(require_editor)])
 def create_friendly_match(
     body: FriendlyMatchCreateBody,
+    request: Request,
     s: Session = Depends(get_session),
 ):
     mode = str(body.mode or "").strip().lower()
@@ -167,6 +169,17 @@ def create_friendly_match(
 
     # Reuse list serializer for a stable response shape.
     fm.sides = [side_a, side_b]
+    enqueue_global_push(
+        request,
+        PushMessage(
+            title="Friendly recorded",
+            body=f"A new {mode} friendly ended {a_goals}:{b_goals}.",
+            path="/friendlies",
+            tag=f"friendly-created-{int(fm.id)}",
+            event_type="friendly_created",
+            data={"friendly_id": int(fm.id)},
+        ),
+    )
     return _friendly_dict(fm)
 
 
@@ -192,6 +205,7 @@ def delete_friendly(
 def patch_friendly(
     friendly_id: int,
     body: MatchPatchBody,
+    request: Request,
     s: Session = Depends(get_session),
 ):
     fm = s.get(FriendlyMatch, friendly_id)
@@ -200,6 +214,8 @@ def patch_friendly(
 
     _ = fm.sides
     fields = body.model_fields_set
+    old_state = fm.state
+    old_scores = {side.side: int(side.goals or 0) for side in fm.sides}
 
     if "state" in fields:
         new_state = str(body.state or "").strip().lower()
@@ -244,4 +260,42 @@ def patch_friendly(
     ).first()
     if row is None:
         raise HTTPException(status_code=404, detail="Friendly match not found")
+    new_scores = {side.side: int(side.goals or 0) for side in row.sides}
+    scoreline = f"{new_scores.get('A', 0)}:{new_scores.get('B', 0)}"
+    if old_state != "playing" and row.state == "playing":
+        enqueue_global_push(
+            request,
+            PushMessage(
+                title="Friendly started",
+                body="A friendly match is now live.",
+                path="/friendlies",
+                tag=f"friendly-started-{int(row.id)}",
+                event_type="friendly_started",
+                data={"friendly_id": int(row.id)},
+            ),
+        )
+    if old_state != "finished" and row.state == "finished":
+        enqueue_global_push(
+            request,
+            PushMessage(
+                title="Friendly finished",
+                body=f"The friendly ended {scoreline}.",
+                path="/friendlies",
+                tag=f"friendly-finished-{int(row.id)}",
+                event_type="friendly_finished",
+                data={"friendly_id": int(row.id)},
+            ),
+        )
+    if new_scores.get("A", 0) != old_scores.get("A", 0) or new_scores.get("B", 0) != old_scores.get("B", 0):
+        enqueue_global_push(
+            request,
+            PushMessage(
+                title="Friendly score updated",
+                body=f"Current score: {scoreline}",
+                path="/friendlies",
+                tag=f"friendly-score-{int(row.id)}",
+                event_type="friendly_score_changed",
+                data={"friendly_id": int(row.id), "score_a": new_scores.get("A", 0), "score_b": new_scores.get("B", 0)},
+            ),
+        )
     return _friendly_dict(row)

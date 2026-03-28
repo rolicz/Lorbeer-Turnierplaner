@@ -281,3 +281,27 @@ class TournamentPinnedComment(SQLModel, table=True):
     tournament_id: int = Field(foreign_key="tournament.id", primary_key=True)
     comment_id: Optional[int] = Field(default=None, foreign_key="comment.id")
     updated_at: dt.datetime = Field(default_factory=dt.datetime.utcnow)
+
+
+class PushSubscription(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+
+    player_id: int = Field(foreign_key="player.id", index=True)
+    endpoint: str = Field(index=True, unique=True)
+    endpoint_hash: str = Field(index=True)
+    p256dh: str
+    auth: str
+    content_encoding: str = Field(default="aes128gcm")
+
+    user_agent: str = Field(default="")
+    app_platform: str = Field(default="")
+    app_standalone: bool = Field(default=False)
+
+    created_at: dt.datetime = Field(default_factory=dt.datetime.utcnow, index=True)
+    updated_at: dt.datetime = Field(default_factory=dt.datetime.utcnow, index=True)
+    last_success_at: Optional[dt.datetime] = Field(default=None, index=True)
+    last_failure_at: Optional[dt.datetime] = Field(default=None, index=True)
+    last_error: str = Field(default="")
+    last_http_status: Optional[int] = Field(default=None)
+    failure_count: int = Field(default=0)
+    disabled_at: Optional[dt.datetime] = Field(default=None, index=True)
