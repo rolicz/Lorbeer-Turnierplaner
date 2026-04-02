@@ -169,6 +169,27 @@ export default function PushNotificationsMenu({ token }: { token: string | null 
             All players receive comment, guestbook, anpoebeln, tournament, match and score notifications.
           </div>
 
+          <div className="mt-3 space-y-1">
+            <label className="block">
+              <div className="input-label">Notification language</div>
+              <select
+                className="select-field"
+                value={push.selectedLanguage}
+                onChange={(event) => void push.setLanguage(event.target.value as typeof push.selectedLanguage)}
+                disabled={push.syncing || push.testing}
+              >
+                {push.availableLanguages.map((option) => (
+                  <option key={option.key} value={option.key}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <div className="text-[11px] text-text-muted">
+              This device uses the selected language for push notification text.
+            </div>
+          </div>
+
           <div className="mt-3 space-y-2 text-xs text-text-muted">
             <div>Permission: <span className="text-text-normal">{push.permission}</span></div>
             <div>This account has <span className="text-text-normal">{push.serverSubscriptionCount}</span> active device subscription(s).</div>

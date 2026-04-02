@@ -1,6 +1,7 @@
 import { apiFetch } from "./client";
 import type {
   PushConfigResponse,
+  PushNotificationLanguage,
   PushSubscriptionPutResponse,
   PushSubscriptionsMineResponse,
 } from "./types";
@@ -16,6 +17,7 @@ export type BrowserPushSubscriptionPayload = {
   app_platform?: string;
   app_standalone?: boolean;
   user_agent?: string;
+  notification_language?: PushNotificationLanguage;
 };
 
 export function getPushConfig(): Promise<PushConfigResponse> {

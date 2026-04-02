@@ -1,4 +1,6 @@
+import json
 import asyncio
+from pathlib import Path
 
 from sqlmodel import Session, select
 
@@ -9,7 +11,12 @@ from app.routers import friendlies as friendlies_router
 from app.routers import matches as matches_router
 from app.routers import players as players_router
 from app.routers import tournaments as tournaments_router
-from app.services.notifications import NotificationDispatcher
+from app.services.notification_texts import (
+    default_notification_language,
+    notification_language_options,
+    render_notification_text,
+)
+from app.services.notifications import NotificationDispatcher, localized_push_message
 from app.settings import Settings
 
 
@@ -41,7 +48,14 @@ def test_push_subscription_crud_and_test_notification(client, editor_headers):
     config = client.get("/push/config")
     assert config.status_code == 200, config.text
     assert config.json()["enabled"] is True
+    assert config.json()["configured"] is True
     assert config.json()["vapid_public_key"] == "test-public-key"
+    assert config.json()["default_notification_language"] == "steirisch"
+    assert config.json()["notification_languages"] == [
+        {"key": "steirisch", "label": "Steirisch"},
+        {"key": "deutsch", "label": "Deutsch"},
+        {"key": "english", "label": "English"},
+    ]
 
     endpoint = "https://push.example.test/subscriptions/device-1"
     put_res = client.put(
@@ -53,23 +67,35 @@ def test_push_subscription_crud_and_test_notification(client, editor_headers):
             "app_platform": "android",
             "app_standalone": True,
             "user_agent": "pytest",
+            "notification_language": "english",
         },
         headers=editor_headers,
     )
     assert put_res.status_code == 200, put_res.text
     assert put_res.json()["endpoint"] == endpoint
     assert put_res.json()["disabled"] is False
+    assert put_res.json()["notification_language"] == "english"
 
     mine = client.get("/push/subscriptions/me", headers=editor_headers)
     assert mine.status_code == 200, mine.text
     assert mine.json()["count"] == 1
     assert mine.json()["endpoints"] == [endpoint]
+    assert mine.json()["subscriptions"] == [
+        {
+            "endpoint": endpoint,
+            "notification_language": "english",
+            "app_platform": "android",
+            "app_standalone": True,
+        }
+    ]
 
     test_res = client.post("/push/test", headers=editor_headers)
     assert test_res.status_code == 200, test_res.text
     assert len(dispatcher.player_messages) == 1
     _, message = dispatcher.player_messages[0]
     assert message.event_type == "push_test"
+    assert message.to_payload("english")["title"] == "Push is working"
+    assert "Hi Editor" in message.to_payload("english")["body"]
 
     delete_res = client.request(
         "DELETE",
@@ -88,6 +114,55 @@ def test_push_subscription_crud_and_test_notification(client, editor_headers):
         row = s.exec(select(PushSubscription).where(PushSubscription.endpoint == endpoint)).first()
         assert row is not None
         assert row.disabled_at is not None
+
+
+def test_notification_text_catalog_is_complete_and_renderable():
+    catalog_path = Path(__file__).resolve().parents[1] / "app" / "notification_texts.json"
+    catalog = json.loads(catalog_path.read_text(encoding="utf-8"))
+    languages = catalog["languages"]
+    expected_keys = set(languages[default_notification_language()]["messages"].keys())
+
+    assert [row["key"] for row in notification_language_options()] == ["steirisch", "deutsch", "english"]
+
+    context = {
+        "tournament_name": "Feierabend Cup",
+        "author_name": "Alice",
+        "preview": "Der Thread laeuft schon heiss.",
+        "preview_is_image_only": False,
+        "profile_player_name": "Berti",
+        "extra_count": 3,
+        "author_names": ["Alice", "Bob", "Carl"],
+        "tournament_date": "2026-04-03",
+        "match_count": 9,
+        "match_label": "Match 2",
+        "scoreline": "3:2",
+        "mode": "2v2",
+        "player_name": "Editor",
+    }
+
+    for language, payload in languages.items():
+        assert set(payload["messages"].keys()) == expected_keys
+        for message_key in expected_keys:
+            title, body = render_notification_text(message_key, language, context)
+            assert title.strip()
+            assert body.strip()
+
+
+def test_localized_push_message_renders_each_language():
+    message = localized_push_message(
+        "push_test",
+        path="/dashboard",
+        tag="push-test",
+        event_type="push_test",
+        player_name="Editor",
+    )
+
+    assert message.to_payload("steirisch")["title"] == "Push passt bei dir"
+    assert "Servus Editor" in message.to_payload("steirisch")["body"]
+    assert message.to_payload("deutsch")["title"] == "Push funktioniert"
+    assert "Hallo Editor" in message.to_payload("deutsch")["body"]
+    assert message.to_payload("english")["title"] == "Push is working"
+    assert "Hi Editor" in message.to_payload("english")["body"]
 
 
 def test_comment_creation_enqueues_push(client, editor_headers, admin_headers, monkeypatch):

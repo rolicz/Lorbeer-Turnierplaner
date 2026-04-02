@@ -1,18 +1,20 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from sqlmodel import Session, select
+from sqlmodel import Session
 
 from ..auth import require_auth_claims
 from ..db import get_session
-from ..models import PushSubscription
 from ..schemas import PushSubscriptionBody, PushSubscriptionDeleteBody
 from ..services.notifications import (
-    PushMessage,
     disable_push_subscription,
+    list_push_subscriptions_for_player,
+    localized_push_message,
+    push_subscription_language,
     push_dispatcher_from_request,
     upsert_push_subscription,
 )
+from ..services.notification_texts import default_notification_language, notification_language_options
 
 router = APIRouter(prefix="/push", tags=["push"])
 
@@ -21,13 +23,23 @@ router = APIRouter(prefix="/push", tags=["push"])
 def get_push_config(request: Request) -> dict:
     dispatcher = push_dispatcher_from_request(request)
     if dispatcher is None:
-        return {"enabled": False, "vapid_public_key": "", "reason": "Push dispatcher is unavailable."}
+        return {
+            "enabled": False,
+            "configured": False,
+            "vapid_public_key": "",
+            "reason": "Push dispatcher is unavailable.",
+            "ios_home_screen_required": True,
+            "default_notification_language": default_notification_language(),
+            "notification_languages": notification_language_options(),
+        }
     return {
         "enabled": dispatcher.enabled,
         "configured": dispatcher.configured,
         "vapid_public_key": dispatcher.public_key if dispatcher.enabled else "",
         "reason": dispatcher.disabled_reason,
         "ios_home_screen_required": True,
+        "default_notification_language": default_notification_language(),
+        "notification_languages": notification_language_options(),
     }
 
 
@@ -53,11 +65,13 @@ def put_subscription(
             user_agent=body.user_agent or request.headers.get("user-agent", ""),
             app_platform=body.app_platform or "",
             app_standalone=bool(body.app_standalone),
+            notification_language=body.notification_language,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     s.commit()
     s.refresh(row)
+    notification_language = push_subscription_language(s, row.id)
     return {
         "ok": True,
         "id": int(row.id),
@@ -65,6 +79,7 @@ def put_subscription(
         "endpoint": row.endpoint,
         "disabled": row.disabled_at is not None,
         "updated_at": row.updated_at,
+        "notification_language": notification_language,
     }
 
 
@@ -89,15 +104,12 @@ def list_my_subscriptions(
     s: Session = Depends(get_session),
     claims: dict = Depends(require_auth_claims),
 ) -> dict:
-    rows = list(
-        s.exec(
-            select(PushSubscription).where(
-                PushSubscription.player_id == int(claims.get("player_id")),
-                PushSubscription.disabled_at.is_(None),
-            )
-        ).all()
-    )
-    return {"count": len(rows), "endpoints": [row.endpoint for row in rows]}
+    subscriptions = list_push_subscriptions_for_player(s, int(claims.get("player_id")))
+    return {
+        "count": len(subscriptions),
+        "endpoints": [row["endpoint"] for row in subscriptions],
+        "subscriptions": subscriptions,
+    }
 
 
 @router.post("/test")
@@ -112,12 +124,12 @@ def send_test_notification(
     player_name = str(claims.get("player_name") or "Player")
     dispatcher.enqueue_for_player(
         int(claims.get("player_id")),
-        PushMessage(
-            title="Push notifications enabled",
-            body=f"Notifications are working for {player_name}.",
+        localized_push_message(
+            "push_test",
             path="/dashboard",
             tag=f"push-test-{int(claims.get('player_id'))}",
             event_type="push_test",
+            player_name=player_name,
         ),
     )
     return {"ok": True}

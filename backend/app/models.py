@@ -305,3 +305,9 @@ class PushSubscription(SQLModel, table=True):
     last_http_status: Optional[int] = Field(default=None)
     failure_count: int = Field(default=0)
     disabled_at: Optional[dt.datetime] = Field(default=None, index=True)
+
+
+class PushSubscriptionPreference(SQLModel, table=True):
+    subscription_id: int = Field(foreign_key="pushsubscription.id", primary_key=True)
+    notification_language: str = Field(default="steirisch", index=True)
+    updated_at: dt.datetime = Field(default_factory=dt.datetime.utcnow, index=True)

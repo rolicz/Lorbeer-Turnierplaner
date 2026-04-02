@@ -24,7 +24,7 @@ from ..stats import compute_tournament_stats
 from ..ws import ws_manager, ws_manager_update_tournaments
 from ..tournament_status import compute_status_for_tournament, compute_status_map, find_other_live_tournament_id
 from ..services.comments_summary import tournament_comments_summary
-from ..services.notifications import PushMessage, enqueue_global_push
+from ..services.notifications import enqueue_global_push, localized_push_message
 from ..services.stats.odds import compute_match_odds_for_tournament
 
 log = logging.getLogger(__name__)
@@ -508,13 +508,13 @@ async def create_tournament(body: TournamentCreateBody, request: Request, s: Ses
     await ws_manager_update_tournaments.broadcast("tournament_created", {})
     enqueue_global_push(
         request,
-        PushMessage(
-            title="Tournament created",
-            body=f"{t.name} is ready.",
+        localized_push_message(
+            "tournament_created",
             path=f"/live/{int(t.id)}",
             tag=f"tournament-created-{int(t.id)}",
             event_type="tournament_created",
             data={"tournament_id": int(t.id)},
+            tournament_name=t.name,
         ),
     )
     return t
@@ -567,13 +567,13 @@ async def patch_tournament(
     await ws_manager_update_tournaments.broadcast("tournament_updated", {"tournament_id": tournament_id}) 
     enqueue_global_push(
         request,
-        PushMessage(
-            title="Tournament updated",
-            body=f"{t.name} was updated.",
+        localized_push_message(
+            "tournament_updated",
             path=f"/live/{int(tournament_id)}",
             tag=f"tournament-updated-{int(tournament_id)}",
             event_type="tournament_updated",
             data={"tournament_id": int(tournament_id)},
+            tournament_name=t.name,
         ),
     )
     return t
@@ -608,13 +608,14 @@ async def patch_date(
     log.info("Tournament date changed: tournament_id=%s date=%s by=%s", tournament_id, t.date, role)
     enqueue_global_push(
         request,
-        PushMessage(
-            title="Tournament date changed",
-            body=f"{t.name} is now scheduled for {t.date}.",
+        localized_push_message(
+            "tournament_date_changed",
             path=f"/live/{int(tournament_id)}",
             tag=f"tournament-date-{int(tournament_id)}",
             event_type="tournament_date_changed",
             data={"tournament_id": int(tournament_id)},
+            tournament_name=t.name,
+            tournament_date=t.date,
         ),
     )
     return {"ok": True, "date": t.date}
@@ -650,13 +651,14 @@ async def generate_schedule(
     )
     enqueue_global_push(
         request,
-        PushMessage(
-            title="Schedule generated",
-            body=f"{t.name}: {created_matches} match(es) created.",
+        localized_push_message(
+            "schedule_generated",
             path=f"/live/{int(tournament_id)}",
             tag=f"schedule-generated-{int(tournament_id)}",
             event_type="schedule_generated",
             data={"tournament_id": int(tournament_id), "matches": int(created_matches)},
+            tournament_name=t.name,
+            match_count=created_matches,
         ),
     )
     return {"ok": True, "matches": created_matches, "labels": label_to_name}
@@ -860,13 +862,13 @@ async def delete_tournament(
     log.info("Tournament deleted: tournament_id=%s by=%s", tournament_id, role)
     enqueue_global_push(
         request,
-        PushMessage(
-            title="Tournament deleted",
-            body=f"{tournament.name} was deleted.",
+        localized_push_message(
+            "tournament_deleted",
             path="/tournaments",
             tag=f"tournament-deleted-{int(tournament_id)}",
             event_type="tournament_deleted",
             data={"tournament_id": int(tournament_id)},
+            tournament_name=tournament.name,
         ),
     )
 

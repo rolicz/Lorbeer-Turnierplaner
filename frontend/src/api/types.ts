@@ -254,7 +254,11 @@ export type PushConfigResponse = {
   vapid_public_key: string;
   reason?: string | null;
   ios_home_screen_required?: boolean;
+  default_notification_language?: PushNotificationLanguage;
+  notification_languages?: { key: PushNotificationLanguage; label: string }[];
 };
+
+export type PushNotificationLanguage = "english" | "deutsch" | "steirisch";
 
 export type PushSubscriptionPutResponse = {
   ok: boolean;
@@ -263,11 +267,18 @@ export type PushSubscriptionPutResponse = {
   endpoint: string;
   disabled: boolean;
   updated_at: string;
+  notification_language: PushNotificationLanguage;
 };
 
 export type PushSubscriptionsMineResponse = {
   count: number;
   endpoints: string[];
+  subscriptions: {
+    endpoint: string;
+    notification_language: PushNotificationLanguage;
+    app_platform?: string | null;
+    app_standalone?: boolean;
+  }[];
 };
 
 // ---- API payload helpers ----

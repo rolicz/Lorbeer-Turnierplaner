@@ -11,8 +11,13 @@ import httpx
 from fastapi import Request
 from sqlmodel import Session, select
 
-from ..models import PushSubscription
+from ..models import PushSubscription, PushSubscriptionPreference
 from ..settings import Settings
+from .notification_texts import (
+    default_notification_language,
+    normalize_notification_language,
+    render_notification_text,
+)
 from .webpush import (
     WebPushConfig,
     WebPushConfigError,
@@ -31,19 +36,24 @@ def hash_push_endpoint(endpoint: str) -> str:
 
 @dataclass(frozen=True)
 class PushMessage:
-    title: str
-    body: str
+    title: str = ""
+    body: str = ""
     path: str = "/"
     tag: str | None = None
     event_type: str = "generic"
     icon: str = "/android-chrome-192x192.png"
     badge: str = "/favicon-32x32.png"
     data: dict[str, Any] = field(default_factory=dict)
+    text_key: str | None = None
+    text_context: dict[str, Any] = field(default_factory=dict)
 
-    def to_payload(self) -> dict[str, Any]:
+    def to_payload(self, language: str | None = None) -> dict[str, Any]:
+        title, body = self.title, self.body
+        if self.text_key:
+            title, body = render_notification_text(self.text_key, language, self.text_context)
         payload = {
-            "title": self.title,
-            "body": self.body,
+            "title": title,
+            "body": body,
             "icon": self.icon,
             "badge": self.badge,
             "tag": self.tag,
@@ -68,43 +78,43 @@ class _PokeDigestState:
     flush_task: asyncio.Task[None] | None = field(default=None, repr=False)
 
 
-def _poke_push_message(*, profile_player_id: int, profile_player_name: str, author_player_name: str, poke_id: int) -> PushMessage:
+def localized_push_message(
+    text_key: str,
+    *,
+    path: str = "/",
+    tag: str | None = None,
+    event_type: str = "generic",
+    data: dict[str, Any] | None = None,
+    **text_context: Any,
+) -> PushMessage:
+    title, body = render_notification_text(text_key, default_notification_language(), text_context)
     return PushMessage(
-        title=f"New anpöbeln for {profile_player_name}",
-        body=f"{author_player_name} hat {profile_player_name} angepöbelt.",
+        title=title,
+        body=body,
+        path=path,
+        tag=tag,
+        event_type=event_type,
+        data=data or {},
+        text_key=text_key,
+        text_context=text_context,
+    )
+
+
+def _poke_push_message(*, profile_player_id: int, profile_player_name: str, author_player_name: str, poke_id: int) -> PushMessage:
+    return localized_push_message(
+        "poke_created",
         path=f"/profiles/{profile_player_id}",
         tag=f"poke-{profile_player_id}",
         event_type="poke_created",
         data={"profile_player_id": profile_player_id, "poke_id": poke_id},
+        profile_player_name=profile_player_name,
+        author_name=author_player_name,
     )
 
 
-def _poke_summary_text(extra_count: int, profile_player_name: str, author_names: list[str]) -> str:
-    unique_authors = [name for name in dict.fromkeys(str(name or "").strip() for name in author_names) if name]
-    if extra_count <= 0:
-        return ""
-    if extra_count == 1 and len(unique_authors) == 1:
-        return f"{unique_authors[0]} hat {profile_player_name} noch einmal angepöbelt."
-    if len(unique_authors) == 1:
-        return f"{unique_authors[0]} hat {profile_player_name} in der letzten Minute noch {extra_count}x angepöbelt."
-    if len(unique_authors) == 2:
-        authors_text = f"{unique_authors[0]} und {unique_authors[1]}"
-    elif len(unique_authors) == 3:
-        authors_text = f"{unique_authors[0]}, {unique_authors[1]} und {unique_authors[2]}"
-    elif len(unique_authors) > 3:
-        authors_text = f"{unique_authors[0]}, {unique_authors[1]} und {len(unique_authors) - 2} weitere"
-    else:
-        authors_text = ""
-    if authors_text:
-        return f"{authors_text} haben {profile_player_name} in der letzten Minute noch {extra_count}x angepöbelt."
-    return f"{extra_count} weitere Anpöbeleien für {profile_player_name} in der letzten Minute."
-
-
 def _poke_summary_message(*, profile_player_id: int, profile_player_name: str, latest_poke_id: int, extra_count: int, author_names: list[str]) -> PushMessage:
-    body = _poke_summary_text(extra_count, profile_player_name, author_names)
-    return PushMessage(
-        title=f"More anpöbeln for {profile_player_name}",
-        body=body,
+    return localized_push_message(
+        "poke_summary",
         path=f"/profiles/{profile_player_id}",
         tag=f"poke-{profile_player_id}",
         event_type="poke_summary",
@@ -114,6 +124,9 @@ def _poke_summary_message(*, profile_player_id: int, profile_player_name: str, l
             "extra_count": extra_count,
             "author_names": [name for name in dict.fromkeys(author_names) if name],
         },
+        profile_player_name=profile_player_name,
+        extra_count=extra_count,
+        author_names=[name for name in dict.fromkeys(author_names) if name],
     )
 
 
@@ -178,6 +191,7 @@ def upsert_push_subscription(
     user_agent: str = "",
     app_platform: str = "",
     app_standalone: bool = False,
+    notification_language: str | None = None,
 ) -> PushSubscription:
     endpoint_norm = str(endpoint or "").strip()
     p256dh_norm = str(p256dh or "").strip()
@@ -186,6 +200,7 @@ def upsert_push_subscription(
         raise ValueError("Invalid push subscription payload")
     if str(content_encoding or "aes128gcm").strip().lower() != "aes128gcm":
         raise ValueError("Only aes128gcm subscriptions are supported")
+    language = normalize_notification_language(notification_language)
 
     row = s.exec(select(PushSubscription).where(PushSubscription.endpoint == endpoint_norm)).first()
     now = datetime.utcnow()
@@ -217,6 +232,20 @@ def upsert_push_subscription(
         row.last_http_status = None
         row.disabled_at = None
     s.add(row)
+    s.flush()
+    subscription_id = int(row.id or 0)
+    pref = s.get(PushSubscriptionPreference, subscription_id)
+    if pref is None:
+        pref = PushSubscriptionPreference(
+            subscription_id=subscription_id,
+            notification_language=language,
+            updated_at=now,
+        )
+    else:
+        pref.notification_language = language
+        pref.updated_at = now
+    s.add(pref)
+    s.flush()
     return row
 
 
@@ -242,6 +271,36 @@ def disable_push_subscription(
     row.last_error = "disabled by client"
     s.add(row)
     return True
+
+
+def push_subscription_language(s: Session, subscription_id: int | None) -> str:
+    sid = int(subscription_id or 0)
+    if sid <= 0:
+        return default_notification_language()
+    pref = s.get(PushSubscriptionPreference, sid)
+    if pref is None:
+        return default_notification_language()
+    return normalize_notification_language(pref.notification_language)
+
+
+def list_push_subscriptions_for_player(s: Session, player_id: int) -> list[dict[str, Any]]:
+    rows = list(
+        s.exec(
+            select(PushSubscription).where(
+                PushSubscription.player_id == int(player_id),
+                PushSubscription.disabled_at.is_(None),
+            )
+        ).all()
+    )
+    return [
+        {
+            "endpoint": row.endpoint,
+            "notification_language": push_subscription_language(s, row.id),
+            "app_platform": row.app_platform,
+            "app_standalone": bool(row.app_standalone),
+        }
+        for row in rows
+    ]
 
 
 class NotificationDispatcher:
@@ -431,7 +490,7 @@ class NotificationDispatcher:
                     auth=row.auth,
                     content_encoding=row.content_encoding,
                 ),
-                message.to_payload(),
+                message.to_payload(push_subscription_language(s, row.id)),
             )
             row.updated_at = now
             row.last_http_status = response.status_code

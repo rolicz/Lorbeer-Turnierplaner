@@ -8,7 +8,7 @@ from ..auth import require_editor
 from ..db import get_session
 from ..models import Match, MatchSide, Tournament, Club
 from ..schemas import MatchPatchBody, MatchSidePatchBody
-from ..services.notifications import PushMessage, enqueue_global_push
+from ..services.notifications import enqueue_global_push, localized_push_message
 from ..tournament_status import compute_status_for_tournament, find_other_live_tournament_id
 from ..ws import ws_manager, ws_manager_update_tournaments
 
@@ -202,26 +202,29 @@ async def patch_match(
     if old_state != "playing" and m.state == "playing":
         enqueue_global_push(
             request,
-            PushMessage(
-                title=f"Match started in {tournament_name}",
-                body=f"{match_label} is now live.",
+            localized_push_message(
+                "match_started",
                 path=f"/live/{int(m.tournament_id)}",
                 tag=f"match-start-{int(m.id)}",
                 event_type="match_started",
                 data={"tournament_id": int(m.tournament_id), "match_id": int(m.id)},
+                tournament_name=tournament_name,
+                match_label=match_label,
             ),
         )
 
     if old_state != "finished" and m.state == "finished":
         enqueue_global_push(
             request,
-            PushMessage(
-                title=f"Match finished in {tournament_name}",
-                body=f"{match_label} ended {scoreline}.",
+            localized_push_message(
+                "match_finished",
                 path=f"/live/{int(m.tournament_id)}",
                 tag=f"match-finished-{int(m.id)}",
                 event_type="match_finished",
                 data={"tournament_id": int(m.tournament_id), "match_id": int(m.id)},
+                tournament_name=tournament_name,
+                match_label=match_label,
+                scoreline=scoreline,
             ),
         )
 
@@ -230,12 +233,11 @@ async def patch_match(
         0, new_scores.get("B", 0) - old_scores.get("B", 0)
     )
     if goals_changed:
-        title = f"Goal in {tournament_name}" if goals_added == 1 else f"Score updated in {tournament_name}"
+        text_key = "match_goal" if goals_added == 1 else "match_score_changed"
         enqueue_global_push(
             request,
-            PushMessage(
-                title=title,
-                body=f"{match_label}: {scoreline}",
+            localized_push_message(
+                text_key,
                 path=f"/live/{int(m.tournament_id)}",
                 tag=f"match-score-{int(m.id)}",
                 event_type="match_score_changed",
@@ -246,6 +248,9 @@ async def patch_match(
                     "score_b": new_scores.get("B", 0),
                     "goals_added": goals_added,
                 },
+                tournament_name=tournament_name,
+                match_label=match_label,
+                scoreline=scoreline,
             ),
         )
 

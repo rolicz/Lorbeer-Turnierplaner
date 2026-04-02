@@ -28,7 +28,7 @@ from ..services.file_storage import (
     write_media,
 )
 from ..services.comments_summary import tournament_comments_summary
-from ..services.notifications import PushMessage, enqueue_global_push
+from ..services.notifications import enqueue_global_push, localized_push_message
 from ..ws import ws_manager
 
 log = logging.getLogger(__name__)
@@ -442,13 +442,16 @@ async def create_comment(
         preview = preview[:117].rstrip() + "..."
     enqueue_global_push(
         request,
-        PushMessage(
-            title=f"New comment in {tournament.name}",
-            body=f"{author_name}: {preview}",
+        localized_push_message(
+            "comment_created",
             path=f"/live/{tournament_id}?comment={int(c.id)}",
             tag=f"comment-{tournament_id}",
             event_type="comment_created",
             data={"tournament_id": tournament_id, "comment_id": int(c.id), "match_id": match_id},
+            tournament_name=tournament.name,
+            author_name=author_name,
+            preview=preview if text else "",
+            preview_is_image_only=not bool(text),
         ),
     )
 
