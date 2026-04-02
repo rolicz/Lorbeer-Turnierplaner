@@ -35,7 +35,7 @@ from ..services.file_storage import (
     write_media,
 )
 from ..services.guestbook_summary import player_guestbook_summary
-from ..services.notifications import PushMessage, enqueue_global_push
+from ..services.notifications import PushMessage, enqueue_global_push, enqueue_poke_push
 from ..services.poke_summary import player_poke_summary
 from ..ws import ws_manager_player_profiles
 
@@ -837,16 +837,12 @@ def create_player_poke(
         },
     )
 
-    enqueue_global_push(
+    enqueue_poke_push(
         request,
-        PushMessage(
-            title=f"New anpöbeln for {player.display_name}",
-            body=f"{author_player.display_name} hat {player.display_name} angepöbelt.",
-            path=f"/profiles/{int(player_id)}",
-            tag=f"poke-{int(player_id)}",
-            event_type="poke_created",
-            data={"profile_player_id": int(player_id), "poke_id": int(row.id)},
-        ),
+        profile_player_id=int(player_id),
+        profile_player_name=player.display_name,
+        author_player_name=author_player.display_name,
+        poke_id=int(row.id),
     )
 
     return _poke_payload(poke=row, author_display_name=author_player.display_name)

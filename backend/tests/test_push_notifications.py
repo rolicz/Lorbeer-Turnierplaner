@@ -1,3 +1,5 @@
+import asyncio
+
 from sqlmodel import Session, select
 
 from app.db import get_engine
@@ -7,6 +9,8 @@ from app.routers import friendlies as friendlies_router
 from app.routers import matches as matches_router
 from app.routers import players as players_router
 from app.routers import tournaments as tournaments_router
+from app.services.notifications import NotificationDispatcher
+from app.settings import Settings
 
 
 class StubPushDispatcher:
@@ -114,8 +118,14 @@ def test_comment_creation_enqueues_push(client, editor_headers, admin_headers, m
 
 
 def test_guestbook_and_poke_enqueue_push(client, editor_headers, admin_headers, monkeypatch):
-    messages = []
-    monkeypatch.setattr(players_router, "enqueue_global_push", lambda request, message: messages.append(message))
+    guestbook_messages = []
+    poke_events = []
+    monkeypatch.setattr(players_router, "enqueue_global_push", lambda request, message: guestbook_messages.append(message))
+    monkeypatch.setattr(
+        players_router,
+        "enqueue_poke_push",
+        lambda request, **payload: poke_events.append(payload),
+    )
 
     editor_player_id = _player_id_by_name(client, "Editor")
     target_player_id = client.post("/players", json={"display_name": "PushTarget"}, headers=admin_headers).json()["id"]
@@ -134,9 +144,49 @@ def test_guestbook_and_poke_enqueue_push(client, editor_headers, admin_headers, 
     )
     assert poke_res.status_code == 200, poke_res.text
 
-    event_types = [message.event_type for message in messages]
+    event_types = [message.event_type for message in guestbook_messages]
     assert "guestbook_created" in event_types
-    assert "poke_created" in event_types
+    assert len(poke_events) == 1
+    assert poke_events[0]["profile_player_id"] == target_player_id
+    assert poke_events[0]["poke_id"] > 0
+
+
+def test_poke_push_digest_summarizes_within_cooldown(tmp_path):
+    async def run() -> None:
+        dispatcher = NotificationDispatcher(
+            engine=None,
+            settings=Settings(
+                db_url=f"sqlite:///{tmp_path / 'poke-digest.db'}",
+                player_accounts=(),
+                jwt_secret="test-jwt-secret",
+                ws_require_auth=False,
+                log_level="DEBUG",
+                push_vapid_public_key="test-public",
+                push_vapid_private_key="test-private",
+                push_vapid_subject="mailto:test@example.com",
+            ),
+        )
+        dispatcher._runtime_ready = True
+        dispatcher._loop = asyncio.get_running_loop()
+        dispatcher.POKE_PUSH_COOLDOWN_SECONDS = 0.01
+
+        messages = []
+        dispatcher._put_nowait = lambda item: messages.append(item.message)  # type: ignore[assignment]
+
+        dispatcher._ingest_poke(7, "Target", "Alice", 101)
+        dispatcher._ingest_poke(7, "Target", "Bob", 102)
+        dispatcher._ingest_poke(7, "Target", "Carl", 103)
+
+        await asyncio.sleep(0.03)
+
+        assert [m.event_type for m in messages] == ["poke_created", "poke_summary"]
+        assert messages[0].data["poke_id"] == 101
+        assert messages[1].data["poke_id"] == 103
+        assert messages[1].data["extra_count"] == 2
+        assert "Bob" in messages[1].body
+        assert "Carl" in messages[1].body
+
+    asyncio.run(run())
 
 
 def test_tournament_and_match_events_enqueue_push(client, editor_headers, admin_headers, monkeypatch):

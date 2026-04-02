@@ -15,9 +15,11 @@ import type { Player } from "../../api/types";
 import {
   commentImageUrl,
   createTournamentComment,
+  deleteComment as apiDeleteComment,
   listCommentVoters,
   listTournamentComments,
   markCommentRead,
+  patchComment as apiPatchComment,
   putCommentImage,
   voteComment,
 } from "../../api/comments.api";
@@ -40,11 +42,13 @@ export default function MatchCommentsPanel({
   tournamentId,
   matchId,
   canWrite,
+  canDelete,
   playersInMatch,
 }: {
   tournamentId: number;
   matchId: number;
   canWrite: boolean;
+  canDelete: boolean;
   playersInMatch: Player[];
 }) {
   const qc = useQueryClient();
@@ -62,6 +66,9 @@ export default function MatchCommentsPanel({
   const [flashId, setFlashId] = useState<number | null>(null);
   const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
   const [voteVotersCommentId, setVoteVotersCommentId] = useState<number | null>(null);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editAuthor, setEditAuthor] = useState<"general" | number>(currentPlayerId ?? "general");
+  const [editBody, setEditBody] = useState("");
 
   const idsOk =
     typeof tournamentId === "number" &&
@@ -104,6 +111,16 @@ export default function MatchCommentsPanel({
   const byId = useMemo(() => new Map(playersInMatch.map((p) => [p.id, p.display_name])), [playersInMatch]);
   const authorLabel = (authorPlayerId: number | null) =>
     authorPlayerId == null ? "General" : byId.get(authorPlayerId) ?? `#${authorPlayerId}`;
+  const editingOriginal = useMemo(() => {
+    if (editingId == null) return null;
+    return matchComments.find((c) => c.id === editingId) ?? null;
+  }, [editingId, matchComments]);
+  const editingDirty = useMemo(() => {
+    if (!editingOriginal) return false;
+    const originalAuthor = editingOriginal.author_player_id == null ? "general" : editingOriginal.author_player_id;
+    const originalBody = (editingOriginal.body ?? "").trim();
+    return originalAuthor !== editAuthor || originalBody !== editBody.trim();
+  }, [editAuthor, editBody, editingOriginal]);
 
   const createMut = useMutation({
     mutationFn: async (payload: { authorPlayerId: number | null; body: string; hasImage: boolean }) => {
@@ -140,6 +157,29 @@ export default function MatchCommentsPanel({
       await qc.invalidateQueries({ queryKey: ["comments", "read-map", token ?? "none"] });
     },
   });
+  const patchMut = useMutation({
+    mutationFn: async (payload: { commentId: number; author_player_id?: number | null; body: string }) => {
+      if (!token) throw new Error("Not logged in");
+      return apiPatchComment(token, payload.commentId, {
+        author_player_id: payload.author_player_id,
+        body: payload.body,
+      });
+    },
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ["comments", tournamentId] });
+    },
+  });
+  const deleteMut = useMutation({
+    mutationFn: async (commentId: number) => {
+      if (!token) throw new Error("Not logged in");
+      return apiDeleteComment(token, commentId);
+    },
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ["comments", tournamentId] });
+      await qc.invalidateQueries({ queryKey: ["comments", "read", tournamentId, token ?? "none"] });
+      await qc.invalidateQueries({ queryKey: ["comments", "read-map", token ?? "none"] });
+    },
+  });
   const markReadMut = useMutation({
     mutationFn: async (commentId: number) => {
       if (!token) throw new Error("Not logged in");
@@ -159,6 +199,59 @@ export default function MatchCommentsPanel({
       await qc.invalidateQueries({ queryKey: ["comments", tournamentId] });
     },
   });
+
+  function resetEditState() {
+    setEditingId(null);
+    setEditAuthor(currentPlayerId ?? "general");
+    setEditBody("");
+  }
+
+  function startEdit(commentId: number) {
+    const row = matchComments.find((c) => c.id === commentId);
+    if (!row) return;
+    setEditingId(commentId);
+    setEditAuthor(row.author_player_id == null ? "general" : row.author_player_id);
+    setEditBody(row.body ?? "");
+  }
+
+  function toggleEdit(commentId: number) {
+    if (editingId === commentId) {
+      resetEditState();
+      return;
+    }
+    startEdit(commentId);
+  }
+
+  async function saveEdit(commentId: number) {
+    if (!editingOriginal || editingId !== commentId) return;
+    if (!editingDirty) return;
+    const nextBody = editBody.trim();
+    if (!nextBody && !editingOriginal.has_image) return;
+    const nextAuthor = editAuthor === "general" ? null : editAuthor;
+    const originalAuthor = editingOriginal.author_player_id ?? null;
+    const payload: { commentId: number; author_player_id?: number | null; body: string } = {
+      commentId,
+      body: nextBody,
+    };
+    if (originalAuthor !== nextAuthor) payload.author_player_id = nextAuthor;
+    try {
+      await patchMut.mutateAsync(payload);
+      setPendingScrollId(commentId);
+      resetEditState();
+    } catch {
+      // handled by patchMut.error
+    }
+  }
+
+  async function deleteComment(commentId: number) {
+    if (!window.confirm("Delete comment?")) return;
+    try {
+      await deleteMut.mutateAsync(commentId);
+      if (editingId === commentId) resetEditState();
+    } catch {
+      // handled by deleteMut.error
+    }
+  }
 
   useEffect(() => {
     if (!pendingScrollId) return;
@@ -200,6 +293,8 @@ export default function MatchCommentsPanel({
         <div className="space-y-2">
         <ErrorToastOnError error={commentsQ.error} title="Comments loading failed" />
         <ErrorToastOnError error={createMut.error} title="Could not post comment" />
+        <ErrorToastOnError error={patchMut.error} title="Could not save comment" />
+        <ErrorToastOnError error={deleteMut.error} title="Could not delete comment" />
         {commentsQ.isLoading ? (
           <div className="text-sm text-text-muted">Loading…</div>
         ) : matchComments.length === 0 ? (
@@ -217,6 +312,14 @@ export default function MatchCommentsPanel({
 	                className={
 	                  "panel-inner p-3 scroll-mt-28 sm:scroll-mt-32 " + (flashId === c.id ? "comment-attn" : "")
 	                }
+                  style={
+                    editingId === c.id
+                      ? {
+                          borderColor: "rgb(var(--color-accent))",
+                          boxShadow: "0 0 0 2px rgb(var(--color-accent) / 0.20)",
+                        }
+                      : undefined
+                  }
 	              >
 	                <div className="flex items-center justify-between gap-3">
                     <div className="flex items-center gap-2 min-w-0">
@@ -230,24 +333,59 @@ export default function MatchCommentsPanel({
                       />
 	                  ) : null}
 	                  <div className="text-xs font-semibold text-text-normal truncate">{authorLabel(c.author_player_id)}</div>
+                      {editingId === c.id ? <span className="card-chip text-[10px] py-1 px-2">editing</span> : null}
                     </div>
 
-                    {!!token && !seen.has(c.id) ? (
-                      <Button
-                        variant="ghost"
-                        type="button"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          if (markReadMut.isPending) return;
-                          markReadMut.mutate(c.id);
-                        }}
-                        title="Mark as read"
-                        className="h-8 w-8 p-0 inline-flex items-center justify-center shrink-0"
-                      >
-                        <i className="fa-solid fa-envelope text-accent motion-safe:animate-pulse" aria-hidden="true" />
-                      </Button>
-                    ) : null}
+                    <div className="shrink-0 flex items-center gap-2">
+                      {!!token && !seen.has(c.id) ? (
+                        <Button
+                          variant="ghost"
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            if (markReadMut.isPending) return;
+                            markReadMut.mutate(c.id);
+                          }}
+                          title="Mark as read"
+                          className="h-8 w-8 p-0 inline-flex items-center justify-center"
+                        >
+                          <i className="fa-solid fa-envelope text-accent motion-safe:animate-pulse" aria-hidden="true" />
+                        </Button>
+                      ) : null}
+                      {canWrite ? (
+                        <Button
+                          variant="ghost"
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            toggleEdit(c.id);
+                          }}
+                          title={editingId === c.id ? "Cancel edit" : "Edit comment"}
+                          className="h-8 w-8 p-0 inline-flex items-center justify-center md:w-auto md:px-3 md:py-1.5"
+                        >
+                          <i className={`fa-solid ${editingId === c.id ? "fa-chevron-up" : "fa-pen"} md:hidden`} aria-hidden="true" />
+                          <span className="hidden md:inline">{editingId === c.id ? "Close" : "Edit"}</span>
+                        </Button>
+                      ) : null}
+                      {canDelete ? (
+                        <Button
+                          variant="ghost"
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            void deleteComment(c.id);
+                          }}
+                          title="Delete comment"
+                          className="h-8 w-8 p-0 inline-flex items-center justify-center md:w-auto md:px-3 md:py-1.5"
+                        >
+                          <i className="fa-solid fa-trash md:hidden" aria-hidden="true" />
+                          <span className="hidden md:inline">Delete</span>
+                        </Button>
+                      ) : null}
+                    </div>
 	                </div>
 	                <div className="mt-0.5 text-[11px] text-text-muted">
 	                  {fmtTs(Date.parse(c.created_at))}
@@ -255,66 +393,111 @@ export default function MatchCommentsPanel({
 	                    <span className="ml-2">edited</span>
                   ) : null}
                 </div>
-                <div className="mt-2 space-y-2">
-                  {c.body ? <div className="whitespace-pre-wrap text-sm">{c.body}</div> : null}
-                  {c.has_image ? (
-                    <div className="panel-subtle p-2">
-                      <button
-                        type="button"
-                        className="block w-full"
-                        onClick={() => setLightboxSrc(commentImageUrl(c.id, c.image_updated_at ?? null))}
-                        title="Open image"
+                {editingId === c.id ? (
+                  <div className="mt-2 space-y-2">
+                    <label className="block">
+                      <div className="input-label">Posted as</div>
+                      <select
+                        className="select-field"
+                        value={editAuthor === "general" ? "general" : String(editAuthor)}
+                        onChange={(e) => setEditAuthor(e.target.value === "general" ? "general" : Number(e.target.value))}
+                        disabled={patchMut.isPending}
                       >
-                        <img
-                          src={commentImageUrl(c.id, c.image_updated_at ?? null)}
-                          alt=""
-                          className="w-full rounded-lg object-cover aspect-[4/3] cursor-zoom-in"
-                          loading="lazy"
-                          decoding="async"
-                        />
-                      </button>
+                        {currentPlayerId != null ? <option value={String(currentPlayerId)}>{currentPlayerName || "Me"}</option> : null}
+                        <option value="general">General</option>
+                        {editAuthor !== "general" && currentPlayerId != null && editAuthor !== currentPlayerId ? (
+                          <option value={String(editAuthor)}>
+                            {(byId.get(editAuthor) ?? `Player #${editAuthor}`) + " (original)"}
+                          </option>
+                        ) : null}
+                      </select>
+                    </label>
+
+                    <Textarea
+                      label="Edit"
+                      value={editBody}
+                      onChange={(e) => setEditBody(e.target.value)}
+                      className="min-h-[88px]"
+                      disabled={patchMut.isPending}
+                    />
+
+                    <div className="flex items-center justify-end gap-2">
+                      <Button
+                        type="button"
+                        onClick={() => void saveEdit(c.id)}
+                        disabled={!editingDirty || patchMut.isPending || (!editBody.trim() && !c.has_image)}
+                        title="Save"
+                        className="h-10 w-10 p-0 inline-flex items-center justify-center md:w-auto md:px-4 md:py-2"
+                      >
+                        <i className="fa-solid fa-floppy-disk md:hidden" aria-hidden="true" />
+                        <span className="hidden md:inline">Save</span>
+                      </Button>
                     </div>
-                  ) : null}
-                </div>
-                <div className="mt-2 flex items-center gap-2 text-[11px] text-text-muted">
-                  <VoteButton
-                    direction="up"
-                    active={myVote === 1}
-                    count={upvotes}
-                    onVote={() => {
-                      if (!token || voteMut.isPending) return;
-                      const next: -1 | 0 | 1 = myVote === 1 ? 0 : 1;
-                      voteMut.mutate({ commentId: c.id, value: next });
-                    }}
-                    voteDisabled={!token || voteMut.isPending}
-                    title="Upvote"
-                  />
-                  <VoteButton
-                    direction="down"
-                    active={myVote === -1}
-                    count={downvotes}
-                    onVote={() => {
-                      if (!token || voteMut.isPending) return;
-                      const next: -1 | 0 | 1 = myVote === -1 ? 0 : -1;
-                      voteMut.mutate({ commentId: c.id, value: next });
-                    }}
-                    voteDisabled={!token || voteMut.isPending}
-                    title="Downvote"
-                  />
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      setVoteVotersCommentId(c.id);
-                    }}
-                    title="Show voters"
-                    className="h-8 w-8 p-0 inline-flex items-center justify-center"
-                  >
-                    <i className="fa-solid fa-users text-text-muted" aria-hidden="true" />
-                  </Button>
-                </div>
+                  </div>
+                ) : (
+                  <>
+                    <div className="mt-2 space-y-2">
+                      {c.body ? <div className="whitespace-pre-wrap text-sm">{c.body}</div> : null}
+                      {c.has_image ? (
+                        <div className="panel-subtle p-2">
+                          <button
+                            type="button"
+                            className="block w-full"
+                            onClick={() => setLightboxSrc(commentImageUrl(c.id, c.image_updated_at ?? null))}
+                            title="Open image"
+                          >
+                            <img
+                              src={commentImageUrl(c.id, c.image_updated_at ?? null)}
+                              alt=""
+                              className="w-full rounded-lg object-cover aspect-[4/3] cursor-zoom-in"
+                              loading="lazy"
+                              decoding="async"
+                            />
+                          </button>
+                        </div>
+                      ) : null}
+                    </div>
+                    <div className="mt-2 flex items-center gap-2 text-[11px] text-text-muted">
+                      <VoteButton
+                        direction="up"
+                        active={myVote === 1}
+                        count={upvotes}
+                        onVote={() => {
+                          if (!token || voteMut.isPending) return;
+                          const next: -1 | 0 | 1 = myVote === 1 ? 0 : 1;
+                          voteMut.mutate({ commentId: c.id, value: next });
+                        }}
+                        voteDisabled={!token || voteMut.isPending}
+                        title="Upvote"
+                      />
+                      <VoteButton
+                        direction="down"
+                        active={myVote === -1}
+                        count={downvotes}
+                        onVote={() => {
+                          if (!token || voteMut.isPending) return;
+                          const next: -1 | 0 | 1 = myVote === -1 ? 0 : -1;
+                          voteMut.mutate({ commentId: c.id, value: next });
+                        }}
+                        voteDisabled={!token || voteMut.isPending}
+                        title="Downvote"
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setVoteVotersCommentId(c.id);
+                        }}
+                        title="Show voters"
+                        className="h-8 w-8 p-0 inline-flex items-center justify-center"
+                      >
+                        <i className="fa-solid fa-users text-text-muted" aria-hidden="true" />
+                      </Button>
+                    </div>
+                  </>
+                )}
               </div>
             );
             })}

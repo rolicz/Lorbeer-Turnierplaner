@@ -876,6 +876,7 @@ export default function LiveTournamentPage() {
                 match={currentMatch}
                 clubs={clubs}
                 canControl={isEditorOrAdmin && !isDone}
+                canDeleteComments={isAdmin}
                 busy={currentGameMut.isPending}
                 onPatch={(matchId, body) => currentGameMut.mutateAsync({ matchId, body })}
                 onSwapSides={async (matchId) => {

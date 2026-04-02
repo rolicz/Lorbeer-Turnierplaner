@@ -37,6 +37,7 @@ export default function CurrentGameSection({
   match,
   clubs,
   canControl,
+  canDeleteComments,
   busy,
   onPatch,
   onSwapSides,
@@ -47,6 +48,7 @@ export default function CurrentGameSection({
   match: Match | null;
   clubs: Club[];
   canControl: boolean;
+  canDeleteComments: boolean;
   busy: boolean;
   onPatch: (matchId: number, body: MatchPatchBody) => Promise<unknown>;
   onSwapSides?: (matchId: number) => Promise<unknown>;
@@ -398,6 +400,7 @@ export default function CurrentGameSection({
             tournamentId={activeMatch.tournament_id}
             matchId={activeMatch.id}
             canWrite={canControl}
+            canDelete={canDeleteComments}
             playersInMatch={playersInMatch}
           />
         ) : null}

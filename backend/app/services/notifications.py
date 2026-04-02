@@ -58,6 +58,65 @@ class _QueuedPushMessage:
     player_id: int | None = None
 
 
+@dataclass
+class _PokeDigestState:
+    profile_player_id: int
+    profile_player_name: str
+    latest_poke_id: int
+    extra_count: int = 0
+    extra_authors: list[str] = field(default_factory=list)
+    flush_task: asyncio.Task[None] | None = field(default=None, repr=False)
+
+
+def _poke_push_message(*, profile_player_id: int, profile_player_name: str, author_player_name: str, poke_id: int) -> PushMessage:
+    return PushMessage(
+        title=f"New anpöbeln for {profile_player_name}",
+        body=f"{author_player_name} hat {profile_player_name} angepöbelt.",
+        path=f"/profiles/{profile_player_id}",
+        tag=f"poke-{profile_player_id}",
+        event_type="poke_created",
+        data={"profile_player_id": profile_player_id, "poke_id": poke_id},
+    )
+
+
+def _poke_summary_text(extra_count: int, profile_player_name: str, author_names: list[str]) -> str:
+    unique_authors = [name for name in dict.fromkeys(str(name or "").strip() for name in author_names) if name]
+    if extra_count <= 0:
+        return ""
+    if extra_count == 1 and len(unique_authors) == 1:
+        return f"{unique_authors[0]} hat {profile_player_name} noch einmal angepöbelt."
+    if len(unique_authors) == 1:
+        return f"{unique_authors[0]} hat {profile_player_name} in der letzten Minute noch {extra_count}x angepöbelt."
+    if len(unique_authors) == 2:
+        authors_text = f"{unique_authors[0]} und {unique_authors[1]}"
+    elif len(unique_authors) == 3:
+        authors_text = f"{unique_authors[0]}, {unique_authors[1]} und {unique_authors[2]}"
+    elif len(unique_authors) > 3:
+        authors_text = f"{unique_authors[0]}, {unique_authors[1]} und {len(unique_authors) - 2} weitere"
+    else:
+        authors_text = ""
+    if authors_text:
+        return f"{authors_text} haben {profile_player_name} in der letzten Minute noch {extra_count}x angepöbelt."
+    return f"{extra_count} weitere Anpöbeleien für {profile_player_name} in der letzten Minute."
+
+
+def _poke_summary_message(*, profile_player_id: int, profile_player_name: str, latest_poke_id: int, extra_count: int, author_names: list[str]) -> PushMessage:
+    body = _poke_summary_text(extra_count, profile_player_name, author_names)
+    return PushMessage(
+        title=f"More anpöbeln for {profile_player_name}",
+        body=body,
+        path=f"/profiles/{profile_player_id}",
+        tag=f"poke-{profile_player_id}",
+        event_type="poke_summary",
+        data={
+            "profile_player_id": profile_player_id,
+            "poke_id": latest_poke_id,
+            "extra_count": extra_count,
+            "author_names": [name for name in dict.fromkeys(author_names) if name],
+        },
+    )
+
+
 def push_dispatcher_from_request(request: Request) -> "NotificationDispatcher | None":
     dispatcher = getattr(request.app.state, "push_dispatcher", None)
     if dispatcher is None:
@@ -77,6 +136,35 @@ def enqueue_player_push(request: Request, player_id: int, message: PushMessage) 
     dispatcher = push_dispatcher_from_request(request)
     if dispatcher is not None:
         dispatcher.enqueue_for_player(player_id, message)
+
+
+def enqueue_poke_push(
+    request: Request,
+    *,
+    profile_player_id: int,
+    profile_player_name: str,
+    author_player_name: str,
+    poke_id: int,
+) -> None:
+    dispatcher = push_dispatcher_from_request(request)
+    if dispatcher is None:
+        return
+    if hasattr(dispatcher, "enqueue_poke"):
+        dispatcher.enqueue_poke(
+            profile_player_id=int(profile_player_id),
+            profile_player_name=str(profile_player_name or ""),
+            author_player_name=str(author_player_name or ""),
+            poke_id=int(poke_id),
+        )
+        return
+    dispatcher.enqueue(
+        _poke_push_message(
+            profile_player_id=int(profile_player_id),
+            profile_player_name=str(profile_player_name or ""),
+            author_player_name=str(author_player_name or ""),
+            poke_id=int(poke_id),
+        )
+    )
 
 
 def upsert_push_subscription(
@@ -157,6 +245,8 @@ def disable_push_subscription(
 
 
 class NotificationDispatcher:
+    POKE_PUSH_COOLDOWN_SECONDS = 60.0
+
     def __init__(self, engine, settings: Settings) -> None:
         self._engine = engine
         self._settings = settings
@@ -164,6 +254,7 @@ class NotificationDispatcher:
         self._task: asyncio.Task[None] | None = None
         self._loop: asyncio.AbstractEventLoop | None = None
         self._client: httpx.AsyncClient | None = None
+        self._poke_digests: dict[int, _PokeDigestState] = {}
         self._config = WebPushConfig(
             public_key=settings.push_vapid_public_key,
             private_key_pem=settings.push_vapid_private_key,
@@ -202,6 +293,10 @@ class NotificationDispatcher:
         self._task = asyncio.create_task(self._worker())
 
     async def stop(self) -> None:
+        for state in list(self._poke_digests.values()):
+            if state.flush_task is not None:
+                state.flush_task.cancel()
+        self._poke_digests.clear()
         if self._task is not None:
             await self._queue.put(None)
             await self._task
@@ -216,10 +311,89 @@ class NotificationDispatcher:
     def enqueue_for_player(self, player_id: int, message: PushMessage) -> None:
         self._enqueue(_QueuedPushMessage(message=message, player_id=int(player_id)))
 
+    def enqueue_poke(
+        self,
+        *,
+        profile_player_id: int,
+        profile_player_name: str,
+        author_player_name: str,
+        poke_id: int,
+    ) -> None:
+        if not self.enabled or self._loop is None:
+            return
+        self._loop.call_soon_threadsafe(
+            self._ingest_poke,
+            int(profile_player_id),
+            str(profile_player_name or ""),
+            str(author_player_name or ""),
+            int(poke_id),
+        )
+
     def _enqueue(self, item: _QueuedPushMessage) -> None:
         if not self.enabled or self._loop is None:
             return
-        self._loop.call_soon_threadsafe(self._queue.put_nowait, item)
+        self._loop.call_soon_threadsafe(self._put_nowait, item)
+
+    def _put_nowait(self, item: _QueuedPushMessage) -> None:
+        self._queue.put_nowait(item)
+
+    def _ingest_poke(
+        self,
+        profile_player_id: int,
+        profile_player_name: str,
+        author_player_name: str,
+        poke_id: int,
+    ) -> None:
+        state = self._poke_digests.get(int(profile_player_id))
+        if state is None:
+            self._put_nowait(
+                _QueuedPushMessage(
+                    message=_poke_push_message(
+                        profile_player_id=int(profile_player_id),
+                        profile_player_name=profile_player_name,
+                        author_player_name=author_player_name,
+                        poke_id=int(poke_id),
+                    ),
+                    player_id=None,
+                )
+            )
+            state = _PokeDigestState(
+                profile_player_id=int(profile_player_id),
+                profile_player_name=profile_player_name,
+                latest_poke_id=int(poke_id),
+            )
+            state.flush_task = asyncio.create_task(self._flush_poke_digest_after_delay(int(profile_player_id)))
+            self._poke_digests[int(profile_player_id)] = state
+            return
+
+        state.latest_poke_id = int(poke_id)
+        state.extra_count += 1
+        if author_player_name.strip():
+            state.extra_authors.append(author_player_name.strip())
+
+    async def _flush_poke_digest_after_delay(self, profile_player_id: int) -> None:
+        try:
+            await asyncio.sleep(float(self.POKE_PUSH_COOLDOWN_SECONDS))
+            self._flush_poke_digest(int(profile_player_id))
+        except asyncio.CancelledError:
+            return
+
+    def _flush_poke_digest(self, profile_player_id: int) -> None:
+        state = self._poke_digests.pop(int(profile_player_id), None)
+        if state is None or state.extra_count <= 0:
+            return
+        self._put_nowait(
+            _QueuedPushMessage(
+                message=_poke_summary_message(
+                    profile_player_id=state.profile_player_id,
+                    profile_player_name=state.profile_player_name,
+                    latest_poke_id=state.latest_poke_id,
+                    extra_count=state.extra_count,
+                    author_names=state.extra_authors,
+                ),
+                player_id=None,
+            )
+        )
 
     async def _worker(self) -> None:
         while True:
