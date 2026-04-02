@@ -14,6 +14,7 @@ import VoteVotersModal from "../../ui/primitives/VoteVotersModal";
 import type { Club, Match, Player } from "../../api/types";
 import { clubLabelPartsById } from "../../ui/clubControls";
 import { StarsFA } from "../../ui/primitives/StarsFA";
+import CommentCreateComposer from "./CommentCreateComposer";
 import {
   createTournamentComment,
   commentImageUrl,
@@ -96,11 +97,16 @@ function ScopeActionButton({
 
 function AddCommentDropdown({
   open,
-  players,
-  currentPlayerId,
-  currentPlayerName,
+  authorOptions,
   draftAuthor,
   onChangeDraftAuthor,
+  draftMode,
+  onChangeDraftMode,
+  goalPlayers,
+  goalMinute,
+  onChangeGoalMinute,
+  goalPlayerId,
+  onChangeGoalPlayerId,
   draftBody,
   onChangeDraftBody,
   canAttachImage = false,
@@ -112,11 +118,16 @@ function AddCommentDropdown({
   surfaceClassName = "panel-subtle",
 }: {
   open: boolean;
-  players: Player[];
-  currentPlayerId: number | null;
-  currentPlayerName: string | null;
+  authorOptions: { value: "general" | number; label: string }[];
   draftAuthor: "general" | number;
   onChangeDraftAuthor: (v: "general" | number) => void;
+  draftMode: "comment" | "goal";
+  onChangeDraftMode: (mode: "comment" | "goal") => void;
+  goalPlayers: { id: number; label: string }[];
+  goalMinute: string;
+  onChangeGoalMinute: (value: string) => void;
+  goalPlayerId: number | null;
+  onChangeGoalPlayerId: (value: number | null) => void;
   draftBody: string;
   onChangeDraftBody: (v: string) => void;
   canAttachImage?: boolean;
@@ -128,86 +139,28 @@ function AddCommentDropdown({
   surfaceClassName?: string;
 }) {
   if (!open) return null;
-  const foreignAuthorId =
-    draftAuthor !== "general" && currentPlayerId != null && draftAuthor !== currentPlayerId ? draftAuthor : null;
-  const foreignAuthorName = foreignAuthorId != null ? players.find((p) => p.id === foreignAuthorId)?.display_name : null;
   return (
-    <div className={surfaceClassName + " p-3 space-y-2"}>
-      <div className="grid gap-2">
-        <label className="block">
-          <div className="input-label">Posted as</div>
-          <select
-            className="select-field"
-            value={draftAuthor === "general" ? "general" : String(draftAuthor)}
-            onChange={(e) => onChangeDraftAuthor(e.target.value === "general" ? "general" : Number(e.target.value))}
-          >
-            {currentPlayerId != null ? <option value={String(currentPlayerId)}>{currentPlayerName || "Me"}</option> : null}
-            <option value="general">General</option>
-            {foreignAuthorId != null ? (
-              <option value={String(foreignAuthorId)}>
-                {(foreignAuthorName ?? `Player #${foreignAuthorId}`) + " (original)"}
-              </option>
-            ) : null}
-          </select>
-        </label>
-      </div>
-
-      <Textarea
-        label="Comment"
-        placeholder="Write a comment…"
-        value={draftBody}
-        onChange={(e) => onChangeDraftBody(e.target.value)}
-      />
-
-      {canAttachImage ? (
-        <div className="space-y-2">
-          <div className="flex items-center justify-between gap-2">
-            <div className="text-xs text-text-muted">Image (4:3, 1920x1440)</div>
-            <div className="flex items-center gap-2">
-              <Button
-                type="button"
-                variant="ghost"
-                onClick={onOpenImageCropper}
-                className="h-9 px-3 inline-flex items-center justify-center gap-2"
-                title={imagePreviewUrl ? "Replace image" : "Attach image"}
-              >
-                <i className="fa-solid fa-image md:hidden" aria-hidden="true" />
-                <span className="hidden md:inline">{imagePreviewUrl ? "Replace" : "Attach"}</span>
-              </Button>
-              {imagePreviewUrl ? (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  onClick={onClearImage}
-                  className="h-9 w-9 p-0 inline-flex items-center justify-center"
-                  title="Remove image"
-                >
-                  <i className="fa-solid fa-xmark" aria-hidden="true" />
-                </Button>
-              ) : null}
-            </div>
-          </div>
-          {imagePreviewUrl ? (
-            <div className="panel-subtle p-2">
-              <img src={imagePreviewUrl} alt="" className="w-full rounded-lg object-cover aspect-[4/3]" />
-            </div>
-          ) : null}
-        </div>
-      ) : null}
-
-      <div className="flex items-center justify-end gap-2">
-        <Button
-          type="button"
-          onClick={onSubmit}
-          disabled={!canSubmit}
-          title="Post comment"
-          className="h-10 w-10 p-0 inline-flex items-center justify-center md:w-auto md:px-4 md:py-2"
-        >
-          <i className="fa-solid fa-paper-plane md:hidden" aria-hidden="true" />
-          <span className="hidden md:inline">Post</span>
-        </Button>
-      </div>
-    </div>
+    <CommentCreateComposer
+      authorOptions={authorOptions}
+      authorValue={draftAuthor}
+      onAuthorChange={onChangeDraftAuthor}
+      mode={draftMode}
+      onModeChange={onChangeDraftMode}
+      goalPlayers={goalPlayers}
+      goalMinute={goalMinute}
+      onGoalMinuteChange={onChangeGoalMinute}
+      goalPlayerId={goalPlayerId}
+      onGoalPlayerChange={onChangeGoalPlayerId}
+      draftBody={draftBody}
+      onChangeDraftBody={onChangeDraftBody}
+      canAttachImage={canAttachImage}
+      imagePreviewUrl={imagePreviewUrl}
+      onOpenImageCropper={onOpenImageCropper}
+      onClearImage={onClearImage}
+      onSubmit={onSubmit}
+      canSubmit={canSubmit}
+      surfaceClassName={surfaceClassName}
+    />
   );
 }
 
@@ -511,6 +464,9 @@ export default function TournamentCommentsCard({
 
   // --- create/edit form state ---
   const [draftAuthor, setDraftAuthor] = useState<"general" | number>(currentPlayerId ?? "general");
+  const [draftMode, setDraftMode] = useState<"comment" | "goal">("comment");
+  const [goalMinute, setGoalMinute] = useState("");
+  const [goalPlayerId, setGoalPlayerId] = useState<number | null>(null);
   const [draftBody, setDraftBody] = useState("");
   const [draftImageBlob, setDraftImageBlob] = useState<Blob | null>(null);
   const [draftImagePreviewUrl, setDraftImagePreviewUrl] = useState<string | null>(null);
@@ -566,6 +522,9 @@ export default function TournamentCommentsCard({
     // Reset UI state when switching tournaments.
     /* eslint-disable react-hooks/set-state-in-effect */
     setDraftAuthor(currentPlayerId ?? "general");
+    setDraftMode("comment");
+    setGoalMinute("");
+    setGoalPlayerId(null);
     setDraftBody("");
     setDraftImageBlob(null);
     setDraftImagePreviewUrl((prev) => {
@@ -630,6 +589,9 @@ export default function TournamentCommentsCard({
 
   function resetDraft() {
     setDraftAuthor(currentPlayerId ?? "general");
+    setDraftMode("comment");
+    setGoalMinute("");
+    setGoalPlayerId(null);
     setDraftBody("");
     setDraftImageBlob(null);
     setDraftImagePreviewUrl((prev) => {
@@ -644,6 +606,9 @@ export default function TournamentCommentsCard({
   function startEdit(c: TournamentComment) {
     setEditingId(c.id);
     setDraftAuthor(c.author.kind === "player" ? c.author.playerId : "general");
+    setDraftMode("comment");
+    setGoalMinute("");
+    setGoalPlayerId(null);
     setDraftBody(c.body);
     setDraftImageBlob(null);
     setDraftImagePreviewUrl((prev) => {
@@ -663,13 +628,24 @@ export default function TournamentCommentsCard({
   }
 
   const createMut = useMutation({
-    mutationFn: async (payload: { scope: CommentScope; author_player_id: number | null; body: string; has_image: boolean }) => {
+    mutationFn: async (payload: {
+      scope: CommentScope;
+      author_player_id: number | null;
+      body: string;
+      has_image: boolean;
+      event_type?: "goal";
+      goal_minute?: number;
+      goal_player_id?: number;
+    }) => {
       if (!token) throw new Error("Not logged in");
       return createTournamentComment(token, tournamentId, {
         match_id: payload.scope.kind === "match" ? payload.scope.matchId : null,
         author_player_id: payload.author_player_id,
         body: payload.body,
         has_image: payload.has_image,
+        event_type: payload.event_type,
+        goal_minute: payload.goal_minute,
+        goal_player_id: payload.goal_player_id,
       });
     },
     onSuccess: async () => {
@@ -753,6 +729,9 @@ export default function TournamentCommentsCard({
     const hasImage = !!draftImageBlob;
     if (editingId != null) {
       if (!body && !(editingOriginal?.hasImage ?? false)) return;
+    } else if (draftMode === "goal") {
+      if (goalPlayersForScope(scope).length === 0) return;
+      if (goalPlayerId == null || normalizeGoalMinute(goalMinute) == null) return;
     } else if (!body && !hasImage) {
       return;
     }
@@ -778,9 +757,21 @@ export default function TournamentCommentsCard({
         await patchMut.mutateAsync(patchPayload);
         setPendingFocusId(editingId);
       } else {
-        const created = await createMut.mutateAsync({ scope, author_player_id, body, has_image: hasImage });
+        const created = await createMut.mutateAsync(
+          draftMode === "goal"
+            ? {
+                scope,
+                author_player_id,
+                body: "",
+                has_image: false,
+                event_type: "goal",
+                goal_minute: normalizeGoalMinute(goalMinute) ?? undefined,
+                goal_player_id: goalPlayerId ?? undefined,
+              }
+            : { scope, author_player_id, body, has_image: hasImage },
+        );
         const imageBlob = draftImageBlob;
-        if (hasImage && token && imageBlob) {
+        if (draftMode !== "goal" && hasImage && token && imageBlob) {
           try {
             await putCommentImage(token, created.id, imageBlob, "comment.webp");
           } catch (e: unknown) {
@@ -875,11 +866,56 @@ export default function TournamentCommentsCard({
     };
   }
 
-  const canSubmit = !!draftBody.trim() || !!draftImageBlob;
+  function goalPlayersForScope(scope: CommentScope | null | undefined): { id: number; label: string }[] {
+    if (!scope || scope.kind !== "match") return [];
+    const match = matchById.get(scope.matchId);
+    if (!match) return [];
+    return match.sides
+      .slice()
+      .sort((left, right) => left.side.localeCompare(right.side))
+      .flatMap((side) =>
+        (side.players ?? []).map((player) => ({
+          id: player.id,
+          label: `${player.display_name} (${side.side})`,
+        })),
+      );
+  }
+
+  function normalizeGoalMinute(value: string): number | null {
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+    const minute = Number(trimmed);
+    if (!Number.isFinite(minute)) return null;
+    const normalized = Math.trunc(minute);
+    if (normalized <= 0 || normalized > 999) return null;
+    return normalized;
+  }
+
+  const activeGoalPlayers = useMemo(() => {
+    if (!addTarget || addTarget.kind !== "match") return [];
+    const match = matchById.get(addTarget.matchId);
+    if (!match) return [];
+    return match.sides
+      .slice()
+      .sort((left, right) => left.side.localeCompare(right.side))
+      .flatMap((side) =>
+        (side.players ?? []).map((player) => ({
+          id: player.id,
+          label: `${player.display_name} (${side.side})`,
+        })),
+      );
+  }, [addTarget, matchById]);
+  const canSubmit =
+    draftMode === "goal" && activeGoalPlayers.length > 0
+      ? goalPlayerId != null && normalizeGoalMinute(goalMinute) != null
+      : !!draftBody.trim() || !!draftImageBlob;
 
   function startAdd(scope: CommentScope) {
     setEditingId(null);
     setDraftAuthor(currentPlayerId ?? "general");
+    setDraftMode("comment");
+    setGoalMinute("");
+    setGoalPlayerId(null);
     setDraftBody("");
     setDraftImageBlob(null);
     setDraftImagePreviewUrl((prev) => {
@@ -899,6 +935,32 @@ export default function TournamentCommentsCard({
       return blob ? URL.createObjectURL(blob) : null;
     });
   }
+
+  function handleDraftModeChange(nextMode: "comment" | "goal") {
+    setDraftMode(nextMode);
+    if (nextMode === "goal") {
+      setDraftImageBlob(null);
+      setDraftImagePreviewUrl((prev) => {
+        if (prev) URL.revokeObjectURL(prev);
+        return null;
+      });
+    }
+  }
+
+  const addAuthorOptions = useMemo(() => {
+    const options: { value: "general" | number; label: string }[] = [];
+    if (currentPlayerId != null) {
+      options.push({ value: currentPlayerId, label: currentPlayerName || "Me" });
+    }
+    options.push({ value: "general", label: "General" });
+    if (draftAuthor !== "general" && currentPlayerId != null && draftAuthor !== currentPlayerId) {
+      options.push({
+        value: draftAuthor,
+        label: `${playerById.get(draftAuthor) ?? `Player #${draftAuthor}`} (original)`,
+      });
+    }
+    return options;
+  }, [currentPlayerId, currentPlayerName, draftAuthor, playerById]);
 
   const commentsContent = (
     <>
@@ -928,11 +990,16 @@ export default function TournamentCommentsCard({
             <div className="mt-3">
               <AddCommentDropdown
                 open={canWrite && sameScope(addTarget, { kind: "tournament" })}
-                players={players}
-                currentPlayerId={currentPlayerId}
-                currentPlayerName={currentPlayerName}
+                authorOptions={addAuthorOptions}
                 draftAuthor={draftAuthor}
                 onChangeDraftAuthor={setDraftAuthor}
+                draftMode={draftMode}
+                onChangeDraftMode={handleDraftModeChange}
+                goalPlayers={[]}
+                goalMinute={goalMinute}
+                onChangeGoalMinute={setGoalMinute}
+                goalPlayerId={goalPlayerId}
+                onChangeGoalPlayerId={setGoalPlayerId}
                 draftBody={draftBody}
                 onChangeDraftBody={setDraftBody}
                 canAttachImage={canAttachImage}
@@ -1092,11 +1159,16 @@ export default function TournamentCommentsCard({
                 <div className="mt-3">
                   <AddCommentDropdown
                     open={addOpenForMatch}
-                    players={players}
-                    currentPlayerId={currentPlayerId}
-                    currentPlayerName={currentPlayerName}
+                    authorOptions={addAuthorOptions}
                     draftAuthor={draftAuthor}
                     onChangeDraftAuthor={setDraftAuthor}
+                    draftMode={draftMode}
+                    onChangeDraftMode={handleDraftModeChange}
+                    goalPlayers={goalPlayersForScope({ kind: "match", matchId: b.matchId })}
+                    goalMinute={goalMinute}
+                    onChangeGoalMinute={setGoalMinute}
+                    goalPlayerId={goalPlayerId}
+                    onChangeGoalPlayerId={setGoalPlayerId}
                     draftBody={draftBody}
                     onChangeDraftBody={setDraftBody}
                     canAttachImage={canAttachImage}

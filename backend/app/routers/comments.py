@@ -152,6 +152,41 @@ def _validate_match_ref(s: Session, tournament_id: int, match_id: int | None) ->
         raise HTTPException(status_code=400, detail="match_id does not belong to this tournament")
 
 
+def _to_goal_minute(value: int | str | None) -> int:
+    if value in (None, ""):
+        raise HTTPException(status_code=400, detail="goal_minute is required for goal events")
+    try:
+        minute = int(value)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail="goal_minute must be an integer") from exc
+    if minute <= 0 or minute > 999:
+        raise HTTPException(status_code=400, detail="goal_minute must be between 1 and 999")
+    return minute
+
+
+def _goal_player_name_for_match(s: Session, match_id: int, goal_player_id: int | str | None) -> str:
+    if goal_player_id in (None, ""):
+        raise HTTPException(status_code=400, detail="goal_player_id is required for goal events")
+    try:
+        scorer_id = int(goal_player_id)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail="goal_player_id must be an integer") from exc
+    match = s.get(Match, match_id)
+    if match is None:
+        raise HTTPException(status_code=400, detail=f"Unknown match_id {match_id}")
+    _ = match.sides
+    for side in match.sides:
+        _ = side.players
+        for player in side.players:
+            if int(player.id or 0) == scorer_id:
+                return player.display_name
+    raise HTTPException(status_code=400, detail="goal_player_id must belong to the selected match")
+
+
+def _format_goal_comment_body(goal_minute: int, scorer_name: str) -> str:
+    return f"GOAL\n{goal_minute}' {scorer_name}"
+
+
 @router.get("/tournaments/{tournament_id}/comments")
 def list_comments(
     tournament_id: int,
@@ -391,10 +426,9 @@ async def create_comment(
 ) -> dict:
     tournament = _tournament_or_404(s, tournament_id)
 
+    event_type = str(body.event_type or "").strip().lower()
     text = str(body.body or "").strip()
     has_image_hint = bool(body.has_image)
-    if not text and not has_image_hint:
-        raise HTTPException(status_code=400, detail="body is required (or attach an image)")
 
     match_id = None if body.match_id in (None, "") else int(body.match_id)
     author_player_id = None if body.author_player_id in (None, "") else int(body.author_player_id)
@@ -405,6 +439,19 @@ async def create_comment(
 
     _validate_match_ref(s, tournament_id, match_id)
     _validate_author(s, tournament_id, author_player_id)
+
+    goal_minute: int | None = None
+    goal_scorer_name: str | None = None
+    if event_type == "goal":
+        if match_id is None:
+            raise HTTPException(status_code=400, detail="Goal events require a match_id")
+        goal_minute = _to_goal_minute(body.goal_minute)
+        goal_scorer_name = _goal_player_name_for_match(s, match_id, body.goal_player_id)
+        text = _format_goal_comment_body(goal_minute, goal_scorer_name)
+        has_image_hint = False
+
+    if not text and not has_image_hint:
+        raise HTTPException(status_code=400, detail="body is required (or attach an image)")
 
     now = datetime.utcnow()
     c = Comment(
@@ -440,18 +487,34 @@ async def create_comment(
     preview = text if text else "Image comment"
     if len(preview) > 120:
         preview = preview[:117].rstrip() + "..."
+    push_key = "comment_created"
+    push_event_type = "comment_created"
+    push_context: dict[str, object] = {
+        "tournament_name": tournament.name,
+        "author_name": author_name,
+        "preview": preview if text else "",
+        "preview_is_image_only": not bool(text),
+    }
+    if event_type == "goal" and goal_minute is not None and goal_scorer_name:
+        match = s.get(Match, match_id) if match_id is not None else None
+        match_label = f"Match {int(match.order_index) + 1}" if match is not None else f"Match {int(match_id or 0)}"
+        push_key = "goal_comment_created"
+        push_event_type = "goal_comment_created"
+        push_context = {
+            "tournament_name": tournament.name,
+            "match_label": match_label,
+            "scorer_name": goal_scorer_name,
+            "goal_minute": goal_minute,
+        }
     enqueue_global_push(
         request,
         localized_push_message(
-            "comment_created",
+            push_key,
             path=f"/live/{tournament_id}?comment={int(c.id)}",
             tag=f"comment-{tournament_id}",
-            event_type="comment_created",
+            event_type=push_event_type,
             data={"tournament_id": tournament_id, "comment_id": int(c.id), "match_id": match_id},
-            tournament_name=tournament.name,
-            author_name=author_name,
-            preview=preview if text else "",
-            preview_is_image_only=not bool(text),
+            **push_context,
         ),
     )
 

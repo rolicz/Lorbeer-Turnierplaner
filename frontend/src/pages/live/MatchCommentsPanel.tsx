@@ -12,6 +12,7 @@ import ImageLightbox from "../../ui/primitives/ImageLightbox";
 import VoteButton from "../../ui/primitives/VoteButton";
 import VoteVotersModal from "../../ui/primitives/VoteVotersModal";
 import type { Player } from "../../api/types";
+import CommentCreateComposer from "./CommentCreateComposer";
 import {
   commentImageUrl,
   createTournamentComment,
@@ -57,6 +58,9 @@ export default function MatchCommentsPanel({
   const seen = useSeenSet(tournamentId);
 
   const [postAsGeneral, setPostAsGeneral] = useState(false);
+  const [composerMode, setComposerMode] = useState<"comment" | "goal">("comment");
+  const [goalMinute, setGoalMinute] = useState("");
+  const [goalPlayerId, setGoalPlayerId] = useState<number | null>(null);
   const [text, setText] = useState("");
   const [draftImageBlob, setDraftImageBlob] = useState<Blob | null>(null);
   const [draftImagePreviewUrl, setDraftImagePreviewUrl] = useState<string | null>(null);
@@ -94,6 +98,16 @@ export default function MatchCommentsPanel({
     });
   }
 
+  function normalizeGoalMinute(value: string): number | null {
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+    const minute = Number(trimmed);
+    if (!Number.isFinite(minute)) return null;
+    const normalized = Math.trunc(minute);
+    if (normalized <= 0 || normalized > 999) return null;
+    return normalized;
+  }
+
   useEffect(() => {
     return () => {
       if (draftImagePreviewUrl) URL.revokeObjectURL(draftImagePreviewUrl);
@@ -109,6 +123,18 @@ export default function MatchCommentsPanel({
   }, [commentsQ.data, matchId]);
 
   const byId = useMemo(() => new Map(playersInMatch.map((p) => [p.id, p.display_name])), [playersInMatch]);
+  const goalPlayers = useMemo(
+    () => playersInMatch.map((player) => ({ id: player.id, label: player.display_name })),
+    [playersInMatch],
+  );
+  const authorOptions = useMemo(() => {
+    const options: { value: "general" | number; label: string }[] = [];
+    if (currentPlayerId != null) {
+      options.push({ value: currentPlayerId, label: currentPlayerName || "Me" });
+    }
+    options.push({ value: "general", label: "General" });
+    return options;
+  }, [currentPlayerId, currentPlayerName]);
   const authorLabel = (authorPlayerId: number | null) =>
     authorPlayerId == null ? "General" : byId.get(authorPlayerId) ?? `#${authorPlayerId}`;
   const editingOriginal = useMemo(() => {
@@ -123,7 +149,14 @@ export default function MatchCommentsPanel({
   }, [editAuthor, editBody, editingOriginal]);
 
   const createMut = useMutation({
-    mutationFn: async (payload: { authorPlayerId: number | null; body: string; hasImage: boolean }) => {
+    mutationFn: async (payload: {
+      authorPlayerId: number | null;
+      body: string;
+      hasImage: boolean;
+      eventType?: "goal";
+      goalMinute?: number;
+      goalPlayerId?: number;
+    }) => {
       if (!Number.isFinite(tournamentId) || tournamentId <= 0) throw new Error("Missing tournament id");
       if (!Number.isFinite(matchId) || matchId <= 0) throw new Error("Missing match id");
       if (!token) throw new Error("Not logged in");
@@ -135,8 +168,11 @@ export default function MatchCommentsPanel({
         author_player_id: payload.authorPlayerId,
         body: payload.body,
         has_image: payload.hasImage,
+        event_type: payload.eventType,
+        goal_minute: payload.goalMinute,
+        goal_player_id: payload.goalPlayerId,
       });
-      if (draftImageBlob) {
+      if (payload.eventType !== "goal" && draftImageBlob) {
         try {
           await putCommentImage(token, created.id, draftImageBlob, "comment.webp");
         } catch (e: unknown) {
@@ -147,6 +183,9 @@ export default function MatchCommentsPanel({
     },
     onSuccess: async (created) => {
       setPendingScrollId(created.id);
+      setComposerMode("comment");
+      setGoalMinute("");
+      setGoalPlayerId(null);
       setText("");
       setDraftImage(null);
       setPostAsGeneral(false);
@@ -250,6 +289,13 @@ export default function MatchCommentsPanel({
       if (editingId === commentId) resetEditState();
     } catch {
       // handled by deleteMut.error
+    }
+  }
+
+  function handleComposerModeChange(nextMode: "comment" | "goal") {
+    setComposerMode(nextMode);
+    if (nextMode === "goal") {
+      setDraftImage(null);
     }
   }
 
@@ -515,6 +561,9 @@ export default function MatchCommentsPanel({
                     const next = !v;
                     if (!next) {
                       // Treat "collapse" as cancel.
+                      setComposerMode("comment");
+                      setGoalMinute("");
+                      setGoalPlayerId(null);
                       setText("");
                       setDraftImage(null);
                       setImageCropOpen(false);
@@ -536,83 +585,50 @@ export default function MatchCommentsPanel({
             </div>
 
             {composerOpen ? (
-              <div className="panel-inner p-3 space-y-2">
-                <label className="block">
-                  <div className="input-label">Posted as</div>
-                  <select
-                    className="select-field"
-                    value={postAsGeneral ? "general" : "self"}
-                    onChange={(e) => setPostAsGeneral(e.target.value === "general")}
-                    disabled={createMut.isPending}
-                  >
-                    <option value="self">{currentPlayerName || "Me"}</option>
-                    <option value="general">General</option>
-                  </select>
-                </label>
-
-                <Textarea
-                  label="Comment"
-                  placeholder="Write a comment…"
-                  value={text}
-                  onChange={(e) => setText(e.target.value)}
-                  disabled={createMut.isPending}
-                />
-
-                {canAttachImage ? (
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="text-xs text-text-muted">Image (4:3, 1920x1440)</div>
-                      <div className="flex items-center gap-2">
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          onClick={() => setImageCropOpen(true)}
-                          className="h-9 px-3 inline-flex items-center justify-center gap-2"
-                          title={draftImagePreviewUrl ? "Replace image" : "Attach image"}
-                        >
-                          <i className="fa-solid fa-image md:hidden" aria-hidden="true" />
-                          <span className="hidden md:inline">{draftImagePreviewUrl ? "Replace" : "Attach"}</span>
-                        </Button>
-                        {draftImagePreviewUrl ? (
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            onClick={() => setDraftImage(null)}
-                            className="h-9 w-9 p-0 inline-flex items-center justify-center"
-                            title="Remove image"
-                          >
-                            <i className="fa-solid fa-xmark" aria-hidden="true" />
-                          </Button>
-                        ) : null}
-                      </div>
-                    </div>
-                    {draftImagePreviewUrl ? (
-                      <div className="panel-subtle p-2">
-                        <img src={draftImagePreviewUrl} alt="" className="w-full rounded-lg object-cover aspect-[4/3]" />
-                      </div>
-                    ) : null}
-                  </div>
-                ) : null}
-
-                <div className="flex items-center justify-end">
-                  <Button
-                    type="button"
-                    onClick={() =>
-                      void createMut.mutateAsync({
-                        authorPlayerId: postAsGeneral ? null : currentPlayerId ?? null,
-                        body: text.trim(),
-                        hasImage: !!draftImageBlob,
-                      })
-                    }
-                    disabled={createMut.isPending || (!text.trim() && !draftImageBlob) || !idsOk}
-                    title="Post comment"
-                    className="h-10 w-10 p-0 inline-flex items-center justify-center md:w-auto md:px-4 md:py-2"
-                  >
-                    <i className="fa-solid fa-paper-plane md:hidden" aria-hidden="true" />
-                    <span className="hidden md:inline">Post</span>
-                  </Button>
-                </div>
-              </div>
+              <CommentCreateComposer
+                authorOptions={authorOptions}
+                authorValue={postAsGeneral ? "general" : currentPlayerId ?? "general"}
+                onAuthorChange={(value) => setPostAsGeneral(value === "general")}
+                mode={composerMode}
+                onModeChange={handleComposerModeChange}
+                goalPlayers={goalPlayers}
+                goalMinute={goalMinute}
+                onGoalMinuteChange={setGoalMinute}
+                goalPlayerId={goalPlayerId}
+                onGoalPlayerChange={setGoalPlayerId}
+                draftBody={text}
+                onChangeDraftBody={setText}
+                canAttachImage={canAttachImage}
+                imagePreviewUrl={draftImagePreviewUrl}
+                onOpenImageCropper={() => setImageCropOpen(true)}
+                onClearImage={() => setDraftImage(null)}
+                onSubmit={() =>
+                  void createMut.mutateAsync(
+                    composerMode === "goal"
+                      ? {
+                          authorPlayerId: postAsGeneral ? null : currentPlayerId ?? null,
+                          body: "",
+                          hasImage: false,
+                          eventType: "goal",
+                          goalMinute: normalizeGoalMinute(goalMinute) ?? undefined,
+                          goalPlayerId: goalPlayerId ?? undefined,
+                        }
+                      : {
+                          authorPlayerId: postAsGeneral ? null : currentPlayerId ?? null,
+                          body: text.trim(),
+                          hasImage: !!draftImageBlob,
+                        },
+                  )
+                }
+                canSubmit={
+                  idsOk &&
+                  (composerMode === "goal"
+                    ? goalPlayerId != null && normalizeGoalMinute(goalMinute) != null
+                    : !!text.trim() || !!draftImageBlob)
+                }
+                disabled={createMut.isPending}
+                surfaceClassName="panel-inner"
+              />
             ) : null}
           </div>
         ) : null}

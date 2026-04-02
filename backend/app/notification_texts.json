@@ -8,6 +8,10 @@
           "title": "Neicher Kommentar in {tournament_name}",
           "body": "{author_name} hot wos dazug'schriebn.\n{preview}\nSchau glei eini, bevor da Faden no lauter wird."
         },
+        "goal_comment_created": {
+          "title": "Tor-Update bei {match_label}",
+          "body": "{scorer_name} hot in da {goal_minute}. Minutn troffn.\nIm {tournament_name} is des jetzt direkt im Match-Feed eing'tragen.\nSchau live eini und bleib am Ball."
+        },
         "guestbook_created": {
           "title": "Neicher Guestbook-Eintrag bei {profile_player_name}",
           "body": "{author_name} hot an Gruaß daglossn.\n{preview}\nSchau am Profil vorbei und gib deinen Senf dazua."
@@ -85,6 +89,10 @@
           "title": "Neuer Kommentar in {tournament_name}",
           "body": "{author_name} hat einen neuen Kommentar hinterlassen.\n{preview}\nSchau jetzt rein, bevor die Diskussion weiterzieht."
         },
+        "goal_comment_created": {
+          "title": "Tor-Update bei {match_label}",
+          "body": "{scorer_name} hat in der {goal_minute}. Minute getroffen.\nIm Turnier {tournament_name} wurde das direkt im Match-Feed eingetragen.\nOeffne den Live-Bereich, wenn du dranbleiben willst."
+        },
         "guestbook_created": {
           "title": "Neuer Guestbook-Eintrag bei {profile_player_name}",
           "body": "{author_name} hat eine Nachricht dagelassen.\n{preview}\nOeffne das Profil und sieh dir den neuen Eintrag an."
@@ -161,6 +169,10 @@
         "comment_created": {
           "title": "New comment in {tournament_name}",
           "body": "{author_name} dropped a fresh comment.\n{preview}\nOpen the app now before the thread moves on."
+        },
+        "goal_comment_created": {
+          "title": "Goal update in {match_label}",
+          "body": "{scorer_name} scored in minute {goal_minute}.\nThat moment is now logged directly in the {tournament_name} match feed.\nOpen the live view if you want the full context."
         },
         "guestbook_created": {
           "title": "New guestbook post for {profile_player_name}",

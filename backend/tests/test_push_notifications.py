@@ -129,6 +129,8 @@ def test_notification_text_catalog_is_complete_and_renderable():
         "author_name": "Alice",
         "preview": "Der Thread laeuft schon heiss.",
         "preview_is_image_only": False,
+        "scorer_name": "Alice",
+        "goal_minute": 45,
         "profile_player_name": "Berti",
         "extra_count": 3,
         "author_names": ["Alice", "Bob", "Carl"],
@@ -190,6 +192,49 @@ def test_comment_creation_enqueues_push(client, editor_headers, admin_headers, m
     assert message.event_type == "comment_created"
     assert message.path == f"/live/{tournament_id}?comment={comment_id}"
     assert "Push Comments" in message.title
+
+
+def test_goal_comment_creation_enqueues_goal_push(client, editor_headers, admin_headers, monkeypatch):
+    messages = []
+    monkeypatch.setattr(comments_router, "enqueue_global_push", lambda request, message: messages.append(message))
+
+    p1 = client.post("/players", json={"display_name": "Goal-A"}, headers=admin_headers).json()["id"]
+    p2 = client.post("/players", json={"display_name": "Goal-B"}, headers=admin_headers).json()["id"]
+    p3 = client.post("/players", json={"display_name": "Goal-C"}, headers=admin_headers).json()["id"]
+    tournament_id = client.post(
+        "/tournaments",
+        json={"name": "Push Goal Comments", "mode": "1v1", "player_ids": [p1, p2, p3], "auto_generate": True},
+        headers=editor_headers,
+    ).json()["id"]
+
+    detail = client.get(f"/tournaments/{tournament_id}")
+    assert detail.status_code == 200, detail.text
+    first_match = detail.json()["matches"][0]
+    match_id = int(first_match["id"])
+    scorer = first_match["sides"][0]["players"][0]
+    scorer_id = int(scorer["id"])
+    scorer_name = scorer["display_name"]
+
+    created = client.post(
+        f"/tournaments/{tournament_id}/comments",
+        json={
+            "match_id": match_id,
+            "event_type": "goal",
+            "goal_minute": 12,
+            "goal_player_id": scorer_id,
+        },
+        headers=editor_headers,
+    )
+    assert created.status_code == 200, created.text
+    assert created.json()["body"] == f"GOAL\n12' {scorer_name}"
+
+    assert len(messages) == 1
+    message = messages[0]
+    assert message.event_type == "goal_comment_created"
+    assert message.path == f"/live/{tournament_id}?comment={created.json()['id']}"
+    payload = message.to_payload("english")
+    assert payload["title"] == "Goal update in Match 1"
+    assert f"{scorer_name} scored in minute 12." in payload["body"]
 
 
 def test_guestbook_and_poke_enqueue_push(client, editor_headers, admin_headers, monkeypatch):
