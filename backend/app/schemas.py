@@ -87,6 +87,9 @@ class CommentCreateBody(BaseModel):
     event_type: str | None = None
     goal_minute: int | str | None = None
     goal_player_id: int | str | None = None
+    goal_player_name: str | None = None
+    result_score_a: int | str | None = None
+    result_score_b: int | str | None = None
 
 
 class CommentPatchBody(BaseModel):

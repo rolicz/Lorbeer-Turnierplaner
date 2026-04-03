@@ -402,6 +402,8 @@ export default function CurrentGameSection({
             canWrite={canControl}
             canDelete={canDeleteComments}
             playersInMatch={playersInMatch}
+            currentScoreA={aGoals}
+            currentScoreB={bGoals}
           />
         ) : null}
       </div>

@@ -211,9 +211,7 @@ def test_goal_comment_creation_enqueues_goal_push(client, editor_headers, admin_
     assert detail.status_code == 200, detail.text
     first_match = detail.json()["matches"][0]
     match_id = int(first_match["id"])
-    scorer = first_match["sides"][0]["players"][0]
-    scorer_id = int(scorer["id"])
-    scorer_name = scorer["display_name"]
+    scorer_name = "Ronaldo"
 
     created = client.post(
         f"/tournaments/{tournament_id}/comments",
@@ -221,7 +219,7 @@ def test_goal_comment_creation_enqueues_goal_push(client, editor_headers, admin_
             "match_id": match_id,
             "event_type": "goal",
             "goal_minute": 12,
-            "goal_player_id": scorer_id,
+            "goal_player_name": scorer_name,
         },
         headers=editor_headers,
     )
@@ -235,6 +233,45 @@ def test_goal_comment_creation_enqueues_goal_push(client, editor_headers, admin_
     payload = message.to_payload("english")
     assert payload["title"] == "Goal update in Match 1"
     assert f"{scorer_name} scored in minute 12." in payload["body"]
+
+
+def test_score_comment_creation_enqueues_score_push(client, editor_headers, admin_headers, monkeypatch):
+    messages = []
+    monkeypatch.setattr(comments_router, "enqueue_global_push", lambda request, message: messages.append(message))
+
+    player_ids = [
+        client.post("/players", json={"display_name": name}, headers=admin_headers).json()["id"]
+        for name in ("Score-A", "Score-B", "Score-C")
+    ]
+    tournament_id = client.post(
+        "/tournaments",
+        json={"name": "Push Score Comments", "mode": "1v1", "player_ids": player_ids, "auto_generate": True},
+        headers=editor_headers,
+    ).json()["id"]
+
+    detail = client.get(f"/tournaments/{tournament_id}")
+    assert detail.status_code == 200, detail.text
+    match_id = int(detail.json()["matches"][0]["id"])
+
+    created = client.post(
+        f"/tournaments/{tournament_id}/comments",
+        json={
+            "match_id": match_id,
+            "event_type": "score_update",
+            "result_score_a": 3,
+            "result_score_b": 2,
+        },
+        headers=editor_headers,
+    )
+    assert created.status_code == 200, created.text
+    assert created.json()["body"] == "RESULT\n3:2"
+
+    assert len(messages) == 1
+    message = messages[0]
+    assert message.event_type == "score_comment_created"
+    payload = message.to_payload("english")
+    assert payload["title"] == "Score update in Match 1"
+    assert "Current score: 3:2." in payload["body"]
 
 
 def test_guestbook_and_poke_enqueue_push(client, editor_headers, admin_headers, monkeypatch):

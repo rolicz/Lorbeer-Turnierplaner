@@ -102,11 +102,18 @@ function AddCommentDropdown({
   onChangeDraftAuthor,
   draftMode,
   onChangeDraftMode,
+  allowMatchEventModes,
   goalPlayers,
   goalMinute,
   onChangeGoalMinute,
-  goalPlayerId,
-  onChangeGoalPlayerId,
+  goalPlayerName,
+  onChangeGoalPlayerName,
+  resultScoreA,
+  onChangeResultScoreA,
+  resultScoreB,
+  onChangeResultScoreB,
+  currentScorelineLabel,
+  onUseCurrentScore,
   draftBody,
   onChangeDraftBody,
   canAttachImage = false,
@@ -121,13 +128,20 @@ function AddCommentDropdown({
   authorOptions: { value: "general" | number; label: string }[];
   draftAuthor: "general" | number;
   onChangeDraftAuthor: (v: "general" | number) => void;
-  draftMode: "comment" | "goal";
-  onChangeDraftMode: (mode: "comment" | "goal") => void;
-  goalPlayers: { id: number; label: string }[];
+  draftMode: "comment" | "goal" | "result";
+  onChangeDraftMode: (mode: "comment" | "goal" | "result") => void;
+  allowMatchEventModes: boolean;
+  goalPlayers: { label: string }[];
   goalMinute: string;
   onChangeGoalMinute: (value: string) => void;
-  goalPlayerId: number | null;
-  onChangeGoalPlayerId: (value: number | null) => void;
+  goalPlayerName: string;
+  onChangeGoalPlayerName: (value: string) => void;
+  resultScoreA: string;
+  onChangeResultScoreA: (value: string) => void;
+  resultScoreB: string;
+  onChangeResultScoreB: (value: string) => void;
+  currentScorelineLabel?: string | null;
+  onUseCurrentScore?: (() => void) | null;
   draftBody: string;
   onChangeDraftBody: (v: string) => void;
   canAttachImage?: boolean;
@@ -146,11 +160,18 @@ function AddCommentDropdown({
       onAuthorChange={onChangeDraftAuthor}
       mode={draftMode}
       onModeChange={onChangeDraftMode}
+      allowMatchEventModes={allowMatchEventModes}
       goalPlayers={goalPlayers}
       goalMinute={goalMinute}
       onGoalMinuteChange={onChangeGoalMinute}
-      goalPlayerId={goalPlayerId}
-      onGoalPlayerChange={onChangeGoalPlayerId}
+      goalPlayerName={goalPlayerName}
+      onGoalPlayerNameChange={onChangeGoalPlayerName}
+      resultScoreA={resultScoreA}
+      onResultScoreAChange={onChangeResultScoreA}
+      resultScoreB={resultScoreB}
+      onResultScoreBChange={onChangeResultScoreB}
+      currentScorelineLabel={currentScorelineLabel}
+      onUseCurrentScore={onUseCurrentScore}
       draftBody={draftBody}
       onChangeDraftBody={onChangeDraftBody}
       canAttachImage={canAttachImage}
@@ -464,9 +485,11 @@ export default function TournamentCommentsCard({
 
   // --- create/edit form state ---
   const [draftAuthor, setDraftAuthor] = useState<"general" | number>(currentPlayerId ?? "general");
-  const [draftMode, setDraftMode] = useState<"comment" | "goal">("comment");
+  const [draftMode, setDraftMode] = useState<"comment" | "goal" | "result">("comment");
   const [goalMinute, setGoalMinute] = useState("");
-  const [goalPlayerId, setGoalPlayerId] = useState<number | null>(null);
+  const [goalPlayerName, setGoalPlayerName] = useState("");
+  const [resultScoreA, setResultScoreA] = useState("");
+  const [resultScoreB, setResultScoreB] = useState("");
   const [draftBody, setDraftBody] = useState("");
   const [draftImageBlob, setDraftImageBlob] = useState<Blob | null>(null);
   const [draftImagePreviewUrl, setDraftImagePreviewUrl] = useState<string | null>(null);
@@ -524,7 +547,9 @@ export default function TournamentCommentsCard({
     setDraftAuthor(currentPlayerId ?? "general");
     setDraftMode("comment");
     setGoalMinute("");
-    setGoalPlayerId(null);
+    setGoalPlayerName("");
+    setResultScoreA("");
+    setResultScoreB("");
     setDraftBody("");
     setDraftImageBlob(null);
     setDraftImagePreviewUrl((prev) => {
@@ -591,7 +616,9 @@ export default function TournamentCommentsCard({
     setDraftAuthor(currentPlayerId ?? "general");
     setDraftMode("comment");
     setGoalMinute("");
-    setGoalPlayerId(null);
+    setGoalPlayerName("");
+    setResultScoreA("");
+    setResultScoreB("");
     setDraftBody("");
     setDraftImageBlob(null);
     setDraftImagePreviewUrl((prev) => {
@@ -608,7 +635,9 @@ export default function TournamentCommentsCard({
     setDraftAuthor(c.author.kind === "player" ? c.author.playerId : "general");
     setDraftMode("comment");
     setGoalMinute("");
-    setGoalPlayerId(null);
+    setGoalPlayerName("");
+    setResultScoreA("");
+    setResultScoreB("");
     setDraftBody(c.body);
     setDraftImageBlob(null);
     setDraftImagePreviewUrl((prev) => {
@@ -633,9 +662,11 @@ export default function TournamentCommentsCard({
       author_player_id: number | null;
       body: string;
       has_image: boolean;
-      event_type?: "goal";
+      event_type?: "goal" | "score_update";
       goal_minute?: number;
-      goal_player_id?: number;
+      goal_player_name?: string;
+      result_score_a?: number;
+      result_score_b?: number;
     }) => {
       if (!token) throw new Error("Not logged in");
       return createTournamentComment(token, tournamentId, {
@@ -645,7 +676,9 @@ export default function TournamentCommentsCard({
         has_image: payload.has_image,
         event_type: payload.event_type,
         goal_minute: payload.goal_minute,
-        goal_player_id: payload.goal_player_id,
+        goal_player_name: payload.goal_player_name,
+        result_score_a: payload.result_score_a,
+        result_score_b: payload.result_score_b,
       });
     },
     onSuccess: async () => {
@@ -730,8 +763,9 @@ export default function TournamentCommentsCard({
     if (editingId != null) {
       if (!body && !(editingOriginal?.hasImage ?? false)) return;
     } else if (draftMode === "goal") {
-      if (goalPlayersForScope(scope).length === 0) return;
-      if (goalPlayerId == null || normalizeGoalMinute(goalMinute) == null) return;
+      if (!goalPlayerName.trim() || normalizeGoalMinute(goalMinute) == null) return;
+    } else if (draftMode === "result") {
+      if (normalizeScoreValue(resultScoreA) == null || normalizeScoreValue(resultScoreB) == null) return;
     } else if (!body && !hasImage) {
       return;
     }
@@ -766,12 +800,22 @@ export default function TournamentCommentsCard({
                 has_image: false,
                 event_type: "goal",
                 goal_minute: normalizeGoalMinute(goalMinute) ?? undefined,
-                goal_player_id: goalPlayerId ?? undefined,
+                goal_player_name: goalPlayerName.trim(),
               }
+            : draftMode === "result"
+              ? {
+                  scope,
+                  author_player_id,
+                  body: "",
+                  has_image: false,
+                  event_type: "score_update",
+                  result_score_a: normalizeScoreValue(resultScoreA) ?? undefined,
+                  result_score_b: normalizeScoreValue(resultScoreB) ?? undefined,
+                }
             : { scope, author_player_id, body, has_image: hasImage },
         );
         const imageBlob = draftImageBlob;
-        if (draftMode !== "goal" && hasImage && token && imageBlob) {
+        if (draftMode === "comment" && hasImage && token && imageBlob) {
           try {
             await putCommentImage(token, created.id, imageBlob, "comment.webp");
           } catch (e: unknown) {
@@ -866,7 +910,7 @@ export default function TournamentCommentsCard({
     };
   }
 
-  function goalPlayersForScope(scope: CommentScope | null | undefined): { id: number; label: string }[] {
+  function goalPlayersForScope(scope: CommentScope | null | undefined): { label: string }[] {
     if (!scope || scope.kind !== "match") return [];
     const match = matchById.get(scope.matchId);
     if (!match) return [];
@@ -875,7 +919,6 @@ export default function TournamentCommentsCard({
       .sort((left, right) => left.side.localeCompare(right.side))
       .flatMap((side) =>
         (side.players ?? []).map((player) => ({
-          id: player.id,
           label: `${player.display_name} (${side.side})`,
         })),
       );
@@ -891,31 +934,43 @@ export default function TournamentCommentsCard({
     return normalized;
   }
 
-  const activeGoalPlayers = useMemo(() => {
-    if (!addTarget || addTarget.kind !== "match") return [];
-    const match = matchById.get(addTarget.matchId);
-    if (!match) return [];
-    return match.sides
-      .slice()
-      .sort((left, right) => left.side.localeCompare(right.side))
-      .flatMap((side) =>
-        (side.players ?? []).map((player) => ({
-          id: player.id,
-          label: `${player.display_name} (${side.side})`,
-        })),
-      );
-  }, [addTarget, matchById]);
+  function normalizeScoreValue(value: string): number | null {
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+    const score = Number(trimmed);
+    if (!Number.isFinite(score)) return null;
+    const normalized = Math.trunc(score);
+    if (normalized < 0 || normalized > 999) return null;
+    return normalized;
+  }
+
+  function currentScorelineForScope(scope: CommentScope | null | undefined): { a: number; b: number } | null {
+    if (!scope || scope.kind !== "match") return null;
+    const match = matchById.get(scope.matchId);
+    if (!match) return null;
+    const sideA = sideBy(match, "A");
+    const sideB = sideBy(match, "B");
+    const aGoals = Number(sideA?.goals ?? 0);
+    const bGoals = Number(sideB?.goals ?? 0);
+    if (!Number.isFinite(aGoals) || !Number.isFinite(bGoals)) return null;
+    return { a: aGoals, b: bGoals };
+  }
+
   const canSubmit =
-    draftMode === "goal" && activeGoalPlayers.length > 0
-      ? goalPlayerId != null && normalizeGoalMinute(goalMinute) != null
-      : !!draftBody.trim() || !!draftImageBlob;
+    draftMode === "goal"
+      ? !!goalPlayerName.trim() && normalizeGoalMinute(goalMinute) != null
+      : draftMode === "result"
+        ? normalizeScoreValue(resultScoreA) != null && normalizeScoreValue(resultScoreB) != null
+        : !!draftBody.trim() || !!draftImageBlob;
 
   function startAdd(scope: CommentScope) {
     setEditingId(null);
     setDraftAuthor(currentPlayerId ?? "general");
     setDraftMode("comment");
     setGoalMinute("");
-    setGoalPlayerId(null);
+    setGoalPlayerName("");
+    setResultScoreA("");
+    setResultScoreB("");
     setDraftBody("");
     setDraftImageBlob(null);
     setDraftImagePreviewUrl((prev) => {
@@ -936,15 +991,22 @@ export default function TournamentCommentsCard({
     });
   }
 
-  function handleDraftModeChange(nextMode: "comment" | "goal") {
+  function handleDraftModeChange(nextMode: "comment" | "goal" | "result") {
     setDraftMode(nextMode);
-    if (nextMode === "goal") {
+    if (nextMode !== "comment") {
       setDraftImageBlob(null);
       setDraftImagePreviewUrl((prev) => {
         if (prev) URL.revokeObjectURL(prev);
         return null;
       });
     }
+  }
+
+  function applyCurrentScoreToDraft(scope: CommentScope) {
+    const currentScore = currentScorelineForScope(scope);
+    if (!currentScore) return;
+    setResultScoreA(String(currentScore.a));
+    setResultScoreB(String(currentScore.b));
   }
 
   const addAuthorOptions = useMemo(() => {
@@ -995,11 +1057,18 @@ export default function TournamentCommentsCard({
                 onChangeDraftAuthor={setDraftAuthor}
                 draftMode={draftMode}
                 onChangeDraftMode={handleDraftModeChange}
+                allowMatchEventModes={false}
                 goalPlayers={[]}
                 goalMinute={goalMinute}
                 onChangeGoalMinute={setGoalMinute}
-                goalPlayerId={goalPlayerId}
-                onChangeGoalPlayerId={setGoalPlayerId}
+                goalPlayerName={goalPlayerName}
+                onChangeGoalPlayerName={setGoalPlayerName}
+                resultScoreA={resultScoreA}
+                onChangeResultScoreA={setResultScoreA}
+                resultScoreB={resultScoreB}
+                onChangeResultScoreB={setResultScoreB}
+                currentScorelineLabel={null}
+                onUseCurrentScore={null}
                 draftBody={draftBody}
                 onChangeDraftBody={setDraftBody}
                 canAttachImage={canAttachImage}
@@ -1084,6 +1153,7 @@ export default function TournamentCommentsCard({
           {grouped.blocks.map((b) => {
             const h = matchHeaderMeta(b.matchId);
             const addOpenForMatch = canWrite && sameScope(addTarget, { kind: "match", matchId: b.matchId });
+            const matchCurrentScore = currentScorelineForScope({ kind: "match", matchId: b.matchId });
             return (
               <div
                 key={b.matchId}
@@ -1164,11 +1234,22 @@ export default function TournamentCommentsCard({
                     onChangeDraftAuthor={setDraftAuthor}
                     draftMode={draftMode}
                     onChangeDraftMode={handleDraftModeChange}
+                    allowMatchEventModes={true}
                     goalPlayers={goalPlayersForScope({ kind: "match", matchId: b.matchId })}
                     goalMinute={goalMinute}
                     onChangeGoalMinute={setGoalMinute}
-                    goalPlayerId={goalPlayerId}
-                    onChangeGoalPlayerId={setGoalPlayerId}
+                    goalPlayerName={goalPlayerName}
+                    onChangeGoalPlayerName={setGoalPlayerName}
+                    resultScoreA={resultScoreA}
+                    onChangeResultScoreA={setResultScoreA}
+                    resultScoreB={resultScoreB}
+                    onChangeResultScoreB={setResultScoreB}
+                    currentScorelineLabel={
+                      matchCurrentScore
+                        ? `Use current ${matchCurrentScore.a}:${matchCurrentScore.b}`
+                        : null
+                    }
+                    onUseCurrentScore={() => applyCurrentScoreToDraft({ kind: "match", matchId: b.matchId })}
                     draftBody={draftBody}
                     onChangeDraftBody={setDraftBody}
                     canAttachImage={canAttachImage}

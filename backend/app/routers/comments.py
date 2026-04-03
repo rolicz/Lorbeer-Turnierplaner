@@ -164,9 +164,29 @@ def _to_goal_minute(value: int | str | None) -> int:
     return minute
 
 
-def _goal_player_name_for_match(s: Session, match_id: int, goal_player_id: int | str | None) -> str:
+def _to_score_value(value: int | str | None, *, field: str) -> int:
+    if value in (None, ""):
+        raise HTTPException(status_code=400, detail=f"{field} is required for score update events")
+    try:
+        score = int(value)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"{field} must be an integer") from exc
+    if score < 0 or score > 999:
+        raise HTTPException(status_code=400, detail=f"{field} must be between 0 and 999")
+    return score
+
+
+def _goal_scorer_name_for_match(
+    s: Session,
+    match_id: int,
+    goal_player_id: int | str | None,
+    goal_player_name: str | None,
+) -> str:
+    custom_name = str(goal_player_name or "").strip()
+    if custom_name:
+        return custom_name
     if goal_player_id in (None, ""):
-        raise HTTPException(status_code=400, detail="goal_player_id is required for goal events")
+        raise HTTPException(status_code=400, detail="goal_player_name or goal_player_id is required for goal events")
     try:
         scorer_id = int(goal_player_id)
     except Exception as exc:
@@ -185,6 +205,10 @@ def _goal_player_name_for_match(s: Session, match_id: int, goal_player_id: int |
 
 def _format_goal_comment_body(goal_minute: int, scorer_name: str) -> str:
     return f"GOAL\n{goal_minute}' {scorer_name}"
+
+
+def _format_score_comment_body(scoreline: str) -> str:
+    return f"RESULT\n{scoreline}"
 
 
 @router.get("/tournaments/{tournament_id}/comments")
@@ -442,12 +466,21 @@ async def create_comment(
 
     goal_minute: int | None = None
     goal_scorer_name: str | None = None
+    scoreline: str | None = None
     if event_type == "goal":
         if match_id is None:
             raise HTTPException(status_code=400, detail="Goal events require a match_id")
         goal_minute = _to_goal_minute(body.goal_minute)
-        goal_scorer_name = _goal_player_name_for_match(s, match_id, body.goal_player_id)
+        goal_scorer_name = _goal_scorer_name_for_match(s, match_id, body.goal_player_id, body.goal_player_name)
         text = _format_goal_comment_body(goal_minute, goal_scorer_name)
+        has_image_hint = False
+    elif event_type == "score_update":
+        if match_id is None:
+            raise HTTPException(status_code=400, detail="Score update events require a match_id")
+        score_a = _to_score_value(body.result_score_a, field="result_score_a")
+        score_b = _to_score_value(body.result_score_b, field="result_score_b")
+        scoreline = f"{score_a}:{score_b}"
+        text = _format_score_comment_body(scoreline)
         has_image_hint = False
 
     if not text and not has_image_hint:
@@ -505,6 +538,16 @@ async def create_comment(
             "match_label": match_label,
             "scorer_name": goal_scorer_name,
             "goal_minute": goal_minute,
+        }
+    elif event_type == "score_update" and scoreline:
+        match = s.get(Match, match_id) if match_id is not None else None
+        match_label = f"Match {int(match.order_index) + 1}" if match is not None else f"Match {int(match_id or 0)}"
+        push_key = "score_comment_created"
+        push_event_type = "score_comment_created"
+        push_context = {
+            "tournament_name": tournament.name,
+            "match_label": match_label,
+            "scoreline": scoreline,
         }
     enqueue_global_push(
         request,

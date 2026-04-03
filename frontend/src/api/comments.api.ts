@@ -63,9 +63,12 @@ export function createTournamentComment(
     author_player_id?: number | null;
     body: string;
     has_image?: boolean;
-    event_type?: "goal";
+    event_type?: "goal" | "score_update";
     goal_minute?: number;
     goal_player_id?: number;
+    goal_player_name?: string;
+    result_score_a?: number;
+    result_score_b?: number;
   }
 ): Promise<Comment> {
   return apiFetch(`/tournaments/${tournamentId}/comments`, {
