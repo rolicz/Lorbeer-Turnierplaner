@@ -10,7 +10,7 @@
         },
         "goal_comment_created": {
           "title": "Tor-Update bei {match_label}",
-          "body": "{scorer_name} hot in da {goal_minute}. Minutn troffn.\nIm {tournament_name} is des jetzt direkt im Match-Feed eing'tragen.\nSchau live eini und bleib am Ball."
+          "body": "{goal_line}{goal_note_line}\nIm {tournament_name} is des jetzt direkt im Match-Feed eing'tragen.\nSchau live eini und bleib am Ball."
         },
         "score_comment_created": {
           "title": "Spielstand-Update bei {match_label}",
@@ -95,7 +95,7 @@
         },
         "goal_comment_created": {
           "title": "Tor-Update bei {match_label}",
-          "body": "{scorer_name} hat in der {goal_minute}. Minute getroffen.\nIm Turnier {tournament_name} wurde das direkt im Match-Feed eingetragen.\nOeffne den Live-Bereich, wenn du dranbleiben willst."
+          "body": "{goal_line}{goal_note_line}\nIm Turnier {tournament_name} wurde das direkt im Match-Feed eingetragen.\nOeffne den Live-Bereich, wenn du dranbleiben willst."
         },
         "score_comment_created": {
           "title": "Spielstand-Update bei {match_label}",
@@ -180,7 +180,7 @@
         },
         "goal_comment_created": {
           "title": "Goal update in {match_label}",
-          "body": "{scorer_name} scored in minute {goal_minute}.\nThat moment is now logged directly in the {tournament_name} match feed.\nOpen the live view if you want the full context."
+          "body": "{goal_line}{goal_note_line}\nThat moment is now logged directly in the {tournament_name} match feed.\nOpen the live view if you want the full context."
         },
         "score_comment_created": {
           "title": "Score update in {match_label}",

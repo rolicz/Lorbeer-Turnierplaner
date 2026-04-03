@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, File, HTTPException, Request, Response, UploadFile
@@ -29,11 +30,13 @@ from ..services.file_storage import (
 )
 from ..services.comments_summary import tournament_comments_summary
 from ..services.notifications import enqueue_global_push, localized_push_message
-from ..ws import ws_manager
+from ..ws import ws_manager, ws_manager_update_tournaments
 
 log = logging.getLogger(__name__)
 router = APIRouter(tags=["comments"])
 MAX_COMMENT_IMAGE_BYTES = 8_000_000  # enough for cropped 1920x1440 webp/png
+_GOAL_SCORELINE_RE = re.compile(r"^\s*\d{1,3}'\s+(?P<a>\d{1,3})-(?P<b>\d{1,3})\s+.+$")
+_PLAIN_SCORELINE_RE = re.compile(r"^\s*(?P<a>\d{1,3})[:\-](?P<b>\d{1,3})\s*$")
 
 
 def _upsert_comment_image_file(
@@ -166,7 +169,7 @@ def _to_goal_minute(value: int | str | None) -> int:
 
 def _to_score_value(value: int | str | None, *, field: str) -> int:
     if value in (None, ""):
-        raise HTTPException(status_code=400, detail=f"{field} is required for score update events")
+        raise HTTPException(status_code=400, detail=f"{field} is required")
     try:
         score = int(value)
     except Exception as exc:
@@ -203,12 +206,74 @@ def _goal_scorer_name_for_match(
     raise HTTPException(status_code=400, detail="goal_player_id must belong to the selected match")
 
 
-def _format_goal_comment_body(goal_minute: int, scorer_name: str) -> str:
-    return f"GOAL\n{goal_minute}' {scorer_name}"
+def _format_scoreline(score_a: int, score_b: int) -> str:
+    return f"{score_a}-{score_b}"
 
 
-def _format_score_comment_body(scoreline: str) -> str:
-    return f"RESULT\n{scoreline}"
+def _recorded_scoreline_from_comment_body(body: str | None) -> tuple[int, int] | None:
+    text = str(body or "").strip()
+    if not text:
+        return None
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    if not lines:
+        return None
+    first_line = lines[0]
+    for pattern in (_GOAL_SCORELINE_RE, _PLAIN_SCORELINE_RE):
+        match = pattern.match(first_line)
+        if match:
+            return int(match.group("a")), int(match.group("b"))
+    if len(lines) >= 2 and lines[0].upper() == "RESULT":
+        match = _PLAIN_SCORELINE_RE.match(lines[1])
+        if match:
+            return int(match.group("a")), int(match.group("b"))
+    return None
+
+
+def _ensure_match_scoreline_is_new(s: Session, match_id: int, score_a: int, score_b: int) -> None:
+    existing_bodies = s.exec(select(Comment.body).where(Comment.match_id == match_id)).all()
+    target = (score_a, score_b)
+    for existing_body in existing_bodies:
+        if _recorded_scoreline_from_comment_body(existing_body) == target:
+            raise HTTPException(status_code=409, detail="This score is already recorded for this match")
+
+
+def _match_score(match: Match) -> tuple[int, int]:
+    sides = {side.side: side for side in match.sides}
+    return int(sides.get("A").goals if sides.get("A") is not None else 0), int(
+        sides.get("B").goals if sides.get("B") is not None else 0
+    )
+
+
+def _set_match_score(match: Match, score_a: int, score_b: int) -> bool:
+    sides = {side.side: side for side in match.sides}
+    side_a = sides.get("A")
+    side_b = sides.get("B")
+    if side_a is None or side_b is None:
+        raise HTTPException(status_code=409, detail="Match must have sides A and B")
+    old_score = _match_score(match)
+    side_a.goals = score_a
+    side_b.goals = score_b
+    return old_score != (score_a, score_b)
+
+
+def _validate_goal_score_progression(match: Match, score_a: int, score_b: int) -> None:
+    current_a, current_b = _match_score(match)
+    if (current_a, current_b) == (score_a, score_b):
+        raise HTTPException(status_code=409, detail="This score is already recorded for this match")
+    delta_a = score_a - current_a
+    delta_b = score_b - current_b
+    if (delta_a, delta_b) not in ((1, 0), (0, 1)):
+        raise HTTPException(status_code=409, detail="Goal events must increase exactly one side by 1")
+
+
+def _format_goal_comment_body(goal_minute: int, score_a: int, score_b: int, scorer_name: str, note: str = "") -> str:
+    goal_line = f"{goal_minute}' {_format_scoreline(score_a, score_b)} {scorer_name}"
+    note_text = str(note or "").strip()
+    return f"{goal_line}\n{note_text}" if note_text else goal_line
+
+
+def _format_score_comment_body(score_a: int, score_b: int) -> str:
+    return _format_scoreline(score_a, score_b)
 
 
 @router.get("/tournaments/{tournament_id}/comments")
@@ -466,21 +531,41 @@ async def create_comment(
 
     goal_minute: int | None = None
     goal_scorer_name: str | None = None
+    goal_line: str | None = None
+    goal_note: str = ""
     scoreline: str | None = None
+    match_for_event: Match | None = s.get(Match, match_id) if match_id is not None else None
+    if match_for_event is not None:
+        _ = match_for_event.sides
+    match_score_changed = False
     if event_type == "goal":
         if match_id is None:
             raise HTTPException(status_code=400, detail="Goal events require a match_id")
+        if match_for_event is None:
+            raise HTTPException(status_code=400, detail=f"Unknown match_id {match_id}")
+        goal_note = text
         goal_minute = _to_goal_minute(body.goal_minute)
         goal_scorer_name = _goal_scorer_name_for_match(s, match_id, body.goal_player_id, body.goal_player_name)
-        text = _format_goal_comment_body(goal_minute, goal_scorer_name)
+        score_a = _to_score_value(body.result_score_a, field="result_score_a")
+        score_b = _to_score_value(body.result_score_b, field="result_score_b")
+        _validate_goal_score_progression(match_for_event, score_a, score_b)
+        _ensure_match_scoreline_is_new(s, match_id, score_a, score_b)
+        match_score_changed = _set_match_score(match_for_event, score_a, score_b)
+        scoreline = _format_scoreline(score_a, score_b)
+        goal_line = f"{goal_minute}' {scoreline} {goal_scorer_name}"
+        text = _format_goal_comment_body(goal_minute, score_a, score_b, goal_scorer_name, goal_note)
         has_image_hint = False
     elif event_type == "score_update":
         if match_id is None:
             raise HTTPException(status_code=400, detail="Score update events require a match_id")
+        if match_for_event is None:
+            raise HTTPException(status_code=400, detail=f"Unknown match_id {match_id}")
         score_a = _to_score_value(body.result_score_a, field="result_score_a")
         score_b = _to_score_value(body.result_score_b, field="result_score_b")
-        scoreline = f"{score_a}:{score_b}"
-        text = _format_score_comment_body(scoreline)
+        _ensure_match_scoreline_is_new(s, match_id, score_a, score_b)
+        match_score_changed = _set_match_score(match_for_event, score_a, score_b)
+        scoreline = _format_scoreline(score_a, score_b)
+        text = _format_score_comment_body(score_a, score_b)
         has_image_hint = False
 
     if not text and not has_image_hint:
@@ -495,6 +580,10 @@ async def create_comment(
         created_at=now,
         updated_at=now,
     )
+    if match_for_event is not None and match_score_changed:
+        s.add(match_for_event)
+        for side in match_for_event.sides:
+            s.add(side)
     s.add(c)
     s.commit()
     s.refresh(c)
@@ -511,6 +600,13 @@ async def create_comment(
         "comments_updated",
         {"tournament_id": tournament_id, "comment_id": c.id, "action": "created"},
     )
+    if match_for_event is not None and match_score_changed:
+        await ws_manager.broadcast(
+            tournament_id,
+            "match_patched",
+            {"tournament_id": tournament_id, "match_id": int(match_for_event.id or 0)},
+        )
+        await ws_manager_update_tournaments.broadcast("match_patched", {"tournament_id": tournament_id})
 
     author_name = "General"
     if c.author_player_id is not None:
@@ -538,6 +634,9 @@ async def create_comment(
             "match_label": match_label,
             "scorer_name": goal_scorer_name,
             "goal_minute": goal_minute,
+            "scoreline": scoreline or "",
+            "goal_line": goal_line or "",
+            "goal_note_line": f"\n{goal_note}" if goal_note else "",
         }
     elif event_type == "score_update" and scoreline:
         match = s.get(Match, match_id) if match_id is not None else None

@@ -12,7 +12,7 @@ import ImageLightbox from "../../ui/primitives/ImageLightbox";
 import VoteButton from "../../ui/primitives/VoteButton";
 import VoteVotersModal from "../../ui/primitives/VoteVotersModal";
 import type { Player } from "../../api/types";
-import CommentCreateComposer from "./CommentCreateComposer";
+import CommentCreateComposer, { type CommentGoalSide, type CommentGoalTeamOption } from "./CommentCreateComposer";
 import {
   commentImageUrl,
   createTournamentComment,
@@ -45,6 +45,10 @@ export default function MatchCommentsPanel({
   canWrite,
   canDelete,
   playersInMatch,
+  teamALabel,
+  teamAPlayers,
+  teamBLabel,
+  teamBPlayers,
   currentScoreA = 0,
   currentScoreB = 0,
 }: {
@@ -53,6 +57,10 @@ export default function MatchCommentsPanel({
   canWrite: boolean;
   canDelete: boolean;
   playersInMatch: Player[];
+  teamALabel: string;
+  teamAPlayers: Player[];
+  teamBLabel: string;
+  teamBPlayers: Player[];
   currentScoreA?: number;
   currentScoreB?: number;
 }) {
@@ -62,11 +70,10 @@ export default function MatchCommentsPanel({
   const seen = useSeenSet(tournamentId);
 
   const [postAsGeneral, setPostAsGeneral] = useState(false);
-  const [composerMode, setComposerMode] = useState<"comment" | "goal" | "result">("comment");
+  const [composerMode, setComposerMode] = useState<"comment" | "goal">("comment");
+  const [goalSide, setGoalSide] = useState<CommentGoalSide | null>(null);
   const [goalMinute, setGoalMinute] = useState("");
   const [goalPlayerName, setGoalPlayerName] = useState("");
-  const [resultScoreA, setResultScoreA] = useState("");
-  const [resultScoreB, setResultScoreB] = useState("");
   const [text, setText] = useState("");
   const [draftImageBlob, setDraftImageBlob] = useState<Blob | null>(null);
   const [draftImagePreviewUrl, setDraftImagePreviewUrl] = useState<string | null>(null);
@@ -114,16 +121,6 @@ export default function MatchCommentsPanel({
     return normalized;
   }
 
-  function normalizeScoreValue(value: string): number | null {
-    const trimmed = value.trim();
-    if (!trimmed) return null;
-    const score = Number(trimmed);
-    if (!Number.isFinite(score)) return null;
-    const normalized = Math.trunc(score);
-    if (normalized < 0 || normalized > 999) return null;
-    return normalized;
-  }
-
   useEffect(() => {
     return () => {
       if (draftImagePreviewUrl) URL.revokeObjectURL(draftImagePreviewUrl);
@@ -139,10 +136,25 @@ export default function MatchCommentsPanel({
   }, [commentsQ.data, matchId]);
 
   const byId = useMemo(() => new Map(playersInMatch.map((p) => [p.id, p.display_name])), [playersInMatch]);
-  const goalPlayers = useMemo(
-    () => playersInMatch.map((player) => ({ label: player.display_name })),
-    [playersInMatch],
+  const goalTeams = useMemo<CommentGoalTeamOption[]>(
+    () => [
+      {
+        side: "A",
+        label: teamALabel,
+        nextScoreline: `${currentScoreA + 1}-${currentScoreB}`,
+      },
+      {
+        side: "B",
+        label: teamBLabel,
+        nextScoreline: `${currentScoreA}-${currentScoreB + 1}`,
+      },
+    ],
+    [currentScoreA, currentScoreB, teamALabel, teamBLabel],
   );
+  const goalPlayers = useMemo(() => {
+    const players = goalSide === "A" ? teamAPlayers : goalSide === "B" ? teamBPlayers : [];
+    return players.map((player) => ({ label: player.display_name }));
+  }, [goalSide, teamAPlayers, teamBPlayers]);
   const authorOptions = useMemo(() => {
     const options: { value: "general" | number; label: string }[] = [];
     if (currentPlayerId != null) {
@@ -169,7 +181,7 @@ export default function MatchCommentsPanel({
       authorPlayerId: number | null;
       body: string;
       hasImage: boolean;
-      eventType?: "goal" | "score_update";
+      eventType?: "goal";
       goalMinute?: number;
       goalPlayerName?: string;
       resultScoreA?: number;
@@ -204,15 +216,15 @@ export default function MatchCommentsPanel({
     onSuccess: async (created) => {
       setPendingScrollId(created.id);
       setComposerMode("comment");
+      setGoalSide(null);
       setGoalMinute("");
       setGoalPlayerName("");
-      setResultScoreA("");
-      setResultScoreB("");
       setText("");
       setDraftImage(null);
       setPostAsGeneral(false);
       setImageCropOpen(false);
       setComposerOpen(false);
+      await qc.invalidateQueries({ queryKey: ["tournament", tournamentId] });
       await qc.invalidateQueries({ queryKey: ["comments", tournamentId] });
       await qc.invalidateQueries({ queryKey: ["comments", "read", tournamentId, token ?? "none"] });
       await qc.invalidateQueries({ queryKey: ["comments", "read-map", token ?? "none"] });
@@ -314,11 +326,32 @@ export default function MatchCommentsPanel({
     }
   }
 
-  function handleComposerModeChange(nextMode: "comment" | "goal" | "result") {
+  function handleComposerModeChange(nextMode: "comment" | "goal") {
     setComposerMode(nextMode);
+    if (nextMode === "comment") {
+      if (currentPlayerId != null) {
+        setPostAsGeneral(false);
+      }
+      setGoalSide(null);
+      setGoalPlayerName("");
+    }
+    if (nextMode === "goal") {
+      setPostAsGeneral(true);
+    }
     if (nextMode !== "comment") {
       setDraftImage(null);
     }
+  }
+
+  function handleGoalSideChange(nextSide: CommentGoalSide) {
+    setGoalSide(nextSide);
+    setGoalPlayerName("");
+  }
+
+  function goalScoreForSide(side: CommentGoalSide | null): { a: number; b: number } | null {
+    if (side === "A") return { a: currentScoreA + 1, b: currentScoreB };
+    if (side === "B") return { a: currentScoreA, b: currentScoreB + 1 };
+    return null;
   }
 
   useEffect(() => {
@@ -350,8 +383,9 @@ export default function MatchCommentsPanel({
       <CollapsibleCard
         title="Match comments"
         defaultOpen={false}
-        className="card-inner"
-        bodyClassName="-mt-1 space-y-2"
+        className="panel-subtle"
+        variant="none"
+        bodyClassName="space-y-2"
         right={
           matchComments.length ? (
             <span className="text-xs text-text-muted">{matchComments.length}</span>
@@ -378,7 +412,7 @@ export default function MatchCommentsPanel({
 	                key={c.id}
 	                id={`match-comment-${c.id}`}
 	                className={
-	                  "panel-inner p-3 scroll-mt-28 sm:scroll-mt-32 " + (flashId === c.id ? "comment-attn" : "")
+	                  "panel-subtle p-3 scroll-mt-28 sm:scroll-mt-32 " + (flashId === c.id ? "comment-attn" : "")
 	                }
                   style={
                     editingId === c.id
@@ -584,10 +618,9 @@ export default function MatchCommentsPanel({
                     if (!next) {
                       // Treat "collapse" as cancel.
                       setComposerMode("comment");
+                      setGoalSide(null);
                       setGoalMinute("");
                       setGoalPlayerName("");
-                      setResultScoreA("");
-                      setResultScoreB("");
                       setText("");
                       setDraftImage(null);
                       setImageCropOpen(false);
@@ -616,20 +649,14 @@ export default function MatchCommentsPanel({
                 mode={composerMode}
                 onModeChange={handleComposerModeChange}
                 allowMatchEventModes={true}
+                goalTeams={goalTeams}
+                goalSide={goalSide}
+                onGoalSideChange={handleGoalSideChange}
                 goalPlayers={goalPlayers}
                 goalMinute={goalMinute}
                 onGoalMinuteChange={setGoalMinute}
                 goalPlayerName={goalPlayerName}
                 onGoalPlayerNameChange={setGoalPlayerName}
-                resultScoreA={resultScoreA}
-                onResultScoreAChange={setResultScoreA}
-                resultScoreB={resultScoreB}
-                onResultScoreBChange={setResultScoreB}
-                currentScorelineLabel={`Use current ${currentScoreA}:${currentScoreB}`}
-                onUseCurrentScore={() => {
-                  setResultScoreA(String(currentScoreA));
-                  setResultScoreB(String(currentScoreB));
-                }}
                 draftBody={text}
                 onChangeDraftBody={setText}
                 canAttachImage={canAttachImage}
@@ -641,20 +668,13 @@ export default function MatchCommentsPanel({
                     composerMode === "goal"
                       ? {
                           authorPlayerId: postAsGeneral ? null : currentPlayerId ?? null,
-                          body: "",
+                          body: text.trim(),
                           hasImage: false,
                           eventType: "goal",
                           goalMinute: normalizeGoalMinute(goalMinute) ?? undefined,
                           goalPlayerName: goalPlayerName.trim(),
-                        }
-                      : composerMode === "result"
-                        ? {
-                            authorPlayerId: postAsGeneral ? null : currentPlayerId ?? null,
-                            body: "",
-                            hasImage: false,
-                            eventType: "score_update",
-                            resultScoreA: normalizeScoreValue(resultScoreA) ?? undefined,
-                            resultScoreB: normalizeScoreValue(resultScoreB) ?? undefined,
+                          resultScoreA: goalScoreForSide(goalSide)?.a,
+                          resultScoreB: goalScoreForSide(goalSide)?.b,
                         }
                       : {
                           authorPlayerId: postAsGeneral ? null : currentPlayerId ?? null,
@@ -666,13 +686,14 @@ export default function MatchCommentsPanel({
                 canSubmit={
                   idsOk &&
                   (composerMode === "goal"
-                    ? !!goalPlayerName.trim() && normalizeGoalMinute(goalMinute) != null
-                    : composerMode === "result"
-                      ? normalizeScoreValue(resultScoreA) != null && normalizeScoreValue(resultScoreB) != null
-                      : !!text.trim() || !!draftImageBlob)
+                    ? !!goalPlayerName.trim() &&
+                      goalSide != null &&
+                      normalizeGoalMinute(goalMinute) != null &&
+                      goalScoreForSide(goalSide) != null
+                    : !!text.trim() || !!draftImageBlob)
                 }
                 disabled={createMut.isPending}
-                surfaceClassName="panel-inner"
+                surfaceClassName="panel-subtle"
               />
             ) : null}
           </div>

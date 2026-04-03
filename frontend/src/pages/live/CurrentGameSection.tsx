@@ -365,7 +365,7 @@ export default function CurrentGameSection({
         ) : null}
       </div>
 
-      <div className="mt-3 space-y-2">
+      <div className="mt-2 space-y-2">
         {/* Filter + clubs */}
         {canControl && (
           <SelectClubsPanel
@@ -391,7 +391,7 @@ export default function CurrentGameSection({
               queueAutosave({ bClub: v });
             }}
             defaultOpen={false}
-            wrapClassName="card-inner"
+            wrapClassName="panel-subtle"
           />
         )}
 
@@ -402,6 +402,10 @@ export default function CurrentGameSection({
             canWrite={canControl}
             canDelete={canDeleteComments}
             playersInMatch={playersInMatch}
+            teamALabel={aInline}
+            teamAPlayers={a?.players ?? []}
+            teamBLabel={bInline}
+            teamBPlayers={b?.players ?? []}
             currentScoreA={aGoals}
             currentScoreB={bGoals}
           />

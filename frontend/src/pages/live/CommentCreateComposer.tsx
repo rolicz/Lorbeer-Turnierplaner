@@ -5,7 +5,7 @@ import Input from "../../ui/primitives/Input";
 import Textarea from "../../ui/primitives/Textarea";
 
 export type CommentDraftAuthorValue = "general" | number;
-export type CommentCreateMode = "comment" | "goal" | "result";
+export type CommentCreateMode = "comment" | "goal";
 
 export type CommentDraftAuthorOption = {
   value: CommentDraftAuthorValue;
@@ -16,6 +16,14 @@ export type CommentGoalPlayerOption = {
   label: string;
 };
 
+export type CommentGoalSide = "A" | "B";
+
+export type CommentGoalTeamOption = {
+  side: CommentGoalSide;
+  label: string;
+  nextScoreline: string;
+};
+
 export default function CommentCreateComposer({
   authorOptions,
   authorValue,
@@ -23,17 +31,14 @@ export default function CommentCreateComposer({
   mode,
   onModeChange,
   allowMatchEventModes = false,
+  goalTeams,
+  goalSide,
+  onGoalSideChange,
   goalPlayers,
   goalMinute,
   onGoalMinuteChange,
   goalPlayerName,
   onGoalPlayerNameChange,
-  resultScoreA,
-  onResultScoreAChange,
-  resultScoreB,
-  onResultScoreBChange,
-  currentScorelineLabel,
-  onUseCurrentScore,
   draftBody,
   onChangeDraftBody,
   canAttachImage = false,
@@ -51,17 +56,14 @@ export default function CommentCreateComposer({
   mode: CommentCreateMode;
   onModeChange: (mode: CommentCreateMode) => void;
   allowMatchEventModes?: boolean;
+  goalTeams: CommentGoalTeamOption[];
+  goalSide: CommentGoalSide | null;
+  onGoalSideChange: (side: CommentGoalSide) => void;
   goalPlayers: CommentGoalPlayerOption[];
   goalMinute: string;
   onGoalMinuteChange: (value: string) => void;
   goalPlayerName: string;
   onGoalPlayerNameChange: (value: string) => void;
-  resultScoreA: string;
-  onResultScoreAChange: (value: string) => void;
-  resultScoreB: string;
-  onResultScoreBChange: (value: string) => void;
-  currentScorelineLabel?: string | null;
-  onUseCurrentScore?: (() => void) | null;
   draftBody: string;
   onChangeDraftBody: (value: string) => void;
   canAttachImage?: boolean;
@@ -115,93 +117,71 @@ export default function CommentCreateComposer({
             >
               Goal
             </Button>
-            <Button
-              type="button"
-              variant={mode === "result" ? "solid" : "ghost"}
-              onClick={() => onModeChange("result")}
-              disabled={disabled}
-              className="h-9 px-3 inline-flex items-center justify-center"
-            >
-              Result
-            </Button>
           </div>
         </div>
       ) : null}
 
       {mode === "goal" && allowMatchEventModes ? (
-        <div className="grid gap-2 md:grid-cols-[140px_minmax(0,1fr)]">
-          <Input
-            label="Minute"
-            type="number"
-            inputMode="numeric"
-            min={1}
-            max={999}
-            step={1}
-            value={goalMinute}
-            onChange={(event) => onGoalMinuteChange(event.target.value)}
+        <div className="space-y-2">
+          <div className="space-y-2">
+            <div className="input-label">Scoring side</div>
+            <div className="grid gap-2 md:grid-cols-2">
+              {goalTeams.map((team) => (
+                <Button
+                  key={team.side}
+                  type="button"
+                  variant={goalSide === team.side ? "solid" : "ghost"}
+                  onClick={() => onGoalSideChange(team.side)}
+                  disabled={disabled}
+                  className="min-h-[56px] px-3 py-2 inline-flex items-start justify-start text-left"
+                >
+                  <span className="min-w-0">
+                    <span className="block truncate text-sm font-semibold">Goal for {team.label}</span>
+                    <span className="block text-xs opacity-80">Makes it {team.nextScoreline}</span>
+                  </span>
+                </Button>
+              ))}
+            </div>
+          </div>
+          <div className="grid gap-2 md:grid-cols-[120px_minmax(0,1fr)]">
+            <Input
+              label="Minute"
+              type="number"
+              inputMode="numeric"
+              min={1}
+              max={999}
+              step={1}
+              value={goalMinute}
+              onChange={(event) => onGoalMinuteChange(event.target.value)}
+              disabled={disabled}
+            />
+            <label className="block">
+              <div className="input-label">Player</div>
+              <input
+                className="input-field"
+                type="text"
+                list={goalSide && goalPlayers.length ? playersListId : undefined}
+                placeholder={goalSide ? "Krankl" : "Select scoring side first"}
+                value={goalPlayerName}
+                onChange={(event) => onGoalPlayerNameChange(event.target.value)}
+                disabled={disabled || goalSide == null}
+              />
+              {goalSide && goalPlayers.length ? (
+                <datalist id={playersListId}>
+                  {goalPlayers.map((player) => (
+                    <option key={player.label} value={player.label} />
+                  ))}
+                </datalist>
+              ) : null}
+            </label>
+          </div>
+          <Textarea
+            label="Goal comment (optional)"
+            placeholder="Optional goal note…"
+            value={draftBody}
+            onChange={(event) => onChangeDraftBody(event.target.value)}
             disabled={disabled}
           />
-          <label className="block">
-            <div className="input-label">Player</div>
-            <input
-              className="input-field"
-              type="text"
-              list={goalPlayers.length ? playersListId : undefined}
-              placeholder="Ronaldo"
-              value={goalPlayerName}
-              onChange={(event) => onGoalPlayerNameChange(event.target.value)}
-              disabled={disabled}
-            />
-            {goalPlayers.length ? (
-              <datalist id={playersListId}>
-                {goalPlayers.map((player) => (
-                  <option key={player.label} value={player.label} />
-                ))}
-              </datalist>
-            ) : null}
-          </label>
-        </div>
-      ) : null}
-
-      {mode === "result" && allowMatchEventModes ? (
-        <div className="space-y-2">
-          <div className="grid gap-2 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-            <Input
-              label="Score A"
-              type="number"
-              inputMode="numeric"
-              min={0}
-              max={999}
-              step={1}
-              value={resultScoreA}
-              onChange={(event) => onResultScoreAChange(event.target.value)}
-              disabled={disabled}
-            />
-            <Input
-              label="Score B"
-              type="number"
-              inputMode="numeric"
-              min={0}
-              max={999}
-              step={1}
-              value={resultScoreB}
-              onChange={(event) => onResultScoreBChange(event.target.value)}
-              disabled={disabled}
-            />
-          </div>
-          {currentScorelineLabel && onUseCurrentScore ? (
-            <div className="flex justify-end">
-              <Button
-                type="button"
-                variant="ghost"
-                onClick={onUseCurrentScore}
-                disabled={disabled}
-                className="h-9 px-3 inline-flex items-center justify-center"
-              >
-                {currentScorelineLabel}
-              </Button>
-            </div>
-          ) : null}
         </div>
       ) : null}
 
@@ -260,7 +240,7 @@ export default function CommentCreateComposer({
           type="button"
           onClick={onSubmit}
           disabled={!canSubmit || disabled}
-          title={mode === "goal" ? "Post goal entry" : mode === "result" ? "Post result update" : "Post comment"}
+          title={mode === "goal" ? "Post goal entry" : "Post comment"}
           className="h-10 w-10 p-0 inline-flex items-center justify-center md:w-auto md:px-4 md:py-2"
         >
           <i className="fa-solid fa-paper-plane md:hidden" aria-hidden="true" />

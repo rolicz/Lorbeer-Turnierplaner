@@ -131,13 +131,15 @@ def test_notification_text_catalog_is_complete_and_renderable():
         "preview_is_image_only": False,
         "scorer_name": "Alice",
         "goal_minute": 45,
+        "goal_line": "45' 3-2 Alice",
+        "goal_note_line": "\nA richtige Fackel ins Kreizeck.",
         "profile_player_name": "Berti",
         "extra_count": 3,
         "author_names": ["Alice", "Bob", "Carl"],
         "tournament_date": "2026-04-03",
         "match_count": 9,
         "match_label": "Match 2",
-        "scoreline": "3:2",
+        "scoreline": "3-2",
         "mode": "2v2",
         "player_name": "Editor",
     }
@@ -220,11 +222,14 @@ def test_goal_comment_creation_enqueues_goal_push(client, editor_headers, admin_
             "event_type": "goal",
             "goal_minute": 12,
             "goal_player_name": scorer_name,
+            "result_score_a": 1,
+            "result_score_b": 0,
+            "body": "What a finish",
         },
         headers=editor_headers,
     )
     assert created.status_code == 200, created.text
-    assert created.json()["body"] == f"GOAL\n12' {scorer_name}"
+    assert created.json()["body"] == f"12' 1-0 {scorer_name}\nWhat a finish"
 
     assert len(messages) == 1
     message = messages[0]
@@ -232,7 +237,64 @@ def test_goal_comment_creation_enqueues_goal_push(client, editor_headers, admin_
     assert message.path == f"/live/{tournament_id}?comment={created.json()['id']}"
     payload = message.to_payload("english")
     assert payload["title"] == "Goal update in Match 1"
-    assert f"{scorer_name} scored in minute 12." in payload["body"]
+    assert "12' 1-0 Ronaldo" in payload["body"]
+    assert "What a finish" in payload["body"]
+
+    updated_detail = client.get(f"/tournaments/{tournament_id}")
+    assert updated_detail.status_code == 200, updated_detail.text
+    updated_match = next(row for row in updated_detail.json()["matches"] if int(row["id"]) == match_id)
+    updated_sides = {side["side"]: int(side["goals"]) for side in updated_match["sides"]}
+    assert updated_sides == {"A": 1, "B": 0}
+
+
+def test_goal_comment_creation_rejects_duplicate_scoreline(client, editor_headers, admin_headers, monkeypatch):
+    messages = []
+    monkeypatch.setattr(comments_router, "enqueue_global_push", lambda request, message: messages.append(message))
+
+    player_ids = [
+        client.post("/players", json={"display_name": name}, headers=admin_headers).json()["id"]
+        for name in ("Dup-A", "Dup-B", "Dup-C")
+    ]
+    tournament_id = client.post(
+        "/tournaments",
+        json={"name": "Duplicate Goal Comments", "mode": "1v1", "player_ids": player_ids, "auto_generate": True},
+        headers=editor_headers,
+    ).json()["id"]
+
+    detail = client.get(f"/tournaments/{tournament_id}")
+    assert detail.status_code == 200, detail.text
+    match_id = int(detail.json()["matches"][0]["id"])
+
+    first = client.post(
+        f"/tournaments/{tournament_id}/comments",
+        json={
+            "match_id": match_id,
+            "event_type": "goal",
+            "goal_minute": 12,
+            "goal_player_name": "Krankl",
+            "result_score_a": 1,
+            "result_score_b": 0,
+            "body": "A sauberer Abschluss",
+        },
+        headers=editor_headers,
+    )
+    assert first.status_code == 200, first.text
+
+    duplicate = client.post(
+        f"/tournaments/{tournament_id}/comments",
+        json={
+            "match_id": match_id,
+            "event_type": "goal",
+            "goal_minute": 55,
+            "goal_player_name": "Krankl",
+            "result_score_a": 1,
+            "result_score_b": 0,
+        },
+        headers=editor_headers,
+    )
+    assert duplicate.status_code == 409, duplicate.text
+    assert duplicate.json()["detail"] == "This score is already recorded for this match"
+    assert len(messages) == 1
 
 
 def test_score_comment_creation_enqueues_score_push(client, editor_headers, admin_headers, monkeypatch):
@@ -264,14 +326,20 @@ def test_score_comment_creation_enqueues_score_push(client, editor_headers, admi
         headers=editor_headers,
     )
     assert created.status_code == 200, created.text
-    assert created.json()["body"] == "RESULT\n3:2"
+    assert created.json()["body"] == "3-2"
 
     assert len(messages) == 1
     message = messages[0]
     assert message.event_type == "score_comment_created"
     payload = message.to_payload("english")
     assert payload["title"] == "Score update in Match 1"
-    assert "Current score: 3:2." in payload["body"]
+    assert "Current score: 3-2." in payload["body"]
+
+    updated_detail = client.get(f"/tournaments/{tournament_id}")
+    assert updated_detail.status_code == 200, updated_detail.text
+    updated_match = next(row for row in updated_detail.json()["matches"] if int(row["id"]) == match_id)
+    updated_sides = {side["side"]: int(side["goals"]) for side in updated_match["sides"]}
+    assert updated_sides == {"A": 3, "B": 2}
 
 
 def test_guestbook_and_poke_enqueue_push(client, editor_headers, admin_headers, monkeypatch):
