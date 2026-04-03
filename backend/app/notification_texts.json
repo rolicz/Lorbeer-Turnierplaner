@@ -5,28 +5,28 @@
       "label": "Steirisch",
       "messages": {
         "comment_created": {
-          "title": "Neicher Kommentar in {tournament_name}",
+          "title": "Neicha Kommentar in {tournament_name}",
           "body": "{author_name} hot wos dazug'schriebn.\n{preview}\nSchau glei eini, bevor da Faden no lauter wird."
         },
         "goal_comment_created": {
           "title": "Tor-Update bei {match_label}",
-          "body": "{goal_line}{goal_note_line}\nIm {tournament_name} is des jetzt direkt im Match-Feed eing'tragen.\nSchau live eini und bleib am Ball."
+          "body": "{goal_line}{goal_note_line}\nIm {tournament_name} is des jetzt direkt im Match-Feed eingtrogn.\nSchau live eini und bleib am Ball."
         },
         "score_comment_created": {
           "title": "Spielstand-Update bei {match_label}",
-          "body": "Im {tournament_name} is a neuer Stand im Match-Feed eing'tragen.\nAktueller Zwischenstand: {scoreline}.\nSchau live eini, damitst am neuesten Stand bleibst."
+          "body": "Im {tournament_name} is a neuer Stand im Match-Feed eingtrogn.\nAktueller Zwischenstand: {scoreline}.\nSchau live eini, damitst am neuesten Stand bleibst."
         },
         "guestbook_created": {
-          "title": "Neicher Guestbook-Eintrag bei {profile_player_name}",
+          "title": "Neicha Gästebuch-Eintrag bei {profile_player_name}",
           "body": "{author_name} hot an Gruaß daglossn.\n{preview}\nSchau am Profil vorbei und gib deinen Senf dazua."
         },
         "poke_created": {
-          "title": "Neichs Anpöbeln fia {profile_player_name}",
+          "title": "{profile_player_name} is anpöbelt worn",
           "body": "{author_name} hot grad a bisserl ang'stichelt.\nBei {profile_player_name} is wos los.\nSchau eini, bevor no mehr daherkommt."
         },
         "poke_summary": {
-          "title": "No mehr Anpöbeln fia {profile_player_name}",
-          "body": "{authors_line}\nIn da letztn Minutn san no {extra_count} Anpöbler dazukumma.\nSchau am Profil vorbei, do is jetz ordentlich Betrieb."
+          "title": "{profile_player_name} is komplett unter Beschuss!",
+          "body": "{authors_line}\nIn da letztn Minutn san no {extra_count} Anpöbler dazukumman.\nSchau am Profil vorbei, do is jetz ordentlich Betrieb."
         },
         "tournament_created": {
           "title": "{tournament_name} steht bereit",
@@ -42,31 +42,31 @@
         },
         "schedule_generated": {
           "title": "Spielplan fertig fia {tournament_name}",
-          "body": "Da Plan steht endlich.\nEs san {match_count} Match(es) erstellt worn.\nSchau eini, wer wann gegen wen aufmuass."
+          "body": "Da Plan steht endlich.\nEs san {match_count} Matches erstellt worn.\nSchau eini, wer wann gegen wen aufmuass."
         },
         "tournament_deleted": {
           "title": "{tournament_name} is weg",
-          "body": "Des Turnier gibt's nimma.\n{tournament_name} is aus da Listn g'flogn.\nSchau in de Uebersicht, wos stattdessen no laeuft."
+          "body": "Des Turnier gibt's nimma.\n{tournament_name} is aus da Listn g'flogn.\nSchau in de Übersicht, wos stattdessen no laft."
         },
         "match_started": {
-          "title": "{match_label} in {tournament_name} laeuft",
+          "title": "{match_label} in {tournament_name} läuft",
           "body": "Jetzt geht's los.\n{match_label} is grad live.\nSchau eini und verfolg, wia's abgeht."
         },
         "match_finished": {
           "title": "{match_label} in {tournament_name} is aus",
-          "body": "Der Kick is vorbei.\nEndstand: {scoreline}.\nSchau eini fuer Kommentare, Statistik und Nachwehen."
+          "body": "Der Kick is vorbei.\nEndstand: {scoreline}.\nSchau eini für Kommentare, Statistik und Nachwehen."
         },
         "match_goal": {
           "title": "Tor bei {match_label}",
-          "body": "Im Turnier {tournament_name} hot's grad gscheppert.\nAktueller Stand: {scoreline}.\nSchau live nei, bevor des naechste foellt."
+          "body": "Im Turnier {tournament_name} hot's grad gscheppert.\nAktueller Stand: {scoreline}.\nSchau live eini, bevor des nächste foit."
         },
         "match_score_changed": {
-          "title": "Spielstand geaendert bei {match_label}",
+          "title": "Spielstand geändert bei {match_label}",
           "body": "Im Turnier {tournament_name} hot si wos getan.\nAktueller Stand: {scoreline}.\nSchau eini, ob des a Aufholjagd oder a Watschn wird."
         },
         "friendly_created": {
-          "title": "Neiches Friendly eing'tragen",
-          "body": "A {mode_label} Friendly is fertig eing'bucht.\nEndstand: {scoreline}.\nSchau in de Friendlies, wennst Details willst."
+          "title": "Neiches Friendly eintrogn",
+          "body": "A {mode_label} Friendly is fertig eing'bucht.\nEndstand: {scoreline}.\nSchau in de Friendlies, wennst Details wüst."
         },
         "friendly_started": {
           "title": "Friendly is grad live",
@@ -74,15 +74,15 @@
         },
         "friendly_finished": {
           "title": "Friendly is aus",
-          "body": "Da Spass is vorbei.\nEndstand: {scoreline}.\nSchau in de Friendlies fuer die ganze G'schicht."
+          "body": "Da Spass is vorbei.\nEndstand: {scoreline}.\nSchau in de Friendlies für die ganze G'schicht."
         },
         "friendly_score_changed": {
-          "title": "Friendly-Spielstand hot si g'ruehrt",
+          "title": "Friendly-Spielstand hot si g'rührt",
           "body": "Beim Friendly is wos passiert.\nAktueller Stand: {scoreline}.\nSchau eini, wennst live am Ball bleibn willst."
         },
         "push_test": {
           "title": "Push passt bei dir",
-          "body": "Servus {player_name}, des is da Test.\nDe Benachrichtigungen kumman an.\nJetzt kannst di auf den naechsten Alarm verlassen."
+          "body": "Servus {player_name}, des is da Test.\nDe Benachrichtigungen kumman an.\nJetzt kannst di auf den nächsten Alarm verlassen."
         }
       }
     },
