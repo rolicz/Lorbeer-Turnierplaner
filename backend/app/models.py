@@ -310,4 +310,5 @@ class PushSubscription(SQLModel, table=True):
 class PushSubscriptionPreference(SQLModel, table=True):
     subscription_id: int = Field(foreign_key="pushsubscription.id", primary_key=True)
     notification_language: str = Field(default="steirisch", index=True)
+    notification_mode: str = Field(default="finished_only", index=True)
     updated_at: dt.datetime = Field(default_factory=dt.datetime.utcnow, index=True)

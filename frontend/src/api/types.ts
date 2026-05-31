@@ -256,9 +256,12 @@ export type PushConfigResponse = {
   ios_home_screen_required?: boolean;
   default_notification_language?: PushNotificationLanguage;
   notification_languages?: { key: PushNotificationLanguage; label: string }[];
+  default_notification_mode?: PushNotificationMode;
+  notification_modes?: { key: PushNotificationMode; label: string }[];
 };
 
 export type PushNotificationLanguage = "english" | "deutsch" | "steirisch";
+export type PushNotificationMode = "finished_only" | "all" | "off";
 
 export type PushSubscriptionPutResponse = {
   ok: boolean;
@@ -268,6 +271,7 @@ export type PushSubscriptionPutResponse = {
   disabled: boolean;
   updated_at: string;
   notification_language: PushNotificationLanguage;
+  notification_mode: PushNotificationMode;
 };
 
 export type PushSubscriptionsMineResponse = {
@@ -276,6 +280,7 @@ export type PushSubscriptionsMineResponse = {
   subscriptions: {
     endpoint: string;
     notification_language: PushNotificationLanguage;
+    notification_mode: PushNotificationMode;
     app_platform?: string | null;
     app_standalone?: boolean;
   }[];

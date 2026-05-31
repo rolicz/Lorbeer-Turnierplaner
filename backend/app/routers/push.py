@@ -10,7 +10,9 @@ from ..services.notifications import (
     disable_push_subscription,
     list_push_subscriptions_for_player,
     localized_push_message,
+    notification_mode_options,
     push_subscription_language,
+    push_subscription_mode,
     push_dispatcher_from_request,
     upsert_push_subscription,
 )
@@ -31,6 +33,8 @@ def get_push_config(request: Request) -> dict:
             "ios_home_screen_required": True,
             "default_notification_language": default_notification_language(),
             "notification_languages": notification_language_options(),
+            "default_notification_mode": "finished_only",
+            "notification_modes": notification_mode_options(),
         }
     return {
         "enabled": dispatcher.enabled,
@@ -40,6 +44,8 @@ def get_push_config(request: Request) -> dict:
         "ios_home_screen_required": True,
         "default_notification_language": default_notification_language(),
         "notification_languages": notification_language_options(),
+        "default_notification_mode": "finished_only",
+        "notification_modes": notification_mode_options(),
     }
 
 
@@ -66,12 +72,14 @@ def put_subscription(
             app_platform=body.app_platform or "",
             app_standalone=bool(body.app_standalone),
             notification_language=body.notification_language,
+            notification_mode=body.notification_mode,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     s.commit()
     s.refresh(row)
     notification_language = push_subscription_language(s, row.id)
+    notification_mode = push_subscription_mode(s, row.id)
     return {
         "ok": True,
         "id": int(row.id),
@@ -80,6 +88,7 @@ def put_subscription(
         "disabled": row.disabled_at is not None,
         "updated_at": row.updated_at,
         "notification_language": notification_language,
+        "notification_mode": notification_mode,
     }
 
 

@@ -44,14 +44,18 @@
           "title": "Spielplan fertig fia {tournament_name}",
           "body": "Da Plan steht endlich.\nEs san {match_count} Matches erstellt worn.\nSchau eini, wer wann gegen wen aufmuass."
         },
-        "tournament_deleted": {
-          "title": "{tournament_name} is weg",
-          "body": "Des Turnier gibt's nimma.\n{tournament_name} is aus da Listn g'flogn.\nSchau in de Übersicht, wos stattdessen no laft."
-        },
-        "match_started": {
-          "title": "{match_label} in {tournament_name} läuft",
-          "body": "Jetzt geht's los.\n{match_label} is grad live.\nSchau eini und verfolg, wia's abgeht."
-        },
+                "tournament_deleted": {
+                    "title": "{tournament_name} is weg",
+                    "body": "Des Turnier gibt's nimma.\n{tournament_name} is aus da Listn g'flogn.\nSchau in de Übersicht, wos stattdessen no laft."
+                },
+                "tournament_finished": {
+                    "title": "{tournament_name} is fertig",
+                    "body": "Des Turnier is durch.\n{tournament_name} hot jetzt an Endstand.\nSchau eini für Ergebnis, Statistik und Nachbesprechung."
+                },
+                "match_started": {
+                    "title": "{match_label} in {tournament_name} läuft",
+                    "body": "Jetzt geht's los.\n{match_label} is grad live.\nSchau eini und verfolg, wia's abgeht."
+                },
         "match_finished": {
           "title": "{match_label} in {tournament_name} is aus",
           "body": "Der Kick is vorbei.\nEndstand: {scoreline}.\nSchau eini für Kommentare, Statistik und Nachwehen."
@@ -129,14 +133,18 @@
           "title": "Spielplan fertig fuer {tournament_name}",
           "body": "Der Spielplan steht.\nEs wurden {match_count} Spiele erstellt.\nSchau rein, wer wann gegeneinander ranmuss."
         },
-        "tournament_deleted": {
-          "title": "{tournament_name} wurde geloescht",
-          "body": "Dieses Turnier ist nicht mehr verfuegbar.\n{tournament_name} wurde entfernt.\nSieh in der Uebersicht nach, was jetzt noch laeuft."
-        },
-        "match_started": {
-          "title": "{match_label} in {tournament_name} ist live",
-          "body": "Jetzt geht es los.\n{match_label} hat begonnen.\nSchau direkt rein und verfolge das Spiel live."
-        },
+                "tournament_deleted": {
+                    "title": "{tournament_name} wurde geloescht",
+                    "body": "Dieses Turnier ist nicht mehr verfuegbar.\n{tournament_name} wurde entfernt.\nSieh in der Uebersicht nach, was jetzt noch laeuft."
+                },
+                "tournament_finished": {
+                    "title": "{tournament_name} ist beendet",
+                    "body": "Das Turnier ist abgeschlossen.\n{tournament_name} hat jetzt ein finales Ergebnis.\nOeffne den Live-Bereich fuer Ergebnis, Statistik und Reaktionen."
+                },
+                "match_started": {
+                    "title": "{match_label} in {tournament_name} ist live",
+                    "body": "Jetzt geht es los.\n{match_label} hat begonnen.\nSchau direkt rein und verfolge das Spiel live."
+                },
         "match_finished": {
           "title": "{match_label} in {tournament_name} ist beendet",
           "body": "Das Spiel ist vorbei.\nEndstand: {scoreline}.\nSchau in den Live-Bereich fuer Reaktionen und Zahlen."
@@ -214,14 +222,18 @@
           "title": "Schedule ready for {tournament_name}",
           "body": "The bracket is set.\n{match_count} match(es) were created.\nOpen the tournament to see who plays when."
         },
-        "tournament_deleted": {
-          "title": "{tournament_name} was deleted",
-          "body": "That tournament is no longer available.\n{tournament_name} has been removed.\nCheck the overview to see what is still running."
-        },
-        "match_started": {
-          "title": "{match_label} in {tournament_name} is live",
-          "body": "Kick-off just happened.\n{match_label} is underway.\nOpen the live view and follow the action."
-        },
+                "tournament_deleted": {
+                    "title": "{tournament_name} was deleted",
+                    "body": "That tournament is no longer available.\n{tournament_name} has been removed.\nCheck the overview to see what is still running."
+                },
+                "tournament_finished": {
+                    "title": "{tournament_name} is finished",
+                    "body": "The tournament is complete.\n{tournament_name} now has a final result.\nOpen the live page for the result, stats and reactions."
+                },
+                "match_started": {
+                    "title": "{match_label} in {tournament_name} is live",
+                    "body": "Kick-off just happened.\n{match_label} is underway.\nOpen the live view and follow the action."
+                },
         "match_finished": {
           "title": "{match_label} in {tournament_name} is over",
           "body": "The match has finished.\nFinal score: {scoreline}.\nOpen the live page for comments, stats and fallout."

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from sqlmodel import SQLModel, Session, create_engine
+from sqlalchemy import inspect, text
 from typing import Optional
 from sqlalchemy.pool import NullPool, StaticPool
 
@@ -26,6 +27,25 @@ def init_db() -> None:
     if _engine is None:
         raise RuntimeError("DB not configured. Call configure_db(db_url) first.")
     SQLModel.metadata.create_all(_engine)
+    _ensure_runtime_columns()
+
+
+def _ensure_runtime_columns() -> None:
+    if _engine is None:
+        return
+    inspector = inspect(_engine)
+    if "pushsubscriptionpreference" not in inspector.get_table_names():
+        return
+    columns = {col["name"] for col in inspector.get_columns("pushsubscriptionpreference")}
+    if "notification_mode" in columns:
+        return
+    with _engine.begin() as conn:
+        conn.execute(
+            text(
+                "ALTER TABLE pushsubscriptionpreference "
+                "ADD COLUMN notification_mode VARCHAR NOT NULL DEFAULT 'finished_only'"
+            )
+        )
 
 def get_session():
     if _engine is None:

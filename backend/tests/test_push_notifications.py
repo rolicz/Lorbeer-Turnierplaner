@@ -5,18 +5,19 @@ from pathlib import Path
 from sqlmodel import Session, select
 
 from app.db import get_engine
-from app.models import PushSubscription
+from app.models import PushSubscription, PushSubscriptionPreference
 from app.routers import comments as comments_router
 from app.routers import friendlies as friendlies_router
 from app.routers import matches as matches_router
 from app.routers import players as players_router
 from app.routers import tournaments as tournaments_router
+from app.services import notifications as notifications_service
 from app.services.notification_texts import (
     default_notification_language,
     notification_language_options,
     render_notification_text,
 )
-from app.services.notifications import NotificationDispatcher, localized_push_message
+from app.services.notifications import NotificationDispatcher, localized_push_message, notification_mode_options
 from app.settings import Settings
 
 
@@ -56,6 +57,12 @@ def test_push_subscription_crud_and_test_notification(client, editor_headers):
         {"key": "deutsch", "label": "Deutsch"},
         {"key": "english", "label": "English"},
     ]
+    assert config.json()["default_notification_mode"] == "finished_only"
+    assert config.json()["notification_modes"] == [
+        {"key": "finished_only", "label": "Tournament finished"},
+        {"key": "all", "label": "Everything"},
+        {"key": "off", "label": "Off"},
+    ]
 
     endpoint = "https://push.example.test/subscriptions/device-1"
     put_res = client.put(
@@ -68,6 +75,7 @@ def test_push_subscription_crud_and_test_notification(client, editor_headers):
             "app_standalone": True,
             "user_agent": "pytest",
             "notification_language": "english",
+            "notification_mode": "all",
         },
         headers=editor_headers,
     )
@@ -75,6 +83,7 @@ def test_push_subscription_crud_and_test_notification(client, editor_headers):
     assert put_res.json()["endpoint"] == endpoint
     assert put_res.json()["disabled"] is False
     assert put_res.json()["notification_language"] == "english"
+    assert put_res.json()["notification_mode"] == "all"
 
     mine = client.get("/push/subscriptions/me", headers=editor_headers)
     assert mine.status_code == 200, mine.text
@@ -84,6 +93,7 @@ def test_push_subscription_crud_and_test_notification(client, editor_headers):
         {
             "endpoint": endpoint,
             "notification_language": "english",
+            "notification_mode": "all",
             "app_platform": "android",
             "app_standalone": True,
         }
@@ -123,6 +133,7 @@ def test_notification_text_catalog_is_complete_and_renderable():
     expected_keys = set(languages[default_notification_language()]["messages"].keys())
 
     assert [row["key"] for row in notification_language_options()] == ["steirisch", "deutsch", "english"]
+    assert [row["key"] for row in notification_mode_options()] == ["finished_only", "all", "off"]
 
     context = {
         "tournament_name": "Feierabend Cup",
@@ -167,6 +178,100 @@ def test_localized_push_message_renders_each_language():
     assert "Hallo Editor" in message.to_payload("deutsch")["body"]
     assert message.to_payload("english")["title"] == "Push is working"
     assert "Hi Editor" in message.to_payload("english")["body"]
+
+
+def test_notification_modes_filter_delivery(client, monkeypatch):
+    async def run() -> None:
+        sent: list[str] = []
+
+        async def fake_send(client, config, subscription, payload):
+            sent.append(str(payload["data"]["event_type"]))
+
+            class FakeResponse:
+                status_code = 201
+                text = ""
+
+            return FakeResponse()
+
+        monkeypatch.setattr(notifications_service, "send_web_push_message", fake_send)
+
+        dispatcher = NotificationDispatcher(
+            get_engine(),
+            Settings(
+                db_url="sqlite://",
+                player_accounts=(),
+                jwt_secret="test-jwt-secret",
+                ws_require_auth=False,
+                log_level="DEBUG",
+                push_vapid_public_key="test-public-key",
+                push_vapid_private_key="test-private-key",
+                push_vapid_subject="mailto:test@example.com",
+            ),
+        )
+        dispatcher._client = object()
+        dispatcher._runtime_ready = True
+
+        with Session(get_engine()) as s:
+            rows = [
+                PushSubscription(
+                    player_id=1,
+                    endpoint="https://push.example.test/default-mode",
+                    endpoint_hash="default-mode",
+                    p256dh="p256dh",
+                    auth="auth",
+                    content_encoding="aes128gcm",
+                ),
+                PushSubscription(
+                    player_id=1,
+                    endpoint="https://push.example.test/all-mode",
+                    endpoint_hash="all-mode",
+                    p256dh="p256dh",
+                    auth="auth",
+                    content_encoding="aes128gcm",
+                ),
+                PushSubscription(
+                    player_id=1,
+                    endpoint="https://push.example.test/off-mode",
+                    endpoint_hash="off-mode",
+                    p256dh="p256dh",
+                    auth="auth",
+                    content_encoding="aes128gcm",
+                ),
+            ]
+            for row in rows:
+                s.add(row)
+            s.flush()
+            s.add(PushSubscriptionPreference(subscription_id=int(rows[1].id), notification_mode="all"))
+            s.add(PushSubscriptionPreference(subscription_id=int(rows[2].id), notification_mode="off"))
+            s.commit()
+
+        await dispatcher._deliver(
+            notifications_service._QueuedPushMessage(
+                message=localized_push_message(
+                    "comment_created",
+                    event_type="comment_created",
+                    tournament_name="Mode Cup",
+                    author_name="Alice",
+                    preview="hello",
+                    preview_is_image_only=False,
+                )
+            )
+        )
+        assert sent == ["comment_created"]
+
+        sent.clear()
+        await dispatcher._deliver(
+            notifications_service._QueuedPushMessage(
+                message=localized_push_message(
+                    "tournament_finished",
+                    event_type="tournament_finished",
+                    tournament_name="Mode Cup",
+                )
+            )
+        )
+        assert sent == ["tournament_finished", "tournament_finished"]
+
+    asyncio.run(run())
 
 
 def test_comment_creation_enqueues_push(client, editor_headers, admin_headers, monkeypatch):

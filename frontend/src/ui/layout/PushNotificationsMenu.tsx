@@ -166,7 +166,29 @@ export default function PushNotificationsMenu({ token }: { token: string | null 
           </div>
 
           <div className="mt-3 rounded-xl border border-border-card-chip/70 bg-bg-card-chip/35 p-3 text-xs text-text-muted">
-            All players receive comment, guestbook, anpoebeln, tournament, match and score notifications.
+            Default notifications are limited to finished tournaments. Switch to Everything for live comments, goals,
+            anpoebeln and score changes, or Off to keep this device subscribed but silent.
+          </div>
+
+          <div className="mt-3 space-y-1">
+            <label className="block">
+              <div className="input-label">Notification mode</div>
+              <select
+                className="select-field"
+                value={push.selectedMode}
+                onChange={(event) => void push.setMode(event.target.value as typeof push.selectedMode)}
+                disabled={push.syncing || push.testing}
+              >
+                {push.availableModes.map((option) => (
+                  <option key={option.key} value={option.key}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <div className="text-[11px] text-text-muted">
+              This device uses the selected notification mode for future pushes.
+            </div>
           </div>
 
           <div className="mt-3 space-y-1">

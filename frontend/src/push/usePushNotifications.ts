@@ -7,7 +7,7 @@ import {
   putPushSubscription,
   sendPushTest,
 } from "../api/push.api";
-import type { PushNotificationLanguage } from "../api/types";
+import type { PushNotificationLanguage, PushNotificationMode } from "../api/types";
 import type { PushPlatform } from "./push";
 import {
   detectPushPlatform,
@@ -20,11 +20,18 @@ import {
 } from "./push";
 
 const PUSH_LANGUAGE_STORAGE_KEY = "push_notification_language";
+const PUSH_MODE_STORAGE_KEY = "push_notification_mode";
 const FALLBACK_PUSH_LANGUAGE: PushNotificationLanguage = "steirisch";
+const FALLBACK_PUSH_MODE: PushNotificationMode = "finished_only";
 const BUILTIN_PUSH_LANGUAGES: { key: PushNotificationLanguage; label: string }[] = [
   { key: "steirisch", label: "Steirisch" },
   { key: "deutsch", label: "Deutsch" },
   { key: "english", label: "English" },
+];
+const BUILTIN_PUSH_MODES: { key: PushNotificationMode; label: string }[] = [
+  { key: "finished_only", label: "Tournament finished" },
+  { key: "all", label: "Everything" },
+  { key: "off", label: "Off" },
 ];
 
 function normalizePushLanguage(value: string | null | undefined, fallback: PushNotificationLanguage): PushNotificationLanguage {
@@ -39,6 +46,20 @@ function loadStoredPushLanguage(): PushNotificationLanguage {
 function storePushLanguage(value: PushNotificationLanguage) {
   if (typeof window === "undefined") return;
   window.localStorage.setItem(PUSH_LANGUAGE_STORAGE_KEY, value);
+}
+
+function normalizePushMode(value: string | null | undefined, fallback: PushNotificationMode): PushNotificationMode {
+  return value === "finished_only" || value === "all" || value === "off" ? value : fallback;
+}
+
+function loadStoredPushMode(): PushNotificationMode {
+  if (typeof window === "undefined") return FALLBACK_PUSH_MODE;
+  return normalizePushMode(window.localStorage.getItem(PUSH_MODE_STORAGE_KEY), FALLBACK_PUSH_MODE);
+}
+
+function storePushMode(value: PushNotificationMode) {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(PUSH_MODE_STORAGE_KEY, value);
 }
 
 function errText(error: unknown): string {
@@ -70,6 +91,9 @@ export type PushNotificationsState = {
   availableLanguages: { key: PushNotificationLanguage; label: string }[];
   selectedLanguage: PushNotificationLanguage;
   setLanguage: (language: PushNotificationLanguage) => Promise<void>;
+  availableModes: { key: PushNotificationMode; label: string }[];
+  selectedMode: PushNotificationMode;
+  setMode: (mode: PushNotificationMode) => Promise<void>;
   error: string | null;
   clearError: () => void;
   enable: () => Promise<void>;
@@ -86,7 +110,8 @@ export function usePushNotifications(token: string | null): PushNotificationsSta
   const [standalone, setStandalone] = useState<boolean>(() => isStandaloneDisplayMode());
   const [browserEndpoint, setBrowserEndpoint] = useState<string | null>(null);
   const [selectedLanguage, setSelectedLanguage] = useState<PushNotificationLanguage>(() => loadStoredPushLanguage());
-  const [languageSyncing, setLanguageSyncing] = useState(false);
+  const [selectedMode, setSelectedMode] = useState<PushNotificationMode>(() => loadStoredPushMode());
+  const [preferencesSyncing, setPreferencesSyncing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const autoSyncKeyRef = useRef("");
   const autoSyncInFlightRef = useRef(false);
@@ -104,7 +129,9 @@ export function usePushNotifications(token: string | null): PushNotificationsSta
     staleTime: 15_000,
   });
   const defaultLanguage = normalizePushLanguage(configQ.data?.default_notification_language, FALLBACK_PUSH_LANGUAGE);
+  const defaultMode = normalizePushMode(configQ.data?.default_notification_mode, FALLBACK_PUSH_MODE);
   const availableLanguages = configQ.data?.notification_languages?.length ? configQ.data.notification_languages : BUILTIN_PUSH_LANGUAGES;
+  const availableModes = configQ.data?.notification_modes?.length ? configQ.data.notification_modes : BUILTIN_PUSH_MODES;
   const currentSubscription = useMemo(
     () => mySubscriptionsQ.data?.subscriptions?.find((row) => row.endpoint === browserEndpoint) ?? null,
     [browserEndpoint, mySubscriptionsQ.data?.subscriptions],
@@ -185,6 +212,18 @@ export function usePushNotifications(token: string | null): PushNotificationsSta
     setSelectedLanguage((current) => (current === nextLanguage ? current : nextLanguage));
   }, [currentSubscription?.notification_language, defaultLanguage]);
 
+  useEffect(() => {
+    if (currentSubscription?.notification_mode) {
+      const nextMode = normalizePushMode(currentSubscription.notification_mode, defaultMode);
+      setSelectedMode(nextMode);
+      storePushMode(nextMode);
+      return;
+    }
+    const stored = loadStoredPushMode();
+    const nextMode = normalizePushMode(stored, defaultMode);
+    setSelectedMode((current) => (current === nextMode ? current : nextMode));
+  }, [currentSubscription?.notification_mode, defaultMode]);
+
   const enableMut = useMutation({
     mutationFn: async () => {
       if (!token) throw new Error("Login required for push notifications.");
@@ -203,7 +242,7 @@ export function usePushNotifications(token: string | null): PushNotificationsSta
         throw new Error("Notification permission was not granted.");
       }
       const subscription = await subscribeBrowserToPush(config.vapid_public_key);
-      await putPushSubscription(token, serializePushSubscription(subscription, selectedLanguage));
+      await putPushSubscription(token, serializePushSubscription(subscription, selectedLanguage, selectedMode));
       return subscription.endpoint;
     },
     onSuccess: async (endpoint) => {
@@ -273,7 +312,7 @@ export function usePushNotifications(token: string | null): PushNotificationsSta
         autoSyncKeyRef.current = "";
         return;
       }
-      await putPushSubscription(token, serializePushSubscription(subscription, selectedLanguage));
+      await putPushSubscription(token, serializePushSubscription(subscription, selectedLanguage, selectedMode));
       await qc.invalidateQueries({ queryKey: ["push", "subscriptions", token] });
     })()
       .catch((syncError) => {
@@ -291,34 +330,54 @@ export function usePushNotifications(token: string | null): PushNotificationsSta
     permission,
     qc,
     selectedLanguage,
+    selectedMode,
     supported,
     token,
   ]);
 
   const deviceEnabled = !!browserEndpoint && permission === "granted" && (mySubscriptionsQ.data?.endpoints ?? []).includes(browserEndpoint);
 
-  const updateLanguage = useCallback(
-    async (language: PushNotificationLanguage) => {
+  const syncSubscriptionPreferences = useCallback(
+    async (language: PushNotificationLanguage, mode: PushNotificationMode) => {
       const nextLanguage = normalizePushLanguage(language, defaultLanguage);
-      setSelectedLanguage(nextLanguage);
-      storePushLanguage(nextLanguage);
+      const nextMode = normalizePushMode(mode, defaultMode);
       if (!token || !supported) return;
       const subscription = await getBrowserPushSubscription().catch(() => null);
       const endpoint = subscription?.endpoint ?? browserEndpoint;
       if (!subscription || !endpoint) return;
       if (!(mySubscriptionsQ.data?.endpoints ?? []).includes(endpoint)) return;
-      setLanguageSyncing(true);
+      setPreferencesSyncing(true);
       try {
-        await putPushSubscription(token, serializePushSubscription(subscription, nextLanguage));
+        await putPushSubscription(token, serializePushSubscription(subscription, nextLanguage, nextMode));
         await qc.invalidateQueries({ queryKey: ["push", "subscriptions", token] });
         setError(null);
-      } catch (languageError) {
-        setError(errText(languageError));
+      } catch (preferencesError) {
+        setError(errText(preferencesError));
       } finally {
-        setLanguageSyncing(false);
+        setPreferencesSyncing(false);
       }
     },
-    [browserEndpoint, defaultLanguage, mySubscriptionsQ.data?.endpoints, qc, supported, token],
+    [browserEndpoint, defaultLanguage, defaultMode, mySubscriptionsQ.data?.endpoints, qc, supported, token],
+  );
+
+  const updateLanguage = useCallback(
+    async (language: PushNotificationLanguage) => {
+      const nextLanguage = normalizePushLanguage(language, defaultLanguage);
+      setSelectedLanguage(nextLanguage);
+      storePushLanguage(nextLanguage);
+      await syncSubscriptionPreferences(nextLanguage, selectedMode);
+    },
+    [defaultLanguage, selectedMode, syncSubscriptionPreferences],
+  );
+
+  const updateMode = useCallback(
+    async (mode: PushNotificationMode) => {
+      const nextMode = normalizePushMode(mode, defaultMode);
+      setSelectedMode(nextMode);
+      storePushMode(nextMode);
+      await syncSubscriptionPreferences(selectedLanguage, nextMode);
+    },
+    [defaultMode, selectedLanguage, syncSubscriptionPreferences],
   );
 
   return {
@@ -334,11 +393,14 @@ export function usePushNotifications(token: string | null): PushNotificationsSta
     serverReason: configQ.data?.reason ?? null,
     serverSubscriptionCount: mySubscriptionsQ.data?.count ?? 0,
     loading: configQ.isLoading || (!!token && mySubscriptionsQ.isLoading),
-    syncing: enableMut.isPending || disableMut.isPending || languageSyncing,
+    syncing: enableMut.isPending || disableMut.isPending || preferencesSyncing,
     testing: testMut.isPending,
     availableLanguages,
     selectedLanguage,
     setLanguage: updateLanguage,
+    availableModes,
+    selectedMode,
+    setMode: updateMode,
     error,
     clearError: () => setError(null),
     enable: async () => {

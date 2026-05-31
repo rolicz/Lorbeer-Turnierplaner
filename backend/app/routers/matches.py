@@ -228,6 +228,19 @@ async def patch_match(
             ),
         )
 
+    if status_before != "done" and status_after == "done":
+        enqueue_global_push(
+            request,
+            localized_push_message(
+                "tournament_finished",
+                path=f"/live/{int(m.tournament_id)}",
+                tag=f"tournament-finished-{int(m.tournament_id)}",
+                event_type="tournament_finished",
+                data={"tournament_id": int(m.tournament_id), "match_id": int(m.id)},
+                tournament_name=tournament_name,
+            ),
+        )
+
     goals_changed = new_scores.get("A", 0) != old_scores.get("A", 0) or new_scores.get("B", 0) != old_scores.get("B", 0)
     goals_added = max(0, new_scores.get("A", 0) - old_scores.get("A", 0)) + max(
         0, new_scores.get("B", 0) - old_scores.get("B", 0)

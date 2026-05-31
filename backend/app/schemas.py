@@ -159,6 +159,7 @@ class PushSubscriptionBody(BaseModel):
     app_standalone: bool | None = False
     user_agent: str | None = None
     notification_language: str | None = None
+    notification_mode: str | None = None
 
 
 class PushSubscriptionDeleteBody(BaseModel):

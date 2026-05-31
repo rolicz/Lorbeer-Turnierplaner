@@ -28,6 +28,9 @@ from .webpush import (
 )
 
 log = logging.getLogger(__name__)
+DEFAULT_NOTIFICATION_MODE = "finished_only"
+SUPPORTED_NOTIFICATION_MODES = ("finished_only", "all", "off")
+FINISHED_ONLY_EVENT_TYPES = {"tournament_finished", "push_test"}
 
 
 def hash_push_endpoint(endpoint: str) -> str:
@@ -98,6 +101,21 @@ def localized_push_message(
         text_key=text_key,
         text_context=text_context,
     )
+
+
+def normalize_notification_mode(value: str | None) -> str:
+    normalized = str(value or "").strip().lower().replace("-", "_")
+    if normalized in SUPPORTED_NOTIFICATION_MODES:
+        return normalized
+    return DEFAULT_NOTIFICATION_MODE
+
+
+def notification_mode_options() -> list[dict[str, str]]:
+    return [
+        {"key": "finished_only", "label": "Tournament finished"},
+        {"key": "all", "label": "Everything"},
+        {"key": "off", "label": "Off"},
+    ]
 
 
 def _poke_push_message(*, profile_player_id: int, profile_player_name: str, author_player_name: str, poke_id: int) -> PushMessage:
@@ -192,6 +210,7 @@ def upsert_push_subscription(
     app_platform: str = "",
     app_standalone: bool = False,
     notification_language: str | None = None,
+    notification_mode: str | None = None,
 ) -> PushSubscription:
     endpoint_norm = str(endpoint or "").strip()
     p256dh_norm = str(p256dh or "").strip()
@@ -201,6 +220,7 @@ def upsert_push_subscription(
     if str(content_encoding or "aes128gcm").strip().lower() != "aes128gcm":
         raise ValueError("Only aes128gcm subscriptions are supported")
     language = normalize_notification_language(notification_language)
+    mode = normalize_notification_mode(notification_mode)
 
     row = s.exec(select(PushSubscription).where(PushSubscription.endpoint == endpoint_norm)).first()
     now = datetime.utcnow()
@@ -239,10 +259,12 @@ def upsert_push_subscription(
         pref = PushSubscriptionPreference(
             subscription_id=subscription_id,
             notification_language=language,
+            notification_mode=mode,
             updated_at=now,
         )
     else:
         pref.notification_language = language
+        pref.notification_mode = mode
         pref.updated_at = now
     s.add(pref)
     s.flush()
@@ -283,6 +305,16 @@ def push_subscription_language(s: Session, subscription_id: int | None) -> str:
     return normalize_notification_language(pref.notification_language)
 
 
+def push_subscription_mode(s: Session, subscription_id: int | None) -> str:
+    sid = int(subscription_id or 0)
+    if sid <= 0:
+        return DEFAULT_NOTIFICATION_MODE
+    pref = s.get(PushSubscriptionPreference, sid)
+    if pref is None:
+        return DEFAULT_NOTIFICATION_MODE
+    return normalize_notification_mode(getattr(pref, "notification_mode", None))
+
+
 def list_push_subscriptions_for_player(s: Session, player_id: int) -> list[dict[str, Any]]:
     rows = list(
         s.exec(
@@ -296,6 +328,7 @@ def list_push_subscriptions_for_player(s: Session, player_id: int) -> list[dict[
         {
             "endpoint": row.endpoint,
             "notification_language": push_subscription_language(s, row.id),
+            "notification_mode": push_subscription_mode(s, row.id),
             "app_platform": row.app_platform,
             "app_standalone": bool(row.app_standalone),
         }
@@ -480,6 +513,11 @@ class NotificationDispatcher:
 
     async def _deliver_one(self, s: Session, row: PushSubscription, message: PushMessage) -> None:
         now = datetime.utcnow()
+        mode = push_subscription_mode(s, row.id)
+        if mode == "off":
+            return
+        if mode == "finished_only" and message.event_type not in FINISHED_ONLY_EVENT_TYPES:
+            return
         try:
             response = await send_web_push_message(
                 self._client,

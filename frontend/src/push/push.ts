@@ -1,5 +1,5 @@
 import type { BrowserPushSubscriptionPayload } from "../api/push.api";
-import type { PushNotificationLanguage } from "../api/types";
+import type { PushNotificationLanguage, PushNotificationMode } from "../api/types";
 
 export type PushPlatform = "ios" | "android" | "desktop";
 
@@ -56,6 +56,7 @@ export async function getBrowserPushSubscription(): Promise<PushSubscription | n
 export function serializePushSubscription(
   subscription: PushSubscription,
   notificationLanguage?: PushNotificationLanguage,
+  notificationMode?: PushNotificationMode,
 ): BrowserPushSubscriptionPayload {
   const json = subscription.toJSON();
   const p256dh = json.keys?.p256dh;
@@ -72,6 +73,7 @@ export function serializePushSubscription(
     app_standalone: isStandaloneDisplayMode(),
     user_agent: navigator.userAgent,
     notification_language: notificationLanguage,
+    notification_mode: notificationMode,
   };
 }
 
