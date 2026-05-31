@@ -31,6 +31,7 @@ log = logging.getLogger(__name__)
 DEFAULT_NOTIFICATION_MODE = "finished_only"
 SUPPORTED_NOTIFICATION_MODES = ("finished_only", "all", "off")
 FINISHED_ONLY_EVENT_TYPES = {"tournament_finished", "push_test"}
+PERSONAL_DEFAULT_EVENT_TYPES = {"poke_created", "poke_summary"}
 
 
 def hash_push_endpoint(endpoint: str) -> str:
@@ -69,6 +70,7 @@ class PushMessage:
 class _QueuedPushMessage:
     message: PushMessage
     player_id: int | None = None
+    default_mode_player_id: int | None = None
 
 
 @dataclass
@@ -112,7 +114,7 @@ def normalize_notification_mode(value: str | None) -> str:
 
 def notification_mode_options() -> list[dict[str, str]]:
     return [
-        {"key": "finished_only", "label": "Tournament finished"},
+        {"key": "finished_only", "label": "Finished + your anpoebeln"},
         {"key": "all", "label": "Everything"},
         {"key": "off", "label": "Off"},
     ]
@@ -447,6 +449,7 @@ class NotificationDispatcher:
                         poke_id=int(poke_id),
                     ),
                     player_id=None,
+                    default_mode_player_id=int(profile_player_id),
                 )
             )
             state = _PokeDigestState(
@@ -484,6 +487,7 @@ class NotificationDispatcher:
                     author_names=state.extra_authors,
                 ),
                 player_id=None,
+                default_mode_player_id=int(state.profile_player_id),
             )
         )
 
@@ -508,15 +512,24 @@ class NotificationDispatcher:
             if not rows:
                 return
             for row in rows:
-                await self._deliver_one(s, row, item.message)
+                await self._deliver_one(s, row, item)
             s.commit()
 
-    async def _deliver_one(self, s: Session, row: PushSubscription, message: PushMessage) -> None:
+    async def _deliver_one(self, s: Session, row: PushSubscription, item: _QueuedPushMessage) -> None:
+        message = item.message
         now = datetime.utcnow()
         mode = push_subscription_mode(s, row.id)
         if mode == "off":
             return
-        if mode == "finished_only" and message.event_type not in FINISHED_ONLY_EVENT_TYPES:
+        if (
+            mode == "finished_only"
+            and message.event_type not in FINISHED_ONLY_EVENT_TYPES
+            and not (
+                message.event_type in PERSONAL_DEFAULT_EVENT_TYPES
+                and item.default_mode_player_id is not None
+                and int(row.player_id) == int(item.default_mode_player_id)
+            )
+        ):
             return
         try:
             response = await send_web_push_message(

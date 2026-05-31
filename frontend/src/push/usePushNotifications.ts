@@ -29,7 +29,7 @@ const BUILTIN_PUSH_LANGUAGES: { key: PushNotificationLanguage; label: string }[]
   { key: "english", label: "English" },
 ];
 const BUILTIN_PUSH_MODES: { key: PushNotificationMode; label: string }[] = [
-  { key: "finished_only", label: "Tournament finished" },
+  { key: "finished_only", label: "Finished + your anpoebeln" },
   { key: "all", label: "Everything" },
   { key: "off", label: "Off" },
 ];

@@ -166,8 +166,8 @@ export default function PushNotificationsMenu({ token }: { token: string | null 
           </div>
 
           <div className="mt-3 rounded-xl border border-border-card-chip/70 bg-bg-card-chip/35 p-3 text-xs text-text-muted">
-            Default notifications are limited to finished tournaments. Switch to Everything for live comments, goals,
-            anpoebeln and score changes, or Off to keep this device subscribed but silent.
+            Default notifications are limited to finished tournaments and anpoebeln aimed at you. Switch to Everything
+            for live comments, goals, all anpoebeln and score changes, or Off to keep this device subscribed but silent.
           </div>
 
           <div className="mt-3 space-y-1">

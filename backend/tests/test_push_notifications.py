@@ -59,7 +59,7 @@ def test_push_subscription_crud_and_test_notification(client, editor_headers):
     ]
     assert config.json()["default_notification_mode"] == "finished_only"
     assert config.json()["notification_modes"] == [
-        {"key": "finished_only", "label": "Tournament finished"},
+        {"key": "finished_only", "label": "Finished + your anpoebeln"},
         {"key": "all", "label": "Everything"},
         {"key": "off", "label": "Off"},
     ]
@@ -182,10 +182,10 @@ def test_localized_push_message_renders_each_language():
 
 def test_notification_modes_filter_delivery(client, monkeypatch):
     async def run() -> None:
-        sent: list[str] = []
+        sent: list[tuple[str, str]] = []
 
         async def fake_send(client, config, subscription, payload):
-            sent.append(str(payload["data"]["event_type"]))
+            sent.append((str(subscription.endpoint), str(payload["data"]["event_type"])))
 
             class FakeResponse:
                 status_code = 201
@@ -222,7 +222,15 @@ def test_notification_modes_filter_delivery(client, monkeypatch):
                     content_encoding="aes128gcm",
                 ),
                 PushSubscription(
-                    player_id=1,
+                    player_id=2,
+                    endpoint="https://push.example.test/other-default-mode",
+                    endpoint_hash="other-default-mode",
+                    p256dh="p256dh",
+                    auth="auth",
+                    content_encoding="aes128gcm",
+                ),
+                PushSubscription(
+                    player_id=3,
                     endpoint="https://push.example.test/all-mode",
                     endpoint_hash="all-mode",
                     p256dh="p256dh",
@@ -230,7 +238,7 @@ def test_notification_modes_filter_delivery(client, monkeypatch):
                     content_encoding="aes128gcm",
                 ),
                 PushSubscription(
-                    player_id=1,
+                    player_id=4,
                     endpoint="https://push.example.test/off-mode",
                     endpoint_hash="off-mode",
                     p256dh="p256dh",
@@ -241,8 +249,8 @@ def test_notification_modes_filter_delivery(client, monkeypatch):
             for row in rows:
                 s.add(row)
             s.flush()
-            s.add(PushSubscriptionPreference(subscription_id=int(rows[1].id), notification_mode="all"))
-            s.add(PushSubscriptionPreference(subscription_id=int(rows[2].id), notification_mode="off"))
+            s.add(PushSubscriptionPreference(subscription_id=int(rows[2].id), notification_mode="all"))
+            s.add(PushSubscriptionPreference(subscription_id=int(rows[3].id), notification_mode="off"))
             s.commit()
 
         await dispatcher._deliver(
@@ -257,7 +265,7 @@ def test_notification_modes_filter_delivery(client, monkeypatch):
                 )
             )
         )
-        assert sent == ["comment_created"]
+        assert sent == [("https://push.example.test/all-mode", "comment_created")]
 
         sent.clear()
         await dispatcher._deliver(
@@ -269,7 +277,28 @@ def test_notification_modes_filter_delivery(client, monkeypatch):
                 )
             )
         )
-        assert sent == ["tournament_finished", "tournament_finished"]
+        assert sent == [
+            ("https://push.example.test/default-mode", "tournament_finished"),
+            ("https://push.example.test/other-default-mode", "tournament_finished"),
+            ("https://push.example.test/all-mode", "tournament_finished"),
+        ]
+
+        sent.clear()
+        await dispatcher._deliver(
+            notifications_service._QueuedPushMessage(
+                message=localized_push_message(
+                    "poke_created",
+                    event_type="poke_created",
+                    profile_player_name="Target",
+                    author_name="Alice",
+                ),
+                default_mode_player_id=1,
+            )
+        )
+        assert sent == [
+            ("https://push.example.test/default-mode", "poke_created"),
+            ("https://push.example.test/all-mode", "poke_created"),
+        ]
 
     asyncio.run(run())
 
@@ -500,8 +529,8 @@ def test_poke_push_digest_summarizes_within_cooldown(tmp_path):
         dispatcher._loop = asyncio.get_running_loop()
         dispatcher.POKE_PUSH_COOLDOWN_SECONDS = 0.01
 
-        messages = []
-        dispatcher._put_nowait = lambda item: messages.append(item.message)  # type: ignore[assignment]
+        items = []
+        dispatcher._put_nowait = lambda item: items.append(item)  # type: ignore[assignment]
 
         dispatcher._ingest_poke(7, "Target", "Alice", 101)
         dispatcher._ingest_poke(7, "Target", "Bob", 102)
@@ -509,7 +538,9 @@ def test_poke_push_digest_summarizes_within_cooldown(tmp_path):
 
         await asyncio.sleep(0.03)
 
+        messages = [item.message for item in items]
         assert [m.event_type for m in messages] == ["poke_created", "poke_summary"]
+        assert [item.default_mode_player_id for item in items] == [7, 7]
         assert messages[0].data["poke_id"] == 101
         assert messages[1].data["poke_id"] == 103
         assert messages[1].data["extra_count"] == 2
