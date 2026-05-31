@@ -512,6 +512,7 @@ export type StatsStreakRun = {
   length: number;
   start_ts: string | null;
   end_ts: string | null;
+  ongoing: boolean;
 };
 
 export type StatsStreakRow = StatsStreakRun & {

@@ -128,11 +128,12 @@ class Run:
     start_ts: datetime | None
     end_ts: datetime | None
 
-    def as_dict(self) -> dict[str, Any]:
+    def as_dict(self, *, ongoing: bool = False) -> dict[str, Any]:
         return {
             "length": self.length,
             "start_ts": self.start_ts.isoformat() if self.start_ts else None,
             "end_ts": self.end_ts.isoformat() if self.end_ts else None,
+            "ongoing": bool(ongoing),
         }
 
 
@@ -270,9 +271,11 @@ def compute_stats_streaks(
             player_out = {"id": int(pid), "display_name": p.display_name if p else str(pid)}
 
             if best.length > 0:
-                records.append({"player": player_out, **best.as_dict()})
+                record_is_ongoing = cur.length > 0 and cur.length >= best.length
+                record = cur if record_is_ongoing else best
+                records.append({"player": player_out, **record.as_dict(ongoing=record_is_ongoing)})
             if cur.length > 0:
-                currents.append({"player": player_out, **cur.as_dict()})
+                currents.append({"player": player_out, **cur.as_dict(ongoing=True)})
 
         records.sort(key=lambda r: (-int(r["length"]), (r.get("end_ts") or ""), r["player"]["display_name"].lower()))
         currents.sort(key=lambda r: (-int(r["length"]), (r.get("end_ts") or ""), r["player"]["display_name"].lower()))

@@ -4,18 +4,15 @@ import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import CollapsibleCard from "../../ui/primitives/CollapsibleCard";
 import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
 import InlineLoading from "../../ui/primitives/InlineLoading";
+import { Pill } from "../../ui/primitives/Pill";
 
 import { listPlayers } from "../../api/players.api";
 import { getStatsStreaks } from "../../api/stats.api";
 import type { StatsScope, StatsStreakCategory, StatsStreakRow } from "../../api/types";
 import {
-  StatsControlLabel,
   StatsFilterDataControls,
-  StatsSegmentedSwitch,
   type StatsMode,
 } from "./StatsControls";
-
-type View = "records" | "current";
 
 function iconForCatKey(key: string) {
   switch (key) {
@@ -39,21 +36,37 @@ function fmtDate(s?: string | null) {
   return d.toLocaleDateString();
 }
 
-function StreakRow({ r, view }: { r: StatsStreakRow; view: View }) {
+function StreakRow({ r, ongoing }: { r: StatsStreakRow; ongoing?: StatsStreakRow | null }) {
   const start = fmtDate(r.start_ts);
   const end = fmtDate(r.end_ts);
-  const rangeText =
-    view === "current"
-      ? (start ? `since ${start}` : "")
-      : (start && end ? `${start} → ${end}` : (start || end ? (start || end) : ""));
+  const rangeText = r.ongoing
+    ? (start ? `since ${start}` : "still ongoing")
+    : (start && end ? `${start} → ${end}` : (start || end ? (start || end) : ""));
+  const ongoingStart = fmtDate(ongoing?.start_ts);
+  const ongoingText = ongoing && !r.ongoing && Number(ongoing.length) > 0 && Number(ongoing.length) < Number(r.length)
+    ? `${ongoingStart ? `Since ${ongoingStart}` : "Ongoing"}: ${ongoing.length}`
+    : "";
 
   return (
     <div className="panel-subtle flex items-center justify-between gap-3 rounded-xl px-3 py-2">
       <div className="min-w-0">
-        <div className="truncate text-sm font-semibold text-text-normal">{r.player.display_name}</div>
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
+          <div className="truncate text-sm font-semibold text-text-normal">{r.player.display_name}</div>
+          {r.ongoing ? (
+            <Pill
+              className="min-w-0 border-status-border-green bg-status-bg-green px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-status-text-green"
+              title="This record streak is still ongoing"
+            >
+              ongoing
+            </Pill>
+          ) : null}
+        </div>
         <div className="text-[11px] text-text-muted">{rangeText}</div>
       </div>
-      <div className="shrink-0 font-mono tabular-nums text-lg font-semibold text-text-normal">{r.length}</div>
+      <div className="shrink-0 text-right">
+        <div className="font-mono tabular-nums text-lg font-semibold text-text-normal">{r.length}</div>
+        {ongoingText ? <div className="text-[11px] text-text-muted">{ongoingText}</div> : null}
+      </div>
     </div>
   );
 }
@@ -61,17 +74,17 @@ function StreakRow({ r, view }: { r: StatsStreakRow; view: View }) {
 function CatBlock({
   c,
   rows,
+  currentByPlayerId,
   total,
   showAll,
   onToggleAll,
-  view,
 }: {
   c: StatsStreakCategory;
   rows: StatsStreakRow[];
+  currentByPlayerId: ReadonlyMap<number, StatsStreakRow>;
   total: number;
   showAll: boolean;
   onToggleAll: () => void;
-  view: View;
 }) {
   const hasMore = total > 5;
   const icon = iconForCatKey(c.key);
@@ -99,7 +112,11 @@ function CatBlock({
       <div className="space-y-2">
         {rows.length ? (
           rows.map((r) => (
-            <StreakRow key={c.key + "-" + r.player.id + "-" + (r.start_ts ?? "") + "-" + (r.end_ts ?? "") + "-" + r.length} r={r} view={view} />
+            <StreakRow
+              key={c.key + "-" + r.player.id + "-" + (r.start_ts ?? "") + "-" + (r.end_ts ?? "") + "-" + r.length}
+              r={r}
+              ongoing={currentByPlayerId.get(Number(r.player.id)) ?? null}
+            />
           ))
         ) : (
           <div className="text-sm text-text-muted">No data yet.</div>
@@ -115,7 +132,6 @@ export default function StreaksCard({ embedded = false }: { embedded?: boolean }
 
   const [mode, setMode] = useState<StatsMode>("overall");
   const [scope, setScope] = useState<StatsScope>("tournaments");
-  const [view, setView] = useState<View>("current");
   const [showAllByKey, setShowAllByKey] = useState<Record<string, boolean>>({});
 
   const FETCH_LIMIT = 200;
@@ -135,20 +151,6 @@ export default function StreaksCard({ embedded = false }: { embedded?: boolean }
       <div className="card-inner-flat rounded-2xl space-y-2">
         <div className="flex flex-wrap items-start gap-2">
           <StatsFilterDataControls mode={mode} onModeChange={setMode} scope={scope} onScopeChange={setScope} />
-
-          <div className="flex min-w-0 flex-wrap items-center gap-2">
-            <StatsControlLabel icon="fa-eye" text="View" />
-            <StatsSegmentedSwitch<View>
-              value={view}
-              onChange={setView}
-              options={[
-                { key: "current", label: "Current", icon: "fa-clock" },
-                { key: "records", label: "Records", icon: "fa-trophy" },
-              ]}
-              ariaLabel="View"
-              title="View: Current or records"
-            />
-          </div>
         </div>
       </div>
 
@@ -157,20 +159,21 @@ export default function StreaksCard({ embedded = false }: { embedded?: boolean }
       {q.data ? (
         <div className="grid gap-3 lg:grid-cols-2" style={{ overflowAnchor: "none" }}>
           {(q.data.categories ?? []).map((c) => {
-            const k = `${view}-${mode}-${scope}-${c.key}`;
+            const k = `records-${mode}-${scope}-${c.key}`;
             const showAll = !!showAllByKey[k];
-            const total = view === "records" ? c.records_total : c.current_total;
-            const list = view === "records" ? c.records : c.current;
+            const total = c.records_total;
+            const list = c.records;
             const rows = showAll ? list : list.slice(0, 5);
+            const currentByPlayerId = new Map((c.current ?? []).map((r) => [Number(r.player.id), r]));
             return (
               <CatBlock
                 key={c.key}
                 c={c}
                 rows={rows}
+                currentByPlayerId={currentByPlayerId}
                 total={total}
                 showAll={showAll}
                 onToggleAll={() => setShowAllByKey((prev) => ({ ...prev, [k]: !prev[k] }))}
-                view={view}
               />
             );
           })}
