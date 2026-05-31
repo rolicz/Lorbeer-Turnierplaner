@@ -24,6 +24,7 @@ from ..stats import compute_tournament_stats
 from ..ws import ws_manager, ws_manager_update_tournaments
 from ..tournament_status import compute_status_for_tournament, compute_status_map, find_other_live_tournament_id
 from ..services.comments_summary import tournament_comments_summary
+from ..services.cup import compute_all_cup_tournament_stakes_by_tournament
 from ..services.notifications import enqueue_global_push, localized_push_message
 from ..services.stats.odds import compute_match_odds_for_tournament
 
@@ -339,6 +340,7 @@ def _state_rank(state: str) -> int:
 def list_tournaments(s: Session = Depends(get_session)):
     ts = s.exec(select(Tournament).order_by(Tournament.created_at.desc())).all()
     status_by_tid = compute_status_map(s)
+    cup_stakes_by_tid = compute_all_cup_tournament_stakes_by_tournament(s)
 
     out = []
     for t in ts:
@@ -373,6 +375,7 @@ def list_tournaments(s: Session = Depends(get_session)):
         d["status"] = status        # if you want status in response
         d["winner_string"] = winner_string
         d["winner_decider_string"] = winner_decider_string
+        d["cup_stakes"] = cup_stakes_by_tid.get(int(t.id), [])
         out.append(d)
 
     return out

@@ -2,6 +2,7 @@ import { Link } from "react-router-dom";
 import { useEffect, useMemo, useState } from "react";
 import type { CSSProperties } from "react";
 import type { StatsTournamentLite } from "../../api/types";
+import TournamentLaurelMarkers from "./TournamentLaurelMarkers";
 
 function clamp(n: number, lo: number, hi: number) {
   return Math.max(lo, Math.min(hi, n));
@@ -94,9 +95,10 @@ export default function TournamentPositionsGrid({
                 <div
                   key={t.id}
                   title={title + " · did not participate"}
-                  className="pos-none inline-flex h-9 items-center justify-center rounded-xl border text-[11px] font-mono tabular-nums"
+                  className="pos-none relative inline-flex h-9 items-center justify-center rounded-xl border text-[11px] font-mono tabular-nums"
                   style={{ opacity }}
                 >
+                  <TournamentLaurelMarkers stakes={t.cup_stakes} />
                   —
                 </div>
               );
@@ -120,7 +122,7 @@ export default function TournamentPositionsGrid({
                   base +
                   " " +
                   cls +
-                  " w-full select-none no-underline cursor-pointer focus:outline-none focus:ring-2 focus:ring-accent/30"
+                  " relative w-full select-none no-underline cursor-pointer overflow-visible focus:outline-none focus:ring-2 focus:ring-accent/30"
                 }
                 style={
                   isWinner
@@ -129,6 +131,7 @@ export default function TournamentPositionsGrid({
                 }
                 aria-label={`${title}, position ${pos} of ${totalPlayers}`}
               >
+                <TournamentLaurelMarkers stakes={t.cup_stakes} />
                 <span>{pos}</span>
               </Link>
             );

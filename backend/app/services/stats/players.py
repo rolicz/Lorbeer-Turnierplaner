@@ -7,7 +7,7 @@ from sqlalchemy.orm import selectinload
 from sqlmodel import Session, select
 
 from ...models import Match, MatchSide, Player, Tournament
-from ...services.cup import compute_cup
+from ...services.cup import compute_all_cup_tournament_stakes_by_tournament, compute_cup
 from ...stats_core import compute_overall_and_lastN, compute_player_standings, positions_from_standings
 
 
@@ -61,6 +61,7 @@ def compute_stats_players(s: Session, *, mode: str, lastN: int) -> dict[str, Any
     else:
         tournaments_with_finished = []
 
+    cup_stakes_by_tid = compute_all_cup_tournament_stakes_by_tournament(s)
     tournaments_out: list[dict[str, Any]] = []
     # positions_by_tid[tid][player_id] = rank
     positions_by_tid: dict[int, dict[int, int]] = {}
@@ -88,6 +89,7 @@ def compute_stats_players(s: Session, *, mode: str, lastN: int) -> dict[str, Any
                 "name": t.name,
                 "date": t.date,
                 "players_count": len(participants),
+                "cup_stakes": cup_stakes_by_tid.get(tid, []),
             }
         )
 

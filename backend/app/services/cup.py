@@ -33,6 +33,15 @@ class CupResult:
     history: list[CupTransfer]
 
 
+@dataclass(frozen=True)
+class CupTournamentStake:
+    tournament_id: int
+    cup_key: str
+    cup_name: str
+    owner_player_id: int
+    owner_player_name: str
+
+
 def _load_player(session: Session, player_id: int) -> Player:
     p = session.get(Player, player_id)
     if not p:
@@ -173,3 +182,107 @@ def compute_cup(session: Session, *, since_date: dt.date | None = None) -> CupRe
         streak_since_date=streak_since_date if owner is not None else None,
         history=history,
     )
+
+
+def compute_cup_tournament_stakes(
+    session: Session,
+    *,
+    cup_key: str,
+    cup_name: str,
+    since_date: dt.date | None = None,
+) -> list[CupTournamentStake]:
+    """
+    Return tournaments where the cup was at stake.
+
+    A cup is at stake when the current owner before that tournament participates.
+    The first completed tournament that creates an initial owner is also marked,
+    because that is the first tournament played for the cup. Draft/live
+    tournaments are only marked after an owner exists.
+    """
+    owner = None
+    stakes: list[CupTournamentStake] = []
+
+    q = select(Tournament)
+    if since_date is not None:
+        q = q.where(Tournament.date >= since_date)
+    tournaments = session.exec(q.order_by(Tournament.date, Tournament.created_at, Tournament.id)).all()
+
+    for t in tournaments:
+        participants = list(t.players)
+        participant_ids = {p.id for p in participants}
+
+        owner_participates = owner is not None and owner.id in participant_ids
+        if owner_participates:
+            stakes.append(
+                CupTournamentStake(
+                    tournament_id=int(t.id),
+                    cup_key=cup_key,
+                    cup_name=cup_name,
+                    owner_player_id=int(owner.id),
+                    owner_player_name=owner.display_name,
+                )
+            )
+
+        if t.status != "done":
+            continue
+
+        if owner is not None and not owner_participates:
+            continue
+
+        matches = session.exec(select(Match).where(Match.tournament_id == t.id)).all()
+        for m in matches:
+            _ = m.sides
+            for side in m.sides:
+                _ = side.players
+
+        rows = compute_player_standings(matches, participants)
+        winner_id = unique_winner_player_id(rows)
+        if winner_id is None:
+            if getattr(t, "decider_type", "none") != "none" and getattr(t, "decider_winner_player_id", None):
+                winner_id = int(t.decider_winner_player_id)
+        if winner_id not in participant_ids:
+            winner_id = None
+
+        if winner_id is None:
+            continue
+
+        if owner is None:
+            new_owner = _load_player(session, int(winner_id))
+            stakes.append(
+                CupTournamentStake(
+                    tournament_id=int(t.id),
+                    cup_key=cup_key,
+                    cup_name=cup_name,
+                    owner_player_id=int(new_owner.id),
+                    owner_player_name=new_owner.display_name,
+                )
+            )
+            owner = new_owner
+            continue
+
+        if owner is None or int(winner_id) != int(owner.id):
+            owner = _load_player(session, int(winner_id))
+
+    return stakes
+
+
+def compute_all_cup_tournament_stakes_by_tournament(session: Session) -> dict[int, list[dict[str, int | str]]]:
+    from ..cup_defs import load_cup_defs
+
+    out: dict[int, list[dict[str, int | str]]] = {}
+    for cup_def in load_cup_defs():
+        for stake in compute_cup_tournament_stakes(
+            session,
+            cup_key=cup_def.key,
+            cup_name=cup_def.name,
+            since_date=cup_def.since_date,
+        ):
+            out.setdefault(int(stake.tournament_id), []).append(
+                {
+                    "key": stake.cup_key,
+                    "name": stake.cup_name,
+                    "owner_player_id": stake.owner_player_id,
+                    "owner_player_name": stake.owner_player_name,
+                }
+            )
+    return out

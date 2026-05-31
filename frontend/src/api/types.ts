@@ -184,11 +184,19 @@ export type TournamentCommentReadMapRow = {
   comment_ids: number[];
 };
 
+export type TournamentCupStake = {
+  key: string;
+  name: string;
+  owner_player_id: number;
+  owner_player_name: string;
+};
+
 export type TournamentSummary = {
   id: number;
   name: string;
   mode: TournamentMode;
   status: TournamentStatus;
+  cup_stakes?: TournamentCupStake[];
 
   // yyyy-mm-dd (you added this)
   date?: string | null;
@@ -333,6 +341,7 @@ export type StatsTournamentLite = {
   name: string;
   date?: string | null;
   players_count: number;
+  cup_stakes?: TournamentCupStake[];
 };
 
 export type StatsPlayerRow = {
@@ -548,6 +557,7 @@ export type StatsPlayerMatchesTournament = {
   date: string;
   mode: "1v1" | "2v2";
   status: string;
+  cup_stakes?: TournamentCupStake[];
   matches: Match[];
 };
 

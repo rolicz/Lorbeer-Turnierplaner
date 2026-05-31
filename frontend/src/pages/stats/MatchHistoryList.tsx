@@ -5,6 +5,7 @@ import { clubLabelPartsById } from "../../ui/clubControls";
 import { Pill, pillDate } from "../../ui/primitives/Pill";
 import { StarsFA } from "../../ui/primitives/StarsFA";
 import { matchPalette } from "../../ui/theme";
+import TournamentLaurelMarkers from "./TournamentLaurelMarkers";
 
 function fmtDate(s?: string | null) {
   if (!s) return "";
@@ -191,7 +192,10 @@ export function MatchHistoryTournamentBlock({
         <div className="min-w-0">
           <div className="text-sm font-semibold text-text-normal">{t.name}</div>
           <div className="mt-1 flex flex-wrap items-center gap-2">
-            <Pill className={pillDate()}>{fmtDate(t.date)}</Pill>
+            <Pill className={`${pillDate()} relative overflow-visible`}>
+              <TournamentLaurelMarkers stakes={t.cup_stakes} />
+              {fmtDate(t.date)}
+            </Pill>
             {!hideModePill ? <Pill className="pill-default">{t.mode}</Pill> : null}
             {extraPills}
           </div>

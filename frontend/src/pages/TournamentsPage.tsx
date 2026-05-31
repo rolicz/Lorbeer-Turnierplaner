@@ -13,6 +13,7 @@ import SectionSeparator from "../ui/primitives/SectionSeparator";
 
 import { tournamentPalette, tournamentStatusUI } from "../ui/theme";
 import { cn } from "../ui/cn";
+import { cupColorVarForKey } from "../cupColors";
 import { listTournaments, createTournament } from "../api/tournaments.api";
 import { listPlayers } from "../api/players.api";
 import { listTournamentCommentsSummary } from "../api/comments.api";
@@ -43,6 +44,23 @@ function winnerLabel(t: TournamentSummary): string | null {
   if (t.winner_string) return t.winner_string;
   if (t.winner_decider_string) return `${t.winner_decider_string} (decider)`;
   return null;
+}
+
+function CupStakePill({ stake }: { stake: NonNullable<TournamentSummary["cup_stakes"]>[number] }) {
+  const varName = cupColorVarForKey(stake.key);
+  return (
+    <span
+      className="inline-flex h-7 w-7 items-center justify-center rounded-full border text-xs font-medium leading-none"
+      style={{
+        borderColor: `rgb(var(${varName}) / 0.55)`,
+        backgroundColor: `rgb(var(${varName}) / 0.14)`,
+        color: `rgb(var(${varName}))`,
+      }}
+      title={`${stake.name} at stake because ${stake.owner_player_name} participated`}
+    >
+      <i className="fa-solid fa-crown" aria-hidden="true" />
+    </span>
+  );
 }
 
 export default function TournamentsPage() {
@@ -368,6 +386,7 @@ export default function TournamentsPage() {
             const unseenIds = (sum?.comment_ids ?? []).filter((cid) => !seen.has(cid));
             const unseenCount = unseenIds.length;
             const hasUnseen = !!token && unseenCount > 0;
+            const cupStakes = t.cup_stakes ?? [];
 
             return (
               <Link
@@ -396,9 +415,11 @@ export default function TournamentsPage() {
 
                   <div className="mt-2 grid grid-cols-[1fr_auto] items-center gap-2">
                     <div className="min-w-0 flex flex-wrap items-center gap-2">
-                      <Pill className={statusPill(st)} title={ui.label}>
-                        <span>{ui.label}</span>
-                      </Pill>
+                      {st !== "done" ? (
+                        <Pill className={statusPill(st)} title={ui.label}>
+                          <span>{ui.label}</span>
+                        </Pill>
+                      ) : null}
 
                       <Pill className={pillDate()} title="Date">
                         <span>{fmtDate(t.date)}</span>
@@ -414,22 +435,30 @@ export default function TournamentsPage() {
                       ) : null}
                     </div>
 
-                    {hasUnseen ? (
-                      <button
-                        type="button"
-                        className="shrink-0 justify-self-end inline-flex items-center"
-                        title="Jump to latest unread comment"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          navigate(`/live/${t.id}?unread=1`, { state: { tournamentName: t.name, tournamentStatus: st } });
-                        }}
-                      >
-                        <Pill title="Unread comments">
-                          <i className="fa-solid fa-comment text-accent" aria-hidden="true" />
-                          <span className="tabular-nums text-text-normal">{unseenCount}</span>
-                        </Pill>
-                      </button>
+                    {cupStakes.length || hasUnseen ? (
+                      <div className="shrink-0 justify-self-end inline-flex items-center justify-end gap-1.5">
+                        {cupStakes.map((stake) => (
+                          <CupStakePill key={stake.key} stake={stake} />
+                        ))}
+
+                        {hasUnseen ? (
+                          <button
+                            type="button"
+                            className="inline-flex items-center"
+                            title="Jump to latest unread comment"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              navigate(`/live/${t.id}?unread=1`, { state: { tournamentName: t.name, tournamentStatus: st } });
+                            }}
+                          >
+                            <Pill title="Unread comments">
+                              <i className="fa-solid fa-comment text-accent" aria-hidden="true" />
+                              <span className="tabular-nums text-text-normal">{unseenCount}</span>
+                            </Pill>
+                          </button>
+                        ) : null}
+                      </div>
                     ) : null}
                   </div>
                 </div>

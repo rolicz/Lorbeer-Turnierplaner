@@ -16,6 +16,7 @@ import type { StatsPlayersResponse, StatsTournamentLite, StatsPlayerRow } from "
 import { getCup, listCupDefs } from "../../api/cup.api";
 
 import { StatsControlLabel, StatsModeSwitch, StatsSegmentedSwitch, type StatsMode } from "./StatsControls";
+import TournamentLaurelMarkers from "./TournamentLaurelMarkers";
 import { usePlayerAvatarMap } from "../../hooks/usePlayerAvatarMap";
 
 type SortMode = "overallPts" | "overallPpm" | "lastN";
@@ -238,9 +239,10 @@ function TournamentPositionsGrid({
                 <div
                   key={t.id}
                   title={title + " · did not participate"}
-                  className="pos-none inline-flex h-9 items-center justify-center rounded-xl border text-[11px] font-mono tabular-nums"
+                  className="pos-none relative inline-flex h-9 items-center justify-center rounded-xl border text-[11px] font-mono tabular-nums"
                   style={{ opacity }}
                 >
+                  <TournamentLaurelMarkers stakes={t.cup_stakes} />
                   —
                 </div>
               );
@@ -266,7 +268,7 @@ function TournamentPositionsGrid({
                   base +
                   " " +
                   cls +
-                  " w-full select-none no-underline cursor-pointer focus:outline-none focus:ring-2 focus:ring-accent/30"
+                  " relative w-full select-none no-underline cursor-pointer overflow-visible focus:outline-none focus:ring-2 focus:ring-accent/30"
                 }
                 style={
                   isWinner
@@ -275,6 +277,7 @@ function TournamentPositionsGrid({
                 }
                 aria-label={`${title}, position ${pos} of ${totalPlayers}`}
               >
+                <TournamentLaurelMarkers stakes={t.cup_stakes} />
                 <span>{pos}</span>
               </Link>
             );

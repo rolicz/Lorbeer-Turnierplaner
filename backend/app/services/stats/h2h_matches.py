@@ -8,6 +8,7 @@ from sqlalchemy.orm import selectinload
 from sqlmodel import Session, select
 
 from ...models import FriendlyMatch, FriendlyMatchSide, Match, MatchSide, Player, Tournament
+from ...services.cup import compute_all_cup_tournament_stakes_by_tournament
 from .scope import (
     friendlies_schema_ready,
     include_friendlies,
@@ -207,6 +208,7 @@ def compute_stats_h2h_matches(
         reverse=True,
     )
 
+    cup_stakes_by_tid = compute_all_cup_tournament_stakes_by_tournament(s) if include_tournaments(scope_norm) else {}
     grouped: dict[int, dict[str, Any]] = {}
     for m in filtered:
         t = getattr(m, "tournament", None)
@@ -221,6 +223,7 @@ def compute_stats_h2h_matches(
                 "date": t.date,
                 "mode": t.mode,
                 "status": t.status,
+                "cup_stakes": cup_stakes_by_tid.get(tid, []),
                 "matches": [],
             }
         g["matches"].append(_match_dict(m))

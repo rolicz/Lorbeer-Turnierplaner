@@ -16,6 +16,7 @@ from ...models import (
     Player,
     Tournament,
 )
+from ...services.cup import compute_all_cup_tournament_stakes_by_tournament
 from .scope import (
     friendlies_schema_ready,
     include_friendlies,
@@ -117,6 +118,7 @@ def compute_stats_player_matches(s: Session, *, player_id: int, scope: str = "to
             "sides": sides,
         }
 
+    cup_stakes_by_tid = compute_all_cup_tournament_stakes_by_tournament(s) if include_tournaments(scope_norm) else {}
     grouped: dict[int, dict[str, Any]] = {}
     for m in matches:
         t = getattr(m, "tournament", None)
@@ -131,6 +133,7 @@ def compute_stats_player_matches(s: Session, *, player_id: int, scope: str = "to
                 "date": t.date,
                 "mode": t.mode,
                 "status": t.status,
+                "cup_stakes": cup_stakes_by_tid.get(tid, []),
                 "matches": [],
             }
         g["matches"].append(match_dict(m))
