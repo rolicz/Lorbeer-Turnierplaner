@@ -5,11 +5,12 @@ from sqlmodel import Session
 
 from ..cup_defs import get_cup_def, load_cup_defs
 from ..db import get_session
+from ..schemas.responses import CupDefsOut, CupOut
 from ..services.cup import compute_cup
 
 router = APIRouter(prefix="/cup", tags=["cup"])
 
-@router.get("/defs")
+@router.get("/defs", response_model=CupDefsOut)
 def list_cup_defs():
     defs = load_cup_defs()
     return {
@@ -24,7 +25,7 @@ def list_cup_defs():
     }
 
 
-@router.get("")
+@router.get("", response_model=CupOut)
 def get_cup(request: Request, key: str | None = None, s: Session = Depends(get_session)):
     try:
         d = get_cup_def(key)

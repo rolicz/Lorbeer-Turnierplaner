@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from datetime import date, datetime
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class ORMModel(BaseModel):
@@ -235,3 +235,180 @@ class CommentReadMapOut(BaseModel):
 
 class PinnedCommentOut(BaseModel):
     pinned_comment_id: int | None
+
+
+# ---- tournaments -------------------------------------------------------
+class OddsOut(BaseModel):
+    home: float
+    draw: float
+    away: float
+    p_home: float
+    p_draw: float
+    p_away: float
+    model: str
+    updated_at: datetime
+
+
+class MatchSideOut(BaseModel):
+    id: int
+    side: str
+    club_id: int | None
+    goals: int
+    players: list[PlayerRef]
+
+
+class MatchOut(BaseModel):
+    id: int
+    tournament_id: int
+    leg: int
+    order_index: int
+    state: str
+    started_at: datetime | None
+    finished_at: datetime | None
+    sides: list[MatchSideOut]
+    odds: OddsOut | None
+
+
+class CupStakeOut(BaseModel):
+    key: str
+    name: str
+    owner_player_id: int | None
+    owner_player_name: str | None
+
+
+class TournamentSummaryOut(ORMModel):
+    """Raw Tournament row columns (create/patch responses)."""
+    id: int
+    name: str
+    mode: str
+    status: str
+    date: date
+    created_at: datetime
+    updated_at: datetime
+    settings_json: str
+    decider_type: str
+    decider_winner_player_id: int | None
+    decider_loser_player_id: int | None
+    decider_winner_goals: int | None
+    decider_loser_goals: int | None
+
+
+class TournamentDetailOut(BaseModel):
+    id: int
+    name: str
+    mode: str
+    status: str
+    settings_json: str
+    date: date
+    created_at: datetime
+    updated_at: datetime
+    players: list[PlayerRef]
+    matches: list[MatchOut]
+    decider_type: str
+    decider_winner_player_id: int | None
+    decider_loser_player_id: int | None
+    decider_winner_goals: int | None
+    decider_loser_goals: int | None
+
+
+class TournamentListItemOut(TournamentSummaryOut):
+    cup_stakes: list[CupStakeOut]
+    winner_string: str | None
+    winner_decider_string: str | None
+
+
+class TournamentLiveOut(BaseModel):
+    id: int
+    name: str
+    mode: str
+    date: date
+    created_at: datetime
+    updated_at: datetime
+    status: str
+
+
+class TournamentDateOut(BaseModel):
+    ok: bool
+    date: date
+
+
+class ScheduleGeneratedOut(BaseModel):
+    ok: bool
+    matches: int
+    labels: dict[str, str]
+
+
+class DeciderResultOut(BaseModel):
+    ok: bool
+    decider_type: str
+    decider_winner_player_id: int | None
+    decider_loser_player_id: int | None
+    decider_winner_goals: int | None
+    decider_loser_goals: int | None
+
+
+class ReassignResultOut(BaseModel):
+    ok: bool
+    matches: int
+    second_leg: bool
+    status: str
+
+
+class TournamentStatsPlayerOut(BaseModel):
+    player_id: int
+    name: str
+    played: int
+    wins: int
+    draws: int
+    losses: int
+    gf: int
+    ga: int
+    gd: int
+    pts: int
+    lastN_avg_pts: float
+    lastN_pts: list[int]
+    lastN_gf: list[int]
+    lastN_ga: list[int]
+
+
+class TournamentStatsOut(BaseModel):
+    players: list[TournamentStatsPlayerOut]
+
+
+# ---- cup ---------------------------------------------------------------
+class CupDefOut(BaseModel):
+    key: str
+    name: str
+    since_date: str | None
+
+
+class CupDefsOut(BaseModel):
+    cups: list[CupDefOut]
+
+
+class CupStreakSinceOut(BaseModel):
+    tournament_id: int | None
+    tournament_name: str | None
+    date: date | None
+
+
+class CupStreakOut(BaseModel):
+    tournaments_participated: int
+    since: CupStreakSinceOut
+
+
+class CupHistoryItemOut(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+    tournament_id: int
+    tournament_name: str
+    date: date
+    from_player: PlayerRef = Field(alias="from")
+    to: PlayerRef
+    streak_duration: int
+
+
+class CupOut(BaseModel):
+    cup: CupDefOut
+    owner: PlayerRef | None
+    streak: CupStreakOut
+    history: list[CupHistoryItemOut]

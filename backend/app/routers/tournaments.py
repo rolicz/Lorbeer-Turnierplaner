@@ -23,6 +23,19 @@ from ..schemas import (
     TournamentReorderBody,
     TournamentSecondLegBody,
 )
+from ..schemas.responses import (
+    CommentSummaryOut,
+    DeciderResultOut,
+    OkResponse,
+    ReassignResultOut,
+    ScheduleGeneratedOut,
+    TournamentDateOut,
+    TournamentDetailOut,
+    TournamentListItemOut,
+    TournamentLiveOut,
+    TournamentStatsOut,
+    TournamentSummaryOut,
+)
 from ..services.comments_summary import tournament_comments_summary
 from ..services.cup import compute_all_cup_tournament_stakes_by_tournament
 from ..services.events import (
@@ -343,7 +356,7 @@ def _state_rank(state: str) -> int:
     return {"finished": 0, "playing": 1, "scheduled": 2}.get(state, 99)
 
 
-@router.get("")
+@router.get("", response_model=list[TournamentListItemOut])
 def list_tournaments(s: Session = Depends(get_session)):
     ts = s.exec(select(Tournament).order_by(Tournament.created_at.desc())).all()
     status_by_tid = compute_status_map(s)
@@ -383,7 +396,7 @@ def list_tournaments(s: Session = Depends(get_session)):
     return out
 
 
-@router.get("/live")
+@router.get("/live", response_model=TournamentLiveOut | None)
 def get_live_tournament(s: Session = Depends(get_session)):
     """
     Returns the currently LIVE tournament (derived from matches), or null.
@@ -446,19 +459,19 @@ def get_live_tournament(s: Session = Depends(get_session)):
     }
 
 
-@router.get("/comments-summary")
+@router.get("/comments-summary", response_model=list[CommentSummaryOut])
 def get_tournaments_comments_summary(s: Session = Depends(get_session)) -> list[dict]:
     # Must live here (and before "/{tournament_id}") so it doesn't get shadowed by the int path param route.
     return tournament_comments_summary(s)
 
 
-@router.get("/{tournament_id}")
+@router.get("/{tournament_id}", response_model=TournamentDetailOut)
 def get_tournament(tournament_id: int, s: Session = Depends(get_session)):
     t = get_or_404(s, Tournament, tournament_id, name="Tournament")
     return _serialize_tournament(s, t)
 
 
-@router.post("", dependencies=[Depends(require_editor)])
+@router.post("", response_model=TournamentSummaryOut, dependencies=[Depends(require_editor)])
 async def create_tournament(body: TournamentCreateBody, request: Request, s: Session = Depends(get_session)):
     name = (body.name or "").strip()
     mode = body.mode
@@ -520,7 +533,7 @@ async def create_tournament(body: TournamentCreateBody, request: Request, s: Ses
 
 
 
-@router.patch("/{tournament_id}", dependencies=[Depends(require_editor)])
+@router.patch("/{tournament_id}", response_model=TournamentSummaryOut, dependencies=[Depends(require_editor)])
 async def patch_tournament(
     tournament_id: int,
     body: TournamentPatchBody,
@@ -563,7 +576,7 @@ async def patch_tournament(
     return t
 
 
-@router.patch("/{tournament_id}/date", dependencies=[Depends(require_admin)])
+@router.patch("/{tournament_id}/date", response_model=TournamentDateOut, dependencies=[Depends(require_admin)])
 async def patch_date(
     tournament_id: int,
     body: TournamentDatePatchBody,
@@ -593,7 +606,7 @@ async def patch_date(
     return {"ok": True, "date": t.date}
 
 
-@router.post("/{tournament_id}/generate", dependencies=[Depends(require_editor)])
+@router.post("/{tournament_id}/generate", response_model=ScheduleGeneratedOut, dependencies=[Depends(require_editor)])
 async def generate_schedule(
     tournament_id: int,
     body: TournamentGenerateBody,
@@ -625,7 +638,7 @@ async def generate_schedule(
     return {"ok": True, "matches": created_matches, "labels": label_to_name}
 
 
-@router.patch("/{tournament_id}/reorder", dependencies=[Depends(require_editor)])
+@router.patch("/{tournament_id}/reorder", response_model=OkResponse, dependencies=[Depends(require_editor)])
 async def reorder(
     tournament_id: int,
     body: TournamentReorderBody,
@@ -796,7 +809,7 @@ async def second_leg(
     )
 
 
-@router.get("/{tournament_id}/stats")
+@router.get("/{tournament_id}/stats", response_model=TournamentStatsOut)
 def stats(tournament_id: int, s: Session = Depends(get_session)):
     get_or_404(s, Tournament, tournament_id, name="Tournament")
     return compute_tournament_stats(s, tournament_id)
@@ -889,7 +902,7 @@ def _top_group(points_table: dict[int, tuple[int, int, int]]) -> list[int]:
     return [pid for (pid, triple) in items if triple == best]
 
 
-@router.patch("/{tournament_id}/decider", dependencies=[Depends(require_editor)])
+@router.patch("/{tournament_id}/decider", response_model=DeciderResultOut, dependencies=[Depends(require_editor)])
 async def patch_decider(
     tournament_id: int,
     body: TournamentDeciderPatchBody,
@@ -998,7 +1011,7 @@ async def patch_decider(
         "decider_loser_goals": t.decider_loser_goals,
     }
 
-@router.post("/{tournament_id}/reassign", dependencies=[Depends(require_editor)])
+@router.post("/{tournament_id}/reassign", response_model=ReassignResultOut, dependencies=[Depends(require_editor)])
 async def reassign_2v2(
     tournament_id: int,
     body: TournamentReassignBody | None = None,
