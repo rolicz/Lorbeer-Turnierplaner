@@ -1,4 +1,4 @@
-.PHONY: help dev backend backend-lan test lint format clean frontend frontend-lan frontend-install
+.PHONY: help dev backend backend-lan test lint format gen-types clean frontend frontend-lan frontend-install
 
 BACKEND_DIR := backend
 FRONTEND_DIR := frontend
@@ -17,6 +17,7 @@ help:
 	@echo "  make frontend-install  npm install in frontend/"
 	@echo "  make dev               Run backend-lan + frontend-lan together (Linux/macOS)"
 	@echo "  make test              Run backend tests"
+	@echo "  make gen-types         Regenerate frontend TS types from OpenAPI schema"
 	@echo "  make clean             Clean backend artifacts"
 
 backend:
@@ -36,6 +37,9 @@ format:
 
 clean:
 	$(MAKE) -C $(BACKEND_DIR) clean
+
+gen-types:
+	bash scripts/gen_types.sh
 
 frontend-install:
 	cd $(FRONTEND_DIR) && npm install

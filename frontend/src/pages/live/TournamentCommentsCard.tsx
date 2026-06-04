@@ -513,7 +513,7 @@ export default function TournamentCommentsCard({
       imageUpdatedAt: c.image_updated_at ?? null,
       upvotes: Number(c.upvotes ?? 0),
       downvotes: Number(c.downvotes ?? 0),
-      myVote: c.my_vote ?? 0,
+      myVote: (c.my_vote ?? 0) as -1 | 0 | 1,
     }));
   }, [commentsQ.data]);
 

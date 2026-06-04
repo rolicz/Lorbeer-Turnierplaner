@@ -22,7 +22,7 @@ import {
 
 import { patchMatch, swapMatchSides } from "../../api/matches.api";
 import { listClubs } from "../../api/clubs.api";
-import type { Match, Club, PatchMatchBody } from "../../api/types";
+import type { DeciderType, Match, Club, PatchMatchBody } from "../../api/types";
 
 import { useTournamentWS } from "../../hooks/useTournamentWS";
 import { useAuth } from "../../auth/AuthContext";
@@ -226,7 +226,7 @@ export default function LiveTournamentPage() {
 
   const decider = useMemo(() => {
     return {
-      type: tQ.data?.decider_type ?? "none",
+      type: (tQ.data?.decider_type ?? "none") as DeciderType,
       winner_player_id: tQ.data?.decider_winner_player_id ?? null,
       loser_player_id: tQ.data?.decider_loser_player_id ?? null,
       winner_goals: tQ.data?.decider_winner_goals ?? null,

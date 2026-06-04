@@ -1,290 +1,101 @@
-// frontend/src/api/types.ts
+/**
+ * API types — generated shapes derived from the backend OpenAPI schema,
+ * plus purely frontend-side types and enums.
+ *
+ * To regenerate: run `make gen-types` from the repo root after changing
+ * backend response models, then re-run `npm run check`.
+ */
+import type { components } from "./generated/schema";
 
+type S = components["schemas"];
+
+// ---- FE-only enums / literals ------------------------------------------
 export type Role = "reader" | "editor" | "admin";
-
 export type TournamentMode = "1v1" | "2v2";
 export type TournamentStatus = "draft" | "live" | "done";
 export type MatchState = "scheduled" | "playing" | "finished";
 export type StatsScope = "tournaments" | "both" | "friendlies";
-
 export type DeciderType = "none" | "penalties" | "match" | "scheresteinpapier";
+export type PushNotificationLanguage = "english" | "deutsch" | "steirisch";
+export type PushNotificationMode = "finished_only" | "all" | "off";
 
-export type Player = {
-  id: number;
-  display_name: string;
-};
+// ---- Aliases from generated schema -------------------------------------
 
-export type VoteVoter = {
-  id: number;
-  display_name: string;
-};
+// Players
+export type Player = S["PlayerRef"];
+export type VoteVoter = S["PlayerRef"];
+export type VoteVotersResponse = S["VotersOut"];
+export type PlayerProfile = S["ProfileOut"];
+export type PlayerProfileMeta = S["ProfileMetaOut"];
+export type PlayerMediaMeta = S["PlayerMediaMetaOut"];
 
-export type VoteVotersResponse = {
-  upvoters: VoteVoter[];
-  downvoters: VoteVoter[];
-};
+// Guestbook
+export type PlayerGuestbookEntry = S["GuestbookEntryOut"];
+export type PlayerGuestbookSummary = S["GuestbookSummaryOut"];
+export type PlayerGuestbookReadIds = S["EntryIdsOut"];
+export type PlayerGuestbookReadMapRow = S["GuestbookReadMapOut"];
 
-export type PlayerProfile = {
-  player_id: number;
-  display_name: string;
-  bio: string;
-  extras_json?: string;
-  header_image_updated_at?: string | null;
-  updated_at: string | null;
-};
+// Pokes
+export type PlayerPoke = S["PokeOut"];
+export type PlayerPokeSummary = S["PokeSummaryOut"];
+export type PlayerPokeAuthoredUnreadSummary = S["PokeAuthoredUnreadOut"];
+export type PlayerPokeReadIds = S["PokeIdsOut"];
+export type PlayerPokeReadMapRow = S["PokeReadMapOut"];
 
-export type PlayerGuestbookEntry = {
-  id: number;
-  profile_player_id: number;
-  author_player_id: number;
-  author_display_name: string;
-  parent_entry_id: number | null;
-  body: string;
-  upvotes: number;
-  downvotes: number;
-  my_vote: -1 | 0 | 1;
-  created_at: string;
-  updated_at: string;
-};
+// Clubs / Leagues
+export type League = S["LeagueOut"];
+export type Club = S["ClubOut"];
 
-export type PlayerGuestbookSummary = {
-  profile_player_id: number;
-  total_entries: number;
-  latest_entry_id: number;
-  latest_created_at: string | null;
-  entry_ids: number[];
-};
-
-export type PlayerGuestbookReadIds = {
-  entry_ids: number[];
-};
-
-export type PlayerGuestbookReadMapRow = {
-  profile_player_id: number;
-  entry_ids: number[];
-};
-
-export type PlayerPoke = {
-  id: number;
-  profile_player_id: number;
-  author_player_id: number;
-  author_display_name: string;
-  seen_by_profile_owner: boolean;
-  created_at: string;
-};
-
-export type PlayerPokeSummary = {
-  profile_player_id: number;
-  total_pokes: number;
-  unread_by_profile_owner_count: number;
-  latest_poke_id: number;
-  latest_created_at: string | null;
-  poke_ids: number[];
-};
-
-export type PlayerPokeAuthoredUnreadSummary = {
-  profile_player_id: number;
-  unread_count: number;
-  latest_created_at: string | null;
-  poke_ids: number[];
-};
-
-export type PlayerPokeReadIds = {
-  poke_ids: number[];
-};
-
-export type PlayerPokeReadMapRow = {
-  profile_player_id: number;
-  poke_ids: number[];
-};
-
-export type League = {
-  id: number;
-  name: string;
-}
-
-export type Club = {
-  id: number;
-  name: string;
-  league_name: string;
-  game: string; // e.g. "EA FC 26"
-  league_id: number;
-  star_rating: number; // 0.5 .. 5.0 (steps of 0.5)
-  created_at?: string;
-  updated_at?: string;
-};
-
-export type MatchSide = {
-  id: number;
-  side: "A" | "B";
-  players: Player[];
-  club_id: number | null;
-  goals: number | null;
-};
-
-export type MatchOdds = {
-  model: string;
-  updated_at: string;
-  // Probabilities (0..1)
-  p_home: number;
-  p_draw: number;
-  p_away: number;
-  // Decimal odds (multiplicator format, e.g. 1.50, 10.00)
-  home: number;
-  draw: number;
-  away: number;
-};
-
-export type Match = {
-  id: number;
-  tournament_id: number;
-  order_index: number;
-  leg: 1 | 2;
+// Matches / Tournaments
+export type MatchSide = S["MatchSideOut"];
+export type MatchOdds = S["OddsOut"];
+// Narrow the string fields the backend guarantees to have only specific values.
+export type Match = Omit<S["MatchOut"], "state" | "leg" | "started_at" | "finished_at"> & {
   state: MatchState;
-  started_at?: string | null;
-  finished_at?: string | null;
-  sides: MatchSide[];
-  odds?: MatchOdds | null;
+  leg: 1 | 2;
+  started_at: string | null;
+  finished_at: string | null;
 };
-
-export type Comment = {
-  id: number;
-  tournament_id: number;
-  match_id: number | null;
-  author_player_id: number | null;
-  body: string;
-  has_image?: boolean;
-  image_updated_at?: string | null;
-  upvotes: number;
-  downvotes: number;
-  my_vote: -1 | 0 | 1;
-  created_at: string;
-  updated_at: string;
-};
-
-export type TournamentCommentsResponse = {
-  pinned_comment_id: number | null;
-  comments: Comment[];
-};
-
-export type TournamentCommentsSummary = {
-  tournament_id: number;
-  total_comments: number;
-  latest_comment_id: number;
-  latest_updated_at: string | null;
-  comment_ids: number[];
-};
-
-export type TournamentCommentReadIds = {
-  comment_ids: number[];
-};
-
-export type TournamentCommentReadMapRow = {
-  tournament_id: number;
-  comment_ids: number[];
-};
-
-export type TournamentCupStake = {
-  key: string;
-  name: string;
-  owner_player_id: number;
-  owner_player_name: string;
-};
-
-export type TournamentSummary = {
-  id: number;
-  name: string;
-  mode: TournamentMode;
-  status: TournamentStatus;
+export type TournamentCupStake = S["CupStakeOut"];
+// TournamentSummary: make cup_stakes optional (some endpoints omit it)
+export type TournamentSummary = Omit<S["TournamentListItemOut"], "cup_stakes" | "mode" | "status"> & {
   cup_stakes?: TournamentCupStake[];
-
-  // yyyy-mm-dd (you added this)
-  date?: string | null;
-
-  created_at?: string;
-  updated_at?: string;
-
-  // Optional decider fields (used in overview/dashboard)
-  decider_type?: DeciderType;
-  decider_winner_player_id?: number | null;
-  decider_loser_player_id?: number | null;
-  decider_winner_goals?: number | null;
-  decider_loser_goals?: number | null;
-  winner_string?: string | null;
-  winner_decider_string?: string | null;
-};
-
-export type TournamentDetail = {
-  id: number;
-  name: string;
   mode: TournamentMode;
   status: TournamentStatus;
-
-  date?: string | null;
-
-  created_at?: string;
-  updated_at?: string;
-
-  // IMPORTANT: your LiveTournamentPage expects this
-  players: Player[];
-
+};
+export type TournamentDetail = Omit<S["TournamentDetailOut"], "mode" | "status" | "matches"> & {
+  mode: TournamentMode;
+  status: TournamentStatus;
   matches: Match[];
-
-  // Optional settings blob (if you use it)
-  settings?: Record<string, unknown> | null;
-
-  // Optional decider fields (so live view can show current decider too)
-  decider_type?: DeciderType;
-  decider_winner_player_id?: number | null;
-  decider_loser_player_id?: number | null;
-  decider_winner_goals?: number | null;
-  decider_loser_goals?: number | null;
+};
+export type TournamentLive = Omit<S["TournamentLiveOut"], "mode" | "status"> & {
+  mode: TournamentMode;
+  status: TournamentStatus;
 };
 
-// ---- Auth / Me ----
-export type LoginResponse = {
-  token: string;
-  role: Exclude<Role, "reader">;
-  player_id: number;
-  player_name: string;
-};
+// Comments — my_vote narrowed to the three values the backend actually returns
+export type Comment = Omit<S["CommentOut"], "my_vote"> & { my_vote: -1 | 0 | 1 };
+export type TournamentCommentsResponse = S["CommentListOut"];
+export type TournamentCommentsSummary = S["CommentSummaryOut"];
+export type TournamentCommentReadIds = S["CommentIdsOut"];
+export type TournamentCommentReadMapRow = S["CommentReadMapOut"];
 
-export type MeResponse = {
-  role: Role;
-  player_id?: number | null;
-  player_name?: string | null;
-  exp: number;
-};
+// Auth
+export type LoginResponse = Omit<S["LoginOut"], "role"> & { role: Exclude<Role, "reader"> };
+export type MeResponse = Omit<S["MeOut"], "role"> & { role: Role | null };
 
-export type PushConfigResponse = {
-  enabled: boolean;
-  configured: boolean;
-  vapid_public_key: string;
-  reason?: string | null;
-  ios_home_screen_required?: boolean;
+// Push — narrow language/mode strings to known literal unions
+export type PushConfigResponse = Omit<S["PushConfigOut"], "notification_languages" | "notification_modes" | "default_notification_language" | "default_notification_mode"> & {
   default_notification_language?: PushNotificationLanguage;
   notification_languages?: { key: PushNotificationLanguage; label: string }[];
   default_notification_mode?: PushNotificationMode;
   notification_modes?: { key: PushNotificationMode; label: string }[];
 };
-
-export type PushNotificationLanguage = "english" | "deutsch" | "steirisch";
-export type PushNotificationMode = "finished_only" | "all" | "off";
-
-export type PushSubscriptionPutResponse = {
-  ok: boolean;
-  id: number;
-  player_id: number;
-  endpoint: string;
-  disabled: boolean;
-  updated_at: string;
+export type PushSubscriptionPutResponse = Omit<S["PushSubscriptionResultOut"], "notification_language" | "notification_mode"> & {
   notification_language: PushNotificationLanguage;
   notification_mode: PushNotificationMode;
 };
-
-export type PushSubscriptionsMineResponse = {
-  count: number;
-  endpoints: string[];
+export type PushSubscriptionsMineResponse = Omit<S["PushSubscriptionsListOut"], "subscriptions"> & {
   subscriptions: {
     endpoint: string;
     notification_language: PushNotificationLanguage;
@@ -294,96 +105,46 @@ export type PushSubscriptionsMineResponse = {
   }[];
 };
 
-// ---- API payload helpers ----
-export type PatchMatchBody = {
-  state: MatchState;
-  sideA: { club_id: number | null; goals: number };
-  sideB: { club_id: number | null; goals: number };
-};
+// Cup
+export type CupDef = S["CupDefOut"];
+export type CupOut = S["CupOut"];
 
-export type PatchTournamentStatusBody = {
-  status: TournamentStatus;
-};
+// Friendlies
+export type FriendlyMatch = S["FriendlyOut"];
+export type FriendlySide = S["FriendlySideOut"];
 
-// ---- Challenge Cup ----
-export type CupHistoryEntry = {
-  tournament_id: number;
-  tournament_name: string;
-  tournament_date: string | null;
-
-  from_player_id: number;
-  from_player_name: string;
-
-  to_player_id: number;
-  to_player_name: string;
-
-  // e.g. "owner_beaten" / "draw_keep_owner" etc (whatever your backend emits)
-  reason: string;
-
-  // include decider info if the backend provides it
-  decider_type?: DeciderType;
-  decider_winner_goals?: number | null;
-  decider_loser_goals?: number | null;
-};
-
-export type CupState = {
-  owner_player_id: number;
-  owner_player_name: string;
-
-  // "streak duration (in tournaments the player participated)"
-  streak_tournaments: number;
-
-  history: CupHistoryEntry[];
-};
-
-export type StatsTournamentLite = {
-  id: number;
-  name: string;
-  date?: string | null;
-  players_count: number;
+// Stats
+export type StatsPlayerRow = S["StatsPlayerRowOut"];
+export type StatsTournamentLite = Omit<S["StatsPlayersTournamentOut"], "cup_stakes"> & {
   cup_stakes?: TournamentCupStake[];
 };
+export type StatsPlayersResponse = S["StatsPlayersOut"];
+export type StatsRatingsRow = S["RatingRowOut"];
+export type StatsRatingsResponse = S["StatsRatingsOut"];
+export type StatsStreakRun = S["StreakRunOut"];
+export type StatsStreakRow = S["StreakRunOut"];
+export type StatsStreakCategory = S["StreakCategoryOut"];
+export type StatsStreaksResponse = S["StatsStreaksOut"];
 
-export type StatsPlayerRow = {
-  player_id: number;
-  display_name: string;
+// ---- FE-only types not derivable from generated schema -----------------
 
-  // overall
-  played: number;
-  wins: number;
-  draws: number;
-  losses: number;
-  gf: number;
-  ga: number;
-  gd: number;
-  pts: number;
-
-  // last N matches (points per match: 3/1/0)
-  lastN_pts: number[];
-  lastN_gf: number[];
-  lastN_ga: number[];
-  lastN_avg_pts: number;
-
-  // tournament_id -> position (1 = best). null if player did not participate.
-  positions_by_tournament: Record<number, number | null>;
+// Request body helpers
+export type PatchMatchBody = {
+  state?: MatchState;
+  sideA?: { club_id?: number | null; goals?: number };
+  sideB?: { club_id?: number | null; goals?: number };
 };
 
-export type StatsPlayersResponse = {
-  generated_at: string;
-  cup_owner_player_id: number | null;
-  tournaments: StatsTournamentLite[];
-  players: StatsPlayerRow[];
-  lastN: number;
-};
-
+// H2H / player-matches responses are intentionally untyped in the backend
+// (conditionally shaped payloads); hand-written types remain the contract here.
 export type StatsH2HPlayerLite = {
   id: number;
   display_name: string;
 };
 
 export type StatsH2HTeamRivalry = {
-  team1: StatsH2HPlayerLite[]; // length 2
-  team2: StatsH2HPlayerLite[]; // length 2
+  team1: StatsH2HPlayerLite[];
+  team2: StatsH2HPlayerLite[];
   played: number;
   team1_wins: number;
   draws: number;
@@ -400,18 +161,15 @@ export type StatsH2HTeamRivalry = {
 export type StatsH2HPair = {
   a: StatsH2HPlayerLite;
   b: StatsH2HPlayerLite;
-
   played: number;
   a_wins: number;
   draws: number;
   b_wins: number;
-
   a_gf: number;
   a_ga: number;
   b_gf: number;
   b_ga: number;
-
-  win_share_a: number; // 0..1 (excluding draws)
+  win_share_a: number;
   rivalry_score: number;
   dominance_score: number;
 };
@@ -419,16 +177,13 @@ export type StatsH2HPair = {
 export type StatsH2HDuo = {
   p1: StatsH2HPlayerLite;
   p2: StatsH2HPlayerLite;
-
   played: number;
   wins: number;
   draws: number;
   losses: number;
-
   gf: number;
   ga: number;
   gd: number;
-
   pts: number;
   pts_per_match: number;
   win_rate: number;
@@ -454,14 +209,12 @@ export type StatsH2HResponse = {
   limit: number;
   order?: "rivalry" | "played";
   player: StatsH2HPlayerLite | null;
-
   rivalries_all: StatsH2HPair[];
   rivalries_1v1: StatsH2HPair[];
   rivalries_2v2: StatsH2HPair[];
   team_rivalries_2v2: StatsH2HTeamRivalry[];
   dominance_1v1: StatsH2HPair[];
   best_teammates_2v2: StatsH2HDuo[];
-
   vs_all?: StatsH2HOpponentRow[];
   vs_1v1?: StatsH2HOpponentRow[];
   vs_2v2?: StatsH2HOpponentRow[];
@@ -475,82 +228,6 @@ export type StatsH2HResponse = {
   favorite_victim_2v2?: StatsH2HOpponentRow | null;
 };
 
-export type StatsH2HMatchesResponse = {
-  generated_at: string;
-  mode: "overall" | "1v1" | "2v2";
-  relation: "opposed" | "teammates";
-  scope?: StatsScope;
-  left_player_ids: number[];
-  right_player_ids: number[];
-  tournaments: StatsPlayerMatchesTournament[];
-};
-
-export type StatsRatingsPlayerLite = {
-  id: number;
-  display_name: string;
-};
-
-export type StatsRatingsRow = {
-  player: StatsRatingsPlayerLite;
-  rating: number;
-  played: number;
-  wins: number;
-  draws: number;
-  losses: number;
-  gf: number;
-  ga: number;
-  gd: number;
-  pts: number;
-};
-
-export type StatsRatingsResponse = {
-  generated_at: string;
-  mode: "overall" | "1v1" | "2v2";
-  scope?: StatsScope;
-  base_rating: number;
-  k: number;
-  rows: StatsRatingsRow[];
-};
-
-export type StatsStreaksPlayerLite = {
-  id: number;
-  display_name: string;
-};
-
-export type StatsStreakRun = {
-  length: number;
-  start_ts: string | null;
-  end_ts: string | null;
-  ongoing: boolean;
-};
-
-export type StatsStreakRow = StatsStreakRun & {
-  player: StatsStreaksPlayerLite;
-};
-
-export type StatsStreakCategory = {
-  key: string;
-  name: string;
-  description: string;
-  records: StatsStreakRow[];
-  records_total: number;
-  current: StatsStreakRow[];
-  current_total: number;
-};
-
-export type StatsStreaksResponse = {
-  generated_at: string;
-  mode: "overall" | "1v1" | "2v2";
-  scope?: StatsScope;
-  player: StatsStreaksPlayerLite | null;
-  categories: StatsStreakCategory[];
-};
-
-export type StatsPlayerMatchesPlayerLite = {
-  id: number;
-  display_name: string;
-};
-
 export type StatsPlayerMatchesTournament = {
   id: number;
   name: string;
@@ -561,9 +238,19 @@ export type StatsPlayerMatchesTournament = {
   matches: Match[];
 };
 
+export type StatsH2HMatchesResponse = {
+  generated_at: string;
+  mode: "overall" | "1v1" | "2v2";
+  relation: "opposed" | "teammates";
+  scope?: StatsScope;
+  left_player_ids: number[];
+  right_player_ids: number[];
+  tournaments: StatsPlayerMatchesTournament[];
+};
+
 export type StatsPlayerMatchesResponse = {
   generated_at: string;
   scope?: StatsScope;
-  player: StatsPlayerMatchesPlayerLite | null;
+  player: StatsH2HPlayerLite | null;
   tournaments: StatsPlayerMatchesTournament[];
 };

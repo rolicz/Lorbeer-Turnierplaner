@@ -256,8 +256,10 @@ export default function FriendlyMatchCard({
       id: -1,
       tournament_id: -1,
       order_index: 0,
-      leg: 1,
-      state: aGoals !== 0 || bGoals !== 0 ? "playing" : "scheduled",
+      leg: 1 as const,
+      state: aGoals !== 0 || bGoals !== 0 ? ("playing" as const) : ("scheduled" as const),
+      started_at: null,
+      finished_at: null,
       sides: [
         { id: -11, side: "A", players: aPlayers, club_id: aClub, goals: aGoals },
         { id: -12, side: "B", players: bPlayers, club_id: bClub, goals: bGoals },

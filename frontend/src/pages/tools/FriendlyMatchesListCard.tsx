@@ -51,6 +51,7 @@ function friendlyToMatch(f: FriendlyMatchResponse, orderIndex = 0): Match {
     started_at: f.created_at,
     finished_at: f.updated_at,
     sides,
+    odds: null,
   };
 }
 

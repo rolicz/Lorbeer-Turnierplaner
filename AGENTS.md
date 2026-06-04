@@ -14,7 +14,10 @@
 - `make frontend-lan`: run the Vite dev server on `0.0.0.0:8000`.
 - `make dev`: run backend + frontend together (Linux/macOS).
 - `make test`: run backend tests (pytest).
-- Frontend checks: `npm run check` (typecheck + eslint), `npm run build` (tsc + Vite build).
+- `make lint` / `make format`: run Ruff linter / formatter on the backend.
+- `make gen-types`: regenerate `frontend/src/api/generated/schema.d.ts` from the backend OpenAPI schema (run after changing backend response models).
+- Frontend checks: `npm run check` (typecheck + eslint + vitest), `npm run build` (tsc + Vite build).
+- Frontend tests: `npm test` (vitest unit tests).
 
 ## Coding Style & Naming Conventions
 - Match surrounding style in each file; avoid large reformatting-only changes.
@@ -25,7 +28,7 @@
 ## Testing Guidelines
 - Backend tests live in `backend/tests/` and use pytest (`test_*.py` naming).
 - Run tests with `make test` from repo root or `make test` inside `backend/`.
-- No frontend test runner is configured; ensure UI changes are manually verified.
+- Frontend unit tests: `npm test` (vitest). No E2E test runner; verify UI changes manually.
 
 ## Commit & Pull Request Guidelines
 - Recent commits are short, lowercase phrases (e.g., “minor optic changes”); follow that tone.
