@@ -8,14 +8,14 @@ from pydantic import BaseModel, Field
 from sqlmodel import Session
 
 from ..db import get_session
-from ..services.stats.players import compute_stats_players
-from ..services.stats.registry import stats_overview
 from ..services.stats.h2h import compute_stats_h2h
 from ..services.stats.h2h_matches import compute_stats_h2h_matches
-from ..services.stats.streaks import compute_stats_streaks
-from ..services.stats.player_matches import compute_stats_player_matches
 from ..services.stats.odds import compute_single_match_odds
+from ..services.stats.player_matches import compute_stats_player_matches
+from ..services.stats.players import compute_stats_players
 from ..services.stats.ratings import compute_stats_ratings
+from ..services.stats.registry import stats_overview
+from ..services.stats.streaks import compute_stats_streaks
 
 router = APIRouter(prefix="/stats", tags=["stats"])
 

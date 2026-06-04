@@ -1,12 +1,12 @@
-from datetime import datetime
 import logging
+from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlmodel import Session, select
 
 from ..auth import require_editor
 from ..db import get_session
-from ..models import Match, MatchSide, Tournament, Club
+from ..models import Club, Match, Tournament
 from ..schemas import MatchPatchBody, MatchSidePatchBody
 from ..services.notifications import enqueue_global_push, localized_push_message
 from ..tournament_status import compute_status_for_tournament, find_other_live_tournament_id
@@ -192,7 +192,7 @@ async def patch_match(
         {"tournament_id": m.tournament_id, "match_id": m.id, "tournament_status": status_after},
     )
 
-    await ws_manager_update_tournaments.broadcast("match_patched", {"tournament_id": m.tournament_id}) 
+    await ws_manager_update_tournaments.broadcast("match_patched", {"tournament_id": m.tournament_id})
 
     new_scores = {side.side: int(side.goals or 0) for side in m.sides}
     scoreline = f"{new_scores.get('A', 0)}:{new_scores.get('B', 0)}"

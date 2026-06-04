@@ -1,14 +1,13 @@
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Response
-from sqlmodel import Session, select
-from sqlalchemy.exc import IntegrityError
-
 from pydantic import BaseModel
+from sqlalchemy.exc import IntegrityError
+from sqlmodel import Session, select
 
-from ..auth import require_editor, require_admin
+from ..auth import require_admin, require_editor
 from ..db import get_session
-from ..models import Club, MatchSide, League
+from ..models import Club, League, MatchSide
 from ..schemas import ClubCreateBody, ClubPatchBody, LeagueCreateBody
 from ..validation import validate_star_rating
 

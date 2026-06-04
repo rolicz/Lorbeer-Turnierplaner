@@ -3,8 +3,8 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlmodel import Session
 
-from ..db import get_session
 from ..cup_defs import get_cup_def, load_cup_defs
+from ..db import get_session
 from ..services.cup import compute_cup
 
 router = APIRouter(prefix="/cup", tags=["cup"])

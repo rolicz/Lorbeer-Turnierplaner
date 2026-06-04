@@ -9,18 +9,19 @@ from sqlmodel import Session, select
 
 from ..auth import decode_token, require_admin, require_auth_claims, require_editor, require_editor_claims
 from ..db import get_engine, get_session
-from ..schemas import CommentCreateBody, CommentPatchBody, CommentsPinBody, CommentVoteBody
 from ..models import (
     Comment,
+    CommentImageFile,
     CommentRead,
     CommentVote,
-    CommentImageFile,
     Match,
     Player,
     Tournament,
     TournamentPinnedComment,
     TournamentPlayer,
 )
+from ..schemas import CommentCreateBody, CommentPatchBody, CommentsPinBody, CommentVoteBody
+from ..services.comments_summary import tournament_comments_summary
 from ..services.file_storage import (
     delete_media,
     media_exists,
@@ -28,7 +29,6 @@ from ..services.file_storage import (
     read_media,
     write_media,
 )
-from ..services.comments_summary import tournament_comments_summary
 from ..services.notifications import enqueue_global_push, localized_push_message
 from ..ws import ws_manager, ws_manager_update_tournaments
 

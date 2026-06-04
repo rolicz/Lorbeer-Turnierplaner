@@ -1,13 +1,14 @@
 from __future__ import annotations
+
 import json
 import logging
 from pathlib import Path
-from typing import Any, List, Optional
+from typing import Any, Optional
 
-from sqlmodel import Session, select
 from sqlalchemy import func
+from sqlmodel import Session, select
 
-from .models import Player, Club, League, Match, MatchSide, Tournament
+from .models import Club, League, Match, MatchSide, Player, Tournament
 from .validation import validate_star_rating
 
 log = logging.getLogger(__name__)

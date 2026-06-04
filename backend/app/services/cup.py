@@ -1,13 +1,14 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 import datetime as dt
+from dataclasses import dataclass
 from typing import Optional
 
 from sqlmodel import Session, select
 
-from ..models import Match, Player, Tournament
 from app.stats_core import compute_player_standings, unique_winner_player_id
+
+from ..models import Match, Player, Tournament
 
 
 @dataclass(frozen=True)

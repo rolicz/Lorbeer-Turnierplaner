@@ -3,28 +3,25 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from sqlmodel import Session
 
-from .logging_config import setup_logging
-from .db import configure_db, init_db, get_engine
-from .settings import Settings
-from .config import CORS_ALLOW_ORIGINS
-from .models import Player
 from .auth import decode_token_string
-
-from .ws import ws_manager, ws_manager_player_profiles, ws_manager_update_tournaments
+from .config import CORS_ALLOW_ORIGINS
+from .db import configure_db, get_engine, init_db
+from .logging_config import setup_logging
 from .routers.auth import router as auth_router
-from .routers.me import router as me_router
-from .routers.tournaments import router as tournaments_router
-from .routers.matches import router as matches_router
 from .routers.clubs import router as clubs_router
-from .routers.players import router as players_router
-from .routers.cup import router as cup_router
-from .routers.stats import router as stats_router
 from .routers.comments import router as comments_router
+from .routers.cup import router as cup_router
 from .routers.friendlies import router as friendlies_router
+from .routers.matches import router as matches_router
+from .routers.me import router as me_router
+from .routers.players import router as players_router
 from .routers.push import router as push_router
+from .routers.stats import router as stats_router
+from .routers.tournaments import router as tournaments_router
 from .services.notifications import NotificationDispatcher
+from .settings import Settings
+from .ws import ws_manager, ws_manager_player_profiles, ws_manager_update_tournaments
 
 log = logging.getLogger(__name__)
 
@@ -135,5 +132,5 @@ def create_app(settings: Settings) -> FastAPI:
                 await ws.send_json({"event": "pong", "payload": {}})
         except WebSocketDisconnect:
             ws_manager_player_profiles.disconnect(player_id, ws)
-    
+
     return app

@@ -6,17 +6,17 @@ from sqlmodel import Session
 from ..auth import require_auth_claims
 from ..db import get_session
 from ..schemas import PushSubscriptionBody, PushSubscriptionDeleteBody
+from ..services.notification_texts import default_notification_language, notification_language_options
 from ..services.notifications import (
     disable_push_subscription,
     list_push_subscriptions_for_player,
     localized_push_message,
     notification_mode_options,
+    push_dispatcher_from_request,
     push_subscription_language,
     push_subscription_mode,
-    push_dispatcher_from_request,
     upsert_push_subscription,
 )
-from ..services.notification_texts import default_notification_language, notification_language_options
 
 router = APIRouter(prefix="/push", tags=["push"])
 

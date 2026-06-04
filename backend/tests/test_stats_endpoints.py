@@ -1,5 +1,4 @@
-from tests.conftest import create_league
-from tests.conftest import create_player, create_tournament, generate
+from tests.conftest import create_league, create_player, create_tournament, generate
 
 
 def test_stats_overview(client):

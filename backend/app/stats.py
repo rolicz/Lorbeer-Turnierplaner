@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from typing import Any
+
 from sqlmodel import Session, select
 
 from .models import Match, Player, Tournament

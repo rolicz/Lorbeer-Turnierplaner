@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-from sqlmodel import SQLModel, Session, create_engine
 from sqlalchemy import inspect, text
-from typing import Optional
 from sqlalchemy.pool import NullPool, StaticPool
+from sqlmodel import Session, SQLModel, create_engine
 
 _engine = None
 

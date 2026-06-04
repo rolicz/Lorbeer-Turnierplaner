@@ -1,8 +1,9 @@
 import datetime as dt
 from typing import List, Optional
 
-from sqlmodel import Field, Relationship, SQLModel
 from sqlalchemy import UniqueConstraint
+from sqlmodel import Field, Relationship, SQLModel
+
 
 class TournamentPlayer(SQLModel, table=True):
     tournament_id: int = Field(foreign_key="tournament.id", primary_key=True)

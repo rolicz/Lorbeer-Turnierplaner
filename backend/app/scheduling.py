@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from itertools import combinations
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Tuple
 
 
 def assign_labels(player_names: List[str], shuffle: bool = True) -> Tuple[List[str], Dict[str, str]]:
