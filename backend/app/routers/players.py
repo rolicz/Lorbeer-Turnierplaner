@@ -35,7 +35,7 @@ from ..services.file_storage import (
     write_media,
 )
 from ..services.guestbook_summary import player_guestbook_summary
-from ..services.notifications import enqueue_global_push, enqueue_poke_push, localized_push_message
+from ..services.notifications import enqueue_poke_push, push_guestbook_created
 from ..services.poke_summary import player_poke_summary
 from ..ws import ws_manager_player_profiles
 
@@ -767,18 +767,13 @@ def create_player_guestbook_entry(
     s.commit()
     s.refresh(row)
     preview = text if len(text) <= 120 else text[:117].rstrip() + "..."
-    enqueue_global_push(
+    push_guestbook_created(
         request,
-        localized_push_message(
-            "guestbook_created",
-            path=f"/profiles/{int(player_id)}",
-            tag=f"guestbook-{int(player_id)}",
-            event_type="guestbook_created",
-            data={"profile_player_id": int(player_id), "entry_id": int(row.id)},
-            profile_player_name=player.display_name,
-            author_name=author_player.display_name,
-            preview=preview,
-        ),
+        profile_player_id=int(player_id),
+        entry_id=int(row.id),
+        profile_player_name=player.display_name,
+        author_name=author_player.display_name,
+        preview=preview,
     )
     return _guestbook_entry_payload(
         entry=row,

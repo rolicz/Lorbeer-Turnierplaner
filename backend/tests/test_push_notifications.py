@@ -7,10 +7,7 @@ from sqlmodel import Session, select
 from app.db import get_engine
 from app.models import PushSubscription, PushSubscriptionPreference
 from app.routers import comments as comments_router
-from app.routers import friendlies as friendlies_router
-from app.routers import matches as matches_router
 from app.routers import players as players_router
-from app.routers import tournaments as tournaments_router
 from app.services import notifications as notifications_service
 from app.services.notification_texts import (
     default_notification_language,
@@ -479,7 +476,7 @@ def test_score_comment_creation_enqueues_score_push(client, editor_headers, admi
 def test_guestbook_and_poke_enqueue_push(client, editor_headers, admin_headers, monkeypatch):
     guestbook_messages = []
     poke_events = []
-    monkeypatch.setattr(players_router, "enqueue_global_push", lambda request, message: guestbook_messages.append(message))
+    monkeypatch.setattr(notifications_service, "enqueue_global_push", lambda request, message: guestbook_messages.append(message))
     monkeypatch.setattr(
         players_router,
         "enqueue_poke_push",
@@ -551,10 +548,10 @@ def test_poke_push_digest_summarizes_within_cooldown(tmp_path):
 
 
 def test_tournament_and_match_events_enqueue_push(client, editor_headers, admin_headers, monkeypatch):
-    tournament_messages = []
-    match_messages = []
-    monkeypatch.setattr(tournaments_router, "enqueue_global_push", lambda request, message: tournament_messages.append(message))
-    monkeypatch.setattr(matches_router, "enqueue_global_push", lambda request, message: match_messages.append(message))
+    all_messages = []
+    monkeypatch.setattr(notifications_service, "enqueue_global_push", lambda request, message: all_messages.append(message))
+    tournament_messages = all_messages
+    match_messages = all_messages
 
     player_ids = [
         client.post("/players", json={"display_name": f"Push-T{i}"}, headers=admin_headers).json()["id"]
@@ -601,7 +598,7 @@ def test_tournament_and_match_events_enqueue_push(client, editor_headers, admin_
 
 def test_friendly_events_enqueue_push(client, editor_headers, admin_headers, monkeypatch):
     messages = []
-    monkeypatch.setattr(friendlies_router, "enqueue_global_push", lambda request, message: messages.append(message))
+    monkeypatch.setattr(notifications_service, "enqueue_global_push", lambda request, message: messages.append(message))
 
     p1 = client.post("/players", json={"display_name": "Friendly-A"}, headers=admin_headers).json()["id"]
     p2 = client.post("/players", json={"display_name": "Friendly-B"}, headers=admin_headers).json()["id"]

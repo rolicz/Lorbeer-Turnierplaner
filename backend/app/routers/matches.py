@@ -10,7 +10,12 @@ from ..db import get_session
 from ..models import Club, Match, MatchSide, Tournament
 from ..schemas import MatchPatchBody, MatchSidePatchBody
 from ..services.events import broadcast_match_patched, broadcast_match_updated
-from ..services.notifications import enqueue_global_push, localized_push_message
+from ..services.notifications import (
+    push_match_finished,
+    push_match_score_changed,
+    push_match_started,
+    push_tournament_finished,
+)
 from ..tournament_status import compute_status_for_tournament, find_other_live_tournament_id
 
 router = APIRouter(prefix="/matches", tags=["matches"])
@@ -197,45 +202,30 @@ async def patch_match(
     match_label = f"Match {int(m.order_index) + 1}"
 
     if old_state != "playing" and m.state == "playing":
-        enqueue_global_push(
+        push_match_started(
             request,
-            localized_push_message(
-                "match_started",
-                path=f"/live/{int(m.tournament_id)}",
-                tag=f"match-start-{int(m.id)}",
-                event_type="match_started",
-                data={"tournament_id": int(m.tournament_id), "match_id": int(m.id)},
-                tournament_name=tournament_name,
-                match_label=match_label,
-            ),
+            tournament_id=int(m.tournament_id),
+            match_id=int(m.id),
+            tournament_name=tournament_name,
+            match_label=match_label,
         )
 
     if old_state != "finished" and m.state == "finished":
-        enqueue_global_push(
+        push_match_finished(
             request,
-            localized_push_message(
-                "match_finished",
-                path=f"/live/{int(m.tournament_id)}",
-                tag=f"match-finished-{int(m.id)}",
-                event_type="match_finished",
-                data={"tournament_id": int(m.tournament_id), "match_id": int(m.id)},
-                tournament_name=tournament_name,
-                match_label=match_label,
-                scoreline=scoreline,
-            ),
+            tournament_id=int(m.tournament_id),
+            match_id=int(m.id),
+            tournament_name=tournament_name,
+            match_label=match_label,
+            scoreline=scoreline,
         )
 
     if status_before != "done" and status_after == "done":
-        enqueue_global_push(
+        push_tournament_finished(
             request,
-            localized_push_message(
-                "tournament_finished",
-                path=f"/live/{int(m.tournament_id)}",
-                tag=f"tournament-finished-{int(m.tournament_id)}",
-                event_type="tournament_finished",
-                data={"tournament_id": int(m.tournament_id), "match_id": int(m.id)},
-                tournament_name=tournament_name,
-            ),
+            tournament_id=int(m.tournament_id),
+            match_id=int(m.id),
+            tournament_name=tournament_name,
         )
 
     goals_changed = new_scores.get("A", 0) != old_scores.get("A", 0) or new_scores.get("B", 0) != old_scores.get("B", 0)
@@ -243,25 +233,16 @@ async def patch_match(
         0, new_scores.get("B", 0) - old_scores.get("B", 0)
     )
     if goals_changed:
-        text_key = "match_goal" if goals_added == 1 else "match_score_changed"
-        enqueue_global_push(
+        push_match_score_changed(
             request,
-            localized_push_message(
-                text_key,
-                path=f"/live/{int(m.tournament_id)}",
-                tag=f"match-score-{int(m.id)}",
-                event_type="match_score_changed",
-                data={
-                    "tournament_id": int(m.tournament_id),
-                    "match_id": int(m.id),
-                    "score_a": new_scores.get("A", 0),
-                    "score_b": new_scores.get("B", 0),
-                    "goals_added": goals_added,
-                },
-                tournament_name=tournament_name,
-                match_label=match_label,
-                scoreline=scoreline,
-            ),
+            tournament_id=int(m.tournament_id),
+            match_id=int(m.id),
+            tournament_name=tournament_name,
+            match_label=match_label,
+            scoreline=scoreline,
+            score_a=new_scores.get("A", 0),
+            score_b=new_scores.get("B", 0),
+            goals_added=goals_added,
         )
 
     return {"ok": True, "id": m.id, "state": m.state, "leg": m.leg, "tournament_status": status_after}

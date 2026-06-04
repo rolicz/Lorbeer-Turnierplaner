@@ -10,7 +10,12 @@ from ..auth import require_admin, require_editor
 from ..db import get_session
 from ..models import Club, FriendlyMatch, FriendlyMatchSide, FriendlyMatchSidePlayer, Player
 from ..schemas import FriendlyMatchCreateBody, MatchPatchBody, MatchSidePatchBody
-from ..services.notifications import enqueue_global_push, localized_push_message
+from ..services.notifications import (
+    push_friendly_created,
+    push_friendly_finished,
+    push_friendly_score_changed,
+    push_friendly_started,
+)
 
 router = APIRouter(prefix="/friendlies", tags=["friendlies"])
 
@@ -169,18 +174,7 @@ def create_friendly_match(
 
     # Reuse list serializer for a stable response shape.
     fm.sides = [side_a, side_b]
-    enqueue_global_push(
-        request,
-        localized_push_message(
-            "friendly_created",
-            path="/friendlies",
-            tag=f"friendly-created-{int(fm.id)}",
-            event_type="friendly_created",
-            data={"friendly_id": int(fm.id)},
-            mode=mode,
-            scoreline=f"{a_goals}:{b_goals}",
-        ),
-    )
+    push_friendly_created(request, friendly_id=int(fm.id), mode=mode, scoreline=f"{a_goals}:{b_goals}")
     return _friendly_dict(fm)
 
 
@@ -267,38 +261,9 @@ def patch_friendly(
     new_scores = {side.side: int(side.goals or 0) for side in row.sides}
     scoreline = f"{new_scores.get('A', 0)}:{new_scores.get('B', 0)}"
     if old_state != "playing" and row.state == "playing":
-        enqueue_global_push(
-            request,
-            localized_push_message(
-                "friendly_started",
-                path="/friendlies",
-                tag=f"friendly-started-{int(row.id)}",
-                event_type="friendly_started",
-                data={"friendly_id": int(row.id)},
-            ),
-        )
+        push_friendly_started(request, friendly_id=int(row.id))
     if old_state != "finished" and row.state == "finished":
-        enqueue_global_push(
-            request,
-            localized_push_message(
-                "friendly_finished",
-                path="/friendlies",
-                tag=f"friendly-finished-{int(row.id)}",
-                event_type="friendly_finished",
-                data={"friendly_id": int(row.id)},
-                scoreline=scoreline,
-            ),
-        )
+        push_friendly_finished(request, friendly_id=int(row.id), scoreline=scoreline)
     if new_scores.get("A", 0) != old_scores.get("A", 0) or new_scores.get("B", 0) != old_scores.get("B", 0):
-        enqueue_global_push(
-            request,
-            localized_push_message(
-                "friendly_score_changed",
-                path="/friendlies",
-                tag=f"friendly-score-{int(row.id)}",
-                event_type="friendly_score_changed",
-                data={"friendly_id": int(row.id), "score_a": new_scores.get("A", 0), "score_b": new_scores.get("B", 0)},
-                scoreline=scoreline,
-            ),
-        )
+        push_friendly_score_changed(request, friendly_id=int(row.id), score_a=new_scores.get("A", 0), score_b=new_scores.get("B", 0), scoreline=scoreline)
     return _friendly_dict(row)

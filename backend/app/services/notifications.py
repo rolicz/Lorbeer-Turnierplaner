@@ -200,6 +200,248 @@ def enqueue_poke_push(
     )
 
 
+# ---- domain push helpers -----------------------------------------------
+# Each function encodes one notification event so routers call a single line.
+
+def push_tournament_created(request: Request, *, tournament_id: int, tournament_name: str) -> None:
+    enqueue_global_push(
+        request,
+        localized_push_message(
+            "tournament_created",
+            path=f"/live/{tournament_id}",
+            tag=f"tournament-created-{tournament_id}",
+            event_type="tournament_created",
+            data={"tournament_id": tournament_id},
+            tournament_name=tournament_name,
+        ),
+    )
+
+
+def push_tournament_updated(request: Request, *, tournament_id: int, tournament_name: str) -> None:
+    enqueue_global_push(
+        request,
+        localized_push_message(
+            "tournament_updated",
+            path=f"/live/{tournament_id}",
+            tag=f"tournament-updated-{tournament_id}",
+            event_type="tournament_updated",
+            data={"tournament_id": tournament_id},
+            tournament_name=tournament_name,
+        ),
+    )
+
+
+def push_tournament_date_changed(request: Request, *, tournament_id: int, tournament_name: str, tournament_date: Any) -> None:
+    enqueue_global_push(
+        request,
+        localized_push_message(
+            "tournament_date_changed",
+            path=f"/live/{tournament_id}",
+            tag=f"tournament-date-{tournament_id}",
+            event_type="tournament_date_changed",
+            data={"tournament_id": tournament_id},
+            tournament_name=tournament_name,
+            tournament_date=tournament_date,
+        ),
+    )
+
+
+def push_schedule_generated(request: Request, *, tournament_id: int, tournament_name: str, match_count: int) -> None:
+    enqueue_global_push(
+        request,
+        localized_push_message(
+            "schedule_generated",
+            path=f"/live/{tournament_id}",
+            tag=f"schedule-generated-{tournament_id}",
+            event_type="schedule_generated",
+            data={"tournament_id": tournament_id, "matches": match_count},
+            tournament_name=tournament_name,
+            match_count=match_count,
+        ),
+    )
+
+
+def push_tournament_deleted(request: Request, *, tournament_id: int, tournament_name: str) -> None:
+    enqueue_global_push(
+        request,
+        localized_push_message(
+            "tournament_deleted",
+            path="/tournaments",
+            tag=f"tournament-deleted-{tournament_id}",
+            event_type="tournament_deleted",
+            data={"tournament_id": tournament_id},
+            tournament_name=tournament_name,
+        ),
+    )
+
+
+def push_match_started(
+    request: Request, *, tournament_id: int, match_id: int, tournament_name: str, match_label: str
+) -> None:
+    enqueue_global_push(
+        request,
+        localized_push_message(
+            "match_started",
+            path=f"/live/{tournament_id}",
+            tag=f"match-start-{match_id}",
+            event_type="match_started",
+            data={"tournament_id": tournament_id, "match_id": match_id},
+            tournament_name=tournament_name,
+            match_label=match_label,
+        ),
+    )
+
+
+def push_match_finished(
+    request: Request, *, tournament_id: int, match_id: int, tournament_name: str, match_label: str, scoreline: str
+) -> None:
+    enqueue_global_push(
+        request,
+        localized_push_message(
+            "match_finished",
+            path=f"/live/{tournament_id}",
+            tag=f"match-finished-{match_id}",
+            event_type="match_finished",
+            data={"tournament_id": tournament_id, "match_id": match_id},
+            tournament_name=tournament_name,
+            match_label=match_label,
+            scoreline=scoreline,
+        ),
+    )
+
+
+def push_tournament_finished(
+    request: Request, *, tournament_id: int, match_id: int, tournament_name: str
+) -> None:
+    enqueue_global_push(
+        request,
+        localized_push_message(
+            "tournament_finished",
+            path=f"/live/{tournament_id}",
+            tag=f"tournament-finished-{tournament_id}",
+            event_type="tournament_finished",
+            data={"tournament_id": tournament_id, "match_id": match_id},
+            tournament_name=tournament_name,
+        ),
+    )
+
+
+def push_match_score_changed(
+    request: Request,
+    *,
+    tournament_id: int,
+    match_id: int,
+    tournament_name: str,
+    match_label: str,
+    scoreline: str,
+    score_a: int,
+    score_b: int,
+    goals_added: int,
+) -> None:
+    text_key = "match_goal" if goals_added == 1 else "match_score_changed"
+    enqueue_global_push(
+        request,
+        localized_push_message(
+            text_key,
+            path=f"/live/{tournament_id}",
+            tag=f"match-score-{match_id}",
+            event_type="match_score_changed",
+            data={
+                "tournament_id": tournament_id,
+                "match_id": match_id,
+                "score_a": score_a,
+                "score_b": score_b,
+                "goals_added": goals_added,
+            },
+            tournament_name=tournament_name,
+            match_label=match_label,
+            scoreline=scoreline,
+        ),
+    )
+
+
+def push_guestbook_created(
+    request: Request,
+    *,
+    profile_player_id: int,
+    entry_id: int,
+    profile_player_name: str,
+    author_name: str,
+    preview: str,
+) -> None:
+    enqueue_global_push(
+        request,
+        localized_push_message(
+            "guestbook_created",
+            path=f"/profiles/{profile_player_id}",
+            tag=f"guestbook-{profile_player_id}",
+            event_type="guestbook_created",
+            data={"profile_player_id": profile_player_id, "entry_id": entry_id},
+            profile_player_name=profile_player_name,
+            author_name=author_name,
+            preview=preview,
+        ),
+    )
+
+
+def push_friendly_created(request: Request, *, friendly_id: int, mode: str, scoreline: str) -> None:
+    enqueue_global_push(
+        request,
+        localized_push_message(
+            "friendly_created",
+            path="/friendlies",
+            tag=f"friendly-created-{friendly_id}",
+            event_type="friendly_created",
+            data={"friendly_id": friendly_id},
+            mode=mode,
+            scoreline=scoreline,
+        ),
+    )
+
+
+def push_friendly_started(request: Request, *, friendly_id: int) -> None:
+    enqueue_global_push(
+        request,
+        localized_push_message(
+            "friendly_started",
+            path="/friendlies",
+            tag=f"friendly-started-{friendly_id}",
+            event_type="friendly_started",
+            data={"friendly_id": friendly_id},
+        ),
+    )
+
+
+def push_friendly_finished(request: Request, *, friendly_id: int, scoreline: str) -> None:
+    enqueue_global_push(
+        request,
+        localized_push_message(
+            "friendly_finished",
+            path="/friendlies",
+            tag=f"friendly-finished-{friendly_id}",
+            event_type="friendly_finished",
+            data={"friendly_id": friendly_id},
+            scoreline=scoreline,
+        ),
+    )
+
+
+def push_friendly_score_changed(
+    request: Request, *, friendly_id: int, score_a: int, score_b: int, scoreline: str
+) -> None:
+    enqueue_global_push(
+        request,
+        localized_push_message(
+            "friendly_score_changed",
+            path="/friendlies",
+            tag=f"friendly-score-{friendly_id}",
+            event_type="friendly_score_changed",
+            data={"friendly_id": friendly_id, "score_a": score_a, "score_b": score_b},
+            scoreline=scoreline,
+        ),
+    )
+
+
 def upsert_push_subscription(
     s: Session,
     *,

@@ -32,7 +32,13 @@ from ..services.events import (
     broadcast_tournament_deleted,
     broadcast_tournament_updated,
 )
-from ..services.notifications import enqueue_global_push, localized_push_message
+from ..services.notifications import (
+    push_schedule_generated,
+    push_tournament_created,
+    push_tournament_date_changed,
+    push_tournament_deleted,
+    push_tournament_updated,
+)
 from ..services.stats.odds import compute_match_odds_for_tournament
 from ..stats import compute_tournament_stats
 from ..tournament_status import compute_status_for_tournament, compute_status_map, find_other_live_tournament_id
@@ -505,17 +511,7 @@ async def create_tournament(body: TournamentCreateBody, request: Request, s: Ses
     log.info("Created tournament '%s' (id=%s, mode=%s)", t.name, t.id, t.mode)
 
     await broadcast_tournament_created()
-    enqueue_global_push(
-        request,
-        localized_push_message(
-            "tournament_created",
-            path=f"/live/{int(t.id)}",
-            tag=f"tournament-created-{int(t.id)}",
-            event_type="tournament_created",
-            data={"tournament_id": int(t.id)},
-            tournament_name=t.name,
-        ),
-    )
+    push_tournament_created(request, tournament_id=int(t.id), tournament_name=t.name)
     return t
 
 
@@ -563,17 +559,7 @@ async def patch_tournament(
     s.refresh(t)
 
     await broadcast_tournament_updated(tournament_id)
-    enqueue_global_push(
-        request,
-        localized_push_message(
-            "tournament_updated",
-            path=f"/live/{int(tournament_id)}",
-            tag=f"tournament-updated-{int(tournament_id)}",
-            event_type="tournament_updated",
-            data={"tournament_id": int(tournament_id)},
-            tournament_name=t.name,
-        ),
-    )
+    push_tournament_updated(request, tournament_id=tournament_id, tournament_name=t.name)
     return t
 
 
@@ -603,18 +589,7 @@ async def patch_date(
 
     await broadcast_tournament_updated(tournament_id)
     log.info("Tournament date changed: tournament_id=%s date=%s by=%s", tournament_id, t.date, role)
-    enqueue_global_push(
-        request,
-        localized_push_message(
-            "tournament_date_changed",
-            path=f"/live/{int(tournament_id)}",
-            tag=f"tournament-date-{int(tournament_id)}",
-            event_type="tournament_date_changed",
-            data={"tournament_id": int(tournament_id)},
-            tournament_name=t.name,
-            tournament_date=t.date,
-        ),
-    )
+    push_tournament_date_changed(request, tournament_id=tournament_id, tournament_name=t.name, tournament_date=t.date)
     return {"ok": True, "date": t.date}
 
 
@@ -646,18 +621,7 @@ async def generate_schedule(
         t.mode,
         len(t.players),
     )
-    enqueue_global_push(
-        request,
-        localized_push_message(
-            "schedule_generated",
-            path=f"/live/{int(tournament_id)}",
-            tag=f"schedule-generated-{int(tournament_id)}",
-            event_type="schedule_generated",
-            data={"tournament_id": int(tournament_id), "matches": int(created_matches)},
-            tournament_name=t.name,
-            match_count=created_matches,
-        ),
-    )
+    push_schedule_generated(request, tournament_id=tournament_id, tournament_name=t.name, match_count=created_matches)
     return {"ok": True, "matches": created_matches, "labels": label_to_name}
 
 
@@ -850,17 +814,7 @@ async def delete_tournament(
 
     await broadcast_tournament_deleted(tournament_id)
     log.info("Tournament deleted: tournament_id=%s by=%s", tournament_id, role)
-    enqueue_global_push(
-        request,
-        localized_push_message(
-            "tournament_deleted",
-            path="/tournaments",
-            tag=f"tournament-deleted-{int(tournament_id)}",
-            event_type="tournament_deleted",
-            data={"tournament_id": int(tournament_id)},
-            tournament_name=tournament.name,
-        ),
-    )
+    push_tournament_deleted(request, tournament_id=tournament_id, tournament_name=tournament.name)
 
     return Response(status_code=204)
 
