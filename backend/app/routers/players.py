@@ -27,6 +27,25 @@ from ..schemas import (
     PlayerPokeCreateBody,
     PlayerProfilePatchBody,
 )
+from ..schemas.responses import (
+    EntryIdsOut,
+    GuestbookEntryOut,
+    GuestbookReadMapOut,
+    GuestbookSummaryOut,
+    MarkedResponse,
+    OkResponse,
+    PlayerMediaMetaOut,
+    PlayerRef,
+    PokeAuthoredUnreadOut,
+    PokeIdsOut,
+    PokeOut,
+    PokeReadMapOut,
+    PokeSummaryOut,
+    ProfileMetaOut,
+    ProfileOut,
+    VoteResultOut,
+    VotersOut,
+)
 from ..services.file_storage import (
     delete_media,
     media_path_for_avatar,
@@ -135,12 +154,12 @@ def _upsert_profile_header_file(
     return row
 
 
-@router.get("")
+@router.get("", response_model=list[PlayerRef])
 def list_players(s: Session = Depends(get_session)):
     return s.exec(select(Player).order_by(Player.display_name)).all()
 
 
-@router.post("", dependencies=[Depends(require_admin)])
+@router.post("", response_model=PlayerRef, dependencies=[Depends(require_admin)])
 def create_player(body: PlayerCreateBody, s: Session = Depends(get_session)):
     name = (body.display_name or "").strip()
     if not name:
@@ -157,7 +176,7 @@ def create_player(body: PlayerCreateBody, s: Session = Depends(get_session)):
     log.info("Created player '%s' (id=%s)", p.display_name, p.id)
     return p
 
-@router.patch("/{player_id}", dependencies=[Depends(require_admin)])
+@router.patch("/{player_id}", response_model=PlayerRef, dependencies=[Depends(require_admin)])
 def patch_player(
     player_id: int,
     body: PlayerPatchBody,
@@ -194,7 +213,7 @@ def patch_player(
     return p
 
 
-@router.get("/profiles")
+@router.get("/profiles", response_model=list[ProfileMetaOut])
 def list_player_profiles(s: Session = Depends(get_session)):
     rows = s.exec(select(PlayerProfile).order_by(PlayerProfile.player_id)).all()
     header_rows = s.exec(select(PlayerHeaderImageFile.player_id, PlayerHeaderImageFile.updated_at)).all()
@@ -211,17 +230,17 @@ def list_player_profiles(s: Session = Depends(get_session)):
     ]
 
 
-@router.get("/guestbook-summary")
+@router.get("/guestbook-summary", response_model=list[GuestbookSummaryOut])
 def list_player_guestbook_summary(s: Session = Depends(get_session)) -> list[dict]:
     return player_guestbook_summary(s)
 
 
-@router.get("/pokes-summary")
+@router.get("/pokes-summary", response_model=list[PokeSummaryOut])
 def list_player_poke_summary(s: Session = Depends(get_session)) -> list[dict]:
     return player_poke_summary(s)
 
 
-@router.get("/pokes-authored-unread-summary")
+@router.get("/pokes-authored-unread-summary", response_model=list[PokeAuthoredUnreadOut])
 def list_player_pokes_authored_unread_summary(
     s: Session = Depends(get_session),
     claims: dict = Depends(require_auth_claims),
@@ -274,7 +293,7 @@ def list_player_pokes_authored_unread_summary(
     return list(out.values())
 
 
-@router.get("/guestbook-read-map")
+@router.get("/guestbook-read-map", response_model=list[GuestbookReadMapOut])
 def list_player_guestbook_read_map(
     s: Session = Depends(get_session),
     claims: dict = Depends(require_auth_claims),
@@ -293,7 +312,7 @@ def list_player_guestbook_read_map(
     return [{"profile_player_id": pid, "entry_ids": ids} for pid, ids in out.items()]
 
 
-@router.get("/pokes-read-map")
+@router.get("/pokes-read-map", response_model=list[PokeReadMapOut])
 def list_player_poke_read_map(
     s: Session = Depends(get_session),
     claims: dict = Depends(require_auth_claims),
@@ -312,7 +331,7 @@ def list_player_poke_read_map(
     return [{"profile_player_id": pid, "poke_ids": ids} for pid, ids in out.items()]
 
 
-@router.get("/{player_id}/profile")
+@router.get("/{player_id}/profile", response_model=ProfileOut)
 def get_player_profile(player_id: int, s: Session = Depends(get_session)):
     player = s.get(Player, player_id)
     if not player:
@@ -324,7 +343,7 @@ def get_player_profile(player_id: int, s: Session = Depends(get_session)):
     return payload
 
 
-@router.patch("/{player_id}/profile")
+@router.patch("/{player_id}/profile", response_model=ProfileOut)
 def patch_player_profile(
     player_id: int,
     body: PlayerProfilePatchBody,
@@ -353,7 +372,7 @@ def patch_player_profile(
     return _profile_payload(player, profile)
 
 
-@router.get("/avatars")
+@router.get("/avatars", response_model=list[PlayerMediaMetaOut])
 def list_player_avatar_meta(s: Session = Depends(get_session)):
     """
     Lightweight avatar metadata used by the frontend to avoid spamming 404 requests.
@@ -363,7 +382,7 @@ def list_player_avatar_meta(s: Session = Depends(get_session)):
     return [{"player_id": int(pid), "updated_at": updated_at} for pid, updated_at in rows]
 
 
-@router.get("/headers")
+@router.get("/headers", response_model=list[PlayerMediaMetaOut])
 def list_player_header_meta(s: Session = Depends(get_session)):
     rows = s.exec(select(PlayerHeaderImageFile.player_id, PlayerHeaderImageFile.updated_at)).all()
     return [{"player_id": int(pid), "updated_at": updated_at} for pid, updated_at in rows]
@@ -387,7 +406,7 @@ def get_player_avatar(player_id: int):
     return Response(content=data, media_type=content_type, headers=headers)
 
 
-@router.put("/{player_id}/avatar")
+@router.put("/{player_id}/avatar", response_model=PlayerMediaMetaOut)
 async def put_player_avatar(
     player_id: int,
     file: UploadFile = File(...),
@@ -457,7 +476,7 @@ def get_player_header_image(player_id: int):
     return Response(content=data, media_type=content_type, headers=headers)
 
 
-@router.put("/{player_id}/header-image")
+@router.put("/{player_id}/header-image", response_model=PlayerMediaMetaOut)
 async def put_player_header_image(
     player_id: int,
     file: UploadFile = File(...),
@@ -551,7 +570,7 @@ def _poke_payload(
     }
 
 
-@router.get("/{player_id}/guestbook")
+@router.get("/{player_id}/guestbook", response_model=list[GuestbookEntryOut])
 def list_player_guestbook(
     player_id: int,
     s: Session = Depends(get_session),
@@ -617,7 +636,7 @@ def list_player_guestbook(
     ]
 
 
-@router.get("/{player_id}/pokes")
+@router.get("/{player_id}/pokes", response_model=list[PokeOut])
 def list_player_pokes(
     player_id: int,
     limit: int = 40,
@@ -659,7 +678,7 @@ def list_player_pokes(
     ]
 
 
-@router.get("/{player_id}/guestbook/read")
+@router.get("/{player_id}/guestbook/read", response_model=EntryIdsOut)
 def list_player_guestbook_reads(
     player_id: int,
     s: Session = Depends(get_session),
@@ -682,7 +701,7 @@ def list_player_guestbook_reads(
     return {"entry_ids": [int(x) for x in rows]}
 
 
-@router.get("/{player_id}/pokes/read")
+@router.get("/{player_id}/pokes/read", response_model=PokeIdsOut)
 def list_player_poke_reads(
     player_id: int,
     s: Session = Depends(get_session),
@@ -705,7 +724,7 @@ def list_player_poke_reads(
     return {"poke_ids": [int(x) for x in rows]}
 
 
-@router.post("/{player_id}/guestbook")
+@router.post("/{player_id}/guestbook", response_model=GuestbookEntryOut)
 def create_player_guestbook_entry(
     player_id: int,
     body: PlayerGuestbookCreateBody,
@@ -782,7 +801,7 @@ def create_player_guestbook_entry(
     )
 
 
-@router.post("/{player_id}/pokes")
+@router.post("/{player_id}/pokes", response_model=PokeOut)
 def create_player_poke(
     player_id: int,
     request: Request,
@@ -845,7 +864,7 @@ def create_player_poke(
     return _poke_payload(poke=row, author_display_name=author_player.display_name)
 
 
-@router.put("/guestbook/{entry_id}/read")
+@router.put("/guestbook/{entry_id}/read", response_model=OkResponse)
 def mark_player_guestbook_entry_read(
     entry_id: int,
     s: Session = Depends(get_session),
@@ -866,7 +885,7 @@ def mark_player_guestbook_entry_read(
     return {"ok": True}
 
 
-@router.put("/guestbook/{entry_id}/vote")
+@router.put("/guestbook/{entry_id}/vote", response_model=VoteResultOut)
 def vote_player_guestbook_entry(
     entry_id: int,
     body: PlayerGuestbookVoteBody,
@@ -908,7 +927,7 @@ def vote_player_guestbook_entry(
     return {"ok": True, "value": value}
 
 
-@router.get("/guestbook/{entry_id}/voters")
+@router.get("/guestbook/{entry_id}/voters", response_model=VotersOut)
 def list_player_guestbook_entry_voters(entry_id: int, s: Session = Depends(get_session)) -> dict:
     row = s.get(PlayerGuestbookEntry, entry_id)
     if row is None:
@@ -930,7 +949,7 @@ def list_player_guestbook_entry_voters(entry_id: int, s: Session = Depends(get_s
     return {"upvoters": upvoters, "downvoters": downvoters}
 
 
-@router.put("/{player_id}/guestbook/read-all")
+@router.put("/{player_id}/guestbook/read-all", response_model=MarkedResponse)
 def mark_player_guestbook_read_all(
     player_id: int,
     s: Session = Depends(get_session),
@@ -969,7 +988,7 @@ def mark_player_guestbook_read_all(
     return {"ok": True, "marked": marked}
 
 
-@router.put("/{player_id}/pokes/read-all")
+@router.put("/{player_id}/pokes/read-all", response_model=MarkedResponse)
 def mark_player_poke_read_all(
     player_id: int,
     s: Session = Depends(get_session),

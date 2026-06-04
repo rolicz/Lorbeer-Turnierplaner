@@ -4,10 +4,11 @@ from sqlmodel import Session
 from ..auth import create_token, resolve_player_login
 from ..db import get_session
 from ..schemas import LoginBody
+from ..schemas.responses import LoginOut
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
-@router.post("/login")
+@router.post("/login", response_model=LoginOut)
 def login(request: Request, body: LoginBody, s: Session = Depends(get_session)) -> dict:
     username = str(body.username or "").strip()
     password = str(body.password or "")
