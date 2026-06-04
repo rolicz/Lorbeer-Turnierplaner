@@ -8,7 +8,13 @@ from pydantic import BaseModel, Field
 from sqlmodel import Session
 
 from ..db import get_session
-from ..schemas.responses import OddsResponseOut, StatsOverviewOut
+from ..schemas.responses import (
+    OddsResponseOut,
+    StatsOverviewOut,
+    StatsPlayersOut,
+    StatsRatingsOut,
+    StatsStreaksOut,
+)
 from ..services.stats.h2h import compute_stats_h2h
 from ..services.stats.h2h_matches import compute_stats_h2h_matches
 from ..services.stats.odds import compute_single_match_odds
@@ -46,7 +52,7 @@ def stats_overview_endpoint() -> dict[str, Any]:
     return stats_overview()
 
 
-@router.get("/players")
+@router.get("/players", response_model=StatsPlayersOut)
 def stats_players(
     mode: str = Query("overall", description='Match mode filter: "overall" (default), "1v1", or "2v2"'),
     lastN: int = Query(10, ge=0, le=100, description="How many recent matches to average (0 disables)"),
@@ -81,7 +87,7 @@ def stats_h2h_matches(
     )
 
 
-@router.get("/streaks")
+@router.get("/streaks", response_model=StatsStreaksOut)
 def stats_streaks(
     mode: str = Query("overall", description='Match mode filter: "overall" (default), "1v1", or "2v2"'),
     player_id: int | None = Query(None, ge=1, description="Optional player to focus on"),
@@ -100,7 +106,7 @@ def stats_player_matches(
 ) -> dict[str, Any]:
     return compute_stats_player_matches(s, player_id=player_id, scope=scope)
 
-@router.get("/ratings")
+@router.get("/ratings", response_model=StatsRatingsOut)
 def stats_ratings(
     mode: str = Query("overall", description='Match mode filter: "overall" (default), "1v1", or "2v2"'),
     scope: Literal["tournaments", "both", "friendlies"] = Query("tournaments", description='Data source scope: "tournaments" (default), "both", or "friendlies"'),

@@ -476,3 +476,95 @@ class StatsOverviewOut(BaseModel):
 
 class OddsResponseOut(BaseModel):
     odds: OddsOut
+
+
+# NOTE: stats h2h, h2h-matches and player-matches are intentionally NOT typed.
+# Their payloads are conditionally shaped: /h2h omits all player-focused fields
+# when no player_id is given, and the *-matches endpoints mix real tournaments
+# (with cup_stakes) and friendly pseudo-tournaments (without) under scope=both.
+# A single strict response_model cannot reproduce those heterogeneous shapes.
+
+# ---- stats: players ----------------------------------------------------
+class StatsPlayersTournamentOut(BaseModel):
+    id: int
+    name: str
+    date: date
+    players_count: int
+    cup_stakes: list[CupStakeOut]
+
+
+class StatsPlayerRowOut(BaseModel):
+    player_id: int
+    display_name: str
+    played: int
+    wins: int
+    draws: int
+    losses: int
+    gf: int
+    ga: int
+    gd: int
+    pts: int
+    lastN_pts: list[int]
+    lastN_gf: list[int]
+    lastN_ga: list[int]
+    lastN_avg_pts: float
+    positions_by_tournament: dict[int, int | None]
+
+
+class StatsPlayersOut(BaseModel):
+    generated_at: datetime
+    mode: str
+    cup_owner_player_id: int | None
+    tournaments: list[StatsPlayersTournamentOut]
+    players: list[StatsPlayerRowOut]
+    lastN: int
+
+
+# ---- stats: ratings ----------------------------------------------------
+class RatingRowOut(BaseModel):
+    player: PlayerRef
+    played: int
+    wins: int
+    draws: int
+    losses: int
+    gf: int
+    ga: int
+    gd: int
+    pts: int
+    rating: float
+
+
+class StatsRatingsOut(BaseModel):
+    generated_at: datetime
+    mode: str
+    scope: str
+    base_rating: float
+    k: float
+    rows: list[RatingRowOut]
+
+
+# ---- stats: streaks ----------------------------------------------------
+class StreakRunOut(BaseModel):
+    player: PlayerRef
+    length: int
+    start_ts: datetime | None
+    end_ts: datetime | None
+    ongoing: bool
+
+
+class StreakCategoryOut(BaseModel):
+    key: str
+    name: str
+    description: str
+    records: list[StreakRunOut]
+    current: list[StreakRunOut]
+    records_total: int
+    current_total: int
+
+
+class StatsStreaksOut(BaseModel):
+    generated_at: datetime
+    mode: str
+    scope: str
+    player: PlayerRef | None
+    categories: list[StreakCategoryOut]
