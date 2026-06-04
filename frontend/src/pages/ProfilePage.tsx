@@ -6,7 +6,6 @@ import Button from "../ui/primitives/Button";
 import Textarea from "../ui/primitives/Textarea";
 import AvatarCircle from "../ui/primitives/AvatarCircle";
 import CupOwnerBadge from "../ui/primitives/CupOwnerBadge";
-import VoteButton from "../ui/primitives/VoteButton";
 import VoteVotersModal from "../ui/primitives/VoteVotersModal";
 import { ErrorToastOnError } from "../ui/primitives/ErrorToast";
 import CommentImageCropper from "../ui/primitives/CommentImageCropper";
@@ -41,7 +40,6 @@ import {
 import { getCup, listCupDefs } from "../api/cup.api";
 import { getStatsH2H, getStatsPlayerMatches, getStatsPlayers, getStatsRatings, getStatsStreaks } from "../api/stats.api";
 import { listClubs } from "../api/clubs.api";
-import type { PlayerGuestbookEntry } from "../api/types";
 import { MatchHistoryList } from "./stats/MatchHistoryList";
 import { groupFriendlyTournamentsByDate } from "./stats/matchHistory";
 import PlayerAvatarEditor from "./players/PlayerAvatarEditor";
@@ -52,7 +50,7 @@ import { usePageSubNav, type SubNavItem } from "../ui/layout/SubNavContext";
 import { useSectionSubnav } from "../ui/layout/useSectionSubnav";
 import { useRouteEntryLoading } from "../ui/layout/useRouteEntryLoading";
 import SectionSeparator from "../ui/primitives/SectionSeparator";
-import { fmtDateTime, fmtInt, fmtPct } from "../utils/format";
+import { fmtInt, fmtPct } from "../utils/format";
 import {
   buildGuestbookTree,
   countUnreadGuestbookAuthors,
@@ -60,6 +58,10 @@ import {
   latestUnreadGuestbookId,
   summarizeUnreadGuestbookAuthors,
 } from "./profile/guestbookTree";
+import GuestbookEntryCard, {
+  GuestbookCardProvider,
+  type GuestbookCardContextValue,
+} from "./profile/GuestbookEntryCard";
 
 
 
@@ -208,7 +210,10 @@ export default function ProfilePage() {
   const bioDraft =
     targetPlayerId != null ? (bioDraftByPlayerId[targetPlayerId] ?? (profileQ.data?.bio ?? "")) : "";
   const guestbookDraft = targetPlayerId != null ? (guestbookDraftByPlayerId[targetPlayerId] ?? "") : "";
-  const replyDraftByEntryId = targetPlayerId != null ? (replyDraftByProfileAndEntry[targetPlayerId] ?? {}) : {};
+  const replyDraftByEntryId = useMemo(
+    () => (targetPlayerId != null ? (replyDraftByProfileAndEntry[targetPlayerId] ?? {}) : {}),
+    [targetPlayerId, replyDraftByProfileAndEntry]
+  );
   const replyOpenEntryId = targetPlayerId != null ? (replyOpenEntryByProfileId[targetPlayerId] ?? null) : null;
 
   const player = useMemo(() => {
@@ -746,218 +751,82 @@ export default function ProfilePage() {
     }, 420);
   }, [focusGuestbookEntry, latestUnreadGuestbookEntryId, searchParams, setSearchParams, unreadJumpReady]);
 
-  const renderGuestbookEntry = (entry: PlayerGuestbookEntry, depth = 0): JSX.Element => {
-    const children = guestbookRootsAndChildren.childrenByParent.get(entry.id) ?? [];
-    const authorAvatarUpdatedAt = avatarUpdatedAtByPlayerId.get(entry.author_player_id) ?? null;
-    const canDeleteEntry =
-      !!token &&
-      (role === "admin" || isOwnProfile || currentPlayerId === entry.author_player_id);
-    const isUnseen = !!token && !seenGuestbook.has(entry.id);
-    const unreadReplies = unreadReplyCountByEntryId.get(entry.id) ?? 0;
-    const myVote = entry.my_vote ?? 0;
-    const upvotes = Number(entry.upvotes ?? 0);
-    const downvotes = Number(entry.downvotes ?? 0);
-    const replyDraft = replyDraftByEntryId[entry.id] ?? "";
-    const replyOpen = replyOpenEntryId === entry.id;
-    const surfaceClass = depth === 0 ? "panel-subtle" : "panel-inner";
-    const indentPx = Math.min(depth, 8) * 14;
-
-    return (
-      <div key={entry.id} className="space-y-2" style={indentPx > 0 ? { marginLeft: `${indentPx}px` } : undefined}>
-        <div
-          id={`guestbook-entry-${entry.id}`}
-          className={`${surfaceClass} p-3 scroll-mt-28 sm:scroll-mt-32`}
-          onClick={() => {
-            if (!token || !isUnseen || markGuestbookReadMut.isPending) return;
-            markGuestbookReadMut.mutate(entry.id);
-          }}
-        >
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0 flex items-center gap-2">
-              <AvatarCircle
-                playerId={entry.author_player_id}
-                name={entry.author_display_name}
-                updatedAt={authorAvatarUpdatedAt}
-                sizeClass="h-8 w-8"
-                fallbackClassName="text-xs font-semibold text-text-muted"
-              />
-              <div className="min-w-0">
-                <div className="truncate text-xs font-semibold text-text-normal">{entry.author_display_name}</div>
-                <div className="text-[11px] text-text-muted">
-                  {fmtDateTime(entry.created_at)}
-                  {entry.updated_at !== entry.created_at ? " · edited" : ""}
-                </div>
-              </div>
-            </div>
-            <div className="shrink-0 flex items-center gap-2">
-              {isUnseen ? (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    if (!token || markGuestbookReadMut.isPending) return;
-                    markGuestbookReadMut.mutate(entry.id);
-                  }}
-                  title="Mark as read"
-                  className="h-8 w-8 p-0 inline-flex items-center justify-center"
-                >
-                  <i className="fa-solid fa-envelope text-accent motion-safe:animate-pulse" aria-hidden="true" />
-                </Button>
-              ) : null}
-              {!isUnseen && unreadReplies > 0 ? (
-                <span
-                  title={`Unread replies: ${unreadReplies}`}
-                  className="inline-flex h-8 items-center gap-1 rounded-full border border-border-card-inner bg-bg-card-chip/25 px-2 text-[11px]"
-                >
-                  <i className="fa-solid fa-reply text-accent" aria-hidden="true" />
-                  <span className="tabular-nums text-text-normal">{unreadReplies}</span>
-                </span>
-              ) : null}
-              {canPostGuestbook ? (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    if (!targetPlayerId) return;
-                    setReplyOpenEntryByProfileId((prev) => ({
-                      ...prev,
-                      [targetPlayerId]: prev[targetPlayerId] === entry.id ? null : entry.id,
-                    }));
-                  }}
-                  title="Reply"
-                  className="h-8 w-8 p-0 inline-flex items-center justify-center"
-                >
-                  <i className="fa-solid fa-reply" aria-hidden="true" />
-                </Button>
-              ) : null}
-              {canDeleteEntry ? (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    const hasReplies = children.length > 0;
-                    const ok = window.confirm(hasReplies ? "Delete this message and all replies?" : "Delete this message?");
-                    if (!ok) return;
-                    void deleteGuestbookMut.mutateAsync(entry.id);
-                  }}
-                  title="Delete message"
-                  className="h-8 w-8 p-0 inline-flex items-center justify-center"
-                >
-                  <i className="fa-solid fa-trash" aria-hidden="true" />
-                </Button>
-              ) : null}
-            </div>
-          </div>
-          <div className="mt-2 text-sm whitespace-pre-wrap">{entry.body}</div>
-          <div className="mt-2 flex items-center gap-2 text-[11px] text-text-muted">
-            <VoteButton
-              direction="up"
-              active={myVote === 1}
-              count={upvotes}
-              onVote={() => {
-                if (!token || voteGuestbookMut.isPending) return;
-                const next: -1 | 0 | 1 = myVote === 1 ? 0 : 1;
-                voteGuestbookMut.mutate({ entryId: entry.id, value: next });
-              }}
-              voteDisabled={!token || voteGuestbookMut.isPending}
-              title="Upvote"
-            />
-            <VoteButton
-              direction="down"
-              active={myVote === -1}
-              count={downvotes}
-              onVote={() => {
-                if (!token || voteGuestbookMut.isPending) return;
-                const next: -1 | 0 | 1 = myVote === -1 ? 0 : -1;
-                voteGuestbookMut.mutate({ entryId: entry.id, value: next });
-              }}
-              voteDisabled={!token || voteGuestbookMut.isPending}
-              title="Downvote"
-            />
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                setVoteVotersEntryId(entry.id);
-              }}
-              title="Show voters"
-              className="h-8 w-8 p-0 inline-flex items-center justify-center"
-            >
-              <i className="fa-solid fa-users text-text-muted" aria-hidden="true" />
-            </Button>
-          </div>
-
-          {replyOpen && canPostGuestbook ? (
-            <div
-              className="mt-2 panel-inner p-2 space-y-2"
-              onClick={(e) => {
-                e.stopPropagation();
-              }}
-            >
-              <Textarea
-                label={`Reply to ${entry.author_display_name}`}
-                value={replyDraft}
-                onChange={(e) => {
-                  if (!targetPlayerId) return;
-                  const next = e.target.value;
-                  setReplyDraftByProfileAndEntry((prev) => ({
-                    ...prev,
-                    [targetPlayerId]: {
-                      ...(prev[targetPlayerId] ?? {}),
-                      [entry.id]: next,
-                    },
-                  }));
-                }}
-                placeholder="Write a reply…"
-              />
-              <div className="flex items-center justify-end gap-2">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  onClick={() => {
-                    if (!targetPlayerId) return;
-                    setReplyOpenEntryByProfileId((prev) => ({
-                      ...prev,
-                      [targetPlayerId]: prev[targetPlayerId] === entry.id ? null : prev[targetPlayerId] ?? null,
-                    }));
-                  }}
-                  title="Cancel"
-                >
-                  Cancel
-                </Button>
-                <Button
-                  type="button"
-                  onClick={() => {
-                    const text = replyDraft.trim();
-                    if (!text) return;
-                    createGuestbookMut.mutate({ body: text, parentEntryId: entry.id });
-                  }}
-                  disabled={createGuestbookMut.isPending || !replyDraft.trim()}
-                  title="Post reply"
-                >
-                  {createGuestbookMut.isPending ? "Posting…" : "Reply"}
-                </Button>
-              </div>
-            </div>
-          ) : null}
-        </div>
-
-        {children.length > 0 ? (
-          <div className="space-y-2">
-            {children.map((child) => renderGuestbookEntry(child, depth + 1))}
-          </div>
-        ) : null}
-      </div>
-    );
-  };
+  const guestbookCardContext = useMemo<GuestbookCardContextValue>(
+    () => ({
+      childrenByParent: guestbookRootsAndChildren.childrenByParent,
+      avatarUpdatedAtByPlayerId,
+      unreadReplyCountByEntryId,
+      replyDraftByEntryId,
+      replyOpenEntryId,
+      canPostGuestbook,
+      isUnread: isGuestbookUnread,
+      canDelete: (entry) =>
+        !!token && (role === "admin" || isOwnProfile || currentPlayerId === entry.author_player_id),
+      readPending: markGuestbookReadMut.isPending,
+      votePending: voteGuestbookMut.isPending,
+      createPending: createGuestbookMut.isPending,
+      voteEnabled: !!token && !voteGuestbookMut.isPending,
+      markRead: (entryId) => {
+        if (!token || markGuestbookReadMut.isPending) return;
+        markGuestbookReadMut.mutate(entryId);
+      },
+      toggleReply: (entryId) => {
+        if (!targetPlayerId) return;
+        setReplyOpenEntryByProfileId((prev) => ({
+          ...prev,
+          [targetPlayerId]: prev[targetPlayerId] === entryId ? null : entryId,
+        }));
+      },
+      cancelReply: (entryId) => {
+        if (!targetPlayerId) return;
+        setReplyOpenEntryByProfileId((prev) => ({
+          ...prev,
+          [targetPlayerId]: prev[targetPlayerId] === entryId ? null : prev[targetPlayerId] ?? null,
+        }));
+      },
+      deleteEntry: (entryId) => {
+        void deleteGuestbookMut.mutateAsync(entryId);
+      },
+      vote: (entryId, value) => {
+        if (!token || voteGuestbookMut.isPending) return;
+        voteGuestbookMut.mutate({ entryId, value });
+      },
+      showVoters: (entryId) => setVoteVotersEntryId(entryId),
+      setReplyDraft: (entryId, text) => {
+        if (!targetPlayerId) return;
+        setReplyDraftByProfileAndEntry((prev) => ({
+          ...prev,
+          [targetPlayerId]: { ...(prev[targetPlayerId] ?? {}), [entryId]: text },
+        }));
+      },
+      submitReply: (entryId, text) => {
+        const t = text.trim();
+        if (!t) return;
+        createGuestbookMut.mutate({ body: t, parentEntryId: entryId });
+      },
+    }),
+    [
+      guestbookRootsAndChildren.childrenByParent,
+      avatarUpdatedAtByPlayerId,
+      unreadReplyCountByEntryId,
+      replyDraftByEntryId,
+      replyOpenEntryId,
+      canPostGuestbook,
+      isGuestbookUnread,
+      token,
+      role,
+      isOwnProfile,
+      currentPlayerId,
+      targetPlayerId,
+      markGuestbookReadMut,
+      voteGuestbookMut,
+      createGuestbookMut,
+      deleteGuestbookMut,
+      setReplyOpenEntryByProfileId,
+      setReplyDraftByProfileAndEntry,
+      setVoteVotersEntryId,
+    ]
+  );
 
   if (!pageEntered) {
     return (
@@ -1482,7 +1351,13 @@ export default function ProfilePage() {
           <div className="panel-subtle p-3 text-sm text-text-muted">No messages yet.</div>
         ) : null}
 
-        <div className="space-y-2">{guestbookRootsAndChildren.roots.map((entry) => renderGuestbookEntry(entry))}</div>
+        <GuestbookCardProvider value={guestbookCardContext}>
+          <div className="space-y-2">
+            {guestbookRootsAndChildren.roots.map((entry) => (
+              <GuestbookEntryCard key={entry.id} entry={entry} />
+            ))}
+          </div>
+        </GuestbookCardProvider>
       </div>
       </SectionSeparator>
 

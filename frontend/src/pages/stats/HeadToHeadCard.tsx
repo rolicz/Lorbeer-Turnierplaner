@@ -18,7 +18,7 @@ import {
   type StatsMode,
 } from "./StatsControls";
 import { MatchHistoryList } from "./MatchHistoryList";
-import { fmtInt, fmtPct } from "../../utils/format";
+import { fmtInt } from "../../utils/format";
 
 function pct(n: number) {
   if (!Number.isFinite(n)) return "0%";
