@@ -53,6 +53,13 @@ import { useSectionSubnav } from "../ui/layout/useSectionSubnav";
 import { useRouteEntryLoading } from "../ui/layout/useRouteEntryLoading";
 import SectionSeparator from "../ui/primitives/SectionSeparator";
 import { fmtDateTime, fmtInt, fmtPct } from "../utils/format";
+import {
+  buildGuestbookTree,
+  countUnreadGuestbookAuthors,
+  countUnreadRepliesByEntry,
+  latestUnreadGuestbookId,
+  summarizeUnreadGuestbookAuthors,
+} from "./profile/guestbookTree";
 
 
 
@@ -309,94 +316,30 @@ export default function ProfilePage() {
     [guestbookQ.data, seenGuestbook, token]
   );
   const totalGuestbookCount = Number(guestbookQ.data?.length ?? 0);
+  const isGuestbookUnread = useCallback(
+    (id: number) => !!token && !seenGuestbook.has(id),
+    [token, seenGuestbook]
+  );
   const unreadGuestbookAuthorsText = useMemo(() => {
     if (!token || !isOwnProfile) return "";
-    const rows = (guestbookQ.data ?? []).filter((row) => !seenGuestbook.has(row.id));
-    if (!rows.length) return "";
-    const byAuthor = new Map<number, { name: string; count: number }>();
-    for (const row of rows) {
-      const authorId = Number(row.author_player_id);
-      const prev = byAuthor.get(authorId);
-      if (prev) prev.count += 1;
-      else byAuthor.set(authorId, { name: row.author_display_name || `Player #${authorId}`, count: 1 });
-    }
-    const top = Array.from(byAuthor.values()).slice(0, 4);
-    const parts = top.map((x) => `${x.name} x${x.count}`);
-    const rest = byAuthor.size - top.length;
-    return rest > 0 ? `${parts.join(", ")} +${rest}` : parts.join(", ");
-  }, [guestbookQ.data, isOwnProfile, seenGuestbook, token]);
+    return summarizeUnreadGuestbookAuthors(guestbookQ.data ?? [], isGuestbookUnread);
+  }, [guestbookQ.data, isOwnProfile, isGuestbookUnread, token]);
   const unreadGuestbookAuthorCount = useMemo(() => {
     if (!token || !isOwnProfile) return 0;
-    const rows = (guestbookQ.data ?? []).filter((row) => !seenGuestbook.has(row.id));
-    if (!rows.length) return 0;
-    return new Set(rows.map((row) => Number(row.author_player_id))).size;
-  }, [guestbookQ.data, isOwnProfile, seenGuestbook, token]);
-  const latestUnreadGuestbookId = useMemo(() => {
-    if (!token) return null;
-    let bestId: number | null = null;
-    let bestTs = -1;
-    for (const row of guestbookQ.data ?? []) {
-      if (seenGuestbook.has(row.id)) continue;
-      const ts = Date.parse(row.created_at);
-      const tsSafe = Number.isFinite(ts) ? ts : 0;
-      if (bestId == null || tsSafe > bestTs || (tsSafe === bestTs && row.id > bestId)) {
-        bestId = row.id;
-        bestTs = tsSafe;
-      }
-    }
-    return bestId;
-  }, [guestbookQ.data, seenGuestbook, token]);
-  const guestbookRootsAndChildren = useMemo(() => {
-    const rows = guestbookQ.data ?? [];
-    const byId = new Map<number, PlayerGuestbookEntry>();
-    for (const row of rows) byId.set(row.id, row);
-
-    const childrenByParent = new Map<number, PlayerGuestbookEntry[]>();
-    const roots: PlayerGuestbookEntry[] = [];
-
-    for (const row of rows) {
-      const parentId = row.parent_entry_id;
-      if (parentId != null && byId.has(parentId)) {
-        const list = childrenByParent.get(parentId);
-        if (list) list.push(row);
-        else childrenByParent.set(parentId, [row]);
-      } else {
-        roots.push(row);
-      }
-    }
-
-    const sortByCreatedAsc = (a: PlayerGuestbookEntry, b: PlayerGuestbookEntry) => {
-      const ta = Date.parse(a.created_at);
-      const tb = Date.parse(b.created_at);
-      const aSafe = Number.isFinite(ta) ? ta : 0;
-      const bSafe = Number.isFinite(tb) ? tb : 0;
-      if (aSafe !== bSafe) return aSafe - bSafe;
-      return a.id - b.id;
-    };
-    const sortByCreatedDesc = (a: PlayerGuestbookEntry, b: PlayerGuestbookEntry) => sortByCreatedAsc(b, a);
-
-    roots.sort(sortByCreatedDesc);
-    for (const list of childrenByParent.values()) {
-      list.sort(sortByCreatedAsc);
-    }
-
-    return { roots, childrenByParent };
-  }, [guestbookQ.data]);
-  const unreadReplyCountByEntryId = useMemo(() => {
-    const out = new Map<number, number>();
-    const walk = (entryId: number): number => {
-      const children = guestbookRootsAndChildren.childrenByParent.get(entryId) ?? [];
-      let total = 0;
-      for (const child of children) {
-        if (token && !seenGuestbook.has(child.id)) total += 1;
-        total += walk(child.id);
-      }
-      out.set(entryId, total);
-      return total;
-    };
-    for (const root of guestbookRootsAndChildren.roots) walk(root.id);
-    return out;
-  }, [guestbookRootsAndChildren, seenGuestbook, token]);
+    return countUnreadGuestbookAuthors(guestbookQ.data ?? [], isGuestbookUnread);
+  }, [guestbookQ.data, isOwnProfile, isGuestbookUnread, token]);
+  const latestUnreadGuestbookEntryId = useMemo(
+    () => (!token ? null : latestUnreadGuestbookId(guestbookQ.data ?? [], isGuestbookUnread)),
+    [guestbookQ.data, isGuestbookUnread, token]
+  );
+  const guestbookRootsAndChildren = useMemo(
+    () => buildGuestbookTree(guestbookQ.data ?? []),
+    [guestbookQ.data]
+  );
+  const unreadReplyCountByEntryId = useMemo(
+    () => countUnreadRepliesByEntry(guestbookRootsAndChildren, isGuestbookUnread),
+    [guestbookRootsAndChildren, isGuestbookUnread]
+  );
   const pokeSummaryRow = useMemo(() => {
     if (!targetPlayerId) return null;
     return (pokesSummaryQ.data ?? []).find((row) => Number(row.profile_player_id) === Number(targetPlayerId)) ?? null;
@@ -791,17 +734,17 @@ export default function ProfilePage() {
       unreadJumpHandledRef.current = null;
       return;
     }
-    if (!latestUnreadGuestbookId) return;
+    if (!latestUnreadGuestbookEntryId) return;
     if (!unreadJumpReady) return;
-    if (unreadJumpHandledRef.current === latestUnreadGuestbookId) return;
-    unreadJumpHandledRef.current = latestUnreadGuestbookId;
-    focusGuestbookEntry(latestUnreadGuestbookId, { blink: false, behavior: "auto" });
+    if (unreadJumpHandledRef.current === latestUnreadGuestbookEntryId) return;
+    unreadJumpHandledRef.current = latestUnreadGuestbookEntryId;
+    focusGuestbookEntry(latestUnreadGuestbookEntryId, { blink: false, behavior: "auto" });
     window.setTimeout(() => {
       const next = new URLSearchParams(searchParams);
       next.delete("unread");
       setSearchParams(next, { replace: true });
     }, 420);
-  }, [focusGuestbookEntry, latestUnreadGuestbookId, searchParams, setSearchParams, unreadJumpReady]);
+  }, [focusGuestbookEntry, latestUnreadGuestbookEntryId, searchParams, setSearchParams, unreadJumpReady]);
 
   const renderGuestbookEntry = (entry: PlayerGuestbookEntry, depth = 0): JSX.Element => {
     const children = guestbookRootsAndChildren.childrenByParent.get(entry.id) ?? [];
@@ -1472,8 +1415,8 @@ export default function ProfilePage() {
               type="button"
               title="Jump to latest unread guestbook message"
               onClick={() => {
-                if (!latestUnreadGuestbookId) return;
-                focusGuestbookEntry(latestUnreadGuestbookId, { blink: false });
+                if (!latestUnreadGuestbookEntryId) return;
+                focusGuestbookEntry(latestUnreadGuestbookEntryId, { blink: false });
               }}
             >
               <Pill title="Unread guestbook messages">
