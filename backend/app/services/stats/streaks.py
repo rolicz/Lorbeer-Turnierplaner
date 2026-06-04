@@ -139,8 +139,6 @@ class Run:
 
 def _best_and_current_run(events: list[Event], pred: Callable[[Event], bool]) -> tuple[Run, Run]:
     best = Run(0, None, None)
-    best_start_i: int | None = None
-    best_end_i: int | None = None
     cur_len = 0
     cur_start: int | None = None
 
@@ -152,8 +150,6 @@ def _best_and_current_run(events: list[Event], pred: Callable[[Event], bool]) ->
             cur_len += 1
             if cur_len > best.length:
                 start_ev = events[cur_start or 0]
-                best_start_i = int(cur_start or 0)
-                best_end_i = int(i)
                 best = Run(
                     length=cur_len,
                     start_ts=start_ev.ts,

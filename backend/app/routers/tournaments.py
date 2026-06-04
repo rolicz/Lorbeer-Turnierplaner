@@ -1,32 +1,33 @@
 import json
 import logging
 import random
-from datetime import datetime, date
+from datetime import date, datetime
+
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
-from sqlmodel import Session, delete, select
 from sqlalchemy import case, func
+from sqlmodel import Session, delete, select
 
 from ..auth import require_admin, require_editor
 from ..db import get_session
 from ..models import Match, MatchSide, MatchSidePlayer, Player, Tournament, TournamentPlayer
+from ..scheduling import assign_labels, schedule_1v1_labels, schedule_2v2_labels
 from ..schemas import (
     TournamentCreateBody,
-    TournamentDeciderPatchBody,
     TournamentDatePatchBody,
+    TournamentDeciderPatchBody,
     TournamentGenerateBody,
     TournamentPatchBody,
     TournamentReassignBody,
     TournamentReorderBody,
     TournamentSecondLegBody,
 )
-from ..scheduling import assign_labels, schedule_1v1_labels, schedule_2v2_labels
-from ..stats import compute_tournament_stats
-from ..ws import ws_manager, ws_manager_update_tournaments
-from ..tournament_status import compute_status_for_tournament, compute_status_map, find_other_live_tournament_id
 from ..services.comments_summary import tournament_comments_summary
 from ..services.cup import compute_all_cup_tournament_stakes_by_tournament
 from ..services.notifications import enqueue_global_push, localized_push_message
 from ..services.stats.odds import compute_match_odds_for_tournament
+from ..stats import compute_tournament_stats
+from ..tournament_status import compute_status_for_tournament, compute_status_map, find_other_live_tournament_id
+from ..ws import ws_manager, ws_manager_update_tournaments
 
 log = logging.getLogger(__name__)
 router = APIRouter(prefix="/tournaments", tags=["tournaments"])
@@ -567,7 +568,7 @@ async def patch_tournament(
     s.refresh(t)
 
     await ws_manager.broadcast(tournament_id, "tournament_updated", {"tournament_id": tournament_id})
-    await ws_manager_update_tournaments.broadcast("tournament_updated", {"tournament_id": tournament_id}) 
+    await ws_manager_update_tournaments.broadcast("tournament_updated", {"tournament_id": tournament_id})
     enqueue_global_push(
         request,
         localized_push_message(
@@ -607,7 +608,7 @@ async def patch_date(
     s.refresh(t)
 
     await ws_manager.broadcast(tournament_id, "tournament_updated", {"tournament_id": tournament_id})
-    await ws_manager_update_tournaments.broadcast("tournament_updated", {"tournament_id": tournament_id}) 
+    await ws_manager_update_tournaments.broadcast("tournament_updated", {"tournament_id": tournament_id})
     log.info("Tournament date changed: tournament_id=%s date=%s by=%s", tournament_id, t.date, role)
     enqueue_global_push(
         request,
@@ -674,7 +675,7 @@ async def reorder(
     s: Session = Depends(get_session),
     role: str = Depends(require_editor),
 ):
-    t = _tournament_or_404(s, tournament_id)
+    _tournament_or_404(s, tournament_id)
 
     status_now = compute_status_for_tournament(s, tournament_id)
     if status_now == "done" and role != "admin":
@@ -861,7 +862,7 @@ async def delete_tournament(
     _delete_tournament_graph(s, tournament_id)
 
     await ws_manager.broadcast(tournament_id, "tournament_deleted", {"tournament_id": tournament_id})
-    await ws_manager_update_tournaments.broadcast("tournament_deleted", {"tournament_id": tournament_id}) 
+    await ws_manager_update_tournaments.broadcast("tournament_deleted", {"tournament_id": tournament_id})
     log.info("Tournament deleted: tournament_id=%s by=%s", tournament_id, role)
     enqueue_global_push(
         request,
@@ -1050,7 +1051,7 @@ async def patch_decider(
     s.refresh(t)
 
     await ws_manager.broadcast(tournament_id, "tournament_updated", {"tournament_id": tournament_id})
-    await ws_manager_update_tournaments.broadcast("tournament_updated", {"tournament_id": tournament_id}) 
+    await ws_manager_update_tournaments.broadcast("tournament_updated", {"tournament_id": tournament_id})
     return {
         "ok": True,
         "decider_type": t.decider_type,

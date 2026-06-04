@@ -1,4 +1,4 @@
-.PHONY: help install run run-lan test clean
+.PHONY: help install run run-lan test lint format clean
 
 PY ?= python3
 PIP ?= pip
@@ -28,6 +28,12 @@ run-lan:
 
 test:
 	$(PY) -m pytest -q
+
+lint:
+	.venv/bin/ruff check app tests
+
+format:
+	.venv/bin/ruff format app tests
 
 clean:
 	rm -f app.db

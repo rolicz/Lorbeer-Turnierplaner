@@ -1,4 +1,4 @@
-.PHONY: help dev backend backend-lan test clean frontend frontend-lan frontend-install
+.PHONY: help dev backend backend-lan test lint format clean frontend frontend-lan frontend-install
 
 BACKEND_DIR := backend
 FRONTEND_DIR := frontend
@@ -27,6 +27,12 @@ backend-lan:
 
 test:
 	$(MAKE) -C $(BACKEND_DIR) test PY=$(BACKEND_PY)
+
+lint:
+	$(MAKE) -C $(BACKEND_DIR) lint
+
+format:
+	$(MAKE) -C $(BACKEND_DIR) format
 
 clean:
 	$(MAKE) -C $(BACKEND_DIR) clean

@@ -399,7 +399,7 @@ def test_profile_poke_tracking_per_player(client, editor_headers, admin_headers)
 
 
 def test_profile_poke_authored_unread_summary(client, editor_headers, admin_headers):
-    editor_id = _player_id_by_name(client, "Editor")
+    _editor_id = _player_id_by_name(client, "Editor")
     admin_id = _player_id_by_name(client, "Admin")
     target_id = client.post("/players", json={"display_name": "PokeAuthoredUnreadTarget"}, headers=admin_headers).json()["id"]
 

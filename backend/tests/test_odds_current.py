@@ -66,7 +66,7 @@ def test_live_score_updates_do_not_change_odds(client, editor_headers, admin_hea
 def test_single_match_odds_ignore_live_score_state(client, editor_headers, admin_headers):
     p1 = client.post("/players", json={"display_name": "M1"}, headers=admin_headers).json()["id"]
     p2 = client.post("/players", json={"display_name": "M2"}, headers=admin_headers).json()["id"]
-    p3 = client.post("/players", json={"display_name": "M3"}, headers=admin_headers).json()["id"]
+    _p3 = client.post("/players", json={"display_name": "M3"}, headers=admin_headers).json()["id"]
 
     # Ad-hoc endpoint should use pre-match model regardless of live score.
     payload_scheduled = {
