@@ -6,6 +6,13 @@ from sqlmodel import Session
 from ..auth import require_auth_claims
 from ..db import get_session
 from ..schemas import PushSubscriptionBody, PushSubscriptionDeleteBody
+from ..schemas.responses import (
+    OkResponse,
+    PushConfigOut,
+    PushDisableOut,
+    PushSubscriptionResultOut,
+    PushSubscriptionsListOut,
+)
 from ..services.notification_texts import default_notification_language, notification_language_options
 from ..services.notifications import (
     disable_push_subscription,
@@ -21,7 +28,7 @@ from ..services.notifications import (
 router = APIRouter(prefix="/push", tags=["push"])
 
 
-@router.get("/config")
+@router.get("/config", response_model=PushConfigOut)
 def get_push_config(request: Request) -> dict:
     dispatcher = push_dispatcher_from_request(request)
     if dispatcher is None:
@@ -49,7 +56,7 @@ def get_push_config(request: Request) -> dict:
     }
 
 
-@router.put("/subscription")
+@router.put("/subscription", response_model=PushSubscriptionResultOut)
 def put_subscription(
     request: Request,
     body: PushSubscriptionBody,
@@ -92,7 +99,7 @@ def put_subscription(
     }
 
 
-@router.delete("/subscription")
+@router.delete("/subscription", response_model=PushDisableOut)
 def delete_subscription(
     body: PushSubscriptionDeleteBody,
     s: Session = Depends(get_session),
@@ -108,7 +115,7 @@ def delete_subscription(
     return {"ok": True, "disabled": disabled}
 
 
-@router.get("/subscriptions/me")
+@router.get("/subscriptions/me", response_model=PushSubscriptionsListOut)
 def list_my_subscriptions(
     s: Session = Depends(get_session),
     claims: dict = Depends(require_auth_claims),
@@ -121,7 +128,7 @@ def list_my_subscriptions(
     }
 
 
-@router.post("/test")
+@router.post("/test", response_model=OkResponse)
 def send_test_notification(
     request: Request,
     claims: dict = Depends(require_auth_claims),

@@ -412,3 +412,67 @@ class CupOut(BaseModel):
     owner: PlayerRef | None
     streak: CupStreakOut
     history: list[CupHistoryItemOut]
+
+
+# ---- push --------------------------------------------------------------
+class KeyLabelOut(BaseModel):
+    key: str
+    label: str
+
+
+class PushConfigOut(BaseModel):
+    enabled: bool
+    configured: bool
+    vapid_public_key: str
+    reason: str | None
+    ios_home_screen_required: bool
+    default_notification_language: str
+    notification_languages: list[KeyLabelOut]
+    default_notification_mode: str
+    notification_modes: list[KeyLabelOut]
+
+
+class PushSubscriptionResultOut(BaseModel):
+    ok: bool
+    id: int
+    player_id: int
+    endpoint: str
+    disabled: bool
+    updated_at: datetime
+    notification_language: str
+    notification_mode: str
+
+
+class PushDisableOut(BaseModel):
+    ok: bool
+    disabled: bool
+
+
+class PushSubscriptionItemOut(BaseModel):
+    endpoint: str
+    notification_language: str
+    notification_mode: str
+    app_platform: str
+    app_standalone: bool
+
+
+class PushSubscriptionsListOut(BaseModel):
+    count: int
+    endpoints: list[str]
+    subscriptions: list[PushSubscriptionItemOut]
+
+
+# ---- stats (simple, fully-typed endpoints) -----------------------------
+class StatsBlockOut(BaseModel):
+    key: str
+    name: str
+    description: str
+    version: int
+
+
+class StatsOverviewOut(BaseModel):
+    blocks: list[StatsBlockOut]
+
+
+class OddsResponseOut(BaseModel):
+    odds: OddsOut

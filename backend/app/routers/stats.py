@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 from sqlmodel import Session
 
 from ..db import get_session
+from ..schemas.responses import OddsResponseOut, StatsOverviewOut
 from ..services.stats.h2h import compute_stats_h2h
 from ..services.stats.h2h_matches import compute_stats_h2h_matches
 from ..services.stats.odds import compute_single_match_odds
@@ -40,7 +41,7 @@ class StatsH2HMatchesRequest(BaseModel):
     scope: Literal["tournaments", "both", "friendlies"] = "tournaments"
 
 
-@router.get("/overview")
+@router.get("/overview", response_model=StatsOverviewOut)
 def stats_overview_endpoint() -> dict[str, Any]:
     return stats_overview()
 
@@ -108,7 +109,7 @@ def stats_ratings(
     return compute_stats_ratings(s, mode=mode, scope=scope)
 
 
-@router.post("/odds")
+@router.post("/odds", response_model=OddsResponseOut)
 def stats_odds(
     req: StatsOddsRequest = Body(...),
     s: Session = Depends(get_session),
