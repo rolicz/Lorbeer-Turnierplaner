@@ -3,9 +3,10 @@ from __future__ import annotations
 
 from typing import Any
 
+from sqlalchemy.orm import selectinload
 from sqlmodel import Session, select
 
-from .models import Match, Player, Tournament
+from .models import Match, MatchSide, Player, Tournament
 from .stats_core import compute_overall_and_lastN
 
 
@@ -16,11 +17,9 @@ def compute_stats(s: Session) -> dict[str, Any]:
     """
     players = s.exec(select(Player).order_by(Player.display_name)).all()
 
-    matches = s.exec(select(Match)).all()
-    for m in matches:
-        _ = m.sides
-        for side in m.sides:
-            _ = side.players
+    matches = s.exec(
+        select(Match).options(selectinload(Match.sides).selectinload(MatchSide.players))
+    ).all()
 
     per = compute_overall_and_lastN(matches, players, lastN=10)
 
@@ -58,16 +57,15 @@ def compute_tournament_stats(s: Session, tournament_id: int) -> dict[str, Any]:
     if not t:
         return {"players": []}
 
-    _ = t.players
+    _ = t.players  # lazy-load tournament players (t already fetched)
     players = sorted(list(t.players), key=lambda p: p.display_name)
 
     matches = s.exec(
-        select(Match).where(Match.tournament_id == tournament_id).order_by(Match.order_index)
+        select(Match)
+        .options(selectinload(Match.sides).selectinload(MatchSide.players))
+        .where(Match.tournament_id == tournament_id)
+        .order_by(Match.order_index)
     ).all()
-    for m in matches:
-        _ = m.sides
-        for side in m.sides:
-            _ = side.players
 
     per = compute_overall_and_lastN(matches, players, lastN=10)
     return {

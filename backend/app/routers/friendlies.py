@@ -209,11 +209,14 @@ def patch_friendly(
     request: Request,
     s: Session = Depends(get_session),
 ):
-    fm = s.get(FriendlyMatch, friendly_id)
+    fm = s.exec(
+        select(FriendlyMatch)
+        .options(selectinload(FriendlyMatch.sides))
+        .where(FriendlyMatch.id == friendly_id)
+    ).first()
     if not fm:
         raise HTTPException(status_code=404, detail="Friendly match not found")
 
-    _ = fm.sides
     fields = body.model_fields_set
     old_state = fm.state
     old_scores = {side.side: int(side.goals or 0) for side in fm.sides}

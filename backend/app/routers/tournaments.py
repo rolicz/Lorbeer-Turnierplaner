@@ -5,6 +5,7 @@ from datetime import date, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from sqlalchemy import case, func
+from sqlalchemy.orm import selectinload
 from sqlmodel import Session, delete, select
 
 from ..api_utils import get_or_404
@@ -44,14 +45,13 @@ router = APIRouter(prefix="/tournaments", tags=["tournaments"])
 
 
 def _serialize_tournament(s: Session, t: Tournament) -> dict:
-    matches = s.exec(select(Match).where(Match.tournament_id == t.id).order_by(Match.order_index)).all()
-
-    # force-load relationships under the session
-    _ = t.players
-    for m in matches:
-        _ = m.sides
-        for side in m.sides:
-            _ = side.players
+    matches = s.exec(
+        select(Match)
+        .options(selectinload(Match.sides).selectinload(MatchSide.players))
+        .where(Match.tournament_id == t.id)
+        .order_by(Match.order_index)
+    ).all()
+    _ = t.players  # load tournament players (no selectinload — t is already fetched)
 
     status = compute_status_for_tournament(s, t.id)
     odds_by_match_id = compute_match_odds_for_tournament(s, tournament=t, matches_in_tournament=matches)
@@ -347,15 +347,10 @@ def list_tournaments(s: Session = Depends(get_session)):
     for t in ts:
         matches = s.exec(
             select(Match)
+            .options(selectinload(Match.sides).selectinload(MatchSide.players))
             .where(Match.tournament_id == t.id)
             .order_by(Match.order_index)
         ).all()
-
-        # eager load like before
-        for m in matches:
-            _ = m.sides
-            for side in m.sides:
-                _ = side.players
 
         status = status_by_tid.get(t.id, "draft")
 
@@ -736,31 +731,25 @@ async def second_leg(
     NOTE: This is allowed even if leg1 is fully finished (it can revive a tournament to "live").
     Enforces: only one tournament may be live.
     """
-    _ = get_or_404(s, Tournament, tournament_id, name="Tournament")
+    get_or_404(s, Tournament, tournament_id, name="Tournament")
     enabled = bool(body.enabled)
 
     leg1 = s.exec(
         select(Match)
+        .options(selectinload(Match.sides).selectinload(MatchSide.players))
         .where(Match.tournament_id == tournament_id, Match.leg == 1)
         .order_by(Match.order_index)
     ).all()
-    for m in leg1:
-        _ = m.sides
-        for side in m.sides:
-            _ = side.players
 
     leg1_sigs = [_match_signature_from_loaded_match(m) for m in leg1 if _match_signature_from_loaded_match(m) != ((), ())]
     leg1_sig_set = set(leg1_sigs)
 
     leg2 = s.exec(
         select(Match)
+        .options(selectinload(Match.sides).selectinload(MatchSide.players))
         .where(Match.tournament_id == tournament_id, Match.leg == 2)
         .order_by(Match.order_index)
     ).all()
-    for m in leg2:
-        _ = m.sides
-        for side in m.sides:
-            _ = side.players
 
     leg2_sigs = [_match_signature_from_loaded_match(m) for m in leg2 if _match_signature_from_loaded_match(m) != ((), ())]
     leg2_sig_set = set(leg2_sigs)
@@ -992,14 +981,12 @@ async def patch_decider(
     winner_goals = as_int_or_none(body.winner_goals, "winner_goals")
     loser_goals = as_int_or_none(body.loser_goals, "loser_goals")
 
-    # Load matches + force-load sides/players
     matches = s.exec(
-        select(Match).where(Match.tournament_id == tournament_id).order_by(Match.order_index)
+        select(Match)
+        .options(selectinload(Match.sides).selectinload(MatchSide.players))
+        .where(Match.tournament_id == tournament_id)
+        .order_by(Match.order_index)
     ).all()
-    for m in matches:
-        _ = m.sides
-        for side in m.sides:
-            _ = side.players
 
     pt = _compute_points_table_finished(matches)
     top = _top_group(pt)
@@ -1084,6 +1071,7 @@ async def reassign_2v2(
     # Must have an existing schedule
     matches = s.exec(
         select(Match)
+        .options(selectinload(Match.sides))
         .where(Match.tournament_id == tournament_id)
         .order_by(Match.order_index)
     ).all()
@@ -1097,7 +1085,6 @@ async def reassign_2v2(
         if m.started_at is not None or m.finished_at is not None:
             raise HTTPException(status_code=409, detail="Re-assign requires untouched matches (no timestamps)")
 
-        _ = m.sides
         for side in m.sides:
             if (side.goals or 0) != 0:
                 raise HTTPException(status_code=409, detail="Re-assign requires untouched matches (goals must be 0)")

@@ -2,11 +2,12 @@ import logging
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Request
+from sqlalchemy.orm import selectinload
 from sqlmodel import Session, select
 
 from ..auth import require_editor
 from ..db import get_session
-from ..models import Club, Match, Tournament
+from ..models import Club, Match, MatchSide, Tournament
 from ..schemas import MatchPatchBody, MatchSidePatchBody
 from ..services.events import broadcast_match_patched, broadcast_match_updated
 from ..services.notifications import enqueue_global_push, localized_push_message
@@ -17,11 +18,13 @@ log = logging.getLogger(__name__)
 
 
 def _match_or_404(s: Session, match_id: int) -> Match:
-    m = s.get(Match, match_id)
+    m = s.exec(
+        select(Match)
+        .options(selectinload(Match.sides).selectinload(MatchSide.players))
+        .where(Match.id == match_id)
+    ).first()
     if not m:
         raise HTTPException(status_code=404, detail="Match not found")
-    # load sides eagerly for updates later
-    _ = m.sides
     return m
 
 
@@ -284,7 +287,6 @@ async def swap_sides(
     if status_now == "done" and role != "admin":
         raise HTTPException(status_code=403, detail="Tournament is done (admin required to swap sides)")
 
-    _ = m.sides
     sides = {side.side: side for side in m.sides}
     a = sides.get("A")
     b = sides.get("B")

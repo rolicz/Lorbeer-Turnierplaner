@@ -5,6 +5,7 @@ import re
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, File, HTTPException, Request, Response, UploadFile
+from sqlalchemy.orm import selectinload
 from sqlmodel import Session, select
 
 from ..api_utils import get_or_404
@@ -16,6 +17,7 @@ from ..models import (
     CommentRead,
     CommentVote,
     Match,
+    MatchSide,
     Player,
     Tournament,
     TournamentPinnedComment,
@@ -183,12 +185,14 @@ def _goal_scorer_name_for_match(
         scorer_id = int(goal_player_id)
     except Exception as exc:
         raise HTTPException(status_code=400, detail="goal_player_id must be an integer") from exc
-    match = s.get(Match, match_id)
+    match = s.exec(
+        select(Match)
+        .options(selectinload(Match.sides).selectinload(MatchSide.players))
+        .where(Match.id == match_id)
+    ).first()
     if match is None:
         raise HTTPException(status_code=400, detail=f"Unknown match_id {match_id}")
-    _ = match.sides
     for side in match.sides:
-        _ = side.players
         for player in side.players:
             if int(player.id or 0) == scorer_id:
                 return player.display_name
@@ -519,9 +523,15 @@ async def create_comment(
     goal_line: str | None = None
     goal_note: str = ""
     scoreline: str | None = None
-    match_for_event: Match | None = s.get(Match, match_id) if match_id is not None else None
-    if match_for_event is not None:
-        _ = match_for_event.sides
+    match_for_event: Match | None = (
+        s.exec(
+            select(Match)
+            .options(selectinload(Match.sides))
+            .where(Match.id == match_id)
+        ).first()
+        if match_id is not None
+        else None
+    )
     match_score_changed = False
     if event_type == "goal":
         if match_id is None:
@@ -709,7 +719,7 @@ async def delete_comment(
 @router.get("/comments/{comment_id}/image")
 def get_comment_image(comment_id: int):
     with Session(get_engine()) as s:
-        _ = get_or_404(s, Comment, comment_id, name="Comment")
+        get_or_404(s, Comment, comment_id, name="Comment")
         img_file = s.get(CommentImageFile, comment_id)
         if not img_file:
             raise HTTPException(status_code=404, detail="Comment image not found")

@@ -4,11 +4,12 @@ import datetime as dt
 from dataclasses import dataclass
 from typing import Optional
 
+from sqlalchemy.orm import selectinload
 from sqlmodel import Session, select
 
 from app.stats_core import compute_player_standings, unique_winner_player_id
 
-from ..models import Match, Player, Tournament
+from ..models import Match, MatchSide, Player, Tournament
 
 
 @dataclass(frozen=True)
@@ -89,12 +90,11 @@ def compute_cup(session: Session, *, since_date: dt.date | None = None) -> CupRe
         if owner is not None and owner.id not in participant_ids:
             continue
 
-        # load matches + relationships
-        matches = session.exec(select(Match).where(Match.tournament_id == t.id)).all()
-        for m in matches:
-            _ = m.sides
-            for side in m.sides:
-                _ = side.players
+        matches = session.exec(
+            select(Match)
+            .options(selectinload(Match.sides).selectinload(MatchSide.players))
+            .where(Match.tournament_id == t.id)
+        ).all()
 
         rows = compute_player_standings(matches, participants)
         winner_id = unique_winner_player_id(rows)
@@ -230,11 +230,11 @@ def compute_cup_tournament_stakes(
         if owner is not None and not owner_participates:
             continue
 
-        matches = session.exec(select(Match).where(Match.tournament_id == t.id)).all()
-        for m in matches:
-            _ = m.sides
-            for side in m.sides:
-                _ = side.players
+        matches = session.exec(
+            select(Match)
+            .options(selectinload(Match.sides).selectinload(MatchSide.players))
+            .where(Match.tournament_id == t.id)
+        ).all()
 
         rows = compute_player_standings(matches, participants)
         winner_id = unique_winner_player_id(rows)
