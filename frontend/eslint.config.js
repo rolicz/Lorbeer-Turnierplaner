@@ -13,6 +13,7 @@ export default [
       "tailwind.config.cjs",
       "public/sw.js",
       "vite.config.ts",
+      "vitest.config.ts",
     ],
   },
 
