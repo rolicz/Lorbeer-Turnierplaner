@@ -1,7 +1,6 @@
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Response
-from pydantic import BaseModel
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
 
@@ -9,27 +8,20 @@ from ..auth import require_admin, require_editor
 from ..db import get_session
 from ..models import Club, League, MatchSide
 from ..schemas import ClubCreateBody, ClubPatchBody, LeagueCreateBody
+from ..schemas.responses import ClubColumnsOut, ClubOut, LeagueOut
 from ..validation import validate_star_rating
 
 log = logging.getLogger(__name__)
 router = APIRouter(prefix="/clubs", tags=["clubs"])
 
 
-class ClubOut(BaseModel):
-    id: int
-    name: str
-    game: str
-    star_rating: float
-    league_id: int
-    league_name: str | None
-
 # ---- leagues (backend-managed lookup) ----
-@router.get("/leagues")
+@router.get("/leagues", response_model=list[LeagueOut])
 def list_leagues(s: Session = Depends(get_session)):
     return s.exec(select(League).order_by(League.name)).all()
 
 
-@router.post("/leagues", dependencies=[Depends(require_admin)])
+@router.post("/leagues", response_model=LeagueOut, dependencies=[Depends(require_admin)])
 def create_league(body: LeagueCreateBody, s: Session = Depends(get_session), role: str = Depends(require_admin)):
     name = (body.name or "").strip()
     if not name:
@@ -84,7 +76,7 @@ def list_clubs(game: str | None = None, s: Session = Depends(get_session)):
     return out
 
 
-@router.post("", dependencies=[Depends(require_editor)])
+@router.post("", response_model=ClubColumnsOut, dependencies=[Depends(require_editor)])
 def create_club(body: ClubCreateBody, s: Session = Depends(get_session)):
     name = (body.name or "").strip()
     game = (body.game or "").strip()
@@ -124,7 +116,7 @@ def create_club(body: ClubCreateBody, s: Session = Depends(get_session)):
     return c
 
 
-@router.patch("/{club_id}", dependencies=[Depends(require_editor)])
+@router.patch("/{club_id}", response_model=ClubColumnsOut, dependencies=[Depends(require_editor)])
 def patch_club(
     club_id: int,
     body: ClubPatchBody,
