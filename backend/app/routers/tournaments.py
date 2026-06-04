@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from sqlalchemy import case, func
 from sqlmodel import Session, delete, select
 
+from ..api_utils import get_or_404
 from ..auth import require_admin, require_editor
 from ..db import get_session
 from ..models import Match, MatchSide, MatchSidePlayer, Player, Tournament, TournamentPlayer
@@ -23,24 +24,23 @@ from ..schemas import (
 )
 from ..services.comments_summary import tournament_comments_summary
 from ..services.cup import compute_all_cup_tournament_stakes_by_tournament
+from ..services.events import (
+    broadcast_matches_reordered,
+    broadcast_schedule_generated,
+    broadcast_tournament_created,
+    broadcast_tournament_deleted,
+    broadcast_tournament_updated,
+)
 from ..services.notifications import enqueue_global_push, localized_push_message
 from ..services.stats.odds import compute_match_odds_for_tournament
 from ..stats import compute_tournament_stats
 from ..tournament_status import compute_status_for_tournament, compute_status_map, find_other_live_tournament_id
-from ..ws import ws_manager, ws_manager_update_tournaments
 
 log = logging.getLogger(__name__)
 router = APIRouter(prefix="/tournaments", tags=["tournaments"])
 
 
 
-
-
-def _tournament_or_404(s: Session, tournament_id: int) -> Tournament:
-    t = s.exec(select(Tournament).where(Tournament.id == tournament_id)).first()
-    if not t:
-        raise HTTPException(status_code=404, detail="Tournament not found")
-    return t
 
 
 def _serialize_tournament(s: Session, t: Tournament) -> dict:
@@ -453,7 +453,7 @@ def get_tournaments_comments_summary(s: Session = Depends(get_session)) -> list[
 
 @router.get("/{tournament_id}")
 def get_tournament(tournament_id: int, s: Session = Depends(get_session)):
-    t = _tournament_or_404(s, tournament_id)
+    t = get_or_404(s, Tournament, tournament_id, name="Tournament")
     return _serialize_tournament(s, t)
 
 
@@ -509,7 +509,7 @@ async def create_tournament(body: TournamentCreateBody, request: Request, s: Ses
 
     log.info("Created tournament '%s' (id=%s, mode=%s)", t.name, t.id, t.mode)
 
-    await ws_manager_update_tournaments.broadcast("tournament_created", {})
+    await broadcast_tournament_created()
     enqueue_global_push(
         request,
         localized_push_message(
@@ -543,7 +543,7 @@ async def patch_tournament(
       - name
       - settings
     """
-    t = _tournament_or_404(s, tournament_id)
+    t = get_or_404(s, Tournament, tournament_id, name="Tournament")
 
     status_now = compute_status_for_tournament(s, tournament_id)
     if status_now == "done" and role != "admin":
@@ -567,8 +567,7 @@ async def patch_tournament(
     s.commit()
     s.refresh(t)
 
-    await ws_manager.broadcast(tournament_id, "tournament_updated", {"tournament_id": tournament_id})
-    await ws_manager_update_tournaments.broadcast("tournament_updated", {"tournament_id": tournament_id})
+    await broadcast_tournament_updated(tournament_id)
     enqueue_global_push(
         request,
         localized_push_message(
@@ -591,7 +590,7 @@ async def patch_date(
     s: Session = Depends(get_session),
     role: str = Depends(require_admin),
 ):
-    t = _tournament_or_404(s, tournament_id)
+    t = get_or_404(s, Tournament, tournament_id, name="Tournament")
 
     date_str = (body.date or "").strip()
     if not date_str:
@@ -607,8 +606,7 @@ async def patch_date(
     s.commit()
     s.refresh(t)
 
-    await ws_manager.broadcast(tournament_id, "tournament_updated", {"tournament_id": tournament_id})
-    await ws_manager_update_tournaments.broadcast("tournament_updated", {"tournament_id": tournament_id})
+    await broadcast_tournament_updated(tournament_id)
     log.info("Tournament date changed: tournament_id=%s date=%s by=%s", tournament_id, t.date, role)
     enqueue_global_push(
         request,
@@ -636,7 +634,7 @@ async def generate_schedule(
     """
     body: { "randomize": true }
     """
-    t = _tournament_or_404(s, tournament_id)
+    t = get_or_404(s, Tournament, tournament_id, name="Tournament")
 
     status_now = compute_status_for_tournament(s, tournament_id)
     if status_now == "done" and role != "admin":
@@ -645,7 +643,7 @@ async def generate_schedule(
     randomize = bool(body.randomize)
     created_matches, label_to_name = _generate_schedule_for_tournament(s, t, randomize=randomize)
 
-    await ws_manager.broadcast(tournament_id, "schedule_generated", {"tournament_id": tournament_id})
+    await broadcast_schedule_generated(tournament_id)
     log.info(
         "Generated schedule: tournament_id=%s matches=%s mode=%s players=%s",
         tournament_id,
@@ -675,7 +673,7 @@ async def reorder(
     s: Session = Depends(get_session),
     role: str = Depends(require_editor),
 ):
-    _tournament_or_404(s, tournament_id)
+    get_or_404(s, Tournament, tournament_id, name="Tournament")
 
     status_now = compute_status_for_tournament(s, tournament_id)
     if status_now == "done" and role != "admin":
@@ -719,7 +717,7 @@ async def reorder(
         s.add(by_id[mid])
 
     s.commit()
-    await ws_manager.broadcast(tournament_id, "matches_reordered", {"tournament_id": tournament_id})
+    await broadcast_matches_reordered(tournament_id)
     return {"ok": True}
 
 
@@ -738,7 +736,7 @@ async def second_leg(
     NOTE: This is allowed even if leg1 is fully finished (it can revive a tournament to "live").
     Enforces: only one tournament may be live.
     """
-    _ = _tournament_or_404(s, tournament_id)
+    _ = get_or_404(s, Tournament, tournament_id, name="Tournament")
     enabled = bool(body.enabled)
 
     leg1 = s.exec(
@@ -782,13 +780,13 @@ async def second_leg(
         _delete_matches_by_leg(s, tournament_id, leg=2)
 
         # sync status
-        t = _tournament_or_404(s, tournament_id)
+        t = get_or_404(s, Tournament, tournament_id, name="Tournament")
         t.status = compute_status_for_tournament(s, tournament_id)
         t.updated_at = datetime.utcnow()
         s.add(t)
         s.commit()
 
-        await ws_manager.broadcast(tournament_id, "schedule_generated", {"tournament_id": tournament_id})
+        await broadcast_schedule_generated(tournament_id)
         return {"ok": True, "second_leg": False, "deleted": True, "status": t.status}
 
     # enabled == True
@@ -822,18 +820,18 @@ async def second_leg(
 
         # sync status
         s.flush()
-        t = _tournament_or_404(s, tournament_id)
+        t = get_or_404(s, Tournament, tournament_id, name="Tournament")
         t.status = compute_status_for_tournament(s, tournament_id)
         t.updated_at = datetime.utcnow()
         s.add(t)
         s.commit()
 
-        await ws_manager.broadcast(tournament_id, "schedule_generated", {"tournament_id": tournament_id})
+        await broadcast_schedule_generated(tournament_id)
         return {"ok": True, "second_leg": True, "created": created, "status": t.status}
 
     if leg2_complete():
         # nothing to do; still keep status synced
-        t = _tournament_or_404(s, tournament_id)
+        t = get_or_404(s, Tournament, tournament_id, name="Tournament")
         t.status = compute_status_for_tournament(s, tournament_id)
         s.add(t)
         s.commit()
@@ -847,7 +845,7 @@ async def second_leg(
 
 @router.get("/{tournament_id}/stats")
 def stats(tournament_id: int, s: Session = Depends(get_session)):
-    _tournament_or_404(s, tournament_id)
+    get_or_404(s, Tournament, tournament_id, name="Tournament")
     return compute_tournament_stats(s, tournament_id)
 
 
@@ -858,11 +856,10 @@ async def delete_tournament(
     s: Session = Depends(get_session),
     role: str = Depends(require_admin),
 ):
-    tournament = _tournament_or_404(s, tournament_id)
+    tournament = get_or_404(s, Tournament, tournament_id, name="Tournament")
     _delete_tournament_graph(s, tournament_id)
 
-    await ws_manager.broadcast(tournament_id, "tournament_deleted", {"tournament_id": tournament_id})
-    await ws_manager_update_tournaments.broadcast("tournament_deleted", {"tournament_id": tournament_id})
+    await broadcast_tournament_deleted(tournament_id)
     log.info("Tournament deleted: tournament_id=%s by=%s", tournament_id, role)
     enqueue_global_push(
         request,
@@ -976,7 +973,7 @@ async def patch_decider(
       - winner+loser must both be in the tied top group and must be different
       - goals must be >=0 integers when type != "none"
     """
-    t = _tournament_or_404(s, tournament_id)
+    t = get_or_404(s, Tournament, tournament_id, name="Tournament")
 
     dec_type = (body.type or "none").strip()
     if dec_type not in ALLOWED_DECIDERS:
@@ -1050,8 +1047,7 @@ async def patch_decider(
     s.commit()
     s.refresh(t)
 
-    await ws_manager.broadcast(tournament_id, "tournament_updated", {"tournament_id": tournament_id})
-    await ws_manager_update_tournaments.broadcast("tournament_updated", {"tournament_id": tournament_id})
+    await broadcast_tournament_updated(tournament_id)
     return {
         "ok": True,
         "decider_type": t.decider_type,
@@ -1080,7 +1076,7 @@ async def reassign_2v2(
     body (optional):
       { "randomize_order": true|false }
     """
-    t = _tournament_or_404(s, tournament_id)
+    t = get_or_404(s, Tournament, tournament_id, name="Tournament")
 
     if t.mode != "2v2":
         raise HTTPException(status_code=409, detail="Re-assign is only supported for 2v2 tournaments")
@@ -1181,13 +1177,13 @@ async def reassign_2v2(
 
     # Sync status (after reassign everything is scheduled => draft)
     s.flush()
-    t = _tournament_or_404(s, tournament_id)
+    t = get_or_404(s, Tournament, tournament_id, name="Tournament")
     t.status = compute_status_for_tournament(s, tournament_id)
     t.updated_at = datetime.utcnow()
     s.add(t)
     s.commit()
 
-    await ws_manager.broadcast(tournament_id, "schedule_generated", {"tournament_id": tournament_id})
+    await broadcast_schedule_generated(tournament_id)
     log.info(
         "2v2 reassign: tournament_id=%s matches=%s had_leg2=%s by=%s",
         tournament_id, len(label_matches), had_leg2, role

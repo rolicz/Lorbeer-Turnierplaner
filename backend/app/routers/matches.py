@@ -8,9 +8,9 @@ from ..auth import require_editor
 from ..db import get_session
 from ..models import Club, Match, Tournament
 from ..schemas import MatchPatchBody, MatchSidePatchBody
+from ..services.events import broadcast_match_patched, broadcast_match_updated
 from ..services.notifications import enqueue_global_push, localized_push_message
 from ..tournament_status import compute_status_for_tournament, find_other_live_tournament_id
-from ..ws import ws_manager, ws_manager_update_tournaments
 
 router = APIRouter(prefix="/matches", tags=["matches"])
 log = logging.getLogger(__name__)
@@ -186,13 +186,7 @@ async def patch_match(
     log.info("Match patched: match_id=%s tournament_id=%s state=%s status=%s by=%s",
              m.id, m.tournament_id, m.state, status_after, role)
 
-    await ws_manager.broadcast(
-        m.tournament_id,
-        "match_patched",
-        {"tournament_id": m.tournament_id, "match_id": m.id, "tournament_status": status_after},
-    )
-
-    await ws_manager_update_tournaments.broadcast("match_patched", {"tournament_id": m.tournament_id})
+    await broadcast_match_patched(m.tournament_id, m.id, tournament_status=status_after)
 
     new_scores = {side.side: int(side.goals or 0) for side in m.sides}
     scoreline = f"{new_scores.get('A', 0)}:{new_scores.get('B', 0)}"
@@ -311,5 +305,5 @@ async def swap_sides(
 
     s.commit()
 
-    await ws_manager.broadcast(m.tournament_id, "match_updated", {"tournament_id": m.tournament_id, "match_id": m.id})
+    await broadcast_match_updated(m.tournament_id, m.id)
     return {"ok": True}

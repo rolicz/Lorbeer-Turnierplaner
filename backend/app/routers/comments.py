@@ -7,6 +7,7 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, File, HTTPException, Request, Response, UploadFile
 from sqlmodel import Session, select
 
+from ..api_utils import get_or_404
 from ..auth import decode_token, require_admin, require_auth_claims, require_editor, require_editor_claims
 from ..db import get_engine, get_session
 from ..models import (
@@ -22,6 +23,7 @@ from ..models import (
 )
 from ..schemas import CommentCreateBody, CommentPatchBody, CommentsPinBody, CommentVoteBody
 from ..services.comments_summary import tournament_comments_summary
+from ..services.events import broadcast_comments_updated, broadcast_match_patched
 from ..services.file_storage import (
     delete_media,
     media_exists,
@@ -30,7 +32,6 @@ from ..services.file_storage import (
     write_media,
 )
 from ..services.notifications import enqueue_global_push, localized_push_message
-from ..ws import ws_manager, ws_manager_update_tournaments
 
 log = logging.getLogger(__name__)
 router = APIRouter(tags=["comments"])
@@ -78,18 +79,6 @@ def _comment_image_updated_at(s: Session, comment_id: int) -> datetime | None:
     return None
 
 
-def _tournament_or_404(s: Session, tournament_id: int) -> Tournament:
-    t = s.get(Tournament, tournament_id)
-    if not t:
-        raise HTTPException(status_code=404, detail="Tournament not found")
-    return t
-
-
-def _comment_or_404(s: Session, comment_id: int) -> Comment:
-    c = s.get(Comment, comment_id)
-    if not c:
-        raise HTTPException(status_code=404, detail="Comment not found")
-    return c
 
 
 def _comment_image_meta_map(s: Session, tournament_id: int) -> dict[int, datetime]:
@@ -282,7 +271,7 @@ def list_comments(
     s: Session = Depends(get_session),
     claims: dict | None = Depends(decode_token),
 ) -> dict:
-    _tournament_or_404(s, tournament_id)
+    get_or_404(s, Tournament, tournament_id, name="Tournament")
 
     pin = s.get(TournamentPinnedComment, tournament_id)
     pinned_comment_id = pin.comment_id if pin and pin.comment_id else None
@@ -356,7 +345,7 @@ def list_tournament_comment_reads(
     s: Session = Depends(get_session),
     claims: dict = Depends(require_auth_claims),
 ) -> dict:
-    _tournament_or_404(s, tournament_id)
+    get_or_404(s, Tournament, tournament_id, name="Tournament")
     player_id = int(claims.get("player_id"))
     rows = s.exec(
         select(CommentRead.comment_id)
@@ -392,7 +381,7 @@ def mark_comment_read(
     s: Session = Depends(get_session),
     claims: dict = Depends(require_auth_claims),
 ) -> dict:
-    _comment_or_404(s, comment_id)
+    get_or_404(s, Comment, comment_id, name="Comment")
     player_id = int(claims.get("player_id"))
     now = datetime.utcnow()
     row = s.get(CommentRead, (player_id, comment_id))
@@ -412,7 +401,7 @@ async def vote_comment(
     s: Session = Depends(get_session),
     claims: dict = Depends(require_auth_claims),
 ) -> dict:
-    c = _comment_or_404(s, comment_id)
+    c = get_or_404(s, Comment, comment_id, name="Comment")
     player_id = int(claims.get("player_id"))
     raw = body.value
     try:
@@ -442,17 +431,13 @@ async def vote_comment(
         s.add(row)
         s.commit()
 
-    await ws_manager.broadcast(
-        c.tournament_id,
-        "comments_updated",
-        {"tournament_id": c.tournament_id, "comment_id": c.id, "action": "voted"},
-    )
+    await broadcast_comments_updated(c.tournament_id, c.id, action="voted")
     return {"ok": True, "value": value}
 
 
 @router.get("/comments/{comment_id}/voters")
 def list_comment_voters(comment_id: int, s: Session = Depends(get_session)) -> dict:
-    _comment_or_404(s, comment_id)
+    get_or_404(s, Comment, comment_id, name="Comment")
     rows = s.exec(
         select(CommentVote.value, Player.id, Player.display_name)
         .join(Player, Player.id == CommentVote.player_id)
@@ -476,7 +461,7 @@ def mark_tournament_comments_read_all(
     s: Session = Depends(get_session),
     claims: dict = Depends(require_auth_claims),
 ) -> dict:
-    _tournament_or_404(s, tournament_id)
+    get_or_404(s, Tournament, tournament_id, name="Tournament")
     player_id = int(claims.get("player_id"))
 
     comment_ids = [int(cid) for cid in s.exec(select(Comment.id).where(Comment.tournament_id == tournament_id)).all()]
@@ -513,7 +498,7 @@ async def create_comment(
     s: Session = Depends(get_session),
     claims: dict = Depends(require_editor_claims),
 ) -> dict:
-    tournament = _tournament_or_404(s, tournament_id)
+    tournament = get_or_404(s, Tournament, tournament_id, name="Tournament")
 
     event_type = str(body.event_type or "").strip().lower()
     text = str(body.body or "").strip()
@@ -595,18 +580,9 @@ async def create_comment(
             s.add(CommentRead(player_id=pid, comment_id=int(c.id), read_at=now))
             s.commit()
 
-    await ws_manager.broadcast(
-        tournament_id,
-        "comments_updated",
-        {"tournament_id": tournament_id, "comment_id": c.id, "action": "created"},
-    )
+    await broadcast_comments_updated(tournament_id, c.id, action="created")
     if match_for_event is not None and match_score_changed:
-        await ws_manager.broadcast(
-            tournament_id,
-            "match_patched",
-            {"tournament_id": tournament_id, "match_id": int(match_for_event.id or 0)},
-        )
-        await ws_manager_update_tournaments.broadcast("match_patched", {"tournament_id": tournament_id})
+        await broadcast_match_patched(tournament_id, int(match_for_event.id or 0))
 
     author_name = "General"
     if c.author_player_id is not None:
@@ -670,7 +646,7 @@ async def patch_comment(
     s: Session = Depends(get_session),
     claims: dict = Depends(require_editor_claims),
 ) -> dict:
-    c = _comment_or_404(s, comment_id)
+    c = get_or_404(s, Comment, comment_id, name="Comment")
     image_updated_at = _comment_image_updated_at(s, comment_id)
     fields = body.model_fields_set
 
@@ -693,11 +669,7 @@ async def patch_comment(
     s.commit()
     s.refresh(c)
 
-    await ws_manager.broadcast(
-        c.tournament_id,
-        "comments_updated",
-        {"tournament_id": c.tournament_id, "comment_id": c.id, "action": "updated"},
-    )
+    await broadcast_comments_updated(c.tournament_id, c.id, action="updated")
 
     return _comment_dict(c, image_updated_at)
 
@@ -707,7 +679,7 @@ async def delete_comment(
     comment_id: int,
     s: Session = Depends(get_session),
 ) -> dict:
-    c = _comment_or_404(s, comment_id)
+    c = get_or_404(s, Comment, comment_id, name="Comment")
 
     pin = s.get(TournamentPinnedComment, c.tournament_id)
     if pin and pin.comment_id == c.id:
@@ -729,11 +701,7 @@ async def delete_comment(
     s.delete(c)
     s.commit()
 
-    await ws_manager.broadcast(
-        c.tournament_id,
-        "comments_updated",
-        {"tournament_id": c.tournament_id, "comment_id": c.id, "action": "deleted"},
-    )
+    await broadcast_comments_updated(c.tournament_id, c.id, action="deleted")
 
     return {"ok": True}
 
@@ -741,7 +709,7 @@ async def delete_comment(
 @router.get("/comments/{comment_id}/image")
 def get_comment_image(comment_id: int):
     with Session(get_engine()) as s:
-        _ = _comment_or_404(s, comment_id)
+        _ = get_or_404(s, Comment, comment_id, name="Comment")
         img_file = s.get(CommentImageFile, comment_id)
         if not img_file:
             raise HTTPException(status_code=404, detail="Comment image not found")
@@ -762,7 +730,7 @@ async def put_comment_image(
     file: UploadFile = File(...),
     s: Session = Depends(get_session),
 ) -> dict:
-    c = _comment_or_404(s, comment_id)
+    c = get_or_404(s, Comment, comment_id, name="Comment")
     ct = (file.content_type or "").strip().lower()
     if not ct.startswith("image/"):
         raise HTTPException(status_code=400, detail="Invalid file type")
@@ -791,17 +759,13 @@ async def put_comment_image(
     s.refresh(c)
     s.refresh(img_file)
 
-    await ws_manager.broadcast(
-        c.tournament_id,
-        "comments_updated",
-        {"tournament_id": c.tournament_id, "comment_id": c.id, "action": "image_updated"},
-    )
+    await broadcast_comments_updated(c.tournament_id, c.id, action="image_updated")
     return _comment_dict(c, img_file.updated_at)
 
 
 @router.delete("/comments/{comment_id}/image", dependencies=[Depends(require_editor)])
 async def delete_comment_image(comment_id: int, s: Session = Depends(get_session)) -> dict:
-    c = _comment_or_404(s, comment_id)
+    c = get_or_404(s, Comment, comment_id, name="Comment")
     img_file = s.get(CommentImageFile, comment_id)
     if img_file is None:
         return {"ok": True}
@@ -812,11 +776,7 @@ async def delete_comment_image(comment_id: int, s: Session = Depends(get_session
     s.add(c)
     s.commit()
 
-    await ws_manager.broadcast(
-        c.tournament_id,
-        "comments_updated",
-        {"tournament_id": c.tournament_id, "comment_id": c.id, "action": "image_deleted"},
-    )
+    await broadcast_comments_updated(c.tournament_id, c.id, action="image_deleted")
     return {"ok": True}
 
 
@@ -826,7 +786,7 @@ async def set_pinned_comment(
     body: CommentsPinBody,
     s: Session = Depends(get_session),
 ) -> dict:
-    _tournament_or_404(s, tournament_id)
+    get_or_404(s, Tournament, tournament_id, name="Tournament")
 
     comment_id_raw = body.comment_id
     comment_id = None if comment_id_raw in (None, "") else int(comment_id_raw)
@@ -836,14 +796,10 @@ async def set_pinned_comment(
         if pin:
             s.delete(pin)
             s.commit()
-        await ws_manager.broadcast(
-            tournament_id,
-            "comments_updated",
-            {"tournament_id": tournament_id, "comment_id": None, "action": "unpinned"},
-        )
+        await broadcast_comments_updated(tournament_id, None, action="unpinned")
         return {"pinned_comment_id": None}
 
-    c = _comment_or_404(s, comment_id)
+    c = get_or_404(s, Comment, comment_id, name="Comment")
     if c.tournament_id != tournament_id:
         raise HTTPException(status_code=400, detail="comment does not belong to this tournament")
     if c.match_id is not None:
@@ -858,10 +814,6 @@ async def set_pinned_comment(
     s.add(pin)
     s.commit()
 
-    await ws_manager.broadcast(
-        tournament_id,
-        "comments_updated",
-        {"tournament_id": tournament_id, "comment_id": comment_id, "action": "pinned"},
-    )
+    await broadcast_comments_updated(tournament_id, comment_id, action="pinned")
 
     return {"pinned_comment_id": comment_id}
