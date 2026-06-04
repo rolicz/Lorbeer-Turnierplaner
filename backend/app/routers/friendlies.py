@@ -10,6 +10,7 @@ from ..auth import require_admin, require_editor
 from ..db import get_session
 from ..models import Club, FriendlyMatch, FriendlyMatchSide, FriendlyMatchSidePlayer, Player
 from ..schemas import FriendlyMatchCreateBody, MatchPatchBody, MatchSidePatchBody
+from ..schemas.responses import FriendlyOut, OkResponse
 from ..services.notifications import (
     push_friendly_created,
     push_friendly_finished,
@@ -81,7 +82,7 @@ def _friendly_dict(fm: FriendlyMatch) -> dict:
     }
 
 
-@router.get("")
+@router.get("", response_model=list[FriendlyOut])
 def list_friendlies(
     mode: str | None = Query(None, description='Optional mode filter: "1v1" or "2v2"'),
     limit: int = Query(200, ge=1, le=2000, description="Max rows"),
@@ -100,7 +101,7 @@ def list_friendlies(
     return [_friendly_dict(fm) for fm in rows]
 
 
-@router.post("", dependencies=[Depends(require_editor)])
+@router.post("", response_model=FriendlyOut, dependencies=[Depends(require_editor)])
 def create_friendly_match(
     body: FriendlyMatchCreateBody,
     request: Request,
@@ -178,7 +179,7 @@ def create_friendly_match(
     return _friendly_dict(fm)
 
 
-@router.delete("/{friendly_id}", dependencies=[Depends(require_admin)])
+@router.delete("/{friendly_id}", response_model=OkResponse, dependencies=[Depends(require_admin)])
 def delete_friendly(
     friendly_id: int,
     s: Session = Depends(get_session),
@@ -196,7 +197,7 @@ def delete_friendly(
     return {"ok": True}
 
 
-@router.patch("/{friendly_id}", dependencies=[Depends(require_admin)])
+@router.patch("/{friendly_id}", response_model=FriendlyOut, dependencies=[Depends(require_admin)])
 def patch_friendly(
     friendly_id: int,
     body: MatchPatchBody,

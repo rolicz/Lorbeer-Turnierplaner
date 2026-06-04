@@ -6,7 +6,7 @@ as response_model= documents the contract without changing the payloads.
 """
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 
 from pydantic import BaseModel, ConfigDict
 
@@ -165,3 +165,73 @@ class ClubOut(BaseModel):
     star_rating: float
     league_id: int
     league_name: str | None
+
+
+# ---- friendlies --------------------------------------------------------
+class FriendlySideOut(BaseModel):
+    id: int
+    side: str
+    club_id: int | None
+    goals: int
+    players: list[PlayerRef]
+
+
+class FriendlyOut(BaseModel):
+    id: int
+    mode: str
+    state: str
+    date: date
+    created_at: datetime
+    updated_at: datetime
+    sides: list[FriendlySideOut]
+
+
+# ---- matches -----------------------------------------------------------
+class MatchPatchResultOut(BaseModel):
+    ok: bool
+    id: int
+    state: str
+    leg: int
+    tournament_status: str
+
+
+# ---- comments ----------------------------------------------------------
+class CommentOut(BaseModel):
+    id: int
+    tournament_id: int
+    match_id: int | None
+    author_player_id: int | None
+    body: str
+    created_at: datetime
+    updated_at: datetime
+    has_image: bool
+    image_updated_at: datetime | None
+    upvotes: int
+    downvotes: int
+    my_vote: int
+
+
+class CommentListOut(BaseModel):
+    pinned_comment_id: int | None
+    comments: list[CommentOut]
+
+
+class CommentSummaryOut(BaseModel):
+    tournament_id: int
+    comment_ids: list[int]
+    latest_comment_id: int
+    latest_updated_at: datetime | None
+    total_comments: int
+
+
+class CommentIdsOut(BaseModel):
+    comment_ids: list[int]
+
+
+class CommentReadMapOut(BaseModel):
+    tournament_id: int
+    comment_ids: list[int]
+
+
+class PinnedCommentOut(BaseModel):
+    pinned_comment_id: int | None

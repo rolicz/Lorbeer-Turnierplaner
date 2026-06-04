@@ -24,6 +24,18 @@ from ..models import (
     TournamentPlayer,
 )
 from ..schemas import CommentCreateBody, CommentPatchBody, CommentsPinBody, CommentVoteBody
+from ..schemas.responses import (
+    CommentIdsOut,
+    CommentListOut,
+    CommentOut,
+    CommentReadMapOut,
+    CommentSummaryOut,
+    MarkedResponse,
+    OkResponse,
+    PinnedCommentOut,
+    VoteResultOut,
+    VotersOut,
+)
 from ..services.comments_summary import tournament_comments_summary
 from ..services.events import broadcast_comments_updated, broadcast_match_patched
 from ..services.file_storage import (
@@ -269,7 +281,7 @@ def _format_score_comment_body(score_a: int, score_b: int) -> str:
     return _format_scoreline(score_a, score_b)
 
 
-@router.get("/tournaments/{tournament_id}/comments")
+@router.get("/tournaments/{tournament_id}/comments", response_model=CommentListOut)
 def list_comments(
     tournament_id: int,
     s: Session = Depends(get_session),
@@ -338,12 +350,12 @@ def list_comments(
     }
 
 
-@router.get("/comments/tournaments-summary")
+@router.get("/comments/tournaments-summary", response_model=list[CommentSummaryOut])
 def comments_summary(s: Session = Depends(get_session)) -> list[dict]:
     return tournament_comments_summary(s)
 
 
-@router.get("/tournaments/{tournament_id}/comments/read")
+@router.get("/tournaments/{tournament_id}/comments/read", response_model=CommentIdsOut)
 def list_tournament_comment_reads(
     tournament_id: int,
     s: Session = Depends(get_session),
@@ -360,7 +372,7 @@ def list_tournament_comment_reads(
     return {"comment_ids": [int(cid) for cid in rows]}
 
 
-@router.get("/comments/read-map")
+@router.get("/comments/read-map", response_model=list[CommentReadMapOut])
 def list_comment_read_map(
     s: Session = Depends(get_session),
     claims: dict = Depends(require_auth_claims),
@@ -379,7 +391,7 @@ def list_comment_read_map(
     return [{"tournament_id": tid, "comment_ids": ids} for tid, ids in out.items()]
 
 
-@router.put("/comments/{comment_id}/read")
+@router.put("/comments/{comment_id}/read", response_model=OkResponse)
 def mark_comment_read(
     comment_id: int,
     s: Session = Depends(get_session),
@@ -398,7 +410,7 @@ def mark_comment_read(
     return {"ok": True}
 
 
-@router.put("/comments/{comment_id}/vote")
+@router.put("/comments/{comment_id}/vote", response_model=VoteResultOut)
 async def vote_comment(
     comment_id: int,
     body: CommentVoteBody,
@@ -439,7 +451,7 @@ async def vote_comment(
     return {"ok": True, "value": value}
 
 
-@router.get("/comments/{comment_id}/voters")
+@router.get("/comments/{comment_id}/voters", response_model=VotersOut)
 def list_comment_voters(comment_id: int, s: Session = Depends(get_session)) -> dict:
     get_or_404(s, Comment, comment_id, name="Comment")
     rows = s.exec(
@@ -459,7 +471,7 @@ def list_comment_voters(comment_id: int, s: Session = Depends(get_session)) -> d
     return {"upvoters": upvoters, "downvoters": downvoters}
 
 
-@router.put("/tournaments/{tournament_id}/comments/read-all")
+@router.put("/tournaments/{tournament_id}/comments/read-all", response_model=MarkedResponse)
 def mark_tournament_comments_read_all(
     tournament_id: int,
     s: Session = Depends(get_session),
@@ -494,7 +506,7 @@ def mark_tournament_comments_read_all(
     return {"ok": True, "marked": marked}
 
 
-@router.post("/tournaments/{tournament_id}/comments")
+@router.post("/tournaments/{tournament_id}/comments", response_model=CommentOut)
 async def create_comment(
     tournament_id: int,
     body: CommentCreateBody,
@@ -649,7 +661,7 @@ async def create_comment(
     return _comment_dict(c, None)
 
 
-@router.patch("/comments/{comment_id}")
+@router.patch("/comments/{comment_id}", response_model=CommentOut)
 async def patch_comment(
     comment_id: int,
     body: CommentPatchBody,
@@ -684,7 +696,7 @@ async def patch_comment(
     return _comment_dict(c, image_updated_at)
 
 
-@router.delete("/comments/{comment_id}", dependencies=[Depends(require_admin)])
+@router.delete("/comments/{comment_id}", response_model=OkResponse, dependencies=[Depends(require_admin)])
 async def delete_comment(
     comment_id: int,
     s: Session = Depends(get_session),
@@ -734,7 +746,7 @@ def get_comment_image(comment_id: int):
     return Response(content=data, media_type=content_type, headers=headers)
 
 
-@router.put("/comments/{comment_id}/image", dependencies=[Depends(require_editor)])
+@router.put("/comments/{comment_id}/image", response_model=CommentOut, dependencies=[Depends(require_editor)])
 async def put_comment_image(
     comment_id: int,
     file: UploadFile = File(...),
@@ -773,7 +785,7 @@ async def put_comment_image(
     return _comment_dict(c, img_file.updated_at)
 
 
-@router.delete("/comments/{comment_id}/image", dependencies=[Depends(require_editor)])
+@router.delete("/comments/{comment_id}/image", response_model=OkResponse, dependencies=[Depends(require_editor)])
 async def delete_comment_image(comment_id: int, s: Session = Depends(get_session)) -> dict:
     c = get_or_404(s, Comment, comment_id, name="Comment")
     img_file = s.get(CommentImageFile, comment_id)
@@ -790,7 +802,7 @@ async def delete_comment_image(comment_id: int, s: Session = Depends(get_session
     return {"ok": True}
 
 
-@router.put("/tournaments/{tournament_id}/comments/pin", dependencies=[Depends(require_editor)])
+@router.put("/tournaments/{tournament_id}/comments/pin", response_model=PinnedCommentOut, dependencies=[Depends(require_editor)])
 async def set_pinned_comment(
     tournament_id: int,
     body: CommentsPinBody,

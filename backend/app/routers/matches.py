@@ -9,6 +9,7 @@ from ..auth import require_editor
 from ..db import get_session
 from ..models import Club, Match, MatchSide, Tournament
 from ..schemas import MatchPatchBody, MatchSidePatchBody
+from ..schemas.responses import MatchPatchResultOut, OkResponse
 from ..services.events import broadcast_match_patched, broadcast_match_updated
 from ..services.notifications import (
     push_match_finished,
@@ -62,7 +63,7 @@ def _validate_tournament_state_order(s: Session, tournament_id: int) -> None:
         raise HTTPException(status_code=409, detail="Only one match can be 'playing' at a time")
 
 
-@router.patch("/{match_id}", dependencies=[Depends(require_editor)])
+@router.patch("/{match_id}", response_model=MatchPatchResultOut, dependencies=[Depends(require_editor)])
 async def patch_match(
     match_id: int,
     body: MatchPatchBody,
@@ -248,7 +249,7 @@ async def patch_match(
     return {"ok": True, "id": m.id, "state": m.state, "leg": m.leg, "tournament_status": status_after}
 
 
-@router.patch("/{match_id}/swap-sides", dependencies=[Depends(require_editor)])
+@router.patch("/{match_id}/swap-sides", response_model=OkResponse, dependencies=[Depends(require_editor)])
 async def swap_sides(
     match_id: int,
     s: Session = Depends(get_session),
