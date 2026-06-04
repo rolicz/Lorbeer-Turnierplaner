@@ -27,17 +27,7 @@ import {
 import { useAuth } from "../../auth/AuthContext";
 import { useSeenSet } from "../../hooks/useSeenComments";
 import { usePlayerAvatarMap } from "../../hooks/usePlayerAvatarMap";
-
-function fmtTs(ms: number) {
-  const d = new Date(ms);
-  return d.toLocaleString(undefined, {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
+import { fmtTs } from "../../utils/format";
 
 export default function MatchCommentsPanel({
   tournamentId,

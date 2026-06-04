@@ -4,6 +4,7 @@ import { cn } from "../cn";
 import { clubLabelPartsById } from "../clubControls";
 import { Pill, statusMatchPill } from "./Pill";
 import { StarsFA } from "./StarsFA";
+import { fmtOdd } from "../../utils/format";
 
 function namesStack(side?: MatchSide): string[] {
   const ps = side?.players ?? [];
@@ -11,9 +12,6 @@ function namesStack(side?: MatchSide): string[] {
   return ps.map((p) => p.display_name);
 }
 
-function fmtOdd(x: number) {
-  return Number.isFinite(x) ? x.toFixed(2) : "—";
-}
 
 function OddsInline({ odds }: { odds: { home: number; draw: number; away: number } }) {
   return (

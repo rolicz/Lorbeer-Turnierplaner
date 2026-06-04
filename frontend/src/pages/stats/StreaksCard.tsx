@@ -13,6 +13,7 @@ import {
   StatsFilterDataControls,
   type StatsMode,
 } from "./StatsControls";
+import { fmtDate } from "../../utils/format";
 
 function iconForCatKey(key: string) {
   switch (key) {
@@ -29,12 +30,6 @@ function iconForCatKey(key: string) {
   }
 }
 
-function fmtDate(s?: string | null) {
-  if (!s) return "";
-  const d = new Date(s);
-  if (Number.isNaN(d.getTime())) return "";
-  return d.toLocaleDateString();
-}
 
 function StreakRow({ r, ongoing }: { r: StatsStreakRow; ongoing?: StatsStreakRow | null }) {
   const start = fmtDate(r.start_ts);

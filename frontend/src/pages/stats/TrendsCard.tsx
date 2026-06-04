@@ -10,44 +10,12 @@ import { getStatsPlayerMatches, getStatsPlayers } from "../../api/stats.api";
 import type { Match, StatsPlayerMatchesResponse, StatsPlayersResponse, StatsTournamentLite } from "../../api/types";
 import { sideBy } from "../../helpers";
 import { StatsControlLabel, StatsModeSwitch, StatsSegmentedSwitch, type StatsMode } from "./StatsControls";
+import { fmtDate, fmtMonthDate, wrapTwoLinesWords, clamp } from "../../utils/format";
 
 type View = "lastN" | "total";
 
-function fmtDate(s?: string | null) {
-  if (!s) return "";
-  const d = new Date(s);
-  if (Number.isNaN(d.getTime())) return "";
-  return d.toLocaleDateString();
-}
 
-function fmtMonthDate(d: Date) {
-  if (Number.isNaN(d.getTime())) return "";
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  const yy = String(d.getFullYear()).slice(-2);
-  return `${mm}/${yy}`;
-}
 
-function wrapTwoLinesWords(s: string, maxLen: number) {
-  const raw = String(s ?? "").trim();
-  if (!raw) return ["", ""] as const;
-  if (raw.length <= maxLen) return [raw, ""] as const;
-
-  const words = raw.split(/\s+/).filter(Boolean);
-  if (words.length <= 1) return [raw, ""] as const; // don't break words
-
-  let best: { i: number; score: number } | null = null;
-  for (let i = 1; i < words.length; i++) {
-    const a = words.slice(0, i).join(" ");
-    const b = words.slice(i).join(" ");
-    const over = Math.max(0, a.length - maxLen) + Math.max(0, b.length - maxLen);
-    const balance = Math.abs(a.length - b.length);
-    const score = Math.max(a.length, b.length) + balance * 0.25 + over * 2;
-    if (!best || score < best.score) best = { i, score };
-  }
-
-  const i = best?.i ?? Math.ceil(words.length / 2);
-  return [words.slice(0, i).join(" "), words.slice(i).join(" ")] as const;
-}
 
 function monthTicksBetween(startTs: number, endTs: number) {
   const out: Array<{ ts: number; label: string }> = [];
@@ -650,10 +618,6 @@ export function MultiLineChart({
       ) : null}
     </div>
   );
-}
-
-function clamp(x: number, lo: number, hi: number) {
-  return x < lo ? lo : x > hi ? hi : x;
 }
 
 function dist2(t1: { clientX: number; clientY: number }, t2: { clientX: number; clientY: number }) {

@@ -11,6 +11,7 @@ import type { Match, StatsPlayerMatchesResponse, StatsPlayersResponse, StatsTour
 import { sideBy } from "../../helpers";
 import { colorForIdx, MultiLineChart } from "../stats/TrendsCard";
 import SegmentedSwitch from "../../ui/primitives/SegmentedSwitch";
+import { fmtDate } from "../../utils/format";
 
 type View = "lastN" | "total";
 
@@ -20,12 +21,6 @@ function addMonths(d: Date, months: number) {
   return out;
 }
 
-function fmtDate(s?: string | null) {
-  if (!s) return "";
-  const d = new Date(s);
-  if (Number.isNaN(d.getTime())) return "";
-  return d.toLocaleDateString();
-}
 
 function winnerSide(m: Match): "A" | "B" | null {
   if (m.state !== "finished") return null;

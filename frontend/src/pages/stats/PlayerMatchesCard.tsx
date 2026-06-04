@@ -20,13 +20,8 @@ import {
 import { MatchHistoryList } from "./MatchHistoryList";
 import TournamentPositionsGrid from "./TournamentPositionsGrid";
 import { useAuth } from "../../auth/AuthContext";
+import { fmtDate } from "../../utils/format";
 
-function fmtDate(s?: string | null) {
-  if (!s) return "";
-  const d = new Date(s);
-  if (Number.isNaN(d.getTime())) return "";
-  return d.toLocaleDateString();
-}
 
 type Outcome = "W" | "D" | "L";
 

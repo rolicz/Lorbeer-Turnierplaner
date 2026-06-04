@@ -18,29 +18,14 @@ import { getCup, listCupDefs } from "../../api/cup.api";
 import { StatsControlLabel, StatsModeSwitch, StatsSegmentedSwitch, type StatsMode } from "./StatsControls";
 import TournamentLaurelMarkers from "./TournamentLaurelMarkers";
 import { usePlayerAvatarMap } from "../../hooks/usePlayerAvatarMap";
+import { fmtAvg, fmtInt, clamp, parseDateSafe } from "../../utils/format";
 
 type SortMode = "overallPts" | "overallPpm" | "lastN";
 type ModeFilter = StatsMode;
 
-function fmtAvg(n: number) {
-  if (!Number.isFinite(n)) return "0.00";
-  return n.toFixed(2);
-}
 
-function fmtInt(n: number) {
-  if (!Number.isFinite(n)) return "0";
-  return String(Math.trunc(n));
-}
 
-function clamp(n: number, lo: number, hi: number) {
-  return Math.max(lo, Math.min(hi, n));
-}
 
-function parseDateSafe(s?: string | null): number | null {
-  if (!s) return null;
-  const t = Date.parse(s);
-  return Number.isFinite(t) ? t : null;
-}
 
 function StatsPill({
   icon,

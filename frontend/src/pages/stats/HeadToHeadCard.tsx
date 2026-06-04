@@ -18,15 +18,11 @@ import {
   type StatsMode,
 } from "./StatsControls";
 import { MatchHistoryList } from "./MatchHistoryList";
+import { fmtInt, fmtPct } from "../../utils/format";
 
 function pct(n: number) {
   if (!Number.isFinite(n)) return "0%";
   return `${Math.round(n * 100)}%`;
-}
-
-function fmtInt(n: number) {
-  if (!Number.isFinite(n)) return "0";
-  return String(Math.trunc(n));
 }
 
 function RowShell({

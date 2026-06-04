@@ -8,6 +8,7 @@ import { StarsFA } from "../../ui/primitives/StarsFA";
 import { clubLabelPartsById } from "../../ui/clubControls";
 import { useEffect, useState } from "react";
 import SegmentedSwitch from "../../ui/primitives/SegmentedSwitch";
+import { fmtOdd } from "../../utils/format";
 
 function winnerSide(m: Match): "A" | "B" | null {
   if (m.state !== "finished") return null;
@@ -23,9 +24,6 @@ function splitPlayers(names: string): string[] {
   return names.split(" + ").map((s) => s.trim()).filter(Boolean);
 }
 
-function fmtOdd(x: number) {
-  return Number.isFinite(x) ? x.toFixed(2) : "—";
-}
 
 function OddsInline({ odds }: { odds: { home: number; draw: number; away: number } }) {
   return (

@@ -1,32 +1,15 @@
-import { useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
 import { listPlayerGuestbookReadIds, listPlayerGuestbookReadMap } from "../api/players.api";
-import { useAuth } from "../auth/AuthContext";
+import { qk } from "../api/queryKeys";
+import { createSeenItemsHooks } from "./useSeenItems";
 
-export function useSeenGuestbookIdsByProfileId(profilePlayerIds: number[]) {
-  const { token } = useAuth();
-  const q = useQuery({
-    queryKey: ["players", "guestbook", "read-map", token ?? "none"],
-    queryFn: () => listPlayerGuestbookReadMap(token as string),
-    enabled: !!token,
+const { useSeenIdsByContainerId: useSeenGuestbookIdsByProfileId, useSeenSet: useSeenGuestbookSet } =
+  createSeenItemsHooks({
+    readMapQueryKey: (token) => qk.playerGuestbookReadMap(token),
+    readMapFn: (token) => listPlayerGuestbookReadMap(token),
+    containerKey: "profile_player_id" as const,
+    idsKey: "entry_ids" as const,
+    singleQueryKey: (pid, token) => qk.playerGuestbookReadIds(pid, token),
+    singleFn: (token, pid) => listPlayerGuestbookReadIds(token, pid),
   });
-  return useMemo(() => {
-    const source = new Map<number, Set<number>>();
-    for (const row of q.data ?? []) {
-      source.set(Number(row.profile_player_id), new Set((row.entry_ids ?? []).map((x) => Number(x))));
-    }
-    const out = new Map<number, Set<number>>();
-    for (const pid of profilePlayerIds) out.set(pid, source.get(pid) ?? new Set<number>());
-    return out;
-  }, [q.data, profilePlayerIds]);
-}
 
-export function useSeenGuestbookSet(profilePlayerId: number) {
-  const { token } = useAuth();
-  const q = useQuery({
-    queryKey: ["players", "guestbook", "read", profilePlayerId, token ?? "none"],
-    queryFn: () => listPlayerGuestbookReadIds(token as string, profilePlayerId),
-    enabled: !!token && Number.isFinite(profilePlayerId) && profilePlayerId > 0,
-  });
-  return useMemo(() => new Set((q.data?.entry_ids ?? []).map((x) => Number(x))), [q.data?.entry_ids]);
-}
+export { useSeenGuestbookIdsByProfileId, useSeenGuestbookSet };

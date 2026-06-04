@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { qk } from "../api/queryKeys";
 
 import { listPlayerHeaderMeta } from "../api/playerHeaders.api";
 
@@ -15,7 +16,7 @@ export function usePlayerHeaderMap({
   refetchOnWindowFocus?: boolean;
 } = {}) {
   const headerMetaQ = useQuery({
-    queryKey: ["players", "headers"],
+    queryKey: qk.playerHeaders(),
     queryFn: listPlayerHeaderMeta,
     enabled,
     staleTime,

@@ -10,15 +10,8 @@ import AvatarCircle from "../../ui/primitives/AvatarCircle";
 import { Pill, pillDate } from "../../ui/primitives/Pill";
 import SectionHeader from "../../ui/primitives/SectionHeader";
 import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
+import { fmtDate } from "../../utils/format";
 
-function fmtDate(d?: string | null) {
-  if (!d) return "—";
-  try {
-    return new Date(d).toLocaleDateString();
-  } catch {
-    return d;
-  }
-}
 
 export default function CupCard({ cupKey }: { cupKey: string }) {
   const q = useQuery({ queryKey: ["cup", cupKey], queryFn: () => getCup(cupKey) });

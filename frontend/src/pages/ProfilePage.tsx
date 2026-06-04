@@ -52,29 +52,10 @@ import { usePageSubNav, type SubNavItem } from "../ui/layout/SubNavContext";
 import { useSectionSubnav } from "../ui/layout/useSectionSubnav";
 import { useRouteEntryLoading } from "../ui/layout/useRouteEntryLoading";
 import SectionSeparator from "../ui/primitives/SectionSeparator";
+import { fmtDateTime, fmtInt, fmtPct } from "../utils/format";
 
-function fmtDateTime(iso?: string | null) {
-  if (!iso) return "";
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "";
-  return d.toLocaleString(undefined, {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
 
-function pct(n: number) {
-  if (!Number.isFinite(n)) return "0.00";
-  return n.toFixed(2);
-}
 
-function fmtInt(n: number) {
-  if (!Number.isFinite(n)) return "0";
-  return String(Math.trunc(n));
-}
 
 function streakIconForKey(key: string) {
   switch (key) {
@@ -1371,14 +1352,14 @@ export default function ProfilePage() {
               <i className="fa-solid fa-trophy text-text-muted" aria-hidden="true" />
               <span className="text-[11px] text-text-muted">PPM</span>
               <span className="text-[11px] font-mono tabular-nums text-text-chip">
-                {pct((playerStatsRow?.played ?? 0) > 0 ? (playerStatsRow?.pts ?? 0) / (playerStatsRow?.played ?? 1) : 0)}
+                {fmtPct((playerStatsRow?.played ?? 0) > 0 ? (playerStatsRow?.pts ?? 0) / (playerStatsRow?.played ?? 1) : 0)}
               </span>
             </span>
 
             <span className="card-chip inline-flex items-center gap-2 px-2 py-1">
               <i className="fa-solid fa-chart-line text-text-muted" aria-hidden="true" />
               <span className="text-[11px] text-text-muted">Last 10</span>
-              <span className="text-[11px] font-mono tabular-nums text-text-chip">{pct(playerStatsRow?.lastN_avg_pts ?? 0)}</span>
+              <span className="text-[11px] font-mono tabular-nums text-text-chip">{fmtPct(playerStatsRow?.lastN_avg_pts ?? 0)}</span>
             </span>
 
             <span className="card-chip inline-flex items-center gap-2 px-2 py-1">
@@ -1422,7 +1403,7 @@ export default function ProfilePage() {
               <div className="font-semibold mt-0.5">{favorite?.opponent.display_name ?? "—"}</div>
               {favorite ? (
                 <div className="text-text-muted mt-0.5">
-                  {favorite.wins}-{favorite.draws}-{favorite.losses} · {pct(favorite.pts_per_match)} ppm
+                  {favorite.wins}-{favorite.draws}-{favorite.losses} · {fmtPct(favorite.pts_per_match)} ppm
                 </div>
               ) : null}
             </div>
@@ -1434,7 +1415,7 @@ export default function ProfilePage() {
               <div className="font-semibold mt-0.5">{nemesis?.opponent.display_name ?? "—"}</div>
               {nemesis ? (
                 <div className="text-text-muted mt-0.5">
-                  {nemesis.wins}-{nemesis.draws}-{nemesis.losses} · {pct(nemesis.pts_per_match)} ppm
+                  {nemesis.wins}-{nemesis.draws}-{nemesis.losses} · {fmtPct(nemesis.pts_per_match)} ppm
                 </div>
               ) : null}
             </div>

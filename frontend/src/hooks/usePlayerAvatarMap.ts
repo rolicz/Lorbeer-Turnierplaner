@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { qk } from "../api/queryKeys";
 
 import { listPlayerAvatarMeta } from "../api/playerAvatars.api";
 
@@ -15,7 +16,7 @@ export function usePlayerAvatarMap({
   refetchOnWindowFocus?: boolean;
 } = {}) {
   const avatarMetaQ = useQuery({
-    queryKey: ["players", "avatars"],
+    queryKey: qk.playerAvatars(),
     queryFn: listPlayerAvatarMeta,
     enabled,
     staleTime,

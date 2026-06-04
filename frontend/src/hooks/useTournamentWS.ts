@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { useQueryClient, type QueryClient } from "@tanstack/react-query";
+import { qk } from "../api/queryKeys";
 
 /**
  * Convert an HTTP(S) base URL to a WS(S) URL for a given path.
@@ -246,39 +247,37 @@ function shouldIgnoreEventName(eventName: string | null) {
 }
 
 function invalidateTournamentRelated(qc: QueryClient, tid: number) {
-  void qc.invalidateQueries({ queryKey: ["tournament", tid] });
-  void qc.invalidateQueries({ queryKey: ["comments", tid] });
-  void qc.invalidateQueries({ queryKey: ["comments", "summary"] });
-  void qc.invalidateQueries({ queryKey: ["tournaments"] });
-  void qc.invalidateQueries({ queryKey: ["tournaments", "live"] });
-
-  // Cup + future laurels/points (players stats)
-  void qc.invalidateQueries({ queryKey: ["cup"] });
-  void qc.invalidateQueries({ queryKey: ["stats", "players"] });
-  void qc.invalidateQueries({ queryKey: ["stats", "h2h"] });
-  void qc.invalidateQueries({ queryKey: ["stats", "streaks"] });
-  void qc.invalidateQueries({ queryKey: ["stats", "ratings"] });
+  void qc.invalidateQueries({ queryKey: qk.tournament(tid) });
+  void qc.invalidateQueries({ queryKey: qk.commentsTournament(tid) });
+  void qc.invalidateQueries({ queryKey: qk.commentsSummary() });
+  void qc.invalidateQueries({ queryKey: qk.tournaments() });
+  void qc.invalidateQueries({ queryKey: qk.tournamentsLive() });
+  void qc.invalidateQueries({ queryKey: qk.cupAll() });
+  void qc.invalidateQueries({ queryKey: qk.stats.players() });
+  void qc.invalidateQueries({ queryKey: qk.stats.h2h() });
+  void qc.invalidateQueries({ queryKey: qk.stats.streaks() });
+  void qc.invalidateQueries({ queryKey: qk.stats.ratings() });
 }
 
 function invalidateAnyTournamentRelated(qc: QueryClient) {
-  void qc.invalidateQueries({ queryKey: ["cup"] });
-  void qc.invalidateQueries({ queryKey: ["tournaments"] });
-  void qc.invalidateQueries({ queryKey: ["tournaments", "live"] });
-  void qc.invalidateQueries({ queryKey: ["comments", "summary"] });
-  void qc.invalidateQueries({ queryKey: ["stats", "players"] });
-  void qc.invalidateQueries({ queryKey: ["stats", "h2h"] });
-  void qc.invalidateQueries({ queryKey: ["stats", "streaks"] });
-  void qc.invalidateQueries({ queryKey: ["stats", "ratings"] });
-  void qc.invalidateQueries({ queryKey: ["stats", "playerMatches"] });
+  void qc.invalidateQueries({ queryKey: qk.cupAll() });
+  void qc.invalidateQueries({ queryKey: qk.tournaments() });
+  void qc.invalidateQueries({ queryKey: qk.tournamentsLive() });
+  void qc.invalidateQueries({ queryKey: qk.commentsSummary() });
+  void qc.invalidateQueries({ queryKey: qk.stats.players() });
+  void qc.invalidateQueries({ queryKey: qk.stats.h2h() });
+  void qc.invalidateQueries({ queryKey: qk.stats.streaks() });
+  void qc.invalidateQueries({ queryKey: qk.stats.ratings() });
+  void qc.invalidateQueries({ queryKey: qk.stats.playerMatches() });
 }
 
 function invalidatePlayerPokeRelated(qc: QueryClient, playerId: number, token?: string | null) {
-  void qc.invalidateQueries({ queryKey: ["players", "pokes", "summary"] });
-  void qc.invalidateQueries({ queryKey: ["players", "pokes", playerId] });
-  void qc.invalidateQueries({ queryKey: ["players", "pokes", "read", playerId, token ?? "none"] });
+  void qc.invalidateQueries({ queryKey: qk.playerPokesSummary() });
+  void qc.invalidateQueries({ queryKey: qk.playerPokes(playerId) });
+  void qc.invalidateQueries({ queryKey: qk.playerPokesReadIds(playerId, token ?? null) });
   if (token) {
-    void qc.invalidateQueries({ queryKey: ["players", "pokes", "read-map", token] });
-    void qc.invalidateQueries({ queryKey: ["players", "pokes", "authored-unread", token] });
+    void qc.invalidateQueries({ queryKey: qk.playerPokesReadMap(token) });
+    void qc.invalidateQueries({ queryKey: qk.playerPokesAuthoredUnread(token) });
   }
 }
 

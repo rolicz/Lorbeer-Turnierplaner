@@ -6,6 +6,7 @@ import type { Club, Match, MatchSide, StatsPlayerMatchesTournament } from "../..
 import { sideBy } from "../../helpers";
 import InlineLoading from "../../ui/primitives/InlineLoading";
 import { MatchRowWithClubs } from "../stats/MatchHistoryList";
+import { fmtAvg } from "../../utils/format";
 
 type Summary = {
   played: number;
@@ -115,11 +116,6 @@ function flattenRecentMatches(tournaments: StatsPlayerMatchesTournament[]): Rece
     }
   }
   return out;
-}
-
-function fmtAvg(value: number) {
-  if (!Number.isFinite(value)) return "0.00";
-  return value.toFixed(2);
 }
 
 function fmtDate(value?: string | null) {

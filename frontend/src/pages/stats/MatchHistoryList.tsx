@@ -6,13 +6,8 @@ import { Pill, pillDate } from "../../ui/primitives/Pill";
 import { StarsFA } from "../../ui/primitives/StarsFA";
 import { matchPalette } from "../../ui/theme";
 import TournamentLaurelMarkers from "./TournamentLaurelMarkers";
+import { fmtDate } from "../../utils/format";
 
-function fmtDate(s?: string | null) {
-  if (!s) return "";
-  const d = new Date(s);
-  if (Number.isNaN(d.getTime())) return "";
-  return d.toLocaleDateString();
-}
 
 function winnerSide(m: Match): "A" | "B" | null {
   if (m.state !== "finished") return null;

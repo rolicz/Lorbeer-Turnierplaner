@@ -30,6 +30,7 @@ import {
 import { useAuth } from "../../auth/AuthContext";
 import { useSeenSet } from "../../hooks/useSeenComments";
 import { usePlayerAvatarMap } from "../../hooks/usePlayerAvatarMap";
+import { fmtTs } from "../../utils/format";
 
 type CommentScope =
   | { kind: "tournament" }
@@ -58,17 +59,6 @@ function sameScope(a: CommentScope | null | undefined, b: CommentScope) {
   if (a.kind !== b.kind) return false;
   if (b.kind === "tournament") return true;
   return a.kind === "match" && a.matchId === b.matchId;
-}
-
-function fmtTs(ms: number) {
-  const d = new Date(ms);
-  return d.toLocaleString(undefined, {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
 }
 
 function ScopeActionButton({

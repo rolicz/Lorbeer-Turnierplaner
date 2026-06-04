@@ -2,10 +2,8 @@ import { useEffect, useRef, useState } from "react";
 
 import Button from "../../ui/primitives/Button";
 import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
+import { clamp } from "../../utils/format";
 
-function clamp(n: number, lo: number, hi: number) {
-  return Math.max(lo, Math.min(hi, n));
-}
 
 function errorMessage(e: unknown): string {
   if (e instanceof Error) return e.message;
