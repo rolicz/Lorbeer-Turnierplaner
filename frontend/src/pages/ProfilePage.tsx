@@ -58,10 +58,8 @@ import {
   latestUnreadGuestbookId,
   summarizeUnreadGuestbookAuthors,
 } from "./profile/guestbookTree";
-import GuestbookEntryCard, {
-  GuestbookCardProvider,
-  type GuestbookCardContextValue,
-} from "./profile/GuestbookEntryCard";
+import { type GuestbookCardContextValue } from "./profile/GuestbookEntryCard";
+import GuestbookSection from "./profile/GuestbookSection";
 
 
 
@@ -1277,88 +1275,42 @@ export default function ProfilePage() {
         }
         className="min-h-[100svh]"
       >
-      <div className="space-y-3">
-        {unreadGuestbookCount > 0 ? (
-          <div className="flex items-center justify-end gap-2">
-            <button
-              type="button"
-              title="Jump to latest unread guestbook message"
-              onClick={() => {
-                if (!latestUnreadGuestbookEntryId) return;
-                focusGuestbookEntry(latestUnreadGuestbookEntryId, { blink: false });
-              }}
-            >
-              <Pill title="Unread guestbook messages">
-                <i className="fa-solid fa-envelope text-accent" aria-hidden="true" />
-                <span className="tabular-nums text-text-normal">{unreadGuestbookCount}</span>
-              </Pill>
-            </button>
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={() => {
-                if (!targetPlayerId || unreadGuestbookIds.length === 0 || markGuestbookReadAllMut.isPending) return;
-                const ok = window.confirm(`Mark ${unreadGuestbookIds.length} unread guestbook message(s) as read?`);
-                if (!ok) return;
-                markGuestbookReadAllMut.mutate();
-              }}
-              title="Mark all unread guestbook messages as read"
-              disabled={markGuestbookReadAllMut.isPending}
-            >
-              <i className="fa-solid fa-envelope-open md:hidden" aria-hidden="true" />
-              <span className="hidden md:inline">Read all</span>
-            </Button>
-          </div>
-        ) : null}
-        <ErrorToastOnError error={guestbookQ.error} title="Guestbook loading failed" />
-        <ErrorToastOnError error={guestbookReadQ.error} title="Guestbook read-status loading failed" />
-        <ErrorToastOnError error={createGuestbookMut.error} title="Could not post guestbook message" />
-        <ErrorToastOnError error={deleteGuestbookMut.error} title="Could not delete guestbook message" />
-        <ErrorToastOnError error={markGuestbookReadMut.error} title="Could not mark guestbook entry as read" />
-        <ErrorToastOnError error={markGuestbookReadAllMut.error} title="Could not mark guestbook as read" />
-        <ErrorToastOnError error={voteGuestbookMut.error} title="Could not vote guestbook message" />
-
-        {canPostGuestbook ? (
-          <div className="panel-subtle p-3 space-y-2">
-            <Textarea
-              label="Leave a message"
-              value={guestbookDraft}
-              onChange={(e) => {
-                if (!targetPlayerId) return;
-                const next = e.target.value;
-                setGuestbookDraftByPlayerId((prev) => ({ ...prev, [targetPlayerId]: next }));
-              }}
-              placeholder={`Write something for ${(player?.display_name ?? profileQ.data?.display_name ?? "this player")}…`}
-            />
-            <div className="flex justify-end">
-              <Button
-                type="button"
-                onClick={() => createGuestbookMut.mutate({ body: guestbookDraft.trim(), parentEntryId: null })}
-                disabled={createGuestbookMut.isPending || !guestbookDraft.trim()}
-                title="Post message"
-              >
-                <i className="fa-solid fa-paper-plane md:hidden" aria-hidden="true" />
-                <span className="hidden md:inline">{createGuestbookMut.isPending ? "Posting…" : "Post"}</span>
-              </Button>
-            </div>
-          </div>
-        ) : (
-          <div className="panel-subtle p-3 text-sm text-text-muted">Login as a player to post guestbook messages.</div>
-        )}
-
-        {guestbookQ.isLoading ? <div className="text-sm text-text-muted">Loading…</div> : null}
-        {!guestbookQ.isLoading && (guestbookQ.data?.length ?? 0) === 0 ? (
-          <div className="panel-subtle p-3 text-sm text-text-muted">No messages yet.</div>
-        ) : null}
-
-        <GuestbookCardProvider value={guestbookCardContext}>
-          <div className="space-y-2">
-            {guestbookRootsAndChildren.roots.map((entry) => (
-              <GuestbookEntryCard key={entry.id} entry={entry} />
-            ))}
-          </div>
-        </GuestbookCardProvider>
-      </div>
+      <GuestbookSection
+        cardContext={guestbookCardContext}
+        roots={guestbookRootsAndChildren.roots}
+        loading={guestbookQ.isLoading}
+        isEmpty={(guestbookQ.data?.length ?? 0) === 0}
+        errors={{
+          load: guestbookQ.error,
+          readStatus: guestbookReadQ.error,
+          post: createGuestbookMut.error,
+          remove: deleteGuestbookMut.error,
+          markRead: markGuestbookReadMut.error,
+          markAll: markGuestbookReadAllMut.error,
+          vote: voteGuestbookMut.error,
+        }}
+        unreadCount={unreadGuestbookCount}
+        onJumpUnread={() => {
+          if (!latestUnreadGuestbookEntryId) return;
+          focusGuestbookEntry(latestUnreadGuestbookEntryId, { blink: false });
+        }}
+        onMarkAllRead={() => {
+          if (!targetPlayerId || unreadGuestbookIds.length === 0 || markGuestbookReadAllMut.isPending) return;
+          const ok = window.confirm(`Mark ${unreadGuestbookIds.length} unread guestbook message(s) as read?`);
+          if (!ok) return;
+          markGuestbookReadAllMut.mutate();
+        }}
+        markAllPending={markGuestbookReadAllMut.isPending}
+        canPost={canPostGuestbook}
+        draft={guestbookDraft}
+        onDraftChange={(text) => {
+          if (!targetPlayerId) return;
+          setGuestbookDraftByPlayerId((prev) => ({ ...prev, [targetPlayerId]: text }));
+        }}
+        onPost={() => createGuestbookMut.mutate({ body: guestbookDraft.trim(), parentEntryId: null })}
+        posting={createGuestbookMut.isPending}
+        placeholder={`Write something for ${player?.display_name ?? profileQ.data?.display_name ?? "this player"}…`}
+      />
       </SectionSeparator>
 
       <PlayerAvatarEditor
