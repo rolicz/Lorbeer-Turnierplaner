@@ -9,7 +9,8 @@ import InlineLoading from "../../ui/primitives/InlineLoading";
 import { getStatsPlayerMatches, getStatsPlayers } from "../../api/stats.api";
 import type { Match, StatsPlayerMatchesResponse, StatsPlayersResponse, StatsTournamentLite } from "../../api/types";
 import { sideBy } from "../../helpers";
-import { colorForIdx, MultiLineChart } from "../stats/TrendsCard";
+import { colorForIdx } from "../stats/trendsMath";
+import { MultiLineChart } from "../stats/TrendsChart";
 import SegmentedSwitch from "../../ui/primitives/SegmentedSwitch";
 import { fmtDate } from "../../utils/format";
 
