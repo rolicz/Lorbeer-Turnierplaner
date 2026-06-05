@@ -4,6 +4,49 @@ module.exports = {
   content: ["./index.html", "./src/**/*.{ts,tsx}"],
   theme: {
     extend: {
+      fontFamily: {
+        sans: [
+          "Inter var",
+          "Inter",
+          "ui-sans-serif",
+          "system-ui",
+          "-apple-system",
+          "Segoe UI",
+          "Roboto",
+          "Helvetica Neue",
+          "Arial",
+          "sans-serif",
+        ],
+      },
+      boxShadow: {
+        // Soft, sleek elevation (subtle on dark, gentle on light).
+        card: "0 1px 2px rgb(0 0 0 / 0.06), 0 6px 20px rgb(0 0 0 / 0.10)",
+        pop: "0 12px 40px rgb(0 0 0 / 0.28)",
+        focus: "0 0 0 2px rgb(var(--color-accent) / 0.35)",
+      },
+      transitionTimingFunction: {
+        "out-expo": "cubic-bezier(0.16, 1, 0.3, 1)",
+        "out-back": "cubic-bezier(0.34, 1.4, 0.64, 1)",
+      },
+      keyframes: {
+        "fade-in": {
+          "0%": { opacity: "0" },
+          "100%": { opacity: "1" },
+        },
+        shimmer: {
+          "0%": { backgroundPosition: "-200% 0" },
+          "100%": { backgroundPosition: "200% 0" },
+        },
+        "live-ping": {
+          "0%": { transform: "scale(1)", opacity: "0.55" },
+          "70%, 100%": { transform: "scale(2.2)", opacity: "0" },
+        },
+      },
+      animation: {
+        "fade-in": "fade-in 200ms ease-out both",
+        shimmer: "shimmer 1.6s linear infinite",
+        "live-ping": "live-ping 1.4s cubic-bezier(0, 0, 0.2, 1) infinite",
+      },
       colors: {
         // Backgrounds
         "bg-default": cssVar("color-bg-default"),

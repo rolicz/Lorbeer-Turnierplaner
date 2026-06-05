@@ -1,3 +1,4 @@
+import { MotionConfig } from "framer-motion";
 import { Routes, Route, Navigate } from "react-router-dom";
 import Layout from "../ui/layout/Layout";
 import LoginPage from "../pages/LoginPage";
@@ -13,6 +14,7 @@ import { RequireRole } from "../auth/RequireRole";
 
 export default function App() {
   return (
+    <MotionConfig reducedMotion="user">
     <Layout>
       <Routes>
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
@@ -78,5 +80,6 @@ export default function App() {
         <Route path="/tools" element={<Navigate to="/friendlies" replace />} />
       </Routes>
     </Layout>
+    </MotionConfig>
   );
 }
