@@ -1,6 +1,6 @@
 import { MotionConfig } from "framer-motion";
 import { Routes, Route, Navigate } from "react-router-dom";
-import Layout from "../ui/layout/Layout";
+import AppShell from "../ui/shell/AppShell";
 import LoginPage from "../pages/LoginPage";
 import TournamentsPage from "../pages/TournamentsPage";
 import LiveTournamentPage from "../pages/live/LiveTournamentPage";
@@ -15,7 +15,7 @@ import { RequireRole } from "../auth/RequireRole";
 export default function App() {
   return (
     <MotionConfig reducedMotion="user">
-    <Layout>
+    <AppShell>
       <Routes>
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
         <Route path="/login" element={<LoginPage />} />
@@ -79,7 +79,7 @@ export default function App() {
 
         <Route path="/tools" element={<Navigate to="/friendlies" replace />} />
       </Routes>
-    </Layout>
+    </AppShell>
     </MotionConfig>
   );
 }

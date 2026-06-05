@@ -145,6 +145,9 @@
   .focus-ring {
     @apply outline-none focus-visible:ring-2 focus-visible:ring-accent/40 focus-visible:ring-offset-0;
   }
+  /* Hide scrollbars on horizontal tab strips while keeping scrollability. */
+  .no-scrollbar { scrollbar-width: none; -ms-overflow-style: none; }
+  .no-scrollbar::-webkit-scrollbar { display: none; }
 
   /* Cards and Panels */
   .card-outer {
