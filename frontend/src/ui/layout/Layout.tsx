@@ -17,10 +17,11 @@ import {
 } from "../../api/players.api";
 import { SubNavProvider, useSubNavContext, type SubNavItem } from "./SubNavContext";
 import { usePullToRefresh } from "./usePullToRefresh";
+import { useThemeManager, type ThemeName } from "./useThemeManager";
+import { useClickOutside } from "./useClickOutside";
 import PushNotificationsMenu from "./PushNotificationsMenu";
 
 type Role = "reader" | "editor" | "admin";
-type ThemeName = string;
 type MainNavKey = "dashboard" | "tournaments" | "friendlies" | "stats" | "players" | "clubs" | "login" | "other";
 
 const MAIN_NAV_ORDER: Record<MainNavKey, number> = {
@@ -168,14 +169,7 @@ function LayoutInner({ children }: { children: React.ReactNode }) {
     }
   }, [qc, token]);
 
-  const [theme, setTheme] = useState<ThemeName>(() => {
-    const storedRaw = localStorage.getItem("theme");
-    const stored = storedRaw === "ibm" ? "blue" : storedRaw === "football" ? "green" : storedRaw;
-    if (stored && THEME_OPTIONS.includes(stored)) {
-      return stored;
-    }
-    return "blue";
-  });
+  const { theme, setTheme } = useThemeManager();
   const [themeMenuOpen, setThemeMenuOpen] = useState(false);
   const [actorMenuOpen, setActorMenuOpen] = useState(false);
   const [headerHeight, setHeaderHeight] = useState(120);
@@ -212,50 +206,9 @@ function LayoutInner({ children }: { children: React.ReactNode }) {
   }, [playersQ.data, playerId]);
   const actorDifferent = playerId != null && actorPlayerId != null && Number(playerId) !== Number(actorPlayerId);
 
-  useEffect(() => {
-    document.documentElement.dataset.theme = theme;
-    localStorage.setItem("theme", theme);
-  }, [theme]);
 
-  useEffect(() => {
-    if (!themeMenuOpen) return;
-    const onDocMouseDown = (e: MouseEvent) => {
-      const el = themeMenuRef.current;
-      if (!el) return;
-      if (e.target instanceof Node && !el.contains(e.target)) {
-        setThemeMenuOpen(false);
-      }
-    };
-    const onDocKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setThemeMenuOpen(false);
-    };
-    document.addEventListener("mousedown", onDocMouseDown);
-    document.addEventListener("keydown", onDocKeyDown);
-    return () => {
-      document.removeEventListener("mousedown", onDocMouseDown);
-      document.removeEventListener("keydown", onDocKeyDown);
-    };
-  }, [themeMenuOpen]);
-
-  useEffect(() => {
-    if (!actorMenuOpen || !canSwitchActor) return;
-    const onDocMouseDown = (e: MouseEvent) => {
-      const el = actorMenuRef.current;
-      if (!el) return;
-      if (e.target instanceof Node && !el.contains(e.target)) {
-        setActorMenuOpen(false);
-      }
-    };
-    const onDocKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setActorMenuOpen(false);
-    };
-    document.addEventListener("mousedown", onDocMouseDown);
-    document.addEventListener("keydown", onDocKeyDown);
-    return () => {
-      document.removeEventListener("mousedown", onDocMouseDown);
-      document.removeEventListener("keydown", onDocKeyDown);
-    };
-  }, [actorMenuOpen, canSwitchActor]);
+  useClickOutside(themeMenuRef, themeMenuOpen, () => setThemeMenuOpen(false));
+  useClickOutside(actorMenuRef, actorMenuOpen && canSwitchActor, () => setActorMenuOpen(false));
 
   useEffect(() => {
     const el = headerRef.current;
