@@ -111,7 +111,7 @@ export default function StatsPage() {
 
   // --- Insights (opt-in) mode: League standings + per-player profile ---
   if (experience === "insights") {
-    const insightsConfig: StatsFilterConfig = { mode: true, scope: true, player: "optional" };
+    const insightsConfig: StatsFilterConfig = { mode: true, scope: true, player: "none" };
     return (
       <div className="page">
         <div className="mb-4 hidden lg:block">

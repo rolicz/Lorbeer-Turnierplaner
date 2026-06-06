@@ -4,6 +4,107 @@ const GREEN = "rgb(34 197 94)";
 const AMBER = "rgb(234 179 8)";
 const RED = "rgb(239 68 68)";
 
+/** Radar / spider chart. axes: { label, value 0..1 }. */
+export function Radar({ axes, size = 240 }: { axes: { label: string; value: number }[]; size?: number }) {
+  const n = axes.length;
+  if (n < 3) return null;
+  const cx = size / 2;
+  const cy = size / 2;
+  const r = size / 2 - 34;
+  const angle = (i: number) => (Math.PI * 2 * i) / n - Math.PI / 2;
+  const pt = (i: number, radius: number) => [cx + radius * Math.cos(angle(i)), cy + radius * Math.sin(angle(i))];
+  const rings = [0.25, 0.5, 0.75, 1];
+  const dataPts = axes.map((a, i) => pt(i, r * Math.max(0.02, Math.min(1, a.value))));
+  const accent = "rgb(var(--color-accent))";
+  return (
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} aria-label="Player radar" role="img">
+      {rings.map((ring) => (
+        <polygon
+          key={ring}
+          points={axes.map((_, i) => pt(i, r * ring).join(",")).join(" ")}
+          fill="none"
+          stroke="rgb(var(--color-border-card-chip) / 0.4)"
+          strokeWidth="1"
+        />
+      ))}
+      {axes.map((_, i) => {
+        const [x, y] = pt(i, r);
+        return <line key={i} x1={cx} y1={cy} x2={x} y2={y} stroke="rgb(var(--color-border-card-chip) / 0.3)" strokeWidth="1" />;
+      })}
+      <polygon points={dataPts.map((p) => p.join(",")).join(" ")} fill={accent} fillOpacity="0.22" stroke={accent} strokeWidth="2" />
+      {dataPts.map((p, i) => (
+        <circle key={i} cx={p[0]} cy={p[1]} r="2.5" fill={accent} />
+      ))}
+      {axes.map((a, i) => {
+        const [x, y] = pt(i, r + 16);
+        return (
+          <text key={i} x={x} y={y} textAnchor="middle" dominantBaseline="middle" className="fill-text-muted" style={{ fontSize: 9 }}>
+            {a.label}
+          </text>
+        );
+      })}
+    </svg>
+  );
+}
+
+/** Win-rate heatmap matrix (rows beat cols). cell returns {pct, label} or null (self/no data). */
+export function Heatmap({
+  players,
+  cell,
+  onCell,
+}: {
+  players: { id: number; name: string }[];
+  cell: (rowId: number, colId: number) => { pct: number; label: string } | null;
+  onCell?: (rowId: number, colId: number) => void;
+}) {
+  const initials = (n: string) => (n || "?").trim().slice(0, 3);
+  const toneFor = (pct: number) => {
+    // 0 -> red, 50 -> neutral, 100 -> green
+    const t = Math.max(0, Math.min(1, pct / 100));
+    const hue = t * 130; // 0=red .. 130=green
+    return `hsl(${hue} 60% 42% / 0.85)`;
+  };
+  return (
+    <div className="overflow-x-auto">
+      <table className="border-separate" style={{ borderSpacing: 3 }}>
+        <thead>
+          <tr>
+            <th className="sticky left-0 z-10 bg-bg-card-inner" />
+            {players.map((p) => (
+              <th key={p.id} className="px-1 pb-1 text-[10px] font-medium text-text-muted">{initials(p.name)}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {players.map((rp) => (
+            <tr key={rp.id}>
+              <th className="sticky left-0 z-10 bg-bg-card-inner pr-2 text-right text-[11px] font-semibold text-text-normal">{initials(rp.name)}</th>
+              {players.map((cp) => {
+                if (rp.id === cp.id) return <td key={cp.id} className="h-9 w-9 rounded bg-bg-card-chip/30" />;
+                const c = cell(rp.id, cp.id);
+                if (!c) return <td key={cp.id} className="h-9 w-9 rounded bg-bg-card-chip/20 text-center text-[10px] text-text-muted">–</td>;
+                return (
+                  <td key={cp.id}>
+                    <button
+                      type="button"
+                      onClick={() => onCell?.(rp.id, cp.id)}
+                      title={`${rp.name} vs ${cp.name}: ${c.label}`}
+                      className="grid h-9 w-9 place-items-center rounded text-[10px] font-semibold text-white"
+                      style={{ backgroundColor: toneFor(c.pct) }}
+                    >
+                      {Math.round(c.pct)}
+                    </button>
+                  </td>
+                );
+              })}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 /** Form sparkline from per-match points (0/1/3). */
 export function Sparkline({ values, w = 64, h = 22 }: { values: number[]; w?: number; h?: number }) {
   if (!values.length) return <div style={{ width: w, height: h }} />;
@@ -114,7 +215,7 @@ export function MultiLine({
   const innerH = H - padT - padB;
   const xAt = (i: number) => padL + (n <= 1 ? innerW / 2 : (i / (n - 1)) * innerW);
   const yAt = (v: number) => padT + innerH - (Math.max(0, Math.min(yMax, v)) / (yMax || 1)) * innerH;
-  const ticks = yTicks ?? [0, Math.round(yMax / 2), yMax];
+  const ticks = [...new Set(yTicks ?? [0, Math.round(yMax / 2), yMax])];
 
   return (
     <svg width="100%" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="block" role="img" aria-label="Trend chart">
