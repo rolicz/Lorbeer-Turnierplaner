@@ -20,10 +20,10 @@ export default function PageBack({
     <button
       type="button"
       onClick={() => (to ? nav(to, state !== undefined ? { state } : undefined) : nav(-1))}
-      className="-ml-2 mb-3 inline-flex items-center gap-1 rounded-lg py-2 pl-1.5 pr-3 text-sm font-medium text-text-muted transition hover:bg-hover-default/40 hover:text-text-normal focus-ring"
+      className="mb-3 inline-flex items-center gap-1.5 rounded-full border border-border-card-chip/60 bg-bg-card-outer/70 py-2 pl-2.5 pr-4 text-sm font-medium text-text-normal shadow-sm transition hover:bg-hover-default/50 focus-ring"
     >
-      <ChevronLeft className="h-[18px] w-[18px] shrink-0" aria-hidden="true" />
-      <span className="truncate">{label}</span>
+      <ChevronLeft className="h-[18px] w-[18px] shrink-0 text-accent" aria-hidden="true" />
+      <span className="max-w-[60vw] truncate">Back<span className="hidden sm:inline">{` · ${label}`}</span></span>
     </button>
   );
 }
