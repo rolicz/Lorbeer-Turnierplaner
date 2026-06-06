@@ -8,7 +8,6 @@ import { ErrorToastOnError } from "../ui/primitives/ErrorToast";
 import PageLoadingScreen from "../ui/primitives/PageLoadingScreen";
 import AvatarCircle from "../ui/primitives/AvatarCircle";
 import { Pill } from "../ui/primitives/Pill";
-import { usePageSubNav, type SubNavItem } from "../ui/layout/SubNavContext";
 import { useRouteEntryLoading } from "../ui/layout/useRouteEntryLoading";
 
 import { useAuth } from "../auth/AuthContext";
@@ -25,10 +24,9 @@ import { useSeenGuestbookIdsByProfileId } from "../hooks/useSeenGuestbook";
 import { scrollToSectionById } from "../ui/scrollToSection";
 
 export default function PlayersAdminPage() {
-  const { token, role, playerId: currentPlayerId } = useAuth();
+  const { token, role } = useAuth();
   const pageEntered = useRouteEntryLoading();
   const isAdmin = role === "admin";
-  const canEditProfile = role !== "reader" && !!currentPlayerId;
   const navigate = useNavigate();
   const qc = useQueryClient();
 
@@ -105,35 +103,6 @@ export default function PlayersAdminPage() {
     }
     return map;
   }, [profilesQ.data]);
-
-  const subNavItems = useMemo<SubNavItem[]>(() => {
-    const items: SubNavItem[] = [
-      {
-        key: "all-players",
-        label: "All Players",
-        icon: "fa-users",
-        active: true,
-        to: "/players",
-      },
-    ];
-    if (canEditProfile) {
-      items.push({
-        key: "edit-profile",
-        label: "Edit Profile",
-        icon: "fa-user-pen",
-        active: false,
-        onClick: () => {
-          navigate("/profile");
-          window.setTimeout(() => {
-            scrollToSectionById("profile-section-main", 24);
-          }, 0);
-        },
-      });
-    }
-    return items;
-  }, [canEditProfile, navigate]);
-
-  usePageSubNav(subNavItems);
 
   const initialLoading =
     !pageEntered ||

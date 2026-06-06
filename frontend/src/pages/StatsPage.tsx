@@ -1,3 +1,7 @@
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useLocation } from "react-router-dom";
+import { Users, TrendingUp, Swords, Flame, Star, ListChecks, BarChart3 } from "lucide-react";
+
 import PlayersStatsCard from "./stats/PlayersStatsCard";
 import TrendsCard from "./stats/TrendsCard";
 import HeadToHeadCard from "./stats/HeadToHeadCard";
@@ -5,292 +9,71 @@ import StreaksCard from "./stats/StreaksCard";
 import PlayerMatchesCard from "./stats/PlayerMatchesCard";
 import RatingsCard from "./stats/RatingsCard";
 import StarsPerformanceCard from "./stats/StarsPerformanceCard";
-import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from "react";
-import { useLocation } from "react-router-dom";
-import { usePageSubNav, type SubNavItem } from "../ui/layout/SubNavContext";
-import { useSectionSubnav } from "../ui/layout/useSectionSubnav";
+import { SectionTabs, type SectionTab } from "../ui/SectionTabs";
 import { useRouteEntryLoading } from "../ui/layout/useRouteEntryLoading";
-import SectionSeparator from "../ui/primitives/SectionSeparator";
-import CollapsibleCard from "../ui/primitives/CollapsibleCard";
 import PageLoadingScreen from "../ui/primitives/PageLoadingScreen";
+
+type TabKey = "players" | "trends" | "h2h" | "streaks" | "ratings" | "stars" | "matches";
 
 type StatsLocationState = {
   focus?: string;
   trendsView?: "lastN" | "total";
 };
 
+const TABS: SectionTab<TabKey>[] = [
+  { key: "players", label: "Players", icon: <Users size={14} /> },
+  { key: "trends", label: "Trends", icon: <TrendingUp size={14} /> },
+  { key: "h2h", label: "H2H", icon: <Swords size={14} /> },
+  { key: "streaks", label: "Streaks", icon: <Flame size={14} /> },
+  { key: "ratings", label: "Ratings", icon: <Star size={14} /> },
+  { key: "stars", label: "Stars", icon: <BarChart3 size={14} /> },
+  { key: "matches", label: "Matches", icon: <ListChecks size={14} /> },
+];
+
 export default function StatsPage() {
   const location = useLocation();
   const pageEntered = useRouteEntryLoading();
   const state = (location.state as StatsLocationState | null) ?? null;
-  const focusTrends = useMemo(() => {
-    return location.hash === "#trends" || location.hash === "#stats-trends" || state?.focus === "trends";
+
+  const initialTab = useMemo<TabKey>(() => {
+    if (location.hash === "#trends" || location.hash === "#stats-trends" || state?.focus === "trends")
+      return "trends";
+    return "players";
   }, [location.hash, state?.focus]);
 
+  const [active, setActive] = useState<TabKey>(initialTab);
   const initialTrendsView = state?.trendsView ?? undefined;
 
-  const [playersSectionReady, setPlayersSectionReady] = useState(false);
-  const [jumpDoneForKey, setJumpDoneForKey] = useState<string>("");
-  const handlePlayersInitialReady = useCallback(() => {
-    setPlayersSectionReady(true);
-  }, []);
-  const hideUntilInitialJump = focusTrends && jumpDoneForKey !== location.key;
-
-  const sections = useMemo(
-    () => [
-      { key: "players", id: "stats-section-players" },
-      { key: "trends", id: "stats-section-trends" },
-      { key: "h2h", id: "stats-section-h2h" },
-      { key: "streaks", id: "stats-section-streaks" },
-      { key: "ratings", id: "stats-section-ratings" },
-      { key: "stars", id: "stats-section-stars" },
-      { key: "matches", id: "stats-section-matches" },
-      { key: "ideas", id: "stats-section-ideas" },
-    ],
-    []
-  );
-
-  const { activeKey: activeSubKey, blinkKey: subnavBlinkKey, jumpToSection } = useSectionSubnav({
-    sections,
-    enabled: pageEntered,
-    initialKey: focusTrends ? "trends" : "players",
-  });
-
-  const subNavItems = useMemo<SubNavItem[]>(
-    () => {
-      const spreadCls = "flex-1 md:flex-none";
-      return [
-      {
-        key: "players",
-        label: "Players",
-        icon: "fa-users",
-        iconOnlyMobile: true,
-        active: activeSubKey === "players",
-        className: `${spreadCls}${subnavBlinkKey === "players" ? " subnav-click-blink" : ""}`,
-        onClick: () => jumpToSection("players", "stats-section-players", { blink: true, retries: 20 }),
-      },
-      {
-        key: "trends",
-        label: "Trends",
-        icon: "fa-chart-area",
-        iconOnlyMobile: true,
-        active: activeSubKey === "trends",
-        className: `${spreadCls}${subnavBlinkKey === "trends" ? " subnav-click-blink" : ""}`,
-        onClick: () => jumpToSection("trends", "stats-section-trends", { blink: true, retries: 20 }),
-      },
-      {
-        key: "h2h",
-        label: "H2H",
-        icon: "fa-user-group",
-        iconOnlyMobile: true,
-        active: activeSubKey === "h2h",
-        className: `${spreadCls}${subnavBlinkKey === "h2h" ? " subnav-click-blink" : ""}`,
-        onClick: () => jumpToSection("h2h", "stats-section-h2h", { blink: true, retries: 20 }),
-      },
-      {
-        key: "streaks",
-        label: "Streaks",
-        icon: "fa-fire",
-        iconOnlyMobile: true,
-        active: activeSubKey === "streaks",
-        className: `${spreadCls}${subnavBlinkKey === "streaks" ? " subnav-click-blink" : ""}`,
-        onClick: () => jumpToSection("streaks", "stats-section-streaks", { blink: true, retries: 20 }),
-      },
-      {
-        key: "ratings",
-        label: "Ratings",
-        icon: "fa-ranking-star",
-        iconOnlyMobile: true,
-        active: activeSubKey === "ratings",
-        className: `${spreadCls}${subnavBlinkKey === "ratings" ? " subnav-click-blink" : ""}`,
-        onClick: () => jumpToSection("ratings", "stats-section-ratings", { blink: true, retries: 20 }),
-      },
-      {
-        key: "stars",
-        label: "Stars",
-        icon: "fa-star-half-stroke",
-        iconOnlyMobile: true,
-        active: activeSubKey === "stars",
-        className: `${spreadCls}${subnavBlinkKey === "stars" ? " subnav-click-blink" : ""}`,
-        onClick: () => jumpToSection("stars", "stats-section-stars", { blink: true, retries: 20 }),
-      },
-      {
-        key: "matches",
-        label: "Matches",
-        icon: "fa-list-check",
-        iconOnlyMobile: true,
-        active: activeSubKey === "matches",
-        className: `${spreadCls}${subnavBlinkKey === "matches" ? " subnav-click-blink" : ""}`,
-        onClick: () => jumpToSection("matches", "stats-section-matches", { blink: true, retries: 20 }),
-      },
-      ];
-    },
-    [activeSubKey, subnavBlinkKey, jumpToSection]
-  );
-
-  usePageSubNav(subNavItems);
-
-  useLayoutEffect(() => {
-    if (focusTrends) {
-      if (!playersSectionReady) return;
-      jumpToSection("trends", "stats-section-trends", {
-        blink: false,
-        lockMs: 700,
-        retries: 20,
-        behavior: "auto",
-      });
-      const t = window.setTimeout(() => setJumpDoneForKey(location.key), 120);
-      return () => window.clearTimeout(t);
-    }
-    jumpToSection("players", "stats-section-players", {
-      blink: false,
-      lockMs: 700,
-      retries: 20,
-      behavior: "auto",
-    });
-  }, [focusTrends, jumpToSection, location.key, playersSectionReady]);
-
+  // When navigated here via hash/state, switch to the right tab.
   useEffect(() => {
-    if (!hideUntilInitialJump) return;
-    const fallback = window.setTimeout(() => setJumpDoneForKey(location.key), 1200);
-    return () => window.clearTimeout(fallback);
-  }, [hideUntilInitialJump, location.key]);
+    setActive(initialTab);
+  }, [initialTab]);
+
+  // Expose a way for child cards to request a section focus (e.g. from dashboard link).
+  const handlePlayersInitialReady = useCallback(() => {}, []);
+  void handlePlayersInitialReady;
 
   if (!pageEntered) {
-    return (
-      <div className="page">
-        <PageLoadingScreen sectionCount={6} />
-      </div>
-    );
+    return <div className="page"><PageLoadingScreen sectionCount={3} /></div>;
   }
 
   return (
-    <div className="page no-scroll-anchor relative">
-      {hideUntilInitialJump ? (
-        <div className="absolute inset-0 z-20 grid place-items-center bg-bg-default/92 backdrop-blur-[1px] pointer-events-none">
-          <PageLoadingScreen sectionCount={6} className="min-h-0" />
-        </div>
-      ) : null}
-      <div className={"grid gap-3 lg:grid-cols-2 " + (hideUntilInitialJump ? "opacity-0" : "")}>
-        <SectionSeparator
-          id="stats-section-players"
-          title={
-            <span className="inline-flex items-center gap-2">
-              <i className="fa-regular fa-user text-text-muted" aria-hidden="true" />
-              Players
-            </span>
-          }
-          className="mt-0 border-t-0 pt-0"
-        >
-          <PlayersStatsCard embedded onInitialReady={handlePlayersInitialReady} />
-        </SectionSeparator>
-        <SectionSeparator
-          id="stats-section-trends"
-          title={
-            <span className="inline-flex items-center gap-2">
-              <i className="fa-solid fa-chart-area text-text-muted" aria-hidden="true" />
-              Trends
-            </span>
-          }
-          className="mt-0 border-t-0 pt-0"
-        >
-          <TrendsCard embedded defaultOpen={focusTrends} initialView={initialTrendsView} />
-        </SectionSeparator>
-        <SectionSeparator
-          id="stats-section-h2h"
-          title={
-            <span className="inline-flex items-center gap-2">
-              <i className="fa-solid fa-user-group text-text-muted" aria-hidden="true" />
-              Head-to-Head
-            </span>
-          }
-        >
-          <HeadToHeadCard embedded />
-        </SectionSeparator>
-        <SectionSeparator
-          id="stats-section-streaks"
-          title={
-            <span className="inline-flex items-center gap-2">
-              <i className="fa-solid fa-fire-flame-curved text-text-muted" aria-hidden="true" />
-              Streaks
-            </span>
-          }
-        >
-          <StreaksCard embedded />
-        </SectionSeparator>
-        <SectionSeparator
-          id="stats-section-ratings"
-          title={
-            <span className="inline-flex items-center gap-2">
-              <i className="fa-solid fa-ranking-star text-text-muted" aria-hidden="true" />
-              Ratings
-            </span>
-          }
-        >
-          <RatingsCard embedded />
-        </SectionSeparator>
-        <SectionSeparator
-          id="stats-section-stars"
-          title={
-            <span className="inline-flex items-center gap-2">
-              <i className="fa-solid fa-chart-bar text-text-muted" aria-hidden="true" />
-              Club Stars Performance
-            </span>
-          }
-        >
-          <StarsPerformanceCard embedded />
-        </SectionSeparator>
-        <SectionSeparator
-          id="stats-section-matches"
-          title={
-            <span className="inline-flex items-center gap-2">
-              <i className="fa-solid fa-list text-text-muted" aria-hidden="true" />
-              Player Matches
-            </span>
-          }
-        >
-          <PlayerMatchesCard embedded />
-        </SectionSeparator>
-
-        <SectionSeparator
-          id="stats-section-ideas"
-          title={
-            <span className="inline-flex items-center gap-2">
-              <i className="fa-regular fa-lightbulb text-text-muted" aria-hidden="true" />
-              Next Ideas
-            </span>
-          }
-          className="lg:col-span-2"
-        >
-          <CollapsibleCard
-            title={
-              <span className="inline-flex items-center gap-2">
-                <i className="fa-regular fa-lightbulb text-text-muted" aria-hidden="true" />
-                Next Ideas
-              </span>
-            }
-            defaultOpen={false}
-            className="panel-subtle"
-          >
-            <div className="space-y-2">
-              <div className="text-sm text-text-muted">Planned blocks (not implemented yet):</div>
-              <div className="grid gap-2 sm:grid-cols-2">
-                <div className="panel-subtle p-3 text-sm text-text-normal">Cups: cabinet, longest reign, fastest loss, defenses</div>
-                <div className="panel-subtle p-3 text-sm text-text-normal">H2H: "nemesis" timeline, per-season splits</div>
-                <div className="panel-subtle p-3 text-sm text-text-normal">Streaks: streak timeline, per-season streaks</div>
-                <div className="panel-subtle p-3 text-sm text-text-normal">Seasons: per-season stats + awards (later)</div>
-                <div className="panel-subtle p-3 text-sm text-text-normal">Trends: participation heatmap (who skipped when)</div>
-                <div className="panel-subtle p-3 text-sm text-text-normal">
-                  Club meta: pick rate + winrate per stars/league, "signature clubs" per player
-                </div>
-                <div className="panel-subtle p-3 text-sm text-text-normal">Ratings: history chart + rating volatility</div>
-                <div className="panel-subtle p-3 text-sm text-text-normal">Awards: MVP (points), golden boot, best defense, upset king</div>
-                <div className="panel-subtle p-3 text-sm text-text-normal">"Clutch": performance in close games (&lt;= 1 goal)</div>
-              </div>
-            </div>
-          </CollapsibleCard>
-        </SectionSeparator>
+    <div className="page">
+      <div className="mb-4">
+        <h1 className="text-xl font-bold tracking-tight text-text-normal">Stats</h1>
       </div>
+
+      <SectionTabs tabs={TABS} active={active} onChange={setActive} className="mb-4" />
+
+      {active === "players" && <PlayersStatsCard embedded />}
+      {active === "trends" && (
+        <TrendsCard embedded defaultOpen initialView={initialTrendsView} />
+      )}
+      {active === "h2h" && <HeadToHeadCard embedded />}
+      {active === "streaks" && <StreaksCard embedded />}
+      {active === "ratings" && <RatingsCard embedded />}
+      {active === "stars" && <StarsPerformanceCard embedded />}
+      {active === "matches" && <PlayerMatchesCard embedded />}
     </div>
   );
 }

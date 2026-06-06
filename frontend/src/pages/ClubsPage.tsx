@@ -1,4 +1,4 @@
-import { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import Input from "../ui/primitives/Input";
@@ -7,8 +7,6 @@ import CollapsibleCard from "../ui/primitives/CollapsibleCard";
 import SegmentedSwitch from "../ui/primitives/SegmentedSwitch";
 import { ErrorToastOnError } from "../ui/primitives/ErrorToast";
 import PageLoadingScreen from "../ui/primitives/PageLoadingScreen";
-import { usePageSubNav, type SubNavItem } from "../ui/layout/SubNavContext";
-import { useSectionSubnav } from "../ui/layout/useSectionSubnav";
 import { useRouteEntryLoading } from "../ui/layout/useRouteEntryLoading";
 import SectionSeparator from "../ui/primitives/SectionSeparator";
 
@@ -88,7 +86,6 @@ function groupByLeague(clubs: Club[], leaguesById: Map<number, string>) {
 export default function ClubsPage() {
   const { token, role } = useAuth();
   const qc = useQueryClient();
-  const defaultScrollDoneRef = useRef(false);
   const pageEntered = useRouteEntryLoading();
 
   const isAdmin = role === "admin";
@@ -226,114 +223,6 @@ export default function ClubsPage() {
     if (groupMode === "league") return groupByLeague(filteredClubs, leaguesById);
     return groupByStars(filteredClubs, leaguesById);
   }, [filteredClubs, leaguesById, groupMode]);
-
-  const pageSections = useMemo(
-    () => [
-      { key: "create-new", id: "section-clubs-create" },
-      { key: "browse-filter", id: "section-clubs-browse" },
-      { key: "clubs-list", id: "section-clubs-list" },
-    ],
-    []
-  );
-
-  const { activeKey: activeSubKey, blinkKey: subnavBlinkKey, jumpToSection } = useSectionSubnav({
-    sections: pageSections,
-    enabled: pageEntered,
-    initialKey: "browse-filter",
-  });
-
-  const computeBrowseOffset = useCallback((): number => {
-    const browseEl = document.getElementById("section-clubs-browse");
-    const createEl = document.getElementById("section-clubs-create");
-    const headerEl = document.getElementById("app-top-nav");
-    if (!browseEl || !createEl || !headerEl) return 0;
-
-    const headerHeight = Math.ceil(headerEl.getBoundingClientRect().height);
-    const browseTop = window.scrollY + browseEl.getBoundingClientRect().top;
-    const createBottom = window.scrollY + createEl.getBoundingClientRect().bottom;
-
-    const baseTarget = Math.max(0, browseTop - headerHeight);
-    const minTargetToHideCreate = Math.max(0, createBottom - headerHeight + 1);
-    const target = Math.max(baseTarget, minTargetToHideCreate);
-    return baseTarget - target;
-  }, []);
-
-  const computeListOffset = useCallback((): number => {
-    const listEl = document.getElementById("section-clubs-list");
-    const browseEl = document.getElementById("section-clubs-browse");
-    const headerEl = document.getElementById("app-top-nav");
-    if (!listEl || !browseEl || !headerEl) return 0;
-
-    const headerHeight = Math.ceil(headerEl.getBoundingClientRect().height);
-    const listTop = window.scrollY + listEl.getBoundingClientRect().top;
-    const browseBottom = window.scrollY + browseEl.getBoundingClientRect().bottom;
-
-    const baseTarget = Math.max(0, listTop - headerHeight);
-    const minTargetToHideBrowse = Math.max(0, browseBottom - headerHeight + 1);
-    const target = Math.max(baseTarget, minTargetToHideBrowse);
-    return baseTarget - target;
-  }, []);
-
-  useLayoutEffect(() => {
-    if (defaultScrollDoneRef.current) return;
-    defaultScrollDoneRef.current = true;
-    jumpToSection("browse-filter", "section-clubs-browse", {
-      blink: false,
-      lockMs: 600,
-      retries: 20,
-      offsetPx: computeBrowseOffset(),
-      behavior: "auto",
-    });
-  }, [computeBrowseOffset, jumpToSection]);
-
-  const subNavItems = useMemo<SubNavItem[]>(
-    () => [
-      {
-        key: "create-new",
-        label: "Create New",
-        icon: "fa-plus",
-        active: activeSubKey === "create-new",
-        className: subnavBlinkKey === "create-new" ? "subnav-click-blink" : "",
-        onClick: () =>
-          jumpToSection("create-new", "section-clubs-create", {
-            blink: true,
-            lockMs: 700,
-            retries: 20,
-          }),
-      },
-      {
-        key: "browse-filter",
-        label: "Browse & Filter",
-        icon: "fa-filter",
-        active: activeSubKey === "browse-filter",
-        className: subnavBlinkKey === "browse-filter" ? "subnav-click-blink" : "",
-        onClick: () =>
-          jumpToSection("browse-filter", "section-clubs-browse", {
-            blink: true,
-            lockMs: 700,
-            retries: 20,
-            offsetPx: computeBrowseOffset(),
-          }),
-      },
-      {
-        key: "clubs-list",
-        label: "Clubs List",
-        icon: "fa-list",
-        active: activeSubKey === "clubs-list",
-        className: subnavBlinkKey === "clubs-list" ? "subnav-click-blink" : "",
-        onClick: () =>
-          jumpToSection("clubs-list", "section-clubs-list", {
-            blink: true,
-            lockMs: 700,
-            retries: 20,
-            offsetPx: computeListOffset(),
-          }),
-      },
-    ],
-    [activeSubKey, computeBrowseOffset, computeListOffset, jumpToSection, subnavBlinkKey]
-  );
-
-  usePageSubNav(subNavItems);
 
   const initialLoading =
     !pageEntered ||

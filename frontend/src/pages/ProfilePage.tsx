@@ -46,9 +46,8 @@ import PlayerAvatarEditor from "./players/PlayerAvatarEditor";
 import { usePlayerAvatarMap } from "../hooks/usePlayerAvatarMap";
 import { usePlayerHeaderMap } from "../hooks/usePlayerHeaderMap";
 import { usePlayerProfileWS } from "../hooks/useTournamentWS";
-import { usePageSubNav, type SubNavItem } from "../ui/layout/SubNavContext";
-import { useSectionSubnav } from "../ui/layout/useSectionSubnav";
 import { useRouteEntryLoading } from "../ui/layout/useRouteEntryLoading";
+import { scrollToSectionById } from "../ui/scrollToSection";
 import SectionSeparator from "../ui/primitives/SectionSeparator";
 import { fmtInt, fmtPct } from "../utils/format";
 import {
@@ -376,85 +375,33 @@ export default function ProfilePage() {
 
   usePlayerProfileWS(targetPlayerId, token);
 
-  const sections = useMemo(
-    () => [
-      { key: "profile-main", id: "profile-section-main" },
-      { key: "profile-guestbook", id: "profile-section-guestbook" },
-    ],
-    []
-  );
-  const { activeKey: activeSubKey, blinkKey: subnavBlinkKey, jumpToSection } = useSectionSubnav({
-    sections,
-    enabled: !!targetPlayerId && pageEntered,
-    initialKey: "profile-main",
-  });
-
-  const computeGuestbookMetrics = useCallback(() => {
-    const mainEl = document.getElementById("profile-section-main");
-    const guestEl = document.getElementById("profile-section-guestbook");
-    const headerEl = document.getElementById("app-top-nav");
-    if (!mainEl || !guestEl || !headerEl) return null;
-
-    const headerHeight = Math.ceil(headerEl.getBoundingClientRect().height);
-    const guestTop = window.scrollY + guestEl.getBoundingClientRect().top;
-    const mainBottom = window.scrollY + mainEl.getBoundingClientRect().bottom;
-
-    const baseTarget = Math.max(0, guestTop - headerHeight - 2);
-    const minTargetToHideMain = Math.max(0, mainBottom - headerHeight + 1);
-    const sectionTarget = Math.max(baseTarget, minTargetToHideMain);
-
-    return { headerHeight, minTargetToHideMain, baseTarget, sectionTarget };
-  }, []);
-
-  const computeGuestbookOffset = useCallback((): number => {
-    const m = computeGuestbookMetrics();
-    if (!m) return 0;
-    return m.baseTarget - m.sectionTarget;
-  }, [computeGuestbookMetrics]);
-
   const scrollToGuestbookSection = useCallback(
-    (blink = true, behavior: ScrollBehavior = "smooth") => {
-      jumpToSection("profile-guestbook", "profile-section-guestbook", {
-        blink,
-        retries: 20,
-        offsetPx: computeGuestbookOffset(),
-        behavior,
-      });
+    (behavior: ScrollBehavior = "smooth") => {
+      scrollToSectionById("profile-section-guestbook", 20, 0, behavior);
     },
-    [computeGuestbookOffset, jumpToSection]
+    [],
   );
 
   const focusGuestbookEntry = useCallback(
     (entryId: number, options?: { blink?: boolean; behavior?: ScrollBehavior }) => {
       const behavior = options?.behavior ?? "smooth";
-      scrollToGuestbookSection(options?.blink ?? false, behavior);
+      scrollToGuestbookSection(behavior);
       let tries = 0;
-      const maxTries = 80;
       const run = () => {
         const el = document.getElementById(`guestbook-entry-${entryId}`);
         if (!el) {
-          if (tries >= maxTries) return;
+          if (tries >= 80) return;
           tries += 1;
           window.setTimeout(run, 120);
           return;
         }
-
-        const m = computeGuestbookMetrics();
-        const headerHeight =
-          m?.headerHeight ??
-          Math.ceil(document.getElementById("app-top-nav")?.getBoundingClientRect().height ?? 0);
-        const minTarget = m?.minTargetToHideMain ?? 0;
+        const header = document.getElementById("app-top-nav");
+        const headerHeight = header ? Math.ceil(header.getBoundingClientRect().height) : 0;
         const rect = el.getBoundingClientRect();
         const entryTop = window.scrollY + rect.top;
         const usableViewport = Math.max(140, window.innerHeight - headerHeight);
         const centeredTarget = entryTop - headerHeight - Math.max(12, Math.floor((usableViewport - rect.height) / 2));
-        const targetTop = Math.max(0, Math.max(minTarget, centeredTarget));
-
-        window.scrollTo({ top: targetTop, behavior });
-        window.setTimeout(() => {
-          window.scrollTo({ top: targetTop, behavior });
-        }, 320);
-
+        window.scrollTo({ top: Math.max(0, centeredTarget), behavior });
         el.classList.remove("comment-attn");
         void el.offsetHeight;
         el.classList.add("comment-attn");
@@ -462,60 +409,8 @@ export default function ProfilePage() {
       };
       run();
     },
-    [computeGuestbookMetrics, scrollToGuestbookSection]
+    [scrollToGuestbookSection],
   );
-
-  const subNavItems = useMemo<SubNavItem[]>(() => {
-    if (!targetPlayerId) {
-      return [
-        {
-          key: "all-players",
-          label: "All Players",
-          icon: "fa-users",
-          active: true,
-          to: "/players",
-        },
-      ];
-    }
-
-    const profileLabel = (player?.display_name ?? profileQ.data?.display_name ?? "Profile").trim() || "Profile";
-
-    return [
-      {
-        key: "all-players",
-        label: "All Players",
-        icon: "fa-users",
-        active: false,
-        to: "/players",
-      },
-      {
-        key: "profile-main",
-        label: profileLabel,
-        icon: "fa-id-badge",
-        active: activeSubKey === "profile-main",
-        className: `md:ml-1 md:rounded-r-none ${subnavBlinkKey === "profile-main" ? "subnav-click-blink" : ""}`.trim(),
-        onClick: () => jumpToSection("profile-main", "profile-section-main", { blink: true, retries: 20 }),
-      },
-      {
-        key: "profile-guestbook",
-        label: "Guestbook",
-        icon: "fa-book",
-        active: activeSubKey === "profile-guestbook",
-        className: `md:rounded-l-none ${subnavBlinkKey === "profile-guestbook" ? "subnav-click-blink" : ""}`.trim(),
-        onClick: () => scrollToGuestbookSection(true),
-      },
-    ];
-  }, [
-    activeSubKey,
-    jumpToSection,
-    player?.display_name,
-    profileQ.data?.display_name,
-    scrollToGuestbookSection,
-    subnavBlinkKey,
-    targetPlayerId,
-  ]);
-
-  usePageSubNav(subNavItems);
 
   const saveProfileMut = useMutation({
     mutationFn: async () => {

@@ -1,98 +1,42 @@
-import { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useState } from "react";
 import FriendlyMatchCard from "./tools/FriendlyMatchCard";
 import FriendlyMatchesListCard from "./tools/FriendlyMatchesListCard";
-import SectionSeparator from "../ui/primitives/SectionSeparator";
-import { usePageSubNav, type SubNavItem } from "../ui/layout/SubNavContext";
-import { useSectionSubnav } from "../ui/layout/useSectionSubnav";
+import { SectionTabs, type SectionTab } from "../ui/SectionTabs";
 import { useRouteEntryLoading } from "../ui/layout/useRouteEntryLoading";
 import PageLoadingScreen from "../ui/primitives/PageLoadingScreen";
+import { Plus, List } from "lucide-react";
+
+type Tab = "create" | "all";
+const TABS: SectionTab<Tab>[] = [
+  { key: "all", label: "All Friendlies", icon: <List size={14} /> },
+  { key: "create", label: "New", icon: <Plus size={14} /> },
+];
 
 export default function FriendliesPage() {
-  const defaultScrollDoneRef = useRef(false);
   const pageEntered = useRouteEntryLoading();
-  const [createReady, setCreateReady] = useState(false);
-  const [listReady, setListReady] = useState(false);
-  const initialReady = createReady && listReady;
+  const [active, setActive] = useState<Tab>("all");
 
-  const pageSections = useMemo(
-    () => [
-      { key: "create-new", id: "section-friendlies-create" },
-      { key: "all-friendlies", id: "section-friendlies-all" },
-    ],
-    []
-  );
-
-  const { activeKey: activeSubKey, blinkKey: subnavBlinkKey, jumpToSection } = useSectionSubnav({
-    sections: pageSections,
-    enabled: pageEntered,
-    initialKey: "all-friendlies",
-  });
-
-  useLayoutEffect(() => {
-    if (defaultScrollDoneRef.current) return;
-    if (!pageEntered || !initialReady) return;
-    defaultScrollDoneRef.current = true;
-    jumpToSection("all-friendlies", "section-friendlies-all", {
-      blink: false,
-      lockMs: 600,
-      retries: 20,
-      behavior: "auto",
-    });
-  }, [initialReady, jumpToSection, pageEntered]);
-
-  const handleCreateReady = useCallback(() => setCreateReady(true), []);
-  const handleListReady = useCallback(() => setListReady(true), []);
-
-  const subNavItems = useMemo<SubNavItem[]>(
-    () => [
-      {
-        key: "create-new",
-        label: "Create New",
-        icon: "fa-plus",
-        active: activeSubKey === "create-new",
-        className: subnavBlinkKey === "create-new" ? "subnav-click-blink" : "",
-        onClick: () =>
-          jumpToSection("create-new", "section-friendlies-create", {
-            blink: true,
-            lockMs: 700,
-            retries: 20,
-          }),
-      },
-      {
-        key: "all-friendlies",
-        label: "All Friendlies",
-        icon: "fa-list",
-        active: activeSubKey === "all-friendlies",
-        className: subnavBlinkKey === "all-friendlies" ? "subnav-click-blink" : "",
-        onClick: () =>
-          jumpToSection("all-friendlies", "section-friendlies-all", {
-            blink: true,
-            lockMs: 700,
-            retries: 20,
-          }),
-      },
-    ],
-    [activeSubKey, subnavBlinkKey, jumpToSection]
-  );
-
-  usePageSubNav(subNavItems);
+  const handleCreateReady = useCallback(() => {}, []);
+  const handleListReady = useCallback(() => {}, []);
 
   if (!pageEntered) {
-    return (
-      <div className="page">
-        <PageLoadingScreen sectionCount={3} />
-      </div>
-    );
+    return <div className="page"><PageLoadingScreen sectionCount={3} /></div>;
   }
 
   return (
     <div className="page">
-      <SectionSeparator id="section-friendlies-create" title="Create New" className="mt-0 border-t-0 pt-0">
-        <FriendlyMatchCard embedded onInitialReady={handleCreateReady} />
-      </SectionSeparator>
-      <SectionSeparator id="section-friendlies-all" title="All Friendlies" className="min-h-[100svh]">
+      <div className="mb-4">
+        <h1 className="text-xl font-bold tracking-tight text-text-normal">Friendlies</h1>
+      </div>
+
+      <SectionTabs tabs={TABS} active={active} onChange={setActive} className="mb-4" />
+
+      {active === "all" && (
         <FriendlyMatchesListCard embedded onInitialReady={handleListReady} />
-      </SectionSeparator>
+      )}
+      {active === "create" && (
+        <FriendlyMatchCard embedded onInitialReady={handleCreateReady} />
+      )}
     </div>
   );
 }
