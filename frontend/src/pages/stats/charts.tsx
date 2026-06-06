@@ -195,27 +195,30 @@ export function MultiLine({
   series,
   xLabels,
   yMax,
+  yMin = 0,
   height = 200,
   yTicks,
 }: {
   series: { id: number; name: string; color: string; points: (number | null)[] }[];
   xLabels: string[];
   yMax: number;
+  yMin?: number;
   height?: number;
   yTicks?: number[];
 }) {
   const W = 320;
   const H = height;
-  const padL = 24;
+  const padL = 26;
   const padR = 8;
   const padT = 8;
   const padB = 18;
   const n = xLabels.length;
   const innerW = W - padL - padR;
   const innerH = H - padT - padB;
+  const span = yMax - yMin || 1;
   const xAt = (i: number) => padL + (n <= 1 ? innerW / 2 : (i / (n - 1)) * innerW);
-  const yAt = (v: number) => padT + innerH - (Math.max(0, Math.min(yMax, v)) / (yMax || 1)) * innerH;
-  const ticks = [...new Set(yTicks ?? [0, Math.round(yMax / 2), yMax])];
+  const yAt = (v: number) => padT + innerH - ((Math.max(yMin, Math.min(yMax, v)) - yMin) / span) * innerH;
+  const ticks = [...new Set(yTicks ?? [yMin, Math.round((yMin + yMax) / 2), yMax])];
 
   return (
     <svg width="100%" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="block" role="img" aria-label="Trend chart">
