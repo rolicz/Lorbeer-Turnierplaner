@@ -398,6 +398,7 @@ export default function CurrentGameSection({
               collapsible={false}
               onlyMatchId={activeMatch.id}
               showMatchHeader={false}
+              collapsibleHeader="Match comments"
             />
           </div>
         ) : null}

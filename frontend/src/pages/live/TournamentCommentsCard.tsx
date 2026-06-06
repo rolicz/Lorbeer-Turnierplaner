@@ -76,6 +76,8 @@ export default function TournamentCommentsCard({
   collapsible = true,
   onlyMatchId = null,
   showMatchHeader = true,
+  collapsibleHeader = null,
+  defaultCollapsed = false,
 }: {
   tournamentId: number;
   matches: Match[];
@@ -89,6 +91,9 @@ export default function TournamentCommentsCard({
   onlyMatchId?: number | null;
   /** Show the match score/clubs/stars header inside match blocks (off when score is shown elsewhere). */
   showMatchHeader?: boolean;
+  /** When set, render a collapse header with this title (e.g. "Match comments"); state persisted. */
+  collapsibleHeader?: string | null;
+  defaultCollapsed?: boolean;
 }) {
   const qc = useQueryClient();
   const { token, role, actorPlayerId: currentPlayerId, actorPlayerName: currentPlayerName } = useAuth();
@@ -132,6 +137,20 @@ export default function TournamentCommentsCard({
   );
   const [flashId, setFlashId] = useState<number | null>(null);
   const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
+
+  // Collapse state (persisted) for the inline collapse header.
+  const collapseKey = `cmt-collapsed:${tournamentId}:${onlyMatchId ?? "all"}`;
+  const [collapsed, setCollapsed] = useState<boolean>(() => {
+    const raw = localStorage.getItem(collapseKey);
+    return raw == null ? defaultCollapsed : raw === "1";
+  });
+  const toggleCollapsed = () => {
+    setCollapsed((v) => {
+      const next = !v;
+      localStorage.setItem(collapseKey, next ? "1" : "0");
+      return next;
+    });
+  };
   const [voteVotersCommentId, setVoteVotersCommentId] = useState<number | null>(null);
 
   const commentsQ = useQuery({
@@ -934,9 +953,30 @@ export default function TournamentCommentsCard({
     </>
   );
 
+  const collapseHeader = collapsibleHeader ? (
+    <button
+      type="button"
+      onClick={toggleCollapsed}
+      className="surface flex w-full items-center justify-between gap-2 rounded-2xl px-4 py-3 text-left transition hover:bg-hover-default/30"
+      aria-expanded={!collapsed}
+    >
+      <span className="inline-flex items-center gap-2 text-sm font-semibold text-text-normal">
+        <i className="fa-solid fa-comments text-text-muted" aria-hidden="true" />
+        {collapsibleHeader}
+        <span className="text-xs font-normal text-text-muted">{comments.length}</span>
+      </span>
+      <i className={`fa-solid ${collapsed ? "fa-chevron-down" : "fa-chevron-up"} text-xs text-text-muted`} aria-hidden="true" />
+    </button>
+  ) : null;
+
   return (
     <>
-    {collapsible ? (
+    {collapsibleHeader ? (
+      <div className="space-y-3">
+        {collapseHeader}
+        {!collapsed ? commentsContent : null}
+      </div>
+    ) : collapsible ? (
       <CollapsibleCard title="Comments" defaultOpen={true} variant="outer" bodyVariant="none" bodyClassName="space-y-3">
         {commentsContent}
       </CollapsibleCard>

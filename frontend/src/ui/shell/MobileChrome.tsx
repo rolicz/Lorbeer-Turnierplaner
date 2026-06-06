@@ -24,7 +24,7 @@ export default function MobileChrome({
   const active = activeDest(loc.pathname);
   const settingsActive = loc.pathname.startsWith("/settings");
   const pageTitle = usePageTitleValue();
-  const hidden = useHideOnScroll(72);
+  const { hidden, atTop } = useHideOnScroll(72);
 
   // The current page title: page-registered title wins, else the nav label, else brand.
   const title = pageTitle ?? active?.label ?? "Lorbeerkranz";
@@ -50,7 +50,8 @@ export default function MobileChrome({
       <header
         className={
           "sticky top-0 z-30 nav-shell backdrop-blur-md pt-[env(safe-area-inset-top,0px)] transition-transform duration-300 ease-out-expo lg:hidden " +
-          (hidden && !open ? "-translate-y-full" : "translate-y-0")
+          (hidden && !open ? "-translate-y-full" : "translate-y-0") +
+          (atTop ? "" : " shadow-pop")
         }
       >
         <div className="flex h-14 items-center gap-2 px-3">

@@ -5,8 +5,11 @@ import { useEffect, useRef, useState } from "react";
  * down past a threshold, and `false` (revealed) the moment they scroll up — the
  * common mobile-app pattern. Always shown near the very top of the page.
  */
-export function useHideOnScroll(threshold = 64): boolean {
+export type HideOnScroll = { hidden: boolean; atTop: boolean };
+
+export function useHideOnScroll(threshold = 64): HideOnScroll {
   const [hidden, setHidden] = useState(false);
+  const [atTop, setAtTop] = useState(true);
   const lastY = useRef(0);
   const ticking = useRef(false);
 
@@ -17,28 +20,27 @@ export function useHideOnScroll(threshold = 64): boolean {
       if (ticking.current) return;
       ticking.current = true;
       window.requestAnimationFrame(() => {
-        const y = window.scrollY;
-        const last = lastY.current;
-        const delta = y - last;
+        const y = Math.max(0, window.scrollY);
+        const delta = y - lastY.current;
+
+        setAtTop(y < 8);
 
         if (y < threshold) {
-          // Always reveal near the top.
-          setHidden(false);
-        } else if (delta > 6) {
-          // Scrolling down meaningfully -> hide.
-          setHidden(true);
-        } else if (delta < -6) {
-          // Scrolling up -> reveal immediately.
-          setHidden(false);
+          setHidden(false); // always reveal near the top
+        } else if (delta > 4) {
+          setHidden(true); // scrolling down -> hide
+        } else if (delta < -4) {
+          setHidden(false); // any upward scroll -> reveal (drop down)
         }
         lastY.current = y;
         ticking.current = false;
       });
     };
 
+    onScroll();
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
   }, [threshold]);
 
-  return hidden;
+  return { hidden, atTop };
 }
