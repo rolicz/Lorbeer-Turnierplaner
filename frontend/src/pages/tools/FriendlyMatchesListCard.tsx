@@ -5,7 +5,11 @@ import CollapsibleCard from "../../ui/primitives/CollapsibleCard";
 import SegmentedSwitch from "../../ui/primitives/SegmentedSwitch";
 import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
 import InlineLoading from "../../ui/primitives/InlineLoading";
-import MatchEditorSheet, { type MatchEditorSheetTab } from "../live/MatchEditorSheet";
+import Input from "../../ui/primitives/Input";
+import Button from "../../ui/primitives/Button";
+import MatchOverviewPanel from "../../ui/primitives/MatchOverviewPanel";
+import SelectClubsPanel from "../../ui/SelectClubsPanel";
+import { GoalStepper } from "../../ui/clubControls";
 
 import { listClubs } from "../../api/clubs.api";
 import {
@@ -14,8 +18,9 @@ import {
   patchFriendlyMatch,
   type FriendlyMatchResponse,
 } from "../../api/friendlies.api";
-import type { Match, MatchSide, StatsPlayerMatchesTournament } from "../../api/types";
+import type { Club, Match, MatchSide, StatsPlayerMatchesTournament } from "../../api/types";
 import { MatchHistoryList } from "../stats/MatchHistoryList";
+import MatchH2HPanel from "../live/MatchH2HPanel";
 import { useAuth } from "../../auth/AuthContext";
 
 type ModeFilter = "all" | "1v1" | "2v2";
@@ -55,6 +60,158 @@ function friendlyToMatch(f: FriendlyMatchResponse, orderIndex = 0): Match {
   };
 }
 
+/** Inline match editor — shown below a friendly row when its edit button is tapped. */
+function FriendlyEditor({
+  friendlyId,
+  match,
+  clubs,
+  clubsById,
+  onSaved,
+  onCancel,
+}: {
+  friendlyId: number;
+  match: Match;
+  clubs: Club[];
+  clubsById: Map<number, { game: string }>;
+  onSaved: () => void;
+  onCancel: () => void;
+}) {
+  const qc = useQueryClient();
+  const { token } = useAuth();
+
+  const aSide = match.sides.find((s) => s.side === "A");
+  const bSide = match.sides.find((s) => s.side === "B");
+
+  const [activeView, setActiveView] = useState<"h2h" | "edit">("edit");
+
+  // Derive initial game from existing clubs
+  const initialGame = useMemo(() => {
+    const id = aSide?.club_id ?? bSide?.club_id;
+    if (id) return clubsById.get(id)?.game ?? "EA FC 26";
+    return "EA FC 26";
+  }, [aSide?.club_id, bSide?.club_id, clubsById]);
+
+  const [clubGame, setClubGame] = useState(initialGame);
+  const [aClub, setAClub] = useState<number | null>(aSide?.club_id ?? null);
+  const [bClub, setBClub] = useState<number | null>(bSide?.club_id ?? null);
+  const [aGoals, setAGoals] = useState(String(Math.max(0, Number(aSide?.goals ?? 0))));
+  const [bGoals, setBGoals] = useState(String(Math.max(0, Number(bSide?.goals ?? 0))));
+
+  const aGoalsNum = parseGoal(aGoals);
+  const bGoalsNum = parseGoal(bGoals);
+
+  const editorClubsQ = useQuery({
+    queryKey: ["clubs", clubGame],
+    queryFn: () => listClubs(clubGame),
+    staleTime: 60_000,
+  });
+
+  const previewMatch = useMemo<Match>(() => ({
+    ...match,
+    sides: [
+      { id: aSide?.id ?? -11, side: "A", players: aSide?.players ?? [], club_id: aClub, goals: aGoalsNum },
+      { id: bSide?.id ?? -12, side: "B", players: bSide?.players ?? [], club_id: bClub, goals: bGoalsNum },
+    ],
+  }), [aClub, aGoalsNum, bClub, bGoalsNum, match, aSide, bSide]);
+
+  const saveMut = useMutation({
+    mutationFn: () => {
+      if (!token) throw new Error("Missing token");
+      return patchFriendlyMatch(token, friendlyId, {
+        state: "finished",
+        sideA: { club_id: aClub, goals: aGoalsNum },
+        sideB: { club_id: bClub, goals: bGoalsNum },
+      });
+    },
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ["friendlies"] });
+      await qc.invalidateQueries({ queryKey: ["stats"] });
+      onSaved();
+    },
+  });
+
+  const aPlayers = (aSide?.players ?? []).map((p) => p.display_name).join(" + ") || "—";
+  const bPlayers = (bSide?.players ?? []).map((p) => p.display_name).join(" + ") || "—";
+
+  return (
+    <div className="mt-2 rounded-xl border border-border-card-chip/60 bg-bg-card-inner p-3 space-y-4">
+      <div className="flex items-center gap-2">
+        <SegmentedSwitch<"h2h" | "edit">
+          value={activeView}
+          onChange={setActiveView}
+          options={[
+            { key: "edit", label: "Edit result" },
+            { key: "h2h", label: "H2H" },
+          ]}
+          ariaLabel="Friendly editor view"
+        />
+      </div>
+
+      {activeView === "h2h" ? (
+        <MatchH2HPanel match={match} clubs={editorClubsQ.data ?? clubs} />
+      ) : (
+        <>
+          <ErrorToastOnError error={saveMut.error} title="Could not save" />
+
+          <MatchOverviewPanel
+            match={previewMatch}
+            clubs={editorClubsQ.data ?? clubs}
+            aGoals={aGoalsNum}
+            bGoals={bGoalsNum}
+            showModePill={false}
+            showOdds={false}
+            surface="panel"
+          />
+
+          <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3">
+            <div className="flex justify-start">
+              <GoalStepper
+                value={aGoalsNum}
+                onChange={(v) => setAGoals(String(v))}
+                disabled={saveMut.isPending}
+                ariaLabel="Goals left"
+              />
+            </div>
+            <div />
+            <div className="flex justify-end">
+              <GoalStepper
+                value={bGoalsNum}
+                onChange={(v) => setBGoals(String(v))}
+                disabled={saveMut.isPending}
+                ariaLabel="Goals right"
+              />
+            </div>
+          </div>
+
+          <SelectClubsPanel
+            clubs={editorClubsQ.data ?? clubs}
+            disabled={saveMut.isPending}
+            aLabel={`${aPlayers} — club`}
+            bLabel={`${bPlayers} — club`}
+            aClub={aClub}
+            bClub={bClub}
+            onChangeAClub={setAClub}
+            onChangeBClub={setBClub}
+            defaultOpen={false}
+            wrapClassName="card-inner"
+            narrowLayout
+            extraTop={
+              <Input label="Game" value={clubGame} onChange={(e) => setClubGame(e.target.value)} />
+            }
+          />
+
+          <div className="flex items-center justify-end gap-2">
+            <Button variant="ghost" type="button" onClick={onCancel}>Cancel</Button>
+            <Button type="button" onClick={() => saveMut.mutate()} disabled={saveMut.isPending}>
+              {saveMut.isPending ? "Saving…" : "Save result"}
+            </Button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 export default function FriendlyMatchesListCard({
   embedded = false,
   onInitialReady,
@@ -68,16 +225,7 @@ export default function FriendlyMatchesListCard({
   const canEdit = role === "admin" && !!token;
   const [mode, setMode] = useState<ModeFilter>("all");
   const [showMeta, setShowMeta] = useState(false);
-  const [open, setOpen] = useState(false);
-  const [matchSheetTab, setMatchSheetTab] = useState<MatchEditorSheetTab>("h2h");
-  const [selectedFriendlyId, setSelectedFriendlyId] = useState<number | null>(null);
-  const [selectedMatch, setSelectedMatch] = useState<Match | null>(null);
-  const [clubGame, setClubGame] = useState("EA FC 26");
-  const [aClub, setAClub] = useState<number | null>(null);
-  const [bClub, setBClub] = useState<number | null>(null);
-  const [aGoals, setAGoals] = useState("0");
-  const [bGoals, setBGoals] = useState("0");
-  const [mState, setMState] = useState<"scheduled" | "playing" | "finished">("finished");
+  const [expandedFriendlyId, setExpandedFriendlyId] = useState<number | null>(null);
   const initialReadyFiredRef = useRef(false);
 
   const clubsQ = useQuery({
@@ -90,13 +238,6 @@ export default function FriendlyMatchesListCard({
     queryKey: ["friendlies", mode],
     queryFn: () => listFriendlies({ mode: mode === "all" ? undefined : mode, limit: 500 }),
     staleTime: 10_000,
-  });
-
-  const editorClubsQ = useQuery({
-    queryKey: ["clubs", clubGame],
-    queryFn: () => listClubs(clubGame),
-    enabled: open,
-    staleTime: 60_000,
   });
 
   const clubsById = useMemo(() => {
@@ -114,9 +255,7 @@ export default function FriendlyMatchesListCard({
       arr.push(f);
       byDate.set(key, arr);
     }
-
     const dates = [...byDate.keys()].sort((a, b) => b.localeCompare(a));
-
     return dates.map((dateKey) => {
       const groupRows = [...(byDate.get(dateKey) ?? [])].sort((a, b) => {
         const at = Date.parse(a.created_at);
@@ -125,20 +264,11 @@ export default function FriendlyMatchesListCard({
         return b.id - a.id;
       });
       const matches: Match[] = groupRows.map((f, idx) => friendlyToMatch(f, idx));
-
       const numericDate = Number.parseInt(dateKey.replace(/-/g, ""), 10);
       const fallbackId = groupRows[0]?.id ?? 0;
       const groupId = Number.isFinite(numericDate) && numericDate > 0 ? -(3_000_000 + numericDate) : -(3_000_000 + fallbackId);
       const groupMode: "1v1" | "2v2" = groupRows.every((r) => r.mode === "2v2") ? "2v2" : "1v1";
-
-      return {
-        id: groupId,
-        name: "Friendlies",
-        date: dateKey,
-        mode: groupMode,
-        status: "friendly",
-        matches,
-      };
+      return { id: groupId, name: "Friendlies", date: dateKey, mode: groupMode, status: "friendly", matches };
     });
   }, [friendliesQ.data]);
 
@@ -153,26 +283,6 @@ export default function FriendlyMatchesListCard({
     },
   });
 
-  const saveMut = useMutation({
-    mutationFn: () => {
-      if (!token) throw new Error("Missing token");
-      if (!selectedFriendlyId) throw new Error("No friendly selected");
-      return patchFriendlyMatch(token, selectedFriendlyId, {
-        state: mState,
-        sideA: { club_id: aClub, goals: parseGoal(aGoals) },
-        sideB: { club_id: bClub, goals: parseGoal(bGoals) },
-      });
-    },
-    onSuccess: async (updated) => {
-      setSelectedMatch(friendlyToMatch(updated, 0));
-      await qc.invalidateQueries({ queryKey: ["friendlies"] });
-      await qc.invalidateQueries({ queryKey: ["stats"] });
-      setOpen(false);
-    },
-  });
-
-  const pendingDeleteId = deleteMut.variables ?? null;
-
   useEffect(() => {
     if (initialReadyFiredRef.current) return;
     if (friendliesQ.isLoading || clubsQ.isLoading) return;
@@ -181,41 +291,14 @@ export default function FriendlyMatchesListCard({
   }, [friendliesQ.isLoading, clubsQ.isLoading, onInitialReady]);
 
   function findFriendlyById(fid: number): FriendlyMatchResponse | null {
-    const rows = friendliesQ.data ?? [];
-    return rows.find((f) => Number(f.id) === Number(fid)) ?? null;
-  }
-
-  function openEditorForFriendly(fid: number) {
-    const row = findFriendlyById(fid);
-    if (!row) return;
-    const m = friendlyToMatch(row, 0);
-    const aSide = m.sides.find((s) => s.side === "A");
-    const bSide = m.sides.find((s) => s.side === "B");
-
-    const gameFromClubs = [aSide?.club_id, bSide?.club_id]
-      .filter((id): id is number => Number.isFinite(Number(id)) && Number(id) > 0)
-      .map((id) => clubsById.get(id)?.game)
-      .find((x): x is string => !!x);
-
-    if (gameFromClubs) setClubGame(gameFromClubs);
-    setSelectedFriendlyId(fid);
-    setSelectedMatch(m);
-    setMatchSheetTab("h2h");
-    setAClub(aSide?.club_id ?? null);
-    setBClub(bSide?.club_id ?? null);
-    setAGoals(String(Math.max(0, Number(aSide?.goals ?? 0))));
-    setBGoals(String(Math.max(0, Number(bSide?.goals ?? 0))));
-    setMState(m.state);
-    setOpen(true);
+    return (friendliesQ.data ?? []).find((f) => Number(f.id) === Number(fid)) ?? null;
   }
 
   const content = (
     <>
       <ErrorToastOnError error={friendliesQ.error} title="Friendly matches loading failed" />
       <ErrorToastOnError error={clubsQ.error} title="Clubs loading failed" />
-      <ErrorToastOnError error={editorClubsQ.error} title="Editor clubs loading failed" />
       <ErrorToastOnError error={deleteMut.error} title="Could not delete friendly" />
-      <ErrorToastOnError error={saveMut.error} title="Could not save friendly" />
 
       <div className="rounded-xl bg-bg-card-inner p-2 space-y-2">
         <div className="flex flex-wrap items-center gap-2">
@@ -237,7 +320,6 @@ export default function FriendlyMatchesListCard({
             />
           </div>
         </div>
-
         <div className="flex flex-wrap items-center gap-2">
           <div className="flex min-w-0 flex-wrap items-center gap-2">
             <div className="inline-flex h-9 w-16 sm:w-20 items-center justify-center gap-2 rounded-xl px-2 text-[11px] font-medium text-text-muted">
@@ -258,9 +340,7 @@ export default function FriendlyMatchesListCard({
         </div>
       </div>
 
-      {friendliesQ.isLoading && !friendliesQ.data ? (
-        <InlineLoading label="Loading…" />
-      ) : null}
+      {friendliesQ.isLoading && !friendliesQ.data ? <InlineLoading label="Loading…" /> : null}
 
       {!friendliesQ.isLoading && tournaments.length === 0 ? (
         <div className="rounded-xl bg-bg-card-inner p-2 text-sm text-text-muted">No friendlies yet.</div>
@@ -278,70 +358,60 @@ export default function FriendlyMatchesListCard({
               if (!canDelete && !canEdit) return null;
               const fid = Number(m.id);
               if (!fid) return null;
-              const pendingDelete = deleteMut.isPending && pendingDeleteId === fid;
-              const pendingSave = saveMut.isPending && selectedFriendlyId === fid;
+              const isExpanded = expandedFriendlyId === fid;
+              const pendingDelete = deleteMut.isPending && deleteMut.variables === fid;
+
               return (
-                <div className="inline-flex items-center gap-1">
-                  {canEdit ? (
-                    <button
-                      type="button"
-                      className="btn-base btn-ghost inline-flex h-8 w-8 items-center justify-center p-0"
-                      title={`Edit friendly #${fid}`}
-                      disabled={pendingSave || pendingDelete}
-                      onClick={() => openEditorForFriendly(fid)}
-                    >
-                      <i className={"fa-solid " + (pendingSave ? "fa-spinner fa-spin" : "fa-pen")} aria-hidden="true" />
-                    </button>
-                  ) : null}
-                  {canDelete ? (
-                    <button
-                      type="button"
-                      className="btn-base btn-ghost inline-flex h-8 w-8 items-center justify-center p-0"
-                      title={`Delete friendly #${fid}`}
-                      disabled={pendingDelete}
-                      onClick={() => {
-                        if (!window.confirm(`Delete friendly #${fid}?`)) return;
-                        deleteMut.mutate(fid);
-                      }}
-                    >
-                      <i className={"fa-solid " + (pendingDelete ? "fa-spinner fa-spin" : "fa-trash-can")} aria-hidden="true" />
-                    </button>
-                  ) : null}
+                <div>
+                  <div className="inline-flex items-center gap-1">
+                    {canEdit ? (
+                      <button
+                        type="button"
+                        className="btn-base btn-ghost inline-flex h-8 w-8 items-center justify-center p-0"
+                        title={isExpanded ? "Close editor" : `Edit friendly #${fid}`}
+                        onClick={() => setExpandedFriendlyId(isExpanded ? null : fid)}
+                      >
+                        <i className={"fa-solid " + (isExpanded ? "fa-xmark" : "fa-pen")} aria-hidden="true" />
+                      </button>
+                    ) : null}
+                    {canDelete ? (
+                      <button
+                        type="button"
+                        className="btn-base btn-ghost inline-flex h-8 w-8 items-center justify-center p-0"
+                        title={`Delete friendly #${fid}`}
+                        disabled={pendingDelete}
+                        onClick={() => {
+                          if (!window.confirm(`Delete friendly #${fid}?`)) return;
+                          if (isExpanded) setExpandedFriendlyId(null);
+                          deleteMut.mutate(fid);
+                        }}
+                      >
+                        <i className={"fa-solid " + (pendingDelete ? "fa-spinner fa-spin" : "fa-trash-can")} aria-hidden="true" />
+                      </button>
+                    ) : null}
+                  </div>
+
+                  {isExpanded && canEdit ? (() => {
+                    const row = findFriendlyById(fid);
+                    if (!row) return null;
+                    const friendlyMatch = friendlyToMatch(row, 0);
+                    return (
+                      <FriendlyEditor
+                        friendlyId={fid}
+                        match={friendlyMatch}
+                        clubs={clubsQ.data ?? []}
+                        clubsById={clubsById}
+                        onSaved={() => setExpandedFriendlyId(null)}
+                        onCancel={() => setExpandedFriendlyId(null)}
+                      />
+                    );
+                  })() : null}
                 </div>
               );
             }}
           />
         </div>
       ) : null}
-
-      <MatchEditorSheet
-        open={open}
-        onClose={() => setOpen(false)}
-        match={selectedMatch}
-        showState={false}
-        clubs={editorClubsQ.data ?? []}
-        historyClubs={clubsQ.data ?? []}
-        clubsLoading={editorClubsQ.isLoading}
-        clubsError={editorClubsQ.error ? String(editorClubsQ.error) : null}
-        clubGame={clubGame}
-        setClubGame={setClubGame}
-        aClub={aClub}
-        bClub={bClub}
-        setAClub={setAClub}
-        setBClub={setBClub}
-        aGoals={aGoals}
-        bGoals={bGoals}
-        setAGoals={setAGoals}
-        setBGoals={setBGoals}
-        state={mState}
-        setState={setMState}
-        onSave={() => saveMut.mutate()}
-        saving={saveMut.isPending}
-        saveError={saveMut.error ? String(saveMut.error) : null}
-        tab={matchSheetTab}
-        onTabChange={setMatchSheetTab}
-        canEdit={canEdit}
-      />
     </>
   );
 

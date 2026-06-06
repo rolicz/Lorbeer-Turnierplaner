@@ -31,7 +31,6 @@ import { useSeenSet } from "../../hooks/useSeenComments";
 
 import AdminPanel from "./AdminPanel";
 import MatchList from "./MatchList";
-import MatchEditorSheet, { type MatchEditorSheetTab } from "./MatchEditorSheet";
 import StandingsTable from "./StandingsTable";
 import { computeFinishedStandings, computeTopDraw } from "./tournamentStandings";
 import CurrentGameSection from "./CurrentGameSection";
@@ -389,7 +388,7 @@ export default function LiveTournamentPage() {
   });
 
   // --- clubs ---
-  const [clubGame, setClubGame] = useState("EA FC 26");
+  const clubGame = "EA FC 26";
   const clubsQ = useQuery({
     queryKey: ["clubs", clubGame],
     queryFn: () => listClubs(clubGame),
@@ -417,56 +416,16 @@ export default function LiveTournamentPage() {
     },
   });
 
-  // --- match editor sheet ---
-  const [open, setOpen] = useState(false);
-  const [selectedMatchId, setSelectedMatchId] = useState<number | null>(null);
-  const [matchSheetTab, setMatchSheetTab] = useState<MatchEditorSheetTab>("h2h");
-  const selectedMatch = useMemo(
-    () => matchesSorted.find((m) => m.id === selectedMatchId) || null,
-    [matchesSorted, selectedMatchId]
-  );
+  // Navigate to match detail page instead of opening a sheet.
+  function openEditor(m: Match) {
+    nav(`/live/${tid}/match/${m.id}`);
+  }
 
   const canEditMatch = role === "admin" || (role === "editor" && !isDone);
   const canReorder = isAdmin || (role === "editor" && !isDone);
   const canDisableSecondLeg = useMemo(() => {
     return !matchesSorted.some((m) => m.leg === 2 && m.state !== "scheduled");
   }, [matchesSorted]);
-
-  const [aClub, setAClub] = useState<number | null>(null);
-  const [bClub, setBClub] = useState<number | null>(null);
-  const [aGoals, setAGoals] = useState("0");
-  const [bGoals, setBGoals] = useState("0");
-  const [mState, setMState] = useState<"scheduled" | "playing" | "finished">("scheduled");
-
-  function openEditor(m: Match) {
-    setSelectedMatchId(m.id);
-    setMatchSheetTab("h2h");
-    const a = sideBy(m, "A");
-    const b = sideBy(m, "B");
-    setAClub(a?.club_id ?? null);
-    setBClub(b?.club_id ?? null);
-    setAGoals(String(a?.goals ?? 0));
-    setBGoals(String(b?.goals ?? 0));
-    setMState(m.state);
-    setOpen(true);
-  }
-
-  const saveMut = useMutation({
-    mutationFn: async () => {
-      if (!token) throw new Error("Not logged in");
-      if (!selectedMatchId) throw new Error("No match selected");
-      return patchMatch(token, selectedMatchId, {
-        state: mState,
-        sideA: { club_id: aClub, goals: Number(aGoals) },
-        sideB: { club_id: bClub, goals: Number(bGoals) },
-      });
-    },
-    onSuccess: async () => {
-      setOpen(false);
-      if (tid) await qc.invalidateQueries({ queryKey: ["tournament", tid] });
-      await qc.invalidateQueries({ queryKey: ["cup"] }).catch(() => {});
-    },
-  });
 
   const reopenLastMut = useMutation({
     mutationFn: async () => {
@@ -779,33 +738,6 @@ export default function LiveTournamentPage() {
         </>
       ) : null}
 
-      <MatchEditorSheet
-        open={open}
-        onClose={() => setOpen(false)}
-        match={selectedMatch}
-        clubs={clubs}
-        historyClubs={clubs}
-        clubsLoading={clubsQ.isLoading}
-        clubsError={clubsQ.error ? String(clubsQ.error) : null}
-        clubGame={clubGame}
-        setClubGame={setClubGame}
-        aClub={aClub}
-        bClub={bClub}
-        setAClub={setAClub}
-        setBClub={setBClub}
-        aGoals={aGoals}
-        bGoals={bGoals}
-        setAGoals={setAGoals}
-        setBGoals={setBGoals}
-        state={mState}
-        setState={setMState}
-        onSave={() => saveMut.mutate()}
-        saving={saveMut.isPending}
-        saveError={saveMut.error ? String(saveMut.error) : null}
-        tab={matchSheetTab}
-        onTabChange={setMatchSheetTab}
-        canEdit={canEditMatch}
-      />
     </div>
   );
 }

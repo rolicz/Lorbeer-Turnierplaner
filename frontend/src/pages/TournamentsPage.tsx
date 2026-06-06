@@ -1,38 +1,26 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus, RefreshCw } from "lucide-react";
 
 import Button from "../ui/primitives/Button";
-import SegmentedSwitch from "../ui/primitives/SegmentedSwitch";
-import AvatarButton from "../ui/primitives/AvatarButton";
 import { Pill, pillDate, statusPill } from "../ui/primitives/Pill";
 import { ErrorToastOnError } from "../ui/primitives/ErrorToast";
 import PageLoadingScreen from "../ui/primitives/PageLoadingScreen";
-import Sheet from "../ui/primitives/Sheet";
 
 import { tournamentPalette, tournamentStatusUI } from "../ui/theme";
 import { cn } from "../ui/cn";
 import { cupColorVarForKey } from "../cupColors";
-import { listTournaments, createTournament } from "../api/tournaments.api";
-import { listPlayers } from "../api/players.api";
+import { listTournaments } from "../api/tournaments.api";
 import { listTournamentCommentsSummary } from "../api/comments.api";
 import { type TournamentSummary } from "../api/types";
 import { qk } from "../api/queryKeys";
 import { useAuth } from "../auth/AuthContext";
 import { useSeenIdsByTournamentId } from "../hooks/useSeenComments";
-import { usePlayerAvatarMap } from "../hooks/usePlayerAvatarMap";
 import { useRouteEntryLoading } from "../ui/layout/useRouteEntryLoading";
 import { fmtDate } from "../utils/format";
 
 type Status = "draft" | "live" | "done";
-
-function errText(err: unknown): string {
-  if (err instanceof Error) return err.message;
-  if (typeof err === "string") return err;
-  if (err == null) return "Unknown error";
-  try { return JSON.stringify(err); } catch { return "Unknown error"; }
-}
 
 function winnerLabel(t: TournamentSummary): string | null {
   if (t.winner_string) return t.winner_string;
@@ -57,134 +45,15 @@ function CupStakePill({ stake }: { stake: NonNullable<TournamentSummary["cup_sta
   );
 }
 
-function CreateTournamentSheet({
-  open,
-  onClose,
-  players,
-  playersLoading,
-  avatarUpdatedAtById,
-}: {
-  open: boolean;
-  onClose: () => void;
-  players: { id: number; display_name: string }[];
-  playersLoading: boolean;
-  avatarUpdatedAtById: Map<number, string>;
-}) {
-  const qc = useQueryClient();
-  const { token } = useAuth();
-  const [name, setName] = useState("");
-  const [mode, setMode] = useState<"1v1" | "2v2">("1v1");
-  const [selected, setSelected] = useState<Record<number, boolean>>({});
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
-
-  const selectedIds = useMemo(
-    () => Object.entries(selected).filter(([, v]) => v).map(([k]) => Number(k)),
-    [selected],
-  );
-
-  const createMut = useMutation({
-    mutationFn: async () => {
-      if (!token) throw new Error("No token");
-      if (!name.trim()) throw new Error("Name missing");
-      if (selectedIds.length < 3) throw new Error("Select at least 3 players");
-      return createTournament(token, {
-        name: name.trim(),
-        mode,
-        player_ids: selectedIds,
-        auto_generate: true,
-        randomize: true,
-      });
-    },
-    onSuccess: async () => {
-      setName("");
-      setSelected({});
-      await qc.invalidateQueries({ queryKey: qk.tournaments() });
-      onClose(); // parent calls setCreateOpen(false); error cleared via handleClose in user-close path
-      setErrorMsg(null);
-    },
-    onError: (err: unknown) => setErrorMsg(errText(err)),
-  });
-
-
-  function handleClose() { setErrorMsg(null); onClose(); }
-
-  return (
-    <Sheet open={open} title="New Tournament" onClose={handleClose}>
-      <div className="space-y-4 overflow-y-auto pb-6">
-        {errorMsg ? (
-          <div className="rounded-lg bg-red-500/10 px-3 py-2 text-sm text-red-500">{errorMsg}</div>
-        ) : null}
-
-        <label className="flex flex-col gap-1">
-          <span className="text-xs font-medium text-text-muted">Name</span>
-          <input
-            className="input-field"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="42. Lorbeerkranz Turnier"
-            autoFocus
-          />
-        </label>
-
-        <div className="flex flex-col gap-1">
-          <span className="text-xs font-medium text-text-muted">Mode</span>
-          <SegmentedSwitch<"1v1" | "2v2">
-            value={mode}
-            onChange={setMode}
-            options={[{ key: "1v1", label: "1v1" }, { key: "2v2", label: "2v2" }]}
-            ariaLabel="Tournament mode"
-            title="Tournament mode"
-          />
-        </div>
-
-        <div className="flex flex-col gap-2">
-          <span className="text-xs font-medium text-text-muted">
-            Players{selectedIds.length > 0 ? ` (${selectedIds.length} selected)` : ""}
-          </span>
-          {playersLoading ? (
-            <div className="text-sm text-text-muted">Loading…</div>
-          ) : (
-            <div className="flex flex-wrap gap-2">
-              {players.map((p) => (
-                <AvatarButton
-                  key={p.id}
-                  playerId={p.id}
-                  name={p.display_name}
-                  updatedAt={avatarUpdatedAtById.get(p.id) ?? null}
-                  selected={!!selected[p.id]}
-                  onClick={() => setSelected((prev) => ({ ...prev, [p.id]: !prev[p.id] }))}
-                  className="h-10 w-10"
-                />
-              ))}
-            </div>
-          )}
-        </div>
-
-        <Button
-          className="w-full"
-          onClick={() => createMut.mutate()}
-          disabled={createMut.isPending}
-          type="button"
-        >
-          {createMut.isPending ? "Creating…" : "Create Tournament"}
-        </Button>
-      </div>
-    </Sheet>
-  );
-}
-
 export default function TournamentsPage() {
   const qc = useQueryClient();
   const navigate = useNavigate();
   const { role, token } = useAuth();
   const canWrite = role === "editor" || role === "admin";
   const pageEntered = useRouteEntryLoading();
-  const [createOpen, setCreateOpen] = useState(false);
 
   const tournamentsQ = useQuery({ queryKey: qk.tournaments(), queryFn: listTournaments });
-  const playersQ = useQuery({ queryKey: qk.players(), queryFn: listPlayers, enabled: canWrite });
   const summaryQ = useQuery({ queryKey: qk.commentsSummary(), queryFn: listTournamentCommentsSummary });
-  const { avatarUpdatedAtById } = usePlayerAvatarMap({ enabled: canWrite });
 
   const tournamentsSorted = useMemo(() => {
     const ts = tournamentsQ.data ?? [];
@@ -212,8 +81,7 @@ export default function TournamentsPage() {
   }, [summaryQ.data]);
 
   const initialLoading =
-    !pageEntered ||
-    (!tournamentsQ.error && !tournamentsQ.data && tournamentsQ.isLoading);
+    !pageEntered || (!tournamentsQ.error && !tournamentsQ.data && tournamentsQ.isLoading);
 
   if (initialLoading) {
     return <div className="page"><PageLoadingScreen sectionCount={4} /></div>;
@@ -221,20 +89,9 @@ export default function TournamentsPage() {
 
   return (
     <div className="page">
-      <ErrorToastOnError error={playersQ.error} title="Players loading failed" />
       <ErrorToastOnError error={tournamentsQ.error} title="Tournaments loading failed" />
 
-      {canWrite ? (
-        <CreateTournamentSheet
-          open={createOpen}
-          onClose={() => setCreateOpen(false)}
-          players={playersQ.data ?? []}
-          playersLoading={playersQ.isLoading}
-          avatarUpdatedAtById={avatarUpdatedAtById}
-        />
-      ) : null}
-
-      {/* Header row */}
+      {/* Header */}
       <div className="mb-4 flex items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-bold tracking-tight text-text-normal">Tournaments</h1>
@@ -250,7 +107,7 @@ export default function TournamentsPage() {
             <RefreshCw size={15} />
           </Button>
           {canWrite ? (
-            <Button onClick={() => setCreateOpen(true)} type="button">
+            <Button onClick={() => navigate("/tournaments/new")} type="button">
               <Plus size={15} className="mr-1" />
               New
             </Button>
@@ -268,7 +125,7 @@ export default function TournamentsPage() {
               <button
                 type="button"
                 className="ml-1 text-accent underline underline-offset-2"
-                onClick={() => setCreateOpen(true)}
+                onClick={() => navigate("/tournaments/new")}
               >
                 Create one.
               </button>
