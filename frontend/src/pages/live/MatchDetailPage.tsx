@@ -65,7 +65,8 @@ export default function MatchDetailPage() {
   }, [tQ.data, matchId]);
 
   const isDone = (tQ.data?.status ?? "draft") === "done";
-  const canEditResult = canEdit && !isDone;
+  // Match the live page: admins can edit even finished tournaments; editors only while not done.
+  const canEditResult = role === "admin" || (role === "editor" && !isDone);
 
   // Form state — kept in sync with the match
   const [aClub, setAClub] = useState<number | null>(null);
