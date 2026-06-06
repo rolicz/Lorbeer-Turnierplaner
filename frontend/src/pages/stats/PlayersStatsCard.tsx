@@ -15,7 +15,7 @@ import type { StatsPlayersResponse, StatsTournamentLite, StatsPlayerRow } from "
 
 import { getCup, listCupDefs } from "../../api/cup.api";
 
-import { StatsControlLabel, StatsModeSwitch, StatsSegmentedSwitch, type StatsMode } from "./StatsControls";
+import { StatsControlLabel, StatsSegmentedSwitch, type StatsMode } from "./StatsControls";
 import TournamentLaurelMarkers from "./TournamentLaurelMarkers";
 import { usePlayerAvatarMap } from "../../hooks/usePlayerAvatarMap";
 import { fmtAvg, fmtInt, clamp, parseDateSafe } from "../../utils/format";
@@ -315,15 +315,17 @@ function TilesScopeSwitch({
 export default function PlayersStatsCard({
   embedded = false,
   onInitialReady,
+  mode = "overall",
 }: {
   embedded?: boolean;
   onInitialReady?: () => void;
+  mode?: StatsMode;
 } = {}) {
   const initialReadyFiredRef = useRef(false);
   const playersQ = useQuery({ queryKey: ["players"], queryFn: listPlayers });
 
   const LASTN_FETCH = 25;
-  const [modeFilter, setModeFilter] = useState<ModeFilter>("overall");
+  const modeFilter: ModeFilter = mode;
   const statsQ = useQuery<StatsPlayersResponse>({
     queryKey: ["stats", "players", modeFilter, LASTN_FETCH],
     queryFn: () => getStatsPlayers({ mode: modeFilter, lastN: LASTN_FETCH }),
@@ -479,11 +481,6 @@ export default function PlayersStatsCard({
     <>
       <div className="card-inner-flat rounded-2xl space-y-2">
         <div className="flex flex-wrap items-center gap-2">
-          <div className="flex min-w-0 flex-wrap items-center gap-2">
-            <StatsControlLabel icon="fa-filter" text="Filter" />
-            <StatsModeSwitch value={modeFilter} onChange={setModeFilter} ariaLabel="Mode filter" />
-          </div>
-
           <div className="flex min-w-0 flex-wrap items-center gap-2">
             <StatsControlLabel icon="fa-eye" text="View" />
             <PlayersViewSwitch value={sortMode} onChange={setSortMode} />

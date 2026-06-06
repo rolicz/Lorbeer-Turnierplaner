@@ -9,10 +9,7 @@ import { Pill } from "../../ui/primitives/Pill";
 import { listPlayers } from "../../api/players.api";
 import { getStatsStreaks } from "../../api/stats.api";
 import type { StatsScope, StatsStreakCategory, StatsStreakRow } from "../../api/types";
-import {
-  StatsFilterDataControls,
-  type StatsMode,
-} from "./StatsControls";
+import { type StatsMode } from "./StatsControls";
 import { fmtDate } from "../../utils/format";
 
 function iconForCatKey(key: string) {
@@ -121,12 +118,18 @@ function CatBlock({
   );
 }
 
-export default function StreaksCard({ embedded = false }: { embedded?: boolean } = {}) {
+export default function StreaksCard({
+  embedded = false,
+  mode = "overall",
+  scope = "tournaments",
+}: {
+  embedded?: boolean;
+  mode?: StatsMode;
+  scope?: StatsScope;
+}) {
   // Keep the players query around for cache warmup / consistency with other cards.
   useQuery({ queryKey: ["players"], queryFn: listPlayers, refetchOnReconnect: false, refetchOnWindowFocus: false });
 
-  const [mode, setMode] = useState<StatsMode>("overall");
-  const [scope, setScope] = useState<StatsScope>("tournaments");
   const [showAllByKey, setShowAllByKey] = useState<Record<string, boolean>>({});
 
   const FETCH_LIMIT = 200;
@@ -143,11 +146,6 @@ export default function StreaksCard({ embedded = false }: { embedded?: boolean }
   const content = (
     <>
       <ErrorToastOnError error={q.error} title="Streaks loading failed" />
-      <div className="card-inner-flat rounded-2xl space-y-2">
-        <div className="flex flex-wrap items-start gap-2">
-          <StatsFilterDataControls mode={mode} onModeChange={setMode} scope={scope} onScopeChange={setScope} />
-        </div>
-      </div>
 
       {q.isLoading && !q.data ? <InlineLoading label="Loading…" /> : null}
 

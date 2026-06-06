@@ -9,11 +9,8 @@ import { listClubs } from "../../api/clubs.api";
 import { listPlayers } from "../../api/players.api";
 import { getStatsH2H, getStatsH2HMatches, type StatsH2HMatchesRequest } from "../../api/stats.api";
 import type { StatsH2HPair, StatsH2HTeamRivalry, StatsScope } from "../../api/types";
-import { usePlayerAvatarMap } from "../../hooks/usePlayerAvatarMap";
 import {
-  StatsAvatarSelector,
   StatsControlLabel,
-  StatsFilterDataControls,
   StatsSegmentedSwitch,
   type StatsMode,
 } from "./StatsControls";
@@ -31,16 +28,22 @@ type MatchupHistoryModalState = {
   focusPlayerId: number | null;
 };
 
-export default function HeadToHeadCard({ embedded = false }: { embedded?: boolean } = {}) {
+export default function HeadToHeadCard({
+  embedded = false,
+  mode = "overall",
+  scope = "tournaments",
+  playerId = "",
+}: {
+  embedded?: boolean;
+  mode?: StatsMode;
+  scope?: StatsScope;
+  playerId?: number | "";
+} = {}) {
   const playersQ = useQuery({ queryKey: ["players"], queryFn: listPlayers });
   const players = useMemo(() => playersQ.data ?? [], [playersQ.data]);
-  const { avatarUpdatedAtById } = usePlayerAvatarMap();
 
   const FETCH_LIMIT = 200; // keep UI trimmed to 5 by default, but don't hide data due to API limit
 
-  const [playerId, setPlayerId] = useState<number | "">("");
-  const [mode, setMode] = useState<StatsMode>("overall");
-  const [scope, setScope] = useState<StatsScope>("tournaments");
   const [order, setOrder] = useState<RivalryOrder>("played");
   const [view, setView] = useState<View>("lists");
   const [detailView, setDetailView] = useState<DetailView>("compact");
@@ -88,10 +91,6 @@ export default function HeadToHeadCard({ embedded = false }: { embedded?: boolea
     if (playerId === "") return null;
     return players.find((p) => p.id === playerId) ?? null;
   }, [players, playerId]);
-
-  const sortedPlayers = useMemo(() => {
-    return [...players].sort((a, b) => a.display_name.localeCompare(b.display_name));
-  }, [players]);
 
   const modeTitle = mode === "overall" ? "Overall" : mode === "1v1" ? "1v1" : "2v2";
   const scopeTitle = scope === "tournaments" ? "tournaments" : scope === "both" ? "all" : "friendlies";
@@ -170,10 +169,8 @@ export default function HeadToHeadCard({ embedded = false }: { embedded?: boolea
       <ErrorToastOnError error={h2hQ.error} title="H2H loading failed" />
       <ErrorToastOnError error={historyQ.error} title="Match history loading failed" />
       <ErrorToastOnError error={clubsQ.error} title="Club data loading failed" />
-      <div className="card-inner-flat rounded-2xl space-y-2">
+      <div className="card-inner-flat rounded-2xl">
         <div className="flex flex-wrap items-start gap-2">
-          <StatsFilterDataControls mode={mode} onModeChange={setMode} scope={scope} onScopeChange={setScope} />
-
           <div className="flex min-w-0 flex-wrap items-center gap-2">
             <StatsControlLabel icon="fa-arrow-down-wide-short" text="Order" />
             <StatsSegmentedSwitch<RivalryOrder>
@@ -202,20 +199,6 @@ export default function HeadToHeadCard({ embedded = false }: { embedded?: boolea
             />
           </div>
         </div>
-
-        <div className="h-px bg-border-card-inner/70" />
-
-        <StatsAvatarSelector
-          players={sortedPlayers}
-          selectedId={playerId}
-          onSelect={setPlayerId}
-          avatarUpdatedAtById={avatarUpdatedAtById}
-          includeAll={true}
-          allValue=""
-          allLabel="All players"
-          allIconClass="fa-solid fa-layer-group text-[12px] text-text-muted"
-          avatarClassName="h-8 w-8"
-        />
       </div>
 
         {h2hQ.isLoading ? <InlineLoading label="Loading…" /> : null}

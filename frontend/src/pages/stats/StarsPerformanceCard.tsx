@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 
 import CollapsibleCard from "../../ui/primitives/CollapsibleCard";
@@ -10,9 +10,7 @@ import { getStatsPlayerMatches } from "../../api/stats.api";
 import type { Club, Match, StatsScope } from "../../api/types";
 import { sideBy } from "../../helpers";
 import { StarsFA } from "../../ui/primitives/StarsFA";
-import { StatsAvatarSelector, StatsFilterDataControls, type StatsMode } from "./StatsControls";
-import { usePlayerAvatarMap } from "../../hooks/usePlayerAvatarMap";
-import { useAuth } from "../../auth/AuthContext";
+import { type StatsMode } from "./StatsControls";
 
 type Outcome = "W" | "D" | "L";
 
@@ -178,24 +176,23 @@ function StarRow({ r }: { r: StarBucket }) {
   );
 }
 
-export default function StarsPerformanceCard({ embedded = false }: { embedded?: boolean } = {}) {
-  const { playerId: loggedInPlayerId } = useAuth();
+export default function StarsPerformanceCard({
+  embedded = false,
+  mode = "overall",
+  scope = "tournaments",
+  playerId = "",
+}: {
+  embedded?: boolean;
+  mode?: StatsMode;
+  scope?: StatsScope;
+  playerId?: number | "";
+} = {}) {
   const playersQ = useQuery({ queryKey: ["players"], queryFn: listPlayers });
   const clubsQ = useQuery({ queryKey: ["clubs"], queryFn: () => listClubs() });
-  const { avatarUpdatedAtById } = usePlayerAvatarMap();
 
   const players = useMemo(() => playersQ.data ?? [], [playersQ.data]);
   const clubs = useMemo(() => clubsQ.data ?? [], [clubsQ.data]);
-  const [playerId, setPlayerId] = useState<number | "">("");
-  const [mode, setMode] = useState<StatsMode>("overall");
-  const [scope, setScope] = useState<StatsScope>("tournaments");
-
-  const defaultSelectedPlayerId = useMemo<number | "">(() => {
-    if (!loggedInPlayerId) return "";
-    if (players.length && !players.some((p) => p.id === loggedInPlayerId)) return "";
-    return loggedInPlayerId;
-  }, [loggedInPlayerId, players]);
-  const selectedPlayerId: number | "" = playerId === "" ? defaultSelectedPlayerId : playerId;
+  const selectedPlayerId = playerId;
 
   const matchesQ = useQuery({
     queryKey: ["stats", "starsPerformance", selectedPlayerId || "none", scope],
@@ -211,10 +208,6 @@ export default function StarsPerformanceCard({ embedded = false }: { embedded?: 
     if (selectedPlayerId === "") return null;
     return players.find((p) => p.id === selectedPlayerId) ?? null;
   }, [players, selectedPlayerId]);
-
-  const sortedPlayers = useMemo(() => {
-    return [...players].sort((a, b) => a.display_name.localeCompare(b.display_name));
-  }, [players]);
 
   const flatMatches = useMemo(() => {
     const tournaments = matchesQ.data?.tournaments ?? [];
@@ -238,19 +231,6 @@ export default function StarsPerformanceCard({ embedded = false }: { embedded?: 
     <>
       <ErrorToastOnError error={matchesQ.error} title="Stars performance loading failed" />
       <ErrorToastOnError error={clubsQ.error} title="Club data loading failed" />
-      <div className="card-inner-flat rounded-2xl space-y-2">
-        <div className="flex flex-wrap items-center gap-2">
-          <StatsFilterDataControls mode={mode} onModeChange={setMode} scope={scope} onScopeChange={setScope} />
-        </div>
-        <div className="h-px bg-border-card-inner/70" />
-        <div className="text-[11px] text-text-muted">Player</div>
-        <StatsAvatarSelector
-          players={sortedPlayers}
-          selectedId={selectedPlayerId}
-          onSelect={setPlayerId}
-          avatarUpdatedAtById={avatarUpdatedAtById}
-        />
-      </div>
 
       <div style={{ overflowAnchor: "none" }}>
         {selectedPlayerId === "" ? (

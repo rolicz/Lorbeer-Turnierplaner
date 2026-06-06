@@ -7,7 +7,7 @@ import { MetaRow } from "../../ui/primitives/Meta";
 
 import { getStatsPlayerMatches, getStatsPlayers } from "../../api/stats.api";
 import type { StatsPlayerMatchesResponse, StatsPlayersResponse, StatsTournamentLite } from "../../api/types";
-import { StatsControlLabel, StatsModeSwitch, StatsSegmentedSwitch, type StatsMode } from "./StatsControls";
+import { StatsControlLabel, StatsSegmentedSwitch, type StatsMode } from "./StatsControls";
 import { fmtDate } from "../../utils/format";
 import { avgLast, colorForIdx, pointsForPlayerInMatch, type SeriesPoint } from "./trendsMath";
 import { PanZoomTrendsChart } from "./TrendsChart";
@@ -22,12 +22,13 @@ export default function TrendsCard({
   defaultOpen = false,
   initialView = "lastN",
   embedded = false,
+  mode = "overall",
 }: {
   defaultOpen?: boolean;
   initialView?: View;
   embedded?: boolean;
+  mode?: StatsMode;
 } = {}) {
-  const [mode, setMode] = useState<StatsMode>("overall");
   const [view, setView] = useState<View>(initialView);
   const [formN, setFormN] = useState(10);
 
@@ -225,11 +226,6 @@ export default function TrendsCard({
   const Filters = (
     <div className="card-inner-flat rounded-2xl space-y-2">
       <div className="flex flex-wrap items-center gap-2">
-        <div className="flex min-w-0 items-center gap-2">
-          <StatsControlLabel icon="fa-filter" text="Filter" />
-          <StatsModeSwitch value={mode} onChange={setMode} />
-        </div>
-
         <div className="flex min-w-0 items-center gap-2">
           <StatsControlLabel icon="fa-eye" text="View" />
           <StatsSegmentedSwitch<View>

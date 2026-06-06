@@ -1,10 +1,10 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 
 import CollapsibleCard from "../../ui/primitives/CollapsibleCard";
 import { getStatsRatings } from "../../api/stats.api";
 import type { StatsRatingsRow, StatsScope } from "../../api/types";
-import { StatsFilterDataControls, type StatsMode } from "./StatsControls";
+import type { StatsMode } from "./StatsControls";
 
 function fmtRating(x: number) {
   if (!Number.isFinite(x)) return "1000";
@@ -39,10 +39,15 @@ function Row({ i, r }: { i: number; r: StatsRatingsRow }) {
   );
 }
 
-export default function RatingsCard({ embedded = false }: { embedded?: boolean } = {}) {
-  const [mode, setMode] = useState<StatsMode>("overall");
-  const [scope, setScope] = useState<StatsScope>("tournaments");
-
+export default function RatingsCard({
+  embedded = false,
+  mode = "overall",
+  scope = "tournaments",
+}: {
+  embedded?: boolean;
+  mode?: StatsMode;
+  scope?: StatsScope;
+}) {
   const q = useQuery({
     queryKey: ["stats", "ratings", mode, scope],
     queryFn: () => getStatsRatings({ mode, scope }),
@@ -56,9 +61,6 @@ export default function RatingsCard({ embedded = false }: { embedded?: boolean }
 
   const content = (
     <div className="card-inner-flat space-y-3">
-      <div className="flex flex-wrap items-center gap-2">
-        <StatsFilterDataControls mode={mode} onModeChange={setMode} scope={scope} onScopeChange={setScope} />
-      </div>
       <div className="grid gap-2" style={{ overflowAnchor: "none" }}>
         {rows.map((r, i) => (
           <Row key={r.player.id} i={i} r={r} />

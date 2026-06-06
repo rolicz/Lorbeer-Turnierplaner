@@ -9,17 +9,13 @@ import { listClubs } from "../../api/clubs.api";
 import { listPlayers } from "../../api/players.api";
 import { getStatsPlayerMatches, getStatsPlayers } from "../../api/stats.api";
 import type { Match, StatsPlayerRow, StatsPlayersResponse, StatsScope } from "../../api/types";
-import { usePlayerAvatarMap } from "../../hooks/usePlayerAvatarMap";
 import {
-  StatsAvatarSelector,
   StatsControlLabel,
-  StatsFilterDataControls,
   StatsSegmentedSwitch,
   type StatsMode,
 } from "./StatsControls";
 import { MatchHistoryList } from "./MatchHistoryList";
 import TournamentPositionsGrid from "./TournamentPositionsGrid";
-import { useAuth } from "../../auth/AuthContext";
 import { fmtDate } from "../../utils/format";
 
 
@@ -197,28 +193,27 @@ function Sparkline({
   );
 }
 
-export default function PlayerMatchesCard({ embedded = false }: { embedded?: boolean } = {}) {
-  const { playerId: loggedInPlayerId } = useAuth();
+export default function PlayerMatchesCard({
+  embedded = false,
+  mode = "overall",
+  scope = "tournaments",
+  playerId = "",
+}: {
+  embedded?: boolean;
+  mode?: StatsMode;
+  scope?: StatsScope;
+  playerId?: number | "";
+} = {}) {
   const playersQ = useQuery({ queryKey: ["players"], queryFn: listPlayers });
   const players = useMemo(() => playersQ.data ?? [], [playersQ.data]);
-  const { avatarUpdatedAtById } = usePlayerAvatarMap();
 
   const clubsQ = useQuery({ queryKey: ["clubs"], queryFn: () => listClubs() });
   const clubs = clubsQ.data ?? [];
 
-  const [playerId, setPlayerId] = useState<number | "">("");
-  const [mode, setMode] = useState<StatsMode>("overall");
-  const [scope, setScope] = useState<StatsScope>("tournaments");
   const [showMeta, setShowMeta] = useState(false);
   const [showAllTournamentTiles, setShowAllTournamentTiles] = useState(false);
-  // Intentionally no auto-scroll on avatar selection; it feels jumpy on mobile and is easy to trigger accidentally.
 
-  const defaultSelectedPlayerId = useMemo<number | "">(() => {
-    if (!loggedInPlayerId) return "";
-    if (players.length && !players.some((p) => p.id === loggedInPlayerId)) return "";
-    return loggedInPlayerId;
-  }, [loggedInPlayerId, players]);
-  const selectedPlayerId: number | "" = playerId === "" ? defaultSelectedPlayerId : playerId;
+  const selectedPlayerId: number | "" = playerId;
 
   const matchesQ = useQuery({
     queryKey: ["stats", "playerMatches", selectedPlayerId || "none", scope],
@@ -245,10 +240,6 @@ export default function PlayerMatchesCard({ embedded = false }: { embedded?: boo
     if (selectedPlayerId === "") return null;
     return players.find((p) => p.id === selectedPlayerId) ?? null;
   }, [players, selectedPlayerId]);
-
-  const sortedPlayers = useMemo(() => {
-    return [...players].sort((a, b) => a.display_name.localeCompare(b.display_name));
-  }, [players]);
 
   const tournaments = useMemo(() => {
     const rows = matchesQ.data?.tournaments ?? [];
@@ -301,38 +292,25 @@ export default function PlayerMatchesCard({ embedded = false }: { embedded?: boo
       <ErrorToastOnError error={matchesQ.error} title="Player matches loading failed" />
       <ErrorToastOnError error={positionsQ.error} title="Tournament tiles loading failed" />
       <ErrorToastOnError error={clubsQ.error} title="Club data loading failed" />
-      <div className="card-inner-flat rounded-2xl space-y-2 scroll-mt-[calc(env(safe-area-inset-top,0px)+128px)] sm:scroll-mt-[calc(env(safe-area-inset-top,0px)+144px)]">
-        <div className="flex flex-wrap items-start gap-2">
-          <StatsFilterDataControls mode={mode} onModeChange={setMode} scope={scope} onScopeChange={setScope} />
-          <div className="flex min-w-0 flex-wrap items-center gap-2">
-            <StatsControlLabel icon="fa-sliders" text="View" />
-            <StatsSegmentedSwitch<boolean>
-              value={showMeta}
-              onChange={setShowMeta}
-              options={[
-                { key: false, label: "Compact", icon: "fa-compress" },
-                { key: true, label: "Details", icon: "fa-list" },
-              ]}
-              ariaLabel="Details"
-              title="Toggle details (clubs / leagues / stars)"
-            />
-          </div>
+      <div className="card-inner-flat rounded-2xl scroll-mt-[calc(env(safe-area-inset-top,0px)+128px)] sm:scroll-mt-[calc(env(safe-area-inset-top,0px)+144px)]">
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
+          <StatsControlLabel icon="fa-sliders" text="View" />
+          <StatsSegmentedSwitch<boolean>
+            value={showMeta}
+            onChange={setShowMeta}
+            options={[
+              { key: false, label: "Compact", icon: "fa-compress" },
+              { key: true, label: "Details", icon: "fa-list" },
+            ]}
+            ariaLabel="Details"
+            title="Toggle details (clubs / leagues / stars)"
+          />
         </div>
-
-        <div className="h-px bg-border-card-inner/70" />
-
-        <StatsAvatarSelector
-          players={sortedPlayers}
-          selectedId={selectedPlayerId}
-          onSelect={setPlayerId}
-          avatarUpdatedAtById={avatarUpdatedAtById}
-          avatarClassName="h-8 w-8"
-        />
       </div>
 
       <div style={{ overflowAnchor: "none" }}>
         {selectedPlayerId === "" ? (
-          <div className="card-inner-flat rounded-2xl text-sm text-text-muted">Pick a player to see their match history.</div>
+          <div className="card-inner-flat rounded-2xl text-sm text-text-muted">Pick a player above to see their match history.</div>
         ) : null}
         {matchesQ.isLoading ? <InlineLoading label="Loading…" /> : null}
 
