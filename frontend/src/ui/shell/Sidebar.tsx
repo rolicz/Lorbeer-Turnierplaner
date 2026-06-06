@@ -1,29 +1,16 @@
-import { useRef, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { AnimatePresence, motion } from "framer-motion";
+import { motion } from "framer-motion";
 import { ChevronLeft, ChevronRight, Settings } from "lucide-react";
 
 import { useAuth } from "../../auth/AuthContext";
-import { useClickOutside } from "../layout/useClickOutside";
-import { popover } from "../motion/motion";
-import type { ThemeName } from "../layout/useThemeManager";
 import { activeDest, visibleDests } from "./navConfig";
 import ConnectionIndicator from "./ConnectionIndicator";
-import SettingsPanel from "./SettingsPanel";
-
-type PlayerLite = { id: number; display_name: string };
 
 /** Desktop-only collapsible left sidebar. */
 export default function Sidebar({
-  theme,
-  setTheme,
-  actorOptions,
   collapsed,
   onToggleCollapse,
 }: {
-  theme: ThemeName;
-  setTheme: (t: ThemeName) => void;
-  actorOptions: PlayerLite[];
   collapsed: boolean;
   onToggleCollapse: () => void;
 }) {
@@ -31,9 +18,7 @@ export default function Sidebar({
   const loc = useLocation();
   const dests = visibleDests(role);
   const active = activeDest(loc.pathname);
-  const [settingsOpen, setSettingsOpen] = useState(false);
-  const settingsRef = useRef<HTMLDivElement | null>(null);
-  useClickOutside(settingsRef, settingsOpen, () => setSettingsOpen(false));
+  const settingsActive = loc.pathname.startsWith("/settings");
 
   return (
     <aside
@@ -83,7 +68,7 @@ export default function Sidebar({
         })}
       </nav>
 
-      {/* Footer: connection + settings + collapse */}
+      {/* Footer: connection + settings link + collapse */}
       <div className="space-y-1 border-t border-border-card-chip/40 px-2.5 py-2">
         {!collapsed ? (
           <div className="px-2 pb-1">
@@ -91,38 +76,21 @@ export default function Sidebar({
           </div>
         ) : null}
 
-        <div className="relative" ref={settingsRef}>
-          <button
-            type="button"
-            onClick={() => setSettingsOpen((v) => !v)}
-            title="Settings"
-            className={
-              "flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-text-muted transition hover:bg-hover-default/40 hover:text-text-normal focus-ring " +
-              (collapsed ? "justify-center px-0" : "")
-            }
-          >
-            <Settings className="h-[18px] w-[18px] shrink-0" aria-hidden="true" />
-            {!collapsed ? <span>Settings</span> : null}
-          </button>
-          <AnimatePresence>
-            {settingsOpen ? (
-              <motion.div
-                variants={popover}
-                initial="hidden"
-                animate="show"
-                exit="exit"
-                className="absolute bottom-full left-0 z-50 mb-2 w-72 origin-bottom-left rounded-2xl border border-border-card-chip bg-bg-card-inner p-3 shadow-pop"
-              >
-                <SettingsPanel
-                  theme={theme}
-                  setTheme={setTheme}
-                  actorOptions={actorOptions}
-                  onNavigate={() => setSettingsOpen(false)}
-                />
-              </motion.div>
-            ) : null}
-          </AnimatePresence>
-        </div>
+        <Link
+          to="/settings"
+          title="Settings"
+          aria-current={settingsActive ? "page" : undefined}
+          className={
+            "flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition focus-ring " +
+            (settingsActive
+              ? "bg-bg-card-chip/60 text-text-normal font-medium"
+              : "text-text-muted hover:bg-hover-default/40 hover:text-text-normal") +
+            (collapsed ? " justify-center px-0" : "")
+          }
+        >
+          <Settings className="h-[18px] w-[18px] shrink-0" aria-hidden="true" />
+          {!collapsed ? <span>Settings</span> : null}
+        </Link>
 
         <button
           type="button"

@@ -1,11 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 
 import { useAuth } from "../../auth/AuthContext";
 import { qk } from "../../api/queryKeys";
-import { listPlayers, listPlayerGuestbookSummary, listPlayerPokeSummary, listPlayerGuestbookReadMap, listPlayerPokeReadMap } from "../../api/players.api";
+import { listPlayerGuestbookSummary, listPlayerPokeSummary, listPlayerGuestbookReadMap, listPlayerPokeReadMap } from "../../api/players.api";
 import { listTournamentCommentsSummary, listTournamentCommentReadMap } from "../../api/comments.api";
-import { useThemeManager } from "../layout/useThemeManager";
+import { ThemeProvider } from "../layout/ThemeContext";
 import { usePullToRefresh } from "../layout/usePullToRefresh";
 import { RealtimeProvider } from "../../hooks/realtime/RealtimeProvider";
 import { useAnyTournamentWS } from "../../hooks/realtime/useRealtime";
@@ -15,9 +15,8 @@ import MobileChrome from "./MobileChrome";
 const COLLAPSE_KEY = "sidebar-collapsed";
 
 function ShellInner({ children }: { children: React.ReactNode }) {
-  const { token, accountRole, playerId } = useAuth();
+  const { token } = useAuth();
   const qc = useQueryClient();
-  const { theme, setTheme } = useThemeManager();
 
   // Always-on global channel: keeps list/live/cup fresh app-wide and drives the
   // connection indicator on every route.
@@ -32,21 +31,6 @@ function ShellInner({ children }: { children: React.ReactNode }) {
       return next;
     });
   };
-
-  // Actor "view as" options (admin only).
-  const playersQ = useQuery({
-    queryKey: qk.players(),
-    queryFn: listPlayers,
-    enabled: !!token && accountRole === "admin",
-    staleTime: 30_000,
-  });
-  const actorOptions = useMemo(() => {
-    const rows = (playersQ.data ?? [])
-      .filter((p) => playerId == null || Number(p.id) !== Number(playerId))
-      .slice();
-    rows.sort((a, b) => a.display_name.localeCompare(b.display_name));
-    return rows;
-  }, [playersQ.data, playerId]);
 
   // Pull-to-refresh (mobile): refetch active queries.
   const pull = usePullToRefresh({
@@ -71,22 +55,10 @@ function ShellInner({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-screen lg:flex">
-      <Sidebar
-        theme={theme}
-        setTheme={setTheme}
-        actorOptions={actorOptions}
-        collapsed={collapsed}
-        onToggleCollapse={toggleCollapse}
-      />
+      <Sidebar collapsed={collapsed} onToggleCollapse={toggleCollapse} />
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <MobileChrome
-          theme={theme}
-          setTheme={setTheme}
-          actorOptions={actorOptions}
-          open={drawerOpen}
-          setOpen={setDrawerOpen}
-        />
+        <MobileChrome open={drawerOpen} setOpen={setDrawerOpen} />
 
         {/* Pull-to-refresh indicator (mobile) */}
         {pull.distance > 0 || pull.refreshing ? (
@@ -118,8 +90,10 @@ function ShellInner({ children }: { children: React.ReactNode }) {
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   return (
-    <RealtimeProvider>
-      <ShellInner>{children}</ShellInner>
-    </RealtimeProvider>
+    <ThemeProvider>
+      <RealtimeProvider>
+        <ShellInner>{children}</ShellInner>
+      </RealtimeProvider>
+    </ThemeProvider>
   );
 }

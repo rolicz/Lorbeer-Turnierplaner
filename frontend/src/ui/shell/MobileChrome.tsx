@@ -1,28 +1,18 @@
 import { useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
-import { Menu, X } from "lucide-react";
+import { Menu, X, Settings } from "lucide-react";
 
 import { useAuth } from "../../auth/AuthContext";
 import { drawerLeft, scrim } from "../motion/motion";
-import type { ThemeName } from "../layout/useThemeManager";
 import { activeDest, visibleDests } from "./navConfig";
 import ConnectionIndicator from "./ConnectionIndicator";
-import SettingsPanel from "./SettingsPanel";
-
-type PlayerLite = { id: number; display_name: string };
 
 /** Mobile (and tablet < lg) top bar + slide-in navigation drawer. */
 export default function MobileChrome({
-  theme,
-  setTheme,
-  actorOptions,
   open,
   setOpen,
 }: {
-  theme: ThemeName;
-  setTheme: (t: ThemeName) => void;
-  actorOptions: PlayerLite[];
   open: boolean;
   setOpen: (v: boolean) => void;
 }) {
@@ -30,6 +20,7 @@ export default function MobileChrome({
   const loc = useLocation();
   const dests = visibleDests(role);
   const active = activeDest(loc.pathname);
+  const settingsActive = loc.pathname.startsWith("/settings");
 
   // Lock body scroll + close on Escape while the drawer is open.
   useEffect(() => {
@@ -48,7 +39,8 @@ export default function MobileChrome({
 
   return (
     <>
-      {/* Top bar */}
+      {/* Top bar — always pinned so the menu is always reachable.
+          Shows the brand (not the page title) to avoid duplicating each page's heading. */}
       <header className="sticky top-0 z-30 nav-shell backdrop-blur-md pt-[env(safe-area-inset-top,0px)] lg:hidden">
         <div className="flex h-14 items-center gap-2 px-3">
           <button
@@ -59,11 +51,12 @@ export default function MobileChrome({
           >
             <Menu className="h-5 w-5" aria-hidden="true" />
           </button>
-          <div className="flex min-w-0 flex-1 items-center gap-2">
-            <span className="truncate text-base font-semibold tracking-tight">
-              {active?.label ?? "Lorbeerkranz"}
+          <Link to="/dashboard" className="flex min-w-0 flex-1 items-center gap-2">
+            <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-accent/15 text-accent">
+              <i className="fa-solid fa-trophy text-xs" aria-hidden="true" />
             </span>
-          </div>
+            <span className="truncate text-sm font-semibold tracking-tight">Lorbeerkranz</span>
+          </Link>
           <ConnectionIndicator compact />
         </div>
       </header>
@@ -104,7 +97,7 @@ export default function MobileChrome({
                 </button>
               </div>
 
-              <nav className="space-y-1 px-3 py-2">
+              <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-2">
                 {dests.map((d) => {
                   const Icon = d.icon;
                   const isActive = active?.key === d.key;
@@ -128,13 +121,24 @@ export default function MobileChrome({
                 })}
               </nav>
 
-              <div className="mt-auto border-t border-border-card-chip/40 px-4 py-4">
-                <SettingsPanel
-                  theme={theme}
-                  setTheme={setTheme}
-                  actorOptions={actorOptions}
-                  onNavigate={() => setOpen(false)}
-                />
+              <div className="mt-auto space-y-2 border-t border-border-card-chip/40 px-3 py-3">
+                <Link
+                  to="/settings"
+                  onClick={() => setOpen(false)}
+                  aria-current={settingsActive ? "page" : undefined}
+                  className={
+                    "flex items-center gap-3 rounded-xl px-3 py-3 text-[15px] transition focus-ring " +
+                    (settingsActive
+                      ? "bg-bg-card-chip/60 text-text-normal font-medium"
+                      : "text-text-muted hover:bg-hover-default/40 hover:text-text-normal")
+                  }
+                >
+                  <Settings className="h-5 w-5 shrink-0" aria-hidden="true" />
+                  <span>Settings</span>
+                </Link>
+                <div className="px-3">
+                  <ConnectionIndicator />
+                </div>
               </div>
             </motion.aside>
           </div>
