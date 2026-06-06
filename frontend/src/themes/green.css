@@ -1,12 +1,11 @@
 :root[data-theme="green"] {
   color-scheme: dark;
 
-  /* Backgrounds */
-  --color-bg-default: 16 24 19; /* Darker page backdrop for more surface separation */
-  /* Increase contrast between the surface levels (outer -> inner -> chip). */
-  --color-bg-card-outer: 10 16 12;
-  --color-bg-card-inner: 24 38 29;
-  --color-bg-card-chip: 42 64 50;
+  /* Backgrounds — ascending elevation: page < outer < inner < chip */
+  --color-bg-default: 11 17 13;
+  --color-bg-card-outer: 21 32 25;
+  --color-bg-card-inner: 31 47 37;
+  --color-bg-card-chip: 46 67 53;
 
   /* Text */
   --color-text-normal: 248 250 249; /* Original zinc-50 */

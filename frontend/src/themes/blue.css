@@ -1,11 +1,11 @@
 :root[data-theme="blue"] {
   color-scheme: dark;
 
-  /* Backgrounds */
-  --color-bg-default: 21 30 46; /* Slightly darker for clearer separation from inner cards */
-  --color-bg-card-outer: 15 23 42; /* Original zinc-900 */
-  --color-bg-card-inner: 34 46 65; /* Slightly lighter while keeping the same blue tone */
-  --color-bg-card-chip: 51 65 85; /* slate-700 (brighter than inner, like dark.css' chip layer) */
+  /* Backgrounds — clean ascending elevation: page < outer < inner < chip */
+  --color-bg-default: 11 17 30; /* darkest: page base */
+  --color-bg-card-outer: 21 30 48; /* elevated card surface (clearly above the page) */
+  --color-bg-card-inner: 32 44 66; /* nested surface */
+  --color-bg-card-chip: 48 63 89; /* lightest interactive chip */
 
   /* Text */
   --color-text-normal: 248 250 252; /* Original zinc-50 */

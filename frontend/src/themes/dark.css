@@ -2,7 +2,9 @@
   /* Dark is the baseline in themes/defaults.css. Keep this file for theme selection. */
   color-scheme: dark;
 
-  /* Slightly increase separation between page bg and inner cards. */
-  --color-bg-default: 10 10 13;
-  --color-bg-card-inner: 23 23 27;
+  /* Clean ascending elevation: page < outer < inner < chip */
+  --color-bg-default: 9 9 12;
+  --color-bg-card-outer: 19 19 23;
+  --color-bg-card-inner: 29 29 35;
+  --color-bg-card-chip: 45 45 52;
 }
