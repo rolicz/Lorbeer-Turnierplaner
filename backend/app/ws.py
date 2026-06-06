@@ -1,7 +1,21 @@
+import itertools
 from datetime import datetime
 from typing import Any, Dict, List
 
 from fastapi import WebSocket
+
+# Process-wide monotonic sequence stamped on every broadcast envelope.
+# Clients use it to detect missed messages (gaps) after a reconnect and resync.
+_seq_counter = itertools.count(1)
+
+
+def _envelope(event: str, payload: Any) -> dict:
+    return {
+        "event": event,
+        "payload": payload,
+        "ts": datetime.utcnow().isoformat(),
+        "seq": next(_seq_counter),
+    }
 
 
 class WSManager:
@@ -20,7 +34,7 @@ class WSManager:
             del self._conns[tournament_id]
 
     async def broadcast(self, tournament_id: int, event: str, payload: Any) -> None:
-        msg = {"event": event, "payload": payload, "ts": datetime.utcnow().isoformat()}
+        msg = _envelope(event, payload)
         for ws in list(self._conns.get(tournament_id, [])):
             try:
                 await ws.send_json(msg)
@@ -43,7 +57,7 @@ class WSManagerUpdateAllTournaments:
         self._conns = [c for c in self._conns if c is not ws]
 
     async def broadcast(self, event: str, payload: Any) -> None:
-        msg = {"event": event, "payload": payload, "ts": datetime.utcnow().isoformat()}
+        msg = _envelope(event, payload)
         for ws in self._conns:
             try:
                 await ws.send_json(msg)

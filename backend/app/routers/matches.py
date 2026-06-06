@@ -10,7 +10,7 @@ from ..db import get_session
 from ..models import Club, Match, MatchSide, Tournament
 from ..schemas import MatchPatchBody, MatchSidePatchBody
 from ..schemas.responses import MatchPatchResultOut, OkResponse
-from ..services.events import broadcast_match_patched, broadcast_match_updated
+from ..services.events import broadcast_tournament
 from ..services.notifications import (
     push_match_finished,
     push_match_score_changed,
@@ -195,7 +195,13 @@ async def patch_match(
     log.info("Match patched: match_id=%s tournament_id=%s state=%s status=%s by=%s",
              m.id, m.tournament_id, m.state, status_after, role)
 
-    await broadcast_match_patched(m.tournament_id, m.id, tournament_status=status_after)
+    await broadcast_tournament(
+        s,
+        m.tournament_id,
+        reason="match",
+        global_action="status" if status_before != status_after else None,
+        status=status_after,
+    )
 
     new_scores = {side.side: int(side.goals or 0) for side in m.sides}
     scoreline = f"{new_scores.get('A', 0)}:{new_scores.get('B', 0)}"
@@ -289,5 +295,5 @@ async def swap_sides(
 
     s.commit()
 
-    await broadcast_match_updated(m.tournament_id, m.id)
+    await broadcast_tournament(s, m.tournament_id, reason="match")
     return {"ok": True}

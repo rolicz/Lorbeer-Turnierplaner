@@ -39,11 +39,9 @@ from ..schemas.responses import (
 from ..services.comments_summary import tournament_comments_summary
 from ..services.cup import compute_all_cup_tournament_stakes_by_tournament
 from ..services.events import (
-    broadcast_matches_reordered,
-    broadcast_schedule_generated,
-    broadcast_tournament_created,
+    broadcast_tournament,
     broadcast_tournament_deleted,
-    broadcast_tournament_updated,
+    notify_tournaments_changed,
 )
 from ..services.notifications import (
     push_schedule_generated,
@@ -52,7 +50,7 @@ from ..services.notifications import (
     push_tournament_deleted,
     push_tournament_updated,
 )
-from ..services.stats.odds import compute_match_odds_for_tournament
+from ..services.tournament_view import serialize_tournament
 from ..stats import compute_tournament_stats
 from ..tournament_status import compute_status_for_tournament, compute_status_map, find_other_live_tournament_id
 
@@ -61,62 +59,6 @@ router = APIRouter(prefix="/tournaments", tags=["tournaments"])
 
 
 
-
-
-def _serialize_tournament(s: Session, t: Tournament) -> dict:
-    matches = s.exec(
-        select(Match)
-        .options(selectinload(Match.sides).selectinload(MatchSide.players))
-        .where(Match.tournament_id == t.id)
-        .order_by(Match.order_index)
-    ).all()
-    _ = t.players  # load tournament players (no selectinload — t is already fetched)
-
-    status = compute_status_for_tournament(s, t.id)
-    odds_by_match_id = compute_match_odds_for_tournament(s, tournament=t, matches_in_tournament=matches)
-
-    def player_dict(p: Player) -> dict:
-        return {"id": p.id, "display_name": p.display_name}
-
-    def match_dict(m: Match) -> dict:
-        sides = []
-        for side in sorted(m.sides, key=lambda x: x.side):
-            sides.append({
-                "id": side.id,
-                "side": side.side,
-                "club_id": side.club_id,
-                "goals": side.goals,
-                "players": [player_dict(p) for p in side.players],
-            })
-        return {
-            "id": m.id,
-            "tournament_id": m.tournament_id,
-            "leg": m.leg,
-            "order_index": m.order_index,
-            "state": m.state,
-            "started_at": m.started_at,
-            "finished_at": m.finished_at,
-            "sides": sides,
-            "odds": odds_by_match_id.get(int(m.id)) if m.id is not None else None,
-        }
-
-    return {
-        "id": t.id,
-        "name": t.name,
-        "mode": t.mode,
-        "status": status,  # computed
-        "settings_json": t.settings_json,
-        "date": t.date,
-        "created_at": t.created_at,
-        "updated_at": t.updated_at,
-        "players": [player_dict(p) for p in t.players],
-        "matches": [match_dict(m) for m in matches],
-        "decider_type": t.decider_type,
-        "decider_winner_player_id": t.decider_winner_player_id,
-        "decider_loser_player_id": t.decider_loser_player_id,
-        "decider_winner_goals": t.decider_winner_goals,
-        "decider_loser_goals": t.decider_loser_goals,
-    }
 
 
 def _max_order_index(s: Session, tournament_id: int) -> int:
@@ -468,7 +410,7 @@ def get_tournaments_comments_summary(s: Session = Depends(get_session)) -> list[
 @router.get("/{tournament_id}", response_model=TournamentDetailOut)
 def get_tournament(tournament_id: int, s: Session = Depends(get_session)):
     t = get_or_404(s, Tournament, tournament_id, name="Tournament")
-    return _serialize_tournament(s, t)
+    return serialize_tournament(s, t)
 
 
 @router.post("", response_model=TournamentSummaryOut, dependencies=[Depends(require_editor)])
@@ -523,7 +465,7 @@ async def create_tournament(body: TournamentCreateBody, request: Request, s: Ses
 
     log.info("Created tournament '%s' (id=%s, mode=%s)", t.name, t.id, t.mode)
 
-    await broadcast_tournament_created()
+    await notify_tournaments_changed(action="created", tournament_id=int(t.id))
     push_tournament_created(request, tournament_id=int(t.id), tournament_name=t.name)
     return t
 
@@ -571,7 +513,7 @@ async def patch_tournament(
     s.commit()
     s.refresh(t)
 
-    await broadcast_tournament_updated(tournament_id)
+    await broadcast_tournament(s, tournament_id, reason="updated", global_action="updated")
     push_tournament_updated(request, tournament_id=tournament_id, tournament_name=t.name)
     return t
 
@@ -600,7 +542,7 @@ async def patch_date(
     s.commit()
     s.refresh(t)
 
-    await broadcast_tournament_updated(tournament_id)
+    await broadcast_tournament(s, tournament_id, reason="updated", global_action="updated")
     log.info("Tournament date changed: tournament_id=%s date=%s by=%s", tournament_id, t.date, role)
     push_tournament_date_changed(request, tournament_id=tournament_id, tournament_name=t.name, tournament_date=t.date)
     return {"ok": True, "date": t.date}
@@ -626,7 +568,7 @@ async def generate_schedule(
     randomize = bool(body.randomize)
     created_matches, label_to_name = _generate_schedule_for_tournament(s, t, randomize=randomize)
 
-    await broadcast_schedule_generated(tournament_id)
+    await broadcast_tournament(s, tournament_id, reason="schedule", global_action="updated")
     log.info(
         "Generated schedule: tournament_id=%s matches=%s mode=%s players=%s",
         tournament_id,
@@ -689,7 +631,7 @@ async def reorder(
         s.add(by_id[mid])
 
     s.commit()
-    await broadcast_matches_reordered(tournament_id)
+    await broadcast_tournament(s, tournament_id, reason="reorder")
     return {"ok": True}
 
 
@@ -752,7 +694,7 @@ async def second_leg(
         s.add(t)
         s.commit()
 
-        await broadcast_schedule_generated(tournament_id)
+        await broadcast_tournament(s, tournament_id, reason="schedule", global_action="updated")
         return {"ok": True, "second_leg": False, "deleted": True, "status": t.status}
 
     # enabled == True
@@ -792,7 +734,7 @@ async def second_leg(
         s.add(t)
         s.commit()
 
-        await broadcast_schedule_generated(tournament_id)
+        await broadcast_tournament(s, tournament_id, reason="schedule", global_action="updated")
         return {"ok": True, "second_leg": True, "created": created, "status": t.status}
 
     if leg2_complete():
@@ -1001,7 +943,8 @@ async def patch_decider(
     s.commit()
     s.refresh(t)
 
-    await broadcast_tournament_updated(tournament_id)
+    # Decider resolves the winner of a finished tournament -> affects cup + stats.
+    await broadcast_tournament(s, tournament_id, reason="decider", global_action="status", status="done")
     return {
         "ok": True,
         "decider_type": t.decider_type,
@@ -1137,7 +1080,7 @@ async def reassign_2v2(
     s.add(t)
     s.commit()
 
-    await broadcast_schedule_generated(tournament_id)
+    await broadcast_tournament(s, tournament_id, reason="schedule", global_action="updated")
     log.info(
         "2v2 reassign: tournament_id=%s matches=%s had_leg2=%s by=%s",
         tournament_id, len(label_matches), had_leg2, role

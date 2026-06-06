@@ -37,7 +37,12 @@ from ..schemas.responses import (
     VotersOut,
 )
 from ..services.comments_summary import tournament_comments_summary
-from ..services.events import broadcast_comments_updated, broadcast_match_patched
+from ..services.events import (
+    broadcast_tournament,
+    push_comment_deleted,
+    push_comment_meta,
+    push_comment_upsert,
+)
 from ..services.file_storage import (
     delete_media,
     media_exists,
@@ -447,7 +452,7 @@ async def vote_comment(
         s.add(row)
         s.commit()
 
-    await broadcast_comments_updated(c.tournament_id, c.id, action="voted")
+    await push_comment_meta(c.tournament_id, action="voted", comment_id=c.id)
     return {"ok": True, "value": value}
 
 
@@ -602,9 +607,9 @@ async def create_comment(
             s.add(CommentRead(player_id=pid, comment_id=int(c.id), read_at=now))
             s.commit()
 
-    await broadcast_comments_updated(tournament_id, c.id, action="created")
+    await push_comment_upsert(tournament_id, _comment_dict(c, None))
     if match_for_event is not None and match_score_changed:
-        await broadcast_match_patched(tournament_id, int(match_for_event.id or 0))
+        await broadcast_tournament(s, tournament_id, reason="comment-score")
 
     author_name = "General"
     if c.author_player_id is not None:
@@ -691,7 +696,7 @@ async def patch_comment(
     s.commit()
     s.refresh(c)
 
-    await broadcast_comments_updated(c.tournament_id, c.id, action="updated")
+    await push_comment_upsert(c.tournament_id, _comment_dict(c, image_updated_at))
 
     return _comment_dict(c, image_updated_at)
 
@@ -723,7 +728,7 @@ async def delete_comment(
     s.delete(c)
     s.commit()
 
-    await broadcast_comments_updated(c.tournament_id, c.id, action="deleted")
+    await push_comment_deleted(c.tournament_id, c.id)
 
     return {"ok": True}
 
@@ -781,7 +786,7 @@ async def put_comment_image(
     s.refresh(c)
     s.refresh(img_file)
 
-    await broadcast_comments_updated(c.tournament_id, c.id, action="image_updated")
+    await push_comment_upsert(c.tournament_id, _comment_dict(c, img_file.updated_at))
     return _comment_dict(c, img_file.updated_at)
 
 
@@ -798,7 +803,7 @@ async def delete_comment_image(comment_id: int, s: Session = Depends(get_session
     s.add(c)
     s.commit()
 
-    await broadcast_comments_updated(c.tournament_id, c.id, action="image_deleted")
+    await push_comment_upsert(c.tournament_id, _comment_dict(c, None))
     return {"ok": True}
 
 
@@ -818,7 +823,7 @@ async def set_pinned_comment(
         if pin:
             s.delete(pin)
             s.commit()
-        await broadcast_comments_updated(tournament_id, None, action="unpinned")
+        await push_comment_meta(tournament_id, action="unpinned")
         return {"pinned_comment_id": None}
 
     c = get_or_404(s, Comment, comment_id, name="Comment")
@@ -836,6 +841,6 @@ async def set_pinned_comment(
     s.add(pin)
     s.commit()
 
-    await broadcast_comments_updated(tournament_id, comment_id, action="pinned")
+    await push_comment_meta(tournament_id, action="pinned", comment_id=comment_id)
 
     return {"pinned_comment_id": comment_id}
