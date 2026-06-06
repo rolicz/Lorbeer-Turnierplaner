@@ -7,12 +7,10 @@ import { listPlayers, listPlayerGuestbookSummary, listPlayerPokeSummary, listPla
 import { listTournamentCommentsSummary, listTournamentCommentReadMap } from "../../api/comments.api";
 import { useThemeManager } from "../layout/useThemeManager";
 import { usePullToRefresh } from "../layout/usePullToRefresh";
-import { SubNavProvider } from "../layout/SubNavContext";
 import { RealtimeProvider } from "../../hooks/realtime/RealtimeProvider";
 import { useAnyTournamentWS } from "../../hooks/realtime/useRealtime";
 import Sidebar from "./Sidebar";
 import MobileChrome from "./MobileChrome";
-import SubNavBar from "./SubNavBar";
 
 const COLLAPSE_KEY = "sidebar-collapsed";
 
@@ -111,7 +109,6 @@ function ShellInner({ children }: { children: React.ReactNode }) {
           className="mx-auto w-full max-w-6xl flex-1 page-x py-4 lg:py-6"
           style={pull.distance > 0 && !pull.refreshing ? { transform: `translateY(${Math.min(pull.distance, 64)}px)` } : undefined}
         >
-          <SubNavBar />
           {children}
         </main>
       </div>
@@ -122,9 +119,7 @@ function ShellInner({ children }: { children: React.ReactNode }) {
 export default function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <RealtimeProvider>
-      <SubNavProvider>
-        <ShellInner>{children}</ShellInner>
-      </SubNavProvider>
+      <ShellInner>{children}</ShellInner>
     </RealtimeProvider>
   );
 }
