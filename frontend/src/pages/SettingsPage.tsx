@@ -6,6 +6,8 @@ import { Check, Eye, LogIn, LogOut, UserCog } from "lucide-react";
 import { useAuth } from "../auth/AuthContext";
 import { useTheme } from "../ui/layout/ThemeContext";
 import { usePageTitle } from "../ui/layout/PageTitleContext";
+import { useStatsExperience, setStatsExperience } from "../ui/layout/useStatsMode";
+import SegmentedSwitch from "../ui/primitives/SegmentedSwitch";
 import { qk } from "../api/queryKeys";
 import { listPlayers } from "../api/players.api";
 import PushNotificationsSettings from "../ui/layout/PushNotificationsSettings";
@@ -70,6 +72,7 @@ export default function SettingsPage() {
     playerId != null && actorPlayerId != null && Number(playerId) !== Number(actorPlayerId);
 
   usePageTitle("Settings");
+  const statsExperience = useStatsExperience();
 
   if (!pageEntered) {
     return <div className="page"><PageLoadingScreen sectionCount={3} /></div>;
@@ -170,6 +173,27 @@ export default function SettingsPage() {
             </div>
           </SettingsSection>
         ) : null}
+
+        {/* Experiments */}
+        <SettingsSection title="Experiments">
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <div className="text-sm font-medium text-text-normal">Stats layout</div>
+              <div className="text-xs text-text-muted">
+                Try the new “Insights” stats: a league standings + per-player profile.
+              </div>
+            </div>
+            <SegmentedSwitch<"classic" | "insights">
+              value={statsExperience}
+              onChange={(v) => setStatsExperience(v)}
+              options={[
+                { key: "classic", label: "Classic" },
+                { key: "insights", label: "Insights" },
+              ]}
+              ariaLabel="Stats layout"
+            />
+          </div>
+        </SettingsSection>
 
         {/* Notifications */}
         <SettingsSection title="Notifications">

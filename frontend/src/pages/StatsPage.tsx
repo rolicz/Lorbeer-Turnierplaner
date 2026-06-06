@@ -11,6 +11,8 @@ import PlayerMatchesCard from "./stats/PlayerMatchesCard";
 import RatingsCard from "./stats/RatingsCard";
 import StarsPerformanceCard from "./stats/StarsPerformanceCard";
 import StatsFilterBar, { type StatsFilterConfig } from "./stats/StatsFilterBar";
+import StatsInsights from "./stats/StatsInsights";
+import { useStatsExperience } from "../ui/layout/useStatsMode";
 import type { StatsMode } from "./stats/StatsControls";
 import { SectionTabs, type SectionTab } from "../ui/SectionTabs";
 import { useRouteEntryLoading } from "../ui/layout/useRouteEntryLoading";
@@ -53,6 +55,7 @@ export default function StatsPage() {
   const pageEntered = useRouteEntryLoading();
   const [searchParams, setSearchParams] = useSearchParams();
 
+  const experience = useStatsExperience();
   const { playerId: selfId } = useAuth();
   const playersQ = useQuery({ queryKey: qk.players(), queryFn: listPlayers });
   const { avatarUpdatedAtById } = usePlayerAvatarMap();
@@ -106,6 +109,31 @@ export default function StatsPage() {
     return <div className="page"><PageLoadingScreen sectionCount={3} /></div>;
   }
 
+  // --- Insights (opt-in) mode: League standings + per-player profile ---
+  if (experience === "insights") {
+    const insightsConfig: StatsFilterConfig = { mode: true, scope: true, player: "optional" };
+    return (
+      <div className="page">
+        <div className="mb-4 hidden lg:block">
+          <h1 className="text-xl font-bold tracking-tight text-text-normal">Stats</h1>
+        </div>
+        <StatsFilterBar
+          config={insightsConfig}
+          mode={mode}
+          onModeChange={setMode}
+          scope={scope}
+          onScopeChange={setScope}
+          playerId={playerId}
+          onPlayerChange={setPlayer}
+          players={players}
+          avatarUpdatedAtById={avatarUpdatedAtById}
+        />
+        <StatsInsights mode={mode} scope={scope} playerId={playerId} onSelectPlayer={(id) => setPlayer(id)} />
+      </div>
+    );
+  }
+
+  // --- Classic mode (default) ---
   return (
     <div className="page">
       <div className="mb-4 hidden lg:block">
