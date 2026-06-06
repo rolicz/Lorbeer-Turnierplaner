@@ -565,6 +565,7 @@ export default function LiveTournamentPage() {
                     tournamentMode={tQ.data?.mode}
                     match={currentMatch}
                     clubs={clubs}
+                    players={tQ.data?.players ?? []}
                     canControl={isEditorOrAdmin && !isDone}
                     canDeleteComments={isAdmin}
                     busy={currentGameMut.isPending}

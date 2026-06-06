@@ -1,12 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Button from "../../ui/primitives/Button";
-import type { Club, Match, MatchSide, TournamentMode } from "../../api/types";
-// import { useTournamentWS } from "../../hooks/useTournamentWS";
+import type { Club, Match, MatchSide, Player, TournamentMode } from "../../api/types";
 import MatchOverviewPanel from "../../ui/primitives/MatchOverviewPanel";
 import SelectClubsPanel from "../../ui/SelectClubsPanel";
 import { GoalStepper } from "../../ui/clubControls";
 import { scrollToSectionById } from "../../ui/scrollToSection";
-import MatchCommentsPanel from "./MatchCommentsPanel";
+import TournamentCommentsCard from "./TournamentCommentsCard";
 
 
 function sideBy(m: Match, side: "A" | "B"): MatchSide | undefined {
@@ -36,6 +35,7 @@ export default function CurrentGameSection({
   tournamentMode,
   match,
   clubs,
+  players = [],
   canControl,
   canDeleteComments,
   busy,
@@ -47,6 +47,7 @@ export default function CurrentGameSection({
   tournamentMode?: TournamentMode | null;
   match: Match | null;
   clubs: Club[];
+  players?: Player[];
   canControl: boolean;
   canDeleteComments: boolean;
   busy: boolean;
@@ -64,16 +65,6 @@ export default function CurrentGameSection({
 
   const aInline = useMemo(() => namesInline(a), [a]);
   const bInline = useMemo(() => namesInline(b), [b]);
-  const playersInMatch = useMemo(() => {
-    const seen = new Set<number>();
-    const out: MatchSide["players"] = [];
-    for (const p of [...(a?.players ?? []), ...(b?.players ?? [])]) {
-      if (!Number.isFinite(Number(p.id)) || seen.has(p.id)) continue;
-      seen.add(p.id);
-      out.push(p);
-    }
-    return out;
-  }, [a?.players, b?.players]);
 
   const [aClub, setAClub] = useState<number | null>(a?.club_id ?? null);
   const [bClub, setBClub] = useState<number | null>(b?.club_id ?? null);
@@ -396,19 +387,19 @@ export default function CurrentGameSection({
         )}
 
         {Number.isFinite(Number(activeMatch.tournament_id)) && activeMatch.tournament_id > 0 ? (
-          <MatchCommentsPanel
-            tournamentId={activeMatch.tournament_id}
-            matchId={activeMatch.id}
-            canWrite={canControl}
-            canDelete={canDeleteComments}
-            playersInMatch={playersInMatch}
-            teamALabel={aInline}
-            teamAPlayers={a?.players ?? []}
-            teamBLabel={bInline}
-            teamBPlayers={b?.players ?? []}
-            currentScoreA={aGoals}
-            currentScoreB={bGoals}
-          />
+          <div id={`current-match-comments-${activeMatch.id}`} className="scroll-mt-28 sm:scroll-mt-32">
+            <TournamentCommentsCard
+              tournamentId={activeMatch.tournament_id}
+              matches={[activeMatch]}
+              clubs={clubs}
+              players={players}
+              canWrite={canControl}
+              canDelete={canDeleteComments}
+              collapsible={false}
+              onlyMatchId={activeMatch.id}
+              showMatchHeader={false}
+            />
+          </div>
         ) : null}
       </div>
     </div>

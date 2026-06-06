@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
+import Button from "../../ui/primitives/Button";
 import CollapsibleCard from "../../ui/primitives/CollapsibleCard";
 import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
 import { showErrorToast } from "../../ui/primitives/ErrorToast";
@@ -25,13 +26,44 @@ import {
 import { useAuth } from "../../auth/AuthContext";
 import { useSeenSet } from "../../hooks/useSeenComments";
 import { usePlayerAvatarMap } from "../../hooks/usePlayerAvatarMap";
-import { AddCommentDropdown, CommentCard, ScopeActionButton } from "./TournamentCommentParts";
+import { AddCommentDropdown, CommentCard } from "./TournamentCommentParts";
 import {
-  sameScope,
   type CommentAuthor,
   type CommentScope,
   type TournamentComment,
 } from "./tournamentCommentTypes";
+
+/** A scope filter chip in the comments header. */
+function FilterChip({
+  active,
+  onClick,
+  label,
+  count,
+  unseen = false,
+}: {
+  active: boolean;
+  onClick: () => void;
+  label: string;
+  count?: number;
+  unseen?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={
+        "relative inline-flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-sm transition focus-ring " +
+        (active
+          ? "bg-accent/15 text-accent font-medium"
+          : "bg-bg-card-chip/60 text-text-muted hover:text-text-normal")
+      }
+    >
+      <span className="whitespace-nowrap">{label}</span>
+      {typeof count === "number" ? <span className="tabular-nums text-xs opacity-80">{count}</span> : null}
+      {unseen ? <span className="h-1.5 w-1.5 rounded-full bg-accent" aria-hidden="true" /> : null}
+    </button>
+  );
+}
 
 export default function TournamentCommentsCard({
   tournamentId,
@@ -42,6 +74,8 @@ export default function TournamentCommentsCard({
   canDelete,
   focusCommentRequest,
   collapsible = true,
+  onlyMatchId = null,
+  showMatchHeader = true,
 }: {
   tournamentId: number;
   matches: Match[];
@@ -51,6 +85,10 @@ export default function TournamentCommentsCard({
   canDelete: boolean;
   focusCommentRequest?: { id: number; nonce: number } | null;
   collapsible?: boolean;
+  /** When set, render only this match's comments + composer (used on the match detail page). */
+  onlyMatchId?: number | null;
+  /** Show the match score/clubs/stars header inside match blocks (off when score is shown elsewhere). */
+  showMatchHeader?: boolean;
 }) {
   const qc = useQueryClient();
   const { token, role, actorPlayerId: currentPlayerId, actorPlayerName: currentPlayerName } = useAuth();
@@ -88,6 +126,10 @@ export default function TournamentCommentsCard({
   const [editingId, setEditingId] = useState<number | null>(null);
   const [addTarget, setAddTarget] = useState<CommentScope | null>(null);
   const [pendingFocusId, setPendingFocusId] = useState<number | null>(null);
+  // Active scope filter for the feed: "all" | "general" | matchId.
+  const [filter, setFilter] = useState<"all" | "general" | number>(
+    onlyMatchId != null ? onlyMatchId : "all",
+  );
   const [flashId, setFlashId] = useState<number | null>(null);
   const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
   const [voteVotersCommentId, setVoteVotersCommentId] = useState<number | null>(null);
@@ -164,9 +206,11 @@ export default function TournamentCommentsCard({
     const cid = Number(focusCommentRequest.id);
     if (!Number.isFinite(cid) || cid <= 0) return;
     /* eslint-disable react-hooks/set-state-in-effect */
+    // Reset to "All" so the target comment is never hidden by an active filter.
+    if (onlyMatchId == null) setFilter("all");
     setPendingFocusId(Math.trunc(cid));
     /* eslint-enable react-hooks/set-state-in-effect */
-  }, [focusCommentRequest]);
+  }, [focusCommentRequest, onlyMatchId]);
 
   useEffect(() => {
     if (!pendingFocusId) return;
@@ -562,25 +606,6 @@ export default function TournamentCommentsCard({
         goalScoreForScope(addTarget, goalSide) != null
       : !!draftBody.trim() || !!draftImageBlob;
 
-  function startAdd(scope: CommentScope) {
-    setEditingId(null);
-    setDraftAuthor(currentPlayerId ?? "general");
-    setDraftMode("comment");
-    setGoalSide(null);
-    setGoalMinute("");
-    setGoalPlayerName("");
-    setDraftBody("");
-    setDraftImageBlob(null);
-    setDraftImagePreviewUrl((prev) => {
-      if (prev) URL.revokeObjectURL(prev);
-      return null;
-    });
-    setAddTarget((cur) => {
-      const same = sameScope(cur, scope);
-      return same ? null : scope;
-    });
-  }
-
   function setDraftImage(blob: Blob | null) {
     setDraftImageBlob(blob);
     setDraftImagePreviewUrl((prev) => {
@@ -630,6 +655,207 @@ export default function TournamentCommentsCard({
     return options;
   }, [currentPlayerId, currentPlayerName, draftAuthor, playerById]);
 
+  const matchesOrdered = useMemo(
+    () => matches.slice().sort((a, b) => a.order_index - b.order_index),
+    [matches],
+  );
+  const matchIndexById = useMemo(() => {
+    const m = new Map<number, number>();
+    matchesOrdered.forEach((mt, i) => m.set(mt.id, i + 1));
+    return m;
+  }, [matchesOrdered]);
+
+  // Open the composer for a scope (resetting draft fields).
+  function openComposer(scope: CommentScope) {
+    setEditingId(null);
+    setDraftAuthor(currentPlayerId ?? "general");
+    setDraftMode("comment");
+    setGoalSide(null);
+    setGoalMinute("");
+    setGoalPlayerName("");
+    setDraftBody("");
+    setDraftImage(null);
+    setAddTarget(scope);
+  }
+  function changeComposerScope(value: string) {
+    const scope: CommentScope =
+      value === "general" ? { kind: "tournament" } : { kind: "match", matchId: Number(value.slice(2)) };
+    setAddTarget(scope);
+    if (scope.kind === "tournament" && draftMode === "goal") handleDraftModeChange("comment");
+  }
+  const composerScopeValue =
+    addTarget == null ? "general" : addTarget.kind === "tournament" ? "general" : `m-${addTarget.matchId}`;
+
+  // Default scope used when opening the composer from the current filter.
+  function defaultAddScope(): CommentScope {
+    if (onlyMatchId != null) return { kind: "match", matchId: onlyMatchId };
+    if (typeof filter === "number") return { kind: "match", matchId: filter };
+    return { kind: "tournament" };
+  }
+
+  // --- chips / filtered feed ---
+  const generalComments = grouped.tournament;
+  const generalUnseen = !!token && generalComments.some((c) => !seen.has(c.id));
+  const matchBlocksWithComments = grouped.blocks.filter((b) => b.comments.length > 0);
+  const totalComments = comments.length;
+
+  function renderCommentCard(c: TournamentComment, surface: string) {
+    const pinnable =
+      c.scope.kind === "tournament" &&
+      canWrite &&
+      (pinnedTournamentCommentId == null || pinnedTournamentCommentId === c.id);
+    return (
+      <CommentCard
+        key={c.id}
+        c={c}
+        isEditing={editingId === c.id}
+        isPinned={pinnedTournamentCommentId === c.id}
+        isUnseen={!!token && !seen.has(c.id)}
+        onMarkSeen={() => {
+          if (!token || markReadMut.isPending) return;
+          markReadMut.mutate(c.id);
+        }}
+        flash={flashId === c.id}
+        surfaceClassName={surface}
+        avatarUpdatedAt={c.author.kind === "player" ? avatarUpdatedAtByPlayerId.get(c.author.playerId) ?? null : null}
+        onOpenImage={(src) => setLightboxSrc(src)}
+        canPin={pinnable}
+        onTogglePin={
+          pinnable
+            ? () => {
+                const next = pinnedTournamentCommentId === c.id ? null : c.id;
+                void pinMut.mutateAsync(next);
+              }
+            : null
+        }
+        canWrite={canWrite}
+        canDelete={canDelete}
+        players={players}
+        currentPlayerId={currentPlayerId}
+        currentPlayerName={currentPlayerName}
+        authorLabel={authorLabel}
+        onToggleEdit={() => toggleEdit(c)}
+        onDelete={() => {
+          void deleteComment(c.id);
+        }}
+        onVote={(value) => {
+          if (!token || voteMut.isPending) return;
+          voteMut.mutate({ commentId: c.id, value });
+        }}
+        onOpenVoters={() => setVoteVotersCommentId(c.id)}
+        draftAuthor={draftAuthor}
+        onChangeDraftAuthor={setDraftAuthor}
+        draftBody={draftBody}
+        onChangeDraftBody={setDraftBody}
+        onSave={() => {
+          void upsertComment(c.scope);
+        }}
+        canSubmit={canSubmit && (editingId !== c.id || editingDirty)}
+      />
+    );
+  }
+
+  /** A match block: header (score/clubs/stars) + its comments. */
+  function renderMatchBlock(matchId: number, surface: string) {
+    const h = matchHeaderMeta(matchId);
+    const arr = (grouped.blocks.find((b) => b.matchId === matchId)?.comments ?? []);
+    return (
+      <div key={matchId} id={`comments-block-match-${matchId}`} className="card-inner-flat scroll-mt-28 sm:scroll-mt-32">
+        {h && showMatchHeader ? (
+          <div className="space-y-1">
+            <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3">
+              <div className="min-w-0 truncate text-sm text-text-normal">{h.aPlayers}</div>
+              <div className="card-chip flex items-center justify-center gap-2 justify-self-center">
+                {h.aGoals == null || h.bGoals == null ? (
+                  <span className="text-sm font-semibold tabular-nums text-text-muted">—</span>
+                ) : (
+                  <>
+                    <span className="text-sm font-semibold tabular-nums">{h.aGoals}</span>
+                    <span className="text-text-muted">:</span>
+                    <span className="text-sm font-semibold tabular-nums">{h.bGoals}</span>
+                  </>
+                )}
+              </div>
+              <div className="min-w-0 truncate text-right text-sm text-text-normal">{h.bPlayers}</div>
+            </div>
+            <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-start gap-3 text-xs text-text-muted">
+              <div className="min-w-0 whitespace-normal break-words leading-tight">{h.aClub.present ? h.aClub.name : "—"}</div>
+              <div />
+              <div className="min-w-0 whitespace-normal break-words text-right leading-tight">{h.bClub.present ? h.bClub.name : "—"}</div>
+            </div>
+            <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 text-[11px] text-text-muted">
+              <div className="min-w-0">{h.aClub.present ? <StarsFA rating={h.aClub.rating ?? 0} textClassName="text-text-muted" /> : <span>—</span>}</div>
+              <div />
+              <div className="flex min-w-0 justify-end">{h.bClub.present ? <StarsFA rating={h.bClub.rating ?? 0} textClassName="text-text-muted" /> : <span>—</span>}</div>
+            </div>
+          </div>
+        ) : null}
+
+        <div className="mt-3 space-y-2">
+          {arr.length ? arr.map((c) => renderCommentCard(c, surface)) : (
+            <div className="text-sm text-text-muted">No comments on this match yet.</div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  function renderGeneralList() {
+    if (!generalComments.length) return <div className="text-sm text-text-muted">No general comments yet.</div>;
+    const ordered = [pinnedTournamentComment, ...generalComments.filter((c) => c.id !== pinnedTournamentComment?.id)]
+      .filter(Boolean) as TournamentComment[];
+    return <div className="space-y-2">{ordered.map((c) => renderCommentCard(c, "panel"))}</div>;
+  }
+
+  const composer = canWrite && addTarget ? (
+    <div className="panel p-3 space-y-3">
+      {onlyMatchId == null ? (
+        <label className="block">
+          <div className="input-label">Add to</div>
+          <select className="select-field" value={composerScopeValue} onChange={(e) => changeComposerScope(e.target.value)}>
+            <option value="general">General (tournament)</option>
+            {matchesOrdered.map((m) => (
+              <option key={m.id} value={`m-${m.id}`}>
+                Match {matchIndexById.get(m.id)} — {sidePlayersLabel(m, "A")} vs {sidePlayersLabel(m, "B")}
+              </option>
+            ))}
+          </select>
+        </label>
+      ) : null}
+      <AddCommentDropdown
+        open
+        authorOptions={addAuthorOptions}
+        draftAuthor={draftAuthor}
+        onChangeDraftAuthor={setDraftAuthor}
+        draftMode={draftMode}
+        onChangeDraftMode={handleDraftModeChange}
+        allowMatchEventModes={addTarget.kind === "match"}
+        goalTeams={addTarget.kind === "match" ? goalTeamsForScope(addTarget) : []}
+        goalSide={goalSide}
+        onChangeGoalSide={handleGoalSideChange}
+        goalPlayers={addTarget.kind === "match" ? goalPlayersForScope(addTarget, goalSide) : []}
+        goalMinute={goalMinute}
+        onChangeGoalMinute={setGoalMinute}
+        goalPlayerName={goalPlayerName}
+        onChangeGoalPlayerName={setGoalPlayerName}
+        draftBody={draftBody}
+        onChangeDraftBody={setDraftBody}
+        canAttachImage={canAttachImage}
+        imagePreviewUrl={draftImagePreviewUrl}
+        onOpenImageCropper={() => setImageCropOpen(true)}
+        onClearImage={() => setDraftImage(null)}
+        onSubmit={() => {
+          if (addTarget) void upsertComment(addTarget);
+        }}
+        canSubmit={canSubmit}
+        surfaceClassName="panel-subtle"
+      />
+      <div className="flex justify-end">
+        <Button variant="ghost" type="button" onClick={() => setAddTarget(null)}>Cancel</Button>
+      </div>
+    </div>
+  ) : null;
+
   const commentsContent = (
     <>
         <ErrorToastOnError error={commentsQ.error} title="Comments loading failed" />
@@ -638,280 +864,72 @@ export default function TournamentCommentsCard({
           <div className="panel-subtle px-3 py-2 text-sm text-text-muted">Loading comments…</div>
         ) : null}
 
-        <div className="space-y-2">
-          <div id="comments-block-tournament" className="panel-subtle p-3 scroll-mt-28 sm:scroll-mt-32">
-            <div className="flex items-center justify-between gap-3">
-              <div className="text-sm font-semibold">Tournament</div>
-              <div className="flex items-center gap-2">
-                <div className="text-xs text-text-muted">{grouped.tournament.length}</div>
-                {canWrite ? (
-                  <ScopeActionButton
-                    open={sameScope(addTarget, { kind: "tournament" })}
-                    onClick={() => startAdd({ kind: "tournament" })}
-                    titleClosed="Add tournament comment"
-                    titleOpen="Cancel"
-                  />
-                ) : null}
-              </div>
-            </div>
-
-            <div className="mt-3">
-              <AddCommentDropdown
-                open={canWrite && sameScope(addTarget, { kind: "tournament" })}
-                authorOptions={addAuthorOptions}
-                draftAuthor={draftAuthor}
-                onChangeDraftAuthor={setDraftAuthor}
-                draftMode={draftMode}
-                onChangeDraftMode={handleDraftModeChange}
-                allowMatchEventModes={false}
-                goalTeams={[]}
-                goalSide={goalSide}
-                onChangeGoalSide={handleGoalSideChange}
-                goalPlayers={[]}
-                goalMinute={goalMinute}
-                onChangeGoalMinute={setGoalMinute}
-                goalPlayerName={goalPlayerName}
-                onChangeGoalPlayerName={setGoalPlayerName}
-                draftBody={draftBody}
-                onChangeDraftBody={setDraftBody}
-                canAttachImage={canAttachImage}
-                imagePreviewUrl={draftImagePreviewUrl}
-                onOpenImageCropper={() => setImageCropOpen(true)}
-                onClearImage={() => setDraftImage(null)}
-                onSubmit={() => {
-                  void upsertComment({ kind: "tournament" });
-                }}
-                canSubmit={canSubmit}
-                surfaceClassName="panel"
+        <div className="space-y-3">
+          {/* Scope filter chips */}
+          {onlyMatchId == null ? (
+            <div className="no-scrollbar -mx-1 flex gap-1.5 overflow-x-auto px-1 py-0.5">
+              <FilterChip active={filter === "all"} onClick={() => setFilter("all")} label="All" count={totalComments} />
+              <FilterChip
+                active={filter === "general"}
+                onClick={() => setFilter("general")}
+                label="General"
+                count={generalComments.length}
+                unseen={generalUnseen}
               />
+              {matchBlocksWithComments.map((b) => (
+                <FilterChip
+                  key={b.matchId}
+                  active={filter === b.matchId}
+                  onClick={() => setFilter(b.matchId)}
+                  label={`Match ${matchIndexById.get(b.matchId) ?? b.matchId}`}
+                  count={b.comments.length}
+                  unseen={!!token && b.comments.some((c) => !seen.has(c.id))}
+                />
+              ))}
             </div>
+          ) : null}
 
-            <div className="mt-3 border-t border-border-card-inner/50 pt-3 space-y-2">
-              {grouped.tournament.length ? (
-                [pinnedTournamentComment, ...grouped.tournament.filter((c) => c.id !== pinnedTournamentComment?.id)]
-                  .filter(Boolean)
-                  .map((c: TournamentComment | null) => (
-                  <CommentCard
-                    key={c!.id}
-                    c={c!}
-                    isEditing={editingId === c!.id}
-                    isPinned={pinnedTournamentCommentId === c!.id}
-                    isUnseen={!!token && !seen.has(c!.id)}
-                    onMarkSeen={() => {
-                      if (!token || markReadMut.isPending) return;
-                      markReadMut.mutate(c!.id);
-                    }}
-                    flash={flashId === c!.id}
-                    surfaceClassName="panel"
-                    avatarUpdatedAt={
-                      c!.author.kind === "player" ? avatarUpdatedAtByPlayerId.get(c!.author.playerId) ?? null : null
-                    }
-                    onOpenImage={(src) => setLightboxSrc(src)}
-                    canPin={
-                      c!.scope.kind === "tournament" &&
-                      canWrite &&
-                      (pinnedTournamentCommentId == null || pinnedTournamentCommentId === c!.id)
-                    }
-                    onTogglePin={
-                      c!.scope.kind === "tournament" &&
-                      canWrite &&
-                      (pinnedTournamentCommentId == null || pinnedTournamentCommentId === c!.id)
-                        ? () => {
-                            const next = pinnedTournamentCommentId === c!.id ? null : c!.id;
-                            void pinMut.mutateAsync(next);
-                          }
-                        : null
-                    }
-                    canWrite={canWrite}
-                    canDelete={canDelete}
-                    players={players}
-                    currentPlayerId={currentPlayerId}
-                    currentPlayerName={currentPlayerName}
-                    authorLabel={authorLabel}
-                    onToggleEdit={() => toggleEdit(c!)}
-                    onDelete={() => {
-                      void deleteComment(c!.id);
-                    }}
-                    onVote={(value) => {
-                      if (!token || voteMut.isPending) return;
-                      voteMut.mutate({ commentId: c!.id, value });
-                    }}
-                    onOpenVoters={() => setVoteVotersCommentId(c!.id)}
-                    draftAuthor={draftAuthor}
-                    onChangeDraftAuthor={setDraftAuthor}
-                    draftBody={draftBody}
-                    onChangeDraftBody={setDraftBody}
-                    onSave={() => {
-                      void upsertComment(c!.scope);
-                    }}
-                    canSubmit={canSubmit && (editingId !== c!.id || editingDirty)}
-                  />
-                ))
-              ) : (
-                <div className="text-sm text-text-muted">No tournament comments yet.</div>
-              )}
+          {/* Add comment */}
+          {canWrite ? (
+            addTarget ? (
+              composer
+            ) : (
+              <Button type="button" variant="ghost" onClick={() => openComposer(defaultAddScope())}>
+                <i className="fa-solid fa-plus mr-1.5" aria-hidden="true" />
+                Add comment
+              </Button>
+            )
+          ) : null}
+
+          {/* Feed */}
+          {onlyMatchId != null ? (
+            renderMatchBlock(onlyMatchId, "panel-subtle")
+          ) : filter === "general" ? (
+            <div className="panel-subtle p-3">
+              <div className="mb-3 text-sm font-semibold">General</div>
+              {renderGeneralList()}
             </div>
-          </div>
-
-          {grouped.blocks.map((b) => {
-            const h = matchHeaderMeta(b.matchId);
-            const addOpenForMatch = canWrite && sameScope(addTarget, { kind: "match", matchId: b.matchId });
-            return (
-              <div
-                key={b.matchId}
-                id={`comments-block-match-${b.matchId}`}
-                className="card-inner-flat scroll-mt-28 sm:scroll-mt-32"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="text-sm font-semibold">{h?.title ?? `Match #${b.matchId}`}</div>
-                  <div className="flex items-center gap-2">
-                    <div className="text-xs text-text-muted">{b.comments.length}</div>
-                    {canWrite ? (
-                      <ScopeActionButton
-                        open={addOpenForMatch}
-                        onClick={() => startAdd({ kind: "match", matchId: b.matchId })}
-                        titleClosed="Add match comment"
-                        titleOpen="Cancel"
-                      />
-                    ) : null}
+          ) : typeof filter === "number" ? (
+            renderMatchBlock(filter, "panel-subtle")
+          ) : (
+            <div className="space-y-2">
+              {generalComments.length ? (
+                <div className="panel-subtle p-3">
+                  <div className="mb-3 flex items-center justify-between gap-2">
+                    <div className="text-sm font-semibold">General</div>
+                    <div className="text-xs text-text-muted">{generalComments.length}</div>
                   </div>
+                  {renderGeneralList()}
                 </div>
-
-                {h ? (
-                  <div className="mt-2 space-y-1">
-                    {/* Row 3: players + result */}
-                    <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3">
-                      <div className="min-w-0 truncate text-sm text-text-normal">{h.aPlayers}</div>
-                      <div className="card-chip justify-self-center flex items-center justify-center gap-2">
-                        {h.aGoals == null || h.bGoals == null ? (
-                          <span className="text-sm font-semibold tabular-nums text-text-muted">—</span>
-                        ) : (
-                          <>
-                            <span className="text-sm font-semibold tabular-nums">{h.aGoals}</span>
-                            <span className="text-text-muted">:</span>
-                            <span className="text-sm font-semibold tabular-nums">{h.bGoals}</span>
-                          </>
-                        )}
-                      </div>
-                      <div className="min-w-0 truncate text-sm text-right text-text-normal">{h.bPlayers}</div>
-                    </div>
-
-                    {/* Row 4: clubs */}
-                    <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-start gap-3 text-xs text-text-muted">
-                      <div className="min-w-0 whitespace-normal break-words leading-tight">
-                        {h.aClub.present ? h.aClub.name : "—"}
-                      </div>
-                      <div />
-                      <div className="min-w-0 text-right whitespace-normal break-words leading-tight">
-                        {h.bClub.present ? h.bClub.name : "—"}
-                      </div>
-                    </div>
-
-                    {/* Row 5: stars */}
-                    <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 text-[11px] text-text-muted">
-                      <div className="min-w-0">
-                        {h.aClub.present ? (
-                          <StarsFA rating={h.aClub.rating ?? 0} textClassName="text-text-muted" />
-                        ) : (
-                          <span className="text-text-muted">—</span>
-                        )}
-                      </div>
-                      <div />
-                      <div className="min-w-0 flex justify-end">
-                        {h.bClub.present ? (
-                          <StarsFA rating={h.bClub.rating ?? 0} textClassName="text-text-muted" />
-                        ) : (
-                          <span className="text-text-muted">—</span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                ) : null}
-
-                <div className="mt-3">
-                  <AddCommentDropdown
-                    open={addOpenForMatch}
-                    authorOptions={addAuthorOptions}
-                    draftAuthor={draftAuthor}
-                    onChangeDraftAuthor={setDraftAuthor}
-                    draftMode={draftMode}
-                    onChangeDraftMode={handleDraftModeChange}
-                    allowMatchEventModes={true}
-                    goalTeams={goalTeamsForScope({ kind: "match", matchId: b.matchId })}
-                    goalSide={goalSide}
-                    onChangeGoalSide={handleGoalSideChange}
-                    goalPlayers={goalPlayersForScope({ kind: "match", matchId: b.matchId }, goalSide)}
-                    goalMinute={goalMinute}
-                    onChangeGoalMinute={setGoalMinute}
-                    goalPlayerName={goalPlayerName}
-                    onChangeGoalPlayerName={setGoalPlayerName}
-                    draftBody={draftBody}
-                    onChangeDraftBody={setDraftBody}
-                    canAttachImage={canAttachImage}
-                    imagePreviewUrl={draftImagePreviewUrl}
-                    onOpenImageCropper={() => setImageCropOpen(true)}
-                    onClearImage={() => setDraftImage(null)}
-                    onSubmit={() => {
-                      void upsertComment({ kind: "match", matchId: b.matchId });
-                    }}
-                    canSubmit={canSubmit}
-                    surfaceClassName="panel-subtle"
-                  />
+              ) : null}
+              {matchBlocksWithComments.map((b) => renderMatchBlock(b.matchId, "panel-subtle"))}
+              {totalComments === 0 ? (
+                <div className="panel-subtle px-3 py-6 text-center text-sm text-text-muted">
+                  No comments yet.{canWrite ? " Be the first to add one." : ""}
                 </div>
-
-                <div className="mt-3 border-t border-border-card-inner/50 pt-3 space-y-2">
-                  {b.comments.length ? (
-                    b.comments.map((c) => (
-                      <CommentCard
-                        key={c.id}
-                        c={c}
-                        isEditing={editingId === c.id}
-                        isPinned={false}
-                        isUnseen={!!token && !seen.has(c.id)}
-                        onMarkSeen={() => {
-                          if (!token || markReadMut.isPending) return;
-                          markReadMut.mutate(c.id);
-                        }}
-                          flash={flashId === c.id}
-                          surfaceClassName="panel-subtle"
-                          avatarUpdatedAt={
-                            c.author.kind === "player" ? avatarUpdatedAtByPlayerId.get(c.author.playerId) ?? null : null
-                          }
-                          onOpenImage={(src) => setLightboxSrc(src)}
-                          canPin={false}
-                        onTogglePin={null}
-                        canWrite={canWrite}
-                        canDelete={canDelete}
-                        players={players}
-                        currentPlayerId={currentPlayerId}
-                        currentPlayerName={currentPlayerName}
-                        authorLabel={authorLabel}
-                        onToggleEdit={() => toggleEdit(c)}
-                        onDelete={() => {
-                          void deleteComment(c.id);
-                        }}
-                        onVote={(value) => {
-                          if (!token || voteMut.isPending) return;
-                          voteMut.mutate({ commentId: c.id, value });
-                        }}
-                        onOpenVoters={() => setVoteVotersCommentId(c.id)}
-                        draftAuthor={draftAuthor}
-                        onChangeDraftAuthor={setDraftAuthor}
-                        draftBody={draftBody}
-                        onChangeDraftBody={setDraftBody}
-                        onSave={() => {
-                          void upsertComment(c.scope);
-                        }}
-                        canSubmit={canSubmit && (editingId !== c.id || editingDirty)}
-                      />
-                    ))
-                  ) : (
-                    <div className="text-sm text-text-muted">No comments yet.</div>
-                  )}
-                </div>
-              </div>
-            );
-          })}
+              ) : null}
+            </div>
+          )}
         </div>
     </>
   );

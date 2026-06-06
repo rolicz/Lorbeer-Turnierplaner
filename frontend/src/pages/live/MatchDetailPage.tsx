@@ -22,12 +22,9 @@ import { useAuth } from "../../auth/AuthContext";
 import { useRouteEntryLoading } from "../../ui/layout/useRouteEntryLoading";
 
 import MatchH2HPanel from "./MatchH2HPanel";
+import TournamentCommentsCard from "./TournamentCommentsCard";
 
-type Tab = "h2h" | "edit";
-const TABS: SectionTab<Tab>[] = [
-  { key: "h2h", label: "Head-to-Head" },
-  { key: "edit", label: "Edit result" },
-];
+type Tab = "h2h" | "comments" | "edit";
 
 function parseGoal(v: string): number {
   const x = Number.parseInt(String(v ?? "").trim(), 10);
@@ -160,7 +157,11 @@ export default function MatchDetailPage() {
   const bPlayers = bSide?.players.map((p) => p.display_name).join(" + ") ?? "—";
   const tournamentName = tQ.data?.name ?? `Tournament #${tid}`;
 
-  const tabs = canEditResult ? TABS : TABS.filter((t) => t.key === "h2h");
+  const tabs: SectionTab<Tab>[] = [
+    { key: "h2h", label: "Head-to-Head" },
+    { key: "comments", label: "Comments" },
+    ...(canEditResult ? [{ key: "edit" as Tab, label: "Edit result" }] : []),
+  ];
 
   return (
     <div className="page">
@@ -190,12 +191,23 @@ export default function MatchDetailPage() {
 
       {match ? (
         <>
-          {tabs.length > 1 ? (
-            <SectionTabs tabs={tabs} active={activeTab} onChange={setActiveTab} className="mb-4" />
+          <SectionTabs tabs={tabs} active={activeTab} onChange={setActiveTab} className="mb-4" />
+
+          {activeTab === "h2h" ? (
+            <MatchH2HPanel match={match} clubs={clubsQ.data ?? []} />
           ) : null}
 
-          {activeTab === "h2h" || tabs.length === 1 ? (
-            <MatchH2HPanel match={match} clubs={clubsQ.data ?? []} />
+          {activeTab === "comments" ? (
+            <TournamentCommentsCard
+              tournamentId={tid}
+              matches={tQ.data?.matches ?? []}
+              clubs={clubsQ.data ?? []}
+              players={tQ.data?.players ?? []}
+              canWrite={canEdit}
+              canDelete={isAdmin}
+              collapsible={false}
+              onlyMatchId={matchId}
+            />
           ) : null}
 
           {activeTab === "edit" && canEditResult ? (
