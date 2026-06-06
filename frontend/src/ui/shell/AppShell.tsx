@@ -8,6 +8,8 @@ import { listTournamentCommentsSummary, listTournamentCommentReadMap } from "../
 import { useThemeManager } from "../layout/useThemeManager";
 import { usePullToRefresh } from "../layout/usePullToRefresh";
 import { SubNavProvider } from "../layout/SubNavContext";
+import { RealtimeProvider } from "../../hooks/realtime/RealtimeProvider";
+import { useAnyTournamentWS } from "../../hooks/realtime/useRealtime";
 import Sidebar from "./Sidebar";
 import MobileChrome from "./MobileChrome";
 import SubNavBar from "./SubNavBar";
@@ -18,6 +20,10 @@ function ShellInner({ children }: { children: React.ReactNode }) {
   const { token, accountRole, playerId } = useAuth();
   const qc = useQueryClient();
   const { theme, setTheme } = useThemeManager();
+
+  // Always-on global channel: keeps list/live/cup fresh app-wide and drives the
+  // connection indicator on every route.
+  useAnyTournamentWS();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [collapsed, setCollapsed] = useState<boolean>(() => localStorage.getItem(COLLAPSE_KEY) === "1");
 
@@ -115,8 +121,10 @@ function ShellInner({ children }: { children: React.ReactNode }) {
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   return (
-    <SubNavProvider>
-      <ShellInner>{children}</ShellInner>
-    </SubNavProvider>
+    <RealtimeProvider>
+      <SubNavProvider>
+        <ShellInner>{children}</ShellInner>
+      </SubNavProvider>
+    </RealtimeProvider>
   );
 }
