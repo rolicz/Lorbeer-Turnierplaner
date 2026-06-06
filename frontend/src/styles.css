@@ -646,18 +646,22 @@
 
 * { -webkit-tap-highlight-color: transparent; }
 
-/* ---- App-like defaults + fix horizontal scroll ---- */
+/* ---- App-like defaults + fix horizontal scroll ----
+   Use overflow-x: clip (not hidden): `hidden` forces overflow-y to compute to
+   `auto`, which makes <body> the scroll container and breaks window scroll
+   tracking on mobile Safari (the auto-hide top bar relied on it). `clip` keeps
+   overflow-y: visible so the document/window stays the scroller. */
 html, body {
   width: 100%;
   max-width: 100%;
-  overflow-x: hidden;
+  overflow-x: clip;
 }
 
 /* If your root element has an id, keep this (harmless if not present) */
 #root, #app {
   width: 100%;
   max-width: 100%;
-  overflow-x: hidden;
+  overflow-x: clip;
 }
 
 /* iOS Safari: prevent weird zoom/text autosizing on rotate */

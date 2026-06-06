@@ -153,6 +153,16 @@ export default function TournamentCommentsCard({
   };
   const [voteVotersCommentId, setVoteVotersCommentId] = useState<number | null>(null);
 
+  // Per-group collapse within the feed (key: "general" | `m-${matchId}`).
+  const [collapsedBlocks, setCollapsedBlocks] = useState<Set<string>>(new Set());
+  const toggleBlock = (key: string) =>
+    setCollapsedBlocks((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+
   const commentsQ = useQuery({
     queryKey: ["comments", tournamentId, token ?? "none"],
     queryFn: () => listTournamentComments(tournamentId, token),
@@ -774,13 +784,14 @@ export default function TournamentCommentsCard({
     );
   }
 
-  /** A match block: header (score/clubs/stars) + its comments. */
+  /** A match block: header (score/clubs/stars) + its comments. Header toggles collapse. */
   function renderMatchBlock(matchId: number, surface: string) {
     const h = matchHeaderMeta(matchId);
     const arr = (grouped.blocks.find((b) => b.matchId === matchId)?.comments ?? []);
-    return (
-      <div key={matchId} id={`comments-block-match-${matchId}`} className="card-inner-flat scroll-mt-28 sm:scroll-mt-32">
-        {h && showMatchHeader ? (
+    const blockKey = `m-${matchId}`;
+    const isCollapsed = showMatchHeader && collapsedBlocks.has(blockKey);
+    const unseenHere = !!token && arr.some((c) => !seen.has(c.id));
+    const headerInner = h ? (
           <div className="space-y-1">
             <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3">
               <div className="min-w-0 truncate text-sm text-text-normal">{h.aPlayers}</div>
@@ -808,13 +819,32 @@ export default function TournamentCommentsCard({
               <div className="flex min-w-0 justify-end">{h.bClub.present ? <StarsFA rating={h.bClub.rating ?? 0} textClassName="text-text-muted" /> : <span>—</span>}</div>
             </div>
           </div>
+    ) : null;
+    return (
+      <div key={matchId} id={`comments-block-match-${matchId}`} className="card-inner-flat scroll-mt-28 sm:scroll-mt-32">
+        {h && showMatchHeader ? (
+          <button
+            type="button"
+            onClick={() => toggleBlock(blockKey)}
+            className="flex w-full items-start gap-2 text-left"
+            aria-expanded={!isCollapsed}
+          >
+            <i className={`fa-solid ${isCollapsed ? "fa-chevron-right" : "fa-chevron-down"} mt-1 text-[11px] text-text-muted`} aria-hidden="true" />
+            <span className="min-w-0 flex-1">{headerInner}</span>
+            <span className="mt-0.5 inline-flex items-center gap-1.5 text-[11px] text-text-muted">
+              {unseenHere ? <span className="h-1.5 w-1.5 rounded-full bg-accent" aria-hidden="true" /> : null}
+              {arr.length}
+            </span>
+          </button>
         ) : null}
 
-        <div className="mt-3 space-y-2">
-          {arr.length ? arr.map((c) => renderCommentCard(c, surface)) : (
-            <div className="text-sm text-text-muted">No comments on this match yet.</div>
-          )}
-        </div>
+        {!isCollapsed ? (
+          <div className="mt-3 space-y-2">
+            {arr.length ? arr.map((c) => renderCommentCard(c, surface)) : (
+              <div className="text-sm text-text-muted">No comments on this match yet.</div>
+            )}
+          </div>
+        ) : null}
       </div>
     );
   }
@@ -932,6 +962,23 @@ export default function TournamentCommentsCard({
             renderMatchBlock(filter, "panel-subtle")
           ) : (
             <div className="space-y-2">
+              {matchBlocksWithComments.length ? (
+                <div className="flex justify-end">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const keys = matchBlocksWithComments.map((b) => `m-${b.matchId}`);
+                      const allCollapsed = keys.every((k) => collapsedBlocks.has(k));
+                      setCollapsedBlocks(allCollapsed ? new Set() : new Set(keys));
+                    }}
+                    className="text-xs text-text-muted transition hover:text-text-normal"
+                  >
+                    {matchBlocksWithComments.every((b) => collapsedBlocks.has(`m-${b.matchId}`))
+                      ? "Expand all"
+                      : "Collapse all"}
+                  </button>
+                </div>
+              ) : null}
               {generalComments.length ? (
                 <div className="panel-subtle p-3">
                   <div className="mb-3 flex items-center justify-between gap-2">

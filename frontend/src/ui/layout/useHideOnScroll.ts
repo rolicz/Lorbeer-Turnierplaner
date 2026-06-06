@@ -14,13 +14,19 @@ export function useHideOnScroll(threshold = 64): HideOnScroll {
   const ticking = useRef(false);
 
   useEffect(() => {
-    lastY.current = window.scrollY;
+    // Read from the actual document scroller (robust across the body-vs-window
+    // scroll-container differences between browsers).
+    const scrollY = () => {
+      const se = document.scrollingElement || document.documentElement;
+      return Math.max(0, se?.scrollTop || window.scrollY || 0);
+    };
+    lastY.current = scrollY();
 
     const onScroll = () => {
       if (ticking.current) return;
       ticking.current = true;
       window.requestAnimationFrame(() => {
-        const y = Math.max(0, window.scrollY);
+        const y = scrollY();
         const delta = y - lastY.current;
 
         setAtTop(y < 8);
