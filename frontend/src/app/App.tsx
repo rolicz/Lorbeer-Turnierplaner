@@ -11,7 +11,6 @@ import FriendliesPage from "../pages/FriendliesPage";
 import StatsPage from "../pages/StatsPage";
 import ProfilePage from "../pages/ProfilePage";
 import SettingsPage from "../pages/SettingsPage";
-import NewTournamentPage from "../pages/NewTournamentPage";
 import MatchDetailPage from "../pages/live/MatchDetailPage";
 import { RequireRole } from "../auth/RequireRole";
 
@@ -25,9 +24,7 @@ export default function App() {
         <Route path="/tournaments" element={<TournamentsPage />} />
         <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/settings" element={<SettingsPage />} />
-        <Route path="/tournaments/new" element={
-          <RequireRole minRole="editor"><NewTournamentPage /></RequireRole>
-        } />
+        <Route path="/tournaments/new" element={<Navigate to="/tournaments?tab=new" replace />} />
         <Route path="/live/:id" element={<LiveTournamentPage />} />
         <Route path="/live/:id/match/:mid" element={<MatchDetailPage />} />
 

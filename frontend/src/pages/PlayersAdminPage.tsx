@@ -8,6 +8,8 @@ import { ErrorToastOnError } from "../ui/primitives/ErrorToast";
 import PageLoadingScreen from "../ui/primitives/PageLoadingScreen";
 import AvatarCircle from "../ui/primitives/AvatarCircle";
 import { Pill } from "../ui/primitives/Pill";
+import { SectionTabs, type SectionTab } from "../ui/SectionTabs";
+import { Users, UserPlus } from "lucide-react";
 import { useRouteEntryLoading } from "../ui/layout/useRouteEntryLoading";
 
 import { useAuth } from "../auth/AuthContext";
@@ -29,6 +31,13 @@ export default function PlayersAdminPage() {
   const isAdmin = role === "admin";
   const navigate = useNavigate();
   const qc = useQueryClient();
+
+  type PlayersTab = "players" | "add";
+  const [tab, setTab] = useState<PlayersTab>("players");
+  const playersTabs: SectionTab<PlayersTab>[] = [
+    { key: "players", label: "Players", icon: <Users size={14} /> },
+    ...(isAdmin ? [{ key: "add" as PlayersTab, label: "Add player", icon: <UserPlus size={14} /> }] : []),
+  ];
 
   const playersQ = useQuery({ queryKey: ["players"], queryFn: listPlayers });
   const profilesQ = useQuery({ queryKey: ["players", "profiles"], queryFn: listPlayerProfiles });
@@ -134,9 +143,16 @@ export default function PlayersAdminPage() {
       <ErrorToastOnError error={patchMut.error} title="Could not save player" />
       <ErrorToastOnError error={guestbookSummaryQ.error} title="Guestbook summary loading failed" />
       <ErrorToastOnError error={pokesSummaryQ.error} title="Poke summary loading failed" />
-      {isAdmin ? (
-        <div className="panel-subtle p-3 space-y-2">
-          <div className="text-xs text-text-muted">Create player</div>
+
+      <div className="mb-1 hidden lg:block">
+        <h1 className="text-xl font-bold tracking-tight text-text-normal">Players</h1>
+      </div>
+
+      <SectionTabs tabs={playersTabs} active={tab} onChange={setTab} />
+
+      {tab === "add" && isAdmin ? (
+        <div className="card-outer space-y-2">
+          <div className="text-sm font-semibold text-text-normal">Create player</div>
           <div className="flex flex-wrap items-end gap-2">
             <Input label="Name" value={newName} onChange={(e) => setNewName(e.target.value)} />
             <Button
@@ -149,13 +165,7 @@ export default function PlayersAdminPage() {
             </Button>
           </div>
         </div>
-      ) : null}
-
-      <div className="inline-flex items-center gap-2 text-sm font-semibold text-text-normal">
-        <i className="fa-solid fa-users text-text-muted" aria-hidden="true" />
-        <span>All Players</span>
-      </div>
-
+      ) : (
       <div className="panel-subtle rounded-2xl overflow-hidden">
         <div className="grid grid-cols-12 items-center gap-2 border-b border-border-card-inner bg-bg-card-chip/20 px-3 py-2 text-[11px] text-text-muted">
           <div className="col-span-8">Player</div>
@@ -287,7 +297,7 @@ export default function PlayersAdminPage() {
           );
         })}
       </div>
-
+      )}
     </div>
   );
 }

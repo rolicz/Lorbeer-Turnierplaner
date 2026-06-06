@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Check, Eye, LogIn, LogOut, UserCog } from "lucide-react";
@@ -8,6 +8,8 @@ import { useTheme } from "../ui/layout/ThemeContext";
 import { usePageTitle } from "../ui/layout/PageTitleContext";
 import { useStatsExperience, setStatsExperience } from "../ui/layout/useStatsMode";
 import SegmentedSwitch from "../ui/primitives/SegmentedSwitch";
+import { SectionTabs, type SectionTab } from "../ui/SectionTabs";
+import { UserCircle2, Bell, Palette, FlaskConical } from "lucide-react";
 import { qk } from "../api/queryKeys";
 import { listPlayers } from "../api/players.api";
 import PushNotificationsSettings from "../ui/layout/PushNotificationsSettings";
@@ -74,6 +76,15 @@ export default function SettingsPage() {
   usePageTitle("Settings");
   const statsExperience = useStatsExperience();
 
+  type SettingsTab = "account" | "appearance" | "notifications" | "experiments";
+  const [tab, setTab] = useState<SettingsTab>("account");
+  const settingsTabs: SectionTab<SettingsTab>[] = [
+    { key: "account", label: "Account", icon: <UserCircle2 size={14} /> },
+    { key: "appearance", label: "Appearance", icon: <Palette size={14} /> },
+    { key: "notifications", label: "Notifications", icon: <Bell size={14} /> },
+    { key: "experiments", label: "Experiments", icon: <FlaskConical size={14} /> },
+  ];
+
   if (!pageEntered) {
     return <div className="page"><PageLoadingScreen sectionCount={3} /></div>;
   }
@@ -85,7 +96,11 @@ export default function SettingsPage() {
         <ConnectionIndicator />
       </div>
 
+      <SectionTabs tabs={settingsTabs} active={tab} onChange={setTab} className="mb-4" />
+
       <div className="mx-auto grid max-w-2xl gap-4">
+        {tab === "account" ? (
+        <>
         {/* Account */}
         <SettingsSection title="Account">
           <div className="flex items-center justify-between gap-2">
@@ -173,8 +188,11 @@ export default function SettingsPage() {
             </div>
           </SettingsSection>
         ) : null}
+        </>
+        ) : null}
 
-        {/* Experiments */}
+        {tab === "experiments" ? (
+        /* Experiments */
         <SettingsSection title="Experiments">
           <div className="flex items-center justify-between gap-3">
             <div className="min-w-0">
@@ -194,13 +212,17 @@ export default function SettingsPage() {
             />
           </div>
         </SettingsSection>
+        ) : null}
 
-        {/* Notifications */}
+        {tab === "notifications" ? (
+        /* Notifications */
         <SettingsSection title="Notifications">
           <PushNotificationsSettings token={token} />
         </SettingsSection>
+        ) : null}
 
-        {/* Theme */}
+        {tab === "appearance" ? (
+        /* Theme */
         <SettingsSection title="Theme">
           <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
             {THEMES.map((opt) => {
@@ -234,6 +256,7 @@ export default function SettingsPage() {
             })}
           </div>
         </SettingsSection>
+        ) : null}
       </div>
     </div>
   );

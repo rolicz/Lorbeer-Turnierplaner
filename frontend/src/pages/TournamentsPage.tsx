@@ -1,13 +1,13 @@
-import { useMemo, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, RefreshCw } from "lucide-react";
+import { useMemo } from "react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
+import { List, Plus } from "lucide-react";
 
-import Button from "../ui/primitives/Button";
 import { Pill, pillDate, statusPill } from "../ui/primitives/Pill";
 import { ErrorToastOnError } from "../ui/primitives/ErrorToast";
 import PageLoadingScreen from "../ui/primitives/PageLoadingScreen";
 import { SectionTabs, type SectionTab } from "../ui/SectionTabs";
+import NewTournamentForm from "./tournaments/NewTournamentForm";
 
 import { tournamentPalette, tournamentStatusUI } from "../ui/theme";
 import { cn } from "../ui/cn";
@@ -47,11 +47,24 @@ function CupStakePill({ stake }: { stake: NonNullable<TournamentSummary["cup_sta
 }
 
 export default function TournamentsPage() {
-  const qc = useQueryClient();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { role, token } = useAuth();
   const canWrite = role === "editor" || role === "admin";
   const pageEntered = useRouteEntryLoading();
+
+  type TTab = "all" | "new";
+  const tab: TTab = canWrite && searchParams.get("tab") === "new" ? "new" : "all";
+  const setTab = (t: TTab) => {
+    const n = new URLSearchParams(searchParams);
+    if (t === "new") n.set("tab", "new");
+    else n.delete("tab");
+    setSearchParams(n, { replace: true });
+  };
+  const tabs: SectionTab<TTab>[] = [
+    { key: "all", label: "All tournaments", icon: <List size={14} /> },
+    ...(canWrite ? [{ key: "new" as TTab, label: "New tournament", icon: <Plus size={14} /> }] : []),
+  ];
 
   const tournamentsQ = useQuery({ queryKey: qk.tournaments(), queryFn: listTournaments });
   const summaryQ = useQuery({ queryKey: qk.commentsSummary(), queryFn: listTournamentCommentsSummary });
@@ -69,18 +82,6 @@ export default function TournamentsPage() {
       return b.id - a.id;
     });
   }, [tournamentsQ.data]);
-
-  const [statusFilter, setStatusFilter] = useState<"all" | "live" | "done">("all");
-  const statusTabs: SectionTab<"all" | "live" | "done">[] = [
-    { key: "all", label: "All" },
-    { key: "live", label: "Live" },
-    { key: "done", label: "Finished" },
-  ];
-  const visibleTournaments = useMemo(() => {
-    if (statusFilter === "all") return tournamentsSorted;
-    if (statusFilter === "live") return tournamentsSorted.filter((t) => (t.status ?? "draft") !== "done");
-    return tournamentsSorted.filter((t) => t.status === "done");
-  }, [tournamentsSorted, statusFilter]);
 
   const tournamentIds = useMemo(() => tournamentsSorted.map((t) => t.id), [tournamentsSorted]);
   const seenIdsByTid = useSeenIdsByTournamentId(tournamentIds);
@@ -105,32 +106,16 @@ export default function TournamentsPage() {
       <ErrorToastOnError error={tournamentsQ.error} title="Tournaments loading failed" />
 
       {/* Header */}
-      <div className="mb-4 flex items-center justify-between gap-3">
-        <div>
-          <h1 className="hidden text-xl font-bold tracking-tight text-text-normal lg:block">Tournaments</h1>
-          <p className="text-sm text-text-muted">{tournamentsSorted.length} total</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="ghost"
-            onClick={() => void qc.invalidateQueries({ queryKey: qk.tournaments() })}
-            title="Refresh"
-            aria-label="Refresh"
-          >
-            <RefreshCw size={15} />
-          </Button>
-          {canWrite ? (
-            <Button onClick={() => navigate("/tournaments/new")} type="button">
-              <Plus size={15} className="mr-1" />
-              New
-            </Button>
-          ) : null}
-        </div>
+      <div className="mb-4 hidden lg:block">
+        <h1 className="text-xl font-bold tracking-tight text-text-normal">Tournaments</h1>
       </div>
 
-      <SectionTabs tabs={statusTabs} active={statusFilter} onChange={setStatusFilter} className="mb-4" />
+      <SectionTabs tabs={tabs} active={tab} onChange={setTab} className="mb-4" />
 
-      {/* Tournament list */}
+      {tab === "new" && canWrite ? (
+        <NewTournamentForm onCancel={() => setTab("all")} />
+      ) : (
+      /* Tournament list */
       <div className="space-y-2">
         {tournamentsQ.isLoading ? <div className="text-text-muted">Loading…</div> : null}
         {tournamentsSorted.length === 0 && !tournamentsQ.isLoading ? (
@@ -140,7 +125,7 @@ export default function TournamentsPage() {
               <button
                 type="button"
                 className="ml-1 text-accent underline underline-offset-2"
-                onClick={() => navigate("/tournaments/new")}
+                onClick={() => setTab("new")}
               >
                 Create one.
               </button>
@@ -148,13 +133,7 @@ export default function TournamentsPage() {
           </div>
         ) : null}
 
-        {tournamentsSorted.length > 0 && visibleTournaments.length === 0 && !tournamentsQ.isLoading ? (
-          <div className="rounded-xl border border-border-card-chip/40 px-4 py-8 text-center text-sm text-text-muted">
-            No {statusFilter === "live" ? "active" : "finished"} tournaments.
-          </div>
-        ) : null}
-
-        {visibleTournaments.map((t) => {
+        {tournamentsSorted.map((t) => {
           const st: Status = (t.status as Status) ?? "draft";
           const ui = tournamentStatusUI(st);
           const pal = tournamentPalette(st);
@@ -238,6 +217,7 @@ export default function TournamentsPage() {
           );
         })}
       </div>
+      )}
     </div>
   );
 }

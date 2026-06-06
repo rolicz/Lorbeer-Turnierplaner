@@ -1,11 +1,13 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { LayoutDashboard, Trophy } from "lucide-react";
 
 import CupCard from "./CupCard";
 import CurrentMatchPreviewCard from "./CurrentMatchPreviewCard";
 import TrendsPreviewCard from "./TrendsPreviewCard";
 import CollapsibleCard from "../../ui/primitives/CollapsibleCard";
 import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
+import { SectionTabs, type SectionTab } from "../../ui/SectionTabs";
 import { listCupDefs } from "../../api/cup.api";
 import { apiFetch } from "../../api/client";
 import { cupColorVarForKey, rgbFromCssVar } from "../../cupColors";
@@ -20,8 +22,15 @@ type LiveTournamentLite = {
   date?: string | null;
 };
 
+type DashTab = "overview" | "cups";
+const DASH_TABS: SectionTab<DashTab>[] = [
+  { key: "overview", label: "Overview", icon: <LayoutDashboard size={14} /> },
+  { key: "cups", label: "Cups", icon: <Trophy size={14} /> },
+];
+
 export default function DashboardPage() {
   const pageEntered = useRouteEntryLoading();
+  const [dashTab, setDashTab] = useState<DashTab>("overview");
 
   const defsQ = useQuery({ queryKey: ["cup", "defs"], queryFn: listCupDefs });
   const liveQ = useQuery({
@@ -63,13 +72,20 @@ export default function DashboardPage() {
     <div className="page space-y-4">
       <ErrorToastOnError error={defsQ.error} title="Dashboard loading failed" />
 
-      {/* Live-now hero — full-width when a tournament is running */}
-      <CurrentMatchPreviewCard />
+      <div className="mb-1 hidden lg:block">
+        <h1 className="text-xl font-bold tracking-tight text-text-normal">Dashboard</h1>
+      </div>
 
-      {/* Two-column grid on desktop for Trends + Cup cards */}
+      <SectionTabs tabs={DASH_TABS} active={dashTab} onChange={setDashTab} />
+
+      {dashTab === "overview" ? (
+        <div className="space-y-4">
+          <CurrentMatchPreviewCard />
+          <TrendsPreviewCard />
+        </div>
+      ) : (
+      /* Cups */
       <div className="grid gap-4 lg:grid-cols-2">
-        <TrendsPreviewCard />
-
         {cups.map((c) => (
           <CollapsibleCard
             key={c.key}
@@ -106,6 +122,7 @@ export default function DashboardPage() {
           </CollapsibleCard>
         ))}
       </div>
+      )}
     </div>
   );
 }
