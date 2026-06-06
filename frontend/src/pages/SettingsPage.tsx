@@ -198,15 +198,16 @@ export default function SettingsPage() {
             <div className="min-w-0">
               <div className="text-sm font-medium text-text-normal">Stats layout</div>
               <div className="text-xs text-text-muted">
-                Try the new “Insights” stats: a league standings + per-player profile.
+                New dashboard (standings + graphs + player profiles, with a Simple/Detailed
+                toggle) or the classic 7-section view.
               </div>
             </div>
             <SegmentedSwitch<"classic" | "insights">
               value={statsExperience}
               onChange={(v) => setStatsExperience(v)}
               options={[
+                { key: "insights", label: "New" },
                 { key: "classic", label: "Classic" },
-                { key: "insights", label: "Insights" },
               ]}
               ariaLabel="Stats layout"
             />

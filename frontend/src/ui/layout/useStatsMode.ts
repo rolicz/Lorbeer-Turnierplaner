@@ -10,7 +10,8 @@ const KEY = "stats-experience";
 const EVENT = "stats-experience-change";
 
 function read(): StatsMode {
-  return localStorage.getItem(KEY) === "insights" ? "insights" : "classic";
+  // New "insights" dashboard is the default; classic is opt-out.
+  return localStorage.getItem(KEY) === "classic" ? "classic" : "insights";
 }
 
 export function setStatsExperience(mode: StatsMode) {
