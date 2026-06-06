@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus, RefreshCw } from "lucide-react";
@@ -7,6 +7,7 @@ import Button from "../ui/primitives/Button";
 import { Pill, pillDate, statusPill } from "../ui/primitives/Pill";
 import { ErrorToastOnError } from "../ui/primitives/ErrorToast";
 import PageLoadingScreen from "../ui/primitives/PageLoadingScreen";
+import { SectionTabs, type SectionTab } from "../ui/SectionTabs";
 
 import { tournamentPalette, tournamentStatusUI } from "../ui/theme";
 import { cn } from "../ui/cn";
@@ -69,6 +70,18 @@ export default function TournamentsPage() {
     });
   }, [tournamentsQ.data]);
 
+  const [statusFilter, setStatusFilter] = useState<"all" | "live" | "done">("all");
+  const statusTabs: SectionTab<"all" | "live" | "done">[] = [
+    { key: "all", label: "All" },
+    { key: "live", label: "Live" },
+    { key: "done", label: "Finished" },
+  ];
+  const visibleTournaments = useMemo(() => {
+    if (statusFilter === "all") return tournamentsSorted;
+    if (statusFilter === "live") return tournamentsSorted.filter((t) => (t.status ?? "draft") !== "done");
+    return tournamentsSorted.filter((t) => t.status === "done");
+  }, [tournamentsSorted, statusFilter]);
+
   const tournamentIds = useMemo(() => tournamentsSorted.map((t) => t.id), [tournamentsSorted]);
   const seenIdsByTid = useSeenIdsByTournamentId(tournamentIds);
 
@@ -115,6 +128,8 @@ export default function TournamentsPage() {
         </div>
       </div>
 
+      <SectionTabs tabs={statusTabs} active={statusFilter} onChange={setStatusFilter} className="mb-4" />
+
       {/* Tournament list */}
       <div className="space-y-2">
         {tournamentsQ.isLoading ? <div className="text-text-muted">Loading…</div> : null}
@@ -133,7 +148,13 @@ export default function TournamentsPage() {
           </div>
         ) : null}
 
-        {tournamentsSorted.map((t) => {
+        {tournamentsSorted.length > 0 && visibleTournaments.length === 0 && !tournamentsQ.isLoading ? (
+          <div className="rounded-xl border border-border-card-chip/40 px-4 py-8 text-center text-sm text-text-muted">
+            No {statusFilter === "live" ? "active" : "finished"} tournaments.
+          </div>
+        ) : null}
+
+        {visibleTournaments.map((t) => {
           const st: Status = (t.status as Status) ?? "draft";
           const ui = tournamentStatusUI(st);
           const pal = tournamentPalette(st);

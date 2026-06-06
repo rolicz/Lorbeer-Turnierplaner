@@ -8,7 +8,8 @@ import SegmentedSwitch from "../ui/primitives/SegmentedSwitch";
 import { ErrorToastOnError } from "../ui/primitives/ErrorToast";
 import PageLoadingScreen from "../ui/primitives/PageLoadingScreen";
 import { useRouteEntryLoading } from "../ui/layout/useRouteEntryLoading";
-import SectionSeparator from "../ui/primitives/SectionSeparator";
+import { SectionTabs, type SectionTab } from "../ui/SectionTabs";
+import { List, Plus } from "lucide-react";
 
 import { useAuth } from "../auth/AuthContext";
 import { createClub, deleteClub, listClubs, listLeagues, patchClub } from "../api/clubs.api";
@@ -91,6 +92,13 @@ export default function ClubsPage() {
   const isAdmin = role === "admin";
   const isEditorOrAdmin = role === "editor" || role === "admin";
   const canEdit = isEditorOrAdmin;
+
+  type ClubTab = "browse" | "new";
+  const [tab, setTab] = useState<ClubTab>("browse");
+  const clubTabs: SectionTab<ClubTab>[] = [
+    { key: "browse", label: "Clubs", icon: <List size={14} /> },
+    ...(canEdit ? [{ key: "new" as ClubTab, label: "New club", icon: <Plus size={14} /> }] : []),
+  ];
 
   const game = "EA FC 26";
 
@@ -244,7 +252,14 @@ export default function ClubsPage() {
       <ErrorToastOnError error={patchMut.error} title="Could not update club" />
       <ErrorToastOnError error={deleteMut.error} title="Could not delete club" />
 
-      <SectionSeparator id="section-clubs-create" title="Create New" className="mt-0 border-t-0 pt-0">
+      <div className="mb-4 hidden lg:block">
+        <h1 className="text-xl font-bold tracking-tight text-text-normal">Clubs</h1>
+      </div>
+
+      <SectionTabs tabs={clubTabs} active={tab} onChange={setTab} className="mb-4" />
+
+      {tab === "new" && canEdit ? (
+      <section>
         <div className="card-inner space-y-3">
           <div className="space-y-2">
             <label className="flex items-center gap-3">
@@ -298,9 +313,12 @@ export default function ClubsPage() {
             ) : null}
           </div>
         </div>
-      </SectionSeparator>
+      </section>
+      ) : null}
 
-      <SectionSeparator id="section-clubs-browse" title="Browse & Filter">
+      {tab === "browse" ? (
+      <div className="space-y-4">
+      <section>
         <div className="rounded-xl border border-border-card-inner/45 bg-bg-card-inner p-2 space-y-2">
             <div className="flex items-center gap-3">
               <span className="inline-flex h-9 w-24 shrink-0 items-center text-sm font-medium text-text-muted">Group</span>
@@ -373,9 +391,9 @@ export default function ClubsPage() {
               />
             </label>
         </div>
-      </SectionSeparator>
+      </section>
 
-      <SectionSeparator id="section-clubs-list" title="Clubs List" className="min-h-[100svh]">
+      <section>
         <div className="mb-2 border-b border-border-card-chip/60 pb-2">
           <div className="flex items-center justify-between gap-2 text-sm text-text-muted">
             <div className="flex items-center gap-3">
@@ -530,7 +548,9 @@ export default function ClubsPage() {
             );
           })}
         </div>
-      </SectionSeparator>
+      </section>
+      </div>
+      ) : null}
     </div>
   );
 }
