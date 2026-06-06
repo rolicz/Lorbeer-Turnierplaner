@@ -9,6 +9,8 @@ export type SectionTab<K extends string = string> = {
   key: K;
   label: string;
   icon?: ReactNode;
+  /** Optional count rendered as a small pill after the label (e.g. unread comments). */
+  badge?: number;
 };
 
 type Props<K extends string> = {
@@ -48,6 +50,16 @@ export function SectionTabs<K extends string>({ tabs, active, onChange, classNam
           >
             {tab.icon}
             <span>{tab.label}</span>
+            {tab.badge ? (
+              <span
+                className={cn(
+                  "ml-0.5 inline-flex min-w-[1.25rem] items-center justify-center rounded-full px-1.5 text-[11px] font-semibold tabular-nums",
+                  isActive ? "bg-accent/15 text-accent" : "bg-bg-card-chip/70 text-text-muted",
+                )}
+              >
+                {tab.badge}
+              </span>
+            ) : null}
           </button>
         );
       })}
