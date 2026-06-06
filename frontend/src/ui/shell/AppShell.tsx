@@ -6,6 +6,7 @@ import { qk } from "../../api/queryKeys";
 import { listPlayerGuestbookSummary, listPlayerPokeSummary, listPlayerGuestbookReadMap, listPlayerPokeReadMap } from "../../api/players.api";
 import { listTournamentCommentsSummary, listTournamentCommentReadMap } from "../../api/comments.api";
 import { ThemeProvider } from "../layout/ThemeContext";
+import { PageTitleProvider } from "../layout/PageTitleContext";
 import { usePullToRefresh } from "../layout/usePullToRefresh";
 import { RealtimeProvider } from "../../hooks/realtime/RealtimeProvider";
 import { useAnyTournamentWS } from "../../hooks/realtime/useRealtime";
@@ -92,7 +93,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <ThemeProvider>
       <RealtimeProvider>
-        <ShellInner>{children}</ShellInner>
+        <PageTitleProvider>
+          <ShellInner>{children}</ShellInner>
+        </PageTitleProvider>
       </RealtimeProvider>
     </ThemeProvider>
   );

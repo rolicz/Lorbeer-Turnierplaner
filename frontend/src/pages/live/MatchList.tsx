@@ -151,7 +151,8 @@ export default function MatchList({
         return (
           <div
             key={m.id}
-            className={`relative overflow-hidden rounded-xl border transition-colors ${pal.wrap} ${colorMatch(m.state)} ${
+            id={`match-row-${m.id}`}
+            className={`relative scroll-mt-28 overflow-hidden rounded-xl border transition-colors sm:scroll-mt-24 ${pal.wrap} ${colorMatch(m.state)} ${
               compact ? "pl-5 pr-3 py-1.5" : "pl-6 pr-4 py-2.5"
             }`}
           >

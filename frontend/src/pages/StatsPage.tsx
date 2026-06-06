@@ -59,7 +59,7 @@ export default function StatsPage() {
 
   return (
     <div className="page">
-      <div className="mb-4">
+      <div className="mb-4 hidden lg:block">
         <h1 className="text-xl font-bold tracking-tight text-text-normal">Stats</h1>
       </div>
 

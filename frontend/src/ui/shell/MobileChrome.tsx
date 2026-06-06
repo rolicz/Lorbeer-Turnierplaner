@@ -6,6 +6,8 @@ import { Menu, X, Settings } from "lucide-react";
 import { useAuth } from "../../auth/AuthContext";
 import { drawerLeft, scrim } from "../motion/motion";
 import { activeDest, visibleDests } from "./navConfig";
+import { usePageTitleValue } from "../layout/PageTitleContext";
+import { useHideOnScroll } from "../layout/useHideOnScroll";
 import ConnectionIndicator from "./ConnectionIndicator";
 
 /** Mobile (and tablet < lg) top bar + slide-in navigation drawer. */
@@ -21,6 +23,11 @@ export default function MobileChrome({
   const dests = visibleDests(role);
   const active = activeDest(loc.pathname);
   const settingsActive = loc.pathname.startsWith("/settings");
+  const pageTitle = usePageTitleValue();
+  const hidden = useHideOnScroll(72);
+
+  // The current page title: page-registered title wins, else the nav label, else brand.
+  const title = pageTitle ?? active?.label ?? "Lorbeerkranz";
 
   // Lock body scroll + close on Escape while the drawer is open.
   useEffect(() => {
@@ -39,24 +46,25 @@ export default function MobileChrome({
 
   return (
     <>
-      {/* Top bar — always pinned so the menu is always reachable.
-          Shows the brand (not the page title) to avoid duplicating each page's heading. */}
-      <header className="sticky top-0 z-30 nav-shell backdrop-blur-md pt-[env(safe-area-inset-top,0px)] lg:hidden">
+      {/* Auto-hiding top bar — slides up on scroll-down, back down on scroll-up. */}
+      <header
+        className={
+          "sticky top-0 z-30 nav-shell backdrop-blur-md pt-[env(safe-area-inset-top,0px)] transition-transform duration-300 ease-out-expo lg:hidden " +
+          (hidden && !open ? "-translate-y-full" : "translate-y-0")
+        }
+      >
         <div className="flex h-14 items-center gap-2 px-3">
           <button
             type="button"
             onClick={() => setOpen(true)}
             aria-label="Open menu"
-            className="icon-button focus-ring inline-flex h-10 w-10 items-center justify-center"
+            className="icon-button focus-ring inline-flex h-10 w-10 shrink-0 items-center justify-center"
           >
             <Menu className="h-5 w-5" aria-hidden="true" />
           </button>
-          <Link to="/dashboard" className="flex min-w-0 flex-1 items-center gap-2">
-            <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-accent/15 text-accent">
-              <i className="fa-solid fa-trophy text-xs" aria-hidden="true" />
-            </span>
-            <span className="truncate text-sm font-semibold tracking-tight">Lorbeerkranz</span>
-          </Link>
+          <div className="min-w-0 flex-1">
+            <span className="block truncate text-base font-semibold tracking-tight">{title}</span>
+          </div>
           <ConnectionIndicator compact />
         </div>
       </header>

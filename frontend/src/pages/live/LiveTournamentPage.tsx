@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { RotateCw, MailOpen, MessageSquare, Gamepad2, ListChecks, SlidersHorizontal, ChevronLeft } from "lucide-react";
+import { RotateCw, MailOpen, MessageSquare, Gamepad2, ListChecks, SlidersHorizontal } from "lucide-react";
 
 import Button from "../../ui/primitives/Button";
 import { Pill, pillDate } from "../../ui/primitives/Pill";
@@ -40,6 +40,8 @@ import { shuffle, sideBy } from "../../helpers";
 import { fmtDate } from "../../utils/format";
 import { listTournamentComments, markAllTournamentCommentsRead } from "../../api/comments.api";
 import { useRouteEntryLoading } from "../../ui/layout/useRouteEntryLoading";
+import { usePageTitle } from "../../ui/layout/PageTitleContext";
+import PageBack from "../../ui/PageBack";
 
 type PlayerLite = { id: number; display_name: string };
 type LiveTab = "overview" | "matches" | "comments" | "controls";
@@ -95,14 +97,29 @@ export default function LiveTournamentPage() {
     tournamentName?: string;
     tournamentStatus?: "draft" | "live" | "done";
   } | null) ?? null;
-  const [, setSearchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const nav = useNavigate();
   const { role, token } = useAuth();
 
   const isAdmin = role === "admin";
   const isEditorOrAdmin = role === "editor" || role === "admin";
 
-  const [activeTab, setActiveTab] = useState<LiveTab>("overview");
+  const TAB_KEYS: LiveTab[] = ["overview", "matches", "comments", "controls"];
+  const initialTab = ((): LiveTab => {
+    const t = searchParams.get("tab");
+    return t && (TAB_KEYS as string[]).includes(t) ? (t as LiveTab) : "overview";
+  })();
+  const [activeTab, setActiveTabState] = useState<LiveTab>(initialTab);
+  // Active tab is mirrored to the URL so back-navigation (in-app + browser) restores it.
+  const setActiveTab = useCallback(
+    (t: LiveTab) => {
+      setActiveTabState(t);
+      const next = new URLSearchParams(window.location.search);
+      next.set("tab", t);
+      setSearchParams(next, { replace: true });
+    },
+    [setSearchParams],
+  );
 
   const tQ = useQuery({
     queryKey: ["tournament", tid],
@@ -179,7 +196,7 @@ export default function LiveTournamentPage() {
     const next = new URLSearchParams(location.search);
     next.delete("comment");
     setSearchParams(next, { replace: true });
-  }, [location.search, setSearchParams]);
+  }, [location.search, setSearchParams, setActiveTab]);
 
   useEffect(() => {
     const sp = new URLSearchParams(location.search);
@@ -192,7 +209,19 @@ export default function LiveTournamentPage() {
     }
     sp.delete("unread");
     setSearchParams(sp, { replace: true });
-  }, [latestUnreadCommentId, location.search, setSearchParams]);
+  }, [latestUnreadCommentId, location.search, setSearchParams, setActiveTab]);
+
+  // When returning from a match detail page, scroll to (and flash) that match row.
+  const focusMatchId = (location.state as { focusMatchId?: number } | null)?.focusMatchId ?? null;
+  useEffect(() => {
+    if (activeTab !== "matches" || !focusMatchId) return;
+    const el = document.getElementById(`match-row-${focusMatchId}`);
+    if (!el) return;
+    el.scrollIntoView({ block: "center", behavior: "smooth" });
+    el.classList.add("comment-attn");
+    const t = window.setTimeout(() => el.classList.remove("comment-attn"), 1600);
+    return () => window.clearTimeout(t);
+  }, [activeTab, focusMatchId, tQ.data]);
 
   const status = tQ.data?.status ?? locationState?.tournamentStatus ?? "draft";
   const isDone = status === "done";
@@ -416,9 +445,9 @@ export default function LiveTournamentPage() {
     },
   });
 
-  // Navigate to match detail page instead of opening a sheet.
+  // Navigate to match detail page; remember which tab we came from so "back" restores it.
   function openEditor(m: Match) {
-    nav(`/live/${tid}/match/${m.id}`);
+    nav(`/live/${tid}/match/${m.id}`, { state: { fromTab: activeTab } });
   }
 
   const canEditMatch = role === "admin" || (role === "editor" && !isDone);
@@ -472,6 +501,7 @@ export default function LiveTournamentPage() {
 
   const showControls = isEditorOrAdmin;
   const cardTitle = tQ.data?.name || locationState?.tournamentName || "Tournament";
+  usePageTitle(cardTitle);
   const showCurrentGameSection = (status === "draft" || status === "live") && !!currentMatch;
 
   const tabs = useMemo<SectionTab<LiveTab>[]>(() => {
@@ -501,18 +531,11 @@ export default function LiveTournamentPage() {
     <div className="page">
       {/* Header */}
       <div className="mb-3">
-        <button
-          type="button"
-          onClick={() => nav("/tournaments")}
-          className="mb-2 inline-flex items-center gap-1 text-xs text-text-muted transition hover:text-text-normal"
-        >
-          <ChevronLeft size={14} />
-          All tournaments
-        </button>
+        <PageBack to="/tournaments" label="All tournaments" />
 
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
-            <h1 className="truncate text-xl font-bold tracking-tight text-text-normal sm:text-2xl">
+            <h1 className="hidden truncate text-xl font-bold tracking-tight text-text-normal sm:text-2xl lg:block">
               {cardTitle}
             </h1>
             {tQ.data ? (

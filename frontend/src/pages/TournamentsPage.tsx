@@ -94,7 +94,7 @@ export default function TournamentsPage() {
       {/* Header */}
       <div className="mb-4 flex items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl font-bold tracking-tight text-text-normal">Tournaments</h1>
+          <h1 className="hidden text-xl font-bold tracking-tight text-text-normal lg:block">Tournaments</h1>
           <p className="text-sm text-text-muted">{tournamentsSorted.length} total</p>
         </div>
         <div className="flex items-center gap-2">

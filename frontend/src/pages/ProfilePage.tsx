@@ -47,6 +47,7 @@ import { usePlayerAvatarMap } from "../hooks/usePlayerAvatarMap";
 import { usePlayerHeaderMap } from "../hooks/usePlayerHeaderMap";
 import { usePlayerProfileWS } from "../hooks/useTournamentWS";
 import { useRouteEntryLoading } from "../ui/layout/useRouteEntryLoading";
+import { usePageTitle } from "../ui/layout/PageTitleContext";
 import { scrollToSectionById } from "../ui/scrollToSection";
 import SectionSeparator from "../ui/primitives/SectionSeparator";
 import { fmtInt, fmtPct } from "../utils/format";
@@ -218,6 +219,8 @@ export default function ProfilePage() {
     if (!targetPlayerId) return null;
     return rows.find((p) => p.id === targetPlayerId) ?? null;
   }, [playersQ.data, targetPlayerId]);
+
+  usePageTitle(player?.display_name ?? profileQ.data?.display_name ?? "Profile");
 
   const isOwnProfile = isOwnProfileView;
   const canEdit = !!token && role !== "reader" && isOwnProfile;

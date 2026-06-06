@@ -1,12 +1,13 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChevronLeft } from "lucide-react";
 
 import Button from "../ui/primitives/Button";
 import SegmentedSwitch from "../ui/primitives/SegmentedSwitch";
 import AvatarButton from "../ui/primitives/AvatarButton";
 import { ErrorToastOnError } from "../ui/primitives/ErrorToast";
+import PageBack from "../ui/PageBack";
+import { usePageTitle } from "../ui/layout/PageTitleContext";
 
 import { listPlayers } from "../api/players.api";
 import { createTournament } from "../api/tournaments.api";
@@ -51,18 +52,13 @@ export default function NewTournamentPage() {
     },
   });
 
+  usePageTitle("New Tournament");
+
   return (
     <div className="page">
       <div className="mb-6">
-        <button
-          type="button"
-          onClick={() => nav("/tournaments")}
-          className="mb-3 inline-flex items-center gap-1 text-xs text-text-muted transition hover:text-text-normal"
-        >
-          <ChevronLeft size={14} />
-          All tournaments
-        </button>
-        <h1 className="text-xl font-bold tracking-tight text-text-normal">New Tournament</h1>
+        <PageBack to="/tournaments" label="All tournaments" />
+        <h1 className="hidden text-xl font-bold tracking-tight text-text-normal lg:block">New Tournament</h1>
       </div>
 
       <div className="mx-auto max-w-lg space-y-6">

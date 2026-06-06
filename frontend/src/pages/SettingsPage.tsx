@@ -5,9 +5,10 @@ import { Check, Eye, LogIn, LogOut, UserCog } from "lucide-react";
 
 import { useAuth } from "../auth/AuthContext";
 import { useTheme } from "../ui/layout/ThemeContext";
+import { usePageTitle } from "../ui/layout/PageTitleContext";
 import { qk } from "../api/queryKeys";
 import { listPlayers } from "../api/players.api";
-import PushNotificationsMenu from "../ui/layout/PushNotificationsMenu";
+import PushNotificationsSettings from "../ui/layout/PushNotificationsSettings";
 import ConnectionIndicator from "../ui/shell/ConnectionIndicator";
 import { THEMES } from "../themes";
 import { useRouteEntryLoading } from "../ui/layout/useRouteEntryLoading";
@@ -68,6 +69,8 @@ export default function SettingsPage() {
   const actorDifferent =
     playerId != null && actorPlayerId != null && Number(playerId) !== Number(actorPlayerId);
 
+  usePageTitle("Settings");
+
   if (!pageEntered) {
     return <div className="page"><PageLoadingScreen sectionCount={3} /></div>;
   }
@@ -75,7 +78,7 @@ export default function SettingsPage() {
   return (
     <div className="page">
       <div className="mb-4 flex items-center justify-between gap-3">
-        <h1 className="text-xl font-bold tracking-tight text-text-normal">Settings</h1>
+        <h1 className="hidden text-xl font-bold tracking-tight text-text-normal lg:block">Settings</h1>
         <ConnectionIndicator />
       </div>
 
@@ -170,7 +173,7 @@ export default function SettingsPage() {
 
         {/* Notifications */}
         <SettingsSection title="Notifications">
-          <PushNotificationsMenu token={token} />
+          <PushNotificationsSettings token={token} />
         </SettingsSection>
 
         {/* Theme */}

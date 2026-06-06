@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChevronLeft } from "lucide-react";
 
 import Button from "../../ui/primitives/Button";
 import Input from "../../ui/primitives/Input";
@@ -12,6 +11,8 @@ import MatchOverviewPanel from "../../ui/primitives/MatchOverviewPanel";
 import { SectionTabs, type SectionTab } from "../../ui/SectionTabs";
 import SelectClubsPanel from "../../ui/SelectClubsPanel";
 import { GoalStepper } from "../../ui/clubControls";
+import PageBack from "../../ui/PageBack";
+import { usePageTitle } from "../../ui/layout/PageTitleContext";
 
 import { getTournament } from "../../api/tournaments.api";
 import { patchMatch, swapMatchSides } from "../../api/matches.api";
@@ -38,11 +39,17 @@ export default function MatchDetailPage() {
   const matchId = mid ? Number(mid) : null;
 
   const nav = useNavigate();
+  const location = useLocation();
   const qc = useQueryClient();
   const pageEntered = useRouteEntryLoading();
   const { role, token } = useAuth();
   const canEdit = role === "admin" || role === "editor";
   const isAdmin = role === "admin";
+
+  // Where "back" returns to: the tab we came from (default Matches), at this match.
+  const fromTab = (location.state as { fromTab?: string } | null)?.fromTab ?? "matches";
+  const backTo = `/live/${tid}?tab=${fromTab}`;
+  usePageTitle(matchId ? `Match #${matchId}` : "Match");
 
   const [activeTab, setActiveTab] = useState<Tab>("h2h");
   const [clubGame, setClubGame] = useState("EA FC 26");
@@ -116,7 +123,7 @@ export default function MatchDetailPage() {
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: ["tournament", tid] });
       await qc.invalidateQueries({ queryKey: ["cup"] }).catch(() => {});
-      nav(`/live/${tid}`, { state: { scrollTo: "matches" } });
+      nav(backTo, { state: { focusMatchId: matchId } });
     },
   });
 
@@ -168,15 +175,8 @@ export default function MatchDetailPage() {
     <div className="page">
       {/* Header */}
       <div className="mb-4">
-        <button
-          type="button"
-          onClick={() => nav(`/live/${tid}`)}
-          className="mb-2 inline-flex items-center gap-1 text-xs text-text-muted transition hover:text-text-normal"
-        >
-          <ChevronLeft size={14} />
-          {tournamentName}
-        </button>
-        <h1 className="text-xl font-bold tracking-tight text-text-normal">
+        <PageBack to={backTo} label={tournamentName} state={{ focusMatchId: matchId }} />
+        <h1 className="hidden text-xl font-bold tracking-tight text-text-normal lg:block">
           Match #{matchId}
         </h1>
         {match ? (
