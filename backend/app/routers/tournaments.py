@@ -765,11 +765,12 @@ async def delete_tournament(
     role: str = Depends(require_admin),
 ):
     tournament = get_or_404(s, Tournament, tournament_id, name="Tournament")
+    tournament_name = tournament.name  # capture before the row is deleted/expired
     _delete_tournament_graph(s, tournament_id)
 
     await broadcast_tournament_deleted(tournament_id)
     log.info("Tournament deleted: tournament_id=%s by=%s", tournament_id, role)
-    push_tournament_deleted(request, tournament_id=tournament_id, tournament_name=tournament.name)
+    push_tournament_deleted(request, tournament_id=tournament_id, tournament_name=tournament_name)
 
     return Response(status_code=204)
 

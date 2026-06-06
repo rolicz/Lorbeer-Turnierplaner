@@ -3,6 +3,7 @@ from datetime import datetime
 from typing import Any, Dict, List
 
 from fastapi import WebSocket
+from fastapi.encoders import jsonable_encoder
 
 # Process-wide monotonic sequence stamped on every broadcast envelope.
 # Clients use it to detect missed messages (gaps) after a reconnect and resync.
@@ -10,9 +11,13 @@ _seq_counter = itertools.count(1)
 
 
 def _envelope(event: str, payload: Any) -> dict:
+    # Encode the payload to JSON-safe primitives (datetimes -> ISO strings, etc.)
+    # so it matches the REST response shape and ws.send_json never raises on a
+    # rich object — an uncaught raise here would silently drop the message and
+    # disconnect the client.
     return {
         "event": event,
-        "payload": payload,
+        "payload": jsonable_encoder(payload),
         "ts": datetime.utcnow().isoformat(),
         "seq": next(_seq_counter),
     }

@@ -1,4 +1,7 @@
 """Tests for the optimistic-push websocket layer (envelope + enriched payloads)."""
+import json
+from datetime import datetime
+
 import app.ws as ws_module
 from app import ws as ws_pkg
 
@@ -11,6 +14,15 @@ def test_envelope_has_incrementing_seq():
     assert a["event"] == "x" and a["payload"] == {"k": 1}
     assert "ts" in a and isinstance(a["seq"], int)
     assert b["seq"] == a["seq"] + 1  # monotonic
+
+
+def test_envelope_payload_is_json_safe_with_datetimes():
+    # serialize_tournament carries raw datetimes; the envelope must encode them
+    # so ws.send_json never raises (an uncaught raise silently drops the message
+    # and disconnects the client).
+    env = ws_module._envelope("tournament.sync", {"created_at": datetime(2026, 1, 2, 3, 4, 5)})
+    json.dumps(env)  # must not raise
+    assert env["payload"]["created_at"] == "2026-01-02T03:04:05"
 
 
 class _Recorder:
