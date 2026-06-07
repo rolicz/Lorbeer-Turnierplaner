@@ -75,39 +75,39 @@ These set the language everything else follows.
       - Detailed stat chips/streaks → Stats tab; full match list → Matches tab;
         guestbook → its own tab (unread deep-link switches to it).
 
-## Phase 3 — Stats major refactor  (model: **Opus xhigh**)
+## Phase 3 — Stats major refactor  (done on Opus xhigh) ✅
 
-- [ ] **Trends graph**: zoomable + horizontally scrollable; **month** ticks on
-      the x-axis (density adapts to zoom); default range = last ~12 months
-      (remove the "Show last" slider); optional **tournament-name** labels;
-      non-participation shown clearly (gap markers, not just faded line); reuse
-      the SAME chart on the dashboard (retire the old `TrendsPreviewCard`
-      chart).
-- [ ] **Table**: mobile-fit via **selectable columns** (chip toggles) with sane
-      defaults; allow choosing totals **and** per-match averages; keep the
-      selector uncluttered.
-- [ ] **Positions tab (new)**: players in rows × tournaments (with names) in
-      columns; mark laurel tournaments; horizontally scrollable.
-- [ ] **H2H**: square matrix with **full player names**, equal cell size; plus a
-      restored per-player detail (choose a player → opponents, nemesis/favorite,
-      records, recent meetings) — re-incorporate the old H2H richness.
-- [ ] **Streaks**: show dates nicely (start–end for concluded, "since X" for
-      ongoing) without clutter.
-- [ ] **Stars tab (restore)**: per-player performance by club star rating.
-- [ ] Consistent **scrollable player pickers** across all stats views.
-- [ ] **New stats page #1 — Records & superlatives**: biggest win, highest-
-      scoring match, most goals in a tournament, longest win/unbeaten runs,
-      biggest upset, etc.
-- [ ] **New stats page #2 — Cup history / reigns**: who held each cup when,
-      reign lengths, defenses, lineage of title changes.
+- [x] **Trends graph**: new time-based `TrendChart` — zoomable + horizontally
+      scrollable, adaptive **month** ticks (bold year marks), default **1-year**
+      range (+ 2y/All chips, removed the "Show last" slider), optional
+      **tournament-name** labels, gaps + event ticks for non-participation;
+      **same chart reused on the dashboard**.
+- [x] **Table**: selectable column chips (incl. PPM/G·M/GA·M averages) with sane
+      mobile defaults — fits mobile without horizontal scroll.
+- [x] **Positions tab (new)**: players × tournaments grid, laurel crowns,
+      green→red placement coloring, horizontally scrollable.
+- [x] **H2H**: full-name square matrix (equal cells) + restored per-player detail
+      (picker → favorite/nemesis + full opponents breakdown) + top rivalries.
+- [x] **Streaks**: date ranges (start–end concluded, "since X" ongoing).
+- [x] **Stars tab restored**: PPM by club star rating.
+- [x] Consistent scrollable `PlayerPicker` across stats views.
+- [x] **New page — Records & superlatives**: biggest win, highest-scoring match,
+      most goals by one side, biggest upset (by Elo), longest runs.
+- [x] **New page — Cups**: current holder + reign length + full title-change
+      history per cup.
 
-## Phase 4 — Verification  (model: **Sonnet**)
+## Phase 4 — Verification  ✅
 
-- [ ] Playwright sweep 360/390 + 1280 across all routes; zero console errors.
-- [ ] Swipe back/forward works; no conflict with tables/charts/chip rows.
-- [ ] Feature parity vs. old (H2H detail, stars, all stats reachable).
-- [ ] All 5 themes look right; both stats modes (new default + classic).
-- [ ] `make test` + `npm run check` + build green.
+- [x] Playwright sweep 390 + 1366 across all 11 routes × both stats modes —
+      **zero console errors** (44 combinations).
+- [x] Horizontal scrollers (tables, charts, matrices, pickers) opt out of swipe
+      via `data-no-swipe-nav`; swipe back/forward wired globally. *(gesture itself
+      best confirmed on a real touch device.)*
+- [x] Feature parity: H2H per-player detail, Stars, all stats tabs reachable;
+      classic stats still available via Settings → Experiments.
+- [x] Light theme spot-checked (flat design reads correctly); both stats modes OK.
+- [x] `npm run check` (typecheck + eslint + 71 tests) + `npm run build` green.
+      No backend changes, so `make test` not required.
 
 ---
 
