@@ -1,7 +1,9 @@
 /* eslint-disable react-refresh/only-export-components */
 import type { Club } from "../api/types";
-import { useId } from "react";
 import type { ReactNode } from "react";
+import { Filter } from "lucide-react";
+
+import FilterSelect from "./FilterSelect";
 
 export type LeagueOpt = { id: number; name: string };
 
@@ -86,44 +88,33 @@ export function StarFilter({
   value,
   onChange,
   disabled,
-  compact,
   right,
 }: {
   value: number | null;
   onChange: (v: number | null) => void;
   disabled: boolean;
-  compact?: boolean;
   right?: ReactNode;
 }) {
-  const selectId = useId();
-
   return (
     <div className="block">
-      <label htmlFor={selectId} className="mb-1 block">
-        <span className="hidden md:inline text-xs text-muted">Filter by</span>
-        <span className="md:hidden inline-flex items-center gap-2 text-xs text-muted">
-          <i className="fa-solid fa-filter" aria-hidden="true" />
-          <span className="sr-only">Filter by stars</span>
-        </span>
-        <span className="text-xs text-muted"> Stars</span>
-      </label>
+      <div className="input-label inline-flex items-center gap-1.5">
+        <Filter className="h-3 w-3" aria-hidden="true" />
+        Stars
+      </div>
 
       <div className={right ? "flex items-center gap-2" : undefined}>
-        <select
-          id={selectId}
-          className={`select-field w-full ${right ? "flex-1" : ""} ${compact ? "md:flex-none md:w-[140px]" : ""}`}
-          value={value == null ? "" : String(value)}
-          onChange={(e) => onChange(e.target.value ? Number(e.target.value) : null)}
-          disabled={disabled}
-          title="Filter by stars"
-        >
-          <option value="">All</option>
-          {STAR_OPTIONS.map((v) => (
-            <option key={v} value={v}>
-              {v.toFixed(1).replace(/\.0$/, "")}★
-            </option>
-          ))}
-        </select>
+        <div className={right ? "min-w-0 flex-1" : ""}>
+          <FilterSelect
+            value={value == null ? "" : String(value)}
+            onChange={(v) => onChange(v ? Number(v) : null)}
+            disabled={disabled}
+            ariaLabel="Filter by stars"
+            options={[
+              { value: "", label: "All stars" },
+              ...STAR_OPTIONS.map((v) => ({ value: String(v), label: `${starsLabel(v)}★` })),
+            ]}
+          />
+        </div>
         {right}
       </div>
     </div>
@@ -135,40 +126,30 @@ export function LeagueFilter({
   onChange,
   disabled,
   options,
-  compact,
 }: {
   value: number | null;
   onChange: (v: number | null) => void;
   disabled: boolean;
   options: LeagueOpt[];
-  compact?: boolean;
 }) {
   return (
-    <label className="block">
-      <div className="mb-1">
-        <span className="hidden md:inline text-xs text-muted">Filter by</span>
-        <span className="md:hidden inline-flex items-center gap-2 text-xs text-muted">
-          <i className="fa-solid fa-filter" aria-hidden="true" />
-          <span className="sr-only">Filter by league</span>
-        </span>
-        <span className="text-xs text-muted"> League</span>
+    <div className="block">
+      <div className="input-label inline-flex items-center gap-1.5">
+        <Filter className="h-3 w-3" aria-hidden="true" />
+        League
       </div>
 
-      <select
-        className={`select-field w-full ${compact ? "md:w-[180px]" : ""}`}
+      <FilterSelect
         value={value == null ? "" : String(value)}
-        onChange={(e) => onChange(e.target.value ? Number(e.target.value) : null)}
+        onChange={(v) => onChange(v ? Number(v) : null)}
         disabled={disabled}
-        title="Filter by league"
-      >
-        <option value="">All</option>
-        {options.map((o) => (
-          <option key={o.id} value={o.id}>
-            {o.name}
-          </option>
-        ))}
-      </select>
-    </label>
+        ariaLabel="Filter by league"
+        options={[
+          { value: "", label: "All leagues" },
+          ...options.map((o) => ({ value: String(o.id), label: o.name })),
+        ]}
+      />
+    </div>
   );
 }
 

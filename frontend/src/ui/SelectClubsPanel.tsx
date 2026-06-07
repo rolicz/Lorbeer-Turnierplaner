@@ -224,16 +224,15 @@ export default function SelectClubsPanel({
     <div className="grid gap-4">
       {extraTop ? <div>{extraTop}</div> : null}
 
-      <div className={"grid grid-cols-1 gap-3 " + (narrowLayout ? "" : "md:grid-cols-[auto_auto_1fr] md:items-end")}>
+      <div className={"grid grid-cols-1 gap-3 " + (narrowLayout ? "" : "md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] md:items-end")}>
         <StarFilter
           value={starFilter}
           onChange={setStarFilter}
           disabled={disabled}
-          compact={!narrowLayout}
           right={
             <button
               type="button"
-              className="icon-button h-10 w-10 p-0 flex items-center justify-center"
+              className="icon-button h-10 w-10 shrink-0 p-0 flex items-center justify-center"
               onMouseDown={(e) => e.preventDefault()}
               onTouchStart={(e) => e.preventDefault()}
               onClick={rollStars}
@@ -250,7 +249,6 @@ export default function SelectClubsPanel({
           onChange={setLeagueFilter}
           disabled={disabled}
           options={leagueOptions}
-          compact={!narrowLayout}
         />
 
         <div className="flex md:justify-end">
@@ -327,12 +325,12 @@ export default function SelectClubsPanel({
   if (!wrap) return body;
 
   return (
-    <div>
+    <div className="panel-subtle">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
-        className="focus-ring flex w-full items-center justify-between gap-2 rounded-xl bg-bg-card-chip/30 px-3 py-3 text-left transition hover:bg-bg-card-chip/45"
+        className="focus-ring flex w-full items-center justify-between gap-2 rounded-xl px-3 py-3 text-left transition hover:bg-bg-card-chip/30"
       >
         <span className="inline-flex items-center gap-2 text-sm font-semibold text-text-normal">
           <i className="fa-solid fa-shield-halved text-text-muted" aria-hidden="true" />
@@ -340,7 +338,7 @@ export default function SelectClubsPanel({
         </span>
         <i className={`fa-solid ${open ? "fa-chevron-up" : "fa-chevron-down"} text-text-muted`} aria-hidden="true" />
       </button>
-      {open ? <div className="pt-3">{body}</div> : null}
+      {open ? <div className="border-t border-border-card-chip/40 px-3 pb-3 pt-3">{body}</div> : null}
     </div>
   );
 }
