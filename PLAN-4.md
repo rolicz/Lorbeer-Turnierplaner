@@ -38,9 +38,9 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done
 
 ## Phase C — Player profile  (model: **Opus high**)
 
-- [ ] **"View all matches"**: move it out of the very bottom (into the section
+- [x] **"View all matches"**: move it out of the very bottom (into the section
       header as a right-aligned link) so it isn't clipped near the screen edge.
-- [ ] **Stats tab upper half**: replace the stat **pills** with a nicer
+- [x] **Stats tab upper half**: replace the stat **pills** with a nicer
       representation reusing the stats **Player** look — **StatTiles** (key numbers)
       **+ the Radar "profile net"** (attack / defense / win% / form / activity).
       Keep the streaks block. Reuse `Radar` (already exported) + shared tiles.

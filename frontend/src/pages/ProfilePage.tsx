@@ -41,6 +41,7 @@ import { getCup, listCupDefs } from "../api/cup.api";
 import { getStatsH2H, getStatsPlayerMatches, getStatsPlayers, getStatsRatings, getStatsStreaks } from "../api/stats.api";
 import { listClubs } from "../api/clubs.api";
 import { MatchHistoryList } from "./stats/MatchHistoryList";
+import { Radar } from "./stats/charts";
 import { groupFriendlyTournamentsByDate } from "./stats/matchHistory";
 import PlayerAvatarEditor from "./players/PlayerAvatarEditor";
 import { usePlayerAvatarMap } from "../hooks/usePlayerAvatarMap";
@@ -64,6 +65,15 @@ import GuestbookSection from "./profile/GuestbookSection";
 
 
 
+
+function ProfileStatTile({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="surface rounded-xl px-2 py-2.5 text-center">
+      <div className="text-base font-bold tabular-nums text-text-normal">{value}</div>
+      <div className="mt-0.5 text-[10px] leading-tight text-text-muted">{label}</div>
+    </div>
+  );
+}
 
 function streakIconForKey(key: string) {
   switch (key) {
@@ -294,6 +304,25 @@ export default function ProfilePage() {
     const idx = rows.findIndex((r) => r.player.id === targetPlayerId);
     return idx >= 0 ? idx + 1 : null;
   }, [statsRatingsQ.data?.rows, targetPlayerId]);
+
+  // Radar "profile net" — strengths relative to the field (same axes as stats Player).
+  const radarAxes = useMemo(() => {
+    const all = statsPlayersQ.data?.players ?? [];
+    if (!playerStatsRow || !all.length) return [];
+    const gpm = (r: { gf: number; played: number }) => (r.played ? r.gf / r.played : 0);
+    const gapm = (r: { ga: number; played: number }) => (r.played ? r.ga / r.played : 0);
+    const maxGfpm = Math.max(0.01, ...all.map(gpm));
+    const maxGapm = Math.max(0.01, ...all.map(gapm));
+    const maxPlayed = Math.max(1, ...all.map((r) => r.played));
+    const row = playerStatsRow;
+    return [
+      { label: "Attack", value: gpm(row) / maxGfpm },
+      { label: "Defense", value: 1 - gapm(row) / maxGapm },
+      { label: "Win %", value: row.played ? row.wins / row.played : 0 },
+      { label: "Form", value: (row.lastN_avg_pts ?? 0) / 3 },
+      { label: "Activity", value: row.played / maxPlayed },
+    ];
+  }, [statsPlayersQ.data?.players, playerStatsRow]);
   const ownedCups = useMemo(() => {
     if (!targetPlayerId) return [] as { key: string; name: string }[];
     const out: { key: string; name: string }[] = [];
@@ -1097,7 +1126,14 @@ export default function ProfilePage() {
 
             {/* Recent activity */}
             <div className="space-y-2">
-              <div className="section-head"><span className="section-label">Recent matches</span></div>
+              <div className="mb-2 flex items-center justify-between gap-3">
+                <span className="section-label">Recent matches</span>
+                {allMatchTournaments.length > 2 ? (
+                  <button type="button" className="shrink-0 text-xs font-medium text-accent" onClick={() => setProfileTab("matches")}>
+                    View all →
+                  </button>
+                ) : null}
+              </div>
               <ErrorToastOnError error={statsMatchesQ.error} title="Player matches loading failed" />
               <MatchHistoryList
                 tournaments={allMatchTournaments.slice(0, 2)}
@@ -1114,11 +1150,6 @@ export default function ProfilePage() {
                   );
                 }}
               />
-              {allMatchTournaments.length > 2 ? (
-                <button type="button" className="text-xs font-medium text-accent" onClick={() => setProfileTab("matches")}>
-                  View all matches →
-                </button>
-              ) : null}
             </div>
           </div>
         ) : null}
@@ -1130,72 +1161,39 @@ export default function ProfilePage() {
             <ErrorToastOnError error={statsStreaksGlobalQ.error} title="Streaks loading failed" />
             <ErrorToastOnError error={statsRatingsQ.error} title="Ratings loading failed" />
 
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="card-chip inline-flex items-center gap-2 px-2 py-1">
-                <i className="fa-solid fa-gamepad text-text-muted" aria-hidden="true" />
-                <span className="text-[11px] text-text-muted">P</span>
-                <span className="text-[11px] font-mono tabular-nums text-text-chip">{fmtInt(playerStatsRow?.played ?? 0)}</span>
-              </span>
+            {(() => {
+              const r = playerStatsRow;
+              const played = r?.played ?? 0;
+              return (
+                <>
+                  <div className="grid grid-cols-3 gap-2">
+                    <ProfileStatTile label="Played" value={String(played)} />
+                    <ProfileStatTile label="Win rate" value={played ? `${Math.round(((r?.wins ?? 0) / played) * 100)}%` : "—"} />
+                    <ProfileStatTile label="Pts / match" value={played ? fmtPct((r?.pts ?? 0) / played) : "—"} />
+                    <ProfileStatTile label="Goals / match" value={played ? fmtPct((r?.gf ?? 0) / played) : "—"} />
+                    <ProfileStatTile label="Conceded / match" value={played ? fmtPct((r?.ga ?? 0) / played) : "—"} />
+                    <ProfileStatTile label="Goal diff" value={(r?.gd ?? 0) >= 0 ? `+${fmtInt(r?.gd ?? 0)}` : fmtInt(r?.gd ?? 0)} />
+                  </div>
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-text-muted">
+                    <span>
+                      Record <span className="tabular-nums text-status-text-green">{fmtInt(r?.wins ?? 0)}</span>-<span className="tabular-nums text-amber-300">{fmtInt(r?.draws ?? 0)}</span>-<span className="tabular-nums text-red-300">{fmtInt(r?.losses ?? 0)}</span>
+                    </span>
+                    <span>Elo <b className="tabular-nums text-text-normal">{eloRow ? Math.round(eloRow.rating) : "—"}</b>{eloRank != null ? ` · #${eloRank}` : ""}</span>
+                    <span>Last 10 <b className="tabular-nums text-text-normal">{fmtPct(r?.lastN_avg_pts ?? 0)}</b></span>
+                  </div>
+                </>
+              );
+            })()}
 
-              <span className="card-chip inline-flex items-center gap-2 px-2 py-1">
-                <span className="inline-flex items-center gap-1">
-                  <span className="text-[11px] text-text-muted">W</span>
-                  <span className="text-[11px] font-mono tabular-nums text-status-text-green">{fmtInt(playerStatsRow?.wins ?? 0)}</span>
-                </span>
-                <span className="inline-flex items-center gap-1">
-                  <span className="text-[11px] text-text-muted">D</span>
-                  <span className="text-[11px] font-mono tabular-nums text-amber-300">{fmtInt(playerStatsRow?.draws ?? 0)}</span>
-                </span>
-                <span className="inline-flex items-center gap-1">
-                  <span className="text-[11px] text-text-muted">L</span>
-                  <span className="text-[11px] font-mono tabular-nums text-red-300">{fmtInt(playerStatsRow?.losses ?? 0)}</span>
-                </span>
-              </span>
-
-              <span className="card-chip inline-flex items-center gap-2 px-2 py-1">
-                <i className="fa-regular fa-futbol text-text-muted" aria-hidden="true" />
-                <span className="text-[11px] font-mono tabular-nums text-text-chip">
-                  {fmtInt(playerStatsRow?.gf ?? 0)}:{fmtInt(playerStatsRow?.ga ?? 0)}
-                </span>
-                <span
-                  className={
-                    "text-[11px] font-mono tabular-nums " +
-                    ((playerStatsRow?.gd ?? 0) > 0
-                      ? "text-status-text-green"
-                      : (playerStatsRow?.gd ?? 0) < 0
-                        ? "text-red-300"
-                        : "text-text-muted")
-                  }
-                  title="Goal difference"
-                >
-                  ({(playerStatsRow?.gd ?? 0) > 0 ? "+" : ""}
-                  {fmtInt(playerStatsRow?.gd ?? 0)})
-                </span>
-              </span>
-
-              <span className="card-chip inline-flex items-center gap-2 px-2 py-1">
-                <i className="fa-solid fa-trophy text-text-muted" aria-hidden="true" />
-                <span className="text-[11px] text-text-muted">PPM</span>
-                <span className="text-[11px] font-mono tabular-nums text-text-chip">
-                  {fmtPct((playerStatsRow?.played ?? 0) > 0 ? (playerStatsRow?.pts ?? 0) / (playerStatsRow?.played ?? 1) : 0)}
-                </span>
-              </span>
-
-              <span className="card-chip inline-flex items-center gap-2 px-2 py-1">
-                <i className="fa-solid fa-chart-line text-text-muted" aria-hidden="true" />
-                <span className="text-[11px] text-text-muted">Last 10</span>
-                <span className="text-[11px] font-mono tabular-nums text-text-chip">{fmtPct(playerStatsRow?.lastN_avg_pts ?? 0)}</span>
-              </span>
-
-              <span className="card-chip inline-flex items-center gap-2 px-2 py-1">
-                <i className="fa-solid fa-ranking-star text-text-muted" aria-hidden="true" />
-                <span className="text-[11px] text-text-muted">Elo</span>
-                <span className="text-[11px] font-mono tabular-nums text-text-chip">
-                  {eloRow ? Math.round(eloRow.rating) : "—"}
-                </span>
-                <span className="text-[11px] text-text-muted">{eloRank != null ? `#${eloRank}` : ""}</span>
-              </span>
-            </div>
+            {radarAxes.length >= 3 ? (
+              <div>
+                <div className="section-head"><span className="section-label">Profile net</span></div>
+                <div className="flex flex-col items-center">
+                  <Radar axes={radarAxes} />
+                  <div className="text-[11px] text-text-muted">Strengths relative to the field.</div>
+                </div>
+              </div>
+            ) : null}
 
             <div>
               <div className="section-head"><span className="section-label">Streaks · current / record</span></div>
