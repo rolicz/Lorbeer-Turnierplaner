@@ -132,7 +132,7 @@ function TrendsExplorer({ mode, scope, rows, initialMetric, initialView }: { mod
   const { colorOf } = usePlayerColors();
   const [metric, setMetric] = useState<Metric>(initialMetric ?? "points");
   const [view, setView] = useState<ViewMode>(initialView ?? "cumulative");
-  const [rollN, setRollN] = useState(10);
+  const [rollN, setRollN] = useState(5);
   const [range, setRange] = useState<RangeKey>("1y");
   const [perMatch, setPerMatch] = useState(false);
   const [showLabels, setShowLabels] = useState(false);
@@ -428,7 +428,7 @@ function StatsTable({ rows, loading, onSelect, mode, scope }: { rows: Row[]; loa
   const [dir, setDir] = useState<1 | -1>(-1);
   const [visible, setVisible] = useState<Set<string>>(() => new Set(DEFAULT_COLS));
   const [lastN, setLastN] = useState(false);
-  const [nWin, setNWin] = useState(10);
+  const [nWin, setNWin] = useState(5);
 
   // Last-N: recompute every column over each player's last N tournaments (same
   // unit as Trends' Last-N). Elo is meaningless over a window, so it's hidden.

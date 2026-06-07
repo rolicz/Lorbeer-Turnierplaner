@@ -84,6 +84,7 @@ export default function SelectClubsPanel({
   onChangeAClub,
   onChangeBClub,
   onChangeClubs,
+  defaultOpen,
   extraTop,
   extraBottom,
   wrap = true,
@@ -113,7 +114,9 @@ export default function SelectClubsPanel({
 }) {
   const clubsSorted = useMemo(() => sortClubsForDropdown(clubs), [clubs]);
 
-  const [open, setOpen] = useState(true);
+  // Start collapsed when both sides already have a club (e.g. a configured live
+  // match); open when something still needs picking. An explicit defaultOpen wins.
+  const [open, setOpen] = useState(() => defaultOpen ?? !(aClub != null && bClub != null));
   const [starFilter, setStarFilter] = useState<number | null>(null);
   const [leagueFilter, setLeagueFilter] = useState<number | null>(null);
 

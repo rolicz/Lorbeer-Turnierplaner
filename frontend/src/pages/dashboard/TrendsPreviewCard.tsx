@@ -57,7 +57,7 @@ export default function TrendsPreviewCard() {
   const navigate = useNavigate();
   const { colorOf } = usePlayerColors();
   const [view, setView] = useState<View>("lastN");
-  const formN = 10;
+  const formN = 5;
   const windowMonths = 6 as const;
 
   // The chart mounts conditionally (after data loads), so use a callback ref to
@@ -282,7 +282,7 @@ export default function TrendsPreviewCard() {
               value={view}
               onChange={setView}
               options={[
-                { key: "lastN", label: "Last 10", icon: "fa-bolt" },
+                { key: "lastN", label: "Last 5", icon: "fa-bolt" },
                 { key: "total", label: "Total", icon: "fa-layer-group" },
               ]}
               ariaLabel="Trends view"

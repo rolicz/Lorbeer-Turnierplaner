@@ -381,7 +381,6 @@ export default function CurrentGameSection({
               setBClub(v);
               queueAutosave({ bClub: v });
             }}
-            defaultOpen={false}
             wrapClassName="panel-subtle"
           />
         )}
