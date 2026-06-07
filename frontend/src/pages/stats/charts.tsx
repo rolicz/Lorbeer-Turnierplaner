@@ -1,4 +1,5 @@
 /** Tiny from-scratch SVG chart kit for the stats dashboard (mobile-first). */
+import { useId } from "react";
 
 const GREEN = "rgb(34 197 94)";
 const AMBER = "rgb(234 179 8)";
@@ -225,11 +226,12 @@ export function StatBar({ label, value, max, color = "rgb(var(--color-accent))" 
 }
 
 /**
- * Time-based, zoomable + horizontally scrollable multi-series line chart.
- * X is positioned by real dates so the axis shows month ticks (density adapts to
- * zoom). Gaps (null points) render as breaks = non-participation; event ticks on
- * the baseline mark every tournament. Optional rotated tournament-name labels.
- * Rendered at an explicit pixel width — wrap in an `overflow-x-auto` container.
+ * Time-based multi-series line chart with a **fixed-size plot** and a pan/zoom
+ * date window [viewT0, viewT1]. The chart never resizes: zooming only changes the
+ * x-axis window (handled by the parent via pinch/drag). Lines that enter/leave the
+ * window are clipped at the plot edges. Gaps render as muted dashed segments
+ * (non-participation); event ticks mark every tournament; optional name labels.
+ * Pass an explicit pixel `width` (measured from the container).
  */
 export function TrendChart({
   events,
@@ -237,8 +239,10 @@ export function TrendChart({
   yMax,
   yMin = 0,
   yTicks,
-  height = 250,
-  pxPerMonth = 52,
+  height = 240,
+  width,
+  viewT0,
+  viewT1,
   showLabels = false,
 }: {
   events: { ts: number; label: string }[];
@@ -247,45 +251,58 @@ export function TrendChart({
   yMin?: number;
   yTicks?: number[];
   height?: number;
-  pxPerMonth?: number;
+  width?: number;
+  viewT0: number;
+  viewT1: number;
   showLabels?: boolean;
 }) {
-  const padL = 34;
-  const padR = 16;
+  const clipId = useId();
+  const padL = 32;
+  const padR = 12;
   const padT = 10;
-  const padBBase = 30; // axis (month) label area — constant
-  const labelArea = showLabels ? 96 : 0; // tournament-name labels appended BELOW the plot
-  const innerH = height - padT - padBBase; // plot height stays constant whether or not labels show
+  const padBBase = 28; // month-axis label area — constant
+  const labelArea = showLabels ? 84 : 0; // tournament-name labels appended BELOW the plot
+  const innerH = height - padT - padBBase;
   const H = height + labelArea;
+  const W = Math.max(240, Math.round(width || 320));
+  const innerW = W - padL - padR;
   const n = events.length;
   if (!n) return <div className="grid h-40 place-items-center text-sm text-text-muted">No data in range.</div>;
 
   const MONTH = 30.44 * 864e5;
-  const t0 = events[0].ts;
-  const t1 = events[n - 1].ts;
-  const tspan = Math.max(MONTH, t1 - t0);
-  const months = tspan / MONTH;
-  const innerW = Math.max(280, Math.round(months * pxPerMonth));
-  const W = padL + innerW + padR;
-  const xAt = (ts: number) => padL + ((ts - t0) / tspan) * innerW;
-  const span = yMax - yMin || 1;
-  const yAt = (v: number) => padT + innerH - ((Math.max(yMin, Math.min(yMax, v)) - yMin) / span) * innerH;
+  const span = Math.max(MONTH / 2, viewT1 - viewT0);
+  const xAt = (ts: number) => padL + ((ts - viewT0) / span) * innerW;
+  const yspan = yMax - yMin || 1;
+  const yAt = (v: number) => padT + innerH - ((Math.max(yMin, Math.min(yMax, v)) - yMin) / yspan) * innerH;
   const ticks = [...new Set(yTicks ?? [yMin, Math.round((yMin + yMax) / 2), yMax])];
+  const inX = (x: number) => x >= padL - 0.5 && x <= W - padR + 0.5;
 
-  // Month marks + adaptive labels.
-  const labelEvery = Math.max(1, Math.ceil(46 / pxPerMonth));
-  const marks: { ts: number; label: string; major: boolean }[] = [];
-  const d = new Date(t0);
+  // Month marks within the window; thin out labels so they never crowd.
+  const monthsInView = span / MONTH;
+  const everyMonths = Math.max(1, Math.ceil(monthsInView / 7));
+  const marks: { ts: number; label: string; major: boolean; show: boolean }[] = [];
+  const d = new Date(viewT0);
   d.setDate(1); d.setHours(0, 0, 0, 0);
-  while (d.getTime() <= t1 + MONTH) {
+  let mi = 0;
+  while (d.getTime() <= viewT1 + MONTH) {
     const jan = d.getMonth() === 0;
-    marks.push({ ts: d.getTime(), label: jan ? String(d.getFullYear()) : d.toLocaleDateString(undefined, { month: "short" }), major: jan });
+    marks.push({
+      ts: d.getTime(),
+      label: jan ? String(d.getFullYear()) : d.toLocaleDateString(undefined, { month: "short" }),
+      major: jan,
+      show: mi % everyMonths === 0 || jan,
+    });
+    mi++;
     d.setMonth(d.getMonth() + 1);
   }
-  const inRange = (x: number) => x >= padL - 1 && x <= W - padR + 1;
 
   return (
-    <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} className="block" role="img" aria-label="Trend chart">
+    <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} className="block touch-none select-none" role="img" aria-label="Trend chart">
+      <defs>
+        <clipPath id={clipId}>
+          <rect x={padL} y={padT - 2} width={innerW} height={innerH + 4} />
+        </clipPath>
+      </defs>
       {ticks.map((t) => (
         <g key={`y${t}`}>
           <line x1={padL} x2={W - padR} y1={yAt(t)} y2={yAt(t)} stroke="rgb(var(--color-border-card-chip) / 0.4)" strokeWidth="1" />
@@ -294,60 +311,60 @@ export function TrendChart({
       ))}
       {marks.map((m, i) => {
         const x = xAt(m.ts);
-        if (!inRange(x)) return null;
+        if (!inX(x)) return null;
         return <line key={`m${i}`} x1={x} x2={x} y1={padT} y2={padT + innerH} stroke={`rgb(var(--color-border-card-chip) / ${m.major ? 0.4 : 0.16})`} strokeWidth="1" />;
       })}
       {marks.map((m, i) => {
         const x = xAt(m.ts);
-        if (!inRange(x) || (i % labelEvery !== 0 && !m.major)) return null;
+        if (!m.show || !inX(x)) return null;
         return (
           <text key={`ml${i}`} x={x} y={padT + innerH + 13} textAnchor="middle" className={m.major ? "fill-text-normal" : "fill-text-muted"} style={{ fontSize: 9, fontWeight: m.major ? 600 : 400 }}>
             {m.label}
           </text>
         );
       })}
-      {/* event ticks (every tournament — non-participation reference) */}
-      {events.map((e, i) => {
-        const x = xAt(e.ts);
-        return <line key={`e${i}`} x1={x} x2={x} y1={padT + innerH - 4} y2={padT + innerH} stroke="rgb(var(--color-border-card-chip) / 0.6)" strokeWidth="1" />;
-      })}
+      {/* event ticks (every tournament in view — non-participation reference) */}
+      {events.map((e, i) => (inX(xAt(e.ts)) ? <line key={`e${i}`} x1={xAt(e.ts)} x2={xAt(e.ts)} y1={padT + innerH - 4} y2={padT + innerH} stroke="rgb(var(--color-border-card-chip) / 0.6)" strokeWidth="1" /> : null))}
       {showLabels
         ? events.map((e, i) => {
             const x = xAt(e.ts);
-            const y = padT + innerH + 26;
+            if (!inX(x)) return null;
+            const y = padT + innerH + 24;
             return (
-              <text key={`tl${i}`} x={x} y={y} transform={`rotate(45 ${x} ${y})`} className="fill-text-muted" style={{ fontSize: 9 }}>
+              <text key={`tl${i}`} x={x} y={y} transform={`rotate(45 ${x} ${y})`} className="fill-text-muted" style={{ fontSize: 8 }}>
                 {e.label}
               </text>
             );
           })
         : null}
-      {/* segments — muted + dashed where the player skipped tournament(s) between two points */}
-      {series.map((s) => {
-        const pres: { i: number; v: number }[] = [];
-        s.points.forEach((p, i) => { if (p != null) pres.push({ i, v: p }); });
-        return pres.slice(0, -1).map((A, k) => {
-          const B = pres[k + 1];
-          const skipped = B.i - A.i > 1;
-          return (
-            <line
-              key={`${s.id}-seg-${k}`}
-              x1={xAt(events[A.i].ts)}
-              y1={yAt(A.v)}
-              x2={xAt(events[B.i].ts)}
-              y2={yAt(B.v)}
-              stroke={s.color}
-              strokeWidth="2.25"
-              strokeLinecap="round"
-              opacity={skipped ? 0.28 : 0.95}
-              strokeDasharray={skipped ? "2 4" : undefined}
-            />
-          );
-        });
-      })}
-      {series.map((s) =>
-        s.points.map((p, i) => (p == null ? null : <circle key={`d${s.id}-${i}`} cx={xAt(events[i].ts)} cy={yAt(p)} r="2.2" fill={s.color} />)),
-      )}
+      {/* series clipped to the plot window */}
+      <g clipPath={`url(#${clipId})`}>
+        {series.map((s) => {
+          const pres: { i: number; v: number }[] = [];
+          s.points.forEach((p, i) => { if (p != null) pres.push({ i, v: p }); });
+          return pres.slice(0, -1).map((A, k) => {
+            const B = pres[k + 1];
+            const skipped = B.i - A.i > 1;
+            return (
+              <line
+                key={`${s.id}-seg-${k}`}
+                x1={xAt(events[A.i].ts)}
+                y1={yAt(A.v)}
+                x2={xAt(events[B.i].ts)}
+                y2={yAt(B.v)}
+                stroke={s.color}
+                strokeWidth="2.25"
+                strokeLinecap="round"
+                opacity={skipped ? 0.28 : 0.95}
+                strokeDasharray={skipped ? "2 4" : undefined}
+              />
+            );
+          });
+        })}
+        {series.map((s) =>
+          s.points.map((p, i) => (p == null || !inX(xAt(events[i].ts)) ? null : <circle key={`d${s.id}-${i}`} cx={xAt(events[i].ts)} cy={yAt(p)} r="2.2" fill={s.color} />)),
+        )}
+      </g>
     </svg>
   );
 }

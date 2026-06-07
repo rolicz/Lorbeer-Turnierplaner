@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 
@@ -58,6 +58,18 @@ export default function TrendsPreviewCard() {
   const [view, setView] = useState<View>("lastN");
   const formN = 10;
   const windowMonths = 6 as const;
+
+  const previewRef = useRef<HTMLDivElement>(null);
+  const [previewW, setPreviewW] = useState(320);
+  useEffect(() => {
+    const el = previewRef.current;
+    if (!el) return;
+    const measure = () => setPreviewW(el.clientWidth);
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   const statsQ = useQuery<StatsPlayersResponse>({
     queryKey: ["stats", "players", "overall", 0],
@@ -304,7 +316,7 @@ export default function TrendsPreviewCard() {
             }
             aria-label="Open full trends"
           >
-            <div className="overflow-x-auto" data-no-swipe-nav>
+            <div ref={previewRef} data-no-swipe-nav>
               <TrendChart
                 events={chart.tournamentTs.map((ts, i) => ({ ts, label: chart.tournamentTitles[i] ?? "" }))}
                 series={chart.series.map((s) => ({
@@ -317,7 +329,9 @@ export default function TrendsPreviewCard() {
                 yMin={0}
                 yTicks={chart.yTicks}
                 height={170}
-                pxPerMonth={46}
+                width={previewW}
+                viewT0={chart.tournamentTs[0] ?? Date.now() - 365 * 864e5}
+                viewT1={chart.tournamentTs[chart.tournamentTs.length - 1] ?? Date.now()}
               />
             </div>
           </button>

@@ -130,45 +130,14 @@ function ToggleChip({ on, onClick, children }: { on: boolean; onClick: () => voi
 function TrendsExplorer({ mode, scope, rows, initialMetric, initialView }: { mode: StatsMode; scope: StatsScope; rows: Row[]; initialMetric?: Metric; initialView?: ViewMode }) {
   const [metric, setMetric] = useState<Metric>(initialMetric ?? "points");
   const [view, setView] = useState<ViewMode>(initialView ?? "cumulative");
-  const [rollN, setRollN] = useState(5);
+  const [rollN, setRollN] = useState(10);
   const [range, setRange] = useState<RangeKey>("1y");
   const [perMatch, setPerMatch] = useState(false);
   const [showLabels, setShowLabels] = useState(false);
   const [hidden, setHidden] = useState<Set<number>>(new Set());
   const [now] = useState(() => Date.now());
-
-  // Horizontal pinch-to-zoom inside the plot (one-finger drag pans via native scroll).
-  const [zoom, setZoom] = useState(64);
-  const zoomRef = useRef(zoom);
-  useEffect(() => { zoomRef.current = zoom; }, [zoom]);
-  const plotRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const el = plotRef.current;
-    if (!el) return;
-    let startDist = 0;
-    let startZoom = 64;
-    const dist = (t: TouchList) => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
-    const onStart = (e: TouchEvent) => {
-      if (e.touches.length === 2) { startDist = dist(e.touches); startZoom = zoomRef.current; }
-    };
-    const onMove = (e: TouchEvent) => {
-      if (e.touches.length === 2 && startDist > 0) {
-        e.preventDefault();
-        setZoom(Math.max(28, Math.min(180, Math.round((startZoom * dist(e.touches)) / startDist))));
-      }
-    };
-    const onEnd = (e: TouchEvent) => { if (e.touches.length < 2) startDist = 0; };
-    el.addEventListener("touchstart", onStart, { passive: true });
-    el.addEventListener("touchmove", onMove, { passive: false });
-    el.addEventListener("touchend", onEnd, { passive: true });
-    el.addEventListener("touchcancel", onEnd, { passive: true });
-    return () => {
-      el.removeEventListener("touchstart", onStart);
-      el.removeEventListener("touchmove", onMove);
-      el.removeEventListener("touchend", onEnd);
-      el.removeEventListener("touchcancel", onEnd);
-    };
-  }, []);
+  const [manualWin, setManualWin] = useState<{ t0: number; t1: number } | null>(null);
+  const [plotW, setPlotW] = useState(320);
 
   const matchesQs = useQueries({
     queries: rows.map((r) => ({
@@ -181,10 +150,13 @@ function TrendsExplorer({ mode, scope, rows, initialMetric, initialView }: { mod
   });
   const loading = matchesQs.some((q) => q.isLoading && !q.data);
 
-  // Win% is already a rate, so the per-match modifier only applies to absolute metrics.
+  // Win % is already a rate; cumulative + the per-match modifier only apply to absolute metrics.
+  const allowsCumulative = metric !== "winrate";
+  const effView: ViewMode = !allowsCumulative && view === "cumulative" ? "rolling" : view;
   const applyPM = perMatch && metric !== "winrate";
 
-  const { events, series, totalEvents, allowsCumulative } = useMemo(() => {
+  // Series computed over ALL events; the visible date window (below) pans/zooms the view.
+  const { events, series } = useMemo(() => {
     const perPlayer = new Map<number, Map<number, { v: number; played: number }>>();
     const tInfo = new Map<number, { date: string; name: string }>();
     rows.forEach((r, i) => {
@@ -208,14 +180,7 @@ function TrendsExplorer({ mode, scope, rows, initialMetric, initialView }: { mod
     });
     const tsOf = (tid: number) => new Date(tInfo.get(tid)?.date ?? 0).getTime();
     const allTids = [...tInfo.keys()].sort((a, b) => tsOf(a) - tsOf(b) || a - b);
-    const allowsCumulative = metric !== "winrate";
-    const effView: ViewMode = view === "cumulative" && !allowsCumulative ? "rolling" : view;
-
-    const cutoff = range === "1y" ? now - 365 * 864e5 : range === "2y" ? now - 730 * 864e5 : -Infinity;
-    const firstVisible = allTids.findIndex((tid) => tsOf(tid) >= cutoff);
-    const startIdx = firstVisible < 0 ? allTids.length : firstVisible;
-    const visibleTids = allTids.slice(startIdx);
-    const events = visibleTids.map((tid) => ({ ts: tsOf(tid), label: tInfo.get(tid)?.name ?? "" }));
+    const events = allTids.map((tid) => ({ ts: tsOf(tid), label: tInfo.get(tid)?.name ?? "" }));
 
     const series = rows.map((r, idx) => {
       const vals = perPlayer.get(r.id) ?? new Map<number, { v: number; played: number }>();
@@ -231,10 +196,9 @@ function TrendsExplorer({ mode, scope, rows, initialMetric, initialView }: { mod
         if (!c) return null;
         return applyPM ? (c.played ? c.v / c.played : null) : c.v;
       };
-      const transformed = allTids.map((_, i) => {
+      const points = allTids.map((_, i) => {
         const c = full[i];
         if (effView === "cumulative") {
-          // absent → null so the chart draws a greyed gap segment (non-participation)
           if (!c) return null;
           return applyPM ? (c.cumP ? c.cumV / c.cumP : null) : c.cumV;
         }
@@ -243,12 +207,107 @@ function TrendsExplorer({ mode, scope, rows, initialMetric, initialView }: { mod
         for (let j = i; j >= 0 && wv.length < rollN; j--) { const b = base(j); if (b != null) wv.push(b); }
         return wv.length ? wv.reduce((a, b) => a + b, 0) / wv.length : null;
       });
-      const sliced = transformed.slice(startIdx);
       const c = colorForIdx(idx, rows.length);
-      return { id: r.id, name: r.name, color: c.solid, points: hidden.has(r.id) ? sliced.map(() => null) : sliced };
+      return { id: r.id, name: r.name, color: c.solid, points: hidden.has(r.id) ? points.map(() => null) : points };
     });
-    return { events, series, totalEvents: allTids.length, allowsCumulative };
-  }, [rows, matchesQs, metric, view, rollN, range, hidden, mode, now, applyPM]);
+    return { events, series };
+  }, [rows, matchesQs, metric, effView, rollN, hidden, mode, applyPM]);
+
+  // ---- visible date window (pan/zoom) ----
+  const DAY = 864e5;
+  const dataMin = events.length ? events[0].ts : now - 365 * DAY;
+  const dataMax = events.length ? events[events.length - 1].ts : now;
+  const presetWin = useMemo(() => {
+    const t1 = dataMax;
+    const t0 = range === "all" ? dataMin : Math.max(dataMin, now - (range === "1y" ? 365 : 730) * DAY);
+    return { t0: Math.min(t0, t1 - DAY), t1 };
+  }, [range, dataMin, dataMax, now, DAY]);
+  const win = manualWin ?? presetWin;
+  const winRef = useRef(win);
+  useEffect(() => { winRef.current = win; }, [win]);
+  const boundsRef = useRef({ dataMin, dataMax });
+  useEffect(() => { boundsRef.current = { dataMin, dataMax }; }, [dataMin, dataMax]);
+
+  const plotRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = plotRef.current;
+    if (!el) return;
+    const measure = () => setPlotW(el.clientWidth);
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  // Pinch = zoom x-axis window; one-finger horizontal drag = pan; vertical = page scroll.
+  useEffect(() => {
+    const el = plotRef.current;
+    if (!el) return;
+    const clampWin = (t0: number, t1: number) => {
+      const { dataMin: lo, dataMax: hi } = boundsRef.current;
+      const full = Math.max(DAY, hi - lo);
+      const w = Math.min(Math.max(t1 - t0, 20 * DAY), full);
+      let nt0 = t0;
+      let nt1 = t0 + w;
+      if (nt1 > hi) { nt1 = hi; nt0 = hi - w; }
+      if (nt0 < lo) { nt0 = lo; nt1 = lo + w; }
+      return { t0: nt0, t1: Math.min(nt1, hi) };
+    };
+    let pinch = false;
+    let panDecided: boolean | null = null;
+    let startDist = 0;
+    let startMidFrac = 0;
+    let startX = 0;
+    let startY = 0;
+    let startW = { t0: 0, t1: 0 };
+    const onStart = (e: TouchEvent) => {
+      if (e.touches.length === 2) {
+        pinch = true; panDecided = null;
+        startDist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+        const r = el.getBoundingClientRect();
+        startMidFrac = Math.max(0, Math.min(1, ((e.touches[0].clientX + e.touches[1].clientX) / 2 - r.left) / Math.max(1, r.width)));
+        startW = winRef.current;
+      } else if (e.touches.length === 1) {
+        pinch = false; panDecided = null;
+        startX = e.touches[0].clientX; startY = e.touches[0].clientY; startW = winRef.current;
+      }
+    };
+    const onMove = (e: TouchEvent) => {
+      if (pinch && e.touches.length === 2) {
+        e.preventDefault();
+        const dist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+        const f = Math.max(0.05, dist / Math.max(1, startDist));
+        const w0 = startW.t1 - startW.t0;
+        const tm = startW.t0 + startMidFrac * w0;
+        const newW = w0 / f;
+        setManualWin(clampWin(tm - startMidFrac * newW, tm + (1 - startMidFrac) * newW));
+      } else if (!pinch && e.touches.length === 1) {
+        const dx = e.touches[0].clientX - startX;
+        const dy = e.touches[0].clientY - startY;
+        if (panDecided === null) {
+          if (Math.abs(dx) > Math.abs(dy) + 4) panDecided = true;
+          else if (Math.abs(dy) > Math.abs(dx) + 4) panDecided = false;
+        }
+        if (panDecided) {
+          e.preventDefault();
+          const w0 = startW.t1 - startW.t0;
+          const shift = -(dx / Math.max(1, el.clientWidth)) * w0;
+          setManualWin(clampWin(startW.t0 + shift, startW.t1 + shift));
+        }
+      }
+    };
+    const onEnd = (e: TouchEvent) => { if (e.touches.length === 0) { pinch = false; panDecided = null; } };
+    el.addEventListener("touchstart", onStart, { passive: true });
+    el.addEventListener("touchmove", onMove, { passive: false });
+    el.addEventListener("touchend", onEnd, { passive: true });
+    el.addEventListener("touchcancel", onEnd, { passive: true });
+    return () => {
+      el.removeEventListener("touchstart", onStart);
+      el.removeEventListener("touchmove", onMove);
+      el.removeEventListener("touchend", onEnd);
+      el.removeEventListener("touchcancel", onEnd);
+    };
+  }, []);
 
   const allY = series.flatMap((s) => s.points.filter((p): p is number => p != null));
   const yMax = Math.max(1, ...allY);
@@ -256,16 +315,19 @@ function TrendsExplorer({ mode, scope, rows, initialMetric, initialView }: { mod
 
   return (
     <div className="space-y-3">
-      {/* chart first (hero) — pinch to zoom horizontally, drag to pan */}
+      {/* fixed-size plot — pinch zooms the x-axis, drag pans */}
       <div>
-        <div ref={plotRef} className="overflow-x-auto overscroll-x-contain rounded-2xl border border-border-card-chip/40 bg-bg-card-inner/40 p-2 touch-pan-x" data-no-swipe-nav>
+        <div ref={plotRef} className="rounded-2xl border border-border-card-chip/40 bg-bg-card-inner/40 p-2" data-no-swipe-nav>
           {loading ? (
             <InlineLoading label="Loading…" />
           ) : (
-            <TrendChart events={events} series={series} yMax={Math.ceil(yMax)} yMin={Math.floor(yMin)} pxPerMonth={zoom} showLabels={showLabels} height={240} />
+            <TrendChart events={events} series={series} yMax={Math.ceil(yMax)} yMin={Math.floor(yMin)} width={plotW - 16} viewT0={win.t0} viewT1={win.t1} showLabels={showLabels} height={240} />
           )}
         </div>
-        <div className="mt-1 text-[10px] text-text-muted">Pinch to zoom · drag to pan</div>
+        <div className="mt-1 flex items-center justify-between gap-2 text-[10px] text-text-muted">
+          <span>Pinch to zoom · drag to pan</span>
+          {manualWin ? <button type="button" className="font-medium text-accent" onClick={() => setManualWin(null)}>Reset zoom</button> : null}
+        </div>
         <div className="mt-3 flex flex-wrap gap-2">
           {rows.map((r, idx) => {
             const c = colorForIdx(idx, rows.length);
@@ -291,18 +353,18 @@ function TrendsExplorer({ mode, scope, rows, initialMetric, initialView }: { mod
           </div>
         </Field>
         <Field label="View">
-          <ChipGroup<ViewMode> value={view} onChange={setView} ariaLabel="View"
+          <ChipGroup<ViewMode> value={effView} onChange={setView} ariaLabel="View"
             options={[
               ...(allowsCumulative ? [{ key: "cumulative" as ViewMode, label: "Cumulative" }] : []),
               { key: "per", label: "Per event" },
-              { key: "rolling", label: "Rolling avg" },
+              { key: "rolling", label: "Last N" },
             ]} />
         </Field>
-        {view === "rolling" ? (
-          <Slider label="Window" value={rollN} min={2} max={Math.max(3, Math.min(15, totalEvents || 10))} onChange={setRollN} />
+        {effView === "rolling" ? (
+          <Slider label="Last N" value={rollN} min={2} max={Math.max(3, Math.min(20, events.length || 10))} onChange={setRollN} />
         ) : null}
         <Field label="Range">
-          <ChipGroup<RangeKey> value={range} onChange={setRange} ariaLabel="Range"
+          <ChipGroup<RangeKey> value={range} onChange={(r) => { setRange(r); setManualWin(null); }} ariaLabel="Range"
             options={[{ key: "1y", label: "1 year" }, { key: "2y", label: "2 years" }, { key: "all", label: "All time" }]} />
         </Field>
         <div className="flex flex-wrap gap-1.5">
