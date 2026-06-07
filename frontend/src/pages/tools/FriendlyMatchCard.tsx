@@ -324,7 +324,7 @@ export default function FriendlyMatchCard({
   }
 
   const content = (
-    <div className="card-inner space-y-3">
+    <div className="space-y-4">
         <ErrorToastOnError error={oddsQ.error} title="Odds loading failed" />
         <ErrorToastOnError error={playersQ.error} title="Players loading failed" />
         <ErrorToastOnError error={clubsQ.error} title="Clubs loading failed" />
@@ -380,7 +380,7 @@ export default function FriendlyMatchCard({
           <div className="text-xs text-text-muted">Login as editor/admin to store friendlies for stats.</div>
         ) : null}
 
-        <div className="panel-subtle p-3 space-y-2">
+        <div className="space-y-2">
           <MatchOverviewPanel
             match={previewMatch}
             clubs={clubs}
@@ -408,9 +408,9 @@ export default function FriendlyMatchCard({
           {oddsQ.isFetching ? <div className="text-xs text-text-muted">Computing odds…</div> : null}
         </div>
 
-        <div className="panel-subtle p-3 space-y-3">
+        <div className="space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="text-sm font-semibold text-text-normal">Setup</div>
+            <span className="section-label">Setup</span>
             <SegmentedSwitch<"1v1" | "2v2">
               value={mode}
               onChange={(m) => {

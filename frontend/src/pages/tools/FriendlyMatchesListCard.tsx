@@ -300,50 +300,40 @@ export default function FriendlyMatchesListCard({
       <ErrorToastOnError error={clubsQ.error} title="Clubs loading failed" />
       <ErrorToastOnError error={deleteMut.error} title="Could not delete friendly" />
 
-      <div className="rounded-xl bg-bg-card-inner p-2 space-y-2">
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="flex min-w-0 flex-wrap items-center gap-2">
-            <div className="inline-flex h-9 w-16 sm:w-20 items-center justify-center gap-2 rounded-xl px-2 text-[11px] font-medium text-text-muted">
-              <i className="fa-solid fa-filter text-[11px]" aria-hidden="true" />
-              Filter
-            </div>
-            <SegmentedSwitch<ModeFilter>
-              value={mode}
-              onChange={setMode}
-              options={[
-                { key: "all", label: "All" },
-                { key: "1v1", label: "1v1" },
-                { key: "2v2", label: "2v2" },
-              ]}
-              ariaLabel="Friendly mode filter"
-              title="Filter mode"
-            />
-          </div>
+      <div className="mb-3 flex flex-wrap items-center gap-x-5 gap-y-2">
+        <div className="flex items-center gap-2">
+          <span className="section-label">Mode</span>
+          <SegmentedSwitch<ModeFilter>
+            value={mode}
+            onChange={setMode}
+            options={[
+              { key: "all", label: "All" },
+              { key: "1v1", label: "1v1" },
+              { key: "2v2", label: "2v2" },
+            ]}
+            ariaLabel="Friendly mode filter"
+            title="Filter mode"
+          />
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="flex min-w-0 flex-wrap items-center gap-2">
-            <div className="inline-flex h-9 w-16 sm:w-20 items-center justify-center gap-2 rounded-xl px-2 text-[11px] font-medium text-text-muted">
-              <i className="fa-solid fa-sliders text-[11px]" aria-hidden="true" />
-              View
-            </div>
-            <SegmentedSwitch<boolean>
-              value={showMeta}
-              onChange={setShowMeta}
-              options={[
-                { key: false, label: "Compact", icon: "fa-compress" },
-                { key: true, label: "Details", icon: "fa-list" },
-              ]}
-              ariaLabel="Friendly details toggle"
-              title="View details"
-            />
-          </div>
+        <div className="flex items-center gap-2">
+          <span className="section-label">View</span>
+          <SegmentedSwitch<boolean>
+            value={showMeta}
+            onChange={setShowMeta}
+            options={[
+              { key: false, label: "Compact", icon: "fa-compress" },
+              { key: true, label: "Details", icon: "fa-list" },
+            ]}
+            ariaLabel="Friendly details toggle"
+            title="View details"
+          />
         </div>
       </div>
 
       {friendliesQ.isLoading && !friendliesQ.data ? <InlineLoading label="Loading…" /> : null}
 
       {!friendliesQ.isLoading && tournaments.length === 0 ? (
-        <div className="rounded-xl bg-bg-card-inner p-2 text-sm text-text-muted">No friendlies yet.</div>
+        <div className="px-1 py-8 text-center text-sm text-text-muted">No friendlies yet.</div>
       ) : null}
 
       {tournaments.length ? (
@@ -416,7 +406,7 @@ export default function FriendlyMatchesListCard({
   );
 
   if (embedded) {
-    return <div className="rounded-xl border border-border-card-inner/45 bg-bg-card-inner p-2 space-y-3">{content}</div>;
+    return <div className="space-y-3">{content}</div>;
   }
 
   return (

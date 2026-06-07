@@ -259,8 +259,8 @@ export default function ClubsPage() {
       <SectionTabs tabs={clubTabs} active={tab} onChange={setTab} className="mb-4" />
 
       {tab === "new" && canEdit ? (
-      <section>
-        <div className="card-inner space-y-3">
+      <section className="mx-auto w-full max-w-lg">
+        <div className="space-y-3">
           <div className="space-y-2">
             <label className="flex items-center gap-3">
               <span className="w-24 shrink-0 text-sm font-medium text-text-normal">Name</span>
@@ -318,102 +318,90 @@ export default function ClubsPage() {
 
       {tab === "browse" ? (
       <div className="space-y-4">
-      <section>
-        <div className="rounded-xl border border-border-card-inner/45 bg-bg-card-inner p-2 space-y-2">
-            <div className="flex items-center gap-3">
-              <span className="inline-flex h-9 w-24 shrink-0 items-center text-sm font-medium text-text-muted">Group</span>
-              <div className="min-w-0 flex flex-1 items-center justify-between gap-2">
-                <SegmentedSwitch<"stars" | "league">
-                  value={groupMode}
-                  onChange={setGroupMode}
-                  options={[
-                    { key: "stars", label: "Stars", icon: "fa-star" },
-                    { key: "league", label: "League", icon: "fa-shield-halved" },
-                  ]}
-                  ariaLabel="Group clubs"
-                  title="Group by stars or league"
-                  widthClass="w-20 sm:w-24"
-                />
-                <Button
-                  variant="ghost"
-                  onClick={() => {
-                    setFilterStars("");
-                    setFilterLeagueId("");
-                    setSearch("");
-                  }}
-                  type="button"
-                  title="Clear filters"
-                >
-                  <i className="fa-solid fa-eraser md:hidden" aria-hidden="true" />
-                  <span className="hidden md:inline">Clear</span>
-                </Button>
-              </div>
-            </div>
-
-            <label className="flex items-center gap-3">
-              <span className="inline-flex h-9 w-24 shrink-0 items-center text-sm font-medium text-text-muted">Stars</span>
-              <select className="input-field min-w-0 flex-1" value={filterStars} onChange={(e) => setFilterStars(e.target.value)}>
-                <option value="">Any</option>
-                {starValues().map((v) => {
-                  const s = starsLabel(v);
-                  return (
-                    <option key={v} value={s}>
-                      {s}★
-                    </option>
-                  );
-                })}
-              </select>
-            </label>
-
-            <label className="flex items-center gap-3">
-              <span className="inline-flex h-9 w-24 shrink-0 items-center text-sm font-medium text-text-muted">League</span>
-              <select
-                className="input-field min-w-0 flex-1"
-                value={filterLeagueId === "" ? "" : String(filterLeagueId)}
-                onChange={(e) => setFilterLeagueId(e.target.value ? Number(e.target.value) : "")}
-              >
-                <option value="">Any</option>
-                {leagues.map((l) => (
-                  <option key={l.id} value={String(l.id)}>
-                    {l.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <label className="flex items-center gap-3">
-              <span className="inline-flex h-9 w-24 shrink-0 items-center text-sm font-medium text-text-muted">Search</span>
-              <input
-                className="input-field min-w-0 flex-1"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="e.g. Hönigsberg"
-              />
-            </label>
+      <section className="flex flex-wrap items-center gap-x-4 gap-y-2">
+        <div className="flex items-center gap-2">
+          <span className="section-label">Group</span>
+          <SegmentedSwitch<"stars" | "league">
+            value={groupMode}
+            onChange={setGroupMode}
+            options={[
+              { key: "stars", label: "Stars", icon: "fa-star" },
+              { key: "league", label: "League", icon: "fa-shield-halved" },
+            ]}
+            ariaLabel="Group clubs"
+            title="Group by stars or league"
+          />
         </div>
+        <label className="flex items-center gap-2">
+          <span className="section-label">Stars</span>
+          <select className="select-field w-auto" value={filterStars} onChange={(e) => setFilterStars(e.target.value)}>
+            <option value="">Any</option>
+            {starValues().map((v) => {
+              const s = starsLabel(v);
+              return (
+                <option key={v} value={s}>
+                  {s}★
+                </option>
+              );
+            })}
+          </select>
+        </label>
+        <label className="flex items-center gap-2">
+          <span className="section-label">League</span>
+          <select
+            className="select-field w-auto"
+            value={filterLeagueId === "" ? "" : String(filterLeagueId)}
+            onChange={(e) => setFilterLeagueId(e.target.value ? Number(e.target.value) : "")}
+          >
+            <option value="">Any</option>
+            {leagues.map((l) => (
+              <option key={l.id} value={String(l.id)}>
+                {l.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <div className="min-w-[150px] flex-1">
+          <input
+            className="input-field"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search clubs…"
+          />
+        </div>
+        {hasActiveFilters ? (
+          <Button
+            variant="ghost"
+            onClick={() => {
+              setFilterStars("");
+              setFilterLeagueId("");
+              setSearch("");
+            }}
+            type="button"
+            title="Clear filters"
+          >
+            <i className="fa-solid fa-eraser md:hidden" aria-hidden="true" />
+            <span className="hidden md:inline">Clear</span>
+          </Button>
+        ) : null}
       </section>
 
-      <section>
-        <div className="mb-2 border-b border-border-card-chip/60 pb-2">
-          <div className="flex items-center justify-between gap-2 text-sm text-text-muted">
-            <div className="flex items-center gap-3">
-              <span>{filteredClubs.length} shown</span>
-              <span className="text-subtle">|</span>
-              <span>{clubs.length} total</span>
-            </div>
-            <Button variant="ghost" onClick={() => void qc.invalidateQueries({ queryKey: ["clubs", game] })} title="Refresh">
-              <i className="fa-solid fa-rotate-right md:hidden" aria-hidden="true" />
-              <span className="hidden md:inline">Refresh</span>
-            </Button>
-          </div>
+      <section className="space-y-2">
+        <div className="flex items-center justify-between gap-2 text-xs text-text-muted">
+          <span>{filteredClubs.length} of {clubs.length} clubs</span>
+          <Button variant="ghost" onClick={() => void qc.invalidateQueries({ queryKey: ["clubs", game] })} title="Refresh">
+            <i className="fa-solid fa-rotate-right md:hidden" aria-hidden="true" />
+            <span className="hidden md:inline">Refresh</span>
+          </Button>
         </div>
-        <div className="card-inner space-y-2">
-          {clubsQ.isLoading ? <div className="text-text-muted">Loading…</div> : null}
 
-          {!clubsQ.isLoading && grouped.length === 0 ? (
-            <div className="panel-subtle px-3 py-2 text-sm text-text-muted">No clubs match the current filters.</div>
-          ) : null}
+        {clubsQ.isLoading ? <div className="text-text-muted">Loading…</div> : null}
 
+        {!clubsQ.isLoading && grouped.length === 0 ? (
+          <div className="px-1 py-6 text-sm text-text-muted">No clubs match the current filters.</div>
+        ) : null}
+
+        <div className="space-y-2">
           {grouped.map(([label, clubsInGroup]) => {
             const suffix = groupMode === "league" ? "league" : "";
             return (
@@ -431,23 +419,24 @@ export default function ClubsPage() {
                 className="rounded-xl bg-bg-card-inner"
               >
                 {() => (
-                  <div className="space-y-2">
+                  <div className="list-divided">
                     {clubsInGroup.map((c) => {
                       const ln = leagueNameForClub(c, leaguesById);
                       const isEditing = editId === c.id;
                       const cid = c.league_id;
 
                       return (
-                        <div key={c.id} className="panel px-3 py-2 transition hover:bg-hover-default/40">
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="min-w-0">
-                              <div className="truncate font-medium">{c.name}</div>
-                              <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px]">
-                                <span className="card-chip rounded-full px-2 py-0.5 text-[11px]">{c.game}</span>
-                                <span className="card-chip rounded-full px-2 py-0.5 text-[11px]">{ln}</span>
-                                <span className="card-chip rounded-full px-2 py-0.5 text-[11px]">
-                                  {starsLabel(c.star_rating)}★
-                                </span>
+                        <div key={c.id}>
+                          <div className="row">
+                            <div className="min-w-0 flex-1">
+                              <div className="truncate font-medium text-text-normal">{c.name}</div>
+                              <div className="mt-0.5 flex flex-wrap items-center text-[11px] text-text-muted">
+                                {[c.game, ln, `${starsLabel(c.star_rating)}★`].map((part, i) => (
+                                  <span key={i} className="inline-flex items-center">
+                                    {i > 0 ? <span className="mx-1.5 text-text-muted/40">·</span> : null}
+                                    {part}
+                                  </span>
+                                ))}
                               </div>
                             </div>
 
