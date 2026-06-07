@@ -8,7 +8,7 @@ import InlineLoading from "../../ui/primitives/InlineLoading";
 import { getStatsPlayerMatches, getStatsPlayers } from "../../api/stats.api";
 import type { Match, StatsPlayerMatchesResponse, StatsPlayersResponse, StatsTournamentLite } from "../../api/types";
 import { sideBy } from "../../helpers";
-import { colorForIdx } from "../stats/trendsMath";
+import { usePlayerColors } from "../stats/usePlayerColors";
 import { TrendChart } from "../stats/charts";
 import SegmentedSwitch from "../../ui/primitives/SegmentedSwitch";
 import { fmtDate } from "../../utils/format";
@@ -55,6 +55,7 @@ function avgLast(arr: number[], n: number) {
 
 export default function TrendsPreviewCard() {
   const navigate = useNavigate();
+  const { colorOf } = usePlayerColors();
   const [view, setView] = useState<View>("lastN");
   const formN = 10;
   const windowMonths = 6 as const;
@@ -214,7 +215,7 @@ export default function TrendsPreviewCard() {
     const tournamentTitles = tournaments.map((t) => t.name);
 
     let maxCum = 0;
-    const series = players.map((p, idx) => {
+    const series = players.map((p) => {
       const pp = perPlayer.get(p.player_id);
       const tPoints = pp?.tPoints ?? new Map<number, number>();
       const tForm = pp?.tForm ?? new Map<number, number>();
@@ -222,7 +223,7 @@ export default function TrendsPreviewCard() {
       let cum = 0;
       let lastForm = 0;
       let sawAny = false;
-      const c = colorForIdx(idx, players.length);
+      const c = colorOf(p.player_id);
       const pts = tids.map((tid) => {
         const played = tPlayed.has(tid);
         const pointsThisT = tPoints.get(tid);
@@ -257,7 +258,7 @@ export default function TrendsPreviewCard() {
 
     const yMax = Math.max(1, Math.ceil(maxCum / 10) * 10);
     return { title: "Trends (Total Points)", yMax, yTicks: [0, Math.floor(yMax / 2), yMax], ySuffix: "", series, tournamentTs, tournamentTitles };
-  }, [formN, perPlayer, players, tids, tournaments, view]);
+  }, [formN, perPlayer, players, tids, tournaments, view, colorOf]);
 
   const matchesLoading = matchesQs.some((q) => q.isLoading);
   const matchesError = matchesQs.find((q) => q.error)?.error;

@@ -23,14 +23,30 @@ export function monthTicksBetween(startTs: number, endTs: number): Array<{ ts: n
   return out;
 }
 
+export type PlayerColor = { solid: string; muted: string; outline: string };
+
 /** Distinct, theme-invariant HSL palette entry for a series index. */
-export function colorForIdx(idx: number, total: number) {
+export function colorForIdx(idx: number, total: number): PlayerColor {
   const hue = Math.round(((idx % Math.max(1, total)) * 360) / Math.max(1, total));
   return {
     solid: `hsl(${hue} 72% 56%)`,
     muted: `hsl(${hue} 62% 38%)`, // darker for "no data" segments
     outline: `hsl(${hue} 25% 16%)`,
   };
+}
+
+/**
+ * Stable playerId → colour map. Hues are assigned from a fixed ordering (player
+ * id ascending) so a player keeps the **same** colour regardless of which subset
+ * or order is currently displayed — as long as callers build the map from the
+ * full roster. See `usePlayerColors`.
+ */
+export function buildPlayerColorMap(playerIds: number[]): Map<number, PlayerColor> {
+  const ordered = Array.from(new Set(playerIds)).sort((a, b) => a - b);
+  const total = Math.max(1, ordered.length);
+  const map = new Map<number, PlayerColor>();
+  ordered.forEach((id, idx) => map.set(id, colorForIdx(idx, total)));
+  return map;
 }
 
 export function winnerSide(m: Match): "A" | "B" | null {

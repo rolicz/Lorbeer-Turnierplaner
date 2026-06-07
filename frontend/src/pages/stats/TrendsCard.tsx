@@ -9,7 +9,8 @@ import { getStatsPlayerMatches, getStatsPlayers } from "../../api/stats.api";
 import type { StatsPlayerMatchesResponse, StatsPlayersResponse, StatsTournamentLite } from "../../api/types";
 import { StatsControlLabel, StatsSegmentedSwitch, type StatsMode } from "./StatsControls";
 import { fmtDate } from "../../utils/format";
-import { avgLast, colorForIdx, pointsForPlayerInMatch, type SeriesPoint } from "./trendsMath";
+import { avgLast, pointsForPlayerInMatch, type SeriesPoint } from "./trendsMath";
+import { usePlayerColors } from "./usePlayerColors";
 import { PanZoomTrendsChart } from "./TrendsChart";
 
 type View = "lastN" | "total";
@@ -29,6 +30,7 @@ export default function TrendsCard({
   embedded?: boolean;
   mode?: StatsMode;
 } = {}) {
+  const { colorOf } = usePlayerColors();
   const [view, setView] = useState<View>(initialView);
   const [formN, setFormN] = useState(10);
 
@@ -171,7 +173,7 @@ export default function TrendsCard({
 
     // Form(last N) / cumulative from matches
     let maxCum = 0;
-    const series = players.map((p, idx) => {
+    const series = players.map((p) => {
       const pp = perPlayer.get(p.player_id);
       const tPoints = pp?.tPoints ?? new Map<number, number>();
       const tForm10 = pp?.tForm10 ?? new Map<number, number>();
@@ -179,7 +181,7 @@ export default function TrendsCard({
       let cum = 0;
       let lastForm = 0;
       let sawAny = false;
-      const c = colorForIdx(idx, players.length);
+      const c = colorOf(p.player_id);
       const pts: SeriesPoint[] = tids.map((tid) => {
         const played = tPlayed.has(tid);
         const pointsThisT = tPoints.get(tid);
@@ -218,7 +220,7 @@ export default function TrendsCard({
     const yMax = Math.max(1, Math.ceil(maxCum / 10) * 10);
     const yTicks = [0, Math.floor(yMax / 2), yMax];
     return { title: "Trends (Total Points)", xHintLeft, xHintRight, yMax, yTicks, ySuffix: "", series, tournamentTs, tournamentTitles };
-  }, [formN, perPlayer, players, tids, tournaments, view]);
+  }, [formN, perPlayer, players, tids, tournaments, view, colorOf]);
 
   const matchesError = needMatches ? matchesQs.find((q) => q.error)?.error : null;
   const busy = statsQ.isFetching || (needMatches && matchesQs.some((q) => q.isFetching));

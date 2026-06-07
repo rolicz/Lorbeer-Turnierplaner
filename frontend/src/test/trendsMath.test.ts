@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   avgLast,
+  buildPlayerColorMap,
   clampWindow,
   colorForIdx,
   monthTicksBetween,
@@ -90,6 +91,21 @@ describe("colorForIdx", () => {
     expect(c).toHaveProperty("muted");
     expect(c).toHaveProperty("outline");
     expect(colorForIdx(0, 4).solid).not.toBe(colorForIdx(1, 4).solid);
+  });
+});
+
+describe("buildPlayerColorMap", () => {
+  it("assigns a stable colour per player id regardless of input order", () => {
+    const a = buildPlayerColorMap([3, 1, 2]);
+    const b = buildPlayerColorMap([1, 2, 3]);
+    expect(a.get(1)!.solid).toBe(b.get(1)!.solid);
+    expect(a.get(2)!.solid).toBe(b.get(2)!.solid);
+    expect(a.get(3)!.solid).toBe(b.get(3)!.solid);
+  });
+  it("gives distinct colours to distinct players and dedups ids", () => {
+    const m = buildPlayerColorMap([10, 20, 20, 30]);
+    expect(m.size).toBe(3);
+    expect(new Set([m.get(10)!.solid, m.get(20)!.solid, m.get(30)!.solid]).size).toBe(3);
   });
 });
 

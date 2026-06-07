@@ -14,7 +14,7 @@ import { listClubs } from "../../api/clubs.api";
 import type { Club, Match, StatsScope, StatsH2HPair, StatsH2HOpponentRow, StatsPlayerMatchesTournament, StatsStreakCategory, StatsStreakRun } from "../../api/types";
 import type { StatsMode } from "./StatsControls";
 import { usePlayerAvatarMap } from "../../hooks/usePlayerAvatarMap";
-import { colorForIdx } from "./trendsMath";
+import { usePlayerColors } from "./usePlayerColors";
 import { Sparkline, Radar, TrendChart, ChipGroup } from "./charts";
 import { MatchHistoryList } from "./MatchHistoryList";
 import { PlayerPicker } from "./PlayerPicker";
@@ -129,6 +129,7 @@ function ToggleChip({ on, onClick, children }: { on: boolean; onClick: () => voi
 }
 
 function TrendsExplorer({ mode, scope, rows, initialMetric, initialView }: { mode: StatsMode; scope: StatsScope; rows: Row[]; initialMetric?: Metric; initialView?: ViewMode }) {
+  const { colorOf } = usePlayerColors();
   const [metric, setMetric] = useState<Metric>(initialMetric ?? "points");
   const [view, setView] = useState<ViewMode>(initialView ?? "cumulative");
   const [rollN, setRollN] = useState(10);
@@ -183,7 +184,7 @@ function TrendsExplorer({ mode, scope, rows, initialMetric, initialView }: { mod
     const allTids = [...tInfo.keys()].sort((a, b) => tsOf(a) - tsOf(b) || a - b);
     const events = allTids.map((tid) => ({ ts: tsOf(tid), label: tInfo.get(tid)?.name ?? "" }));
 
-    const series = rows.map((r, idx) => {
+    const series = rows.map((r) => {
       const vals = perPlayer.get(r.id) ?? new Map<number, { v: number; played: number }>();
       let cumV = 0, cumP = 0;
       const full = allTids.map((tid) => {
@@ -208,11 +209,11 @@ function TrendsExplorer({ mode, scope, rows, initialMetric, initialView }: { mod
         for (let j = i; j >= 0 && wv.length < rollN; j--) { const b = base(j); if (b != null) wv.push(b); }
         return wv.length ? wv.reduce((a, b) => a + b, 0) / wv.length : null;
       });
-      const c = colorForIdx(idx, rows.length);
+      const c = colorOf(r.id);
       return { id: r.id, name: r.name, color: c.solid, points: hidden.has(r.id) ? points.map(() => null) : points };
     });
     return { events, series };
-  }, [rows, matchesQs, metric, effView, rollN, hidden, mode, applyPM]);
+  }, [rows, matchesQs, metric, effView, rollN, hidden, mode, applyPM, colorOf]);
 
   // ---- visible date window (pan/zoom) ----
   const DAY = 864e5;
@@ -330,8 +331,8 @@ function TrendsExplorer({ mode, scope, rows, initialMetric, initialView }: { mod
           {manualWin ? <button type="button" className="font-medium text-accent" onClick={() => setManualWin(null)}>Reset zoom</button> : null}
         </div>
         <div className="mt-3 flex flex-wrap gap-2">
-          {rows.map((r, idx) => {
-            const c = colorForIdx(idx, rows.length);
+          {rows.map((r) => {
+            const c = colorOf(r.id);
             const on = !hidden.has(r.id);
             return (
               <button key={r.id} type="button"
