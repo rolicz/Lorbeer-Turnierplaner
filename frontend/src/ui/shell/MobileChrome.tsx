@@ -1,13 +1,14 @@
 import { useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
-import { Menu, X, Settings } from "lucide-react";
+import { Menu, X, Settings, ChevronLeft } from "lucide-react";
 
 import { useAuth } from "../../auth/AuthContext";
 import { drawerLeft, scrim } from "../motion/motion";
 import { activeDest, visibleDests } from "./navConfig";
 import { usePageTitleValue } from "../layout/PageTitleContext";
 import { useHideOnScroll } from "../layout/useHideOnScroll";
+import { useContextualBack } from "./routeMeta";
 import ConnectionIndicator from "./ConnectionIndicator";
 
 /** Mobile (and tablet < lg) top bar + slide-in navigation drawer. */
@@ -25,6 +26,7 @@ export default function MobileChrome({
   const settingsActive = loc.pathname.startsWith("/settings");
   const pageTitle = usePageTitleValue();
   const { hidden, atTop } = useHideOnScroll(72);
+  const { isDetail, goBack } = useContextualBack();
 
   // The current page title: page-registered title wins, else the nav label, else brand.
   const title = pageTitle ?? active?.label ?? "Lorbeerkranz";
@@ -55,18 +57,28 @@ export default function MobileChrome({
         }
       >
         <div className="flex h-14 items-center gap-2 px-3">
-          <button
-            type="button"
-            onClick={() => setOpen(true)}
-            aria-label="Open menu"
-            className="icon-button focus-ring inline-flex h-10 w-10 shrink-0 items-center justify-center"
-          >
-            <Menu className="h-5 w-5" aria-hidden="true" />
-          </button>
-          <div className="min-w-0 flex-1">
-            <span className="block truncate text-base font-semibold tracking-tight">{title}</span>
-          </div>
-          <ConnectionIndicator compact />
+          {isDetail ? (
+            <button
+              type="button"
+              onClick={goBack}
+              aria-label="Back"
+              className="icon-button focus-ring inline-flex h-10 w-10 shrink-0 items-center justify-center"
+            >
+              <ChevronLeft className="h-5 w-5" aria-hidden="true" />
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setOpen(true)}
+              aria-label="Open menu"
+              className="icon-button focus-ring inline-flex h-10 w-10 shrink-0 items-center justify-center"
+            >
+              <Menu className="h-5 w-5" aria-hidden="true" />
+            </button>
+          )}
+          <span className="min-w-0 truncate text-base font-semibold tracking-tight">{title}</span>
+          <ConnectionIndicator />
+          <span className="flex-1" />
         </div>
       </header>
 
@@ -130,7 +142,7 @@ export default function MobileChrome({
                 })}
               </nav>
 
-              <div className="mt-auto space-y-2 border-t border-border-card-chip/40 px-3 py-3">
+              <div className="mt-auto border-t border-border-card-chip/40 px-3 py-3">
                 <Link
                   to="/settings"
                   onClick={() => setOpen(false)}
@@ -145,9 +157,6 @@ export default function MobileChrome({
                   <Settings className="h-5 w-5 shrink-0" aria-hidden="true" />
                   <span>Settings</span>
                 </Link>
-                <div className="px-3">
-                  <ConnectionIndicator />
-                </div>
               </div>
             </motion.aside>
           </div>

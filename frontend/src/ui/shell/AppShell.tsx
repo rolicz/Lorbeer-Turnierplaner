@@ -12,6 +12,7 @@ import { RealtimeProvider } from "../../hooks/realtime/RealtimeProvider";
 import { useAnyTournamentWS } from "../../hooks/realtime/useRealtime";
 import Sidebar from "./Sidebar";
 import MobileChrome from "./MobileChrome";
+import { useSwipeNav } from "./useSwipeNav";
 
 const COLLAPSE_KEY = "sidebar-collapsed";
 
@@ -22,6 +23,8 @@ function ShellInner({ children }: { children: React.ReactNode }) {
   // Always-on global channel: keeps list/live/cup fresh app-wide and drives the
   // connection indicator on every route.
   useAnyTournamentWS();
+  // Global swipe back/forward (mobile gesture nav; harmless on non-touch).
+  useSwipeNav();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [collapsed, setCollapsed] = useState<boolean>(() => localStorage.getItem(COLLAPSE_KEY) === "1");
 

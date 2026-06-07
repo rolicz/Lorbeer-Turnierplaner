@@ -8,6 +8,7 @@ import { ErrorToastOnError } from "../ui/primitives/ErrorToast";
 import PageLoadingScreen from "../ui/primitives/PageLoadingScreen";
 import AvatarCircle from "../ui/primitives/AvatarCircle";
 import { Pill } from "../ui/primitives/Pill";
+import { List, ListRow } from "../ui/primitives/List";
 import { SectionTabs, type SectionTab } from "../ui/SectionTabs";
 import { Users, UserPlus } from "lucide-react";
 import { useRouteEntryLoading } from "../ui/layout/useRouteEntryLoading";
@@ -151,8 +152,8 @@ export default function PlayersAdminPage() {
       <SectionTabs tabs={playersTabs} active={tab} onChange={setTab} />
 
       {tab === "add" && isAdmin ? (
-        <div className="card-outer space-y-2">
-          <div className="text-sm font-semibold text-text-normal">Create player</div>
+        <div className="mx-auto w-full max-w-md">
+          <div className="section-head"><span className="section-label">Create player</span></div>
           <div className="flex flex-wrap items-end gap-2">
             <Input label="Name" value={newName} onChange={(e) => setNewName(e.target.value)} />
             <Button
@@ -166,121 +167,63 @@ export default function PlayersAdminPage() {
           </div>
         </div>
       ) : (
-      <div className="panel-subtle rounded-2xl overflow-hidden">
-        <div className="grid grid-cols-12 items-center gap-2 border-b border-border-card-inner bg-bg-card-chip/20 px-3 py-2 text-[11px] text-text-muted">
-          <div className="col-span-8">Player</div>
-          <div className="col-span-4 text-right" />
-        </div>
+        <List>
+          {players.map((p) => {
+            const updatedAt = avatarUpdatedAtByPlayerId.get(p.id) ?? null;
+            const editing = editId === p.id;
+            const bio = bioByPlayerId.get(p.id)?.trim() ?? "";
+            const seen = seenGuestbookByPid.get(p.id) ?? new Set<number>();
+            const entryIds = guestbookSummaryByPid.get(p.id)?.entry_ids ?? [];
+            const unseenCount = entryIds.filter((eid) => !seen.has(eid)).length;
+            const hasUnseen = !!token && unseenCount > 0;
+            const unseenPokes = Number(pokeSummaryByPid.get(p.id)?.unread_by_profile_owner_count ?? 0);
+            const hasUnreadPokes = unseenPokes > 0;
 
-        {playersQ.isLoading ? <div className="px-3 py-3 text-text-muted">Loading…</div> : null}
-
-        {players.map((p, idx) => {
-          const zebra = idx % 2 === 0 ? "bg-table-row-a" : "bg-table-row-b";
-          const updatedAt = avatarUpdatedAtByPlayerId.get(p.id) ?? null;
-          const editing = editId === p.id;
-          const bio = bioByPlayerId.get(p.id)?.trim() ?? "";
-          const seen = seenGuestbookByPid.get(p.id) ?? new Set<number>();
-          const entryIds = guestbookSummaryByPid.get(p.id)?.entry_ids ?? [];
-          const unseenCount = entryIds.filter((eid) => !seen.has(eid)).length;
-          const hasUnseen = !!token && unseenCount > 0;
-          const unseenPokes = Number(pokeSummaryByPid.get(p.id)?.unread_by_profile_owner_count ?? 0);
-          const hasUnreadPokes = unseenPokes > 0;
-
-          return (
-            <div key={p.id} className={"border-b border-border-card-inner last:border-b-0 " + zebra}>
-              <div
-                className="grid grid-cols-12 items-center gap-2 px-3 py-2 cursor-pointer hover:bg-bg-card-chip/15"
-                role="button"
-                tabIndex={0}
-                title={`Open profile: ${p.display_name}`}
-                onClick={() => openProfile(p.id, false)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === " ") {
-                    e.preventDefault();
-                    openProfile(p.id, false);
+            return (
+              <div key={p.id}>
+                <ListRow
+                  onClick={() => openProfile(p.id, false)}
+                  ariaLabel={`Open profile: ${p.display_name}`}
+                  leading={
+                    <AvatarCircle playerId={p.id} name={p.display_name} updatedAt={updatedAt} sizeClass="h-10 w-10" />
                   }
-                }}
-              >
-                <div className="col-span-8 min-w-0 flex items-center gap-2">
-                  <AvatarCircle playerId={p.id} name={p.display_name} updatedAt={updatedAt} sizeClass="h-10 w-10" />
-                  <div className="min-w-0">
-                    <div className="truncate text-text-normal font-semibold">{p.display_name}</div>
-                    {bio ? <div className="truncate text-[11px] text-text-muted">{bio}</div> : null}
-                  </div>
-                </div>
+                  title={p.display_name}
+                  subtitle={bio || undefined}
+                  trailing={
+                    <>
+                      {hasUnreadPokes ? (
+                        <button type="button" title="Unread anpöbel notifications" onClick={() => openProfile(p.id, false)}>
+                          <Pill title="Unread anpöbel notifications">
+                            <i className="fa-solid fa-bell text-accent" aria-hidden="true" />
+                            <span className="tabular-nums text-text-normal">{unseenPokes}</span>
+                          </Pill>
+                        </button>
+                      ) : null}
+                      {hasUnseen ? (
+                        <button type="button" title="Jump to latest unread guestbook message" onClick={() => openProfile(p.id, true)}>
+                          <Pill title="Unread guestbook messages">
+                            <i className="fa-solid fa-envelope text-accent" aria-hidden="true" />
+                            <span className="tabular-nums text-text-normal">{unseenCount}</span>
+                          </Pill>
+                        </button>
+                      ) : null}
+                      {isAdmin ? (
+                        editing ? (
+                          <Button variant="ghost" type="button" onClick={() => { setEditId(null); setEditName(""); }} title="Cancel">
+                            <i className="fa-solid fa-xmark" aria-hidden="true" />
+                          </Button>
+                        ) : (
+                          <Button variant="ghost" type="button" onClick={() => { setEditId(p.id); setEditName(p.display_name); }} title="Rename">
+                            <i className="fa-solid fa-pen" aria-hidden="true" />
+                          </Button>
+                        )
+                      ) : null}
+                    </>
+                  }
+                />
 
-                <div className="col-span-4 flex items-center justify-end gap-2">
-                  {hasUnreadPokes ? (
-                    <button
-                      type="button"
-                      title="Unread anpöbel notifications"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        navigate(`/profiles/${p.id}`);
-                        window.setTimeout(() => {
-                          scrollToSectionById("profile-section-main", 24);
-                        }, 0);
-                      }}
-                    >
-                      <Pill title="Unread anpöbel notifications">
-                        <i className="fa-solid fa-bell text-accent" aria-hidden="true" />
-                        <span className="tabular-nums text-text-normal">{unseenPokes}</span>
-                      </Pill>
-                    </button>
-                  ) : null}
-                  {token ? (
-                    hasUnseen ? (
-                      <button
-                        type="button"
-                        title="Jump to latest unread guestbook message"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          openProfile(p.id, true);
-                        }}
-                      >
-                        <Pill title="Unread guestbook messages">
-                          <i className="fa-solid fa-envelope text-accent" aria-hidden="true" />
-                          <span className="tabular-nums text-text-normal">{unseenCount}</span>
-                        </Pill>
-                      </button>
-                    ) : null
-                  ) : null}
-                  {!editing && isAdmin ? (
-                    <Button
-                      variant="ghost"
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setEditId(p.id);
-                        setEditName(p.display_name);
-                      }}
-                      title="Rename"
-                    >
-                      <i className="fa-solid fa-pen" aria-hidden="true" />
-                    </Button>
-                  ) : null}
-                  {editing && isAdmin ? (
-                    <Button
-                      variant="ghost"
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setEditId(null);
-                        setEditName("");
-                      }}
-                      title="Cancel"
-                    >
-                      <i className="fa-solid fa-xmark" aria-hidden="true" />
-                    </Button>
-                  ) : null}
-                </div>
-              </div>
-
-              {editing && isAdmin ? (
-                <div className="px-3 pb-3">
-                  <div className="panel-subtle p-3 flex flex-wrap items-end gap-2">
+                {editing && isAdmin ? (
+                  <div className="flex flex-wrap items-end gap-2 pb-3 pl-[52px]">
                     <Input label="New name" value={editName} onChange={(e) => setEditName(e.target.value)} />
                     <Button
                       type="button"
@@ -291,12 +234,11 @@ export default function PlayersAdminPage() {
                       {patchMut.isPending ? "Saving…" : "Save"}
                     </Button>
                   </div>
-                </div>
-              ) : null}
-            </div>
-          );
-        })}
-      </div>
+                ) : null}
+              </div>
+            );
+          })}
+        </List>
       )}
     </div>
   );

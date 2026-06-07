@@ -11,7 +11,7 @@ import MatchOverviewPanel from "../../ui/primitives/MatchOverviewPanel";
 import { SectionTabs, type SectionTab } from "../../ui/SectionTabs";
 import SelectClubsPanel from "../../ui/SelectClubsPanel";
 import { GoalStepper } from "../../ui/clubControls";
-import PageBack from "../../ui/PageBack";
+import InlineBack from "../../ui/shell/InlineBack";
 import { usePageTitle } from "../../ui/layout/PageTitleContext";
 
 import { getTournament } from "../../api/tournaments.api";
@@ -163,7 +163,6 @@ export default function MatchDetailPage() {
   const bSide = match ? sideBy(match, "B") : undefined;
   const aPlayers = aSide?.players.map((p) => p.display_name).join(" + ") ?? "—";
   const bPlayers = bSide?.players.map((p) => p.display_name).join(" + ") ?? "—";
-  const tournamentName = tQ.data?.name ?? `Tournament #${tid}`;
 
   const tabs: SectionTab<Tab>[] = [
     { key: "h2h", label: "Head-to-Head" },
@@ -175,10 +174,12 @@ export default function MatchDetailPage() {
     <div className="page">
       {/* Header */}
       <div className="mb-4">
-        <PageBack to={backTo} label={tournamentName} state={{ focusMatchId: matchId }} />
-        <h1 className="hidden text-xl font-bold tracking-tight text-text-normal lg:block">
-          Match #{matchId}
-        </h1>
+        <div className="mb-1 hidden items-center gap-2 lg:flex">
+          <InlineBack />
+          <h1 className="text-xl font-bold tracking-tight text-text-normal">
+            Match #{matchId}
+          </h1>
+        </div>
         {match ? (
           <p className="mt-1 text-sm text-text-muted">
             {aPlayers} vs {bPlayers}

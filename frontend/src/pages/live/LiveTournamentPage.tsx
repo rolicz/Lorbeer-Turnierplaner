@@ -41,7 +41,7 @@ import { fmtDate } from "../../utils/format";
 import { listTournamentComments, markAllTournamentCommentsRead } from "../../api/comments.api";
 import { useRouteEntryLoading } from "../../ui/layout/useRouteEntryLoading";
 import { usePageTitle } from "../../ui/layout/PageTitleContext";
-import PageBack from "../../ui/PageBack";
+import InlineBack from "../../ui/shell/InlineBack";
 
 type PlayerLite = { id: number; display_name: string };
 type LiveTab = "overview" | "matches" | "comments" | "controls";
@@ -531,13 +531,14 @@ export default function LiveTournamentPage() {
     <div className="page">
       {/* Header */}
       <div className="mb-3">
-        <PageBack to="/tournaments" label="All tournaments" />
-
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
-            <h1 className="hidden truncate text-xl font-bold tracking-tight text-text-normal sm:text-2xl lg:block">
-              {cardTitle}
-            </h1>
+            <div className="mb-1 hidden items-center gap-2 lg:flex">
+              <InlineBack />
+              <h1 className="truncate text-xl font-bold tracking-tight text-text-normal sm:text-2xl">
+                {cardTitle}
+              </h1>
+            </div>
             {tQ.data ? (
               <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
                 <StatusChip status={tQ.data.status} />

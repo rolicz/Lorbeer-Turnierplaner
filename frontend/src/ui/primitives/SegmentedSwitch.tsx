@@ -59,9 +59,10 @@ export default function SegmentedSwitch<T extends Primitive>({
     >
       {indicator ? (
         <span
-          className="absolute inset-y-1 rounded-xl shadow-sm transition-all duration-200 ease-out"
+          className="absolute inset-y-1 rounded-xl transition-all duration-200 ease-out"
           style={{
-            backgroundColor: "rgb(var(--color-bg-card-inner))",
+            backgroundColor: "rgb(var(--color-accent) / 0.16)",
+            boxShadow: "inset 0 0 0 1px rgb(var(--color-accent) / 0.45)",
             left: indicator.left,
             width: indicator.width,
           }}
@@ -76,7 +77,7 @@ export default function SegmentedSwitch<T extends Primitive>({
           onClick={() => onChange(x.key)}
           className={
             "relative z-10 inline-flex h-9 items-center justify-center gap-1.5 whitespace-nowrap rounded-xl px-3 text-xs transition-colors " +
-            (value === x.key ? "text-text-normal font-medium" : "text-text-muted hover:text-text-normal")
+            (value === x.key ? "text-accent font-semibold" : "text-text-muted hover:text-text-normal")
           }
           aria-pressed={value === x.key}
         >

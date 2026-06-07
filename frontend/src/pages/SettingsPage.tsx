@@ -13,7 +13,6 @@ import { UserCircle2, Bell, Palette, FlaskConical } from "lucide-react";
 import { qk } from "../api/queryKeys";
 import { listPlayers } from "../api/players.api";
 import PushNotificationsSettings from "../ui/layout/PushNotificationsSettings";
-import ConnectionIndicator from "../ui/shell/ConnectionIndicator";
 import { THEMES } from "../themes";
 import { useRouteEntryLoading } from "../ui/layout/useRouteEntryLoading";
 import PageLoadingScreen from "../ui/primitives/PageLoadingScreen";
@@ -91,9 +90,8 @@ export default function SettingsPage() {
 
   return (
     <div className="page">
-      <div className="mb-4 flex items-center justify-between gap-3">
-        <h1 className="hidden text-xl font-bold tracking-tight text-text-normal lg:block">Settings</h1>
-        <ConnectionIndicator />
+      <div className="mb-4 hidden lg:block">
+        <h1 className="text-xl font-bold tracking-tight text-text-normal">Settings</h1>
       </div>
 
       <SectionTabs tabs={settingsTabs} active={tab} onChange={setTab} className="mb-4" />

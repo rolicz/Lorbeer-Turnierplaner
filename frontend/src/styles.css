@@ -149,6 +149,50 @@
   .no-scrollbar { scrollbar-width: none; -ms-overflow-style: none; }
   .no-scrollbar::-webkit-scrollbar { display: none; }
 
+  /* ---- Flat, list-first layout (design-system overhaul) ----
+     Replaces the heavy card-in-card look: edge-to-edge sections with a small
+     uppercase label, hairline dividers, and dense full-width rows. No nested
+     borders/shadows eating horizontal space. */
+
+  /* Stacked page sections (vertical rhythm between flat blocks). */
+  .stack { @apply flex flex-col gap-5; }
+  .stack-tight { @apply flex flex-col gap-3; }
+
+  /* Small uppercase section heading. */
+  .section-label {
+    @apply text-[11px] font-semibold uppercase tracking-wider;
+    color: rgb(var(--color-text-muted));
+  }
+  /* Optional trailing rule next to a section label (label · ─────). */
+  .section-head { @apply mb-2 flex items-center gap-3; }
+  .section-head::after {
+    content: "";
+    flex: 1 1 auto;
+    border-top: 1px solid rgb(var(--color-border-card-chip) / 0.35);
+  }
+
+  /* Standalone hairline rule. */
+  .divider {
+    border: 0;
+    border-top: 1px solid rgb(var(--color-border-card-chip) / 0.4);
+  }
+  /* Vertical list with hairline separators between children. */
+  .list-divided > * + * {
+    border-top: 1px solid rgb(var(--color-border-card-chip) / 0.4);
+  }
+
+  /* A single dense, full-width row (canonical list element). */
+  .row {
+    @apply flex w-full items-center gap-3 py-3 text-left;
+    min-height: 3.25rem;
+  }
+  /* Interactive row: subtle hover/press feedback. */
+  .row-tap { @apply rounded-lg transition-colors; }
+  @media (hover: hover) and (pointer: fine) {
+    .row-tap:hover { background-color: rgb(var(--color-bg-card-chip) / 0.35); }
+  }
+  .row-tap:active { background-color: rgb(var(--color-bg-card-chip) / 0.5); }
+
   /* Cards and Panels */
   .card-outer {
     @apply rounded-2xl p-3;
@@ -185,7 +229,7 @@
 
   /* Buttons */
   .btn-base {
-    @apply rounded-xl px-4 py-2 text-sm font-medium transition disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/35;
+    @apply rounded-xl px-4 py-2 text-sm font-medium transition active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/35;
   }
   .btn-solid {
     @apply btn-base;
@@ -229,6 +273,7 @@
   }
   .input-field:focus {
     border-color: rgb(var(--color-accent));
+    box-shadow: 0 0 0 3px rgb(var(--color-accent) / 0.18);
   }
   .select-field {
     @apply w-full rounded-xl px-3 py-2 text-sm outline-none disabled:opacity-60;
@@ -238,6 +283,7 @@
   }
   .select-field:focus {
     border-color: rgb(var(--color-accent));
+    box-shadow: 0 0 0 3px rgb(var(--color-accent) / 0.18);
   }
   input[type="range"] {
     accent-color: rgb(var(--color-accent));
