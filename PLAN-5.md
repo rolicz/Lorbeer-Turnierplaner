@@ -102,10 +102,13 @@ radar.
 
 ## Phase G — Verification  (model: **Sonnet high**)
 
-- [ ] Playwright sweep 390 + 430 + 1366 × both stats modes — zero console errors, no
-      horizontal scroll; verify colour consistency, header live/click, standings
-      best-case, positions drag + sticky icons, radar overlay; `npm run check` +
-      build green.
+- [x] Playwright sweep 390 + 430 + 1366 × both stats modes — **30/30 clean** (0
+      console errors, no horizontal scroll). Verified colour consistency
+      (dashboard↔trends↔radar), header Live/Connected + click→/live, standings
+      best-case, table Last-N, positions drag + sticky icons, 2v2 teammate synergy,
+      radar overlay. `npm run check` (73 tests) + `npm run build` green.
+
+**All phases complete.**
 
 ---
 

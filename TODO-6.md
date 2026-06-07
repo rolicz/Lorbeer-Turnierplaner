@@ -11,6 +11,10 @@ last N should use 5 as default
 # Stats
 ## Trends
 - the tournament names are super fucked now, they overlap in the center. just keep it rotated as before but let me plan for the space used by the most recent tournaments and dont cut it off
+- i also want the greyed out line for last n view (as it already is in dashboard)
 
 ## cups
 - it's a bit weird that it says "Atzi took it from Berni" but then it shows streak 1 and it's not clear who the streak belongs to. improve this (also on dashboard cups page)
+
+# Remarks
+plan with opus, let me know when to switch to implementation models. add that it should go over the plan until everything is implemented (maybe use a separate markdown for the plan)
