@@ -50,22 +50,20 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done
 - [ ] **Clubs list** — bring the grouped list fully in line with the flat design
       (section-label group headers + `list-divided` rows; lighter group chrome).
 
-## Phase D — Live tournament  (model: **Opus high**)
+## Phase D — Live tournament  ✅
 
-- [ ] **Select Clubs + match comments**: the collapsible toggle is too small —
-      give these a clear, properly-sized header (full-width, obvious tap target);
-      tidy the Select Clubs layout. Fix in the shared components so every reuse
-      (`TournamentCommentsCard`, `SelectClubsPanel`) updates everywhere.
-- [ ] **Standings fit on screen**: the wide table scrolls off even on big phones.
-      Redesign to fit the viewport with **no horizontal scroll** — stack the player
-      details on the left over multiple lines (rank/name on line 1, secondary
-      figures on line 2) and keep only the essential right-aligned columns.
+- [x] **Select Clubs + match comments**: both now have a clear, full-width
+      collapsible header bar (icon + title + count + chevron), fixed in the shared
+      `SelectClubsPanel` + `TournamentCommentsCard` (updates everywhere).
+- [x] **Standings fit on screen**: replaced the wide table with compact 2-line rows
+      (rank/avatar/name + badges on line 1; P · W-D-L · GF:GA · GD on line 2; Pts
+      right) — **no horizontal scroll** (verified docW == winW at 430px).
 
-## Phase E — Verification  (model: **Sonnet high**)
+## Phase E — Verification  ✅
 
-- [ ] Playwright sweep 390 + 430 + 1366 across all routes × both stats modes — zero
-      console errors; confirm standings fit (no horizontal scroll) at 430px; confirm
-      gold lineage line visible; `npm run check` + build green.
+- [x] Playwright sweep 390 + 430 + 1366 across all routes × both stats modes —
+      **errors=0, hscroll=0** (66 combos); gold lineage line visible; player→profile
+      →back verified; `npm run check` (typecheck + eslint + 71 tests) + build green.
 
 ---
 

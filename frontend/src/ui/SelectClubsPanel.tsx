@@ -113,6 +113,7 @@ export default function SelectClubsPanel({
 }) {
   const clubsSorted = useMemo(() => sortClubsForDropdown(clubs), [clubs]);
 
+  const [open, setOpen] = useState(true);
   const [starFilter, setStarFilter] = useState<number | null>(null);
   const [leagueFilter, setLeagueFilter] = useState<number | null>(null);
 
@@ -327,8 +328,19 @@ export default function SelectClubsPanel({
 
   return (
     <div>
-      <div className="section-head"><span className="section-label">Select clubs</span></div>
-      {body}
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        className="focus-ring flex w-full items-center justify-between gap-2 rounded-xl bg-bg-card-chip/30 px-3 py-3 text-left transition hover:bg-bg-card-chip/45"
+      >
+        <span className="inline-flex items-center gap-2 text-sm font-semibold text-text-normal">
+          <i className="fa-solid fa-shield-halved text-text-muted" aria-hidden="true" />
+          Select clubs
+        </span>
+        <i className={`fa-solid ${open ? "fa-chevron-up" : "fa-chevron-down"} text-text-muted`} aria-hidden="true" />
+      </button>
+      {open ? <div className="pt-3">{body}</div> : null}
     </div>
   );
 }

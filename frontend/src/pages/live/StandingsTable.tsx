@@ -327,75 +327,53 @@ export default function StandingsTable({
   const title = tournamentStatus === "done" ? "Results" : "Standings (live)";
 
   const content = (
-    <div className="overflow-x-auto" data-no-swipe-nav>
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="border-b border-border-card-chip/50 text-[11px] uppercase tracking-wide text-text-muted">
-            <th className="sticky left-0 z-10 bg-bg-default py-2 pl-1 pr-2 text-left font-medium">Player</th>
-            <th className="px-2 py-2 text-right font-medium">P</th>
-            <th className="px-2 py-2 text-right font-medium">W</th>
-            <th className="px-2 py-2 text-right font-medium">D</th>
-            <th className="px-2 py-2 text-right font-medium">L</th>
-            <th className="px-2 py-2 text-right font-medium">GF</th>
-            <th className="px-2 py-2 text-right font-medium">GA</th>
-            <th className="px-2 py-2 text-right font-medium">GD</th>
-            <th className="px-2 py-2 pl-2 pr-1 text-right font-medium">Pts</th>
-          </tr>
-        </thead>
-        <tbody className="tabular-nums">
-          {liveRows.map((r, idx) => {
-            const baseIdx = basePos.get(r.playerId);
-            const delta = baseIdx === undefined ? null : baseIdx - idx;
-            const isLeader = idx === 0;
-            const cupMarks = cupMarksByPlayerId.get(r.playerId) ?? [];
-            const streaks = streaksByPlayerId.get(r.playerId) ?? [];
-            return (
-              <tr
-                key={r.playerId}
-                className="cursor-pointer border-b border-border-card-inner/40 transition hover:bg-hover-default/30"
-                title={`Open profile: ${r.name}`}
-                onClick={() => navigate(`/profiles/${r.playerId}`)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === " ") {
-                    e.preventDefault();
-                    navigate(`/profiles/${r.playerId}`);
-                  }
-                }}
-                role="button"
-                tabIndex={0}
-              >
-                <td className="sticky left-0 z-10 bg-bg-default py-2 pl-1 pr-2">
-                  <div className="relative flex items-center gap-2">
-                    {isLeader ? <span className="absolute inset-y-0 -left-1 w-0.5 rounded bg-status-bar-green" aria-hidden="true" /> : null}
-                    <span className="w-4 text-right text-xs tabular-nums text-text-muted">{idx + 1}</span>
-                    <span className="w-3 shrink-0 text-center text-[10px] leading-none"><Arrow delta={delta} /></span>
-                    <AvatarCircle playerId={r.playerId} name={r.name} updatedAt={avatarUpdatedAtByPlayerId.get(r.playerId) ?? null} sizeClass="h-7 w-7" />
-                    <span className="max-w-[110px] truncate font-medium text-text-normal sm:max-w-[260px]">{r.name}</span>
-                    {cupMarks.length || streaks.length ? (
-                      <span className="inline-flex items-center gap-1 whitespace-nowrap">
-                        {cupMarks.slice(0, 2).map((c) => (
-                          <CupOwnerBadge key={c.key} cupKey={c.key} cupName={c.name} title={`${c.name} owner (before tournament)`} />
-                        ))}
-                        {streaks.slice(0, 2).map((s, i) => (
-                          <StreakPatch key={s.key + "-" + i} streak={s} className="streak-compact" />
-                        ))}
-                      </span>
-                    ) : null}
-                  </div>
-                </td>
-                <td className="px-2 text-right text-text-muted">{r.played}</td>
-                <td className="px-2 text-right text-status-text-green">{r.wins}</td>
-                <td className="px-2 text-right text-amber-300">{r.draws}</td>
-                <td className="px-2 text-right text-[color:rgb(var(--delta-down)/1)]">{r.losses}</td>
-                <td className="px-2 text-right">{r.gf}</td>
-                <td className="px-2 text-right">{r.ga}</td>
-                <td className="px-2 text-right">{r.gd >= 0 ? `+${r.gd}` : r.gd}</td>
-                <td className="px-2 pl-2 pr-1 text-right font-bold">{r.pts}</td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+    <div className="list-divided">
+      {liveRows.map((r, idx) => {
+        const baseIdx = basePos.get(r.playerId);
+        const delta = baseIdx === undefined ? null : baseIdx - idx;
+        const isLeader = idx === 0;
+        const cupMarks = cupMarksByPlayerId.get(r.playerId) ?? [];
+        const streaks = streaksByPlayerId.get(r.playerId) ?? [];
+        return (
+          <div
+            key={r.playerId}
+            className="row row-tap relative cursor-pointer"
+            title={`Open profile: ${r.name}`}
+            onClick={() => navigate(`/profiles/${r.playerId}`)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                navigate(`/profiles/${r.playerId}`);
+              }
+            }}
+            role="button"
+            tabIndex={0}
+          >
+            {isLeader ? <span className="absolute inset-y-1 left-0 w-0.5 rounded bg-status-bar-green" aria-hidden="true" /> : null}
+            <span className="w-4 shrink-0 text-right text-xs tabular-nums text-text-muted">{idx + 1}</span>
+            <span className="w-3 shrink-0 text-center text-[10px] leading-none"><Arrow delta={delta} /></span>
+            <AvatarCircle playerId={r.playerId} name={r.name} updatedAt={avatarUpdatedAtByPlayerId.get(r.playerId) ?? null} sizeClass="h-9 w-9" />
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-1.5">
+                <span className="min-w-0 truncate font-medium text-text-normal">{r.name}</span>
+                {cupMarks.slice(0, 2).map((c) => (
+                  <CupOwnerBadge key={c.key} cupKey={c.key} cupName={c.name} title={`${c.name} owner (before tournament)`} />
+                ))}
+                {streaks.slice(0, 2).map((s, i) => (
+                  <StreakPatch key={s.key + "-" + i} streak={s} className="streak-compact" />
+                ))}
+              </div>
+              <div className="mt-0.5 font-mono text-[11px] tabular-nums text-text-muted">
+                {r.played}P · <span className="text-status-text-green">{r.wins}</span>-<span className="text-amber-300">{r.draws}</span>-<span className="text-[color:rgb(var(--delta-down)/1)]">{r.losses}</span> · {r.gf}:{r.ga} · GD {r.gd >= 0 ? `+${r.gd}` : r.gd}
+              </div>
+            </div>
+            <div className="shrink-0 text-right">
+              <div className="text-base font-bold tabular-nums text-text-normal">{r.pts}</div>
+              <div className="text-[10px] leading-none text-text-muted">pts</div>
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 
