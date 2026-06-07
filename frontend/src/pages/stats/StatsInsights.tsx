@@ -594,8 +594,48 @@ function PositionsView({ mode }: { mode: StatsMode }) {
     () => (q.data?.tournaments ?? []).slice().sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : b.id - a.id)),
     [q.data],
   );
-  const colByPlayer = useMemo(() => new Map(players.map((p, j) => [p.player_id, j])), [players]);
+
+  // Custom (drag-reorderable) column order; null = default (pts desc). Reset on mode.
+  const baseOrder = useMemo(() => players.map((p) => p.player_id), [players]);
+  const [order, setOrder] = useState<number[] | null>(null);
+  useEffect(() => { setOrder(null); }, [mode]);
+  const orderedPlayers = useMemo(() => {
+    const byId = new Map(players.map((p) => [p.player_id, p]));
+    const ids = order ?? baseOrder;
+    const out = ids.map((id) => byId.get(id)).filter((p): p is NonNullable<typeof p> => !!p);
+    for (const p of players) if (!ids.includes(p.player_id)) out.push(p); // any new players
+    return out;
+  }, [order, baseOrder, players]);
+  const colByPlayer = useMemo(() => new Map(orderedPlayers.map((p, j) => [p.player_id, j])), [orderedPlayers]);
   const cupColor = (key: string) => rgbFromCssVar(cupColorVarForKey(key));
+
+  // Pointer-based column drag (works on touch).
+  const dragRef = useRef<number | null>(null);
+  const [dragId, setDragId] = useState<number | null>(null);
+  const [overId, setOverId] = useState<number | null>(null);
+  const onColDown = (e: React.PointerEvent, pid: number) => {
+    dragRef.current = pid; setDragId(pid); setOverId(pid);
+    try { (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); } catch { /* noop */ }
+  };
+  const onColMove = (e: React.PointerEvent) => {
+    if (dragRef.current == null) return;
+    const cell = (document.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null)?.closest("[data-col-pid]");
+    const pid = cell?.getAttribute("data-col-pid");
+    if (pid) setOverId(Number(pid));
+  };
+  const onColUp = () => {
+    const src = dragRef.current;
+    const dst = overId;
+    dragRef.current = null; setDragId(null); setOverId(null);
+    if (src == null || dst == null || src === dst) return;
+    const ids = (order ?? baseOrder).slice();
+    const from = ids.indexOf(src);
+    const to = ids.indexOf(dst);
+    if (from < 0 || to < 0) return;
+    ids.splice(from, 1);
+    ids.splice(to, 0, src);
+    setOrder(ids);
+  };
 
   // Per-cup owner-after-tournament timeline, reconstructed from transfer history.
   const ownerByCup = useMemo(() => {
@@ -651,19 +691,36 @@ function PositionsView({ mode }: { mode: StatsMode }) {
   return (
     <div>
       <div className="section-head"><span className="section-label">Tournament positions</span></div>
-      <div className="overflow-x-auto" data-no-swipe-nav>
+      <div className="mb-1.5 text-[11px] text-text-muted">Drag a player's icon to reorder the columns.</div>
+      <div className="overflow-auto max-h-[72vh] overscroll-contain" data-no-swipe-nav>
         <div className="relative" style={{ width: gridW }}>
           <div
             className="relative"
-            style={{ display: "grid", gridTemplateColumns: `${nameW}px repeat(${players.length}, ${cellW}px)`, columnGap: gap, rowGap: gap }}
+            style={{ display: "grid", gridTemplateColumns: `${nameW}px repeat(${orderedPlayers.length}, ${cellW}px)`, columnGap: gap, rowGap: gap }}
           >
-            <div style={{ height: headerH }} />
-            {players.map((p) => (
-              <div key={p.player_id} style={{ height: headerH }} className="flex flex-col items-center justify-end gap-1 pb-1">
-                <AvatarCircle playerId={p.player_id} name={p.display_name} updatedAt={avatarUpdatedAtById.get(p.player_id) ?? null} sizeClass="h-6 w-6" />
-                <span className="w-full truncate text-center text-[9px] text-text-muted">{p.display_name}</span>
-              </div>
-            ))}
+            <div style={{ height: headerH }} className="sticky top-0 z-30 bg-bg-default" />
+            {orderedPlayers.map((p) => {
+              const isDragging = dragId === p.player_id;
+              const isOver = dragId != null && overId === p.player_id && !isDragging;
+              return (
+                <div
+                  key={p.player_id}
+                  data-col-pid={p.player_id}
+                  onPointerDown={(e) => onColDown(e, p.player_id)}
+                  onPointerMove={onColMove}
+                  onPointerUp={onColUp}
+                  style={{ height: headerH }}
+                  className={
+                    "sticky top-0 z-30 flex cursor-grab touch-none select-none flex-col items-center justify-end gap-1 rounded-t pb-1 bg-bg-default " +
+                    (isDragging ? "opacity-40" : isOver ? "ring-2 ring-accent ring-inset" : "")
+                  }
+                  title="Drag to reorder"
+                >
+                  <AvatarCircle playerId={p.player_id} name={p.display_name} updatedAt={avatarUpdatedAtById.get(p.player_id) ?? null} sizeClass="h-6 w-6" />
+                  <span className="w-full truncate text-center text-[9px] text-text-muted">{p.display_name}</span>
+                </div>
+              );
+            })}
             {tournaments.map((t) => (
               <Fragment key={t.id}>
                 <div style={{ height: cellH }} className="flex items-center pr-1.5">
@@ -674,7 +731,7 @@ function PositionsView({ mode }: { mode: StatsMode }) {
                     {t.name}
                   </span>
                 </div>
-                {players.map((p) => {
+                {orderedPlayers.map((p) => {
                   const pos = p.positions_by_tournament?.[String(t.id)];
                   if (pos == null)
                     return <div key={p.player_id} style={{ height: cellH }} className="grid place-items-center rounded bg-bg-card-chip/15 text-[10px] text-text-muted">·</div>;

@@ -92,9 +92,10 @@ radar.
       slider (N=10, 2–20); recomputes all columns over each player's last N
       tournaments (fetched per player, shared cache). Elo chip/column is struck out &
       hidden when on. Verified the numbers + order change vs all-time.
-- [ ] **Positions — drag to reorder**: let the user drag a player column to reorder
-      it; the position lines update dynamically. Keep player **icons sticky** (column
-      header stays visible) when scrolling down.
+- [x] **Positions — drag to reorder**: pointer-drag (touch-friendly) a player's icon
+      to reorder the columns; cells + cup-lineage lines recompute from the order
+      (verified [1,5,3,2,4,6]→[5,3,2,1,4,6] with lines following). Header avatars are
+      sticky in a scroll viewport so the icons stay visible scrolling down.
 - [x] **Player — radar overlay**: `Radar` now takes a `series` array; the Player tab
       "Profile net" overlays the selected player + any toggled "Compare with" players,
       each in their consistent Phase-A colour (with colour-dot chips).
