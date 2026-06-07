@@ -8,11 +8,11 @@ import InlineLoading from "../../ui/primitives/InlineLoading";
 import { SectionTabs, type SectionTab } from "../../ui/SectionTabs";
 import { getStatsRatings, getStatsPlayers, getStatsPlayerMatches, getStatsH2H, getStatsStreaks } from "../../api/stats.api";
 import { listClubs } from "../../api/clubs.api";
-import type { Club, Match, StatsScope, StatsH2HPair, StatsPlayerMatchesTournament, StatsStreakCategory, StatsStreakRun } from "../../api/types";
+import type { Club, Match, StatsScope, StatsH2HPair, StatsH2HOpponentRow, StatsPlayerMatchesTournament, StatsStreakCategory, StatsStreakRun } from "../../api/types";
 import type { StatsMode } from "./StatsControls";
 import { usePlayerAvatarMap } from "../../hooks/usePlayerAvatarMap";
 import { colorForIdx } from "./trendsMath";
-import { Sparkline, Radar, Heatmap, MultiLine, ChipGroup } from "./charts";
+import { Sparkline, Radar, MultiLine, ChipGroup } from "./charts";
 import { MatchHistoryList } from "./MatchHistoryList";
 import { PlayerPicker } from "./PlayerPicker";
 
@@ -348,13 +348,18 @@ function StatsTable({ rows, loading, onSelect }: { rows: Row[]; loading: boolean
 // ==========================================================================
 //  H2H — matrix + rivalries + pairwise detail
 // ==========================================================================
+function h2hTone(pct: number): string {
+  const t = Math.max(0, Math.min(1, pct / 100));
+  return `hsl(${t * 130} 60% 42% / 0.85)`;
+}
+
 function H2HView({ mode, scope, rows }: { mode: StatsMode; scope: StatsScope; rows: Row[] }) {
   const q = useQuery({
     queryKey: ["stats", "h2h", "all", 200, "rivalry", scope],
     queryFn: () => getStatsH2H({ playerId: null, limit: 200, order: "rivalry", scope }),
     placeholderData: keepPreviousData, staleTime: 30_000,
   });
-  const [selected, setSelected] = useState<{ a: number; b: number } | null>(null);
+  const [selected, setSelected] = useState<number | null>(rows[0]?.id ?? null);
   const nameById = useMemo(() => new Map(rows.map((r) => [r.id, r.name])), [rows]);
 
   const pairs: StatsH2HPair[] = useMemo(() => {
@@ -373,58 +378,145 @@ function H2HView({ mode, scope, rows }: { mode: StatsMode; scope: StatsScope; ro
     const rowIsA = p.a.id === rowId;
     const rowWins = rowIsA ? p.a_wins : p.b_wins;
     const colWins = rowIsA ? p.b_wins : p.a_wins;
-    return { pct: (rowWins / p.played) * 100, label: `${rowWins}-${p.draws}-${colWins}` };
+    return { pct: (rowWins / p.played) * 100, w: rowWins, d: p.draws, l: colWins };
   };
-  const players = rows.map((r) => ({ id: r.id, name: r.name }));
-  const detail = selected ? pairIndex.get([selected.a, selected.b].sort((x, y) => x - y).join("-")) : null;
   const topRivalries = pairs.slice().sort((a, b) => b.rivalry_score - a.rivalry_score).slice(0, 8);
+
+  // Per-player detail.
+  const detailQ = useQuery({
+    queryKey: ["stats", "h2h", "player", selected, scope],
+    queryFn: () => getStatsH2H({ playerId: selected as number, order: "played", limit: 50, scope }),
+    enabled: selected != null,
+    placeholderData: keepPreviousData, staleTime: 30_000,
+  });
+  const vs = useMemo<StatsH2HOpponentRow[]>(() => {
+    const d = detailQ.data;
+    if (!d) return [];
+    return (mode === "1v1" ? d.vs_1v1 : mode === "2v2" ? d.vs_2v2 : d.vs_all) ?? [];
+  }, [detailQ.data, mode]);
+  const nemesis = mode === "1v1" ? detailQ.data?.nemesis_1v1 : mode === "2v2" ? detailQ.data?.nemesis_2v2 : detailQ.data?.nemesis_all;
+  const favorite = mode === "1v1" ? detailQ.data?.favorite_victim_1v1 : mode === "2v2" ? detailQ.data?.favorite_victim_2v2 : detailQ.data?.favorite_victim_all;
+  const selName = selected != null ? nameById.get(selected) ?? "" : "";
 
   if (q.isLoading && !q.data) return <InlineLoading label="Loading…" />;
 
   return (
-    <div className="space-y-3">
-      <div className="card-outer">
-        <h2 className="mb-1 text-sm font-semibold text-text-normal">Win-rate matrix</h2>
-        <p className="mb-3 text-[11px] text-text-muted">Row's win rate vs column. Green = dominates, red = dominated. Tap a cell.</p>
-        <Heatmap players={players} cell={cell} onCell={(a, b) => setSelected({ a, b })} />
+    <div className="space-y-5">
+      {/* Full-name square matrix */}
+      <div>
+        <div className="section-head"><span className="section-label">Win-rate matrix</span></div>
+        <p className="mb-2 text-[11px] text-text-muted">Row's win rate vs column (green dominates). Tap a name or cell for detail.</p>
+        <div className="overflow-x-auto" data-no-swipe-nav>
+          <table className="border-separate" style={{ borderSpacing: 3 }}>
+            <thead>
+              <tr>
+                <th className="sticky left-0 z-10 bg-bg-default" />
+                {rows.map((c) => (
+                  <th key={c.id} className="p-0 align-bottom">
+                    <div className="mx-auto flex h-24 w-11 items-center justify-center overflow-visible">
+                      <span className="-rotate-90 whitespace-nowrap text-[11px] font-medium text-text-muted">{c.name}</span>
+                    </div>
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r) => (
+                <tr key={r.id}>
+                  <th className="sticky left-0 z-10 bg-bg-default pr-2 text-right">
+                    <button
+                      type="button"
+                      onClick={() => setSelected(r.id)}
+                      className={"block max-w-[120px] truncate text-xs font-medium " + (selected === r.id ? "text-accent" : "text-text-normal hover:text-accent")}
+                    >
+                      {r.name}
+                    </button>
+                  </th>
+                  {rows.map((c) => {
+                    if (r.id === c.id) return <td key={c.id} className="h-11 w-11 rounded bg-bg-card-chip/30" />;
+                    const v = cell(r.id, c.id);
+                    if (!v) return <td key={c.id} className="h-11 w-11 rounded bg-bg-card-chip/15 text-center text-[10px] text-text-muted">–</td>;
+                    return (
+                      <td key={c.id}>
+                        <button
+                          type="button"
+                          onClick={() => setSelected(r.id)}
+                          title={`${r.name} vs ${c.name}: ${v.w}-${v.d}-${v.l}`}
+                          className="grid h-11 w-11 place-items-center rounded text-[11px] font-semibold text-white"
+                          style={{ backgroundColor: h2hTone(v.pct) }}
+                        >
+                          {Math.round(v.pct)}
+                        </button>
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
 
-      {detail ? (() => {
-        const aName = nameById.get(detail.a.id) ?? detail.a.display_name;
-        const bName = nameById.get(detail.b.id) ?? detail.b.display_name;
-        return (
-          <div className="card-outer">
-            <div className="mb-2 text-sm font-semibold text-text-normal">{aName} vs {bName}</div>
-            <div className="grid grid-cols-3 gap-2 text-center">
-              <div className="surface rounded-xl py-2"><div className="text-lg font-bold text-status-text-green">{detail.a_wins}</div><div className="text-[11px] text-text-muted">{aName}</div></div>
-              <div className="surface rounded-xl py-2"><div className="text-lg font-bold text-amber-300">{detail.draws}</div><div className="text-[11px] text-text-muted">draws</div></div>
-              <div className="surface rounded-xl py-2"><div className="text-lg font-bold text-[color:rgb(var(--delta-down)/1)]">{detail.b_wins}</div><div className="text-[11px] text-text-muted">{bName}</div></div>
+      {/* Per-player detail */}
+      <div className="space-y-2">
+        <div className="section-head"><span className="section-label">Head-to-head by player</span></div>
+        <PlayerPicker players={rows.map((r) => ({ id: r.id, name: r.name }))} selectedId={selected} onSelect={setSelected} />
+        {selected == null ? (
+          <div className="text-sm text-text-muted">Pick a player.</div>
+        ) : (
+          <>
+            <div className="grid grid-cols-2 gap-2 text-xs">
+              <div className="card-chip px-3 py-2">
+                <div className="inline-flex items-center gap-2 text-text-muted"><i className="fa-solid fa-face-smile" aria-hidden="true" /><span>Favorite</span></div>
+                <div className="mt-0.5 font-semibold">{favorite?.opponent.display_name ?? "—"}</div>
+                {favorite ? <div className="mt-0.5 text-text-muted">{favorite.wins}-{favorite.draws}-{favorite.losses} · {favorite.pts_per_match.toFixed(2)} ppm</div> : null}
+              </div>
+              <div className="card-chip px-3 py-2">
+                <div className="inline-flex items-center gap-2 text-text-muted"><i className="fa-solid fa-heart-crack" aria-hidden="true" /><span>Nemesis</span></div>
+                <div className="mt-0.5 font-semibold">{nemesis?.opponent.display_name ?? "—"}</div>
+                {nemesis ? <div className="mt-0.5 text-text-muted">{nemesis.wins}-{nemesis.draws}-{nemesis.losses} · {nemesis.pts_per_match.toFixed(2)} ppm</div> : null}
+              </div>
             </div>
-            <div className="mt-2 text-center text-[11px] text-text-muted">{detail.played} matches · goals {detail.a_gf}:{detail.b_gf}</div>
-          </div>
-        );
-      })() : null}
+            {detailQ.isLoading && !detailQ.data ? (
+              <InlineLoading label="Loading…" />
+            ) : vs.length ? (
+              <div className="list-divided">
+                {vs.map((o) => (
+                  <button key={o.opponent.id} type="button" onClick={() => setSelected(o.opponent.id)} className="row row-tap">
+                    <span className="min-w-0 flex-1 truncate text-sm text-text-normal">{o.opponent.display_name}</span>
+                    <span className="shrink-0 font-mono text-[11px] tabular-nums text-text-muted">
+                      {o.played}P · <span className="text-status-text-green">{o.wins}</span>-<span className="text-amber-300">{o.draws}</span>-<span className="text-[color:rgb(var(--delta-down)/1)]">{o.losses}</span>
+                    </span>
+                    <span className="w-12 shrink-0 text-right text-sm font-semibold tabular-nums text-accent">{o.played ? Math.round(o.win_rate * 100) : 0}%</span>
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <div className="text-sm text-text-muted">No head-to-head matches for {selName}.</div>
+            )}
+          </>
+        )}
+      </div>
 
-      <div className="card-outer">
-        <h2 className="mb-2 text-sm font-semibold text-text-normal">Top rivalries</h2>
-        <div className="space-y-1.5">
-          {topRivalries.map((p) => (
-            <button key={`${p.a.id}-${p.b.id}`} type="button" onClick={() => setSelected({ a: p.a.id, b: p.b.id })}
-              className="surface flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left transition hover:bg-hover-default/30">
-              <div className="min-w-0">
-                <div className="truncate text-sm font-medium text-text-normal">
-                  {nameById.get(p.a.id) ?? p.a.display_name} <span className="text-text-muted">vs</span> {nameById.get(p.b.id) ?? p.b.display_name}
-                </div>
-                <div className="text-[11px] text-text-muted">{p.played} matches · {p.a_wins}-{p.draws}-{p.b_wins}</div>
+      {/* Top rivalries */}
+      <div className="space-y-2">
+        <div className="section-head"><span className="section-label">Top rivalries</span></div>
+        {topRivalries.map((p) => (
+          <button key={`${p.a.id}-${p.b.id}`} type="button" onClick={() => setSelected(p.a.id)}
+            className="surface flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left transition hover:bg-hover-default/30">
+            <div className="min-w-0">
+              <div className="truncate text-sm font-medium text-text-normal">
+                {nameById.get(p.a.id) ?? p.a.display_name} <span className="text-text-muted">vs</span> {nameById.get(p.b.id) ?? p.b.display_name}
               </div>
-              <div className="shrink-0 text-right">
-                <div className="text-sm font-bold tabular-nums text-accent">{Math.round(p.rivalry_score)}</div>
-                <div className="text-[10px] text-text-muted">rivalry</div>
-              </div>
-            </button>
-          ))}
-          {!topRivalries.length ? <div className="text-sm text-text-muted">No rivalries yet.</div> : null}
-        </div>
+              <div className="text-[11px] text-text-muted">{p.played} matches · {p.a_wins}-{p.draws}-{p.b_wins}</div>
+            </div>
+            <div className="shrink-0 text-right">
+              <div className="text-sm font-bold tabular-nums text-accent">{Math.round(p.rivalry_score)}</div>
+              <div className="text-[10px] text-text-muted">rivalry</div>
+            </div>
+          </button>
+        ))}
+        {!topRivalries.length ? <div className="text-sm text-text-muted">No rivalries yet.</div> : null}
       </div>
     </div>
   );
