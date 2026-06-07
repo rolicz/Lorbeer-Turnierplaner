@@ -18,6 +18,7 @@ import { colorForIdx } from "./trendsMath";
 import { Sparkline, Radar, TrendChart, ChipGroup } from "./charts";
 import { MatchHistoryList } from "./MatchHistoryList";
 import { PlayerPicker } from "./PlayerPicker";
+import CupCard from "../dashboard/CupCard";
 
 type Tab = "trends" | "table" | "positions" | "h2h" | "streaks" | "stars" | "player" | "records" | "cups";
 
@@ -584,7 +585,6 @@ function PositionsView({ mode }: { mode: StatsMode }) {
   return (
     <div>
       <div className="section-head"><span className="section-label">Tournament positions</span></div>
-      <p className="mb-2 text-[11px] text-text-muted">Newest first · green = better placement · crown(s) = cup at stake · coloured lines trace each cup's owner.</p>
       <div className="overflow-x-auto" data-no-swipe-nav>
         <div className="relative" style={{ width: gridW }}>
           <div
@@ -600,14 +600,9 @@ function PositionsView({ mode }: { mode: StatsMode }) {
             ))}
             {tournaments.map((t) => (
               <Fragment key={t.id}>
-                <div style={{ height: cellH }} className="flex items-center gap-1 pr-1.5">
-                  <span className="flex w-[16px] shrink-0 flex-col items-center justify-center gap-px">
-                    {(t.cup_stakes ?? []).map((s) => (
-                      <i key={s.key} className="fa-solid fa-crown text-[9px]" style={{ color: cupColor(s.key) }} title={`${s.name} at stake`} aria-hidden="true" />
-                    ))}
-                  </span>
+                <div style={{ height: cellH }} className="flex items-center pr-1.5">
                   <span
-                    className="min-w-0 flex-1 text-[10px] leading-tight text-text-normal"
+                    className="text-[10px] leading-tight text-text-normal"
                     style={{ display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}
                   >
                     {t.name}
@@ -619,13 +614,22 @@ function PositionsView({ mode }: { mode: StatsMode }) {
                     return <div key={p.player_id} style={{ height: cellH }} className="grid place-items-center rounded bg-bg-card-chip/15 text-[10px] text-text-muted">·</div>;
                   const total = t.players_count || 1;
                   const frac = total > 1 ? (pos - 1) / (total - 1) : 0;
+                  const stakes = t.cup_stakes ?? [];
+                  const isWinner = pos === 1 && stakes.length > 0;
                   return (
                     <div
                       key={p.player_id}
                       style={{ height: cellH, ["--pos-p"]: frac } as React.CSSProperties}
-                      className="pos-tile grid place-items-center rounded border text-[11px] font-semibold tabular-nums"
-                      title={`${p.display_name} · ${t.name}: #${pos}/${total}`}
+                      className="pos-tile relative grid place-items-center rounded border text-[11px] font-semibold tabular-nums"
+                      title={`${p.display_name} · ${t.name}: #${pos}/${total}${isWinner ? ` · won ${stakes.map((s) => s.name).join(", ")}` : ""}`}
                     >
+                      {isWinner ? (
+                        <span className="absolute right-0.5 top-0.5 inline-flex gap-px">
+                          {stakes.map((s) => (
+                            <i key={s.key} className="fa-solid fa-crown text-[8px]" style={{ color: cupColor(s.key) }} aria-hidden="true" />
+                          ))}
+                        </span>
+                      ) : null}
                       {pos}
                     </div>
                   );
@@ -1096,19 +1100,27 @@ function teamNames(m: Match, side: "A" | "B"): string {
 }
 type RecMatch = { id: number; tName: string; date: string; a: string; b: string; ag: number; bg: number; aIds: number[]; bIds: number[] };
 
-function RecordCard({ icon, label, m }: { icon: string; label: string; m: RecMatch }) {
+function RecordGroup({ icon, label, matches }: { icon: string; label: string; matches: RecMatch[] }) {
+  if (!matches.length) return null;
+  const shown = matches.slice(0, 6);
   return (
     <div className="card-chip px-3 py-2.5">
       <div className="inline-flex items-center gap-2 text-[11px] uppercase tracking-wide text-text-muted">
         <i className={"fa-solid " + icon} aria-hidden="true" />
         {label}
+        {matches.length > 1 ? <span className="text-text-muted/70">×{matches.length}</span> : null}
       </div>
-      <div className="mt-1 flex items-center justify-between gap-3">
-        <div className="min-w-0">
-          <div className="truncate text-sm font-medium text-text-normal">{m.a} <span className="text-text-muted">vs</span> {m.b}</div>
-          <div className="text-[11px] text-text-muted">{m.tName} · {fmtShortDate(m.date)}</div>
-        </div>
-        <div className="shrink-0 font-mono text-lg font-bold tabular-nums text-accent">{m.ag}:{m.bg}</div>
+      <div className="mt-1.5 space-y-2">
+        {shown.map((m) => (
+          <div key={m.id} className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <div className="truncate text-sm font-medium text-text-normal">{m.a} <span className="text-text-muted">vs</span> {m.b}</div>
+              <div className="text-[11px] text-text-muted">{m.tName} · {fmtShortDate(m.date)}</div>
+            </div>
+            <div className="shrink-0 font-mono text-base font-bold tabular-nums text-accent">{m.ag}:{m.bg}</div>
+          </div>
+        ))}
+        {matches.length > shown.length ? <div className="text-[11px] text-text-muted">+{matches.length - shown.length} more</div> : null}
       </div>
     </div>
   );
@@ -1160,17 +1172,23 @@ function RecordsView({ mode, scope, rows }: { mode: StatsMode; scope: StatsScope
     if (!matches.length) return null;
     const avg = (a: number[]) => (a.length ? a.reduce((x, y) => x + y, 0) / a.length : 1000);
     const decided = matches.filter((m) => m.ag !== m.bg);
-    const biggestWin = decided.slice().sort((x, y) => Math.abs(y.ag - y.bg) - Math.abs(x.ag - x.bg))[0];
-    const highestScoring = matches.slice().sort((x, y) => (y.ag + y.bg) - (x.ag + x.bg))[0];
-    const mostSide = matches.slice().sort((x, y) => Math.max(y.ag, y.bg) - Math.max(x.ag, x.bg))[0];
-    const upset = decided
-      .map((m) => {
-        const winnerIds = m.ag > m.bg ? m.aIds : m.bIds;
-        const loserIds = m.ag > m.bg ? m.bIds : m.aIds;
-        return { m, gap: avg(loserIds.map((id) => eloById.get(id) ?? 1000)) - avg(winnerIds.map((id) => eloById.get(id) ?? 1000)) };
-      })
-      .sort((x, y) => y.gap - x.gap)[0];
-    return { biggestWin, highestScoring, mostSide, upset: upset && upset.gap > 0 ? upset.m : null, total: matches.length };
+    // Collect ALL matches that tie the record value, not just the first.
+    const topBy = (arr: RecMatch[], valOf: (m: RecMatch) => number): RecMatch[] => {
+      if (!arr.length) return [];
+      const max = Math.max(...arr.map(valOf));
+      return arr.filter((m) => valOf(m) === max);
+    };
+    const biggestWin = topBy(decided, (m) => Math.abs(m.ag - m.bg));
+    const highestScoring = topBy(matches, (m) => m.ag + m.bg);
+    const mostSide = topBy(matches, (m) => Math.max(m.ag, m.bg));
+    const upsetScored = decided.map((m) => {
+      const winnerIds = m.ag > m.bg ? m.aIds : m.bIds;
+      const loserIds = m.ag > m.bg ? m.bIds : m.aIds;
+      return { m, gap: avg(loserIds.map((id) => eloById.get(id) ?? 1000)) - avg(winnerIds.map((id) => eloById.get(id) ?? 1000)) };
+    });
+    const maxGap = upsetScored.length ? Math.max(...upsetScored.map((u) => u.gap)) : -Infinity;
+    const upset = maxGap > 0 ? upsetScored.filter((u) => u.gap === maxGap).map((u) => u.m) : [];
+    return { biggestWin, highestScoring, mostSide, upset, total: matches.length };
   }, [matches, eloById]);
 
   const streakCards = useMemo(() => {
@@ -1189,10 +1207,10 @@ function RecordsView({ mode, scope, rows }: { mode: StatsMode; scope: StatsScope
       <div>
         <div className="section-head"><span className="section-label">Match superlatives</span></div>
         <div className="space-y-2">
-          {records.biggestWin ? <RecordCard icon="fa-bolt" label="Biggest win" m={records.biggestWin} /> : null}
-          {records.highestScoring ? <RecordCard icon="fa-futbol" label="Highest-scoring match" m={records.highestScoring} /> : null}
-          {records.mostSide ? <RecordCard icon="fa-fire" label="Most goals by one side" m={records.mostSide} /> : null}
-          {records.upset ? <RecordCard icon="fa-arrow-trend-up" label="Biggest upset (by Elo)" m={records.upset} /> : null}
+          <RecordGroup icon="fa-bolt" label="Biggest win" matches={records.biggestWin} />
+          <RecordGroup icon="fa-futbol" label="Highest-scoring match" matches={records.highestScoring} />
+          <RecordGroup icon="fa-fire" label="Most goals by one side" matches={records.mostSide} />
+          <RecordGroup icon="fa-arrow-trend-up" label="Biggest upset (by Elo)" matches={records.upset} />
         </div>
       </div>
       {streakCards.length ? (
@@ -1223,57 +1241,28 @@ function RecordsView({ mode, scope, rows }: { mode: StatsMode; scope: StatsScope
 //  CUPS — reigns & title history
 // ==========================================================================
 function CupsView() {
-  const { avatarUpdatedAtById } = usePlayerAvatarMap();
   const defsQ = useQuery({ queryKey: ["cup", "defs"], queryFn: listCupDefs });
   const cups = useMemo(() => {
     const raw = defsQ.data?.cups?.length ? defsQ.data.cups : [{ key: "default", name: "Cup", since_date: null }];
     return raw.filter((c) => c.key !== "default").concat(raw.filter((c) => c.key === "default"));
   }, [defsQ.data]);
-  const cupsQ = useQueries({ queries: cups.map((c) => ({ queryKey: ["cup", c.key], queryFn: () => getCup(c.key), staleTime: 30_000 })) });
 
   if (defsQ.isLoading && !defsQ.data) return <InlineLoading label="Loading…" />;
 
+  // Reuse the dashboard cup component so both views stay identical.
   return (
-    <div className="space-y-5">
-      {cups.map((c, i) => {
-        const data = cupsQ[i]?.data;
-        const owner = data?.owner ?? null;
-        const since = data?.streak?.since;
-        const history = (data?.history ?? []).slice().reverse();
-        return (
-          <div key={c.key} className="space-y-2">
-            <div className="section-head"><span className="section-label inline-flex items-center gap-1.5"><Trophy size={12} />{data?.cup?.name ?? c.name}</span></div>
-            <div className="flex items-center gap-3">
-              {owner ? (
-                <AvatarCircle playerId={owner.id} name={owner.display_name} updatedAt={avatarUpdatedAtById.get(owner.id) ?? null} sizeClass="h-10 w-10" />
-              ) : <span className="grid h-10 w-10 place-items-center rounded-full bg-bg-card-chip/40 text-text-muted"><Trophy size={16} /></span>}
-              <div className="min-w-0">
-                <div className="truncate text-sm font-semibold text-text-normal">{owner ? owner.display_name : "No holder yet"}</div>
-                <div className="text-[11px] text-text-muted">
-                  {owner && since?.date ? `Holding since ${fmtShortDate(since.date)}` : "—"}
-                  {data?.streak?.tournaments_participated ? ` · ${data.streak.tournaments_participated} defended` : ""}
-                </div>
-              </div>
-            </div>
-            {history.length ? (
-              <div className="list-divided">
-                {history.map((h, j) => (
-                  <div key={`${h.tournament_id}-${j}`} className="row">
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm text-text-normal">
-                        <b>{h.to.display_name}</b> <span className="text-text-muted">took it from</span> {h.from.display_name}
-                      </span>
-                      <span className="block truncate text-[11px] text-text-muted">{h.tournament_name} · {fmtShortDate(h.date)}</span>
-                    </span>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="text-sm text-text-muted">No title changes recorded.</div>
-            )}
+    <div className="space-y-6">
+      {cups.map((c) => (
+        <section key={c.key}>
+          <div className="section-head">
+            <span className="section-label inline-flex items-center gap-2">
+              <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: rgbFromCssVar(cupColorVarForKey(c.key)) }} aria-hidden="true" />
+              {c.name}
+            </span>
           </div>
-        );
-      })}
+          <CupCard cupKey={c.key} />
+        </section>
+      ))}
     </div>
   );
 }
