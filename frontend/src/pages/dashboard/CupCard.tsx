@@ -21,6 +21,9 @@ export default function CupCard({ cupKey }: { cupKey: string }) {
 
   const owner = q.data?.owner ?? null;
   const since = q.data?.streak?.since;
+  // `tournaments_participated` counts the winning tournament itself, so a fresh win
+  // is 1 → that's 0 actual defenses. Defenses = later tournaments the cup was held.
+  const defended = Math.max(0, (q.data?.streak?.tournaments_participated ?? 0) - 1);
 
   return (
     <div>
@@ -49,7 +52,7 @@ export default function CupCard({ cupKey }: { cupKey: string }) {
               </div>
               <div className="text-[11px] text-text-muted">
                 {owner && since?.date ? `Holding since ${fmtDate(since.date)}` : "—"}
-                {q.data.streak?.tournaments_participated ? ` · ${q.data.streak.tournaments_participated} defended` : ""}
+                {defended > 0 ? ` · ${defended} defended` : ""}
               </div>
             </div>
           </div>

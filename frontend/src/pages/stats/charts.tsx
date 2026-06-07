@@ -330,8 +330,14 @@ export function TrendChart({
             const x = xAt(e.ts);
             if (!inX(x)) return null;
             const y = padT + innerH + 24;
+            // Labels in the right half tuck down-LEFT (end-anchored) so the most
+            // recent tournament name never spills past the right edge; left half
+            // fans down-right as before.
+            const rightHalf = x > padL + innerW / 2;
+            const anchor = rightHalf ? "end" : "start";
+            const rot = rightHalf ? -45 : 45;
             return (
-              <text key={`tl${i}`} x={x} y={y} transform={`rotate(45 ${x} ${y})`} className="fill-text-muted" style={{ fontSize: 8 }}>
+              <text key={`tl${i}`} x={x} y={y} textAnchor={anchor} transform={`rotate(${rot} ${x} ${y})`} className="fill-text-muted" style={{ fontSize: 8 }}>
                 {e.label}
               </text>
             );

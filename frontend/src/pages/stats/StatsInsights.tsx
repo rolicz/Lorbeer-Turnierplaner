@@ -730,7 +730,6 @@ function H2HView({ mode, scope, rows }: { mode: StatsMode; scope: StatsScope; ro
             options={[{ key: "winrate", label: "Win %" }, { key: "wdl", label: "W-D-L" }, { key: "played", label: "Played" }, { key: "gd", label: "Goal diff" }]}
           />
         </div>
-        <p className="mb-2 text-[11px] text-text-muted">Cell = row vs column ({matrixMetric === "played" ? "matches played" : matrixMetric === "gd" ? "goal difference" : matrixMetric === "wdl" ? "win-draw-loss" : "win %"}); colour shows the row's win rate (green dominates). Tap for detail.</p>
         <div className="overflow-x-auto" data-no-swipe-nav>
           <table className="border-separate" style={{ borderSpacing: 3 }}>
             <thead>
@@ -1108,7 +1107,7 @@ function RecordGroup({ icon, label, matches }: { icon: string; label: string; ma
   if (!matches.length) return null;
   const shown = matches.slice(0, 6);
   return (
-    <div className="card-chip px-3 py-2.5">
+    <div className="surface rounded-xl px-3 py-2.5">
       <div className="inline-flex items-center gap-2 text-[11px] uppercase tracking-wide text-text-muted">
         <i className={"fa-solid " + icon} aria-hidden="true" />
         {label}
@@ -1141,8 +1140,8 @@ function RecordsView({ mode, scope, rows }: { mode: StatsMode; scope: StatsScope
     })),
   });
   const streaksQ = useQuery({
-    queryKey: ["stats", "streaks", mode, 1, scope],
-    queryFn: () => getStatsStreaks({ mode, limit: 1, scope }),
+    queryKey: ["stats", "streaks", mode, 20, scope],
+    queryFn: () => getStatsStreaks({ mode, limit: 20, scope }),
     placeholderData: keepPreviousData, staleTime: 30_000,
   });
   const loading = matchesQs.some((q) => q.isLoading && !q.data);
@@ -1200,7 +1199,13 @@ function RecordsView({ mode, scope, rows }: { mode: StatsMode; scope: StatsScope
     return (["win_streak", "unbeaten_streak"] as const)
       .map((k) => cats.find((c) => c.key === k))
       .filter((c): c is StatsStreakCategory => !!c && (c.records?.[0]?.length ?? 0) > 0)
-      .map((c) => ({ name: c.name, run: c.records[0] }));
+      .map((c) => {
+        const maxLen = Math.max(...c.records.map((r) => r.length ?? 0));
+        // Show every player tied at the record length, not just the first.
+        const runs = c.records.filter((r) => (r.length ?? 0) === maxLen);
+        return { name: c.name, length: maxLen, runs };
+      })
+      .filter((c) => c.length > 0);
   }, [streaksQ.data]);
 
   if (loading) return <InlineLoading label="Loading…" />;
@@ -1222,14 +1227,22 @@ function RecordsView({ mode, scope, rows }: { mode: StatsMode; scope: StatsScope
           <div className="section-head"><span className="section-label">Longest runs</span></div>
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             {streakCards.map((s) => (
-              <div key={s.name} className="card-chip px-3 py-2.5">
-                <div className="text-[11px] uppercase tracking-wide text-text-muted">{s.name}</div>
-                <div className="mt-1 flex items-center justify-between gap-2">
-                  <div className="min-w-0">
-                    <div className="truncate text-sm font-medium text-text-normal">{s.run.player.display_name}</div>
-                    <div className="text-[11px] text-text-muted">{streakDateText(s.run)}</div>
+              <div key={s.name} className="surface rounded-xl px-3 py-2.5">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="inline-flex items-center gap-2 text-[11px] uppercase tracking-wide text-text-muted">
+                    {s.name}
+                    {s.runs.length > 1 ? <span className="text-text-muted/70">×{s.runs.length}</span> : null}
                   </div>
-                  <div className="shrink-0 font-mono text-lg font-bold tabular-nums text-accent">{s.run.length}</div>
+                  <div className="shrink-0 font-mono text-lg font-bold tabular-nums text-accent">{s.length}</div>
+                </div>
+                <div className="mt-1.5 space-y-1.5">
+                  {s.runs.slice(0, 6).map((run, i) => (
+                    <div key={(run.player?.id ?? i) + "-" + i} className="min-w-0">
+                      <div className="truncate text-sm font-medium text-text-normal">{run.player.display_name}</div>
+                      <div className="text-[11px] text-text-muted">{streakDateText(run)}</div>
+                    </div>
+                  ))}
+                  {s.runs.length > 6 ? <div className="text-[11px] text-text-muted">+{s.runs.length - 6} more</div> : null}
                 </div>
               </div>
             ))}

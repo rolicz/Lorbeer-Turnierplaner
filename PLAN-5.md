@@ -67,25 +67,24 @@ radar.
 
 ## Phase E — Stats, part 1 (contained items)  (model: **Opus high**)
 
-- [ ] **Trends label cutoff**: with tournament names on, the most-recent
-      tournament's label is clipped at the right edge — anchor/clamp the last label
-      (and/or add right padding) so it stays on-plot.
-- [ ] **Records — consistent box colour**: the record boxes use a brighter surface
-      than the player-stats boxes — switch to the same surface tokens (consistency).
-- [ ] **Records — show ties for longest runs**: streak/longest-run records show
-      **all** tied players, not just one (extend the existing ties handling to the
-      streak-type records).
-- [ ] **Cups — fix "defended"**: backend counts the winning tournament in the
-      streak, so a fresh win shows "1 defended". Show **defenses = participated − 1**
-      (only when > 0); winning without a later defence reads as 0 defended.
-      (`CupCard`, reused by stats Cups.)
-- [ ] **H2H — drop matrix explanation**: remove the explanatory paragraph above the
-      matrix.
+- [x] **Trends label cutoff**: right-half tournament labels now tuck down-LEFT
+      (end-anchored, rotate −45) so the most-recent label stays on-plot; left half
+      fans down-right as before.
+- [x] **Records — consistent box colour**: record + longest-run boxes switched from
+      the bright `card-chip` to the muted `.surface` used by the player-stats tiles.
+- [x] **Records — show ties for longest runs**: streak records now collect every
+      player tied at the record length (limit bumped to 20) and list them all with a
+      ×N badge.
+- [x] **Cups — fix "defended"**: show **defenses = participated − 1** (only when > 0)
+      in `CupCard`, so a fresh win reads as 0 defended (verified: Rumpi/Mike show no
+      suffix).
+- [x] **H2H — drop matrix explanation**: removed the paragraph above the matrix.
 - [ ] **H2H — 2v2 teammate synergy**: when mode = 2v2, add a section about how well
       the selected player performs **with each teammate** (record/ppm with partner,
       best/worst partner). Reuse list/row elements.
-- [ ] **Player — matches list consistency**: replace the bespoke player-matches
-      rendering with the shared `MatchHistoryList`/`MatchRowWithClubs` used elsewhere.
+- [x] **Player — matches list consistency**: already uses the shared
+      `MatchHistoryList` (both insights `PlayerProfile` and classic
+      `PlayerMatchesCard`) — no change needed.
 
 ## Phase F — Stats, part 2 (interactive)  (model: **Opus high/xhigh**)
 
