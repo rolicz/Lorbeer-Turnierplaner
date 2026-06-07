@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { RotateCw, MailOpen, MessageSquare, Gamepad2, ListChecks, SlidersHorizontal, Trophy } from "lucide-react";
+import { MailOpen, MessageSquare, Gamepad2, ListChecks, SlidersHorizontal, Trophy } from "lucide-react";
 
 import Button from "../../ui/primitives/Button";
 import { Pill, pillDate } from "../../ui/primitives/Pill";
@@ -468,28 +468,6 @@ export default function LiveTournamentPage() {
 
   const [panelError, setPanelError] = useState<string | null>(null);
 
-  async function reloadAllLiveData() {
-    if (!tid) return;
-    const jobs: Promise<unknown>[] = [
-      qc.invalidateQueries({ queryKey: ["tournament", tid], refetchType: "active" }),
-      qc.invalidateQueries({ queryKey: ["comments", tid], refetchType: "active" }),
-      qc.invalidateQueries({ queryKey: ["clubs", clubGame], refetchType: "active" }),
-      qc.invalidateQueries({ queryKey: ["players", "avatars"], refetchType: "active" }),
-      qc.invalidateQueries({ queryKey: ["comments", "summary"], refetchType: "all" }),
-      qc.invalidateQueries({ queryKey: ["tournaments"], refetchType: "active" }),
-      qc.invalidateQueries({ queryKey: ["tournaments", "live"], refetchType: "active" }),
-      qc.invalidateQueries({ queryKey: ["cup"], refetchType: "active" }),
-      qc.invalidateQueries({ queryKey: ["stats"], refetchType: "active" }),
-    ];
-    if (token) {
-      jobs.push(
-        qc.invalidateQueries({ queryKey: ["comments", "read", tid, token], refetchType: "active" }),
-        qc.invalidateQueries({ queryKey: ["comments", "read-map", token], refetchType: "all" })
-      );
-    }
-    await Promise.allSettled(jobs);
-  }
-
   const showControls = isEditorOrAdmin;
   const cardTitle = tQ.data?.name || locationState?.tournamentName || "Tournament";
   usePageTitle(cardTitle);
@@ -562,9 +540,6 @@ export default function LiveTournamentPage() {
                 <MailOpen size={15} />
               </Button>
             ) : null}
-            <Button variant="ghost" onClick={() => void reloadAllLiveData()} title="Reload all data">
-              <RotateCw size={15} />
-            </Button>
           </div>
         </div>
 

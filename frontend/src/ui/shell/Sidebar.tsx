@@ -29,9 +29,7 @@ export default function Sidebar({
     >
       {/* Brand */}
       <div className="flex h-16 items-center gap-2.5 px-4">
-        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-accent/15 text-accent">
-          <i className="fa-solid fa-trophy text-sm" aria-hidden="true" />
-        </span>
+        <img src="/icon-512.png" alt="" className="h-8 w-8 shrink-0 rounded-xl object-cover ring-1 ring-border-card-chip/40" />
         {!collapsed ? <span className="truncate text-sm font-semibold tracking-tight">Lorbeerkranz</span> : null}
       </div>
 

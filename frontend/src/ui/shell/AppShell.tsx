@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useLocation } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 
 import { useAuth } from "../../auth/AuthContext";
@@ -12,6 +13,7 @@ import { RealtimeProvider } from "../../hooks/realtime/RealtimeProvider";
 import { useAnyTournamentWS } from "../../hooks/realtime/useRealtime";
 import Sidebar from "./Sidebar";
 import MobileChrome from "./MobileChrome";
+import RouteErrorBoundary from "./RouteErrorBoundary";
 import { useSwipeNav } from "./useSwipeNav";
 
 const COLLAPSE_KEY = "sidebar-collapsed";
@@ -19,6 +21,7 @@ const COLLAPSE_KEY = "sidebar-collapsed";
 function ShellInner({ children }: { children: React.ReactNode }) {
   const { token } = useAuth();
   const qc = useQueryClient();
+  const location = useLocation();
 
   // Always-on global channel: keeps list/live/cup fresh app-wide and drives the
   // connection indicator on every route.
@@ -85,7 +88,7 @@ function ShellInner({ children }: { children: React.ReactNode }) {
           className="mx-auto w-full max-w-6xl flex-1 page-x py-4 lg:py-6"
           style={pull.distance > 0 && !pull.refreshing ? { transform: `translateY(${Math.min(pull.distance, 64)}px)` } : undefined}
         >
-          {children}
+          <RouteErrorBoundary resetKey={location.pathname}>{children}</RouteErrorBoundary>
         </main>
       </div>
     </div>

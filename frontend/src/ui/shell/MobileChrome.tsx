@@ -103,9 +103,7 @@ export default function MobileChrome({
             >
               <div className="flex h-14 items-center justify-between gap-2 px-4">
                 <span className="inline-flex items-center gap-2.5">
-                  <span className="grid h-8 w-8 place-items-center rounded-xl bg-accent/15 text-accent">
-                    <i className="fa-solid fa-trophy text-sm" aria-hidden="true" />
-                  </span>
+                  <img src="/icon-512.png" alt="" className="h-8 w-8 shrink-0 rounded-xl object-cover ring-1 ring-border-card-chip/40" />
                   <span className="text-sm font-semibold tracking-tight">Lorbeerkranz</span>
                 </span>
                 <button

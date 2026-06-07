@@ -46,6 +46,7 @@ export function useSwipeNav(enabled = true) {
     let active = false;
     let fired = false;
     let target: EventTarget | null = null;
+    let lastNavAt = 0; // debounce so a gesture can't double-trigger (e.g. with native edge-swipe)
 
     const onStart = (e: TouchEvent) => {
       if (e.touches.length !== 1) {
@@ -81,6 +82,9 @@ export function useSwipeNav(enabled = true) {
         return;
       }
       fired = true;
+      const nowTs = Date.now();
+      if (nowTs - lastNavAt < 700) return; // ignore a second nav within the debounce window
+      lastNavAt = nowTs;
       if (dir > 0) {
         const idx = Number((window.history.state as { idx?: number } | null)?.idx ?? 0);
         if (idx > 0) nav(-1);
