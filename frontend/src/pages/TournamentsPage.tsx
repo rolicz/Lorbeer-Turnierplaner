@@ -87,6 +87,21 @@ export default function TournamentsPage() {
   const tournamentIds = useMemo(() => tournamentsSorted.map((t) => t.id), [tournamentsSorted]);
   const seenIdsByTid = useSeenIdsByTournamentId(tournamentIds);
 
+  // Group the (date-desc) list by month for subheaders.
+  const monthGroups = useMemo(() => {
+    const groups: { key: string; label: string; items: TournamentSummary[] }[] = [];
+    for (const t of tournamentsSorted) {
+      const d = t.date ? new Date(`${t.date}T00:00:00`) : null;
+      const valid = d && Number.isFinite(d.getTime());
+      const key = valid ? `${d.getFullYear()}-${d.getMonth()}` : "undated";
+      const label = valid ? d.toLocaleDateString(undefined, { month: "long", year: "numeric" }) : "Undated";
+      const last = groups[groups.length - 1];
+      if (last && last.key === key) last.items.push(t);
+      else groups.push({ key, label, items: [t] });
+    }
+    return groups;
+  }, [tournamentsSorted]);
+
   const summaryByTid = useMemo(() => {
     const m = new Map<number, { comment_ids: number[]; total_comments: number }>();
     for (const r of summaryQ.data ?? []) {
@@ -129,8 +144,12 @@ export default function TournamentsPage() {
           ) : null}
         </div>
       ) : (
-        <List>
-          {tournamentsSorted.map((t) => {
+        <div className="stack">
+          {monthGroups.map((g) => (
+            <div key={g.key}>
+              <div className="section-head"><span className="section-label">{g.label}</span></div>
+              <List>
+                {g.items.map((t) => {
             const st: Status = (t.status as Status) ?? "draft";
             const ui = tournamentStatusUI(st);
             const pal = tournamentPalette(st);
@@ -199,8 +218,11 @@ export default function TournamentsPage() {
                 </span>
               </ListRow>
             );
-          })}
-        </List>
+                })}
+              </List>
+            </div>
+          ))}
+        </div>
       )}
     </div>
   );

@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { LayoutDashboard, Trophy } from "lucide-react";
 
@@ -29,7 +30,15 @@ const DASH_TABS: SectionTab<DashTab>[] = [
 
 export default function DashboardPage() {
   const pageEntered = useRouteEntryLoading();
-  const [dashTab, setDashTab] = useState<DashTab>("overview");
+  // Persist the tab in the URL so opening a tournament and going back returns here.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const dashTab: DashTab = searchParams.get("tab") === "cups" ? "cups" : "overview";
+  const setDashTab = (t: DashTab) => {
+    const n = new URLSearchParams(searchParams);
+    if (t === "overview") n.delete("tab");
+    else n.set("tab", t);
+    setSearchParams(n, { replace: true });
+  };
 
   const defsQ = useQuery({ queryKey: ["cup", "defs"], queryFn: listCupDefs });
   const liveQ = useQuery({

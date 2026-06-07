@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { keepPreviousData, useQueries, useQuery } from "@tanstack/react-query";
 import { LineChart, Table2, Grid3x3, UserRound, Flame, Star, Medal, Award, Trophy, ChevronRight } from "lucide-react";
 
@@ -127,9 +127,9 @@ function ToggleChip({ on, onClick, children }: { on: boolean; onClick: () => voi
   );
 }
 
-function TrendsExplorer({ mode, scope, rows }: { mode: StatsMode; scope: StatsScope; rows: Row[] }) {
-  const [metric, setMetric] = useState<Metric>("points");
-  const [view, setView] = useState<ViewMode>("cumulative");
+function TrendsExplorer({ mode, scope, rows, initialMetric, initialView }: { mode: StatsMode; scope: StatsScope; rows: Row[]; initialMetric?: Metric; initialView?: ViewMode }) {
+  const [metric, setMetric] = useState<Metric>(initialMetric ?? "points");
+  const [view, setView] = useState<ViewMode>(initialView ?? "cumulative");
   const [rollN, setRollN] = useState(5);
   const [range, setRange] = useState<RangeKey>("1y");
   const [perMatch, setPerMatch] = useState(false);
@@ -1239,7 +1239,10 @@ export default function StatsInsights({
   playerId: number | ""; onSelectPlayer: (id: number) => void;
 }) {
   const { rows, loading } = useStandings(mode, scope);
-  const [tab, setTab] = useState<Tab>(playerId !== "" ? "player" : "trends");
+  // Deep-link support: dashboard (and others) can pass an initial tab + trends config via nav state.
+  const location = useLocation();
+  const initState = (location.state as { statsTab?: Tab; trendsMetric?: Metric; trendsView?: ViewMode } | null) ?? null;
+  const [tab, setTab] = useState<Tab>(initState?.statsTab ?? (playerId !== "" ? "player" : "trends"));
   const selectedId = playerId === "" ? (rows[0]?.id ?? null) : playerId;
   const goPlayer = (id: number) => { onSelectPlayer(id); setTab("player"); };
 
@@ -1261,7 +1264,7 @@ export default function StatsInsights({
 
       <SectionTabs tabs={TABS} active={tab} onChange={setTab} />
 
-      {tab === "trends" && <TrendsExplorer mode={mode} scope={scope} rows={rows} />}
+      {tab === "trends" && <TrendsExplorer mode={mode} scope={scope} rows={rows} initialMetric={initState?.trendsMetric} initialView={initState?.trendsView} />}
       {tab === "table" && <StatsTable rows={rows} loading={loading} onSelect={goPlayer} />}
       {tab === "positions" && <PositionsView mode={mode} />}
       {tab === "h2h" && <H2HView mode={mode} scope={scope} rows={rows} />}

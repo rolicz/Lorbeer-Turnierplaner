@@ -292,7 +292,16 @@ export default function TrendsPreviewCard() {
           <button
             type="button"
             className="block w-full text-left"
-            onClick={() => navigate("/stats#stats-trends", { state: { focus: "trends", trendsView: view } })}
+            onClick={() =>
+              navigate("/stats#stats-trends", {
+                state: {
+                  focus: "trends",
+                  statsTab: "trends",
+                  trendsMetric: "points",
+                  trendsView: view === "total" ? "cumulative" : "rolling",
+                },
+              })
+            }
             aria-label="Open full trends"
           >
             <div className="overflow-x-auto" data-no-swipe-nav>

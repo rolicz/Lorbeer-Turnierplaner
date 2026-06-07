@@ -401,22 +401,22 @@ export default function ClubsPage() {
           <div className="px-1 py-6 text-sm text-text-muted">No clubs match the current filters.</div>
         ) : null}
 
-        <div className="space-y-2">
+        <div className="divide-y divide-border-card-chip/30">
           {grouped.map(([label, clubsInGroup]) => {
             const suffix = groupMode === "league" ? "league" : "";
             return (
               <CollapsibleCard
                 key={`${label}|${filterKey}`}
                 title={
-                  <span className="inline-flex items-center gap-2">
-                    <span className="font-semibold">{label}</span>
-                    {suffix ? <span className="text-xs text-text-muted">{suffix}</span> : null}
+                  <span className="section-label inline-flex items-center gap-2">
+                    <span>{label}</span>
+                    {suffix ? <span className="font-normal normal-case text-text-muted">{suffix}</span> : null}
                   </span>
                 }
                 right={<span className="text-xs text-text-muted">{clubsInGroup.length}</span>}
                 defaultOpen={hasActiveFilters}
                 variant="none"
-                className="rounded-xl bg-bg-card-inner"
+                className="px-0"
               >
                 {() => (
                   <div className="list-divided">
