@@ -79,9 +79,9 @@ radar.
       in `CupCard`, so a fresh win reads as 0 defended (verified: Rumpi/Mike show no
       suffix).
 - [x] **H2H — drop matrix explanation**: removed the paragraph above the matrix.
-- [ ] **H2H — 2v2 teammate synergy**: when mode = 2v2, add a section about how well
-      the selected player performs **with each teammate** (record/ppm with partner,
-      best/worst partner). Reuse list/row elements.
+- [x] **H2H — 2v2 teammate synergy**: 2v2 mode adds a "Teammate synergy" section —
+      best partner / toughest pairing cards + a per-partner list (played · W-D-L ·
+      ppm), computed from the selected player's 2v2 matches grouped by partner.
 - [x] **Player — matches list consistency**: already uses the shared
       `MatchHistoryList` (both insights `PlayerProfile` and classic
       `PlayerMatchesCard`) — no change needed.

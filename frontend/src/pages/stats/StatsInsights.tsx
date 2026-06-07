@@ -715,6 +715,44 @@ function H2HView({ mode, scope, rows }: { mode: StatsMode; scope: StatsScope; ro
   const favorite = mode === "1v1" ? detailQ.data?.favorite_victim_1v1 : mode === "2v2" ? detailQ.data?.favorite_victim_2v2 : detailQ.data?.favorite_victim_all;
   const selName = selected != null ? nameById.get(selected) ?? "" : "";
 
+  // 2v2 teammate synergy — how the selected player does *with* each partner.
+  const teammateQ = useQuery({
+    queryKey: ["stats", "playerMatches", selected ?? 0, scope],
+    queryFn: () => getStatsPlayerMatches({ playerId: selected as number, scope }),
+    enabled: mode === "2v2" && selected != null,
+    placeholderData: keepPreviousData, staleTime: 30_000,
+  });
+  const teammates = useMemo(() => {
+    if (mode !== "2v2" || selected == null) return [];
+    const data = teammateQ.data as { tournaments: StatsPlayerMatchesTournament[] } | undefined;
+    type TM = { id: number; name: string; played: number; w: number; d: number; l: number; gf: number; ga: number; pts: number };
+    const acc = new Map<number, TM>();
+    for (const t of data?.tournaments ?? []) {
+      if (t.mode !== "2v2") continue;
+      for (const m of t.matches) {
+        if (m.state !== "finished") continue;
+        const sideA = m.sides.find((s) => s.side === "A");
+        const sideB = m.sides.find((s) => s.side === "B");
+        const mySide = (sideA?.players ?? []).some((p) => p.id === selected) ? sideA
+          : (sideB?.players ?? []).some((p) => p.id === selected) ? sideB : null;
+        if (!mySide) continue;
+        const st = matchStats(m, selected);
+        if (!st) continue;
+        for (const partner of (mySide.players ?? []).filter((p) => p.id !== selected)) {
+          const e = acc.get(partner.id) ?? { id: partner.id, name: partner.display_name, played: 0, w: 0, d: 0, l: 0, gf: 0, ga: 0, pts: 0 };
+          e.played++; e.gf += st.gf; e.ga += st.ga; e.pts += st.pts;
+          if (st.res === "W") e.w++; else if (st.res === "D") e.d++; else e.l++;
+          acc.set(partner.id, e);
+        }
+      }
+    }
+    return Array.from(acc.values()).sort(
+      (a, b) => b.pts / Math.max(1, b.played) - a.pts / Math.max(1, a.played) || b.played - a.played,
+    );
+  }, [teammateQ.data, mode, selected]);
+  const bestPartner = teammates.length >= 2 ? teammates[0] : null;
+  const worstPartner = teammates.length >= 2 ? teammates[teammates.length - 1] : null;
+
   if (q.isLoading && !q.data) return <InlineLoading label="Loading…" />;
 
   return (
@@ -821,6 +859,47 @@ function H2HView({ mode, scope, rows }: { mode: StatsMode; scope: StatsScope; ro
           </>
         )}
       </div>
+
+      {/* Teammate synergy (2v2) */}
+      {mode === "2v2" && selected != null ? (
+        <div className="space-y-2">
+          <div className="section-head"><span className="section-label">Teammate synergy</span></div>
+          {teammateQ.isLoading && !teammateQ.data ? (
+            <InlineLoading label="Loading…" />
+          ) : teammates.length ? (
+            <>
+              <p className="text-[11px] text-text-muted">How {selName} performs with each partner (points per match as a duo).</p>
+              {bestPartner && worstPartner && bestPartner.id !== worstPartner.id ? (
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div className="card-chip px-3 py-2">
+                    <div className="inline-flex items-center gap-2 text-text-muted"><i className="fa-solid fa-handshake-angle" aria-hidden="true" /><span>Best partner</span></div>
+                    <div className="mt-0.5 font-semibold">{bestPartner.name}</div>
+                    <div className="mt-0.5 text-text-muted">{bestPartner.w}-{bestPartner.d}-{bestPartner.l} · {(bestPartner.pts / Math.max(1, bestPartner.played)).toFixed(2)} ppm</div>
+                  </div>
+                  <div className="card-chip px-3 py-2">
+                    <div className="inline-flex items-center gap-2 text-text-muted"><i className="fa-solid fa-user-slash" aria-hidden="true" /><span>Toughest pairing</span></div>
+                    <div className="mt-0.5 font-semibold">{worstPartner.name}</div>
+                    <div className="mt-0.5 text-text-muted">{worstPartner.w}-{worstPartner.d}-{worstPartner.l} · {(worstPartner.pts / Math.max(1, worstPartner.played)).toFixed(2)} ppm</div>
+                  </div>
+                </div>
+              ) : null}
+              <div className="list-divided">
+                {teammates.map((tm) => (
+                  <button key={tm.id} type="button" onClick={() => setSelected(tm.id)} className="row row-tap">
+                    <span className="min-w-0 flex-1 truncate text-sm text-text-normal">{tm.name}</span>
+                    <span className="shrink-0 font-mono text-[11px] tabular-nums text-text-muted">
+                      {tm.played}P · <span className="text-status-text-green">{tm.w}</span>-<span className="text-amber-300">{tm.d}</span>-<span className="text-[color:rgb(var(--delta-down)/1)]">{tm.l}</span>
+                    </span>
+                    <span className="w-14 shrink-0 text-right text-sm font-semibold tabular-nums text-accent">{(tm.pts / Math.max(1, tm.played)).toFixed(2)}</span>
+                  </button>
+                ))}
+              </div>
+            </>
+          ) : (
+            <div className="text-sm text-text-muted">No 2v2 matches with a partner yet.</div>
+          )}
+        </div>
+      ) : null}
 
       {/* Top rivalries */}
       <div className="space-y-2">
