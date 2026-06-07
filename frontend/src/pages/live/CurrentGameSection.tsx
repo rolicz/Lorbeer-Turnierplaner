@@ -215,8 +215,8 @@ export default function CurrentGameSection({
 
   return (
     <div className="space-y-3">
-      {/* Match container: score card + score input */}
-      <div className="card-inner space-y-2">
+      {/* Live score editor: the MatchOverviewPanel below is the single surface. */}
+      <div className="space-y-2">
         <div className="flex items-center justify-end gap-3">
           <div className="flex items-center gap-2">
             <Button

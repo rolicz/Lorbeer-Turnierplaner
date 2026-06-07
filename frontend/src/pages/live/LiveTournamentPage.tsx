@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { RotateCw, MailOpen, MessageSquare, Gamepad2, ListChecks, SlidersHorizontal } from "lucide-react";
+import { RotateCw, MailOpen, MessageSquare, Gamepad2, ListChecks, SlidersHorizontal, Trophy } from "lucide-react";
 
 import Button from "../../ui/primitives/Button";
 import { Pill, pillDate } from "../../ui/primitives/Pill";
@@ -44,7 +44,7 @@ import { usePageTitle } from "../../ui/layout/PageTitleContext";
 import InlineBack from "../../ui/shell/InlineBack";
 
 type PlayerLite = { id: number; display_name: string };
-type LiveTab = "overview" | "matches" | "comments" | "controls";
+type LiveTab = "current" | "standings" | "matches" | "comments" | "controls";
 
 function errorMessage(err: unknown): string {
   if (err instanceof Error) return err.message;
@@ -76,16 +76,6 @@ function StatusChip({ status }: { status: "draft" | "live" | "done" }) {
   );
 }
 
-/** A titled content block within a tab. */
-function Section({ title, children }: { title?: React.ReactNode; children: React.ReactNode }) {
-  return (
-    <section className="mb-4">
-      {title ? <h2 className="mb-2 text-sm font-semibold text-text-normal">{title}</h2> : null}
-      {children}
-    </section>
-  );
-}
-
 export default function LiveTournamentPage() {
   const { id } = useParams();
   const tid = id ? Number(id) : null;
@@ -104,10 +94,11 @@ export default function LiveTournamentPage() {
   const isAdmin = role === "admin";
   const isEditorOrAdmin = role === "editor" || role === "admin";
 
-  const TAB_KEYS: LiveTab[] = ["overview", "matches", "comments", "controls"];
+  const TAB_KEYS: LiveTab[] = ["current", "standings", "matches", "comments", "controls"];
   const initialTab = ((): LiveTab => {
     const t = searchParams.get("tab");
-    return t && (TAB_KEYS as string[]).includes(t) ? (t as LiveTab) : "overview";
+    if (t === "overview") return "current"; // legacy deep links / "back" state
+    return t && (TAB_KEYS as string[]).includes(t) ? (t as LiveTab) : "current";
   })();
   const [activeTab, setActiveTabState] = useState<LiveTab>(initialTab);
   // Active tab is mirrored to the URL so back-navigation (in-app + browser) restores it.
@@ -505,16 +496,20 @@ export default function LiveTournamentPage() {
   const showCurrentGameSection = (status === "draft" || status === "live") && !!currentMatch;
 
   const tabs = useMemo<SectionTab<LiveTab>[]>(() => {
-    const t: SectionTab<LiveTab>[] = [
-      { key: "overview", label: status === "done" ? "Results" : "Overview", icon: <Gamepad2 size={14} /> },
-      { key: "matches", label: "Matches", icon: <ListChecks size={14} /> },
-      { key: "comments", label: "Comments", icon: <MessageSquare size={14} />, badge: unreadCommentsCount || undefined },
-    ];
+    const t: SectionTab<LiveTab>[] = [];
+    if (showCurrentGameSection) t.push({ key: "current", label: "Current", icon: <Gamepad2 size={14} /> });
+    t.push({ key: "standings", label: status === "done" ? "Results" : "Standings", icon: <Trophy size={14} /> });
+    t.push({ key: "matches", label: "Matches", icon: <ListChecks size={14} /> });
+    t.push({ key: "comments", label: "Comments", icon: <MessageSquare size={14} />, badge: unreadCommentsCount || undefined });
     if (showControls) {
       t.push({ key: "controls", label: role === "admin" ? "Admin" : "Controls", icon: <SlidersHorizontal size={14} /> });
     }
     return t;
-  }, [status, unreadCommentsCount, showControls, role]);
+  }, [status, showCurrentGameSection, unreadCommentsCount, showControls, role]);
+
+  // Fall back to the first available tab if the active one isn't shown (e.g.
+  // "current" on a done tournament, or a legacy deep link).
+  const effectiveTab: LiveTab = tabs.some((t) => t.key === activeTab) ? activeTab : (tabs[0]?.key ?? "standings");
 
   if (!tid) return <div className="panel-subtle px-3 py-2 text-sm text-text-muted">Invalid tournament id</div>;
 
@@ -576,119 +571,109 @@ export default function LiveTournamentPage() {
         <ErrorToastOnError error={tQ.error} title="Tournament loading failed" />
       </div>
 
-      <SectionTabs tabs={tabs} active={activeTab} onChange={setActiveTab} className="mb-4" />
+      <SectionTabs tabs={tabs} active={effectiveTab} onChange={setActiveTab} className="mb-4" />
 
       {tQ.data ? (
         <>
-          {activeTab === "overview" ? (
-            <>
-              {showCurrentGameSection ? (
-                <Section title="Current game">
-                  <CurrentGameSection
-                    status={status}
-                    tournamentMode={tQ.data?.mode}
-                    match={currentMatch}
-                    clubs={clubs}
-                    players={tQ.data?.players ?? []}
-                    canControl={isEditorOrAdmin && !isDone}
-                    canDeleteComments={isAdmin}
-                    busy={currentGameMut.isPending}
-                    onPatch={(matchId, body) => currentGameMut.mutateAsync({ matchId, body })}
-                    onSwapSides={async (matchId) => {
-                      await swapSidesMut.mutateAsync(matchId);
-                    }}
-                    onOpenMatch={openEditor}
-                  />
-                </Section>
-              ) : null}
+          {effectiveTab === "current" && showCurrentGameSection ? (
+            <CurrentGameSection
+              status={status}
+              tournamentMode={tQ.data?.mode}
+              match={currentMatch}
+              clubs={clubs}
+              players={tQ.data?.players ?? []}
+              canControl={isEditorOrAdmin && !isDone}
+              canDeleteComments={isAdmin}
+              busy={currentGameMut.isPending}
+              onPatch={(matchId, body) => currentGameMut.mutateAsync({ matchId, body })}
+              onSwapSides={async (matchId) => {
+                await swapSidesMut.mutateAsync(matchId);
+              }}
+              onOpenMatch={openEditor}
+            />
+          ) : null}
 
+          {effectiveTab === "standings" ? (
+            <div className="stack-tight">
               {showDeciderReadOnly ? (
-                <Section title="Decider">
-                  <div className="panel-subtle space-y-1 px-3 py-2">
-                    <div className="text-sm text-text-muted">{deciderSummary}</div>
+                <div>
+                  <div className="section-head"><span className="section-label">Decider</span></div>
+                  <div className="space-y-1 text-sm text-text-muted">
+                    <div>{deciderSummary}</div>
                     {decider.type === "none" && topDrawInfo.isTopDraw ? (
-                      <div className="text-xs text-text-muted">
+                      <div className="text-xs">
                         Tournament ended tied at the top. A decider can be set
                         {showControls ? " in the Controls tab." : "."}
                       </div>
                     ) : null}
                   </div>
-                </Section>
+                </div>
               ) : null}
 
-              <Section title={tQ.data.status === "done" ? "Results" : "Standings (live)"}>
-                <div className="card-inner">
-                  <StandingsTable
-                    tournamentId={tid}
-                    tournamentDate={tQ.data?.date ?? null}
-                    tournamentMode={tQ.data?.mode === "2v2" ? "2v2" : "1v1"}
-                    tournamentStatus={tQ.data?.status ?? undefined}
-                    wrap={false}
-                    matches={matchesSorted}
-                    players={tQ.data.players}
-                  />
-                </div>
-              </Section>
+              <StandingsTable
+                tournamentId={tid}
+                tournamentDate={tQ.data?.date ?? null}
+                tournamentMode={tQ.data?.mode === "2v2" ? "2v2" : "1v1"}
+                tournamentStatus={tQ.data?.status ?? undefined}
+                wrap={false}
+                matches={matchesSorted}
+                players={tQ.data.players}
+              />
 
               {!isEditorOrAdmin ? (
-                <div className="panel-subtle px-3 py-2 text-sm text-text-muted">
-                  Login for write access to enter results.
-                </div>
+                <div className="text-sm text-text-muted">Login for write access to enter results.</div>
               ) : null}
-            </>
+            </div>
           ) : null}
 
-          {activeTab === "matches" ? (
-            <Section title="Matches">
-              <div className="card-inner">
-                <MatchList
-                  matches={matchesSorted}
-                  clubs={clubs}
-                  canEdit={canEditMatch}
-                  canReorder={canReorder}
-                  busyReorder={reorderMut.isPending}
-                  onEditMatch={openEditor}
-                  onSwapSides={async (matchId) => {
-                    await swapSidesMut.mutateAsync(matchId);
-                  }}
-                  onMoveUp={(matchId) => {
-                    if (!canReorder) return;
-                    const idx = matchesSorted.findIndex((x) => x.id === matchId);
-                    if (idx <= 0) return;
-                    const ids = matchesSorted.map((x) => x.id);
-                    [ids[idx - 1], ids[idx]] = [ids[idx], ids[idx - 1]];
-                    reorderMut.mutate(ids);
-                  }}
-                  onMoveDown={(matchId) => {
-                    if (!canReorder) return;
-                    const idx = matchesSorted.findIndex((x) => x.id === matchId);
-                    if (idx < 0 || idx >= matchesSorted.length - 1) return;
-                    const ids = matchesSorted.map((x) => x.id);
-                    [ids[idx], ids[idx + 1]] = [ids[idx + 1], ids[idx]];
-                    reorderMut.mutate(ids);
-                  }}
-                />
+          {effectiveTab === "matches" ? (
+            <MatchList
+              matches={matchesSorted}
+              clubs={clubs}
+              canEdit={canEditMatch}
+              canReorder={canReorder}
+              busyReorder={reorderMut.isPending}
+              onEditMatch={openEditor}
+              onSwapSides={async (matchId) => {
+                await swapSidesMut.mutateAsync(matchId);
+              }}
+              onMoveUp={(matchId) => {
+                if (!canReorder) return;
+                const idx = matchesSorted.findIndex((x) => x.id === matchId);
+                if (idx <= 0) return;
+                const ids = matchesSorted.map((x) => x.id);
+                [ids[idx - 1], ids[idx]] = [ids[idx], ids[idx - 1]];
+                reorderMut.mutate(ids);
+              }}
+              onMoveDown={(matchId) => {
+                if (!canReorder) return;
+                const idx = matchesSorted.findIndex((x) => x.id === matchId);
+                if (idx < 0 || idx >= matchesSorted.length - 1) return;
+                const ids = matchesSorted.map((x) => x.id);
+                [ids[idx], ids[idx + 1]] = [ids[idx + 1], ids[idx]];
+                reorderMut.mutate(ids);
+              }}
+            />
+          ) : null}
+
+          {effectiveTab === "comments" ? (
+            <TournamentCommentsCard
+              tournamentId={tid}
+              matches={matchesSorted}
+              clubs={clubs}
+              players={tQ.data?.players ?? []}
+              canWrite={isEditorOrAdmin}
+              canDelete={isAdmin}
+              focusCommentRequest={focusCommentRequest}
+              collapsible={false}
+            />
+          ) : null}
+
+          {effectiveTab === "controls" && showControls ? (
+            <div>
+              <div className="section-head">
+                <span className="section-label">{role === "admin" ? "Admin controls" : "Editor controls"}</span>
               </div>
-            </Section>
-          ) : null}
-
-          {activeTab === "comments" ? (
-            <Section title="Comments">
-              <TournamentCommentsCard
-                tournamentId={tid}
-                matches={matchesSorted}
-                clubs={clubs}
-                players={tQ.data?.players ?? []}
-                canWrite={isEditorOrAdmin}
-                canDelete={isAdmin}
-                focusCommentRequest={focusCommentRequest}
-                collapsible={false}
-              />
-            </Section>
-          ) : null}
-
-          {activeTab === "controls" && showControls ? (
-            <Section title={role === "admin" ? "Admin controls" : "Editor controls"}>
               <AdminPanel
                 wrap={true}
                 role={role}
@@ -758,7 +743,7 @@ export default function LiveTournamentPage() {
                 }
                 deciderBusy={deciderMut.isPending}
               />
-            </Section>
+            </div>
           ) : null}
         </>
       ) : null}

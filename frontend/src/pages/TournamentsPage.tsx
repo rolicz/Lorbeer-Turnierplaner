@@ -1,9 +1,10 @@
-import { useMemo } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { useMemo, type ReactNode } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { List, Plus } from "lucide-react";
+import { List as ListIcon, Plus } from "lucide-react";
 
-import { Pill, pillDate, statusPill } from "../ui/primitives/Pill";
+import { Pill } from "../ui/primitives/Pill";
+import { List, ListRow } from "../ui/primitives/List";
 import { ErrorToastOnError } from "../ui/primitives/ErrorToast";
 import PageLoadingScreen from "../ui/primitives/PageLoadingScreen";
 import { SectionTabs, type SectionTab } from "../ui/SectionTabs";
@@ -62,7 +63,7 @@ export default function TournamentsPage() {
     setSearchParams(n, { replace: true });
   };
   const tabs: SectionTab<TTab>[] = [
-    { key: "all", label: "All tournaments", icon: <List size={14} /> },
+    { key: "all", label: "All tournaments", icon: <ListIcon size={14} /> },
     ...(canWrite ? [{ key: "new" as TTab, label: "New tournament", icon: <Plus size={14} /> }] : []),
   ];
 
@@ -114,94 +115,68 @@ export default function TournamentsPage() {
 
       {tab === "new" && canWrite ? (
         <NewTournamentForm onCancel={() => setTab("all")} />
-      ) : (
-      /* Tournament list */
-      <div className="space-y-2">
-        {tournamentsQ.isLoading ? <div className="text-text-muted">Loading…</div> : null}
-        {tournamentsSorted.length === 0 && !tournamentsQ.isLoading ? (
-          <div className="rounded-xl border border-border-card-chip/40 px-4 py-8 text-center text-sm text-text-muted">
-            No tournaments yet.
-            {canWrite ? (
-              <button
-                type="button"
-                className="ml-1 text-accent underline underline-offset-2"
-                onClick={() => setTab("new")}
-              >
-                Create one.
-              </button>
-            ) : null}
-          </div>
-        ) : null}
-
-        {tournamentsSorted.map((t) => {
-          const st: Status = (t.status as Status) ?? "draft";
-          const ui = tournamentStatusUI(st);
-          const pal = tournamentPalette(st);
-          const winner = winnerLabel(t);
-          const tid = t.id;
-          const sum = summaryByTid.get(tid);
-          const seen = seenIdsByTid.get(tid) ?? new Set<number>();
-          const unseenIds = (sum?.comment_ids ?? []).filter((cid) => !seen.has(cid));
-          const unseenCount = unseenIds.length;
-          const hasUnseen = !!token && unseenCount > 0;
-          const cupStakes = t.cup_stakes ?? [];
-
-          return (
-            <Link
-              key={t.id}
-              to={`/live/${t.id}`}
-              state={{ tournamentName: t.name, tournamentStatus: st }}
-              className={cn(
-                "relative block overflow-hidden rounded-xl border px-4 py-3 transition",
-                pal.wrap,
-              )}
+      ) : tournamentsSorted.length === 0 && !tournamentsQ.isLoading ? (
+        <div className="px-4 py-12 text-center text-sm text-text-muted">
+          No tournaments yet.
+          {canWrite ? (
+            <button
+              type="button"
+              className="ml-1 text-accent underline underline-offset-2"
+              onClick={() => setTab("new")}
             >
-              <div className={`absolute left-0 top-0 h-full w-1 ${pal.bar}`} />
-              <div className="pl-1">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <div className="truncate text-[15px] font-semibold text-text-normal sm:text-base">
-                      {t.name}
-                    </div>
-                  </div>
-                  <Pill title="Mode">{t.mode === "2v2" ? "2v2" : "1v1"}</Pill>
-                </div>
+              Create one.
+            </button>
+          ) : null}
+        </div>
+      ) : (
+        <List>
+          {tournamentsSorted.map((t) => {
+            const st: Status = (t.status as Status) ?? "draft";
+            const ui = tournamentStatusUI(st);
+            const pal = tournamentPalette(st);
+            const winner = winnerLabel(t);
+            const sum = summaryByTid.get(t.id);
+            const seen = seenIdsByTid.get(t.id) ?? new Set<number>();
+            const unseenCount = (sum?.comment_ids ?? []).filter((cid) => !seen.has(cid)).length;
+            const hasUnseen = !!token && unseenCount > 0;
+            const cupStakes = t.cup_stakes ?? [];
 
-                <div className="mt-2 grid grid-cols-[1fr_auto] items-center gap-2">
-                  <div className="flex min-w-0 flex-wrap items-center gap-2">
-                    {st !== "done" ? (
-                      <Pill className={statusPill(st)} title={ui.label}>
-                        <span>{ui.label}</span>
-                      </Pill>
-                    ) : null}
-                    <Pill className={pillDate()} title="Date">
-                      <span>{fmtDate(t.date)}</span>
-                    </Pill>
-                    {winner ? (
-                      <Pill title="Winner">
-                        <i className="fa fa-trophy mr-1 text-yellow-400" aria-hidden="true" />
-                        <span className="max-w-[160px] truncate sm:max-w-[260px]">{winner}</span>
-                      </Pill>
-                    ) : null}
-                  </div>
+            const meta: ReactNode[] = [];
+            if (st === "live") meta.push(<span className="font-medium text-emerald-400">{ui.label}</span>);
+            else if (st !== "done") meta.push(<span>{ui.label}</span>);
+            meta.push(<span>{fmtDate(t.date)}</span>);
+            meta.push(<span>{t.mode === "2v2" ? "2v2" : "1v1"}</span>);
+            if (winner)
+              meta.push(
+                <span className="inline-flex items-center gap-1 text-text-normal">
+                  <i className="fa fa-trophy text-yellow-400" aria-hidden="true" />
+                  <span className="max-w-[150px] truncate sm:max-w-[260px]">{winner}</span>
+                </span>,
+              );
 
-                  {cupStakes.length || hasUnseen ? (
-                    <div className="inline-flex shrink-0 items-center justify-end gap-1.5">
+            return (
+              <ListRow
+                key={t.id}
+                to={`/live/${t.id}`}
+                state={{ tournamentName: t.name, tournamentStatus: st }}
+                ariaLabel={t.name}
+                chevron={false}
+                leading={<span className={cn("block h-10 w-1 shrink-0 rounded-full", pal.bar)} aria-hidden="true" />}
+                trailing={
+                  cupStakes.length || hasUnseen ? (
+                    <>
                       {cupStakes.map((stake) => (
                         <CupStakePill key={stake.key} stake={stake} />
                       ))}
                       {hasUnseen ? (
                         <button
                           type="button"
-                          className="inline-flex items-center"
                           title="Jump to latest unread comment"
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
+                          onClick={() =>
                             navigate(`/live/${t.id}?unread=1`, {
                               state: { tournamentName: t.name, tournamentStatus: st },
-                            });
-                          }}
+                            })
+                          }
                         >
                           <Pill title="Unread comments">
                             <i className="fa-solid fa-comment text-accent" aria-hidden="true" />
@@ -209,14 +184,23 @@ export default function TournamentsPage() {
                           </Pill>
                         </button>
                       ) : null}
-                    </div>
-                  ) : null}
-                </div>
-              </div>
-            </Link>
-          );
-        })}
-      </div>
+                    </>
+                  ) : undefined
+                }
+              >
+                <span className="block truncate text-[15px] font-semibold text-text-normal">{t.name}</span>
+                <span className="mt-0.5 flex flex-wrap items-center text-xs text-text-muted">
+                  {meta.map((node, i) => (
+                    <span key={i} className="inline-flex items-center">
+                      {i > 0 ? <span className="mx-1.5 text-text-muted/40">·</span> : null}
+                      {node}
+                    </span>
+                  ))}
+                </span>
+              </ListRow>
+            );
+          })}
+        </List>
       )}
     </div>
   );
