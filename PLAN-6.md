@@ -25,11 +25,13 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done · `[!]` blocked on user
 
 ## Phase B — Standings best-case fix  (model: **Opus high/xhigh**)
 
-- [ ] **Icon player picker**: replace the best-case `FilterSelect` dropdown with the
-      shared avatar `PlayerPicker` (click an icon), matching every other player
-      selector.
-- [ ] **Simulate rival games (realistic points, 1v1 + 2v2)**: the current projection
-      assumes all rivals gain nothing, which is impossible (rival-vs-rival games must
+- [x] **Icon player picker**: best-case selector now uses the shared avatar
+      `PlayerPicker` (click an icon) instead of a dropdown.
+- [x] **Simulate rival games (realistic points, 1v1 + 2v2)**: extracted a pure,
+      unit-tested `computeBestCase` (3 tests pass) — focus wins out, rival-vs-rival
+      games are brute-forced (points conserved) to minimise the focus rank, 2v2
+      teammates both gain, no impossible zeros. ~~the current projection assumes all
+      rivals gain~~ nothing, which is impossible (rival-vs-rival games must
       hand out points). Fix:
       - Focus player wins **all** their remaining games; the remaining
         **rival-vs-rival** games are simulated (brute-force every win/draw/loss

@@ -4,8 +4,9 @@ import { useQueries, useQuery } from "@tanstack/react-query";
 import type { Match, Player } from "../../api/types";
 import { sideBy } from "../../helpers";
 import Card from "../../ui/primitives/Card";
-import FilterSelect from "../../ui/FilterSelect";
 import AvatarCircle from "../../ui/primitives/AvatarCircle";
+import { PlayerPicker } from "../stats/PlayerPicker";
+import { computeBestCase } from "./bestCase";
 import CupOwnerBadge from "../../ui/primitives/CupOwnerBadge";
 import { getCup, listCupDefs } from "../../api/cup.api";
 import { getStatsStreaks } from "../../api/stats.api";
@@ -151,41 +152,10 @@ export default function StandingsTable({
   const effFocusId = focusId != null && liveRows.some((r) => r.playerId === focusId) ? focusId : liveRows[0]?.playerId ?? null;
   const livePos = effFocusId != null ? liveRows.findIndex((r) => r.playerId === effFocusId) + 1 : 0;
 
-  const bestCase = useMemo(() => {
-    if (effFocusId == null) return null;
-    // Decided facts only; remaining (scheduled + playing) are re-assigned best-case.
-    const fin = computeStandings(matches, players, "finished");
-    const byId = new Map(fin.map((r) => [r.playerId, r]));
-    let focusWins = 0;
-    for (const m of remaining) {
-      const a = sideBy(m, "A");
-      const b = sideBy(m, "B");
-      if (!a || !b) continue;
-      if (a.players.some((p) => p.id === effFocusId) || b.players.some((p) => p.id === effFocusId)) focusWins++;
-    }
-    // Focus wins out (+3 pts, +1 GD min margin per win); every rival loses their remaining (no gain).
-    const proj = players.map((p) => {
-      const r = byId.get(p.id);
-      const isFocus = p.id === effFocusId;
-      return {
-        playerId: p.id,
-        name: p.display_name,
-        pts: (r?.pts ?? 0) + (isFocus ? 3 * focusWins : 0),
-        gd: (r?.gd ?? 0) + (isFocus ? focusWins : 0),
-        gf: r?.gf ?? 0,
-        isFocus,
-      };
-    });
-    proj.sort((x, y) => {
-      if (y.pts !== x.pts) return y.pts - x.pts;
-      if (y.gd !== x.gd) return y.gd - x.gd;
-      if (y.gf !== x.gf) return y.gf - x.gf;
-      if (x.isFocus !== y.isFocus) return x.isFocus ? -1 : 1; // best case: focus wins ties
-      return x.name.localeCompare(y.name);
-    });
-    const pos = proj.findIndex((r) => r.playerId === effFocusId) + 1;
-    return { proj, pos, focusWins };
-  }, [matches, players, remaining, effFocusId]);
+  const bestCase = useMemo(
+    () => (effFocusId == null ? null : computeBestCase(matches, players, effFocusId)),
+    [matches, players, effFocusId],
+  );
 
   const focusName = liveRows.find((r) => r.playerId === effFocusId)?.name ?? "";
   const showBestCase = tournamentStatus !== "done" && remaining.length > 0 && bestCase != null;
@@ -429,16 +399,13 @@ export default function StandingsTable({
       {showBestCase && bestCase ? (
         <div className="mt-5">
           <div className="section-head"><span className="section-label">Best-case positions</span></div>
-          <div className="mb-2 flex items-center gap-2">
-            <span className="text-xs text-text-muted">Player</span>
-            <div className="min-w-0 max-w-[200px] flex-1">
-              <FilterSelect
-                value={effFocusId == null ? "" : String(effFocusId)}
-                onChange={(v) => setFocusId(v ? Number(v) : null)}
-                ariaLabel="Best-case player"
-                options={liveRows.map((r) => ({ value: String(r.playerId), label: r.name }))}
-              />
-            </div>
+          <div className="mb-2">
+            <PlayerPicker
+              players={liveRows.map((r) => ({ id: r.playerId, name: r.name }))}
+              selectedId={effFocusId}
+              onSelect={(id) => setFocusId(id)}
+              size="h-9 w-9"
+            />
           </div>
           <p className="text-xs leading-relaxed text-text-muted">
             {bestCase.focusWins > 0 ? (

@@ -1,0 +1,1 @@
+use the new stats as default, but keep the old ones as an option in the settings
