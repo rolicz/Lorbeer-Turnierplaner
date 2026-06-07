@@ -3,7 +3,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { Club } from "../api/types";
 
 import Button from "./primitives/Button";
-import CollapsibleCard from "./primitives/CollapsibleCard";
 import ClubStarsEditor from "./ClubStarsEditor";
 import ClubCombobox from "./ClubCombobox";
 import { StarsFA } from "./primitives/StarsFA";
@@ -85,12 +84,10 @@ export default function SelectClubsPanel({
   onChangeAClub,
   onChangeBClub,
   onChangeClubs,
-  defaultOpen = false,
   extraTop,
   extraBottom,
   wrap = true,
   showSelectedMeta = false,
-  wrapClassName,
   narrowLayout = false,
 }: {
   clubs: Club[];
@@ -329,8 +326,9 @@ export default function SelectClubsPanel({
   if (!wrap) return body;
 
   return (
-    <CollapsibleCard title="Select Clubs" defaultOpen={defaultOpen} className={wrapClassName ?? "panel-subtle"}>
+    <div>
+      <div className="section-head"><span className="section-label">Select clubs</span></div>
       {body}
-    </CollapsibleCard>
+    </div>
   );
 }

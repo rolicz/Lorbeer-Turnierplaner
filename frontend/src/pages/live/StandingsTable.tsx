@@ -118,106 +118,6 @@ function Arrow({ delta }: { delta: number | null }) {
   return <span className="text-text-muted">–</span>;
 }
 
-function MobileRow({
-  r,
-  rank,
-  delta,
-  isLeader,
-  avatarUpdatedAt,
-  cupMarks,
-  streaks,
-  onOpenProfile,
-}: {
-  r: Row;
-  rank: number;
-  delta: number | null;
-  isLeader: boolean;
-  avatarUpdatedAt: string | null;
-  cupMarks: { key: string; name: string }[];
-  streaks: ActiveStreak[];
-  onOpenProfile: (playerId: number) => void;
-}) {
-  return (
-    <div
-      className="panel relative overflow-hidden px-3 py-2 cursor-pointer"
-      title={`Open profile: ${r.name}`}
-      onClick={() => onOpenProfile(r.playerId)}
-      onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          onOpenProfile(r.playerId);
-        }
-      }}
-      role="button"
-      tabIndex={0}
-    >
-      {/* leader bar */}
-      {isLeader && <div className="absolute inset-y-0 left-0 w-1 bg-status-bar-green" />}
-
-      <div className="flex items-start gap-3">
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <div className="w-6 text-text-muted tabular-nums">{rank}</div>
-            <div className="w-5">
-              <Arrow delta={delta} />
-            </div>
-            <AvatarCircle playerId={r.playerId} name={r.name} updatedAt={avatarUpdatedAt} sizeClass="h-9 w-9" />
-            <div className="min-w-0 flex flex-1 items-center gap-2">
-              <span className="min-w-0 flex-[0_1_auto] truncate text-left font-medium text-text-normal">{r.name}</span>
-              {cupMarks.length ? (
-                <div className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap pl-0.5">
-                  {cupMarks.slice(0, 2).map((c) => (
-                    <CupOwnerBadge
-                      key={c.key}
-                      cupKey={c.key}
-                      cupName={c.name}
-                      title={`${c.name} owner (before tournament)`}
-                    />
-                  ))}
-                  {cupMarks.length > 2 ? <span className="text-[11px] text-text-muted">+{cupMarks.length - 2}</span> : null}
-                </div>
-              ) : null}
-            </div>
-          </div>
-        </div>
-
-        {/* Fixed width keeps the right column stable across rows (prevents jitter/misalignment). */}
-        <div className="shrink-0 w-[104px] sm:w-[120px] text-right">
-          <div className="font-semibold font-mono tabular-nums">{r.pts}</div>
-          <div className="text-[11px] text-text-muted">pts</div>
-        </div>
-      </div>
-
-      {/* second row: stats on the left, streak badges right-aligned under points */}
-      <div className="mt-1 flex h-5 items-center justify-between gap-3">
-        <div className="min-w-0 text-[11px] leading-none text-text-muted font-mono tabular-nums whitespace-nowrap">
-          <span className="inline-flex items-center gap-3">
-            <span>
-              {r.played}P {r.wins}-{r.draws}-{r.losses}
-            </span>
-            <span className="inline-flex items-center gap-0.5">
-              <span className="text-status-text-green opacity-90">{r.gf}</span>
-              <span className="opacity-60">:</span>
-              <span className="delta-down opacity-75">{r.ga}</span>
-            </span>
-            <span>
-              GD <span className="text-text-muted">{r.gd >= 0 ? "+" : ""}{r.gd}</span>
-            </span>
-          </span>
-        </div>
-        <div className="shrink-0 min-w-[104px] sm:min-w-[120px] flex h-5 items-center justify-end px-0.5">
-          <div className="inline-flex items-center justify-end gap-1 whitespace-nowrap">
-            {streaks.slice(0, 3).map((s, i) => (
-              <StreakPatch key={s.key + "-" + i} streak={s} className="streak-compact shadow-none" />
-            ))}
-            {streaks.length > 3 ? <span className="text-[11px] text-text-muted">+{streaks.length - 3}</span> : null}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 export default function StandingsTable({
   tournamentId,
   tournamentDate,
@@ -427,139 +327,76 @@ export default function StandingsTable({
   const title = tournamentStatus === "done" ? "Results" : "Standings (live)";
 
   const content = (
-    <>
-      {/* Mobile */}
-      <div className="sm:hidden space-y-2">
-        {liveRows.map((r, idx) => {
-          const baseIdx = basePos.get(r.playerId);
-          const delta = baseIdx === undefined ? null : baseIdx - idx;
-          const avatarUpdatedAt = avatarUpdatedAtByPlayerId.get(r.playerId) ?? null;
-          const cupMarks = cupMarksByPlayerId.get(r.playerId) ?? [];
-          const streaks = streaksByPlayerId.get(r.playerId) ?? [];
-          return (
-            <MobileRow
-              key={r.playerId}
-              r={r}
-              rank={idx + 1}
-              delta={delta}
-              isLeader={idx === 0}
-              avatarUpdatedAt={avatarUpdatedAt}
-              cupMarks={cupMarks}
-              streaks={streaks}
-              onOpenProfile={(playerId) => navigate(`/profiles/${playerId}`)}
-            />
-          );
-        })}
-      </div>
-
-      {/* Desktop */}
-      <div className="hidden sm:block overflow-x-auto">
-        <table className="w-full table-auto text-sm">
-          <thead className="text-text-muted">
-            <tr className="border-b border-border-card-inner">
-              <th className="py-2 pr-1.5 text-left font-medium w-10">#</th>
-              <th className="py-2 px-1.5 text-left font-medium w-8"></th>
-              <th className="py-2 pr-1.5 text-left font-medium">Player</th>
-              <th className="py-2 px-1.5 text-right font-medium">P</th>
-              <th className="py-2 px-1.5 text-right font-medium">W</th>
-              <th className="py-2 px-1.5 text-right font-medium">D</th>
-              <th className="py-2 px-1.5 text-right font-medium">L</th>
-              <th className="py-2 px-1.5 text-right font-medium">+</th>
-              <th className="py-2 px-1.5 text-right font-medium">-</th>
-              <th className="py-2 px-1.5 text-right font-medium">GD</th>
-              <th className="py-2 pl-1.5 text-right font-semibold">Pts</th>
-            </tr>
-          </thead>
-
-          <tbody className="font-mono tabular-nums">
-            {liveRows.map((r, idx) => {
-              const baseIdx = basePos.get(r.playerId);
-              const delta = baseIdx === undefined ? null : baseIdx - idx;
-              const isLeader = idx === 0;
-              const zebra = idx % 2 === 0 ? "bg-table-row-a" : "bg-table-row-b";
-              const streaks = streaksByPlayerId.get(r.playerId) ?? [];
-
-              return (
-                <tr
-                  key={r.playerId}
-                  className={[
-                    "relative",
-                    "border-b border-border-card-inner",
-                    zebra,
-                    "cursor-pointer hover:bg-hover-default/20",
-                    // Ensure all cells (including streak badges) are vertically centered in the row.
-                    "[&>td]:align-middle",
-                  ].join(" ")}
-                  title={`Open profile: ${r.name}`}
-                  onClick={() => navigate(`/profiles/${r.playerId}`)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" || e.key === " ") {
-                      e.preventDefault();
-                      navigate(`/profiles/${r.playerId}`);
-                    }
-                  }}
-                  role="button"
-                  tabIndex={0}
-                >
-                  {/* leader bar */}
-                  {isLeader && (
-                    <td className="relative py-2 pr-1.5 text-text-muted">
-                      <div className="absolute left-0 top-0 h-full w-1 bg-status-bar-green" />
-                      <div className="pl-1.5">{idx + 1}</div>
-                    </td>
-                  )}
-                  {!isLeader && <td className="py-2 pr-1.5 text-text-muted">{idx + 1}</td>}
-
-                  <td className="py-2 px-1.5">
-                    <Arrow delta={delta} />
-                  </td>
-                  <td className="py-2 pr-1.5 font-sans font-medium min-w-0">
-                    <span className="inline-flex min-w-0 max-w-[280px] items-center gap-2 no-underline lg:max-w-[420px]">
-                      <AvatarCircle
-                        playerId={r.playerId}
-                        name={r.name}
-                        updatedAt={avatarUpdatedAtByPlayerId.get(r.playerId) ?? null}
-                        sizeClass="h-7 w-7"
-                      />
-                      <span className="min-w-0 truncate">{r.name}</span>
-                      {(cupMarksByPlayerId.get(r.playerId) ?? []).length || streaks.length ? (
-                        <span className="inline-flex items-center gap-1 overflow-hidden whitespace-nowrap">
-                          {(cupMarksByPlayerId.get(r.playerId) ?? []).slice(0, 2).map((c) => (
-                            <CupOwnerBadge
-                              key={c.key}
-                              cupKey={c.key}
-                              cupName={c.name}
-                              title={`${c.name} owner (before tournament)`}
-                            />
-                          ))}
-                          {streaks.slice(0, 2).map((s, i) => (
-                            <StreakPatch key={s.key + "-" + i} streak={s} className="streak-compact" />
-                          ))}
-                          {(cupMarksByPlayerId.get(r.playerId) ?? []).length + streaks.length > 4 ? (
-                            <span className="text-[11px] text-text-muted">
-                              +{(cupMarksByPlayerId.get(r.playerId) ?? []).length + streaks.length - 4}
-                            </span>
-                          ) : null}
-                        </span>
-                      ) : null}
-                    </span>
-                  </td>
-                  <td className="py-2 px-1.5 text-right">{r.played}</td>
-                  <td className="py-2 px-1.5 text-right">{r.wins}</td>
-                  <td className="py-2 px-1.5 text-right">{r.draws}</td>
-                  <td className="py-2 px-1.5 text-right">{r.losses}</td>
-                  <td className="py-2 px-1.5 text-right">{r.gf}</td>
-                  <td className="py-2 px-1.5 text-right">{r.ga}</td>
-                  <td className="py-2 px-1.5 text-right">{r.gd}</td>
-                  <td className="py-2 pl-1.5 text-right font-sans font-semibold tabular-nums">{r.pts}</td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-
-    </>
+    <div className="overflow-x-auto" data-no-swipe-nav>
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="border-b border-border-card-chip/50 text-[11px] uppercase tracking-wide text-text-muted">
+            <th className="sticky left-0 z-10 bg-bg-default py-2 pl-1 pr-2 text-left font-medium">Player</th>
+            <th className="px-2 py-2 text-right font-medium">P</th>
+            <th className="px-2 py-2 text-right font-medium">W</th>
+            <th className="px-2 py-2 text-right font-medium">D</th>
+            <th className="px-2 py-2 text-right font-medium">L</th>
+            <th className="px-2 py-2 text-right font-medium">GF</th>
+            <th className="px-2 py-2 text-right font-medium">GA</th>
+            <th className="px-2 py-2 text-right font-medium">GD</th>
+            <th className="px-2 py-2 pl-2 pr-1 text-right font-medium">Pts</th>
+          </tr>
+        </thead>
+        <tbody className="tabular-nums">
+          {liveRows.map((r, idx) => {
+            const baseIdx = basePos.get(r.playerId);
+            const delta = baseIdx === undefined ? null : baseIdx - idx;
+            const isLeader = idx === 0;
+            const cupMarks = cupMarksByPlayerId.get(r.playerId) ?? [];
+            const streaks = streaksByPlayerId.get(r.playerId) ?? [];
+            return (
+              <tr
+                key={r.playerId}
+                className="cursor-pointer border-b border-border-card-inner/40 transition hover:bg-hover-default/30"
+                title={`Open profile: ${r.name}`}
+                onClick={() => navigate(`/profiles/${r.playerId}`)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    navigate(`/profiles/${r.playerId}`);
+                  }
+                }}
+                role="button"
+                tabIndex={0}
+              >
+                <td className="sticky left-0 z-10 bg-bg-default py-2 pl-1 pr-2">
+                  <div className="relative flex items-center gap-2">
+                    {isLeader ? <span className="absolute inset-y-0 -left-1 w-0.5 rounded bg-status-bar-green" aria-hidden="true" /> : null}
+                    <span className="w-4 text-right text-xs tabular-nums text-text-muted">{idx + 1}</span>
+                    <span className="w-3 shrink-0 text-center text-[10px] leading-none"><Arrow delta={delta} /></span>
+                    <AvatarCircle playerId={r.playerId} name={r.name} updatedAt={avatarUpdatedAtByPlayerId.get(r.playerId) ?? null} sizeClass="h-7 w-7" />
+                    <span className="max-w-[110px] truncate font-medium text-text-normal sm:max-w-[260px]">{r.name}</span>
+                    {cupMarks.length || streaks.length ? (
+                      <span className="inline-flex items-center gap-1 whitespace-nowrap">
+                        {cupMarks.slice(0, 2).map((c) => (
+                          <CupOwnerBadge key={c.key} cupKey={c.key} cupName={c.name} title={`${c.name} owner (before tournament)`} />
+                        ))}
+                        {streaks.slice(0, 2).map((s, i) => (
+                          <StreakPatch key={s.key + "-" + i} streak={s} className="streak-compact" />
+                        ))}
+                      </span>
+                    ) : null}
+                  </div>
+                </td>
+                <td className="px-2 text-right text-text-muted">{r.played}</td>
+                <td className="px-2 text-right text-status-text-green">{r.wins}</td>
+                <td className="px-2 text-right text-amber-300">{r.draws}</td>
+                <td className="px-2 text-right text-[color:rgb(var(--delta-down)/1)]">{r.losses}</td>
+                <td className="px-2 text-right">{r.gf}</td>
+                <td className="px-2 text-right">{r.ga}</td>
+                <td className="px-2 text-right">{r.gd >= 0 ? `+${r.gd}` : r.gd}</td>
+                <td className="px-2 pl-2 pr-1 text-right font-bold">{r.pts}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
   );
 
   if (!wrap) return content;

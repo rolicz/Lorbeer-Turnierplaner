@@ -1004,14 +1004,15 @@ export default function TournamentCommentsCard({
     <button
       type="button"
       onClick={toggleCollapsed}
-      className="surface flex w-full items-center justify-between gap-2 rounded-2xl px-4 py-3 text-left transition hover:bg-hover-default/30"
+      className="flex w-full items-center gap-3 py-1 text-left"
       aria-expanded={!collapsed}
     >
-      <span className="inline-flex items-center gap-2 text-sm font-semibold text-text-normal">
-        <i className="fa-solid fa-comments text-text-muted" aria-hidden="true" />
+      <span className="section-label inline-flex items-center gap-2">
+        <i className="fa-solid fa-comments" aria-hidden="true" />
         {collapsibleHeader}
-        <span className="text-xs font-normal text-text-muted">{comments.length}</span>
+        <span className="font-normal normal-case text-text-muted">{comments.length}</span>
       </span>
+      <span className="h-px flex-1 bg-border-card-chip/35" aria-hidden="true" />
       <i className={`fa-solid ${collapsed ? "fa-chevron-down" : "fa-chevron-up"} text-xs text-text-muted`} aria-hidden="true" />
     </button>
   ) : null;
