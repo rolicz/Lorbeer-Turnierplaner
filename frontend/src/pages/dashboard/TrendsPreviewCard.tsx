@@ -2,7 +2,6 @@ import { useMemo, useState } from "react";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 
-import CollapsibleCard from "../../ui/primitives/CollapsibleCard";
 import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
 import InlineLoading from "../../ui/primitives/InlineLoading";
 
@@ -252,18 +251,11 @@ export default function TrendsPreviewCard() {
   const matchesError = matchesQs.find((q) => q.error)?.error;
 
   return (
-    <CollapsibleCard
-      title={
-        <span className="inline-flex items-center gap-2">
-          <i className="fa-solid fa-chart-area text-text-muted" aria-hidden="true" />
-          Trends
-        </span>
-      }
-      defaultOpen={true}
-      variant="outer"
-      bodyVariant="none"
-    >
-      <div className="card-inner space-y-2">
+    <div>
+      <div className="section-head">
+        <span className="section-label">Trends</span>
+      </div>
+      <div className="space-y-2">
         <ErrorToastOnError error={statsQ.error} title="Trends loading failed" />
         <ErrorToastOnError error={matchesError} title="Trends loading failed" />
         <div className="grid grid-cols-[auto,1fr] items-start gap-3">
@@ -322,6 +314,6 @@ export default function TrendsPreviewCard() {
           </button>
         ) : null}
       </div>
-    </CollapsibleCard>
+    </div>
   );
 }

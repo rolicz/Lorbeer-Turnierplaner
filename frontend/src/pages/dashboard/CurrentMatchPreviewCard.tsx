@@ -7,7 +7,6 @@ import { getTournament } from "../../api/tournaments.api";
 import { listClubs } from "../../api/clubs.api";
 import { apiFetch } from "../../api/client";
 
-import CollapsibleCard from "../../ui/primitives/CollapsibleCard";
 import { useTournamentWS } from "../../hooks/useTournamentWS";
 import { sideBy } from "../../helpers";
 import MatchOverviewPanel from "../../ui/primitives/MatchOverviewPanel";
@@ -75,56 +74,41 @@ export default function CurrentMatchPreviewCard() {
   if (!tid) return null;
 
   return (
-    <CollapsibleCard
-      title={
-        <span className="inline-flex items-center gap-2">
+    <div>
+      <div className="section-head">
+        <span className="section-label inline-flex items-center gap-2">
           <span className="relative flex h-2 w-2">
             <span className="absolute inline-flex h-full w-full animate-ping rounded-full live-ping opacity-75" />
             <span className="relative inline-flex h-2 w-2 rounded-full live-dot" />
           </span>
-          <span>Live now</span>
+          Live now
         </span>
-      }
-      defaultOpen={true}
-      variant="outer"
-      bodyVariant="none"
-    >
-      <div className="card-inner">
-        {!match ? (
-          <InlineLoading label="Loading live match…" className="py-2" />
-        ) : (
-          <div>
-            <div className="grid grid-cols-1 items-center">
-              <div className="min-w-0">
-                <div className="truncate text-base font-semibold text-text-normal">
-                  {tQ.data?.name ?? `Tournament #${tid}`}
-                </div>
-              </div>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => nav(`/live/${tid}`)}
-              className="mt-2 block w-full rounded-xl text-left transition hover:bg-hover-default/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/35"
-            >
-              <MatchOverviewPanel
-                className=""
-                surface="panel"
-                match={match}
-                clubs={clubs}
-                mode={tQ.data?.mode}
-                showModePill={true}
-                showOdds={true}
-                aGoals={Number(a?.goals ?? 0)}
-                bGoals={Number(b?.goals ?? 0)}
-                scheduledScoreStyle="emdash-zero"
-              />
-            </button>
-
-            <div className="mt-2 text-xs text-text-muted">Tap to open live tournament.</div>
-          </div>
-        )}
       </div>
-    </CollapsibleCard>
+      {!match ? (
+        <InlineLoading label="Loading live match…" className="py-2" />
+      ) : (
+        <button
+          type="button"
+          onClick={() => nav(`/live/${tid}`)}
+          className="block w-full rounded-2xl text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/35"
+        >
+          <div className="mb-1.5 truncate text-sm font-semibold text-text-normal">
+            {tQ.data?.name ?? `Tournament #${tid}`}
+          </div>
+          <MatchOverviewPanel
+            surface="panel"
+            match={match}
+            clubs={clubs}
+            mode={tQ.data?.mode}
+            showModePill={true}
+            showOdds={true}
+            aGoals={Number(a?.goals ?? 0)}
+            bGoals={Number(b?.goals ?? 0)}
+            scheduledScoreStyle="emdash-zero"
+          />
+          <div className="mt-2 text-xs text-text-muted">Tap to open live tournament.</div>
+        </button>
+      )}
+    </div>
   );
 }

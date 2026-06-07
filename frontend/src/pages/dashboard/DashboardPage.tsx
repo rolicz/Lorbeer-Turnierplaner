@@ -5,7 +5,6 @@ import { LayoutDashboard, Trophy } from "lucide-react";
 import CupCard from "./CupCard";
 import CurrentMatchPreviewCard from "./CurrentMatchPreviewCard";
 import TrendsPreviewCard from "./TrendsPreviewCard";
-import CollapsibleCard from "../../ui/primitives/CollapsibleCard";
 import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
 import { SectionTabs, type SectionTab } from "../../ui/SectionTabs";
 import { listCupDefs } from "../../api/cup.api";
@@ -85,41 +84,24 @@ export default function DashboardPage() {
         </div>
       ) : (
       /* Cups */
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid gap-6 lg:grid-cols-2">
         {cups.map((c) => (
-          <CollapsibleCard
-            key={c.key}
-            title={
-              <div className="min-w-0">
-                <div className="flex items-center gap-2">
-                  <span
-                    className="h-2.5 w-2.5 rounded-full"
-                    style={{
-                      backgroundColor: rgbFromCssVar(cupColorVarForKey(c.key)),
-                      boxShadow: `0 0 0 3px ${rgbFromCssVar(cupColorVarForKey(c.key))}22`,
-                    }}
-                    aria-hidden="true"
-                  />
-                  <span className="truncate text-base font-black tracking-tight">{c.name}</span>
-                </div>
-                <div
-                  className="mt-1 h-[3px] w-full rounded-full"
+          <section key={c.key}>
+            <div className="section-head">
+              <span className="section-label inline-flex items-center gap-2">
+                <span
+                  className="h-2.5 w-2.5 rounded-full"
                   style={{
-                    backgroundImage: `linear-gradient(90deg, transparent, ${rgbFromCssVar(cupColorVarForKey(c.key))}, transparent)`,
-                    opacity: 0.95,
+                    backgroundColor: rgbFromCssVar(cupColorVarForKey(c.key)),
+                    boxShadow: `0 0 0 3px ${rgbFromCssVar(cupColorVarForKey(c.key))}22`,
                   }}
                   aria-hidden="true"
                 />
-              </div>
-            }
-            defaultOpen={true}
-            variant="outer"
-            bodyVariant="none"
-          >
-            <div className="card-inner">
-              <CupCard cupKey={c.key} />
+                <span className="truncate">{c.name}</span>
+              </span>
             </div>
-          </CollapsibleCard>
+            <CupCard cupKey={c.key} />
+          </section>
         ))}
       </div>
       )}
