@@ -99,7 +99,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 // ==========================================================================
 //  TRENDS — interactive
 // ==========================================================================
-type Metric = "points" | "goals" | "conceded" | "gd" | "winrate" | "ppm";
+type Metric = "points" | "goals" | "conceded" | "gd" | "winrate";
 type ViewMode = "per" | "cumulative" | "rolling";
 
 const METRIC_OPTS: { key: Metric; label: string }[] = [
@@ -108,17 +108,29 @@ const METRIC_OPTS: { key: Metric; label: string }[] = [
   { key: "conceded", label: "Conceded" },
   { key: "gd", label: "Goal diff" },
   { key: "winrate", label: "Win %" },
-  { key: "ppm", label: "Pts/match" },
 ];
 
 type RangeKey = "1y" | "2y" | "all";
+
+function ToggleChip({ on, onClick, children }: { on: boolean; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={on}
+      className={"rounded-full px-2.5 py-1 text-xs transition focus-ring " + (on ? "bg-accent/15 font-medium text-accent ring-1 ring-inset ring-accent/40" : "bg-bg-card-chip/50 text-text-muted hover:text-text-normal")}
+    >
+      {children}
+    </button>
+  );
+}
 
 function TrendsExplorer({ mode, scope, rows }: { mode: StatsMode; scope: StatsScope; rows: Row[] }) {
   const [metric, setMetric] = useState<Metric>("points");
   const [view, setView] = useState<ViewMode>("cumulative");
   const [rollN, setRollN] = useState(5);
   const [range, setRange] = useState<RangeKey>("1y");
-  const [zoom, setZoom] = useState(52);
+  const [perMatch, setPerMatch] = useState(false);
   const [showLabels, setShowLabels] = useState(false);
   const [hidden, setHidden] = useState<Set<number>>(new Set());
   const [now] = useState(() => Date.now());
@@ -134,12 +146,15 @@ function TrendsExplorer({ mode, scope, rows }: { mode: StatsMode; scope: StatsSc
   });
   const loading = matchesQs.some((q) => q.isLoading && !q.data);
 
+  // Win% is already a rate, so the per-match modifier only applies to absolute metrics.
+  const applyPM = perMatch && metric !== "winrate";
+
   const { events, series, totalEvents, allowsCumulative } = useMemo(() => {
-    const perPlayer = new Map<number, Map<number, number>>();
+    const perPlayer = new Map<number, Map<number, { v: number; played: number }>>();
     const tInfo = new Map<number, { date: string; name: string }>();
     rows.forEach((r, i) => {
       const data = matchesQs[i]?.data as { tournaments: StatsPlayerMatchesTournament[] } | undefined;
-      const vals = new Map<number, number>();
+      const vals = new Map<number, { v: number; played: number }>();
       for (const t of data?.tournaments ?? []) {
         if (mode !== "overall" && t.mode !== mode) continue;
         let pts = 0, gf = 0, ga = 0, w = 0, played = 0, any = false;
@@ -151,15 +166,14 @@ function TrendsExplorer({ mode, scope, rows }: { mode: StatsMode; scope: StatsSc
         if (!any) continue;
         tInfo.set(t.id, { date: t.date, name: t.name });
         const v = metric === "points" ? pts : metric === "goals" ? gf : metric === "conceded" ? ga
-          : metric === "gd" ? gf - ga : metric === "winrate" ? (played ? (w / played) * 100 : 0)
-          : (played ? pts / played : 0);
-        vals.set(t.id, v);
+          : metric === "gd" ? gf - ga : (played ? (w / played) * 100 : 0);
+        vals.set(t.id, { v, played });
       }
       perPlayer.set(r.id, vals);
     });
     const tsOf = (tid: number) => new Date(tInfo.get(tid)?.date ?? 0).getTime();
     const allTids = [...tInfo.keys()].sort((a, b) => tsOf(a) - tsOf(b) || a - b);
-    const allowsCumulative = metric === "points" || metric === "goals" || metric === "conceded" || metric === "gd";
+    const allowsCumulative = metric !== "winrate";
     const effView: ViewMode = view === "cumulative" && !allowsCumulative ? "rolling" : view;
 
     const cutoff = range === "1y" ? now - 365 * 864e5 : range === "2y" ? now - 730 * 864e5 : -Infinity;
@@ -169,20 +183,29 @@ function TrendsExplorer({ mode, scope, rows }: { mode: StatsMode; scope: StatsSc
     const events = visibleTids.map((tid) => ({ ts: tsOf(tid), label: tInfo.get(tid)?.name ?? "" }));
 
     const series = rows.map((r, idx) => {
-      const vals = perPlayer.get(r.id) ?? new Map<number, number>();
-      let cum = 0;
+      const vals = perPlayer.get(r.id) ?? new Map<number, { v: number; played: number }>();
+      let cumV = 0, cumP = 0;
       const full = allTids.map((tid) => {
-        const v = vals.get(tid);
-        if (v == null) return null;
-        cum += v;
-        return { raw: v, cum };
+        const cell = vals.get(tid);
+        if (!cell) return null;
+        cumV += cell.v; cumP += cell.played;
+        return { v: cell.v, played: cell.played, cumV, cumP };
       });
+      const base = (i: number): number | null => {
+        const c = full[i];
+        if (!c) return null;
+        return applyPM ? (c.played ? c.v / c.played : null) : c.v;
+      };
       const transformed = allTids.map((_, i) => {
-        const cell = full[i];
-        if (effView === "cumulative") return cell ? cell.cum : (full.slice(0, i).reverse().find((c) => c)?.cum ?? null);
-        if (effView === "per") return cell ? cell.raw : null;
+        const c = full[i];
+        if (effView === "cumulative") {
+          // absent → null so the chart draws a greyed gap segment (non-participation)
+          if (!c) return null;
+          return applyPM ? (c.cumP ? c.cumV / c.cumP : null) : c.cumV;
+        }
+        if (effView === "per") return base(i);
         const wv: number[] = [];
-        for (let j = i; j >= 0 && wv.length < rollN; j--) { const c = full[j]; if (c) wv.push(c.raw); }
+        for (let j = i; j >= 0 && wv.length < rollN; j--) { const b = base(j); if (b != null) wv.push(b); }
         return wv.length ? wv.reduce((a, b) => a + b, 0) / wv.length : null;
       });
       const sliced = transformed.slice(startIdx);
@@ -190,7 +213,7 @@ function TrendsExplorer({ mode, scope, rows }: { mode: StatsMode; scope: StatsSc
       return { id: r.id, name: r.name, color: c.solid, points: hidden.has(r.id) ? sliced.map(() => null) : sliced };
     });
     return { events, series, totalEvents: allTids.length, allowsCumulative };
-  }, [rows, matchesQs, metric, view, rollN, range, hidden, mode, now]);
+  }, [rows, matchesQs, metric, view, rollN, range, hidden, mode, now, applyPM]);
 
   const allY = series.flatMap((s) => s.points.filter((p): p is number => p != null));
   const yMax = Math.max(1, ...allY);
@@ -198,13 +221,13 @@ function TrendsExplorer({ mode, scope, rows }: { mode: StatsMode; scope: StatsSc
 
   return (
     <div className="space-y-3">
-      {/* chart first (hero) — horizontally scrollable + zoomable */}
+      {/* chart first (hero) — fixed-size plot, scroll horizontally to pan */}
       <div>
         <div className="overflow-x-auto rounded-2xl border border-border-card-chip/40 bg-bg-card-inner/40 p-2" data-no-swipe-nav>
           {loading ? (
             <InlineLoading label="Loading…" />
           ) : (
-            <TrendChart events={events} series={series} yMax={Math.ceil(yMax)} yMin={Math.floor(yMin)} pxPerMonth={zoom} showLabels={showLabels} height={240} />
+            <TrendChart events={events} series={series} yMax={Math.ceil(yMax)} yMin={Math.floor(yMin)} pxPerMonth={64} showLabels={showLabels} height={240} />
           )}
         </div>
         <div className="mt-3 flex flex-wrap gap-2">
@@ -226,7 +249,10 @@ function TrendsExplorer({ mode, scope, rows }: { mode: StatsMode; scope: StatsSc
       {/* controls */}
       <div className="space-y-3">
         <Field label="Metric">
-          <ChipGroup<Metric> value={metric} onChange={setMetric} ariaLabel="Metric" options={METRIC_OPTS} />
+          <div className="flex flex-wrap items-center gap-2">
+            <ChipGroup<Metric> value={metric} onChange={setMetric} ariaLabel="Metric" options={METRIC_OPTS} />
+            {metric !== "winrate" ? <ToggleChip on={perMatch} onClick={() => setPerMatch((v) => !v)}>Per match</ToggleChip> : null}
+          </div>
         </Field>
         <Field label="View">
           <ChipGroup<ViewMode> value={view} onChange={setView} ariaLabel="View"
@@ -243,16 +269,8 @@ function TrendsExplorer({ mode, scope, rows }: { mode: StatsMode; scope: StatsSc
           <ChipGroup<RangeKey> value={range} onChange={setRange} ariaLabel="Range"
             options={[{ key: "1y", label: "1 year" }, { key: "2y", label: "2 years" }, { key: "all", label: "All time" }]} />
         </Field>
-        <Slider label="Zoom" value={zoom} min={28} max={120} onChange={setZoom} />
         <div className="flex flex-wrap gap-1.5">
-          <button
-            type="button"
-            onClick={() => setShowLabels((v) => !v)}
-            aria-pressed={showLabels}
-            className={"rounded-full px-2.5 py-1 text-xs transition focus-ring " + (showLabels ? "bg-accent/15 font-medium text-accent ring-1 ring-inset ring-accent/40" : "bg-bg-card-chip/50 text-text-muted hover:text-text-normal")}
-          >
-            Tournament names
-          </button>
+          <ToggleChip on={showLabels} onClick={() => setShowLabels((v) => !v)}>Tournament names</ToggleChip>
         </div>
       </div>
     </div>
@@ -285,9 +303,25 @@ const TABLE_COLS: ColDef[] = [
   { key: "gpm", label: "G/M", val: (r) => (r.played ? r.gf / r.played : 0), fmt: (_n, r) => (r.played ? f2(r.gf / r.played) : "—"), cls: "text-text-muted" },
   { key: "gapm", label: "GA/M", val: (r) => (r.played ? r.ga / r.played : 0), fmt: (_n, r) => (r.played ? f2(r.ga / r.played) : "—"), cls: "text-text-muted" },
   { key: "gd", label: "GD", val: (r) => r.gd, fmt: (n) => (n >= 0 ? `+${n}` : String(n)) },
+  { key: "gdpm", label: "GD/M", val: (r) => (r.played ? r.gd / r.played : 0), fmt: (_n, r) => (r.played ? (r.gd >= 0 ? "+" : "") + f2(r.gd / r.played) : "—"), cls: "text-text-muted" },
   { key: "rating", label: "Elo", val: (r) => r.rating, fmt: (n) => String(Math.round(n)) },
 ];
 const DEFAULT_COLS = ["pts", "ppm", "played", "gd", "rating"];
+// Chip controls — W/D/L toggle together as one group; everything else is its own chip.
+const COL_CHIPS: { label: string; cols: string[] }[] = [
+  { label: "Pts", cols: ["pts"] },
+  { label: "PPM", cols: ["ppm"] },
+  { label: "P", cols: ["played"] },
+  { label: "W-D-L", cols: ["wins", "draws", "losses"] },
+  { label: "Win%", cols: ["winrate"] },
+  { label: "GF", cols: ["gf"] },
+  { label: "GA", cols: ["ga"] },
+  { label: "G/M", cols: ["gpm"] },
+  { label: "GA/M", cols: ["gapm"] },
+  { label: "GD", cols: ["gd"] },
+  { label: "GD/M", cols: ["gdpm"] },
+  { label: "Elo", cols: ["rating"] },
+];
 
 function StatsTable({ rows, loading, onSelect }: { rows: Row[]; loading: boolean; onSelect: (id: number) => void }) {
   const { avatarUpdatedAtById } = usePlayerAvatarMap();
@@ -303,10 +337,15 @@ function StatsTable({ rows, loading, onSelect }: { rows: Row[]; loading: boolean
     [rows, sortCol, dir],
   );
   const setSort = (k: string) => { if (k === sortKey) setDir((d) => (d === 1 ? -1 : 1)); else { setSortKey(k); setDir(-1); } };
-  const toggleCol = (k: string) =>
+  const toggleGroup = (groupCols: string[], on: boolean) =>
     setVisible((prev) => {
       const n = new Set(prev);
-      if (n.has(k)) { if (n.size > 1) n.delete(k); } else n.add(k);
+      if (on) {
+        for (const k of groupCols) n.delete(k);
+        if (n.size === 0) n.add("pts");
+      } else {
+        for (const k of groupCols) n.add(k);
+      }
       return n;
     });
 
@@ -316,20 +355,20 @@ function StatsTable({ rows, loading, onSelect }: { rows: Row[]; loading: boolean
       <div>
         <div className="section-head"><span className="section-label">Columns</span></div>
         <div className="flex flex-wrap gap-1.5">
-          {TABLE_COLS.map((c) => {
-            const on = visible.has(c.key);
+          {COL_CHIPS.map((item) => {
+            const on = item.cols.every((k) => visible.has(k));
             return (
               <button
-                key={c.key}
+                key={item.label}
                 type="button"
-                onClick={() => toggleCol(c.key)}
+                onClick={() => toggleGroup(item.cols, on)}
                 aria-pressed={on}
                 className={
                   "rounded-full px-2.5 py-1 text-xs transition focus-ring " +
                   (on ? "bg-accent/15 font-medium text-accent ring-1 ring-inset ring-accent/40" : "bg-bg-card-chip/50 text-text-muted hover:text-text-normal")
                 }
               >
-                {c.label}
+                {item.label}
               </button>
             );
           })}
@@ -470,6 +509,7 @@ function H2HView({ mode, scope, rows }: { mode: StatsMode; scope: StatsScope; ro
     placeholderData: keepPreviousData, staleTime: 30_000,
   });
   const [selected, setSelected] = useState<number | null>(rows[0]?.id ?? null);
+  const [matrixMetric, setMatrixMetric] = useState<"winrate" | "played" | "gd">("winrate");
   const nameById = useMemo(() => new Map(rows.map((r) => [r.id, r.name])), [rows]);
 
   const pairs: StatsH2HPair[] = useMemo(() => {
@@ -488,8 +528,12 @@ function H2HView({ mode, scope, rows }: { mode: StatsMode; scope: StatsScope; ro
     const rowIsA = p.a.id === rowId;
     const rowWins = rowIsA ? p.a_wins : p.b_wins;
     const colWins = rowIsA ? p.b_wins : p.a_wins;
-    return { pct: (rowWins / p.played) * 100, w: rowWins, d: p.draws, l: colWins };
+    const rowGf = rowIsA ? p.a_gf : p.b_gf;
+    const rowGa = rowIsA ? p.a_ga : p.b_ga;
+    return { pct: (rowWins / p.played) * 100, w: rowWins, d: p.draws, l: colWins, played: p.played, gd: rowGf - rowGa };
   };
+  const cellText = (v: { pct: number; played: number; gd: number }) =>
+    matrixMetric === "played" ? String(v.played) : matrixMetric === "gd" ? (v.gd >= 0 ? `+${v.gd}` : String(v.gd)) : String(Math.round(v.pct));
   const topRivalries = pairs.slice().sort((a, b) => b.rivalry_score - a.rivalry_score).slice(0, 8);
 
   // Per-player detail.
@@ -514,8 +558,16 @@ function H2HView({ mode, scope, rows }: { mode: StatsMode; scope: StatsScope; ro
     <div className="space-y-5">
       {/* Full-name square matrix */}
       <div>
-        <div className="section-head"><span className="section-label">Win-rate matrix</span></div>
-        <p className="mb-2 text-[11px] text-text-muted">Row's win rate vs column (green dominates). Tap a name or cell for detail.</p>
+        <div className="section-head"><span className="section-label">Matrix</span></div>
+        <div className="mb-2 flex flex-wrap items-center gap-2">
+          <ChipGroup<"winrate" | "played" | "gd">
+            value={matrixMetric}
+            onChange={setMatrixMetric}
+            ariaLabel="Matrix metric"
+            options={[{ key: "winrate", label: "Win %" }, { key: "played", label: "Played" }, { key: "gd", label: "Goal diff" }]}
+          />
+        </div>
+        <p className="mb-2 text-[11px] text-text-muted">Cell = row vs column ({matrixMetric === "played" ? "matches played" : matrixMetric === "gd" ? "goal difference" : "win %"}); colour shows the row's win rate (green dominates). Tap for detail.</p>
         <div className="overflow-x-auto" data-no-swipe-nav>
           <table className="border-separate" style={{ borderSpacing: 3 }}>
             <thead>
@@ -555,7 +607,7 @@ function H2HView({ mode, scope, rows }: { mode: StatsMode; scope: StatsScope; ro
                           className="grid h-11 w-11 place-items-center rounded text-[11px] font-semibold text-white"
                           style={{ backgroundColor: h2hTone(v.pct) }}
                         >
-                          {Math.round(v.pct)}
+                          {cellText(v)}
                         </button>
                       </td>
                     );
@@ -611,6 +663,7 @@ function H2HView({ mode, scope, rows }: { mode: StatsMode; scope: StatsScope; ro
       {/* Top rivalries */}
       <div className="space-y-2">
         <div className="section-head"><span className="section-label">Top rivalries</span></div>
+        <p className="text-[11px] text-text-muted">Most-played and closest matchups — a higher rivalry score means more games and a tighter win balance.</p>
         {topRivalries.map((p) => (
           <button key={`${p.a.id}-${p.b.id}`} type="button" onClick={() => setSelected(p.a.id)}
             className="surface flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left transition hover:bg-hover-default/30">
@@ -660,21 +713,20 @@ function StreaksView({ mode, scope }: { mode: StatsMode; scope: StatsScope }) {
   const cats: StatsStreakCategory[] = q.data?.categories ?? [];
 
   return (
-    <div className="grid gap-3 lg:grid-cols-2">
+    <div className="grid gap-x-6 gap-y-6 lg:grid-cols-2">
       {cats.map((c) => {
         const records = (c.records ?? []).slice(0, 5);
         const current = (c.current ?? []).filter((r) => r.length > 0).slice(0, 5);
         return (
-          <div key={c.key} className="card-outer">
-            <div className="mb-1 flex items-center gap-2">
-              <Flame size={14} className="text-text-muted" />
-              <h2 className="text-sm font-semibold text-text-normal">{c.name}</h2>
+          <div key={c.key} className="space-y-2">
+            <div className="section-head">
+              <span className="section-label inline-flex items-center gap-1.5"><Flame size={12} />{c.name}</span>
             </div>
-            <p className="mb-2 text-[11px] text-text-muted">{c.description}</p>
+            <p className="-mt-1 text-[11px] text-text-muted">{c.description}</p>
             {records.length ? (
-              <div className="space-y-1">
+              <div className="list-divided">
                 {records.map((r, i) => (
-                  <div key={`${r.player.id}-${i}`} className="surface flex items-center gap-2 rounded-lg px-2.5 py-1.5">
+                  <div key={`${r.player.id}-${i}`} className="flex items-center gap-2 py-2">
                     <span className="w-4 text-center text-xs font-bold tabular-nums text-text-muted">{i + 1}</span>
                     <AvatarCircle playerId={r.player.id} name={r.player.display_name} updatedAt={avatarUpdatedAtById.get(r.player.id) ?? null} sizeClass="h-6 w-6" />
                     <span className="min-w-0 flex-1">
@@ -688,7 +740,7 @@ function StreaksView({ mode, scope }: { mode: StatsMode; scope: StatsScope }) {
               </div>
             ) : <div className="text-sm text-text-muted">None yet.</div>}
             {current.length ? (
-              <div className="mt-2 border-t border-border-card-inner/50 pt-2">
+              <div className="pt-1">
                 <div className="mb-1 text-[10px] uppercase tracking-wide text-text-muted">Current</div>
                 <div className="flex flex-wrap gap-1.5">
                   {current.map((r) => (
@@ -702,7 +754,7 @@ function StreaksView({ mode, scope }: { mode: StatsMode; scope: StatsScope }) {
           </div>
         );
       })}
-      {!cats.length ? <div className="card-outer text-sm text-text-muted">No streak data yet.</div> : null}
+      {!cats.length ? <div className="text-sm text-text-muted">No streak data yet.</div> : null}
     </div>
   );
 }
@@ -833,7 +885,10 @@ function PlayerProfile({ mode, scope, rows, selectedId, onSelect }: { mode: Stat
                 {Math.round(row.rating)}★ · <span className="text-status-text-green">{row.wins}</span>-<span className="text-amber-300">{row.draws}</span>-<span className="text-[color:rgb(var(--delta-down)/1)]">{row.losses}</span> · {row.pts} pts
               </div>
             </div>
-            <Sparkline values={row.form} />
+            <div className="flex shrink-0 flex-col items-center" title="Recent form — points per match in the last games">
+              <Sparkline values={row.form} />
+              <span className="mt-0.5 text-[9px] uppercase tracking-wide text-text-muted">Form (last {row.form.length})</span>
+            </div>
           </div>
 
           <div className="card-outer">

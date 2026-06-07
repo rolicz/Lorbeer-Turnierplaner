@@ -254,7 +254,7 @@ export function TrendChart({
   const padL = 34;
   const padR = 16;
   const padT = 10;
-  const padB = showLabels ? 84 : 30;
+  const padB = showLabels ? 120 : 30;
   const n = events.length;
   if (!n) return <div className="grid h-40 place-items-center text-sm text-text-muted">No data in range.</div>;
 
@@ -314,25 +314,35 @@ export function TrendChart({
         ? events.map((e, i) => {
             const x = xAt(e.ts);
             const y = padT + innerH + 26;
-            const txt = e.label.length > 16 ? e.label.slice(0, 15) + "…" : e.label;
             return (
-              <text key={`tl${i}`} x={x} y={y} transform={`rotate(45 ${x} ${y})`} className="fill-text-muted" style={{ fontSize: 8 }}>
-                {txt}
+              <text key={`tl${i}`} x={x} y={y} transform={`rotate(45 ${x} ${y})`} className="fill-text-muted" style={{ fontSize: 9 }}>
+                {e.label}
               </text>
             );
           })
         : null}
+      {/* segments — muted + dashed where the player skipped tournament(s) between two points */}
       {series.map((s) => {
-        const segs: string[] = [];
-        let cur: string[] = [];
-        s.points.forEach((p, i) => {
-          if (p == null) { if (cur.length) segs.push(cur.join(" ")); cur = []; }
-          else cur.push(`${xAt(events[i].ts).toFixed(1)},${yAt(p).toFixed(1)}`);
+        const pres: { i: number; v: number }[] = [];
+        s.points.forEach((p, i) => { if (p != null) pres.push({ i, v: p }); });
+        return pres.slice(0, -1).map((A, k) => {
+          const B = pres[k + 1];
+          const skipped = B.i - A.i > 1;
+          return (
+            <line
+              key={`${s.id}-seg-${k}`}
+              x1={xAt(events[A.i].ts)}
+              y1={yAt(A.v)}
+              x2={xAt(events[B.i].ts)}
+              y2={yAt(B.v)}
+              stroke={s.color}
+              strokeWidth="2.25"
+              strokeLinecap="round"
+              opacity={skipped ? 0.28 : 0.95}
+              strokeDasharray={skipped ? "2 4" : undefined}
+            />
+          );
         });
-        if (cur.length) segs.push(cur.join(" "));
-        return segs.map((pts, k) => (
-          <polyline key={`${s.id}-${k}`} points={pts} fill="none" stroke={s.color} strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round" opacity={0.95} />
-        ));
       })}
       {series.map((s) =>
         s.points.map((p, i) => (p == null ? null : <circle key={`d${s.id}-${i}`} cx={xAt(events[i].ts)} cy={yAt(p)} r="2.2" fill={s.color} />)),
