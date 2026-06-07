@@ -47,14 +47,14 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done
 
 ## Phase D — Live tournament  (model: **Opus high**)
 
-- [ ] **Select Clubs header/body**: the clickable header and the section it opens
+- [x] **Select Clubs header/body**: the clickable header and the section it opens
       have mismatched colours — unify into one consistent surface. Improve the
       **stars/league** filter UI (keep the random/dice options, but on-brand
       controls instead of raw selects). Update **everywhere** `SelectClubsPanel` is
       used.
-- [ ] **Comment composer**: restyle the "enter comment" form to match the flat app
+- [x] **Comment composer**: restyle the "enter comment" form to match the flat app
       language (inputs/buttons/scope select).
-- [ ] **Matches tab**: streamline — the match rows use far too much space; make a
+- [x] **Matches tab**: streamline — the match rows use far too much space; make a
       denser, flat list consistent with the rest.
 
 ## Phase E — Verification  (model: **Sonnet high**)
