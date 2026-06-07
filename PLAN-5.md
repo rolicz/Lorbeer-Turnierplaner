@@ -53,10 +53,10 @@ radar.
 - [ ] **Current — cleaner inline entry**: redesign Select Clubs + Match Comments as
       a tighter, flatter **inline** form (no sheets/modals) that reads like the rest
       of the app — improve *how the info is entered*, not just colours.
-- [ ] **Standings — best-case potential positions**: add a section below standings;
-      pick a player → show their **highest reachable final position** (full best
-      case: chosen player wins all remaining matches **and** other remaining results
-      break in their favour). Reuse the standings row/elements.
+- [x] **Standings — best-case potential positions**: "Best-case positions" section
+      below standings — pick a player (FilterSelect) → projected table + their highest
+      reachable rank (focus wins all remaining; rivals gain nothing; focus wins ties).
+      Reuses the row/avatar elements; gated to live tournaments with remaining games.
 - [x] **Matches — compact by default**: default the match list to Compact (was
       compact only < 640px).
 - [x] **Admin — restyle**: flattened `AdminPanel` — single header (wrap={false}),

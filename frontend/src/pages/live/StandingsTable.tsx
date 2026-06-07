@@ -1,9 +1,10 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import type { Match, Player } from "../../api/types";
 import { sideBy } from "../../helpers";
 import Card from "../../ui/primitives/Card";
+import FilterSelect from "../../ui/FilterSelect";
 import AvatarCircle from "../../ui/primitives/AvatarCircle";
 import CupOwnerBadge from "../../ui/primitives/CupOwnerBadge";
 import { getCup, listCupDefs } from "../../api/cup.api";
@@ -140,6 +141,54 @@ export default function StandingsTable({
   const baseRows = useMemo(() => computeStandings(matches, players, "finished"), [matches, players]);
   const liveRows = useMemo(() => computeStandings(matches, players, "live"), [matches, players]);
   const basePos = useMemo(() => posMap(baseRows), [baseRows]);
+
+  // ---- best-case ("if everything works out") projection ----
+  const remaining = useMemo(
+    () => matches.filter((m) => m.state === "scheduled" || m.state === "playing"),
+    [matches],
+  );
+  const [focusId, setFocusId] = useState<number | null>(null);
+  const effFocusId = focusId != null && liveRows.some((r) => r.playerId === focusId) ? focusId : liveRows[0]?.playerId ?? null;
+  const livePos = effFocusId != null ? liveRows.findIndex((r) => r.playerId === effFocusId) + 1 : 0;
+
+  const bestCase = useMemo(() => {
+    if (effFocusId == null) return null;
+    // Decided facts only; remaining (scheduled + playing) are re-assigned best-case.
+    const fin = computeStandings(matches, players, "finished");
+    const byId = new Map(fin.map((r) => [r.playerId, r]));
+    let focusWins = 0;
+    for (const m of remaining) {
+      const a = sideBy(m, "A");
+      const b = sideBy(m, "B");
+      if (!a || !b) continue;
+      if (a.players.some((p) => p.id === effFocusId) || b.players.some((p) => p.id === effFocusId)) focusWins++;
+    }
+    // Focus wins out (+3 pts, +1 GD min margin per win); every rival loses their remaining (no gain).
+    const proj = players.map((p) => {
+      const r = byId.get(p.id);
+      const isFocus = p.id === effFocusId;
+      return {
+        playerId: p.id,
+        name: p.display_name,
+        pts: (r?.pts ?? 0) + (isFocus ? 3 * focusWins : 0),
+        gd: (r?.gd ?? 0) + (isFocus ? focusWins : 0),
+        gf: r?.gf ?? 0,
+        isFocus,
+      };
+    });
+    proj.sort((x, y) => {
+      if (y.pts !== x.pts) return y.pts - x.pts;
+      if (y.gd !== x.gd) return y.gd - x.gd;
+      if (y.gf !== x.gf) return y.gf - x.gf;
+      if (x.isFocus !== y.isFocus) return x.isFocus ? -1 : 1; // best case: focus wins ties
+      return x.name.localeCompare(y.name);
+    });
+    const pos = proj.findIndex((r) => r.playerId === effFocusId) + 1;
+    return { proj, pos, focusWins };
+  }, [matches, players, remaining, effFocusId]);
+
+  const focusName = liveRows.find((r) => r.playerId === effFocusId)?.name ?? "";
+  const showBestCase = tournamentStatus !== "done" && remaining.length > 0 && bestCase != null;
 
   const { avatarUpdatedAtById: avatarUpdatedAtByPlayerId } = usePlayerAvatarMap();
 
@@ -327,7 +376,8 @@ export default function StandingsTable({
   const title = tournamentStatus === "done" ? "Results" : "Standings (live)";
 
   const content = (
-    <div className="list-divided">
+    <>
+      <div className="list-divided">
       {liveRows.map((r, idx) => {
         const baseIdx = basePos.get(r.playerId);
         const delta = baseIdx === undefined ? null : baseIdx - idx;
@@ -374,7 +424,54 @@ export default function StandingsTable({
           </div>
         );
       })}
-    </div>
+      </div>
+
+      {showBestCase && bestCase ? (
+        <div className="mt-5">
+          <div className="section-head"><span className="section-label">Best-case positions</span></div>
+          <div className="mb-2 flex items-center gap-2">
+            <span className="text-xs text-text-muted">Player</span>
+            <div className="min-w-0 max-w-[200px] flex-1">
+              <FilterSelect
+                value={effFocusId == null ? "" : String(effFocusId)}
+                onChange={(v) => setFocusId(v ? Number(v) : null)}
+                ariaLabel="Best-case player"
+                options={liveRows.map((r) => ({ value: String(r.playerId), label: r.name }))}
+              />
+            </div>
+          </div>
+          <p className="text-xs leading-relaxed text-text-muted">
+            {bestCase.focusWins > 0 ? (
+              <>
+                If <b className="text-text-normal">{focusName}</b> wins their {bestCase.focusWins} remaining{" "}
+                {bestCase.focusWins === 1 ? "match" : "matches"} and other results go their way, they could finish as high as{" "}
+                <b className="text-status-text-green">#{bestCase.pos}</b>
+                {livePos > 0 ? <> (currently #{livePos})</> : null}.
+              </>
+            ) : (
+              <>
+                <b className="text-text-normal">{focusName}</b> has no matches left — best case they finish{" "}
+                <b className="text-status-text-green">#{bestCase.pos}</b> if other results go their way.
+              </>
+            )}
+          </p>
+          <div className="mt-2 list-divided">
+            {bestCase.proj.map((r, idx) => (
+              <div key={r.playerId} className={"row " + (r.isFocus ? "rounded-lg bg-accent/10 px-2 -mx-2" : "")}>
+                <span className="w-4 shrink-0 text-right text-xs tabular-nums text-text-muted">{idx + 1}</span>
+                <AvatarCircle playerId={r.playerId} name={r.name} updatedAt={avatarUpdatedAtByPlayerId.get(r.playerId) ?? null} sizeClass="h-8 w-8" />
+                <span className={"min-w-0 flex-1 truncate " + (r.isFocus ? "font-semibold text-text-normal" : "text-text-normal")}>
+                  {r.name}
+                  {r.isFocus ? <span className="ml-1.5 text-[10px] uppercase tracking-wide text-accent">best case</span> : null}
+                </span>
+                <span className="shrink-0 text-sm font-bold tabular-nums text-text-normal">{r.pts}</span>
+                <span className="shrink-0 text-[10px] leading-none text-text-muted">pts</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
+    </>
   );
 
   if (!wrap) return content;
