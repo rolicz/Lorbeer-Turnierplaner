@@ -29,15 +29,14 @@ radar.
 
 ## Phase B — Header / navbar live indicator  (model: **Opus high**)
 
-- [ ] **Move the indicator to the right** of the top bar (`MobileChrome`; mirror on
-      desktop `Sidebar` if needed) — title left, indicator right.
-- [ ] **Differentiate states** using the `/tournaments/live` query +
-      `RealtimeStatusContext`: **Live** (a live tournament is running) vs
-      **Connected** (WS up, no live tournament) vs **Reconnecting** / **Offline**.
-      Keep the existing dot/label info.
-- [ ] **Clickable when live**: if a live tournament is running, the indicator is a
-      button → navigates to that tournament's current match (`/live/{tid}`,
-      Current tab). Non-interactive otherwise.
+- [x] **Move the indicator to the right** of the top bar (`MobileChrome`; desktop
+      `Sidebar` footer unchanged) — title takes the slack, indicator pinned right.
+- [x] **Differentiate states** using `/tournaments/live` + `RealtimeStatusContext`:
+      **Live** (a live tournament is running, pulsing) vs **Connected** (WS up, no
+      live tournament, steady) vs **Reconnecting** / **Offline**.
+- [x] **Clickable when live**: when a tournament is live the indicator is a button →
+      navigates to `/live/{tid}` (current match); plain span otherwise. Verified the
+      click lands on `/live/16`.
 
 ## Phase C — Dashboard trends  (model: **Opus high**)
 

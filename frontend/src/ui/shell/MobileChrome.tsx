@@ -76,9 +76,8 @@ export default function MobileChrome({
               <Menu className="h-5 w-5" aria-hidden="true" />
             </button>
           )}
-          <span className="min-w-0 truncate text-base font-semibold tracking-tight">{title}</span>
+          <span className="min-w-0 flex-1 truncate text-base font-semibold tracking-tight">{title}</span>
           <ConnectionIndicator />
-          <span className="flex-1" />
         </div>
       </header>
 
