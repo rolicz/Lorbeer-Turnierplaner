@@ -50,9 +50,11 @@ radar.
 
 ## Phase D — Live tournament  (model: **Opus high**)
 
-- [ ] **Current — cleaner inline entry**: redesign Select Clubs + Match Comments as
-      a tighter, flatter **inline** form (no sheets/modals) that reads like the rest
-      of the app — improve *how the info is entered*, not just colours.
+- [x] **Current — cleaner inline entry**: reordered Select Clubs so the **club
+      pickers lead** (primary task first), with a clear "Random matchup" action and
+      the Stars/League controls demoted to a "Filter the club list" section instead
+      of dominating the top. Comment composer already flattened in PLAN-4 (flat
+      surface, on-brand selects, Cancel/Post footer).
 - [x] **Standings — best-case potential positions**: "Best-case positions" section
       below standings — pick a player (FilterSelect) → projected table + their highest
       reachable rank (focus wins all remaining; rivals gain nothing; focus wins ties).

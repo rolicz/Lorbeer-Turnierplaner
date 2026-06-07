@@ -224,48 +224,7 @@ export default function SelectClubsPanel({
     <div className="grid gap-4">
       {extraTop ? <div>{extraTop}</div> : null}
 
-      <div className={"grid grid-cols-1 gap-3 " + (narrowLayout ? "" : "md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] md:items-end")}>
-        <StarFilter
-          value={starFilter}
-          onChange={setStarFilter}
-          disabled={disabled}
-          right={
-            <button
-              type="button"
-              className="icon-button h-10 w-10 shrink-0 p-0 flex items-center justify-center"
-              onMouseDown={(e) => e.preventDefault()}
-              onTouchStart={(e) => e.preventDefault()}
-              onClick={rollStars}
-              disabled={disabled}
-              title="Randomize star filter"
-            >
-              <DiceIcon spinning={starRoll} />
-            </button>
-          }
-        />
-
-        <LeagueFilter
-          value={leagueFilter}
-          onChange={setLeagueFilter}
-          disabled={disabled}
-          options={leagueOptions}
-        />
-
-        <div className="flex md:justify-end">
-          <Button
-            variant="ghost"
-            onClick={randomizeClubs}
-            disabled={disabled}
-            className="w-full whitespace-nowrap md:w-auto"
-            title="Randomize clubs"
-          >
-            <i className="fa fa-rotate-left md:hidden" aria-hidden="true" />
-            <span className="hidden md:inline">Random Club</span>
-            <span className="md:hidden">Random</span>
-          </Button>
-        </div>
-      </div>
-
+      {/* Primary: pick each side's club */}
       <div className={"grid grid-cols-1 gap-3 " + (narrowLayout ? "" : "md:grid-cols-2")}>
         <div className="space-y-1.5">
           <div className="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-2">
@@ -315,6 +274,50 @@ export default function SelectClubsPanel({
               </div>
             </div>
           )}
+        </div>
+      </div>
+
+      {/* Quick action: random matchup */}
+      <Button
+        variant="ghost"
+        onClick={randomizeClubs}
+        disabled={disabled}
+        className="w-full whitespace-nowrap"
+        title="Pick a random matchup (respects the filters below)"
+      >
+        <i className="fa fa-shuffle mr-2" aria-hidden="true" />
+        Random matchup
+      </Button>
+
+      {/* Secondary: optional filters that narrow the picker + random pool */}
+      <div className="space-y-2 border-t border-border-card-chip/40 pt-3">
+        <span className="section-label">Filter the club list</span>
+        <div className={"grid grid-cols-1 gap-3 " + (narrowLayout ? "" : "md:grid-cols-2")}>
+          <StarFilter
+            value={starFilter}
+            onChange={setStarFilter}
+            disabled={disabled}
+            right={
+              <button
+                type="button"
+                className="icon-button h-10 w-10 shrink-0 p-0 flex items-center justify-center"
+                onMouseDown={(e) => e.preventDefault()}
+                onTouchStart={(e) => e.preventDefault()}
+                onClick={rollStars}
+                disabled={disabled}
+                title="Randomize star filter"
+              >
+                <DiceIcon spinning={starRoll} />
+              </button>
+            }
+          />
+
+          <LeagueFilter
+            value={leagueFilter}
+            onChange={setLeagueFilter}
+            disabled={disabled}
+            options={leagueOptions}
+          />
         </div>
       </div>
 
