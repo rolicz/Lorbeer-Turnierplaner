@@ -62,24 +62,28 @@ export default function CupCard({ cupKey }: { cupKey: string }) {
             <div>
               <div className="section-head"><span className="section-label">Title history</span></div>
               <div className="list-divided">
-                {shown.map((h) => (
-                  <Link key={`${h.tournament_id}-${h.date}`} to={`/live/${h.tournament_id}`} className="row row-tap">
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm text-text-normal">
-                        <b style={{ color }}>{h.to.display_name}</b>{" "}
-                        <span className="text-text-muted">
-                          {h.from?.id && h.from.id > 0 && h.from.display_name && h.from.display_name !== "—"
-                            ? `took it from ${h.from.display_name}`
-                            : "claimed it"}
+                {shown.map((h) => {
+                  const hasFrom = !!(h.from?.id && h.from.id > 0 && h.from.display_name && h.from.display_name !== "—");
+                  // streak_duration here is the OUTGOING owner's reign that just ended.
+                  const reign = hasFrom && h.streak_duration > 0
+                    ? ` · ended ${h.from.display_name}'s ${h.streak_duration}-tournament reign`
+                    : "";
+                  return (
+                    <Link key={`${h.tournament_id}-${h.date}`} to={`/live/${h.tournament_id}`} className="row row-tap">
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm text-text-normal">
+                          <b style={{ color }}>{h.to.display_name}</b>{" "}
+                          <span className="text-text-muted">
+                            {hasFrom ? `took it from ${h.from.display_name}` : "claimed it"}
+                          </span>
+                        </span>
+                        <span className="block truncate text-[11px] text-text-muted">
+                          {h.tournament_name} · {fmtDate(h.date)}{reign}
                         </span>
                       </span>
-                      <span className="block truncate text-[11px] text-text-muted">
-                        {h.tournament_name} · {fmtDate(h.date)}
-                        {h.streak_duration > 0 ? ` · streak ${h.streak_duration}` : ""}
-                      </span>
-                    </span>
-                  </Link>
-                ))}
+                    </Link>
+                  );
+                })}
               </div>
               {history.length > 8 ? (
                 <button type="button" className="mt-1 text-xs font-medium text-accent" onClick={() => setShowAll((v) => !v)}>

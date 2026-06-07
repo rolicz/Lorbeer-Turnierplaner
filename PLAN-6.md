@@ -59,10 +59,10 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done · `[!]` blocked on user
 
 ## Phase D — Cups streak clarity  (model: **Opus high**)
 
-- [ ] **Whose streak?**: a title-change row's `streak_duration` is the **outgoing**
-      owner's reign. Reword `CupCard` so it's unambiguous — e.g. "Atzi took it from
-      Berni · **Berni's reign: 1**" instead of a floating "streak 1". Applies to the
-      dashboard Cups page and the stats Cups tab (same `CupCard`).
+- [x] **Whose streak?**: reworded `CupCard` history — "Rumpi took it from Atzi ·
+      **ended Atzi's 2-tournament reign**" instead of a floating "streak N" (the
+      number is now clearly the outgoing owner's reign). Initial "claimed it" rows
+      show no reign. Same component → dashboard Cups + stats Cups both updated.
 
 ## Phase E — Verification  (model: **Sonnet high**)
 
