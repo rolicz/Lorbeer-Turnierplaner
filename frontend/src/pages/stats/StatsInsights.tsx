@@ -205,6 +205,9 @@ function TrendsExplorer({ mode, scope, rows, initialMetric, initialView }: { mod
           return applyPM ? (c.cumP ? c.cumV / c.cumP : null) : c.cumV;
         }
         if (effView === "per") return base(i);
+        // rolling: only emit at tournaments the player actually played, so
+        // non-participation renders as a greyed/dashed gap (like the dashboard).
+        if (c == null) return null;
         const wv: number[] = [];
         for (let j = i; j >= 0 && wv.length < rollN; j--) { const b = base(j); if (b != null) wv.push(b); }
         return wv.length ? wv.reduce((a, b) => a + b, 0) / wv.length : null;

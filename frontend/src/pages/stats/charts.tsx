@@ -281,7 +281,9 @@ export function TrendChart({
   showLabels?: boolean;
 }) {
   const clipId = useId();
-  const padL = 32;
+  // Wider left gutter when tournament-name labels are shown, so the oldest label
+  // (which extends down-LEFT from its tick) is fully visible when panned to the start.
+  const padL = showLabels ? 68 : 32;
   const padR = 12;
   const padT = 10;
   const padBBase = 28; // month-axis label area — constant
@@ -330,7 +332,7 @@ export function TrendChart({
       {ticks.map((t) => (
         <g key={`y${t}`}>
           <line x1={padL} x2={W - padR} y1={yAt(t)} y2={yAt(t)} stroke="rgb(var(--color-border-card-chip) / 0.4)" strokeWidth="1" />
-          <text x={2} y={yAt(t) + 3} className="fill-text-muted" style={{ fontSize: 9 }}>{t}</text>
+          <text x={padL - 6} y={yAt(t) + 3} textAnchor="end" className="fill-text-muted" style={{ fontSize: 9 }}>{t}</text>
         </g>
       ))}
       {marks.map((m, i) => {
@@ -353,15 +355,12 @@ export function TrendChart({
         ? events.map((e, i) => {
             const x = xAt(e.ts);
             if (!inX(x)) return null;
-            const y = padT + innerH + 24;
-            // Labels in the right half tuck down-LEFT (end-anchored) so the most
-            // recent tournament name never spills past the right edge; left half
-            // fans down-right as before.
-            const rightHalf = x > padL + innerW / 2;
-            const anchor = rightHalf ? "end" : "start";
-            const rot = rightHalf ? -45 : 45;
+            const y = padT + innerH + 22;
+            // Uniform rotation: text reads bottom-left → top-right and tucks
+            // down-LEFT from its tick (end-anchored), so labels never cross/overlap
+            // in two directions and the most recent is never clipped on the right.
             return (
-              <text key={`tl${i}`} x={x} y={y} textAnchor={anchor} transform={`rotate(${rot} ${x} ${y})`} className="fill-text-muted" style={{ fontSize: 8 }}>
+              <text key={`tl${i}`} x={x} y={y} textAnchor="end" transform={`rotate(-45 ${x} ${y})`} className="fill-text-muted" style={{ fontSize: 8 }}>
                 {e.label}
               </text>
             );
@@ -438,7 +437,7 @@ export function MultiLine({
       {ticks.map((t) => (
         <g key={t}>
           <line x1={padL} x2={W - padR} y1={yAt(t)} y2={yAt(t)} stroke="rgb(var(--color-border-card-chip) / 0.4)" strokeWidth="1" />
-          <text x={2} y={yAt(t) + 3} className="fill-text-muted" style={{ fontSize: 9 }}>{t}</text>
+          <text x={padL - 6} y={yAt(t) + 3} textAnchor="end" className="fill-text-muted" style={{ fontSize: 9 }}>{t}</text>
         </g>
       ))}
       {/* series */}

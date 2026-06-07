@@ -48,15 +48,14 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done · `[!]` blocked on user
 
 ## Phase C — Stats Trends  (model: **Opus high**)
 
-- [ ] **Tournament-name labels**: stop the center overlap (the two-direction fan was
-      wrong). Use **one uniform rotation** reading bottom-left → top-right so the most
-      recent label is never clipped, and make the labelled chart horizontally
-      reachable (scroll/pan + padding) so the **first** tournament name can be seen
-      fully.
-- [ ] **Greyed-out line in Last-N**: the stats Trends Last-N (rolling) line should
-      mark non-participation as a greyed/dashed segment like the dashboard does —
-      emit the rolling value only at tournaments the player actually played, so gaps
-      render dashed.
+- [x] **Tournament-name labels**: replaced the two-direction fan with **one uniform
+      rotation** (end-anchored, rotate −45, reading bottom-left → top-right) so they
+      no longer cross/overlap and the most recent is never clipped; widened the left
+      gutter (padL 68) when labels are on so the oldest is fully visible when panned
+      to the start. (verified: 14 labels, all anchor=end / rotate −45.)
+- [x] **Greyed-out line in Last-N**: the rolling line now emits a value only at
+      tournaments the player actually played, so non-participation renders as a
+      greyed/dashed gap (matching the dashboard).
 
 ## Phase D — Cups streak clarity  (model: **Opus high**)
 
