@@ -95,9 +95,9 @@ radar.
 - [ ] **Positions — drag to reorder**: let the user drag a player column to reorder
       it; the position lines update dynamically. Keep player **icons sticky** (column
       header stays visible) when scrolling down.
-- [ ] **Player — radar overlay**: in the profile net, overlay one or more other
-      players' radars, each in that player's **consistent colour** (Phase A). Add a
-      player multi-select.
+- [x] **Player — radar overlay**: `Radar` now takes a `series` array; the Player tab
+      "Profile net" overlays the selected player + any toggled "Compare with" players,
+      each in their consistent Phase-A colour (with colour-dot chips).
 
 ## Phase G — Verification  (model: **Sonnet high**)
 

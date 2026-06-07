@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { keepPreviousData, useQueries, useQuery } from "@tanstack/react-query";
 import { LineChart, Table2, Grid3x3, UserRound, Flame, Star, Medal, Award, Trophy, ChevronRight } from "lucide-react";
@@ -1087,21 +1087,33 @@ function StatTile({ label, value }: { label: string; value: string }) {
 
 function PlayerProfile({ mode, scope, rows, selectedId, onSelect }: { mode: StatsMode; scope: StatsScope; rows: Row[]; selectedId: number | null; onSelect: (id: number) => void }) {
   const { avatarUpdatedAtById } = usePlayerAvatarMap();
+  const { colorOf } = usePlayerColors();
   const row = rows.find((r) => r.id === selectedId) ?? null;
 
-  const radarAxes = useMemo(() => {
+  // Field maxes → normalise each axis to 0..1, so any player's radar is comparable.
+  const fieldMax = useMemo(() => ({
+    gfpm: Math.max(0.01, ...rows.map((r) => (r.played ? r.gf / r.played : 0))),
+    gapm: Math.max(0.01, ...rows.map((r) => (r.played ? r.ga / r.played : 0))),
+    played: Math.max(1, ...rows.map((r) => r.played)),
+  }), [rows]);
+  const axesFor = useCallback((r: Row) => [
+    { label: "Attack", value: (r.played ? r.gf / r.played : 0) / fieldMax.gfpm },
+    { label: "Defense", value: 1 - (r.played ? r.ga / r.played : 0) / fieldMax.gapm },
+    { label: "Win %", value: r.played ? r.wins / r.played : 0 },
+    { label: "Form", value: r.formAvg / 3 },
+    { label: "Activity", value: r.played / fieldMax.played },
+  ], [fieldMax]);
+
+  // Overlay other players' radars (each in its consistent colour).
+  const [overlayIds, setOverlayIds] = useState<Set<number>>(new Set());
+  const radarSeries = useMemo(() => {
     if (!row) return [];
-    const maxGfpm = Math.max(0.01, ...rows.map((r) => r.played ? r.gf / r.played : 0));
-    const maxGapm = Math.max(0.01, ...rows.map((r) => r.played ? r.ga / r.played : 0));
-    const maxPlayed = Math.max(1, ...rows.map((r) => r.played));
-    return [
-      { label: "Attack", value: (row.played ? row.gf / row.played : 0) / maxGfpm },
-      { label: "Defense", value: 1 - (row.played ? row.ga / row.played : 0) / maxGapm },
-      { label: "Win %", value: row.played ? row.wins / row.played : 0 },
-      { label: "Form", value: row.formAvg / 3 },
-      { label: "Activity", value: row.played / maxPlayed },
-    ];
-  }, [row, rows]);
+    const ids = [row.id, ...rows.filter((r) => r.id !== row.id && overlayIds.has(r.id)).map((r) => r.id)];
+    return ids
+      .map((id) => rows.find((r) => r.id === id))
+      .filter((r): r is Row => !!r)
+      .map((r) => ({ name: r.name, color: colorOf(r.id).solid, axes: axesFor(r) }));
+  }, [row, rows, overlayIds, axesFor, colorOf]);
 
   const matchesQ = useQuery({
     queryKey: ["stats", "playerMatches", selectedId ?? 0, scope],
@@ -1155,10 +1167,37 @@ function PlayerProfile({ mode, scope, rows, selectedId, onSelect }: { mode: Stat
             </div>
           </div>
 
-          <div className="card-outer flex flex-col items-center">
-            <h2 className="self-start text-sm font-semibold text-text-normal">Profile</h2>
-            <Radar axes={radarAxes} />
-            <div className="text-[11px] text-text-muted">Strengths relative to the field.</div>
+          <div className="card-outer">
+            <h2 className="text-sm font-semibold text-text-normal">Profile net</h2>
+            <div className="flex flex-col items-center">
+              <Radar series={radarSeries} />
+              <div className="text-[11px] text-text-muted">Strengths relative to the field.</div>
+            </div>
+            {/* Overlay other players, each in their consistent colour. */}
+            <div className="mt-2">
+              <div className="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-text-muted">Compare with</div>
+              <div className="flex flex-wrap gap-1.5">
+                {rows.filter((r) => r.id !== row.id).map((r) => {
+                  const on = overlayIds.has(r.id);
+                  const c = colorOf(r.id).solid;
+                  return (
+                    <button
+                      key={r.id}
+                      type="button"
+                      aria-pressed={on}
+                      onClick={() => setOverlayIds((prev) => { const s = new Set(prev); if (s.has(r.id)) s.delete(r.id); else s.add(r.id); return s; })}
+                      className={
+                        "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs transition focus-ring " +
+                        (on ? "bg-bg-card-chip/70 text-text-normal ring-1 ring-inset ring-border-card-chip" : "bg-bg-card-chip/30 text-text-muted hover:text-text-normal")
+                      }
+                    >
+                      <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: c, opacity: on ? 1 : 0.45 }} />
+                      {r.name}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
           </div>
 
           <div className="card-outer">

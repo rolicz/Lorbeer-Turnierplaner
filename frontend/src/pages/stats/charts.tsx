@@ -42,9 +42,21 @@ export function ChipGroup<T extends string | number>({
   );
 }
 
-/** Radar / spider chart. axes: { label, value 0..1 }. */
-export function Radar({ axes, size = 240 }: { axes: { label: string; value: number }[]; size?: number }) {
-  const n = axes.length;
+type RadarAxis = { label: string; value: number };
+type RadarSeries = { name: string; color: string; axes: RadarAxis[] };
+
+/**
+ * Radar / spider chart. Pass a single `axes` array, or `series` to overlay
+ * multiple players (each in its own colour). All series must share axis order.
+ */
+export function Radar({ axes, series, size = 240 }: { axes?: RadarAxis[]; series?: RadarSeries[]; size?: number }) {
+  const data: RadarSeries[] = series && series.length
+    ? series
+    : axes
+      ? [{ name: "", color: "rgb(var(--color-accent))", axes }]
+      : [];
+  const baseAxes = data[0]?.axes ?? [];
+  const n = baseAxes.length;
   if (n < 3) return null;
   const cx = size / 2;
   const cy = size / 2;
@@ -52,28 +64,40 @@ export function Radar({ axes, size = 240 }: { axes: { label: string; value: numb
   const angle = (i: number) => (Math.PI * 2 * i) / n - Math.PI / 2;
   const pt = (i: number, radius: number) => [cx + radius * Math.cos(angle(i)), cy + radius * Math.sin(angle(i))];
   const rings = [0.25, 0.5, 0.75, 1];
-  const dataPts = axes.map((a, i) => pt(i, r * Math.max(0.02, Math.min(1, a.value))));
-  const accent = "rgb(var(--color-accent))";
+  const multi = data.length > 1;
   return (
     <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} aria-label="Player radar" role="img">
       {rings.map((ring) => (
         <polygon
           key={ring}
-          points={axes.map((_, i) => pt(i, r * ring).join(",")).join(" ")}
+          points={baseAxes.map((_, i) => pt(i, r * ring).join(",")).join(" ")}
           fill="none"
           stroke="rgb(var(--color-border-card-chip) / 0.4)"
           strokeWidth="1"
         />
       ))}
-      {axes.map((_, i) => {
+      {baseAxes.map((_, i) => {
         const [x, y] = pt(i, r);
         return <line key={i} x1={cx} y1={cy} x2={x} y2={y} stroke="rgb(var(--color-border-card-chip) / 0.3)" strokeWidth="1" />;
       })}
-      <polygon points={dataPts.map((p) => p.join(",")).join(" ")} fill={accent} fillOpacity="0.22" stroke={accent} strokeWidth="2" />
-      {dataPts.map((p, i) => (
-        <circle key={i} cx={p[0]} cy={p[1]} r="2.5" fill={accent} />
-      ))}
-      {axes.map((a, i) => {
+      {data.map((s, si) => {
+        const dataPts = s.axes.map((a, i) => pt(i, r * Math.max(0.02, Math.min(1, a.value))));
+        return (
+          <g key={si}>
+            <polygon
+              points={dataPts.map((p) => p.join(",")).join(" ")}
+              fill={s.color}
+              fillOpacity={multi ? 0.1 : 0.22}
+              stroke={s.color}
+              strokeWidth="2"
+            />
+            {dataPts.map((p, i) => (
+              <circle key={i} cx={p[0]} cy={p[1]} r="2.5" fill={s.color} />
+            ))}
+          </g>
+        );
+      })}
+      {baseAxes.map((a, i) => {
         const [x, y] = pt(i, r + 16);
         return (
           <text key={i} x={x} y={y} textAnchor="middle" dominantBaseline="middle" className="fill-text-muted" style={{ fontSize: 9 }}>
