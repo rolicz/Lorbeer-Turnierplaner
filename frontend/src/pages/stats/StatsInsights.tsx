@@ -363,7 +363,10 @@ function TrendsExplorer({ mode, scope, rows, initialMetric, initialView }: { mod
             ]} />
         </Field>
         {effView === "rolling" ? (
-          <Slider label="Last N" value={rollN} min={2} max={Math.max(3, Math.min(20, events.length || 10))} onChange={setRollN} />
+          <div className="space-y-1">
+            <Slider label="Last N" value={rollN} min={2} max={Math.max(3, Math.min(20, events.length || 10))} onChange={setRollN} />
+            <div className="text-[10px] text-text-muted">Rolling average over the last {rollN} tournaments.</div>
+          </div>
         ) : null}
         <Field label="Range">
           <ChipGroup<RangeKey> value={range} onChange={(r) => { setRange(r); setManualWin(null); }} ariaLabel="Range"

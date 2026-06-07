@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 
@@ -60,17 +60,22 @@ export default function TrendsPreviewCard() {
   const formN = 10;
   const windowMonths = 6 as const;
 
-  const previewRef = useRef<HTMLDivElement>(null);
+  // The chart mounts conditionally (after data loads), so use a callback ref to
+  // (re)attach the observer whenever the node appears — a plain mount-time effect
+  // would measure null and leave the width stuck at the initial value.
   const [previewW, setPreviewW] = useState(320);
-  useEffect(() => {
-    const el = previewRef.current;
+  const roRef = useRef<ResizeObserver | null>(null);
+  const setPreviewNode = useCallback((el: HTMLDivElement | null) => {
+    roRef.current?.disconnect();
+    roRef.current = null;
     if (!el) return;
     const measure = () => setPreviewW(el.clientWidth);
     measure();
     const ro = new ResizeObserver(measure);
     ro.observe(el);
-    return () => ro.disconnect();
+    roRef.current = ro;
   }, []);
+  useEffect(() => () => roRef.current?.disconnect(), []);
 
   const statsQ = useQuery<StatsPlayersResponse>({
     queryKey: ["stats", "players", "overall", 0],
@@ -317,7 +322,7 @@ export default function TrendsPreviewCard() {
             }
             aria-label="Open full trends"
           >
-            <div ref={previewRef} data-no-swipe-nav>
+            <div ref={setPreviewNode} data-no-swipe-nav>
               <TrendChart
                 events={chart.tournamentTs.map((ts, i) => ({ ts, label: chart.tournamentTitles[i] ?? "" }))}
                 series={chart.series.map((s) => ({

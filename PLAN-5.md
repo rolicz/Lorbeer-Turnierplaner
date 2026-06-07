@@ -40,9 +40,10 @@ radar.
 
 ## Phase C — Dashboard trends  (model: **Opus high**)
 
-- [ ] **Full-width trends overview**: the preview chart doesn't span the card width
-      — fix the width measurement / SVG sizing so it fills the container.
-- [ ] Player line colours use the Phase A mapping (consistency).
+- [x] **Full-width trends overview**: root cause was the preview's ResizeObserver
+      bailing on a null ref (chart mounts conditionally after data) → width stuck at
+      320. Switched to a callback ref that re-attaches on mount; chart now fills.
+- [x] Player line colours use the Phase A mapping (consistency).
 - [x] ~~Moving average~~ → per user: keep the existing Last-N average; no separate
       moving-average overlay. (Add a small "(last N tournaments)" clarifier on the
       Trends Last-N control so the unit is unambiguous.)
