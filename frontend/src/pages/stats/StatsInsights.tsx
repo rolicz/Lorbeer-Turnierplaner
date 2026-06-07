@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { keepPreviousData, useQueries, useQuery } from "@tanstack/react-query";
-import { LineChart, Table2, Grid3x3, UserRound, Flame, Star, Medal, Award, Trophy } from "lucide-react";
+import { LineChart, Table2, Grid3x3, UserRound, Flame, Star, Medal, Award, Trophy, ChevronRight } from "lucide-react";
 
 import AvatarCircle from "../../ui/primitives/AvatarCircle";
 import { StarsFA } from "../../ui/primitives/StarsFA";
@@ -448,7 +449,6 @@ function StatsTable({ rows, loading, onSelect }: { rows: Row[]; loading: boolean
 //  POSITIONS — players × tournaments grid
 // ==========================================================================
 function PositionsView({ mode }: { mode: StatsMode }) {
-  const [laurelLine, setLaurelLine] = useState(true);
   const q = useQuery({
     queryKey: ["stats", "players", mode, "positions"],
     queryFn: () => getStatsPlayers({ mode }),
@@ -456,7 +456,8 @@ function PositionsView({ mode }: { mode: StatsMode }) {
   });
   const { avatarUpdatedAtById } = usePlayerAvatarMap();
   const defsQ = useQuery({ queryKey: ["cup", "defs"], queryFn: listCupDefs });
-  const cupDefs = useMemo(() => (defsQ.data?.cups ?? []).filter((c) => c.key !== "default"), [defsQ.data]);
+  // Include the main (default-keyed, gold) cup too — it has its own lineage line.
+  const cupDefs = useMemo(() => defsQ.data?.cups ?? [], [defsQ.data]);
   const cupsQ = useQueries({ queries: cupDefs.map((c) => ({ queryKey: ["cup", c.key], queryFn: () => getCup(c.key), staleTime: 30_000 })) });
 
   const players = useMemo(() => (q.data?.players ?? []).slice().sort((a, b) => b.pts - a.pts), [q.data]);
@@ -490,14 +491,13 @@ function PositionsView({ mode }: { mode: StatsMode }) {
   }, [cupDefs, cupsQ, q.data?.tournaments]);
 
   // Grid geometry (fixed sizes so the overlay line can be positioned analytically).
-  const nameW = 150, headerH = 60, cellW = 40, cellH = 42, gap = 4;
+  const nameW = 128, headerH = 60, cellW = 40, cellH = 42, gap = 4;
   const gridW = nameW + players.length * (cellW + gap);
   const gridH = headerH + gap + tournaments.length * (cellH + gap);
   const colX = (j: number) => nameW + gap + j * (cellW + gap) + cellW / 2;
   const rowY = (i: number) => headerH + gap + i * (cellH + gap) + cellH / 2;
 
   const laurelPolylines = useMemo(() => {
-    if (!laurelLine) return [] as { key: string; color: string; pts: string }[];
     return cupDefs
       .map((def) => {
         const at = ownerByCup.get(def.key);
@@ -514,7 +514,7 @@ function PositionsView({ mode }: { mode: StatsMode }) {
       })
       .filter((l) => l.pts.includes(" "));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [laurelLine, cupDefs, ownerByCup, tournaments, colByPlayer, players.length]);
+  }, [cupDefs, ownerByCup, tournaments, colByPlayer, players.length]);
 
   if (q.isLoading && !q.data) return <InlineLoading label="Loading…" />;
   if (!tournaments.length) return <div className="text-sm text-text-muted">No tournaments yet.</div>;
@@ -522,10 +522,7 @@ function PositionsView({ mode }: { mode: StatsMode }) {
   return (
     <div>
       <div className="section-head"><span className="section-label">Tournament positions</span></div>
-      <div className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-text-muted">
-        <span>Newest first · green = better placement · crown(s) = cup at stake.</span>
-        {cupDefs.length ? <ToggleChip on={laurelLine} onClick={() => setLaurelLine((v) => !v)}>Cup lineage</ToggleChip> : null}
-      </div>
+      <p className="mb-2 text-[11px] text-text-muted">Newest first · green = better placement · crown(s) = cup at stake · coloured lines trace each cup's owner.</p>
       <div className="overflow-x-auto" data-no-swipe-nav>
         <div className="relative" style={{ width: gridW }}>
           <div
@@ -541,16 +538,14 @@ function PositionsView({ mode }: { mode: StatsMode }) {
             ))}
             {tournaments.map((t) => (
               <Fragment key={t.id}>
-                <div style={{ height: cellH }} className="flex items-center gap-1.5 pr-2">
-                  {(t.cup_stakes ?? []).length ? (
-                    <span className="inline-flex shrink-0 items-center gap-0.5">
-                      {(t.cup_stakes ?? []).map((s) => (
-                        <i key={s.key} className="fa-solid fa-crown text-[10px]" style={{ color: cupColor(s.key) }} title={`${s.name} at stake`} aria-hidden="true" />
-                      ))}
-                    </span>
-                  ) : null}
+                <div style={{ height: cellH }} className="flex items-center gap-1 pr-1.5">
+                  <span className="flex w-[16px] shrink-0 flex-col items-center justify-center gap-px">
+                    {(t.cup_stakes ?? []).map((s) => (
+                      <i key={s.key} className="fa-solid fa-crown text-[9px]" style={{ color: cupColor(s.key) }} title={`${s.name} at stake`} aria-hidden="true" />
+                    ))}
+                  </span>
                   <span
-                    className="text-[10px] leading-tight text-text-normal"
+                    className="min-w-0 flex-1 text-[10px] leading-tight text-text-normal"
                     style={{ display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}
                   >
                     {t.name}
@@ -576,7 +571,7 @@ function PositionsView({ mode }: { mode: StatsMode }) {
               </Fragment>
             ))}
           </div>
-          {laurelLine && laurelPolylines.length ? (
+          {laurelPolylines.length ? (
             <svg className="pointer-events-none absolute left-0 top-0" width={gridW} height={gridH} aria-hidden="true">
               {laurelPolylines.map((l) => (
                 <polyline key={l.key} points={l.pts} fill="none" stroke={l.color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" opacity="0.8" />
@@ -908,11 +903,11 @@ function StarsView({ mode, scope, rows, selectedId, onSelect }: { mode: StatsMod
       ) : !active.length ? (
         <div className="text-sm text-text-muted">No finished matches with rated clubs for this player.</div>
       ) : (
-        <div className="space-y-1.5">
+        <div className="list-divided">
           {active.map((b) => (
-            <div key={b.stars} className="surface relative overflow-hidden rounded-xl">
-              <div className="absolute inset-y-0 left-0" style={{ width: `${Math.max(2, Math.min(100, (b.ppm / 3) * 100))}%`, backgroundColor: "rgb(var(--color-accent) / 0.18)" }} aria-hidden="true" />
-              <div className="relative z-10 grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 px-3 py-2">
+            <div key={b.stars} className="relative overflow-hidden">
+              <div className="absolute inset-y-1 left-0 rounded-r" style={{ width: `${Math.max(2, Math.min(100, (b.ppm / 3) * 100))}%`, backgroundColor: "rgb(var(--color-accent) / 0.16)" }} aria-hidden="true" />
+              <div className="relative z-10 grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 px-1 py-2.5">
                 <StarsFA rating={b.stars} className="text-[11px]" textClassName="text-text-normal" />
                 <div className="text-center font-mono text-[11px] tabular-nums text-text-muted">
                   {b.played}P · <span className="text-status-text-green">{b.w}</span>-<span className="text-amber-300">{b.d}</span>-<span className="text-[color:rgb(var(--delta-down)/1)]">{b.l}</span>
@@ -968,6 +963,7 @@ function PlayerProfile({ mode, scope, rows, selectedId, onSelect }: { mode: Stat
   });
   const clubsQ = useQuery({ queryKey: ["clubs"], queryFn: () => listClubs(), staleTime: 60_000 });
   const tournaments = useMemo(() => (matchesQ.data?.tournaments ?? []).filter((t) => mode === "overall" || t.mode === mode), [matchesQ.data, mode]);
+  const nav = useNavigate();
 
   return (
     <div className="space-y-4">
@@ -976,13 +972,23 @@ function PlayerProfile({ mode, scope, rows, selectedId, onSelect }: { mode: Stat
       {!row ? <div className="card-outer text-sm text-text-muted">Pick a player above.</div> : (
         <>
           <div className="card-outer flex items-center gap-3">
-            <AvatarCircle playerId={row.id} name={row.name} updatedAt={avatarUpdatedAtById.get(row.id) ?? null} sizeClass="h-14 w-14" />
-            <div className="min-w-0 flex-1">
-              <div className="truncate text-lg font-bold text-text-normal">{row.name}</div>
-              <div className="text-xs text-text-muted">
-                {Math.round(row.rating)}★ · <span className="text-status-text-green">{row.wins}</span>-<span className="text-amber-300">{row.draws}</span>-<span className="text-[color:rgb(var(--delta-down)/1)]">{row.losses}</span> · {row.pts} pts
+            <button
+              type="button"
+              onClick={() => nav(`/profiles/${row.id}`)}
+              className="flex min-w-0 flex-1 items-center gap-3 rounded-xl text-left focus-ring"
+              title={`Open ${row.name}'s full profile`}
+            >
+              <AvatarCircle playerId={row.id} name={row.name} updatedAt={avatarUpdatedAtById.get(row.id) ?? null} sizeClass="h-14 w-14" />
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-1.5">
+                  <span className="truncate text-lg font-bold text-text-normal">{row.name}</span>
+                  <ChevronRight className="h-4 w-4 shrink-0 text-text-muted" aria-hidden="true" />
+                </div>
+                <div className="text-xs text-text-muted">
+                  {Math.round(row.rating)}★ · <span className="text-status-text-green">{row.wins}</span>-<span className="text-amber-300">{row.draws}</span>-<span className="text-[color:rgb(var(--delta-down)/1)]">{row.losses}</span> · {row.pts} pts · view profile
+                </div>
               </div>
-            </div>
+            </button>
             <div className="flex shrink-0 flex-col items-center" title="Recent form — points per match in the last games">
               <Sparkline values={row.form} />
               <span className="mt-0.5 text-[9px] uppercase tracking-wide text-text-muted">Form (last {row.form.length})</span>
