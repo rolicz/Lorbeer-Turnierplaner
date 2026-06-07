@@ -1,12 +1,13 @@
 import { useMemo, useState } from "react";
 import { keepPreviousData, useQueries, useQuery } from "@tanstack/react-query";
-import { LineChart, Table2, Grid3x3, UserRound, Flame, Star, Medal } from "lucide-react";
+import { LineChart, Table2, Grid3x3, UserRound, Flame, Star, Medal, Award, Trophy } from "lucide-react";
 
 import AvatarCircle from "../../ui/primitives/AvatarCircle";
 import { StarsFA } from "../../ui/primitives/StarsFA";
 import InlineLoading from "../../ui/primitives/InlineLoading";
 import { SectionTabs, type SectionTab } from "../../ui/SectionTabs";
 import { getStatsRatings, getStatsPlayers, getStatsPlayerMatches, getStatsH2H, getStatsStreaks } from "../../api/stats.api";
+import { getCup, listCupDefs } from "../../api/cup.api";
 import { listClubs } from "../../api/clubs.api";
 import type { Club, Match, StatsScope, StatsH2HPair, StatsH2HOpponentRow, StatsPlayerMatchesTournament, StatsStreakCategory, StatsStreakRun } from "../../api/types";
 import type { StatsMode } from "./StatsControls";
@@ -16,7 +17,7 @@ import { Sparkline, Radar, MultiLine, ChipGroup } from "./charts";
 import { MatchHistoryList } from "./MatchHistoryList";
 import { PlayerPicker } from "./PlayerPicker";
 
-type Tab = "trends" | "table" | "positions" | "h2h" | "streaks" | "stars" | "player";
+type Tab = "trends" | "table" | "positions" | "h2h" | "streaks" | "stars" | "player" | "records" | "cups";
 
 type Row = {
   id: number; name: string; pts: number; rating: number;
@@ -838,6 +839,197 @@ function PlayerProfile({ mode, scope, rows, selectedId, onSelect }: { mode: Stat
 }
 
 // ==========================================================================
+//  RECORDS & SUPERLATIVES
+// ==========================================================================
+function teamNames(m: Match, side: "A" | "B"): string {
+  const s = m.sides.find((x) => x.side === side);
+  return (s?.players ?? []).map((p) => p.display_name).join(" + ") || "—";
+}
+type RecMatch = { id: number; tName: string; date: string; a: string; b: string; ag: number; bg: number; aIds: number[]; bIds: number[] };
+
+function RecordCard({ icon, label, m }: { icon: string; label: string; m: RecMatch }) {
+  return (
+    <div className="card-chip px-3 py-2.5">
+      <div className="inline-flex items-center gap-2 text-[11px] uppercase tracking-wide text-text-muted">
+        <i className={"fa-solid " + icon} aria-hidden="true" />
+        {label}
+      </div>
+      <div className="mt-1 flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <div className="truncate text-sm font-medium text-text-normal">{m.a} <span className="text-text-muted">vs</span> {m.b}</div>
+          <div className="text-[11px] text-text-muted">{m.tName} · {fmtShortDate(m.date)}</div>
+        </div>
+        <div className="shrink-0 font-mono text-lg font-bold tabular-nums text-accent">{m.ag}:{m.bg}</div>
+      </div>
+    </div>
+  );
+}
+
+function RecordsView({ mode, scope, rows }: { mode: StatsMode; scope: StatsScope; rows: Row[] }) {
+  const eloById = useMemo(() => new Map(rows.map((r) => [r.id, r.rating])), [rows]);
+  const matchesQs = useQueries({
+    queries: rows.map((r) => ({
+      queryKey: ["stats", "playerMatches", r.id, scope],
+      queryFn: () => getStatsPlayerMatches({ playerId: r.id, scope }),
+      enabled: rows.length > 0,
+      placeholderData: keepPreviousData, staleTime: 30_000,
+    })),
+  });
+  const streaksQ = useQuery({
+    queryKey: ["stats", "streaks", mode, 1, scope],
+    queryFn: () => getStatsStreaks({ mode, limit: 1, scope }),
+    placeholderData: keepPreviousData, staleTime: 30_000,
+  });
+  const loading = matchesQs.some((q) => q.isLoading && !q.data);
+
+  const matches = useMemo(() => {
+    const seen = new Set<number>();
+    const out: RecMatch[] = [];
+    for (const q of matchesQs) {
+      const data = q.data as { tournaments: StatsPlayerMatchesTournament[] } | undefined;
+      for (const t of data?.tournaments ?? []) {
+        if (mode !== "overall" && t.mode !== mode) continue;
+        for (const m of t.matches) {
+          if (m.state !== "finished" || seen.has(m.id)) continue;
+          seen.add(m.id);
+          const A = m.sides.find((s) => s.side === "A");
+          const B = m.sides.find((s) => s.side === "B");
+          out.push({
+            id: m.id, tName: t.name, date: t.date,
+            a: teamNames(m, "A"), b: teamNames(m, "B"),
+            ag: Number(A?.goals ?? 0), bg: Number(B?.goals ?? 0),
+            aIds: (A?.players ?? []).map((p) => p.id), bIds: (B?.players ?? []).map((p) => p.id),
+          });
+        }
+      }
+    }
+    return out;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [matchesQs.map((q) => q.dataUpdatedAt).join("|"), mode]);
+
+  const records = useMemo(() => {
+    if (!matches.length) return null;
+    const avg = (a: number[]) => (a.length ? a.reduce((x, y) => x + y, 0) / a.length : 1000);
+    const decided = matches.filter((m) => m.ag !== m.bg);
+    const biggestWin = decided.slice().sort((x, y) => Math.abs(y.ag - y.bg) - Math.abs(x.ag - x.bg))[0];
+    const highestScoring = matches.slice().sort((x, y) => (y.ag + y.bg) - (x.ag + x.bg))[0];
+    const mostSide = matches.slice().sort((x, y) => Math.max(y.ag, y.bg) - Math.max(x.ag, x.bg))[0];
+    const upset = decided
+      .map((m) => {
+        const winnerIds = m.ag > m.bg ? m.aIds : m.bIds;
+        const loserIds = m.ag > m.bg ? m.bIds : m.aIds;
+        return { m, gap: avg(loserIds.map((id) => eloById.get(id) ?? 1000)) - avg(winnerIds.map((id) => eloById.get(id) ?? 1000)) };
+      })
+      .sort((x, y) => y.gap - x.gap)[0];
+    return { biggestWin, highestScoring, mostSide, upset: upset && upset.gap > 0 ? upset.m : null, total: matches.length };
+  }, [matches, eloById]);
+
+  const streakCards = useMemo(() => {
+    const cats = streaksQ.data?.categories ?? [];
+    return (["win_streak", "unbeaten_streak"] as const)
+      .map((k) => cats.find((c) => c.key === k))
+      .filter((c): c is StatsStreakCategory => !!c && (c.records?.[0]?.length ?? 0) > 0)
+      .map((c) => ({ name: c.name, run: c.records[0] }));
+  }, [streaksQ.data]);
+
+  if (loading) return <InlineLoading label="Loading…" />;
+  if (!records) return <div className="text-sm text-text-muted">No finished matches yet.</div>;
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <div className="section-head"><span className="section-label">Match superlatives</span></div>
+        <div className="space-y-2">
+          {records.biggestWin ? <RecordCard icon="fa-bolt" label="Biggest win" m={records.biggestWin} /> : null}
+          {records.highestScoring ? <RecordCard icon="fa-futbol" label="Highest-scoring match" m={records.highestScoring} /> : null}
+          {records.mostSide ? <RecordCard icon="fa-fire" label="Most goals by one side" m={records.mostSide} /> : null}
+          {records.upset ? <RecordCard icon="fa-arrow-trend-up" label="Biggest upset (by Elo)" m={records.upset} /> : null}
+        </div>
+      </div>
+      {streakCards.length ? (
+        <div>
+          <div className="section-head"><span className="section-label">Longest runs</span></div>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            {streakCards.map((s) => (
+              <div key={s.name} className="card-chip px-3 py-2.5">
+                <div className="text-[11px] uppercase tracking-wide text-text-muted">{s.name}</div>
+                <div className="mt-1 flex items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="truncate text-sm font-medium text-text-normal">{s.run.player.display_name}</div>
+                    <div className="text-[11px] text-text-muted">{streakDateText(s.run)}</div>
+                  </div>
+                  <div className="shrink-0 font-mono text-lg font-bold tabular-nums text-accent">{s.run.length}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
+      <p className="text-[11px] text-text-muted">Across {records.total} finished matches.</p>
+    </div>
+  );
+}
+
+// ==========================================================================
+//  CUPS — reigns & title history
+// ==========================================================================
+function CupsView() {
+  const { avatarUpdatedAtById } = usePlayerAvatarMap();
+  const defsQ = useQuery({ queryKey: ["cup", "defs"], queryFn: listCupDefs });
+  const cups = useMemo(() => {
+    const raw = defsQ.data?.cups?.length ? defsQ.data.cups : [{ key: "default", name: "Cup", since_date: null }];
+    return raw.filter((c) => c.key !== "default").concat(raw.filter((c) => c.key === "default"));
+  }, [defsQ.data]);
+  const cupsQ = useQueries({ queries: cups.map((c) => ({ queryKey: ["cup", c.key], queryFn: () => getCup(c.key), staleTime: 30_000 })) });
+
+  if (defsQ.isLoading && !defsQ.data) return <InlineLoading label="Loading…" />;
+
+  return (
+    <div className="space-y-5">
+      {cups.map((c, i) => {
+        const data = cupsQ[i]?.data;
+        const owner = data?.owner ?? null;
+        const since = data?.streak?.since;
+        const history = (data?.history ?? []).slice().reverse();
+        return (
+          <div key={c.key} className="space-y-2">
+            <div className="section-head"><span className="section-label inline-flex items-center gap-1.5"><Trophy size={12} />{data?.cup?.name ?? c.name}</span></div>
+            <div className="flex items-center gap-3">
+              {owner ? (
+                <AvatarCircle playerId={owner.id} name={owner.display_name} updatedAt={avatarUpdatedAtById.get(owner.id) ?? null} sizeClass="h-10 w-10" />
+              ) : <span className="grid h-10 w-10 place-items-center rounded-full bg-bg-card-chip/40 text-text-muted"><Trophy size={16} /></span>}
+              <div className="min-w-0">
+                <div className="truncate text-sm font-semibold text-text-normal">{owner ? owner.display_name : "No holder yet"}</div>
+                <div className="text-[11px] text-text-muted">
+                  {owner && since?.date ? `Holding since ${fmtShortDate(since.date)}` : "—"}
+                  {data?.streak?.tournaments_participated ? ` · ${data.streak.tournaments_participated} defended` : ""}
+                </div>
+              </div>
+            </div>
+            {history.length ? (
+              <div className="list-divided">
+                {history.map((h, j) => (
+                  <div key={`${h.tournament_id}-${j}`} className="row">
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm text-text-normal">
+                        <b>{h.to.display_name}</b> <span className="text-text-muted">took it from</span> {h.from.display_name}
+                      </span>
+                      <span className="block truncate text-[11px] text-text-muted">{h.tournament_name} · {fmtShortDate(h.date)}</span>
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-sm text-text-muted">No title changes recorded.</div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ==========================================================================
 //  MAIN
 // ==========================================================================
 const TABS: SectionTab<Tab>[] = [
@@ -848,6 +1040,8 @@ const TABS: SectionTab<Tab>[] = [
   { key: "streaks", label: "Streaks", icon: <Flame size={14} /> },
   { key: "stars", label: "Stars", icon: <Star size={14} /> },
   { key: "player", label: "Player", icon: <UserRound size={14} /> },
+  { key: "records", label: "Records", icon: <Award size={14} /> },
+  { key: "cups", label: "Cups", icon: <Trophy size={14} /> },
 ];
 
 export default function StatsInsights({
@@ -887,6 +1081,8 @@ export default function StatsInsights({
       {tab === "streaks" && <StreaksView mode={mode} scope={scope} />}
       {tab === "stars" && <StarsView mode={mode} scope={scope} rows={rows} selectedId={selectedId} onSelect={onSelectPlayer} />}
       {tab === "player" && <PlayerProfile mode={mode} scope={scope} rows={rows} selectedId={selectedId} onSelect={onSelectPlayer} />}
+      {tab === "records" && <RecordsView mode={mode} scope={scope} rows={rows} />}
+      {tab === "cups" && <CupsView />}
     </div>
   );
 }
