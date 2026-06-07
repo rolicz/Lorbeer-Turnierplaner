@@ -422,18 +422,56 @@ const COL_CHIPS: { label: string; cols: string[] }[] = [
   { label: "Elo", cols: ["rating"] },
 ];
 
-function StatsTable({ rows, loading, onSelect }: { rows: Row[]; loading: boolean; onSelect: (id: number) => void }) {
+function StatsTable({ rows, loading, onSelect, mode, scope }: { rows: Row[]; loading: boolean; onSelect: (id: number) => void; mode: StatsMode; scope: StatsScope }) {
   const { avatarUpdatedAtById } = usePlayerAvatarMap();
   const [sortKey, setSortKey] = useState<string>("pts");
   const [dir, setDir] = useState<1 | -1>(-1);
   const [visible, setVisible] = useState<Set<string>>(() => new Set(DEFAULT_COLS));
+  const [lastN, setLastN] = useState(false);
+  const [nWin, setNWin] = useState(10);
 
-  const cols = useMemo(() => TABLE_COLS.filter((c) => visible.has(c.key)), [visible]);
+  // Last-N: recompute every column over each player's last N tournaments (same
+  // unit as Trends' Last-N). Elo is meaningless over a window, so it's hidden.
+  const matchesQs = useQueries({
+    queries: rows.map((r) => ({
+      queryKey: ["stats", "playerMatches", r.id, scope],
+      queryFn: () => getStatsPlayerMatches({ playerId: r.id, scope }),
+      enabled: lastN && rows.length > 0,
+      placeholderData: keepPreviousData,
+      staleTime: 30_000,
+    })),
+  });
+  const lastNLoading = lastN && matchesQs.some((q) => q.isLoading && !q.data);
+  const lastNRows = useMemo(() => {
+    if (!lastN) return rows;
+    return rows.map((r, i) => {
+      const data = matchesQs[i]?.data as { tournaments: StatsPlayerMatchesTournament[] } | undefined;
+      const ts = (data?.tournaments ?? [])
+        .filter((t) => mode === "overall" || t.mode === mode)
+        .filter((t) => t.matches.some((m) => matchStats(m, r.id)))
+        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+        .slice(0, nWin);
+      let played = 0, w = 0, d = 0, l = 0, gf = 0, ga = 0, pts = 0;
+      for (const t of ts) for (const m of t.matches) {
+        const s = matchStats(m, r.id);
+        if (!s) continue;
+        played++; gf += s.gf; ga += s.ga; pts += s.pts;
+        if (s.res === "W") w++; else if (s.res === "D") d++; else l++;
+      }
+      return { ...r, played, wins: w, draws: d, losses: l, gf, ga, gd: gf - ga, pts };
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lastN, rows, matchesQs.map((q) => q.dataUpdatedAt).join("|"), mode, nWin]);
+
+  // Elo is unset when Last-N is on.
+  const effVisible = useMemo(() => (lastN ? new Set([...visible].filter((k) => k !== "rating")) : visible), [lastN, visible]);
+  const cols = useMemo(() => TABLE_COLS.filter((c) => effVisible.has(c.key)), [effVisible]);
   const colByKey = useMemo(() => new Map(TABLE_COLS.map((c) => [c.key, c])), []);
-  const sortCol = colByKey.get(visible.has(sortKey) ? sortKey : "pts") ?? TABLE_COLS[0];
+  const sortCol = colByKey.get(effVisible.has(sortKey) ? sortKey : "pts") ?? TABLE_COLS[0];
+  const tableRows = lastN ? lastNRows : rows;
   const sorted = useMemo(
-    () => rows.slice().sort((a, b) => (sortCol.val(a) - sortCol.val(b)) * dir),
-    [rows, sortCol, dir],
+    () => tableRows.slice().sort((a, b) => (sortCol.val(a) - sortCol.val(b)) * dir),
+    [tableRows, sortCol, dir],
   );
   const setSort = (k: string) => { if (k === sortKey) setDir((d) => (d === 1 ? -1 : 1)); else { setSortKey(k); setDir(-1); } };
   const toggleGroup = (groupCols: string[], on: boolean) =>
@@ -451,20 +489,42 @@ function StatsTable({ rows, loading, onSelect }: { rows: Row[]; loading: boolean
   if (loading) return <InlineLoading label="Loading…" />;
   return (
     <div className="space-y-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <ToggleChip on={lastN} onClick={() => setLastN((v) => !v)}>Last N</ToggleChip>
+        {lastN ? (
+          <>
+            <span className="text-[11px] text-text-muted">last {nWin} tournaments</span>
+            <div className="min-w-[160px] flex-1">
+              <Slider label="" value={nWin} min={2} max={20} onChange={setNWin} />
+            </div>
+          </>
+        ) : (
+          <span className="text-[11px] text-text-muted">all-time totals</span>
+        )}
+      </div>
+
       <div>
         <div className="section-head"><span className="section-label">Columns</span></div>
         <div className="flex flex-wrap gap-1.5">
           {COL_CHIPS.map((item) => {
-            const on = item.cols.every((k) => visible.has(k));
+            const isElo = item.cols.includes("rating");
+            const disabled = lastN && isElo;
+            const on = !disabled && item.cols.every((k) => effVisible.has(k));
             return (
               <button
                 key={item.label}
                 type="button"
+                disabled={disabled}
                 onClick={() => toggleGroup(item.cols, on)}
                 aria-pressed={on}
+                title={disabled ? "Elo isn't available over a Last-N window" : undefined}
                 className={
                   "rounded-full px-2.5 py-1 text-xs transition focus-ring " +
-                  (on ? "bg-accent/15 font-medium text-accent ring-1 ring-inset ring-accent/40" : "bg-bg-card-chip/50 text-text-muted hover:text-text-normal")
+                  (disabled
+                    ? "cursor-not-allowed bg-bg-card-chip/30 text-text-muted/40 line-through"
+                    : on
+                      ? "bg-accent/15 font-medium text-accent ring-1 ring-inset ring-accent/40"
+                      : "bg-bg-card-chip/50 text-text-muted hover:text-text-normal")
                 }
               >
                 {item.label}
@@ -473,6 +533,8 @@ function StatsTable({ rows, loading, onSelect }: { rows: Row[]; loading: boolean
           })}
         </div>
       </div>
+
+      {lastNLoading ? <InlineLoading label="Loading last-N…" /> : null}
 
       <div className="overflow-x-auto" data-no-swipe-nav>
         <table className="w-full text-sm">
@@ -1451,7 +1513,7 @@ export default function StatsInsights({
       <SectionTabs tabs={TABS} active={tab} onChange={setTab} />
 
       {tab === "trends" && <TrendsExplorer mode={mode} scope={scope} rows={rows} initialMetric={initState?.trendsMetric} initialView={initState?.trendsView} />}
-      {tab === "table" && <StatsTable rows={rows} loading={loading} onSelect={goPlayer} />}
+      {tab === "table" && <StatsTable rows={rows} loading={loading} onSelect={goPlayer} mode={mode} scope={scope} />}
       {tab === "positions" && <PositionsView mode={mode} />}
       {tab === "h2h" && <H2HView mode={mode} scope={scope} rows={rows} />}
       {tab === "streaks" && <StreaksView mode={mode} scope={scope} />}

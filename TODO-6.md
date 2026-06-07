@@ -1,3 +1,6 @@
+# General
+last N should use 5 as default
+
 # Live Tournament
 - when creating a tournament, there is always already a comment (e.g. 2' 0-1 A)
 

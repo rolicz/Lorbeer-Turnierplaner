@@ -88,10 +88,10 @@ radar.
 
 ## Phase F — Stats, part 2 (interactive)  (model: **Opus high/xhigh**)
 
-- [ ] **Table — Last N toggle** *(unit = last **N tournaments**, confirmed)*: a
-      Last-N toggle + **slider** (N=10 default) that recomputes **all** visible
-      columns over the last N tournaments (same unit as Trends' Last-N); **Elo is
-      unset/hidden** when Last-N is on.
+- [x] **Table — Last N toggle** *(unit = last **N tournaments**)*: Last-N toggle +
+      slider (N=10, 2–20); recomputes all columns over each player's last N
+      tournaments (fetched per player, shared cache). Elo chip/column is struck out &
+      hidden when on. Verified the numbers + order change vs all-time.
 - [ ] **Positions — drag to reorder**: let the user drag a player column to reorder
       it; the position lines update dynamically. Keep player **icons sticky** (column
       header stays visible) when scrolling down.
