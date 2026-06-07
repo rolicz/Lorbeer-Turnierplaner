@@ -650,7 +650,7 @@ export default function LiveTournamentPage() {
                 <span className="section-label">{role === "admin" ? "Admin controls" : "Editor controls"}</span>
               </div>
               <AdminPanel
-                wrap={true}
+                wrap={false}
                 role={role}
                 status={tQ.data.status}
                 secondLegEnabled={secondLegEnabled}

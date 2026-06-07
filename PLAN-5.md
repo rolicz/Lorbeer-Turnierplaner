@@ -57,10 +57,11 @@ radar.
       pick a player → show their **highest reachable final position** (full best
       case: chosen player wins all remaining matches **and** other remaining results
       break in their favour). Reuse the standings row/elements.
-- [ ] **Matches — compact by default**: default the match list to Compact view
-      (check current default; it currently picks compact only on < 640px).
-- [ ] **Admin — restyle**: rebuild `AdminPanel` in the flat app language
-      (sections, inputs, buttons consistent with the rest).
+- [x] **Matches — compact by default**: default the match list to Compact (was
+      compact only < 640px).
+- [x] **Admin — restyle**: flattened `AdminPanel` — single header (wrap={false}),
+      status chips, section-label/divider sections (Actions / Date / Name / Decider),
+      decider winner/loser use on-brand `FilterSelect`, type chips match the app.
 
 ## Phase E — Stats, part 1 (contained items)  (model: **Opus high**)
 

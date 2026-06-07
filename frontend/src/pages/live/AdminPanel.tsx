@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import Button from "../../ui/primitives/Button";
+import FilterSelect from "../../ui/FilterSelect";
 import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
 
 type Status = "draft" | "live" | "done";
@@ -192,14 +193,22 @@ export default function AdminPanel({
   const showReopenLastMatch = isEditorOrAdmin && done && !!onSetLastMatchPlaying;
 
   const content = (
-    <>
+    <div className="space-y-5">
       <ErrorToastOnError error={error} title="Admin action failed" />
-      <div className="mb-3 text-sm text-text-muted">
-        status: <span className="accent">{status}</span> · second leg:{" "}
-        <span className="accent">{secondLegEnabled ? "enabled" : "off"}</span>
+
+      {/* Status summary */}
+      <div className="flex flex-wrap items-center gap-2 text-xs">
+        <span className="card-chip">
+          status <span className="font-semibold text-text-normal">{status}</span>
+        </span>
+        <span className="card-chip">
+          second leg <span className="font-semibold text-text-normal">{secondLegEnabled ? "on" : "off"}</span>
+        </span>
       </div>
 
       {/* Core controls */}
+      <div>
+      <div className="section-head"><span className="section-label">Actions</span></div>
       <div className="flex flex-wrap gap-2">
         {canSecondLeg && (
           <>
@@ -253,10 +262,11 @@ export default function AdminPanel({
           </div>
         )}
       </div>
+      </div>
 
       {showDateEditor && (
-      <div className="mt-4 card-subtle">
-          <div className="mb-2 text-sm font-medium">Tournament date</div>
+      <div>
+          <div className="section-head"><span className="section-label">Tournament date</span></div>
           <div className="flex flex-wrap items-end gap-2">
             <label className="block">
               <div className="input-label">Date</div>
@@ -273,13 +283,13 @@ export default function AdminPanel({
             </Button>
           </div>
 
-          <div className="mt-2 text-xs text-text-muted">Admin-only (for backfilling past tournaments).</div>
+          <div className="input-hint">Admin-only (for backfilling past tournaments).</div>
         </div>
       )}
 
       {showNameEditor && (
-      <div className="mt-4 card-subtle">
-          <div className="mb-2 text-sm font-medium">Tournament name</div>
+      <div>
+          <div className="section-head"><span className="section-label">Tournament name</span></div>
 
           <div className="flex flex-wrap items-end gap-2">
             <label className="block flex-1 min-w-[220px]">
@@ -302,52 +312,58 @@ export default function AdminPanel({
             </Button>
           </div>
 
-          <div className="mt-2 text-xs text-text-muted">Admin-only.</div>
+          <div className="input-hint">Admin-only.</div>
         </div>
       )}
 
       {/* Decider editor */}
       {showDeciderEditor && (
-      <div className="mt-4 card-subtle">
-          <div className="mb-2 text-sm font-medium">Decider</div>
+      <div>
+          <div className="section-head"><span className="section-label">Decider</span></div>
 
           {!isEditorOrAdmin && <div className="text-xs text-text-muted">Login as editor/admin to set a decider.</div>}
 
           {canEditDecider && (
             <div className="space-y-3">
               <div className="flex flex-wrap gap-2">
-                {(["none", "penalties", "match", "scheresteinpapier"] as const).map((k) => (
-                  <button
-                    key={k}
-                    type="button"
-                    className={`rounded-xl border px-3 py-2 text-sm ${
-                      dType === k ? "border-accent/60 bg-bg-card-outer" : "border-border-card-inner/70 transition hover:bg-hover-default/40"
-                    }`}
-                    onClick={() => setDType(k)}
-                    disabled={busy || !!deciderBusy}
-                  >
-                    {k === "none"
-                      ? "Keep draw"
-                      : k === "scheresteinpapier"
-                        ? "Schere-Stein-Papier Turnier"
-                        : k === "match"
-                          ? "Match"
-                          : k === "penalties"
-                            ? "Penalties"
-                            : k}
-                  </button>
-                ))}
+                {(["none", "penalties", "match", "scheresteinpapier"] as const).map((k) => {
+                  const on = dType === k;
+                  return (
+                    <button
+                      key={k}
+                      type="button"
+                      aria-pressed={on}
+                      className={
+                        "rounded-full px-3 py-1.5 text-xs transition focus-ring " +
+                        (on
+                          ? "bg-accent/15 font-medium text-accent ring-1 ring-inset ring-accent/40"
+                          : "bg-bg-card-chip/50 text-text-muted hover:text-text-normal")
+                      }
+                      onClick={() => setDType(k)}
+                      disabled={busy || !!deciderBusy}
+                    >
+                      {k === "none"
+                        ? "Keep draw"
+                        : k === "scheresteinpapier"
+                          ? "Schere-Stein-Papier Turnier"
+                          : k === "match"
+                            ? "Match"
+                            : k === "penalties"
+                              ? "Penalties"
+                              : k}
+                    </button>
+                  );
+                })}
               </div>
 
               {dType !== "none" && (
                 <div className="grid gap-3 md:grid-cols-2">
-                  <label className="block">
+                  <div className="block">
                     <div className="input-label">Winner</div>
-                    <select
-                      className="select-field w-full"
-                      value={winnerId ?? ""}
-                      onChange={(e) => {
-                        const v = e.target.value ? Number(e.target.value) : null;
+                    <FilterSelect
+                      value={winnerId == null ? "" : String(winnerId)}
+                      onChange={(val) => {
+                        const v = val ? Number(val) : null;
                         setWinnerId(v);
                         if (v && (!loserId || loserId === v)) {
                           const other = candidates.find((c) => c.id !== v)?.id ?? null;
@@ -355,32 +371,23 @@ export default function AdminPanel({
                         }
                       }}
                       disabled={busy || !!deciderBusy}
-                    >
-                      <option value="">—</option>
-                      {candidates.map((c) => (
-                        <option key={c.id} value={c.id}>
-                          {c.name}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
+                      ariaLabel="Decider winner"
+                      placeholder="—"
+                      options={[{ value: "", label: "—" }, ...candidates.map((c) => ({ value: String(c.id), label: c.name }))]}
+                    />
+                  </div>
 
-                  <label className="block">
+                  <div className="block">
                     <div className="input-label">Loser</div>
-                    <select
-                      className="select-field w-full"
-                      value={loserId ?? ""}
-                      onChange={(e) => setLoserId(e.target.value ? Number(e.target.value) : null)}
+                    <FilterSelect
+                      value={loserId == null ? "" : String(loserId)}
+                      onChange={(val) => setLoserId(val ? Number(val) : null)}
                       disabled={busy || !!deciderBusy}
-                    >
-                      <option value="">—</option>
-                      {candidates.map((c) => (
-                        <option key={c.id} value={c.id}>
-                          {c.name}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
+                      ariaLabel="Decider loser"
+                      placeholder="—"
+                      options={[{ value: "", label: "—" }, ...candidates.map((c) => ({ value: String(c.id), label: c.name }))]}
+                    />
+                  </div>
 
                   <label className="block">
                     <div className="input-label">Winner goals</div>
@@ -432,21 +439,18 @@ export default function AdminPanel({
                 )}
               </div>
 
-              <div className="text-xs text-text-muted">Decider should only be used if the standings are tied at the top.</div>
+              <div className="input-hint">Decider should only be used if the standings are tied at the top.</div>
             </div>
           )}
         </div>
       )}
 
-    </>
+    </div>
   );
 
   if (!wrap) return content;
 
-  return (
-    <div className="card-inner">
-      <div className="mb-2 text-base font-semibold">{role === "admin" ? "Admin controls" : "Editor controls"}</div>
-      {content}
-    </div>
-  );
+  // `wrap` is a flat panel fallback; the live page already supplies its own
+  // section header, so it passes wrap={false}.
+  return <div className="panel-subtle p-3">{content}</div>;
 }

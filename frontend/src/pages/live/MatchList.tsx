@@ -69,11 +69,8 @@ export default function MatchList({
   const [view, setView] = useState<MatchListView>(() => {
     const stored = localStorage.getItem("match_list_view");
     if (stored === "compact" || stored === "comfort") return stored;
-    try {
-      return window.matchMedia && window.matchMedia("(max-width: 639px)").matches ? "compact" : "comfort";
-    } catch {
-      return "comfort";
-    }
+    // Compact by default everywhere (TODO-5); users can opt into Details.
+    return "compact";
   });
 
   useEffect(() => {
