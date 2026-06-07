@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { keepPreviousData, useQueries, useQuery } from "@tanstack/react-query";
-import { LineChart, Table2, Grid3x3, UserRound, Flame, Star } from "lucide-react";
+import { LineChart, Table2, Grid3x3, UserRound, Flame, Star, Medal } from "lucide-react";
 
 import AvatarCircle from "../../ui/primitives/AvatarCircle";
 import { StarsFA } from "../../ui/primitives/StarsFA";
@@ -16,7 +16,7 @@ import { Sparkline, Radar, MultiLine, ChipGroup } from "./charts";
 import { MatchHistoryList } from "./MatchHistoryList";
 import { PlayerPicker } from "./PlayerPicker";
 
-type Tab = "trends" | "table" | "h2h" | "streaks" | "stars" | "player";
+type Tab = "trends" | "table" | "positions" | "h2h" | "streaks" | "stars" | "player";
 
 type Row = {
   id: number; name: string; pts: number; rating: number;
@@ -336,6 +336,87 @@ function StatsTable({ rows, loading, onSelect }: { rows: Row[]; loading: boolean
                     {c.fmt(c.val(r), r)}
                   </td>
                 ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// ==========================================================================
+//  POSITIONS — players × tournaments grid
+// ==========================================================================
+function PositionsView({ mode }: { mode: StatsMode }) {
+  const q = useQuery({
+    queryKey: ["stats", "players", mode, "positions"],
+    queryFn: () => getStatsPlayers({ mode }),
+    placeholderData: keepPreviousData, staleTime: 30_000,
+  });
+  const { avatarUpdatedAtById } = usePlayerAvatarMap();
+
+  const tournaments = useMemo(
+    () => (q.data?.tournaments ?? []).slice().sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : b.id - a.id)),
+    [q.data],
+  );
+  const players = useMemo(() => (q.data?.players ?? []).slice().sort((a, b) => b.pts - a.pts), [q.data]);
+
+  if (q.isLoading && !q.data) return <InlineLoading label="Loading…" />;
+  if (!tournaments.length) return <div className="text-sm text-text-muted">No tournaments yet.</div>;
+
+  return (
+    <div>
+      <div className="section-head"><span className="section-label">Tournament positions</span></div>
+      <p className="mb-2 inline-flex items-center gap-1.5 text-[11px] text-text-muted">
+        Newest first · <i className="fa-solid fa-crown text-amber-300" aria-hidden="true" /> = cup at stake · green = better placement.
+      </p>
+      <div className="overflow-x-auto" data-no-swipe-nav>
+        <table className="border-separate" style={{ borderSpacing: 3 }}>
+          <thead>
+            <tr>
+              <th className="sticky left-0 z-10 bg-bg-default" />
+              {tournaments.map((t) => {
+                const laurel = (t.cup_stakes?.length ?? 0) > 0;
+                return (
+                  <th key={t.id} className="p-0 align-bottom">
+                    <div className="mx-auto flex h-28 w-10 items-center justify-center overflow-visible">
+                      <span className="inline-flex -rotate-90 items-center gap-1 whitespace-nowrap text-[10px] font-medium text-text-muted">
+                        {laurel ? <i className="fa-solid fa-crown text-amber-300" aria-hidden="true" /> : null}
+                        {t.name}
+                      </span>
+                    </div>
+                  </th>
+                );
+              })}
+            </tr>
+          </thead>
+          <tbody>
+            {players.map((p) => (
+              <tr key={p.player_id}>
+                <th className="sticky left-0 z-10 bg-bg-default pr-2">
+                  <div className="flex items-center gap-2">
+                    <AvatarCircle playerId={p.player_id} name={p.display_name} updatedAt={avatarUpdatedAtById.get(p.player_id) ?? null} sizeClass="h-6 w-6" />
+                    <span className="max-w-[90px] truncate text-xs font-medium text-text-normal">{p.display_name}</span>
+                  </div>
+                </th>
+                {tournaments.map((t) => {
+                  const pos = p.positions_by_tournament?.[String(t.id)];
+                  if (pos == null) return <td key={t.id} className="h-9 w-10 rounded bg-bg-card-chip/15 text-center text-[10px] text-text-muted">·</td>;
+                  const total = t.players_count || 1;
+                  const frac = total > 1 ? (pos - 1) / (total - 1) : 0;
+                  return (
+                    <td key={t.id}>
+                      <div
+                        className="pos-tile grid h-9 w-10 place-items-center rounded border text-[11px] font-semibold tabular-nums"
+                        style={{ ["--pos-p"]: frac } as React.CSSProperties}
+                        title={`${p.display_name} · ${t.name}: #${pos}/${total}`}
+                      >
+                        {pos}
+                      </div>
+                    </td>
+                  );
+                })}
               </tr>
             ))}
           </tbody>
@@ -762,6 +843,7 @@ function PlayerProfile({ mode, scope, rows, selectedId, onSelect }: { mode: Stat
 const TABS: SectionTab<Tab>[] = [
   { key: "trends", label: "Trends", icon: <LineChart size={14} /> },
   { key: "table", label: "Table", icon: <Table2 size={14} /> },
+  { key: "positions", label: "Positions", icon: <Medal size={14} /> },
   { key: "h2h", label: "H2H", icon: <Grid3x3 size={14} /> },
   { key: "streaks", label: "Streaks", icon: <Flame size={14} /> },
   { key: "stars", label: "Stars", icon: <Star size={14} /> },
@@ -800,6 +882,7 @@ export default function StatsInsights({
 
       {tab === "trends" && <TrendsExplorer mode={mode} scope={scope} rows={rows} />}
       {tab === "table" && <StatsTable rows={rows} loading={loading} onSelect={goPlayer} />}
+      {tab === "positions" && <PositionsView mode={mode} />}
       {tab === "h2h" && <H2HView mode={mode} scope={scope} rows={rows} />}
       {tab === "streaks" && <StreaksView mode={mode} scope={scope} />}
       {tab === "stars" && <StarsView mode={mode} scope={scope} rows={rows} selectedId={selectedId} onSelect={onSelectPlayer} />}
