@@ -225,6 +225,123 @@ export function StatBar({ label, value, max, color = "rgb(var(--color-accent))" 
 }
 
 /**
+ * Time-based, zoomable + horizontally scrollable multi-series line chart.
+ * X is positioned by real dates so the axis shows month ticks (density adapts to
+ * zoom). Gaps (null points) render as breaks = non-participation; event ticks on
+ * the baseline mark every tournament. Optional rotated tournament-name labels.
+ * Rendered at an explicit pixel width — wrap in an `overflow-x-auto` container.
+ */
+export function TrendChart({
+  events,
+  series,
+  yMax,
+  yMin = 0,
+  yTicks,
+  height = 250,
+  pxPerMonth = 52,
+  showLabels = false,
+}: {
+  events: { ts: number; label: string }[];
+  series: { id: number; name: string; color: string; points: (number | null)[] }[];
+  yMax: number;
+  yMin?: number;
+  yTicks?: number[];
+  height?: number;
+  pxPerMonth?: number;
+  showLabels?: boolean;
+}) {
+  const H = height;
+  const padL = 34;
+  const padR = 16;
+  const padT = 10;
+  const padB = showLabels ? 84 : 30;
+  const n = events.length;
+  if (!n) return <div className="grid h-40 place-items-center text-sm text-text-muted">No data in range.</div>;
+
+  const MONTH = 30.44 * 864e5;
+  const t0 = events[0].ts;
+  const t1 = events[n - 1].ts;
+  const tspan = Math.max(MONTH, t1 - t0);
+  const months = tspan / MONTH;
+  const innerW = Math.max(280, Math.round(months * pxPerMonth));
+  const W = padL + innerW + padR;
+  const innerH = H - padT - padB;
+  const xAt = (ts: number) => padL + ((ts - t0) / tspan) * innerW;
+  const span = yMax - yMin || 1;
+  const yAt = (v: number) => padT + innerH - ((Math.max(yMin, Math.min(yMax, v)) - yMin) / span) * innerH;
+  const ticks = [...new Set(yTicks ?? [yMin, Math.round((yMin + yMax) / 2), yMax])];
+
+  // Month marks + adaptive labels.
+  const labelEvery = Math.max(1, Math.ceil(46 / pxPerMonth));
+  const marks: { ts: number; label: string; major: boolean }[] = [];
+  const d = new Date(t0);
+  d.setDate(1); d.setHours(0, 0, 0, 0);
+  while (d.getTime() <= t1 + MONTH) {
+    const jan = d.getMonth() === 0;
+    marks.push({ ts: d.getTime(), label: jan ? String(d.getFullYear()) : d.toLocaleDateString(undefined, { month: "short" }), major: jan });
+    d.setMonth(d.getMonth() + 1);
+  }
+  const inRange = (x: number) => x >= padL - 1 && x <= W - padR + 1;
+
+  return (
+    <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} className="block" role="img" aria-label="Trend chart">
+      {ticks.map((t) => (
+        <g key={`y${t}`}>
+          <line x1={padL} x2={W - padR} y1={yAt(t)} y2={yAt(t)} stroke="rgb(var(--color-border-card-chip) / 0.4)" strokeWidth="1" />
+          <text x={2} y={yAt(t) + 3} className="fill-text-muted" style={{ fontSize: 9 }}>{t}</text>
+        </g>
+      ))}
+      {marks.map((m, i) => {
+        const x = xAt(m.ts);
+        if (!inRange(x)) return null;
+        return <line key={`m${i}`} x1={x} x2={x} y1={padT} y2={padT + innerH} stroke={`rgb(var(--color-border-card-chip) / ${m.major ? 0.4 : 0.16})`} strokeWidth="1" />;
+      })}
+      {marks.map((m, i) => {
+        const x = xAt(m.ts);
+        if (!inRange(x) || (i % labelEvery !== 0 && !m.major)) return null;
+        return (
+          <text key={`ml${i}`} x={x} y={padT + innerH + 13} textAnchor="middle" className={m.major ? "fill-text-normal" : "fill-text-muted"} style={{ fontSize: 9, fontWeight: m.major ? 600 : 400 }}>
+            {m.label}
+          </text>
+        );
+      })}
+      {/* event ticks (every tournament — non-participation reference) */}
+      {events.map((e, i) => {
+        const x = xAt(e.ts);
+        return <line key={`e${i}`} x1={x} x2={x} y1={padT + innerH - 4} y2={padT + innerH} stroke="rgb(var(--color-border-card-chip) / 0.6)" strokeWidth="1" />;
+      })}
+      {showLabels
+        ? events.map((e, i) => {
+            const x = xAt(e.ts);
+            const y = padT + innerH + 26;
+            const txt = e.label.length > 16 ? e.label.slice(0, 15) + "…" : e.label;
+            return (
+              <text key={`tl${i}`} x={x} y={y} transform={`rotate(45 ${x} ${y})`} className="fill-text-muted" style={{ fontSize: 8 }}>
+                {txt}
+              </text>
+            );
+          })
+        : null}
+      {series.map((s) => {
+        const segs: string[] = [];
+        let cur: string[] = [];
+        s.points.forEach((p, i) => {
+          if (p == null) { if (cur.length) segs.push(cur.join(" ")); cur = []; }
+          else cur.push(`${xAt(events[i].ts).toFixed(1)},${yAt(p).toFixed(1)}`);
+        });
+        if (cur.length) segs.push(cur.join(" "));
+        return segs.map((pts, k) => (
+          <polyline key={`${s.id}-${k}`} points={pts} fill="none" stroke={s.color} strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round" opacity={0.95} />
+        ));
+      })}
+      {series.map((s) =>
+        s.points.map((p, i) => (p == null ? null : <circle key={`d${s.id}-${i}`} cx={xAt(events[i].ts)} cy={yAt(p)} r="2.2" fill={s.color} />)),
+      )}
+    </svg>
+  );
+}
+
+/**
  * Multi-series line chart (points/form over tournaments). Mobile-first, responsive
  * width via viewBox. series: { name, color, points: (number|null)[] } aligned to xLabels.
  */

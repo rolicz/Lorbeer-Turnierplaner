@@ -10,7 +10,7 @@ import { getStatsPlayerMatches, getStatsPlayers } from "../../api/stats.api";
 import type { Match, StatsPlayerMatchesResponse, StatsPlayersResponse, StatsTournamentLite } from "../../api/types";
 import { sideBy } from "../../helpers";
 import { colorForIdx } from "../stats/trendsMath";
-import { MultiLineChart } from "../stats/TrendsChart";
+import { TrendChart } from "../stats/charts";
 import SegmentedSwitch from "../../ui/primitives/SegmentedSwitch";
 import { fmtDate } from "../../utils/format";
 
@@ -113,7 +113,7 @@ export default function TrendsPreviewCard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [matchesQs.map((q) => q.dataUpdatedAt).join("|")]);
 
-  const { tournaments, tids, windowStartTs, windowEndTs, xHintLeft, xHintRight } = useMemo(() => {
+  const { tournaments, tids } = useMemo(() => {
     const all = tournamentsDoneSorted;
     if (!all.length) {
       return {
@@ -303,25 +303,22 @@ export default function TrendsPreviewCard() {
             onClick={() => navigate("/stats#stats-trends", { state: { focus: "trends", trendsView: view } })}
             aria-label="Open full trends"
           >
-            <MultiLineChart
-              title={chart.title}
-              tournamentTs={chart.tournamentTs}
-              windowStartTs={windowStartTs}
-              windowEndTs={windowEndTs}
-              tournamentTitles={chart.tournamentTitles ?? []}
-              xLabelEvery={1}
-              xHintLeft={xHintLeft}
-              xHintRight={xHintRight}
-              yMax={chart.yMax}
-              yTicks={chart.yTicks}
-              ySuffix={chart.ySuffix}
-              series={chart.series}
-              size="mini"
-              showTournamentTitles={true}
-              showLegend={false}
-              showHeader={false}
-              frame="none"
-            />
+            <div className="overflow-x-auto" data-no-swipe-nav>
+              <TrendChart
+                events={chart.tournamentTs.map((ts, i) => ({ ts, label: chart.tournamentTitles[i] ?? "" }))}
+                series={chart.series.map((s) => ({
+                  id: s.id,
+                  name: s.name,
+                  color: s.color,
+                  points: s.points.map((p) => (view === "total" ? p.y : p.present ? p.y : null)),
+                }))}
+                yMax={chart.yMax}
+                yMin={0}
+                yTicks={chart.yTicks}
+                height={170}
+                pxPerMonth={46}
+              />
+            </div>
           </button>
         ) : null}
       </div>

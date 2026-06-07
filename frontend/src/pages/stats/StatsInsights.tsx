@@ -13,7 +13,7 @@ import type { Club, Match, StatsScope, StatsH2HPair, StatsH2HOpponentRow, StatsP
 import type { StatsMode } from "./StatsControls";
 import { usePlayerAvatarMap } from "../../hooks/usePlayerAvatarMap";
 import { colorForIdx } from "./trendsMath";
-import { Sparkline, Radar, MultiLine, ChipGroup } from "./charts";
+import { Sparkline, Radar, TrendChart, ChipGroup } from "./charts";
 import { MatchHistoryList } from "./MatchHistoryList";
 import { PlayerPicker } from "./PlayerPicker";
 
@@ -111,12 +111,17 @@ const METRIC_OPTS: { key: Metric; label: string }[] = [
   { key: "ppm", label: "Pts/match" },
 ];
 
+type RangeKey = "1y" | "2y" | "all";
+
 function TrendsExplorer({ mode, scope, rows }: { mode: StatsMode; scope: StatsScope; rows: Row[] }) {
   const [metric, setMetric] = useState<Metric>("points");
   const [view, setView] = useState<ViewMode>("cumulative");
   const [rollN, setRollN] = useState(5);
-  const [rangeN, setRangeN] = useState(12);
+  const [range, setRange] = useState<RangeKey>("1y");
+  const [zoom, setZoom] = useState(52);
+  const [showLabels, setShowLabels] = useState(false);
   const [hidden, setHidden] = useState<Set<number>>(new Set());
+  const [now] = useState(() => Date.now());
 
   const matchesQs = useQueries({
     queries: rows.map((r) => ({
@@ -129,9 +134,9 @@ function TrendsExplorer({ mode, scope, rows }: { mode: StatsMode; scope: StatsSc
   });
   const loading = matchesQs.some((q) => q.isLoading && !q.data);
 
-  const { labels, series, totalEvents, allowsCumulative } = useMemo(() => {
+  const { events, series, totalEvents, allowsCumulative } = useMemo(() => {
     const perPlayer = new Map<number, Map<number, number>>();
-    const tDate = new Map<number, string>();
+    const tInfo = new Map<number, { date: string; name: string }>();
     rows.forEach((r, i) => {
       const data = matchesQs[i]?.data as { tournaments: StatsPlayerMatchesTournament[] } | undefined;
       const vals = new Map<number, number>();
@@ -144,7 +149,7 @@ function TrendsExplorer({ mode, scope, rows }: { mode: StatsMode; scope: StatsSc
           any = true; played++; pts += s.pts; gf += s.gf; ga += s.ga; if (s.res === "W") w++;
         }
         if (!any) continue;
-        tDate.set(t.id, t.date);
+        tInfo.set(t.id, { date: t.date, name: t.name });
         const v = metric === "points" ? pts : metric === "goals" ? gf : metric === "conceded" ? ga
           : metric === "gd" ? gf - ga : metric === "winrate" ? (played ? (w / played) * 100 : 0)
           : (played ? pts / played : 0);
@@ -152,22 +157,27 @@ function TrendsExplorer({ mode, scope, rows }: { mode: StatsMode; scope: StatsSc
       }
       perPlayer.set(r.id, vals);
     });
-    const tids = [...tDate.keys()].sort((a, b) => (tDate.get(a)! < tDate.get(b)! ? -1 : 1));
+    const tsOf = (tid: number) => new Date(tInfo.get(tid)?.date ?? 0).getTime();
+    const allTids = [...tInfo.keys()].sort((a, b) => tsOf(a) - tsOf(b) || a - b);
     const allowsCumulative = metric === "points" || metric === "goals" || metric === "conceded" || metric === "gd";
     const effView: ViewMode = view === "cumulative" && !allowsCumulative ? "rolling" : view;
-    const sliceTids = tids.slice(-rangeN);
-    const labels = sliceTids.map((tid) => (tDate.get(tid) ?? "").slice(5));
+
+    const cutoff = range === "1y" ? now - 365 * 864e5 : range === "2y" ? now - 730 * 864e5 : -Infinity;
+    const firstVisible = allTids.findIndex((tid) => tsOf(tid) >= cutoff);
+    const startIdx = firstVisible < 0 ? allTids.length : firstVisible;
+    const visibleTids = allTids.slice(startIdx);
+    const events = visibleTids.map((tid) => ({ ts: tsOf(tid), label: tInfo.get(tid)?.name ?? "" }));
 
     const series = rows.map((r, idx) => {
       const vals = perPlayer.get(r.id) ?? new Map<number, number>();
       let cum = 0;
-      const full = tids.map((tid) => {
+      const full = allTids.map((tid) => {
         const v = vals.get(tid);
         if (v == null) return null;
         cum += v;
         return { raw: v, cum };
       });
-      const transformed = tids.map((_, i) => {
+      const transformed = allTids.map((_, i) => {
         const cell = full[i];
         if (effView === "cumulative") return cell ? cell.cum : (full.slice(0, i).reverse().find((c) => c)?.cum ?? null);
         if (effView === "per") return cell ? cell.raw : null;
@@ -175,12 +185,12 @@ function TrendsExplorer({ mode, scope, rows }: { mode: StatsMode; scope: StatsSc
         for (let j = i; j >= 0 && wv.length < rollN; j--) { const c = full[j]; if (c) wv.push(c.raw); }
         return wv.length ? wv.reduce((a, b) => a + b, 0) / wv.length : null;
       });
-      const sliced = transformed.slice(-rangeN);
+      const sliced = transformed.slice(startIdx);
       const c = colorForIdx(idx, rows.length);
       return { id: r.id, name: r.name, color: c.solid, points: hidden.has(r.id) ? sliced.map(() => null) : sliced };
     });
-    return { labels, series, totalEvents: tids.length, allowsCumulative };
-  }, [rows, matchesQs, metric, view, rollN, rangeN, hidden, mode]);
+    return { events, series, totalEvents: allTids.length, allowsCumulative };
+  }, [rows, matchesQs, metric, view, rollN, range, hidden, mode, now]);
 
   const allY = series.flatMap((s) => s.points.filter((p): p is number => p != null));
   const yMax = Math.max(1, ...allY);
@@ -188,11 +198,15 @@ function TrendsExplorer({ mode, scope, rows }: { mode: StatsMode; scope: StatsSc
 
   return (
     <div className="space-y-3">
-      {/* chart first (hero) */}
-      <div className="card-outer">
-        {loading ? <InlineLoading label="Loading…" /> : (
-          <MultiLine series={series} xLabels={labels} yMax={Math.ceil(yMax)} yMin={Math.floor(yMin)} height={230} />
-        )}
+      {/* chart first (hero) — horizontally scrollable + zoomable */}
+      <div>
+        <div className="overflow-x-auto rounded-2xl border border-border-card-chip/40 bg-bg-card-inner/40 p-2" data-no-swipe-nav>
+          {loading ? (
+            <InlineLoading label="Loading…" />
+          ) : (
+            <TrendChart events={events} series={series} yMax={Math.ceil(yMax)} yMin={Math.floor(yMin)} pxPerMonth={zoom} showLabels={showLabels} height={240} />
+          )}
+        </div>
         <div className="mt-3 flex flex-wrap gap-2">
           {rows.map((r, idx) => {
             const c = colorForIdx(idx, rows.length);
@@ -210,7 +224,7 @@ function TrendsExplorer({ mode, scope, rows }: { mode: StatsMode; scope: StatsSc
       </div>
 
       {/* controls */}
-      <div className="card-outer space-y-3">
+      <div className="space-y-3">
         <Field label="Metric">
           <ChipGroup<Metric> value={metric} onChange={setMetric} ariaLabel="Metric" options={METRIC_OPTS} />
         </Field>
@@ -225,7 +239,21 @@ function TrendsExplorer({ mode, scope, rows }: { mode: StatsMode; scope: StatsSc
         {view === "rolling" ? (
           <Slider label="Window" value={rollN} min={2} max={Math.max(3, Math.min(15, totalEvents || 10))} onChange={setRollN} />
         ) : null}
-        <Slider label="Show last" value={Math.min(rangeN, Math.max(3, totalEvents || 3))} min={3} max={Math.max(4, totalEvents || 4)} onChange={setRangeN} />
+        <Field label="Range">
+          <ChipGroup<RangeKey> value={range} onChange={setRange} ariaLabel="Range"
+            options={[{ key: "1y", label: "1 year" }, { key: "2y", label: "2 years" }, { key: "all", label: "All time" }]} />
+        </Field>
+        <Slider label="Zoom" value={zoom} min={28} max={120} onChange={setZoom} />
+        <div className="flex flex-wrap gap-1.5">
+          <button
+            type="button"
+            onClick={() => setShowLabels((v) => !v)}
+            aria-pressed={showLabels}
+            className={"rounded-full px-2.5 py-1 text-xs transition focus-ring " + (showLabels ? "bg-accent/15 font-medium text-accent ring-1 ring-inset ring-accent/40" : "bg-bg-card-chip/50 text-text-muted hover:text-text-normal")}
+          >
+            Tournament names
+          </button>
+        </div>
       </div>
     </div>
   );
