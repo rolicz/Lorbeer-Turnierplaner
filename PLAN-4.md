@@ -11,29 +11,29 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done
 
 ## Phase A — Trends zoom + Last-N + win% view  (model: **Opus xhigh**)
 
-- [ ] **Real horizontal zoom (plot stays fixed size)**: the current pinch widens the
+- [x] **Real horizontal zoom (plot stays fixed size)**: the current pinch widens the
       SVG/grows it. Rewrite to a **fixed-size plot** with a `[viewStart,viewEnd]`
       time window: **two-finger pinch zooms the x-axis** (narrows/widens the visible
       date window around the pinch midpoint), **one-finger drag pans** the window.
       No SVG resize, no vertical change, no scroll container. Month ticks recompute
       for the window.
-- [ ] **Bring back "Last N"**: stats Trends gets a clear **Last N** view (the
+- [x] **Bring back "Last N"**: stats Trends gets a clear **Last N** view (the
       rolling-window view, window slider = N, default 10) so it matches the
       dashboard's "Last 10"; dashboard "Last 10 / Total" deep-links to Last-N /
       Cumulative.
-- [ ] **Win % view highlight**: when Win % is selected (cumulative disabled), the
+- [x] **Win % view highlight**: when Win % is selected (cumulative disabled), the
       currently-shown view must stay highlighted in the chip group (use the
       effective view, don't leave it blank).
 
 ## Phase B — Stats: positions, records, cups  (model: **Opus high**)
 
-- [ ] **Positions cup markers**: stop using the left gutter — render the cup
+- [x] **Positions cup markers**: stop using the left gutter — render the cup
       crown(s) in the **top-right corner of the tournament winner's cell** (can be
       multiple); reclaim the name-column width.
-- [ ] **Positions**: remove the explanation paragraph.
-- [ ] **Records ties**: when several matches share a record value, show **all** of
+- [x] **Positions**: remove the explanation paragraph.
+- [x] **Records ties**: when several matches share a record value, show **all** of
       them (not just one).
-- [ ] **Cups tab reuse**: the stats Cups tab should reuse the dashboard cup
+- [x] **Cups tab reuse**: the stats Cups tab should reuse the dashboard cup
       component (`CupCard`) instead of its own bespoke rendering.
 
 ## Phase C — Player profile  (model: **Opus high**)
@@ -59,9 +59,15 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done
 
 ## Phase E — Verification  (model: **Sonnet high**)
 
-- [ ] Playwright sweep 390 + 430 + 1366 × both stats modes — zero console errors, no
+- [x] Playwright sweep 390 + 430 + 1366 × both stats modes — zero console errors, no
       horizontal scroll; confirm pinch-zoom changes the x-axis only (plot fixed);
       `npm run check` + build green.
+      → 30/30 checks clean (0 errors, no hscroll); CDP pinch kept the SVG at
+        340×240 while narrowing the x-window (Reset zoom appeared); win% keeps
+        the effective view (Last N) highlighted; `npm run check` + `npm run build`
+        both green.
+
+**All phases complete.**
 
 ---
 
