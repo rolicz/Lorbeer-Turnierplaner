@@ -41,20 +41,21 @@ These set the language everything else follows.
 
 ---
 
-## Phase 1 — Design system & consistency  (model: **Opus high/xhigh**)
+## Phase 1 — Design system & consistency  (model: **Opus high/xhigh**) ✅
 
-- [ ] New flat-surface utilities (`section`, `row`, `divider`, section-label) in
-      `styles.css`; deprecate heavy `card-outer`/`card-inner` usage.
-- [ ] Restyle primitives: `SegmentedSwitch` (strong active state) **or**
-      standardize on `ChipGroup`; `Input`, `Button`, `Textarea`, `Pill`.
-- [ ] Redesign the **SelectClubs** control (searchable, compact, on-brand);
-      reuse on live current-game, match detail, friendlies create/edit.
-- [ ] Shared `ListRow` / list pattern + adopt in one page as the reference.
-- [ ] Single live-connection chip in the top bar; remove Settings + drawer
-      duplicates.
-- [ ] Remove `PageBack`; add global swipe back/forward gesture hook
-      (`useSwipeNav`) wired in `AppShell`, with horizontal-scroller guards;
-      compact top-bar back chevron on detail routes.
+- [x] New flat-surface utilities (`stack`, `section-label`, `divider`, `row`) in
+      `styles.css`; `List`/`ListRow` primitive replaces card-in-card lists.
+- [x] Restyle primitives: `SegmentedSwitch` strong accent selected state;
+      `Input`/`Button` focus + press polish (Textarea inherits input-field).
+- [x] Redesign the **SelectClubs** control → `ClubCombobox` (searchable, compact,
+      on-brand, portal so it's never clipped); reused via `SelectClubsPanel` on
+      live current-game, match detail, friendlies create/edit.
+- [x] Shared `List`/`ListRow` pattern + adopted on the players list (reference).
+- [x] Single live-connection chip near the top-bar title; removed Settings +
+      mobile-drawer duplicates (desktop sidebar keeps its single one).
+- [x] Removed `PageBack`; contextual top-bar back (mobile) + inline desktop back
+      chevron + global `useSwipeNav` (right=back, left=forward) wired in `AppShell`
+      with horizontal-scroller / range-slider / `data-no-swipe-nav` guards.
 
 ## Phase 2 — Per-page reworks  (model: **Sonnet high**)
 
