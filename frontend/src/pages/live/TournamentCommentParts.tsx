@@ -56,6 +56,7 @@ export function AddCommentDropdown({
   onOpenImageCropper,
   onClearImage,
   onSubmit,
+  onCancel,
   canSubmit,
   surfaceClassName = "panel-subtle",
 }: {
@@ -81,6 +82,7 @@ export function AddCommentDropdown({
   onOpenImageCropper?: () => void;
   onClearImage?: () => void;
   onSubmit: () => void;
+  onCancel?: () => void;
   canSubmit: boolean;
   surfaceClassName?: string;
 }) {
@@ -108,6 +110,7 @@ export function AddCommentDropdown({
       onOpenImageCropper={onOpenImageCropper}
       onClearImage={onClearImage}
       onSubmit={onSubmit}
+      onCancel={onCancel}
       canSubmit={canSubmit}
       surfaceClassName={surfaceClassName}
     />

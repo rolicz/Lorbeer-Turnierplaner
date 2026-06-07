@@ -1,6 +1,7 @@
 import { useId } from "react";
 
 import Button from "../../ui/primitives/Button";
+import FilterSelect from "../../ui/FilterSelect";
 import Input from "../../ui/primitives/Input";
 import Textarea from "../../ui/primitives/Textarea";
 
@@ -46,9 +47,10 @@ export default function CommentCreateComposer({
   onOpenImageCropper,
   onClearImage,
   onSubmit,
+  onCancel,
   canSubmit,
   disabled = false,
-  surfaceClassName = "panel-subtle",
+  surfaceClassName = "panel-subtle p-3",
 }: {
   authorOptions: CommentDraftAuthorOption[];
   authorValue: CommentDraftAuthorValue;
@@ -71,6 +73,7 @@ export default function CommentCreateComposer({
   onOpenImageCropper?: () => void;
   onClearImage?: () => void;
   onSubmit: () => void;
+  onCancel?: () => void;
   canSubmit: boolean;
   disabled?: boolean;
   surfaceClassName?: string;
@@ -78,22 +81,17 @@ export default function CommentCreateComposer({
   const playersListId = useId();
 
   return (
-    <div className={surfaceClassName + " p-3 space-y-3"}>
-      <label className="block">
+    <div className={surfaceClassName + " space-y-3"}>
+      <div className="block">
         <div className="input-label">Posted as</div>
-        <select
-          className="select-field"
+        <FilterSelect
           value={authorValue === "general" ? "general" : String(authorValue)}
-          onChange={(event) => onAuthorChange(event.target.value === "general" ? "general" : Number(event.target.value))}
+          onChange={(v) => onAuthorChange(v === "general" ? "general" : Number(v))}
           disabled={disabled}
-        >
-          {authorOptions.map((option) => (
-            <option key={String(option.value)} value={String(option.value)}>
-              {option.label}
-            </option>
-          ))}
-        </select>
-      </label>
+          ariaLabel="Posted as"
+          options={authorOptions.map((option) => ({ value: String(option.value), label: option.label }))}
+        />
+      </div>
 
       {allowMatchEventModes ? (
         <div className="space-y-2">
@@ -235,16 +233,21 @@ export default function CommentCreateComposer({
         </>
       ) : null}
 
-      <div className="flex items-center justify-end">
+      <div className="flex items-center justify-end gap-2 border-t border-border-card-chip/40 pt-3">
+        {onCancel ? (
+          <Button type="button" variant="ghost" onClick={onCancel} disabled={disabled}>
+            Cancel
+          </Button>
+        ) : null}
         <Button
           type="button"
           onClick={onSubmit}
           disabled={!canSubmit || disabled}
           title={mode === "goal" ? "Post goal entry" : "Post comment"}
-          className="h-10 w-10 p-0 inline-flex items-center justify-center md:w-auto md:px-4 md:py-2"
+          className="inline-flex items-center justify-center gap-2 px-4"
         >
-          <i className="fa-solid fa-paper-plane md:hidden" aria-hidden="true" />
-          <span className="hidden md:inline">Post</span>
+          <i className="fa-solid fa-paper-plane" aria-hidden="true" />
+          <span>{mode === "goal" ? "Post goal" : "Post"}</span>
         </Button>
       </div>
     </div>

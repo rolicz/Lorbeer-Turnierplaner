@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import Button from "../../ui/primitives/Button";
+import FilterSelect from "../../ui/FilterSelect";
 import CollapsibleCard from "../../ui/primitives/CollapsibleCard";
 import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
 import { showErrorToast } from "../../ui/primitives/ErrorToast";
@@ -857,19 +858,23 @@ export default function TournamentCommentsCard({
   }
 
   const composer = canWrite && addTarget ? (
-    <div className="panel p-3 space-y-3">
+    <div className="panel-subtle p-3 space-y-3">
       {onlyMatchId == null ? (
-        <label className="block">
+        <div className="block">
           <div className="input-label">Add to</div>
-          <select className="select-field" value={composerScopeValue} onChange={(e) => changeComposerScope(e.target.value)}>
-            <option value="general">General (tournament)</option>
-            {matchesOrdered.map((m) => (
-              <option key={m.id} value={`m-${m.id}`}>
-                Match {matchIndexById.get(m.id)} — {sidePlayersLabel(m, "A")} vs {sidePlayersLabel(m, "B")}
-              </option>
-            ))}
-          </select>
-        </label>
+          <FilterSelect
+            value={composerScopeValue}
+            onChange={changeComposerScope}
+            ariaLabel="Add comment to"
+            options={[
+              { value: "general", label: "General (tournament)" },
+              ...matchesOrdered.map((m) => ({
+                value: `m-${m.id}`,
+                label: `Match ${matchIndexById.get(m.id)} — ${sidePlayersLabel(m, "A")} vs ${sidePlayersLabel(m, "B")}`,
+              })),
+            ]}
+          />
+        </div>
       ) : null}
       <AddCommentDropdown
         open
@@ -896,12 +901,10 @@ export default function TournamentCommentsCard({
         onSubmit={() => {
           if (addTarget) void upsertComment(addTarget);
         }}
+        onCancel={() => setAddTarget(null)}
         canSubmit={canSubmit}
-        surfaceClassName="panel-subtle"
+        surfaceClassName=""
       />
-      <div className="flex justify-end">
-        <Button variant="ghost" type="button" onClick={() => setAddTarget(null)}>Cancel</Button>
-      </div>
     </div>
   ) : null;
 
