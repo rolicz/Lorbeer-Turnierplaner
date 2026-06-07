@@ -5,9 +5,9 @@ import type { Club } from "../api/types";
 import Button from "./primitives/Button";
 import CollapsibleCard from "./primitives/CollapsibleCard";
 import ClubStarsEditor from "./ClubStarsEditor";
+import ClubCombobox from "./ClubCombobox";
 import { StarsFA } from "./primitives/StarsFA";
 import {
-  ClubSelect,
   LeagueFilter,
   STAR_OPTIONS,
   StarFilter,
@@ -274,7 +274,7 @@ export default function SelectClubsPanel({
         <div className="space-y-1.5">
           <div className="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-2">
             <div className="min-w-0">
-              <ClubSelect
+              <ClubCombobox
                 label={aLabel}
                 value={aClub}
                 onChange={onChangeAClub}
@@ -299,7 +299,7 @@ export default function SelectClubsPanel({
         <div className="space-y-1.5">
           <div className="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-2">
             <div className="min-w-0">
-              <ClubSelect
+              <ClubCombobox
                 label={bLabel}
                 value={bClub}
                 onChange={onChangeBClub}

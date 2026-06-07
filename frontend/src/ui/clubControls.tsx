@@ -213,41 +213,6 @@ export function GoalStepper({
   );
 }
 
-export function ClubSelect({
-  label,
-  value,
-  onChange,
-  disabled,
-  clubs,
-  placeholder,
-}: {
-  label: string;
-  value: number | null;
-  onChange: (v: number | null) => void;
-  disabled: boolean;
-  clubs: Club[];
-  placeholder: string;
-}) {
-  return (
-    <label className="block min-w-0">
-      <div className="input-label">{label}</div>
-      <select
-        className="select-field min-w-0 max-w-full"
-        value={value ?? ""}
-        onChange={(e) => onChange(e.target.value ? Number(e.target.value) : null)}
-        disabled={disabled}
-      >
-        <option value="">{placeholder}</option>
-        {clubs.map((c) => (
-          <option key={c.id} value={c.id}>
-            {c.name} · {starsLabel(c.star_rating)}★
-          </option>
-        ))}
-      </select>
-    </label>
-  );
-}
-
 function clampInt(n: number, min: number, max: number) {
   return Math.max(min, Math.min(max, n));
 }
