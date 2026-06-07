@@ -1,21 +1,22 @@
 import { useMemo, useState } from "react";
 import { keepPreviousData, useQueries, useQuery } from "@tanstack/react-query";
-import { LineChart, Table2, Grid3x3, UserRound, Flame } from "lucide-react";
+import { LineChart, Table2, Grid3x3, UserRound, Flame, Star } from "lucide-react";
 
 import AvatarCircle from "../../ui/primitives/AvatarCircle";
-import AvatarButton from "../../ui/primitives/AvatarButton";
+import { StarsFA } from "../../ui/primitives/StarsFA";
 import InlineLoading from "../../ui/primitives/InlineLoading";
 import { SectionTabs, type SectionTab } from "../../ui/SectionTabs";
 import { getStatsRatings, getStatsPlayers, getStatsPlayerMatches, getStatsH2H, getStatsStreaks } from "../../api/stats.api";
 import { listClubs } from "../../api/clubs.api";
-import type { Match, StatsScope, StatsH2HPair, StatsPlayerMatchesTournament, StatsStreakCategory } from "../../api/types";
+import type { Club, Match, StatsScope, StatsH2HPair, StatsPlayerMatchesTournament, StatsStreakCategory, StatsStreakRun } from "../../api/types";
 import type { StatsMode } from "./StatsControls";
 import { usePlayerAvatarMap } from "../../hooks/usePlayerAvatarMap";
 import { colorForIdx } from "./trendsMath";
 import { Sparkline, Radar, Heatmap, MultiLine, ChipGroup } from "./charts";
 import { MatchHistoryList } from "./MatchHistoryList";
+import { PlayerPicker } from "./PlayerPicker";
 
-type Tab = "trends" | "table" | "h2h" | "streaks" | "player";
+type Tab = "trends" | "table" | "h2h" | "streaks" | "stars" | "player";
 
 type Row = {
   id: number; name: string; pts: number; rating: number;
@@ -232,67 +233,114 @@ function TrendsExplorer({ mode, scope, rows }: { mode: StatsMode; scope: StatsSc
 // ==========================================================================
 //  TABLE — sortable, many derived metrics
 // ==========================================================================
+type ColDef = {
+  key: string;
+  label: string;
+  val: (r: Row) => number;
+  fmt: (n: number, r: Row) => string;
+  cls?: string;
+  bold?: boolean;
+};
+
+const f2 = (n: number) => n.toFixed(2);
+const TABLE_COLS: ColDef[] = [
+  { key: "pts", label: "Pts", val: (r) => r.pts, fmt: (n) => String(n), bold: true },
+  { key: "ppm", label: "PPM", val: (r) => (r.played ? r.pts / r.played : 0), fmt: (_n, r) => (r.played ? f2(r.pts / r.played) : "—") },
+  { key: "played", label: "P", val: (r) => r.played, fmt: (n) => String(n), cls: "text-text-muted" },
+  { key: "wins", label: "W", val: (r) => r.wins, fmt: (n) => String(n), cls: "text-status-text-green" },
+  { key: "draws", label: "D", val: (r) => r.draws, fmt: (n) => String(n), cls: "text-amber-300" },
+  { key: "losses", label: "L", val: (r) => r.losses, fmt: (n) => String(n), cls: "text-[color:rgb(var(--delta-down)/1)]" },
+  { key: "winrate", label: "Win%", val: (r) => (r.played ? r.wins / r.played : 0), fmt: (_n, r) => (r.played ? `${Math.round((r.wins / r.played) * 100)}%` : "—") },
+  { key: "gf", label: "GF", val: (r) => r.gf, fmt: (n) => String(n) },
+  { key: "ga", label: "GA", val: (r) => r.ga, fmt: (n) => String(n) },
+  { key: "gpm", label: "G/M", val: (r) => (r.played ? r.gf / r.played : 0), fmt: (_n, r) => (r.played ? f2(r.gf / r.played) : "—"), cls: "text-text-muted" },
+  { key: "gapm", label: "GA/M", val: (r) => (r.played ? r.ga / r.played : 0), fmt: (_n, r) => (r.played ? f2(r.ga / r.played) : "—"), cls: "text-text-muted" },
+  { key: "gd", label: "GD", val: (r) => r.gd, fmt: (n) => (n >= 0 ? `+${n}` : String(n)) },
+  { key: "rating", label: "Elo", val: (r) => r.rating, fmt: (n) => String(Math.round(n)) },
+];
+const DEFAULT_COLS = ["pts", "ppm", "played", "gd", "rating"];
+
 function StatsTable({ rows, loading, onSelect }: { rows: Row[]; loading: boolean; onSelect: (id: number) => void }) {
   const { avatarUpdatedAtById } = usePlayerAvatarMap();
   const [sortKey, setSortKey] = useState<string>("pts");
   const [dir, setDir] = useState<1 | -1>(-1);
-  const cols = [
-    { key: "pts", label: "Pts" }, { key: "ppm", label: "PPM" }, { key: "played", label: "P" },
-    { key: "wins", label: "W" }, { key: "draws", label: "D" }, { key: "losses", label: "L" },
-    { key: "gf", label: "GF" }, { key: "ga", label: "GA" }, { key: "gpm", label: "G/M" },
-    { key: "gapm", label: "GA/M" }, { key: "gd", label: "GD" }, { key: "rating", label: "Rtg" },
-  ];
-  const valOf = (r: Row, k: string): number =>
-    k === "ppm" ? (r.played ? r.pts / r.played : 0)
-    : k === "gpm" ? (r.played ? r.gf / r.played : 0)
-    : k === "gapm" ? (r.played ? r.ga / r.played : 0)
-    : (r[k as keyof Row] as number);
-  const sorted = useMemo(() => rows.slice().sort((a, b) => (valOf(a, sortKey) - valOf(b, sortKey)) * dir), [rows, sortKey, dir]);
+  const [visible, setVisible] = useState<Set<string>>(() => new Set(DEFAULT_COLS));
+
+  const cols = useMemo(() => TABLE_COLS.filter((c) => visible.has(c.key)), [visible]);
+  const colByKey = useMemo(() => new Map(TABLE_COLS.map((c) => [c.key, c])), []);
+  const sortCol = colByKey.get(visible.has(sortKey) ? sortKey : "pts") ?? TABLE_COLS[0];
+  const sorted = useMemo(
+    () => rows.slice().sort((a, b) => (sortCol.val(a) - sortCol.val(b)) * dir),
+    [rows, sortCol, dir],
+  );
   const setSort = (k: string) => { if (k === sortKey) setDir((d) => (d === 1 ? -1 : 1)); else { setSortKey(k); setDir(-1); } };
-  const f2 = (n: number) => n.toFixed(2);
+  const toggleCol = (k: string) =>
+    setVisible((prev) => {
+      const n = new Set(prev);
+      if (n.has(k)) { if (n.size > 1) n.delete(k); } else n.add(k);
+      return n;
+    });
 
   if (loading) return <InlineLoading label="Loading…" />;
   return (
-    <div className="card-outer overflow-x-auto">
-      <table className="w-full min-w-[640px] text-sm">
-        <thead>
-          <tr className="border-b border-border-card-chip/50 text-[11px] uppercase tracking-wide text-text-muted">
-            <th className="sticky left-0 z-10 bg-bg-card-outer py-2 pl-1 pr-2 text-left font-medium">Player</th>
-            {cols.map((c) => (
-              <th key={c.key} className="px-2 py-2 text-right font-medium">
-                <button type="button" onClick={() => setSort(c.key)} className={"inline-flex items-center gap-0.5 " + (sortKey === c.key ? "text-accent" : "hover:text-text-normal")}>
-                  {c.label}{sortKey === c.key ? <span>{dir === -1 ? "▾" : "▴"}</span> : null}
-                </button>
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {sorted.map((r, i) => (
-            <tr key={r.id} onClick={() => onSelect(r.id)} className="cursor-pointer border-b border-border-card-inner/40 transition hover:bg-hover-default/30">
-              <td className="sticky left-0 z-10 bg-bg-card-outer py-2 pl-1 pr-2">
-                <div className="flex items-center gap-2">
-                  <span className="w-4 text-right text-xs tabular-nums text-text-muted">{i + 1}</span>
-                  <AvatarCircle playerId={r.id} name={r.name} updatedAt={avatarUpdatedAtById.get(r.id) ?? null} sizeClass="h-7 w-7" />
-                  <span className="truncate font-medium text-text-normal">{r.name}</span>
-                </div>
-              </td>
-              <td className="px-2 text-right font-bold tabular-nums">{r.pts}</td>
-              <td className="px-2 text-right tabular-nums text-text-muted">{r.played ? f2(r.pts / r.played) : "—"}</td>
-              <td className="px-2 text-right tabular-nums text-text-muted">{r.played}</td>
-              <td className="px-2 text-right tabular-nums text-status-text-green">{r.wins}</td>
-              <td className="px-2 text-right tabular-nums text-amber-300">{r.draws}</td>
-              <td className="px-2 text-right tabular-nums text-[color:rgb(var(--delta-down)/1)]">{r.losses}</td>
-              <td className="px-2 text-right tabular-nums">{r.gf}</td>
-              <td className="px-2 text-right tabular-nums">{r.ga}</td>
-              <td className="px-2 text-right tabular-nums text-text-muted">{r.played ? f2(r.gf / r.played) : "—"}</td>
-              <td className="px-2 text-right tabular-nums text-text-muted">{r.played ? f2(r.ga / r.played) : "—"}</td>
-              <td className="px-2 text-right tabular-nums">{r.gd >= 0 ? `+${r.gd}` : r.gd}</td>
-              <td className="px-2 text-right tabular-nums">{Math.round(r.rating)}</td>
+    <div className="space-y-3">
+      <div>
+        <div className="section-head"><span className="section-label">Columns</span></div>
+        <div className="flex flex-wrap gap-1.5">
+          {TABLE_COLS.map((c) => {
+            const on = visible.has(c.key);
+            return (
+              <button
+                key={c.key}
+                type="button"
+                onClick={() => toggleCol(c.key)}
+                aria-pressed={on}
+                className={
+                  "rounded-full px-2.5 py-1 text-xs transition focus-ring " +
+                  (on ? "bg-accent/15 font-medium text-accent ring-1 ring-inset ring-accent/40" : "bg-bg-card-chip/50 text-text-muted hover:text-text-normal")
+                }
+              >
+                {c.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="overflow-x-auto" data-no-swipe-nav>
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-border-card-chip/50 text-[11px] uppercase tracking-wide text-text-muted">
+              <th className="sticky left-0 z-10 bg-bg-default py-2 pl-1 pr-2 text-left font-medium">Player</th>
+              {cols.map((c) => (
+                <th key={c.key} className="px-2 py-2 text-right font-medium">
+                  <button type="button" onClick={() => setSort(c.key)} className={"inline-flex items-center gap-0.5 " + (sortKey === c.key ? "text-accent" : "hover:text-text-normal")}>
+                    {c.label}{sortKey === c.key ? <span>{dir === -1 ? "▾" : "▴"}</span> : null}
+                  </button>
+                </th>
+              ))}
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {sorted.map((r, i) => (
+              <tr key={r.id} onClick={() => onSelect(r.id)} className="cursor-pointer border-b border-border-card-inner/40 transition hover:bg-hover-default/30">
+                <td className="sticky left-0 z-10 bg-bg-default py-2 pl-1 pr-2">
+                  <div className="flex items-center gap-2">
+                    <span className="w-4 text-right text-xs tabular-nums text-text-muted">{i + 1}</span>
+                    <AvatarCircle playerId={r.id} name={r.name} updatedAt={avatarUpdatedAtById.get(r.id) ?? null} sizeClass="h-7 w-7" />
+                    <span className="truncate font-medium text-text-normal">{r.name}</span>
+                  </div>
+                </td>
+                {cols.map((c) => (
+                  <td key={c.key} className={"px-2 text-right tabular-nums " + (c.bold ? "font-bold " : "") + (c.cls ?? "")}>
+                    {c.fmt(c.val(r), r)}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
@@ -385,6 +433,20 @@ function H2HView({ mode, scope, rows }: { mode: StatsMode; scope: StatsScope; ro
 // ==========================================================================
 //  STREAKS
 // ==========================================================================
+function fmtShortDate(ts: string | null | undefined): string {
+  if (!ts) return "";
+  const d = new Date(ts);
+  if (!Number.isFinite(d.getTime())) return "";
+  return d.toLocaleDateString(undefined, { day: "2-digit", month: "short", year: "2-digit" });
+}
+function streakDateText(r: StatsStreakRun): string {
+  const s = fmtShortDate(r.start_ts);
+  if (r.ongoing) return s ? `since ${s}` : "ongoing";
+  const e = fmtShortDate(r.end_ts);
+  if (s && e) return s === e ? s : `${s} – ${e}`;
+  return s || e || "";
+}
+
 function StreaksView({ mode, scope }: { mode: StatsMode; scope: StatsScope }) {
   const q = useQuery({
     queryKey: ["stats", "streaks", mode, 200, scope],
@@ -413,8 +475,11 @@ function StreaksView({ mode, scope }: { mode: StatsMode; scope: StatsScope }) {
                   <div key={`${r.player.id}-${i}`} className="surface flex items-center gap-2 rounded-lg px-2.5 py-1.5">
                     <span className="w-4 text-center text-xs font-bold tabular-nums text-text-muted">{i + 1}</span>
                     <AvatarCircle playerId={r.player.id} name={r.player.display_name} updatedAt={avatarUpdatedAtById.get(r.player.id) ?? null} sizeClass="h-6 w-6" />
-                    <span className="min-w-0 flex-1 truncate text-sm text-text-normal">{r.player.display_name}</span>
-                    {r.ongoing ? <span className="rounded-full bg-status-bg-green/60 px-1.5 text-[10px] text-status-text-green">live</span> : null}
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm text-text-normal">{r.player.display_name}</span>
+                      {streakDateText(r) ? <span className="block text-[10px] tabular-nums text-text-muted">{streakDateText(r)}</span> : null}
+                    </span>
+                    {r.ongoing ? <span className="shrink-0 rounded-full bg-status-bg-green/60 px-1.5 text-[10px] text-status-text-green">live</span> : null}
                     <span className="text-sm font-bold tabular-nums text-accent">{r.length}</span>
                   </div>
                 ))}
@@ -436,6 +501,79 @@ function StreaksView({ mode, scope }: { mode: StatsMode; scope: StatsScope }) {
         );
       })}
       {!cats.length ? <div className="card-outer text-sm text-text-muted">No streak data yet.</div> : null}
+    </div>
+  );
+}
+
+// ==========================================================================
+//  STARS — performance by club star rating
+// ==========================================================================
+const STAR_LEVELS = [5, 4.5, 4, 3.5, 3, 2.5, 2, 1.5, 1, 0.5];
+function starBuckets(matches: Match[], pid: number, clubs: Club[]) {
+  const starByClub = new Map<number, number>();
+  for (const c of clubs) if (Number.isFinite(c.star_rating)) starByClub.set(c.id, c.star_rating);
+  const by = new Map<number, { played: number; w: number; d: number; l: number; pts: number }>();
+  for (const s of STAR_LEVELS) by.set(s, { played: 0, w: 0, d: 0, l: 0, pts: 0 });
+  for (const m of matches) {
+    const st = matchStats(m, pid);
+    if (!st) continue;
+    const side = sideOf(m, pid);
+    if (!side) continue;
+    const club = m.sides.find((x) => x.side === side)?.club_id ?? null;
+    if (!club) continue;
+    const stars = starByClub.get(club);
+    if (stars == null) continue;
+    const cur = by.get(Math.round(stars * 2) / 2);
+    if (!cur) continue;
+    cur.played++; cur.pts += st.pts;
+    if (st.res === "W") cur.w++; else if (st.res === "D") cur.d++; else cur.l++;
+  }
+  return STAR_LEVELS.map((s) => { const v = by.get(s)!; return { stars: s, ...v, ppm: v.played ? v.pts / v.played : 0 }; });
+}
+
+function StarsView({ mode, scope, rows, selectedId, onSelect }: { mode: StatsMode; scope: StatsScope; rows: Row[]; selectedId: number | null; onSelect: (id: number) => void }) {
+  const matchesQ = useQuery({
+    queryKey: ["stats", "playerMatches", selectedId ?? 0, scope],
+    queryFn: () => getStatsPlayerMatches({ playerId: selectedId as number, scope }),
+    enabled: selectedId != null,
+    placeholderData: keepPreviousData, staleTime: 30_000,
+  });
+  const clubsQ = useQuery({ queryKey: ["clubs"], queryFn: () => listClubs(), staleTime: 60_000 });
+  const flat = useMemo(() => {
+    const ts = matchesQ.data?.tournaments ?? [];
+    return (mode === "overall" ? ts : ts.filter((t) => t.mode === mode)).flatMap((t) => t.matches);
+  }, [matchesQ.data, mode]);
+  const buckets = useMemo(() => (selectedId ? starBuckets(flat, selectedId, clubsQ.data ?? []) : []), [flat, selectedId, clubsQ.data]);
+  const active = buckets.filter((b) => b.played > 0);
+  const known = active.reduce((s, b) => s + b.played, 0);
+
+  return (
+    <div className="space-y-4">
+      <PlayerPicker players={rows.map((r) => ({ id: r.id, name: r.name }))} selectedId={selectedId} onSelect={onSelect} />
+      <p className="text-[11px] text-text-muted">Points per match by the star rating of the club played. {known ? `${known} rated matches.` : ""}</p>
+      {matchesQ.isLoading && !matchesQ.data ? (
+        <InlineLoading label="Loading…" />
+      ) : !active.length ? (
+        <div className="text-sm text-text-muted">No finished matches with rated clubs for this player.</div>
+      ) : (
+        <div className="space-y-1.5">
+          {active.map((b) => (
+            <div key={b.stars} className="surface relative overflow-hidden rounded-xl">
+              <div className="absolute inset-y-0 left-0" style={{ width: `${Math.max(2, Math.min(100, (b.ppm / 3) * 100))}%`, backgroundColor: "rgb(var(--color-accent) / 0.18)" }} aria-hidden="true" />
+              <div className="relative z-10 grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 px-3 py-2">
+                <StarsFA rating={b.stars} className="text-[11px]" textClassName="text-text-normal" />
+                <div className="text-center font-mono text-[11px] tabular-nums text-text-muted">
+                  {b.played}P · <span className="text-status-text-green">{b.w}</span>-<span className="text-amber-300">{b.d}</span>-<span className="text-[color:rgb(var(--delta-down)/1)]">{b.l}</span>
+                </div>
+                <div className="shrink-0 text-right">
+                  <span className="font-mono text-sm font-bold tabular-nums text-text-normal">{b.ppm.toFixed(2)}</span>
+                  <span className="ml-1 text-[10px] text-text-muted">ppm</span>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -481,14 +619,7 @@ function PlayerProfile({ mode, scope, rows, selectedId, onSelect }: { mode: Stat
 
   return (
     <div className="space-y-4">
-      <div className="-mx-1 overflow-x-auto px-1">
-        <div className="flex items-center gap-2">
-          {rows.map((r) => (
-            <AvatarButton key={r.id} playerId={r.id} name={r.name} updatedAt={avatarUpdatedAtById.get(r.id) ?? null}
-              selected={r.id === selectedId} onClick={() => onSelect(r.id)} className="h-10 w-10" noOverflowAnchor />
-          ))}
-        </div>
-      </div>
+      <PlayerPicker players={rows.map((r) => ({ id: r.id, name: r.name }))} selectedId={selectedId} onSelect={onSelect} />
 
       {!row ? <div className="card-outer text-sm text-text-muted">Pick a player above.</div> : (
         <>
@@ -541,6 +672,7 @@ const TABS: SectionTab<Tab>[] = [
   { key: "table", label: "Table", icon: <Table2 size={14} /> },
   { key: "h2h", label: "H2H", icon: <Grid3x3 size={14} /> },
   { key: "streaks", label: "Streaks", icon: <Flame size={14} /> },
+  { key: "stars", label: "Stars", icon: <Star size={14} /> },
   { key: "player", label: "Player", icon: <UserRound size={14} /> },
 ];
 
@@ -578,6 +710,7 @@ export default function StatsInsights({
       {tab === "table" && <StatsTable rows={rows} loading={loading} onSelect={goPlayer} />}
       {tab === "h2h" && <H2HView mode={mode} scope={scope} rows={rows} />}
       {tab === "streaks" && <StreaksView mode={mode} scope={scope} />}
+      {tab === "stars" && <StarsView mode={mode} scope={scope} rows={rows} selectedId={selectedId} onSelect={onSelectPlayer} />}
       {tab === "player" && <PlayerProfile mode={mode} scope={scope} rows={rows} selectedId={selectedId} onSelect={onSelectPlayer} />}
     </div>
   );
