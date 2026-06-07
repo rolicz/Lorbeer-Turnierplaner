@@ -57,23 +57,23 @@ These set the language everything else follows.
       chevron + global `useSwipeNav` (right=back, left=forward) wired in `AppShell`
       with horizontal-scroller / range-slider / `data-no-swipe-nav` guards.
 
-## Phase 2 — Per-page reworks  (model: **Sonnet high**)
+## Phase 2 — Per-page reworks  (done on Opus xhigh) ✅
 
-- [ ] **Tournaments list**: flatter, full-width rows, keep all current info
-      (status, date, winner, cup stakes, unread).
-- [ ] **Live tournament**: split **Current match** and **Standings** into
-      separate sub-nav tabs (currently combined in Overview). Apply new
-      SelectClubs. Keep real-time.
-- [ ] **Friendlies**: full rework to the new list/section language; consistent
-      with the rest.
-- [ ] **Clubs**: streamline to the same patterns.
-- [ ] **Player profile**: add sub-nav.
-      - **Landing tab** = header image + avatar + title + about/bio **+ a recent
-        activity feed** (recent matches/results, guestbook, pokes), **+ Rivals**
-        (top opponents / nemesis) **+ Favorite teammates** (best 2v2 duos) and
-        similar at-a-glance highlights.
-      - Move **detailed stats** and the **full match list** to their own
-        sub-pages/tabs (off the landing page).
+- [x] **Tournaments list**: flat full-width `ListRow`s (status bar + meta line +
+      cup/unread), all info kept.
+- [x] **Live tournament**: split into separate **Current** + **Standings** subnav
+      tabs (Current only when a live/scheduled match exists; done → Results
+      first). ClubCombobox applied; redundant section cards dropped; real-time
+      intact; legacy `?tab=overview` deep links remapped.
+- [x] **Friendlies**: nested cards removed; one flat Mode/View filter row; flat
+      create form.
+- [x] **Clubs**: flat filter row + flat divided club rows (meta line, no per-club
+      panels).
+- [x] **Player profile**: Overview / Stats / Matches / Guestbook sub-nav.
+      - Landing = identity header + About + **Rivals** + **Favorite teammates**
+        (best 2v2 duos, computed client-side) + recent matches.
+      - Detailed stat chips/streaks → Stats tab; full match list → Matches tab;
+        guestbook → its own tab (unread deep-link switches to it).
 
 ## Phase 3 — Stats major refactor  (model: **Opus xhigh**)
 
