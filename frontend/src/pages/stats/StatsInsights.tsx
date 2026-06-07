@@ -1,4 +1,4 @@
-import { Fragment, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { keepPreviousData, useQueries, useQuery } from "@tanstack/react-query";
 import { LineChart, Table2, Grid3x3, UserRound, Flame, Star, Medal, Award, Trophy } from "lucide-react";
 
@@ -136,6 +136,39 @@ function TrendsExplorer({ mode, scope, rows }: { mode: StatsMode; scope: StatsSc
   const [hidden, setHidden] = useState<Set<number>>(new Set());
   const [now] = useState(() => Date.now());
 
+  // Horizontal pinch-to-zoom inside the plot (one-finger drag pans via native scroll).
+  const [zoom, setZoom] = useState(64);
+  const zoomRef = useRef(zoom);
+  useEffect(() => { zoomRef.current = zoom; }, [zoom]);
+  const plotRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = plotRef.current;
+    if (!el) return;
+    let startDist = 0;
+    let startZoom = 64;
+    const dist = (t: TouchList) => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
+    const onStart = (e: TouchEvent) => {
+      if (e.touches.length === 2) { startDist = dist(e.touches); startZoom = zoomRef.current; }
+    };
+    const onMove = (e: TouchEvent) => {
+      if (e.touches.length === 2 && startDist > 0) {
+        e.preventDefault();
+        setZoom(Math.max(28, Math.min(180, Math.round((startZoom * dist(e.touches)) / startDist))));
+      }
+    };
+    const onEnd = (e: TouchEvent) => { if (e.touches.length < 2) startDist = 0; };
+    el.addEventListener("touchstart", onStart, { passive: true });
+    el.addEventListener("touchmove", onMove, { passive: false });
+    el.addEventListener("touchend", onEnd, { passive: true });
+    el.addEventListener("touchcancel", onEnd, { passive: true });
+    return () => {
+      el.removeEventListener("touchstart", onStart);
+      el.removeEventListener("touchmove", onMove);
+      el.removeEventListener("touchend", onEnd);
+      el.removeEventListener("touchcancel", onEnd);
+    };
+  }, []);
+
   const matchesQs = useQueries({
     queries: rows.map((r) => ({
       queryKey: ["stats", "playerMatches", r.id, scope],
@@ -222,15 +255,16 @@ function TrendsExplorer({ mode, scope, rows }: { mode: StatsMode; scope: StatsSc
 
   return (
     <div className="space-y-3">
-      {/* chart first (hero) — fixed-size plot, scroll horizontally to pan */}
+      {/* chart first (hero) — pinch to zoom horizontally, drag to pan */}
       <div>
-        <div className="overflow-x-auto rounded-2xl border border-border-card-chip/40 bg-bg-card-inner/40 p-2" data-no-swipe-nav>
+        <div ref={plotRef} className="overflow-x-auto overscroll-x-contain rounded-2xl border border-border-card-chip/40 bg-bg-card-inner/40 p-2 touch-pan-x" data-no-swipe-nav>
           {loading ? (
             <InlineLoading label="Loading…" />
           ) : (
-            <TrendChart events={events} series={series} yMax={Math.ceil(yMax)} yMin={Math.floor(yMin)} pxPerMonth={64} showLabels={showLabels} height={240} />
+            <TrendChart events={events} series={series} yMax={Math.ceil(yMax)} yMin={Math.floor(yMin)} pxPerMonth={zoom} showLabels={showLabels} height={240} />
           )}
         </div>
+        <div className="mt-1 text-[10px] text-text-muted">Pinch to zoom · drag to pan</div>
         <div className="mt-3 flex flex-wrap gap-2">
           {rows.map((r, idx) => {
             const c = colorForIdx(idx, rows.length);
@@ -307,20 +341,16 @@ const TABLE_COLS: ColDef[] = [
   { key: "gdpm", label: "GD/M", val: (r) => (r.played ? r.gd / r.played : 0), fmt: (_n, r) => (r.played ? (r.gd >= 0 ? "+" : "") + f2(r.gd / r.played) : "—"), cls: "text-text-muted" },
   { key: "rating", label: "Elo", val: (r) => r.rating, fmt: (n) => String(Math.round(n)) },
 ];
-const DEFAULT_COLS = ["pts", "ppm", "played", "gd", "rating"];
-// Chip controls — W/D/L toggle together as one group; everything else is its own chip.
+const DEFAULT_COLS = ["pts", "ppm", "played", "winrate", "rating"];
+// Chip controls — W/D/L and the goal trios each toggle together as one group.
 const COL_CHIPS: { label: string; cols: string[] }[] = [
   { label: "Pts", cols: ["pts"] },
   { label: "PPM", cols: ["ppm"] },
   { label: "P", cols: ["played"] },
   { label: "W-D-L", cols: ["wins", "draws", "losses"] },
   { label: "Win%", cols: ["winrate"] },
-  { label: "GF", cols: ["gf"] },
-  { label: "GA", cols: ["ga"] },
-  { label: "G/M", cols: ["gpm"] },
-  { label: "GA/M", cols: ["gapm"] },
-  { label: "GD", cols: ["gd"] },
-  { label: "GD/M", cols: ["gdpm"] },
+  { label: "GF-GA-GD", cols: ["gf", "ga", "gd"] },
+  { label: "GF-GA-GD /m", cols: ["gpm", "gapm", "gdpm"] },
   { label: "Elo", cols: ["rating"] },
 ];
 
@@ -574,7 +604,7 @@ function H2HView({ mode, scope, rows }: { mode: StatsMode; scope: StatsScope; ro
     placeholderData: keepPreviousData, staleTime: 30_000,
   });
   const [selected, setSelected] = useState<number | null>(rows[0]?.id ?? null);
-  const [matrixMetric, setMatrixMetric] = useState<"winrate" | "played" | "gd">("winrate");
+  const [matrixMetric, setMatrixMetric] = useState<"winrate" | "played" | "gd" | "wdl">("winrate");
   const nameById = useMemo(() => new Map(rows.map((r) => [r.id, r.name])), [rows]);
 
   const pairs: StatsH2HPair[] = useMemo(() => {
@@ -597,8 +627,11 @@ function H2HView({ mode, scope, rows }: { mode: StatsMode; scope: StatsScope; ro
     const rowGa = rowIsA ? p.a_ga : p.b_ga;
     return { pct: (rowWins / p.played) * 100, w: rowWins, d: p.draws, l: colWins, played: p.played, gd: rowGf - rowGa };
   };
-  const cellText = (v: { pct: number; played: number; gd: number }) =>
-    matrixMetric === "played" ? String(v.played) : matrixMetric === "gd" ? (v.gd >= 0 ? `+${v.gd}` : String(v.gd)) : String(Math.round(v.pct));
+  const cellText = (v: { pct: number; played: number; gd: number; w: number; d: number; l: number }) =>
+    matrixMetric === "played" ? String(v.played)
+      : matrixMetric === "gd" ? (v.gd >= 0 ? `+${v.gd}` : String(v.gd))
+        : matrixMetric === "wdl" ? `${v.w}-${v.d}-${v.l}`
+          : String(Math.round(v.pct));
   const topRivalries = pairs.slice().sort((a, b) => b.rivalry_score - a.rivalry_score).slice(0, 8);
 
   // Per-player detail.
@@ -625,14 +658,14 @@ function H2HView({ mode, scope, rows }: { mode: StatsMode; scope: StatsScope; ro
       <div>
         <div className="section-head"><span className="section-label">Matrix</span></div>
         <div className="mb-2 flex flex-wrap items-center gap-2">
-          <ChipGroup<"winrate" | "played" | "gd">
+          <ChipGroup<"winrate" | "played" | "gd" | "wdl">
             value={matrixMetric}
             onChange={setMatrixMetric}
             ariaLabel="Matrix metric"
-            options={[{ key: "winrate", label: "Win %" }, { key: "played", label: "Played" }, { key: "gd", label: "Goal diff" }]}
+            options={[{ key: "winrate", label: "Win %" }, { key: "wdl", label: "W-D-L" }, { key: "played", label: "Played" }, { key: "gd", label: "Goal diff" }]}
           />
         </div>
-        <p className="mb-2 text-[11px] text-text-muted">Cell = row vs column ({matrixMetric === "played" ? "matches played" : matrixMetric === "gd" ? "goal difference" : "win %"}); colour shows the row's win rate (green dominates). Tap for detail.</p>
+        <p className="mb-2 text-[11px] text-text-muted">Cell = row vs column ({matrixMetric === "played" ? "matches played" : matrixMetric === "gd" ? "goal difference" : matrixMetric === "wdl" ? "win-draw-loss" : "win %"}); colour shows the row's win rate (green dominates). Tap for detail.</p>
         <div className="overflow-x-auto" data-no-swipe-nav>
           <table className="border-separate" style={{ borderSpacing: 3 }}>
             <thead>
@@ -669,7 +702,7 @@ function H2HView({ mode, scope, rows }: { mode: StatsMode; scope: StatsScope; ro
                           type="button"
                           onClick={() => setSelected(r.id)}
                           title={`${r.name} vs ${c.name}: ${v.w}-${v.d}-${v.l}`}
-                          className="grid h-11 w-11 place-items-center rounded text-[11px] font-semibold text-white"
+                          className="grid h-11 w-11 place-items-center rounded text-[10px] font-semibold leading-none text-white"
                           style={{ backgroundColor: h2hTone(v.pct) }}
                         >
                           {cellText(v)}

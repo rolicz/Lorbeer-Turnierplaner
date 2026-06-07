@@ -250,11 +250,13 @@ export function TrendChart({
   pxPerMonth?: number;
   showLabels?: boolean;
 }) {
-  const H = height;
   const padL = 34;
   const padR = 16;
   const padT = 10;
-  const padB = showLabels ? 120 : 30;
+  const padBBase = 30; // axis (month) label area — constant
+  const labelArea = showLabels ? 96 : 0; // tournament-name labels appended BELOW the plot
+  const innerH = height - padT - padBBase; // plot height stays constant whether or not labels show
+  const H = height + labelArea;
   const n = events.length;
   if (!n) return <div className="grid h-40 place-items-center text-sm text-text-muted">No data in range.</div>;
 
@@ -265,7 +267,6 @@ export function TrendChart({
   const months = tspan / MONTH;
   const innerW = Math.max(280, Math.round(months * pxPerMonth));
   const W = padL + innerW + padR;
-  const innerH = H - padT - padB;
   const xAt = (ts: number) => padL + ((ts - t0) / tspan) * innerW;
   const span = yMax - yMin || 1;
   const yAt = (v: number) => padT + innerH - ((Math.max(yMin, Math.min(yMax, v)) - yMin) / span) * innerH;
