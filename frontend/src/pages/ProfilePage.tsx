@@ -49,7 +49,8 @@ import { usePlayerProfileWS } from "../hooks/useTournamentWS";
 import { useRouteEntryLoading } from "../ui/layout/useRouteEntryLoading";
 import { usePageTitle } from "../ui/layout/PageTitleContext";
 import { scrollToSectionById } from "../ui/scrollToSection";
-import SectionSeparator from "../ui/primitives/SectionSeparator";
+import { SectionTabs, type SectionTab } from "../ui/SectionTabs";
+import { User, BarChart3, ListChecks, BookOpen } from "lucide-react";
 import { fmtInt, fmtPct } from "../utils/format";
 import {
   buildGuestbookTree,
@@ -90,6 +91,22 @@ export default function ProfilePage() {
   const targetPlayerId =
     Number.isFinite(routePlayerId) && (routePlayerId ?? 0) > 0 ? (routePlayerId as number) : currentPlayerId;
   const isOwnProfileView = !!currentPlayerId && !!targetPlayerId && currentPlayerId === targetPlayerId;
+
+  type ProfileTab = "overview" | "stats" | "matches" | "guestbook";
+  const PROFILE_TABS = ["overview", "stats", "matches", "guestbook"] as const;
+  const ptParam = searchParams.get("pt");
+  const profileTab: ProfileTab = (PROFILE_TABS as readonly string[]).includes(ptParam ?? "")
+    ? (ptParam as ProfileTab)
+    : "overview";
+  const setProfileTab = useCallback(
+    (t: ProfileTab) => {
+      const n = new URLSearchParams(searchParams);
+      if (t === "overview") n.delete("pt");
+      else n.set("pt", t);
+      setSearchParams(n, { replace: true });
+    },
+    [searchParams, setSearchParams],
+  );
 
   const playersQ = useQuery({ queryKey: ["players"], queryFn: listPlayers });
   const profileQ = useQuery({
@@ -197,7 +214,6 @@ export default function ProfilePage() {
   const [headerEditorOpen, setHeaderEditorOpen] = useState(false);
   const [avatarLightboxSrc, setAvatarLightboxSrc] = useState<string | null>(null);
   const [headerLightboxSrc, setHeaderLightboxSrc] = useState<string | null>(null);
-  const [showAllMatchTournaments, setShowAllMatchTournaments] = useState(false);
   const [pokeButtonFlash, setPokeButtonFlash] = useState<{
     kind: "none" | "sent" | "read";
     playerId: number | null;
@@ -294,7 +310,36 @@ export default function ProfilePage() {
     () => groupFriendlyTournamentsByDate(statsMatchesQ.data?.tournaments ?? []),
     [statsMatchesQ.data?.tournaments]
   );
-  const visibleMatchTournaments = showAllMatchTournaments ? allMatchTournaments : allMatchTournaments.slice(0, 2);
+
+  // Best 2v2 partners, derived client-side from this player's finished matches.
+  const favoriteTeammates = useMemo(() => {
+    if (!targetPlayerId) return [] as { id: number; name: string; w: number; d: number; l: number; played: number; ppm: number }[];
+    const m = new Map<number, { id: number; name: string; w: number; d: number; l: number; played: number }>();
+    for (const t of statsMatchesQ.data?.tournaments ?? []) {
+      for (const match of t.matches ?? []) {
+        if (match.state !== "finished") continue;
+        const mySide = match.sides.find((s) => s.players.some((p) => p.id === targetPlayerId));
+        if (!mySide || mySide.players.length < 2) continue;
+        const teammate = mySide.players.find((p) => p.id !== targetPlayerId);
+        if (!teammate) continue;
+        const other = match.sides.find((s) => s.side !== mySide.side);
+        if (!other) continue;
+        const mg = Number(mySide.goals ?? 0);
+        const og = Number(other.goals ?? 0);
+        const rec = m.get(teammate.id) ?? { id: teammate.id, name: teammate.display_name, w: 0, d: 0, l: 0, played: 0 };
+        rec.played++;
+        if (mg > og) rec.w++;
+        else if (mg === og) rec.d++;
+        else rec.l++;
+        m.set(teammate.id, rec);
+      }
+    }
+    return [...m.values()]
+      .filter((x) => x.played >= 2)
+      .map((x) => ({ ...x, ppm: (x.w * 3 + x.d) / Math.max(1, x.played) }))
+      .sort((a, b) => b.ppm - a.ppm || b.played - a.played)
+      .slice(0, 3);
+  }, [statsMatchesQ.data?.tournaments, targetPlayerId]);
   const tournamentPlacementById = useMemo(() => {
     const out = new Map<number, { position: number; total: number | null }>();
     const byTournamentId = new Map<number, number>(
@@ -639,12 +684,13 @@ export default function ProfilePage() {
     if (!unreadJumpReady) return;
     if (unreadJumpHandledRef.current === latestUnreadGuestbookEntryId) return;
     unreadJumpHandledRef.current = latestUnreadGuestbookEntryId;
+    // Switch to the guestbook tab (it's only mounted there) + clear the flag.
+    const next = new URLSearchParams(searchParams);
+    next.set("pt", "guestbook");
+    next.delete("unread");
+    setSearchParams(next, { replace: true });
+    // focusGuestbookEntry polls for the element, so it survives the tab switch.
     focusGuestbookEntry(latestUnreadGuestbookEntryId, { blink: false, behavior: "auto" });
-    window.setTimeout(() => {
-      const next = new URLSearchParams(searchParams);
-      next.delete("unread");
-      setSearchParams(next, { replace: true });
-    }, 420);
   }, [focusGuestbookEntry, latestUnreadGuestbookEntryId, searchParams, setSearchParams, unreadJumpReady]);
 
   const guestbookCardContext = useMemo<GuestbookCardContextValue>(
@@ -734,34 +780,15 @@ export default function ProfilePage() {
 
   if (!targetPlayerId) {
     return (
-      <SectionSeparator
-        id="profile-section-main"
-        title={
-          <span className="inline-flex items-center gap-2">
-            <i className="fa-solid fa-id-badge text-text-muted" aria-hidden="true" />
-            Profile
-          </span>
-        }
-        className="mt-0 border-t-0 pt-0"
-      >
-        <div className="text-sm text-text-muted">Login to open your profile.</div>
-      </SectionSeparator>
+      <div className="page">
+        <div className="px-1 py-8 text-center text-sm text-text-muted">Login to open your profile.</div>
+      </div>
     );
   }
 
   return (
     <div className="page">
-      <SectionSeparator
-        id="profile-section-main"
-        title={
-          <span className="inline-flex items-center gap-2">
-            <i className="fa-solid fa-id-badge text-text-muted" aria-hidden="true" />
-            Profile
-          </span>
-        }
-        className="mt-0 border-t-0 pt-0"
-      >
-      <div className="space-y-3">
+      <div id="profile-section-main" className="space-y-4">
         <ErrorToastOnError error={playersQ.error} title="Players loading failed" />
         <ErrorToastOnError error={profileQ.error} title="Profile loading failed" />
         <ErrorToastOnError error={pokesQ.error} title="Pokes loading failed" />
@@ -774,7 +801,8 @@ export default function ProfilePage() {
         <ErrorToastOnError error={pokeMut.error} title="Could not anpöbeln" />
         <ErrorToastOnError error={markPokesReadAllMut.error} title="Could not mark notifications as read" />
 
-        <div className="panel-subtle p-3 space-y-3">
+        {/* Identity / title page (always visible) */}
+        <div className="space-y-3">
           <div className="relative overflow-hidden rounded-xl border border-border-card-inner/60 bg-bg-card-inner">
             {headerImageSrc ? (
               <button type="button" className="block w-full" onClick={() => setHeaderLightboxSrc(headerImageSrc)} title="Open header image">
@@ -973,8 +1001,21 @@ export default function ProfilePage() {
           ) : null}
         </div>
 
-        <div className="panel-subtle p-3 space-y-2">
-          <div className="text-sm font-semibold text-text-normal">About</div>
+        <SectionTabs
+          tabs={[
+            { key: "overview", label: "Overview", icon: <User size={14} /> },
+            { key: "stats", label: "Stats", icon: <BarChart3 size={14} /> },
+            { key: "matches", label: "Matches", icon: <ListChecks size={14} /> },
+            { key: "guestbook", label: "Guestbook", icon: <BookOpen size={14} />, badge: (isOwnProfile && unreadGuestbookCount) || undefined },
+          ] satisfies SectionTab<ProfileTab>[]}
+          active={profileTab}
+          onChange={setProfileTab}
+        />
+
+        {profileTab === "overview" ? (
+          <div className="space-y-5">
+            <div className="space-y-2">
+              <div className="section-head"><span className="section-label">About</span></div>
           {canEdit ? (
             <>
               <Textarea
@@ -1003,147 +1044,192 @@ export default function ProfilePage() {
           )}
         </div>
 
-        <div className="panel-subtle p-3 space-y-3">
-          <div className="text-sm font-semibold text-text-normal">Interesting stats</div>
-          <ErrorToastOnError error={statsPlayersQ.error} title="Stats loading failed" />
-          <ErrorToastOnError error={statsStreaksQ.error} title="Streaks loading failed" />
-          <ErrorToastOnError error={statsStreaksGlobalQ.error} title="Streaks loading failed" />
-          <ErrorToastOnError error={statsH2HQ.error} title="H2H loading failed" />
-          <ErrorToastOnError error={statsRatingsQ.error} title="Ratings loading failed" />
-          <ErrorToastOnError error={statsMatchesQ.error} title="Player matches loading failed" />
-          <ErrorToastOnError error={clubsQ.error} title="Clubs loading failed" />
-
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="card-chip inline-flex items-center gap-2 px-2 py-1">
-              <i className="fa-solid fa-gamepad text-text-muted" aria-hidden="true" />
-              <span className="text-[11px] text-text-muted">P</span>
-              <span className="text-[11px] font-mono tabular-nums text-text-chip">{fmtInt(playerStatsRow?.played ?? 0)}</span>
-            </span>
-
-            <span className="card-chip inline-flex items-center gap-2 px-2 py-1">
-              <span className="inline-flex items-center gap-1">
-                <span className="text-[11px] text-text-muted">W</span>
-                <span className="text-[11px] font-mono tabular-nums text-status-text-green">{fmtInt(playerStatsRow?.wins ?? 0)}</span>
-              </span>
-              <span className="inline-flex items-center gap-1">
-                <span className="text-[11px] text-text-muted">D</span>
-                <span className="text-[11px] font-mono tabular-nums text-amber-300">{fmtInt(playerStatsRow?.draws ?? 0)}</span>
-              </span>
-              <span className="inline-flex items-center gap-1">
-                <span className="text-[11px] text-text-muted">L</span>
-                <span className="text-[11px] font-mono tabular-nums text-red-300">{fmtInt(playerStatsRow?.losses ?? 0)}</span>
-              </span>
-            </span>
-
-            <span className="card-chip inline-flex items-center gap-2 px-2 py-1">
-              <i className="fa-regular fa-futbol text-text-muted" aria-hidden="true" />
-              <span className="text-[11px] font-mono tabular-nums text-text-chip">
-                {fmtInt(playerStatsRow?.gf ?? 0)}:{fmtInt(playerStatsRow?.ga ?? 0)}
-              </span>
-              <span
-                className={
-                  "text-[11px] font-mono tabular-nums " +
-                  ((playerStatsRow?.gd ?? 0) > 0
-                    ? "text-status-text-green"
-                    : (playerStatsRow?.gd ?? 0) < 0
-                      ? "text-red-300"
-                      : "text-text-muted")
-                }
-                title="Goal difference"
-              >
-                ({(playerStatsRow?.gd ?? 0) > 0 ? "+" : ""}
-                {fmtInt(playerStatsRow?.gd ?? 0)})
-              </span>
-            </span>
-
-            <span className="card-chip inline-flex items-center gap-2 px-2 py-1">
-              <i className="fa-solid fa-trophy text-text-muted" aria-hidden="true" />
-              <span className="text-[11px] text-text-muted">PPM</span>
-              <span className="text-[11px] font-mono tabular-nums text-text-chip">
-                {fmtPct((playerStatsRow?.played ?? 0) > 0 ? (playerStatsRow?.pts ?? 0) / (playerStatsRow?.played ?? 1) : 0)}
-              </span>
-            </span>
-
-            <span className="card-chip inline-flex items-center gap-2 px-2 py-1">
-              <i className="fa-solid fa-chart-line text-text-muted" aria-hidden="true" />
-              <span className="text-[11px] text-text-muted">Last 10</span>
-              <span className="text-[11px] font-mono tabular-nums text-text-chip">{fmtPct(playerStatsRow?.lastN_avg_pts ?? 0)}</span>
-            </span>
-
-            <span className="card-chip inline-flex items-center gap-2 px-2 py-1">
-              <i className="fa-solid fa-ranking-star text-text-muted" aria-hidden="true" />
-              <span className="text-[11px] text-text-muted">Elo</span>
-              <span className="text-[11px] font-mono tabular-nums text-text-chip">
-                {eloRow ? Math.round(eloRow.rating) : "—"}
-              </span>
-              <span className="text-[11px] text-text-muted">{eloRank != null ? `#${eloRank}` : ""}</span>
-            </span>
-          </div>
-
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
-            {(["win_streak", "unbeaten_streak", "scoring_streak", "clean_sheet_streak"] as const).map((k) => {
-              const icon = streakIconForKey(k);
-              const cur = streakByKey.get(k)?.current ?? 0;
-              const rec = streakByKey.get(k)?.record ?? 0;
-              const globalRec = globalRecordByKey.get(k) ?? 0;
-              const isNewRecordNow = cur > 0 && cur === globalRec;
-              return (
-                <div key={k} className={"card-chip px-3 py-2 " + (isNewRecordNow ? "border-accent" : "")}>
+            {/* Rivals */}
+            <div className="space-y-2">
+              <div className="section-head"><span className="section-label">Rivals</span></div>
+              <ErrorToastOnError error={statsH2HQ.error} title="H2H loading failed" />
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div className="card-chip px-3 py-2">
                   <div className="inline-flex items-center gap-2 text-text-muted">
-                    {icon ? <i className={"fa-solid " + icon.icon} aria-hidden="true" /> : null}
-                    <span>{icon?.label ?? k}</span>
+                    <i className="fa-solid fa-face-smile" aria-hidden="true" />
+                    <span>Favorite</span>
                   </div>
-                  <div className="font-semibold mt-0.5">
-                    {cur}
-                    <span className="text-text-muted"> / {rec}</span>
-                  </div>
+                  <div className="font-semibold mt-0.5">{favorite?.opponent.display_name ?? "—"}</div>
+                  {favorite ? (
+                    <div className="text-text-muted mt-0.5">
+                      {favorite.wins}-{favorite.draws}-{favorite.losses} · {fmtPct(favorite.pts_per_match)} ppm
+                    </div>
+                  ) : null}
                 </div>
-              );
-            })}
-          </div>
-
-          <div className="grid grid-cols-2 gap-2 text-xs">
-            <div className="card-chip px-3 py-2">
-              <div className="inline-flex items-center gap-2 text-text-muted">
-                <i className="fa-solid fa-face-smile" aria-hidden="true" />
-                <span>Favorite</span>
+                <div className="card-chip px-3 py-2">
+                  <div className="inline-flex items-center gap-2 text-text-muted">
+                    <i className="fa-solid fa-heart-crack" aria-hidden="true" />
+                    <span>Nemesis</span>
+                  </div>
+                  <div className="font-semibold mt-0.5">{nemesis?.opponent.display_name ?? "—"}</div>
+                  {nemesis ? (
+                    <div className="text-text-muted mt-0.5">
+                      {nemesis.wins}-{nemesis.draws}-{nemesis.losses} · {fmtPct(nemesis.pts_per_match)} ppm
+                    </div>
+                  ) : null}
+                </div>
               </div>
-              <div className="font-semibold mt-0.5">{favorite?.opponent.display_name ?? "—"}</div>
-              {favorite ? (
-                <div className="text-text-muted mt-0.5">
-                  {favorite.wins}-{favorite.draws}-{favorite.losses} · {fmtPct(favorite.pts_per_match)} ppm
+            </div>
+
+            {/* Favorite teammates (best 2v2 duos) */}
+            <div className="space-y-2">
+              <div className="section-head"><span className="section-label">Favorite teammates</span></div>
+              {favoriteTeammates.length ? (
+                <div className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-3">
+                  {favoriteTeammates.map((tm) => (
+                    <div key={tm.id} className="card-chip px-3 py-2">
+                      <div className="truncate font-semibold">{tm.name}</div>
+                      <div className="text-text-muted mt-0.5">
+                        {tm.w}-{tm.d}-{tm.l} · {fmtPct(tm.ppm)} ppm
+                      </div>
+                    </div>
+                  ))}
                 </div>
+              ) : (
+                <div className="text-sm text-text-muted">No 2v2 matches recorded yet.</div>
+              )}
+            </div>
+
+            {/* Recent activity */}
+            <div className="space-y-2">
+              <div className="section-head"><span className="section-label">Recent matches</span></div>
+              <ErrorToastOnError error={statsMatchesQ.error} title="Player matches loading failed" />
+              <MatchHistoryList
+                tournaments={allMatchTournaments.slice(0, 2)}
+                focusId={targetPlayerId}
+                clubs={clubsQ.data ?? []}
+                showMeta={false}
+                renderTournamentPills={(t) => {
+                  const row = tournamentPlacementById.get(Number(t.id));
+                  if (!row) return null;
+                  return (
+                    <Pill className="pill-default" title="Tournament position">
+                      #{row.position}/{row.total ?? "?"}
+                    </Pill>
+                  );
+                }}
+              />
+              {allMatchTournaments.length > 2 ? (
+                <button type="button" className="text-xs font-medium text-accent" onClick={() => setProfileTab("matches")}>
+                  View all matches →
+                </button>
               ) : null}
             </div>
-            <div className="card-chip px-3 py-2">
-              <div className="inline-flex items-center gap-2 text-text-muted">
-                <i className="fa-solid fa-heart-crack" aria-hidden="true" />
-                <span>Nemesis</span>
+          </div>
+        ) : null}
+
+        {profileTab === "stats" ? (
+          <div className="space-y-4">
+            <ErrorToastOnError error={statsPlayersQ.error} title="Stats loading failed" />
+            <ErrorToastOnError error={statsStreaksQ.error} title="Streaks loading failed" />
+            <ErrorToastOnError error={statsStreaksGlobalQ.error} title="Streaks loading failed" />
+            <ErrorToastOnError error={statsRatingsQ.error} title="Ratings loading failed" />
+
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="card-chip inline-flex items-center gap-2 px-2 py-1">
+                <i className="fa-solid fa-gamepad text-text-muted" aria-hidden="true" />
+                <span className="text-[11px] text-text-muted">P</span>
+                <span className="text-[11px] font-mono tabular-nums text-text-chip">{fmtInt(playerStatsRow?.played ?? 0)}</span>
+              </span>
+
+              <span className="card-chip inline-flex items-center gap-2 px-2 py-1">
+                <span className="inline-flex items-center gap-1">
+                  <span className="text-[11px] text-text-muted">W</span>
+                  <span className="text-[11px] font-mono tabular-nums text-status-text-green">{fmtInt(playerStatsRow?.wins ?? 0)}</span>
+                </span>
+                <span className="inline-flex items-center gap-1">
+                  <span className="text-[11px] text-text-muted">D</span>
+                  <span className="text-[11px] font-mono tabular-nums text-amber-300">{fmtInt(playerStatsRow?.draws ?? 0)}</span>
+                </span>
+                <span className="inline-flex items-center gap-1">
+                  <span className="text-[11px] text-text-muted">L</span>
+                  <span className="text-[11px] font-mono tabular-nums text-red-300">{fmtInt(playerStatsRow?.losses ?? 0)}</span>
+                </span>
+              </span>
+
+              <span className="card-chip inline-flex items-center gap-2 px-2 py-1">
+                <i className="fa-regular fa-futbol text-text-muted" aria-hidden="true" />
+                <span className="text-[11px] font-mono tabular-nums text-text-chip">
+                  {fmtInt(playerStatsRow?.gf ?? 0)}:{fmtInt(playerStatsRow?.ga ?? 0)}
+                </span>
+                <span
+                  className={
+                    "text-[11px] font-mono tabular-nums " +
+                    ((playerStatsRow?.gd ?? 0) > 0
+                      ? "text-status-text-green"
+                      : (playerStatsRow?.gd ?? 0) < 0
+                        ? "text-red-300"
+                        : "text-text-muted")
+                  }
+                  title="Goal difference"
+                >
+                  ({(playerStatsRow?.gd ?? 0) > 0 ? "+" : ""}
+                  {fmtInt(playerStatsRow?.gd ?? 0)})
+                </span>
+              </span>
+
+              <span className="card-chip inline-flex items-center gap-2 px-2 py-1">
+                <i className="fa-solid fa-trophy text-text-muted" aria-hidden="true" />
+                <span className="text-[11px] text-text-muted">PPM</span>
+                <span className="text-[11px] font-mono tabular-nums text-text-chip">
+                  {fmtPct((playerStatsRow?.played ?? 0) > 0 ? (playerStatsRow?.pts ?? 0) / (playerStatsRow?.played ?? 1) : 0)}
+                </span>
+              </span>
+
+              <span className="card-chip inline-flex items-center gap-2 px-2 py-1">
+                <i className="fa-solid fa-chart-line text-text-muted" aria-hidden="true" />
+                <span className="text-[11px] text-text-muted">Last 10</span>
+                <span className="text-[11px] font-mono tabular-nums text-text-chip">{fmtPct(playerStatsRow?.lastN_avg_pts ?? 0)}</span>
+              </span>
+
+              <span className="card-chip inline-flex items-center gap-2 px-2 py-1">
+                <i className="fa-solid fa-ranking-star text-text-muted" aria-hidden="true" />
+                <span className="text-[11px] text-text-muted">Elo</span>
+                <span className="text-[11px] font-mono tabular-nums text-text-chip">
+                  {eloRow ? Math.round(eloRow.rating) : "—"}
+                </span>
+                <span className="text-[11px] text-text-muted">{eloRank != null ? `#${eloRank}` : ""}</span>
+              </span>
+            </div>
+
+            <div>
+              <div className="section-head"><span className="section-label">Streaks · current / record</span></div>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
+                {(["win_streak", "unbeaten_streak", "scoring_streak", "clean_sheet_streak"] as const).map((k) => {
+                  const icon = streakIconForKey(k);
+                  const cur = streakByKey.get(k)?.current ?? 0;
+                  const rec = streakByKey.get(k)?.record ?? 0;
+                  const globalRec = globalRecordByKey.get(k) ?? 0;
+                  const isNewRecordNow = cur > 0 && cur === globalRec;
+                  return (
+                    <div key={k} className={"card-chip px-3 py-2 " + (isNewRecordNow ? "border-accent" : "")}>
+                      <div className="inline-flex items-center gap-2 text-text-muted">
+                        {icon ? <i className={"fa-solid " + icon.icon} aria-hidden="true" /> : null}
+                        <span>{icon?.label ?? k}</span>
+                      </div>
+                      <div className="font-semibold mt-0.5">
+                        {cur}
+                        <span className="text-text-muted"> / {rec}</span>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
-              <div className="font-semibold mt-0.5">{nemesis?.opponent.display_name ?? "—"}</div>
-              {nemesis ? (
-                <div className="text-text-muted mt-0.5">
-                  {nemesis.wins}-{nemesis.draws}-{nemesis.losses} · {fmtPct(nemesis.pts_per_match)} ppm
-                </div>
-              ) : null}
             </div>
           </div>
+        ) : null}
 
-          <div className="border-t border-border-card-inner/50 pt-3 space-y-2">
-            <div className="flex items-center justify-between gap-2">
-              <div className="text-xs text-text-muted">Recent tournaments and matches</div>
-              <Button
-                type="button"
-                variant="ghost"
-                onClick={() => setShowAllMatchTournaments((v) => !v)}
-                title={showAllMatchTournaments ? "Show recent" : "Show all"}
-                className="h-8 px-3 text-[11px]"
-              >
-                {showAllMatchTournaments ? "Recent" : "All"}
-              </Button>
-            </div>
+        {profileTab === "matches" ? (
+          <div className="space-y-2">
+            <ErrorToastOnError error={statsMatchesQ.error} title="Player matches loading failed" />
+            <ErrorToastOnError error={clubsQ.error} title="Clubs loading failed" />
             <MatchHistoryList
-              tournaments={visibleMatchTournaments}
+              tournaments={allMatchTournaments}
               focusId={targetPlayerId}
               clubs={clubsQ.data ?? []}
               showMeta={false}
@@ -1158,22 +1244,11 @@ export default function ProfilePage() {
               }}
             />
           </div>
-        </div>
+        ) : null}
 
-      </div>
-      </SectionSeparator>
-
-      <SectionSeparator
-        id="profile-section-guestbook"
-        title={
-          <span className="inline-flex items-center gap-2">
-            <i className="fa-solid fa-book text-text-muted" aria-hidden="true" />
-            Guestbook
-          </span>
-        }
-        className="min-h-[100svh]"
-      >
-      <GuestbookSection
+        {profileTab === "guestbook" ? (
+          <div id="profile-section-guestbook" className="min-h-[60svh]">
+            <GuestbookSection
         cardContext={guestbookCardContext}
         roots={guestbookRootsAndChildren.roots}
         loading={guestbookQ.isLoading}
@@ -1209,7 +1284,9 @@ export default function ProfilePage() {
         posting={createGuestbookMut.isPending}
         placeholder={`Write something for ${player?.display_name ?? profileQ.data?.display_name ?? "this player"}…`}
       />
-      </SectionSeparator>
+          </div>
+        ) : null}
+      </div>
 
       <PlayerAvatarEditor
         open={avatarEditorOpen}
