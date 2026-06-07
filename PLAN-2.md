@@ -9,70 +9,51 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done
 
 ---
 
-## Phase A — Quick wins & the back-nav crash  (model: **Opus high**)
+## Phase A — Quick wins & the back-nav crash  ✅
 
-- [ ] **Sidebar / drawer brand icon**: replace the generic `fa-trophy` badge with
-      the real app icon (`/icon-512.png`) in `Sidebar.tsx` + `MobileChrome` drawer
-      header (rounded `<img>`).
-- [ ] **Live tournament**: remove the top **Refresh** button — rely on pull-to-
-      refresh only (keep the mark-all-read button).
-- [ ] **Profile → Players back crash**: couldn't reproduce headless (players →
-      profile → back = 0 errors), so it was likely transient HMR. Harden anyway:
-      add a route-level **ErrorBoundary** so a render error shows a recoverable
-      message instead of a white screen; double-check the swipe gesture can't fire
-      `nav(-1)` twice; verify the `?unread=1` history-replace doesn't strand back.
+- [x] **Sidebar / drawer brand icon** → real app icon (`/icon-512.png`).
+- [x] **Live tournament**: removed the top Refresh button (pull-to-refresh only).
+- [x] **Profile → Players back crash**: couldn't reproduce (0 errors); added a
+      route-level `RouteErrorBoundary` (recoverable, resets on nav) + a swipe-nav
+      debounce so it can't double-pop with native edge-swipe.
 
-## Phase B — Dashboard + Live consistency  (model: **Opus high**)
+## Phase B — Dashboard + Live consistency  ✅
 
-- [ ] **Dashboard "Live now"**: stop nesting it in cards — render the live match
-      with the same flat treatment as the live **Current** tab (reuse
-      `MatchOverviewPanel` as the single surface; drop the `card-outer`/`card-inner`
-      wrapping).
-- [ ] **Dashboard cups**: flatten the cup-ownership block to a clean holder row
-      (avatar + name + reign), consistent with the new **Cups** stats view.
-- [ ] **Live → Select Clubs**: redesign `SelectClubsPanel` chrome — drop the heavy
-      collapsible card; lay the two `ClubCombobox`es out cleanly with compact
-      star/league filters + randomize, on-brand and flat. (Combobox itself stays.)
-- [ ] **Live → Match comments**: rework the match-comments section in
-      `CurrentGameSection` for a cleaner look and an obvious **Add comment** action.
-- [ ] **Live → Standings**: render standings with the **stats-table** visual
-      (sticky player column, flat rows) — **fixed (non-selectable) columns**, all
-      info visible (pos, P, W, D, L, GF, GA, GD, Pts; horizontal scroll if needed).
+- [x] **Dashboard "Live now"** → single flat `MatchOverviewPanel` under a label
+      (same as the live Current tab); Trends preview also de-carded.
+- [x] **Dashboard cups** → flat holder row + title-history list (matches Cups view).
+- [x] **Live → Select Clubs** → flat always-visible "Select clubs" section
+      (dropped the collapsible card; searchable comboboxes + compact filters).
+- [x] **Live → Match comments** → flattened collapsible header to section-label.
+- [x] **Live → Standings** → stats-table visual (one table, sticky player column,
+      fixed columns P/W/D/L/GF/GA/GD/Pts, rank+delta+badges, horizontal scroll).
 
-## Phase C — Stats refinements  (model: **Opus xhigh**)
+## Phase C — Stats refinements  ✅
 
-- [ ] **Trends — labels**: tournament-name labels must be fully readable (no `…`
-      truncation) — wrap to two lines / angle so they fit.
-- [ ] **Trends — non-participation**: restore the *greyed line* (connect across a
-      skipped tournament but render that segment muted) instead of a hard gap.
-- [ ] **Trends — metric modifier**: one set of metrics (Points / Goals / Conceded /
-      Goal diff / Win %) **+ a single "Per match" toggle** that divides absolute
-      metrics by matches played — remove the separate "Pts/match" metric.
-- [ ] **Trends — no zoom control**: drop the zoom slider; fixed plot density,
-      **scroll directly inside the fixed-size plot**.
-- [ ] **Table**: collapse W / D / L into **one "W-D-L" toggle**; add a **GD/M**
-      (goal-diff per match) column option.
-- [ ] **Positions — flip axis**: tournaments in **rows**, players in **columns**;
-      show the **full tournament name** (wrap to 2 lines if long, equal row height).
-- [ ] **Positions — laurel line**: toggle a line connecting the **laurel winners**
-      across tournament rows (one line per cup, drawn in that cup's colour).
-- [ ] **Positions — cup-at-stake icons**: show the actual cup icon(s) of the cups
-      at stake (can be multiple) instead of a generic crown.
-- [ ] **H2H matrix — metric switch**: chip to choose the cell metric (Win % default,
-      plus e.g. Played / Goal diff); recolour accordingly.
-- [ ] **H2H — clarify "Top rivalries"**: add a one-line explanation of the rivalry
-      score (balance × volume), or rename, so its meaning is obvious.
-- [ ] **Streaks**: re-present with the flat section/list language (section labels +
-      `list-divided` rows) consistent with the rest of the app.
-- [ ] **Player**: label the sparkline next to the name (e.g. "recent form") so its
-      meaning is clear.
+- [x] **Trends labels**: full tournament names, no `…` truncation.
+- [x] **Trends non-participation**: greyed dashed segment across skipped tournaments
+      (instead of a hard gap).
+- [x] **Trends metric modifier**: single **Per match** toggle (dropped the separate
+      Pts/match metric; disabled for Win %).
+- [x] **Trends no zoom control**: removed the slider; fixed plot density, scroll the
+      plot horizontally.
+- [x] **Table**: one **W-D-L** toggle; added **GD/M** column.
+- [x] **Positions flip**: tournaments rows / players columns; full 2-line names,
+      equal row height.
+- [x] **Positions laurel line**: "Cup lineage" toggle — one line per cup (cup
+      colour) connecting the cup owner's cells across at-stake tournaments.
+- [x] **Positions cup-at-stake icons**: real cup-coloured crown(s), multiple.
+- [x] **H2H matrix metric switch**: Win % / Played / Goal diff (colour = win rate).
+- [x] **H2H "Top rivalries"** explained inline.
+- [x] **Streaks**: flat section/list language.
+- [x] **Player**: labelled the recent-form sparkline.
 
-## Phase D — Friendlies + verification  (model: **Sonnet high**)
+## Phase D — Friendlies + verification  ✅
 
-- [ ] **Friendlies list**: streamline `MatchHistoryList`'s group/match styling to
-      the flat language (this also lifts profile/stats match lists consistently).
-- [ ] Playwright sweep 390 + 1366 across all routes × both stats modes — zero
-      console errors; spot-check light theme; `npm run check` + build green.
+- [x] **Friendlies list**: `MatchHistoryList` flattened (group header + hairline-
+      divided match rows; no card-in-card) — also lifts profile/stats match lists.
+- [x] Playwright sweep 390 + 1366 across all 11 routes × both stats modes — **zero
+      console errors**; `npm run check` (typecheck + eslint + 71 tests) + build green.
 
 ---
 

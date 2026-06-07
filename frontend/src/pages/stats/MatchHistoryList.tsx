@@ -86,7 +86,6 @@ export function MatchRowWithClubs({
           ? "bg-amber-500/15 border-amber-500/30 text-text-normal"
           : "bg-bg-card-chip/30 border-border-card-inner/45 text-text-normal";
 
-  const outerPad = showMeta ? "p-3" : "p-2";
   const nameText = showMeta ? "text-[15px] md:text-lg" : "text-[13px] md:text-base";
   const rowPad = showMeta ? "py-2" : "py-1";
   const scorePad = showMeta ? "px-4 py-2" : "px-3 py-1.5";
@@ -94,7 +93,7 @@ export function MatchRowWithClubs({
 
   return (
     <div className="flex items-stretch gap-2">
-      <div className={`panel-subtle min-w-0 flex-1 rounded-xl ${outerPad}`}>
+      <div className="min-w-0 flex-1">
         <div className={rowPad}>
           <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 md:gap-4">
             <div className="min-w-0">
@@ -182,8 +181,8 @@ export function MatchHistoryTournamentBlock({
   renderMatchAction?: (t: StatsPlayerMatchesTournament, m: Match) => ReactNode;
 }) {
   return (
-    <div className="card-inner-flat rounded-2xl space-y-2">
-      <div className="flex items-start justify-between gap-3">
+    <div className="space-y-1">
+      <div className="flex items-start justify-between gap-3 border-b border-border-card-chip/35 pb-1.5">
         <div className="min-w-0">
           <div className="text-sm font-semibold text-text-normal">{t.name}</div>
           <div className="mt-1 flex flex-wrap items-center gap-2">
@@ -201,7 +200,7 @@ export function MatchHistoryTournamentBlock({
         </div>
       </div>
 
-      <div className="space-y-2">
+      <div className="list-divided">
         {t.matches.map((m) => (
           <MatchRowWithClubs
             key={m.id}
@@ -240,7 +239,7 @@ export function MatchHistoryList({
   hideModePill?: boolean;
 }) {
   return (
-    <div className="space-y-3">
+    <div className="space-y-5">
       {tournaments.map((t) => (
         <MatchHistoryTournamentBlock
           key={t.id}
