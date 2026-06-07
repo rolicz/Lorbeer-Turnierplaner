@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import { keepPreviousData, useQueries, useQuery } from "@tanstack/react-query";
 import { LineChart, Table2, Grid3x3, UserRound, Flame, Star, Medal, Award, Trophy } from "lucide-react";
 
@@ -8,6 +8,7 @@ import InlineLoading from "../../ui/primitives/InlineLoading";
 import { SectionTabs, type SectionTab } from "../../ui/SectionTabs";
 import { getStatsRatings, getStatsPlayers, getStatsPlayerMatches, getStatsH2H, getStatsStreaks } from "../../api/stats.api";
 import { getCup, listCupDefs } from "../../api/cup.api";
+import { cupColorVarForKey, rgbFromCssVar } from "../../cupColors";
 import { listClubs } from "../../api/clubs.api";
 import type { Club, Match, StatsScope, StatsH2HPair, StatsH2HOpponentRow, StatsPlayerMatchesTournament, StatsStreakCategory, StatsStreakRun } from "../../api/types";
 import type { StatsMode } from "./StatsControls";
@@ -417,18 +418,73 @@ function StatsTable({ rows, loading, onSelect }: { rows: Row[]; loading: boolean
 //  POSITIONS — players × tournaments grid
 // ==========================================================================
 function PositionsView({ mode }: { mode: StatsMode }) {
+  const [laurelLine, setLaurelLine] = useState(true);
   const q = useQuery({
     queryKey: ["stats", "players", mode, "positions"],
     queryFn: () => getStatsPlayers({ mode }),
     placeholderData: keepPreviousData, staleTime: 30_000,
   });
   const { avatarUpdatedAtById } = usePlayerAvatarMap();
+  const defsQ = useQuery({ queryKey: ["cup", "defs"], queryFn: listCupDefs });
+  const cupDefs = useMemo(() => (defsQ.data?.cups ?? []).filter((c) => c.key !== "default"), [defsQ.data]);
+  const cupsQ = useQueries({ queries: cupDefs.map((c) => ({ queryKey: ["cup", c.key], queryFn: () => getCup(c.key), staleTime: 30_000 })) });
 
+  const players = useMemo(() => (q.data?.players ?? []).slice().sort((a, b) => b.pts - a.pts), [q.data]);
   const tournaments = useMemo(
     () => (q.data?.tournaments ?? []).slice().sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : b.id - a.id)),
     [q.data],
   );
-  const players = useMemo(() => (q.data?.players ?? []).slice().sort((a, b) => b.pts - a.pts), [q.data]);
+  const colByPlayer = useMemo(() => new Map(players.map((p, j) => [p.player_id, j])), [players]);
+  const cupColor = (key: string) => rgbFromCssVar(cupColorVarForKey(key));
+
+  // Per-cup owner-after-tournament timeline, reconstructed from transfer history.
+  const ownerByCup = useMemo(() => {
+    const out = new Map<string, Map<number, number>>();
+    const chrono = (q.data?.tournaments ?? []).slice().sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.id - b.id));
+    cupDefs.forEach((def, ci) => {
+      const data = cupsQ[ci]?.data;
+      if (!data) return;
+      const hist = (data.history ?? []).slice().sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.tournament_id - b.tournament_id));
+      const transfers = new Map<number, number>();
+      for (const h of hist) if (h.to?.id && h.to.id > 0) transfers.set(h.tournament_id, h.to.id);
+      let owner: number | null = hist[0]?.from?.id && hist[0].from.id > 0 ? hist[0].from.id : data.owner?.id ?? null;
+      if (owner != null && owner <= 0) owner = null;
+      const at = new Map<number, number>();
+      for (const t of chrono) {
+        if (transfers.has(t.id)) owner = transfers.get(t.id)!;
+        if (owner != null && owner > 0) at.set(t.id, owner);
+      }
+      out.set(def.key, at);
+    });
+    return out;
+  }, [cupDefs, cupsQ, q.data?.tournaments]);
+
+  // Grid geometry (fixed sizes so the overlay line can be positioned analytically).
+  const nameW = 150, headerH = 60, cellW = 40, cellH = 42, gap = 4;
+  const gridW = nameW + players.length * (cellW + gap);
+  const gridH = headerH + gap + tournaments.length * (cellH + gap);
+  const colX = (j: number) => nameW + gap + j * (cellW + gap) + cellW / 2;
+  const rowY = (i: number) => headerH + gap + i * (cellH + gap) + cellH / 2;
+
+  const laurelPolylines = useMemo(() => {
+    if (!laurelLine) return [] as { key: string; color: string; pts: string }[];
+    return cupDefs
+      .map((def) => {
+        const at = ownerByCup.get(def.key);
+        const pts: string[] = [];
+        tournaments.forEach((t, i) => {
+          if (!at || !(t.cup_stakes ?? []).some((s) => s.key === def.key)) return;
+          const owner = at.get(t.id);
+          if (owner == null) return;
+          const j = colByPlayer.get(owner);
+          if (j == null) return;
+          pts.push(`${colX(j)},${rowY(i)}`);
+        });
+        return { key: def.key, color: cupColor(def.key), pts: pts.join(" ") };
+      })
+      .filter((l) => l.pts.includes(" "));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [laurelLine, cupDefs, ownerByCup, tournaments, colByPlayer, players.length]);
 
   if (q.isLoading && !q.data) return <InlineLoading label="Loading…" />;
   if (!tournaments.length) return <div className="text-sm text-text-muted">No tournaments yet.</div>;
@@ -436,59 +492,68 @@ function PositionsView({ mode }: { mode: StatsMode }) {
   return (
     <div>
       <div className="section-head"><span className="section-label">Tournament positions</span></div>
-      <p className="mb-2 inline-flex items-center gap-1.5 text-[11px] text-text-muted">
-        Newest first · <i className="fa-solid fa-crown text-amber-300" aria-hidden="true" /> = cup at stake · green = better placement.
-      </p>
+      <div className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-text-muted">
+        <span>Newest first · green = better placement · crown(s) = cup at stake.</span>
+        {cupDefs.length ? <ToggleChip on={laurelLine} onClick={() => setLaurelLine((v) => !v)}>Cup lineage</ToggleChip> : null}
+      </div>
       <div className="overflow-x-auto" data-no-swipe-nav>
-        <table className="border-separate" style={{ borderSpacing: 3 }}>
-          <thead>
-            <tr>
-              <th className="sticky left-0 z-10 bg-bg-default" />
-              {tournaments.map((t) => {
-                const laurel = (t.cup_stakes?.length ?? 0) > 0;
-                return (
-                  <th key={t.id} className="p-0 align-bottom">
-                    <div className="mx-auto flex h-28 w-10 items-center justify-center overflow-visible">
-                      <span className="inline-flex -rotate-90 items-center gap-1 whitespace-nowrap text-[10px] font-medium text-text-muted">
-                        {laurel ? <i className="fa-solid fa-crown text-amber-300" aria-hidden="true" /> : null}
-                        {t.name}
-                      </span>
-                    </div>
-                  </th>
-                );
-              })}
-            </tr>
-          </thead>
-          <tbody>
+        <div className="relative" style={{ width: gridW }}>
+          <div
+            className="relative"
+            style={{ display: "grid", gridTemplateColumns: `${nameW}px repeat(${players.length}, ${cellW}px)`, columnGap: gap, rowGap: gap }}
+          >
+            <div style={{ height: headerH }} />
             {players.map((p) => (
-              <tr key={p.player_id}>
-                <th className="sticky left-0 z-10 bg-bg-default pr-2">
-                  <div className="flex items-center gap-2">
-                    <AvatarCircle playerId={p.player_id} name={p.display_name} updatedAt={avatarUpdatedAtById.get(p.player_id) ?? null} sizeClass="h-6 w-6" />
-                    <span className="max-w-[90px] truncate text-xs font-medium text-text-normal">{p.display_name}</span>
-                  </div>
-                </th>
-                {tournaments.map((t) => {
+              <div key={p.player_id} style={{ height: headerH }} className="flex flex-col items-center justify-end gap-1 pb-1">
+                <AvatarCircle playerId={p.player_id} name={p.display_name} updatedAt={avatarUpdatedAtById.get(p.player_id) ?? null} sizeClass="h-6 w-6" />
+                <span className="w-full truncate text-center text-[9px] text-text-muted">{p.display_name}</span>
+              </div>
+            ))}
+            {tournaments.map((t) => (
+              <Fragment key={t.id}>
+                <div style={{ height: cellH }} className="flex items-center gap-1.5 pr-2">
+                  {(t.cup_stakes ?? []).length ? (
+                    <span className="inline-flex shrink-0 items-center gap-0.5">
+                      {(t.cup_stakes ?? []).map((s) => (
+                        <i key={s.key} className="fa-solid fa-crown text-[10px]" style={{ color: cupColor(s.key) }} title={`${s.name} at stake`} aria-hidden="true" />
+                      ))}
+                    </span>
+                  ) : null}
+                  <span
+                    className="text-[10px] leading-tight text-text-normal"
+                    style={{ display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}
+                  >
+                    {t.name}
+                  </span>
+                </div>
+                {players.map((p) => {
                   const pos = p.positions_by_tournament?.[String(t.id)];
-                  if (pos == null) return <td key={t.id} className="h-9 w-10 rounded bg-bg-card-chip/15 text-center text-[10px] text-text-muted">·</td>;
+                  if (pos == null)
+                    return <div key={p.player_id} style={{ height: cellH }} className="grid place-items-center rounded bg-bg-card-chip/15 text-[10px] text-text-muted">·</div>;
                   const total = t.players_count || 1;
                   const frac = total > 1 ? (pos - 1) / (total - 1) : 0;
                   return (
-                    <td key={t.id}>
-                      <div
-                        className="pos-tile grid h-9 w-10 place-items-center rounded border text-[11px] font-semibold tabular-nums"
-                        style={{ ["--pos-p"]: frac } as React.CSSProperties}
-                        title={`${p.display_name} · ${t.name}: #${pos}/${total}`}
-                      >
-                        {pos}
-                      </div>
-                    </td>
+                    <div
+                      key={p.player_id}
+                      style={{ height: cellH, ["--pos-p"]: frac } as React.CSSProperties}
+                      className="pos-tile grid place-items-center rounded border text-[11px] font-semibold tabular-nums"
+                      title={`${p.display_name} · ${t.name}: #${pos}/${total}`}
+                    >
+                      {pos}
+                    </div>
                   );
                 })}
-              </tr>
+              </Fragment>
             ))}
-          </tbody>
-        </table>
+          </div>
+          {laurelLine && laurelPolylines.length ? (
+            <svg className="pointer-events-none absolute left-0 top-0" width={gridW} height={gridH} aria-hidden="true">
+              {laurelPolylines.map((l) => (
+                <polyline key={l.key} points={l.pts} fill="none" stroke={l.color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" opacity="0.8" />
+              ))}
+            </svg>
+          ) : null}
+        </div>
       </div>
     </div>
   );
