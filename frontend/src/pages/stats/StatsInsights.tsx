@@ -6,14 +6,13 @@ import AvatarCircle from "../../ui/primitives/AvatarCircle";
 import AvatarButton from "../../ui/primitives/AvatarButton";
 import InlineLoading from "../../ui/primitives/InlineLoading";
 import { SectionTabs, type SectionTab } from "../../ui/SectionTabs";
-import SegmentedSwitch from "../../ui/primitives/SegmentedSwitch";
 import { getStatsRatings, getStatsPlayers, getStatsPlayerMatches, getStatsH2H, getStatsStreaks } from "../../api/stats.api";
 import { listClubs } from "../../api/clubs.api";
 import type { Match, StatsScope, StatsH2HPair, StatsPlayerMatchesTournament, StatsStreakCategory } from "../../api/types";
 import type { StatsMode } from "./StatsControls";
 import { usePlayerAvatarMap } from "../../hooks/usePlayerAvatarMap";
 import { colorForIdx } from "./trendsMath";
-import { Sparkline, Radar, Heatmap, MultiLine } from "./charts";
+import { Sparkline, Radar, Heatmap, MultiLine, ChipGroup } from "./charts";
 import { MatchHistoryList } from "./MatchHistoryList";
 
 type Tab = "trends" | "table" | "h2h" | "streaks" | "player";
@@ -88,8 +87,8 @@ function Slider({ label, value, min, max, onChange }: { label: string; value: nu
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      <span className="w-16 shrink-0 text-xs font-semibold uppercase tracking-wide text-text-muted">{label}</span>
+    <div className="space-y-1.5">
+      <span className="block text-xs font-semibold uppercase tracking-wide text-text-muted">{label}</span>
       {children}
     </div>
   );
@@ -187,28 +186,12 @@ function TrendsExplorer({ mode, scope, rows }: { mode: StatsMode; scope: StatsSc
 
   return (
     <div className="space-y-3">
-      <div className="card-outer space-y-3">
-        <Field label="Metric">
-          <SegmentedSwitch<Metric> value={metric} onChange={setMetric} ariaLabel="Metric" options={METRIC_OPTS} />
-        </Field>
-        <Field label="View">
-          <SegmentedSwitch<ViewMode> value={view} onChange={setView} ariaLabel="View"
-            options={[
-              ...(allowsCumulative ? [{ key: "cumulative" as ViewMode, label: "Cumulative" }] : []),
-              { key: "per", label: "Per event" },
-              { key: "rolling", label: "Rolling avg" },
-            ]} />
-        </Field>
-        {view === "rolling" ? (
-          <Slider label="Window" value={rollN} min={2} max={Math.max(3, Math.min(15, totalEvents || 10))} onChange={setRollN} />
-        ) : null}
-        <Slider label="Show last" value={Math.min(rangeN, Math.max(3, totalEvents || 3))} min={3} max={Math.max(4, totalEvents || 4)} onChange={setRangeN} />
-
+      {/* chart first (hero) */}
+      <div className="card-outer">
         {loading ? <InlineLoading label="Loading…" /> : (
           <MultiLine series={series} xLabels={labels} yMax={Math.ceil(yMax)} yMin={Math.floor(yMin)} height={230} />
         )}
-
-        <div className="flex flex-wrap gap-2 pt-1">
+        <div className="mt-3 flex flex-wrap gap-2">
           {rows.map((r, idx) => {
             const c = colorForIdx(idx, rows.length);
             const on = !hidden.has(r.id);
@@ -222,6 +205,25 @@ function TrendsExplorer({ mode, scope, rows }: { mode: StatsMode; scope: StatsSc
             );
           })}
         </div>
+      </div>
+
+      {/* controls */}
+      <div className="card-outer space-y-3">
+        <Field label="Metric">
+          <ChipGroup<Metric> value={metric} onChange={setMetric} ariaLabel="Metric" options={METRIC_OPTS} />
+        </Field>
+        <Field label="View">
+          <ChipGroup<ViewMode> value={view} onChange={setView} ariaLabel="View"
+            options={[
+              ...(allowsCumulative ? [{ key: "cumulative" as ViewMode, label: "Cumulative" }] : []),
+              { key: "per", label: "Per event" },
+              { key: "rolling", label: "Rolling avg" },
+            ]} />
+        </Field>
+        {view === "rolling" ? (
+          <Slider label="Window" value={rollN} min={2} max={Math.max(3, Math.min(15, totalEvents || 10))} onChange={setRollN} />
+        ) : null}
+        <Slider label="Show last" value={Math.min(rangeN, Math.max(3, totalEvents || 3))} min={3} max={Math.max(4, totalEvents || 4)} onChange={setRangeN} />
       </div>
     </div>
   );
@@ -543,9 +545,11 @@ const TABS: SectionTab<Tab>[] = [
 ];
 
 export default function StatsInsights({
-  mode, scope, playerId, onSelectPlayer,
+  mode, scope, onModeChange, onScopeChange, playerId, onSelectPlayer,
 }: {
-  mode: StatsMode; scope: StatsScope; playerId: number | ""; onSelectPlayer: (id: number) => void;
+  mode: StatsMode; scope: StatsScope;
+  onModeChange: (m: StatsMode) => void; onScopeChange: (s: StatsScope) => void;
+  playerId: number | ""; onSelectPlayer: (id: number) => void;
 }) {
   const { rows, loading } = useStandings(mode, scope);
   const [tab, setTab] = useState<Tab>(playerId !== "" ? "player" : "trends");
@@ -553,8 +557,23 @@ export default function StatsInsights({
   const goPlayer = (id: number) => { onSelectPlayer(id); setTab("player"); };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
+      {/* Slim global filters */}
+      <div className="flex flex-wrap items-center gap-x-5 gap-y-2 px-0.5">
+        <div className="flex items-center gap-2">
+          <span className="text-[11px] font-semibold uppercase tracking-wide text-text-muted">Mode</span>
+          <ChipGroup<StatsMode> value={mode} onChange={onModeChange} ariaLabel="Mode"
+            options={[{ key: "overall", label: "Overall" }, { key: "1v1", label: "1v1" }, { key: "2v2", label: "2v2" }]} />
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-[11px] font-semibold uppercase tracking-wide text-text-muted">Source</span>
+          <ChipGroup<StatsScope> value={scope} onChange={onScopeChange} ariaLabel="Source"
+            options={[{ key: "tournaments", label: "Tournaments" }, { key: "both", label: "Both" }, { key: "friendlies", label: "Friendlies" }]} />
+        </div>
+      </div>
+
       <SectionTabs tabs={TABS} active={tab} onChange={setTab} />
+
       {tab === "trends" && <TrendsExplorer mode={mode} scope={scope} rows={rows} />}
       {tab === "table" && <StatsTable rows={rows} loading={loading} onSelect={goPlayer} />}
       {tab === "h2h" && <H2HView mode={mode} scope={scope} rows={rows} />}

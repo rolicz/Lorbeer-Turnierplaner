@@ -109,26 +109,21 @@ export default function StatsPage() {
     return <div className="page"><PageLoadingScreen sectionCount={3} /></div>;
   }
 
-  // --- Insights (opt-in) mode: League standings + per-player profile ---
+  // --- Insights (opt-in) mode: graph-first dashboard with its own controls ---
   if (experience === "insights") {
-    const insightsConfig: StatsFilterConfig = { mode: true, scope: true, player: "none" };
     return (
       <div className="page">
         <div className="mb-4 hidden lg:block">
           <h1 className="text-xl font-bold tracking-tight text-text-normal">Stats</h1>
         </div>
-        <StatsFilterBar
-          config={insightsConfig}
+        <StatsInsights
           mode={mode}
-          onModeChange={setMode}
           scope={scope}
+          onModeChange={setMode}
           onScopeChange={setScope}
           playerId={playerId}
-          onPlayerChange={setPlayer}
-          players={players}
-          avatarUpdatedAtById={avatarUpdatedAtById}
+          onSelectPlayer={(id) => setPlayer(id)}
         />
-        <StatsInsights mode={mode} scope={scope} playerId={playerId} onSelectPlayer={(id) => setPlayer(id)} />
       </div>
     );
   }
