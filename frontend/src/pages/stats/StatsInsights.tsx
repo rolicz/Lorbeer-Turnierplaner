@@ -230,6 +230,10 @@ function TrendsExplorer({ mode, scope, rows, initialMetric, initialView }: { mod
   const win = manualWin ?? presetWin;
   const winRef = useRef(win);
   useEffect(() => { winRef.current = win; }, [win]);
+  // When tournament labels are on, allow panning slightly before the first event
+  // so its (down-left) label can be read fully — without shifting the y-axis.
+  const showLabelsRef = useRef(showLabels);
+  useEffect(() => { showLabelsRef.current = showLabels; }, [showLabels]);
   const boundsRef = useRef({ dataMin, dataMax });
   useEffect(() => { boundsRef.current = { dataMin, dataMax }; }, [dataMin, dataMax]);
 
@@ -252,10 +256,14 @@ function TrendsExplorer({ mode, scope, rows, initialMetric, initialView }: { mod
       const { dataMin: lo, dataMax: hi } = boundsRef.current;
       const full = Math.max(DAY, hi - lo);
       const w = Math.min(Math.max(t1 - t0, 20 * DAY), full);
+      // Extra scroll room on the left (in time) for the first tournament label.
+      const innerWpx = Math.max(60, (el.clientWidth - 16) - 32 - 12);
+      const leadTime = showLabelsRef.current ? (90 / innerWpx) * w : 0;
+      const loEff = lo - leadTime;
       let nt0 = t0;
       let nt1 = t0 + w;
       if (nt1 > hi) { nt1 = hi; nt0 = hi - w; }
-      if (nt0 < lo) { nt0 = lo; nt1 = lo + w; }
+      if (nt0 < loEff) { nt0 = loEff; nt1 = loEff + w; }
       return { t0: nt0, t1: Math.min(nt1, hi) };
     };
     let pinch = false;

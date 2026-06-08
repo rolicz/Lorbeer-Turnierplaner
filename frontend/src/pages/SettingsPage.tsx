@@ -9,7 +9,7 @@ import { usePageTitle } from "../ui/layout/PageTitleContext";
 import { useStatsExperience, setStatsExperience } from "../ui/layout/useStatsMode";
 import SegmentedSwitch from "../ui/primitives/SegmentedSwitch";
 import { SectionTabs, type SectionTab } from "../ui/SectionTabs";
-import { UserCircle2, Bell, Palette, FlaskConical } from "lucide-react";
+import { UserCircle2, Bell, Palette } from "lucide-react";
 import { qk } from "../api/queryKeys";
 import { listPlayers } from "../api/players.api";
 import PushNotificationsSettings from "../ui/layout/PushNotificationsSettings";
@@ -75,13 +75,12 @@ export default function SettingsPage() {
   usePageTitle("Settings");
   const statsExperience = useStatsExperience();
 
-  type SettingsTab = "account" | "appearance" | "notifications" | "experiments";
+  type SettingsTab = "account" | "appearance" | "notifications";
   const [tab, setTab] = useState<SettingsTab>("account");
   const settingsTabs: SectionTab<SettingsTab>[] = [
     { key: "account", label: "Account", icon: <UserCircle2 size={14} /> },
     { key: "appearance", label: "Appearance", icon: <Palette size={14} /> },
     { key: "notifications", label: "Notifications", icon: <Bell size={14} /> },
-    { key: "experiments", label: "Experiments", icon: <FlaskConical size={14} /> },
   ];
 
   if (!pageEntered) {
@@ -189,30 +188,6 @@ export default function SettingsPage() {
         </>
         ) : null}
 
-        {tab === "experiments" ? (
-        /* Experiments */
-        <SettingsSection title="Experiments">
-          <div className="flex items-center justify-between gap-3">
-            <div className="min-w-0">
-              <div className="text-sm font-medium text-text-normal">Stats layout</div>
-              <div className="text-xs text-text-muted">
-                New dashboard (standings + graphs + player profiles, with a Simple/Detailed
-                toggle) or the classic 7-section view.
-              </div>
-            </div>
-            <SegmentedSwitch<"classic" | "insights">
-              value={statsExperience}
-              onChange={(v) => setStatsExperience(v)}
-              options={[
-                { key: "insights", label: "New" },
-                { key: "classic", label: "Classic" },
-              ]}
-              ariaLabel="Stats layout"
-            />
-          </div>
-        </SettingsSection>
-        ) : null}
-
         {tab === "notifications" ? (
         /* Notifications */
         <SettingsSection title="Notifications">
@@ -253,6 +228,31 @@ export default function SettingsPage() {
                 </button>
               );
             })}
+          </div>
+        </SettingsSection>
+        ) : null}
+
+        {tab === "appearance" ? (
+        /* Stats layout */
+        <SettingsSection title="Stats layout">
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <div className="text-sm font-medium text-text-normal">Stats layout</div>
+              <div className="text-xs text-text-muted">
+                The new dashboard (standings + graphs + player profiles, with a
+                Simple/Detailed toggle) is the default; switch to the classic 7-section
+                view if you prefer it.
+              </div>
+            </div>
+            <SegmentedSwitch<"classic" | "insights">
+              value={statsExperience}
+              onChange={(v) => setStatsExperience(v)}
+              options={[
+                { key: "insights", label: "New" },
+                { key: "classic", label: "Classic" },
+              ]}
+              ariaLabel="Stats layout"
+            />
           </div>
         </SettingsSection>
         ) : null}

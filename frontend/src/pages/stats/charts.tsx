@@ -281,9 +281,7 @@ export function TrendChart({
   showLabels?: boolean;
 }) {
   const clipId = useId();
-  // Wider left gutter when tournament-name labels are shown, so the oldest label
-  // (which extends down-LEFT from its tick) is fully visible when panned to the start.
-  const padL = showLabels ? 68 : 32;
+  const padL = 32;
   const padR = 12;
   const padT = 10;
   const padBBase = 28; // month-axis label area — constant
