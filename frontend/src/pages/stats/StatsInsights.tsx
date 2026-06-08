@@ -375,8 +375,20 @@ function TrendsExplorer({ mode, scope, rows, initialMetric, initialView }: { mod
   }, []);
 
   const allY = series.flatMap((s) => s.points.filter((p): p is number => p != null));
-  const yMax = Math.max(1, ...allY);
-  const yMin = Math.min(0, ...allY);
+  let yMax: number;
+  let yMin: number;
+  if (isElo && effView === "cumulative" && allY.length) {
+    // Ratings cluster around the base (~1000); anchoring to 0 squishes the line
+    // into a flat band. Frame the actual rating range with a little padding.
+    const lo = Math.min(...allY);
+    const hi = Math.max(...allY);
+    const pad = Math.max(10, (hi - lo) * 0.1);
+    yMin = lo - pad;
+    yMax = hi + pad;
+  } else {
+    yMax = Math.max(1, ...allY);
+    yMin = Math.min(0, ...allY);
+  }
 
   return (
     <div className="space-y-3">
