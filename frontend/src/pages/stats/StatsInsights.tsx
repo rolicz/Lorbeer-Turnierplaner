@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { keepPreviousData, useQueries, useQuery } from "@tanstack/react-query";
 import { LineChart, Table2, Grid3x3, UserRound, Flame, Star, Medal, Award, Trophy, ChevronRight } from "lucide-react";
 
+import { useAuth } from "../../auth/AuthContext";
 import AvatarCircle from "../../ui/primitives/AvatarCircle";
 import { StarsFA } from "../../ui/primitives/StarsFA";
 import InlineLoading from "../../ui/primitives/InlineLoading";
@@ -697,7 +698,7 @@ function PositionsView({ mode }: { mode: StatsMode }) {
     <div>
       <div className="section-head"><span className="section-label">Tournament positions</span></div>
       <div className="mb-1.5 text-[11px] text-text-muted">Drag a player's icon to reorder the columns.</div>
-      <div className="overflow-auto max-h-[72vh] overscroll-contain" data-no-swipe-nav>
+      <div className="overflow-x-auto" data-no-swipe-nav>
         <div className="relative" style={{ width: gridW }}>
           <div
             className="relative"
@@ -786,14 +787,15 @@ function h2hTone(pct: number): string {
   return `hsl(${t * 130} 60% 42% / 0.85)`;
 }
 
-function H2HView({ mode, scope, rows }: { mode: StatsMode; scope: StatsScope; rows: Row[] }) {
+function H2HView({ mode, scope, rows, myId }: { mode: StatsMode; scope: StatsScope; rows: Row[]; myId?: number | null }) {
   const q = useQuery({
     queryKey: ["stats", "h2h", "all", 200, "rivalry", scope],
     queryFn: () => getStatsH2H({ playerId: null, limit: 200, order: "rivalry", scope }),
     placeholderData: keepPreviousData, staleTime: 30_000,
   });
-  const [selected, setSelected] = useState<number | null>(rows[0]?.id ?? null);
-  const [matrixMetric, setMatrixMetric] = useState<"winrate" | "played" | "gd" | "wdl">("winrate");
+  const defaultSelected = (myId != null && rows.some((r) => r.id === myId)) ? myId : (rows[0]?.id ?? null);
+  const [selected, setSelected] = useState<number | null>(defaultSelected);
+  const [matrixMetric, setMatrixMetric] = useState<"winrate" | "played" | "gd" | "wdl" | "ppm" | "rivalry">("winrate");
   const nameById = useMemo(() => new Map(rows.map((r) => [r.id, r.name])), [rows]);
 
   const pairs: StatsH2HPair[] = useMemo(() => {
@@ -814,13 +816,16 @@ function H2HView({ mode, scope, rows }: { mode: StatsMode; scope: StatsScope; ro
     const colWins = rowIsA ? p.b_wins : p.a_wins;
     const rowGf = rowIsA ? p.a_gf : p.b_gf;
     const rowGa = rowIsA ? p.a_ga : p.b_ga;
-    return { pct: (rowWins / p.played) * 100, w: rowWins, d: p.draws, l: colWins, played: p.played, gd: rowGf - rowGa };
+    const ppm = (3 * rowWins + p.draws) / p.played;
+    return { pct: (rowWins / p.played) * 100, w: rowWins, d: p.draws, l: colWins, played: p.played, gd: rowGf - rowGa, ppm, rivalry: p.rivalry_score };
   };
-  const cellText = (v: { pct: number; played: number; gd: number; w: number; d: number; l: number }) =>
+  const cellText = (v: { pct: number; played: number; gd: number; w: number; d: number; l: number; ppm: number; rivalry: number }) =>
     matrixMetric === "played" ? String(v.played)
       : matrixMetric === "gd" ? (v.gd >= 0 ? `+${v.gd}` : String(v.gd))
         : matrixMetric === "wdl" ? `${v.w}-${v.d}-${v.l}`
-          : String(Math.round(v.pct));
+          : matrixMetric === "ppm" ? v.ppm.toFixed(2)
+            : matrixMetric === "rivalry" ? String(Math.round(v.rivalry))
+              : String(Math.round(v.pct));
   const topRivalries = pairs.slice().sort((a, b) => b.rivalry_score - a.rivalry_score).slice(0, 8);
 
   // Per-player detail.
@@ -885,11 +890,11 @@ function H2HView({ mode, scope, rows }: { mode: StatsMode; scope: StatsScope; ro
       <div>
         <div className="section-head"><span className="section-label">Matrix</span></div>
         <div className="mb-2 flex flex-wrap items-center gap-2">
-          <ChipGroup<"winrate" | "played" | "gd" | "wdl">
+          <ChipGroup<"winrate" | "played" | "gd" | "wdl" | "ppm" | "rivalry">
             value={matrixMetric}
             onChange={setMatrixMetric}
             ariaLabel="Matrix metric"
-            options={[{ key: "winrate", label: "Win %" }, { key: "wdl", label: "W-D-L" }, { key: "played", label: "Played" }, { key: "gd", label: "Goal diff" }]}
+            options={[{ key: "winrate", label: "Win %" }, { key: "wdl", label: "W-D-L" }, { key: "ppm", label: "PPM" }, { key: "played", label: "Played" }, { key: "gd", label: "Goal diff" }, { key: "rivalry", label: "Rivalry" }]}
           />
         </div>
         <div className="overflow-x-auto" data-no-swipe-nav>
@@ -1549,11 +1554,15 @@ export default function StatsInsights({
   playerId: number | ""; onSelectPlayer: (id: number) => void;
 }) {
   const { rows, loading } = useStandings(mode, scope);
+  const { playerId: selfId } = useAuth();
+  const myId = selfId != null ? Number(selfId) : null;
   // Deep-link support: dashboard (and others) can pass an initial tab + trends config via nav state.
   const location = useLocation();
   const initState = (location.state as { statsTab?: Tab; trendsMetric?: Metric; trendsView?: ViewMode } | null) ?? null;
   const [tab, setTab] = useState<Tab>(initState?.statsTab ?? (playerId !== "" ? "player" : "trends"));
-  const selectedId = playerId === "" ? (rows[0]?.id ?? null) : playerId;
+  // Default selected player: the passed-in playerId, then self (if in the roster), then first row.
+  const selfInRows = myId != null && rows.some((r) => r.id === myId);
+  const selectedId = playerId !== "" ? playerId : selfInRows ? myId : (rows[0]?.id ?? null);
   const goPlayer = (id: number) => { onSelectPlayer(id); setTab("player"); };
 
   return (
@@ -1577,7 +1586,7 @@ export default function StatsInsights({
       {tab === "trends" && <TrendsExplorer mode={mode} scope={scope} rows={rows} initialMetric={initState?.trendsMetric} initialView={initState?.trendsView} />}
       {tab === "table" && <StatsTable rows={rows} loading={loading} onSelect={goPlayer} mode={mode} scope={scope} />}
       {tab === "positions" && <PositionsView mode={mode} />}
-      {tab === "h2h" && <H2HView mode={mode} scope={scope} rows={rows} />}
+      {tab === "h2h" && <H2HView mode={mode} scope={scope} rows={rows} myId={myId} />}
       {tab === "streaks" && <StreaksView mode={mode} scope={scope} />}
       {tab === "stars" && <StarsView mode={mode} scope={scope} rows={rows} selectedId={selectedId} onSelect={onSelectPlayer} />}
       {tab === "player" && <PlayerProfile mode={mode} scope={scope} rows={rows} selectedId={selectedId} onSelect={onSelectPlayer} />}
