@@ -341,7 +341,7 @@ export default function TrendsPreviewCard() {
                   yMin={0}
                   yTicks={chart.yTicks}
                   showLabels
-                  height={170}
+                  height={240}
                   width={previewW}
                   viewT0={chart.tournamentTs[0] ?? Date.now() - 365 * 864e5}
                   viewT1={chart.tournamentTs[chart.tournamentTs.length - 1] ?? Date.now()}
