@@ -66,9 +66,16 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done · `[!]` blocked on user
 
 ## Phase E — Verification  (model: **Sonnet high**)
 
-- [ ] Playwright sweep 390 + 430 + 1366 × both stats modes — zero console errors, no
-      horizontal scroll; verify best-case rival math, icon picker, trend labels +
-      greyed Last-N line, cups wording; `npm run check` + build green.
+- [x] Playwright sweep 390 + 430 + 1366 × both stats modes — **30/30 clean** (0
+      console errors, no horizontal scroll). DOM-verified collapse states, uniform
+      trend labels, and cups wording; best-case math covered by unit tests (3 pass).
+      `npm run check` (76 tests) + build green.
+
+**All phases complete.**
+
+> Note: the live screenshot image budget was exhausted this session, so the trend
+> labels / greyed Last-N line / best-case picker were verified via DOM + unit tests
+> rather than visual diff — worth a quick eyeball on your end.
 
 ---
 
