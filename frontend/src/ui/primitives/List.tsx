@@ -77,7 +77,7 @@ export function ListRow({
     >
       {overlay}
       <div className="pointer-events-none relative z-10 flex w-full items-center gap-3">
-        {leading != null ? <span className="shrink-0">{leading}</span> : null}
+        {leading != null ? <span className="shrink-0 self-stretch flex items-center">{leading}</span> : null}
         <span className="min-w-0 flex-1">
           {children ?? (
             <>

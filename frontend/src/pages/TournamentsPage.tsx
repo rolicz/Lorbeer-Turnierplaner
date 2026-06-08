@@ -181,7 +181,7 @@ export default function TournamentsPage() {
                 state={{ tournamentName: t.name, tournamentStatus: st }}
                 ariaLabel={t.name}
                 chevron={false}
-                leading={<span className={cn("block h-10 w-1 shrink-0 rounded-full", pal.bar)} aria-hidden="true" />}
+                leading={<span className={cn("block self-stretch w-1 shrink-0 rounded-full min-h-10", pal.bar)} aria-hidden="true" />}
                 trailing={
                   cupStakes.length || hasUnseen ? (
                     <>

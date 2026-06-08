@@ -328,17 +328,26 @@ def list_tournaments(s: Session = Depends(get_session)):
                 select(Player.display_name).where(Player.id == t.decider_winner_player_id)
             ).first()
 
-        # Collect distinct participants from the already-loaded match sides.
-        seen_pids: set[int] = set()
-        participants: list[dict] = []
+        # Order participants by finishing position (best → worst).
+        # compute_player_standings builds its own per-dict from match sides,
+        # so passing an empty participants list is fine — it picks up everyone.
+        from ..stats_core import compute_player_standings, positions_from_standings
+        standings = compute_player_standings(matches, [])
+        pos_map = positions_from_standings(standings)
+        seen_pids_set: set[int] = set()
+        pid_name: dict[int, str] = {}
         for m in matches:
             for side in m.sides:
                 for p in side.players:
                     pid = int(p.id)
-                    if pid not in seen_pids:
-                        seen_pids.add(pid)
-                        participants.append({"id": pid, "display_name": p.display_name})
-        participants.sort(key=lambda x: x["display_name"].lower())
+                    if pid not in seen_pids_set:
+                        seen_pids_set.add(pid)
+                        pid_name[pid] = p.display_name
+        participants: list[dict] = [
+            {"id": pid, "display_name": name}
+            for pid, name in pid_name.items()
+        ]
+        participants.sort(key=lambda x: (pos_map.get(x["id"], 9999), x["display_name"].lower()))
 
         d = t.model_dump()          # all the usual Tournament fields
         d["status"] = status        # if you want status in response

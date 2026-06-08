@@ -131,13 +131,13 @@ function ToggleChip({ on, onClick, children }: { on: boolean; onClick: () => voi
   );
 }
 
-function TrendsExplorer({ mode, scope, rows, initialMetric, initialView }: { mode: StatsMode; scope: StatsScope; rows: Row[]; initialMetric?: Metric; initialView?: ViewMode }) {
+function TrendsExplorer({ mode, scope, rows, initialMetric, initialView, initialPerMatch }: { mode: StatsMode; scope: StatsScope; rows: Row[]; initialMetric?: Metric; initialView?: ViewMode; initialPerMatch?: boolean }) {
   const { colorOf } = usePlayerColors();
   const [metric, setMetric] = useState<Metric>(initialMetric ?? "points");
   const [view, setView] = useState<ViewMode>(initialView ?? "cumulative");
   const [rollN, setRollN] = useState(5);
   const [range, setRange] = useState<RangeKey>("1y");
-  const [perMatch, setPerMatch] = useState(false);
+  const [perMatch, setPerMatch] = useState(initialPerMatch ?? false);
   const [hidden, setHidden] = useState<Set<number>>(new Set());
   const [now] = useState(() => Date.now());
   const [manualWin, setManualWin] = useState<{ t0: number; t1: number } | null>(null);
@@ -769,7 +769,7 @@ function PositionsView({ mode }: { mode: StatsMode }) {
     <div>
       <div className="section-head"><span className="section-label">Tournament positions</span></div>
       <div className="mb-1.5 text-[11px] text-text-muted">Drag a player's icon to reorder the columns.</div>
-      <div className="overflow-x-auto" data-no-swipe-nav>
+      <div className="overflow-x-auto [touch-action:pan-x]" data-no-swipe-nav>
         <div className="relative" style={{ width: gridW }}>
           <div
             className="relative"
@@ -858,6 +858,17 @@ function h2hTone(pct: number): string {
   return `hsl(${t * 130} 60% 42% / 0.85)`;
 }
 
+function h2hSequential(t: number): string {
+  return `hsl(210 60% ${48 - t * 22}% / ${0.55 + t * 0.3})`;
+}
+
+function h2hDiverging(gd: number, maxAbs: number): string {
+  if (maxAbs === 0) return `hsl(0 0% 40% / 0.55)`;
+  const t = Math.max(-1, Math.min(1, gd / maxAbs));
+  if (t >= 0) return `hsl(130 55% ${46 - t * 18}% / ${0.55 + t * 0.3})`;
+  return `hsl(0 55% ${46 + t * 18}% / ${0.55 - t * 0.3})`;
+}
+
 function H2HView({ mode, scope, rows, myId }: { mode: StatsMode; scope: StatsScope; rows: Row[]; myId?: number | null }) {
   const q = useQuery({
     queryKey: ["stats", "h2h", "all", 200, "rivalry", scope],
@@ -898,6 +909,33 @@ function H2HView({ mode, scope, rows, myId }: { mode: StatsMode; scope: StatsSco
             : matrixMetric === "rivalry" ? String(Math.round(v.rivalry))
               : String(Math.round(v.pct));
   const topRivalries = pairs.slice().sort((a, b) => b.rivalry_score - a.rivalry_score).slice(0, 8);
+
+  // Precompute normalization ranges for per-metric coloring.
+  const matrixRanges = useMemo(() => {
+    let maxPlayed = 1, maxRivalry = 1, maxAbsGd = 1;
+    for (const r of rows) {
+      for (const c of rows) {
+        if (r.id === c.id) continue;
+        const v = cell(r.id, c.id);
+        if (!v) continue;
+        maxPlayed = Math.max(maxPlayed, v.played);
+        maxRivalry = Math.max(maxRivalry, v.rivalry);
+        maxAbsGd = Math.max(maxAbsGd, Math.abs(v.gd));
+      }
+    }
+    return { maxPlayed, maxRivalry, maxAbsGd };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pairs, rows]);
+
+  const cellColor = (v: ReturnType<typeof cell>): string => {
+    if (!v) return "";
+    switch (matrixMetric) {
+      case "played": return h2hSequential(v.played / matrixRanges.maxPlayed);
+      case "rivalry": return h2hSequential(v.rivalry / matrixRanges.maxRivalry);
+      case "gd": return h2hDiverging(v.gd, matrixRanges.maxAbsGd);
+      default: return h2hTone(v.pct);
+    }
+  };
 
   // Per-player detail.
   const detailQ = useQuery({
@@ -1005,7 +1043,7 @@ function H2HView({ mode, scope, rows, myId }: { mode: StatsMode; scope: StatsSco
                           onClick={() => setSelected(r.id)}
                           title={`${r.name} vs ${c.name}: ${v.w}-${v.d}-${v.l}`}
                           className="grid h-11 w-11 place-items-center rounded text-[10px] font-semibold leading-none text-white"
-                          style={{ backgroundColor: h2hTone(v.pct) }}
+                          style={{ backgroundColor: cellColor(v) }}
                         >
                           {cellText(v)}
                         </button>
@@ -1629,7 +1667,7 @@ export default function StatsInsights({
   const myId = selfId != null ? Number(selfId) : null;
   // Deep-link support: dashboard (and others) can pass an initial tab + trends config via nav state.
   const location = useLocation();
-  const initState = (location.state as { statsTab?: Tab; trendsMetric?: Metric; trendsView?: ViewMode } | null) ?? null;
+  const initState = (location.state as { statsTab?: Tab; trendsMetric?: Metric; trendsView?: ViewMode; trendsPerMatch?: boolean } | null) ?? null;
   const [tab, setTab] = useState<Tab>(initState?.statsTab ?? (playerId !== "" ? "player" : "trends"));
   // Default selected player: the passed-in playerId, then self (if in the roster), then first row.
   const selfInRows = myId != null && rows.some((r) => r.id === myId);
@@ -1654,7 +1692,7 @@ export default function StatsInsights({
 
       <SectionTabs tabs={TABS} active={tab} onChange={setTab} />
 
-      {tab === "trends" && <TrendsExplorer mode={mode} scope={scope} rows={rows} initialMetric={initState?.trendsMetric} initialView={initState?.trendsView} />}
+      {tab === "trends" && <TrendsExplorer mode={mode} scope={scope} rows={rows} initialMetric={initState?.trendsMetric} initialView={initState?.trendsView} initialPerMatch={initState?.trendsPerMatch} />}
       {tab === "table" && <StatsTable rows={rows} loading={loading} onSelect={goPlayer} mode={mode} scope={scope} />}
       {tab === "positions" && <PositionsView mode={mode} />}
       {tab === "h2h" && <H2HView mode={mode} scope={scope} rows={rows} myId={myId} />}
