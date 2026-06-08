@@ -190,7 +190,7 @@ export default function TrendsPreviewCard() {
           return a.id - b.id;
         });
 
-      const tPpmTimeline: number[] = []; // per-tournament PPM (rolling N, matches stats Trends + per-match)
+      const tPpmTimeline: number[] = []; // per-tournament PPM history (same rolling logic as stats Trends rolling+per-match)
       for (const t of tournamentsChrono) {
         let sum = 0;
         let matchCount = 0;
@@ -206,7 +206,9 @@ export default function TrendsPreviewCard() {
           tPpmTimeline.push(ppm);
           tPlayed.add(t.id);
           tPoints.set(t.id, sum);
-          tForm.set(t.id, avgLast(tPpmTimeline, Math.max(1, formN)));
+          // Divide by actual count (not always formN) — matches stats rolling avg behaviour.
+          const window = tPpmTimeline.slice(-formN);
+          tForm.set(t.id, window.reduce((a, b) => a + b, 0) / window.length);
         }
       }
 
