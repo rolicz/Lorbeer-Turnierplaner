@@ -315,6 +315,7 @@ class TournamentListItemOut(TournamentSummaryOut):
     cup_stakes: list[CupStakeOut]
     winner_string: str | None
     winner_decider_string: str | None
+    participants: list[PlayerRef]
 
 
 class TournamentLiveOut(BaseModel):

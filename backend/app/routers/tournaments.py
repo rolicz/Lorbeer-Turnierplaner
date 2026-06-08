@@ -328,11 +328,24 @@ def list_tournaments(s: Session = Depends(get_session)):
                 select(Player.display_name).where(Player.id == t.decider_winner_player_id)
             ).first()
 
+        # Collect distinct participants from the already-loaded match sides.
+        seen_pids: set[int] = set()
+        participants: list[dict] = []
+        for m in matches:
+            for side in m.sides:
+                for p in side.players:
+                    pid = int(p.id)
+                    if pid not in seen_pids:
+                        seen_pids.add(pid)
+                        participants.append({"id": pid, "display_name": p.display_name})
+        participants.sort(key=lambda x: x["display_name"].lower())
+
         d = t.model_dump()          # all the usual Tournament fields
         d["status"] = status        # if you want status in response
         d["winner_string"] = winner_string
         d["winner_decider_string"] = winner_decider_string
         d["cup_stakes"] = cup_stakes_by_tid.get(int(t.id), [])
+        d["participants"] = participants
         out.append(d)
 
     return out

@@ -159,6 +159,7 @@ export default function TournamentsPage() {
             const unseenCount = (sum?.comment_ids ?? []).filter((cid) => !seen.has(cid)).length;
             const hasUnseen = !!token && unseenCount > 0;
             const cupStakes = t.cup_stakes ?? [];
+            const participants = t.participants ?? [];
 
             const meta: ReactNode[] = [];
             if (st === "live") meta.push(<span className="font-medium text-emerald-400">{ui.label}</span>);
@@ -216,6 +217,11 @@ export default function TournamentsPage() {
                     </span>
                   ))}
                 </span>
+                {participants.length > 0 ? (
+                  <span className="mt-0.5 block truncate text-[11px] text-text-muted/60">
+                    {participants.map((p) => p.display_name).join(", ")}
+                  </span>
+                ) : null}
               </ListRow>
             );
                 })}

@@ -2520,6 +2520,8 @@ export interface components {
             winner_string: string | null;
             /** Winner Decider String */
             winner_decider_string: string | null;
+            /** Participants */
+            participants: components["schemas"]["PlayerRef"][];
         };
         /** TournamentLiveOut */
         TournamentLiveOut: {
