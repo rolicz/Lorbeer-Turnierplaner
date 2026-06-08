@@ -135,7 +135,6 @@ function TrendsExplorer({ mode, scope, rows, initialMetric, initialView }: { mod
   const [rollN, setRollN] = useState(5);
   const [range, setRange] = useState<RangeKey>("1y");
   const [perMatch, setPerMatch] = useState(false);
-  const [showLabels, setShowLabels] = useState(false);
   const [hidden, setHidden] = useState<Set<number>>(new Set());
   const [now] = useState(() => Date.now());
   const [manualWin, setManualWin] = useState<{ t0: number; t1: number } | null>(null);
@@ -230,10 +229,8 @@ function TrendsExplorer({ mode, scope, rows, initialMetric, initialView }: { mod
   const win = manualWin ?? presetWin;
   const winRef = useRef(win);
   useEffect(() => { winRef.current = win; }, [win]);
-  // When tournament labels are on, allow panning slightly before the first event
+  // Always show tournament labels; allow panning slightly left of the first event
   // so its (down-left) label can be read fully — without shifting the y-axis.
-  const showLabelsRef = useRef(showLabels);
-  useEffect(() => { showLabelsRef.current = showLabels; }, [showLabels]);
   const boundsRef = useRef({ dataMin, dataMax });
   useEffect(() => { boundsRef.current = { dataMin, dataMax }; }, [dataMin, dataMax]);
 
@@ -258,7 +255,7 @@ function TrendsExplorer({ mode, scope, rows, initialMetric, initialView }: { mod
       const w = Math.min(Math.max(t1 - t0, 20 * DAY), full);
       // Extra scroll room on the left (in time) for the first tournament label.
       const innerWpx = Math.max(60, (el.clientWidth - 16) - 32 - 12);
-      const leadTime = showLabelsRef.current ? (90 / innerWpx) * w : 0;
+      const leadTime = (90 / innerWpx) * w;
       const loEff = lo - leadTime;
       let nt0 = t0;
       let nt1 = t0 + w;
@@ -334,7 +331,7 @@ function TrendsExplorer({ mode, scope, rows, initialMetric, initialView }: { mod
           {loading ? (
             <InlineLoading label="Loading…" />
           ) : (
-            <TrendChart events={events} series={series} yMax={Math.ceil(yMax)} yMin={Math.floor(yMin)} width={plotW - 16} viewT0={win.t0} viewT1={win.t1} showLabels={showLabels} height={240} />
+            <TrendChart events={events} series={series} yMax={Math.ceil(yMax)} yMin={Math.floor(yMin)} width={plotW - 16} viewT0={win.t0} viewT1={win.t1} showLabels height={240} />
           )}
         </div>
         <div className="mt-1 flex items-center justify-between gap-2 text-[10px] text-text-muted">
@@ -383,9 +380,6 @@ function TrendsExplorer({ mode, scope, rows, initialMetric, initialView }: { mod
           <ChipGroup<RangeKey> value={range} onChange={(r) => { setRange(r); setManualWin(null); }} ariaLabel="Range"
             options={[{ key: "1y", label: "1 year" }, { key: "2y", label: "2 years" }, { key: "all", label: "All time" }]} />
         </Field>
-        <div className="flex flex-wrap gap-1.5">
-          <ToggleChip on={showLabels} onClick={() => setShowLabels((v) => !v)}>Tournament names</ToggleChip>
-        </div>
       </div>
     </div>
   );

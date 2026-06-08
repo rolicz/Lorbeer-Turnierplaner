@@ -190,7 +190,7 @@ export default function TrendsPreviewCard() {
           return a.id - b.id;
         });
 
-      const matchPtsTimeline: number[] = [];
+      const tPtsTimeline: number[] = []; // per-tournament totals (rolling N over tournaments, not matches)
       for (const t of tournamentsChrono) {
         let sum = 0;
         let playedThisT = false;
@@ -200,13 +200,13 @@ export default function TrendsPreviewCard() {
           if (p == null) continue;
           playedThisT = true;
           sum += p;
-          matchPtsTimeline.push(p);
         }
         if (playedThisT) {
+          tPtsTimeline.push(sum);
           tPlayed.add(t.id);
           tPoints.set(t.id, sum);
+          tForm.set(t.id, avgLast(tPtsTimeline, Math.max(1, formN)));
         }
-        tForm.set(t.id, avgLast(matchPtsTimeline, Math.max(1, formN)));
       }
 
       out.set(pid, { tPoints, tForm, tPlayed });
@@ -258,7 +258,10 @@ export default function TrendsPreviewCard() {
     });
 
     if (view === "lastN") {
-      return { title: `Trends (Form, last ${formN})`, yMax: 3, yTicks: [0, 1, 2, 3], ySuffix: "", series, tournamentTs, tournamentTitles };
+      let maxFormY = 1;
+      series.forEach((s) => s.points.forEach((p) => { if (p.present) maxFormY = Math.max(maxFormY, p.y); }));
+      const yMaxF = Math.max(1, Math.ceil(maxFormY));
+      return { title: `Trends (Form, last ${formN})`, yMax: yMaxF, yTicks: [0, Math.floor(yMaxF / 2), yMaxF], ySuffix: "", series, tournamentTs, tournamentTitles };
     }
 
     const yMax = Math.max(1, Math.ceil(maxCum / 10) * 10);
@@ -322,23 +325,26 @@ export default function TrendsPreviewCard() {
             }
             aria-label="Open full trends"
           >
-            <div ref={setPreviewNode} data-no-swipe-nav>
-              <TrendChart
-                events={chart.tournamentTs.map((ts, i) => ({ ts, label: chart.tournamentTitles[i] ?? "" }))}
-                series={chart.series.map((s) => ({
-                  id: s.id,
-                  name: s.name,
-                  color: s.color,
-                  points: s.points.map((p) => (view === "total" ? p.y : p.present ? p.y : null)),
-                }))}
-                yMax={chart.yMax}
-                yMin={0}
-                yTicks={chart.yTicks}
-                height={170}
-                width={previewW}
-                viewT0={chart.tournamentTs[0] ?? Date.now() - 365 * 864e5}
-                viewT1={chart.tournamentTs[chart.tournamentTs.length - 1] ?? Date.now()}
-              />
+            <div className="rounded-2xl border border-border-card-chip/40 bg-bg-card-inner/40 p-2">
+              <div ref={setPreviewNode} data-no-swipe-nav>
+                <TrendChart
+                  events={chart.tournamentTs.map((ts, i) => ({ ts, label: chart.tournamentTitles[i] ?? "" }))}
+                  series={chart.series.map((s) => ({
+                    id: s.id,
+                    name: s.name,
+                    color: s.color,
+                    points: s.points.map((p) => (view === "total" ? p.y : p.present ? p.y : null)),
+                  }))}
+                  yMax={chart.yMax}
+                  yMin={0}
+                  yTicks={chart.yTicks}
+                  showLabels
+                  height={170}
+                  width={previewW}
+                  viewT0={chart.tournamentTs[0] ?? Date.now() - 365 * 864e5}
+                  viewT1={chart.tournamentTs[chart.tournamentTs.length - 1] ?? Date.now()}
+                />
+              </div>
             </div>
           </button>
         ) : null}
