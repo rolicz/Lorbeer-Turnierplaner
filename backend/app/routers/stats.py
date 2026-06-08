@@ -20,7 +20,7 @@ from ..services.stats.h2h_matches import compute_stats_h2h_matches
 from ..services.stats.odds import compute_single_match_odds
 from ..services.stats.player_matches import compute_stats_player_matches
 from ..services.stats.players import compute_stats_players
-from ..services.stats.ratings import compute_stats_ratings
+from ..services.stats.ratings import compute_stats_ratings, compute_stats_ratings_history
 from ..services.stats.registry import stats_overview
 from ..services.stats.streaks import compute_stats_streaks
 
@@ -113,6 +113,15 @@ def stats_ratings(
     s: Session = Depends(get_session),
 ) -> dict[str, Any]:
     return compute_stats_ratings(s, mode=mode, scope=scope)
+
+
+@router.get("/ratings/history")
+def stats_ratings_history(
+    mode: str = Query("overall", description='Match mode filter: "overall" (default), "1v1", or "2v2"'),
+    scope: Literal["tournaments", "both", "friendlies"] = Query("tournaments", description='Data source scope: "tournaments" (default), "both", or "friendlies"'),
+    s: Session = Depends(get_session),
+) -> dict[str, Any]:
+    return compute_stats_ratings_history(s, mode=mode, scope=scope)
 
 
 @router.post("/odds", response_model=OddsResponseOut)

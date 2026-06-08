@@ -8,7 +8,8 @@ import AvatarCircle from "../../ui/primitives/AvatarCircle";
 import { StarsFA } from "../../ui/primitives/StarsFA";
 import InlineLoading from "../../ui/primitives/InlineLoading";
 import { SectionTabs, type SectionTab } from "../../ui/SectionTabs";
-import { getStatsRatings, getStatsPlayers, getStatsPlayerMatches, getStatsH2H, getStatsStreaks } from "../../api/stats.api";
+import { getStatsRatings, getStatsPlayers, getStatsPlayerMatches, getStatsH2H, getStatsStreaks, getStatsRatingsHistory } from "../../api/stats.api";
+import type { StatsRatingsHistoryResponse } from "../../api/stats.api";
 import { getCup, listCupDefs } from "../../api/cup.api";
 import { cupColorVarForKey, rgbFromCssVar } from "../../cupColors";
 import { listClubs } from "../../api/clubs.api";
@@ -103,7 +104,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 // ==========================================================================
 //  TRENDS — interactive
 // ==========================================================================
-type Metric = "points" | "goals" | "conceded" | "gd" | "winrate";
+type Metric = "points" | "goals" | "conceded" | "gd" | "winrate" | "elo";
 type ViewMode = "per" | "cumulative" | "rolling";
 
 const METRIC_OPTS: { key: Metric; label: string }[] = [
@@ -112,6 +113,7 @@ const METRIC_OPTS: { key: Metric; label: string }[] = [
   { key: "conceded", label: "Conceded" },
   { key: "gd", label: "Goal diff" },
   { key: "winrate", label: "Win %" },
+  { key: "elo", label: "Elo" },
 ];
 
 type RangeKey = "1y" | "2y" | "all";
@@ -145,20 +147,72 @@ function TrendsExplorer({ mode, scope, rows, initialMetric, initialView }: { mod
     queries: rows.map((r) => ({
       queryKey: ["stats", "playerMatches", r.id, scope],
       queryFn: () => getStatsPlayerMatches({ playerId: r.id, scope }),
-      enabled: rows.length > 0,
+      enabled: rows.length > 0 && metric !== "elo",
       placeholderData: keepPreviousData,
       staleTime: 30_000,
     })),
   });
-  const loading = matchesQs.some((q) => q.isLoading && !q.data);
 
+  const eloQ = useQuery({
+    queryKey: ["stats", "ratingsHistory", mode, scope],
+    queryFn: () => getStatsRatingsHistory({ mode: mode as "overall" | "1v1" | "2v2", scope }),
+    enabled: metric === "elo" && rows.length > 0,
+    placeholderData: keepPreviousData,
+    staleTime: 30_000,
+  });
+
+  const loading = metric === "elo"
+    ? (eloQ.isLoading && !eloQ.data)
+    : matchesQs.some((q) => q.isLoading && !q.data);
+
+  // Elo: cumulative = running rating; per = net delta; rolling hidden; no per-match.
+  const isElo = metric === "elo";
   // Win % is already a rate; cumulative + the per-match modifier only apply to absolute metrics.
-  const allowsCumulative = metric !== "winrate";
-  const effView: ViewMode = !allowsCumulative && view === "cumulative" ? "rolling" : view;
-  const applyPM = perMatch && metric !== "winrate";
+  const allowsCumulative = !isElo && metric !== "winrate";
+  // Elo always uses "cumulative" for running rating and "per" for delta; Last-N hidden.
+  const effView: ViewMode = isElo
+    ? (view === "per" ? "per" : "cumulative")
+    : (!allowsCumulative && view === "cumulative" ? "rolling" : view);
+  const applyPM = perMatch && !isElo && metric !== "winrate";
 
   // Series computed over ALL events; the visible date window (below) pans/zooms the view.
   const { events, series } = useMemo(() => {
+    // --- ELO branch ---
+    if (isElo) {
+      const histData = eloQ.data as StatsRatingsHistoryResponse | undefined;
+      if (!histData) return { events: [], series: [] };
+
+      // Build a union of all tournament ids/dates from all players' histories.
+      const tInfo = new Map<number, { date: string; name: string }>();
+      for (const entry of histData.players) {
+        for (const snap of entry.history) {
+          if (!tInfo.has(snap.tournament_id)) {
+            tInfo.set(snap.tournament_id, { date: snap.date, name: snap.tournament_name });
+          }
+        }
+      }
+      const tsOf = (tid: number) => new Date(tInfo.get(tid)?.date ?? 0).getTime();
+      const allTids = [...tInfo.keys()].sort((a, b) => tsOf(a) - tsOf(b) || a - b);
+      const events = allTids.map((tid) => ({ ts: tsOf(tid), label: tInfo.get(tid)?.name ?? "" }));
+
+      // Per-player: map tid → {rating_after, delta}
+      const rowIds = new Set(rows.map((r) => r.id));
+      const series = histData.players
+        .filter((e) => rowIds.has(e.player.id))
+        .map((entry) => {
+          const snapByTid = new Map(entry.history.map((s) => [s.tournament_id, s]));
+          const points = allTids.map((tid) => {
+            const snap = snapByTid.get(tid);
+            if (!snap) return null;
+            return effView === "per" ? snap.delta : snap.rating_after;
+          });
+          const c = colorOf(entry.player.id);
+          return { id: entry.player.id, name: entry.player.display_name, color: c.solid, points: hidden.has(entry.player.id) ? points.map(() => null) : points };
+        });
+      return { events, series };
+    }
+
+    // --- Standard metrics branch ---
     const perPlayer = new Map<number, Map<number, { v: number; played: number }>>();
     const tInfo = new Map<number, { date: string; name: string }>();
     rows.forEach((r, i) => {
@@ -216,7 +270,7 @@ function TrendsExplorer({ mode, scope, rows, initialMetric, initialView }: { mod
       return { id: r.id, name: r.name, color: c.solid, points: hidden.has(r.id) ? points.map(() => null) : points };
     });
     return { events, series };
-  }, [rows, matchesQs, metric, effView, rollN, hidden, mode, applyPM, colorOf]);
+  }, [rows, matchesQs, eloQ.data, metric, isElo, effView, rollN, hidden, mode, applyPM, colorOf]);
 
   // ---- visible date window (pan/zoom) ----
   const DAY = 864e5;
@@ -360,16 +414,21 @@ function TrendsExplorer({ mode, scope, rows, initialMetric, initialView }: { mod
         <Field label="Metric">
           <div className="flex flex-wrap items-center gap-2">
             <ChipGroup<Metric> value={metric} onChange={setMetric} ariaLabel="Metric" options={METRIC_OPTS} />
-            {metric !== "winrate" ? <ToggleChip on={perMatch} onClick={() => setPerMatch((v) => !v)}>Per match</ToggleChip> : null}
+            {!isElo && metric !== "winrate" ? <ToggleChip on={perMatch} onClick={() => setPerMatch((v) => !v)}>Per match</ToggleChip> : null}
           </div>
         </Field>
         <Field label="View">
-          <ChipGroup<ViewMode> value={effView} onChange={setView} ariaLabel="View"
-            options={[
-              ...(allowsCumulative ? [{ key: "cumulative" as ViewMode, label: "Cumulative" }] : []),
-              { key: "per", label: "Per event" },
-              { key: "rolling", label: "Last N" },
-            ]} />
+          {isElo ? (
+            <ChipGroup<"cumulative" | "per"> value={effView === "per" ? "per" : "cumulative"} onChange={(v) => setView(v)} ariaLabel="View"
+              options={[{ key: "cumulative", label: "Rating" }, { key: "per", label: "Δ per event" }]} />
+          ) : (
+            <ChipGroup<ViewMode> value={effView} onChange={setView} ariaLabel="View"
+              options={[
+                ...(allowsCumulative ? [{ key: "cumulative" as ViewMode, label: "Cumulative" }] : []),
+                { key: "per", label: "Per event" },
+                { key: "rolling", label: "Last N" },
+              ]} />
+          )}
         </Field>
         {effView === "rolling" ? (
           <div className="space-y-1">

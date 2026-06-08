@@ -86,6 +86,33 @@ export function getStatsRatings(opts?: { mode?: "overall" | "1v1" | "2v2"; scope
     return apiFetch(`/stats/ratings${suffix}`, { method: "GET" });
 }
 
+export type RatingSnapshot = {
+  tournament_id: number;
+  date: string;
+  tournament_name: string;
+  rating_after: number;
+  delta: number;
+};
+
+export type StatsRatingsHistoryResponse = {
+  generated_at: string;
+  mode: string;
+  scope: string;
+  base_rating: number;
+  players: Array<{
+    player: { id: number; display_name: string };
+    history: RatingSnapshot[];
+  }>;
+};
+
+export function getStatsRatingsHistory(opts?: { mode?: "overall" | "1v1" | "2v2"; scope?: StatsScope }): Promise<StatsRatingsHistoryResponse> {
+    const qs = new URLSearchParams();
+    if (opts?.mode && opts.mode !== "overall") qs.set("mode", String(opts.mode));
+    if (opts?.scope && opts.scope !== "tournaments") qs.set("scope", String(opts.scope));
+    const suffix = qs.toString() ? `?${qs.toString()}` : "";
+    return apiFetch(`/stats/ratings/history${suffix}`, { method: "GET" });
+}
+
 export type StatsOddsRequest = {
   mode: "1v1" | "2v2";
   teamA_player_ids: number[];

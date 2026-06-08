@@ -228,3 +228,139 @@ def compute_stats_ratings(s: Session, *, mode: str, scope: str = "tournaments") 
         "k": k_base,
         "rows": rows,
     }
+
+
+def compute_stats_ratings_history(
+    s: Session,
+    *,
+    mode: str,
+    scope: str = "tournaments",
+) -> dict[str, Any]:
+    """
+    Same Elo algorithm as compute_stats_ratings but emits a per-player
+    chronological list of {tournament_id, date, rating_after, delta}
+    snapshots — one snapshot per tournament the player participated in.
+    The final rating_after for each player matches compute_stats_ratings.
+
+    Strategy: process matches in the same chronological order as the
+    ratings endpoint.  Group by tournament_id so each player gets exactly
+    one snapshot per tournament (summing the per-match deltas within it).
+    """
+    mode_norm = str(mode or "overall").strip().lower()
+    if mode_norm not in ("overall", "1v1", "2v2"):
+        mode_norm = "overall"
+    scope_norm = normalize_scope(scope)
+
+    players = list(s.exec(select(Player)).all())
+    players_by_id = {int(p.id): p for p in players if p.id is not None}
+
+    matches = _load_finished_matches(s, scope=scope_norm)  # already chronologically sorted
+
+    base_rating = 1000.0
+    k_base = 24.0
+
+    # Running ratings (same as compute_stats_ratings).
+    current: dict[int, float] = {pid: base_rating for pid in players_by_id}
+
+    # Ordered list of unique tournament ids as we encounter them (preserves chron order).
+    seen_tids: list[int] = []
+    t_info: dict[int, dict[str, str]] = {}
+    # Accumulated net Elo delta per player per tournament.
+    t_player_delta: dict[int, dict[int, float]] = {}
+
+    for m in matches:
+        t: Tournament | None = getattr(m, "tournament", None)
+        if t is None:
+            continue
+        t_mode = str(getattr(t, "mode", "") or "").strip().lower()
+
+        if mode_norm in ("1v1", "2v2") and t_mode != mode_norm:
+            continue
+
+        a = _side_by(m, "A")
+        b = _side_by(m, "B")
+        if not a or not b:
+            continue
+
+        a_ids = [int(p.id) for p in a.players if p.id is not None]
+        b_ids = [int(p.id) for p in b.players if p.id is not None]
+        if not a_ids or not b_ids:
+            continue
+
+        if mode_norm == "1v1" and (len(a_ids) != 1 or len(b_ids) != 1):
+            continue
+        if mode_norm == "2v2" and (len(a_ids) != 2 or len(b_ids) != 2):
+            continue
+
+        a_goals = int(getattr(a, "goals", 0) or 0)
+        b_goals = int(getattr(b, "goals", 0) or 0)
+
+        if a_goals == b_goals:
+            sa = 0.5
+        elif a_goals > b_goals:
+            sa = 1.0
+        else:
+            sa = 0.0
+
+        ra = sum(current.get(pid, base_rating) for pid in a_ids) / float(len(a_ids))
+        rb = sum(current.get(pid, base_rating) for pid in b_ids) / float(len(b_ids))
+        ea = _expected(ra, rb)
+
+        gd = abs(a_goals - b_goals)
+        margin_mult = 1.0 + min(2.0, (gd / 4.0))
+        delta_team_a = (k_base * margin_mult) * (sa - ea)
+        delta_team_b = -delta_team_a
+
+        tid = int(t.id)
+        if tid not in t_player_delta:
+            seen_tids.append(tid)
+            t_player_delta[tid] = {}
+            d_attr = getattr(t, "date", None)
+            t_info[tid] = {
+                "date": str(d_attr) if d_attr else "",
+                "name": str(getattr(t, "name", "") or ""),
+            }
+
+        for pid in a_ids:
+            dv = delta_team_a / float(len(a_ids))
+            current[pid] = current.get(pid, base_rating) + dv
+            t_player_delta[tid][pid] = t_player_delta[tid].get(pid, 0.0) + dv
+
+        for pid in b_ids:
+            dv = delta_team_b / float(len(b_ids))
+            current[pid] = current.get(pid, base_rating) + dv
+            t_player_delta[tid][pid] = t_player_delta[tid].get(pid, 0.0) + dv
+
+    # Rebuild per-player histories from the accumulated deltas (same chron order).
+    running: dict[int, float] = {pid: base_rating for pid in players_by_id}
+    player_histories: dict[int, list[dict[str, Any]]] = {pid: [] for pid in players_by_id}
+
+    for tid in seen_tids:
+        info = t_info[tid]
+        for pid, delta in t_player_delta[tid].items():
+            running[pid] = running.get(pid, base_rating) + delta
+            player_histories.setdefault(pid, []).append({
+                "tournament_id": tid,
+                "date": info["date"],
+                "tournament_name": info["name"],
+                "rating_after": round(running[pid], 2),
+                "delta": round(delta, 2),
+            })
+
+    result_players = []
+    for pid, p in players_by_id.items():
+        history = player_histories.get(pid, [])
+        if not history:
+            continue
+        result_players.append({
+            "player": {"id": pid, "display_name": p.display_name},
+            "history": history,
+        })
+
+    return {
+        "generated_at": datetime.utcnow().isoformat(),
+        "mode": mode_norm,
+        "scope": scope_norm,
+        "base_rating": base_rating,
+        "players": result_players,
+    }
