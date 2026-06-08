@@ -769,7 +769,7 @@ function PositionsView({ mode }: { mode: StatsMode }) {
     <div>
       <div className="section-head"><span className="section-label">Tournament positions</span></div>
       <div className="mb-1.5 text-[11px] text-text-muted">Drag a player's icon to reorder the columns.</div>
-      <div className="overflow-x-auto [touch-action:pan-x]" data-no-swipe-nav>
+      <div className="overflow-x-auto" data-no-swipe-nav>
         <div className="relative" style={{ width: gridW }}>
           <div
             className="relative"
