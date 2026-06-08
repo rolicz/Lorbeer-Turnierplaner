@@ -11,6 +11,7 @@ import { useEffect, useRef } from "react";
 import { useQueryClient, type QueryClient } from "@tanstack/react-query";
 
 import { qk } from "../../api/queryKeys";
+import { useAuth } from "../../auth/AuthContext";
 import { buildWsUrlForPath, subscribe, type RealtimeMessage } from "./connection";
 import { applyGlobalMessage, applyTournamentMessage } from "./applyEvent";
 
@@ -47,7 +48,8 @@ function resyncTournament(qc: QueryClient, tid: number) {
 
 export function useTournamentWS(tid: number | null) {
   const qc = useQueryClient();
-  const url = tid ? safeUrl(() => buildWsUrlForPath(`/ws/tournaments/${tid}`)) : null;
+  const { token } = useAuth();
+  const url = tid ? safeUrl(() => buildWsUrlForPath(`/ws/tournaments/${tid}`, token)) : null;
 
   useVisibilityResync(!!tid, () => {
     if (tid) resyncTournament(qc, tid);
@@ -76,7 +78,8 @@ function resyncGlobal(qc: QueryClient) {
 
 export function useAnyTournamentWS() {
   const qc = useQueryClient();
-  const url = safeUrl(() => buildWsUrlForPath(`/ws/tournaments`));
+  const { token } = useAuth();
+  const url = safeUrl(() => buildWsUrlForPath(`/ws/tournaments`, token));
 
   useVisibilityResync(true, () => resyncGlobal(qc));
 
