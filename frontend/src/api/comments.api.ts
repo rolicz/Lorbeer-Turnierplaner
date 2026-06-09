@@ -60,6 +60,7 @@ export function createTournamentComment(
   tournamentId: number,
   body: {
     match_id?: number | null;
+    parent_comment_id?: number | null;
     author_player_id?: number | null;
     body: string;
     has_image?: boolean;

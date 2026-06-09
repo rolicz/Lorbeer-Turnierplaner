@@ -700,6 +700,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/players/guestbook/{entry_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Player Guestbook Entry */
+        delete: operations["delete_player_guestbook_entry_players_guestbook__entry_id__delete"];
+        options?: never;
+        head?: never;
+        /** Patch Player Guestbook Entry */
+        patch: operations["patch_player_guestbook_entry_players_guestbook__entry_id__patch"];
+        trace?: never;
+    };
     "/players/guestbook/{entry_id}/read": {
         parameters: {
             query?: never;
@@ -780,23 +798,6 @@ export interface paths {
         put: operations["mark_player_poke_read_all_players__player_id__pokes_read_all_put"];
         post?: never;
         delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/players/guestbook/{entry_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        /** Delete Player Guestbook Entry */
-        delete: operations["delete_player_guestbook_entry_players_guestbook__entry_id__delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -947,6 +948,23 @@ export interface paths {
         };
         /** Stats Ratings */
         get: operations["stats_ratings_stats_ratings_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/stats/ratings/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Stats Ratings History */
+        get: operations["stats_ratings_history_stats_ratings_history_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1378,6 +1396,8 @@ export interface components {
             body: string;
             /** Match Id */
             match_id?: number | null;
+            /** Parent Comment Id */
+            parent_comment_id?: number | null;
             /** Author Player Id */
             author_player_id?: number | null;
             /**
@@ -1418,6 +1438,8 @@ export interface components {
             tournament_id: number;
             /** Match Id */
             match_id: number | null;
+            /** Parent Comment Id */
+            parent_comment_id?: number | null;
             /** Author Player Id */
             author_player_id: number | null;
             /** Body */
@@ -1442,6 +1464,11 @@ export interface components {
             downvotes: number;
             /** My Vote */
             my_vote: number;
+            /**
+             * Can Edit
+             * @default false
+             */
+            can_edit: boolean;
         };
         /** CommentPatchBody */
         CommentPatchBody: {
@@ -1662,6 +1689,11 @@ export interface components {
             downvotes: number;
             /** My Vote */
             my_vote: number;
+            /**
+             * Can Edit
+             * @default false
+             */
+            can_edit: boolean;
         };
         /** GuestbookReadMapOut */
         GuestbookReadMapOut: {
@@ -1867,6 +1899,11 @@ export interface components {
             parent_entry_id?: number | null;
             /** Author Player Id */
             author_player_id?: number | null;
+        };
+        /** PlayerGuestbookPatchBody */
+        PlayerGuestbookPatchBody: {
+            /** Body */
+            body?: string | null;
         };
         /** PlayerGuestbookVoteBody */
         PlayerGuestbookVoteBody: {
@@ -4125,6 +4162,72 @@ export interface operations {
             };
         };
     };
+    delete_player_guestbook_entry_players_guestbook__entry_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                entry_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    patch_player_guestbook_entry_players_guestbook__entry_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                entry_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PlayerGuestbookPatchBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GuestbookEntryOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     mark_player_guestbook_entry_read_players_guestbook__entry_id__read_put: {
         parameters: {
             query?: never;
@@ -4271,37 +4374,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MarkedResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    delete_player_guestbook_entry_players_guestbook__entry_id__delete: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                entry_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
                 };
             };
             /** @description Validation Error */
@@ -4590,6 +4662,42 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["StatsRatingsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    stats_ratings_history_stats_ratings_history_get: {
+        parameters: {
+            query?: {
+                /** @description Match mode filter: "overall" (default), "1v1", or "2v2" */
+                mode?: string;
+                /** @description Data source scope: "tournaments" (default), "both", or "friendlies" */
+                scope?: "tournaments" | "both" | "friendlies";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description Validation Error */

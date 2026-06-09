@@ -125,8 +125,19 @@ export function CommentCard({
   onMarkSeen,
   canPin,
   onTogglePin,
-  canWrite,
+  canEdit,
   canDelete,
+  canReply,
+  onReply,
+  replyOpen,
+  replyDraft,
+  onChangeReplyDraft,
+  onSubmitReply,
+  onCancelReply,
+  replySubmitting,
+  childCount,
+  collapsed,
+  onToggleCollapse,
   players,
   currentPlayerId,
   currentPlayerName,
@@ -153,8 +164,19 @@ export function CommentCard({
   onMarkSeen: () => void;
   canPin: boolean;
   onTogglePin: (() => void) | null;
-  canWrite: boolean;
+  canEdit: boolean;
   canDelete: boolean;
+  canReply: boolean;
+  onReply: () => void;
+  replyOpen: boolean;
+  replyDraft: string;
+  onChangeReplyDraft: (v: string) => void;
+  onSubmitReply: () => void;
+  onCancelReply: () => void;
+  replySubmitting: boolean;
+  childCount: number;
+  collapsed: boolean;
+  onToggleCollapse: () => void;
   players: Player[];
   currentPlayerId: number | null;
   currentPlayerName: string | null;
@@ -174,6 +196,8 @@ export function CommentCard({
   avatarUpdatedAt?: string | null;
   onOpenImage: (src: string) => void;
 }) {
+  const showActions =
+    canEdit || canDelete || (canPin && !!onTogglePin) || canReply || isUnseen || childCount > 0;
   const edited = c.updatedAt > c.createdAt;
   const foreignAuthorId =
     draftAuthor !== "general" && currentPlayerId != null && draftAuthor !== currentPlayerId ? draftAuthor : null;
@@ -220,8 +244,24 @@ export function CommentCard({
           </div>
         </div>
 
-        {canWrite || isUnseen ? (
+        {showActions ? (
           <div className="shrink-0 flex items-center gap-2">
+            {childCount > 0 ? (
+              <Button
+                variant="ghost"
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onToggleCollapse();
+                }}
+                title={collapsed ? `Show ${childCount} repl${childCount === 1 ? "y" : "ies"}` : "Hide replies"}
+                className="h-9 px-2 p-0 inline-flex items-center justify-center gap-1"
+              >
+                <i className={`fa-solid ${collapsed ? "fa-chevron-right" : "fa-chevron-down"}`} aria-hidden="true" />
+                <span className="text-[11px] tabular-nums">{childCount}</span>
+              </Button>
+            ) : null}
             {isUnseen ? (
               <Button
                 variant="ghost"
@@ -235,6 +275,21 @@ export function CommentCard({
                 className="h-9 w-9 p-0 inline-flex items-center justify-center"
               >
                 <i className="fa-solid fa-envelope text-accent motion-safe:animate-pulse" aria-hidden="true" />
+              </Button>
+            ) : null}
+            {canReply ? (
+              <Button
+                variant="ghost"
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onReply();
+                }}
+                title="Reply"
+                className="h-9 w-9 p-0 inline-flex items-center justify-center"
+              >
+                <i className="fa-solid fa-reply" aria-hidden="true" />
               </Button>
             ) : null}
             {canPin && onTogglePin ? (
@@ -251,16 +306,18 @@ export function CommentCard({
                 />
               </Button>
             ) : null}
-            <Button
-              variant="ghost"
-              type="button"
-              onClick={onToggleEdit}
-              title={isEditing ? "Cancel edit" : "Edit comment"}
-              className="h-9 w-9 p-0 inline-flex items-center justify-center md:w-auto md:px-3 md:py-1.5"
-            >
-              <i className={`fa-solid ${isEditing ? "fa-chevron-up" : "fa-pen"} md:hidden`} aria-hidden="true" />
-              <span className="hidden md:inline">{isEditing ? "Close" : "Edit"}</span>
-            </Button>
+            {canEdit ? (
+              <Button
+                variant="ghost"
+                type="button"
+                onClick={onToggleEdit}
+                title={isEditing ? "Cancel edit" : "Edit comment"}
+                className="h-9 w-9 p-0 inline-flex items-center justify-center md:w-auto md:px-3 md:py-1.5"
+              >
+                <i className={`fa-solid ${isEditing ? "fa-chevron-up" : "fa-pen"} md:hidden`} aria-hidden="true" />
+                <span className="hidden md:inline">{isEditing ? "Close" : "Edit"}</span>
+              </Button>
+            ) : null}
             {canDelete ? (
               <Button
                 variant="ghost"
@@ -370,6 +427,30 @@ export function CommentCard({
           </div>
         </div>
       )}
+
+      {replyOpen ? (
+        <div className="mt-2 panel-inner p-2 space-y-2" onClick={(e) => e.stopPropagation()}>
+          <Textarea
+            label={`Reply to ${authorLabel(c.author)}`}
+            value={replyDraft}
+            onChange={(e) => onChangeReplyDraft(e.target.value)}
+            placeholder="Write a reply…"
+          />
+          <div className="flex items-center justify-end gap-2">
+            <Button type="button" variant="ghost" onClick={onCancelReply} title="Cancel">
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              onClick={onSubmitReply}
+              disabled={replySubmitting || !replyDraft.trim()}
+              title="Post reply"
+            >
+              {replySubmitting ? "Posting…" : "Reply"}
+            </Button>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

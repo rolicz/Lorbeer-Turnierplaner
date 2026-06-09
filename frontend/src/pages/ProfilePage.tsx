@@ -18,6 +18,7 @@ import {
   createPlayerPoke,
   createPlayerGuestbookEntry,
   deletePlayerGuestbookEntry,
+  editPlayerGuestbookEntry,
   getPlayerProfile,
   listPlayerPokes,
   listPlayerPokeSummary,
@@ -220,6 +221,11 @@ export default function ProfilePage() {
     Record<number, Record<number, string>>
   >({});
   const [replyOpenEntryByProfileId, setReplyOpenEntryByProfileId] = useState<Record<number, number | null>>({});
+  const [editDraftByProfileAndEntry, setEditDraftByProfileAndEntry] = useState<
+    Record<number, Record<number, string>>
+  >({});
+  const [editOpenEntryByProfileId, setEditOpenEntryByProfileId] = useState<Record<number, number | null>>({});
+  const [collapsedEntryByProfileId, setCollapsedEntryByProfileId] = useState<Record<number, Set<number>>>({});
   const [avatarEditorOpen, setAvatarEditorOpen] = useState(false);
   const [headerEditorOpen, setHeaderEditorOpen] = useState(false);
   const [avatarLightboxSrc, setAvatarLightboxSrc] = useState<string | null>(null);
@@ -239,6 +245,15 @@ export default function ProfilePage() {
     [targetPlayerId, replyDraftByProfileAndEntry]
   );
   const replyOpenEntryId = targetPlayerId != null ? (replyOpenEntryByProfileId[targetPlayerId] ?? null) : null;
+  const editDraftByEntryId = useMemo(
+    () => (targetPlayerId != null ? (editDraftByProfileAndEntry[targetPlayerId] ?? {}) : {}),
+    [targetPlayerId, editDraftByProfileAndEntry]
+  );
+  const editOpenEntryId = targetPlayerId != null ? (editOpenEntryByProfileId[targetPlayerId] ?? null) : null;
+  const collapsedEntryIds = useMemo(
+    () => (targetPlayerId != null ? (collapsedEntryByProfileId[targetPlayerId] ?? new Set<number>()) : new Set<number>()),
+    [targetPlayerId, collapsedEntryByProfileId]
+  );
 
   const player = useMemo(() => {
     const rows = playersQ.data ?? [];
@@ -599,6 +614,21 @@ export default function ProfilePage() {
       await qc.invalidateQueries({ queryKey: ["players", "guestbook", "read", targetPlayerId ?? "none", token ?? "none"] });
     },
   });
+  const editGuestbookMut = useMutation({
+    mutationFn: async ({ entryId, body }: { entryId: number; body: string }) => {
+      if (!token) throw new Error("Not logged in");
+      return editPlayerGuestbookEntry(token, entryId, body);
+    },
+    onSuccess: async (_result, vars) => {
+      if (targetPlayerId != null) {
+        setEditOpenEntryByProfileId((prev) => ({
+          ...prev,
+          [targetPlayerId]: prev[targetPlayerId] === vars.entryId ? null : prev[targetPlayerId] ?? null,
+        }));
+      }
+      await qc.invalidateQueries({ queryKey: ["players", "guestbook", targetPlayerId ?? "none"] });
+    },
+  });
   const markGuestbookReadMut = useMutation({
     mutationFn: async (entryId: number) => {
       if (!token) throw new Error("Not logged in");
@@ -729,13 +759,18 @@ export default function ProfilePage() {
       unreadReplyCountByEntryId,
       replyDraftByEntryId,
       replyOpenEntryId,
+      editDraftByEntryId,
+      editOpenEntryId,
+      collapsedEntryIds,
       canPostGuestbook,
       isUnread: isGuestbookUnread,
       canDelete: (entry) =>
         !!token && (role === "admin" || isOwnProfile || currentPlayerId === entry.author_player_id),
+      canEditEntry: (entry) => !!token && !!entry.can_edit,
       readPending: markGuestbookReadMut.isPending,
       votePending: voteGuestbookMut.isPending,
       createPending: createGuestbookMut.isPending,
+      editPending: editGuestbookMut.isPending,
       voteEnabled: !!token && !voteGuestbookMut.isPending,
       markRead: (entryId) => {
         if (!token || markGuestbookReadMut.isPending) return;
@@ -775,6 +810,46 @@ export default function ProfilePage() {
         if (!t) return;
         createGuestbookMut.mutate({ body: t, parentEntryId: entryId });
       },
+      toggleEdit: (entry) => {
+        if (!targetPlayerId) return;
+        setReplyOpenEntryByProfileId((prev) => ({ ...prev, [targetPlayerId]: null }));
+        setEditDraftByProfileAndEntry((prev) => ({
+          ...prev,
+          [targetPlayerId]: { ...(prev[targetPlayerId] ?? {}), [entry.id]: entry.body },
+        }));
+        setEditOpenEntryByProfileId((prev) => ({
+          ...prev,
+          [targetPlayerId]: prev[targetPlayerId] === entry.id ? null : entry.id,
+        }));
+      },
+      cancelEdit: (entryId) => {
+        if (!targetPlayerId) return;
+        setEditOpenEntryByProfileId((prev) => ({
+          ...prev,
+          [targetPlayerId]: prev[targetPlayerId] === entryId ? null : prev[targetPlayerId] ?? null,
+        }));
+      },
+      setEditDraft: (entryId, text) => {
+        if (!targetPlayerId) return;
+        setEditDraftByProfileAndEntry((prev) => ({
+          ...prev,
+          [targetPlayerId]: { ...(prev[targetPlayerId] ?? {}), [entryId]: text },
+        }));
+      },
+      submitEdit: (entryId, text) => {
+        const t = text.trim();
+        if (!t) return;
+        editGuestbookMut.mutate({ entryId, body: t });
+      },
+      toggleCollapse: (entryId) => {
+        if (!targetPlayerId) return;
+        setCollapsedEntryByProfileId((prev) => {
+          const cur = new Set(prev[targetPlayerId] ?? new Set<number>());
+          if (cur.has(entryId)) cur.delete(entryId);
+          else cur.add(entryId);
+          return { ...prev, [targetPlayerId]: cur };
+        });
+      },
     }),
     [
       guestbookRootsAndChildren.childrenByParent,
@@ -782,6 +857,9 @@ export default function ProfilePage() {
       unreadReplyCountByEntryId,
       replyDraftByEntryId,
       replyOpenEntryId,
+      editDraftByEntryId,
+      editOpenEntryId,
+      collapsedEntryIds,
       canPostGuestbook,
       isGuestbookUnread,
       token,
@@ -793,8 +871,12 @@ export default function ProfilePage() {
       voteGuestbookMut,
       createGuestbookMut,
       deleteGuestbookMut,
+      editGuestbookMut,
       setReplyOpenEntryByProfileId,
       setReplyDraftByProfileAndEntry,
+      setEditOpenEntryByProfileId,
+      setEditDraftByProfileAndEntry,
+      setCollapsedEntryByProfileId,
       setVoteVotersEntryId,
     ]
   );

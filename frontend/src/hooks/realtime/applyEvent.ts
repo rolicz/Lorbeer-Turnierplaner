@@ -47,12 +47,13 @@ export function applyCommentUpsert(qc: QueryClient, payload: unknown) {
       return { ...prev, comments: [...comments, comment] };
     }
     const existing = comments[idx];
-    // Keep the viewer-specific vote fields (not carried by the broadcast).
+    // Keep the viewer-specific fields the broadcast can't know (votes + edit rights).
     const merged = {
       ...comment,
       upvotes: existing.upvotes,
       downvotes: existing.downvotes,
       my_vote: existing.my_vote,
+      can_edit: existing.can_edit,
     };
     const next = comments.slice();
     next[idx] = merged;

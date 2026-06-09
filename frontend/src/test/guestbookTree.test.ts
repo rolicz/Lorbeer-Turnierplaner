@@ -21,6 +21,7 @@ function entry(partial: Partial<PlayerGuestbookEntry> & { id: number }): PlayerG
     upvotes: partial.upvotes ?? 0,
     downvotes: partial.downvotes ?? 0,
     my_vote: partial.my_vote ?? 0,
+    can_edit: partial.can_edit ?? false,
   };
 }
 

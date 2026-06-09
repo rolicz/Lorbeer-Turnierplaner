@@ -148,6 +148,18 @@ export function createPlayerGuestbookEntry(
   });
 }
 
+export function editPlayerGuestbookEntry(
+  token: string,
+  entryId: number,
+  body: string,
+): Promise<PlayerGuestbookEntry> {
+  return apiFetch(`/players/guestbook/${entryId}`, {
+    method: "PATCH",
+    token,
+    body: JSON.stringify({ body }),
+  });
+}
+
 export function deletePlayerGuestbookEntry(token: string, entryId: number): Promise<void> {
   return apiFetch(`/players/guestbook/${entryId}`, { method: "DELETE", token });
 }

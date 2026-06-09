@@ -284,6 +284,25 @@ class TournamentPinnedComment(SQLModel, table=True):
     updated_at: dt.datetime = Field(default_factory=dt.datetime.utcnow)
 
 
+class CommentThreadLink(SQLModel, table=True):
+    """
+    Optional parent-child relation for comment threads (mirrors PlayerGuestbookThreadLink).
+    Top-level comments have no row here. Additive table, so existing comments stay roots.
+    """
+    comment_id: int = Field(foreign_key="comment.id", primary_key=True)
+    parent_comment_id: int = Field(foreign_key="comment.id", index=True)
+
+
+class CommentAuthorLink(SQLModel, table=True):
+    """
+    The real author of a comment (the logged-in player who created it), recorded even
+    when the comment is displayed as "General". Used to enforce author-only editing.
+    Additive: legacy comments have no row and fall back to author_player_id / admin-only.
+    """
+    comment_id: int = Field(foreign_key="comment.id", primary_key=True)
+    real_author_player_id: int = Field(foreign_key="player.id", index=True)
+
+
 class PushSubscription(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
 

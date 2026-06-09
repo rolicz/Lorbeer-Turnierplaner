@@ -22,6 +22,7 @@ from ..models import (
 from ..schemas import (
     PlayerCreateBody,
     PlayerGuestbookCreateBody,
+    PlayerGuestbookPatchBody,
     PlayerGuestbookVoteBody,
     PlayerPatchBody,
     PlayerPokeCreateBody,
@@ -530,6 +531,24 @@ def delete_player_header_image(
     return Response(status_code=204)
 
 
+# A guestbook entry may be edited by its author only within this window; admins always.
+GUESTBOOK_EDIT_WINDOW = dt.timedelta(hours=1)
+
+
+def _guestbook_can_edit(
+    entry: PlayerGuestbookEntry,
+    *,
+    viewer_id: int | None,
+    is_admin: bool,
+    now: dt.datetime | None = None,
+) -> bool:
+    if is_admin:
+        return True
+    if viewer_id is None or int(entry.author_player_id) != int(viewer_id):
+        return False
+    return (now or dt.datetime.utcnow()) - entry.created_at <= GUESTBOOK_EDIT_WINDOW
+
+
 def _guestbook_entry_payload(
     *,
     entry: PlayerGuestbookEntry,
@@ -538,6 +557,7 @@ def _guestbook_entry_payload(
     upvotes: int = 0,
     downvotes: int = 0,
     my_vote: int | None = None,
+    can_edit: bool = False,
 ) -> dict:
     return {
         "id": int(entry.id),
@@ -551,6 +571,7 @@ def _guestbook_entry_payload(
         "upvotes": int(upvotes),
         "downvotes": int(downvotes),
         "my_vote": int(my_vote) if my_vote in (-1, 1) else 0,
+        "can_edit": bool(can_edit),
     }
 
 
@@ -623,6 +644,9 @@ def list_player_guestbook(
     author_ids = sorted({int(row.author_player_id) for row in rows})
     authors = s.exec(select(Player).where(Player.id.in_(author_ids))).all() if author_ids else []
     author_name_by_id = {int(p.id): p.display_name for p in authors}
+    viewer_id = int(claims["player_id"]) if claims and claims.get("player_id") is not None else None
+    is_admin = bool(claims and str(claims.get("role") or "") == "admin")
+    now = dt.datetime.utcnow()
     return [
         _guestbook_entry_payload(
             entry=row,
@@ -631,6 +655,7 @@ def list_player_guestbook(
             upvotes=votes_by_entry_id.get(int(row.id), {}).get("up", 0),
             downvotes=votes_by_entry_id.get(int(row.id), {}).get("down", 0),
             my_vote=my_vote_by_entry_id.get(int(row.id), 0),
+            can_edit=_guestbook_can_edit(row, viewer_id=viewer_id, is_admin=is_admin, now=now),
         )
         for row in rows
     ]
@@ -798,6 +823,58 @@ def create_player_guestbook_entry(
         entry=row,
         author_display_name=author_player.display_name,
         parent_entry_id=parent_entry_id,
+    )
+
+
+@router.patch("/guestbook/{entry_id}", response_model=GuestbookEntryOut)
+def patch_player_guestbook_entry(
+    entry_id: int,
+    body: PlayerGuestbookPatchBody,
+    s: Session = Depends(get_session),
+    claims: dict = Depends(require_editor_claims),
+):
+    row = s.get(PlayerGuestbookEntry, entry_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="Guestbook entry not found")
+
+    viewer_id = int(claims.get("player_id"))
+    is_admin = str(claims.get("role") or "") == "admin"
+    if not _guestbook_can_edit(row, viewer_id=viewer_id, is_admin=is_admin):
+        raise HTTPException(
+            status_code=403,
+            detail="You can only edit your own message within an hour of posting",
+        )
+
+    if "body" in body.model_fields_set:
+        text = str(body.body or "").strip()
+        if not text:
+            raise HTTPException(status_code=400, detail="body is required")
+        if len(text) > MAX_GUESTBOOK_BODY_CHARS:
+            raise HTTPException(status_code=413, detail=f"body too long (max {MAX_GUESTBOOK_BODY_CHARS} chars)")
+        row.body = text
+
+    row.updated_at = dt.datetime.utcnow()
+    s.add(row)
+    s.commit()
+    s.refresh(row)
+
+    author = s.get(Player, int(row.author_player_id))
+    parent_link = s.get(PlayerGuestbookThreadLink, int(row.id))
+    parent_entry_id = int(parent_link.parent_entry_id) if parent_link else None
+    vote_values = s.exec(
+        select(PlayerGuestbookVote.value).where(PlayerGuestbookVote.guestbook_entry_id == int(row.id))
+    ).all()
+    up = sum(1 for v in vote_values if int(v) > 0)
+    down = sum(1 for v in vote_values if int(v) < 0)
+    my_vote_row = s.get(PlayerGuestbookVote, (viewer_id, int(row.id)))
+    return _guestbook_entry_payload(
+        entry=row,
+        author_display_name=author.display_name if author else f"Player #{int(row.author_player_id)}",
+        parent_entry_id=parent_entry_id,
+        upvotes=up,
+        downvotes=down,
+        my_vote=int(my_vote_row.value) if my_vote_row else 0,
+        can_edit=_guestbook_can_edit(row, viewer_id=viewer_id, is_admin=is_admin),
     )
 
 

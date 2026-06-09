@@ -6,6 +6,7 @@ export type CommentAuthor = { kind: "general" } | { kind: "player"; playerId: nu
 
 export type TournamentComment = {
   id: number;
+  parentId: number | null;
   createdAt: number;
   updatedAt: number;
   scope: CommentScope;
@@ -16,6 +17,8 @@ export type TournamentComment = {
   upvotes: number;
   downvotes: number;
   myVote: -1 | 0 | 1;
+  /** Viewer may edit this comment now (author within the 1h window, or admin). */
+  canEdit: boolean;
 };
 
 export function sameScope(a: CommentScope | null | undefined, b: CommentScope): boolean {

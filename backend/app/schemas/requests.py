@@ -28,6 +28,10 @@ class PlayerGuestbookCreateBody(BaseModel):
     author_player_id: int | None = None
 
 
+class PlayerGuestbookPatchBody(BaseModel):
+    body: str | None = None
+
+
 class PlayerGuestbookVoteBody(BaseModel):
     value: int | str | None = 0
 
@@ -82,6 +86,7 @@ class TournamentDeciderPatchBody(BaseModel):
 class CommentCreateBody(BaseModel):
     body: str = ""
     match_id: int | None = None
+    parent_comment_id: int | None = None
     author_player_id: int | None = None
     has_image: bool = False
     event_type: str | None = None

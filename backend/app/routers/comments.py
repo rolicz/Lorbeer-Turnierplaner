@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 import re
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, File, HTTPException, Request, Response, UploadFile
 from sqlalchemy.orm import selectinload
@@ -13,8 +13,10 @@ from ..auth import decode_token, require_admin, require_auth_claims, require_edi
 from ..db import get_engine, get_session
 from ..models import (
     Comment,
+    CommentAuthorLink,
     CommentImageFile,
     CommentRead,
+    CommentThreadLink,
     CommentVote,
     Match,
     MatchSide,
@@ -55,6 +57,51 @@ from ..services.notifications import enqueue_global_push, localized_push_message
 log = logging.getLogger(__name__)
 router = APIRouter(tags=["comments"])
 MAX_COMMENT_IMAGE_BYTES = 8_000_000  # enough for cropped 1920x1440 webp/png
+# A comment may be edited by its real author only within this window after posting.
+COMMENT_EDIT_WINDOW = timedelta(hours=1)
+
+
+def _real_author_map(s: Session, comment_ids: list[int]) -> dict[int, int]:
+    if not comment_ids:
+        return {}
+    rows = s.exec(
+        select(CommentAuthorLink.comment_id, CommentAuthorLink.real_author_player_id).where(
+            CommentAuthorLink.comment_id.in_(comment_ids)
+        )
+    ).all()
+    return {int(cid): int(pid) for cid, pid in rows}
+
+
+def _parent_comment_map(s: Session, comment_ids: list[int]) -> dict[int, int]:
+    if not comment_ids:
+        return {}
+    rows = s.exec(
+        select(CommentThreadLink.comment_id, CommentThreadLink.parent_comment_id).where(
+            CommentThreadLink.comment_id.in_(comment_ids)
+        )
+    ).all()
+    return {int(cid): int(pid) for cid, pid in rows}
+
+
+def _comment_can_edit(
+    c: Comment,
+    *,
+    viewer_id: int | None,
+    is_admin: bool,
+    real_author_id: int | None,
+    now: datetime | None = None,
+) -> bool:
+    """Admins always; otherwise the real author (recorded, or the legacy named author)
+    only within COMMENT_EDIT_WINDOW of posting. Legacy "General" comments without a
+    recorded author are admin-only."""
+    if is_admin:
+        return True
+    if viewer_id is None:
+        return False
+    author = real_author_id if real_author_id is not None else c.author_player_id
+    if author is None or int(author) != int(viewer_id):
+        return False
+    return (now or datetime.utcnow()) - c.created_at <= COMMENT_EDIT_WINDOW
 _GOAL_SCORELINE_RE = re.compile(r"^\s*\d{1,3}'\s+(?P<a>\d{1,3})-(?P<b>\d{1,3})\s+.+$")
 _PLAIN_SCORELINE_RE = re.compile(r"^\s*(?P<a>\d{1,3})[:\-](?P<b>\d{1,3})\s*$")
 
@@ -120,11 +167,14 @@ def _comment_dict(
     upvotes: int = 0,
     downvotes: int = 0,
     my_vote: int | None = None,
+    parent_comment_id: int | None = None,
+    can_edit: bool = False,
 ) -> dict:
     return {
         "id": c.id,
         "tournament_id": c.tournament_id,
         "match_id": c.match_id,
+        "parent_comment_id": parent_comment_id,
         "author_player_id": c.author_player_id,
         "body": c.body,
         "created_at": c.created_at,
@@ -134,6 +184,7 @@ def _comment_dict(
         "upvotes": int(upvotes),
         "downvotes": int(downvotes),
         "my_vote": int(my_vote) if my_vote in (-1, 1) else 0,
+        "can_edit": bool(can_edit),
     }
 
 
@@ -340,6 +391,12 @@ def list_comments(
             ).all()
             my_vote_by_comment_id = {int(cid): int(value) for cid, value in my_rows}
 
+    parent_map = _parent_comment_map(s, comment_ids)
+    real_author_map = _real_author_map(s, comment_ids)
+    viewer_id = int(claims["player_id"]) if claims and claims.get("player_id") is not None else None
+    is_admin = bool(claims and str(claims.get("role") or "") == "admin")
+    now = datetime.utcnow()
+
     return {
         "pinned_comment_id": pinned_comment_id,
         "comments": [
@@ -349,6 +406,14 @@ def list_comments(
                 upvotes=votes_by_comment_id.get(int(c.id), {}).get("up", 0),
                 downvotes=votes_by_comment_id.get(int(c.id), {}).get("down", 0),
                 my_vote=my_vote_by_comment_id.get(int(c.id), 0),
+                parent_comment_id=parent_map.get(int(c.id)),
+                can_edit=_comment_can_edit(
+                    c,
+                    viewer_id=viewer_id,
+                    is_admin=is_admin,
+                    real_author_id=real_author_map.get(int(c.id)),
+                    now=now,
+                ),
             )
             for c in comments
         ],
@@ -527,6 +592,7 @@ async def create_comment(
 
     match_id = None if body.match_id in (None, "") else int(body.match_id)
     author_player_id = None if body.author_player_id in (None, "") else int(body.author_player_id)
+    parent_comment_id = None if body.parent_comment_id in (None, "") else int(body.parent_comment_id)
 
     is_admin = str(claims.get("role") or "") == "admin"
     if author_player_id is not None and author_player_id != int(claims.get("player_id")) and not is_admin:
@@ -534,6 +600,15 @@ async def create_comment(
 
     _validate_match_ref(s, tournament_id, match_id)
     _validate_author(s, tournament_id, author_player_id)
+
+    if parent_comment_id is not None:
+        if event_type in ("goal", "score_update"):
+            raise HTTPException(status_code=400, detail="Replies cannot be goal or score events")
+        parent = s.get(Comment, parent_comment_id)
+        if parent is None:
+            raise HTTPException(status_code=400, detail=f"Unknown parent_comment_id {parent_comment_id}")
+        if parent.tournament_id != tournament_id:
+            raise HTTPException(status_code=400, detail="parent_comment_id does not belong to this tournament")
 
     goal_minute: int | None = None
     goal_scorer_name: str | None = None
@@ -600,6 +675,14 @@ async def create_comment(
     s.commit()
     s.refresh(c)
 
+    # Record the real author (even when displayed as General) so author-only editing
+    # can be enforced, and link the thread parent for replies. Both additive tables.
+    creator_player_id = int(claims.get("player_id"))
+    s.add(CommentAuthorLink(comment_id=int(c.id), real_author_player_id=creator_player_id))
+    if parent_comment_id is not None:
+        s.add(CommentThreadLink(comment_id=int(c.id), parent_comment_id=parent_comment_id))
+    s.commit()
+
     if c.author_player_id is not None:
         pid = int(c.author_player_id)
         row = s.get(CommentRead, (pid, int(c.id)))
@@ -607,7 +690,7 @@ async def create_comment(
             s.add(CommentRead(player_id=pid, comment_id=int(c.id), read_at=now))
             s.commit()
 
-    await push_comment_upsert(tournament_id, _comment_dict(c, None))
+    await push_comment_upsert(tournament_id, _comment_dict(c, None, parent_comment_id=parent_comment_id))
     if match_for_event is not None and match_score_changed:
         await broadcast_tournament(s, tournament_id, reason="comment-score")
 
@@ -663,7 +746,8 @@ async def create_comment(
         ),
     )
 
-    return _comment_dict(c, None)
+    # The creator can edit their fresh comment (real author, within the window).
+    return _comment_dict(c, None, parent_comment_id=parent_comment_id, can_edit=True)
 
 
 @router.patch("/comments/{comment_id}", response_model=CommentOut)
@@ -677,6 +761,16 @@ async def patch_comment(
     image_updated_at = _comment_image_updated_at(s, comment_id)
     fields = body.model_fields_set
 
+    viewer_id = int(claims.get("player_id"))
+    is_admin = str(claims.get("role") or "") == "admin"
+    real_author_link = s.get(CommentAuthorLink, comment_id)
+    real_author_id = int(real_author_link.real_author_player_id) if real_author_link else None
+    if not _comment_can_edit(c, viewer_id=viewer_id, is_admin=is_admin, real_author_id=real_author_id):
+        raise HTTPException(
+            status_code=403,
+            detail="You can only edit your own comment within an hour of posting",
+        )
+
     if "body" in fields:
         text = str(body.body or "").strip()
         if not text and image_updated_at is None:
@@ -685,8 +779,7 @@ async def patch_comment(
 
     if "author_player_id" in fields:
         author_player_id = None if body.author_player_id in (None, "") else int(body.author_player_id)
-        is_admin = str(claims.get("role") or "") == "admin"
-        if author_player_id is not None and author_player_id != int(claims.get("player_id")) and not is_admin:
+        if author_player_id is not None and author_player_id != viewer_id and not is_admin:
             raise HTTPException(status_code=403, detail="You can only post comments as yourself or General")
         _validate_author(s, c.tournament_id, author_player_id)
         c.author_player_id = author_player_id
@@ -696,9 +789,13 @@ async def patch_comment(
     s.commit()
     s.refresh(c)
 
-    await push_comment_upsert(c.tournament_id, _comment_dict(c, image_updated_at))
+    parent_comment_id = _parent_comment_map(s, [int(c.id)]).get(int(c.id))
+    await push_comment_upsert(
+        c.tournament_id, _comment_dict(c, image_updated_at, parent_comment_id=parent_comment_id)
+    )
 
-    return _comment_dict(c, image_updated_at)
+    can_edit = _comment_can_edit(c, viewer_id=viewer_id, is_admin=is_admin, real_author_id=real_author_id)
+    return _comment_dict(c, image_updated_at, parent_comment_id=parent_comment_id, can_edit=can_edit)
 
 
 @router.delete("/comments/{comment_id}", response_model=OkResponse, dependencies=[Depends(require_admin)])
@@ -707,28 +804,50 @@ async def delete_comment(
     s: Session = Depends(get_session),
 ) -> dict:
     c = get_or_404(s, Comment, comment_id, name="Comment")
+    tournament_id = int(c.tournament_id)
 
-    pin = s.get(TournamentPinnedComment, c.tournament_id)
-    if pin and pin.comment_id == c.id:
+    # Cascade: delete this comment and the whole reply subtree beneath it.
+    links = s.exec(
+        select(CommentThreadLink.comment_id, CommentThreadLink.parent_comment_id)
+        .join(Comment, Comment.id == CommentThreadLink.comment_id)
+        .where(Comment.tournament_id == tournament_id)
+    ).all()
+    children_by_parent: dict[int, list[int]] = {}
+    for child_id, parent_id in links:
+        children_by_parent.setdefault(int(parent_id), []).append(int(child_id))
+
+    to_delete: set[int] = set()
+    stack = [int(comment_id)]
+    while stack:
+        current = stack.pop()
+        if current in to_delete:
+            continue
+        to_delete.add(current)
+        stack.extend(children_by_parent.get(current, []))
+
+    ids = list(to_delete)
+
+    pin = s.get(TournamentPinnedComment, tournament_id)
+    if pin and pin.comment_id in to_delete:
         s.delete(pin)
 
-    image_row_fs = s.get(CommentImageFile, comment_id)
-    if image_row_fs:
-        delete_media(image_row_fs.file_path)
-        s.delete(image_row_fs)
-
-    read_rows = s.exec(select(CommentRead).where(CommentRead.comment_id == int(comment_id))).all()
-    for rr in read_rows:
+    for img_row in s.exec(select(CommentImageFile).where(CommentImageFile.comment_id.in_(ids))).all():
+        delete_media(img_row.file_path)
+        s.delete(img_row)
+    for rr in s.exec(select(CommentRead).where(CommentRead.comment_id.in_(ids))).all():
         s.delete(rr)
-
-    vote_rows = s.exec(select(CommentVote).where(CommentVote.comment_id == int(comment_id))).all()
-    for vr in vote_rows:
+    for vr in s.exec(select(CommentVote).where(CommentVote.comment_id.in_(ids))).all():
         s.delete(vr)
-
-    s.delete(c)
+    for lk in s.exec(select(CommentThreadLink).where(CommentThreadLink.comment_id.in_(ids))).all():
+        s.delete(lk)
+    for al in s.exec(select(CommentAuthorLink).where(CommentAuthorLink.comment_id.in_(ids))).all():
+        s.delete(al)
+    for cm in s.exec(select(Comment).where(Comment.id.in_(ids))).all():
+        s.delete(cm)
     s.commit()
 
-    await push_comment_deleted(c.tournament_id, c.id)
+    for cid in ids:
+        await push_comment_deleted(tournament_id, cid)
 
     return {"ok": True}
 
@@ -786,8 +905,11 @@ async def put_comment_image(
     s.refresh(c)
     s.refresh(img_file)
 
-    await push_comment_upsert(c.tournament_id, _comment_dict(c, img_file.updated_at))
-    return _comment_dict(c, img_file.updated_at)
+    parent_comment_id = _parent_comment_map(s, [int(c.id)]).get(int(c.id))
+    await push_comment_upsert(
+        c.tournament_id, _comment_dict(c, img_file.updated_at, parent_comment_id=parent_comment_id)
+    )
+    return _comment_dict(c, img_file.updated_at, parent_comment_id=parent_comment_id)
 
 
 @router.delete("/comments/{comment_id}/image", response_model=OkResponse, dependencies=[Depends(require_editor)])
@@ -803,7 +925,8 @@ async def delete_comment_image(comment_id: int, s: Session = Depends(get_session
     s.add(c)
     s.commit()
 
-    await push_comment_upsert(c.tournament_id, _comment_dict(c, None))
+    parent_comment_id = _parent_comment_map(s, [int(c.id)]).get(int(c.id))
+    await push_comment_upsert(c.tournament_id, _comment_dict(c, None, parent_comment_id=parent_comment_id))
     return {"ok": True}
 
 

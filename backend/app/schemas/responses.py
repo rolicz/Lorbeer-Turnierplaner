@@ -89,6 +89,9 @@ class GuestbookEntryOut(BaseModel):
     upvotes: int
     downvotes: int
     my_vote: int
+    # Per-viewer: the requester may edit this entry right now (author within the
+    # edit window, or an admin). Defaults to False on viewer-less paths.
+    can_edit: bool = False
 
 
 class PokeOut(BaseModel):
@@ -200,6 +203,7 @@ class CommentOut(BaseModel):
     id: int
     tournament_id: int
     match_id: int | None
+    parent_comment_id: int | None = None
     author_player_id: int | None
     body: str
     created_at: datetime
@@ -209,6 +213,9 @@ class CommentOut(BaseModel):
     upvotes: int
     downvotes: int
     my_vote: int
+    # Per-viewer: the requester may edit this comment right now (author within the
+    # edit window, or an admin). Defaults to False on viewer-less paths (e.g. WS upserts).
+    can_edit: bool = False
 
 
 class CommentListOut(BaseModel):

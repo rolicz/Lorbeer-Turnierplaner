@@ -154,6 +154,18 @@ export default function TournamentCommentsCard({
   };
   const [voteVotersCommentId, setVoteVotersCommentId] = useState<number | null>(null);
 
+  // Reply composer (per parent comment) + collapsed reply subtrees.
+  const [replyToId, setReplyToId] = useState<number | null>(null);
+  const [replyDraft, setReplyDraft] = useState("");
+  const [collapsedThreads, setCollapsedThreads] = useState<Set<number>>(new Set());
+  const toggleThread = (id: number) =>
+    setCollapsedThreads((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+
   // Per-group collapse within the feed (key: "general" | `m-${matchId}`).
   const [collapsedBlocks, setCollapsedBlocks] = useState<Set<string>>(new Set());
   const toggleBlock = (key: string) =>
@@ -176,6 +188,7 @@ export default function TournamentCommentsCard({
     const raw = commentsQ.data?.comments ?? [];
     return raw.map((c) => ({
       id: c.id,
+      parentId: c.parent_comment_id ?? null,
       createdAt: Date.parse(c.created_at),
       updatedAt: Date.parse(c.updated_at),
       scope: c.match_id == null ? { kind: "tournament" } : { kind: "match", matchId: c.match_id },
@@ -186,6 +199,7 @@ export default function TournamentCommentsCard({
       upvotes: Number(c.upvotes ?? 0),
       downvotes: Number(c.downvotes ?? 0),
       myVote: (c.my_vote ?? 0) as -1 | 0 | 1,
+      canEdit: !!c.can_edit,
     }));
   }, [commentsQ.data]);
 
@@ -323,6 +337,7 @@ export default function TournamentCommentsCard({
       author_player_id: number | null;
       body: string;
       has_image: boolean;
+      parent_comment_id?: number | null;
       event_type?: "goal";
       goal_minute?: number;
       goal_player_name?: string;
@@ -332,6 +347,7 @@ export default function TournamentCommentsCard({
       if (!token) throw new Error("Not logged in");
       return createTournamentComment(token, tournamentId, {
         match_id: payload.scope.kind === "match" ? payload.scope.matchId : null,
+        parent_comment_id: payload.parent_comment_id ?? null,
         author_player_id: payload.author_player_id,
         body: payload.body,
         has_image: payload.has_image,
@@ -419,6 +435,41 @@ export default function TournamentCommentsCard({
     }
   }
 
+  function openReply(parent: TournamentComment) {
+    setEditingId(null);
+    setReplyDraft("");
+    setReplyToId((prev) => (prev === parent.id ? null : parent.id));
+  }
+  function cancelReply() {
+    setReplyToId(null);
+    setReplyDraft("");
+  }
+  async function submitReply(parent: TournamentComment) {
+    const body = replyDraft.trim();
+    if (!body || !token) return;
+    try {
+      const created = await createMut.mutateAsync({
+        scope: parent.scope,
+        parent_comment_id: parent.id,
+        author_player_id: currentPlayerId ?? null,
+        body,
+        has_image: false,
+      });
+      setReplyToId(null);
+      setReplyDraft("");
+      // Make sure the new reply's subtree is visible.
+      setCollapsedThreads((prev) => {
+        if (!prev.has(parent.id)) return prev;
+        const next = new Set(prev);
+        next.delete(parent.id);
+        return next;
+      });
+      if (created && typeof created.id === "number") setPendingFocusId(created.id);
+    } catch {
+      // surfaced via createMut.error
+    }
+  }
+
   async function upsertComment(scope: CommentScope) {
     const body = draftBody.trim();
     const hasImage = !!draftImageBlob;
@@ -502,13 +553,48 @@ export default function TournamentCommentsCard({
   }
 
   const grouped = useMemo(() => {
-    const tournament = comments
+    // Build the reply tree. Roots (no parent, or parent not in this payload) are grouped
+    // by scope; replies render nested under their parent regardless of their own scope.
+    const byId = new Map<number, TournamentComment>();
+    for (const c of comments) byId.set(c.id, c);
+    const childrenByParent = new Map<number, TournamentComment[]>();
+    const roots: TournamentComment[] = [];
+    for (const c of comments) {
+      const pid = c.parentId;
+      if (pid != null && byId.has(pid)) {
+        const arr = childrenByParent.get(pid) ?? [];
+        arr.push(c);
+        childrenByParent.set(pid, arr);
+      } else {
+        roots.push(c);
+      }
+    }
+    for (const [k, arr] of childrenByParent.entries()) {
+      arr.sort((a, b) => a.createdAt - b.createdAt || a.id - b.id);
+      childrenByParent.set(k, arr);
+    }
+
+    // Map every comment to the scope key of its root, so per-group counts and
+    // unread badges account for nested replies too.
+    const rootScopeKey = new Map<number, string>();
+    const keyForScope = (c: TournamentComment) => (c.scope.kind === "tournament" ? "general" : `m-${c.scope.matchId}`);
+    for (const c of comments) {
+      let cur: TournamentComment | undefined = c;
+      const guard = new Set<number>();
+      while (cur && cur.parentId != null && byId.has(cur.parentId) && !guard.has(cur.id)) {
+        guard.add(cur.id);
+        cur = byId.get(cur.parentId);
+      }
+      rootScopeKey.set(c.id, keyForScope(cur ?? c));
+    }
+
+    const tournament = roots
       .filter((c) => c.scope.kind === "tournament")
       .slice()
       .sort((a, b) => a.createdAt - b.createdAt || a.id - b.id);
 
     const byMatch = new Map<number, TournamentComment[]>();
-    for (const c of comments) {
+    for (const c of roots) {
       if (c.scope.kind !== "match") continue;
       const arr = byMatch.get(c.scope.matchId) ?? [];
       arr.push(c);
@@ -534,8 +620,9 @@ export default function TournamentCommentsCard({
       .sort(([a], [b]) => a - b);
     for (const [mid, arr] of leftovers) blocks.push({ matchId: mid, comments: arr });
 
-    return { tournament, blocks };
+    return { tournament, blocks, childrenByParent, rootScopeKey };
   }, [comments, matches]);
+  const childrenByParent = grouped.childrenByParent;
 
   const pinnedTournamentComment = useMemo(() => {
     if (!pinnedTournamentCommentId) return null;
@@ -725,11 +812,12 @@ export default function TournamentCommentsCard({
 
   // --- chips / filtered feed ---
   const generalComments = grouped.tournament;
-  const generalUnseen = !!token && generalComments.some((c) => !seen.has(c.id));
+  const generalUnseen =
+    !!token && comments.some((c) => grouped.rootScopeKey.get(c.id) === "general" && !seen.has(c.id));
   const matchBlocksWithComments = grouped.blocks.filter((b) => b.comments.length > 0);
   const totalComments = comments.length;
 
-  function renderCommentCard(c: TournamentComment, surface: string) {
+  function renderCommentCard(c: TournamentComment, surface: string, opts: { childCount: number; collapsed: boolean }) {
     const pinnable =
       c.scope.kind === "tournament" &&
       canWrite &&
@@ -758,8 +846,19 @@ export default function TournamentCommentsCard({
               }
             : null
         }
-        canWrite={canWrite}
+        canEdit={c.canEdit}
         canDelete={canDelete}
+        canReply={canWrite}
+        onReply={() => openReply(c)}
+        replyOpen={replyToId === c.id}
+        replyDraft={replyDraft}
+        onChangeReplyDraft={setReplyDraft}
+        onSubmitReply={() => void submitReply(c)}
+        onCancelReply={cancelReply}
+        replySubmitting={createMut.isPending}
+        childCount={opts.childCount}
+        collapsed={opts.collapsed}
+        onToggleCollapse={() => toggleThread(c.id)}
         players={players}
         currentPlayerId={currentPlayerId}
         currentPlayerName={currentPlayerName}
@@ -785,13 +884,30 @@ export default function TournamentCommentsCard({
     );
   }
 
+  /** Render a comment and its (collapsible) reply subtree, recursively. */
+  function renderCommentTree(c: TournamentComment, surface: string, depth: number) {
+    const children = childrenByParent.get(c.id) ?? [];
+    const collapsed = collapsedThreads.has(c.id);
+    return (
+      <div key={c.id} className="space-y-2">
+        {renderCommentCard(c, surface, { childCount: children.length, collapsed })}
+        {children.length && !collapsed ? (
+          <div className="ml-1 space-y-2 border-l border-border-card-inner/40 pl-2 sm:pl-3">
+            {children.map((ch) => renderCommentTree(ch, "panel-inner", depth + 1))}
+          </div>
+        ) : null}
+      </div>
+    );
+  }
+
   /** A match block: header (score/clubs/stars) + its comments. Header toggles collapse. */
   function renderMatchBlock(matchId: number, surface: string) {
     const h = matchHeaderMeta(matchId);
     const arr = (grouped.blocks.find((b) => b.matchId === matchId)?.comments ?? []);
     const blockKey = `m-${matchId}`;
     const isCollapsed = showMatchHeader && collapsedBlocks.has(blockKey);
-    const unseenHere = !!token && arr.some((c) => !seen.has(c.id));
+    const unseenHere =
+      !!token && comments.some((c) => grouped.rootScopeKey.get(c.id) === blockKey && !seen.has(c.id));
     const headerInner = h ? (
           <div className="space-y-1">
             <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3">
@@ -841,7 +957,7 @@ export default function TournamentCommentsCard({
 
         {!isCollapsed ? (
           <div className="mt-3 space-y-2">
-            {arr.length ? arr.map((c) => renderCommentCard(c, surface)) : (
+            {arr.length ? arr.map((c) => renderCommentTree(c, surface, 0)) : (
               <div className="text-sm text-text-muted">No comments on this match yet.</div>
             )}
           </div>
@@ -854,7 +970,7 @@ export default function TournamentCommentsCard({
     if (!generalComments.length) return <div className="text-sm text-text-muted">No general comments yet.</div>;
     const ordered = [pinnedTournamentComment, ...generalComments.filter((c) => c.id !== pinnedTournamentComment?.id)]
       .filter(Boolean) as TournamentComment[];
-    return <div className="space-y-2">{ordered.map((c) => renderCommentCard(c, "panel"))}</div>;
+    return <div className="space-y-2">{ordered.map((c) => renderCommentTree(c, "panel", 0))}</div>;
   }
 
   const composer = canWrite && addTarget ? (

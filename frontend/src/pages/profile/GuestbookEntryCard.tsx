@@ -18,16 +18,26 @@ export type GuestbookCardContextValue = {
   unreadReplyCountByEntryId: Map<number, number>;
   replyDraftByEntryId: Record<number, string>;
   replyOpenEntryId: number | null;
+  editDraftByEntryId: Record<number, string>;
+  editOpenEntryId: number | null;
+  collapsedEntryIds: Set<number>;
   canPostGuestbook: boolean;
   isUnread: (id: number) => boolean;
   canDelete: (entry: PlayerGuestbookEntry) => boolean;
+  canEditEntry: (entry: PlayerGuestbookEntry) => boolean;
   readPending: boolean;
   votePending: boolean;
   createPending: boolean;
+  editPending: boolean;
   voteEnabled: boolean;
   markRead: (entryId: number) => void;
   toggleReply: (entryId: number) => void;
   cancelReply: (entryId: number) => void;
+  toggleEdit: (entry: PlayerGuestbookEntry) => void;
+  cancelEdit: (entryId: number) => void;
+  setEditDraft: (entryId: number, text: string) => void;
+  submitEdit: (entryId: number, text: string) => void;
+  toggleCollapse: (entryId: number) => void;
   deleteEntry: (entryId: number) => void;
   vote: (entryId: number, value: -1 | 0 | 1) => void;
   showVoters: (entryId: number) => void;
@@ -71,6 +81,10 @@ export default function GuestbookEntryCard({
   const downvotes = Number(entry.downvotes ?? 0);
   const replyDraft = ctx.replyDraftByEntryId[entry.id] ?? "";
   const replyOpen = ctx.replyOpenEntryId === entry.id;
+  const canEditThis = ctx.canEditEntry(entry);
+  const editOpen = ctx.editOpenEntryId === entry.id;
+  const editDraft = ctx.editDraftByEntryId[entry.id] ?? entry.body;
+  const isCollapsed = ctx.collapsedEntryIds.has(entry.id);
   const surfaceClass = depth === 0 ? "panel-subtle" : "panel-inner";
   const indentPx = Math.min(depth, 8) * 14;
 
@@ -102,6 +116,22 @@ export default function GuestbookEntryCard({
             </div>
           </div>
           <div className="shrink-0 flex items-center gap-2">
+            {children.length > 0 ? (
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  ctx.toggleCollapse(entry.id);
+                }}
+                title={isCollapsed ? `Show ${children.length} repl${children.length === 1 ? "y" : "ies"}` : "Hide replies"}
+                className="h-8 px-2 p-0 inline-flex items-center justify-center gap-1"
+              >
+                <i className={`fa-solid ${isCollapsed ? "fa-chevron-right" : "fa-chevron-down"}`} aria-hidden="true" />
+                <span className="text-[11px] tabular-nums">{children.length}</span>
+              </Button>
+            ) : null}
             {isUnseen ? (
               <Button
                 type="button"
@@ -142,6 +172,21 @@ export default function GuestbookEntryCard({
                 <i className="fa-solid fa-reply" aria-hidden="true" />
               </Button>
             ) : null}
+            {canEditThis ? (
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  ctx.toggleEdit(entry);
+                }}
+                title={editOpen ? "Cancel edit" : "Edit message"}
+                className="h-8 w-8 p-0 inline-flex items-center justify-center"
+              >
+                <i className={`fa-solid ${editOpen ? "fa-chevron-up" : "fa-pen"}`} aria-hidden="true" />
+              </Button>
+            ) : null}
             {canDeleteEntry ? (
               <Button
                 type="button"
@@ -162,7 +207,30 @@ export default function GuestbookEntryCard({
             ) : null}
           </div>
         </div>
-        <div className="mt-2 text-sm whitespace-pre-wrap">{entry.body}</div>
+        {editOpen ? (
+          <div className="mt-2 space-y-2" onClick={(e) => e.stopPropagation()}>
+            <Textarea
+              label="Edit message"
+              value={editDraft}
+              onChange={(e) => ctx.setEditDraft(entry.id, e.target.value)}
+            />
+            <div className="flex items-center justify-end gap-2">
+              <Button type="button" variant="ghost" onClick={() => ctx.cancelEdit(entry.id)} title="Cancel">
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                onClick={() => ctx.submitEdit(entry.id, editDraft)}
+                disabled={ctx.editPending || !editDraft.trim()}
+                title="Save"
+              >
+                {ctx.editPending ? "Saving…" : "Save"}
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div className="mt-2 text-sm whitespace-pre-wrap">{entry.body}</div>
+        )}
         <div className="mt-2 flex items-center gap-2 text-[11px] text-text-muted">
           <VoteButton
             direction="up"
@@ -233,7 +301,7 @@ export default function GuestbookEntryCard({
         ) : null}
       </div>
 
-      {children.length > 0 ? (
+      {children.length > 0 && !isCollapsed ? (
         <div className="space-y-2">
           {children.map((child) => (
             <GuestbookEntryCard key={child.id} entry={child} depth={depth + 1} />
