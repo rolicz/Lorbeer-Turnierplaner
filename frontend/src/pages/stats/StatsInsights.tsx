@@ -374,10 +374,14 @@ function TrendsExplorer({ mode, scope, rows, initialMetric, initialView, initial
     };
   }, []);
 
+  const isPpm = metric === "points" && applyPM;
   const allY = series.flatMap((s) => s.points.filter((p): p is number => p != null));
   let yMax: number;
   let yMin: number;
-  if (isElo && effView === "cumulative" && allY.length) {
+  let yTicks: number[] | undefined;
+  if (isPpm) {
+    yMin = 0; yMax = 3; yTicks = [0, 1, 2, 3];
+  } else if (isElo && effView === "cumulative" && allY.length) {
     // Ratings cluster around the base (~1000); anchoring to 0 squishes the line
     // into a flat band. Frame the actual rating range with a little padding.
     const lo = Math.min(...allY);
@@ -398,7 +402,7 @@ function TrendsExplorer({ mode, scope, rows, initialMetric, initialView, initial
           {loading ? (
             <InlineLoading label="Loading…" />
           ) : (
-            <TrendChart events={events} series={series} yMax={Math.ceil(yMax)} yMin={Math.floor(yMin)} width={plotW - 16} viewT0={win.t0} viewT1={win.t1} showLabels height={240} />
+            <TrendChart events={events} series={series} yMax={isPpm ? 3 : Math.ceil(yMax)} yMin={isPpm ? 0 : Math.floor(yMin)} yTicks={yTicks} width={plotW - 16} viewT0={win.t0} viewT1={win.t1} showLabels height={240} />
           )}
         </div>
         <div className="mt-1 flex items-center justify-between gap-2 text-[10px] text-text-muted">

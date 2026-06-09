@@ -261,10 +261,7 @@ export default function TrendsPreviewCard() {
     });
 
     if (view === "lastN") {
-      let maxFormY = 1;
-      series.forEach((s) => s.points.forEach((p) => { if (p.present) maxFormY = Math.max(maxFormY, p.y); }));
-      const yMaxF = Math.max(1, Math.ceil(maxFormY));
-      return { title: `Trends (Form, last ${formN})`, yMax: yMaxF, yTicks: [0, Math.floor(yMaxF / 2), yMaxF], ySuffix: "", series, tournamentTs, tournamentTitles };
+      return { title: `Trends (Form, last ${formN})`, yMax: 3, yTicks: [0, 1, 2, 3], ySuffix: "", series, tournamentTs, tournamentTitles };
     }
 
     const yMax = Math.max(1, Math.ceil(maxCum / 10) * 10);
@@ -352,6 +349,7 @@ export default function TrendsPreviewCard() {
             </div>
           </button>
         ) : null}
+
       </div>
     </div>
   );
