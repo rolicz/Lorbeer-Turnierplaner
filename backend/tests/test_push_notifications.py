@@ -56,7 +56,7 @@ def test_push_subscription_crud_and_test_notification(client, editor_headers):
     ]
     assert config.json()["default_notification_mode"] == "finished_only"
     assert config.json()["notification_modes"] == [
-        {"key": "finished_only", "label": "Finished + your anpoebeln"},
+        {"key": "finished_only", "label": "Results & personal"},
         {"key": "all", "label": "Everything"},
         {"key": "off", "label": "Off"},
     ]
@@ -297,6 +297,24 @@ def test_notification_modes_filter_delivery(client, monkeypatch):
             ("https://push.example.test/all-mode", "poke_created"),
         ]
 
+        sent.clear()
+        await dispatcher._deliver(
+            notifications_service._QueuedPushMessage(
+                message=localized_push_message(
+                    "guestbook_created",
+                    event_type="guestbook_created",
+                    profile_player_name="Target",
+                    author_name="Alice",
+                    preview="hi",
+                ),
+                default_mode_player_id=1,
+            )
+        )
+        assert sent == [
+            ("https://push.example.test/default-mode", "guestbook_created"),
+            ("https://push.example.test/all-mode", "guestbook_created"),
+        ]
+
     asyncio.run(run())
 
 
@@ -475,8 +493,13 @@ def test_score_comment_creation_enqueues_score_push(client, editor_headers, admi
 
 def test_guestbook_and_poke_enqueue_push(client, editor_headers, admin_headers, monkeypatch):
     guestbook_messages = []
+    guestbook_targets = []
     poke_events = []
-    monkeypatch.setattr(notifications_service, "enqueue_global_push", lambda request, message: guestbook_messages.append(message))
+    monkeypatch.setattr(
+        notifications_service,
+        "enqueue_personal_push",
+        lambda request, player_id, message: (guestbook_targets.append(player_id), guestbook_messages.append(message)),
+    )
     monkeypatch.setattr(
         players_router,
         "enqueue_poke_push",
@@ -502,6 +525,9 @@ def test_guestbook_and_poke_enqueue_push(client, editor_headers, admin_headers, 
 
     event_types = [message.event_type for message in guestbook_messages]
     assert "guestbook_created" in event_types
+    # Guestbook pings are personal: targeted at the profile owner so the
+    # "results & personal" mode delivers them only to that player.
+    assert target_player_id in guestbook_targets
     assert len(poke_events) == 1
     assert poke_events[0]["profile_player_id"] == target_player_id
     assert poke_events[0]["poke_id"] > 0

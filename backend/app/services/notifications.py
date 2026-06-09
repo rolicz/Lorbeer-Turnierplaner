@@ -31,7 +31,9 @@ log = logging.getLogger(__name__)
 DEFAULT_NOTIFICATION_MODE = "finished_only"
 SUPPORTED_NOTIFICATION_MODES = ("finished_only", "all", "off")
 FINISHED_ONLY_EVENT_TYPES = {"tournament_finished", "push_test"}
-PERSONAL_DEFAULT_EVENT_TYPES = {"poke_created", "poke_summary"}
+# Events directed at a specific player. In the "results & personal" mode these
+# are delivered only to that player (carried via default_mode_player_id).
+PERSONAL_DEFAULT_EVENT_TYPES = {"poke_created", "poke_summary", "guestbook_created"}
 
 
 def hash_push_endpoint(endpoint: str) -> str:
@@ -114,7 +116,7 @@ def normalize_notification_mode(value: str | None) -> str:
 
 def notification_mode_options() -> list[dict[str, str]]:
     return [
-        {"key": "finished_only", "label": "Finished + your anpoebeln"},
+        {"key": "finished_only", "label": "Results & personal"},
         {"key": "all", "label": "Everything"},
         {"key": "off", "label": "Off"},
     ]
@@ -169,6 +171,17 @@ def enqueue_player_push(request: Request, player_id: int, message: PushMessage) 
     dispatcher = push_dispatcher_from_request(request)
     if dispatcher is not None:
         dispatcher.enqueue_for_player(player_id, message)
+
+
+def enqueue_personal_push(request: Request, player_id: int, message: PushMessage) -> None:
+    """Broadcast globally, but in "results & personal" mode deliver only to ``player_id``."""
+    dispatcher = push_dispatcher_from_request(request)
+    if dispatcher is None:
+        return
+    if hasattr(dispatcher, "enqueue_personal"):
+        dispatcher.enqueue_personal(int(player_id), message)
+    else:
+        dispatcher.enqueue(message)
 
 
 def enqueue_poke_push(
@@ -369,8 +382,9 @@ def push_guestbook_created(
     author_name: str,
     preview: str,
 ) -> None:
-    enqueue_global_push(
+    enqueue_personal_push(
         request,
+        int(profile_player_id),
         localized_push_message(
             "guestbook_created",
             path=f"/profiles/{profile_player_id}",
@@ -646,6 +660,9 @@ class NotificationDispatcher:
 
     def enqueue_for_player(self, player_id: int, message: PushMessage) -> None:
         self._enqueue(_QueuedPushMessage(message=message, player_id=int(player_id)))
+
+    def enqueue_personal(self, player_id: int, message: PushMessage) -> None:
+        self._enqueue(_QueuedPushMessage(message=message, player_id=None, default_mode_player_id=int(player_id)))
 
     def enqueue_poke(
         self,
