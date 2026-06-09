@@ -6,6 +6,7 @@ import {
   colorForIdx,
   monthTicksBetween,
   pointsForPlayerInMatch,
+  pooledPpm,
   winnerSide,
 } from "../pages/stats/trendsMath";
 import type { Match } from "../api/types";
@@ -64,6 +65,33 @@ describe("avgLast", () => {
     expect(avgLast([3, 3, 3], 3)).toBe(3);
     expect(avgLast([3], 3)).toBeCloseTo(1); // 3 / 3
     expect(avgLast([], 5)).toBe(0);
+  });
+});
+
+describe("pooledPpm", () => {
+  const timeline = [
+    { pts: 3, played: 1 }, // T1: 3.0 ppm
+    { pts: 1, played: 2 }, // T2: 0.5 ppm
+    { pts: 4, played: 2 }, // T3: 2.0 ppm
+  ];
+
+  it("pools points over matches (not the mean of per-tournament ratios)", () => {
+    // T1+T2 pooled = 4 / 3 ≈ 1.33, whereas the mean of ratios would be (3.0+0.5)/2 = 1.75.
+    expect(pooledPpm(timeline.slice(0, 2))).toBeCloseTo(4 / 3);
+  });
+
+  it("equals the cumulative PPM when the window covers every tournament", () => {
+    const totalPts = timeline.reduce((a, b) => a + b.pts, 0);
+    const totalPlayed = timeline.reduce((a, b) => a + b.played, 0);
+    const cumulative = totalPts / totalPlayed; // 8 / 5
+    // A window large enough to cover all tournaments must match the cumulative value.
+    expect(pooledPpm(timeline.slice(-5))).toBeCloseTo(cumulative);
+    expect(pooledPpm(timeline)).toBeCloseTo(cumulative);
+  });
+
+  it("returns null when there are no matches", () => {
+    expect(pooledPpm([])).toBeNull();
+    expect(pooledPpm([{ pts: 0, played: 0 }])).toBeNull();
   });
 });
 

@@ -1,5 +1,5 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { keepPreviousData, useQueries, useQuery } from "@tanstack/react-query";
 import { LineChart, Table2, Grid3x3, UserRound, Flame, Star, Medal, Award, Trophy, ChevronRight } from "lucide-react";
 
@@ -8,7 +8,7 @@ import AvatarCircle from "../../ui/primitives/AvatarCircle";
 import { StarsFA } from "../../ui/primitives/StarsFA";
 import InlineLoading from "../../ui/primitives/InlineLoading";
 import { SectionTabs, type SectionTab } from "../../ui/SectionTabs";
-import { getStatsRatings, getStatsPlayers, getStatsPlayerMatches, getStatsH2H, getStatsStreaks, getStatsRatingsHistory } from "../../api/stats.api";
+import { getStatsPlayers, getStatsPlayerMatches, getStatsH2H, getStatsStreaks, getStatsRatingsHistory } from "../../api/stats.api";
 import type { StatsRatingsHistoryResponse } from "../../api/stats.api";
 import { getCup, listCupDefs } from "../../api/cup.api";
 import { cupColorVarForKey, rgbFromCssVar } from "../../cupColors";
@@ -18,80 +18,17 @@ import type { StatsMode } from "./StatsControls";
 import { usePlayerAvatarMap } from "../../hooks/usePlayerAvatarMap";
 import { usePlayerColors } from "./usePlayerColors";
 import { Sparkline, Radar, TrendChart, ChipGroup } from "./charts";
+import { pooledPpm } from "./trendsMath";
 import { MatchHistoryList } from "./MatchHistoryList";
 import { PlayerPicker } from "./PlayerPicker";
 import CupCard from "../dashboard/CupCard";
+import StatsTable from "./StatsTable";
+import { type Row, useStandings, sideOf, matchStats } from "./standings";
+import { Slider, ToggleChip } from "./controls";
 
 type Tab = "trends" | "table" | "positions" | "h2h" | "streaks" | "stars" | "player" | "records" | "cups";
 
-type Row = {
-  id: number; name: string; pts: number; rating: number;
-  played: number; wins: number; draws: number; losses: number;
-  gf: number; ga: number; gd: number; form: number[]; formAvg: number;
-};
-
-// ---- shared data ----------------------------------------------------------
-function useStandings(mode: StatsMode, scope: StatsScope) {
-  const ratingsQ = useQuery({
-    queryKey: ["stats", "ratings", mode, scope],
-    queryFn: () => getStatsRatings({ mode, scope }),
-    placeholderData: keepPreviousData, staleTime: 30_000,
-  });
-  const playersQ = useQuery({
-    queryKey: ["stats", "players", mode, 12],
-    queryFn: () => getStatsPlayers({ mode, lastN: 12 }),
-    placeholderData: keepPreviousData, staleTime: 30_000,
-  });
-  const formById = useMemo(() => {
-    const m = new Map<number, { pts: number[]; avg: number }>();
-    for (const p of playersQ.data?.players ?? []) m.set(Number(p.player_id), { pts: (p.lastN_pts ?? []).map(Number), avg: Number(p.lastN_avg_pts ?? 0) });
-    return m;
-  }, [playersQ.data]);
-  const rows = useMemo<Row[]>(() => (ratingsQ.data?.rows ?? []).map((r) => {
-    const f = formById.get(Number(r.player.id));
-    return {
-      id: Number(r.player.id), name: r.player.display_name, pts: Number(r.pts), rating: Number(r.rating),
-      played: r.played, wins: r.wins, draws: r.draws, losses: r.losses, gf: r.gf, ga: r.ga, gd: r.gd,
-      form: f?.pts ?? [], formAvg: f?.avg ?? 0,
-    };
-  }), [ratingsQ.data, formById]);
-  return { rows, loading: ratingsQ.isLoading && !ratingsQ.data };
-}
-
-// ---- per-match helpers ----------------------------------------------------
-function sideOf(m: Match, pid: number): "A" | "B" | null {
-  const a = m.sides.find((s) => s.side === "A");
-  const b = m.sides.find((s) => s.side === "B");
-  if (a?.players.some((p) => p.id === pid)) return "A";
-  if (b?.players.some((p) => p.id === pid)) return "B";
-  return null;
-}
-function matchStats(m: Match, pid: number): { pts: number; gf: number; ga: number; res: "W" | "D" | "L" } | null {
-  if (m.state !== "finished") return null;
-  const side = sideOf(m, pid);
-  if (!side) return null;
-  const me = m.sides.find((s) => s.side === side)!;
-  const opp = m.sides.find((s) => s.side !== side)!;
-  const mg = Number(me.goals ?? 0), og = Number(opp.goals ?? 0);
-  const res = mg > og ? "W" : mg < og ? "L" : "D";
-  return { pts: res === "W" ? 3 : res === "D" ? 1 : 0, gf: mg, ga: og, res };
-}
-
 // ---- small controls -------------------------------------------------------
-function Slider({ label, value, min, max, onChange }: { label: string; value: number; min: number; max: number; onChange: (v: number) => void }) {
-  return (
-    <div className="flex items-center gap-3">
-      <span className="text-xs font-semibold uppercase tracking-wide text-text-muted">{label}</span>
-      <input
-        type="range" min={min} max={max} value={value}
-        onChange={(e) => onChange(Number(e.target.value))}
-        className="h-1.5 flex-1 cursor-pointer appearance-none rounded-full bg-bg-card-chip/60 accent-[rgb(var(--color-accent))]"
-      />
-      <span className="w-8 shrink-0 text-right text-sm font-semibold tabular-nums text-text-normal">{value}</span>
-    </div>
-  );
-}
-
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="space-y-1.5">
@@ -117,19 +54,6 @@ const METRIC_OPTS: { key: Metric; label: string }[] = [
 ];
 
 type RangeKey = "1y" | "2y" | "all";
-
-function ToggleChip({ on, onClick, children }: { on: boolean; onClick: () => void; children: React.ReactNode }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={on}
-      className={"rounded-full px-2.5 py-1 text-xs transition focus-ring " + (on ? "bg-accent/15 font-medium text-accent ring-1 ring-inset ring-accent/40" : "bg-bg-card-chip/50 text-text-muted hover:text-text-normal")}
-    >
-      {children}
-    </button>
-  );
-}
 
 function TrendsExplorer({ mode, scope, rows, initialMetric, initialView, initialPerMatch }: { mode: StatsMode; scope: StatsScope; rows: Row[]; initialMetric?: Metric; initialView?: ViewMode; initialPerMatch?: boolean }) {
   const { colorOf } = usePlayerColors();
@@ -262,6 +186,19 @@ function TrendsExplorer({ mode, scope, rows, initialMetric, initialView, initial
         // rolling: only emit at tournaments the player actually played, so
         // non-participation renders as a greyed/dashed gap (like the dashboard).
         if (c == null) return null;
+        if (applyPM) {
+          // Per-match (PPM): pool points/matches across the last rollN played
+          // tournaments (Σpoints / Σmatches), NOT the mean of per-tournament
+          // ratios — so Last-N matches the cumulative value once the window
+          // covers every tournament.
+          const wnd: Array<{ pts: number; played: number }> = [];
+          for (let j = i; j >= 0 && wnd.length < rollN; j--) {
+            const cj = full[j];
+            if (!cj) continue;
+            wnd.push({ pts: cj.v, played: cj.played });
+          }
+          return pooledPpm(wnd);
+        }
         const wv: number[] = [];
         for (let j = i; j >= 0 && wv.length < rollN; j--) { const b = base(j); if (b != null) wv.push(b); }
         return wv.length ? wv.reduce((a, b) => a + b, 0) / wv.length : null;
@@ -462,200 +399,6 @@ function TrendsExplorer({ mode, scope, rows, initialMetric, initialView, initial
 }
 
 // ==========================================================================
-//  TABLE — sortable, many derived metrics
-// ==========================================================================
-type ColDef = {
-  key: string;
-  label: string;
-  val: (r: Row) => number;
-  fmt: (n: number, r: Row) => string;
-  cls?: string;
-  bold?: boolean;
-};
-
-const f2 = (n: number) => n.toFixed(2);
-const TABLE_COLS: ColDef[] = [
-  { key: "pts", label: "Pts", val: (r) => r.pts, fmt: (n) => String(n), bold: true },
-  { key: "ppm", label: "PPM", val: (r) => (r.played ? r.pts / r.played : 0), fmt: (_n, r) => (r.played ? f2(r.pts / r.played) : "—") },
-  { key: "played", label: "P", val: (r) => r.played, fmt: (n) => String(n), cls: "text-text-muted" },
-  { key: "wins", label: "W", val: (r) => r.wins, fmt: (n) => String(n), cls: "text-status-text-green" },
-  { key: "draws", label: "D", val: (r) => r.draws, fmt: (n) => String(n), cls: "text-amber-300" },
-  { key: "losses", label: "L", val: (r) => r.losses, fmt: (n) => String(n), cls: "text-[color:rgb(var(--delta-down)/1)]" },
-  { key: "winrate", label: "Win%", val: (r) => (r.played ? r.wins / r.played : 0), fmt: (_n, r) => (r.played ? `${Math.round((r.wins / r.played) * 100)}%` : "—") },
-  { key: "gf", label: "GF", val: (r) => r.gf, fmt: (n) => String(n) },
-  { key: "ga", label: "GA", val: (r) => r.ga, fmt: (n) => String(n) },
-  { key: "gpm", label: "G/M", val: (r) => (r.played ? r.gf / r.played : 0), fmt: (_n, r) => (r.played ? f2(r.gf / r.played) : "—"), cls: "text-text-muted" },
-  { key: "gapm", label: "GA/M", val: (r) => (r.played ? r.ga / r.played : 0), fmt: (_n, r) => (r.played ? f2(r.ga / r.played) : "—"), cls: "text-text-muted" },
-  { key: "gd", label: "GD", val: (r) => r.gd, fmt: (n) => (n >= 0 ? `+${n}` : String(n)) },
-  { key: "gdpm", label: "GD/M", val: (r) => (r.played ? r.gd / r.played : 0), fmt: (_n, r) => (r.played ? (r.gd >= 0 ? "+" : "") + f2(r.gd / r.played) : "—"), cls: "text-text-muted" },
-  { key: "rating", label: "Elo", val: (r) => r.rating, fmt: (n) => String(Math.round(n)) },
-];
-const DEFAULT_COLS = ["pts", "ppm", "played", "winrate", "rating"];
-// Chip controls — W/D/L and the goal trios each toggle together as one group.
-const COL_CHIPS: { label: string; cols: string[] }[] = [
-  { label: "Pts", cols: ["pts"] },
-  { label: "PPM", cols: ["ppm"] },
-  { label: "P", cols: ["played"] },
-  { label: "W-D-L", cols: ["wins", "draws", "losses"] },
-  { label: "Win%", cols: ["winrate"] },
-  { label: "GF-GA-GD", cols: ["gf", "ga", "gd"] },
-  { label: "GF-GA-GD /m", cols: ["gpm", "gapm", "gdpm"] },
-  { label: "Elo", cols: ["rating"] },
-];
-
-function StatsTable({ rows, loading, onSelect, mode, scope }: { rows: Row[]; loading: boolean; onSelect: (id: number) => void; mode: StatsMode; scope: StatsScope }) {
-  const { avatarUpdatedAtById } = usePlayerAvatarMap();
-  const [sortKey, setSortKey] = useState<string>("pts");
-  const [dir, setDir] = useState<1 | -1>(-1);
-  const [visible, setVisible] = useState<Set<string>>(() => new Set(DEFAULT_COLS));
-  const [lastN, setLastN] = useState(false);
-  const [nWin, setNWin] = useState(5);
-
-  // Last-N: recompute every column over each player's last N tournaments (same
-  // unit as Trends' Last-N). Elo is meaningless over a window, so it's hidden.
-  const matchesQs = useQueries({
-    queries: rows.map((r) => ({
-      queryKey: ["stats", "playerMatches", r.id, scope],
-      queryFn: () => getStatsPlayerMatches({ playerId: r.id, scope }),
-      enabled: lastN && rows.length > 0,
-      placeholderData: keepPreviousData,
-      staleTime: 30_000,
-    })),
-  });
-  const lastNLoading = lastN && matchesQs.some((q) => q.isLoading && !q.data);
-  const lastNRows = useMemo(() => {
-    if (!lastN) return rows;
-    return rows.map((r, i) => {
-      const data = matchesQs[i]?.data as { tournaments: StatsPlayerMatchesTournament[] } | undefined;
-      const ts = (data?.tournaments ?? [])
-        .filter((t) => mode === "overall" || t.mode === mode)
-        .filter((t) => t.matches.some((m) => matchStats(m, r.id)))
-        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-        .slice(0, nWin);
-      let played = 0, w = 0, d = 0, l = 0, gf = 0, ga = 0, pts = 0;
-      for (const t of ts) for (const m of t.matches) {
-        const s = matchStats(m, r.id);
-        if (!s) continue;
-        played++; gf += s.gf; ga += s.ga; pts += s.pts;
-        if (s.res === "W") w++; else if (s.res === "D") d++; else l++;
-      }
-      return { ...r, played, wins: w, draws: d, losses: l, gf, ga, gd: gf - ga, pts };
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lastN, rows, matchesQs.map((q) => q.dataUpdatedAt).join("|"), mode, nWin]);
-
-  // Elo is unset when Last-N is on.
-  const effVisible = useMemo(() => (lastN ? new Set([...visible].filter((k) => k !== "rating")) : visible), [lastN, visible]);
-  const cols = useMemo(() => TABLE_COLS.filter((c) => effVisible.has(c.key)), [effVisible]);
-  const colByKey = useMemo(() => new Map(TABLE_COLS.map((c) => [c.key, c])), []);
-  const sortCol = colByKey.get(effVisible.has(sortKey) ? sortKey : "pts") ?? TABLE_COLS[0];
-  const tableRows = lastN ? lastNRows : rows;
-  const sorted = useMemo(
-    () => tableRows.slice().sort((a, b) => (sortCol.val(a) - sortCol.val(b)) * dir),
-    [tableRows, sortCol, dir],
-  );
-  const setSort = (k: string) => { if (k === sortKey) setDir((d) => (d === 1 ? -1 : 1)); else { setSortKey(k); setDir(-1); } };
-  const toggleGroup = (groupCols: string[], on: boolean) =>
-    setVisible((prev) => {
-      const n = new Set(prev);
-      if (on) {
-        for (const k of groupCols) n.delete(k);
-        if (n.size === 0) n.add("pts");
-      } else {
-        for (const k of groupCols) n.add(k);
-      }
-      return n;
-    });
-
-  if (loading) return <InlineLoading label="Loading…" />;
-  return (
-    <div className="space-y-3">
-      <div className="flex flex-wrap items-center gap-2">
-        <ToggleChip on={lastN} onClick={() => setLastN((v) => !v)}>Last N</ToggleChip>
-        {lastN ? (
-          <>
-            <span className="text-[11px] text-text-muted">last {nWin} tournaments</span>
-            <div className="min-w-[160px] flex-1">
-              <Slider label="" value={nWin} min={2} max={20} onChange={setNWin} />
-            </div>
-          </>
-        ) : (
-          <span className="text-[11px] text-text-muted">all-time totals</span>
-        )}
-      </div>
-
-      <div>
-        <div className="section-head"><span className="section-label">Columns</span></div>
-        <div className="flex flex-wrap gap-1.5">
-          {COL_CHIPS.map((item) => {
-            const isElo = item.cols.includes("rating");
-            const disabled = lastN && isElo;
-            const on = !disabled && item.cols.every((k) => effVisible.has(k));
-            return (
-              <button
-                key={item.label}
-                type="button"
-                disabled={disabled}
-                onClick={() => toggleGroup(item.cols, on)}
-                aria-pressed={on}
-                title={disabled ? "Elo isn't available over a Last-N window" : undefined}
-                className={
-                  "rounded-full px-2.5 py-1 text-xs transition focus-ring " +
-                  (disabled
-                    ? "cursor-not-allowed bg-bg-card-chip/30 text-text-muted/40 line-through"
-                    : on
-                      ? "bg-accent/15 font-medium text-accent ring-1 ring-inset ring-accent/40"
-                      : "bg-bg-card-chip/50 text-text-muted hover:text-text-normal")
-                }
-              >
-                {item.label}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      {lastNLoading ? <InlineLoading label="Loading last-N…" /> : null}
-
-      <div className="overflow-x-auto" data-no-swipe-nav>
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-border-card-chip/50 text-[11px] uppercase tracking-wide text-text-muted">
-              <th className="sticky left-0 z-10 bg-bg-default py-2 pl-1 pr-2 text-left font-medium">Player</th>
-              {cols.map((c) => (
-                <th key={c.key} className="px-2 py-2 text-right font-medium">
-                  <button type="button" onClick={() => setSort(c.key)} className={"inline-flex items-center gap-0.5 " + (sortKey === c.key ? "text-accent" : "hover:text-text-normal")}>
-                    {c.label}{sortKey === c.key ? <span>{dir === -1 ? "▾" : "▴"}</span> : null}
-                  </button>
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {sorted.map((r, i) => (
-              <tr key={r.id} onClick={() => onSelect(r.id)} className="cursor-pointer border-b border-border-card-inner/40 transition hover:bg-hover-default/30">
-                <td className="sticky left-0 z-10 bg-bg-default py-2 pl-1 pr-2">
-                  <div className="flex items-center gap-2">
-                    <span className="w-4 text-right text-xs tabular-nums text-text-muted">{i + 1}</span>
-                    <AvatarCircle playerId={r.id} name={r.name} updatedAt={avatarUpdatedAtById.get(r.id) ?? null} sizeClass="h-7 w-7" />
-                    <span className="truncate font-medium text-text-normal">{r.name}</span>
-                  </div>
-                </td>
-                {cols.map((c) => (
-                  <td key={c.key} className={"px-2 text-right tabular-nums " + (c.bold ? "font-bold " : "") + (c.cls ?? "")}>
-                    {c.fmt(c.val(r), r)}
-                  </td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
-
-// ==========================================================================
 //  POSITIONS — players × tournaments grid
 // ==========================================================================
 function PositionsView({ mode }: { mode: StatsMode }) {
@@ -805,12 +548,14 @@ function PositionsView({ mode }: { mode: StatsMode }) {
             {tournaments.map((t) => (
               <Fragment key={t.id}>
                 <div style={{ height: cellH }} className="flex items-center pr-1.5">
-                  <span
-                    className="text-[10px] leading-tight text-text-normal"
+                  <Link
+                    to={`/live/${t.id}`}
+                    title={`${t.name} — open tournament`}
+                    className="block w-full text-[10px] leading-tight text-text-normal no-underline transition hover:text-accent"
                     style={{ display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}
                   >
                     {t.name}
-                  </span>
+                  </Link>
                 </div>
                 {orderedPlayers.map((p) => {
                   const pos = p.positions_by_tournament?.[String(t.id)];
@@ -1461,7 +1206,7 @@ function teamNames(m: Match, side: "A" | "B"): string {
   const s = m.sides.find((x) => x.side === side);
   return (s?.players ?? []).map((p) => p.display_name).join(" + ") || "—";
 }
-type RecMatch = { id: number; tName: string; date: string; a: string; b: string; ag: number; bg: number; aIds: number[]; bIds: number[] };
+type RecMatch = { id: number; tId: number; tName: string; date: string; a: string; b: string; ag: number; bg: number; aIds: number[]; bIds: number[] };
 
 function RecordGroup({ icon, label, matches }: { icon: string; label: string; matches: RecMatch[] }) {
   if (!matches.length) return null;
@@ -1475,13 +1220,18 @@ function RecordGroup({ icon, label, matches }: { icon: string; label: string; ma
       </div>
       <div className="mt-1.5 space-y-2">
         {shown.map((m) => (
-          <div key={m.id} className="flex items-center justify-between gap-3">
+          <Link
+            key={m.id}
+            to={`/live/${m.tId}?match=${m.id}`}
+            title={`${m.tName} — open tournament`}
+            className="flex items-center justify-between gap-3 rounded-lg px-1.5 py-1 -mx-1.5 no-underline transition hover:bg-hover-default/30"
+          >
             <div className="min-w-0">
               <div className="truncate text-sm font-medium text-text-normal">{m.a} <span className="text-text-muted">vs</span> {m.b}</div>
               <div className="text-[11px] text-text-muted">{m.tName} · {fmtShortDate(m.date)}</div>
             </div>
             <div className="shrink-0 font-mono text-base font-bold tabular-nums text-accent">{m.ag}:{m.bg}</div>
-          </div>
+          </Link>
         ))}
         {matches.length > shown.length ? <div className="text-[11px] text-text-muted">+{matches.length - shown.length} more</div> : null}
       </div>
@@ -1519,7 +1269,7 @@ function RecordsView({ mode, scope, rows }: { mode: StatsMode; scope: StatsScope
           const A = m.sides.find((s) => s.side === "A");
           const B = m.sides.find((s) => s.side === "B");
           out.push({
-            id: m.id, tName: t.name, date: t.date,
+            id: m.id, tId: t.id, tName: t.name, date: t.date,
             a: teamNames(m, "A"), b: teamNames(m, "B"),
             ag: Number(A?.goals ?? 0), bg: Number(B?.goals ?? 0),
             aIds: (A?.players ?? []).map((p) => p.id), bIds: (B?.players ?? []).map((p) => p.id),
@@ -1658,6 +1408,7 @@ const TABS: SectionTab<Tab>[] = [
   { key: "records", label: "Records", icon: <Award size={14} /> },
   { key: "cups", label: "Cups", icon: <Trophy size={14} /> },
 ];
+const TAB_KEYS = TABS.map((t) => t.key);
 
 export default function StatsInsights({
   mode, scope, onModeChange, onScopeChange, playerId, onSelectPlayer,
@@ -1672,7 +1423,19 @@ export default function StatsInsights({
   // Deep-link support: dashboard (and others) can pass an initial tab + trends config via nav state.
   const location = useLocation();
   const initState = (location.state as { statsTab?: Tab; trendsMetric?: Metric; trendsView?: ViewMode; trendsPerMatch?: boolean } | null) ?? null;
-  const [tab, setTab] = useState<Tab>(initState?.statsTab ?? (playerId !== "" ? "player" : "trends"));
+  // The active sub-tab is persisted in the URL (`?view=`) so leaving for a tournament
+  // and pressing Back restores the same tab (e.g. Positions / Records).
+  const [searchParams, setSearchParams] = useSearchParams();
+  const viewParam = searchParams.get("view");
+  const tab: Tab =
+    viewParam && (TAB_KEYS as readonly string[]).includes(viewParam)
+      ? (viewParam as Tab)
+      : (initState?.statsTab ?? (playerId !== "" ? "player" : "trends"));
+  const setTab = (t: Tab) => {
+    const n = new URLSearchParams(searchParams);
+    n.set("view", t);
+    setSearchParams(n, { replace: true });
+  };
   // Default selected player: the passed-in playerId, then self (if in the roster), then first row.
   const selfInRows = myId != null && rows.some((r) => r.id === myId);
   const selectedId = playerId !== "" ? playerId : selfInRows ? myId : (rows[0]?.id ?? null);

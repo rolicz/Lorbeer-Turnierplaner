@@ -6,6 +6,7 @@ import { LayoutDashboard, Trophy } from "lucide-react";
 import CupCard from "./CupCard";
 import CurrentMatchPreviewCard from "./CurrentMatchPreviewCard";
 import TrendsPreviewCard from "./TrendsPreviewCard";
+import StandingsPreviewCard from "./StandingsPreviewCard";
 import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
 import { SectionTabs, type SectionTab } from "../../ui/SectionTabs";
 import { listCupDefs } from "../../api/cup.api";
@@ -90,6 +91,7 @@ export default function DashboardPage() {
         <div className="space-y-4">
           <CurrentMatchPreviewCard />
           <TrendsPreviewCard />
+          <StandingsPreviewCard />
         </div>
       ) : (
       /* Cups */

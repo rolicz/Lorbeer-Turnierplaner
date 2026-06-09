@@ -9,6 +9,7 @@ import { getStatsPlayerMatches, getStatsPlayers } from "../../api/stats.api";
 import type { Match, StatsPlayerMatchesResponse, StatsPlayersResponse, StatsTournamentLite } from "../../api/types";
 import { sideBy } from "../../helpers";
 import { usePlayerColors } from "../stats/usePlayerColors";
+import { pooledPpm } from "../stats/trendsMath";
 import { TrendChart } from "../stats/charts";
 import SegmentedSwitch from "../../ui/primitives/SegmentedSwitch";
 import { fmtDate } from "../../utils/format";
@@ -44,13 +45,6 @@ function pointsForPlayerInMatch(m: Match, playerId: number): number | null {
   const w = winnerSide(m);
   if (!w) return 1;
   return w === side ? 3 : 0;
-}
-
-function avgLast(arr: number[], n: number) {
-  const slice = arr.slice(-n);
-  if (!slice.length) return 0;
-  // Divide by the chosen N even if fewer matches exist (pad missing with 0).
-  return slice.reduce((a, b) => a + b, 0) / Math.max(1, n);
 }
 
 export default function TrendsPreviewCard() {
@@ -190,7 +184,7 @@ export default function TrendsPreviewCard() {
           return a.id - b.id;
         });
 
-      const tPpmTimeline: number[] = []; // per-tournament PPM history (same rolling logic as stats Trends rolling+per-match)
+      const tStatTimeline: Array<{ pts: number; played: number }> = []; // per-tournament points/matches
       for (const t of tournamentsChrono) {
         let sum = 0;
         let matchCount = 0;
@@ -202,13 +196,13 @@ export default function TrendsPreviewCard() {
           matchCount++;
         }
         if (matchCount > 0) {
-          const ppm = sum / matchCount;
-          tPpmTimeline.push(ppm);
+          tStatTimeline.push({ pts: sum, played: matchCount });
           tPlayed.add(t.id);
           tPoints.set(t.id, sum);
-          // Divide by actual count (not always formN) — matches stats rolling avg behaviour.
-          const window = tPpmTimeline.slice(-formN);
-          tForm.set(t.id, window.reduce((a, b) => a + b, 0) / window.length);
+          // Pooled PPM over the last formN played tournaments (Σpoints / Σmatches) — same as
+          // the stats Trends rolling+per-match value, and equal to the cumulative PPM once the
+          // window covers every tournament (a mean of per-tournament ratios would not be).
+          tForm.set(t.id, pooledPpm(tStatTimeline.slice(-formN)) ?? 0);
         }
       }
 

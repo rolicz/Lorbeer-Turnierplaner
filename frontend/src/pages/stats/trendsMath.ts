@@ -81,6 +81,22 @@ export function avgLast(arr: number[], n: number): number {
   return slice.reduce((a, b) => a + b, 0) / Math.max(1, n);
 }
 
+/**
+ * Pooled points-per-match over a set of per-tournament {pts, played} entries:
+ * Σpts / Σplayed (null when no matches). Used for the rolling/Last-N PPM so it
+ * equals the cumulative PPM once the window covers every tournament — a mean of
+ * per-tournament ratios would diverge whenever match counts differ.
+ */
+export function pooledPpm(window: Array<{ pts: number; played: number }>): number | null {
+  let sumPts = 0;
+  let sumPlayed = 0;
+  for (const e of window) {
+    sumPts += e.pts;
+    sumPlayed += e.played;
+  }
+  return sumPlayed ? sumPts / sumPlayed : null;
+}
+
 export function dist2(
   t1: { clientX: number; clientY: number },
   t2: { clientX: number; clientY: number }
