@@ -78,8 +78,8 @@ export default function MobileChrome({
             </button>
           )}
           <span className="min-w-0 flex-1 truncate text-base font-semibold tracking-tight">{title}</span>
-          <NotificationBell align="right" placement="bottom" />
           <ConnectionIndicator />
+          <NotificationBell align="right" placement="bottom" />
         </div>
       </header>
 

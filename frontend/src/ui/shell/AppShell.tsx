@@ -15,6 +15,7 @@ import Sidebar from "./Sidebar";
 import MobileChrome from "./MobileChrome";
 import RouteErrorBoundary from "./RouteErrorBoundary";
 import { useSwipeNav } from "./useSwipeNav";
+import { useLocationRestore } from "./useLocationRestore";
 
 const COLLAPSE_KEY = "sidebar-collapsed";
 
@@ -28,6 +29,8 @@ function ShellInner({ children }: { children: React.ReactNode }) {
   useAnyTournamentWS();
   // Global swipe back/forward (mobile gesture nav; harmless on non-touch).
   useSwipeNav();
+  // Standalone PWA: resume at the last route after the OS evicts the app.
+  useLocationRestore();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [collapsed, setCollapsed] = useState<boolean>(() => localStorage.getItem(COLLAPSE_KEY) === "1");
 
