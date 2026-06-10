@@ -58,6 +58,10 @@ export async function apiFetch<T>(
   const res = await fetch(url, { ...opts, headers });
 
   if (!res.ok) {
+    // Don't fire on the login endpoint — 401 there means wrong credentials, not expired session.
+    if (res.status === 401 && !path.startsWith("/auth/")) {
+      window.dispatchEvent(new CustomEvent("api:unauthorized"));
+    }
     const text = await res.text();
     throw new ApiError(res.status, res.statusText, text);
   }
@@ -91,6 +95,9 @@ export async function apiUpload<T>(
     body: opts.body,
   });
   if (!res.ok) {
+    if (res.status === 401) {
+      window.dispatchEvent(new CustomEvent("api:unauthorized"));
+    }
     const text = await res.text();
     throw new ApiError(res.status, res.statusText, text);
   }

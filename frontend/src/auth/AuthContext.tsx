@@ -1,6 +1,7 @@
 /* eslint-disable react-refresh/only-export-components */
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { me } from "../api/auth.api";
+import { showErrorToast } from "../ui/primitives/ErrorToast";
 
 export type Role = "reader" | "editor" | "admin";
 
@@ -128,6 +129,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       cancelled = true;
     };
   }, [token, storedRole, storedPlayerId, storedPlayerName]);
+
+  // Central 401 handler: any authenticated request that gets 401 fires "api:unauthorized".
+  // We clear auth state and show one toast so the user knows why they were logged out.
+  useEffect(() => {
+    const onUnauthorized = () => {
+      clearAuth();
+      showErrorToast("Session expired — please log in again.", "Session expired");
+    };
+    window.addEventListener("api:unauthorized", onUnauthorized);
+    return () => window.removeEventListener("api:unauthorized", onUnauthorized);
+  }, []);
 
   const cycleRole = useCallback(() => {
     if (!canCycleRole) return;

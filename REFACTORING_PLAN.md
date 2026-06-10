@@ -164,7 +164,7 @@ Mostly mechanical, low risk. Best phase to start with.
 - **DoD:** one place builds media URLs; avatars/headers/comment images still load and bust cache
   after re-upload.
 
-### A5 — Handle 401 centrally (expired token → logout + message)  ☐
+### A5 — Handle 401 centrally (expired token → logout + message)  ☑
 - **Effort:** S · **Risk:** low · **Model:** Sonnet 4.6
 - **Problem:** if the JWT expires mid-session, mutations fail with opaque errors; the user stays
   "logged in" until reload. `AuthContext` only validates the token on mount
