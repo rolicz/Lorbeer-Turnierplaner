@@ -51,7 +51,7 @@ export default function TrendsPreviewCard() {
   const navigate = useNavigate();
   const { colorOf } = usePlayerColors();
   const [view, setView] = useState<View>("lastN");
-  const formN = 5;
+  const formN = 3;
   const windowMonths = 6 as const;
 
   // The chart mounts conditionally (after data loads), so use a callback ref to

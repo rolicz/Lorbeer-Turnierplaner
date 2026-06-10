@@ -32,7 +32,7 @@ export default function TrendsCard({
 } = {}) {
   const { colorOf } = usePlayerColors();
   const [view, setView] = useState<View>(initialView);
-  const [formN, setFormN] = useState(10);
+  const [formN, setFormN] = useState(3);
 
   const wrapRef = useRef<HTMLDivElement | null>(null);
   // lastN irrelevant here, but keep it small (we only use tournaments + positions).

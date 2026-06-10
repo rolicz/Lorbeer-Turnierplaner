@@ -148,7 +148,7 @@ export default function ProfilePage() {
   const clubsQ = useQuery({ queryKey: ["clubs"], queryFn: () => listClubs() });
   const statsPlayersQ = useQuery({
     queryKey: ["stats", "players", "profile", targetPlayerId ?? "none"],
-    queryFn: () => getStatsPlayers({ lastN: 10, mode: "overall" }),
+    queryFn: () => getStatsPlayers({ lastN: 3, mode: "overall" }),
     enabled: Number.isFinite(targetPlayerId) && (targetPlayerId ?? 0) > 0,
   });
   const statsStreaksQ = useQuery({
@@ -1261,7 +1261,7 @@ export default function ProfilePage() {
                       Record <span className="tabular-nums text-status-text-green">{fmtInt(r?.wins ?? 0)}</span>-<span className="tabular-nums text-amber-300">{fmtInt(r?.draws ?? 0)}</span>-<span className="tabular-nums text-red-300">{fmtInt(r?.losses ?? 0)}</span>
                     </span>
                     <span>Elo <b className="tabular-nums text-text-normal">{eloRow ? Math.round(eloRow.rating) : "—"}</b>{eloRank != null ? ` · #${eloRank}` : ""}</span>
-                    <span>Last 10 <b className="tabular-nums text-text-normal">{fmtPct(r?.lastN_avg_pts ?? 0)}</b></span>
+                    <span>Last 3 <b className="tabular-nums text-text-normal">{fmtPct(r?.lastN_avg_pts ?? 0)}</b></span>
                   </div>
                 </>
               );

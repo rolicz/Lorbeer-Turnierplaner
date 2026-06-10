@@ -384,7 +384,7 @@ export default function PlayersStatsCard({
   }, [cups, cupsQ, cupOwnerIdLegacy]);
 
   const tournaments = useMemo(() => statsQ.data?.tournaments ?? [], [statsQ.data?.tournaments]);
-  const [lastNView, setLastNView] = useState<number>(10);
+  const [lastNView, setLastNView] = useState<number>(3);
 
   const avgLastN = useCallback((s: StatsPlayerRow) => {
     const arr = (s.lastN_pts ?? []).map((x) => Number(x)).filter((x) => Number.isFinite(x));

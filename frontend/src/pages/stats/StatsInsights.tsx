@@ -59,7 +59,7 @@ function TrendsExplorer({ mode, scope, rows, initialMetric, initialView, initial
   const { colorOf } = usePlayerColors();
   const [metric, setMetric] = useState<Metric>(initialMetric ?? "points");
   const [view, setView] = useState<ViewMode>(initialView ?? "cumulative");
-  const [rollN, setRollN] = useState(5);
+  const [rollN, setRollN] = useState(3);
   const [range, setRange] = useState<RangeKey>("1y");
   const [perMatch, setPerMatch] = useState(initialPerMatch ?? false);
   const [hidden, setHidden] = useState<Set<number>>(new Set());
@@ -318,14 +318,18 @@ function TrendsExplorer({ mode, scope, rows, initialMetric, initialView, initial
   let yTicks: number[] | undefined;
   if (isPpm) {
     yMin = 0; yMax = 3; yTicks = [0, 1, 2, 3];
+  } else if (isElo && effView === "per") {
+    // Δ per event: symmetric around 0 so the zero baseline sits dead center
+    // (e.g. −58 … 0 … 58). Chart's auto mid-tick = round((yMin+yMax)/2) = 0.
+    const M = Math.max(1, ...allY.map((v) => Math.ceil(Math.abs(v))));
+    yMin = -M;
+    yMax = M;
   } else if (isElo && effView === "cumulative" && allY.length) {
-    // Ratings cluster around the base (~1000); anchoring to 0 squishes the line
-    // into a flat band. Frame the actual rating range with a little padding.
-    const lo = Math.min(...allY);
-    const hi = Math.max(...allY);
-    const pad = Math.max(10, (hi - lo) * 0.1);
-    yMin = lo - pad;
-    yMax = hi + pad;
+    // Rating over time: center the axis on the 1000 baseline; symmetric extent
+    // is the largest absolute deviation from 1000 (auto mid-tick = 1000).
+    const K = Math.max(10, ...allY.map((v) => Math.ceil(Math.abs(v - 1000))));
+    yMin = 1000 - K;
+    yMax = 1000 + K;
   } else {
     yMax = Math.max(1, ...allY);
     yMin = Math.min(0, ...allY);
@@ -566,11 +570,12 @@ function PositionsView({ mode }: { mode: StatsMode }) {
                   const stakes = t.cup_stakes ?? [];
                   const isWinner = pos === 1 && stakes.length > 0;
                   return (
-                    <div
+                    <Link
                       key={p.player_id}
+                      to={`/live/${t.id}`}
                       style={{ height: cellH, ["--pos-p"]: frac } as React.CSSProperties}
-                      className="pos-tile relative grid place-items-center rounded border text-[11px] font-semibold tabular-nums"
-                      title={`${p.display_name} · ${t.name}: #${pos}/${total}${isWinner ? ` · won ${stakes.map((s) => s.name).join(", ")}` : ""}`}
+                      className="pos-tile relative grid place-items-center rounded border text-[11px] font-semibold tabular-nums no-underline transition hover:z-10 hover:ring-2 hover:ring-inset hover:ring-accent/70"
+                      title={`${p.display_name} · ${t.name}: #${pos}/${total}${isWinner ? ` · won ${stakes.map((s) => s.name).join(", ")}` : ""} — open tournament`}
                     >
                       {isWinner ? (
                         <span className="absolute right-0.5 top-0.5 inline-flex gap-px">
@@ -580,7 +585,7 @@ function PositionsView({ mode }: { mode: StatsMode }) {
                         </span>
                       ) : null}
                       {pos}
-                    </div>
+                    </Link>
                   );
                 })}
               </Fragment>

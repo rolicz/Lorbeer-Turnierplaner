@@ -88,6 +88,7 @@ export default function SelectClubsPanel({
   extraTop,
   extraBottom,
   wrap = true,
+  wrapClassName = "panel-subtle",
   showSelectedMeta = false,
   narrowLayout = false,
 }: {
@@ -331,7 +332,7 @@ export default function SelectClubsPanel({
   if (!wrap) return body;
 
   return (
-    <div className="panel-subtle">
+    <div className={wrapClassName}>
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
