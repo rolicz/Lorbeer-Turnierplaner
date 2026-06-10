@@ -44,16 +44,27 @@ model something belongs to, take the higher one.
   splits (F1–F3), and both `/code-review` checkpoints. Switch once when Block 1 is
   finished.
 
-Work in a **fresh session per task** (`/clear` or a new session — small context is what
-keeps usage low; the default model carries over, so a new session is not a model
-switch). Kick off each task by typing the project slash command with the task ID:
+Work in a **fresh session per step** of the order table below (`/clear` or a new
+session — bounded context keeps usage low *and* quality high; the default model carries
+over, so a new session is not a model switch). You never need to remember task IDs — in
+each new session just type, with no argument:
 
-    /refactor-task A3
+    /refactor-task
 
-The command is defined in `.claude/commands/refactor-task.md` (checked into the repo,
-available in every session) — it tells the model to read this plan, do exactly that one
-task, verify, tick the checkbox, and commit. Fallback if the command isn't picked up:
-type "Read REFACTORING_PLAN.md and do task A3 only, following its rules."
+The command (defined in `.claude/commands/refactor-task.md`, checked into the repo)
+reads this plan, finds the first unchecked Block-1 task in the order table, works
+forward one commit per task, and stops at the end of the current step with a summary.
+Block 1 is therefore ~8 sessions of typing nothing but `/refactor-task`. Variants:
+
+- `/refactor-task B2` — do exactly one named task; this is how the Block-2 tasks are
+  invoked on Opus (`/refactor-task B2`, then `/refactor-task F1`, …).
+- `/refactor-task all` — don't stop at step boundaries; run until Block 1 is done or a
+  task fails. Note this is *more* expensive than per-step sessions (each request
+  re-reads the ever-growing session context) and quality degrades as the context fills —
+  use it only if you'd rather not check in at all.
+
+Fallback if the command isn't picked up: "Read REFACTORING_PLAN.md and continue with the
+next unchecked Block-1 task, following its rules."
 
 **Escalation:** if a Sonnet task misses its DoD twice, stop grinding and redo it in a
 fresh Opus 4.8 session (then return to Sonnet for the next task).
