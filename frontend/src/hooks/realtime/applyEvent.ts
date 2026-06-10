@@ -59,6 +59,9 @@ export function applyCommentUpsert(qc: QueryClient, payload: unknown) {
     next[idx] = merged;
     return { ...prev, comments: next };
   });
+
+  // A new comment may be a reply to the viewer's comment → refresh the bell.
+  void qc.invalidateQueries({ queryKey: ["me", "notifications"] });
 }
 
 export function applyCommentDelete(qc: QueryClient, payload: unknown) {

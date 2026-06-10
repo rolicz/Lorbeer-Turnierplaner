@@ -44,6 +44,9 @@ export const qk = {
   playerPokesAuthoredUnread: (token: string | null) =>
     ["players", "pokes", "authored-unread", token ?? "none"] as const,
 
+  // ---- personal notifications (in-app feed) ------------------------------
+  notifications: (token: string | null) => ["me", "notifications", token ?? "none"] as const,
+
   // ---- clubs / leagues ----------------------------------------------------
   clubs: (game?: string) => (game ? (["clubs", game] as const) : (["clubs"] as const)),
   leagues: () => ["leagues"] as const,

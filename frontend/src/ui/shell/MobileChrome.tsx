@@ -10,6 +10,7 @@ import { usePageTitleValue } from "../layout/PageTitleContext";
 import { useHideOnScroll } from "../layout/useHideOnScroll";
 import { useContextualBack } from "./routeMeta";
 import ConnectionIndicator from "./ConnectionIndicator";
+import NotificationBell from "./NotificationBell";
 
 /** Mobile (and tablet < lg) top bar + slide-in navigation drawer. */
 export default function MobileChrome({
@@ -77,6 +78,7 @@ export default function MobileChrome({
             </button>
           )}
           <span className="min-w-0 flex-1 truncate text-base font-semibold tracking-tight">{title}</span>
+          <NotificationBell align="right" placement="bottom" />
           <ConnectionIndicator />
         </div>
       </header>

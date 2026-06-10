@@ -5,6 +5,7 @@ import { ChevronLeft, ChevronRight, Settings } from "lucide-react";
 import { useAuth } from "../../auth/AuthContext";
 import { activeDest, visibleDests } from "./navConfig";
 import ConnectionIndicator from "./ConnectionIndicator";
+import NotificationBell from "./NotificationBell";
 
 /** Desktop-only collapsible left sidebar. */
 export default function Sidebar({
@@ -66,13 +67,12 @@ export default function Sidebar({
         })}
       </nav>
 
-      {/* Footer: connection + settings link + collapse */}
+      {/* Footer: notifications + connection + settings link + collapse */}
       <div className="space-y-1 border-t border-border-card-chip/40 px-2.5 py-2">
-        {!collapsed ? (
-          <div className="px-2 pb-1">
-            <ConnectionIndicator />
-          </div>
-        ) : null}
+        <div className={"flex items-center gap-1 pb-1 " + (collapsed ? "justify-center" : "justify-between px-2")}>
+          {!collapsed ? <ConnectionIndicator /> : null}
+          <NotificationBell align="left" placement="top" />
+        </div>
 
         <Link
           to="/settings"
