@@ -209,22 +209,16 @@ export default function StandingsTable({
     const recordsScoring = rec("scoring_streak");
     const recordsClean = rec("clean_sheet_streak");
 
-    const bestRecBy = (rows: StatsStreakRow[]) => {
-      const best = new Map<number, { length: number; start_ts: string | null; end_ts: string | null }>();
-      for (const r of rows ?? []) {
-        const pid = r.player?.id;
-        const len = Number(r.length ?? 0);
-        if (!pid || len <= 0) continue;
-        const prev = best.get(pid);
-        if (!prev || len > prev.length) best.set(pid, { length: len, start_ts: r.start_ts ?? null, end_ts: r.end_ts ?? null });
-      }
-      return best;
-    };
+    // Overall (all-time, across everyone) record length per category. The badge
+    // border only lights when a current run reaches the all-time record — not a
+    // mere personal best.
+    const overallRecord = (rows: StatsStreakRow[]) =>
+      Math.max(0, ...(rows ?? []).map((r) => Number(r.length ?? 0)));
 
-    const bestWin = bestRecBy(recordsWins);
-    const bestUnbeaten = bestRecBy(recordsUnbeaten);
-    const bestScoring = bestRecBy(recordsScoring);
-    const bestClean = bestRecBy(recordsClean);
+    const recWin = overallRecord(recordsWins);
+    const recUnbeaten = overallRecord(recordsUnbeaten);
+    const recScoring = overallRecord(recordsScoring);
+    const recClean = overallRecord(recordsClean);
 
     const add = (pid: number, s: ActiveStreak) => {
       const arr = m.get(pid) ?? [];
@@ -237,8 +231,7 @@ export default function StandingsTable({
       if ((r.length ?? 0) < MIN_LEN) continue;
       const pid = r.player.id;
       winLenByPid.set(pid, Number(r.length) || 0);
-      const best = bestWin.get(pid);
-      const highlight = !!best && best.length === r.length && (best.start_ts ?? null) === (r.start_ts ?? null) && (best.end_ts ?? null) === (r.end_ts ?? null);
+      const highlight = recWin > 0 && Number(r.length) >= recWin;
       add(pid, { key: "win_streak", length: r.length, highlight });
     }
     for (const r of unbeaten) {
@@ -248,22 +241,19 @@ export default function StandingsTable({
       // If the unbeaten run is longer than the current win streak (i.e. contains draws),
       // show both. Otherwise, the unbeaten badge would be redundant.
       if (winLen > 0 && Number(r.length || 0) <= winLen) continue;
-      const best = bestUnbeaten.get(pid);
-      const highlight = !!best && best.length === r.length && (best.start_ts ?? null) === (r.start_ts ?? null) && (best.end_ts ?? null) === (r.end_ts ?? null);
+      const highlight = recUnbeaten > 0 && Number(r.length) >= recUnbeaten;
       add(pid, { key: "unbeaten_streak", length: r.length, highlight });
     }
     for (const r of scoring) {
       if ((r.length ?? 0) < MIN_LEN) continue;
       const pid = r.player.id;
-      const best = bestScoring.get(pid);
-      const highlight = !!best && best.length === r.length && (best.start_ts ?? null) === (r.start_ts ?? null) && (best.end_ts ?? null) === (r.end_ts ?? null);
+      const highlight = recScoring > 0 && Number(r.length) >= recScoring;
       add(pid, { key: "scoring_streak", length: r.length, highlight });
     }
     for (const r of clean) {
       if ((r.length ?? 0) < MIN_LEN) continue;
       const pid = r.player.id;
-      const best = bestClean.get(pid);
-      const highlight = !!best && best.length === r.length && (best.start_ts ?? null) === (r.start_ts ?? null) && (best.end_ts ?? null) === (r.end_ts ?? null);
+      const highlight = recClean > 0 && Number(r.length) >= recClean;
       add(pid, { key: "clean_sheet_streak", length: r.length, highlight });
     }
 

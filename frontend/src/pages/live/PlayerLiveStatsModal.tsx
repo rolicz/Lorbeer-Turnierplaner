@@ -10,22 +10,26 @@ function ppm(pts: number, played: number) {
   return played > 0 ? (pts / played).toFixed(2) : "0.00";
 }
 
-function toActiveStreaks(data: StatsStreaksResponse | undefined): ActiveStreak[] {
+function toActiveStreaks(
+  data: StatsStreaksResponse | undefined,
+  overallRecord: Record<string, number>,
+): ActiveStreak[] {
   if (!data?.categories?.length) return [];
   const byKey = (key: string): StatsStreakCategory | undefined => data.categories.find((c) => c.key === key);
   const cur = (key: string): StatsStreakRow[] => byKey(key)?.current ?? [];
-  const rec = (key: string): StatsStreakRow[] => byKey(key)?.records ?? [];
 
   const wins = cur("win_streak")?.[0] ?? null;
   const unbeaten = cur("unbeaten_streak")?.[0] ?? null;
   const scoring = cur("scoring_streak")?.[0] ?? null;
   const clean = cur("clean_sheet_streak")?.[0] ?? null;
 
-  const bestLen = (rows: StatsStreakRow[]) => rows.reduce((m, r) => Math.max(m, Number(r.length ?? 0)), 0);
-  const bestWin = bestLen(rec("win_streak"));
-  const bestUnbeaten = bestLen(rec("unbeaten_streak"));
-  const bestScoring = bestLen(rec("scoring_streak"));
-  const bestClean = bestLen(rec("clean_sheet_streak"));
+  // Highlight only when the current run reaches the all-time (overall) record,
+  // not a personal best.
+  const rec = (key: string) => Number(overallRecord[key] ?? 0);
+  const bestWin = rec("win_streak");
+  const bestUnbeaten = rec("unbeaten_streak");
+  const bestScoring = rec("scoring_streak");
+  const bestClean = rec("clean_sheet_streak");
 
   const out: ActiveStreak[] = [];
   const minLen = 2;
@@ -131,6 +135,16 @@ export default function PlayerLiveStatsModal({
     refetchOnWindowFocus: false,
     staleTime: 15_000,
   });
+  // All-players records → all-time (overall) record length per category for the
+  // badge highlight. Same key/shape as StandingsTable, so this is usually a cache hit.
+  const overallStreaksQ = useQuery({
+    queryKey: ["stats", "streaks", "overall", 200],
+    queryFn: () => getStatsStreaks({ mode: "overall", playerId: null, limit: 200 }),
+    enabled,
+    refetchOnReconnect: false,
+    refetchOnWindowFocus: false,
+    staleTime: 30_000,
+  });
   const matchesQ = useQuery({
     queryKey: ["stats", "playerMatches", pid ?? "none"],
     queryFn: () => {
@@ -172,7 +186,14 @@ export default function PlayerLiveStatsModal({
     if (mode === "2v2") return d.nemesis_2v2?.opponent?.display_name ?? null;
     return d.nemesis_all?.opponent?.display_name ?? null;
   }, [h2hQ.data, mode]);
-  const streaks = useMemo(() => toActiveStreaks(streakQ.data), [streakQ.data]);
+  const overallRecord = useMemo(() => {
+    const m: Record<string, number> = {};
+    for (const c of overallStreaksQ.data?.categories ?? []) {
+      m[c.key] = (c.records ?? []).reduce((mx, r) => Math.max(mx, Number(r.length ?? 0)), 0);
+    }
+    return m;
+  }, [overallStreaksQ.data]);
+  const streaks = useMemo(() => toActiveStreaks(streakQ.data, overallRecord), [streakQ.data, overallRecord]);
   const recent5 = useMemo(() => {
     if (!pid) return [] as Array<"W" | "D" | "L">;
     const ts = (matchesQ.data?.tournaments ?? [])
