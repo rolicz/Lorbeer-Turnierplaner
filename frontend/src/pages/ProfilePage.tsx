@@ -63,6 +63,7 @@ import {
 } from "./profile/guestbookTree";
 import { type GuestbookCardContextValue } from "./profile/GuestbookEntryCard";
 import GuestbookSection from "./profile/GuestbookSection";
+import { qk } from "../api/queryKeys";
 
 
 
@@ -119,40 +120,40 @@ export default function ProfilePage() {
     [searchParams, setSearchParams],
   );
 
-  const playersQ = useQuery({ queryKey: ["players"], queryFn: listPlayers });
+  const playersQ = useQuery({ queryKey: qk.players(), queryFn: listPlayers });
   const profileQ = useQuery({
-    queryKey: ["players", "profile", targetPlayerId ?? "none"],
+    queryKey: qk.playerProfile(targetPlayerId ?? "none"),
     queryFn: () => getPlayerProfile(targetPlayerId as number),
     enabled: Number.isFinite(targetPlayerId) && (targetPlayerId ?? 0) > 0,
   });
   const guestbookQ = useQuery({
-    queryKey: ["players", "guestbook", targetPlayerId ?? "none"],
+    queryKey: qk.playerGuestbook(targetPlayerId ?? "none"),
     queryFn: () => listPlayerGuestbook(targetPlayerId as number),
     enabled: Number.isFinite(targetPlayerId) && (targetPlayerId ?? 0) > 0,
   });
   const pokesSummaryQ = useQuery({
-    queryKey: ["players", "pokes", "summary"],
+    queryKey: qk.playerPokesSummary(),
     queryFn: listPlayerPokeSummary,
     enabled: Number.isFinite(targetPlayerId) && (targetPlayerId ?? 0) > 0,
   });
   const pokesQ = useQuery({
-    queryKey: ["players", "pokes", targetPlayerId ?? "none"],
+    queryKey: qk.playerPokes(targetPlayerId ?? "none"),
     queryFn: () => listPlayerPokes(targetPlayerId as number, 80),
     enabled: Number.isFinite(targetPlayerId) && (targetPlayerId ?? 0) > 0,
   });
   const guestbookReadQ = useQuery({
-    queryKey: ["players", "guestbook", "read", targetPlayerId ?? "none", token ?? "none"],
+    queryKey: qk.playerGuestbookReadIds(targetPlayerId ?? "none", token),
     queryFn: () => listPlayerGuestbookReadIds(token as string, targetPlayerId as number),
     enabled: !!token && Number.isFinite(targetPlayerId) && (targetPlayerId ?? 0) > 0,
   });
-  const clubsQ = useQuery({ queryKey: ["clubs"], queryFn: () => listClubs() });
+  const clubsQ = useQuery({ queryKey: qk.clubs(), queryFn: () => listClubs() });
   const statsPlayersQ = useQuery({
-    queryKey: ["stats", "players", "profile", targetPlayerId ?? "none"],
+    queryKey: qk.stats.players("profile", targetPlayerId ?? "none"),
     queryFn: () => getStatsPlayers({ lastN: 3, mode: "overall" }),
     enabled: Number.isFinite(targetPlayerId) && (targetPlayerId ?? 0) > 0,
   });
   const statsStreaksQ = useQuery({
-    queryKey: ["stats", "streaks", "profile", targetPlayerId ?? "none"],
+    queryKey: qk.stats.streaks("profile", targetPlayerId ?? "none"),
     queryFn: () =>
       getStatsStreaks({
         mode: "overall",
@@ -163,7 +164,7 @@ export default function ProfilePage() {
     enabled: Number.isFinite(targetPlayerId) && (targetPlayerId ?? 0) > 0,
   });
   const statsStreaksGlobalQ = useQuery({
-    queryKey: ["stats", "streaks", "profile", "global"],
+    queryKey: qk.stats.streaks("profile", "global"),
     queryFn: () =>
       getStatsStreaks({
         mode: "overall",
@@ -173,7 +174,7 @@ export default function ProfilePage() {
     enabled: Number.isFinite(targetPlayerId) && (targetPlayerId ?? 0) > 0,
   });
   const statsH2HQ = useQuery({
-    queryKey: ["stats", "h2h", "profile", targetPlayerId ?? "none"],
+    queryKey: qk.stats.h2hProfile(targetPlayerId ?? "none"),
     queryFn: () =>
       getStatsH2H({
         playerId: targetPlayerId as number,
@@ -184,7 +185,7 @@ export default function ProfilePage() {
     enabled: Number.isFinite(targetPlayerId) && (targetPlayerId ?? 0) > 0,
   });
   const statsRatingsQ = useQuery({
-    queryKey: ["stats", "ratings", "profile", targetPlayerId ?? "none"],
+    queryKey: qk.stats.ratings("profile", targetPlayerId ?? "none"),
     queryFn: () =>
       getStatsRatings({
         mode: "overall",
@@ -193,11 +194,11 @@ export default function ProfilePage() {
     enabled: Number.isFinite(targetPlayerId) && (targetPlayerId ?? 0) > 0,
   });
   const statsMatchesQ = useQuery({
-    queryKey: ["stats", "player-matches", "profile", targetPlayerId ?? "none"],
+    queryKey: qk.stats.playerMatchesProfile(targetPlayerId ?? "none"),
     queryFn: () => getStatsPlayerMatches({ playerId: targetPlayerId as number, scope: "both" }),
     enabled: Number.isFinite(targetPlayerId) && (targetPlayerId ?? 0) > 0,
   });
-  const cupDefsQ = useQuery({ queryKey: ["cup", "defs"], queryFn: listCupDefs });
+  const cupDefsQ = useQuery({ queryKey: qk.cupDefs(), queryFn: listCupDefs });
   const cups = useMemo(() => {
     const raw = cupDefsQ.data?.cups?.length ? cupDefsQ.data.cups : [{ key: "default", name: "Cup", since_date: null }];
     const nonDefault = raw.filter((c) => c.key !== "default");
@@ -206,7 +207,7 @@ export default function ProfilePage() {
   }, [cupDefsQ.data]);
   const cupsQ = useQueries({
     queries: cups.map((c) => ({
-      queryKey: ["cup", c.key],
+      queryKey: qk.cup(c.key),
       queryFn: () => getCup(c.key),
     })),
   });
@@ -514,8 +515,8 @@ export default function ProfilePage() {
       if (targetPlayerId) {
         setBioDraftByPlayerId((prev) => ({ ...prev, [targetPlayerId]: saved.bio ?? "" }));
       }
-      await qc.invalidateQueries({ queryKey: ["players", "profile", targetPlayerId ?? "none"] });
-      await qc.invalidateQueries({ queryKey: ["players", "profiles"] });
+      await qc.invalidateQueries({ queryKey: qk.playerProfile(targetPlayerId ?? "none") });
+      await qc.invalidateQueries({ queryKey: qk.playerProfiles() });
     },
   });
 
@@ -526,7 +527,7 @@ export default function ProfilePage() {
       return putPlayerAvatar(token, targetPlayerId, blob);
     },
     onSuccess: async () => {
-      await qc.invalidateQueries({ queryKey: ["players", "avatars"] });
+      await qc.invalidateQueries({ queryKey: qk.playerAvatars() });
     },
   });
 
@@ -537,7 +538,7 @@ export default function ProfilePage() {
       await deletePlayerAvatar(token, targetPlayerId);
     },
     onSuccess: async () => {
-      await qc.invalidateQueries({ queryKey: ["players", "avatars"] });
+      await qc.invalidateQueries({ queryKey: qk.playerAvatars() });
     },
   });
 
@@ -548,9 +549,9 @@ export default function ProfilePage() {
       return putPlayerHeaderImage(token, targetPlayerId, blob);
     },
     onSuccess: async () => {
-      await qc.invalidateQueries({ queryKey: ["players", "headers"] });
-      await qc.invalidateQueries({ queryKey: ["players", "profile", targetPlayerId ?? "none"] });
-      await qc.invalidateQueries({ queryKey: ["players", "profiles"] });
+      await qc.invalidateQueries({ queryKey: qk.playerHeaders() });
+      await qc.invalidateQueries({ queryKey: qk.playerProfile(targetPlayerId ?? "none") });
+      await qc.invalidateQueries({ queryKey: qk.playerProfiles() });
     },
   });
 
@@ -561,9 +562,9 @@ export default function ProfilePage() {
       await deletePlayerHeaderImage(token, targetPlayerId);
     },
     onSuccess: async () => {
-      await qc.invalidateQueries({ queryKey: ["players", "headers"] });
-      await qc.invalidateQueries({ queryKey: ["players", "profile", targetPlayerId ?? "none"] });
-      await qc.invalidateQueries({ queryKey: ["players", "profiles"] });
+      await qc.invalidateQueries({ queryKey: qk.playerHeaders() });
+      await qc.invalidateQueries({ queryKey: qk.playerProfile(targetPlayerId ?? "none") });
+      await qc.invalidateQueries({ queryKey: qk.playerProfiles() });
     },
   });
 
@@ -597,9 +598,9 @@ export default function ProfilePage() {
           [targetPlayerId]: prev[targetPlayerId] === parentEntryId ? null : prev[targetPlayerId] ?? null,
         }));
       }
-      await qc.invalidateQueries({ queryKey: ["players", "guestbook", targetPlayerId ?? "none"] });
-      await qc.invalidateQueries({ queryKey: ["players", "guestbook", "summary"] });
-      await qc.invalidateQueries({ queryKey: ["players", "guestbook", "read", targetPlayerId ?? "none", token ?? "none"] });
+      await qc.invalidateQueries({ queryKey: qk.playerGuestbook(targetPlayerId ?? "none") });
+      await qc.invalidateQueries({ queryKey: qk.playerGuestbookSummary() });
+      await qc.invalidateQueries({ queryKey: qk.playerGuestbookReadIds(targetPlayerId ?? "none", token) });
     },
   });
 
@@ -609,9 +610,9 @@ export default function ProfilePage() {
       await deletePlayerGuestbookEntry(token, entryId);
     },
     onSuccess: async () => {
-      await qc.invalidateQueries({ queryKey: ["players", "guestbook", targetPlayerId ?? "none"] });
-      await qc.invalidateQueries({ queryKey: ["players", "guestbook", "summary"] });
-      await qc.invalidateQueries({ queryKey: ["players", "guestbook", "read", targetPlayerId ?? "none", token ?? "none"] });
+      await qc.invalidateQueries({ queryKey: qk.playerGuestbook(targetPlayerId ?? "none") });
+      await qc.invalidateQueries({ queryKey: qk.playerGuestbookSummary() });
+      await qc.invalidateQueries({ queryKey: qk.playerGuestbookReadIds(targetPlayerId ?? "none", token) });
     },
   });
   const editGuestbookMut = useMutation({
@@ -626,7 +627,7 @@ export default function ProfilePage() {
           [targetPlayerId]: prev[targetPlayerId] === vars.entryId ? null : prev[targetPlayerId] ?? null,
         }));
       }
-      await qc.invalidateQueries({ queryKey: ["players", "guestbook", targetPlayerId ?? "none"] });
+      await qc.invalidateQueries({ queryKey: qk.playerGuestbook(targetPlayerId ?? "none") });
     },
   });
   const markGuestbookReadMut = useMutation({
@@ -635,8 +636,8 @@ export default function ProfilePage() {
       return markPlayerGuestbookEntryRead(token, entryId);
     },
     onSuccess: async () => {
-      await qc.invalidateQueries({ queryKey: ["players", "guestbook", "read", targetPlayerId ?? "none", token ?? "none"] });
-      await qc.invalidateQueries({ queryKey: ["players", "guestbook", "read-map", token ?? "none"] });
+      await qc.invalidateQueries({ queryKey: qk.playerGuestbookReadIds(targetPlayerId ?? "none", token) });
+      await qc.invalidateQueries({ queryKey: qk.playerGuestbookReadMap(token) });
     },
   });
   const markGuestbookReadAllMut = useMutation({
@@ -645,8 +646,8 @@ export default function ProfilePage() {
       return markAllPlayerGuestbookEntriesRead(token, targetPlayerId);
     },
     onSuccess: async () => {
-      await qc.invalidateQueries({ queryKey: ["players", "guestbook", "read", targetPlayerId ?? "none", token ?? "none"] });
-      await qc.invalidateQueries({ queryKey: ["players", "guestbook", "read-map", token ?? "none"] });
+      await qc.invalidateQueries({ queryKey: qk.playerGuestbookReadIds(targetPlayerId ?? "none", token) });
+      await qc.invalidateQueries({ queryKey: qk.playerGuestbookReadMap(token) });
     },
   });
   const voteGuestbookMut = useMutation({
@@ -655,7 +656,7 @@ export default function ProfilePage() {
       return votePlayerGuestbookEntry(token, payload.entryId, payload.value);
     },
     onSuccess: async () => {
-      await qc.invalidateQueries({ queryKey: ["players", "guestbook", targetPlayerId ?? "none"] });
+      await qc.invalidateQueries({ queryKey: qk.playerGuestbook(targetPlayerId ?? "none") });
     },
   });
   const pokeMut = useMutation({
@@ -665,11 +666,11 @@ export default function ProfilePage() {
     },
     onSuccess: async () => {
       setPokeButtonFlash({ kind: "sent", playerId: targetPlayerId ?? null });
-      await qc.invalidateQueries({ queryKey: ["players", "pokes", "summary"] });
-      await qc.invalidateQueries({ queryKey: ["players", "pokes", targetPlayerId ?? "none"] });
-      await qc.invalidateQueries({ queryKey: ["players", "pokes", "read", targetPlayerId ?? "none"] });
-      await qc.invalidateQueries({ queryKey: ["players", "pokes", "read-map", token ?? "none"] });
-      await qc.invalidateQueries({ queryKey: ["players", "pokes", "authored-unread", token ?? "none"] });
+      await qc.invalidateQueries({ queryKey: qk.playerPokesSummary() });
+      await qc.invalidateQueries({ queryKey: qk.playerPokes(targetPlayerId ?? "none") });
+      await qc.invalidateQueries({ queryKey: qk.playerPokesReadPrefix(targetPlayerId ?? "none") });
+      await qc.invalidateQueries({ queryKey: qk.playerPokesReadMap(token) });
+      await qc.invalidateQueries({ queryKey: qk.playerPokesAuthoredUnread(token) });
     },
   });
   const markPokesReadAllMut = useMutation({
@@ -679,11 +680,11 @@ export default function ProfilePage() {
     },
     onSuccess: async () => {
       setPokeButtonFlash({ kind: "read", playerId: targetPlayerId ?? null });
-      await qc.invalidateQueries({ queryKey: ["players", "pokes", "summary"] });
-      await qc.invalidateQueries({ queryKey: ["players", "pokes", targetPlayerId ?? "none"] });
-      await qc.invalidateQueries({ queryKey: ["players", "pokes", "read", targetPlayerId ?? "none", token ?? "none"] });
-      await qc.invalidateQueries({ queryKey: ["players", "pokes", "read-map", token ?? "none"] });
-      await qc.invalidateQueries({ queryKey: ["players", "pokes", "authored-unread", token ?? "none"] });
+      await qc.invalidateQueries({ queryKey: qk.playerPokesSummary() });
+      await qc.invalidateQueries({ queryKey: qk.playerPokes(targetPlayerId ?? "none") });
+      await qc.invalidateQueries({ queryKey: qk.playerPokesReadIds(targetPlayerId ?? "none", token) });
+      await qc.invalidateQueries({ queryKey: qk.playerPokesReadMap(token) });
+      await qc.invalidateQueries({ queryKey: qk.playerPokesAuthoredUnread(token) });
     },
   });
 

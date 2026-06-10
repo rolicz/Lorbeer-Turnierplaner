@@ -18,7 +18,11 @@ export const qk = {
 
   // ---- comments -----------------------------------------------------------
   commentsSummary: () => ["comments", "summary"] as const,
+  /** Prefix key — invalidates/matches all comment queries for a tournament. */
   commentsTournament: (tournamentId: number) => ["comments", tournamentId] as const,
+  /** Full key including viewer token — use in useQuery. */
+  commentsTournamentFull: (tournamentId: number, token: string | null) =>
+    ["comments", tournamentId, token ?? "none"] as const,
   commentsReadIds: (tournamentId: number, token: string | null) =>
     ["comments", "read", tournamentId, token ?? "none"] as const,
   commentsReadMap: (token: string | null) => ["comments", "read-map", token ?? "none"] as const,
@@ -37,6 +41,9 @@ export const qk = {
     ["players", "guestbook", "read-map", token ?? "none"] as const,
   playerPokes: (playerId: number | string) => ["players", "pokes", playerId] as const,
   playerPokesSummary: () => ["players", "pokes", "summary"] as const,
+  /** Prefix key — invalidates poke-read state for a player across all tokens. */
+  playerPokesReadPrefix: (playerId: number | string) =>
+    ["players", "pokes", "read", playerId] as const,
   playerPokesReadIds: (playerId: number | string, token: string | null) =>
     ["players", "pokes", "read", playerId, token ?? "none"] as const,
   playerPokesReadMap: (token: string | null) =>
@@ -45,6 +52,8 @@ export const qk = {
     ["players", "pokes", "authored-unread", token ?? "none"] as const,
 
   // ---- personal notifications (in-app feed) ------------------------------
+  /** Prefix key — invalidates all notification queries regardless of token. */
+  notificationsAll: () => ["me", "notifications"] as const,
   notifications: (token: string | null) => ["me", "notifications", token ?? "none"] as const,
 
   // ---- clubs / leagues ----------------------------------------------------
@@ -59,29 +68,58 @@ export const qk = {
   // ---- friendlies ---------------------------------------------------------
   friendlies: (mode?: string) => (mode ? (["friendlies", mode] as const) : (["friendlies"] as const)),
 
+  // ---- push notifications -------------------------------------------------
+  push: {
+    config: () => ["push", "config"] as const,
+    subscriptions: (token: string | null) => ["push", "subscriptions", token] as const,
+    /** Prefix key — invalidates all subscription queries regardless of token. */
+    subscriptionsAll: () => ["push", "subscriptions"] as const,
+  },
+
   // ---- stats --------------------------------------------------------------
   stats: {
     all: () => ["stats"] as const,
-    players: (mode?: string, lastN?: number) =>
+    players: (mode?: string, lastN?: number | string) =>
       mode !== undefined && lastN !== undefined
         ? (["stats", "players", mode, lastN] as const)
         : (["stats", "players"] as const),
-    h2h: (playerId?: number | string, limit?: number, order?: string) =>
-      playerId !== undefined
-        ? (["stats", "h2h", playerId, limit, order] as const)
+    h2h: (playerId?: number | string, limit?: number, order?: string, scope?: string) =>
+      playerId !== undefined && limit !== undefined && order !== undefined
+        ? scope !== undefined
+          ? (["stats", "h2h", playerId, limit, order, scope] as const)
+          : (["stats", "h2h", playerId, limit, order] as const)
         : (["stats", "h2h"] as const),
-    streaks: (mode?: string, limit?: number, scope?: string) =>
-      mode !== undefined
-        ? (["stats", "streaks", mode, limit, scope] as const)
+    /** Per-player H2H detail in the matrix view: key shape differs from h2h(). */
+    h2hPlayerDetail: (playerId: number | null, scope: string) =>
+      ["stats", "h2h", "player", playerId, scope] as const,
+    /** Profile-page H2H snippet: 4-element key distinct from the full h2h() shape. */
+    h2hProfile: (playerId: number | string) =>
+      ["stats", "h2h", "profile", playerId] as const,
+    h2hMatches: (mode: string, relation: string, leftIds: string, rightIds: string, exact: string, scope: string) =>
+      ["stats", "h2hMatches", mode, relation, leftIds, rightIds, exact, scope] as const,
+    streaks: (mode?: string, limitOrPlayer?: number | string, scope?: string) =>
+      mode !== undefined && limitOrPlayer !== undefined
+        ? scope !== undefined
+          ? (["stats", "streaks", mode, limitOrPlayer, scope] as const)
+          : (["stats", "streaks", mode, limitOrPlayer] as const)
         : (["stats", "streaks"] as const),
-    ratings: (mode?: string, scope?: string) =>
+    ratings: (mode?: string, scope?: string | number) =>
       mode !== undefined
-        ? (["stats", "ratings", mode, scope] as const)
+        ? scope !== undefined
+          ? (["stats", "ratings", mode, scope] as const)
+          : (["stats", "ratings", mode] as const)
         : (["stats", "ratings"] as const),
+    ratingsHistory: (mode: string, scope: string) =>
+      ["stats", "ratingsHistory", mode, scope] as const,
     playerMatches: (playerId?: number | string, scope?: string) =>
       playerId !== undefined
-        ? (["stats", "playerMatches", playerId, scope] as const)
+        ? scope !== undefined
+          ? (["stats", "playerMatches", playerId, scope] as const)
+          : (["stats", "playerMatches", playerId] as const)
         : (["stats", "playerMatches"] as const),
+    /** Profile-page snippet key — uses hyphen form "player-matches" distinct from playerMatches. */
+    playerMatchesProfile: (playerId: number | string) =>
+      ["stats", "player-matches", "profile", playerId] as const,
     playerTiles: (playerId?: number | string, mode?: string) =>
       playerId !== undefined
         ? (["stats", "playerTiles", playerId, mode] as const)

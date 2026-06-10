@@ -17,6 +17,7 @@ import { usePageTitle } from "../../ui/layout/PageTitleContext";
 import { getTournament } from "../../api/tournaments.api";
 import { patchMatch, swapMatchSides } from "../../api/matches.api";
 import { listClubs } from "../../api/clubs.api";
+import { qk } from "../../api/queryKeys";
 import type { Match } from "../../api/types";
 import { sideBy } from "../../helpers";
 import { useAuth } from "../../auth/AuthContext";
@@ -55,13 +56,13 @@ export default function MatchDetailPage() {
   const [clubGame, setClubGame] = useState("EA FC 26");
 
   const tQ = useQuery({
-    queryKey: ["tournament", tid],
+    queryKey: qk.tournament(tid!),
     queryFn: () => getTournament(tid!),
     enabled: !!tid,
   });
 
   const clubsQ = useQuery({
-    queryKey: ["clubs", clubGame],
+    queryKey: qk.clubs(clubGame),
     queryFn: () => listClubs(clubGame),
     enabled: !!tid,
   });
@@ -121,8 +122,8 @@ export default function MatchDetailPage() {
       });
     },
     onSuccess: async () => {
-      await qc.invalidateQueries({ queryKey: ["tournament", tid] });
-      await qc.invalidateQueries({ queryKey: ["cup"] }).catch(() => {});
+      await qc.invalidateQueries({ queryKey: qk.tournament(tid!) });
+      await qc.invalidateQueries({ queryKey: qk.cupAll() }).catch(() => {});
       nav(backTo, { state: { focusMatchId: matchId } });
     },
   });
@@ -133,7 +134,7 @@ export default function MatchDetailPage() {
       return swapMatchSides(token, matchId);
     },
     onSuccess: async () => {
-      await qc.invalidateQueries({ queryKey: ["tournament", tid] });
+      await qc.invalidateQueries({ queryKey: qk.tournament(tid!) });
     },
   });
 

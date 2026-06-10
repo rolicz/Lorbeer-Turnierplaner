@@ -24,6 +24,7 @@ import {
   setPinnedTournamentComment,
   voteComment,
 } from "../../api/comments.api";
+import { qk } from "../../api/queryKeys";
 import { useAuth } from "../../auth/AuthContext";
 import { useSeenSet } from "../../hooks/useSeenComments";
 import { usePlayerAvatarMap } from "../../hooks/usePlayerAvatarMap";
@@ -179,7 +180,7 @@ export default function TournamentCommentsCard({
     });
 
   const commentsQ = useQuery({
-    queryKey: ["comments", tournamentId, token ?? "none"],
+    queryKey: qk.commentsTournamentFull(tournamentId, token),
     queryFn: () => listTournamentComments(tournamentId, token),
     enabled: !!tournamentId,
   });
@@ -367,10 +368,10 @@ export default function TournamentCommentsCard({
       });
     },
     onSuccess: async () => {
-      await qc.invalidateQueries({ queryKey: ["tournament", tournamentId] });
-      await qc.invalidateQueries({ queryKey: ["comments", tournamentId] });
-      await qc.invalidateQueries({ queryKey: ["comments", "read", tournamentId, token ?? "none"] });
-      await qc.invalidateQueries({ queryKey: ["comments", "read-map", token ?? "none"] });
+      await qc.invalidateQueries({ queryKey: qk.tournament(tournamentId) });
+      await qc.invalidateQueries({ queryKey: qk.commentsTournament(tournamentId) });
+      await qc.invalidateQueries({ queryKey: qk.commentsReadIds(tournamentId, token) });
+      await qc.invalidateQueries({ queryKey: qk.commentsReadMap(token) });
     },
   });
 
@@ -383,7 +384,7 @@ export default function TournamentCommentsCard({
       });
     },
     onSuccess: async () => {
-      await qc.invalidateQueries({ queryKey: ["comments", tournamentId] });
+      await qc.invalidateQueries({ queryKey: qk.commentsTournament(tournamentId) });
     },
   });
 
@@ -393,9 +394,9 @@ export default function TournamentCommentsCard({
       return apiDeleteComment(token, commentId);
     },
     onSuccess: async () => {
-      await qc.invalidateQueries({ queryKey: ["comments", tournamentId] });
-      await qc.invalidateQueries({ queryKey: ["comments", "read", tournamentId, token ?? "none"] });
-      await qc.invalidateQueries({ queryKey: ["comments", "read-map", token ?? "none"] });
+      await qc.invalidateQueries({ queryKey: qk.commentsTournament(tournamentId) });
+      await qc.invalidateQueries({ queryKey: qk.commentsReadIds(tournamentId, token) });
+      await qc.invalidateQueries({ queryKey: qk.commentsReadMap(token) });
     },
   });
 
@@ -405,7 +406,7 @@ export default function TournamentCommentsCard({
       return setPinnedTournamentComment(token, tournamentId, commentId);
     },
     onSuccess: async () => {
-      await qc.invalidateQueries({ queryKey: ["comments", tournamentId] });
+      await qc.invalidateQueries({ queryKey: qk.commentsTournament(tournamentId) });
     },
   });
 
@@ -415,8 +416,8 @@ export default function TournamentCommentsCard({
       return markCommentRead(token, commentId);
     },
     onSuccess: async () => {
-      await qc.invalidateQueries({ queryKey: ["comments", "read", tournamentId, token ?? "none"] });
-      await qc.invalidateQueries({ queryKey: ["comments", "read-map", token ?? "none"] });
+      await qc.invalidateQueries({ queryKey: qk.commentsReadIds(tournamentId, token) });
+      await qc.invalidateQueries({ queryKey: qk.commentsReadMap(token) });
     },
   });
   const voteMut = useMutation({
@@ -425,7 +426,7 @@ export default function TournamentCommentsCard({
       return voteComment(token, payload.commentId, payload.value);
     },
     onSuccess: async () => {
-      await qc.invalidateQueries({ queryKey: ["comments", tournamentId] });
+      await qc.invalidateQueries({ queryKey: qk.commentsTournament(tournamentId) });
     },
   });
 

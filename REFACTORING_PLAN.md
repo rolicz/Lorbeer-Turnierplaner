@@ -100,7 +100,7 @@ ends with a final `/code-review` of the whole branch.
 
 Mostly mechanical, low risk. Best phase to start with.
 
-### A1 — Migrate all hardcoded query keys to the `qk` factory  ☐
+### A1 — Migrate all hardcoded query keys to the `qk` factory  ☑
 - **Effort:** M (mechanical, many files) · **Risk:** low–medium (cache semantics) · **Model:** Sonnet 4.6 (gets its safety net from the Block-2 `/code-review`)
 - **Problem:** 188 `queryKey: [...]` / `invalidateQueries({ queryKey: [...] })` call sites use raw
   string arrays instead of `qk.*` (e.g. `pages/PlayersAdminPage.tsx:55-135`,

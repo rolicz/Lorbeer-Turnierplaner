@@ -39,6 +39,7 @@ import { shuffle, sideBy } from "../../helpers";
 
 import { fmtDate } from "../../utils/format";
 import { listTournamentComments, markAllTournamentCommentsRead } from "../../api/comments.api";
+import { qk } from "../../api/queryKeys";
 import { useRouteEntryLoading } from "../../ui/layout/useRouteEntryLoading";
 import { usePageTitle } from "../../ui/layout/PageTitleContext";
 import InlineBack from "../../ui/shell/InlineBack";
@@ -113,7 +114,7 @@ export default function LiveTournamentPage() {
   );
 
   const tQ = useQuery({
-    queryKey: ["tournament", tid],
+    queryKey: qk.tournament(tid!),
     queryFn: () => getTournament(tid!),
     enabled: !!tid,
   });
@@ -122,7 +123,7 @@ export default function LiveTournamentPage() {
 
   const seenCommentIds = useSeenSet(tid ?? 0);
   const commentsQ = useQuery({
-    queryKey: ["comments", tid, token ?? "none"],
+    queryKey: qk.commentsTournamentFull(tid!, token),
     queryFn: () => listTournamentComments(tid!, token),
     enabled: !!tid,
   });
@@ -149,8 +150,8 @@ export default function LiveTournamentPage() {
       return markAllTournamentCommentsRead(token, tid);
     },
     onSuccess: async () => {
-      await qc.invalidateQueries({ queryKey: ["comments", "read", tid, token ?? "none"] });
-      await qc.invalidateQueries({ queryKey: ["comments", "read-map", token ?? "none"] });
+      await qc.invalidateQueries({ queryKey: qk.commentsReadIds(tid!, token) });
+      await qc.invalidateQueries({ queryKey: qk.commentsReadMap(token) });
     },
   });
   const parseApiTs = (raw?: string | null): number => {
@@ -289,7 +290,7 @@ export default function LiveTournamentPage() {
       return enableSecondLegAll(token, tid);
     },
     onSuccess: async () => {
-      if (tid) await qc.invalidateQueries({ queryKey: ["tournament", tid] });
+      if (tid) await qc.invalidateQueries({ queryKey: qk.tournament(tid) });
     },
   });
 
@@ -300,7 +301,7 @@ export default function LiveTournamentPage() {
       return disableSecondLegAll(token, tid);
     },
     onSuccess: async () => {
-      if (tid) await qc.invalidateQueries({ queryKey: ["tournament", tid] });
+      if (tid) await qc.invalidateQueries({ queryKey: qk.tournament(tid) });
     },
   });
 
@@ -311,7 +312,7 @@ export default function LiveTournamentPage() {
       return reorderTournamentMatches(token, tid, newOrderIds);
     },
     onSuccess: async () => {
-      if (tid) await qc.invalidateQueries({ queryKey: ["tournament", tid] });
+      if (tid) await qc.invalidateQueries({ queryKey: qk.tournament(tid) });
     },
   });
 
@@ -323,8 +324,8 @@ export default function LiveTournamentPage() {
     },
     onSuccess: async () => {
       nav("/tournaments");
-      await qc.invalidateQueries({ queryKey: ["tournaments"] });
-      await qc.invalidateQueries({ queryKey: ["cup"] }).catch(() => {});
+      await qc.invalidateQueries({ queryKey: qk.tournaments() });
+      await qc.invalidateQueries({ queryKey: qk.cupAll() }).catch(() => {});
     },
   });
 
@@ -335,7 +336,7 @@ export default function LiveTournamentPage() {
       return reassign2v2Schedule(token, tid, true);
     },
     onSuccess: async () => {
-      if (tid) await qc.invalidateQueries({ queryKey: ["tournament", tid] });
+      if (tid) await qc.invalidateQueries({ queryKey: qk.tournament(tid) });
     },
   });
 
@@ -345,7 +346,7 @@ export default function LiveTournamentPage() {
       return swapMatchSides(token, matchId);
     },
     onSuccess: async () => {
-      if (tid) await qc.invalidateQueries({ queryKey: ["tournament", tid] });
+      if (tid) await qc.invalidateQueries({ queryKey: qk.tournament(tid) });
     },
   });
 
@@ -363,9 +364,9 @@ export default function LiveTournamentPage() {
       return patchTournamentDate(token, tid, editDate);
     },
     onSuccess: async () => {
-      if (tid) await qc.invalidateQueries({ queryKey: ["tournament", tid] });
-      await qc.invalidateQueries({ queryKey: ["tournaments"] });
-      await qc.invalidateQueries({ queryKey: ["cup"] }).catch(() => {});
+      if (tid) await qc.invalidateQueries({ queryKey: qk.tournament(tid) });
+      await qc.invalidateQueries({ queryKey: qk.tournaments() });
+      await qc.invalidateQueries({ queryKey: qk.cupAll() }).catch(() => {});
     },
   });
 
@@ -382,9 +383,9 @@ export default function LiveTournamentPage() {
       return patchTournamentName(token, tid, editName.trim());
     },
     onSuccess: async () => {
-      if (tid) await qc.invalidateQueries({ queryKey: ["tournament", tid] });
-      await qc.invalidateQueries({ queryKey: ["tournaments"] });
-      await qc.invalidateQueries({ queryKey: ["cup"] }).catch(() => {});
+      if (tid) await qc.invalidateQueries({ queryKey: qk.tournament(tid) });
+      await qc.invalidateQueries({ queryKey: qk.tournaments() });
+      await qc.invalidateQueries({ queryKey: qk.cupAll() }).catch(() => {});
     },
   });
 
@@ -401,16 +402,16 @@ export default function LiveTournamentPage() {
       return patchTournamentDecider(token, tid, body);
     },
     onSuccess: async () => {
-      if (tid) await qc.invalidateQueries({ queryKey: ["tournament", tid] });
-      await qc.invalidateQueries({ queryKey: ["tournaments"] });
-      await qc.invalidateQueries({ queryKey: ["cup"] }).catch(() => {});
+      if (tid) await qc.invalidateQueries({ queryKey: qk.tournament(tid) });
+      await qc.invalidateQueries({ queryKey: qk.tournaments() });
+      await qc.invalidateQueries({ queryKey: qk.cupAll() }).catch(() => {});
     },
   });
 
   // --- clubs ---
   const clubGame = "EA FC 26";
   const clubsQ = useQuery({
-    queryKey: ["clubs", clubGame],
+    queryKey: qk.clubs(clubGame),
     queryFn: () => listClubs(clubGame),
     enabled: !!tid,
   });
@@ -431,8 +432,8 @@ export default function LiveTournamentPage() {
       return patchMatch(token, payload.matchId, payload.body);
     },
     onSuccess: async () => {
-      if (tid) await qc.invalidateQueries({ queryKey: ["tournament", tid] });
-      await qc.invalidateQueries({ queryKey: ["cup"] }).catch(() => {});
+      if (tid) await qc.invalidateQueries({ queryKey: qk.tournament(tid) });
+      await qc.invalidateQueries({ queryKey: qk.cupAll() }).catch(() => {});
     },
   });
 
@@ -462,7 +463,7 @@ export default function LiveTournamentPage() {
       });
     },
     onSuccess: async () => {
-      if (tid) await qc.invalidateQueries({ queryKey: ["tournament", tid] });
+      if (tid) await qc.invalidateQueries({ queryKey: qk.tournament(tid) });
     },
   });
 

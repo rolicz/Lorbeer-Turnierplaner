@@ -18,6 +18,7 @@ import type { StatsMode } from "./StatsControls";
 import { usePlayerAvatarMap } from "../../hooks/usePlayerAvatarMap";
 import { usePlayerColors } from "./usePlayerColors";
 import { Sparkline, Radar, TrendChart, ChipGroup } from "./charts";
+import { qk } from "../../api/queryKeys";
 import { pooledPpm } from "./trendsMath";
 import { MatchHistoryList } from "./MatchHistoryList";
 import { PlayerPicker } from "./PlayerPicker";
@@ -70,7 +71,7 @@ function TrendsExplorer({ mode, scope, rows, initialMetric, initialView, initial
 
   const matchesQs = useQueries({
     queries: rows.map((r) => ({
-      queryKey: ["stats", "playerMatches", r.id, scope],
+      queryKey: qk.stats.playerMatches(r.id, scope),
       queryFn: () => getStatsPlayerMatches({ playerId: r.id, scope }),
       enabled: rows.length > 0 && metric !== "elo",
       placeholderData: keepPreviousData,
@@ -79,7 +80,7 @@ function TrendsExplorer({ mode, scope, rows, initialMetric, initialView, initial
   });
 
   const eloQ = useQuery({
-    queryKey: ["stats", "ratingsHistory", mode, scope],
+    queryKey: qk.stats.ratingsHistory(mode, scope),
     queryFn: () => getStatsRatingsHistory({ mode: mode as "overall" | "1v1" | "2v2", scope }),
     enabled: metric === "elo" && rows.length > 0,
     placeholderData: keepPreviousData,
@@ -483,15 +484,15 @@ function TrendsExplorer({ mode, scope, rows, initialMetric, initialView, initial
 // ==========================================================================
 function PositionsView({ mode }: { mode: StatsMode }) {
   const q = useQuery({
-    queryKey: ["stats", "players", mode, "positions"],
+    queryKey: qk.stats.players(mode, "positions"),
     queryFn: () => getStatsPlayers({ mode }),
     placeholderData: keepPreviousData, staleTime: 30_000,
   });
   const { avatarUpdatedAtById } = usePlayerAvatarMap();
-  const defsQ = useQuery({ queryKey: ["cup", "defs"], queryFn: listCupDefs });
+  const defsQ = useQuery({ queryKey: qk.cupDefs(), queryFn: listCupDefs });
   // Include the main (default-keyed, gold) cup too — it has its own lineage line.
   const cupDefs = useMemo(() => defsQ.data?.cups ?? [], [defsQ.data]);
-  const cupsQ = useQueries({ queries: cupDefs.map((c) => ({ queryKey: ["cup", c.key], queryFn: () => getCup(c.key), staleTime: 30_000 })) });
+  const cupsQ = useQueries({ queries: cupDefs.map((c) => ({ queryKey: qk.cup(c.key), queryFn: () => getCup(c.key), staleTime: 30_000 })) });
 
   const players = useMemo(() => (q.data?.players ?? []).slice().sort((a, b) => b.pts - a.pts), [q.data]);
   const tournaments = useMemo(
@@ -701,7 +702,7 @@ function h2hDiverging(gd: number, maxAbs: number): string {
 
 function H2HView({ mode, scope, rows, myId }: { mode: StatsMode; scope: StatsScope; rows: Row[]; myId?: number | null }) {
   const q = useQuery({
-    queryKey: ["stats", "h2h", "all", 200, "rivalry", scope],
+    queryKey: qk.stats.h2h("all", 200, "rivalry", scope),
     queryFn: () => getStatsH2H({ playerId: null, limit: 200, order: "rivalry", scope }),
     placeholderData: keepPreviousData, staleTime: 30_000,
   });
@@ -769,7 +770,7 @@ function H2HView({ mode, scope, rows, myId }: { mode: StatsMode; scope: StatsSco
 
   // Per-player detail.
   const detailQ = useQuery({
-    queryKey: ["stats", "h2h", "player", selected, scope],
+    queryKey: qk.stats.h2hPlayerDetail(selected, scope),
     queryFn: () => getStatsH2H({ playerId: selected as number, order: "played", limit: 50, scope }),
     enabled: selected != null,
     placeholderData: keepPreviousData, staleTime: 30_000,
@@ -785,7 +786,7 @@ function H2HView({ mode, scope, rows, myId }: { mode: StatsMode; scope: StatsSco
 
   // 2v2 teammate synergy — how the selected player does *with* each partner.
   const teammateQ = useQuery({
-    queryKey: ["stats", "playerMatches", selected ?? 0, scope],
+    queryKey: qk.stats.playerMatches(selected ?? 0, scope),
     queryFn: () => getStatsPlayerMatches({ playerId: selected as number, scope }),
     enabled: mode === "2v2" && selected != null,
     placeholderData: keepPreviousData, staleTime: 30_000,
@@ -1021,7 +1022,7 @@ function streakDateText(r: StatsStreakRun): string {
 
 function StreaksView({ mode, scope }: { mode: StatsMode; scope: StatsScope }) {
   const q = useQuery({
-    queryKey: ["stats", "streaks", mode, 200, scope],
+    queryKey: qk.stats.streaks(mode, 200, scope),
     queryFn: () => getStatsStreaks({ mode, playerId: null, limit: 200, scope }),
     placeholderData: keepPreviousData, staleTime: 30_000,
   });
@@ -1104,12 +1105,12 @@ function starBuckets(matches: Match[], pid: number, clubs: Club[]) {
 
 function StarsView({ mode, scope, rows, selectedId, onSelect }: { mode: StatsMode; scope: StatsScope; rows: Row[]; selectedId: number | null; onSelect: (id: number) => void }) {
   const matchesQ = useQuery({
-    queryKey: ["stats", "playerMatches", selectedId ?? 0, scope],
+    queryKey: qk.stats.playerMatches(selectedId ?? 0, scope),
     queryFn: () => getStatsPlayerMatches({ playerId: selectedId as number, scope }),
     enabled: selectedId != null,
     placeholderData: keepPreviousData, staleTime: 30_000,
   });
-  const clubsQ = useQuery({ queryKey: ["clubs"], queryFn: () => listClubs(), staleTime: 60_000 });
+  const clubsQ = useQuery({ queryKey: qk.clubs(), queryFn: () => listClubs(), staleTime: 60_000 });
   const flat = useMemo(() => {
     const ts = matchesQ.data?.tournaments ?? [];
     return (mode === "overall" ? ts : ts.filter((t) => t.mode === mode)).flatMap((t) => t.matches);
@@ -1192,12 +1193,12 @@ function PlayerProfile({ mode, scope, rows, selectedId, onSelect }: { mode: Stat
   }, [row, rows, overlayIds, axesFor, colorOf]);
 
   const matchesQ = useQuery({
-    queryKey: ["stats", "playerMatches", selectedId ?? 0, scope],
+    queryKey: qk.stats.playerMatches(selectedId ?? 0, scope),
     queryFn: () => getStatsPlayerMatches({ playerId: selectedId as number, scope }),
     enabled: selectedId != null,
     placeholderData: keepPreviousData, staleTime: 30_000,
   });
-  const clubsQ = useQuery({ queryKey: ["clubs"], queryFn: () => listClubs(), staleTime: 60_000 });
+  const clubsQ = useQuery({ queryKey: qk.clubs(), queryFn: () => listClubs(), staleTime: 60_000 });
   const tournaments = useMemo(() => (matchesQ.data?.tournaments ?? []).filter((t) => mode === "overall" || t.mode === mode), [matchesQ.data, mode]);
   const nav = useNavigate();
 
@@ -1332,14 +1333,14 @@ function RecordsView({ mode, scope, rows }: { mode: StatsMode; scope: StatsScope
   const eloById = useMemo(() => new Map(rows.map((r) => [r.id, r.rating])), [rows]);
   const matchesQs = useQueries({
     queries: rows.map((r) => ({
-      queryKey: ["stats", "playerMatches", r.id, scope],
+      queryKey: qk.stats.playerMatches(r.id, scope),
       queryFn: () => getStatsPlayerMatches({ playerId: r.id, scope }),
       enabled: rows.length > 0,
       placeholderData: keepPreviousData, staleTime: 30_000,
     })),
   });
   const streaksQ = useQuery({
-    queryKey: ["stats", "streaks", mode, 20, scope],
+    queryKey: qk.stats.streaks(mode, 20, scope),
     queryFn: () => getStatsStreaks({ mode, limit: 20, scope }),
     placeholderData: keepPreviousData, staleTime: 30_000,
   });
@@ -1457,7 +1458,7 @@ function RecordsView({ mode, scope, rows }: { mode: StatsMode; scope: StatsScope
 //  CUPS — reigns & title history
 // ==========================================================================
 function CupsView() {
-  const defsQ = useQuery({ queryKey: ["cup", "defs"], queryFn: listCupDefs });
+  const defsQ = useQuery({ queryKey: qk.cupDefs(), queryFn: listCupDefs });
   const cups = useMemo(() => {
     const raw = defsQ.data?.cups?.length ? defsQ.data.cups : [{ key: "default", name: "Cup", since_date: null }];
     return raw.filter((c) => c.key !== "default").concat(raw.filter((c) => c.key === "default"));
