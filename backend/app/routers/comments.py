@@ -337,6 +337,12 @@ def _format_score_comment_body(score_a: int, score_b: int) -> str:
     return _format_scoreline(score_a, score_b)
 
 
+def _format_shots_comment_body(shots_a: int, shots_b: int) -> str:
+    # Shots are an informational stat, not the match score, so they render as
+    # plain comment text ("Shots: 1-3") and never touch the scoreline.
+    return f"Shots: {_format_scoreline(shots_a, shots_b)}"
+
+
 @router.get("/tournaments/{tournament_id}/comments", response_model=CommentListOut)
 def list_comments(
     tournament_id: int,
@@ -602,8 +608,8 @@ async def create_comment(
     _validate_author(s, tournament_id, author_player_id)
 
     if parent_comment_id is not None:
-        if event_type in ("goal", "score_update"):
-            raise HTTPException(status_code=400, detail="Replies cannot be goal or score events")
+        if event_type in ("goal", "score_update", "shots"):
+            raise HTTPException(status_code=400, detail="Replies cannot be goal, score or shots events")
         parent = s.get(Comment, parent_comment_id)
         if parent is None:
             raise HTTPException(status_code=400, detail=f"Unknown parent_comment_id {parent_comment_id}")
@@ -653,6 +659,16 @@ async def create_comment(
         match_score_changed = _set_match_score(match_for_event, score_a, score_b)
         scoreline = _format_scoreline(score_a, score_b)
         text = _format_score_comment_body(score_a, score_b)
+        has_image_hint = False
+    elif event_type == "shots":
+        if match_id is None:
+            raise HTTPException(status_code=400, detail="Shots events require a match_id")
+        if match_for_event is None:
+            raise HTTPException(status_code=400, detail=f"Unknown match_id {match_id}")
+        # Shots don't change the match score — just record an informational comment.
+        shots_a = _to_score_value(body.result_score_a, field="result_score_a")
+        shots_b = _to_score_value(body.result_score_b, field="result_score_b")
+        text = _format_shots_comment_body(shots_a, shots_b)
         has_image_hint = False
 
     if not text and not has_image_hint:

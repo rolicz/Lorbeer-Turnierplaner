@@ -49,6 +49,10 @@ export function AddCommentDropdown({
   onChangeGoalMinute,
   goalPlayerName,
   onChangeGoalPlayerName,
+  shotsA,
+  onChangeShotsA,
+  shotsB,
+  onChangeShotsB,
   draftBody,
   onChangeDraftBody,
   canAttachImage = false,
@@ -64,8 +68,8 @@ export function AddCommentDropdown({
   authorOptions: { value: "general" | number; label: string }[];
   draftAuthor: "general" | number;
   onChangeDraftAuthor: (v: "general" | number) => void;
-  draftMode: "comment" | "goal";
-  onChangeDraftMode: (mode: "comment" | "goal") => void;
+  draftMode: "comment" | "goal" | "shots";
+  onChangeDraftMode: (mode: "comment" | "goal" | "shots") => void;
   allowMatchEventModes: boolean;
   goalTeams: CommentGoalTeamOption[];
   goalSide: CommentGoalSide | null;
@@ -75,6 +79,10 @@ export function AddCommentDropdown({
   onChangeGoalMinute: (value: string) => void;
   goalPlayerName: string;
   onChangeGoalPlayerName: (value: string) => void;
+  shotsA: string;
+  onChangeShotsA: (value: string) => void;
+  shotsB: string;
+  onChangeShotsB: (value: string) => void;
   draftBody: string;
   onChangeDraftBody: (v: string) => void;
   canAttachImage?: boolean;
@@ -103,6 +111,10 @@ export function AddCommentDropdown({
       onGoalMinuteChange={onChangeGoalMinute}
       goalPlayerName={goalPlayerName}
       onGoalPlayerNameChange={onChangeGoalPlayerName}
+      shotsA={shotsA}
+      onShotsAChange={onChangeShotsA}
+      shotsB={shotsB}
+      onShotsBChange={onChangeShotsB}
       draftBody={draftBody}
       onChangeDraftBody={onChangeDraftBody}
       canAttachImage={canAttachImage}

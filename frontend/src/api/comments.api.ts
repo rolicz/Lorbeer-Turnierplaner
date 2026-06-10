@@ -64,7 +64,7 @@ export function createTournamentComment(
     author_player_id?: number | null;
     body: string;
     has_image?: boolean;
-    event_type?: "goal" | "score_update";
+    event_type?: "goal" | "score_update" | "shots";
     goal_minute?: number;
     goal_player_id?: number;
     goal_player_name?: string;

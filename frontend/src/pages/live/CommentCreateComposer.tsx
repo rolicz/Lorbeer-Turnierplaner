@@ -6,7 +6,7 @@ import Input from "../../ui/primitives/Input";
 import Textarea from "../../ui/primitives/Textarea";
 
 export type CommentDraftAuthorValue = "general" | number;
-export type CommentCreateMode = "comment" | "goal";
+export type CommentCreateMode = "comment" | "goal" | "shots";
 
 export type CommentDraftAuthorOption = {
   value: CommentDraftAuthorValue;
@@ -40,6 +40,10 @@ export default function CommentCreateComposer({
   onGoalMinuteChange,
   goalPlayerName,
   onGoalPlayerNameChange,
+  shotsA,
+  onShotsAChange,
+  shotsB,
+  onShotsBChange,
   draftBody,
   onChangeDraftBody,
   canAttachImage = false,
@@ -66,6 +70,10 @@ export default function CommentCreateComposer({
   onGoalMinuteChange: (value: string) => void;
   goalPlayerName: string;
   onGoalPlayerNameChange: (value: string) => void;
+  shotsA: string;
+  onShotsAChange: (value: string) => void;
+  shotsB: string;
+  onShotsBChange: (value: string) => void;
   draftBody: string;
   onChangeDraftBody: (value: string) => void;
   canAttachImage?: boolean;
@@ -96,26 +104,65 @@ export default function CommentCreateComposer({
       {allowMatchEventModes ? (
         <div className="space-y-2">
           <div className="input-label">Entry type</div>
-          <div className="flex flex-wrap gap-2">
+          <div className="grid grid-cols-3 gap-2">
             <Button
               type="button"
               variant={mode === "comment" ? "solid" : "ghost"}
               onClick={() => onModeChange("comment")}
               disabled={disabled}
-              className="h-9 px-3 inline-flex items-center justify-center"
+              className="h-9 px-2 inline-flex items-center justify-center gap-1.5"
             >
-              Comment
+              <i className="fa-solid fa-comment" aria-hidden="true" />
+              <span className="truncate">Comment</span>
             </Button>
             <Button
               type="button"
               variant={mode === "goal" ? "solid" : "ghost"}
               onClick={() => onModeChange("goal")}
               disabled={disabled}
-              className="h-9 px-3 inline-flex items-center justify-center"
+              className="h-9 px-2 inline-flex items-center justify-center gap-1.5"
             >
-              Goal
+              <i className="fa-solid fa-futbol" aria-hidden="true" />
+              <span className="truncate">Goal</span>
+            </Button>
+            <Button
+              type="button"
+              variant={mode === "shots" ? "solid" : "ghost"}
+              onClick={() => onModeChange("shots")}
+              disabled={disabled}
+              className="h-9 px-2 inline-flex items-center justify-center gap-1.5"
+            >
+              <i className="fa-solid fa-bullseye" aria-hidden="true" />
+              <span className="truncate">Shots</span>
             </Button>
           </div>
+        </div>
+      ) : null}
+
+      {mode === "shots" && allowMatchEventModes ? (
+        <div className="grid gap-2 md:grid-cols-2">
+          <Input
+            label={`Shots — ${goalTeams.find((t) => t.side === "A")?.label ?? "Team A"}`}
+            type="number"
+            inputMode="numeric"
+            min={0}
+            max={999}
+            step={1}
+            value={shotsA}
+            onChange={(event) => onShotsAChange(event.target.value)}
+            disabled={disabled}
+          />
+          <Input
+            label={`Shots — ${goalTeams.find((t) => t.side === "B")?.label ?? "Team B"}`}
+            type="number"
+            inputMode="numeric"
+            min={0}
+            max={999}
+            step={1}
+            value={shotsB}
+            onChange={(event) => onShotsBChange(event.target.value)}
+            disabled={disabled}
+          />
         </div>
       ) : null}
 
@@ -243,11 +290,11 @@ export default function CommentCreateComposer({
           type="button"
           onClick={onSubmit}
           disabled={!canSubmit || disabled}
-          title={mode === "goal" ? "Post goal entry" : "Post comment"}
+          title={mode === "goal" ? "Post goal entry" : mode === "shots" ? "Post shots entry" : "Post comment"}
           className="inline-flex items-center justify-center gap-2 px-4"
         >
           <i className="fa-solid fa-paper-plane" aria-hidden="true" />
-          <span>{mode === "goal" ? "Post goal" : "Post"}</span>
+          <span>{mode === "goal" ? "Post goal" : mode === "shots" ? "Post shots" : "Post"}</span>
         </Button>
       </div>
     </div>

@@ -331,3 +331,49 @@ def test_comment_image_editor_or_admin_and_image_only_comment_allowed(client, ed
     assert r5.status_code == 200, r5.text
     r6 = client.patch(f"/comments/{cid}", json={"body": ""}, headers=editor_headers)
     assert r6.status_code == 400, r6.text
+
+
+def test_shots_comment_records_stat_without_touching_score(client, editor_headers, admin_headers):
+    p1 = client.post("/players", json={"display_name": "S1"}, headers=admin_headers).json()["id"]
+    p2 = client.post("/players", json={"display_name": "S2"}, headers=admin_headers).json()["id"]
+    p3 = client.post("/players", json={"display_name": "S3"}, headers=admin_headers).json()["id"]
+
+    tid = client.post(
+        "/tournaments",
+        json={"name": "shots", "mode": "1v1", "player_ids": [p1, p2, p3]},
+        headers=editor_headers,
+    ).json()["id"]
+    rgen = client.post(f"/tournaments/{tid}/generate", json={"randomize": False}, headers=editor_headers)
+    assert rgen.status_code == 200, rgen.text
+    mid = client.get(f"/tournaments/{tid}").json()["matches"][0]["id"]
+
+    # A shots entry creates an informational "Shots: a-b" comment.
+    r = client.post(
+        f"/tournaments/{tid}/comments",
+        json={"match_id": mid, "event_type": "shots", "result_score_a": 1, "result_score_b": 3},
+        headers=editor_headers,
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["body"] == "Shots: 1-3"
+
+    # ...and must NOT change the match score.
+    match = client.get(f"/tournaments/{tid}").json()["matches"][0]
+    a = next(s for s in match["sides"] if s["side"] == "A")["goals"]
+    b = next(s for s in match["sides"] if s["side"] == "B")["goals"]
+    assert (a, b) == (0, 0)
+
+    # Negative shot counts are rejected.
+    r_bad = client.post(
+        f"/tournaments/{tid}/comments",
+        json={"match_id": mid, "event_type": "shots", "result_score_a": -1, "result_score_b": 2},
+        headers=editor_headers,
+    )
+    assert r_bad.status_code == 400, r_bad.text
+
+    # Shots require a match.
+    r_nomatch = client.post(
+        f"/tournaments/{tid}/comments",
+        json={"event_type": "shots", "result_score_a": 1, "result_score_b": 2},
+        headers=editor_headers,
+    )
+    assert r_nomatch.status_code == 400, r_nomatch.text
