@@ -70,3 +70,22 @@ export async function apiFetch<T>(
   if (!text) return undefined as T;
   return JSON.parse(text) as T;
 }
+
+// FormData uploads must not set Content-Type (browser adds the multipart boundary).
+// Use this instead of apiFetch for multipart/form-data requests.
+export async function apiUpload<T>(
+  path: string,
+  opts: { token: string; body: FormData; method?: string }
+): Promise<T> {
+  const url = joinUrl(API_BASE, path);
+  const res = await fetch(url, {
+    method: opts.method ?? "PUT",
+    headers: { Authorization: `Bearer ${opts.token}` },
+    body: opts.body,
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new ApiError(res.status, res.statusText, text);
+  }
+  return (await res.json()) as T;
+}

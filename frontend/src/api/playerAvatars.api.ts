@@ -1,4 +1,4 @@
-import { apiFetch, API_BASE } from "./client";
+import { apiFetch, apiUpload, API_BASE } from "./client";
 
 export type PlayerAvatarMeta = { player_id: number; updated_at: string };
 
@@ -20,21 +20,7 @@ export async function putPlayerAvatar(
 ): Promise<{ player_id: number; updated_at: string }> {
   const fd = new FormData();
   fd.append("file", blob, filename);
-
-  // Don't use apiFetch here because we must not set Content-Type manually
-  // (the browser needs to add the multipart boundary).
-  const url = `${API_BASE.replace(/\/+$/, "")}/players/${playerId}/avatar`;
-  const res = await fetch(url, {
-    method: "PUT",
-    headers: { Authorization: `Bearer ${token}` },
-    body: fd,
-  });
-
-  if (!res.ok) {
-    const txt = await res.text();
-    throw new Error(`${res.status} ${res.statusText}: ${txt}`);
-  }
-  return (await res.json()) as { player_id: number; updated_at: string };
+  return apiUpload(`/players/${playerId}/avatar`, { token, body: fd });
 }
 
 export async function deletePlayerAvatar(token: string, playerId: number): Promise<void> {

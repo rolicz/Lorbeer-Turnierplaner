@@ -140,7 +140,7 @@ Mostly mechanical, low risk. Best phase to start with.
   hand-maintained response shapes for these endpoints; `npm run check` passes; stats H2H tab,
   player-matches list and trends/elo history render identically.
 
-### A3 — Route the 3 raw FormData uploads through one shared upload helper  ☐
+### A3 — Route the 3 raw FormData uploads through one shared upload helper  ☑
 - **Effort:** S · **Risk:** low · **Model:** Sonnet 4.6
 - **Problem:** 3 files bypass `apiFetch()` with raw `fetch()` (because FormData must not set
   `Content-Type`): `api/playerAvatars.api.ts:27`, `api/playerHeaders.api.ts:24`,

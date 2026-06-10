@@ -1,5 +1,4 @@
-import { apiFetch } from "./client";
-import { API_BASE } from "./client";
+import { apiFetch, apiUpload, API_BASE } from "./client";
 import type {
   TournamentCommentsResponse,
   TournamentCommentsSummary,
@@ -109,17 +108,7 @@ export async function putCommentImage(
 ): Promise<Comment> {
   const fd = new FormData();
   fd.append("file", blob, filename);
-  const url = `${API_BASE.replace(/\/+$/, "")}/comments/${commentId}/image`;
-  const res = await fetch(url, {
-    method: "PUT",
-    headers: { Authorization: `Bearer ${token}` },
-    body: fd,
-  });
-  if (!res.ok) {
-    const txt = await res.text();
-    throw new Error(`${res.status} ${res.statusText}: ${txt}`);
-  }
-  return (await res.json()) as Comment;
+  return apiUpload(`/comments/${commentId}/image`, { token, body: fd });
 }
 
 export function deleteCommentImage(token: string, commentId: number) {
