@@ -279,7 +279,7 @@ export default function TrendsPreviewCard() {
               value={view}
               onChange={setView}
               options={[
-                { key: "lastN", label: "Last 5", icon: "fa-bolt" },
+                { key: "lastN", label: `Last ${formN}`, icon: "fa-bolt" },
                 { key: "total", label: "Total", icon: "fa-layer-group" },
               ]}
               ariaLabel="Trends view"

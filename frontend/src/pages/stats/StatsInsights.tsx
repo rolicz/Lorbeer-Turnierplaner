@@ -1,7 +1,7 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { keepPreviousData, useQueries, useQuery } from "@tanstack/react-query";
-import { LineChart, Table2, Grid3x3, UserRound, Flame, Star, Medal, Award, Trophy, ChevronRight } from "lucide-react";
+import { LineChart, Table2, Grid3x3, UserRound, Flame, Shield, Goal, Lock, Star, Medal, Award, Trophy, ChevronRight } from "lucide-react";
 
 import { useAuth } from "../../auth/AuthContext";
 import AvatarCircle from "../../ui/primitives/AvatarCircle";
@@ -41,7 +41,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 // ==========================================================================
 //  TRENDS — interactive
 // ==========================================================================
-type Metric = "points" | "goals" | "conceded" | "gd" | "winrate" | "elo";
+type Metric = "points" | "goals" | "conceded" | "gd" | "winrate" | "elo" | "form";
 type ViewMode = "per" | "cumulative" | "rolling";
 
 const METRIC_OPTS: { key: Metric; label: string }[] = [
@@ -51,6 +51,7 @@ const METRIC_OPTS: { key: Metric; label: string }[] = [
   { key: "gd", label: "Goal diff" },
   { key: "winrate", label: "Win %" },
   { key: "elo", label: "Elo" },
+  { key: "form", label: "Form" },
 ];
 
 type RangeKey = "1y" | "2y" | "all";
@@ -91,13 +92,16 @@ function TrendsExplorer({ mode, scope, rows, initialMetric, initialView, initial
 
   // Elo: cumulative = running rating; per = net delta; rolling hidden; no per-match.
   const isElo = metric === "elo";
+  // Form: same as profiles (avg of last-N match points ÷ N) — two views like elo
+  // (the form value, or its per-event delta); no per-match modifier.
+  const isForm = metric === "form";
   // Win % is already a rate; cumulative + the per-match modifier only apply to absolute metrics.
-  const allowsCumulative = !isElo && metric !== "winrate";
-  // Elo always uses "cumulative" for running rating and "per" for delta; Last-N hidden.
-  const effView: ViewMode = isElo
+  const allowsCumulative = !isElo && !isForm && metric !== "winrate";
+  // Elo/Form use "cumulative" for the value and "per" for the delta; Last-N handled separately.
+  const effView: ViewMode = isElo || isForm
     ? (view === "per" ? "per" : "cumulative")
     : (!allowsCumulative && view === "cumulative" ? "rolling" : view);
-  const applyPM = perMatch && !isElo && metric !== "winrate";
+  const applyPM = perMatch && !isElo && !isForm && metric !== "winrate";
 
   // Series computed over ALL events; the visible date window (below) pans/zooms the view.
   const { events, series } = useMemo(() => {
@@ -133,6 +137,68 @@ function TrendsExplorer({ mode, scope, rows, initialMetric, initialView, initial
           const c = colorOf(entry.player.id);
           return { id: entry.player.id, name: entry.player.display_name, color: c.solid, points: hidden.has(entry.player.id) ? points.map(() => null) : points };
         });
+      return { events, series };
+    }
+
+    // --- FORM branch (profile definition: mean of the last N MATCH points ÷ N,
+    //     plotted per tournament; value view or per-event delta) ---
+    if (isForm) {
+      const N = Math.max(1, rollN);
+      const tInfo = new Map<number, { date: string; name: string }>();
+      const matchPtsByPlayer = new Map<number, number[]>();          // chronological per-match points
+      const endIdxByPlayer = new Map<number, Map<number, number>>(); // tid -> index of player's last match
+      rows.forEach((r, i) => {
+        const data = matchesQs[i]?.data as { tournaments: StatsPlayerMatchesTournament[] } | undefined;
+        const tours = (data?.tournaments ?? [])
+          .filter((t) => mode === "overall" || t.mode === mode)
+          .slice()
+          .sort((a, b) => new Date(a.date ?? 0).getTime() - new Date(b.date ?? 0).getTime() || a.id - b.id);
+        const pts: number[] = [];
+        const endIdx = new Map<number, number>();
+        for (const t of tours) {
+          const ms = t.matches.slice().sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0) || (a.id ?? 0) - (b.id ?? 0));
+          let played = false;
+          for (const m of ms) {
+            const s = matchStats(m, r.id);
+            if (!s) continue;
+            pts.push(s.pts);
+            played = true;
+          }
+          if (played) {
+            tInfo.set(t.id, { date: t.date, name: t.name });
+            endIdx.set(t.id, pts.length - 1);
+          }
+        }
+        matchPtsByPlayer.set(r.id, pts);
+        endIdxByPlayer.set(r.id, endIdx);
+      });
+      const tsOf = (tid: number) => new Date(tInfo.get(tid)?.date ?? 0).getTime();
+      const allTids = [...tInfo.keys()].sort((a, b) => tsOf(a) - tsOf(b) || a - b);
+      const events = allTids.map((tid) => ({ ts: tsOf(tid), label: tInfo.get(tid)?.name ?? "" }));
+      const series = rows.map((r) => {
+        const pts = matchPtsByPlayer.get(r.id) ?? [];
+        const endIdx = endIdxByPlayer.get(r.id) ?? new Map<number, number>();
+        const formAt = (tid: number): number | null => {
+          const e = endIdx.get(tid);
+          if (e == null) return null;
+          let sum = 0;
+          for (let k = Math.max(0, e - N + 1); k <= e; k++) sum += pts[k] ?? 0;
+          return sum / N; // profile semantics: divide by N even with fewer than N matches
+        };
+        const formVals = allTids.map((tid) => formAt(tid));
+        const points = allTids.map((_, idx) => {
+          const f = formVals[idx];
+          if (f == null) return null;
+          if (effView === "per") {
+            let prev: number | null = null;
+            for (let j = idx - 1; j >= 0; j--) { if (formVals[j] != null) { prev = formVals[j]; break; } }
+            return prev == null ? null : f - prev;
+          }
+          return f;
+        });
+        const c = colorOf(r.id);
+        return { id: r.id, name: r.name, color: c.solid, points: hidden.has(r.id) ? points.map(() => null) : points };
+      });
       return { events, series };
     }
 
@@ -207,7 +273,7 @@ function TrendsExplorer({ mode, scope, rows, initialMetric, initialView, initial
       return { id: r.id, name: r.name, color: c.solid, points: hidden.has(r.id) ? points.map(() => null) : points };
     });
     return { events, series };
-  }, [rows, matchesQs, eloQ.data, metric, isElo, effView, rollN, hidden, mode, applyPM, colorOf]);
+  }, [rows, matchesQs, eloQ.data, metric, isElo, isForm, effView, rollN, hidden, mode, applyPM, colorOf]);
 
   // ---- visible date window (pan/zoom) ----
   const DAY = 864e5;
@@ -312,13 +378,16 @@ function TrendsExplorer({ mode, scope, rows, initialMetric, initialView, initial
   }, []);
 
   const isPpm = metric === "points" && applyPM;
+  const isFormValue = isForm && effView !== "per";
+  const isFormDelta = isForm && effView === "per";
   const allY = series.flatMap((s) => s.points.filter((p): p is number => p != null));
   let yMax: number;
   let yMin: number;
   let yTicks: number[] | undefined;
-  if (isPpm) {
+  if (isPpm || isFormValue) {
+    // Points-per-match / form value live on the 0–3 scale.
     yMin = 0; yMax = 3; yTicks = [0, 1, 2, 3];
-  } else if (isElo && effView === "per") {
+  } else if ((isElo && effView === "per") || isFormDelta) {
     // Δ per event: symmetric around 0 so the zero baseline sits dead center
     // (e.g. −58 … 0 … 58). Chart's auto mid-tick = round((yMin+yMax)/2) = 0.
     const M = Math.max(1, ...allY.map((v) => Math.ceil(Math.abs(v))));
@@ -371,13 +440,16 @@ function TrendsExplorer({ mode, scope, rows, initialMetric, initialView, initial
         <Field label="Metric">
           <div className="flex flex-wrap items-center gap-2">
             <ChipGroup<Metric> value={metric} onChange={setMetric} ariaLabel="Metric" options={METRIC_OPTS} />
-            {!isElo && metric !== "winrate" ? <ToggleChip on={perMatch} onClick={() => setPerMatch((v) => !v)}>Per match</ToggleChip> : null}
+            {!isElo && !isForm && metric !== "winrate" ? <ToggleChip on={perMatch} onClick={() => setPerMatch((v) => !v)}>Per match</ToggleChip> : null}
           </div>
         </Field>
         <Field label="View">
           {isElo ? (
             <ChipGroup<"cumulative" | "per"> value={effView === "per" ? "per" : "cumulative"} onChange={(v) => setView(v)} ariaLabel="View"
               options={[{ key: "cumulative", label: "Rating" }, { key: "per", label: "Δ per event" }]} />
+          ) : isForm ? (
+            <ChipGroup<"cumulative" | "per"> value={effView === "per" ? "per" : "cumulative"} onChange={(v) => setView(v)} ariaLabel="View"
+              options={[{ key: "cumulative", label: "Form" }, { key: "per", label: "Δ per event" }]} />
           ) : (
             <ChipGroup<ViewMode> value={effView} onChange={setView} ariaLabel="View"
               options={[
@@ -387,10 +459,14 @@ function TrendsExplorer({ mode, scope, rows, initialMetric, initialView, initial
               ]} />
           )}
         </Field>
-        {effView === "rolling" ? (
+        {effView === "rolling" || isForm ? (
           <div className="space-y-1">
             <Slider label="Last N" value={rollN} min={2} max={Math.max(3, Math.min(20, events.length || 10))} onChange={setRollN} />
-            <div className="text-[10px] text-text-muted">Rolling average over the last {rollN} tournaments.</div>
+            <div className="text-[10px] text-text-muted">
+              {isForm
+                ? `Form = average points over the last ${rollN} matches (÷N), as on profiles.`
+                : `Rolling average over the last ${rollN} tournaments.`}
+            </div>
           </div>
         ) : null}
         <Field label="Range">
@@ -927,6 +1003,14 @@ function fmtShortDate(ts: string | null | undefined): string {
   if (!Number.isFinite(d.getTime())) return "";
   return d.toLocaleDateString(undefined, { day: "2-digit", month: "short", year: "2-digit" });
 }
+/** Per-category streak glyph (matches the FA badge icons used elsewhere). */
+function StreakCatIcon({ catKey, size = 12 }: { catKey: string; size?: number }) {
+  if (catKey === "unbeaten_streak") return <Shield size={size} aria-hidden="true" />;
+  if (catKey === "scoring_streak") return <Goal size={size} aria-hidden="true" />;
+  if (catKey === "clean_sheet_streak") return <Lock size={size} aria-hidden="true" />;
+  return <Flame size={size} aria-hidden="true" />; // win_streak + fallback
+}
+
 function streakDateText(r: StatsStreakRun): string {
   const s = fmtShortDate(r.start_ts);
   if (r.ongoing) return s ? `since ${s}` : "ongoing";
@@ -953,7 +1037,7 @@ function StreaksView({ mode, scope }: { mode: StatsMode; scope: StatsScope }) {
         return (
           <div key={c.key} className="space-y-2">
             <div className="section-head">
-              <span className="section-label inline-flex items-center gap-1.5"><Flame size={12} />{c.name}</span>
+              <span className="section-label inline-flex items-center gap-1.5"><StreakCatIcon catKey={c.key} size={12} />{c.name}</span>
             </div>
             <p className="-mt-1 text-[11px] text-text-muted">{c.description}</p>
             {records.length ? (
