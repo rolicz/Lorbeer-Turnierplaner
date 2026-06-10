@@ -10,6 +10,7 @@ import StandingsPreviewCard from "./StandingsPreviewCard";
 import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
 import { SectionTabs, type SectionTab } from "../../ui/SectionTabs";
 import { listCupDefs } from "../../api/cup.api";
+import { qk } from "../../api/queryKeys";
 import { apiFetch } from "../../api/client";
 import { cupColorVarForKey, rgbFromCssVar } from "../../cupColors";
 import { useRouteEntryLoading } from "../../ui/layout/useRouteEntryLoading";
@@ -41,9 +42,9 @@ export default function DashboardPage() {
     setSearchParams(n, { replace: true });
   };
 
-  const defsQ = useQuery({ queryKey: ["cup", "defs"], queryFn: listCupDefs });
+  const defsQ = useQuery({ queryKey: qk.cupDefs(), queryFn: listCupDefs });
   const liveQ = useQuery({
-    queryKey: ["tournaments", "live"],
+    queryKey: qk.tournamentsLive(),
     queryFn: async (): Promise<LiveTournamentLite | null> =>
       apiFetch<LiveTournamentLite | null>("/tournaments/live"),
     refetchOnMount: "always",

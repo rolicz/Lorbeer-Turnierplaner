@@ -11,6 +11,7 @@ import CupOwnerBadge from "../../ui/primitives/CupOwnerBadge";
 
 import { listPlayers } from "../../api/players.api";
 import { getStatsPlayers } from "../../api/stats.api";
+import { qk } from "../../api/queryKeys";
 import type { StatsPlayersResponse, StatsTournamentLite, StatsPlayerRow } from "../../api/types";
 
 import { getCup, listCupDefs } from "../../api/cup.api";
@@ -322,12 +323,12 @@ export default function PlayersStatsCard({
   mode?: StatsMode;
 } = {}) {
   const initialReadyFiredRef = useRef(false);
-  const playersQ = useQuery({ queryKey: ["players"], queryFn: listPlayers });
+  const playersQ = useQuery({ queryKey: qk.players(), queryFn: listPlayers });
 
   const LASTN_FETCH = 25;
   const modeFilter: ModeFilter = mode;
   const statsQ = useQuery<StatsPlayersResponse>({
-    queryKey: ["stats", "players", modeFilter, LASTN_FETCH],
+    queryKey: qk.stats.players(modeFilter, LASTN_FETCH),
     queryFn: () => getStatsPlayers({ mode: modeFilter, lastN: LASTN_FETCH }),
     refetchOnWindowFocus: true,
     refetchOnReconnect: true,
@@ -336,7 +337,7 @@ export default function PlayersStatsCard({
 
   const { avatarUpdatedAtById: avatarUpdatedAtByPlayerId } = usePlayerAvatarMap();
 
-  const cupDefsQ = useQuery({ queryKey: ["cup", "defs"], queryFn: listCupDefs });
+  const cupDefsQ = useQuery({ queryKey: qk.cupDefs(), queryFn: listCupDefs });
   const cups = useMemo(() => {
     const cupsRaw = cupDefsQ.data?.cups?.length ? cupDefsQ.data.cups : [{ key: "default", name: "Cup", since_date: null }];
     const nonDefault = cupsRaw.filter((c) => c.key !== "default");
@@ -346,7 +347,7 @@ export default function PlayersStatsCard({
 
   const cupsQ = useQueries({
     queries: cups.map((c) => ({
-      queryKey: ["cup", c.key],
+      queryKey: qk.cup(c.key),
       queryFn: () => getCup(c.key),
     })),
   });

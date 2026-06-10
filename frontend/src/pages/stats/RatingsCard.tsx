@@ -3,6 +3,7 @@ import { keepPreviousData, useQuery } from "@tanstack/react-query";
 
 import CollapsibleCard from "../../ui/primitives/CollapsibleCard";
 import { getStatsRatings } from "../../api/stats.api";
+import { qk } from "../../api/queryKeys";
 import type { StatsRatingsRow, StatsScope } from "../../api/types";
 import type { StatsMode } from "./StatsControls";
 
@@ -49,7 +50,7 @@ export default function RatingsCard({
   scope?: StatsScope;
 }) {
   const q = useQuery({
-    queryKey: ["stats", "ratings", mode, scope],
+    queryKey: qk.stats.ratings(mode, scope),
     queryFn: () => getStatsRatings({ mode, scope }),
     placeholderData: keepPreviousData,
     staleTime: 30_000,

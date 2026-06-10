@@ -6,15 +6,16 @@ import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
 import InlineLoading from "../../ui/primitives/InlineLoading";
 import { listPlayers } from "../../api/players.api";
 import { listClubs } from "../../api/clubs.api";
+import { qk } from "../../api/queryKeys";
 import { getStatsPlayerMatches } from "../../api/stats.api";
-import type { Club, Match, StatsScope } from "../../api/types";
+import type { Club, StatsMatch, StatsScope } from "../../api/types";
 import { sideBy } from "../../helpers";
 import { StarsFA } from "../../ui/primitives/StarsFA";
 import { type StatsMode } from "./StatsControls";
 
 type Outcome = "W" | "D" | "L";
 
-function winnerSide(m: Match): "A" | "B" | null {
+function winnerSide(m: StatsMatch): "A" | "B" | null {
   if (m.state !== "finished") return null;
   const a = sideBy(m, "A");
   const b = sideBy(m, "B");
@@ -24,7 +25,7 @@ function winnerSide(m: Match): "A" | "B" | null {
   return ag > bg ? "A" : "B";
 }
 
-function outcomeForPlayer(m: Match, playerId: number): { outcome: Outcome; points: number; side: "A" | "B" } | null {
+function outcomeForPlayer(m: StatsMatch, playerId: number): { outcome: Outcome; points: number; side: "A" | "B" } | null {
   if (m.state !== "finished") return null;
   const a = sideBy(m, "A");
   const b = sideBy(m, "B");
@@ -61,7 +62,7 @@ type StarBucket = {
 
 const STAR_LEVELS: number[] = [5, 4.5, 4, 3.5, 3, 2.5, 2, 1.5, 1, 0.5];
 
-function computeBuckets(matches: Match[], playerId: number, clubs: Club[]): StarBucket[] {
+function computeBuckets(matches: StatsMatch[], playerId: number, clubs: Club[]): StarBucket[] {
   const starByClubId = new Map<number, number>();
   for (const c of clubs) {
     if (Number.isFinite(c.star_rating)) starByClubId.set(c.id, c.star_rating);
@@ -104,7 +105,7 @@ function computeBuckets(matches: Match[], playerId: number, clubs: Club[]): Star
   });
 }
 
-function computeOverallFromAllFinished(matches: Match[], playerId: number): {
+function computeOverallFromAllFinished(matches: StatsMatch[], playerId: number): {
   played: number;
   wins: number;
   draws: number;
@@ -187,15 +188,15 @@ export default function StarsPerformanceCard({
   scope?: StatsScope;
   playerId?: number | "";
 } = {}) {
-  const playersQ = useQuery({ queryKey: ["players"], queryFn: listPlayers });
-  const clubsQ = useQuery({ queryKey: ["clubs"], queryFn: () => listClubs() });
+  const playersQ = useQuery({ queryKey: qk.players(), queryFn: listPlayers });
+  const clubsQ = useQuery({ queryKey: qk.clubs(), queryFn: () => listClubs() });
 
   const players = useMemo(() => playersQ.data ?? [], [playersQ.data]);
   const clubs = useMemo(() => clubsQ.data ?? [], [clubsQ.data]);
   const selectedPlayerId = playerId;
 
   const matchesQ = useQuery({
-    queryKey: ["stats", "starsPerformance", selectedPlayerId || "none", scope],
+    queryKey: qk.stats.starsPerformance(selectedPlayerId || "none", scope),
     queryFn: () => getStatsPlayerMatches({ playerId: Number(selectedPlayerId), scope }),
     enabled: selectedPlayerId !== "",
     placeholderData: keepPreviousData,

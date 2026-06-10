@@ -1,4 +1,5 @@
 import { apiFetch } from "./client";
+import type { components } from "./generated/schema";
 import {
   MatchOdds,
   StatsH2HMatchesResponse,
@@ -9,6 +10,9 @@ import {
   StatsScope,
   StatsStreaksResponse,
 } from "./types";
+
+export type RatingSnapshot = components["schemas"]["RatingHistorySnapshotOut"];
+export type StatsRatingsHistoryResponse = components["schemas"]["StatsRatingsHistoryOut"];
 
 export function getStatsPlayers(opts?: { lastN?: number; mode?: "overall" | "1v1" | "2v2" }): Promise<StatsPlayersResponse> {
     const qs = new URLSearchParams();
@@ -85,25 +89,6 @@ export function getStatsRatings(opts?: { mode?: "overall" | "1v1" | "2v2"; scope
     const suffix = qs.toString() ? `?${qs.toString()}` : "";
     return apiFetch(`/stats/ratings${suffix}`, { method: "GET" });
 }
-
-export type RatingSnapshot = {
-  tournament_id: number;
-  date: string;
-  tournament_name: string;
-  rating_after: number;
-  delta: number;
-};
-
-export type StatsRatingsHistoryResponse = {
-  generated_at: string;
-  mode: string;
-  scope: string;
-  base_rating: number;
-  players: Array<{
-    player: { id: number; display_name: string };
-    history: RatingSnapshot[];
-  }>;
-};
 
 export function getStatsRatingsHistory(opts?: { mode?: "overall" | "1v1" | "2v2"; scope?: StatsScope }): Promise<StatsRatingsHistoryResponse> {
     const qs = new URLSearchParams();

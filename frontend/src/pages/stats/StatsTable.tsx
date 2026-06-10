@@ -3,6 +3,7 @@ import { useMemo, useState } from "react";
 import { keepPreviousData, useQueries } from "@tanstack/react-query";
 
 import { getStatsPlayerMatches } from "../../api/stats.api";
+import { qk } from "../../api/queryKeys";
 import type { StatsPlayerMatchesTournament, StatsScope } from "../../api/types";
 import type { StatsMode } from "./StatsControls";
 import AvatarCircle from "../../ui/primitives/AvatarCircle";
@@ -42,7 +43,7 @@ export default function StatsTable({
   // unit as Trends' Last-N). Elo is meaningless over a window, so it's hidden.
   const matchesQs = useQueries({
     queries: rows.map((r) => ({
-      queryKey: ["stats", "playerMatches", r.id, scope],
+      queryKey: qk.stats.playerMatches(r.id, scope),
       queryFn: () => getStatsPlayerMatches({ playerId: r.id, scope }),
       enabled: lastN && rows.length > 0,
       placeholderData: keepPreviousData,

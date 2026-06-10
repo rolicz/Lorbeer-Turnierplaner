@@ -3,6 +3,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import type { Club } from "../api/types";
 import { patchClub } from "../api/clubs.api";
+import { qk } from "../api/queryKeys";
 import { useAuth } from "../auth/AuthContext";
 import { cn } from "./cn";
 import { STAR_OPTIONS, starsLabel, toHalfStep } from "./clubControls";
@@ -51,7 +52,7 @@ export default function ClubStarsEditor({
     },
     onSuccess: async () => {
       setLocalByClub({ clubId, value: null });
-      await qc.invalidateQueries({ queryKey: ["clubs"] });
+      await qc.invalidateQueries({ queryKey: qk.clubs() });
     },
     onError: (e: unknown) => {
       const message = e instanceof Error && e.message ? e.message : "Could not update stars";

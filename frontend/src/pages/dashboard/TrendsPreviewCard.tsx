@@ -6,7 +6,8 @@ import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
 import InlineLoading from "../../ui/primitives/InlineLoading";
 
 import { getStatsPlayerMatches, getStatsPlayers } from "../../api/stats.api";
-import type { Match, StatsPlayerMatchesResponse, StatsPlayersResponse, StatsTournamentLite } from "../../api/types";
+import { qk } from "../../api/queryKeys";
+import type { StatsMatch, StatsPlayerMatchesResponse, StatsPlayersResponse, StatsTournamentLite } from "../../api/types";
 import { sideBy } from "../../helpers";
 import { usePlayerColors } from "../stats/usePlayerColors";
 import { pooledPpm } from "../stats/trendsMath";
@@ -23,7 +24,7 @@ function addMonths(d: Date, months: number) {
 }
 
 
-function winnerSide(m: Match): "A" | "B" | null {
+function winnerSide(m: StatsMatch): "A" | "B" | null {
   if (m.state !== "finished") return null;
   const a = sideBy(m, "A");
   const b = sideBy(m, "B");
@@ -33,7 +34,7 @@ function winnerSide(m: Match): "A" | "B" | null {
   return ag > bg ? "A" : "B";
 }
 
-function pointsForPlayerInMatch(m: Match, playerId: number): number | null {
+function pointsForPlayerInMatch(m: StatsMatch, playerId: number): number | null {
   if (m.state !== "finished") return null;
   const a = sideBy(m, "A");
   const b = sideBy(m, "B");
@@ -72,7 +73,7 @@ export default function TrendsPreviewCard() {
   useEffect(() => () => roRef.current?.disconnect(), []);
 
   const statsQ = useQuery<StatsPlayersResponse>({
-    queryKey: ["stats", "players", "overall", 0],
+    queryKey: qk.stats.players("overall", 0),
     queryFn: () => getStatsPlayers({ mode: "overall", lastN: 0 }),
     refetchOnReconnect: true,
     refetchOnWindowFocus: true,
@@ -83,7 +84,7 @@ export default function TrendsPreviewCard() {
 
   const matchesQs = useQueries({
     queries: players.map((p) => ({
-      queryKey: ["stats", "playerMatches", p.player_id],
+      queryKey: qk.stats.playerMatches(p.player_id),
       queryFn: () => getStatsPlayerMatches({ playerId: p.player_id }),
       enabled: players.length > 0,
       staleTime: 0,
@@ -93,7 +94,7 @@ export default function TrendsPreviewCard() {
   });
 
   const tournamentsDoneSorted = useMemo(() => {
-    const byId = new Map<number, { id: number; name: string; date: string; mode: "1v1" | "2v2"; status: string; has_finished: boolean }>();
+    const byId = new Map<number, { id: number; name: string; date: string; mode: string; status: string; has_finished: boolean }>();
     for (const q of matchesQs as Array<{ data?: StatsPlayerMatchesResponse }>) {
       const ts = q.data?.tournaments ?? [];
       for (const t of ts) {

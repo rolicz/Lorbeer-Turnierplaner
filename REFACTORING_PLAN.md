@@ -117,7 +117,7 @@ Mostly mechanical, low risk. Best phase to start with.
 - **DoD:** the grep above returns 0 hits outside `queryKeys.ts` and tests; `npm run check` passes;
   manual smoke: entering a match result updates standings, posting a comment updates the list.
 
-### A2 — Add response models for the untyped stats endpoints, delete hand-written FE types  ☐
+### A2 — Add response models for the untyped stats endpoints, delete hand-written FE types  ☑
 - **Effort:** M · **Risk:** medium (wire shapes must match exactly) · **Model:** Sonnet 4.6
 - **Problem:** 4 endpoints return raw dicts with no `response_model`:
   `backend/app/routers/stats.py:63` (`GET /stats/h2h`), `:74` (`POST /stats/h2h-matches`),
@@ -139,6 +139,12 @@ Mostly mechanical, low risk. Best phase to start with.
 - **DoD:** backend tests pass; `make gen-types` produces the new models; `types.ts` contains no
   hand-maintained response shapes for these endpoints; `npm run check` passes; stats H2H tab,
   player-matches list and trends/elo history render identically.
+- **Note:** Introduced `StatsMatchOut` (match without `tournament_id`/`odds`); downstream helpers
+  widened from `m: Match` to `m: StatsMatch` in helpers.ts, standings.ts, trendsMath.ts,
+  MatchHistoryList.tsx, StarsPerformanceCard.tsx, PlayerMatchesCard.tsx, TrendsCard.tsx,
+  TrendsPreviewCard.tsx, MatchH2HPanel.tsx, PlayerLiveStatsModal.tsx, StatsInsights.tsx.
+  `Match` remains assignable to `StatsMatch` (structural subtyping), so all live-page callers
+  that pass real `Match` objects are unaffected.
 
 ### A3 — Route the 3 raw FormData uploads through one shared upload helper  ☑
 - **Effort:** S · **Risk:** low · **Model:** Sonnet 4.6

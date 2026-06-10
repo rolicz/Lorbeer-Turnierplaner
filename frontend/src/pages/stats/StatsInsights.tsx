@@ -13,7 +13,7 @@ import type { StatsRatingsHistoryResponse } from "../../api/stats.api";
 import { getCup, listCupDefs } from "../../api/cup.api";
 import { cupColorVarForKey, rgbFromCssVar } from "../../cupColors";
 import { listClubs } from "../../api/clubs.api";
-import type { Club, Match, StatsScope, StatsH2HPair, StatsH2HOpponentRow, StatsPlayerMatchesTournament, StatsStreakCategory, StatsStreakRun } from "../../api/types";
+import type { Club, StatsMatch, StatsScope, StatsH2HPair, StatsH2HOpponentRow, StatsPlayerMatchesTournament, StatsStreakCategory, StatsStreakRun } from "../../api/types";
 import type { StatsMode } from "./StatsControls";
 import { usePlayerAvatarMap } from "../../hooks/usePlayerAvatarMap";
 import { usePlayerColors } from "./usePlayerColors";
@@ -1081,7 +1081,7 @@ function StreaksView({ mode, scope }: { mode: StatsMode; scope: StatsScope }) {
 //  STARS — performance by club star rating
 // ==========================================================================
 const STAR_LEVELS = [5, 4.5, 4, 3.5, 3, 2.5, 2, 1.5, 1, 0.5];
-function starBuckets(matches: Match[], pid: number, clubs: Club[]) {
+function starBuckets(matches: StatsMatch[], pid: number, clubs: Club[]) {
   const starByClub = new Map<number, number>();
   for (const c of clubs) if (Number.isFinite(c.star_rating)) starByClub.set(c.id, c.star_rating);
   const by = new Map<number, { played: number; w: number; d: number; l: number; pts: number }>();
@@ -1292,7 +1292,7 @@ function PlayerProfile({ mode, scope, rows, selectedId, onSelect }: { mode: Stat
 // ==========================================================================
 //  RECORDS & SUPERLATIVES
 // ==========================================================================
-function teamNames(m: Match, side: "A" | "B"): string {
+function teamNames(m: StatsMatch, side: "A" | "B"): string {
   const s = m.sides.find((x) => x.side === side);
   return (s?.players ?? []).map((p) => p.display_name).join(" + ") || "—";
 }

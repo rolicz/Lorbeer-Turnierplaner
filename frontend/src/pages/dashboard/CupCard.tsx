@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Trophy } from "lucide-react";
 
 import { getCup } from "../../api/cup.api";
+import { qk } from "../../api/queryKeys";
 import { cupColorVarForKey, rgbFromCssVar } from "../../cupColors";
 import { usePlayerAvatarMap } from "../../hooks/usePlayerAvatarMap";
 import AvatarCircle from "../../ui/primitives/AvatarCircle";
@@ -11,7 +12,7 @@ import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
 import { fmtDate } from "../../utils/format";
 
 export default function CupCard({ cupKey }: { cupKey: string }) {
-  const q = useQuery({ queryKey: ["cup", cupKey], queryFn: () => getCup(cupKey) });
+  const q = useQuery({ queryKey: qk.cup(cupKey), queryFn: () => getCup(cupKey) });
   const { avatarUpdatedAtById: avatarUpdatedAtByPlayerId } = usePlayerAvatarMap();
   const [showAll, setShowAll] = useState(false);
   const color = rgbFromCssVar(cupColorVarForKey(cupKey));

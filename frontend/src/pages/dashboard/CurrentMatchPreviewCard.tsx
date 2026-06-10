@@ -6,6 +6,7 @@ import type { Match } from "../../api/types";
 import { getTournament } from "../../api/tournaments.api";
 import { listClubs } from "../../api/clubs.api";
 import { apiFetch } from "../../api/client";
+import { qk } from "../../api/queryKeys";
 
 import { useTournamentWS } from "../../hooks/useTournamentWS";
 import { sideBy } from "../../helpers";
@@ -36,7 +37,7 @@ export default function CurrentMatchPreviewCard() {
 
   // 1) which tournament is currently LIVE?
   const liveQ = useQuery({
-    queryKey: ["tournaments", "live"],
+    queryKey: qk.tournamentsLive(),
     queryFn: async (): Promise<LiveTournamentLite | null> => {
       return apiFetch<LiveTournamentLite | null>("/tournaments/live");
     },
@@ -50,7 +51,7 @@ export default function CurrentMatchPreviewCard() {
 
   // 2) fetch full tournament details so we can show match + players
   const tQ = useQuery({
-    queryKey: ["tournament", tid ?? "none"],
+    queryKey: qk.tournament(tid ?? "none"),
     queryFn: () => getTournament(tid!),
     enabled: !!tid,
   });
@@ -59,7 +60,7 @@ export default function CurrentMatchPreviewCard() {
 
   // 3) fetch clubs (for labels)
   const clubsQ = useQuery({
-    queryKey: ["clubs", "EA FC 26"],
+    queryKey: qk.clubs("EA FC 26"),
     queryFn: () => listClubs("EA FC 26"),
     enabled: !!tid,
   });

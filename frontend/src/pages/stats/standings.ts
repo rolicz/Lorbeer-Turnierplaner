@@ -3,7 +3,8 @@ import { useMemo } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 
 import { getStatsRatings, getStatsPlayers } from "../../api/stats.api";
-import type { Match, StatsScope } from "../../api/types";
+import { qk } from "../../api/queryKeys";
+import type { StatsMatch, StatsScope } from "../../api/types";
 import type { StatsMode } from "./StatsControls";
 
 export type Row = {
@@ -15,12 +16,12 @@ export type Row = {
 // ---- shared data ----------------------------------------------------------
 export function useStandings(mode: StatsMode, scope: StatsScope) {
   const ratingsQ = useQuery({
-    queryKey: ["stats", "ratings", mode, scope],
+    queryKey: qk.stats.ratings(mode, scope),
     queryFn: () => getStatsRatings({ mode, scope }),
     placeholderData: keepPreviousData, staleTime: 30_000,
   });
   const playersQ = useQuery({
-    queryKey: ["stats", "players", mode, 12],
+    queryKey: qk.stats.players(mode, 12),
     queryFn: () => getStatsPlayers({ mode, lastN: 12 }),
     placeholderData: keepPreviousData, staleTime: 30_000,
   });
@@ -41,14 +42,14 @@ export function useStandings(mode: StatsMode, scope: StatsScope) {
 }
 
 // ---- per-match helpers ----------------------------------------------------
-export function sideOf(m: Match, pid: number): "A" | "B" | null {
+export function sideOf(m: StatsMatch, pid: number): "A" | "B" | null {
   const a = m.sides.find((s) => s.side === "A");
   const b = m.sides.find((s) => s.side === "B");
   if (a?.players.some((p) => p.id === pid)) return "A";
   if (b?.players.some((p) => p.id === pid)) return "B";
   return null;
 }
-export function matchStats(m: Match, pid: number): { pts: number; gf: number; ga: number; res: "W" | "D" | "L" } | null {
+export function matchStats(m: StatsMatch, pid: number): { pts: number; gf: number; ga: number; res: "W" | "D" | "L" } | null {
   if (m.state !== "finished") return null;
   const side = sideOf(m, pid);
   if (!side) return null;

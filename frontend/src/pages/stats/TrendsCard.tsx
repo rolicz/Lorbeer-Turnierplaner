@@ -6,6 +6,7 @@ import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
 import { MetaRow } from "../../ui/primitives/Meta";
 
 import { getStatsPlayerMatches, getStatsPlayers } from "../../api/stats.api";
+import { qk } from "../../api/queryKeys";
 import type { StatsPlayerMatchesResponse, StatsPlayersResponse, StatsTournamentLite } from "../../api/types";
 import { StatsControlLabel, StatsSegmentedSwitch, type StatsMode } from "./StatsControls";
 import { fmtDate } from "../../utils/format";
@@ -37,7 +38,7 @@ export default function TrendsCard({
   const wrapRef = useRef<HTMLDivElement | null>(null);
   // lastN irrelevant here, but keep it small (we only use tournaments + positions).
   const statsQ = useQuery<StatsPlayersResponse>({
-    queryKey: ["stats", "players", mode, 0],
+    queryKey: qk.stats.players(mode, 0),
     queryFn: () => getStatsPlayers({ mode, lastN: 0 }),
     placeholderData: keepPreviousData,
     refetchOnReconnect: false,
@@ -51,7 +52,7 @@ export default function TrendsCard({
   const needMatches = view === "lastN" || view === "total";
   const matchesQs = useQueries({
     queries: players.map((p) => ({
-      queryKey: ["stats", "playerMatches", p.player_id],
+      queryKey: qk.stats.playerMatches(p.player_id),
       queryFn: () => getStatsPlayerMatches({ playerId: p.player_id }),
       enabled: needMatches && players.length > 0,
       placeholderData: keepPreviousData,
@@ -64,7 +65,7 @@ export default function TrendsCard({
   const tournamentsDoneSorted = useMemo(() => {
     // StatsTournamentLite doesn't include mode/status, so derive from player-matches responses.
     // Union across players to cover tournaments not played by everyone.
-    const byId = new Map<number, { id: number; name: string; date: string; mode: "1v1" | "2v2"; status: string; has_finished: boolean }>();
+    const byId = new Map<number, { id: number; name: string; date: string; mode: string; status: string; has_finished: boolean }>();
     for (const q of matchesQs as Array<{ data?: StatsPlayerMatchesResponse }>) {
       const ts = q.data?.tournaments ?? [];
       for (const t of ts) {

@@ -24,6 +24,7 @@ import {
   patchPlayer,
 } from "../api/players.api";
 import { getCup, listCupDefs, type CupDef } from "../api/cup.api";
+import { qk } from "../api/queryKeys";
 import { cupColorVarForKey, rgbFromCssVar } from "../cupColors";
 import { usePlayerAvatarMap } from "../hooks/usePlayerAvatarMap";
 import { useSeenGuestbookIdsByProfileId } from "../hooks/useSeenGuestbook";
@@ -52,14 +53,14 @@ export default function PlayersAdminPage() {
     ...(isAdmin ? [{ key: "add" as PlayersTab, label: "Add player", icon: <UserPlus size={14} /> }] : []),
   ];
 
-  const playersQ = useQuery({ queryKey: ["players"], queryFn: listPlayers });
-  const profilesQ = useQuery({ queryKey: ["players", "profiles"], queryFn: listPlayerProfiles });
+  const playersQ = useQuery({ queryKey: qk.players(), queryFn: listPlayers });
+  const profilesQ = useQuery({ queryKey: qk.playerProfiles(), queryFn: listPlayerProfiles });
   const guestbookSummaryQ = useQuery({
-    queryKey: ["players", "guestbook", "summary"],
+    queryKey: qk.playerGuestbookSummary(),
     queryFn: listPlayerGuestbookSummary,
   });
   const pokesSummaryQ = useQuery({
-    queryKey: ["players", "pokes", "summary"],
+    queryKey: qk.playerPokesSummary(),
     queryFn: listPlayerPokeSummary,
   });
   const { avatarUpdatedAtById: avatarUpdatedAtByPlayerId } = usePlayerAvatarMap();
@@ -73,9 +74,9 @@ export default function PlayersAdminPage() {
     },
     onSuccess: async () => {
       setNewName("");
-      await qc.invalidateQueries({ queryKey: ["players"] });
-      await qc.invalidateQueries({ queryKey: ["stats"] });
-      await qc.invalidateQueries({ queryKey: ["cup"] });
+      await qc.invalidateQueries({ queryKey: qk.players() });
+      await qc.invalidateQueries({ queryKey: qk.stats.all() });
+      await qc.invalidateQueries({ queryKey: qk.cupAll() });
     },
   });
 
@@ -93,9 +94,9 @@ export default function PlayersAdminPage() {
     onSuccess: async () => {
       setEditId(null);
       setEditName("");
-      await qc.invalidateQueries({ queryKey: ["players"] });
-      await qc.invalidateQueries({ queryKey: ["stats"] });
-      await qc.invalidateQueries({ queryKey: ["cup"] });
+      await qc.invalidateQueries({ queryKey: qk.players() });
+      await qc.invalidateQueries({ queryKey: qk.stats.all() });
+      await qc.invalidateQueries({ queryKey: qk.cupAll() });
     },
   });
 
@@ -129,10 +130,10 @@ export default function PlayersAdminPage() {
   // Current cup holders → laurel badge(s) next to the name + a cup-colored ring
   // around the avatar (a player can hold multiple cups). Loaded async (cache is
   // shared with the dashboard/cup cards); does not block the initial render.
-  const cupDefsQ = useQuery({ queryKey: ["cup", "defs"], queryFn: listCupDefs });
+  const cupDefsQ = useQuery({ queryKey: qk.cupDefs(), queryFn: listCupDefs });
   const cupDefs = useMemo<CupDef[]>(() => cupDefsQ.data?.cups ?? [], [cupDefsQ.data]);
   const cupQueries = useQueries({
-    queries: cupDefs.map((c) => ({ queryKey: ["cup", c.key], queryFn: () => getCup(c.key) })),
+    queries: cupDefs.map((c) => ({ queryKey: qk.cup(c.key), queryFn: () => getCup(c.key) })),
   });
   // Cheap to rebuild each render (cups are few); avoids a complex useMemo dep list.
   const cupsByPlayerId = new Map<number, CupDef[]>();

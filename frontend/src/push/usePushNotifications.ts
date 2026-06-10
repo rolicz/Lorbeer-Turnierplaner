@@ -8,6 +8,7 @@ import {
   sendPushTest,
 } from "../api/push.api";
 import type { PushNotificationLanguage, PushNotificationMode } from "../api/types";
+import { qk } from "../api/queryKeys";
 import type { PushPlatform } from "./push";
 import {
   detectPushPlatform,
@@ -118,12 +119,12 @@ export function usePushNotifications(token: string | null): PushNotificationsSta
   const previousTokenRef = useRef<string | null>(token);
 
   const configQ = useQuery({
-    queryKey: ["push", "config"],
+    queryKey: qk.push.config(),
     queryFn: getPushConfig,
     staleTime: 60_000,
   });
   const mySubscriptionsQ = useQuery({
-    queryKey: ["push", "subscriptions", token],
+    queryKey: qk.push.subscriptions(token),
     queryFn: () => listMyPushSubscriptions(token as string),
     enabled: !!token,
     staleTime: 15_000,
@@ -157,8 +158,8 @@ export function usePushNotifications(token: string | null): PushNotificationsSta
   const refreshAll = useCallback(async () => {
     await refreshBrowserState();
     await Promise.all([
-      qc.invalidateQueries({ queryKey: ["push", "config"] }),
-      qc.invalidateQueries({ queryKey: ["push", "subscriptions"] }),
+      qc.invalidateQueries({ queryKey: qk.push.config() }),
+      qc.invalidateQueries({ queryKey: qk.push.subscriptionsAll() }),
     ]);
   }, [qc, refreshBrowserState]);
 
@@ -196,7 +197,7 @@ export function usePushNotifications(token: string | null): PushNotificationsSta
       await deletePushSubscription(previousToken, endpoint).catch(() => {
         // logout cleanup is best-effort
       });
-      await qc.invalidateQueries({ queryKey: ["push", "subscriptions"] });
+      await qc.invalidateQueries({ queryKey: qk.push.subscriptionsAll() });
     })();
   }, [browserEndpoint, qc, token]);
 
@@ -313,7 +314,7 @@ export function usePushNotifications(token: string | null): PushNotificationsSta
         return;
       }
       await putPushSubscription(token, serializePushSubscription(subscription, selectedLanguage, selectedMode));
-      await qc.invalidateQueries({ queryKey: ["push", "subscriptions", token] });
+      await qc.invalidateQueries({ queryKey: qk.push.subscriptions(token) });
     })()
       .catch((syncError) => {
         autoSyncKeyRef.current = "";
@@ -349,7 +350,7 @@ export function usePushNotifications(token: string | null): PushNotificationsSta
       setPreferencesSyncing(true);
       try {
         await putPushSubscription(token, serializePushSubscription(subscription, nextLanguage, nextMode));
-        await qc.invalidateQueries({ queryKey: ["push", "subscriptions", token] });
+        await qc.invalidateQueries({ queryKey: qk.push.subscriptions(token) });
         setError(null);
       } catch (preferencesError) {
         setError(errText(preferencesError));

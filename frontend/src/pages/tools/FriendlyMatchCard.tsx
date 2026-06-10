@@ -12,6 +12,7 @@ import MatchOverviewPanel from "../../ui/primitives/MatchOverviewPanel";
 import SegmentedSwitch from "../../ui/primitives/SegmentedSwitch";
 
 import { listClubs } from "../../api/clubs.api";
+import { qk } from "../../api/queryKeys";
 import { listPlayers } from "../../api/players.api";
 import { createFriendlyMatch } from "../../api/friendlies.api";
 import { getStatsOdds, type StatsOddsRequest } from "../../api/stats.api";
@@ -183,14 +184,14 @@ export default function FriendlyMatchCard({
   const initialReadyFiredRef = useRef(false);
 
   const clubsQ = useQuery({
-    queryKey: ["clubs", clubGame],
+    queryKey: qk.clubs(clubGame),
     queryFn: () => listClubs(clubGame),
     enabled: open,
   });
   const clubs = useMemo(() => clubsQ.data ?? [], [clubsQ.data]);
 
   const playersQ = useQuery({
-    queryKey: ["players"],
+    queryKey: qk.players(),
     queryFn: listPlayers,
     enabled: open,
     staleTime: 60_000,
@@ -232,7 +233,7 @@ export default function FriendlyMatchCard({
   }, [mode, aTeamIds, bTeamIds, aClub, bClub, aGoals, bGoals]);
 
   const oddsQ = useQuery({
-    queryKey: ["stats", "odds", oddsReq],
+    queryKey: qk.stats.odds(oddsReq),
     queryFn: () => getStatsOdds(oddsReq as StatsOddsRequest),
     enabled: open && oddsReq != null,
     staleTime: 2_000,
@@ -284,8 +285,8 @@ export default function FriendlyMatchCard({
     onSuccess: () => {
       setLastSavedAt(new Date().toISOString());
       clearAll();
-      void qc.invalidateQueries({ queryKey: ["friendlies"] });
-      void qc.invalidateQueries({ queryKey: ["stats"] });
+      void qc.invalidateQueries({ queryKey: qk.friendlies() });
+      void qc.invalidateQueries({ queryKey: qk.stats.all() });
     },
   });
 

@@ -6,9 +6,10 @@ import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
 import InlineLoading from "../../ui/primitives/InlineLoading";
 
 import { listClubs } from "../../api/clubs.api";
+import { qk } from "../../api/queryKeys";
 import { listPlayers } from "../../api/players.api";
 import { getStatsPlayerMatches, getStatsPlayers } from "../../api/stats.api";
-import type { Match, StatsPlayerRow, StatsPlayersResponse, StatsScope } from "../../api/types";
+import type { StatsMatch, StatsPlayerRow, StatsPlayersResponse, StatsScope } from "../../api/types";
 import {
   StatsControlLabel,
   StatsSegmentedSwitch,
@@ -21,7 +22,7 @@ import { fmtDate } from "../../utils/format";
 
 type Outcome = "W" | "D" | "L";
 
-function winnerSide(m: Match): "A" | "B" | null {
+function winnerSide(m: StatsMatch): "A" | "B" | null {
   if (m.state !== "finished") return null;
   const a = m.sides.find((s) => s.side === "A");
   const b = m.sides.find((s) => s.side === "B");
@@ -31,7 +32,7 @@ function winnerSide(m: Match): "A" | "B" | null {
   return ag > bg ? "A" : "B";
 }
 
-function outcomeForPlayer(m: Match, playerId: number): { outcome: Outcome; points: number } | null {
+function outcomeForPlayer(m: StatsMatch, playerId: number): { outcome: Outcome; points: number } | null {
   if (m.state !== "finished") return null;
   const a = m.sides.find((s) => s.side === "A");
   const b = m.sides.find((s) => s.side === "B");
@@ -204,10 +205,10 @@ export default function PlayerMatchesCard({
   scope?: StatsScope;
   playerId?: number | "";
 } = {}) {
-  const playersQ = useQuery({ queryKey: ["players"], queryFn: listPlayers });
+  const playersQ = useQuery({ queryKey: qk.players(), queryFn: listPlayers });
   const players = useMemo(() => playersQ.data ?? [], [playersQ.data]);
 
-  const clubsQ = useQuery({ queryKey: ["clubs"], queryFn: () => listClubs() });
+  const clubsQ = useQuery({ queryKey: qk.clubs(), queryFn: () => listClubs() });
   const clubs = clubsQ.data ?? [];
 
   const [showMeta, setShowMeta] = useState(false);
@@ -216,7 +217,7 @@ export default function PlayerMatchesCard({
   const selectedPlayerId: number | "" = playerId;
 
   const matchesQ = useQuery({
-    queryKey: ["stats", "playerMatches", selectedPlayerId || "none", scope],
+    queryKey: qk.stats.playerMatches(selectedPlayerId || "none", scope),
     queryFn: () => getStatsPlayerMatches({ playerId: Number(selectedPlayerId), scope }),
     enabled: selectedPlayerId !== "",
     placeholderData: keepPreviousData,
@@ -227,7 +228,7 @@ export default function PlayerMatchesCard({
     refetchOnWindowFocus: false,
   });
   const positionsQ = useQuery<StatsPlayersResponse>({
-    queryKey: ["stats", "playerTiles", selectedPlayerId || "none", mode],
+    queryKey: qk.stats.playerTiles(selectedPlayerId || "none", mode),
     queryFn: () => getStatsPlayers({ mode, lastN: 10 }),
     enabled: selectedPlayerId !== "" && scope !== "friendlies",
     placeholderData: keepPreviousData,

@@ -486,11 +486,155 @@ class OddsResponseOut(BaseModel):
     odds: OddsOut
 
 
-# NOTE: stats h2h, h2h-matches and player-matches are intentionally NOT typed.
-# Their payloads are conditionally shaped: /h2h omits all player-focused fields
-# when no player_id is given, and the *-matches endpoints mix real tournaments
-# (with cup_stakes) and friendly pseudo-tournaments (without) under scope=both.
-# A single strict response_model cannot reproduce those heterogeneous shapes.
+# ---- stats: H2H and match history -------------------------------------
+class StatsMatchOut(BaseModel):
+    """Match inside a stats response — no tournament_id or odds."""
+    id: int
+    leg: int
+    order_index: int
+    state: str
+    started_at: datetime | None
+    finished_at: datetime | None
+    sides: list[MatchSideOut]
+
+
+class StatsTournamentMatchesOut(BaseModel):
+    """Tournament grouping returned by h2h-matches and player-matches."""
+    id: int
+    name: str
+    date: date
+    mode: str
+    status: str
+    # cup_stakes absent for friendly pseudo-tournaments (scope=both)
+    cup_stakes: list[CupStakeOut] | None = None
+    matches: list[StatsMatchOut]
+
+
+class StatsH2HPairOut(BaseModel):
+    a: PlayerRef
+    b: PlayerRef
+    played: int
+    a_wins: int
+    draws: int
+    b_wins: int
+    a_gf: int
+    a_ga: int
+    b_gf: int
+    b_ga: int
+    win_share_a: float
+    rivalry_score: float
+    dominance_score: float
+
+
+class StatsH2HDuoOut(BaseModel):
+    p1: PlayerRef
+    p2: PlayerRef
+    played: int
+    wins: int
+    draws: int
+    losses: int
+    gf: int
+    ga: int
+    gd: int
+    pts: int
+    pts_per_match: float
+    win_rate: float
+
+
+class StatsH2HTeamRivalryOut(BaseModel):
+    team1: list[PlayerRef]
+    team2: list[PlayerRef]
+    played: int
+    team1_wins: int
+    draws: int
+    team2_wins: int
+    team1_gf: int
+    team1_ga: int
+    team2_gf: int
+    team2_ga: int
+    win_share_team1: float
+    rivalry_score: float
+    dominance_score: float
+
+
+class StatsH2HOpponentRowOut(BaseModel):
+    opponent: PlayerRef
+    played: int
+    wins: int
+    draws: int
+    losses: int
+    gf: int
+    ga: int
+    gd: int
+    pts: int
+    pts_per_match: float
+    win_rate: float
+
+
+class StatsH2HOut(BaseModel):
+    generated_at: datetime
+    scope: str
+    limit: int
+    order: str
+    player: PlayerRef | None
+    rivalries_all: list[StatsH2HPairOut]
+    rivalries_1v1: list[StatsH2HPairOut]
+    rivalries_2v2: list[StatsH2HPairOut]
+    team_rivalries_2v2: list[StatsH2HTeamRivalryOut]
+    dominance_1v1: list[StatsH2HPairOut]
+    best_teammates_2v2: list[StatsH2HDuoOut]
+    # present only when player_id was supplied
+    vs_all: list[StatsH2HOpponentRowOut] | None = None
+    vs_1v1: list[StatsH2HOpponentRowOut] | None = None
+    vs_2v2: list[StatsH2HOpponentRowOut] | None = None
+    with_2v2: list[StatsH2HDuoOut] | None = None
+    team_rivalries_2v2_for_player: list[StatsH2HTeamRivalryOut] | None = None
+    nemesis_all: StatsH2HOpponentRowOut | None = None
+    favorite_victim_all: StatsH2HOpponentRowOut | None = None
+    nemesis_1v1: StatsH2HOpponentRowOut | None = None
+    favorite_victim_1v1: StatsH2HOpponentRowOut | None = None
+    nemesis_2v2: StatsH2HOpponentRowOut | None = None
+    favorite_victim_2v2: StatsH2HOpponentRowOut | None = None
+
+
+class StatsH2HMatchesOut(BaseModel):
+    generated_at: datetime
+    mode: str
+    relation: str
+    scope: str
+    left_player_ids: list[int]
+    right_player_ids: list[int]
+    tournaments: list[StatsTournamentMatchesOut]
+
+
+class StatsPlayerMatchesOut(BaseModel):
+    generated_at: datetime
+    scope: str
+    player: PlayerRef | None
+    tournaments: list[StatsTournamentMatchesOut]
+
+
+# ---- stats: ratings history --------------------------------------------
+class RatingHistorySnapshotOut(BaseModel):
+    tournament_id: int
+    date: str
+    tournament_name: str
+    rating_after: float
+    delta: float
+
+
+class PlayerRatingHistoryOut(BaseModel):
+    player: PlayerRef
+    history: list[RatingHistorySnapshotOut]
+
+
+class StatsRatingsHistoryOut(BaseModel):
+    generated_at: datetime
+    mode: str
+    scope: str
+    base_rating: float
+    players: list[PlayerRatingHistoryOut]
+
 
 # ---- stats: players ----------------------------------------------------
 class StatsPlayersTournamentOut(BaseModel):

@@ -9,6 +9,7 @@ import { PlayerPicker } from "../stats/PlayerPicker";
 import { computeBestCase } from "./bestCase";
 import CupOwnerBadge from "../../ui/primitives/CupOwnerBadge";
 import { getCup, listCupDefs } from "../../api/cup.api";
+import { qk } from "../../api/queryKeys";
 import { getStatsStreaks } from "../../api/stats.api";
 import type { StatsStreakRow, StatsStreaksResponse } from "../../api/types";
 import { StreakPatch, type ActiveStreak } from "../../ui/StreakPatches";
@@ -162,7 +163,7 @@ export default function StandingsTable({
 
   const { avatarUpdatedAtById: avatarUpdatedAtByPlayerId } = usePlayerAvatarMap();
 
-  const cupDefsQ = useQuery({ queryKey: ["cup", "defs"], queryFn: listCupDefs });
+  const cupDefsQ = useQuery({ queryKey: qk.cupDefs(), queryFn: listCupDefs });
   const cups = useMemo(() => {
     const cupsRaw = cupDefsQ.data?.cups?.length ? cupDefsQ.data.cups : [{ key: "default", name: "Cup", since_date: null }];
     // Keep config order, but put the default cup last (consistent with dashboard/players).
@@ -173,14 +174,14 @@ export default function StandingsTable({
 
   const cupsQ = useQueries({
     queries: cups.map((c) => ({
-      queryKey: ["cup", c.key],
+      queryKey: qk.cup(c.key),
       queryFn: () => getCup(c.key),
     })),
   });
 
   const showStreaks = tournamentStatus !== "done";
   const streaksQ = useQuery<StatsStreaksResponse>({
-    queryKey: ["stats", "streaks", "overall", 200],
+    queryKey: qk.stats.streaks("overall", 200),
     queryFn: () => getStatsStreaks({ mode: "overall", playerId: null, limit: 200 }),
     enabled: showStreaks,
     staleTime: 0,

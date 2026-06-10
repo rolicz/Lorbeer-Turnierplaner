@@ -144,122 +144,16 @@ export type PatchMatchBody = {
   sideB?: { club_id?: number | null; goals?: number };
 };
 
-// H2H / player-matches responses are intentionally untyped in the backend
-// (conditionally shaped payloads); hand-written types remain the contract here.
-export type StatsH2HPlayerLite = {
-  id: number;
-  display_name: string;
-};
+// Stats match: subset of Match without tournament_id/odds (stats endpoints don't include them).
+// StatsMatch is a structural subset, so Match is assignable to StatsMatch.
+export type StatsMatch = S["StatsMatchOut"];
 
-export type StatsH2HTeamRivalry = {
-  team1: StatsH2HPlayerLite[];
-  team2: StatsH2HPlayerLite[];
-  played: number;
-  team1_wins: number;
-  draws: number;
-  team2_wins: number;
-  team1_gf: number;
-  team1_ga: number;
-  team2_gf: number;
-  team2_ga: number;
-  win_share_team1: number;
-  rivalry_score: number;
-  dominance_score: number;
-};
-
-export type StatsH2HPair = {
-  a: StatsH2HPlayerLite;
-  b: StatsH2HPlayerLite;
-  played: number;
-  a_wins: number;
-  draws: number;
-  b_wins: number;
-  a_gf: number;
-  a_ga: number;
-  b_gf: number;
-  b_ga: number;
-  win_share_a: number;
-  rivalry_score: number;
-  dominance_score: number;
-};
-
-export type StatsH2HDuo = {
-  p1: StatsH2HPlayerLite;
-  p2: StatsH2HPlayerLite;
-  played: number;
-  wins: number;
-  draws: number;
-  losses: number;
-  gf: number;
-  ga: number;
-  gd: number;
-  pts: number;
-  pts_per_match: number;
-  win_rate: number;
-};
-
-export type StatsH2HOpponentRow = {
-  opponent: StatsH2HPlayerLite;
-  played: number;
-  wins: number;
-  draws: number;
-  losses: number;
-  gf: number;
-  ga: number;
-  gd: number;
-  pts: number;
-  pts_per_match: number;
-  win_rate: number;
-};
-
-export type StatsH2HResponse = {
-  generated_at: string;
-  scope?: StatsScope;
-  limit: number;
-  order?: "rivalry" | "played";
-  player: StatsH2HPlayerLite | null;
-  rivalries_all: StatsH2HPair[];
-  rivalries_1v1: StatsH2HPair[];
-  rivalries_2v2: StatsH2HPair[];
-  team_rivalries_2v2: StatsH2HTeamRivalry[];
-  dominance_1v1: StatsH2HPair[];
-  best_teammates_2v2: StatsH2HDuo[];
-  vs_all?: StatsH2HOpponentRow[];
-  vs_1v1?: StatsH2HOpponentRow[];
-  vs_2v2?: StatsH2HOpponentRow[];
-  with_2v2?: StatsH2HDuo[];
-  team_rivalries_2v2_for_player?: StatsH2HTeamRivalry[];
-  nemesis_all?: StatsH2HOpponentRow | null;
-  favorite_victim_all?: StatsH2HOpponentRow | null;
-  nemesis_1v1?: StatsH2HOpponentRow | null;
-  favorite_victim_1v1?: StatsH2HOpponentRow | null;
-  nemesis_2v2?: StatsH2HOpponentRow | null;
-  favorite_victim_2v2?: StatsH2HOpponentRow | null;
-};
-
-export type StatsPlayerMatchesTournament = {
-  id: number;
-  name: string;
-  date: string;
-  mode: "1v1" | "2v2";
-  status: string;
-  cup_stakes?: TournamentCupStake[];
-  matches: Match[];
-};
-
-export type StatsH2HMatchesResponse = {
-  generated_at: string;
-  mode: "overall" | "1v1" | "2v2";
-  relation: "opposed" | "teammates";
-  scope?: StatsScope;
-  left_player_ids: number[];
-  right_player_ids: number[];
-  tournaments: StatsPlayerMatchesTournament[];
-};
-
-export type StatsPlayerMatchesResponse = {
-  generated_at: string;
-  scope?: StatsScope;
-  player: StatsH2HPlayerLite | null;
-  tournaments: StatsPlayerMatchesTournament[];
-};
+// H2H / player-matches — aliases to generated schema types
+export type StatsH2HPair = S["StatsH2HPairOut"];
+export type StatsH2HDuo = S["StatsH2HDuoOut"];
+export type StatsH2HTeamRivalry = S["StatsH2HTeamRivalryOut"];
+export type StatsH2HOpponentRow = S["StatsH2HOpponentRowOut"];
+export type StatsH2HResponse = S["StatsH2HOut"];
+export type StatsPlayerMatchesTournament = S["StatsTournamentMatchesOut"];
+export type StatsH2HMatchesResponse = S["StatsH2HMatchesOut"];
+export type StatsPlayerMatchesResponse = S["StatsPlayerMatchesOut"];

@@ -38,6 +38,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/me/notifications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** My Notifications */
+        get: operations["my_notifications_me_notifications_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/tournaments": {
         parameters: {
             query?: never;
@@ -1938,6 +1955,12 @@ export interface components {
             /** Bio */
             bio?: string | null;
         };
+        /** PlayerRatingHistoryOut */
+        PlayerRatingHistoryOut: {
+            player: components["schemas"]["PlayerRef"];
+            /** History */
+            history: components["schemas"]["RatingHistorySnapshotOut"][];
+        };
         /** PlayerRef */
         PlayerRef: {
             /** Id */
@@ -2139,6 +2162,19 @@ export interface components {
             /** Subscriptions */
             subscriptions: components["schemas"]["PushSubscriptionItemOut"][];
         };
+        /** RatingHistorySnapshotOut */
+        RatingHistorySnapshotOut: {
+            /** Tournament Id */
+            tournament_id: number;
+            /** Date */
+            date: string;
+            /** Tournament Name */
+            tournament_name: string;
+            /** Rating After */
+            rating_after: number;
+            /** Delta */
+            delta: number;
+        };
         /** RatingRowOut */
         RatingRowOut: {
             player: components["schemas"]["PlayerRef"];
@@ -2194,6 +2230,51 @@ export interface components {
             /** Version */
             version: number;
         };
+        /** StatsH2HDuoOut */
+        StatsH2HDuoOut: {
+            p1: components["schemas"]["PlayerRef"];
+            p2: components["schemas"]["PlayerRef"];
+            /** Played */
+            played: number;
+            /** Wins */
+            wins: number;
+            /** Draws */
+            draws: number;
+            /** Losses */
+            losses: number;
+            /** Gf */
+            gf: number;
+            /** Ga */
+            ga: number;
+            /** Gd */
+            gd: number;
+            /** Pts */
+            pts: number;
+            /** Pts Per Match */
+            pts_per_match: number;
+            /** Win Rate */
+            win_rate: number;
+        };
+        /** StatsH2HMatchesOut */
+        StatsH2HMatchesOut: {
+            /**
+             * Generated At
+             * Format: date-time
+             */
+            generated_at: string;
+            /** Mode */
+            mode: string;
+            /** Relation */
+            relation: string;
+            /** Scope */
+            scope: string;
+            /** Left Player Ids */
+            left_player_ids: number[];
+            /** Right Player Ids */
+            right_player_ids: number[];
+            /** Tournaments */
+            tournaments: components["schemas"]["StatsTournamentMatchesOut"][];
+        };
         /** StatsH2HMatchesRequest */
         StatsH2HMatchesRequest: {
             /**
@@ -2223,6 +2304,149 @@ export interface components {
              * @enum {string}
              */
             scope: "tournaments" | "both" | "friendlies";
+        };
+        /** StatsH2HOpponentRowOut */
+        StatsH2HOpponentRowOut: {
+            opponent: components["schemas"]["PlayerRef"];
+            /** Played */
+            played: number;
+            /** Wins */
+            wins: number;
+            /** Draws */
+            draws: number;
+            /** Losses */
+            losses: number;
+            /** Gf */
+            gf: number;
+            /** Ga */
+            ga: number;
+            /** Gd */
+            gd: number;
+            /** Pts */
+            pts: number;
+            /** Pts Per Match */
+            pts_per_match: number;
+            /** Win Rate */
+            win_rate: number;
+        };
+        /** StatsH2HOut */
+        StatsH2HOut: {
+            /**
+             * Generated At
+             * Format: date-time
+             */
+            generated_at: string;
+            /** Scope */
+            scope: string;
+            /** Limit */
+            limit: number;
+            /** Order */
+            order: string;
+            player: components["schemas"]["PlayerRef"] | null;
+            /** Rivalries All */
+            rivalries_all: components["schemas"]["StatsH2HPairOut"][];
+            /** Rivalries 1V1 */
+            rivalries_1v1: components["schemas"]["StatsH2HPairOut"][];
+            /** Rivalries 2V2 */
+            rivalries_2v2: components["schemas"]["StatsH2HPairOut"][];
+            /** Team Rivalries 2V2 */
+            team_rivalries_2v2: components["schemas"]["StatsH2HTeamRivalryOut"][];
+            /** Dominance 1V1 */
+            dominance_1v1: components["schemas"]["StatsH2HPairOut"][];
+            /** Best Teammates 2V2 */
+            best_teammates_2v2: components["schemas"]["StatsH2HDuoOut"][];
+            /** Vs All */
+            vs_all?: components["schemas"]["StatsH2HOpponentRowOut"][] | null;
+            /** Vs 1V1 */
+            vs_1v1?: components["schemas"]["StatsH2HOpponentRowOut"][] | null;
+            /** Vs 2V2 */
+            vs_2v2?: components["schemas"]["StatsH2HOpponentRowOut"][] | null;
+            /** With 2V2 */
+            with_2v2?: components["schemas"]["StatsH2HDuoOut"][] | null;
+            /** Team Rivalries 2V2 For Player */
+            team_rivalries_2v2_for_player?: components["schemas"]["StatsH2HTeamRivalryOut"][] | null;
+            nemesis_all?: components["schemas"]["StatsH2HOpponentRowOut"] | null;
+            favorite_victim_all?: components["schemas"]["StatsH2HOpponentRowOut"] | null;
+            nemesis_1v1?: components["schemas"]["StatsH2HOpponentRowOut"] | null;
+            favorite_victim_1v1?: components["schemas"]["StatsH2HOpponentRowOut"] | null;
+            nemesis_2v2?: components["schemas"]["StatsH2HOpponentRowOut"] | null;
+            favorite_victim_2v2?: components["schemas"]["StatsH2HOpponentRowOut"] | null;
+        };
+        /** StatsH2HPairOut */
+        StatsH2HPairOut: {
+            a: components["schemas"]["PlayerRef"];
+            b: components["schemas"]["PlayerRef"];
+            /** Played */
+            played: number;
+            /** A Wins */
+            a_wins: number;
+            /** Draws */
+            draws: number;
+            /** B Wins */
+            b_wins: number;
+            /** A Gf */
+            a_gf: number;
+            /** A Ga */
+            a_ga: number;
+            /** B Gf */
+            b_gf: number;
+            /** B Ga */
+            b_ga: number;
+            /** Win Share A */
+            win_share_a: number;
+            /** Rivalry Score */
+            rivalry_score: number;
+            /** Dominance Score */
+            dominance_score: number;
+        };
+        /** StatsH2HTeamRivalryOut */
+        StatsH2HTeamRivalryOut: {
+            /** Team1 */
+            team1: components["schemas"]["PlayerRef"][];
+            /** Team2 */
+            team2: components["schemas"]["PlayerRef"][];
+            /** Played */
+            played: number;
+            /** Team1 Wins */
+            team1_wins: number;
+            /** Draws */
+            draws: number;
+            /** Team2 Wins */
+            team2_wins: number;
+            /** Team1 Gf */
+            team1_gf: number;
+            /** Team1 Ga */
+            team1_ga: number;
+            /** Team2 Gf */
+            team2_gf: number;
+            /** Team2 Ga */
+            team2_ga: number;
+            /** Win Share Team1 */
+            win_share_team1: number;
+            /** Rivalry Score */
+            rivalry_score: number;
+            /** Dominance Score */
+            dominance_score: number;
+        };
+        /**
+         * StatsMatchOut
+         * @description Match inside a stats response — no tournament_id or odds.
+         */
+        StatsMatchOut: {
+            /** Id */
+            id: number;
+            /** Leg */
+            leg: number;
+            /** Order Index */
+            order_index: number;
+            /** State */
+            state: string;
+            /** Started At */
+            started_at: string | null;
+            /** Finished At */
+            finished_at: string | null;
+            /** Sides */
+            sides: components["schemas"]["MatchSideOut"][];
         };
         /** StatsOddsRequest */
         StatsOddsRequest: {
@@ -2273,6 +2497,19 @@ export interface components {
         StatsOverviewOut: {
             /** Blocks */
             blocks: components["schemas"]["StatsBlockOut"][];
+        };
+        /** StatsPlayerMatchesOut */
+        StatsPlayerMatchesOut: {
+            /**
+             * Generated At
+             * Format: date-time
+             */
+            generated_at: string;
+            /** Scope */
+            scope: string;
+            player: components["schemas"]["PlayerRef"] | null;
+            /** Tournaments */
+            tournaments: components["schemas"]["StatsTournamentMatchesOut"][];
         };
         /** StatsPlayerRowOut */
         StatsPlayerRowOut: {
@@ -2343,6 +2580,22 @@ export interface components {
             /** Cup Stakes */
             cup_stakes: components["schemas"]["CupStakeOut"][];
         };
+        /** StatsRatingsHistoryOut */
+        StatsRatingsHistoryOut: {
+            /**
+             * Generated At
+             * Format: date-time
+             */
+            generated_at: string;
+            /** Mode */
+            mode: string;
+            /** Scope */
+            scope: string;
+            /** Base Rating */
+            base_rating: number;
+            /** Players */
+            players: components["schemas"]["PlayerRatingHistoryOut"][];
+        };
         /** StatsRatingsOut */
         StatsRatingsOut: {
             /**
@@ -2375,6 +2628,29 @@ export interface components {
             player: components["schemas"]["PlayerRef"] | null;
             /** Categories */
             categories: components["schemas"]["StreakCategoryOut"][];
+        };
+        /**
+         * StatsTournamentMatchesOut
+         * @description Tournament grouping returned by h2h-matches and player-matches.
+         */
+        StatsTournamentMatchesOut: {
+            /** Id */
+            id: number;
+            /** Name */
+            name: string;
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Mode */
+            mode: string;
+            /** Status */
+            status: string;
+            /** Cup Stakes */
+            cup_stakes?: components["schemas"]["CupStakeOut"][] | null;
+            /** Matches */
+            matches: components["schemas"]["StatsMatchOut"][];
         };
         /** StreakCategoryOut */
         StreakCategoryOut: {
@@ -2774,6 +3050,28 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MeOut"];
+                };
+            };
+        };
+    };
+    my_notifications_me_notifications_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
         };
@@ -4516,9 +4814,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["StatsH2HOut"];
                 };
             };
             /** @description Validation Error */
@@ -4551,9 +4847,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["StatsH2HMatchesOut"];
                 };
             };
             /** @description Validation Error */
@@ -4625,9 +4919,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["StatsPlayerMatchesOut"];
                 };
             };
             /** @description Validation Error */
@@ -4695,9 +4987,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["StatsRatingsHistoryOut"];
                 };
             };
             /** @description Validation Error */

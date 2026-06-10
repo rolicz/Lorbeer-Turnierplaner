@@ -1,5 +1,5 @@
 /** Pure helpers for the Trends chart (unit-tested). */
-import type { Match } from "../../api/types";
+import type { StatsMatch } from "../../api/types";
 import { sideBy } from "../../helpers";
 import { fmtMonthDate } from "../../utils/format";
 
@@ -49,7 +49,7 @@ export function buildPlayerColorMap(playerIds: number[]): Map<number, PlayerColo
   return map;
 }
 
-export function winnerSide(m: Match): "A" | "B" | null {
+export function winnerSide(m: StatsMatch): "A" | "B" | null {
   if (m.state !== "finished") return null;
   const a = sideBy(m, "A");
   const b = sideBy(m, "B");
@@ -60,7 +60,7 @@ export function winnerSide(m: Match): "A" | "B" | null {
 }
 
 /** Points (3/1/0) for a player in a finished match, or null if not applicable. */
-export function pointsForPlayerInMatch(m: Match, playerId: number): number | null {
+export function pointsForPlayerInMatch(m: StatsMatch, playerId: number): number | null {
   if (m.state !== "finished") return null;
   const a = sideBy(m, "A");
   const b = sideBy(m, "B");

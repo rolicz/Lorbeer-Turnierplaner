@@ -12,6 +12,7 @@ import SelectClubsPanel from "../../ui/SelectClubsPanel";
 import { GoalStepper } from "../../ui/clubControls";
 
 import { listClubs } from "../../api/clubs.api";
+import { qk } from "../../api/queryKeys";
 import {
   deleteFriendlyMatch,
   listFriendlies,
@@ -101,7 +102,7 @@ function FriendlyEditor({
   const bGoalsNum = parseGoal(bGoals);
 
   const editorClubsQ = useQuery({
-    queryKey: ["clubs", clubGame],
+    queryKey: qk.clubs(clubGame),
     queryFn: () => listClubs(clubGame),
     staleTime: 60_000,
   });
@@ -124,8 +125,8 @@ function FriendlyEditor({
       });
     },
     onSuccess: async () => {
-      await qc.invalidateQueries({ queryKey: ["friendlies"] });
-      await qc.invalidateQueries({ queryKey: ["stats"] });
+      await qc.invalidateQueries({ queryKey: qk.friendlies() });
+      await qc.invalidateQueries({ queryKey: qk.stats.all() });
       onSaved();
     },
   });
@@ -229,13 +230,13 @@ export default function FriendlyMatchesListCard({
   const initialReadyFiredRef = useRef(false);
 
   const clubsQ = useQuery({
-    queryKey: ["clubs"],
+    queryKey: qk.clubs(),
     queryFn: () => listClubs(),
     staleTime: 60_000,
   });
 
   const friendliesQ = useQuery({
-    queryKey: ["friendlies", mode],
+    queryKey: qk.friendlies(mode),
     queryFn: () => listFriendlies({ mode: mode === "all" ? undefined : mode, limit: 500 }),
     staleTime: 10_000,
   });
@@ -278,8 +279,8 @@ export default function FriendlyMatchesListCard({
       return deleteFriendlyMatch(token, friendlyId);
     },
     onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ["friendlies"] });
-      void qc.invalidateQueries({ queryKey: ["stats"] });
+      void qc.invalidateQueries({ queryKey: qk.friendlies() });
+      void qc.invalidateQueries({ queryKey: qk.stats.all() });
     },
   });
 

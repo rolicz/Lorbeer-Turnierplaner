@@ -8,6 +8,7 @@ import InlineLoading from "../../ui/primitives/InlineLoading";
 import { listClubs } from "../../api/clubs.api";
 import { listPlayers } from "../../api/players.api";
 import { getStatsH2H, getStatsH2HMatches, type StatsH2HMatchesRequest } from "../../api/stats.api";
+import { qk } from "../../api/queryKeys";
 import type { StatsH2HPair, StatsH2HTeamRivalry, StatsScope } from "../../api/types";
 import {
   StatsControlLabel,
@@ -39,7 +40,7 @@ export default function HeadToHeadCard({
   scope?: StatsScope;
   playerId?: number | "";
 } = {}) {
-  const playersQ = useQuery({ queryKey: ["players"], queryFn: listPlayers });
+  const playersQ = useQuery({ queryKey: qk.players(), queryFn: listPlayers });
   const players = useMemo(() => playersQ.data ?? [], [playersQ.data]);
 
   const FETCH_LIMIT = 200; // keep UI trimmed to 5 by default, but don't hide data due to API limit
@@ -50,7 +51,7 @@ export default function HeadToHeadCard({
   const [historyModal, setHistoryModal] = useState<MatchupHistoryModalState | null>(null);
 
   const h2hQ = useQuery({
-    queryKey: ["stats", "h2h", playerId || "all", FETCH_LIMIT, order, scope],
+    queryKey: qk.stats.h2h(playerId || "all", FETCH_LIMIT, order, scope),
     queryFn: () =>
       getStatsH2H({ playerId: playerId === "" ? null : playerId, limit: FETCH_LIMIT, order, scope }),
     placeholderData: keepPreviousData,
@@ -62,23 +63,21 @@ export default function HeadToHeadCard({
   });
 
   const clubsQ = useQuery({
-    queryKey: ["clubs"],
+    queryKey: qk.clubs(),
     queryFn: () => listClubs(),
     enabled: !!historyModal,
     staleTime: 5 * 60_000,
   });
 
   const historyQ = useQuery({
-    queryKey: [
-      "stats",
-      "h2hMatches",
+    queryKey: qk.stats.h2hMatches(
       historyModal?.req.mode ?? "overall",
       historyModal?.req.relation ?? "opposed",
       (historyModal?.req.left_player_ids ?? []).join("-"),
       (historyModal?.req.right_player_ids ?? []).join("-"),
       historyModal?.req.exact_teams ? "exact" : "subset",
       historyModal?.req.scope ?? "tournaments",
-    ],
+    ),
     queryFn: () => getStatsH2HMatches(historyModal!.req),
     enabled: !!historyModal,
     placeholderData: keepPreviousData,

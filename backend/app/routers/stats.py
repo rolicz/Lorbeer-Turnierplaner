@@ -10,8 +10,12 @@ from sqlmodel import Session
 from ..db import get_session
 from ..schemas.responses import (
     OddsResponseOut,
+    StatsH2HMatchesOut,
+    StatsH2HOut,
     StatsOverviewOut,
+    StatsPlayerMatchesOut,
     StatsPlayersOut,
+    StatsRatingsHistoryOut,
     StatsRatingsOut,
     StatsStreaksOut,
 )
@@ -60,7 +64,7 @@ def stats_players(
     return compute_stats_players(s, mode=mode, lastN=lastN)
 
 
-@router.get("/h2h")
+@router.get("/h2h", response_model=StatsH2HOut)
 def stats_h2h(
     player_id: int | None = Query(None, ge=1, description="Optional player to focus on"),
     limit: int = Query(12, ge=1, le=200, description="Max entries per section"),
@@ -71,7 +75,7 @@ def stats_h2h(
     return compute_stats_h2h(s, player_id=player_id, limit=limit, order=order, scope=scope)
 
 
-@router.post("/h2h-matches")
+@router.post("/h2h-matches", response_model=StatsH2HMatchesOut)
 def stats_h2h_matches(
     req: StatsH2HMatchesRequest = Body(...),
     s: Session = Depends(get_session),
@@ -98,7 +102,7 @@ def stats_streaks(
     return compute_stats_streaks(s, mode=mode, player_id=player_id, limit=limit, scope=scope)
 
 
-@router.get("/player-matches")
+@router.get("/player-matches", response_model=StatsPlayerMatchesOut)
 def stats_player_matches(
     player_id: int = Query(..., ge=1, description="Player id"),
     scope: Literal["tournaments", "both", "friendlies"] = Query("tournaments", description='Data source scope: "tournaments" (default), "both", or "friendlies"'),
@@ -115,7 +119,7 @@ def stats_ratings(
     return compute_stats_ratings(s, mode=mode, scope=scope)
 
 
-@router.get("/ratings/history")
+@router.get("/ratings/history", response_model=StatsRatingsHistoryOut)
 def stats_ratings_history(
     mode: str = Query("overall", description='Match mode filter: "overall" (default), "1v1", or "2v2"'),
     scope: Literal["tournaments", "both", "friendlies"] = Query("tournaments", description='Data source scope: "tournaments" (default), "both", or "friendlies"'),

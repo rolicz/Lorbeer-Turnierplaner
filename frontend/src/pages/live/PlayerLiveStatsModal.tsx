@@ -1,9 +1,10 @@
 import { useEffect, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { getStatsH2H, getStatsPlayerMatches, getStatsPlayers, getStatsRatings, getStatsStreaks } from "../../api/stats.api";
+import { qk } from "../../api/queryKeys";
 import AvatarCircle from "../../ui/primitives/AvatarCircle";
 import { StreakPatch, type ActiveStreak } from "../../ui/StreakPatches";
-import type { Match, StatsPlayerMatchesTournament, StatsStreakCategory, StatsStreakRow, StatsStreaksResponse } from "../../api/types";
+import type { StatsMatch, StatsPlayerMatchesTournament, StatsStreakCategory, StatsStreakRow, StatsStreaksResponse } from "../../api/types";
 import { sideBy } from "../../helpers";
 
 function ppm(pts: number, played: number) {
@@ -55,7 +56,7 @@ function toActiveStreaks(
   return out;
 }
 
-function outcomeForPlayer(m: Match, playerId: number): "W" | "D" | "L" | null {
+function outcomeForPlayer(m: StatsMatch, playerId: number): "W" | "D" | "L" | null {
   if (m.state !== "finished") return null;
   const a = sideBy(m, "A");
   const b = sideBy(m, "B");
@@ -96,7 +97,7 @@ export default function PlayerLiveStatsModal({
   const enabled = open && pid != null;
 
   const playersModeQ = useQuery({
-    queryKey: ["stats", "players", mode, 10],
+    queryKey: qk.stats.players(mode, 10),
     queryFn: () => getStatsPlayers({ mode, lastN: 10 }),
     enabled,
     refetchOnReconnect: false,
@@ -104,7 +105,7 @@ export default function PlayerLiveStatsModal({
     staleTime: 15_000,
   });
   const playersOverallQ = useQuery({
-    queryKey: ["stats", "players", "overall", 10],
+    queryKey: qk.stats.players("overall", 10),
     queryFn: () => getStatsPlayers({ mode: "overall", lastN: 10 }),
     enabled,
     refetchOnReconnect: false,
@@ -112,7 +113,7 @@ export default function PlayerLiveStatsModal({
     staleTime: 15_000,
   });
   const ratingsModeQ = useQuery({
-    queryKey: ["stats", "ratings", mode],
+    queryKey: qk.stats.ratings(mode),
     queryFn: () => getStatsRatings({ mode }),
     enabled,
     refetchOnReconnect: false,
@@ -120,7 +121,7 @@ export default function PlayerLiveStatsModal({
     staleTime: 15_000,
   });
   const h2hQ = useQuery({
-    queryKey: ["stats", "h2h", pid ?? "none", 8, "played"],
+    queryKey: qk.stats.h2h(pid ?? "none", 8, "played"),
     queryFn: () => getStatsH2H({ playerId: pid ?? undefined, limit: 8, order: "played" }),
     enabled,
     refetchOnReconnect: false,
@@ -128,7 +129,7 @@ export default function PlayerLiveStatsModal({
     staleTime: 15_000,
   });
   const streakQ = useQuery({
-    queryKey: ["stats", "streaks", "overall", pid ?? "none"],
+    queryKey: qk.stats.streaks("overall", pid ?? "none"),
     queryFn: () => getStatsStreaks({ mode: "overall", playerId: pid ?? undefined, limit: 50 }),
     enabled,
     refetchOnReconnect: false,
@@ -138,7 +139,7 @@ export default function PlayerLiveStatsModal({
   // All-players records → all-time (overall) record length per category for the
   // badge highlight. Same key/shape as StandingsTable, so this is usually a cache hit.
   const overallStreaksQ = useQuery({
-    queryKey: ["stats", "streaks", "overall", 200],
+    queryKey: qk.stats.streaks("overall", 200),
     queryFn: () => getStatsStreaks({ mode: "overall", playerId: null, limit: 200 }),
     enabled,
     refetchOnReconnect: false,
@@ -146,7 +147,7 @@ export default function PlayerLiveStatsModal({
     staleTime: 30_000,
   });
   const matchesQ = useQuery({
-    queryKey: ["stats", "playerMatches", pid ?? "none"],
+    queryKey: qk.stats.playerMatches(pid ?? "none"),
     queryFn: () => {
       if (pid == null) throw new Error("No player selected");
       return getStatsPlayerMatches({ playerId: pid });

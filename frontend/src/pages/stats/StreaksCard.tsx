@@ -8,6 +8,7 @@ import { Pill } from "../../ui/primitives/Pill";
 
 import { listPlayers } from "../../api/players.api";
 import { getStatsStreaks } from "../../api/stats.api";
+import { qk } from "../../api/queryKeys";
 import type { StatsScope, StatsStreakCategory, StatsStreakRow } from "../../api/types";
 import { type StatsMode } from "./StatsControls";
 import { fmtDate } from "../../utils/format";
@@ -128,14 +129,14 @@ export default function StreaksCard({
   scope?: StatsScope;
 }) {
   // Keep the players query around for cache warmup / consistency with other cards.
-  useQuery({ queryKey: ["players"], queryFn: listPlayers, refetchOnReconnect: false, refetchOnWindowFocus: false });
+  useQuery({ queryKey: qk.players(), queryFn: listPlayers, refetchOnReconnect: false, refetchOnWindowFocus: false });
 
   const [showAllByKey, setShowAllByKey] = useState<Record<string, boolean>>({});
 
   const FETCH_LIMIT = 200;
 
   const q = useQuery({
-    queryKey: ["stats", "streaks", mode, FETCH_LIMIT, scope],
+    queryKey: qk.stats.streaks(mode, FETCH_LIMIT, scope),
     queryFn: () => getStatsStreaks({ mode, playerId: null, limit: FETCH_LIMIT, scope }),
     placeholderData: keepPreviousData,
     staleTime: 30_000,

@@ -2,7 +2,8 @@ import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import { getStatsH2HMatches } from "../../api/stats.api";
-import type { Club, Match, MatchSide, StatsPlayerMatchesTournament } from "../../api/types";
+import { qk } from "../../api/queryKeys";
+import type { Club, Match, MatchSide, StatsMatch, StatsPlayerMatchesTournament } from "../../api/types";
 import { sideBy } from "../../helpers";
 import InlineLoading from "../../ui/primitives/InlineLoading";
 import { MatchRowWithClubs } from "../stats/MatchHistoryList";
@@ -22,7 +23,7 @@ type RecentMatch = {
   key: string;
   tournamentLabel: string;
   tournamentDate: string | null;
-  match: Match;
+  match: StatsMatch;
 };
 
 function playerIds(side?: MatchSide): number[] {
@@ -48,7 +49,7 @@ function hasAllPlayers(side: MatchSide | undefined, ids: number[]) {
   return ids.every((id) => sideIds.has(id));
 }
 
-function matchPerspective(match: Match, leftIds: number[], rightIds: number[] = []) {
+function matchPerspective(match: StatsMatch, leftIds: number[], rightIds: number[] = []) {
   const a = sideBy(match, "A");
   const b = sideBy(match, "B");
   if (!a || !b) return null;
@@ -170,7 +171,7 @@ export default function MatchH2HPanel({
   const showDuoStats = mode === "2v2";
 
   const matchupQuery = useQuery({
-    queryKey: ["match-h2h", "opposed", mode, aIds, bIds],
+    queryKey: qk.matchH2h("opposed", mode, aIds, bIds),
     queryFn: () =>
       getStatsH2HMatches({
         mode,
@@ -185,7 +186,7 @@ export default function MatchH2HPanel({
   });
 
   const duoAQuery = useQuery({
-    queryKey: ["match-h2h", "duo", aIds],
+    queryKey: qk.matchH2hDuo(aIds),
     queryFn: () =>
       getStatsH2HMatches({
         mode: "2v2",
@@ -198,7 +199,7 @@ export default function MatchH2HPanel({
   });
 
   const duoBQuery = useQuery({
-    queryKey: ["match-h2h", "duo", bIds],
+    queryKey: qk.matchH2hDuo(bIds),
     queryFn: () =>
       getStatsH2HMatches({
         mode: "2v2",

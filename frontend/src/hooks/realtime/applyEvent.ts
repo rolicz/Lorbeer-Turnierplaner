@@ -61,7 +61,7 @@ export function applyCommentUpsert(qc: QueryClient, payload: unknown) {
   });
 
   // A new comment may be a reply to the viewer's comment → refresh the bell.
-  void qc.invalidateQueries({ queryKey: ["me", "notifications"] });
+  void qc.invalidateQueries({ queryKey: qk.notificationsAll() });
 }
 
 export function applyCommentDelete(qc: QueryClient, payload: unknown) {

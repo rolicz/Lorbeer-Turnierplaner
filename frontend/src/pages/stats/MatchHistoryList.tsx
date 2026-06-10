@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import type { Club, Match, StatsPlayerMatchesTournament } from "../../api/types";
+import type { Club, MatchState, StatsMatch, StatsPlayerMatchesTournament } from "../../api/types";
 import { sideBy } from "../../helpers";
 import { clubLabelPartsById } from "../../ui/clubControls";
 import { Pill, pillDate } from "../../ui/primitives/Pill";
@@ -9,7 +9,7 @@ import TournamentLaurelMarkers from "./TournamentLaurelMarkers";
 import { fmtDate } from "../../utils/format";
 
 
-function winnerSide(m: Match): "A" | "B" | null {
+function winnerSide(m: StatsMatch): "A" | "B" | null {
   if (m.state !== "finished") return null;
   const a = sideBy(m, "A");
   const b = sideBy(m, "B");
@@ -27,7 +27,7 @@ export function MatchRowWithClubs({
   nameColorByResult = false,
   action,
 }: {
-  m: Match;
+  m: StatsMatch;
   focusId?: number | null;
   clubs: Club[];
   showMeta: boolean;
@@ -67,7 +67,7 @@ export function MatchRowWithClubs({
   const isDraw = w === null && m.state === "finished" && ag === bg;
   const aWin = w === "A";
   const bWin = w === "B";
-  const pal = matchPalette(m.state);
+  const pal = matchPalette(m.state as MatchState);
   const aNameColorClass = nameColorByResult && hasWinner && !isDraw ? (aWin ? pal.win : pal.lose) : "text-text-normal";
   const bNameColorClass = nameColorByResult && hasWinner && !isDraw ? (bWin ? pal.win : pal.lose) : "text-text-normal";
 
@@ -178,7 +178,7 @@ export function MatchHistoryTournamentBlock({
   actions?: ReactNode;
   extraPills?: ReactNode;
   hideModePill?: boolean;
-  renderMatchAction?: (t: StatsPlayerMatchesTournament, m: Match) => ReactNode;
+  renderMatchAction?: (t: StatsPlayerMatchesTournament, m: StatsMatch) => ReactNode;
 }) {
   return (
     <div className="space-y-1">
@@ -235,7 +235,7 @@ export function MatchHistoryList({
   nameColorByResult?: boolean;
   renderTournamentActions?: (t: StatsPlayerMatchesTournament) => ReactNode;
   renderTournamentPills?: (t: StatsPlayerMatchesTournament) => ReactNode;
-  renderMatchActions?: (t: StatsPlayerMatchesTournament, m: Match) => ReactNode;
+  renderMatchActions?: (t: StatsPlayerMatchesTournament, m: StatsMatch) => ReactNode;
   hideModePill?: boolean;
 }) {
   return (

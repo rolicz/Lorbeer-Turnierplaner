@@ -13,6 +13,7 @@ import { List, Plus } from "lucide-react";
 
 import { useAuth } from "../auth/AuthContext";
 import { createClub, deleteClub, listClubs, listLeagues, patchClub } from "../api/clubs.api";
+import { qk } from "../api/queryKeys";
 import type { Club, League } from "../api/types";
 
 function starsLabel(v: unknown): string {
@@ -114,12 +115,12 @@ export default function ClubsPage() {
   const [search, setSearch] = useState("");
 
   const clubsQ = useQuery({
-    queryKey: ["clubs", game],
+    queryKey: qk.clubs(game),
     queryFn: () => listClubs(game),
   });
 
   const leaguesQ = useQuery({
-    queryKey: ["leagues"],
+    queryKey: qk.leagues(),
     queryFn: () => listLeagues(),
     staleTime: 60_000,
   });
@@ -151,7 +152,7 @@ export default function ClubsPage() {
     },
     onSuccess: async () => {
       setName("");
-      await qc.invalidateQueries({ queryKey: ["clubs", game] });
+      await qc.invalidateQueries({ queryKey: qk.clubs(game) });
     },
   });
 
@@ -184,7 +185,7 @@ export default function ClubsPage() {
     },
     onSuccess: async () => {
       setEditId(null);
-      await qc.invalidateQueries({ queryKey: ["clubs", game] });
+      await qc.invalidateQueries({ queryKey: qk.clubs(game) });
     },
   });
 
@@ -194,7 +195,7 @@ export default function ClubsPage() {
       return deleteClub(token, clubId);
     },
     onSuccess: async () => {
-      await qc.invalidateQueries({ queryKey: ["clubs", game] });
+      await qc.invalidateQueries({ queryKey: qk.clubs(game) });
     },
   });
 
@@ -389,7 +390,7 @@ export default function ClubsPage() {
       <section className="space-y-2">
         <div className="flex items-center justify-between gap-2 text-xs text-text-muted">
           <span>{filteredClubs.length} of {clubs.length} clubs</span>
-          <Button variant="ghost" onClick={() => void qc.invalidateQueries({ queryKey: ["clubs", game] })} title="Refresh">
+          <Button variant="ghost" onClick={() => void qc.invalidateQueries({ queryKey: qk.clubs(game) })} title="Refresh">
             <i className="fa-solid fa-rotate-right md:hidden" aria-hidden="true" />
             <span className="hidden md:inline">Refresh</span>
           </Button>
