@@ -49,7 +49,8 @@ export type Club = S["ClubOut"];
 // Matches / Tournaments
 export type MatchSide = S["MatchSideOut"];
 export type MatchOdds = S["OddsOut"];
-// Narrow the string fields the backend guarantees to have only specific values.
+// state/leg are typed as string/int in generated schema; backend only returns these exact values.
+// started_at/finished_at are nullable strings (generated schema may say string | null already, but we make it explicit).
 export type Match = Omit<S["MatchOut"], "state" | "leg" | "started_at" | "finished_at"> & {
   state: MatchState;
   leg: 1 | 2;
@@ -57,23 +58,25 @@ export type Match = Omit<S["MatchOut"], "state" | "leg" | "started_at" | "finish
   finished_at: string | null;
 };
 export type TournamentCupStake = S["CupStakeOut"];
-// TournamentSummary: make cup_stakes optional (some endpoints omit it)
+// cup_stakes is absent from some list endpoints; mode/status are narrowed from string to the known literal unions.
 export type TournamentSummary = Omit<S["TournamentListItemOut"], "cup_stakes" | "mode" | "status"> & {
   cup_stakes?: TournamentCupStake[];
   mode: TournamentMode;
   status: TournamentStatus;
 };
+// matches typed as Match[] (our narrowed type) instead of the generated MatchOut[]; mode/status same as TournamentSummary.
 export type TournamentDetail = Omit<S["TournamentDetailOut"], "mode" | "status" | "matches"> & {
   mode: TournamentMode;
   status: TournamentStatus;
   matches: Match[];
 };
+// mode/status same as TournamentSummary — backend guarantees these values.
 export type TournamentLive = Omit<S["TournamentLiveOut"], "mode" | "status"> & {
   mode: TournamentMode;
   status: TournamentStatus;
 };
 
-// Comments — my_vote narrowed to the three values the backend actually returns
+// my_vote: generated schema uses int; backend only ever returns -1, 0, or 1.
 export type Comment = Omit<S["CommentOut"], "my_vote"> & { my_vote: -1 | 0 | 1 };
 export type TournamentCommentsResponse = S["CommentListOut"];
 export type TournamentCommentsSummary = S["CommentSummaryOut"];
@@ -81,20 +84,25 @@ export type TournamentCommentReadIds = S["CommentIdsOut"];
 export type TournamentCommentReadMapRow = S["CommentReadMapOut"];
 
 // Auth
+// Login endpoint never returns "reader" (that is the unauthenticated default, not a credential).
 export type LoginResponse = Omit<S["LoginOut"], "role"> & { role: Exclude<Role, "reader"> };
+// /me returns role: null when the caller has no player profile yet.
 export type MeResponse = Omit<S["MeOut"], "role"> & { role: Role | null };
 
-// Push — narrow language/mode strings to known literal unions
+// Push notification language/mode are typed as string in the generated schema; narrow to the known values.
+// If the backend adds a new language or mode, add it to PushNotificationLanguage/PushNotificationMode above.
 export type PushConfigResponse = Omit<S["PushConfigOut"], "notification_languages" | "notification_modes" | "default_notification_language" | "default_notification_mode"> & {
   default_notification_language?: PushNotificationLanguage;
   notification_languages?: { key: PushNotificationLanguage; label: string }[];
   default_notification_mode?: PushNotificationMode;
   notification_modes?: { key: PushNotificationMode; label: string }[];
 };
+// Same reason as PushConfigResponse — backend returns known literals, not arbitrary strings.
 export type PushSubscriptionPutResponse = Omit<S["PushSubscriptionResultOut"], "notification_language" | "notification_mode"> & {
   notification_language: PushNotificationLanguage;
   notification_mode: PushNotificationMode;
 };
+// Same reason as PushConfigResponse — language/mode in each subscription are known literals.
 export type PushSubscriptionsMineResponse = Omit<S["PushSubscriptionsListOut"], "subscriptions"> & {
   subscriptions: {
     endpoint: string;
@@ -115,6 +123,7 @@ export type FriendlySide = S["FriendlySideOut"];
 
 // Stats
 export type StatsPlayerRow = S["StatsPlayerRowOut"];
+// cup_stakes is omitted from some stats responses; make it optional rather than required.
 export type StatsTournamentLite = Omit<S["StatsPlayersTournamentOut"], "cup_stakes"> & {
   cup_stakes?: TournamentCupStake[];
 };

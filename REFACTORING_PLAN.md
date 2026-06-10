@@ -192,7 +192,7 @@ Mostly mechanical, low risk. Best phase to start with.
 - **DoD:** no string-literal event names outside the two constants modules; `applyEvent.test.ts`
   still passes; live updates (goal entered on one device shows on another) still work.
 
-### A7 — Document the deliberate type narrowings in `types.ts`  ☐
+### A7 — Document the deliberate type narrowings in `types.ts`  ☑
 - **Effort:** S · **Risk:** none · **Model:** Sonnet 4.6
 - **Problem:** `frontend/src/api/types.ts:52-106` deliberately narrows some generated types
   (e.g. `Match.state`, `leg`). That's fine, but each override needs a one-line comment saying
