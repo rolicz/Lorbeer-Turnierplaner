@@ -1,12 +1,13 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import Input from "../ui/primitives/Input";
 import Button from "../ui/primitives/Button";
 import { ErrorToastOnError } from "../ui/primitives/ErrorToast";
 import PageLoadingScreen from "../ui/primitives/PageLoadingScreen";
 import AvatarCircle from "../ui/primitives/AvatarCircle";
+import CupOwnerBadge from "../ui/primitives/CupOwnerBadge";
 import { Pill } from "../ui/primitives/Pill";
 import { List, ListRow } from "../ui/primitives/List";
 import { SectionTabs, type SectionTab } from "../ui/SectionTabs";
@@ -22,9 +23,20 @@ import {
   listPlayers,
   patchPlayer,
 } from "../api/players.api";
+import { getCup, listCupDefs, type CupDef } from "../api/cup.api";
+import { cupColorVarForKey, rgbFromCssVar } from "../cupColors";
 import { usePlayerAvatarMap } from "../hooks/usePlayerAvatarMap";
 import { useSeenGuestbookIdsByProfileId } from "../hooks/useSeenGuestbook";
 import { scrollToSectionById } from "../ui/scrollToSection";
+
+/** Solid ring for a single cup, evenly-split conic-gradient ring for multiple. */
+function cupRingBackground(defs: CupDef[]): string | undefined {
+  const colors = defs.map((c) => rgbFromCssVar(cupColorVarForKey(c.key)));
+  if (colors.length === 0) return undefined;
+  if (colors.length === 1) return colors[0];
+  const step = 360 / colors.length;
+  return `conic-gradient(${colors.map((col, i) => `${col} ${i * step}deg ${(i + 1) * step}deg`).join(", ")})`;
+}
 
 export default function PlayersAdminPage() {
   const { token, role } = useAuth();
@@ -114,6 +126,26 @@ export default function PlayersAdminPage() {
     return map;
   }, [profilesQ.data]);
 
+  // Current cup holders → laurel badge(s) next to the name + a cup-colored ring
+  // around the avatar (a player can hold multiple cups). Loaded async (cache is
+  // shared with the dashboard/cup cards); does not block the initial render.
+  const cupDefsQ = useQuery({ queryKey: ["cup", "defs"], queryFn: listCupDefs });
+  const cupDefs = useMemo<CupDef[]>(() => cupDefsQ.data?.cups ?? [], [cupDefsQ.data]);
+  const cupQueries = useQueries({
+    queries: cupDefs.map((c) => ({ queryKey: ["cup", c.key], queryFn: () => getCup(c.key) })),
+  });
+  // Cheap to rebuild each render (cups are few); avoids a complex useMemo dep list.
+  const cupsByPlayerId = new Map<number, CupDef[]>();
+  cupQueries.forEach((q, i) => {
+    const ownerId = Number(q.data?.owner?.id ?? 0);
+    const def = cupDefs[i];
+    if (ownerId > 0 && def) {
+      const arr = cupsByPlayerId.get(ownerId) ?? [];
+      arr.push(def);
+      cupsByPlayerId.set(ownerId, arr);
+    }
+  });
+
   const initialLoading =
     !pageEntered ||
     (playersQ.isLoading && !playersQ.data) ||
@@ -178,6 +210,8 @@ export default function PlayersAdminPage() {
             const hasUnseen = !!token && unseenCount > 0;
             const unseenPokes = Number(pokeSummaryByPid.get(p.id)?.unread_by_profile_owner_count ?? 0);
             const hasUnreadPokes = unseenPokes > 0;
+            const heldCups = cupsByPlayerId.get(p.id) ?? [];
+            const ringBg = cupRingBackground(heldCups);
 
             return (
               <div key={p.id}>
@@ -185,10 +219,14 @@ export default function PlayersAdminPage() {
                   onClick={() => openProfile(p.id, false)}
                   ariaLabel={`Open profile: ${p.display_name}`}
                   leading={
-                    <AvatarCircle playerId={p.id} name={p.display_name} updatedAt={updatedAt} sizeClass="h-10 w-10" />
+                    ringBg ? (
+                      <span className="inline-flex shrink-0 rounded-full p-[2.5px]" style={{ background: ringBg }} title={`Holds ${heldCups.map((c) => c.name).join(", ")}`}>
+                        <AvatarCircle playerId={p.id} name={p.display_name} updatedAt={updatedAt} sizeClass="h-10 w-10" />
+                      </span>
+                    ) : (
+                      <AvatarCircle playerId={p.id} name={p.display_name} updatedAt={updatedAt} sizeClass="h-10 w-10" />
+                    )
                   }
-                  title={p.display_name}
-                  subtitle={bio || undefined}
                   trailing={
                     <>
                       {hasUnreadPokes ? (
@@ -220,7 +258,19 @@ export default function PlayersAdminPage() {
                       ) : null}
                     </>
                   }
-                />
+                >
+                  <span className="flex min-w-0 items-center gap-1.5">
+                    <span className="truncate font-medium text-text-normal">{p.display_name}</span>
+                    {heldCups.length ? (
+                      <span className="flex shrink-0 items-center gap-1">
+                        {heldCups.map((c) => (
+                          <CupOwnerBadge key={c.key} cupKey={c.key} cupName={c.name} size="sm" />
+                        ))}
+                      </span>
+                    ) : null}
+                  </span>
+                  {bio ? <span className="mt-0.5 block truncate text-xs text-text-muted">{bio}</span> : null}
+                </ListRow>
 
                 {editing && isAdmin ? (
                   <div className="flex flex-wrap items-end gap-2 pb-3 pl-[52px]">
