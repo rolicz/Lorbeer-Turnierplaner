@@ -10,6 +10,10 @@ import {
   applyTournamentMessage,
   applyTournamentSync,
 } from "../hooks/realtime/applyEvent";
+import {
+  WS_TOURNAMENT_SYNC,
+  WS_TOURNAMENTS_CHANGED,
+} from "../hooks/realtime/wsEvents";
 
 const TID = 7;
 
@@ -104,7 +108,7 @@ describe("message routers", () => {
   it("applyTournamentMessage dispatches tournament.sync", () => {
     const qc = new QueryClient();
     applyTournamentMessage(qc, {
-      event: "tournament.sync",
+      event: WS_TOURNAMENT_SYNC,
       payload: { tournament_id: TID, tournament: { id: TID, name: "routed" } },
       seq: 1,
     });
@@ -118,7 +122,7 @@ describe("message routers", () => {
     applyGlobalMessage(qc, { event: "noise", payload: {}, seq: 1 });
     expect(spy).not.toHaveBeenCalled();
 
-    applyGlobalMessage(qc, { event: "tournaments.changed", payload: { action: "updated" }, seq: 2 });
+    applyGlobalMessage(qc, { event: WS_TOURNAMENTS_CHANGED, payload: { action: "updated" }, seq: 2 });
     const keys = spy.mock.calls.map((c) => JSON.stringify((c[0] as { queryKey: unknown }).queryKey));
     expect(keys).toContain(JSON.stringify(qk.tournaments()));
     expect(keys).toContain(JSON.stringify(qk.tournamentsLive()));
@@ -130,7 +134,7 @@ describe("message routers", () => {
   it("applyGlobalMessage refreshes stats + cup on a status change", () => {
     const qc = new QueryClient();
     const spy = vi.spyOn(qc, "invalidateQueries");
-    applyGlobalMessage(qc, { event: "tournaments.changed", payload: { action: "status", status: "done" }, seq: 3 });
+    applyGlobalMessage(qc, { event: WS_TOURNAMENTS_CHANGED, payload: { action: "status", status: "done" }, seq: 3 });
     const keys = spy.mock.calls.map((c) => JSON.stringify((c[0] as { queryKey: unknown }).queryKey));
     expect(keys).toContain(JSON.stringify(qk.stats.all()));
     expect(keys).toContain(JSON.stringify(qk.cupAll()));

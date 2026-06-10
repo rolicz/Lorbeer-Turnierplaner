@@ -7,6 +7,14 @@ import type { QueryClient } from "@tanstack/react-query";
 import { qk } from "../../api/queryKeys";
 import type { Comment, TournamentCommentsResponse, TournamentDetail } from "../../api/types";
 import type { RealtimeMessage } from "./connection";
+import {
+  WS_COMMENT_DELETE,
+  WS_COMMENT_META,
+  WS_COMMENT_UPSERT,
+  WS_TOURNAMENT_DELETED,
+  WS_TOURNAMENT_SYNC,
+  WS_TOURNAMENTS_CHANGED,
+} from "./wsEvents";
 
 type Json = Record<string, unknown>;
 const asObj = (v: unknown): Json => (v && typeof v === "object" ? (v as Json) : {});
@@ -102,15 +110,15 @@ export function applyTournamentsChanged(qc: QueryClient, payload: unknown) {
 /** Route a tournament-channel message to the right reducer. */
 export function applyTournamentMessage(qc: QueryClient, msg: RealtimeMessage) {
   switch (msg.event) {
-    case "tournament.sync":
+    case WS_TOURNAMENT_SYNC:
       return applyTournamentSync(qc, msg.payload);
-    case "tournament.deleted":
+    case WS_TOURNAMENT_DELETED:
       return applyTournamentDeleted(qc, msg.payload);
-    case "comment.upsert":
+    case WS_COMMENT_UPSERT:
       return applyCommentUpsert(qc, msg.payload);
-    case "comment.delete":
+    case WS_COMMENT_DELETE:
       return applyCommentDelete(qc, msg.payload);
-    case "comment.meta":
+    case WS_COMMENT_META:
       return applyCommentMeta(qc, msg.payload);
     default:
       return;
@@ -119,5 +127,5 @@ export function applyTournamentMessage(qc: QueryClient, msg: RealtimeMessage) {
 
 /** Route a global-channel (`/ws/tournaments`) message. */
 export function applyGlobalMessage(qc: QueryClient, msg: RealtimeMessage) {
-  if (msg.event === "tournaments.changed") return applyTournamentsChanged(qc, msg.payload);
+  if (msg.event === WS_TOURNAMENTS_CHANGED) return applyTournamentsChanged(qc, msg.payload);
 }

@@ -182,7 +182,7 @@ Mostly mechanical, low risk. Best phase to start with.
 - **DoD:** with an invalidated token (e.g. restart backend with a different `jwt_secret`), the
   next API call logs the user out with the toast instead of leaving broken UI.
 
-### A6 — Type the WebSocket event contract  ☐
+### A6 — Type the WebSocket event contract  ☑
 - **Effort:** S–M · **Risk:** low · **Model:** Sonnet 4.6
 - **Problem:** event names + payload shapes exist only as a docstring in
   `backend/app/services/events.py:1-17`; the frontend switches on string literals and coerces

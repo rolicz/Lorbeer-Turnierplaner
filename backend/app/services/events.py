@@ -24,12 +24,20 @@ from ..models import Tournament
 from ..ws import ws_manager, ws_manager_update_tournaments
 from .tournament_view import serialize_tournament
 
+# ---- event name constants (mirror of frontend/src/hooks/realtime/wsEvents.ts) ----
+TOURNAMENT_SYNC = "tournament.sync"
+TOURNAMENT_DELETED = "tournament.deleted"
+COMMENT_UPSERT = "comment.upsert"
+COMMENT_DELETE = "comment.delete"
+COMMENT_META = "comment.meta"
+TOURNAMENTS_CHANGED = "tournaments.changed"
+
 
 async def push_tournament(s: Session, t: Tournament, *, reason: str) -> None:
     data = serialize_tournament(s, t)
     await ws_manager.broadcast(
         int(t.id),
-        "tournament.sync",
+        TOURNAMENT_SYNC,
         {"tournament_id": int(t.id), "reason": reason, "tournament": data},
     )
 
@@ -42,7 +50,7 @@ async def notify_tournaments_changed(
         payload["tournament_id"] = int(tournament_id)
     if status is not None:
         payload["status"] = status
-    await ws_manager_update_tournaments.broadcast("tournaments.changed", payload)
+    await ws_manager_update_tournaments.broadcast(TOURNAMENTS_CHANGED, payload)
 
 
 async def broadcast_tournament(
@@ -66,7 +74,7 @@ async def broadcast_tournament(
 
 async def broadcast_tournament_deleted(tournament_id: int) -> None:
     await ws_manager.broadcast(
-        int(tournament_id), "tournament.deleted", {"tournament_id": int(tournament_id)}
+        int(tournament_id), TOURNAMENT_DELETED, {"tournament_id": int(tournament_id)}
     )
     await notify_tournaments_changed(action="deleted", tournament_id=tournament_id)
 
@@ -74,7 +82,7 @@ async def broadcast_tournament_deleted(tournament_id: int) -> None:
 async def push_comment_upsert(tournament_id: int, comment: dict) -> None:
     await ws_manager.broadcast(
         int(tournament_id),
-        "comment.upsert",
+        COMMENT_UPSERT,
         {"tournament_id": int(tournament_id), "comment": comment},
     )
 
@@ -82,7 +90,7 @@ async def push_comment_upsert(tournament_id: int, comment: dict) -> None:
 async def push_comment_deleted(tournament_id: int, comment_id: int) -> None:
     await ws_manager.broadcast(
         int(tournament_id),
-        "comment.delete",
+        COMMENT_DELETE,
         {"tournament_id": int(tournament_id), "comment_id": int(comment_id)},
     )
 
@@ -90,6 +98,6 @@ async def push_comment_deleted(tournament_id: int, comment_id: int) -> None:
 async def push_comment_meta(tournament_id: int, *, action: str, comment_id: int | None = None) -> None:
     await ws_manager.broadcast(
         int(tournament_id),
-        "comment.meta",
+        COMMENT_META,
         {"tournament_id": int(tournament_id), "action": action, "comment_id": comment_id},
     )
