@@ -32,6 +32,36 @@
    a note in this file under the task (don't improvise a bigger change).
 9. Tick the checkbox of a task when it's merged. This file is the single tracker.
 
+### Models & session workflow (one switch total)
+
+Two models, **one switch** for the whole project. No Haiku anywhere. When unsure which
+model something belongs to, take the higher one.
+
+- **Block 1 — Sonnet 4.6:** all implementation except the tasks marked Opus. Set it once
+  with `/model` (it's saved as your default for new sessions), then don't touch it again
+  until Block 1 is done.
+- **Block 2 — Opus 4.8:** the security-relevant task (B2), the three big component
+  splits (F1–F3), and both `/code-review` checkpoints. Switch once when Block 1 is
+  finished.
+
+Work in a **fresh session per task** (`/clear` or a new session — small context is what
+keeps usage low; the default model carries over, so a new session is not a model
+switch). Kick off each task by typing the project slash command with the task ID:
+
+    /refactor-task A3
+
+The command is defined in `.claude/commands/refactor-task.md` (checked into the repo,
+available in every session) — it tells the model to read this plan, do exactly that one
+task, verify, tick the checkbox, and commit. Fallback if the command isn't picked up:
+type "Read REFACTORING_PLAN.md and do task A3 only, following its rules."
+
+**Escalation:** if a Sonnet task misses its DoD twice, stop grinding and redo it in a
+fresh Opus 4.8 session (then return to Sonnet for the next task).
+
+**Reviews** are folded into Block 2 so they cost no extra switch: the Opus block starts
+with `/code-review` over everything Block 1 produced (this is also A1's safety net) and
+ends with a final `/code-review` of the whole branch.
+
 ---
 
 ## What is already good — do not touch
@@ -60,7 +90,7 @@
 Mostly mechanical, low risk. Best phase to start with.
 
 ### A1 — Migrate all hardcoded query keys to the `qk` factory  ☐
-- **Effort:** M (mechanical, many files) · **Risk:** low–medium (cache semantics)
+- **Effort:** M (mechanical, many files) · **Risk:** low–medium (cache semantics) · **Model:** Sonnet 4.6 (gets its safety net from the Block-2 `/code-review`)
 - **Problem:** 188 `queryKey: [...]` / `invalidateQueries({ queryKey: [...] })` call sites use raw
   string arrays instead of `qk.*` (e.g. `pages/PlayersAdminPage.tsx:55-135`,
   `pages/live/MatchDetailPage.tsx:58-124`, many in `pages/ProfilePage.tsx`, `pages/ClubsPage.tsx`).
@@ -77,7 +107,7 @@ Mostly mechanical, low risk. Best phase to start with.
   manual smoke: entering a match result updates standings, posting a comment updates the list.
 
 ### A2 — Add response models for the untyped stats endpoints, delete hand-written FE types  ☐
-- **Effort:** M · **Risk:** medium (wire shapes must match exactly)
+- **Effort:** M · **Risk:** medium (wire shapes must match exactly) · **Model:** Sonnet 4.6
 - **Problem:** 4 endpoints return raw dicts with no `response_model`:
   `backend/app/routers/stats.py:63` (`GET /stats/h2h`), `:74` (`POST /stats/h2h-matches`),
   `:101` (`GET /stats/player-matches`), `:118` (`GET /stats/ratings/history`).
@@ -100,7 +130,7 @@ Mostly mechanical, low risk. Best phase to start with.
   player-matches list and trends/elo history render identically.
 
 ### A3 — Route the 3 raw FormData uploads through one shared upload helper  ☐
-- **Effort:** S · **Risk:** low
+- **Effort:** S · **Risk:** low · **Model:** Sonnet 4.6
 - **Problem:** 3 files bypass `apiFetch()` with raw `fetch()` (because FormData must not set
   `Content-Type`): `api/playerAvatars.api.ts:27`, `api/playerHeaders.api.ts:24`,
   `api/comments.api.ts:113`. Each hand-rolls auth headers and throws plain `Error` instead of
@@ -113,7 +143,7 @@ Mostly mechanical, low risk. Best phase to start with.
   avatar upload, header-image upload and comment-image upload still work (manual test).
 
 ### A4 — Consolidate media URL building into one helper  ☐
-- **Effort:** S · **Risk:** low
+- **Effort:** S · **Risk:** low · **Model:** Sonnet 4.6
 - **Problem:** `playerAvatarUrl` (`api/playerAvatars.api.ts:9`), `playerHeaderImageUrl`
   (`api/playerHeaders.api.ts:9`) and `commentImageUrl` (`api/comments.api.ts:98`) each duplicate
   `API_BASE` trimming + `?v=<updatedAt>` cache-busting.
@@ -124,7 +154,7 @@ Mostly mechanical, low risk. Best phase to start with.
   after re-upload.
 
 ### A5 — Handle 401 centrally (expired token → logout + message)  ☐
-- **Effort:** S · **Risk:** low
+- **Effort:** S · **Risk:** low · **Model:** Sonnet 4.6
 - **Problem:** if the JWT expires mid-session, mutations fail with opaque errors; the user stays
   "logged in" until reload. `AuthContext` only validates the token on mount
   (`auth/AuthContext.tsx:95-130`).
@@ -136,7 +166,7 @@ Mostly mechanical, low risk. Best phase to start with.
   next API call logs the user out with the toast instead of leaving broken UI.
 
 ### A6 — Type the WebSocket event contract  ☐
-- **Effort:** S–M · **Risk:** low
+- **Effort:** S–M · **Risk:** low · **Model:** Sonnet 4.6
 - **Problem:** event names + payload shapes exist only as a docstring in
   `backend/app/services/events.py:1-17`; the frontend switches on string literals and coerces
   payloads from `unknown` in `hooks/realtime/applyEvent.ts`.
@@ -152,7 +182,7 @@ Mostly mechanical, low risk. Best phase to start with.
   still passes; live updates (goal entered on one device shows on another) still work.
 
 ### A7 — Document the deliberate type narrowings in `types.ts`  ☐
-- **Effort:** S · **Risk:** none
+- **Effort:** S · **Risk:** none · **Model:** Sonnet 4.6
 - **Problem:** `frontend/src/api/types.ts:52-106` deliberately narrows some generated types
   (e.g. `Match.state`, `leg`). That's fine, but each override needs a one-line comment saying
   *why* it exists and what backend change would invalidate it — otherwise the next regen looks
@@ -167,7 +197,7 @@ Mostly mechanical, low risk. Best phase to start with.
 This is the user-visible payoff. Do U1 first; U2–U8 are independent of each other.
 
 ### U1 — Define the surface system once, then add a `CardSection` primitive  ☐
-- **Effort:** M · **Risk:** low (pure markup swaps)
+- **Effort:** M · **Risk:** low (pure markup swaps) · **Model:** Sonnet 4.6
 - **Problem:** `styles.css` defines 6 surface classes (`.surface:109`, `.surface-2:115`,
   `.card-outer:197`, `.card-chip:208`, `.panel-subtle:381`, `.card-inner-flat:397`) but pages
   compose them ad hoc: 34 occurrences of `card-inner-flat` across 13 files, each re-adding its own
@@ -191,7 +221,7 @@ This is the user-visible payoff. Do U1 first; U2–U8 are independent of each ot
   except where padding/radius previously diverged; mobile + desktop checked.
 
 ### U2 — Unify card title typography  ☐
-- **Effort:** S · **Risk:** low
+- **Effort:** S · **Risk:** low · **Model:** Sonnet 4.6
 - **Problem:** `ui/primitives/Card.tsx:30` renders titles as `text-base font-semibold`,
   `ui/primitives/CollapsibleCard.tsx:104` as `text-sm font-semibold` — two different card title
   sizes app-wide.
@@ -202,7 +232,7 @@ This is the user-visible payoff. Do U1 first; U2–U8 are independent of each ot
   visually.
 
 ### U3 — Button sizes as a primitive prop, kill inline `btn-base` compositions  ☐
-- **Effort:** S–M · **Risk:** low
+- **Effort:** S–M · **Risk:** low · **Model:** Sonnet 4.6
 - **Problem:** `ui/primitives/Button.tsx` supports only `variant="solid|ghost"`; 15 call sites
   compose `btn-base btn-ghost h-9 px-3 ...` manually (e.g. `pages/stats/PlayersStatsCard.tsx:507`,
   `pages/live/TournamentCommentParts.tsx:95`), with drifting heights (`h-8`/`h-9`/`h-10`) and
@@ -214,7 +244,7 @@ This is the user-visible payoff. Do U1 first; U2–U8 are independent of each ot
   it); buttons look as before; tap targets ≥ ~36px on mobile.
 
 ### U4 — `EmptyState` and `LoadingPlaceholder` primitives  ☐
-- **Effort:** S · **Risk:** low
+- **Effort:** S · **Risk:** low · **Model:** Sonnet 4.6
 - **Problem:** ~20 ad-hoc "No data…" / "Loading…" blocks with varying markup, e.g.
   `pages/stats/HeadToHeadCard.tsx:206`, `pages/stats/TrendsCard.tsx:285` (inline text in a sized
   box), `pages/stats/TournamentPositionsGrid.tsx:212`. Some look like content, some like errors;
@@ -227,7 +257,7 @@ This is the user-visible payoff. Do U1 first; U2–U8 are independent of each ot
   text + centered layout; loading does not cause layout jumps on the migrated cards.
 
 ### U5 — One modal/sheet implementation  ☐
-- **Effort:** M · **Risk:** medium (focus/escape/scroll behavior)
+- **Effort:** M · **Risk:** medium (focus/escape/scroll behavior) · **Model:** Sonnet 4.6
 - **Problem:** besides `ui/primitives/Modal.tsx` and `Sheet.tsx`, five components roll their own
   fixed/absolute backdrop + escape handling: `pages/stats/HeadToHeadCard.tsx` (history modal),
   `pages/live/PlayerLiveStatsModal.tsx`, `pages/players/PlayerAvatarEditor.tsx`,
@@ -240,7 +270,7 @@ This is the user-visible payoff. Do U1 first; U2–U8 are independent of each ot
   locked, works at 375px and desktop; croppers still crop correctly (touch-test).
 
 ### U6 — `PageLayout` wrapper for page scaffolding  ☐
-- **Effort:** S · **Risk:** low
+- **Effort:** S · **Risk:** low · **Model:** Sonnet 4.6
 - **Problem:** every page repeats `<div className="page">` + the desktop-only
   `<div className="mb-4 hidden lg:block"><h1 className="text-xl font-bold ...">` header pattern,
   with small drifts (`space-y-3` vs `space-y-4`, presence of `.page-x`).
@@ -252,7 +282,7 @@ This is the user-visible payoff. Do U1 first; U2–U8 are independent of each ot
   desktop checked.
 
 ### U7 — Form fields through the `Input` primitive  ☐
-- **Effort:** S · **Risk:** low
+- **Effort:** S · **Risk:** low · **Model:** Sonnet 4.6
 - **Problem:** `ui/primitives/Input.tsx` (label + field) exists but most forms hand-roll
   `<label><div className="input-label">…</div><input className="input-field"/></label>`
   (e.g. `pages/ClubsPage.tsx:170-175`, tournament creation, friendly setup).
@@ -261,7 +291,7 @@ This is the user-visible payoff. Do U1 first; U2–U8 are independent of each ot
 - **DoD:** forms look unchanged; `input-label` appears only inside primitives (grep).
 
 ### U8 — Typography pass on dense text (tables, meta, legends)  ☐
-- **Effort:** S · **Risk:** low (visual-only, subtle)
+- **Effort:** S · **Risk:** low (visual-only, subtle) · **Model:** Sonnet 4.6
 - **Problem:** dense text sizes drift: `text-[10px]` / `text-[11px]` / `text-xs` / `text-[12px]`
   used interchangeably for table cells, legends and meta lines (e.g. `pages/stats/StatsTable.tsx:6`
   `text-[11px]` vs `text-xs` elsewhere; `pages/stats/RatingsCard.tsx:19-20`).
@@ -278,7 +308,7 @@ Do these **after** Phase U primitives exist, so extracted components are built w
 F1–F3 are the big wins; each is splittable into multiple commits.
 
 ### F1 — Split `pages/stats/StatsInsights.tsx` (1562 lines)  ☐
-- **Effort:** L · **Risk:** medium
+- **Effort:** L · **Risk:** medium · **Model:** Opus 4.8 (Block 2)
 - **Mixed today:** tab routing (`?view=`), per-view rendering for ~9 sub-views, the trends
   metric/mode computation (lines ~107–276), chart pan/zoom touch handling (lines ~307–378).
 - **Target structure:**
@@ -295,7 +325,7 @@ F1–F3 are the big wins; each is splittable into multiple commits.
   tab, switch metric/mode/scope, pan/zoom the chart on touch); `npm run check` passes.
 
 ### F2 — Split `pages/ProfilePage.tsx` (1413 lines)  ☐
-- **Effort:** L · **Risk:** medium
+- **Effort:** L · **Risk:** medium · **Model:** Opus 4.8 (Block 2)
 - **Target:** keep `ProfilePage.tsx` as coordinator (URL params, tabs, queries); extract
   `profile/ProfileHeader.tsx` (avatar/banner/bio/cup badges), `profile/ProfileStatsSection.tsx`,
   `profile/PokesSection.tsx`, `profile/MatchHistorySection.tsx`. Guestbook is already separate —
@@ -306,7 +336,7 @@ F1–F3 are the big wins; each is splittable into multiple commits.
 - **DoD:** own-profile and foreign-profile views work (editing only on own); page < ~400 lines.
 
 ### F3 — Split `pages/live/TournamentCommentsCard.tsx` (1233 lines)  ☐
-- **Effort:** L · **Risk:** medium
+- **Effort:** L · **Risk:** medium · **Model:** Opus 4.8 (Block 2)
 - **Target:** `useCommentMutations(tournamentId)` hook (create/edit/delete/vote/pin/read),
   `comments/CommentFilterBar.tsx` (scope chips + match filter), `comments/CommentList.tsx`
   (tree rendering). `CommentCreateComposer` / `TournamentCommentParts` stay separate files.
@@ -315,7 +345,7 @@ F1–F3 are the big wins; each is splittable into multiple commits.
   jump/mark-read) on live tournament and match detail; realtime updates still merge.
 
 ### F4 — Extract chart hooks from `pages/stats/TrendsChart.tsx` (1019 lines)  ☐
-- **Effort:** M · **Risk:** medium — **do this only as pure code movement**
+- **Effort:** M · **Risk:** medium — **do this only as pure code movement** · **Model:** Sonnet 4.6
 - **Target:** `charts/useChartScaling.ts` (y-scale + ticks), `charts/useCrosshair.ts`,
   pure SVG path helpers into `charts/chartSvg.ts` with unit tests. The rendering component keeps
   its visual output byte-identical.
@@ -323,7 +353,7 @@ F1–F3 are the big wins; each is splittable into multiple commits.
   touch + mouse.
 
 ### F5 — Shared match-display helpers  ☐
-- **Effort:** S · **Risk:** low
+- **Effort:** S · **Risk:** low · **Model:** Sonnet 4.6
 - **Problem:** team-name joining `players.map(p => p.display_name).join(" + ")` is duplicated in
   6 files (`pages/live/CurrentGameSection.tsx:18`, `pages/live/MatchDetailPage.tsx:164`,
   `pages/live/MatchList.tsx:107`, `pages/stats/StatsInsights.tsx:1296`,
@@ -334,7 +364,7 @@ F1–F3 are the big wins; each is splittable into multiple commits.
 - **DoD:** one definition of team-name formatting; grep for `join(" + ")` → only the helper.
 
 ### F6 — Round out `utils/format.ts`  ☐
-- **Effort:** S · **Risk:** low
+- **Effort:** S · **Risk:** low · **Model:** Sonnet 4.6
 - **Add:** `fmtShortDate` (currently local in `StatsInsights.tsx:~1000`), `fmtRating`
   (scattered `Math.round(rating)`), `fmtRank(pos, total)`. Replace inline occurrences
   (grep `toLocaleDateString` in pages — 5 hits — and `Math.round(` on ratings).
@@ -342,7 +372,7 @@ F1–F3 are the big wins; each is splittable into multiple commits.
   helpers.
 
 ### F7 — Lazy-load heavy routes  ☐  *(optional)*
-- **Effort:** S · **Risk:** low
+- **Effort:** S · **Risk:** low · **Model:** Sonnet 4.6
 - **Problem:** `app/App.tsx` imports all pages eagerly (0 uses of `lazy(`).
 - **Steps:** `React.lazy` + `<Suspense fallback={<PageLoadingScreen/>}>` for `StatsPage`,
   `ProfilePage`, `ClubsPage`, `PlayersAdminPage`. Keep dashboard + live eager (most-visited).
@@ -356,7 +386,7 @@ F1–F3 are the big wins; each is splittable into multiple commits.
 Independent of the frontend phases (except B2 ordering note). Python, FastAPI + SQLModel.
 
 ### B1 — Deduplicate the media upsert triplication  ☐
-- **Effort:** S · **Risk:** low
+- **Effort:** S · **Risk:** low · **Model:** Sonnet 4.6
 - **Problem:** three near-identical functions: `_upsert_avatar_file`
   (`app/routers/players.py:70-99`), `_upsert_profile_header_file` (`players.py:126-155`),
   `_upsert_comment_image_file` (`app/routers/comments.py:109-138`). Same write/replace/delete-old
@@ -368,7 +398,7 @@ Independent of the frontend phases (except B2 ordering note). Python, FastAPI + 
   with a different extension deletes the old file (manual or test).
 
 ### B2 — Centralize permission checks  ☐
-- **Effort:** M · **Risk:** medium (security-relevant — review carefully)
+- **Effort:** M · **Risk:** medium (security-relevant — review carefully) · **Model:** Opus 4.8 (Block 2)
 - **Problem:** owner/admin and "tournament is done" checks are inlined repeatedly:
   `players.py:354, 417, 452, 487, 520, 770, 897` (owner-or-admin variants),
   `tournaments.py:517, 587, 615` ("done" blocks), similar in `comments.py`.
@@ -381,7 +411,7 @@ Independent of the frontend phases (except B2 ordering note). Python, FastAPI + 
   `backend/tests/test_player_profiles_auth.py` unchanged and passing.
 
 ### B3 — Extract fat endpoint bodies into services  ☐
-- **Effort:** M–L · **Risk:** medium · split into 3 commits
+- **Effort:** M–L · **Risk:** medium · split into 3 commits · **Model:** Sonnet 4.6
 - **Targets:**
   1. `list_tournaments` (`app/routers/tournaments.py:301-360`) → `services/tournament_view.py`
      (it already serializes tournaments) or a new `services/tournament_list.py`: fetching,
@@ -396,7 +426,7 @@ Independent of the frontend phases (except B2 ordering note). Python, FastAPI + 
   `make gen-types` produces no schema diff.
 
 ### B4 — Resolve the stats layering split  ☐
-- **Effort:** M · **Risk:** medium
+- **Effort:** M · **Risk:** medium · **Model:** Sonnet 4.6
 - **Problem:** stats logic lives in three places: `app/stats_core.py` (302 lines),
   `app/services/stats/*` (h2h, odds, ratings, streaks, players, player_matches), and standings
   helpers inside `app/routers/tournaments.py` (`_compute_points_table_finished`, `_top_group`,
@@ -412,7 +442,7 @@ Independent of the frontend phases (except B2 ordering note). Python, FastAPI + 
   `tests/test_stats_core.py`, update its import).
 
 ### B5 — Consistent error helpers  ☐
-- **Effort:** S · **Risk:** low
+- **Effort:** S · **Risk:** low · **Model:** Sonnet 4.6
 - **Problem:** routers raise `HTTPException` ad hoc; `api_utils.get_or_404` exists but 400/403/409
   styles vary. The frontend only displays `detail`, so **no envelope redesign** — just
   consistency.
@@ -423,7 +453,7 @@ Independent of the frontend phases (except B2 ordering note). Python, FastAPI + 
 - **DoD:** helpers exist and are used in the refactored routers; status codes unchanged.
 
 ### B6 — Batch queries in `list_tournaments`  ☐  *(optional, measure first)*
-- **Effort:** M · **Risk:** medium
+- **Effort:** M · **Risk:** medium · **Model:** Sonnet 4.6
 - **Problem:** the tournament list builds standings per tournament in a loop (N+1-ish;
   `tournaments.py:301-360`). Only worth it if the dashboard/list feels slow with real data.
 - **Steps:** After B3 (logic is in one service), log SQL in dev, batch with `selectinload` /
@@ -480,17 +510,20 @@ cd frontend && npm run build
 
 **Suggested order of work**
 
-| Order | Tasks | Rationale |
-|-------|-------|-----------|
-| 1 | A3, A4, A5, A7 | Small, isolated API-layer wins; build confidence. |
-| 2 | A1 | Mechanical sweep; touches many files — do before component splits to avoid conflicts. |
-| 3 | A2, A6 | Contract work (backend + regen + FE swap). |
-| 4 | U1, U2, U3, U4 | Primitives first… |
-| 5 | U5, U6, U7, U8 | …then migrations using them. |
-| 6 | B1, B5, B2 | Backend quick wins, then authorization. |
-| 7 | B3, B4 | Service extraction + stats layering. |
-| 8 | F5, F6, then F1, F2, F3 | Helpers first, then the big component splits (after U-phase so splits use the new primitives). |
-| 9 | F4, F7, B6 | Optional polish. |
+| Block | Step | Tasks | Rationale |
+|-------|------|-------|-----------|
+| **1 — Sonnet 4.6** | 1 | A3, A4, A5, A7 | Small, isolated API-layer wins; build confidence. |
+| | 2 | A1 | Mechanical sweep; touches many files — do before component splits to avoid conflicts. |
+| | 3 | A2, A6 | Contract work (backend + regen + FE swap). |
+| | 4 | U1, U2, U3, U4 | Primitives first… |
+| | 5 | U5, U6, U7, U8 | …then migrations using them. |
+| | 6 | B1, B5, B3, B4 | Backend quick wins, then service extraction + stats layering. |
+| | 7 | F5, F6 | Shared helpers before the big splits. |
+| | 8 | F4, F7, B6 *(optional)* | Polish — if you do these at all, do them here to keep the single switch. |
+| **2 — Opus 4.8** | 9 | `/code-review` the branch | Safety net over everything from Block 1 (especially A1). Fix findings before continuing. |
+| | 10 | B2 | Authorization centralization — security-relevant. |
+| | 11 | F1, F2, F3 | The big component splits (the Phase-U primitives now exist). |
+| | 12 | Final `/code-review` | Last pass before merging to main. |
 
 Avoid running two tasks that touch the same files in parallel (notably: A1 conflicts with
 everything in F; finish A1 first).
