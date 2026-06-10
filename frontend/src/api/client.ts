@@ -71,6 +71,13 @@ export async function apiFetch<T>(
   return JSON.parse(text) as T;
 }
 
+// Build a media resource URL with optional cache-busting via ?v=<updatedAt>.
+export function mediaUrl(path: string, updatedAt?: string | null): string {
+  const base = API_BASE.replace(/\/+$/, "");
+  const v = updatedAt ? `?v=${encodeURIComponent(updatedAt)}` : "";
+  return `${base}${path.startsWith("/") ? "" : "/"}${path}${v}`;
+}
+
 // FormData uploads must not set Content-Type (browser adds the multipart boundary).
 // Use this instead of apiFetch for multipart/form-data requests.
 export async function apiUpload<T>(

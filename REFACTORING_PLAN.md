@@ -153,7 +153,7 @@ Mostly mechanical, low risk. Best phase to start with.
   (`grep -rn 'fetch(' frontend/src/api | grep -v client.ts | grep -v apiFetch` → empty);
   avatar upload, header-image upload and comment-image upload still work (manual test).
 
-### A4 — Consolidate media URL building into one helper  ☐
+### A4 — Consolidate media URL building into one helper  ☑
 - **Effort:** S · **Risk:** low · **Model:** Sonnet 4.6
 - **Problem:** `playerAvatarUrl` (`api/playerAvatars.api.ts:9`), `playerHeaderImageUrl`
   (`api/playerHeaders.api.ts:9`) and `commentImageUrl` (`api/comments.api.ts:98`) each duplicate

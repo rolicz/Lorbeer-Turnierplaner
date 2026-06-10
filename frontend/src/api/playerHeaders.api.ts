@@ -1,4 +1,4 @@
-import { apiFetch, apiUpload, API_BASE } from "./client";
+import { apiFetch, apiUpload, mediaUrl } from "./client";
 
 export type PlayerHeaderMeta = { player_id: number; updated_at: string };
 
@@ -7,9 +7,7 @@ export function listPlayerHeaderMeta(): Promise<PlayerHeaderMeta[]> {
 }
 
 export function playerHeaderImageUrl(playerId: number, updatedAt?: string | null): string {
-  const base = API_BASE.replace(/\/+$/, "");
-  const v = updatedAt ? `?v=${encodeURIComponent(updatedAt)}` : "";
-  return `${base}/players/${playerId}/header-image${v}`;
+  return mediaUrl(`/players/${playerId}/header-image`, updatedAt);
 }
 
 export async function putPlayerHeaderImage(

@@ -1,4 +1,4 @@
-import { apiFetch, apiUpload, API_BASE } from "./client";
+import { apiFetch, apiUpload, mediaUrl } from "./client";
 import type {
   TournamentCommentsResponse,
   TournamentCommentsSummary,
@@ -95,9 +95,7 @@ export function deleteComment(token: string, commentId: number) {
 }
 
 export function commentImageUrl(commentId: number, updatedAt?: string | null): string {
-  const base = API_BASE.replace(/\/+$/, "");
-  const v = updatedAt ? `?v=${encodeURIComponent(updatedAt)}` : "";
-  return `${base}/comments/${commentId}/image${v}`;
+  return mediaUrl(`/comments/${commentId}/image`, updatedAt);
 }
 
 export async function putCommentImage(
