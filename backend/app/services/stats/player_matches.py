@@ -27,15 +27,17 @@ from .scope import (
 
 
 def compute_stats_player_matches(s: Session, *, player_id: int, scope: str = "tournaments") -> dict[str, Any]:
+    scope_norm = normalize_scope(scope)
     p = s.get(Player, player_id)
     if not p:
         # Keep consistent JSON response shape (frontend can show "not found" if ever needed).
+        # `scope` is required by StatsPlayerMatchesOut, so it must be present on this path too.
         return {
             "generated_at": datetime.utcnow().isoformat(),
+            "scope": scope_norm,
             "player": None,
             "tournaments": [],
         }
-    scope_norm = normalize_scope(scope)
 
     matches: list[Match] = []
     if include_tournaments(scope_norm):
