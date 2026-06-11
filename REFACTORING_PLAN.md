@@ -388,7 +388,7 @@ F1–F3 are the big wins; each is splittable into multiple commits.
 - **DoD:** formatting helpers used at call sites; `src/test/format.test.ts` extended for the new
   helpers.
 
-### F7 — Lazy-load heavy routes  ☐  *(optional)*
+### F7 — Lazy-load heavy routes  ☑  *(optional)*
 - **Effort:** S · **Risk:** low · **Model:** Sonnet 4.6
 - **Problem:** `app/App.tsx` imports all pages eagerly (0 uses of `lazy(`).
 - **Steps:** `React.lazy` + `<Suspense fallback={<PageLoadingScreen/>}>` for `StatsPage`,

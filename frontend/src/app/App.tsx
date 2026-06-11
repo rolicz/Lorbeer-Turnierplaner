@@ -1,3 +1,4 @@
+import { lazy, Suspense } from "react";
 import { MotionConfig } from "framer-motion";
 import { Routes, Route, Navigate } from "react-router-dom";
 import AppShell from "../ui/shell/AppShell";
@@ -5,14 +6,18 @@ import LoginPage from "../pages/LoginPage";
 import TournamentsPage from "../pages/TournamentsPage";
 import LiveTournamentPage from "../pages/live/LiveTournamentPage";
 import DashboardPage from "../pages/dashboard/DashboardPage";
-import ClubsPage from "../pages/ClubsPage";
-import PlayersAdminPage from "../pages/PlayersAdminPage";
 import FriendliesPage from "../pages/FriendliesPage";
-import StatsPage from "../pages/StatsPage";
-import ProfilePage from "../pages/ProfilePage";
 import SettingsPage from "../pages/SettingsPage";
 import MatchDetailPage from "../pages/live/MatchDetailPage";
+import PageLoadingScreen from "../ui/primitives/PageLoadingScreen";
 import { RequireRole } from "../auth/RequireRole";
+
+const StatsPage = lazy(() => import("../pages/StatsPage"));
+const ProfilePage = lazy(() => import("../pages/ProfilePage"));
+const ClubsPage = lazy(() => import("../pages/ClubsPage"));
+const PlayersAdminPage = lazy(() => import("../pages/PlayersAdminPage"));
+
+const pageFallback = <div className="page"><PageLoadingScreen /></div>;
 
 export default function App() {
   return (
@@ -32,7 +37,9 @@ export default function App() {
           path="/stats"
           element={
             <RequireRole minRole="reader">
-              <StatsPage />
+              <Suspense fallback={pageFallback}>
+                <StatsPage />
+              </Suspense>
             </RequireRole>
           }
         />
@@ -41,7 +48,9 @@ export default function App() {
           path="/clubs"
           element={
             <RequireRole minRole="editor">
-              <ClubsPage />
+              <Suspense fallback={pageFallback}>
+                <ClubsPage />
+              </Suspense>
             </RequireRole>
           }
         />
@@ -50,7 +59,9 @@ export default function App() {
           path="/players"
           element={
             <RequireRole minRole="reader">
-              <PlayersAdminPage />
+              <Suspense fallback={pageFallback}>
+                <PlayersAdminPage />
+              </Suspense>
             </RequireRole>
           }
         />
@@ -59,7 +70,9 @@ export default function App() {
           path="/profile"
           element={
             <RequireRole minRole="editor">
-              <ProfilePage />
+              <Suspense fallback={pageFallback}>
+                <ProfilePage />
+              </Suspense>
             </RequireRole>
           }
         />
@@ -68,7 +81,9 @@ export default function App() {
           path="/profiles/:id"
           element={
             <RequireRole minRole="reader">
-              <ProfilePage />
+              <Suspense fallback={pageFallback}>
+                <ProfilePage />
+              </Suspense>
             </RequireRole>
           }
         />
