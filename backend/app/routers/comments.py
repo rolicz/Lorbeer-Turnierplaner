@@ -50,7 +50,7 @@ from ..services.file_storage import (
     media_exists,
     media_path_for_comment,
     read_media,
-    write_media,
+    upsert_media_row,
 )
 from ..services.notifications import enqueue_global_push, localized_push_message
 
@@ -114,28 +114,7 @@ def _upsert_comment_image_file(
     data: bytes,
     updated_at: datetime | None = None,
 ) -> CommentImageFile:
-    now = updated_at or datetime.utcnow()
-    rel_path = media_path_for_comment(comment_id, content_type)
-    file_size = write_media(rel_path, data)
-
-    row = s.get(CommentImageFile, comment_id)
-    if row is None:
-        row = CommentImageFile(
-            comment_id=comment_id,
-            content_type=content_type,
-            file_path=rel_path,
-            file_size=file_size,
-            updated_at=now,
-        )
-    else:
-        if row.file_path != rel_path:
-            delete_media(row.file_path)
-        row.content_type = content_type
-        row.file_path = rel_path
-        row.file_size = file_size
-        row.updated_at = now
-    s.add(row)
-    return row
+    return upsert_media_row(s, row_cls=CommentImageFile, row_id=comment_id, id_field="comment_id", content_type=content_type, data=data, path_builder=media_path_for_comment, updated_at=updated_at)
 
 
 def _comment_image_updated_at(s: Session, comment_id: int) -> datetime | None:

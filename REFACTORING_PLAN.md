@@ -402,7 +402,7 @@ F1–F3 are the big wins; each is splittable into multiple commits.
 
 Independent of the frontend phases (except B2 ordering note). Python, FastAPI + SQLModel.
 
-### B1 — Deduplicate the media upsert triplication  ☐
+### B1 — Deduplicate the media upsert triplication  ☑
 - **Effort:** S · **Risk:** low · **Model:** Sonnet 4.6
 - **Problem:** three near-identical functions: `_upsert_avatar_file`
   (`app/routers/players.py:70-99`), `_upsert_profile_header_file` (`players.py:126-155`),

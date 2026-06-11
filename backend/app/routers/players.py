@@ -52,7 +52,7 @@ from ..services.file_storage import (
     media_path_for_avatar,
     media_path_for_profile_header,
     read_media,
-    write_media,
+    upsert_media_row,
 )
 from ..services.guestbook_summary import player_guestbook_summary
 from ..services.notifications import enqueue_poke_push, push_guestbook_created
@@ -75,28 +75,7 @@ def _upsert_avatar_file(
     data: bytes,
     updated_at: dt.datetime | None = None,
 ) -> PlayerAvatarFile:
-    now = updated_at or dt.datetime.utcnow()
-    rel_path = media_path_for_avatar(player_id, content_type)
-    file_size = write_media(rel_path, data)
-
-    row = s.get(PlayerAvatarFile, player_id)
-    if row is None:
-        row = PlayerAvatarFile(
-            player_id=player_id,
-            content_type=content_type,
-            file_path=rel_path,
-            file_size=file_size,
-            updated_at=now,
-        )
-    else:
-        if row.file_path != rel_path:
-            delete_media(row.file_path)
-        row.content_type = content_type
-        row.file_path = rel_path
-        row.file_size = file_size
-        row.updated_at = now
-    s.add(row)
-    return row
+    return upsert_media_row(s, row_cls=PlayerAvatarFile, row_id=player_id, id_field="player_id", content_type=content_type, data=data, path_builder=media_path_for_avatar, updated_at=updated_at)
 
 
 def _profile_payload(player: Player, profile: PlayerProfile | None) -> dict:
@@ -131,28 +110,7 @@ def _upsert_profile_header_file(
     data: bytes,
     updated_at: dt.datetime | None = None,
 ) -> PlayerHeaderImageFile:
-    now = updated_at or dt.datetime.utcnow()
-    rel_path = media_path_for_profile_header(player_id, content_type)
-    file_size = write_media(rel_path, data)
-
-    row = s.get(PlayerHeaderImageFile, player_id)
-    if row is None:
-        row = PlayerHeaderImageFile(
-            player_id=player_id,
-            content_type=content_type,
-            file_path=rel_path,
-            file_size=file_size,
-            updated_at=now,
-        )
-    else:
-        if row.file_path != rel_path:
-            delete_media(row.file_path)
-        row.content_type = content_type
-        row.file_path = rel_path
-        row.file_size = file_size
-        row.updated_at = now
-    s.add(row)
-    return row
+    return upsert_media_row(s, row_cls=PlayerHeaderImageFile, row_id=player_id, id_field="player_id", content_type=content_type, data=data, path_builder=media_path_for_profile_header, updated_at=updated_at)
 
 
 @router.get("", response_model=list[PlayerRef])
