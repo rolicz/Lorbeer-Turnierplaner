@@ -324,7 +324,7 @@ This is the user-visible payoff. Do U1 first; U2–U8 are independent of each ot
 Do these **after** Phase U primitives exist, so extracted components are built with them.
 F1–F3 are the big wins; each is splittable into multiple commits.
 
-### F1 — Split `pages/stats/StatsInsights.tsx` (1562 lines)  ☐
+### F1 — Split `pages/stats/StatsInsights.tsx` (1562 lines)  ☑
 - **Effort:** L · **Risk:** medium · **Model:** Opus 4.8 (Block 2)
 - **Mixed today:** tab routing (`?view=`), per-view rendering for ~9 sub-views, the trends
   metric/mode computation (lines ~107–276), chart pan/zoom touch handling (lines ~307–378).
@@ -340,6 +340,21 @@ F1–F3 are the big wins; each is splittable into multiple commits.
   pure computation (extend `src/test/trendsMath.test.ts` style).
 - **DoD:** `StatsInsights.tsx` < ~250 lines; all stats tabs render as before (click through every
   tab, switch metric/mode/scope, pan/zoom the chart on touch); `npm run check` passes.
+- **Note:** `StatsInsights.tsx` is now 95 lines (tab routing + global filters + layout). Extracted
+  `trends/{TrendsExplorer.tsx, useChartData.ts, useChartGestures.ts}` plus one file per sub-view
+  (`PositionsView`, `H2HView`, `StreaksView`, `StarsView`, `PlayerProfile`, `RecordsView`,
+  `CupsView`) — verbatim moves, no logic edits. The shared `streakDateText` went into a pure
+  `streakDisplay.ts`; `StreakCatIcon` stayed local to `StreaksView` (its only user) to avoid a
+  mixed component/function export (react-refresh warning). `useChartData` deviates from the
+  suggested signature: it takes the closure deps (incl. the derived `isElo/isForm/effView/applyPM`
+  flags, `hidden`, `colorOf`) rather than re-deriving them, since the component still needs those
+  flags for its controls — re-deriving would duplicate logic. The `useMemo` body was lifted into a
+  pure, exported `computeChartData()` so it could be unit-tested directly (10 cases in
+  `src/test/useChartData.test.ts` covering the elo/form/standard branches, per/cumulative/Last-N
+  views, the per-match modifier, win-rate, hidden series, mode filtering, empty data). Verified:
+  `npm run check` (117 tests) + `npm run build` green, and a Playwright click-through of all 9 tabs
+  at 375px and 1280px rendered real data with **0 console/page errors** (Trends chart pan/pan-hint,
+  H2H matrix, Player radar all intact).
 
 ### F2 — Split `pages/ProfilePage.tsx` (1413 lines)  ☐
 - **Effort:** L · **Risk:** medium · **Model:** Opus 4.8 (Block 2)
