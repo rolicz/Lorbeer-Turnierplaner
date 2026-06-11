@@ -9,6 +9,7 @@ export default function Modal({
   fullScreenOnMobile = false,
   maxWidth,
   variant = "card",
+  scrollBody = false,
   className,
 }: {
   open: boolean;
@@ -25,6 +26,12 @@ export default function Modal({
   variant?: "card" | "panel";
   /** Extra classes on the inner card (fullScreenOnMobile only), e.g. "max-h-[84vh] overflow-hidden". */
   className?: string;
+  /**
+   * Lay the card out as a flex column (the header is shrink-0) so a child marked
+   * `flex-1 min-h-0 overflow-y-auto` scrolls within the card's max-height — no `calc(vh-rem)`
+   * guesswork about the header height. Pair with a `max-h-[..] overflow-hidden` class on the card.
+   */
+  scrollBody?: boolean;
 }) {
   useEffect(() => {
     if (!open) return;
@@ -47,7 +54,7 @@ export default function Modal({
     : title;
 
   const header = (
-    <div className="mb-3 flex items-start justify-between gap-3">
+    <div className="mb-3 flex shrink-0 items-start justify-between gap-3">
       <div className="min-w-0">
         {titleEl}
         {subtitle && <div className="text-[11px] text-text-muted">{subtitle}</div>}
@@ -66,7 +73,7 @@ export default function Modal({
 
   if (fullScreenOnMobile) {
     const shellCls = variant === "panel" ? "panel" : "card-outer";
-    const parts = [shellCls, "w-full p-3 sm:p-4", maxWidth ?? "max-w-lg", className]
+    const parts = [shellCls, "w-full p-3 sm:p-4", maxWidth ?? "max-w-lg", scrollBody && "flex flex-col", className]
       .filter(Boolean)
       .join(" ");
     return (
@@ -85,7 +92,7 @@ export default function Modal({
   return (
     <div className="fixed inset-0 z-50">
       <div className="overlay-scrim" onClick={onClose} />
-      <div className={["modal-shell absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2", maxWidth ?? "w-[min(92vw,520px)]"].join(" ")}>
+      <div className={["modal-shell absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2", scrollBody && "flex flex-col", maxWidth ?? "w-[min(92vw,520px)]"].filter(Boolean).join(" ")}>
         {header}
         {children}
       </div>

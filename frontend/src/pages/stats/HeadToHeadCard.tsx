@@ -751,11 +751,12 @@ export default function HeadToHeadCard({
         onClose={() => setHistoryModal(null)}
         fullScreenOnMobile
         maxWidth="max-w-4xl"
+        scrollBody
         className="max-h-[88vh] overflow-hidden"
       >
         {historyModal !== null && (
           <>
-            <CardSection padded={false} className="p-2.5">
+            <CardSection padded={false} className="shrink-0 p-2.5">
               <div className="flex flex-wrap items-center gap-2">
                 <StatsControlLabel icon="fa-sliders" text="View" />
                 <StatsSegmentedSwitch<DetailView>
@@ -771,7 +772,7 @@ export default function HeadToHeadCard({
               </div>
             </CardSection>
 
-            <div className="mt-3 max-h-[calc(88vh-10rem)] overflow-y-auto pr-1">
+            <div className="mt-3 flex-1 min-h-0 overflow-y-auto pr-1">
               {historyQ.isLoading ? <InlineLoading label="Loading…" /> : null}
 
               {!historyQ.isLoading && !(historyQ.data?.tournaments?.length ?? 0) ? (

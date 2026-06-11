@@ -34,9 +34,10 @@ export default function VoteVotersModal({
       onClose={onClose}
       fullScreenOnMobile
       maxWidth="max-w-lg"
+      scrollBody
       className="max-h-[84vh] overflow-hidden"
     >
-      <div className="max-h-[calc(84vh-6rem)] overflow-y-auto pr-1 space-y-3">
+      <div className="flex-1 min-h-0 overflow-y-auto pr-1 space-y-3">
         {votersQ.isLoading ? <InlineLoading label="Loading…" /> : null}
         {!votersQ.isLoading && !upvoters.length && !downvoters.length ? (
           <CardSection className="text-sm text-text-muted">No votes yet.</CardSection>
