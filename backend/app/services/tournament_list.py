@@ -14,46 +14,71 @@ def build_tournament_list(s: Session) -> list[dict]:
     status_by_tid = compute_status_map(s)
     cup_stakes_by_tid = compute_all_cup_tournament_stakes_by_tournament(s)
 
-    out = []
-    for t in ts:
-        matches = s.exec(
-            select(Match)
-            .options(selectinload(Match.sides).selectinload(MatchSide.players))
-            .where(Match.tournament_id == t.id)
-            .order_by(Match.order_index)
-        ).all()
+    # One query for every match (+ its sides/players via selectinload) instead of one query
+    # per tournament; group by tournament id in Python, preserving order_index ordering.
+    all_matches = s.exec(
+        select(Match)
+        .options(selectinload(Match.sides).selectinload(MatchSide.players))
+        .order_by(Match.tournament_id, Match.order_index)
+    ).all()
+    matches_by_tid: dict[int, list[Match]] = {}
+    for m in all_matches:
+        matches_by_tid.setdefault(int(m.tournament_id), []).append(m)
 
+    # First pass: everything that is pure-Python from the grouped matches. Defer winner/decider
+    # name resolution by collecting the player ids so they can be fetched in one batched query.
+    rows: list[dict] = []
+    name_pids: set[int] = set()
+    for t in ts:
+        matches = matches_by_tid.get(int(t.id), [])
         status = status_by_tid.get(t.id, "draft")
 
-        winner_string = None
-        winner_decider_string = None
         pt = compute_points_table_finished(matches)
         top = top_group(pt)
-        if status == "done" and len(top) == 1:
-            winner_string = s.exec(select(Player.display_name).where(Player.id == top[0])).first()
-        if len(top) > 1 and t.decider_winner_player_id is not None:
-            winner_decider_string = s.exec(select(Player.display_name).where(Player.id == t.decider_winner_player_id)).first()
+        winner_pid = top[0] if (status == "done" and len(top) == 1) else None
+        decider_pid = t.decider_winner_player_id if (len(top) > 1 and t.decider_winner_player_id is not None) else None
+        if winner_pid is not None:
+            name_pids.add(int(winner_pid))
+        if decider_pid is not None:
+            name_pids.add(int(decider_pid))
 
         standings = compute_player_standings(matches, [])
         pos_map = positions_from_standings(standings)
-        seen_pids: set[int] = set()
         pid_name: dict[int, str] = {}
         for m in matches:
             for side in m.sides:
                 for p in side.players:
                     pid = int(p.id)
-                    if pid not in seen_pids:
-                        seen_pids.add(pid)
+                    if pid not in pid_name:
                         pid_name[pid] = p.display_name
         participants: list[dict] = [{"id": pid, "display_name": name} for pid, name in pid_name.items()]
         participants.sort(key=lambda x: (pos_map.get(x["id"], 9999), x["display_name"].lower()))
 
+        rows.append(
+            {
+                "t": t,
+                "status": status,
+                "winner_pid": winner_pid,
+                "decider_pid": decider_pid,
+                "participants": participants,
+            }
+        )
+
+    # One query for all winner/decider names instead of up to two name lookups per tournament.
+    named = s.exec(select(Player).where(Player.id.in_(sorted(name_pids)))).all() if name_pids else []
+    name_by_pid = {int(p.id): p.display_name for p in named}
+
+    out = []
+    for r in rows:
+        t = r["t"]
+        winner_pid = r["winner_pid"]
+        decider_pid = r["decider_pid"]
         d = t.model_dump()
-        d["status"] = status
-        d["winner_string"] = winner_string
-        d["winner_decider_string"] = winner_decider_string
+        d["status"] = r["status"]
+        d["winner_string"] = name_by_pid.get(int(winner_pid)) if winner_pid is not None else None
+        d["winner_decider_string"] = name_by_pid.get(int(decider_pid)) if decider_pid is not None else None
         d["cup_stakes"] = cup_stakes_by_tid.get(int(t.id), [])
-        d["participants"] = participants
+        d["participants"] = r["participants"]
         out.append(d)
 
     return out

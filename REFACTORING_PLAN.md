@@ -469,13 +469,21 @@ Independent of the frontend phases (except B2 ordering note). Python, FastAPI + 
   (400 invalid input · 403 not allowed · 404 missing · 409 state conflict · 413 too large).
 - **DoD:** helpers exist and are used in the refactored routers; status codes unchanged.
 
-### B6 — Batch queries in `list_tournaments`  ☐  *(optional, measure first)*
+### B6 — Batch queries in `list_tournaments`  ☑  *(optional, measure first)*
 - **Effort:** M · **Risk:** medium · **Model:** Sonnet 4.6
 - **Problem:** the tournament list builds standings per tournament in a loop (N+1-ish;
   `tournaments.py:301-360`). Only worth it if the dashboard/list feels slow with real data.
 - **Steps:** After B3 (logic is in one service), log SQL in dev, batch with `selectinload` /
   single queries keyed by tournament id.
 - **DoD:** identical response payload (snapshot-compare JSON before/after); fewer queries.
+- **Note:** Done in `services/tournament_list.py` (the B3 service). Two changes, both
+  behavior-preserving: (1) one `select(Match).options(selectinload(sides→players))` for all
+  matches, grouped by `tournament_id` in Python (preserving `order_index` order), replacing the
+  per-tournament matches query; (2) winner/decider `display_name` lookups collected across all
+  tournaments and resolved in one `Player.id.in_(...)` query instead of up to two per tournament.
+  Measured with a temporary before/after harness (7 tournaments, 4 finished): **41 → 21 queries**,
+  and the `/tournaments` JSON was byte-identical except for row creation timestamps (different per
+  test run). The per-tournament status map and cup-stakes queries were already batched.
 
 ---
 
