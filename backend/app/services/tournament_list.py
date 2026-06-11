@@ -12,7 +12,6 @@ from .stats.core import compute_player_standings, compute_points_table_finished,
 def build_tournament_list(s: Session) -> list[dict]:
     ts = s.exec(select(Tournament).order_by(Tournament.created_at.desc())).all()
     status_by_tid = compute_status_map(s)
-    cup_stakes_by_tid = compute_all_cup_tournament_stakes_by_tournament(s)
 
     # One query for every match (+ its sides/players via selectinload) instead of one query
     # per tournament; group by tournament id in Python, preserving order_index ordering.
@@ -24,6 +23,10 @@ def build_tournament_list(s: Session) -> list[dict]:
     matches_by_tid: dict[int, list[Match]] = {}
     for m in all_matches:
         matches_by_tid.setdefault(int(m.tournament_id), []).append(m)
+
+    # Reuse the batched matches for cup-stake standings instead of re-querying matches
+    # once per (cup × done-tournament).
+    cup_stakes_by_tid = compute_all_cup_tournament_stakes_by_tournament(s, matches_by_tid=matches_by_tid)
 
     # First pass: everything that is pure-Python from the grouped matches. Defer winner/decider
     # name resolution by collecting the player ids so they can be fetched in one batched query.

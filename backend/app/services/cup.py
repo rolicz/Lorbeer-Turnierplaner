@@ -190,6 +190,7 @@ def compute_cup_tournament_stakes(
     cup_key: str,
     cup_name: str,
     since_date: dt.date | None = None,
+    matches_by_tid: dict[int, list[Match]] | None = None,
 ) -> list[CupTournamentStake]:
     """
     Return tournaments where the cup was at stake.
@@ -229,11 +230,16 @@ def compute_cup_tournament_stakes(
         if owner is not None and not owner_participates:
             continue
 
-        matches = session.exec(
-            select(Match)
-            .options(selectinload(Match.sides).selectinload(MatchSide.players))
-            .where(Match.tournament_id == t.id)
-        ).all()
+        # Reuse pre-loaded matches when the caller already batched them (the tournament list);
+        # otherwise fall back to a per-tournament query.
+        if matches_by_tid is not None:
+            matches = matches_by_tid.get(int(t.id), [])
+        else:
+            matches = session.exec(
+                select(Match)
+                .options(selectinload(Match.sides).selectinload(MatchSide.players))
+                .where(Match.tournament_id == t.id)
+            ).all()
 
         rows = compute_player_standings(matches, participants)
         winner_id = unique_winner_player_id(rows)
@@ -266,7 +272,10 @@ def compute_cup_tournament_stakes(
     return stakes
 
 
-def compute_all_cup_tournament_stakes_by_tournament(session: Session) -> dict[int, list[dict[str, int | str]]]:
+def compute_all_cup_tournament_stakes_by_tournament(
+    session: Session,
+    matches_by_tid: dict[int, list[Match]] | None = None,
+) -> dict[int, list[dict[str, int | str]]]:
     from ..cup_defs import load_cup_defs
 
     out: dict[int, list[dict[str, int | str]]] = {}
@@ -276,6 +285,7 @@ def compute_all_cup_tournament_stakes_by_tournament(session: Session) -> dict[in
             cup_key=cup_def.key,
             cup_name=cup_def.name,
             since_date=cup_def.since_date,
+            matches_by_tid=matches_by_tid,
         ):
             out.setdefault(int(stake.tournament_id), []).append(
                 {
