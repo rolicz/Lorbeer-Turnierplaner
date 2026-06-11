@@ -8,7 +8,7 @@ from sqlalchemy import case, func
 from sqlalchemy.orm import selectinload
 from sqlmodel import Session, delete, select
 
-from ..api_utils import get_or_404
+from ..api_utils import bad_request, conflict, forbidden, get_or_404
 from ..auth import require_admin, require_editor
 from ..db import get_session
 from ..models import Match, MatchSide, MatchSidePlayer, Player, Tournament, TournamentPlayer
@@ -185,9 +185,9 @@ def _generate_schedule_for_tournament(
     player_names = [p.display_name for p in t.players]
 
     if t.mode == "1v1" and not (3 <= len(player_names) <= 6):
-        raise HTTPException(status_code=400, detail="1v1 supports 3–6 players (adjustable)")
+        bad_request("1v1 supports 3–6 players (adjustable)")
     if t.mode == "2v2" and not (4 <= len(player_names) <= 6):
-        raise HTTPException(status_code=400, detail="2v2 supports 4–6 players (adjustable)")
+        bad_request("2v2 supports 4–6 players (adjustable)")
 
     labels, label_to_name = assign_labels(player_names, shuffle=randomize)
 
@@ -209,7 +209,7 @@ def _generate_schedule_for_tournament(
         try:
             label_matches = schedule_2v2_labels(labels)
         except ValueError as e:
-            raise HTTPException(status_code=400, detail=str(e))
+            bad_request(str(e))
 
     if randomize:
         random.shuffle(label_matches)
@@ -291,7 +291,7 @@ def _parse_yyyy_mm_dd(value: str):
     try:
         return datetime.strptime(value, "%Y-%m-%d").date()
     except Exception:
-        raise HTTPException(status_code=400, detail="Invalid date (expected YYYY-MM-DD)")
+        bad_request("Invalid date (expected YYYY-MM-DD)")
 
 
 def _state_rank(state: str) -> int:
@@ -447,12 +447,12 @@ async def create_tournament(body: TournamentCreateBody, request: Request, s: Ses
     t_date = _parse_yyyy_mm_dd(date_str) if date_str else date.today()
 
     if not name:
-        raise HTTPException(status_code=400, detail="Missing name")
+        bad_request("Missing name")
     if player_ids:
         existing = s.exec(select(Player).where(Player.id.in_(player_ids))).all()
         found_ids = {p.id for p in existing}
         if set(player_ids) != found_ids:
-            raise HTTPException(status_code=400, detail="One or more player_ids do not exist")
+            bad_request("One or more player_ids do not exist")
 
     try:
         t = Tournament(name=name, mode=mode, status="draft", settings_json=json.dumps(settings), date=t_date)
@@ -515,14 +515,14 @@ async def patch_tournament(
 
     status_now = compute_status_for_tournament(s, tournament_id)
     if status_now == "done" and role != "admin":
-        raise HTTPException(status_code=403, detail="Tournament is done (admin required to edit)")
+        forbidden("Tournament is done (admin required to edit)")
 
     fields = body.model_fields_set
 
     if "name" in fields:
         t.name = str(body.name or "").strip()
         if not t.name:
-            raise HTTPException(status_code=400, detail="name cannot be empty")
+            bad_request("name cannot be empty")
 
     if "settings" in fields:
         t.settings_json = json.dumps(body.settings)
@@ -552,7 +552,7 @@ async def patch_date(
 
     date_str = (body.date or "").strip()
     if not date_str:
-        raise HTTPException(status_code=400, detail="Missing date")
+        bad_request("Missing date")
 
     t.date = _parse_yyyy_mm_dd(date_str)
     t.updated_at = datetime.utcnow()
@@ -585,7 +585,7 @@ async def generate_schedule(
 
     status_now = compute_status_for_tournament(s, tournament_id)
     if status_now == "done" and role != "admin":
-        raise HTTPException(status_code=403, detail="Tournament is done (admin required to regenerate)")
+        forbidden("Tournament is done (admin required to regenerate)")
 
     randomize = bool(body.randomize)
     created_matches, label_to_name = _generate_schedule_for_tournament(s, t, randomize=randomize)
@@ -613,11 +613,11 @@ async def reorder(
 
     status_now = compute_status_for_tournament(s, tournament_id)
     if status_now == "done" and role != "admin":
-        raise HTTPException(status_code=403, detail="Tournament is done (admin required to reorder)")
+        forbidden("Tournament is done (admin required to reorder)")
 
     match_ids = list(body.match_ids or [])
     if not match_ids:
-        raise HTTPException(status_code=400, detail="match_ids must be a non-empty list")
+        bad_request("match_ids must be a non-empty list")
 
     matches_sorted = s.exec(
         select(Match)
@@ -627,7 +627,7 @@ async def reorder(
     by_id = {m.id: m for m in matches_sorted}
 
     if set(match_ids) != set(by_id.keys()):
-        raise HTTPException(status_code=400, detail="match_ids must include exactly all tournament match ids")
+        bad_request("match_ids must include exactly all tournament match ids")
 
     fixed_prefix = [m.id for m in matches_sorted if m.state != "scheduled"]
     if fixed_prefix:
@@ -646,7 +646,7 @@ async def reorder(
 
     playing_count = sum(1 for mid in match_ids if by_id[mid].state == "playing")
     if playing_count > 1:
-        raise HTTPException(status_code=409, detail="Only one match can be 'playing' at a time")
+        conflict("Only one match can be 'playing' at a time")
 
     for idx, mid in enumerate(match_ids):
         by_id[mid].order_index = idx
@@ -705,7 +705,7 @@ async def second_leg(
             return {"ok": True, "second_leg": False, "deleted": False}
 
         if _leg2_started(s, tournament_id):
-            raise HTTPException(status_code=403, detail="Second leg already started")
+            forbidden("Second leg already started")
 
         _delete_matches_by_leg(s, tournament_id, leg=2)
 
@@ -721,7 +721,7 @@ async def second_leg(
 
     # enabled == True
     if _leg2_started(s, tournament_id):
-        raise HTTPException(status_code=403, detail="Second leg already started")
+        forbidden("Second leg already started")
 
     if not leg2_exists:
         # Creating leg2 will make tournament LIVE (because there will be finished+scheduled).
@@ -898,7 +898,7 @@ async def patch_decider(
 
     dec_type = (body.type or "none").strip()
     if dec_type not in ALLOWED_DECIDERS:
-        raise HTTPException(status_code=400, detail=f"Invalid decider type (allowed: {ALLOWED_DECIDERS})")
+        bad_request(f"Invalid decider type (allowed: {ALLOWED_DECIDERS})")
 
     def as_int_or_none(v, field: str) -> int | None:
         if v is None:
@@ -906,7 +906,7 @@ async def patch_decider(
         try:
             return int(v)
         except Exception:
-            raise HTTPException(status_code=400, detail=f"{field} must be an integer or null")
+            bad_request(f"{field} must be an integer or null")
 
     winner_id = as_int_or_none(body.winner_player_id, "winner_player_id")
     loser_id = as_int_or_none(body.loser_player_id, "loser_player_id")
@@ -932,28 +932,28 @@ async def patch_decider(
     else:
         # must actually be a tie for first
         if not top or len(top) == 1:
-            raise HTTPException(status_code=409, detail="Tournament is not a draw at the top; decider not applicable")
+            conflict("Tournament is not a draw at the top; decider not applicable")
 
         if winner_id is None or loser_id is None:
-            raise HTTPException(status_code=400, detail="winner_player_id and loser_player_id are required when type != 'none'")
+            bad_request("winner_player_id and loser_player_id are required when type != 'none'")
         if winner_id == loser_id:
-            raise HTTPException(status_code=400, detail="winner_player_id and loser_player_id must be different")
+            bad_request("winner_player_id and loser_player_id must be different")
         if winner_id not in top or loser_id not in top:
-            raise HTTPException(status_code=400, detail="winner/loser must be chosen from the tied top players")
+            bad_request("winner/loser must be chosen from the tied top players")
 
         if winner_goals is None or loser_goals is None:
-            raise HTTPException(status_code=400, detail="winner_goals and loser_goals are required when type != 'none'")
+            bad_request("winner_goals and loser_goals are required when type != 'none'")
         if winner_goals < 0 or loser_goals < 0:
-            raise HTTPException(status_code=400, detail="goals must be >= 0")
+            bad_request("goals must be >= 0")
         if loser_goals >= winner_goals:
-            raise HTTPException(status_code=400, detail="winner_goals must be greater than loser_goals")
+            bad_request("winner_goals must be greater than loser_goals")
 
         # sanity: players belong to tournament
         allowed_ids = set(
             s.exec(select(TournamentPlayer.player_id).where(TournamentPlayer.tournament_id == tournament_id)).all()
         )
         if winner_id not in allowed_ids or loser_id not in allowed_ids:
-            raise HTTPException(status_code=400, detail="winner/loser is not part of this tournament")
+            bad_request("winner/loser is not part of this tournament")
 
         t.decider_type = dec_type
         t.decider_winner_player_id = winner_id
@@ -999,7 +999,7 @@ async def reassign_2v2(
     t = get_or_404(s, Tournament, tournament_id, name="Tournament")
 
     if t.mode != "2v2":
-        raise HTTPException(status_code=409, detail="Re-assign is only supported for 2v2 tournaments")
+        conflict("Re-assign is only supported for 2v2 tournaments")
 
     # Must have an existing schedule
     matches = s.exec(
@@ -1009,20 +1009,20 @@ async def reassign_2v2(
         .order_by(Match.order_index)
     ).all()
     if not matches:
-        raise HTTPException(status_code=409, detail="No schedule exists yet (generate schedule first)")
+        conflict("No schedule exists yet (generate schedule first)")
 
     # Safety: only if ALL matches are still scheduled and untouched
     for m in matches:
         if m.state != "scheduled":
-            raise HTTPException(status_code=409, detail="Re-assign requires all matches to be scheduled")
+            conflict("Re-assign requires all matches to be scheduled")
         if m.started_at is not None or m.finished_at is not None:
-            raise HTTPException(status_code=409, detail="Re-assign requires untouched matches (no timestamps)")
+            conflict("Re-assign requires untouched matches (no timestamps)")
 
         for side in m.sides:
             if (side.goals or 0) != 0:
-                raise HTTPException(status_code=409, detail="Re-assign requires untouched matches (goals must be 0)")
+                conflict("Re-assign requires untouched matches (goals must be 0)")
             if side.club_id is not None:
-                raise HTTPException(status_code=409, detail="Re-assign requires untouched matches (clubs must be empty)")
+                conflict("Re-assign requires untouched matches (clubs must be empty)")
 
     had_leg2 = any(m.leg == 2 for m in matches)
     randomize_order = bool(body.randomize_order) if body is not None else True
@@ -1031,7 +1031,7 @@ async def reassign_2v2(
     _ = t.players
     player_names = [p.display_name for p in t.players]
     if not (4 <= len(player_names) <= 6):
-        raise HTTPException(status_code=400, detail="2v2 supports 4–6 players (adjustable)")
+        bad_request("2v2 supports 4–6 players (adjustable)")
 
     # Build a NEW random label mapping => changes real pairings (not just order)
     labels, label_to_name = assign_labels(player_names, shuffle=True)
@@ -1053,7 +1053,7 @@ async def reassign_2v2(
     try:
         label_matches = schedule_2v2_labels(labels)
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        bad_request(str(e))
 
     if randomize_order:
         random.shuffle(label_matches)

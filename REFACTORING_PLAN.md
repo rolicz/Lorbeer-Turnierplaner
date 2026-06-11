@@ -458,7 +458,7 @@ Independent of the frontend phases (except B2 ordering note). Python, FastAPI + 
 - **DoD:** no stats computation in `app/` root or in routers; `make test` green (notably
   `tests/test_stats_core.py`, update its import).
 
-### B5 — Consistent error helpers  ☐
+### B5 — Consistent error helpers  ☑
 - **Effort:** S · **Risk:** low · **Model:** Sonnet 4.6
 - **Problem:** routers raise `HTTPException` ad hoc; `api_utils.get_or_404` exists but 400/403/409
   styles vary. The frontend only displays `detail`, so **no envelope redesign** — just

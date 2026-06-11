@@ -5,6 +5,7 @@ from anyio import from_thread
 from fastapi import APIRouter, Depends, File, HTTPException, Request, Response, UploadFile
 from sqlmodel import Session, select
 
+from ..api_utils import bad_request, conflict, forbidden
 from ..auth import decode_token, require_admin, require_auth_claims, require_editor_claims
 from ..db import get_engine, get_session
 from ..models import (
@@ -122,7 +123,7 @@ def list_players(s: Session = Depends(get_session)):
 def create_player(body: PlayerCreateBody, s: Session = Depends(get_session)):
     name = (body.display_name or "").strip()
     if not name:
-        raise HTTPException(status_code=400, detail="Missing display_name")
+        bad_request("Missing display_name")
 
     existing = s.exec(select(Player).where(Player.display_name == name)).first()
     if existing:
@@ -152,16 +153,16 @@ def patch_player(
         raise HTTPException(status_code=404, detail="Player not found")
 
     if "display_name" not in body.model_fields_set:
-        raise HTTPException(status_code=400, detail="Missing display_name")
+        bad_request("Missing display_name")
 
     new_name = (body.display_name or "").strip()
     if not new_name:
-        raise HTTPException(status_code=400, detail="display_name cannot be empty")
+        bad_request("display_name cannot be empty")
 
     # Avoid duplicate names (important if you treat names as “identity” in UI)
     existing = s.exec(select(Player).where(Player.display_name == new_name, Player.id != player_id)).first()
     if existing:
-        raise HTTPException(status_code=409, detail="A player with this name already exists")
+        conflict("A player with this name already exists")
 
     p.display_name = new_name
     s.add(p)
@@ -310,7 +311,7 @@ def patch_player_profile(
     claims: dict = Depends(require_editor_claims),
 ):
     if int(claims.get("player_id")) != int(player_id):
-        raise HTTPException(status_code=403, detail="Only the profile owner can edit this profile")
+        forbidden("Only the profile owner can edit this profile")
 
     player = s.get(Player, player_id)
     if not player:
@@ -373,7 +374,7 @@ async def put_player_avatar(
     claims: dict = Depends(require_editor_claims),
 ):
     if int(claims.get("player_id")) != int(player_id):
-        raise HTTPException(status_code=403, detail="Only the profile owner can edit this avatar")
+        forbidden("Only the profile owner can edit this avatar")
 
     p = s.get(Player, player_id)
     if not p:
@@ -381,11 +382,11 @@ async def put_player_avatar(
 
     ct = (file.content_type or "").strip().lower()
     if not ct.startswith("image/"):
-        raise HTTPException(status_code=400, detail="Invalid file type")
+        bad_request("Invalid file type")
 
     data = await file.read()
     if not data:
-        raise HTTPException(status_code=400, detail="Empty file")
+        bad_request("Empty file")
     if len(data) > MAX_AVATAR_BYTES:
         raise HTTPException(status_code=413, detail=f"Avatar too large (max {MAX_AVATAR_BYTES} bytes)")
 
@@ -408,7 +409,7 @@ def delete_player_avatar(
     claims: dict = Depends(require_editor_claims),
 ):
     if int(claims.get("player_id")) != int(player_id):
-        raise HTTPException(status_code=403, detail="Only the profile owner can edit this avatar")
+        forbidden("Only the profile owner can edit this avatar")
 
     av_file = s.get(PlayerAvatarFile, player_id)
     if not av_file:
@@ -443,7 +444,7 @@ async def put_player_header_image(
     claims: dict = Depends(require_editor_claims),
 ):
     if int(claims.get("player_id")) != int(player_id):
-        raise HTTPException(status_code=403, detail="Only the profile owner can edit this header image")
+        forbidden("Only the profile owner can edit this header image")
 
     p = s.get(Player, player_id)
     if not p:
@@ -451,11 +452,11 @@ async def put_player_header_image(
 
     ct = (file.content_type or "").strip().lower()
     if not ct.startswith("image/"):
-        raise HTTPException(status_code=400, detail="Invalid file type")
+        bad_request("Invalid file type")
 
     data = await file.read()
     if not data:
-        raise HTTPException(status_code=400, detail="Empty file")
+        bad_request("Empty file")
     if len(data) > MAX_HEADER_IMAGE_BYTES:
         raise HTTPException(status_code=413, detail=f"Header image too large (max {MAX_HEADER_IMAGE_BYTES} bytes)")
 
@@ -478,7 +479,7 @@ def delete_player_header_image(
     claims: dict = Depends(require_editor_claims),
 ):
     if int(claims.get("player_id")) != int(player_id):
-        raise HTTPException(status_code=403, detail="Only the profile owner can edit this header image")
+        forbidden("Only the profile owner can edit this header image")
 
     row = s.get(PlayerHeaderImageFile, player_id)
     if not row:
@@ -721,7 +722,7 @@ def create_player_guestbook_entry(
 
     text = str(body.body or "").strip()
     if not text:
-        raise HTTPException(status_code=400, detail="body is required")
+        bad_request("body is required")
     if len(text) > MAX_GUESTBOOK_BODY_CHARS:
         raise HTTPException(status_code=413, detail=f"body too long (max {MAX_GUESTBOOK_BODY_CHARS} chars)")
 
@@ -730,7 +731,7 @@ def create_player_guestbook_entry(
     is_admin = str(claims.get("role") or "") == "admin"
     author_player_id = req_author_player_id if req_author_player_id is not None else claims_player_id
     if author_player_id != claims_player_id and not is_admin:
-        raise HTTPException(status_code=403, detail="You can only post guestbook messages as yourself")
+        forbidden("You can only post guestbook messages as yourself")
     author_player = s.get(Player, author_player_id)
     if not author_player:
         raise HTTPException(status_code=401, detail="Invalid token payload")
@@ -742,7 +743,7 @@ def create_player_guestbook_entry(
         if parent_row is None:
             raise HTTPException(status_code=404, detail="Parent guestbook entry not found")
         if int(parent_row.profile_player_id) != int(player_id):
-            raise HTTPException(status_code=400, detail="Parent entry belongs to a different profile")
+            bad_request("Parent entry belongs to a different profile")
 
     now = dt.datetime.utcnow()
     row = PlayerGuestbookEntry(
@@ -806,7 +807,7 @@ def patch_player_guestbook_entry(
     if "body" in body.model_fields_set:
         text = str(body.body or "").strip()
         if not text:
-            raise HTTPException(status_code=400, detail="body is required")
+            bad_request("body is required")
         if len(text) > MAX_GUESTBOOK_BODY_CHARS:
             raise HTTPException(status_code=413, detail=f"body too long (max {MAX_GUESTBOOK_BODY_CHARS} chars)")
         row.body = text
@@ -853,9 +854,9 @@ def create_player_poke(
     is_admin = str(claims.get("role") or "") == "admin"
     author_player_id = req_author_player_id if req_author_player_id is not None else claims_player_id
     if author_player_id != claims_player_id and not is_admin:
-        raise HTTPException(status_code=403, detail="You can only poke as yourself")
+        forbidden("You can only poke as yourself")
     if author_player_id == int(player_id):
-        raise HTTPException(status_code=400, detail="Cannot poke yourself")
+        bad_request("Cannot poke yourself")
 
     author_player = s.get(Player, author_player_id)
     if not author_player:
@@ -936,9 +937,9 @@ def vote_player_guestbook_entry(
     try:
         value = int(0 if raw in (None, "") else raw)
     except Exception:
-        raise HTTPException(status_code=400, detail="Invalid vote value")
+        bad_request("Invalid vote value")
     if value not in (-1, 0, 1):
-        raise HTTPException(status_code=400, detail="vote value must be one of -1, 0, 1")
+        bad_request("vote value must be one of -1, 0, 1")
 
     now = dt.datetime.utcnow()
     vote_row = s.get(PlayerGuestbookVote, (player_id, int(entry_id)))
@@ -1086,7 +1087,7 @@ def delete_player_guestbook_entry(
     role = str(claims.get("role") or "")
     allowed = role == "admin" or claims_player_id == int(row.author_player_id) or claims_player_id == int(row.profile_player_id)
     if not allowed:
-        raise HTTPException(status_code=403, detail="Insufficient privileges")
+        forbidden("Insufficient privileges")
 
     root_id = int(entry_id)
     profile_player_id = int(row.profile_player_id)

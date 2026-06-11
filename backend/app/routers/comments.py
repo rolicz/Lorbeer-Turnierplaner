@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, Request, Response, 
 from sqlalchemy.orm import selectinload
 from sqlmodel import Session, select
 
-from ..api_utils import get_or_404
+from ..api_utils import bad_request, conflict, forbidden, get_or_404
 from ..auth import decode_token, require_admin, require_auth_claims, require_editor, require_editor_claims
 from ..db import get_engine, get_session
 from ..models import (
@@ -172,7 +172,7 @@ def _validate_author(s: Session, tournament_id: int, author_player_id: int | Non
         return
     p = s.get(Player, author_player_id)
     if not p:
-        raise HTTPException(status_code=400, detail=f"Unknown author_player_id {author_player_id}")
+        bad_request(f"Unknown author_player_id {author_player_id}")
     link = s.exec(
         select(TournamentPlayer).where(
             TournamentPlayer.tournament_id == tournament_id,
@@ -180,7 +180,7 @@ def _validate_author(s: Session, tournament_id: int, author_player_id: int | Non
         )
     ).first()
     if not link:
-        raise HTTPException(status_code=400, detail="author_player_id is not a participant of this tournament")
+        bad_request("author_player_id is not a participant of this tournament")
 
 
 def _validate_match_ref(s: Session, tournament_id: int, match_id: int | None) -> None:
@@ -188,32 +188,32 @@ def _validate_match_ref(s: Session, tournament_id: int, match_id: int | None) ->
         return
     m = s.get(Match, match_id)
     if not m:
-        raise HTTPException(status_code=400, detail=f"Unknown match_id {match_id}")
+        bad_request(f"Unknown match_id {match_id}")
     if m.tournament_id != tournament_id:
-        raise HTTPException(status_code=400, detail="match_id does not belong to this tournament")
+        bad_request("match_id does not belong to this tournament")
 
 
 def _to_goal_minute(value: int | str | None) -> int:
     if value in (None, ""):
-        raise HTTPException(status_code=400, detail="goal_minute is required for goal events")
+        bad_request("goal_minute is required for goal events")
     try:
         minute = int(value)
     except Exception as exc:
         raise HTTPException(status_code=400, detail="goal_minute must be an integer") from exc
     if minute <= 0 or minute > 999:
-        raise HTTPException(status_code=400, detail="goal_minute must be between 1 and 999")
+        bad_request("goal_minute must be between 1 and 999")
     return minute
 
 
 def _to_score_value(value: int | str | None, *, field: str) -> int:
     if value in (None, ""):
-        raise HTTPException(status_code=400, detail=f"{field} is required")
+        bad_request(f"{field} is required")
     try:
         score = int(value)
     except Exception as exc:
         raise HTTPException(status_code=400, detail=f"{field} must be an integer") from exc
     if score < 0 or score > 999:
-        raise HTTPException(status_code=400, detail=f"{field} must be between 0 and 999")
+        bad_request(f"{field} must be between 0 and 999")
     return score
 
 
@@ -227,7 +227,7 @@ def _goal_scorer_name_for_match(
     if custom_name:
         return custom_name
     if goal_player_id in (None, ""):
-        raise HTTPException(status_code=400, detail="goal_player_name or goal_player_id is required for goal events")
+        bad_request("goal_player_name or goal_player_id is required for goal events")
     try:
         scorer_id = int(goal_player_id)
     except Exception as exc:
@@ -238,12 +238,12 @@ def _goal_scorer_name_for_match(
         .where(Match.id == match_id)
     ).first()
     if match is None:
-        raise HTTPException(status_code=400, detail=f"Unknown match_id {match_id}")
+        bad_request(f"Unknown match_id {match_id}")
     for side in match.sides:
         for player in side.players:
             if int(player.id or 0) == scorer_id:
                 return player.display_name
-    raise HTTPException(status_code=400, detail="goal_player_id must belong to the selected match")
+    bad_request("goal_player_id must belong to the selected match")
 
 
 def _format_scoreline(score_a: int, score_b: int) -> str:
@@ -274,7 +274,7 @@ def _ensure_match_scoreline_is_new(s: Session, match_id: int, score_a: int, scor
     target = (score_a, score_b)
     for existing_body in existing_bodies:
         if _recorded_scoreline_from_comment_body(existing_body) == target:
-            raise HTTPException(status_code=409, detail="This score is already recorded for this match")
+            conflict("This score is already recorded for this match")
 
 
 def _match_score(match: Match) -> tuple[int, int]:
@@ -289,7 +289,7 @@ def _set_match_score(match: Match, score_a: int, score_b: int) -> bool:
     side_a = sides.get("A")
     side_b = sides.get("B")
     if side_a is None or side_b is None:
-        raise HTTPException(status_code=409, detail="Match must have sides A and B")
+        conflict("Match must have sides A and B")
     old_score = _match_score(match)
     side_a.goals = score_a
     side_b.goals = score_b
@@ -299,11 +299,11 @@ def _set_match_score(match: Match, score_a: int, score_b: int) -> bool:
 def _validate_goal_score_progression(match: Match, score_a: int, score_b: int) -> None:
     current_a, current_b = _match_score(match)
     if (current_a, current_b) == (score_a, score_b):
-        raise HTTPException(status_code=409, detail="This score is already recorded for this match")
+        conflict("This score is already recorded for this match")
     delta_a = score_a - current_a
     delta_b = score_b - current_b
     if (delta_a, delta_b) not in ((1, 0), (0, 1)):
-        raise HTTPException(status_code=409, detail="Goal events must increase exactly one side by 1")
+        conflict("Goal events must increase exactly one side by 1")
 
 
 def _format_goal_comment_body(goal_minute: int, score_a: int, score_b: int, scorer_name: str, note: str = "") -> str:
@@ -478,9 +478,9 @@ async def vote_comment(
     try:
         value = int(0 if raw in (None, "") else raw)
     except Exception:
-        raise HTTPException(status_code=400, detail="Invalid vote value")
+        bad_request("Invalid vote value")
     if value not in (-1, 0, 1):
-        raise HTTPException(status_code=400, detail="vote value must be one of -1, 0, 1")
+        bad_request("vote value must be one of -1, 0, 1")
 
     now = datetime.utcnow()
     row = s.get(CommentVote, (player_id, comment_id))
@@ -581,19 +581,19 @@ async def create_comment(
 
     is_admin = str(claims.get("role") or "") == "admin"
     if author_player_id is not None and author_player_id != int(claims.get("player_id")) and not is_admin:
-        raise HTTPException(status_code=403, detail="You can only post comments as yourself or General")
+        forbidden("You can only post comments as yourself or General")
 
     _validate_match_ref(s, tournament_id, match_id)
     _validate_author(s, tournament_id, author_player_id)
 
     if parent_comment_id is not None:
         if event_type in ("goal", "score_update", "shots"):
-            raise HTTPException(status_code=400, detail="Replies cannot be goal, score or shots events")
+            bad_request("Replies cannot be goal, score or shots events")
         parent = s.get(Comment, parent_comment_id)
         if parent is None:
-            raise HTTPException(status_code=400, detail=f"Unknown parent_comment_id {parent_comment_id}")
+            bad_request(f"Unknown parent_comment_id {parent_comment_id}")
         if parent.tournament_id != tournament_id:
-            raise HTTPException(status_code=400, detail="parent_comment_id does not belong to this tournament")
+            bad_request("parent_comment_id does not belong to this tournament")
 
     goal_minute: int | None = None
     goal_scorer_name: str | None = None
@@ -612,9 +612,9 @@ async def create_comment(
     match_score_changed = False
     if event_type == "goal":
         if match_id is None:
-            raise HTTPException(status_code=400, detail="Goal events require a match_id")
+            bad_request("Goal events require a match_id")
         if match_for_event is None:
-            raise HTTPException(status_code=400, detail=f"Unknown match_id {match_id}")
+            bad_request(f"Unknown match_id {match_id}")
         goal_note = text
         goal_minute = _to_goal_minute(body.goal_minute)
         goal_scorer_name = _goal_scorer_name_for_match(s, match_id, body.goal_player_id, body.goal_player_name)
@@ -629,9 +629,9 @@ async def create_comment(
         has_image_hint = False
     elif event_type == "score_update":
         if match_id is None:
-            raise HTTPException(status_code=400, detail="Score update events require a match_id")
+            bad_request("Score update events require a match_id")
         if match_for_event is None:
-            raise HTTPException(status_code=400, detail=f"Unknown match_id {match_id}")
+            bad_request(f"Unknown match_id {match_id}")
         score_a = _to_score_value(body.result_score_a, field="result_score_a")
         score_b = _to_score_value(body.result_score_b, field="result_score_b")
         _ensure_match_scoreline_is_new(s, match_id, score_a, score_b)
@@ -641,9 +641,9 @@ async def create_comment(
         has_image_hint = False
     elif event_type == "shots":
         if match_id is None:
-            raise HTTPException(status_code=400, detail="Shots events require a match_id")
+            bad_request("Shots events require a match_id")
         if match_for_event is None:
-            raise HTTPException(status_code=400, detail=f"Unknown match_id {match_id}")
+            bad_request(f"Unknown match_id {match_id}")
         # Shots don't change the match score — just record an informational comment.
         shots_a = _to_score_value(body.result_score_a, field="result_score_a")
         shots_b = _to_score_value(body.result_score_b, field="result_score_b")
@@ -651,7 +651,7 @@ async def create_comment(
         has_image_hint = False
 
     if not text and not has_image_hint:
-        raise HTTPException(status_code=400, detail="body is required (or attach an image)")
+        bad_request("body is required (or attach an image)")
 
     now = datetime.utcnow()
     c = Comment(
@@ -769,13 +769,13 @@ async def patch_comment(
     if "body" in fields:
         text = str(body.body or "").strip()
         if not text and image_updated_at is None:
-            raise HTTPException(status_code=400, detail="body cannot be empty")
+            bad_request("body cannot be empty")
         c.body = text
 
     if "author_player_id" in fields:
         author_player_id = None if body.author_player_id in (None, "") else int(body.author_player_id)
         if author_player_id is not None and author_player_id != viewer_id and not is_admin:
-            raise HTTPException(status_code=403, detail="You can only post comments as yourself or General")
+            forbidden("You can only post comments as yourself or General")
         _validate_author(s, c.tournament_id, author_player_id)
         c.author_player_id = author_player_id
 
@@ -874,11 +874,11 @@ async def put_comment_image(
     c = get_or_404(s, Comment, comment_id, name="Comment")
     ct = (file.content_type or "").strip().lower()
     if not ct.startswith("image/"):
-        raise HTTPException(status_code=400, detail="Invalid file type")
+        bad_request("Invalid file type")
 
     data = await file.read()
     if not data:
-        raise HTTPException(status_code=400, detail="Empty file")
+        bad_request("Empty file")
     if len(data) > MAX_COMMENT_IMAGE_BYTES:
         raise HTTPException(
             status_code=413,
@@ -946,9 +946,9 @@ async def set_pinned_comment(
 
     c = get_or_404(s, Comment, comment_id, name="Comment")
     if c.tournament_id != tournament_id:
-        raise HTTPException(status_code=400, detail="comment does not belong to this tournament")
+        bad_request("comment does not belong to this tournament")
     if c.match_id is not None:
-        raise HTTPException(status_code=400, detail="Only tournament comments can be pinned")
+        bad_request("Only tournament comments can be pinned")
 
     pin = s.get(TournamentPinnedComment, tournament_id)
     if not pin:
