@@ -7,6 +7,7 @@ import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
 import InlineLoading from "../../ui/primitives/InlineLoading";
 import Input from "../../ui/primitives/Input";
 import Button from "../../ui/primitives/Button";
+import EmptyState from "../../ui/primitives/EmptyState";
 import MatchOverviewPanel from "../../ui/primitives/MatchOverviewPanel";
 import SelectClubsPanel from "../../ui/SelectClubsPanel";
 import { GoalStepper } from "../../ui/clubControls";
@@ -334,7 +335,7 @@ export default function FriendlyMatchesListCard({
       {friendliesQ.isLoading && !friendliesQ.data ? <InlineLoading label="Loading…" /> : null}
 
       {!friendliesQ.isLoading && tournaments.length === 0 ? (
-        <div className="px-1 py-8 text-center text-sm text-text-muted">No friendlies yet.</div>
+        <EmptyState title="No friendlies yet." className="py-8" />
       ) : null}
 
       {tournaments.length ? (

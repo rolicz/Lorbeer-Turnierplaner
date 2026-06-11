@@ -2,7 +2,9 @@ import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import Button from "../../ui/primitives/Button";
+import EmptyState from "../../ui/primitives/EmptyState";
 import FilterSelect from "../../ui/FilterSelect";
+import LoadingPlaceholder from "../../ui/primitives/LoadingPlaceholder";
 import CollapsibleCard from "../../ui/primitives/CollapsibleCard";
 import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
 import { showErrorToast } from "../../ui/primitives/ErrorToast";
@@ -1001,7 +1003,7 @@ export default function TournamentCommentsCard({
         {!isCollapsed ? (
           <div className="mt-3 space-y-2">
             {arr.length ? arr.map((c) => renderCommentTree(c, surface, 0)) : (
-              <div className="text-sm text-text-muted">No comments on this match yet.</div>
+              <EmptyState title="No comments on this match yet." />
             )}
           </div>
         ) : null}
@@ -1010,7 +1012,7 @@ export default function TournamentCommentsCard({
   }
 
   function renderGeneralList() {
-    if (!generalComments.length) return <div className="text-sm text-text-muted">No general comments yet.</div>;
+    if (!generalComments.length) return <EmptyState title="No general comments yet." />;
     const ordered = [pinnedTournamentComment, ...generalComments.filter((c) => c.id !== pinnedTournamentComment?.id)]
       .filter(Boolean) as TournamentComment[];
     return <div className="space-y-2">{ordered.map((c) => renderCommentTree(c, "panel", 0))}</div>;
@@ -1080,9 +1082,7 @@ export default function TournamentCommentsCard({
     <>
         <ErrorToastOnError error={commentsQ.error} title="Comments loading failed" />
         <ErrorToastOnError error={actionError} title="Comment action failed" />
-        {commentsQ.isLoading ? (
-          <div className="panel-subtle px-3 py-2 text-sm text-text-muted">Loading comments…</div>
-        ) : null}
+        {commentsQ.isLoading ? <LoadingPlaceholder /> : null}
 
         <div className="space-y-3">
           {/* Scope filter chips */}
@@ -1176,9 +1176,7 @@ export default function TournamentCommentsCard({
               ) : null}
               {matchBlocksWithComments.map((b) => renderMatchBlock(b.matchId, "panel-subtle"))}
               {totalComments === 0 ? (
-                <div className="panel-subtle px-3 py-6 text-center text-sm text-text-muted">
-                  No comments yet.{canWrite ? " Be the first to add one." : ""}
-                </div>
+                <EmptyState title={`No comments yet.${canWrite ? " Be the first to add one." : ""}`} className="panel-subtle px-3 py-6" />
               ) : null}
             </div>
           )}

@@ -3,6 +3,7 @@ import { keepPreviousData, useQuery } from "@tanstack/react-query";
 
 import Button from "../../ui/primitives/Button";
 import CardSection from "../../ui/primitives/CardSection";
+import EmptyState from "../../ui/primitives/EmptyState";
 import CollapsibleCard from "../../ui/primitives/CollapsibleCard";
 import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
 import InlineLoading from "../../ui/primitives/InlineLoading";
@@ -350,7 +351,7 @@ export default function PlayerMatchesCard({
         ) : null}
 
         {selected && !matchesQ.isLoading && !tournaments.length ? (
-          <CardSection className="text-sm text-text-muted">No matches found for {selected.display_name}.</CardSection>
+          <CardSection><EmptyState title={`No matches found for ${selected.display_name}.`} /></CardSection>
         ) : null}
       </div>
     </>

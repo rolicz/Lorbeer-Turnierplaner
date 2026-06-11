@@ -1,4 +1,6 @@
 import Button from "../../ui/primitives/Button";
+import EmptyState from "../../ui/primitives/EmptyState";
+import LoadingPlaceholder from "../../ui/primitives/LoadingPlaceholder";
 import Textarea from "../../ui/primitives/Textarea";
 import { Pill } from "../../ui/primitives/Pill";
 import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
@@ -100,9 +102,9 @@ export default function GuestbookSection({
         <div className="panel-subtle p-3 text-sm text-text-muted">Login as a player to post guestbook messages.</div>
       )}
 
-      {loading ? <div className="text-sm text-text-muted">Loading…</div> : null}
+      {loading ? <LoadingPlaceholder /> : null}
       {!loading && isEmpty ? (
-        <div className="panel-subtle p-3 text-sm text-text-muted">No messages yet.</div>
+        <EmptyState title="No messages yet." className="panel-subtle p-3" />
       ) : null}
 
       <GuestbookCardProvider value={cardContext}>

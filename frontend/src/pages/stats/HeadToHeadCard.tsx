@@ -4,6 +4,7 @@ import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import Button from "../../ui/primitives/Button";
 import CardSection from "../../ui/primitives/CardSection";
 import CollapsibleCard from "../../ui/primitives/CollapsibleCard";
+import EmptyState from "../../ui/primitives/EmptyState";
 import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
 import InlineLoading from "../../ui/primitives/InlineLoading";
 
@@ -471,7 +472,7 @@ export default function HeadToHeadCard({
                                 ))
                               )
                             ) : (
-                              <div className="text-sm text-text-muted">No data yet.</div>
+                              <EmptyState title="No data yet." />
                             )}
                           </div>
                         </>
@@ -520,7 +521,7 @@ export default function HeadToHeadCard({
                                 />
                               ))
                             ) : (
-                              <div className="text-sm text-text-muted">No data yet.</div>
+                              <EmptyState title="No data yet." />
                             )}
                           </div>
                         </>
@@ -599,7 +600,7 @@ export default function HeadToHeadCard({
                             ))}
                           </>
                         ) : (
-                          <div className="text-sm text-text-muted">No data yet.</div>
+                          <EmptyState title="No data yet." />
                         );
                       })()}
                     </div>
@@ -661,7 +662,7 @@ export default function HeadToHeadCard({
                               ))}
                             </>
                           ) : (
-                            <div className="text-sm text-text-muted">No data yet.</div>
+                            <EmptyState title="No data yet." />
                           );
                         })()}
                       </div>
@@ -727,7 +728,7 @@ export default function HeadToHeadCard({
                                 />
                               ))
                             ) : (
-                              <div className="text-sm text-text-muted">No data yet.</div>
+                              <EmptyState title="No data yet." />
                             )}
                           </div>
                         </>
@@ -792,7 +793,7 @@ export default function HeadToHeadCard({
                 {historyQ.isLoading ? <InlineLoading label="Loading…" /> : null}
 
                 {!historyQ.isLoading && !(historyQ.data?.tournaments?.length ?? 0) ? (
-                  <CardSection className="text-sm text-text-muted">No matches found for this matchup.</CardSection>
+                  <CardSection><EmptyState title="No matches found for this matchup." /></CardSection>
                 ) : null}
 
                 {historyQ.data?.tournaments?.length ? (

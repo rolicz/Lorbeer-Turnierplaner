@@ -3,6 +3,8 @@ import { keepPreviousData, useQueries, useQuery } from "@tanstack/react-query";
 
 import CardSection from "../../ui/primitives/CardSection";
 import CollapsibleCard from "../../ui/primitives/CollapsibleCard";
+import EmptyState from "../../ui/primitives/EmptyState";
+import LoadingPlaceholder from "../../ui/primitives/LoadingPlaceholder";
 import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
 import { MetaRow } from "../../ui/primitives/Meta";
 
@@ -283,9 +285,11 @@ export default function TrendsCard({
             ySuffix={chart.ySuffix}
             series={chart.series}
           />
+        ) : statsQ.isLoading ? (
+          <LoadingPlaceholder heightClassName="h-[200px] sm:h-[220px] lg:h-[340px]" />
         ) : (
-          <CardSection padded={false} className="h-[200px] sm:h-[220px] lg:h-[340px] flex items-center justify-center text-sm text-text-muted">
-            {statsQ.isLoading ? "Loading…" : "Not enough data yet."}
+          <CardSection padded={false} className="h-[200px] sm:h-[220px] lg:h-[340px] flex items-center justify-center">
+            <EmptyState title="Not enough data yet." />
           </CardSection>
         )}
 

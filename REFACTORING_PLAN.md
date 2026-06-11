@@ -260,7 +260,7 @@ This is the user-visible payoff. Do U1 first; U2–U8 are independent of each ot
 - **DoD:** `grep -rn 'btn-base' frontend/src/pages --include='*.tsx'` → 0 (only primitives use
   it); buttons look as before; tap targets ≥ ~36px on mobile.
 
-### U4 — `EmptyState` and `LoadingPlaceholder` primitives  ☐
+### U4 — `EmptyState` and `LoadingPlaceholder` primitives  ☑
 - **Effort:** S · **Risk:** low · **Model:** Sonnet 4.6
 - **Problem:** ~20 ad-hoc "No data…" / "Loading…" blocks with varying markup, e.g.
   `pages/stats/HeadToHeadCard.tsx:206`, `pages/stats/TrendsCard.tsx:285` (inline text in a sized

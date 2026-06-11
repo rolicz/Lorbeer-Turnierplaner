@@ -3,6 +3,7 @@ import { keepPreviousData, useQuery } from "@tanstack/react-query";
 
 import CardSection from "../../ui/primitives/CardSection";
 import CollapsibleCard from "../../ui/primitives/CollapsibleCard";
+import EmptyState from "../../ui/primitives/EmptyState";
 import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
 import InlineLoading from "../../ui/primitives/InlineLoading";
 import { listPlayers } from "../../api/players.api";
@@ -264,9 +265,7 @@ export default function StarsPerformanceCard({
         ) : null}
 
         {selected && !matchesQ.isLoading && !rows.some((r) => r.played > 0) ? (
-          <CardSection className="text-sm text-text-muted">
-            No finished matches with selected clubs found for {selected.display_name} ({modeLabel(mode)} · {scopeLabel(scope)}).
-          </CardSection>
+          <CardSection><EmptyState title={`No finished matches with selected clubs found for ${selected.display_name} (${modeLabel(mode)} · ${scopeLabel(scope)}).`} /></CardSection>
         ) : null}
       </div>
     </>
