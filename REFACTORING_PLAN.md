@@ -392,7 +392,7 @@ F1–F3 are the big wins; each is splittable into multiple commits.
   **0 console/page/request errors** — own shows edit/bio/save controls, foreign is read-only with
   the Anpöbeln button (editing only on own).
 
-### F3 — Split `pages/live/TournamentCommentsCard.tsx` (1233 lines)  ☐
+### F3 — Split `pages/live/TournamentCommentsCard.tsx` (1233 lines)  ☑
 - **Effort:** L · **Risk:** medium · **Model:** Opus 4.8 (Block 2)
 - **Target:** `useCommentMutations(tournamentId)` hook (create/edit/delete/vote/pin/read),
   `comments/CommentFilterBar.tsx` (scope chips + match filter), `comments/CommentList.tsx`
@@ -400,6 +400,36 @@ F1–F3 are the big wins; each is splittable into multiple commits.
 - **Why:** `MatchDetailPage` can then reuse the mutations hook instead of duplicating.
 - **DoD:** comments work end-to-end (post, reply, edit, vote, pin, image attach, unread
   jump/mark-read) on live tournament and match detail; realtime updates still merge.
+- **Note:** `TournamentCommentsCard.tsx` is now **953 lines** (was 1233): coordinator keeps
+  URL/props, the draft/edit/reply state machine, the comment-grouping `useMemo`, the
+  scope/goal/score helpers, `matchHeaderMeta`, the composer (+entry buttons) and the modals
+  (image cropper, vote-voters, lightbox). Extracted under `pages/live/comments/`:
+  `useCommentMutations.ts` (the 6 mutations + combined `actionError`, encapsulating token +
+  query client — verbatim move), `CommentFilterBar.tsx` (the scope-chip row + the local
+  `FilterChip`; takes precomputed chip descriptors), and `CommentList.tsx` (the whole feed —
+  the filter switch *single-match / general / one-match / all* plus the recursive
+  comment-tree / match-block / general-list rendering; the four render functions moved
+  verbatim). `CommentList` receives one bundle of data + callbacks from the coordinator — the
+  F2 guestbook idea, but as a **props bundle** rather than a context-backed recursive card,
+  since the renderers are local closures and `CommentCard` already lives in
+  `TournamentCommentParts`. `CommentCreateComposer` / `TournamentCommentParts` unchanged.
+  **Deviation from the "Why":** `MatchDetailPage` already renders
+  `<TournamentCommentsCard onlyMatchId=…/>` (no duplicated mutations), so there was nothing to
+  de-duplicate — the hook extraction stands on its own and is ready for a future direct caller.
+  The only non-verbatim edits: 6 mutation-derived card props became clean bundle callbacks
+  (`onMarkSeen`/`onVote`/`onTogglePin`/`onOpenVoters`/`onOpenImage` + `replySubmitting`) and
+  `grouped.blocks`/`grouped.rootScopeKey` → `blocks`/`rootScopeKey`. Verified: `npm run check`
+  (typecheck + lint + 122 tests) + `npm run build` green; a reader-mode Playwright click-through
+  of the comments feed on the live tournament (all-view + filter chips) and the match-detail
+  page (`onlyMatchId`) at 375px and 1280px rendered the match block, score/club/stars header and
+  comment cards with **0 console/page/request errors**. Then an **authenticated** (admin)
+  Playwright click-through on the live tournament drove the full write surface end-to-end —
+  post a general comment, reply (nested), edit (incl. the `· edited` marker), upvote (0→1),
+  pin → `pinned` badge → unpin, mark-as-read clearing an unseen badge, and delete (cascading to
+  the reply) — all with **0 console/page/request errors** (test data created and cleaned up; DB
+  back to its prior state). Image-attach (`putCommentImage` + `CommentImageCropper`) and the
+  realtime merge were outside the changed surface and left to their existing coverage
+  (`applyEvent.test.ts`, query keys unchanged).
 
 ### F4 — Extract chart hooks from `pages/stats/TrendsChart.tsx` (1019 lines)  ☑
 - **Effort:** M · **Risk:** medium — **do this only as pure code movement** · **Model:** Sonnet 4.6

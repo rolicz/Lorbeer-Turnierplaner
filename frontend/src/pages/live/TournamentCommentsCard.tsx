@@ -1,9 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { sideBy } from "../../helpers";
 
 import Button from "../../ui/primitives/Button";
-import EmptyState from "../../ui/primitives/EmptyState";
 import FormLabel from "../../ui/primitives/FormLabel";
 import FilterSelect from "../../ui/FilterSelect";
 import LoadingPlaceholder from "../../ui/primitives/LoadingPlaceholder";
@@ -15,61 +14,21 @@ import ImageLightbox from "../../ui/primitives/ImageLightbox";
 import VoteVotersModal from "../../ui/primitives/VoteVotersModal";
 import type { Club, Match, Player } from "../../api/types";
 import { clubLabelPartsById } from "../../ui/clubControls";
-import { StarsFA } from "../../ui/primitives/StarsFA";
 import { type CommentGoalSide, type CommentGoalTeamOption } from "./CommentCreateComposer";
-import {
-  createTournamentComment,
-  putCommentImage,
-  deleteComment as apiDeleteComment,
-  listTournamentComments,
-  listCommentVoters,
-  markCommentRead,
-  patchComment as apiPatchComment,
-  setPinnedTournamentComment,
-  voteComment,
-} from "../../api/comments.api";
+import { putCommentImage, listTournamentComments, listCommentVoters } from "../../api/comments.api";
 import { qk } from "../../api/queryKeys";
 import { useAuth } from "../../auth/AuthContext";
 import { useSeenSet } from "../../hooks/useSeenComments";
 import { usePlayerAvatarMap } from "../../hooks/usePlayerAvatarMap";
-import { AddCommentDropdown, CommentCard } from "./TournamentCommentParts";
+import { AddCommentDropdown } from "./TournamentCommentParts";
+import { useCommentMutations } from "./comments/useCommentMutations";
+import CommentFilterBar from "./comments/CommentFilterBar";
+import CommentList from "./comments/CommentList";
 import {
   type CommentAuthor,
   type CommentScope,
   type TournamentComment,
 } from "./tournamentCommentTypes";
-
-/** A scope filter chip in the comments header. */
-function FilterChip({
-  active,
-  onClick,
-  label,
-  count,
-  unseen = false,
-}: {
-  active: boolean;
-  onClick: () => void;
-  label: string;
-  count?: number;
-  unseen?: boolean;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={
-        "relative inline-flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-sm transition focus-ring " +
-        (active
-          ? "bg-accent/15 text-accent font-medium"
-          : "bg-bg-card-chip/60 text-text-muted hover:text-text-normal")
-      }
-    >
-      <span className="whitespace-nowrap">{label}</span>
-      {typeof count === "number" ? <span className="tabular-nums text-xs opacity-80">{count}</span> : null}
-      {unseen ? <span className="h-1.5 w-1.5 rounded-full bg-accent" aria-hidden="true" /> : null}
-    </button>
-  );
-}
 
 export default function TournamentCommentsCard({
   tournamentId,
@@ -101,7 +60,6 @@ export default function TournamentCommentsCard({
   collapsibleHeader?: string | null;
   defaultCollapsed?: boolean;
 }) {
-  const qc = useQueryClient();
   const { token, role, actorPlayerId: currentPlayerId, actorPlayerName: currentPlayerName } = useAuth();
   const canAttachImage = role === "admin" || role === "editor";
   const seen = useSeenSet(tournamentId);
@@ -340,98 +298,8 @@ export default function TournamentCommentsCard({
     startEdit(c);
   }
 
-  const createMut = useMutation({
-    mutationFn: async (payload: {
-      scope: CommentScope;
-      author_player_id: number | null;
-      body: string;
-      has_image: boolean;
-      parent_comment_id?: number | null;
-      event_type?: "goal" | "shots";
-      goal_minute?: number;
-      goal_player_name?: string;
-      result_score_a?: number;
-      result_score_b?: number;
-    }) => {
-      if (!token) throw new Error("Not logged in");
-      return createTournamentComment(token, tournamentId, {
-        match_id: payload.scope.kind === "match" ? payload.scope.matchId : null,
-        parent_comment_id: payload.parent_comment_id ?? null,
-        author_player_id: payload.author_player_id,
-        body: payload.body,
-        has_image: payload.has_image,
-        event_type: payload.event_type,
-        goal_minute: payload.goal_minute,
-        goal_player_name: payload.goal_player_name,
-        result_score_a: payload.result_score_a,
-        result_score_b: payload.result_score_b,
-      });
-    },
-    onSuccess: async () => {
-      await qc.invalidateQueries({ queryKey: qk.tournament(tournamentId) });
-      await qc.invalidateQueries({ queryKey: qk.commentsTournament(tournamentId) });
-      await qc.invalidateQueries({ queryKey: qk.commentsReadIds(tournamentId, token) });
-      await qc.invalidateQueries({ queryKey: qk.commentsReadMap(token) });
-    },
-  });
-
-  const patchMut = useMutation({
-    mutationFn: async (payload: { commentId: number; author_player_id?: number | null; body: string }) => {
-      if (!token) throw new Error("Not logged in");
-      return apiPatchComment(token, payload.commentId, {
-        author_player_id: payload.author_player_id,
-        body: payload.body,
-      });
-    },
-    onSuccess: async () => {
-      await qc.invalidateQueries({ queryKey: qk.commentsTournament(tournamentId) });
-    },
-  });
-
-  const deleteMut = useMutation({
-    mutationFn: async (commentId: number) => {
-      if (!token) throw new Error("Not logged in");
-      return apiDeleteComment(token, commentId);
-    },
-    onSuccess: async () => {
-      await qc.invalidateQueries({ queryKey: qk.commentsTournament(tournamentId) });
-      await qc.invalidateQueries({ queryKey: qk.commentsReadIds(tournamentId, token) });
-      await qc.invalidateQueries({ queryKey: qk.commentsReadMap(token) });
-    },
-  });
-
-  const pinMut = useMutation({
-    mutationFn: async (commentId: number | null) => {
-      if (!token) throw new Error("Not logged in");
-      return setPinnedTournamentComment(token, tournamentId, commentId);
-    },
-    onSuccess: async () => {
-      await qc.invalidateQueries({ queryKey: qk.commentsTournament(tournamentId) });
-    },
-  });
-
-  const markReadMut = useMutation({
-    mutationFn: async (commentId: number) => {
-      if (!token) throw new Error("Not logged in");
-      return markCommentRead(token, commentId);
-    },
-    onSuccess: async () => {
-      await qc.invalidateQueries({ queryKey: qk.commentsReadIds(tournamentId, token) });
-      await qc.invalidateQueries({ queryKey: qk.commentsReadMap(token) });
-    },
-  });
-  const voteMut = useMutation({
-    mutationFn: async (payload: { commentId: number; value: -1 | 0 | 1 }) => {
-      if (!token) throw new Error("Not logged in");
-      return voteComment(token, payload.commentId, payload.value);
-    },
-    onSuccess: async () => {
-      await qc.invalidateQueries({ queryKey: qk.commentsTournament(tournamentId) });
-    },
-  });
-
-  const actionError: unknown =
-    createMut.error ?? patchMut.error ?? deleteMut.error ?? pinMut.error ?? markReadMut.error ?? voteMut.error;
+  const { createMut, patchMut, deleteMut, pinMut, markReadMut, voteMut, actionError } =
+    useCommentMutations(tournamentId);
 
   async function deleteComment(commentId: number) {
     const ok = window.confirm("Delete comment?");
@@ -859,163 +727,6 @@ export default function TournamentCommentsCard({
   const matchBlocksWithComments = grouped.blocks.filter((b) => b.comments.length > 0);
   const totalComments = comments.length;
 
-  function renderCommentCard(c: TournamentComment, surface: string, opts: { childCount: number; collapsed: boolean }) {
-    const pinnable =
-      c.scope.kind === "tournament" &&
-      canWrite &&
-      (pinnedTournamentCommentId == null || pinnedTournamentCommentId === c.id);
-    return (
-      <CommentCard
-        key={c.id}
-        c={c}
-        isEditing={editingId === c.id}
-        isPinned={pinnedTournamentCommentId === c.id}
-        isUnseen={!!token && !seen.has(c.id)}
-        onMarkSeen={() => {
-          if (!token || markReadMut.isPending) return;
-          markReadMut.mutate(c.id);
-        }}
-        flash={flashId === c.id}
-        surfaceClassName={surface}
-        avatarUpdatedAt={c.author.kind === "player" ? avatarUpdatedAtByPlayerId.get(c.author.playerId) ?? null : null}
-        onOpenImage={(src) => setLightboxSrc(src)}
-        canPin={pinnable}
-        onTogglePin={
-          pinnable
-            ? () => {
-                const next = pinnedTournamentCommentId === c.id ? null : c.id;
-                void pinMut.mutateAsync(next);
-              }
-            : null
-        }
-        canEdit={c.canEdit}
-        canDelete={canDelete}
-        canReply={canWrite}
-        onReply={() => openReply(c)}
-        replyOpen={replyToId === c.id}
-        replyDraft={replyDraft}
-        onChangeReplyDraft={setReplyDraft}
-        onSubmitReply={() => void submitReply(c)}
-        onCancelReply={cancelReply}
-        replySubmitting={createMut.isPending}
-        childCount={opts.childCount}
-        collapsed={opts.collapsed}
-        onToggleCollapse={() => toggleThread(c.id)}
-        players={players}
-        currentPlayerId={currentPlayerId}
-        currentPlayerName={currentPlayerName}
-        authorLabel={authorLabel}
-        onToggleEdit={() => toggleEdit(c)}
-        onDelete={() => {
-          void deleteComment(c.id);
-        }}
-        onVote={(value) => {
-          if (!token || voteMut.isPending) return;
-          voteMut.mutate({ commentId: c.id, value });
-        }}
-        onOpenVoters={() => setVoteVotersCommentId(c.id)}
-        draftAuthor={draftAuthor}
-        onChangeDraftAuthor={setDraftAuthor}
-        draftBody={draftBody}
-        onChangeDraftBody={setDraftBody}
-        onSave={() => {
-          void upsertComment(c.scope);
-        }}
-        canSubmit={canSubmit && (editingId !== c.id || editingDirty)}
-      />
-    );
-  }
-
-  /** Render a comment and its (collapsible) reply subtree, recursively. */
-  function renderCommentTree(c: TournamentComment, surface: string, depth: number) {
-    const children = childrenByParent.get(c.id) ?? [];
-    const collapsed = collapsedThreads.has(c.id);
-    return (
-      <div key={c.id} className="space-y-2">
-        {renderCommentCard(c, surface, { childCount: children.length, collapsed })}
-        {children.length && !collapsed ? (
-          <div className="ml-1 space-y-2 border-l border-border-card-inner/40 pl-2 sm:pl-3">
-            {children.map((ch) => renderCommentTree(ch, "panel-inner", depth + 1))}
-          </div>
-        ) : null}
-      </div>
-    );
-  }
-
-  /** A match block: header (score/clubs/stars) + its comments. Header toggles collapse. */
-  function renderMatchBlock(matchId: number, surface: string) {
-    const h = matchHeaderMeta(matchId);
-    const arr = (grouped.blocks.find((b) => b.matchId === matchId)?.comments ?? []);
-    const blockKey = `m-${matchId}`;
-    const isCollapsed = showMatchHeader && collapsedBlocks.has(blockKey);
-    const unseenHere =
-      !!token && comments.some((c) => grouped.rootScopeKey.get(c.id) === blockKey && !seen.has(c.id));
-    const headerInner = h ? (
-          <div className="space-y-1">
-            <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3">
-              <div className="min-w-0 truncate text-sm text-text-normal">{h.aPlayers}</div>
-              <div className="card-chip flex items-center justify-center gap-2 justify-self-center">
-                {h.aGoals == null || h.bGoals == null ? (
-                  <span className="text-sm font-semibold tabular-nums text-text-muted">—</span>
-                ) : (
-                  <>
-                    <span className="text-sm font-semibold tabular-nums">{h.aGoals}</span>
-                    <span className="text-text-muted">:</span>
-                    <span className="text-sm font-semibold tabular-nums">{h.bGoals}</span>
-                  </>
-                )}
-              </div>
-              <div className="min-w-0 truncate text-right text-sm text-text-normal">{h.bPlayers}</div>
-            </div>
-            <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-start gap-3 text-xs text-text-muted">
-              <div className="min-w-0 whitespace-normal break-words leading-tight">{h.aClub.present ? h.aClub.name : "—"}</div>
-              <div />
-              <div className="min-w-0 whitespace-normal break-words text-right leading-tight">{h.bClub.present ? h.bClub.name : "—"}</div>
-            </div>
-            <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 text-[11px] text-text-muted">
-              <div className="min-w-0">{h.aClub.present ? <StarsFA rating={h.aClub.rating ?? 0} textClassName="text-text-muted" /> : <span>—</span>}</div>
-              <div />
-              <div className="flex min-w-0 justify-end">{h.bClub.present ? <StarsFA rating={h.bClub.rating ?? 0} textClassName="text-text-muted" /> : <span>—</span>}</div>
-            </div>
-          </div>
-    ) : null;
-    // not CardSection: rounded-2xl omitted so the block spans edge-to-edge inside the parent card; scroll-mt critical for anchor navigation
-    return (
-      <div key={matchId} id={`comments-block-match-${matchId}`} className="card-inner-flat scroll-mt-28 sm:scroll-mt-32">
-        {h && showMatchHeader ? (
-          <button
-            type="button"
-            onClick={() => toggleBlock(blockKey)}
-            className="flex w-full items-start gap-2 text-left"
-            aria-expanded={!isCollapsed}
-          >
-            <i className={`fa-solid ${isCollapsed ? "fa-chevron-right" : "fa-chevron-down"} mt-1 text-[11px] text-text-muted`} aria-hidden="true" />
-            <span className="min-w-0 flex-1">{headerInner}</span>
-            <span className="mt-0.5 inline-flex items-center gap-1.5 text-[11px] text-text-muted">
-              {unseenHere ? <span className="h-1.5 w-1.5 rounded-full bg-accent" aria-hidden="true" /> : null}
-              {arr.length}
-            </span>
-          </button>
-        ) : null}
-
-        {!isCollapsed ? (
-          <div className="mt-3 space-y-2">
-            {arr.length ? arr.map((c) => renderCommentTree(c, surface, 0)) : (
-              <EmptyState title="No comments on this match yet." />
-            )}
-          </div>
-        ) : null}
-      </div>
-    );
-  }
-
-  function renderGeneralList() {
-    if (!generalComments.length) return <EmptyState title="No general comments yet." />;
-    const ordered = [pinnedTournamentComment, ...generalComments.filter((c) => c.id !== pinnedTournamentComment?.id)]
-      .filter(Boolean) as TournamentComment[];
-    return <div className="space-y-2">{ordered.map((c) => renderCommentTree(c, "panel", 0))}</div>;
-  }
-
   const composer = canWrite && addTarget ? (
     <div className="panel-subtle p-3 space-y-3">
       {onlyMatchId == null ? (
@@ -1085,26 +796,19 @@ export default function TournamentCommentsCard({
         <div className="space-y-3">
           {/* Scope filter chips */}
           {onlyMatchId == null ? (
-            <div className="no-scrollbar -mx-1 flex gap-1.5 overflow-x-auto px-1 py-0.5">
-              <FilterChip active={filter === "all"} onClick={() => setFilter("all")} label="All" count={totalComments} />
-              <FilterChip
-                active={filter === "general"}
-                onClick={() => setFilter("general")}
-                label="General"
-                count={generalComments.length}
-                unseen={generalUnseen}
-              />
-              {matchBlocksWithComments.map((b) => (
-                <FilterChip
-                  key={b.matchId}
-                  active={filter === b.matchId}
-                  onClick={() => setFilter(b.matchId)}
-                  label={`Match ${matchIndexById.get(b.matchId) ?? b.matchId}`}
-                  count={b.comments.length}
-                  unseen={!!token && b.comments.some((c) => !seen.has(c.id))}
-                />
-              ))}
-            </div>
+            <CommentFilterBar
+              filter={filter}
+              onChange={setFilter}
+              totalCount={totalComments}
+              generalCount={generalComments.length}
+              generalUnseen={generalUnseen}
+              matchChips={matchBlocksWithComments.map((b) => ({
+                matchId: b.matchId,
+                label: `Match ${matchIndexById.get(b.matchId) ?? b.matchId}`,
+                count: b.comments.length,
+                unseen: !!token && b.comments.some((c) => !seen.has(c.id)),
+              }))}
+            />
           ) : null}
 
           {/* Add entry: comment / goal / shots (matches) or just a comment (general). */}
@@ -1135,49 +839,67 @@ export default function TournamentCommentsCard({
           ) : null}
 
           {/* Feed */}
-          {onlyMatchId != null ? (
-            renderMatchBlock(onlyMatchId, "panel-subtle")
-          ) : filter === "general" ? (
-            <div className="panel-subtle p-3">
-              <div className="mb-3 text-sm font-semibold">General</div>
-              {renderGeneralList()}
-            </div>
-          ) : typeof filter === "number" ? (
-            renderMatchBlock(filter, "panel-subtle")
-          ) : (
-            <div className="space-y-2">
-              {matchBlocksWithComments.length ? (
-                <div className="flex justify-end">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const keys = matchBlocksWithComments.map((b) => `m-${b.matchId}`);
-                      const allCollapsed = keys.every((k) => collapsedBlocks.has(k));
-                      setCollapsedBlocks(allCollapsed ? new Set() : new Set(keys));
-                    }}
-                    className="text-xs text-text-muted transition hover:text-text-normal"
-                  >
-                    {matchBlocksWithComments.every((b) => collapsedBlocks.has(`m-${b.matchId}`))
-                      ? "Expand all"
-                      : "Collapse all"}
-                  </button>
-                </div>
-              ) : null}
-              {generalComments.length ? (
-                <div className="panel-subtle p-3">
-                  <div className="mb-3 flex items-center justify-between gap-2">
-                    <div className="text-sm font-semibold">General</div>
-                    <div className="text-xs text-text-muted">{generalComments.length}</div>
-                  </div>
-                  {renderGeneralList()}
-                </div>
-              ) : null}
-              {matchBlocksWithComments.map((b) => renderMatchBlock(b.matchId, "panel-subtle"))}
-              {totalComments === 0 ? (
-                <EmptyState title={`No comments yet.${canWrite ? " Be the first to add one." : ""}`} className="panel-subtle px-3 py-6" />
-              ) : null}
-            </div>
-          )}
+          <CommentList
+            onlyMatchId={onlyMatchId}
+            filter={filter}
+            blocks={grouped.blocks}
+            matchBlocksWithComments={matchBlocksWithComments}
+            generalComments={generalComments}
+            pinnedTournamentComment={pinnedTournamentComment}
+            comments={comments}
+            totalComments={totalComments}
+            childrenByParent={childrenByParent}
+            rootScopeKey={grouped.rootScopeKey}
+            matchHeaderMeta={matchHeaderMeta}
+            showMatchHeader={showMatchHeader}
+            collapsedBlocks={collapsedBlocks}
+            setCollapsedBlocks={setCollapsedBlocks}
+            toggleBlock={toggleBlock}
+            collapsedThreads={collapsedThreads}
+            toggleThread={toggleThread}
+            token={token}
+            seen={seen}
+            canWrite={canWrite}
+            canDelete={canDelete}
+            players={players}
+            currentPlayerId={currentPlayerId}
+            currentPlayerName={currentPlayerName}
+            avatarUpdatedAtByPlayerId={avatarUpdatedAtByPlayerId}
+            authorLabel={authorLabel}
+            editingId={editingId}
+            editingDirty={editingDirty}
+            pinnedTournamentCommentId={pinnedTournamentCommentId}
+            flashId={flashId}
+            draftAuthor={draftAuthor}
+            draftBody={draftBody}
+            canSubmit={canSubmit}
+            replyToId={replyToId}
+            replyDraft={replyDraft}
+            replySubmitting={createMut.isPending}
+            onMarkSeen={(id) => {
+              if (!token || markReadMut.isPending) return;
+              markReadMut.mutate(id);
+            }}
+            onTogglePin={(c) => {
+              const next = pinnedTournamentCommentId === c.id ? null : c.id;
+              void pinMut.mutateAsync(next);
+            }}
+            onVote={(id, value) => {
+              if (!token || voteMut.isPending) return;
+              voteMut.mutate({ commentId: id, value });
+            }}
+            onOpenVoters={(id) => setVoteVotersCommentId(id)}
+            onOpenImage={(src) => setLightboxSrc(src)}
+            openReply={openReply}
+            cancelReply={cancelReply}
+            submitReply={(c) => void submitReply(c)}
+            setReplyDraft={setReplyDraft}
+            toggleEdit={toggleEdit}
+            deleteComment={(id) => void deleteComment(id)}
+            setDraftAuthor={setDraftAuthor}
+            setDraftBody={setDraftBody}
+            upsertComment={(scope) => void upsertComment(scope)}
+          />
         </div>
     </>
   );
