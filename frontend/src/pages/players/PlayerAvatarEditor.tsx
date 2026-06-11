@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 
 import Button from "../../ui/primitives/Button";
 import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
+import Modal from "../../ui/primitives/Modal";
 import { clamp } from "../../utils/format";
 
 
@@ -189,23 +190,16 @@ export default function PlayerAvatarEditor({
         } as const);
 
   return (
-    <div className="fixed inset-0 z-50">
-      <div className="absolute inset-0 bg-black/60" onClick={onClose} />
-
-      {/* Bottom sheet (mobile-first), centered modal on desktop */}
-      <div className="absolute inset-x-0 bottom-0 sm:inset-0 sm:flex sm:items-center sm:justify-center p-3 sm:p-6">
-        <div className="panel w-full max-w-lg p-3 sm:p-4">
+    <Modal
+      open
+      title={title}
+      subtitle="Square crop, stored locally in DB"
+      onClose={onClose}
+      fullScreenOnMobile
+      maxWidth="max-w-lg"
+      variant="panel"
+    >
           <ErrorToastOnError error={err} title="Avatar action failed" />
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              <div className="text-sm font-semibold text-text-normal truncate">{title}</div>
-              <div className="mt-0.5 text-[11px] text-text-muted">Square crop, stored locally in DB</div>
-            </div>
-            <Button variant="ghost" type="button" onClick={onClose} className="h-9 w-9 p-0 inline-flex items-center justify-center" title="Close">
-              <i className="fa-solid fa-xmark" aria-hidden="true" />
-            </Button>
-          </div>
-
           <div className="mt-3 grid gap-3">
             <div
               ref={viewportRef}
@@ -351,8 +345,6 @@ export default function PlayerAvatarEditor({
               </Button>
             </div>
           </div>
-        </div>
-      </div>
-    </div>
+    </Modal>
   );
 }
