@@ -427,7 +427,7 @@ Independent of the frontend phases (except B2 ordering note). Python, FastAPI + 
 - **DoD:** all listed call sites use the helpers; `make test` green;
   `backend/tests/test_player_profiles_auth.py` unchanged and passing.
 
-### B3 — Extract fat endpoint bodies into services  ☐
+### B3 — Extract fat endpoint bodies into services  ☑
 - **Effort:** M–L · **Risk:** medium · split into 3 commits · **Model:** Sonnet 4.6
 - **Targets:**
   1. `list_tournaments` (`app/routers/tournaments.py:301-360`) → `services/tournament_view.py`

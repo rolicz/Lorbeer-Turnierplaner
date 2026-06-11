@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 import re
-from datetime import datetime, timedelta
+from datetime import datetime
 
 from fastapi import APIRouter, Depends, File, HTTPException, Request, Response, UploadFile
 from sqlalchemy.orm import selectinload
@@ -39,6 +39,7 @@ from ..schemas.responses import (
     VotersOut,
 )
 from ..services.comments_summary import tournament_comments_summary
+from ..services.comments_view import comment_can_edit, comment_dict, list_comments_for_tournament, parent_comment_map
 from ..services.events import (
     broadcast_tournament,
     push_comment_deleted,
@@ -57,51 +58,6 @@ from ..services.notifications import enqueue_global_push, localized_push_message
 log = logging.getLogger(__name__)
 router = APIRouter(tags=["comments"])
 MAX_COMMENT_IMAGE_BYTES = 8_000_000  # enough for cropped 1920x1440 webp/png
-# A comment may be edited by its real author only within this window after posting.
-COMMENT_EDIT_WINDOW = timedelta(hours=1)
-
-
-def _real_author_map(s: Session, comment_ids: list[int]) -> dict[int, int]:
-    if not comment_ids:
-        return {}
-    rows = s.exec(
-        select(CommentAuthorLink.comment_id, CommentAuthorLink.real_author_player_id).where(
-            CommentAuthorLink.comment_id.in_(comment_ids)
-        )
-    ).all()
-    return {int(cid): int(pid) for cid, pid in rows}
-
-
-def _parent_comment_map(s: Session, comment_ids: list[int]) -> dict[int, int]:
-    if not comment_ids:
-        return {}
-    rows = s.exec(
-        select(CommentThreadLink.comment_id, CommentThreadLink.parent_comment_id).where(
-            CommentThreadLink.comment_id.in_(comment_ids)
-        )
-    ).all()
-    return {int(cid): int(pid) for cid, pid in rows}
-
-
-def _comment_can_edit(
-    c: Comment,
-    *,
-    viewer_id: int | None,
-    is_admin: bool,
-    real_author_id: int | None,
-    now: datetime | None = None,
-) -> bool:
-    """Admins always; otherwise the real author (recorded, or the legacy named author)
-    only within COMMENT_EDIT_WINDOW of posting. Legacy "General" comments without a
-    recorded author are admin-only."""
-    if is_admin:
-        return True
-    if viewer_id is None:
-        return False
-    author = real_author_id if real_author_id is not None else c.author_player_id
-    if author is None or int(author) != int(viewer_id):
-        return False
-    return (now or datetime.utcnow()) - c.created_at <= COMMENT_EDIT_WINDOW
 _GOAL_SCORELINE_RE = re.compile(r"^\s*\d{1,3}'\s+(?P<a>\d{1,3})-(?P<b>\d{1,3})\s+.+$")
 _PLAIN_SCORELINE_RE = re.compile(r"^\s*(?P<a>\d{1,3})[:\-](?P<b>\d{1,3})\s*$")
 
@@ -125,46 +81,6 @@ def _comment_image_updated_at(s: Session, comment_id: int) -> datetime | None:
 
 
 
-
-def _comment_image_meta_map(s: Session, tournament_id: int) -> dict[int, datetime]:
-    rows_fs = s.exec(
-        select(CommentImageFile.comment_id, CommentImageFile.updated_at, CommentImageFile.file_path)
-        .join(Comment, Comment.id == CommentImageFile.comment_id)
-        .where(Comment.tournament_id == tournament_id)
-    ).all()
-    out: dict[int, datetime] = {}
-    for comment_id, updated_at, file_path in rows_fs:
-        if media_exists(file_path):
-            out[int(comment_id)] = updated_at
-    return out
-
-
-def _comment_dict(
-    c: Comment,
-    image_updated_at: datetime | None = None,
-    *,
-    upvotes: int = 0,
-    downvotes: int = 0,
-    my_vote: int | None = None,
-    parent_comment_id: int | None = None,
-    can_edit: bool = False,
-) -> dict:
-    return {
-        "id": c.id,
-        "tournament_id": c.tournament_id,
-        "match_id": c.match_id,
-        "parent_comment_id": parent_comment_id,
-        "author_player_id": c.author_player_id,
-        "body": c.body,
-        "created_at": c.created_at,
-        "updated_at": c.updated_at,
-        "has_image": image_updated_at is not None,
-        "image_updated_at": image_updated_at,
-        "upvotes": int(upvotes),
-        "downvotes": int(downvotes),
-        "my_vote": int(my_vote) if my_vote in (-1, 1) else 0,
-        "can_edit": bool(can_edit),
-    }
 
 
 def _validate_author(s: Session, tournament_id: int, author_player_id: int | None) -> None:
@@ -329,80 +245,7 @@ def list_comments(
     claims: dict | None = Depends(decode_token),
 ) -> dict:
     get_or_404(s, Tournament, tournament_id, name="Tournament")
-
-    pin = s.get(TournamentPinnedComment, tournament_id)
-    pinned_comment_id = pin.comment_id if pin and pin.comment_id else None
-
-    if pinned_comment_id is not None:
-        exists = s.get(Comment, pinned_comment_id)
-        if not exists:
-            # Keep response consistent even if storage is stale.
-            try:
-                s.delete(pin)
-                s.commit()
-            except Exception:
-                s.rollback()
-            pinned_comment_id = None
-
-    comments = s.exec(
-        select(Comment)
-        .where(Comment.tournament_id == tournament_id)
-        .order_by(Comment.created_at, Comment.id)
-    ).all()
-    image_meta = _comment_image_meta_map(s, tournament_id)
-    comment_ids = [int(c.id) for c in comments]
-
-    votes_by_comment_id: dict[int, dict[str, int]] = {}
-    my_vote_by_comment_id: dict[int, int] = {}
-    if comment_ids:
-        vote_rows = s.exec(
-            select(CommentVote.comment_id, CommentVote.value).where(CommentVote.comment_id.in_(comment_ids))
-        ).all()
-        for cid, value in vote_rows:
-            cid_i = int(cid)
-            slot = votes_by_comment_id.setdefault(cid_i, {"up": 0, "down": 0})
-            if int(value) > 0:
-                slot["up"] += 1
-            elif int(value) < 0:
-                slot["down"] += 1
-
-        if claims and claims.get("player_id") is not None:
-            viewer_player_id = int(claims.get("player_id"))
-            my_rows = s.exec(
-                select(CommentVote.comment_id, CommentVote.value).where(
-                    CommentVote.player_id == viewer_player_id,
-                    CommentVote.comment_id.in_(comment_ids),
-                )
-            ).all()
-            my_vote_by_comment_id = {int(cid): int(value) for cid, value in my_rows}
-
-    parent_map = _parent_comment_map(s, comment_ids)
-    real_author_map = _real_author_map(s, comment_ids)
-    viewer_id = int(claims["player_id"]) if claims and claims.get("player_id") is not None else None
-    is_admin = bool(claims and str(claims.get("role") or "") == "admin")
-    now = datetime.utcnow()
-
-    return {
-        "pinned_comment_id": pinned_comment_id,
-        "comments": [
-            _comment_dict(
-                c,
-                image_meta.get(int(c.id)),
-                upvotes=votes_by_comment_id.get(int(c.id), {}).get("up", 0),
-                downvotes=votes_by_comment_id.get(int(c.id), {}).get("down", 0),
-                my_vote=my_vote_by_comment_id.get(int(c.id), 0),
-                parent_comment_id=parent_map.get(int(c.id)),
-                can_edit=_comment_can_edit(
-                    c,
-                    viewer_id=viewer_id,
-                    is_admin=is_admin,
-                    real_author_id=real_author_map.get(int(c.id)),
-                    now=now,
-                ),
-            )
-            for c in comments
-        ],
-    }
+    return list_comments_for_tournament(s, tournament_id, claims)
 
 
 @router.get("/comments/tournaments-summary", response_model=list[CommentSummaryOut])
@@ -685,7 +528,7 @@ async def create_comment(
             s.add(CommentRead(player_id=pid, comment_id=int(c.id), read_at=now))
             s.commit()
 
-    await push_comment_upsert(tournament_id, _comment_dict(c, None, parent_comment_id=parent_comment_id))
+    await push_comment_upsert(tournament_id, comment_dict(c, None, parent_comment_id=parent_comment_id))
     if match_for_event is not None and match_score_changed:
         await broadcast_tournament(s, tournament_id, reason="comment-score")
 
@@ -742,7 +585,7 @@ async def create_comment(
     )
 
     # The creator can edit their fresh comment (real author, within the window).
-    return _comment_dict(c, None, parent_comment_id=parent_comment_id, can_edit=True)
+    return comment_dict(c, None, parent_comment_id=parent_comment_id, can_edit=True)
 
 
 @router.patch("/comments/{comment_id}", response_model=CommentOut)
@@ -760,7 +603,7 @@ async def patch_comment(
     is_admin = str(claims.get("role") or "") == "admin"
     real_author_link = s.get(CommentAuthorLink, comment_id)
     real_author_id = int(real_author_link.real_author_player_id) if real_author_link else None
-    if not _comment_can_edit(c, viewer_id=viewer_id, is_admin=is_admin, real_author_id=real_author_id):
+    if not comment_can_edit(c, viewer_id=viewer_id, is_admin=is_admin, real_author_id=real_author_id):
         raise HTTPException(
             status_code=403,
             detail="You can only edit your own comment within an hour of posting",
@@ -784,13 +627,13 @@ async def patch_comment(
     s.commit()
     s.refresh(c)
 
-    parent_comment_id = _parent_comment_map(s, [int(c.id)]).get(int(c.id))
+    parent_comment_id = parent_comment_map(s, [int(c.id)]).get(int(c.id))
     await push_comment_upsert(
-        c.tournament_id, _comment_dict(c, image_updated_at, parent_comment_id=parent_comment_id)
+        c.tournament_id, comment_dict(c, image_updated_at, parent_comment_id=parent_comment_id)
     )
 
-    can_edit = _comment_can_edit(c, viewer_id=viewer_id, is_admin=is_admin, real_author_id=real_author_id)
-    return _comment_dict(c, image_updated_at, parent_comment_id=parent_comment_id, can_edit=can_edit)
+    can_edit = comment_can_edit(c, viewer_id=viewer_id, is_admin=is_admin, real_author_id=real_author_id)
+    return comment_dict(c, image_updated_at, parent_comment_id=parent_comment_id, can_edit=can_edit)
 
 
 @router.delete("/comments/{comment_id}", response_model=OkResponse, dependencies=[Depends(require_admin)])
@@ -900,11 +743,11 @@ async def put_comment_image(
     s.refresh(c)
     s.refresh(img_file)
 
-    parent_comment_id = _parent_comment_map(s, [int(c.id)]).get(int(c.id))
+    parent_comment_id = parent_comment_map(s, [int(c.id)]).get(int(c.id))
     await push_comment_upsert(
-        c.tournament_id, _comment_dict(c, img_file.updated_at, parent_comment_id=parent_comment_id)
+        c.tournament_id, comment_dict(c, img_file.updated_at, parent_comment_id=parent_comment_id)
     )
-    return _comment_dict(c, img_file.updated_at, parent_comment_id=parent_comment_id)
+    return comment_dict(c, img_file.updated_at, parent_comment_id=parent_comment_id)
 
 
 @router.delete("/comments/{comment_id}/image", response_model=OkResponse, dependencies=[Depends(require_editor)])
@@ -920,8 +763,8 @@ async def delete_comment_image(comment_id: int, s: Session = Depends(get_session
     s.add(c)
     s.commit()
 
-    parent_comment_id = _parent_comment_map(s, [int(c.id)]).get(int(c.id))
-    await push_comment_upsert(c.tournament_id, _comment_dict(c, None, parent_comment_id=parent_comment_id))
+    parent_comment_id = parent_comment_map(s, [int(c.id)]).get(int(c.id))
+    await push_comment_upsert(c.tournament_id, comment_dict(c, None, parent_comment_id=parent_comment_id))
     return {"ok": True}
 
 
