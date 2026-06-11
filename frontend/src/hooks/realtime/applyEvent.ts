@@ -5,7 +5,7 @@
  */
 import type { QueryClient } from "@tanstack/react-query";
 import { qk } from "../../api/queryKeys";
-import type { Comment, TournamentCommentsResponse, TournamentDetail } from "../../api/types";
+import type { TournamentCommentsResponse } from "../../api/types";
 import type { RealtimeMessage } from "./connection";
 import {
   WS_COMMENT_DELETE,
@@ -14,22 +14,30 @@ import {
   WS_TOURNAMENT_DELETED,
   WS_TOURNAMENT_SYNC,
   WS_TOURNAMENTS_CHANGED,
+  type CommentDeletePayload,
+  type CommentMetaPayload,
+  type CommentUpsertPayload,
+  type TournamentDeletedPayload,
+  type TournamentSyncPayload,
+  type TournamentsChangedPayload,
 } from "./wsEvents";
 
-type Json = Record<string, unknown>;
-const asObj = (v: unknown): Json => (v && typeof v === "object" ? (v as Json) : {});
+// Coerce an untrusted WS payload to its declared shape. Stays defensive (returns {} for
+// non-objects); the type parameter makes the per-event payload contract compile-time checked.
+const asObj = <T = Record<string, unknown>>(v: unknown): Partial<T> =>
+  v && typeof v === "object" ? (v as Partial<T>) : {};
 
 /** Replace the whole tournament cache with the pushed full state (no merge). */
 export function applyTournamentSync(qc: QueryClient, payload: unknown) {
-  const p = asObj(payload);
+  const p = asObj<TournamentSyncPayload>(payload);
   const tid = Number(p.tournament_id);
   const tournament = p.tournament;
   if (!tournament || !Number.isFinite(tid)) return;
-  qc.setQueryData(qk.tournament(tid), tournament as TournamentDetail);
+  qc.setQueryData(qk.tournament(tid), tournament);
 }
 
 export function applyTournamentDeleted(qc: QueryClient, payload: unknown) {
-  const tid = Number(asObj(payload).tournament_id);
+  const tid = Number(asObj<TournamentDeletedPayload>(payload).tournament_id);
   if (!Number.isFinite(tid)) return;
   qc.removeQueries({ queryKey: qk.tournament(tid) });
   void qc.invalidateQueries({ queryKey: qk.tournaments() });
@@ -42,9 +50,9 @@ export function applyTournamentDeleted(qc: QueryClient, payload: unknown) {
  * are viewer-specific and not carried by the broadcast); new comments append.
  */
 export function applyCommentUpsert(qc: QueryClient, payload: unknown) {
-  const p = asObj(payload);
+  const p = asObj<CommentUpsertPayload>(payload);
   const tid = Number(p.tournament_id);
-  const comment = p.comment as Comment | undefined;
+  const comment = p.comment;
   if (!comment || !Number.isFinite(tid)) return;
 
   qc.setQueriesData<TournamentCommentsResponse>({ queryKey: qk.commentsTournament(tid) }, (prev) => {
@@ -73,7 +81,7 @@ export function applyCommentUpsert(qc: QueryClient, payload: unknown) {
 }
 
 export function applyCommentDelete(qc: QueryClient, payload: unknown) {
-  const p = asObj(payload);
+  const p = asObj<CommentDeletePayload>(payload);
   const tid = Number(p.tournament_id);
   const cid = Number(p.comment_id);
   if (!Number.isFinite(tid) || !Number.isFinite(cid)) return;
@@ -88,7 +96,7 @@ export function applyCommentDelete(qc: QueryClient, payload: unknown) {
 
 /** Vote / pin / read metadata changed -> narrow refetch (accurate counts + my_vote). */
 export function applyCommentMeta(qc: QueryClient, payload: unknown) {
-  const tid = Number(asObj(payload).tournament_id);
+  const tid = Number(asObj<CommentMetaPayload>(payload).tournament_id);
   if (!Number.isFinite(tid)) return;
   void qc.invalidateQueries({ queryKey: qk.commentsTournament(tid) });
   void qc.invalidateQueries({ queryKey: qk.commentsSummary() });
@@ -96,7 +104,7 @@ export function applyCommentMeta(qc: QueryClient, payload: unknown) {
 
 /** Coarse global notify: refresh list/live; only touch stats/cup on result-grade changes. */
 export function applyTournamentsChanged(qc: QueryClient, payload: unknown) {
-  const p = asObj(payload);
+  const p = asObj<TournamentsChangedPayload>(payload);
   const action = typeof p.action === "string" ? p.action : "";
   void qc.invalidateQueries({ queryKey: qk.tournaments() });
   void qc.invalidateQueries({ queryKey: qk.tournamentsLive() });
