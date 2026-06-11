@@ -3,13 +3,28 @@ import React, { useEffect } from "react";
 export default function Modal({
   open,
   title,
+  subtitle,
   onClose,
-  children
+  children,
+  fullScreenOnMobile = false,
+  maxWidth,
+  variant = "card",
+  className,
 }: {
   open: boolean;
-  title: string;
+  /** String → auto-styled as text-sm font-semibold; ReactNode → rendered as-is in the title wrapper. */
+  title: React.ReactNode;
+  subtitle?: React.ReactNode;
   onClose: () => void;
   children: React.ReactNode;
+  /** Bottom-sheet on mobile, centered dialog on ≥sm. Default false = centered only. */
+  fullScreenOnMobile?: boolean;
+  /** Tailwind max-width class applied to the inner card (fullScreenOnMobile only). Default: max-w-lg. */
+  maxWidth?: string;
+  /** Shell appearance: "card" (card-outer) or "panel" (panel). Default "card". */
+  variant?: "card" | "panel";
+  /** Extra classes on the inner card (fullScreenOnMobile only), e.g. "max-h-[84vh] overflow-hidden". */
+  className?: string;
 }) {
   useEffect(() => {
     if (!open) return;
@@ -18,18 +33,60 @@ export default function Modal({
     return () => window.removeEventListener("keydown", onKey);
   }, [open, onClose]);
 
+  useEffect(() => {
+    if (!open) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = prev; };
+  }, [open]);
+
   if (!open) return null;
 
-  return (
-    <div className="fixed inset-0 z-30">
-      <div className="overlay-scrim" onClick={onClose} />
-      <div className="modal-shell absolute left-1/2 top-1/2 w-[min(92vw,520px)] -translate-x-1/2 -translate-y-1/2">
-        <div className="mb-3 flex items-center justify-between">
-          <div className="text-base font-semibold">{title}</div>
-          <button className="icon-button" onClick={onClose}>
-            ✕
-          </button>
+  const titleEl = typeof title === "string"
+    ? <div className="truncate text-sm font-semibold text-text-normal">{title}</div>
+    : title;
+
+  const header = (
+    <div className="mb-3 flex items-start justify-between gap-3">
+      <div className="min-w-0">
+        {titleEl}
+        {subtitle && <div className="text-[11px] text-text-muted">{subtitle}</div>}
+      </div>
+      <button
+        type="button"
+        className="icon-button h-10 w-10 p-0 inline-flex items-center justify-center shrink-0"
+        onClick={onClose}
+        aria-label="Close"
+        title="Close"
+      >
+        <i className="fa-solid fa-xmark" aria-hidden="true" />
+      </button>
+    </div>
+  );
+
+  if (fullScreenOnMobile) {
+    const shellCls = variant === "panel" ? "panel" : "card-outer";
+    const parts = [shellCls, "w-full p-3 sm:p-4", maxWidth ?? "max-w-lg", className]
+      .filter(Boolean)
+      .join(" ");
+    return (
+      <div className="fixed inset-0 z-50">
+        <div className="overlay-scrim" onClick={onClose} />
+        <div className="absolute inset-x-0 bottom-0 sm:inset-0 sm:flex sm:items-center sm:justify-center p-3 sm:p-6">
+          <div className={parts}>
+            {header}
+            {children}
+          </div>
         </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="fixed inset-0 z-50">
+      <div className="overlay-scrim" onClick={onClose} />
+      <div className={["modal-shell absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2", maxWidth ?? "w-[min(92vw,520px)]"].join(" ")}>
+        {header}
         {children}
       </div>
     </div>
