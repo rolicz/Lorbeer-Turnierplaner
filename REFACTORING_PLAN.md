@@ -361,7 +361,7 @@ F1–F3 are the big wins; each is splittable into multiple commits.
 - **DoD:** comments work end-to-end (post, reply, edit, vote, pin, image attach, unread
   jump/mark-read) on live tournament and match detail; realtime updates still merge.
 
-### F4 — Extract chart hooks from `pages/stats/TrendsChart.tsx` (1019 lines)  ☐
+### F4 — Extract chart hooks from `pages/stats/TrendsChart.tsx` (1019 lines)  ☑
 - **Effort:** M · **Risk:** medium — **do this only as pure code movement** · **Model:** Sonnet 4.6
 - **Target:** `charts/useChartScaling.ts` (y-scale + ticks), `charts/useCrosshair.ts`,
   pure SVG path helpers into `charts/chartSvg.ts` with unit tests. The rendering component keeps

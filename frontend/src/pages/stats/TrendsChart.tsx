@@ -3,6 +3,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { fmtMonthDate, wrapTwoLinesWords, clamp } from "../../utils/format";
 import CardSection from "../../ui/primitives/CardSection";
 import { clampWindow, dist2, monthTicksBetween, type SeriesPoint } from "./trendsMath";
+import { yAtScale, xAtScale } from "./charts/useChartScaling";
+import { buildSeriesSegments, computeLaneOffsets } from "./charts/chartSvg";
 
 export function MultiLineChart({
   title,
@@ -53,23 +55,11 @@ export function MultiLineChart({
   const n = tournamentTs.length;
 
   const span = Math.max(1, windowEndTs - windowStartTs);
-  const xAtTime = (ts: number) => {
-    // Do NOT clamp to window start/end.
-    // We want lines to naturally enter/exit the plot when panning/zooming (instead of "sticking"
-    // the first/last point to the axis and stretching the segment).
-    const p = (ts - windowStartTs) / span;
-    // Safety clamp for extreme out-of-window values (keeps SVG coords in a sane range).
-    const pp = clamp(p, -2.5, 3.5);
-    return padL + pp * (w - padL - padR);
-  };
+  const xAtTime = (ts: number) => xAtScale(ts, windowStartTs, span, padL, padR, w);
 
   const xAt = (i: number) => xAtTime(tournamentTs[Math.max(0, Math.min(n - 1, i))] ?? windowStartTs);
   const yAt = useCallback(
-    (v: number) => {
-      const vv = Math.max(0, Math.min(yMax, v));
-      const innerH = h - padT - padB;
-      return padT + (1 - vv / Math.max(1e-6, yMax)) * innerH;
-    },
+    (v: number) => yAtScale(v, yMax, h, padT, padB),
     [h, padB, padT, yMax]
   );
 
@@ -94,51 +84,10 @@ export function MultiLineChart({
 
   // When multiple series share the same y at a given x, offset them into "lanes" so colors are visible
   // side-by-side instead of blending/overpainting.
-  const laneOffsetsByIndex = useMemo(() => {
-    const threshold = 2.25; // SVG px; group near-identical y values
-    const laneGap = 5; // SVG px
-    const out = new Map<number, Map<number, number>>();
-
-    for (let i = 0; i < n; i++) {
-      const atI: Array<{ id: number; y: number }> = [];
-      for (const s of series) {
-        const p = s.points[i];
-        if (!p) continue;
-        atI.push({ id: s.id, y: yAt(p.y) });
-      }
-      if (atI.length <= 1) continue;
-      atI.sort((a, b) => a.y - b.y);
-
-      const groups: Array<Array<{ id: number; y: number }>> = [];
-      let cur: Array<{ id: number; y: number }> = [];
-      for (const item of atI) {
-        if (!cur.length) {
-          cur = [item];
-          continue;
-        }
-        const prev = cur[cur.length - 1];
-        if (Math.abs(item.y - prev.y) <= threshold) cur.push(item);
-        else {
-          groups.push(cur);
-          cur = [item];
-        }
-      }
-      if (cur.length) groups.push(cur);
-
-      const m = new Map<number, number>();
-      let any = false;
-      for (const g of groups) {
-        if (g.length <= 1) continue;
-        any = true;
-        const mid = (g.length - 1) / 2;
-        for (let j = 0; j < g.length; j++) {
-          m.set(g[j].id, (j - mid) * laneGap);
-        }
-      }
-      if (any) out.set(i, m);
-    }
-    return out;
-  }, [n, series, yAt]);
+  const laneOffsetsByIndex = useMemo(
+    () => computeLaneOffsets(n, series, yAt),
+    [n, series, yAt]
+  );
 
   const laneOffset = (seriesId: number, idx: number) => laneOffsetsByIndex.get(idx)?.get(seriesId) ?? 0;
 
@@ -329,36 +278,7 @@ export function MultiLineChart({
             {/* series */}
             {series.map((s) => {
               const pts = s.points;
-              const segments: Array<{
-                i1: number;
-                y1: number;
-                i2: number;
-                y2: number;
-                muted: boolean;
-                opacity: number;
-              }> = [];
-
-              // Build solid runs and "muted" connectors over gaps.
-              let lastIdx: number | null = null;
-              let lastY: number | null = null;
-              for (let i = 0; i < pts.length; i++) {
-                const p = pts[i];
-                if (!p) continue;
-                if (lastIdx != null && lastY != null) {
-                  const gap = i - lastIdx;
-                  const muted = gap > 1 || !p.present || !(pts[lastIdx]?.present ?? true);
-                  segments.push({
-                    i1: lastIdx,
-                    y1: lastY,
-                    i2: i,
-                    y2: p.y,
-                    muted,
-                    opacity: muted ? 0.55 : 0.88,
-                  });
-                }
-                lastIdx = i;
-                lastY = p.y;
-              }
+              const segments = buildSeriesSegments(pts);
 
               // Dots for actual datapoints
               const dots = pts
