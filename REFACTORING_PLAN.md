@@ -237,7 +237,7 @@ This is the user-visible payoff. Do U1 first; U2–U8 are independent of each ot
   only hits `CardSection.tsx` (plus commented exceptions); stats/live/profile pages look unchanged
   except where padding/radius previously diverged; mobile + desktop checked.
 
-### U2 — Unify card title typography  ☐
+### U2 — Unify card title typography  ☑
 - **Effort:** S · **Risk:** low · **Model:** Sonnet 4.6
 - **Problem:** `ui/primitives/Card.tsx:30` renders titles as `text-base font-semibold`,
   `ui/primitives/CollapsibleCard.tsx:104` as `text-sm font-semibold` — two different card title
