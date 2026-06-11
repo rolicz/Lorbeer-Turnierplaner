@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 
 import Button from "../../ui/primitives/Button";
@@ -7,6 +7,7 @@ import CollapsibleCard from "../../ui/primitives/CollapsibleCard";
 import EmptyState from "../../ui/primitives/EmptyState";
 import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
 import InlineLoading from "../../ui/primitives/InlineLoading";
+import Modal from "../../ui/primitives/Modal";
 
 import { listClubs } from "../../api/clubs.api";
 import { listPlayers } from "../../api/players.api";
@@ -156,15 +157,6 @@ export default function HeadToHeadCard({
       focusPlayerId: args.focusPlayerId ?? selected?.id ?? null,
     });
   };
-
-  useEffect(() => {
-    if (!historyModal) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setHistoryModal(null);
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [historyModal]);
 
   const content = (
     <>
@@ -752,63 +744,52 @@ export default function HeadToHeadCard({
           </div>
         ) : null}
 
-      {historyModal ? (
-        <div className="fixed inset-0 z-50">
-          <div className="absolute inset-0 bg-black/65" onClick={() => setHistoryModal(null)} />
-          <div className="absolute inset-x-0 bottom-0 sm:inset-0 sm:flex sm:items-center sm:justify-center p-3 sm:p-6">
-            <div className="card-outer w-full max-w-4xl p-3 sm:p-4 max-h-[88vh] overflow-hidden">
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <div className="truncate text-sm font-semibold text-text-normal">{historyModal.title}</div>
-                  <div className="text-[11px] text-text-muted">Match history</div>
-                </div>
-                <button
-                  type="button"
-                  className="icon-button h-10 w-10 p-0 inline-flex items-center justify-center"
-                  onClick={() => setHistoryModal(null)}
-                  aria-label="Close"
-                  title="Close"
-                >
-                  <i className="fa-solid fa-xmark" aria-hidden="true" />
-                </button>
+      <Modal
+        open={historyModal !== null}
+        title={historyModal?.title ?? ""}
+        subtitle="Match history"
+        onClose={() => setHistoryModal(null)}
+        fullScreenOnMobile
+        maxWidth="max-w-4xl"
+        className="max-h-[88vh] overflow-hidden"
+      >
+        {historyModal !== null && (
+          <>
+            <CardSection padded={false} className="p-2.5">
+              <div className="flex flex-wrap items-center gap-2">
+                <StatsControlLabel icon="fa-sliders" text="View" />
+                <StatsSegmentedSwitch<DetailView>
+                  value={detailView}
+                  onChange={setDetailView}
+                  options={[
+                    { key: "compact", label: "Compact", icon: "fa-compress" },
+                    { key: "details", label: "Details", icon: "fa-list" },
+                  ]}
+                  ariaLabel="History details"
+                  title="Toggle details (clubs / leagues / stars)"
+                />
               </div>
+            </CardSection>
 
-              <CardSection padded={false} className="mt-3 p-2.5">
-                <div className="flex flex-wrap items-center gap-2">
-                  <StatsControlLabel icon="fa-sliders" text="View" />
-                  <StatsSegmentedSwitch<DetailView>
-                    value={detailView}
-                    onChange={setDetailView}
-                    options={[
-                      { key: "compact", label: "Compact", icon: "fa-compress" },
-                      { key: "details", label: "Details", icon: "fa-list" },
-                    ]}
-                    ariaLabel="History details"
-                    title="Toggle details (clubs / leagues / stars)"
-                  />
-                </div>
-              </CardSection>
+            <div className="mt-3 max-h-[calc(88vh-10rem)] overflow-y-auto pr-1">
+              {historyQ.isLoading ? <InlineLoading label="Loading…" /> : null}
 
-              <div className="mt-3 max-h-[calc(88vh-10rem)] overflow-y-auto pr-1">
-                {historyQ.isLoading ? <InlineLoading label="Loading…" /> : null}
+              {!historyQ.isLoading && !(historyQ.data?.tournaments?.length ?? 0) ? (
+                <CardSection><EmptyState title="No matches found for this matchup." /></CardSection>
+              ) : null}
 
-                {!historyQ.isLoading && !(historyQ.data?.tournaments?.length ?? 0) ? (
-                  <CardSection><EmptyState title="No matches found for this matchup." /></CardSection>
-                ) : null}
-
-                {historyQ.data?.tournaments?.length ? (
-                  <MatchHistoryList
-                    tournaments={historyQ.data.tournaments}
-                    focusId={historyModal.focusPlayerId}
-                    clubs={clubs}
-                    showMeta={detailView === "details"}
-                  />
-                ) : null}
-              </div>
+              {historyQ.data?.tournaments?.length ? (
+                <MatchHistoryList
+                  tournaments={historyQ.data.tournaments}
+                  focusId={historyModal.focusPlayerId}
+                  clubs={clubs}
+                  showMeta={detailView === "details"}
+                />
+              ) : null}
             </div>
-          </div>
-        </div>
-      ) : null}
+          </>
+        )}
+      </Modal>
     </>
   );
 
