@@ -1,9 +1,10 @@
-import { useEffect, useMemo } from "react";
+import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { getStatsH2H, getStatsPlayerMatches, getStatsPlayers, getStatsRatings, getStatsStreaks } from "../../api/stats.api";
 import { qk } from "../../api/queryKeys";
 import AvatarCircle from "../../ui/primitives/AvatarCircle";
 import CardSection from "../../ui/primitives/CardSection";
+import Modal from "../../ui/primitives/Modal";
 import { StreakPatch, type ActiveStreak } from "../../ui/StreakPatches";
 import type { StatsMatch, StatsPlayerMatchesTournament, StatsStreakCategory, StatsStreakRow, StatsStreaksResponse } from "../../api/types";
 import { sideBy } from "../../helpers";
@@ -85,15 +86,6 @@ export default function PlayerLiveStatsModal({
   avatarUpdatedAt: string | null;
   mode: "1v1" | "2v2";
 }) {
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [open, onClose]);
-
   const pid = player?.id ?? null;
   const enabled = open && pid != null;
 
@@ -225,28 +217,29 @@ export default function PlayerLiveStatsModal({
     playersModeQ.isLoading || playersOverallQ.isLoading || ratingsModeQ.isLoading || h2hQ.isLoading || streakQ.isLoading || matchesQ.isLoading;
 
   return (
-    <div className="fixed inset-0 z-50">
-      <div className="absolute inset-0 bg-black/60" onClick={onClose} />
-      <div className="absolute inset-x-0 bottom-0 sm:inset-0 sm:flex sm:items-center sm:justify-center p-3 sm:p-6">
-        <div className="card-outer w-full max-w-xl p-3 sm:p-4 max-h-[85vh] overflow-y-auto">
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0 inline-flex items-center gap-3">
-              <AvatarCircle
-                playerId={player.id}
-                name={player.name}
-                updatedAt={avatarUpdatedAt}
-                sizeClass="h-10 w-10"
-                fallbackClassName="text-base font-semibold text-text-muted"
-              />
-              <div className="min-w-0">
-                <div className="truncate text-sm font-semibold text-text-normal">{player.name}</div>
-                <div className="text-[11px] text-text-muted">Player stats ({mode})</div>
-              </div>
-            </div>
-            <button type="button" className="icon-button" onClick={onClose} title="Close">✕</button>
+    <Modal
+      open
+      title={
+        <div className="min-w-0 inline-flex items-center gap-3">
+          <AvatarCircle
+            playerId={player.id}
+            name={player.name}
+            updatedAt={avatarUpdatedAt}
+            sizeClass="h-10 w-10"
+            fallbackClassName="text-base font-semibold text-text-muted"
+          />
+          <div className="min-w-0">
+            <div className="truncate text-sm font-semibold text-text-normal">{player.name}</div>
+            <div className="text-[11px] text-text-muted">Player stats ({mode})</div>
           </div>
-
-          <CardSection padded={false} className="mt-3 p-3">
+        </div>
+      }
+      onClose={onClose}
+      fullScreenOnMobile
+      maxWidth="max-w-xl"
+      className="max-h-[85vh] overflow-y-auto"
+    >
+          <CardSection padded={false} className="p-3">
             <div className="text-[11px] text-text-muted">Form and rating</div>
             <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
               <div className="text-text-muted">
@@ -316,8 +309,6 @@ export default function PlayerLiveStatsModal({
           </CardSection>
 
           {loading ? <div className="mt-2 text-xs text-text-muted">Loading…</div> : null}
-        </div>
-      </div>
-    </div>
+    </Modal>
   );
 }
