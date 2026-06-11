@@ -487,6 +487,41 @@ Independent of the frontend phases (except B2 ordering note). Python, FastAPI + 
 
 ---
 
+## Review follow-ups — Block 2, step 9 (`/code-review`)  ☑
+
+The first Block-2 `/code-review` (2026-06-11) over the whole branch surfaced a set of issues,
+each tracing back to a Block-1 task that didn't fully meet its DoD. All fixed on this branch
+(commits `84a0401`..`56f0c0e`); backend `make test`+`make lint` and frontend `npm run check`+
+`npm run build` green.
+
+- **A2 — `/stats/player-matches` 500 (real bug):** the player-not-found early return omitted the
+  `scope` field the new `response_model` requires → `ResponseValidationError`. Fixed; the sibling
+  stats endpoints (h2h, h2h-matches, ratings/history) were audited and already emit every required
+  field. `fix(A2)`.
+- **A6 — dead WS payload types:** the per-event payload types were never wired into `applyEvent.ts`
+  (reducers used `unknown`). Made `asObj<T>()` generic so the contract is compile-time checked while
+  the defensive runtime coercion is preserved. `refactor(A6)`.
+- **F5 — incomplete dedup:** `winnerSide` (×6) and a local `sideBy` (×2) survived; moved into
+  `helpers.ts` and re-pointed all call sites. `refactor(F5)`.
+- **F6 — missed call sites:** `fmtRank` (StatsInsights), `fmtDate` (MatchH2HPanel — also fixed a
+  UTC-midnight off-by-one for negative-offset timezones), `fmtAvg`/`fmtRating` (standings).
+  `refactor(F6)`.
+- **B4 — leftover shim:** `app/stats_core.py` had zero importers; deleted (the `app/stats.py` shim
+  is still used and stays). `refactor(B4)`.
+- **B6 — half-fixed N+1:** the cup-stakes path still re-queried matches per (cup×tournament) despite
+  B6's batch; now reuses the batched `matches_by_tid`. `perf(B6)`.
+- **U4 / U5 — primitive polish:** documented the LoadingPlaceholder-vs-InlineLoading split; added a
+  `scrollBody` flex slot to `Modal` so callers drop the `calc(vh-rem)` header-height guesses (this
+  one still wants a mobile/desktop visual spot-check). `refactor(U4)`, `refactor(U5)`.
+- **Investigated, no change:** narrowing `StatsMatch.state` to `MatchState` was rejected — it
+  cascades `as` casts to every stats-data entry point (state is a plain string on the wire), so the
+  single documented cast in MatchHistoryList is the intended boundary. The A5 401 toast/logout
+  (cold-load + upload) is working as A5 specified; documented in code so it isn't re-flagged.
+
+Remaining Block-2 work is unchanged: **B2**, then **F1–F3**, then the final `/code-review` (step 12).
+
+---
+
 ## Explicitly out of scope (decided against — don't let a model talk you into them)
 
 - Refresh tokens / auth rework (single-JWT + A5's 401 handling is enough for this app's size).
