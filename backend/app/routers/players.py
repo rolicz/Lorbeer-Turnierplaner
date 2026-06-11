@@ -55,6 +55,7 @@ from ..services.file_storage import (
     read_media,
     upsert_media_row,
 )
+from ..services.guestbook import guestbook_can_edit, guestbook_entry_payload, list_guestbook_entries
 from ..services.guestbook_summary import player_guestbook_summary
 from ..services.notifications import enqueue_poke_push, push_guestbook_created
 from ..services.poke_summary import player_poke_summary
@@ -490,49 +491,6 @@ def delete_player_header_image(
     return Response(status_code=204)
 
 
-# A guestbook entry may be edited by its author only within this window; admins always.
-GUESTBOOK_EDIT_WINDOW = dt.timedelta(hours=1)
-
-
-def _guestbook_can_edit(
-    entry: PlayerGuestbookEntry,
-    *,
-    viewer_id: int | None,
-    is_admin: bool,
-    now: dt.datetime | None = None,
-) -> bool:
-    if is_admin:
-        return True
-    if viewer_id is None or int(entry.author_player_id) != int(viewer_id):
-        return False
-    return (now or dt.datetime.utcnow()) - entry.created_at <= GUESTBOOK_EDIT_WINDOW
-
-
-def _guestbook_entry_payload(
-    *,
-    entry: PlayerGuestbookEntry,
-    author_display_name: str,
-    parent_entry_id: int | None = None,
-    upvotes: int = 0,
-    downvotes: int = 0,
-    my_vote: int | None = None,
-    can_edit: bool = False,
-) -> dict:
-    return {
-        "id": int(entry.id),
-        "profile_player_id": int(entry.profile_player_id),
-        "author_player_id": int(entry.author_player_id),
-        "author_display_name": author_display_name,
-        "parent_entry_id": int(parent_entry_id) if parent_entry_id is not None else None,
-        "body": entry.body,
-        "created_at": entry.created_at,
-        "updated_at": entry.updated_at,
-        "upvotes": int(upvotes),
-        "downvotes": int(downvotes),
-        "my_vote": int(my_vote) if my_vote in (-1, 1) else 0,
-        "can_edit": bool(can_edit),
-    }
-
 
 def _poke_payload(
     *,
@@ -559,65 +517,7 @@ def list_player_guestbook(
     player = s.get(Player, player_id)
     if not player:
         raise HTTPException(status_code=404, detail="Player not found")
-
-    rows = s.exec(
-        select(PlayerGuestbookEntry)
-        .where(PlayerGuestbookEntry.profile_player_id == player_id)
-        .order_by(PlayerGuestbookEntry.created_at.desc(), PlayerGuestbookEntry.id.desc())
-    ).all()
-    entry_ids = [int(row.id) for row in rows]
-    parent_by_entry_id: dict[int, int | None] = {}
-    votes_by_entry_id: dict[int, dict[str, int]] = {}
-    my_vote_by_entry_id: dict[int, int] = {}
-    if entry_ids:
-        links = s.exec(
-            select(PlayerGuestbookThreadLink.entry_id, PlayerGuestbookThreadLink.parent_entry_id).where(
-                PlayerGuestbookThreadLink.entry_id.in_(entry_ids)
-            )
-        ).all()
-        parent_by_entry_id = {int(entry_id): int(parent_entry_id) for entry_id, parent_entry_id in links}
-
-        vote_rows = s.exec(
-            select(PlayerGuestbookVote.guestbook_entry_id, PlayerGuestbookVote.value).where(
-                PlayerGuestbookVote.guestbook_entry_id.in_(entry_ids)
-            )
-        ).all()
-        for entry_id, value in vote_rows:
-            eid = int(entry_id)
-            slot = votes_by_entry_id.setdefault(eid, {"up": 0, "down": 0})
-            if int(value) > 0:
-                slot["up"] += 1
-            elif int(value) < 0:
-                slot["down"] += 1
-
-        if claims and claims.get("player_id") is not None:
-            viewer_player_id = int(claims.get("player_id"))
-            my_rows = s.exec(
-                select(PlayerGuestbookVote.guestbook_entry_id, PlayerGuestbookVote.value).where(
-                    PlayerGuestbookVote.player_id == viewer_player_id,
-                    PlayerGuestbookVote.guestbook_entry_id.in_(entry_ids),
-                )
-            ).all()
-            my_vote_by_entry_id = {int(entry_id): int(value) for entry_id, value in my_rows}
-
-    author_ids = sorted({int(row.author_player_id) for row in rows})
-    authors = s.exec(select(Player).where(Player.id.in_(author_ids))).all() if author_ids else []
-    author_name_by_id = {int(p.id): p.display_name for p in authors}
-    viewer_id = int(claims["player_id"]) if claims and claims.get("player_id") is not None else None
-    is_admin = bool(claims and str(claims.get("role") or "") == "admin")
-    now = dt.datetime.utcnow()
-    return [
-        _guestbook_entry_payload(
-            entry=row,
-            author_display_name=author_name_by_id.get(int(row.author_player_id), f"Player #{int(row.author_player_id)}"),
-            parent_entry_id=parent_by_entry_id.get(int(row.id)),
-            upvotes=votes_by_entry_id.get(int(row.id), {}).get("up", 0),
-            downvotes=votes_by_entry_id.get(int(row.id), {}).get("down", 0),
-            my_vote=my_vote_by_entry_id.get(int(row.id), 0),
-            can_edit=_guestbook_can_edit(row, viewer_id=viewer_id, is_admin=is_admin, now=now),
-        )
-        for row in rows
-    ]
+    return list_guestbook_entries(s, player_id, claims)
 
 
 @router.get("/{player_id}/pokes", response_model=list[PokeOut])
@@ -778,7 +678,7 @@ def create_player_guestbook_entry(
         author_name=author_player.display_name,
         preview=preview,
     )
-    return _guestbook_entry_payload(
+    return guestbook_entry_payload(
         entry=row,
         author_display_name=author_player.display_name,
         parent_entry_id=parent_entry_id,
@@ -798,7 +698,7 @@ def patch_player_guestbook_entry(
 
     viewer_id = int(claims.get("player_id"))
     is_admin = str(claims.get("role") or "") == "admin"
-    if not _guestbook_can_edit(row, viewer_id=viewer_id, is_admin=is_admin):
+    if not guestbook_can_edit(row, viewer_id=viewer_id, is_admin=is_admin):
         raise HTTPException(
             status_code=403,
             detail="You can only edit your own message within an hour of posting",
@@ -826,14 +726,14 @@ def patch_player_guestbook_entry(
     up = sum(1 for v in vote_values if int(v) > 0)
     down = sum(1 for v in vote_values if int(v) < 0)
     my_vote_row = s.get(PlayerGuestbookVote, (viewer_id, int(row.id)))
-    return _guestbook_entry_payload(
+    return guestbook_entry_payload(
         entry=row,
         author_display_name=author.display_name if author else f"Player #{int(row.author_player_id)}",
         parent_entry_id=parent_entry_id,
         upvotes=up,
         downvotes=down,
         my_vote=int(my_vote_row.value) if my_vote_row else 0,
-        can_edit=_guestbook_can_edit(row, viewer_id=viewer_id, is_admin=is_admin),
+        can_edit=guestbook_can_edit(row, viewer_id=viewer_id, is_admin=is_admin),
     )
 
 
