@@ -1,0 +1,154 @@
+import Button from "../../ui/primitives/Button";
+import Textarea from "../../ui/primitives/Textarea";
+import { Pill } from "../../ui/primitives/Pill";
+import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
+import type { Club, StatsH2HOpponentRow, StatsPlayerMatchesTournament } from "../../api/types";
+import { fmtPct, fmtRank } from "../../utils/format";
+import { MatchHistoryList } from "../stats/MatchHistoryList";
+import { type FavoriteTeammate } from "./favoriteTeammates";
+
+/** Profile "Overview" tab: about/bio, rivals, favorite teammates, recent matches. */
+export default function ProfileOverviewTab({
+  canEdit,
+  bioDraft,
+  profileBio,
+  onBioChange,
+  onSaveBio,
+  savingBio,
+  favorite,
+  nemesis,
+  statsH2HError,
+  favoriteTeammates,
+  allMatchTournaments,
+  clubs,
+  tournamentPlacementById,
+  targetPlayerId,
+  statsMatchesError,
+  onViewAllMatches,
+}: {
+  canEdit: boolean;
+  bioDraft: string;
+  profileBio: string | null;
+  onBioChange: (value: string) => void;
+  onSaveBio: () => void;
+  savingBio: boolean;
+  favorite: StatsH2HOpponentRow | null;
+  nemesis: StatsH2HOpponentRow | null;
+  statsH2HError: unknown;
+  favoriteTeammates: FavoriteTeammate[];
+  allMatchTournaments: StatsPlayerMatchesTournament[];
+  clubs: Club[];
+  tournamentPlacementById: Map<number, { position: number; total: number | null }>;
+  targetPlayerId: number;
+  statsMatchesError: unknown;
+  onViewAllMatches: () => void;
+}) {
+  return (
+    <div className="space-y-5">
+      <div className="space-y-2">
+        <div className="section-head"><span className="section-label">About</span></div>
+        {canEdit ? (
+          <>
+            <Textarea
+              label="Profile text"
+              value={bioDraft}
+              onChange={(e) => onBioChange(e.target.value)}
+              placeholder="Write something about this player…"
+            />
+            <div className="flex justify-end">
+              <Button
+                type="button"
+                onClick={onSaveBio}
+                disabled={savingBio || bioDraft === (profileBio ?? "")}
+                title="Save profile text"
+              >
+                {savingBio ? "Saving…" : "Save"}
+              </Button>
+            </div>
+          </>
+        ) : (
+          <div className="text-sm text-text-normal whitespace-pre-wrap">{profileBio?.trim() || "No profile text yet."}</div>
+        )}
+      </div>
+
+      {/* Rivals */}
+      <div className="space-y-2">
+        <div className="section-head"><span className="section-label">Rivals</span></div>
+        <ErrorToastOnError error={statsH2HError} title="H2H loading failed" />
+        <div className="grid grid-cols-2 gap-2 text-xs">
+          <div className="card-chip px-3 py-2">
+            <div className="inline-flex items-center gap-2 text-text-muted">
+              <i className="fa-solid fa-face-smile" aria-hidden="true" />
+              <span>Favorite</span>
+            </div>
+            <div className="font-semibold mt-0.5">{favorite?.opponent.display_name ?? "—"}</div>
+            {favorite ? (
+              <div className="text-text-muted mt-0.5">
+                {favorite.wins}-{favorite.draws}-{favorite.losses} · {fmtPct(favorite.pts_per_match)} ppm
+              </div>
+            ) : null}
+          </div>
+          <div className="card-chip px-3 py-2">
+            <div className="inline-flex items-center gap-2 text-text-muted">
+              <i className="fa-solid fa-heart-crack" aria-hidden="true" />
+              <span>Nemesis</span>
+            </div>
+            <div className="font-semibold mt-0.5">{nemesis?.opponent.display_name ?? "—"}</div>
+            {nemesis ? (
+              <div className="text-text-muted mt-0.5">
+                {nemesis.wins}-{nemesis.draws}-{nemesis.losses} · {fmtPct(nemesis.pts_per_match)} ppm
+              </div>
+            ) : null}
+          </div>
+        </div>
+      </div>
+
+      {/* Favorite teammates (best 2v2 duos) */}
+      <div className="space-y-2">
+        <div className="section-head"><span className="section-label">Favorite teammates</span></div>
+        {favoriteTeammates.length ? (
+          <div className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-3">
+            {favoriteTeammates.map((tm) => (
+              <div key={tm.id} className="card-chip px-3 py-2">
+                <div className="truncate font-semibold">{tm.name}</div>
+                <div className="text-text-muted mt-0.5">
+                  {tm.w}-{tm.d}-{tm.l} · {fmtPct(tm.ppm)} ppm
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="text-sm text-text-muted">No 2v2 matches recorded yet.</div>
+        )}
+      </div>
+
+      {/* Recent activity */}
+      <div className="space-y-2">
+        <div className="mb-2 flex items-center justify-between gap-3">
+          <span className="section-label">Recent matches</span>
+          {allMatchTournaments.length > 2 ? (
+            <button type="button" className="shrink-0 text-xs font-medium text-accent" onClick={onViewAllMatches}>
+              View all →
+            </button>
+          ) : null}
+        </div>
+        <ErrorToastOnError error={statsMatchesError} title="Player matches loading failed" />
+        <MatchHistoryList
+          tournaments={allMatchTournaments.slice(0, 2)}
+          focusId={targetPlayerId}
+          clubs={clubs}
+          showMeta={false}
+          renderTournamentPills={(t) => {
+            const row = tournamentPlacementById.get(Number(t.id));
+            if (!row) return null;
+            return (
+              <Pill className="pill-default" title="Tournament position">
+                {fmtRank(row.position, row.total)}
+              </Pill>
+            );
+          }}
+        />
+      </div>
+    </div>
+  );
+}

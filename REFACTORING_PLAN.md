@@ -356,7 +356,7 @@ F1–F3 are the big wins; each is splittable into multiple commits.
   at 375px and 1280px rendered real data with **0 console/page errors** (Trends chart pan/pan-hint,
   H2H matrix, Player radar all intact).
 
-### F2 — Split `pages/ProfilePage.tsx` (1413 lines)  ☐
+### F2 — Split `pages/ProfilePage.tsx` (1413 lines)  ☑
 - **Effort:** L · **Risk:** medium · **Model:** Opus 4.8 (Block 2)
 - **Target:** keep `ProfilePage.tsx` as coordinator (URL params, tabs, queries); extract
   `profile/ProfileHeader.tsx` (avatar/banner/bio/cup badges), `profile/ProfileStatsSection.tsx`,
@@ -366,6 +366,31 @@ F1–F3 are the big wins; each is splittable into multiple commits.
   into a small hook or util with a unit test; consider a backend endpoint only later (out of
   scope here).
 - **DoD:** own-profile and foreign-profile views work (editing only on own); page < ~400 lines.
+- **Note:** `ProfilePage.tsx` is now **376 lines** (URL params, tabs, the shared/cross-cutting
+  queries + derivations, two logic hooks, and render wiring). Extracted under `pages/profile/`:
+  `ProfileHeader.tsx` (identity block — banner/avatar/name/cup badges/counts/unread lines/anpöbeln
+  button; it also owns the avatar+header upload mutations, editor modals and lightboxes),
+  `ProfileOverviewTab.tsx` (About/bio, Rivals, Favorite teammates, Recent matches),
+  `ProfileStatsSection.tsx` (tiles + radar + streaks, with the local `ProfileStatTile` /
+  `streakIconForKey` / elo+radar+streak derivations), `MatchHistorySection.tsx` (full match
+  history + placement pills), plus hooks `useProfilePokes.ts`, `useProfileGuestbook.ts` (the bulk:
+  list/read queries, per-profile draft/reply/edit state, unread metrics, mutations, the
+  `GuestbookEntryCard` context, scroll/focus helpers, voteVoters state) and
+  `useGuestbookUnreadJump.ts` (the `?unread=1` deep link). `favoriteTeammates.ts` holds the pure
+  `computeFavoriteTeammates()` with `src/test/favoriteTeammates.test.ts` (5 cases). Verbatim moves,
+  no logic edits. **Deviations from the suggested split** (the layout forced them): there is no
+  standalone `PokesSection.tsx` — the poke count/bell/notify-line/anpöbeln button are interleaved
+  through the header flex layout, so a contiguous poke "section" couldn't be carved without
+  restructuring the DOM (visual regression); the poke *logic* went to `useProfilePokes` and the
+  poke *visuals* stayed in `ProfileHeader`. Hitting <400 lines required lifting logic, not just
+  JSX, so the Overview tab and the guestbook/poke controllers became their own modules beyond the
+  four named files; "Guestbook is already separate" (the `GuestbookSection` *view*) is reused
+  unchanged, only its controller state moved into `useProfileGuestbook`. Bio draft state +
+  `saveProfileMut` stay in the coordinator (drafts are keyed per-player and must survive tab
+  unmounts). Verified: `npm run check` (122 tests incl. the 5 new) + `npm run build` green, and a
+  Playwright click-through of all 4 tabs on own **and** foreign profiles at 375px and 1280px with
+  **0 console/page/request errors** — own shows edit/bio/save controls, foreign is read-only with
+  the Anpöbeln button (editing only on own).
 
 ### F3 — Split `pages/live/TournamentCommentsCard.tsx` (1233 lines)  ☐
 - **Effort:** L · **Risk:** medium · **Model:** Opus 4.8 (Block 2)
