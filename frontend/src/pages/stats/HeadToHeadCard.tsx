@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 
+import Button from "../../ui/primitives/Button";
 import CardSection from "../../ui/primitives/CardSection";
 import CollapsibleCard from "../../ui/primitives/CollapsibleCard";
 import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
@@ -426,14 +427,14 @@ export default function HeadToHeadCard({
                             </div>
 
                             {hasMore ? (
-                              <button
+                              <Button
                                 type="button"
-                                className="btn-base btn-ghost inline-flex h-9 items-center justify-center px-3 py-2 text-[11px] shrink-0"
+                                variant="ghost" size="md" className="justify-center text-[11px] shrink-0"
                                 onClick={() => toggleShowAll(k)}
                                 title={showAll ? `Show top ${DEFAULT_SHOW}` : "Show all"}
                               >
                                 {showAll ? `Top ${DEFAULT_SHOW}` : "All"}
-                              </button>
+                              </Button>
                             ) : null}
                           </div>
 
@@ -494,14 +495,14 @@ export default function HeadToHeadCard({
                               Best teammates <span className="text-text-muted">· 2v2 · {scopeTitle}</span>
                             </div>
                             {hasMore ? (
-                              <button
+                              <Button
                                 type="button"
-                                className="btn-base btn-ghost inline-flex h-9 items-center justify-center px-3 py-2 text-[11px] shrink-0"
+                                variant="ghost" size="md" className="justify-center text-[11px] shrink-0"
                                 onClick={() => toggleShowAll(k)}
                                 title={showAll ? `Show top ${DEFAULT_SHOW}` : "Show all"}
                               >
                                 {showAll ? `Top ${DEFAULT_SHOW}` : "All"}
-                              </button>
+                              </Button>
                             ) : null}
                           </div>
                           <div className="space-y-2">
@@ -564,14 +565,15 @@ export default function HeadToHeadCard({
                           <>
                             {hasMore ? (
                               <div className="flex justify-end">
-                                <button
+                                <Button
                                   type="button"
-                                  className="btn-base btn-ghost inline-flex h-9 items-center justify-center px-3 py-2 text-[11px]"
+                                  variant="ghost" size="md"
+                                  className="justify-center text-[11px]"
                                   onClick={() => toggleShowAll(k)}
                                   title={showAll ? `Show top ${DEFAULT_SHOW}` : "Show all"}
                                 >
                                   {showAll ? `Top ${DEFAULT_SHOW}` : "All"}
-                                </button>
+                                </Button>
                               </div>
                             ) : null}
                             {visible.map((r) => (
@@ -632,14 +634,15 @@ export default function HeadToHeadCard({
                             <>
                               {hasMore ? (
                                 <div className="flex justify-end">
-                                  <button
+                                  <Button
                                     type="button"
-                                    className="btn-base btn-ghost inline-flex h-9 items-center justify-center px-3 py-2 text-[11px]"
+                                    variant="ghost" size="md"
+                                    className="justify-center text-[11px]"
                                     onClick={() => toggleShowAll(k)}
                                     title={showAll ? `Show top ${DEFAULT_SHOW}` : "Show all"}
                                   >
                                     {showAll ? `Top ${DEFAULT_SHOW}` : "All"}
-                                  </button>
+                                  </Button>
                                 </div>
                               ) : null}
                               {visible.map((r) => (
@@ -684,14 +687,14 @@ export default function HeadToHeadCard({
                               <span className="text-text-muted"> · team rivalries (2v2) · {scopeTitle}</span>
                             </div>
                             {hasMore ? (
-                              <button
+                              <Button
                                 type="button"
-                                className="btn-base btn-ghost inline-flex h-9 items-center justify-center px-3 py-2 text-[11px] shrink-0"
+                                variant="ghost" size="md" className="justify-center text-[11px] shrink-0"
                                 onClick={() => toggleShowAll(k)}
                                 title={showAll ? `Show top ${DEFAULT_SHOW}` : "Show all"}
                               >
                                 {showAll ? `Top ${DEFAULT_SHOW}` : "All"}
-                              </button>
+                              </Button>
                             ) : null}
                           </div>
                           <div className="text-[11px] text-text-muted">

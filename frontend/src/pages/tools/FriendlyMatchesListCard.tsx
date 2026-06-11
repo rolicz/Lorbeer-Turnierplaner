@@ -356,19 +356,19 @@ export default function FriendlyMatchesListCard({
                 <div>
                   <div className="inline-flex items-center gap-1">
                     {canEdit ? (
-                      <button
+                      <Button
                         type="button"
-                        className="btn-base btn-ghost inline-flex h-8 w-8 items-center justify-center p-0"
+                        variant="ghost" size="sm" iconOnly
                         title={isExpanded ? "Close editor" : `Edit friendly #${fid}`}
                         onClick={() => setExpandedFriendlyId(isExpanded ? null : fid)}
                       >
                         <i className={"fa-solid " + (isExpanded ? "fa-xmark" : "fa-pen")} aria-hidden="true" />
-                      </button>
+                      </Button>
                     ) : null}
                     {canDelete ? (
-                      <button
+                      <Button
                         type="button"
-                        className="btn-base btn-ghost inline-flex h-8 w-8 items-center justify-center p-0"
+                        variant="ghost" size="sm" iconOnly
                         title={`Delete friendly #${fid}`}
                         disabled={pendingDelete}
                         onClick={() => {
@@ -378,7 +378,7 @@ export default function FriendlyMatchesListCard({
                         }}
                       >
                         <i className={"fa-solid " + (pendingDelete ? "fa-spinner fa-spin" : "fa-trash-can")} aria-hidden="true" />
-                      </button>
+                      </Button>
                     ) : null}
                   </div>
 

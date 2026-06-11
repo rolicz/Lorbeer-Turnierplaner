@@ -248,7 +248,7 @@ This is the user-visible payoff. Do U1 first; U2–U8 are independent of each ot
 - **DoD:** both primitives render the same title style; pages using `Card` with titles reviewed
   visually.
 
-### U3 — Button sizes as a primitive prop, kill inline `btn-base` compositions  ☐
+### U3 — Button sizes as a primitive prop, kill inline `btn-base` compositions  ☑
 - **Effort:** S–M · **Risk:** low · **Model:** Sonnet 4.6
 - **Problem:** `ui/primitives/Button.tsx` supports only `variant="solid|ghost"`; 15 call sites
   compose `btn-base btn-ghost h-9 px-3 ...` manually (e.g. `pages/stats/PlayersStatsCard.tsx:507`,

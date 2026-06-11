@@ -15,6 +15,7 @@ import { listPlayers } from "../api/players.api";
 import PushNotificationsSettings from "../ui/layout/PushNotificationsSettings";
 import { THEMES } from "../themes";
 import { useRouteEntryLoading } from "../ui/layout/useRouteEntryLoading";
+import Button from "../ui/primitives/Button";
 import PageLoadingScreen from "../ui/primitives/PageLoadingScreen";
 
 const THEME_SWATCHES: Record<string, string[]> = {
@@ -126,19 +127,21 @@ export default function SettingsPage() {
               <>
                 <Link
                   to="/profile"
-                  className="btn-base btn-ghost inline-flex h-9 flex-1 items-center justify-center"
+                  className="btn-ghost inline-flex h-9 flex-1 items-center justify-center"
                 >
                   My profile
                 </Link>
-                <button
+                <Button
                   type="button"
                   onClick={() => logout()}
-                  className="btn-base btn-ghost inline-flex h-9 items-center justify-center gap-2 px-3"
+                  variant="ghost"
+                  size="md"
+                  className="justify-center gap-2"
                   title="Logout"
                 >
                   <LogOut className="h-4 w-4" aria-hidden="true" />
                   <span>Logout</span>
-                </button>
+                </Button>
               </>
             ) : (
               <Link to="/login" className="btn-solid inline-flex h-9 flex-1 items-center justify-center gap-2">

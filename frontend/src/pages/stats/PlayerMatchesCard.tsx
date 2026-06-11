@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 
+import Button from "../../ui/primitives/Button";
 import CardSection from "../../ui/primitives/CardSection";
 import CollapsibleCard from "../../ui/primitives/CollapsibleCard";
 import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
@@ -322,9 +323,10 @@ export default function PlayerMatchesCard({
               <div className="panel-subtle rounded-2xl p-3 space-y-3">
                 <div className="flex items-center justify-between gap-2">
                   <div className="text-[11px] font-medium text-text-muted">Tournament positions</div>
-                  <button
+                  <Button
                     type="button"
-                    className="btn-base btn-ghost inline-flex h-8 items-center gap-2 rounded-xl px-3 py-0 text-[11px]"
+                    variant="ghost" size="sm"
+                    className="gap-2 rounded-xl text-[11px]"
                     onClick={() => setShowAllTournamentTiles((value) => !value)}
                     title={showAllTournamentTiles ? "Show recent tournament tiles" : "Show all tournament tiles"}
                   >
@@ -333,7 +335,7 @@ export default function PlayerMatchesCard({
                       aria-hidden="true"
                     />
                     <span>{showAllTournamentTiles ? "Recent" : "All"}</span>
-                  </button>
+                  </Button>
                 </div>
                 <TournamentPositionsGrid
                   tournaments={tournamentTiles}

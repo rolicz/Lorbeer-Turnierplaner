@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 
+import Button from "../../ui/primitives/Button";
 import CardSection from "../../ui/primitives/CardSection";
 import CollapsibleCard from "../../ui/primitives/CollapsibleCard";
 import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
@@ -93,14 +94,16 @@ function CatBlock({
           <div className="mt-1 text-[11px] text-text-muted">{c.description}</div>
         </div>
         {hasMore ? (
-          <button
+          <Button
             type="button"
-            className="btn-base btn-ghost inline-flex h-9 items-center justify-center px-3 py-2 text-[11px] shrink-0"
+            variant="ghost"
+            size="md"
+            className="justify-center text-[11px] shrink-0"
             onClick={onToggleAll}
             title={showAll ? "Show top 5" : "Show all"}
           >
             {showAll ? "Top 5" : "All"}
-          </button>
+          </Button>
         ) : null}
       </div>
       <div className="space-y-2">

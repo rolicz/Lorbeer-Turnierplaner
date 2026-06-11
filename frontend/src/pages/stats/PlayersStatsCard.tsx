@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import { useQueries, useQuery } from "@tanstack/react-query";
 
+import Button from "../../ui/primitives/Button";
 import CardSection from "../../ui/primitives/CardSection";
 import CollapsibleCard from "../../ui/primitives/CollapsibleCard";
 import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
@@ -504,9 +505,10 @@ export default function PlayersStatsCard({
             );
           })()}
 
-          <button
+          <Button
             type="button"
-            className="btn-base btn-ghost inline-flex h-9 items-center gap-2 rounded-xl px-3 py-2 text-[11px]"
+            variant="ghost" size="md"
+            className="gap-2 rounded-xl text-[11px]"
             onClick={() => setAllOpen(allExpanded ? false : true)}
             disabled={rows.length === 0}
             title={rows.length ? (allExpanded ? "Collapse all players" : "Expand all players") : "Loading players…"}
@@ -514,7 +516,7 @@ export default function PlayersStatsCard({
           >
             <i className={"fa-solid " + (allExpanded ? "fa-angles-up" : "fa-angles-down")} aria-hidden="true" />
             <span className="whitespace-nowrap">{allExpanded ? "Collapse" : "Expand"}</span>
-          </button>
+          </Button>
         </div>
       </CardSection>
 
@@ -615,9 +617,9 @@ export default function PlayersStatsCard({
                   </div>
                 </div>
 
-                <button type="button" onClick={toggleRow} className="col-span-1 btn-base btn-ghost inline-flex h-9 w-full items-center justify-center px-0" title={rowOpen ? "Collapse" : "Expand"}>
+                <Button type="button" onClick={toggleRow} variant="ghost" size="md" className="col-span-1 justify-center w-full px-0" title={rowOpen ? "Collapse" : "Expand"}>
                   <i className={"fa-solid " + (rowOpen ? "fa-chevron-up" : "fa-chevron-down")} aria-hidden="true" />
-                </button>
+                </Button>
               </div>
 
               {rowOpen && (
