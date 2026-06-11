@@ -21,7 +21,7 @@ import { Sparkline, Radar, TrendChart, ChipGroup } from "./charts";
 import { qk } from "../../api/queryKeys";
 import { pooledPpm } from "./trendsMath";
 import { teamName } from "../../utils/matchDisplay";
-import { fmtShortDate, fmtRating } from "../../utils/format";
+import { fmtShortDate, fmtRating, fmtRank } from "../../utils/format";
 import { MatchHistoryList } from "./MatchHistoryList";
 import { PlayerPicker } from "./PlayerPicker";
 import CupCard from "../dashboard/CupCard";
@@ -654,7 +654,7 @@ function PositionsView({ mode }: { mode: StatsMode }) {
                       to={`/live/${t.id}`}
                       style={{ height: cellH, ["--pos-p"]: frac } as React.CSSProperties}
                       className="pos-tile relative grid place-items-center rounded border text-[11px] font-semibold tabular-nums no-underline transition hover:z-10 hover:ring-2 hover:ring-inset hover:ring-accent/70"
-                      title={`${p.display_name} · ${t.name}: #${pos}/${total}${isWinner ? ` · won ${stakes.map((s) => s.name).join(", ")}` : ""} — open tournament`}
+                      title={`${p.display_name} · ${t.name}: ${fmtRank(pos, total)}${isWinner ? ` · won ${stakes.map((s) => s.name).join(", ")}` : ""} — open tournament`}
                     >
                       {isWinner ? (
                         <span className="absolute right-0.5 top-0.5 inline-flex gap-px">

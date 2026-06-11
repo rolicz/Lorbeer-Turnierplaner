@@ -6,6 +6,7 @@ import { getStatsRatings, getStatsPlayers } from "../../api/stats.api";
 import { qk } from "../../api/queryKeys";
 import type { StatsMatch, StatsScope } from "../../api/types";
 import type { StatsMode } from "./StatsControls";
+import { fmtAvg, fmtRating } from "../../utils/format";
 
 export type Row = {
   id: number; name: string; pts: number; rating: number;
@@ -70,10 +71,9 @@ export type ColDef = {
   bold?: boolean;
 };
 
-export const f2 = (n: number) => n.toFixed(2);
 export const TABLE_COLS: ColDef[] = [
   { key: "pts", label: "Pts", val: (r) => r.pts, fmt: (n) => String(n), bold: true },
-  { key: "ppm", label: "PPM", val: (r) => (r.played ? r.pts / r.played : 0), fmt: (_n, r) => (r.played ? f2(r.pts / r.played) : "—") },
+  { key: "ppm", label: "PPM", val: (r) => (r.played ? r.pts / r.played : 0), fmt: (_n, r) => (r.played ? fmtAvg(r.pts / r.played) : "—") },
   { key: "played", label: "P", val: (r) => r.played, fmt: (n) => String(n), cls: "text-text-muted" },
   { key: "wins", label: "W", val: (r) => r.wins, fmt: (n) => String(n), cls: "text-status-text-green" },
   { key: "draws", label: "D", val: (r) => r.draws, fmt: (n) => String(n), cls: "text-amber-300" },
@@ -81,11 +81,11 @@ export const TABLE_COLS: ColDef[] = [
   { key: "winrate", label: "Win%", val: (r) => (r.played ? r.wins / r.played : 0), fmt: (_n, r) => (r.played ? `${Math.round((r.wins / r.played) * 100)}%` : "—") },
   { key: "gf", label: "GF", val: (r) => r.gf, fmt: (n) => String(n) },
   { key: "ga", label: "GA", val: (r) => r.ga, fmt: (n) => String(n) },
-  { key: "gpm", label: "G/M", val: (r) => (r.played ? r.gf / r.played : 0), fmt: (_n, r) => (r.played ? f2(r.gf / r.played) : "—"), cls: "text-text-muted" },
-  { key: "gapm", label: "GA/M", val: (r) => (r.played ? r.ga / r.played : 0), fmt: (_n, r) => (r.played ? f2(r.ga / r.played) : "—"), cls: "text-text-muted" },
+  { key: "gpm", label: "G/M", val: (r) => (r.played ? r.gf / r.played : 0), fmt: (_n, r) => (r.played ? fmtAvg(r.gf / r.played) : "—"), cls: "text-text-muted" },
+  { key: "gapm", label: "GA/M", val: (r) => (r.played ? r.ga / r.played : 0), fmt: (_n, r) => (r.played ? fmtAvg(r.ga / r.played) : "—"), cls: "text-text-muted" },
   { key: "gd", label: "GD", val: (r) => r.gd, fmt: (n) => (n >= 0 ? `+${n}` : String(n)) },
-  { key: "gdpm", label: "GD/M", val: (r) => (r.played ? r.gd / r.played : 0), fmt: (_n, r) => (r.played ? (r.gd >= 0 ? "+" : "") + f2(r.gd / r.played) : "—"), cls: "text-text-muted" },
-  { key: "rating", label: "Elo", val: (r) => r.rating, fmt: (n) => String(Math.round(n)) },
+  { key: "gdpm", label: "GD/M", val: (r) => (r.played ? r.gd / r.played : 0), fmt: (_n, r) => (r.played ? (r.gd >= 0 ? "+" : "") + fmtAvg(r.gd / r.played) : "—"), cls: "text-text-muted" },
+  { key: "rating", label: "Elo", val: (r) => r.rating, fmt: (n) => fmtRating(n) },
 ];
 export const DEFAULT_COLS = ["pts", "ppm", "played", "winrate", "rating"];
 // Chip controls — W/D/L and the goal trios each toggle together as one group.

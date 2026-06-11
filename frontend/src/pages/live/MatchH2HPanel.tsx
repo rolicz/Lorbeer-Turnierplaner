@@ -8,7 +8,7 @@ import { sideBy } from "../../helpers";
 import CardSection from "../../ui/primitives/CardSection";
 import InlineLoading from "../../ui/primitives/InlineLoading";
 import { MatchRowWithClubs } from "../stats/MatchHistoryList";
-import { fmtAvg } from "../../utils/format";
+import { fmtAvg, fmtDate } from "../../utils/format";
 
 type Summary = {
   played: number;
@@ -118,13 +118,6 @@ function flattenRecentMatches(tournaments: StatsPlayerMatchesTournament[]): Rece
     }
   }
   return out;
-}
-
-function fmtDate(value?: string | null) {
-  if (!value) return "—";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleDateString();
 }
 
 function SummaryCard({
@@ -288,7 +281,7 @@ export default function MatchH2HPanel({
               <div key={item.key} className="space-y-1">
                 <div className="flex items-center justify-between gap-2 px-1 text-[11px] text-text-muted">
                   <span className="truncate">{item.tournamentLabel}</span>
-                  <span className="shrink-0">{fmtDate(item.tournamentDate)}</span>
+                  <span className="shrink-0">{fmtDate(item.tournamentDate) || "—"}</span>
                 </div>
                 <MatchRowWithClubs
                   m={item.match}
