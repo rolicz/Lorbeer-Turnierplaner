@@ -286,7 +286,7 @@ This is the user-visible payoff. Do U1 first; U2–U8 are independent of each ot
 - **DoD:** all five render through Modal/Sheet; escape closes, backdrop click closes, body scroll
   locked, works at 375px and desktop; croppers still crop correctly (touch-test).
 
-### U6 — `PageLayout` wrapper for page scaffolding  ☐
+### U6 — `PageLayout` wrapper for page scaffolding  ☑
 - **Effort:** S · **Risk:** low · **Model:** Sonnet 4.6
 - **Problem:** every page repeats `<div className="page">` + the desktop-only
   `<div className="mb-4 hidden lg:block"><h1 className="text-xl font-bold ...">` header pattern,

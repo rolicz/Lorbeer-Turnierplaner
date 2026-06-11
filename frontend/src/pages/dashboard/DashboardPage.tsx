@@ -14,6 +14,7 @@ import { qk } from "../../api/queryKeys";
 import { apiFetch } from "../../api/client";
 import { cupColorVarForKey, rgbFromCssVar } from "../../cupColors";
 import { useRouteEntryLoading } from "../../ui/layout/useRouteEntryLoading";
+import PageLayout from "../../ui/layout/PageLayout";
 import PageLoadingScreen from "../../ui/primitives/PageLoadingScreen";
 
 type LiveTournamentLite = {
@@ -72,19 +73,15 @@ export default function DashboardPage() {
 
   if (initialLoading) {
     return (
-      <div className="page">
+      <PageLayout>
         <PageLoadingScreen sectionCount={4} />
-      </div>
+      </PageLayout>
     );
   }
 
   return (
-    <div className="page space-y-4">
+    <PageLayout title="Dashboard" className="space-y-4">
       <ErrorToastOnError error={defsQ.error} title="Dashboard loading failed" />
-
-      <div className="mb-1 hidden lg:block">
-        <h1 className="text-xl font-bold tracking-tight text-text-normal">Dashboard</h1>
-      </div>
 
       <SectionTabs tabs={DASH_TABS} active={dashTab} onChange={setDashTab} />
 
@@ -117,6 +114,6 @@ export default function DashboardPage() {
         ))}
       </div>
       )}
-    </div>
+    </PageLayout>
   );
 }

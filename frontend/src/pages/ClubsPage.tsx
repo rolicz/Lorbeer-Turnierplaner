@@ -8,6 +8,7 @@ import SegmentedSwitch from "../ui/primitives/SegmentedSwitch";
 import { ErrorToastOnError } from "../ui/primitives/ErrorToast";
 import PageLoadingScreen from "../ui/primitives/PageLoadingScreen";
 import { useRouteEntryLoading } from "../ui/layout/useRouteEntryLoading";
+import PageLayout from "../ui/layout/PageLayout";
 import { SectionTabs, type SectionTab } from "../ui/SectionTabs";
 import { List, Plus } from "lucide-react";
 
@@ -240,22 +241,18 @@ export default function ClubsPage() {
 
   if (initialLoading) {
     return (
-      <div className="page">
+      <PageLayout>
         <PageLoadingScreen sectionCount={4} />
-      </div>
+      </PageLayout>
     );
   }
 
   return (
-    <div className="page">
+    <PageLayout title="Clubs">
       <ErrorToastOnError error={createMut.error} title="Could not create club" />
       <ErrorToastOnError error={clubsQ.error} title="Clubs loading failed" />
       <ErrorToastOnError error={patchMut.error} title="Could not update club" />
       <ErrorToastOnError error={deleteMut.error} title="Could not delete club" />
-
-      <div className="mb-4 hidden lg:block">
-        <h1 className="text-xl font-bold tracking-tight text-text-normal">Clubs</h1>
-      </div>
 
       <SectionTabs tabs={clubTabs} active={tab} onChange={setTab} className="mb-4" />
 
@@ -541,6 +538,6 @@ export default function ClubsPage() {
       </section>
       </div>
       ) : null}
-    </div>
+    </PageLayout>
   );
 }

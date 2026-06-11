@@ -10,6 +10,7 @@ import PageLoadingScreen from "../ui/primitives/PageLoadingScreen";
 import { SectionTabs, type SectionTab } from "../ui/SectionTabs";
 import NewTournamentForm from "./tournaments/NewTournamentForm";
 
+import PageLayout from "../ui/layout/PageLayout";
 import { tournamentPalette, tournamentStatusUI } from "../ui/theme";
 import { cn } from "../ui/cn";
 import { cupColorVarForKey } from "../cupColors";
@@ -114,17 +115,12 @@ export default function TournamentsPage() {
     !pageEntered || (!tournamentsQ.error && !tournamentsQ.data && tournamentsQ.isLoading);
 
   if (initialLoading) {
-    return <div className="page"><PageLoadingScreen sectionCount={4} /></div>;
+    return <PageLayout><PageLoadingScreen sectionCount={4} /></PageLayout>;
   }
 
   return (
-    <div className="page">
+    <PageLayout title="Tournaments">
       <ErrorToastOnError error={tournamentsQ.error} title="Tournaments loading failed" />
-
-      {/* Header */}
-      <div className="mb-4 hidden lg:block">
-        <h1 className="text-xl font-bold tracking-tight text-text-normal">Tournaments</h1>
-      </div>
 
       <SectionTabs tabs={tabs} active={tab} onChange={setTab} className="mb-4" />
 
@@ -230,6 +226,6 @@ export default function TournamentsPage() {
           ))}
         </div>
       )}
-    </div>
+    </PageLayout>
   );
 }

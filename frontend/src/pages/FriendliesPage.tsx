@@ -3,6 +3,7 @@ import FriendlyMatchCard from "./tools/FriendlyMatchCard";
 import FriendlyMatchesListCard from "./tools/FriendlyMatchesListCard";
 import { SectionTabs, type SectionTab } from "../ui/SectionTabs";
 import { useRouteEntryLoading } from "../ui/layout/useRouteEntryLoading";
+import PageLayout from "../ui/layout/PageLayout";
 import PageLoadingScreen from "../ui/primitives/PageLoadingScreen";
 import { Plus, List } from "lucide-react";
 
@@ -20,15 +21,11 @@ export default function FriendliesPage() {
   const handleListReady = useCallback(() => {}, []);
 
   if (!pageEntered) {
-    return <div className="page"><PageLoadingScreen sectionCount={3} /></div>;
+    return <PageLayout><PageLoadingScreen sectionCount={3} /></PageLayout>;
   }
 
   return (
-    <div className="page">
-      <div className="mb-4 hidden lg:block">
-        <h1 className="text-xl font-bold tracking-tight text-text-normal">Friendlies</h1>
-      </div>
-
+    <PageLayout title="Friendlies">
       <SectionTabs tabs={TABS} active={active} onChange={setActive} className="mb-4" />
 
       {active === "all" && (
@@ -37,6 +34,6 @@ export default function FriendliesPage() {
       {active === "create" && (
         <FriendlyMatchCard embedded onInitialReady={handleCreateReady} />
       )}
-    </div>
+    </PageLayout>
   );
 }

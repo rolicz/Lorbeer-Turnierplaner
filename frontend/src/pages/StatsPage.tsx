@@ -16,6 +16,7 @@ import { useStatsExperience } from "../ui/layout/useStatsMode";
 import type { StatsMode } from "./stats/StatsControls";
 import { SectionTabs, type SectionTab } from "../ui/SectionTabs";
 import { useRouteEntryLoading } from "../ui/layout/useRouteEntryLoading";
+import PageLayout from "../ui/layout/PageLayout";
 import PageLoadingScreen from "../ui/primitives/PageLoadingScreen";
 import { listPlayers } from "../api/players.api";
 import { qk } from "../api/queryKeys";
@@ -106,16 +107,13 @@ export default function StatsPage() {
     playerId !== "" ? playerId : config.player === "required" ? (selfId ?? "") : "";
 
   if (!pageEntered) {
-    return <div className="page"><PageLoadingScreen sectionCount={3} /></div>;
+    return <PageLayout><PageLoadingScreen sectionCount={3} /></PageLayout>;
   }
 
   // --- Insights (opt-in) mode: graph-first dashboard with its own controls ---
   if (experience === "insights") {
     return (
-      <div className="page">
-        <div className="mb-4 hidden lg:block">
-          <h1 className="text-xl font-bold tracking-tight text-text-normal">Stats</h1>
-        </div>
+      <PageLayout title="Stats">
         <StatsInsights
           mode={mode}
           scope={scope}
@@ -124,17 +122,13 @@ export default function StatsPage() {
           playerId={playerId}
           onSelectPlayer={(id) => setPlayer(id)}
         />
-      </div>
+      </PageLayout>
     );
   }
 
   // --- Classic mode (default) ---
   return (
-    <div className="page">
-      <div className="mb-4 hidden lg:block">
-        <h1 className="text-xl font-bold tracking-tight text-text-normal">Stats</h1>
-      </div>
-
+    <PageLayout title="Stats">
       <SectionTabs tabs={TABS} active={active} onChange={setActive} className="mb-4" />
 
       <StatsFilterBar
@@ -156,6 +150,6 @@ export default function StatsPage() {
       {active === "ratings" && <RatingsCard embedded mode={mode} scope={scope} />}
       {active === "stars" && <StarsPerformanceCard embedded mode={mode} scope={scope} playerId={effPlayerId} />}
       {active === "matches" && <PlayerMatchesCard embedded mode={mode} scope={scope} playerId={effPlayerId} />}
-    </div>
+    </PageLayout>
   );
 }

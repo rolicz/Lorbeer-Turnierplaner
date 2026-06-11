@@ -13,6 +13,7 @@ import { List, ListRow } from "../ui/primitives/List";
 import { SectionTabs, type SectionTab } from "../ui/SectionTabs";
 import { Users, UserPlus } from "lucide-react";
 import { useRouteEntryLoading } from "../ui/layout/useRouteEntryLoading";
+import PageLayout from "../ui/layout/PageLayout";
 
 import { useAuth } from "../auth/AuthContext";
 import {
@@ -156,9 +157,9 @@ export default function PlayersAdminPage() {
 
   if (initialLoading) {
     return (
-      <div className="page">
+      <PageLayout>
         <PageLoadingScreen sectionCount={4} />
-      </div>
+      </PageLayout>
     );
   }
 
@@ -171,16 +172,12 @@ export default function PlayersAdminPage() {
   };
 
   return (
-    <div className="page space-y-3">
+    <PageLayout title="Players">
       <ErrorToastOnError error={createMut.error} title="Could not create player" />
       <ErrorToastOnError error={playersQ.error} title="Players loading failed" />
       <ErrorToastOnError error={patchMut.error} title="Could not save player" />
       <ErrorToastOnError error={guestbookSummaryQ.error} title="Guestbook summary loading failed" />
       <ErrorToastOnError error={pokesSummaryQ.error} title="Poke summary loading failed" />
-
-      <div className="mb-1 hidden lg:block">
-        <h1 className="text-xl font-bold tracking-tight text-text-normal">Players</h1>
-      </div>
 
       <SectionTabs tabs={playersTabs} active={tab} onChange={setTab} />
 
@@ -291,6 +288,6 @@ export default function PlayersAdminPage() {
           })}
         </List>
       )}
-    </div>
+    </PageLayout>
   );
 }

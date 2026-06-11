@@ -15,6 +15,7 @@ import { listPlayers } from "../api/players.api";
 import PushNotificationsSettings from "../ui/layout/PushNotificationsSettings";
 import { THEMES } from "../themes";
 import { useRouteEntryLoading } from "../ui/layout/useRouteEntryLoading";
+import PageLayout from "../ui/layout/PageLayout";
 import Button from "../ui/primitives/Button";
 import PageLoadingScreen from "../ui/primitives/PageLoadingScreen";
 
@@ -85,15 +86,11 @@ export default function SettingsPage() {
   ];
 
   if (!pageEntered) {
-    return <div className="page"><PageLoadingScreen sectionCount={3} /></div>;
+    return <PageLayout><PageLoadingScreen sectionCount={3} /></PageLayout>;
   }
 
   return (
-    <div className="page">
-      <div className="mb-4 hidden lg:block">
-        <h1 className="text-xl font-bold tracking-tight text-text-normal">Settings</h1>
-      </div>
-
+    <PageLayout title="Settings">
       <SectionTabs tabs={settingsTabs} active={tab} onChange={setTab} className="mb-4" />
 
       <div className="mx-auto grid max-w-2xl gap-4">
@@ -260,6 +257,6 @@ export default function SettingsPage() {
         </SettingsSection>
         ) : null}
       </div>
-    </div>
+    </PageLayout>
   );
 }
