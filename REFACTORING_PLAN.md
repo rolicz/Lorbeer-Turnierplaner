@@ -273,7 +273,7 @@ This is the user-visible payoff. Do U1 first; U2–U8 are independent of each ot
 - **DoD:** stats cards, friendlies list, guestbook, comments use the primitives; consistent muted
   text + centered layout; loading does not cause layout jumps on the migrated cards.
 
-### U5 — One modal/sheet implementation  ☐
+### U5 — One modal/sheet implementation  ☑
 - **Effort:** M · **Risk:** medium (focus/escape/scroll behavior) · **Model:** Sonnet 4.6
 - **Problem:** besides `ui/primitives/Modal.tsx` and `Sheet.tsx`, five components roll their own
   fixed/absolute backdrop + escape handling: `pages/stats/HeadToHeadCard.tsx` (history modal),
