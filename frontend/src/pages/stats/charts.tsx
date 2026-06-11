@@ -133,7 +133,7 @@ export function Heatmap({
           <tr>
             <th className="sticky left-0 z-10 bg-bg-card-inner" />
             {players.map((p) => (
-              <th key={p.id} className="px-1 pb-1 text-[10px] font-medium text-text-muted">{initials(p.name)}</th>
+              <th key={p.id} className="px-1 pb-1 text-xs font-medium text-text-muted">{initials(p.name)}</th>
             ))}
           </tr>
         </thead>
@@ -144,14 +144,14 @@ export function Heatmap({
               {players.map((cp) => {
                 if (rp.id === cp.id) return <td key={cp.id} className="h-9 w-9 rounded bg-bg-card-chip/30" />;
                 const c = cell(rp.id, cp.id);
-                if (!c) return <td key={cp.id} className="h-9 w-9 rounded bg-bg-card-chip/20 text-center text-[10px] text-text-muted">–</td>;
+                if (!c) return <td key={cp.id} className="h-9 w-9 rounded bg-bg-card-chip/20 text-center text-xs text-text-muted">–</td>;
                 return (
                   <td key={cp.id}>
                     <button
                       type="button"
                       onClick={() => onCell?.(rp.id, cp.id)}
                       title={`${rp.name} vs ${cp.name}: ${c.label}`}
-                      className="grid h-9 w-9 place-items-center rounded text-[10px] font-semibold text-white"
+                      className="grid h-9 w-9 place-items-center rounded text-xs font-semibold text-white"
                       style={{ backgroundColor: toneFor(c.pct) }}
                     >
                       {Math.round(c.pct)}

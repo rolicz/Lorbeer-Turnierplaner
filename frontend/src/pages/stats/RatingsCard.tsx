@@ -17,7 +17,7 @@ function Row({ i, r }: { i: number; r: StatsRatingsRow }) {
     <div className="panel-subtle flex items-center justify-between gap-3 rounded-xl px-3 py-2">
       <div className="min-w-0">
         <div className="flex items-center gap-2">
-          <span className="w-5 shrink-0 text-right font-mono text-[12px] tabular-nums text-text-muted">{i + 1}</span>
+          <span className="w-5 shrink-0 text-right font-mono text-xs tabular-nums text-text-muted">{i + 1}</span>
           <span className="truncate text-sm font-semibold text-text-normal">{r.player.display_name}</span>
         </div>
         <div className="ml-7 text-[11px] text-text-muted">

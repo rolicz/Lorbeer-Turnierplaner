@@ -145,7 +145,7 @@ export function StatsAvatarSelector({
   includeAll = false,
   allValue = "",
   allLabel = "All players",
-  allIconClass = "fa-solid fa-layer-group text-[12px] text-text-muted",
+  allIconClass = "fa-solid fa-layer-group text-xs text-text-muted",
   avatarClassName = "h-8 w-8",
 }: {
   players: Player[];

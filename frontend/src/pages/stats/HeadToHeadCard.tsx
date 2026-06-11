@@ -256,7 +256,7 @@ export default function HeadToHeadCard({
                             gridTemplateColumns: gridCols,
                           }}
                         >
-                          <div className="sticky left-0 z-20 flex h-7 items-center rounded-md bg-bg-card-inner px-1.5 text-[10px] font-semibold text-text-muted">
+                          <div className="sticky left-0 z-20 flex h-7 items-center rounded-md bg-bg-card-inner px-1.5 text-xs font-semibold text-text-muted">
                             <span className="truncate">Player</span>
                           </div>
                           {roster.map((p) => (
@@ -265,7 +265,7 @@ export default function HeadToHeadCard({
                               className="flex h-7 items-center justify-center rounded-md bg-bg-card-chip/28 px-1 text-center font-semibold text-text-muted"
                               title={p.display_name}
                             >
-                              <div className="w-full truncate text-[9px] leading-3">{p.display_name}</div>
+                              <div className="w-full truncate text-[11px] leading-tight">{p.display_name}</div>
                             </div>
                           ))}
 
@@ -364,7 +364,7 @@ export default function HeadToHeadCard({
                                     })
                                   }
                                 >
-                                  <div className="inline-flex flex-col items-center justify-center font-mono text-[10px] leading-[10px] tabular-nums">
+                                  <div className="inline-flex flex-col items-center justify-center font-mono text-[11px] leading-[11px] tabular-nums">
                                     <span className="text-status-text-green">{fmtInt(w)}</span>
                                     <span className="text-amber-300">{fmtInt(d)}</span>
                                     <span className="text-[color:rgb(var(--delta-down)/1)]">{fmtInt(l)}</span>

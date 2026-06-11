@@ -50,7 +50,7 @@ function StreakRow({ r, ongoing }: { r: StatsStreakRow; ongoing?: StatsStreakRow
           <div className="truncate text-sm font-semibold text-text-normal">{r.player.display_name}</div>
           {r.ongoing ? (
             <Pill
-              className="min-w-0 border-status-border-green bg-status-bg-green px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-status-text-green"
+              className="min-w-0 border-status-border-green bg-status-bg-green px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-status-text-green"
               title="This record streak is still ongoing"
             >
               ongoing

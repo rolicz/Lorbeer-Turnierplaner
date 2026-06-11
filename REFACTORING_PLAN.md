@@ -307,7 +307,7 @@ This is the user-visible payoff. Do U1 first; U2–U8 are independent of each ot
   primitive only if a call site needs something it lacks (e.g. trailing unit, error text).
 - **DoD:** forms look unchanged; `input-label` appears only inside primitives (grep).
 
-### U8 — Typography pass on dense text (tables, meta, legends)  ☐
+### U8 — Typography pass on dense text (tables, meta, legends)  ☑
 - **Effort:** S · **Risk:** low (visual-only, subtle) · **Model:** Sonnet 4.6
 - **Problem:** dense text sizes drift: `text-[10px]` / `text-[11px]` / `text-xs` / `text-[12px]`
   used interchangeably for table cells, legends and meta lines (e.g. `pages/stats/StatsTable.tsx:6`

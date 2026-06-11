@@ -172,7 +172,7 @@ function StarRow({ r }: { r: StarBucket }) {
 
         <div className="shrink-0 text-right">
           <div className="font-mono text-[15px] font-semibold tabular-nums text-text-normal">{r.ppm.toFixed(2)}</div>
-          <div className="text-[10px] leading-none text-text-muted">ppm</div>
+          <div className="text-[11px] leading-none text-text-muted">ppm</div>
         </div>
       </div>
     </div>

@@ -416,7 +416,7 @@ function TrendsExplorer({ mode, scope, rows, initialMetric, initialView, initial
             <TrendChart events={events} series={series} yMax={isPpm ? 3 : Math.ceil(yMax)} yMin={isPpm ? 0 : Math.floor(yMin)} yTicks={yTicks} width={plotW - 16} viewT0={win.t0} viewT1={win.t1} showLabels height={240} />
           )}
         </div>
-        <div className="mt-1 flex items-center justify-between gap-2 text-[10px] text-text-muted">
+        <div className="mt-1 flex items-center justify-between gap-2 text-[11px] text-text-muted">
           <span>Pinch to zoom · drag to pan</span>
           {manualWin ? <button type="button" className="font-medium text-accent" onClick={() => setManualWin(null)}>Reset zoom</button> : null}
         </div>
@@ -463,7 +463,7 @@ function TrendsExplorer({ mode, scope, rows, initialMetric, initialView, initial
         {effView === "rolling" || isForm ? (
           <div className="space-y-1">
             <Slider label="Last N" value={rollN} min={2} max={Math.max(3, Math.min(20, events.length || 10))} onChange={setRollN} />
-            <div className="text-[10px] text-text-muted">
+            <div className="text-[11px] text-text-muted">
               {isForm
                 ? `Form = average points over the last ${rollN} matches (÷N), as on profiles.`
                 : `Rolling average over the last ${rollN} tournaments.`}
@@ -622,7 +622,7 @@ function PositionsView({ mode }: { mode: StatsMode }) {
                   title="Drag to reorder"
                 >
                   <AvatarCircle playerId={p.player_id} name={p.display_name} updatedAt={avatarUpdatedAtById.get(p.player_id) ?? null} sizeClass="h-6 w-6" />
-                  <span className="w-full truncate text-center text-[9px] text-text-muted">{p.display_name}</span>
+                  <span className="w-full truncate text-center text-[11px] text-text-muted">{p.display_name}</span>
                 </div>
               );
             })}
@@ -632,7 +632,7 @@ function PositionsView({ mode }: { mode: StatsMode }) {
                   <Link
                     to={`/live/${t.id}`}
                     title={`${t.name} — open tournament`}
-                    className="block w-full text-[10px] leading-tight text-text-normal no-underline transition hover:text-accent"
+                    className="block w-full text-xs leading-tight text-text-normal no-underline transition hover:text-accent"
                     style={{ display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}
                   >
                     {t.name}
@@ -641,7 +641,7 @@ function PositionsView({ mode }: { mode: StatsMode }) {
                 {orderedPlayers.map((p) => {
                   const pos = p.positions_by_tournament?.[String(t.id)];
                   if (pos == null)
-                    return <div key={p.player_id} style={{ height: cellH }} className="grid place-items-center rounded bg-bg-card-chip/15 text-[10px] text-text-muted">·</div>;
+                    return <div key={p.player_id} style={{ height: cellH }} className="grid place-items-center rounded bg-bg-card-chip/15 text-xs text-text-muted">·</div>;
                   const total = t.players_count || 1;
                   const frac = total > 1 ? (pos - 1) / (total - 1) : 0;
                   const stakes = t.cup_stakes ?? [];
@@ -866,14 +866,14 @@ function H2HView({ mode, scope, rows, myId }: { mode: StatsMode; scope: StatsSco
                   {rows.map((c) => {
                     if (r.id === c.id) return <td key={c.id} className="h-11 w-11 rounded bg-bg-card-chip/30" />;
                     const v = cell(r.id, c.id);
-                    if (!v) return <td key={c.id} className="h-11 w-11 rounded bg-bg-card-chip/15 text-center text-[10px] text-text-muted">–</td>;
+                    if (!v) return <td key={c.id} className="h-11 w-11 rounded bg-bg-card-chip/15 text-center text-xs text-text-muted">–</td>;
                     return (
                       <td key={c.id}>
                         <button
                           type="button"
                           onClick={() => setSelected(r.id)}
                           title={`${r.name} vs ${c.name}: ${v.w}-${v.d}-${v.l}`}
-                          className="grid h-11 w-11 place-items-center rounded text-[10px] font-semibold leading-none text-white"
+                          className="grid h-11 w-11 place-items-center rounded text-xs font-semibold leading-none text-white"
                           style={{ backgroundColor: cellColor(v) }}
                         >
                           {cellText(v)}
@@ -985,7 +985,7 @@ function H2HView({ mode, scope, rows, myId }: { mode: StatsMode; scope: StatsSco
             </div>
             <div className="shrink-0 text-right">
               <div className="text-sm font-bold tabular-nums text-accent">{Math.round(p.rivalry_score)}</div>
-              <div className="text-[10px] text-text-muted">rivalry</div>
+              <div className="text-[11px] text-text-muted">rivalry</div>
             </div>
           </button>
         ))}
@@ -1049,9 +1049,9 @@ function StreaksView({ mode, scope }: { mode: StatsMode; scope: StatsScope }) {
                     <AvatarCircle playerId={r.player.id} name={r.player.display_name} updatedAt={avatarUpdatedAtById.get(r.player.id) ?? null} sizeClass="h-6 w-6" />
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-sm text-text-normal">{r.player.display_name}</span>
-                      {streakDateText(r) ? <span className="block text-[10px] tabular-nums text-text-muted">{streakDateText(r)}</span> : null}
+                      {streakDateText(r) ? <span className="block text-[11px] tabular-nums text-text-muted">{streakDateText(r)}</span> : null}
                     </span>
-                    {r.ongoing ? <span className="shrink-0 rounded-full bg-status-bg-green/60 px-1.5 text-[10px] text-status-text-green">live</span> : null}
+                    {r.ongoing ? <span className="shrink-0 rounded-full bg-status-bg-green/60 px-1.5 text-[11px] text-status-text-green">live</span> : null}
                     <span className="text-sm font-bold tabular-nums text-accent">{r.length}</span>
                   </div>
                 ))}
@@ -1059,7 +1059,7 @@ function StreaksView({ mode, scope }: { mode: StatsMode; scope: StatsScope }) {
             ) : <div className="text-sm text-text-muted">None yet.</div>}
             {current.length ? (
               <div className="pt-1">
-                <div className="mb-1 text-[10px] uppercase tracking-wide text-text-muted">Current</div>
+                <div className="mb-1 text-xs uppercase tracking-wide text-text-muted">Current</div>
                 <div className="flex flex-wrap gap-1.5">
                   {current.map((r) => (
                     <span key={r.player.id} className="inline-flex items-center gap-1 rounded-full bg-bg-card-chip/50 px-2 py-0.5 text-[11px]">
@@ -1139,7 +1139,7 @@ function StarsView({ mode, scope, rows, selectedId, onSelect }: { mode: StatsMod
                 </div>
                 <div className="shrink-0 text-right">
                   <span className="font-mono text-sm font-bold tabular-nums text-text-normal">{b.ppm.toFixed(2)}</span>
-                  <span className="ml-1 text-[10px] text-text-muted">ppm</span>
+                  <span className="ml-1 text-[11px] text-text-muted">ppm</span>
                 </div>
               </div>
             </div>
@@ -1157,7 +1157,7 @@ function StatTile({ label, value }: { label: string; value: string }) {
   return (
     <div className="surface rounded-xl px-2 py-2 text-center">
       <div className="text-base font-bold tabular-nums text-text-normal">{value}</div>
-      <div className="text-[10px] text-text-muted">{label}</div>
+      <div className="text-[11px] text-text-muted">{label}</div>
     </div>
   );
 }
@@ -1228,7 +1228,7 @@ function PlayerProfile({ mode, scope, rows, selectedId, onSelect }: { mode: Stat
             </button>
             <div className="flex shrink-0 flex-col items-center" title="Recent form — points per match in the last games">
               <Sparkline values={row.form} />
-              <span className="mt-0.5 text-[9px] uppercase tracking-wide text-text-muted">Form (last {row.form.length})</span>
+              <span className="mt-0.5 text-[11px] uppercase tracking-wide text-text-muted">Form (last {row.form.length})</span>
             </div>
           </div>
 

@@ -105,7 +105,7 @@ export default function StatsFilterBar({
                   selected={playerId === ""}
                   onClick={() => onPlayerChange("")}
                   className="h-9 w-9"
-                  fallbackIconClass="fa-solid fa-layer-group text-[12px] text-text-muted"
+                  fallbackIconClass="fa-solid fa-layer-group text-xs text-text-muted"
                   noOverflowAnchor
                 />
               ) : null}
