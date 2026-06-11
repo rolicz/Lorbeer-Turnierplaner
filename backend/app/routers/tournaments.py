@@ -36,6 +36,7 @@ from ..schemas.responses import (
     TournamentStatsOut,
     TournamentSummaryOut,
 )
+from ..services.authorization import ensure_not_done_or_admin
 from ..services.comments_summary import tournament_comments_summary
 from ..services.events import (
     broadcast_tournament,
@@ -458,8 +459,7 @@ async def patch_tournament(
     t = get_or_404(s, Tournament, tournament_id, name="Tournament")
 
     status_now = compute_status_for_tournament(s, tournament_id)
-    if status_now == "done" and role != "admin":
-        forbidden("Tournament is done (admin required to edit)")
+    ensure_not_done_or_admin(status_now, role, action="edit")
 
     fields = body.model_fields_set
 
@@ -528,8 +528,7 @@ async def generate_schedule(
     t = get_or_404(s, Tournament, tournament_id, name="Tournament")
 
     status_now = compute_status_for_tournament(s, tournament_id)
-    if status_now == "done" and role != "admin":
-        forbidden("Tournament is done (admin required to regenerate)")
+    ensure_not_done_or_admin(status_now, role, action="regenerate")
 
     randomize = bool(body.randomize)
     created_matches, label_to_name = _generate_schedule_for_tournament(s, t, randomize=randomize)
@@ -556,8 +555,7 @@ async def reorder(
     get_or_404(s, Tournament, tournament_id, name="Tournament")
 
     status_now = compute_status_for_tournament(s, tournament_id)
-    if status_now == "done" and role != "admin":
-        forbidden("Tournament is done (admin required to reorder)")
+    ensure_not_done_or_admin(status_now, role, action="reorder")
 
     match_ids = list(body.match_ids or [])
     if not match_ids:

@@ -414,7 +414,7 @@ Independent of the frontend phases (except B2 ordering note). Python, FastAPI + 
 - **DoD:** `make test` passes (esp. avatar/header/comment-image tests); uploading a new avatar
   with a different extension deletes the old file (manual or test).
 
-### B2 — Centralize permission checks  ☐
+### B2 — Centralize permission checks  ☑
 - **Effort:** M · **Risk:** medium (security-relevant — review carefully) · **Model:** Opus 4.8 (Block 2)
 - **Problem:** owner/admin and "tournament is done" checks are inlined repeatedly:
   `players.py:354, 417, 452, 487, 520, 770, 897` (owner-or-admin variants),
@@ -426,6 +426,16 @@ Independent of the frontend phases (except B2 ordering note). Python, FastAPI + 
   (tests must not change).
 - **DoD:** all listed call sites use the helpers; `make test` green;
   `backend/tests/test_player_profiles_auth.py` unchanged and passing.
+- **Note:** Helpers in `app/services/authorization.py`, named to match the *actual* semantics
+  (the illustrative names in this task didn't fit): `require_profile_owner` (owner-only, **no**
+  admin override — profile/avatar/header edits), `require_self_or_admin` (act-as-self-or-admin —
+  guestbook post, poke, comment post/edit; `allow_missing=True` covers the None/"General" author
+  case), `ensure_not_done_or_admin(status, role, action=…)` (the 3 tournament "done" blocks).
+  12 inline checks replaced across players/comments/tournaments; status codes + detail strings are
+  byte-identical (96 tests pass, auth test untouched). Single-occurrence composite checks were left
+  inline (guestbook-entry delete's author-or-profile-owner-or-admin, and the
+  `comment_can_edit`/`guestbook_can_edit`-based checks) — not the repeated pattern, and the latter
+  already use domain helpers.
 
 ### B3 — Extract fat endpoint bodies into services  ☑
 - **Effort:** M–L · **Risk:** medium · split into 3 commits · **Model:** Sonnet 4.6

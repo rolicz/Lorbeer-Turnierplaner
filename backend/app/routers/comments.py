@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, Request, Response, 
 from sqlalchemy.orm import selectinload
 from sqlmodel import Session, select
 
-from ..api_utils import bad_request, conflict, forbidden, get_or_404
+from ..api_utils import bad_request, conflict, get_or_404
 from ..auth import decode_token, require_admin, require_auth_claims, require_editor, require_editor_claims
 from ..db import get_engine, get_session
 from ..models import (
@@ -38,6 +38,7 @@ from ..schemas.responses import (
     VoteResultOut,
     VotersOut,
 )
+from ..services.authorization import require_self_or_admin
 from ..services.comments_summary import tournament_comments_summary
 from ..services.comments_view import comment_can_edit, comment_dict, list_comments_for_tournament, parent_comment_map
 from ..services.events import (
@@ -422,9 +423,7 @@ async def create_comment(
     author_player_id = None if body.author_player_id in (None, "") else int(body.author_player_id)
     parent_comment_id = None if body.parent_comment_id in (None, "") else int(body.parent_comment_id)
 
-    is_admin = str(claims.get("role") or "") == "admin"
-    if author_player_id is not None and author_player_id != int(claims.get("player_id")) and not is_admin:
-        forbidden("You can only post comments as yourself or General")
+    require_self_or_admin(claims, author_player_id, message="You can only post comments as yourself or General", allow_missing=True)
 
     _validate_match_ref(s, tournament_id, match_id)
     _validate_author(s, tournament_id, author_player_id)
@@ -617,8 +616,7 @@ async def patch_comment(
 
     if "author_player_id" in fields:
         author_player_id = None if body.author_player_id in (None, "") else int(body.author_player_id)
-        if author_player_id is not None and author_player_id != viewer_id and not is_admin:
-            forbidden("You can only post comments as yourself or General")
+        require_self_or_admin(claims, author_player_id, message="You can only post comments as yourself or General", allow_missing=True)
         _validate_author(s, c.tournament_id, author_player_id)
         c.author_player_id = author_player_id
 

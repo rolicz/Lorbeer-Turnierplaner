@@ -48,6 +48,7 @@ from ..schemas.responses import (
     VoteResultOut,
     VotersOut,
 )
+from ..services.authorization import require_profile_owner, require_self_or_admin
 from ..services.file_storage import (
     delete_media,
     media_path_for_avatar,
@@ -311,8 +312,7 @@ def patch_player_profile(
     s: Session = Depends(get_session),
     claims: dict = Depends(require_editor_claims),
 ):
-    if int(claims.get("player_id")) != int(player_id):
-        forbidden("Only the profile owner can edit this profile")
+    require_profile_owner(claims, player_id, what="profile")
 
     player = s.get(Player, player_id)
     if not player:
@@ -374,8 +374,7 @@ async def put_player_avatar(
     s: Session = Depends(get_session),
     claims: dict = Depends(require_editor_claims),
 ):
-    if int(claims.get("player_id")) != int(player_id):
-        forbidden("Only the profile owner can edit this avatar")
+    require_profile_owner(claims, player_id, what="avatar")
 
     p = s.get(Player, player_id)
     if not p:
@@ -409,8 +408,7 @@ def delete_player_avatar(
     s: Session = Depends(get_session),
     claims: dict = Depends(require_editor_claims),
 ):
-    if int(claims.get("player_id")) != int(player_id):
-        forbidden("Only the profile owner can edit this avatar")
+    require_profile_owner(claims, player_id, what="avatar")
 
     av_file = s.get(PlayerAvatarFile, player_id)
     if not av_file:
@@ -444,8 +442,7 @@ async def put_player_header_image(
     s: Session = Depends(get_session),
     claims: dict = Depends(require_editor_claims),
 ):
-    if int(claims.get("player_id")) != int(player_id):
-        forbidden("Only the profile owner can edit this header image")
+    require_profile_owner(claims, player_id, what="header image")
 
     p = s.get(Player, player_id)
     if not p:
@@ -479,8 +476,7 @@ def delete_player_header_image(
     s: Session = Depends(get_session),
     claims: dict = Depends(require_editor_claims),
 ):
-    if int(claims.get("player_id")) != int(player_id):
-        forbidden("Only the profile owner can edit this header image")
+    require_profile_owner(claims, player_id, what="header image")
 
     row = s.get(PlayerHeaderImageFile, player_id)
     if not row:
@@ -628,10 +624,8 @@ def create_player_guestbook_entry(
 
     claims_player_id = int(claims.get("player_id"))
     req_author_player_id = None if body.author_player_id in (None, "") else int(body.author_player_id)
-    is_admin = str(claims.get("role") or "") == "admin"
     author_player_id = req_author_player_id if req_author_player_id is not None else claims_player_id
-    if author_player_id != claims_player_id and not is_admin:
-        forbidden("You can only post guestbook messages as yourself")
+    require_self_or_admin(claims, author_player_id, message="You can only post guestbook messages as yourself")
     author_player = s.get(Player, author_player_id)
     if not author_player:
         raise HTTPException(status_code=401, detail="Invalid token payload")
@@ -751,10 +745,8 @@ def create_player_poke(
 
     claims_player_id = int(claims.get("player_id"))
     req_author_player_id = None if body is None or body.author_player_id in (None, "") else int(body.author_player_id)
-    is_admin = str(claims.get("role") or "") == "admin"
     author_player_id = req_author_player_id if req_author_player_id is not None else claims_player_id
-    if author_player_id != claims_player_id and not is_admin:
-        forbidden("You can only poke as yourself")
+    require_self_or_admin(claims, author_player_id, message="You can only poke as yourself")
     if author_player_id == int(player_id):
         bad_request("Cannot poke yourself")
 
