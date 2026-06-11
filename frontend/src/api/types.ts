@@ -145,7 +145,10 @@ export type PatchMatchBody = {
 };
 
 // Stats match: subset of Match without tournament_id/odds (stats endpoints don't include them).
-// StatsMatch is a structural subset, so Match is assignable to StatsMatch.
+// Unlike Match, `state` stays a plain string here (the stats endpoints type it that way) and the
+// raw response data flows directly into StatsMatch slots — so narrowing state to MatchState would
+// force an `as MatchState` cast at every data-entry point instead of removing one. The single
+// localized cast in MatchHistoryList (matchPalette) is the deliberate state-narrowing boundary.
 export type StatsMatch = S["StatsMatchOut"];
 
 // H2H / player-matches — aliases to generated schema types

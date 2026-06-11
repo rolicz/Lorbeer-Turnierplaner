@@ -11,21 +11,11 @@ import { listClubs } from "../../api/clubs.api";
 import { qk } from "../../api/queryKeys";
 import { getStatsPlayerMatches } from "../../api/stats.api";
 import type { Club, StatsMatch, StatsScope } from "../../api/types";
-import { sideBy } from "../../helpers";
+import { sideBy, winnerSide } from "../../helpers";
 import { StarsFA } from "../../ui/primitives/StarsFA";
 import { type StatsMode } from "./StatsControls";
 
 type Outcome = "W" | "D" | "L";
-
-function winnerSide(m: StatsMatch): "A" | "B" | null {
-  if (m.state !== "finished") return null;
-  const a = sideBy(m, "A");
-  const b = sideBy(m, "B");
-  const ag = a?.goals ?? 0;
-  const bg = b?.goals ?? 0;
-  if (ag === bg) return null;
-  return ag > bg ? "A" : "B";
-}
 
 function outcomeForPlayer(m: StatsMatch, playerId: number): { outcome: Outcome; points: number; side: "A" | "B" } | null {
   if (m.state !== "finished") return null;

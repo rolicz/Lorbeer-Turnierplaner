@@ -1,23 +1,13 @@
 import Button from "../../ui/primitives/Button";
 import type { Club, Match } from "../../api/types";
 import { teamName } from "../../utils/matchDisplay";
-import { sideBy } from "../../helpers";
+import { sideBy, winnerSide } from "../../helpers";
 import { matchPalette } from "../../ui/theme";
 import { StarsFA } from "../../ui/primitives/StarsFA";
 import { clubLabelPartsById } from "../../ui/clubControls";
 import { useEffect, useState } from "react";
 import SegmentedSwitch from "../../ui/primitives/SegmentedSwitch";
 import { fmtOdd } from "../../utils/format";
-
-function winnerSide(m: Match): "A" | "B" | null {
-  if (m.state !== "finished") return null;
-  const a = sideBy(m, "A");
-  const b = sideBy(m, "B");
-  const ag = a?.goals ?? 0;
-  const bg = b?.goals ?? 0;
-  if (ag === bg) return null;
-  return ag > bg ? "A" : "B";
-}
 
 function splitPlayers(names: string): string[] {
   return names.split(" + ").map((s) => s.trim()).filter(Boolean);

@@ -1,6 +1,6 @@
 /** Pure helpers for the Trends chart (unit-tested). */
 import type { StatsMatch } from "../../api/types";
-import { sideBy } from "../../helpers";
+import { sideBy, winnerSide } from "../../helpers";
 import { fmtMonthDate } from "../../utils/format";
 
 export type SeriesPoint = { y: number; present: boolean } | null; // null = no datapoint
@@ -47,16 +47,6 @@ export function buildPlayerColorMap(playerIds: number[]): Map<number, PlayerColo
   const map = new Map<number, PlayerColor>();
   ordered.forEach((id, idx) => map.set(id, colorForIdx(idx, total)));
   return map;
-}
-
-export function winnerSide(m: StatsMatch): "A" | "B" | null {
-  if (m.state !== "finished") return null;
-  const a = sideBy(m, "A");
-  const b = sideBy(m, "B");
-  const ag = a?.goals ?? 0;
-  const bg = b?.goals ?? 0;
-  if (ag === bg) return null;
-  return ag > bg ? "A" : "B";
 }
 
 /** Points (3/1/0) for a player in a finished match, or null if not applicable. */

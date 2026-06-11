@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { sideBy } from "../../helpers";
 
 import Button from "../../ui/primitives/Button";
 import EmptyState from "../../ui/primitives/EmptyState";
@@ -109,10 +110,6 @@ export default function TournamentCommentsCard({
 
   const matchById = useMemo(() => new Map(matches.map((m) => [m.id, m])), [matches]);
   const playerById = useMemo(() => new Map(players.map((p) => [p.id, p.display_name])), [players]);
-
-  function sideBy(m: Match, side: "A" | "B") {
-    return m.sides.find((s) => s.side === side);
-  }
 
   function sidePlayersLabel(m: Match, side: "A" | "B") {
     const s = sideBy(m, side);

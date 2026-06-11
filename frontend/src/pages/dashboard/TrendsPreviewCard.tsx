@@ -8,7 +8,7 @@ import InlineLoading from "../../ui/primitives/InlineLoading";
 import { getStatsPlayerMatches, getStatsPlayers } from "../../api/stats.api";
 import { qk } from "../../api/queryKeys";
 import type { StatsMatch, StatsPlayerMatchesResponse, StatsPlayersResponse, StatsTournamentLite } from "../../api/types";
-import { sideBy } from "../../helpers";
+import { sideBy, winnerSide } from "../../helpers";
 import { usePlayerColors } from "../stats/usePlayerColors";
 import { pooledPpm } from "../stats/trendsMath";
 import { TrendChart } from "../stats/charts";
@@ -23,16 +23,6 @@ function addMonths(d: Date, months: number) {
   return out;
 }
 
-
-function winnerSide(m: StatsMatch): "A" | "B" | null {
-  if (m.state !== "finished") return null;
-  const a = sideBy(m, "A");
-  const b = sideBy(m, "B");
-  const ag = a?.goals ?? 0;
-  const bg = b?.goals ?? 0;
-  if (ag === bg) return null;
-  return ag > bg ? "A" : "B";
-}
 
 function pointsForPlayerInMatch(m: StatsMatch, playerId: number): number | null {
   if (m.state !== "finished") return null;

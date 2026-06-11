@@ -21,19 +21,10 @@ import {
 import { MatchHistoryList } from "./MatchHistoryList";
 import TournamentPositionsGrid from "./TournamentPositionsGrid";
 import { fmtDate } from "../../utils/format";
+import { winnerSide } from "../../helpers";
 
 
 type Outcome = "W" | "D" | "L";
-
-function winnerSide(m: StatsMatch): "A" | "B" | null {
-  if (m.state !== "finished") return null;
-  const a = m.sides.find((s) => s.side === "A");
-  const b = m.sides.find((s) => s.side === "B");
-  const ag = a?.goals ?? 0;
-  const bg = b?.goals ?? 0;
-  if (ag === bg) return null;
-  return ag > bg ? "A" : "B";
-}
 
 function outcomeForPlayer(m: StatsMatch, playerId: number): { outcome: Outcome; points: number } | null {
   if (m.state !== "finished") return null;

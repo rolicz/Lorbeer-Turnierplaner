@@ -7,8 +7,8 @@ import {
   monthTicksBetween,
   pointsForPlayerInMatch,
   pooledPpm,
-  winnerSide,
 } from "../pages/stats/trendsMath";
+import { winnerSide } from "../helpers";
 import type { Match } from "../api/types";
 
 function match(partial: {

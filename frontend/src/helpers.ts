@@ -4,6 +4,17 @@ export function sideBy(m: StatsMatch, side: "A" | "B"): MatchSide | undefined {
   return m.sides.find((s) => s.side === side);
 }
 
+/** Winning side of a finished match, or null if unfinished / drawn. */
+export function winnerSide(m: StatsMatch): "A" | "B" | null {
+  if (m.state !== "finished") return null;
+  const a = sideBy(m, "A");
+  const b = sideBy(m, "B");
+  const ag = a?.goals ?? 0;
+  const bg = b?.goals ?? 0;
+  if (ag === bg) return null;
+  return ag > bg ? "A" : "B";
+}
+
 export function shuffle<T>(arr: T[]): T[] {
   const a = arr.slice();
   for (let i = a.length - 1; i > 0; i--) {

@@ -2,16 +2,13 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Button from "../../ui/primitives/Button";
 import type { Club, Match, MatchSide, Player, TournamentMode } from "../../api/types";
 import { teamName } from "../../utils/matchDisplay";
+import { sideBy } from "../../helpers";
 import MatchOverviewPanel from "../../ui/primitives/MatchOverviewPanel";
 import SelectClubsPanel from "../../ui/SelectClubsPanel";
 import { GoalStepper } from "../../ui/clubControls";
 import { scrollToSectionById } from "../../ui/scrollToSection";
 import TournamentCommentsCard from "./TournamentCommentsCard";
 
-
-function sideBy(m: Match, side: "A" | "B"): MatchSide | undefined {
-  return m.sides.find((s) => s.side === side);
-}
 
 function namesInline(side?: MatchSide) {
   return teamName(side);

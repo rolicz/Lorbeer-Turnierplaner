@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import type { Club, MatchState, StatsMatch, StatsPlayerMatchesTournament } from "../../api/types";
-import { sideBy } from "../../helpers";
+import { sideBy, winnerSide } from "../../helpers";
 import { clubLabelPartsById } from "../../ui/clubControls";
 import { Pill, pillDate } from "../../ui/primitives/Pill";
 import { StarsFA } from "../../ui/primitives/StarsFA";
@@ -8,16 +8,6 @@ import { matchPalette } from "../../ui/theme";
 import TournamentLaurelMarkers from "./TournamentLaurelMarkers";
 import { fmtDate } from "../../utils/format";
 
-
-function winnerSide(m: StatsMatch): "A" | "B" | null {
-  if (m.state !== "finished") return null;
-  const a = sideBy(m, "A");
-  const b = sideBy(m, "B");
-  const ag = a?.goals ?? 0;
-  const bg = b?.goals ?? 0;
-  if (ag === bg) return null;
-  return ag > bg ? "A" : "B";
-}
 
 export function MatchRowWithClubs({
   m,
@@ -67,6 +57,8 @@ export function MatchRowWithClubs({
   const isDraw = w === null && m.state === "finished" && ag === bg;
   const aWin = w === "A";
   const bWin = w === "B";
+  // StatsMatch.state is a plain string (stats wire type); assert the known literal at this single
+  // boundary (see the StatsMatch note in types.ts) so matchPalette receives its MatchState.
   const pal = matchPalette(m.state as MatchState);
   const aNameColorClass = nameColorByResult && hasWinner && !isDraw ? (aWin ? pal.win : pal.lose) : "text-text-normal";
   const bNameColorClass = nameColorByResult && hasWinner && !isDraw ? (bWin ? pal.win : pal.lose) : "text-text-normal";
