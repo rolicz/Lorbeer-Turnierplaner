@@ -95,6 +95,8 @@ export async function apiUpload<T>(
     body: opts.body,
   });
   if (!res.ok) {
+    // Intentional (A5): a 401 here means the session expired mid-upload; route it through the same
+    // central logout+toast as apiFetch. No /auth/ guard needed — no upload path is under /auth/.
     if (res.status === 401) {
       window.dispatchEvent(new CustomEvent("api:unauthorized"));
     }
