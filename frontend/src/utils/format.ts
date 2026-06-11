@@ -92,3 +92,22 @@ export function parseDateSafe(s?: string | null): number | null {
   const t = Date.parse(s);
   return Number.isFinite(t) ? t : null;
 }
+
+/** "12 Jun '26" style — used for streak date ranges and match history meta. */
+export function fmtShortDate(ts: string | null | undefined): string {
+  if (!ts) return "";
+  const d = new Date(ts);
+  if (!Number.isFinite(d.getTime())) return "";
+  return d.toLocaleDateString(undefined, { day: "2-digit", month: "short", year: "2-digit" });
+}
+
+/** Round an ELO/rating to the nearest integer. Returns "—" for non-finite values. */
+export function fmtRating(x: number): string {
+  if (!Number.isFinite(x)) return "—";
+  return String(Math.round(x));
+}
+
+/** Format a ranking as "#pos/total" (e.g. "#3/8"). Uses "?" when total is null. */
+export function fmtRank(pos: number, total: number | null): string {
+  return `#${pos}/${total ?? "?"}`;
+}

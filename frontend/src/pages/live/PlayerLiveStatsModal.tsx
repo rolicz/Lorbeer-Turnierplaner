@@ -8,6 +8,7 @@ import Modal from "../../ui/primitives/Modal";
 import { StreakPatch, type ActiveStreak } from "../../ui/StreakPatches";
 import type { StatsMatch, StatsPlayerMatchesTournament, StatsStreakCategory, StatsStreakRow, StatsStreaksResponse } from "../../api/types";
 import { sideBy } from "../../helpers";
+import { fmtRating, fmtRank } from "../../utils/format";
 
 function ppm(pts: number, played: number) {
   return played > 0 ? (pts / played).toFixed(2) : "0.00";
@@ -255,7 +256,7 @@ export default function PlayerLiveStatsModal({
               <div className="text-text-muted">
                 Rating ({mode}):{" "}
                 <span className="text-text-normal font-mono tabular-nums">
-                  {ratingInfo ? `${Math.round(ratingInfo.rating)} (#${ratingInfo.rank}/${ratingInfo.total})` : "—"}
+                  {ratingInfo ? `${fmtRating(ratingInfo.rating)} (${fmtRank(ratingInfo.rank, ratingInfo.total)})` : "—"}
                 </span>
               </div>
             </div>

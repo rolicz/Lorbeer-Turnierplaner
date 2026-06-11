@@ -380,7 +380,7 @@ F1–F3 are the big wins; each is splittable into multiple commits.
   move/re-export `sideOf`, `winnerSide` if it keeps imports simpler). Replace the 6 call sites.
 - **DoD:** one definition of team-name formatting; grep for `join(" + ")` → only the helper.
 
-### F6 — Round out `utils/format.ts`  ☐
+### F6 — Round out `utils/format.ts`  ☑
 - **Effort:** S · **Risk:** low · **Model:** Sonnet 4.6
 - **Add:** `fmtShortDate` (currently local in `StatsInsights.tsx:~1000`), `fmtRating`
   (scattered `Math.round(rating)`), `fmtRank(pos, total)`. Replace inline occurrences

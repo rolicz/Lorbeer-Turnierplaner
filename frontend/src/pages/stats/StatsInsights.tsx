@@ -21,6 +21,7 @@ import { Sparkline, Radar, TrendChart, ChipGroup } from "./charts";
 import { qk } from "../../api/queryKeys";
 import { pooledPpm } from "./trendsMath";
 import { teamName } from "../../utils/matchDisplay";
+import { fmtShortDate, fmtRating } from "../../utils/format";
 import { MatchHistoryList } from "./MatchHistoryList";
 import { PlayerPicker } from "./PlayerPicker";
 import CupCard from "../dashboard/CupCard";
@@ -999,12 +1000,6 @@ function H2HView({ mode, scope, rows, myId }: { mode: StatsMode; scope: StatsSco
 // ==========================================================================
 //  STREAKS
 // ==========================================================================
-function fmtShortDate(ts: string | null | undefined): string {
-  if (!ts) return "";
-  const d = new Date(ts);
-  if (!Number.isFinite(d.getTime())) return "";
-  return d.toLocaleDateString(undefined, { day: "2-digit", month: "short", year: "2-digit" });
-}
 /** Per-category streak glyph (matches the FA badge icons used elsewhere). */
 function StreakCatIcon({ catKey, size = 12 }: { catKey: string; size?: number }) {
   if (catKey === "unbeaten_streak") return <Shield size={size} aria-hidden="true" />;
@@ -1223,7 +1218,7 @@ function PlayerProfile({ mode, scope, rows, selectedId, onSelect }: { mode: Stat
                   <ChevronRight className="h-4 w-4 shrink-0 text-text-muted" aria-hidden="true" />
                 </div>
                 <div className="text-xs text-text-muted">
-                  {Math.round(row.rating)}★ · <span className="text-status-text-green">{row.wins}</span>-<span className="text-amber-300">{row.draws}</span>-<span className="text-[color:rgb(var(--delta-down)/1)]">{row.losses}</span> · {row.pts} pts · view profile
+                  {fmtRating(row.rating)}★ · <span className="text-status-text-green">{row.wins}</span>-<span className="text-amber-300">{row.draws}</span>-<span className="text-[color:rgb(var(--delta-down)/1)]">{row.losses}</span> · {row.pts} pts · view profile
                 </div>
               </div>
             </button>

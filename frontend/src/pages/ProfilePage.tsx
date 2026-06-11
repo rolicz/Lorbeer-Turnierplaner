@@ -53,7 +53,7 @@ import { usePageTitle } from "../ui/layout/PageTitleContext";
 import { scrollToSectionById } from "../ui/scrollToSection";
 import { SectionTabs, type SectionTab } from "../ui/SectionTabs";
 import { User, BarChart3, ListChecks, BookOpen } from "lucide-react";
-import { fmtInt, fmtPct } from "../utils/format";
+import { fmtInt, fmtPct, fmtRank, fmtRating } from "../utils/format";
 import {
   buildGuestbookTree,
   countUnreadGuestbookAuthors,
@@ -1228,7 +1228,7 @@ export default function ProfilePage() {
                   if (!row) return null;
                   return (
                     <Pill className="pill-default" title="Tournament position">
-                      #{row.position}/{row.total ?? "?"}
+                      {fmtRank(row.position, row.total)}
                     </Pill>
                   );
                 }}
@@ -1261,7 +1261,7 @@ export default function ProfilePage() {
                     <span>
                       Record <span className="tabular-nums text-status-text-green">{fmtInt(r?.wins ?? 0)}</span>-<span className="tabular-nums text-amber-300">{fmtInt(r?.draws ?? 0)}</span>-<span className="tabular-nums text-red-300">{fmtInt(r?.losses ?? 0)}</span>
                     </span>
-                    <span>Elo <b className="tabular-nums text-text-normal">{eloRow ? Math.round(eloRow.rating) : "—"}</b>{eloRank != null ? ` · #${eloRank}` : ""}</span>
+                    <span>Elo <b className="tabular-nums text-text-normal">{eloRow ? fmtRating(eloRow.rating) : "—"}</b>{eloRank != null ? ` · #${eloRank}` : ""}</span>
                     <span>Last 3 <b className="tabular-nums text-text-normal">{fmtPct(r?.lastN_avg_pts ?? 0)}</b></span>
                   </div>
                 </>
@@ -1319,7 +1319,7 @@ export default function ProfilePage() {
                 if (!row) return null;
                 return (
                   <Pill className="pill-default" title="Tournament position">
-                    #{row.position}/{row.total ?? "?"}
+                    {fmtRank(row.position, row.total)}
                   </Pill>
                 );
               }}

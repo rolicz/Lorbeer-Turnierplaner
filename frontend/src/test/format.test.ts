@@ -11,6 +11,9 @@ import {
   clamp,
   wrapTwoLinesWords,
   parseDateSafe,
+  fmtShortDate,
+  fmtRating,
+  fmtRank,
 } from "../utils/format";
 
 describe("fmtDate", () => {
@@ -137,5 +140,45 @@ describe("parseDateSafe", () => {
     expect(parseDateSafe(null)).toBeNull();
     expect(parseDateSafe(undefined)).toBeNull();
     expect(parseDateSafe("not-a-date")).toBeNull();
+  });
+});
+
+describe("fmtShortDate", () => {
+  it("returns empty string for null/undefined/empty", () => {
+    expect(fmtShortDate(null)).toBe("");
+    expect(fmtShortDate(undefined)).toBe("");
+    expect(fmtShortDate("")).toBe("");
+  });
+
+  it("returns empty string for unparseable input", () => {
+    expect(fmtShortDate("not-a-date")).toBe("");
+  });
+
+  it("returns a non-empty string for a valid ISO date", () => {
+    expect(fmtShortDate("2024-03-15")).not.toBe("");
+  });
+});
+
+describe("fmtRating", () => {
+  it("rounds to nearest integer", () => {
+    expect(fmtRating(1523.7)).toBe("1524");
+    expect(fmtRating(1000)).toBe("1000");
+    expect(fmtRating(1523.2)).toBe("1523");
+  });
+
+  it("returns '—' for non-finite values", () => {
+    expect(fmtRating(NaN)).toBe("—");
+    expect(fmtRating(Infinity)).toBe("—");
+  });
+});
+
+describe("fmtRank", () => {
+  it("formats rank with total", () => {
+    expect(fmtRank(3, 8)).toBe("#3/8");
+    expect(fmtRank(1, 10)).toBe("#1/10");
+  });
+
+  it("uses '?' when total is null", () => {
+    expect(fmtRank(2, null)).toBe("#2/?");
   });
 });

@@ -6,11 +6,7 @@ import { getStatsRatings } from "../../api/stats.api";
 import { qk } from "../../api/queryKeys";
 import type { StatsRatingsRow, StatsScope } from "../../api/types";
 import type { StatsMode } from "./StatsControls";
-
-function fmtRating(x: number) {
-  if (!Number.isFinite(x)) return "1000";
-  return String(Math.round(x));
-}
+import { fmtRating } from "../../utils/format";
 
 function Row({ i, r }: { i: number; r: StatsRatingsRow }) {
   return (
