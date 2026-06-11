@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 
+import CardSection from "../../ui/primitives/CardSection";
 import CollapsibleCard from "../../ui/primitives/CollapsibleCard";
 import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
 import InlineLoading from "../../ui/primitives/InlineLoading";
@@ -293,7 +294,7 @@ export default function PlayerMatchesCard({
       <ErrorToastOnError error={matchesQ.error} title="Player matches loading failed" />
       <ErrorToastOnError error={positionsQ.error} title="Tournament tiles loading failed" />
       <ErrorToastOnError error={clubsQ.error} title="Club data loading failed" />
-      <div className="card-inner-flat rounded-2xl scroll-mt-[calc(env(safe-area-inset-top,0px)+128px)] sm:scroll-mt-[calc(env(safe-area-inset-top,0px)+144px)]">
+      <CardSection padded={false} className="scroll-mt-[calc(env(safe-area-inset-top,0px)+128px)] sm:scroll-mt-[calc(env(safe-area-inset-top,0px)+144px)]">
         <div className="flex min-w-0 flex-wrap items-center gap-2">
           <StatsControlLabel icon="fa-sliders" text="View" />
           <StatsSegmentedSwitch<boolean>
@@ -307,11 +308,11 @@ export default function PlayerMatchesCard({
             title="Toggle details (clubs / leagues / stars)"
           />
         </div>
-      </div>
+      </CardSection>
 
       <div style={{ overflowAnchor: "none" }}>
         {selectedPlayerId === "" ? (
-          <div className="card-inner-flat rounded-2xl text-sm text-text-muted">Pick a player above to see their match history.</div>
+          <CardSection className="text-sm text-text-muted">Pick a player above to see their match history.</CardSection>
         ) : null}
         {matchesQ.isLoading ? <InlineLoading label="Loading…" /> : null}
 
@@ -347,7 +348,7 @@ export default function PlayerMatchesCard({
         ) : null}
 
         {selected && !matchesQ.isLoading && !tournaments.length ? (
-          <div className="card-inner-flat rounded-2xl text-sm text-text-muted">No matches found for {selected.display_name}.</div>
+          <CardSection className="text-sm text-text-muted">No matches found for {selected.display_name}.</CardSection>
         ) : null}
       </div>
     </>

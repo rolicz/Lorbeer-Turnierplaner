@@ -979,6 +979,7 @@ export default function TournamentCommentsCard({
             </div>
           </div>
     ) : null;
+    // not CardSection: rounded-2xl omitted so the block spans edge-to-edge inside the parent card; scroll-mt critical for anchor navigation
     return (
       <div key={matchId} id={`comments-block-match-${matchId}`} className="card-inner-flat scroll-mt-28 sm:scroll-mt-32">
         {h && showMatchHeader ? (

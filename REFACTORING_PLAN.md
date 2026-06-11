@@ -213,7 +213,7 @@ Mostly mechanical, low risk. Best phase to start with.
 
 This is the user-visible payoff. Do U1 first; U2–U8 are independent of each other.
 
-### U1 — Define the surface system once, then add a `CardSection` primitive  ☐
+### U1 — Define the surface system once, then add a `CardSection` primitive  ☑
 - **Effort:** M · **Risk:** low (pure markup swaps) · **Model:** Sonnet 4.6
 - **Problem:** `styles.css` defines 6 surface classes (`.surface:109`, `.surface-2:115`,
   `.card-outer:197`, `.card-chip:208`, `.panel-subtle:381`, `.card-inner-flat:397`) but pages

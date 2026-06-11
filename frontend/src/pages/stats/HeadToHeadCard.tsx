@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 
+import CardSection from "../../ui/primitives/CardSection";
 import CollapsibleCard from "../../ui/primitives/CollapsibleCard";
 import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
 import InlineLoading from "../../ui/primitives/InlineLoading";
@@ -168,7 +169,7 @@ export default function HeadToHeadCard({
       <ErrorToastOnError error={h2hQ.error} title="H2H loading failed" />
       <ErrorToastOnError error={historyQ.error} title="Match history loading failed" />
       <ErrorToastOnError error={clubsQ.error} title="Club data loading failed" />
-      <div className="card-inner-flat rounded-2xl">
+      <CardSection padded={false}>
         <div className="flex flex-wrap items-start gap-2">
           <div className="flex min-w-0 flex-wrap items-center gap-2">
             <StatsControlLabel icon="fa-arrow-down-wide-short" text="Order" />
@@ -198,14 +199,14 @@ export default function HeadToHeadCard({
             />
           </div>
         </div>
-      </div>
+      </CardSection>
 
         {h2hQ.isLoading ? <InlineLoading label="Loading…" /> : null}
 
         {h2hQ.data ? (
           <div className="space-y-3" style={{ overflowAnchor: "none" }}>
             {view === "matrix" ? (
-              <div className="card-inner-flat rounded-2xl space-y-2">
+              <CardSection>
                 <div className="text-sm font-semibold text-text-normal">
                   Matrix <span className="text-text-muted">· {modeTitle} · {scopeTitle}</span>
                 </div>
@@ -384,13 +385,13 @@ export default function HeadToHeadCard({
                     </div>
                   );
                 })()}
-              </div>
+              </CardSection>
             ) : null}
 
             {view === "lists" ? (
               <>
                 {!selected ? (
-                  <div className="card-inner-flat rounded-2xl space-y-2">
+                  <CardSection>
                     {(() => {
                       const k = `legendary-${mode}-${order}-${scope}`;
                       const list =
@@ -475,11 +476,11 @@ export default function HeadToHeadCard({
                         </>
                       );
                     })()}
-                  </div>
+                  </CardSection>
                 ) : null}
 
                 {mode === "2v2" && !selected ? (
-                  <div className="card-inner-flat rounded-2xl space-y-2">
+                  <CardSection>
                     {(() => {
                       const k = `best-teammates-${mode}-${order}-${scope}`;
                       const list = h2hQ.data.best_teammates_2v2 ?? [];
@@ -524,13 +525,13 @@ export default function HeadToHeadCard({
                         </>
                       );
                     })()}
-                  </div>
+                  </CardSection>
                 ) : null}
 
                 {selected ? (
                   (() => {
                 const Matchups = (
-                  <div className="card-inner-flat rounded-2xl space-y-2">
+                  <CardSection>
                     <div className="text-sm font-semibold text-text-normal">
                       {selected.display_name}
                       <span className="text-text-muted"> · matchups ({modeTitle}) · {scopeTitle}</span>
@@ -600,12 +601,12 @@ export default function HeadToHeadCard({
                         );
                       })()}
                     </div>
-                  </div>
+                  </CardSection>
                 );
 
                 const Teammates =
                   mode === "2v2" ? (
-                    <div className="card-inner-flat rounded-2xl space-y-2">
+                    <CardSection>
                       <div className="text-sm font-semibold text-text-normal">
                         {selected.display_name}
                         <span className="text-text-muted"> · teammates (2v2) · {scopeTitle}</span>
@@ -661,13 +662,13 @@ export default function HeadToHeadCard({
                           );
                         })()}
                       </div>
-                    </div>
+                    </CardSection>
                   ) : null;
 
                 if (mode !== "2v2") return Matchups;
 
                 const TeamRivalries = (
-                  <div className="card-inner-flat rounded-2xl space-y-2">
+                  <CardSection>
                     {(() => {
                       const k = `team-rivalries-focus-${mode}-${order}-${scope}-${selected.id}`;
                       const list = h2hQ.data.team_rivalries_2v2_for_player ?? [];
@@ -729,7 +730,7 @@ export default function HeadToHeadCard({
                         </>
                       );
                     })()}
-                  </div>
+                  </CardSection>
                 );
 
                 return (
@@ -768,7 +769,7 @@ export default function HeadToHeadCard({
                 </button>
               </div>
 
-              <div className="mt-3 card-inner-flat rounded-2xl p-2.5">
+              <CardSection padded={false} className="mt-3 p-2.5">
                 <div className="flex flex-wrap items-center gap-2">
                   <StatsControlLabel icon="fa-sliders" text="View" />
                   <StatsSegmentedSwitch<DetailView>
@@ -782,13 +783,13 @@ export default function HeadToHeadCard({
                     title="Toggle details (clubs / leagues / stars)"
                   />
                 </div>
-              </div>
+              </CardSection>
 
               <div className="mt-3 max-h-[calc(88vh-10rem)] overflow-y-auto pr-1">
                 {historyQ.isLoading ? <InlineLoading label="Loading…" /> : null}
 
                 {!historyQ.isLoading && !(historyQ.data?.tournaments?.length ?? 0) ? (
-                  <div className="card-inner-flat rounded-2xl text-sm text-text-muted">No matches found for this matchup.</div>
+                  <CardSection className="text-sm text-text-muted">No matches found for this matchup.</CardSection>
                 ) : null}
 
                 {historyQ.data?.tournaments?.length ? (

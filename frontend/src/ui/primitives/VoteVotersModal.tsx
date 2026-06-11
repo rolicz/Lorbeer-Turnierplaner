@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import type { VoteVotersResponse } from "../../api/types";
+import CardSection from "./CardSection";
 import InlineLoading from "./InlineLoading";
 
 export default function VoteVotersModal({
@@ -50,11 +51,11 @@ export default function VoteVotersModal({
           <div className="mt-3 max-h-[calc(84vh-6rem)] overflow-y-auto pr-1 space-y-3">
             {votersQ.isLoading ? <InlineLoading label="Loading…" /> : null}
             {!votersQ.isLoading && !upvoters.length && !downvoters.length ? (
-              <div className="card-inner-flat rounded-2xl text-sm text-text-muted">No votes yet.</div>
+              <CardSection className="text-sm text-text-muted">No votes yet.</CardSection>
             ) : null}
 
             {upvoters.length ? (
-              <div className="card-inner-flat rounded-2xl p-3 space-y-2">
+              <CardSection>
                 <div className="inline-flex items-center gap-2 text-[12px] text-text-muted">
                   <i className="fa-solid fa-thumbs-up text-status-text-green" aria-hidden="true" />
                   <span>Upvotes</span>
@@ -67,11 +68,11 @@ export default function VoteVotersModal({
                     </span>
                   ))}
                 </div>
-              </div>
+              </CardSection>
             ) : null}
 
             {downvoters.length ? (
-              <div className="card-inner-flat rounded-2xl p-3 space-y-2">
+              <CardSection>
                 <div className="inline-flex items-center gap-2 text-[12px] text-text-muted">
                   <i className="fa-solid fa-thumbs-down text-red-300" aria-hidden="true" />
                   <span>Downvotes</span>
@@ -84,7 +85,7 @@ export default function VoteVotersModal({
                     </span>
                   ))}
                 </div>
-              </div>
+              </CardSection>
             ) : null}
           </div>
         </div>

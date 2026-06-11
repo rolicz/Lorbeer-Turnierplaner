@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 
+import CardSection from "../../ui/primitives/CardSection";
 import CollapsibleCard from "../../ui/primitives/CollapsibleCard";
 import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
 import InlineLoading from "../../ui/primitives/InlineLoading";
@@ -82,7 +83,7 @@ function CatBlock({
   const hasMore = total > 5;
   const icon = iconForCatKey(c.key);
   return (
-    <div className="card-inner-flat rounded-2xl space-y-2">
+    <CardSection>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="text-sm font-semibold text-text-normal inline-flex items-center gap-2">
@@ -115,7 +116,7 @@ function CatBlock({
           <div className="text-sm text-text-muted">No data yet.</div>
         )}
       </div>
-    </div>
+    </CardSection>
   );
 }
 

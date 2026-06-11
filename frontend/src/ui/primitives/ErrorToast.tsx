@@ -87,6 +87,7 @@ export function ErrorToastViewport() {
     <div className="pointer-events-none fixed bottom-4 right-4 z-[70] flex max-w-[min(92vw,420px)] flex-col gap-2">
       {items.map((t) => (
         <div key={t.id} className="pointer-events-auto card-outer p-2 shadow-xl">
+          {/* not CardSection: custom py-2 padding, flex layout, and no rounded-2xl (clipped by parent card-outer's border-radius) */}
           <div className="card-inner-flat flex items-start gap-2 py-2">
             <i className="fa-solid fa-circle-exclamation mt-0.5 text-[color:rgb(var(--delta-down)/1)]" aria-hidden="true" />
             <div className="min-w-0 flex-1">

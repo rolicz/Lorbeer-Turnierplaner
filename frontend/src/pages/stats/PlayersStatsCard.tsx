@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import { useQueries, useQuery } from "@tanstack/react-query";
 
+import CardSection from "../../ui/primitives/CardSection";
 import CollapsibleCard from "../../ui/primitives/CollapsibleCard";
 import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
 import { MetaRow } from "../../ui/primitives/Meta";
@@ -480,7 +481,7 @@ export default function PlayersStatsCard({
 
   const content = (
     <>
-      <div className="card-inner-flat rounded-2xl space-y-2">
+      <CardSection>
         <div className="flex flex-wrap items-center gap-2">
           <div className="flex min-w-0 flex-wrap items-center gap-2">
             <StatsControlLabel icon="fa-eye" text="View" />
@@ -515,7 +516,7 @@ export default function PlayersStatsCard({
             <span className="whitespace-nowrap">{allExpanded ? "Collapse" : "Expand"}</span>
           </button>
         </div>
-      </div>
+      </CardSection>
 
       {sortMode === "lastN" ? (
         <div className="panel-subtle p-3 space-y-2">
@@ -547,7 +548,7 @@ export default function PlayersStatsCard({
         <InfoLegend />
       </CollapsibleCard>
 
-      <div className="card-inner-flat rounded-2xl overflow-hidden">
+      <CardSection padded={false} className="overflow-hidden">
         <ErrorToastOnError error={playersQ.error} title="Players loading failed" />
         <ErrorToastOnError error={statsQ.error} title="Stats loading failed" />
         <div className="grid grid-cols-12 items-center gap-2 border-b border-border-card-inner bg-bg-card-chip/20 px-3 py-2 text-[11px] text-text-muted">
@@ -649,7 +650,7 @@ export default function PlayersStatsCard({
             </div>
           );
         })}
-      </div>
+      </CardSection>
     </>
   );
 

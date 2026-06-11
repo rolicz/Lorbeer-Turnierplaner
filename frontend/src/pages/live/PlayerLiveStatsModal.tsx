@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { getStatsH2H, getStatsPlayerMatches, getStatsPlayers, getStatsRatings, getStatsStreaks } from "../../api/stats.api";
 import { qk } from "../../api/queryKeys";
 import AvatarCircle from "../../ui/primitives/AvatarCircle";
+import CardSection from "../../ui/primitives/CardSection";
 import { StreakPatch, type ActiveStreak } from "../../ui/StreakPatches";
 import type { StatsMatch, StatsPlayerMatchesTournament, StatsStreakCategory, StatsStreakRow, StatsStreaksResponse } from "../../api/types";
 import { sideBy } from "../../helpers";
@@ -245,7 +246,7 @@ export default function PlayerLiveStatsModal({
             <button type="button" className="icon-button" onClick={onClose} title="Close">✕</button>
           </div>
 
-          <div className="mt-3 card-inner-flat rounded-2xl p-3">
+          <CardSection padded={false} className="mt-3 p-3">
             <div className="text-[11px] text-text-muted">Form and rating</div>
             <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
               <div className="text-text-muted">
@@ -289,9 +290,9 @@ export default function PlayerLiveStatsModal({
                 <span className="text-text-muted"> —</span>
               )}
             </div>
-          </div>
+          </CardSection>
 
-          <div className="mt-2 card-inner-flat rounded-2xl p-3">
+          <CardSection padded={false} className="mt-2 p-3">
             <div className="text-[11px] text-text-muted">Streak patches</div>
             <div className="mt-1 inline-flex flex-wrap items-center gap-1.5">
               {streaks.length ? (
@@ -300,9 +301,9 @@ export default function PlayerLiveStatsModal({
                 <span className="text-xs text-text-muted">No active streaks</span>
               )}
             </div>
-          </div>
+          </CardSection>
 
-          <div className="mt-2 card-inner-flat rounded-2xl p-3">
+          <CardSection padded={false} className="mt-2 p-3">
             <div className="text-[11px] text-text-muted">Direct rivals ({mode})</div>
             <div className="mt-1 grid gap-1 sm:grid-cols-2 text-xs">
               <div className="text-text-muted">
@@ -312,7 +313,7 @@ export default function PlayerLiveStatsModal({
                 Nemesis: <span className="text-text-normal">{nemesis ?? "—"}</span>
               </div>
             </div>
-          </div>
+          </CardSection>
 
           {loading ? <div className="mt-2 text-xs text-text-muted">Loading…</div> : null}
         </div>

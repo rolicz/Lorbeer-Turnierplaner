@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { fmtMonthDate, wrapTwoLinesWords, clamp } from "../../utils/format";
+import CardSection from "../../ui/primitives/CardSection";
 import { clampWindow, dist2, monthTicksBetween, type SeriesPoint } from "./trendsMath";
 
 export function MultiLineChart({
@@ -144,6 +145,7 @@ export function MultiLineChart({
   return (
     <div
       className={
+        /* not CardSection: className is built dynamically (conditional card-inner-flat based on frame prop) */
         (frame === "flat" ? "card-inner-flat " : "") + "rounded-2xl flex min-h-0 min-w-0 flex-col overflow-hidden"
       }
     >
@@ -828,7 +830,7 @@ export function PanZoomTrendsChart({
   }, []);
 
   return (
-    <div className="card-inner-flat rounded-2xl flex min-h-0 min-w-0 w-full max-w-full flex-col overflow-hidden">
+    <CardSection padded={false} className="flex min-h-0 min-w-0 w-full max-w-full flex-col overflow-hidden">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="text-sm font-semibold text-text-normal">{title}</div>
@@ -1014,6 +1016,6 @@ export function PanZoomTrendsChart({
           frame="none"
         />
       </div>
-    </div>
+    </CardSection>
   );
 }

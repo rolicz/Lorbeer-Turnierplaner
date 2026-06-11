@@ -193,7 +193,15 @@
   }
   .row-tap:active { background-color: rgb(var(--color-bg-card-chip) / 0.5); }
 
-  /* Cards and Panels */
+  /* Cards and Panels
+   * Surface canon:
+   *   card-outer       — top-level page card (rounded-2xl, p-3, outer shadow/border)
+   *   card-inner-flat  — nested section inside a card (use <CardSection> primitive)
+   *   panel-subtle     — de-emphasised row or info block, no border in dark mode
+   *   card-chip        — small inline chip (tight px/py, border)
+   *   surface          — shell-level container (sidebar, modal bg)
+   *   surface-2        — secondary shell layer
+   */
   .card-outer {
     @apply rounded-2xl p-3;
     background-color: rgb(var(--color-bg-card-outer));

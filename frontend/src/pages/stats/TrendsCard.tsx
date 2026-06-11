@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState } from "react";
 import { keepPreviousData, useQueries, useQuery } from "@tanstack/react-query";
 
+import CardSection from "../../ui/primitives/CardSection";
 import CollapsibleCard from "../../ui/primitives/CollapsibleCard";
 import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
 import { MetaRow } from "../../ui/primitives/Meta";
@@ -227,7 +228,7 @@ export default function TrendsCard({
   const busy = statsQ.isFetching || (needMatches && matchesQs.some((q) => q.isFetching));
 
   const Filters = (
-    <div className="card-inner-flat rounded-2xl space-y-2">
+    <CardSection>
       <div className="flex flex-wrap items-center gap-2">
         <div className="flex min-w-0 items-center gap-2">
           <StatsControlLabel icon="fa-eye" text="View" />
@@ -262,7 +263,7 @@ export default function TrendsCard({
         </div>
       </div>
 
-    </div>
+    </CardSection>
   );
 
   const Body = (
@@ -283,9 +284,9 @@ export default function TrendsCard({
             series={chart.series}
           />
         ) : (
-          <div className="card-inner-flat rounded-2xl h-[200px] sm:h-[220px] lg:h-[340px] flex items-center justify-center text-sm text-text-muted">
+          <CardSection padded={false} className="h-[200px] sm:h-[220px] lg:h-[340px] flex items-center justify-center text-sm text-text-muted">
             {statsQ.isLoading ? "Loading…" : "Not enough data yet."}
-          </div>
+          </CardSection>
         )}
 
         {busy ? (

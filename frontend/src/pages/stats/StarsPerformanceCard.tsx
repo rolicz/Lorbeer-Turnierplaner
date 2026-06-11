@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 
+import CardSection from "../../ui/primitives/CardSection";
 import CollapsibleCard from "../../ui/primitives/CollapsibleCard";
 import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
 import InlineLoading from "../../ui/primitives/InlineLoading";
@@ -235,14 +236,14 @@ export default function StarsPerformanceCard({
 
       <div style={{ overflowAnchor: "none" }}>
         {selectedPlayerId === "" ? (
-          <div className="card-inner-flat rounded-2xl text-sm text-text-muted">Pick a player to see PPM by club stars.</div>
+          <CardSection className="text-sm text-text-muted">Pick a player to see PPM by club stars.</CardSection>
         ) : null}
         {matchesQ.isLoading ? <InlineLoading label="Loading…" /> : null}
 
         {selected && rows.length ? (
           <div className="space-y-2">
             {summary ? (
-              <div className="card-inner-flat rounded-2xl space-y-1">
+              <CardSection padded={false} className="p-3 space-y-1">
                 <div className="flex items-center justify-between gap-3">
                   <div className="text-sm text-text-normal">
                     {selected.display_name} · {modeLabel(mode)} · {scopeLabel(scope)}
@@ -254,7 +255,7 @@ export default function StarsPerformanceCard({
                 <div className="text-[11px] text-text-muted">
                   Club stars available in {knownClubMatches}/{summary.played} finished matches
                 </div>
-              </div>
+              </CardSection>
             ) : null}
             {rows.map((r) => (
               <StarRow key={r.stars} r={r} />
@@ -263,9 +264,9 @@ export default function StarsPerformanceCard({
         ) : null}
 
         {selected && !matchesQ.isLoading && !rows.some((r) => r.played > 0) ? (
-          <div className="card-inner-flat rounded-2xl text-sm text-text-muted">
+          <CardSection className="text-sm text-text-muted">
             No finished matches with selected clubs found for {selected.display_name} ({modeLabel(mode)} · {scopeLabel(scope)}).
-          </div>
+          </CardSection>
         ) : null}
       </div>
     </>

@@ -5,6 +5,7 @@ import { getStatsH2HMatches } from "../../api/stats.api";
 import { qk } from "../../api/queryKeys";
 import type { Club, Match, MatchSide, StatsMatch, StatsPlayerMatchesTournament } from "../../api/types";
 import { sideBy } from "../../helpers";
+import CardSection from "../../ui/primitives/CardSection";
 import InlineLoading from "../../ui/primitives/InlineLoading";
 import { MatchRowWithClubs } from "../stats/MatchHistoryList";
 import { fmtAvg } from "../../utils/format";
@@ -229,7 +230,7 @@ export default function MatchH2HPanel({
   );
 
   if (!aIds.length || !bIds.length) {
-    return <div className="card-inner-flat rounded-2xl text-sm text-text-muted">H2H is unavailable until both sides have players.</div>;
+    return <CardSection className="text-sm text-text-muted">H2H is unavailable until both sides have players.</CardSection>;
   }
 
   const loading = matchupQuery.isLoading || duoAQuery.isLoading || duoBQuery.isLoading;
@@ -240,7 +241,7 @@ export default function MatchH2HPanel({
 
   return (
     <div className="space-y-3">
-      <div className="card-inner-flat rounded-2xl p-3 space-y-3">
+      <CardSection className="space-y-3">
         <div className="space-y-1">
           <div className="text-sm font-semibold text-text-normal">
             {playerNames(aSide)} <span className="text-text-muted">vs</span> {playerNames(bSide)}
@@ -269,9 +270,9 @@ export default function MatchH2HPanel({
             ) : null}
           </>
         ) : null}
-      </div>
+      </CardSection>
 
-      <div className="card-inner-flat rounded-2xl p-3 space-y-3">
+      <CardSection className="space-y-3">
         <div className="flex items-center justify-between gap-3">
           <div className="text-sm font-semibold text-text-normal">Recent meetings</div>
           <div className="text-[11px] text-text-muted">{matchupSummary.played} total</div>
@@ -300,7 +301,7 @@ export default function MatchH2HPanel({
             );
           })}
         </div>
-      </div>
+      </CardSection>
     </div>
   );
 }

@@ -60,6 +60,7 @@ export default function RatingsCard({
 
   const rows = useMemo(() => q.data?.rows ?? [], [q.data?.rows]);
 
+  // not CardSection: omits rounded-2xl to let the inner content span the full CollapsibleCard body without nested corner clipping
   const content = (
     <div className="card-inner-flat space-y-3">
       <div className="grid gap-2" style={{ overflowAnchor: "none" }}>
