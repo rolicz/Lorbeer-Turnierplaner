@@ -23,6 +23,7 @@ import {
 import type { Club, Match, MatchSide, StatsPlayerMatchesTournament } from "../../api/types";
 import { MatchHistoryList } from "../stats/MatchHistoryList";
 import MatchH2HPanel from "../live/MatchH2HPanel";
+import { teamName } from "../../utils/matchDisplay";
 import { useAuth } from "../../auth/AuthContext";
 
 type ModeFilter = "all" | "1v1" | "2v2";
@@ -132,8 +133,8 @@ function FriendlyEditor({
     },
   });
 
-  const aPlayers = (aSide?.players ?? []).map((p) => p.display_name).join(" + ") || "—";
-  const bPlayers = (bSide?.players ?? []).map((p) => p.display_name).join(" + ") || "—";
+  const aPlayers = teamName(aSide);
+  const bPlayers = teamName(bSide);
 
   return (
     <div className="mt-2 rounded-xl border border-border-card-chip/60 bg-bg-card-inner p-3 space-y-4">

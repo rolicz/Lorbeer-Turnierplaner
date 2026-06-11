@@ -20,6 +20,7 @@ import { usePlayerColors } from "./usePlayerColors";
 import { Sparkline, Radar, TrendChart, ChipGroup } from "./charts";
 import { qk } from "../../api/queryKeys";
 import { pooledPpm } from "./trendsMath";
+import { teamName } from "../../utils/matchDisplay";
 import { MatchHistoryList } from "./MatchHistoryList";
 import { PlayerPicker } from "./PlayerPicker";
 import CupCard from "../dashboard/CupCard";
@@ -1293,8 +1294,7 @@ function PlayerProfile({ mode, scope, rows, selectedId, onSelect }: { mode: Stat
 //  RECORDS & SUPERLATIVES
 // ==========================================================================
 function teamNames(m: StatsMatch, side: "A" | "B"): string {
-  const s = m.sides.find((x) => x.side === side);
-  return (s?.players ?? []).map((p) => p.display_name).join(" + ") || "—";
+  return teamName(m.sides.find((x) => x.side === side));
 }
 type RecMatch = { id: number; tId: number; tName: string; date: string; a: string; b: string; ag: number; bg: number; aIds: number[]; bIds: number[] };
 

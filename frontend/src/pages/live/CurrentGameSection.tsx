@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Button from "../../ui/primitives/Button";
 import type { Club, Match, MatchSide, Player, TournamentMode } from "../../api/types";
+import { teamName } from "../../utils/matchDisplay";
 import MatchOverviewPanel from "../../ui/primitives/MatchOverviewPanel";
 import SelectClubsPanel from "../../ui/SelectClubsPanel";
 import { GoalStepper } from "../../ui/clubControls";
@@ -13,9 +14,7 @@ function sideBy(m: Match, side: "A" | "B"): MatchSide | undefined {
 }
 
 function namesInline(side?: MatchSide) {
-  const ps = side?.players ?? [];
-  if (!ps.length) return "—";
-  return ps.map((p) => p.display_name).join(" + ");
+  return teamName(side);
 }
 
 type PatchPayload = {

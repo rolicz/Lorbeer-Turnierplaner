@@ -1,5 +1,6 @@
 import Button from "../../ui/primitives/Button";
 import type { Club, Match } from "../../api/types";
+import { teamName } from "../../utils/matchDisplay";
 import { sideBy } from "../../helpers";
 import { matchPalette } from "../../ui/theme";
 import { StarsFA } from "../../ui/primitives/StarsFA";
@@ -104,8 +105,8 @@ export default function MatchList({
           const a = sideBy(m, "A");
           const b = sideBy(m, "B");
 
-          const aPlayers = splitPlayers(a?.players.map((p) => p.display_name).join(" + ") ?? "—");
-          const bPlayers = splitPlayers(b?.players.map((p) => p.display_name).join(" + ") ?? "—");
+          const aPlayers = splitPlayers(teamName(a));
+          const bPlayers = splitPlayers(teamName(b));
           if (!aPlayers.length) aPlayers.push("—");
           if (!bPlayers.length) bPlayers.push("—");
 

@@ -369,7 +369,7 @@ F1–F3 are the big wins; each is splittable into multiple commits.
 - **DoD:** trends chart renders identically (compare screenshots), pan/zoom/crosshair fine on
   touch + mouse.
 
-### F5 — Shared match-display helpers  ☐
+### F5 — Shared match-display helpers  ☑
 - **Effort:** S · **Risk:** low · **Model:** Sonnet 4.6
 - **Problem:** team-name joining `players.map(p => p.display_name).join(" + ")` is duplicated in
   6 files (`pages/live/CurrentGameSection.tsx:18`, `pages/live/MatchDetailPage.tsx:164`,

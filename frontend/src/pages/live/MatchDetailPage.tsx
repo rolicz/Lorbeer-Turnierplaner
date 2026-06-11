@@ -20,6 +20,7 @@ import { listClubs } from "../../api/clubs.api";
 import { qk } from "../../api/queryKeys";
 import type { Match } from "../../api/types";
 import { sideBy } from "../../helpers";
+import { teamName } from "../../utils/matchDisplay";
 import { useAuth } from "../../auth/AuthContext";
 import { useRouteEntryLoading } from "../../ui/layout/useRouteEntryLoading";
 
@@ -162,8 +163,8 @@ export default function MatchDetailPage() {
 
   const aSide = match ? sideBy(match, "A") : undefined;
   const bSide = match ? sideBy(match, "B") : undefined;
-  const aPlayers = aSide?.players.map((p) => p.display_name).join(" + ") ?? "—";
-  const bPlayers = bSide?.players.map((p) => p.display_name).join(" + ") ?? "—";
+  const aPlayers = teamName(aSide);
+  const bPlayers = teamName(bSide);
 
   const tabs: SectionTab<Tab>[] = [
     { key: "h2h", label: "Head-to-Head" },
