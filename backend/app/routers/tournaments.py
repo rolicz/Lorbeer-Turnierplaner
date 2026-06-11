@@ -49,7 +49,8 @@ from ..services.notifications import (
     push_tournament_deleted,
     push_tournament_updated,
 )
-from ..services.tournament_list import build_tournament_list, compute_points_table_finished, top_group
+from ..services.stats.core import compute_points_table_finished, top_group
+from ..services.tournament_list import build_tournament_list
 from ..services.tournament_view import serialize_tournament
 from ..stats import compute_tournament_stats
 from ..tournament_status import compute_status_for_tournament, find_other_live_tournament_id

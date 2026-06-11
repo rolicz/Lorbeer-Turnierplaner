@@ -9,7 +9,7 @@ from sqlalchemy.orm import selectinload
 from sqlmodel import Session, select
 
 from ...models import Club, Match, MatchSide, Player, Tournament
-from ...stats_core import compute_overall_and_lastN
+from .core import compute_overall_and_lastN
 
 
 def _side_by(m: Match, side: str) -> MatchSide | None:

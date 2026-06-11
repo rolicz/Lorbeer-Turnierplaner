@@ -7,7 +7,7 @@ from sqlalchemy.orm import selectinload
 from sqlmodel import Session, select
 
 from .models import Match, MatchSide, Player, Tournament
-from .stats_core import compute_overall_and_lastN
+from .services.stats.core import compute_overall_and_lastN
 
 
 def compute_stats(s: Session) -> dict[str, Any]:

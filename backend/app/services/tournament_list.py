@@ -4,62 +4,9 @@ from sqlalchemy.orm import selectinload
 from sqlmodel import Session, select
 
 from ..models import Match, MatchSide, Player, Tournament
-from ..stats_core import compute_player_standings, positions_from_standings
 from ..tournament_status import compute_status_map
 from .cup import compute_all_cup_tournament_stakes_by_tournament
-
-
-def compute_points_table_finished(matches: list[Match]) -> dict[int, tuple[int, int, int]]:
-    """Per-player (points, goal_diff, goals_for) using ONLY finished matches."""
-    pts: dict[int, int] = {}
-    gf: dict[int, int] = {}
-    ga: dict[int, int] = {}
-
-    def ensure(pid: int) -> None:
-        pts.setdefault(pid, 0)
-        gf.setdefault(pid, 0)
-        ga.setdefault(pid, 0)
-
-    for m in matches:
-        if m.state != "finished":
-            continue
-        sides = {s.side: s for s in m.sides}
-        a = sides.get("A")
-        b = sides.get("B")
-        if not a or not b:
-            continue
-        ag = int(a.goals or 0)
-        bg = int(b.goals or 0)
-        a_pids = [p.id for p in a.players]
-        b_pids = [p.id for p in b.players]
-        for pid in a_pids + b_pids:
-            ensure(pid)
-        for pid in a_pids:
-            gf[pid] += ag
-            ga[pid] += bg
-        for pid in b_pids:
-            gf[pid] += bg
-            ga[pid] += ag
-        if ag > bg:
-            for pid in a_pids:
-                pts[pid] += 3
-        elif bg > ag:
-            for pid in b_pids:
-                pts[pid] += 3
-        else:
-            for pid in a_pids + b_pids:
-                pts[pid] += 1
-
-    return {pid: (pts[pid], gf[pid] - ga[pid], gf[pid]) for pid in pts}
-
-
-def top_group(points_table: dict[int, tuple[int, int, int]]) -> list[int]:
-    """Returns player_ids tied for #1 by (points, gd, gf)."""
-    if not points_table:
-        return []
-    items = sorted(points_table.items(), key=lambda kv: (kv[1][0], kv[1][1], kv[1][2]), reverse=True)
-    best = items[0][1]
-    return [pid for pid, triple in items if triple == best]
+from .stats.core import compute_player_standings, compute_points_table_finished, positions_from_standings, top_group
 
 
 def build_tournament_list(s: Session) -> list[dict]:

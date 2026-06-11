@@ -2,13 +2,13 @@
 import datetime as dt
 
 from app.models import Match, MatchSide, Player
-from app.services.stats.registry import stats_overview
-from app.services.stats.streaks import Event, _best_and_current_run
-from app.stats_core import (
+from app.services.stats.core import (
     compute_player_standings,
     positions_from_standings,
     unique_winner_player_id,
 )
+from app.services.stats.registry import stats_overview
+from app.services.stats.streaks import Event, _best_and_current_run
 
 
 def _player(pid: int, name: str) -> Player:

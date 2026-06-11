@@ -8,7 +8,7 @@ from sqlmodel import Session, select
 
 from ...models import Match, MatchSide, Player, Tournament
 from ...services.cup import compute_all_cup_tournament_stakes_by_tournament, compute_cup
-from ...stats_core import compute_overall_and_lastN, compute_player_standings, positions_from_standings
+from .core import compute_overall_and_lastN, compute_player_standings, positions_from_standings
 
 
 def _finished_matches_with_players(s: Session, *, mode: str) -> list[Match]:

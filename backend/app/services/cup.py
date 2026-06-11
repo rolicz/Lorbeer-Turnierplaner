@@ -7,9 +7,8 @@ from typing import Optional
 from sqlalchemy.orm import selectinload
 from sqlmodel import Session, select
 
-from app.stats_core import compute_player_standings, unique_winner_player_id
-
 from ..models import Match, MatchSide, Player, Tournament
+from .stats.core import compute_player_standings, unique_winner_player_id
 
 
 @dataclass(frozen=True)

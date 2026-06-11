@@ -442,7 +442,7 @@ Independent of the frontend phases (except B2 ordering note). Python, FastAPI + 
 - **DoD:** the three endpoints are < ~30 lines each in the router; `make test` green;
   `make gen-types` produces no schema diff.
 
-### B4 — Resolve the stats layering split  ☐
+### B4 — Resolve the stats layering split  ☑
 - **Effort:** M · **Risk:** medium · **Model:** Sonnet 4.6
 - **Problem:** stats logic lives in three places: `app/stats_core.py` (302 lines),
   `app/services/stats/*` (h2h, odds, ratings, streaks, players, player_matches), and standings
