@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
+import FormLabel from "../ui/primitives/FormLabel";
 import Input from "../ui/primitives/Input";
 import Button from "../ui/primitives/Button";
 import CollapsibleCard from "../ui/primitives/CollapsibleCard";
@@ -485,7 +486,7 @@ export default function ClubsPage() {
                                 )}
 
                                 <label className="block">
-                                  <div className="input-label">Stars</div>
+                                  <FormLabel>Stars</FormLabel>
                                   <select
                                     className="input-field"
                                     value={editStars}
@@ -500,7 +501,7 @@ export default function ClubsPage() {
                                 </label>
 
                                 <label className="block">
-                                  <div className="input-label">League</div>
+                                  <FormLabel>League</FormLabel>
                                   <select
                                     className="input-field"
                                     value={editLeagueId === "" ? "" : String(editLeagueId)}

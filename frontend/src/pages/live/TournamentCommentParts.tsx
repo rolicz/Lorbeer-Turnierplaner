@@ -1,4 +1,5 @@
 import Button from "../../ui/primitives/Button";
+import FormLabel from "../../ui/primitives/FormLabel";
 import Textarea from "../../ui/primitives/Textarea";
 import AvatarCircle from "../../ui/primitives/AvatarCircle";
 import VoteButton from "../../ui/primitives/VoteButton";
@@ -349,7 +350,7 @@ export function CommentCard({
       {isEditing ? (
         <div className="mt-2 space-y-2">
           <label className="block">
-            <div className="input-label">Posted as</div>
+            <FormLabel>Posted as</FormLabel>
             <select
               className="select-field"
               value={draftAuthor === "general" ? "general" : String(draftAuthor)}

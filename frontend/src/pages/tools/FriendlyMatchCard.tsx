@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import CollapsibleCard from "../../ui/primitives/CollapsibleCard";
+import FormLabel from "../../ui/primitives/FormLabel";
 import Input from "../../ui/primitives/Input";
 import Button from "../../ui/primitives/Button";
 import AvatarButton from "../../ui/primitives/AvatarButton";
@@ -114,7 +115,7 @@ function AvatarPlayerSelect({
   return (
     <div className="space-y-1.5">
       <div className="flex items-center justify-between gap-2">
-        <div className="input-label">{label}</div>
+        <FormLabel>{label}</FormLabel>
         <div className="text-[11px] text-text-muted truncate">{currentName}</div>
       </div>
       <div className="-mx-1 overflow-x-auto px-1 py-0.5">

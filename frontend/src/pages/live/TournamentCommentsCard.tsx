@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import Button from "../../ui/primitives/Button";
 import EmptyState from "../../ui/primitives/EmptyState";
+import FormLabel from "../../ui/primitives/FormLabel";
 import FilterSelect from "../../ui/FilterSelect";
 import LoadingPlaceholder from "../../ui/primitives/LoadingPlaceholder";
 import CollapsibleCard from "../../ui/primitives/CollapsibleCard";
@@ -1022,7 +1023,7 @@ export default function TournamentCommentsCard({
     <div className="panel-subtle p-3 space-y-3">
       {onlyMatchId == null ? (
         <div className="block">
-          <div className="input-label">Add to</div>
+          <FormLabel>Add to</FormLabel>
           <FilterSelect
             value={composerScopeValue}
             onChange={changeComposerScope}

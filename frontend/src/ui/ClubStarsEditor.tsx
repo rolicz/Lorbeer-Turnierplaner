@@ -8,6 +8,7 @@ import { useAuth } from "../auth/AuthContext";
 import { cn } from "./cn";
 import { STAR_OPTIONS, starsLabel, toHalfStep } from "./clubControls";
 import { ErrorToastOnError } from "./primitives/ErrorToast";
+import FormLabel from "./primitives/FormLabel";
 
 export default function ClubStarsEditor({
   clubId,
@@ -114,7 +115,7 @@ export default function ClubStarsEditor({
   return (
     <label className={cn("block", className)}>
       <ErrorToastOnError error={err} title="Could not update club stars" />
-      <div className="input-label">{label}</div>
+      <FormLabel>{label}</FormLabel>
       <select
         className="select-field"
         value={effectiveValue == null ? "" : String(effectiveValue)}

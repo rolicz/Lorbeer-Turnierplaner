@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { Search, ChevronDown, Check, X } from "lucide-react";
 
 import type { Club } from "../api/types";
+import FormLabel from "./primitives/FormLabel";
 import { StarsFA } from "./primitives/StarsFA";
 import { starsLabel } from "./clubControls";
 import { cn } from "./cn";
@@ -141,7 +142,7 @@ export default function ClubCombobox({
 
   return (
     <div className="min-w-0" ref={rootRef}>
-      {label ? <div className="input-label">{label}</div> : null}
+      {label ? <FormLabel>{label}</FormLabel> : null}
       <button
         ref={triggerRef}
         type="button"

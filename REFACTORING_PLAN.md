@@ -298,7 +298,7 @@ This is the user-visible payoff. Do U1 first; U2–U8 are independent of each ot
 - **DoD:** consistent page padding/title behavior across pages; no double margins; mobile +
   desktop checked.
 
-### U7 — Form fields through the `Input` primitive  ☐
+### U7 — Form fields through the `Input` primitive  ☑
 - **Effort:** S · **Risk:** low · **Model:** Sonnet 4.6
 - **Problem:** `ui/primitives/Input.tsx` (label + field) exists but most forms hand-roll
   `<label><div className="input-label">…</div><input className="input-field"/></label>`

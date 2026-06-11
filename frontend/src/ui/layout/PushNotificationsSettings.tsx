@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { Bell, RotateCw } from "lucide-react";
 import Button from "../primitives/Button";
+import FormLabel from "../primitives/FormLabel";
 import { usePushNotifications } from "../../push/usePushNotifications";
 
 function statusLabel(opts: {
@@ -85,7 +86,7 @@ export default function PushNotificationsSettings({ token }: { token: string | n
       {/* Mode + language */}
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="block">
-          <div className="input-label">Mode</div>
+          <FormLabel>Mode</FormLabel>
           <select
             className="select-field"
             value={push.selectedMode}
@@ -98,7 +99,7 @@ export default function PushNotificationsSettings({ token }: { token: string | n
           </select>
         </label>
         <label className="block">
-          <div className="input-label">Language</div>
+          <FormLabel>Language</FormLabel>
           <select
             className="select-field"
             value={push.selectedLanguage}

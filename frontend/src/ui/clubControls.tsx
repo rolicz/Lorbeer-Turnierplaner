@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { Filter } from "lucide-react";
 
 import FilterSelect from "./FilterSelect";
+import FormLabel from "./primitives/FormLabel";
 
 export type LeagueOpt = { id: number; name: string };
 
@@ -97,10 +98,10 @@ export function StarFilter({
 }) {
   return (
     <div className="block">
-      <div className="input-label inline-flex items-center gap-1.5">
+      <FormLabel className="inline-flex items-center gap-1.5">
         <Filter className="h-3 w-3" aria-hidden="true" />
         Stars
-      </div>
+      </FormLabel>
 
       <div className={right ? "flex items-center gap-2" : undefined}>
         <div className={right ? "min-w-0 flex-1" : ""}>
@@ -134,10 +135,10 @@ export function LeagueFilter({
 }) {
   return (
     <div className="block">
-      <div className="input-label inline-flex items-center gap-1.5">
+      <FormLabel className="inline-flex items-center gap-1.5">
         <Filter className="h-3 w-3" aria-hidden="true" />
         League
-      </div>
+      </FormLabel>
 
       <FilterSelect
         value={value == null ? "" : String(value)}

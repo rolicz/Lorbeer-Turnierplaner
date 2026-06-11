@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 
 import Button from "../../ui/primitives/Button";
 import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
+import FormLabel from "../../ui/primitives/FormLabel";
 import Modal from "../../ui/primitives/Modal";
 import { clamp } from "../../utils/format";
 
@@ -251,7 +252,7 @@ export default function PlayerAvatarEditor({
 
             <div className="grid grid-cols-[1fr_auto] items-center gap-3">
               <div>
-                <div className="input-label">Zoom</div>
+                <FormLabel>Zoom</FormLabel>
                 <input
                   type="range"
                   min={1}

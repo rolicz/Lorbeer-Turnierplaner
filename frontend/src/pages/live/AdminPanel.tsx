@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import Button from "../../ui/primitives/Button";
+import FormLabel from "../../ui/primitives/FormLabel";
+import Input from "../../ui/primitives/Input";
 import FilterSelect from "../../ui/FilterSelect";
 import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
 
@@ -268,15 +270,13 @@ export default function AdminPanel({
       <div>
           <div className="section-head"><span className="section-label">Tournament date</span></div>
           <div className="flex flex-wrap items-end gap-2">
-            <label className="block">
-              <div className="input-label">Date</div>
-              <input
-                type="date"
-                className="input-field w-[170px]"
-                value={dateValue ?? ""}
-                onChange={(e) => onDateChange?.(e.target.value)}
-              />
-            </label>
+            <Input
+              label="Date"
+              type="date"
+              className="w-[170px]"
+              value={dateValue ?? ""}
+              onChange={(e) => onDateChange?.(e.target.value)}
+            />
 
             <Button variant="ghost" onClick={() => onSaveDate?.()} disabled={busy || !!dateBusy || !dateValue}>
               {dateBusy ? "Saving…" : "Save date"}
@@ -292,16 +292,16 @@ export default function AdminPanel({
           <div className="section-head"><span className="section-label">Tournament name</span></div>
 
           <div className="flex flex-wrap items-end gap-2">
-            <label className="block flex-1 min-w-[220px]">
-              <div className="input-label">Name</div>
-              <input
+            <div className="flex-1 min-w-[220px]">
+              <Input
+                label="Name"
                 type="text"
-                className="input-field w-full"
+                className="w-full"
                 value={nameValue ?? ""}
                 onChange={(e) => onNameChange?.(e.target.value)}
                 placeholder="e.g. Sauna Turnier"
               />
-            </label>
+            </div>
 
             <Button
               variant="ghost"
@@ -359,7 +359,7 @@ export default function AdminPanel({
               {dType !== "none" && (
                 <div className="grid gap-3 md:grid-cols-2">
                   <div className="block">
-                    <div className="input-label">Winner</div>
+                    <FormLabel>Winner</FormLabel>
                     <FilterSelect
                       value={winnerId == null ? "" : String(winnerId)}
                       onChange={(val) => {
@@ -378,7 +378,7 @@ export default function AdminPanel({
                   </div>
 
                   <div className="block">
-                    <div className="input-label">Loser</div>
+                    <FormLabel>Loser</FormLabel>
                     <FilterSelect
                       value={loserId == null ? "" : String(loserId)}
                       onChange={(val) => setLoserId(val ? Number(val) : null)}
@@ -389,29 +389,25 @@ export default function AdminPanel({
                     />
                   </div>
 
-                  <label className="block">
-                    <div className="input-label">Winner goals</div>
-                    <input
-                      inputMode="numeric"
-                      className="input-field w-full"
-                      value={wGoals}
-                      onChange={(e) => setWGoals(e.target.value)}
-                      disabled={busy || !!deciderBusy}
-                      placeholder="e.g. 5"
-                    />
-                  </label>
+                  <Input
+                    label="Winner goals"
+                    inputMode="numeric"
+                    className="w-full"
+                    value={wGoals}
+                    onChange={(e) => setWGoals(e.target.value)}
+                    disabled={busy || !!deciderBusy}
+                    placeholder="e.g. 5"
+                  />
 
-                  <label className="block">
-                    <div className="input-label">Loser goals</div>
-                    <input
-                      inputMode="numeric"
-                      className="input-field w-full"
-                      value={lGoals}
-                      onChange={(e) => setLGoals(e.target.value)}
-                      disabled={busy || !!deciderBusy}
-                      placeholder="e.g. 4"
-                    />
-                  </label>
+                  <Input
+                    label="Loser goals"
+                    inputMode="numeric"
+                    className="w-full"
+                    value={lGoals}
+                    onChange={(e) => setLGoals(e.target.value)}
+                    disabled={busy || !!deciderBusy}
+                    placeholder="e.g. 4"
+                  />
                 </div>
               )}
 

@@ -1,6 +1,7 @@
 import { useId } from "react";
 
 import Button from "../../ui/primitives/Button";
+import FormLabel from "../../ui/primitives/FormLabel";
 import FilterSelect from "../../ui/FilterSelect";
 import Input from "../../ui/primitives/Input";
 import Textarea from "../../ui/primitives/Textarea";
@@ -91,7 +92,7 @@ export default function CommentCreateComposer({
   return (
     <div className={surfaceClassName + " space-y-3"}>
       <div className="block">
-        <div className="input-label">Posted as</div>
+        <FormLabel>Posted as</FormLabel>
         <FilterSelect
           value={authorValue === "general" ? "general" : String(authorValue)}
           onChange={(v) => onAuthorChange(v === "general" ? "general" : Number(v))}
@@ -103,7 +104,7 @@ export default function CommentCreateComposer({
 
       {allowMatchEventModes ? (
         <div className="space-y-2">
-          <div className="input-label">Entry type</div>
+          <FormLabel>Entry type</FormLabel>
           <div className="grid grid-cols-3 gap-2">
             <Button
               type="button"
@@ -169,7 +170,7 @@ export default function CommentCreateComposer({
       {mode === "goal" && allowMatchEventModes ? (
         <div className="space-y-2">
           <div className="space-y-2">
-            <div className="input-label">Scoring side</div>
+            <FormLabel>Scoring side</FormLabel>
             <div className="grid gap-2 md:grid-cols-2">
               {goalTeams.map((team) => (
                 <Button
@@ -200,25 +201,22 @@ export default function CommentCreateComposer({
               onChange={(event) => onGoalMinuteChange(event.target.value)}
               disabled={disabled}
             />
-            <label className="block">
-              <div className="input-label">Player</div>
-              <input
-                className="input-field"
-                type="text"
-                list={goalSide && goalPlayers.length ? playersListId : undefined}
-                placeholder={goalSide ? "Krankl" : "Select scoring side first"}
-                value={goalPlayerName}
-                onChange={(event) => onGoalPlayerNameChange(event.target.value)}
-                disabled={disabled || goalSide == null}
-              />
-              {goalSide && goalPlayers.length ? (
-                <datalist id={playersListId}>
-                  {goalPlayers.map((player) => (
-                    <option key={player.label} value={player.label} />
-                  ))}
-                </datalist>
-              ) : null}
-            </label>
+            <Input
+              label="Player"
+              type="text"
+              list={goalSide && goalPlayers.length ? playersListId : undefined}
+              placeholder={goalSide ? "Krankl" : "Select scoring side first"}
+              value={goalPlayerName}
+              onChange={(event) => onGoalPlayerNameChange(event.target.value)}
+              disabled={disabled || goalSide == null}
+            />
+            {goalSide && goalPlayers.length ? (
+              <datalist id={playersListId}>
+                {goalPlayers.map((player) => (
+                  <option key={player.label} value={player.label} />
+                ))}
+              </datalist>
+            ) : null}
           </div>
           <Textarea
             label="Goal comment (optional)"
