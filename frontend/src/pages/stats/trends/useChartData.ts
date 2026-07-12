@@ -31,8 +31,6 @@ export function computeChartData(params: {
   matchesData: MatchesData;
   eloData: StatsRatingsHistoryResponse | undefined;
   metric: Metric;
-  isElo: boolean;
-  isForm: boolean;
   effView: ViewMode;
   rollN: number;
   hidden: ReadonlySet<number>;
@@ -40,7 +38,9 @@ export function computeChartData(params: {
   applyPM: boolean;
   colorOf: (id: number) => PlayerColor;
 }): ChartData {
-  const { rows, matchesData, eloData, metric, isElo, isForm, effView, rollN, hidden, mode, applyPM, colorOf } = params;
+  const { rows, matchesData, eloData, metric, effView, rollN, hidden, mode, applyPM, colorOf } = params;
+  const isElo = metric === "elo";
+  const isForm = metric === "form";
 
   // --- ELO branch ---
   if (isElo) {
@@ -222,8 +222,6 @@ export function useChartData(params: {
   matchesQs: ReadonlyArray<{ data: unknown }>;
   eloQ: { data: unknown };
   metric: Metric;
-  isElo: boolean;
-  isForm: boolean;
   effView: ViewMode;
   rollN: number;
   hidden: ReadonlySet<number>;
@@ -231,14 +229,14 @@ export function useChartData(params: {
   applyPM: boolean;
   colorOf: (id: number) => PlayerColor;
 }): ChartData {
-  const { rows, matchesQs, eloQ, metric, isElo, isForm, effView, rollN, hidden, mode, applyPM, colorOf } = params;
+  const { rows, matchesQs, eloQ, metric, effView, rollN, hidden, mode, applyPM, colorOf } = params;
   return useMemo(
     () => computeChartData({
       rows,
       matchesData: matchesQs.map((q) => q.data as { tournaments: StatsPlayerMatchesTournament[] } | undefined),
       eloData: eloQ.data as StatsRatingsHistoryResponse | undefined,
-      metric, isElo, isForm, effView, rollN, hidden, mode, applyPM, colorOf,
+      metric, effView, rollN, hidden, mode, applyPM, colorOf,
     }),
-    [rows, matchesQs, eloQ.data, metric, isElo, isForm, effView, rollN, hidden, mode, applyPM, colorOf],
+    [rows, matchesQs, eloQ.data, metric, effView, rollN, hidden, mode, applyPM, colorOf],
   );
 }

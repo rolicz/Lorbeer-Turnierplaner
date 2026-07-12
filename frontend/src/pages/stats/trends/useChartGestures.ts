@@ -27,6 +27,9 @@ export function useChartGestures({
   // so its (down-left) label can be read fully — without shifting the y-axis.
   const boundsRef = useRef({ dataMin, dataMax });
   useEffect(() => { boundsRef.current = { dataMin, dataMax }; }, [dataMin, dataMax]);
+  // Mirror the setter too so the mount-only effect below never closes over a stale callback.
+  const setManualWinRef = useRef(setManualWin);
+  useEffect(() => { setManualWinRef.current = setManualWin; }, [setManualWin]);
 
   // Pinch = zoom x-axis window; one-finger horizontal drag = pan; vertical = page scroll.
   useEffect(() => {
@@ -73,7 +76,7 @@ export function useChartGestures({
         const w0 = startW.t1 - startW.t0;
         const tm = startW.t0 + startMidFrac * w0;
         const newW = w0 / f;
-        setManualWin(clampWin(tm - startMidFrac * newW, tm + (1 - startMidFrac) * newW));
+        setManualWinRef.current(clampWin(tm - startMidFrac * newW, tm + (1 - startMidFrac) * newW));
       } else if (!pinch && e.touches.length === 1) {
         const dx = e.touches[0].clientX - startX;
         const dy = e.touches[0].clientY - startY;
@@ -85,7 +88,7 @@ export function useChartGestures({
           e.preventDefault();
           const w0 = startW.t1 - startW.t0;
           const shift = -(dx / Math.max(1, el.clientWidth)) * w0;
-          setManualWin(clampWin(startW.t0 + shift, startW.t1 + shift));
+          setManualWinRef.current(clampWin(startW.t0 + shift, startW.t1 + shift));
         }
       }
     };

@@ -38,8 +38,6 @@ function base(over: Partial<Params>): Params {
     matchesData: [],
     eloData: undefined,
     metric: "points",
-    isElo: false,
-    isForm: false,
     effView: "cumulative",
     rollN: 3,
     hidden: new Set<number>(),
@@ -120,20 +118,20 @@ describe("computeChartData — elo", () => {
   };
 
   it("plots the running rating in cumulative view", () => {
-    const { events, series } = computeChartData(base({ rows: ROWS, eloData, metric: "elo", isElo: true, effView: "cumulative" }));
+    const { events, series } = computeChartData(base({ rows: ROWS, eloData, metric: "elo", effView: "cumulative" }));
     expect(events.map((e) => e.label)).toEqual(["T1", "T2"]);
     expect(series[0].points).toEqual([1010, 1005]);
     expect(series[1].points).toEqual([990, 995]);
   });
 
   it("plots the per-event delta in per view", () => {
-    const { series } = computeChartData(base({ rows: ROWS, eloData, metric: "elo", isElo: true, effView: "per" }));
+    const { series } = computeChartData(base({ rows: ROWS, eloData, metric: "elo", effView: "per" }));
     expect(series[0].points).toEqual([10, -5]);
     expect(series[1].points).toEqual([-10, 5]);
   });
 
   it("returns empty data when the elo history has not loaded", () => {
-    expect(computeChartData(base({ rows: ROWS, metric: "elo", isElo: true, eloData: undefined }))).toEqual({ events: [], series: [] });
+    expect(computeChartData(base({ rows: ROWS, metric: "elo", eloData: undefined }))).toEqual({ events: [], series: [] });
   });
 });
 
@@ -148,12 +146,12 @@ describe("computeChartData — form", () => {
   ] }];
 
   it("averages the last N match points (÷N) per tournament", () => {
-    const { series } = computeChartData(base({ rows: [row(1)], matchesData: formMatches, metric: "form", isForm: true, effView: "cumulative", rollN: 2 }));
+    const { series } = computeChartData(base({ rows: [row(1)], matchesData: formMatches, metric: "form", effView: "cumulative", rollN: 2 }));
     expect(series[0].points).toEqual([2, 0.5]); // (3+1)/2, then (1+0)/2
   });
 
   it("returns the per-event form delta in per view", () => {
-    const { series } = computeChartData(base({ rows: [row(1)], matchesData: formMatches, metric: "form", isForm: true, effView: "per", rollN: 2 }));
+    const { series } = computeChartData(base({ rows: [row(1)], matchesData: formMatches, metric: "form", effView: "per", rollN: 2 }));
     expect(series[0].points).toEqual([null, -1.5]); // no prior value at T1, then 0.5 − 2
   });
 });

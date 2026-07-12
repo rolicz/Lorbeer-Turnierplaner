@@ -85,7 +85,7 @@ export default function TrendsExplorer({ mode, scope, rows, initialMetric, initi
   const applyPM = perMatch && !isElo && !isForm && metric !== "winrate";
 
   // Series computed over ALL events; the visible date window (below) pans/zooms the view.
-  const { events, series } = useChartData({ rows, matchesQs, eloQ, metric, isElo, isForm, effView, rollN, hidden, mode, applyPM, colorOf });
+  const { events, series } = useChartData({ rows, matchesQs, eloQ, metric, effView, rollN, hidden, mode, applyPM, colorOf });
 
   // ---- visible date window (pan/zoom) ----
   const DAY = 864e5;
