@@ -87,7 +87,7 @@ export default function CurrentMatchPreviewCard() {
             {tQ.data?.name ?? `Tournament #${tid}`}
           </div>
           <MatchOverviewPanel
-            surface="panel"
+            surface="panel-subtle"
             match={match}
             clubs={clubs}
             mode={tQ.data?.mode}

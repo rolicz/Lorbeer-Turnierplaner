@@ -163,7 +163,7 @@ function FriendlyEditor({
             bGoals={bGoalsNum}
             showModePill={false}
             showOdds={false}
-            surface="panel"
+            surface="panel-subtle"
           />
 
           <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3">

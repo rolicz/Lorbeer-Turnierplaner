@@ -245,7 +245,7 @@ export default function MatchDetailPage() {
                     showModePill={false}
                     showOdds={true}
                     showOddsWhenFinished={true}
-                    surface="panel"
+                    surface="panel-subtle"
                   />
                 ) : null}
 

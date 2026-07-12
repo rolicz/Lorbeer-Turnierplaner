@@ -392,7 +392,7 @@ export default function FriendlyMatchCard({
             showModePill={true}
             showOdds={true}
             scoreBoxStyle="inner"
-            surface="panel"
+            surface="panel-subtle"
           />
 
           <div className="pt-2">

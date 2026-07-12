@@ -305,7 +305,7 @@ export default function CurrentGameSection({
               bGoals={bGoals}
               showModePill={true}
               showOdds={true}
-              surface="panel"
+              surface="panel-subtle"
             />
           </button>
         ) : (
@@ -317,7 +317,7 @@ export default function CurrentGameSection({
             bGoals={bGoals}
             showModePill={true}
             showOdds={true}
-            surface="panel"
+            surface="panel-subtle"
           />
         )}
 

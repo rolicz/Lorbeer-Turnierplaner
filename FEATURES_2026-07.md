@@ -462,7 +462,7 @@ wasn't running): `cup=default` → owner `Berni` (streak since `4. Lorbeerkranzt
 2026-07-11); `cup=bauernkranz` → owner `Roli` (streak since `5. Bauernkranzturnier`,
 2026-06-09). Matches spec exactly.
 
-## T11 — Unify current-match card surface (darker variant)  ☐
+## T11 — Unify current-match card surface (darker variant)  ☑
 
 The overview tab's `MatchOverviewPanel` uses `surface="panel-subtle"` (darker — the user
 prefers it); the dashboard preview and the Current tab use `surface="panel"` (lighter).
@@ -474,3 +474,10 @@ prefers it); the dashboard preview and the Current tab use `surface="panel"` (li
   Do NOT touch the `panel`/`panel-subtle` CSS classes themselves.
 - **DoD:** dashboard "Live now" card, Current tab and Overview tab render the same
   (darker) match-panel background; `npm run check` green.
+
+**Deviations:**
+- The grep for other `surface="panel"` usages of `MatchOverviewPanel` also found
+  `frontend/src/pages/tools/FriendlyMatchesListCard.tsx:166`,
+  `frontend/src/pages/tools/FriendlyMatchCard.tsx:395`, and
+  `frontend/src/pages/live/MatchDetailPage.tsx:248` — aligned those to
+  `panel-subtle` too per the spec's own instruction to align all other usages.
