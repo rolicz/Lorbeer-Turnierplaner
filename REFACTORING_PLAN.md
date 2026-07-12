@@ -602,6 +602,46 @@ Remaining Block-2 work is unchanged: **B2**, then **F1–F3**, then the final `/
 
 ---
 
+## Review follow-ups — Block 2, step 12 (final `/code-review`)  ☑
+
+The final Block-2 `/code-review` (2026-07-12), run after B2 and F1–F3 landed, found no live
+correctness bugs — only latent traps and leftover duplication. All five findings fixed on
+`refactor/cleanup`; backend `make test`+`make lint` and frontend `npm run check`+`npm run build`
+green.
+
+- **`useChartGestures` stale-closure hazard:** the mount-only touch-gesture effect closed over
+  the raw `setManualWin` callback param instead of mirroring it through a ref like `win`/
+  `dataMin`/`dataMax` already are. Added a `setManualWinRef`, kept in sync every render, and
+  switched the listeners to call `setManualWinRef.current(...)`. No behavior change today (the
+  current caller passes a stable `useState` setter); removes the trap for future callers.
+- **`useChartData` redundant params:** `computeChartData`/`useChartData` took `isElo`/`isForm`
+  alongside `metric`, even though both are pure derivations of it. Removed both params; derived
+  inline (`metric === "elo"` / `"form"`) with the exact same logic. Updated the `TrendsExplorer`
+  call site and the `useChartData.test.ts` cases.
+- **`require_self_or_admin` None → 500 instead of 403:** a `None` subject without
+  `allow_missing=True` hit `int(None)` before the admin short-circuit, raising a 500 instead of
+  the intended 403. Added an explicit `None` guard (honors `allow_missing` as before, otherwise
+  raises the same `forbidden(message)` used by every other path — status/detail unchanged). Not
+  reachable via the current API (both call sites always resolve a concrete subject id or pass
+  `allow_missing=True`), but a real trap for future callers. Added
+  `backend/tests/test_authorization.py` covering the None-without-`allow_missing` → 403 case.
+- **`CommentList` 40-prop relay:** mirrored the guestbook's bundled-context pattern
+  (`GuestbookCardContextValue`). Added `CommentCardContextValue` in `TournamentCommentParts.tsx`,
+  built once per render in `TournamentCommentsCard` and threaded through `CommentList` to
+  `CommentCard` as a single `ctx` prop; per-comment values (the comment itself, depth/reply
+  nesting, derived booleans/closures) stay individual props. Not `useMemo`'d like the guestbook
+  version: several of its callbacks close over plain function declarations that are recreated
+  every render, so the React Compiler correctly rejects listing them in a `useMemo` dep array
+  (`preserve-manual-memoization`) — memoizing here would either recompute every render anyway or,
+  if under-declared, reintroduce the exact stale-closure trap fixed above.
+- **`TournamentCommentsCard` duplicated sort:** `grouped` re-sorted `matches` by `order_index`
+  inline, duplicating the `matchesOrdered` memo declared further down. Hoisted `matchesOrdered`
+  above `grouped`, made `grouped` depend on it, deleted the inline sort.
+
+Block 2 is now complete.
+
+---
+
 ## Explicitly out of scope (decided against — don't let a model talk you into them)
 
 - Refresh tokens / auth rework (single-JWT + A5's 401 handling is enough for this app's size).

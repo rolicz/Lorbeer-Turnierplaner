@@ -6,13 +6,8 @@
  */
 import EmptyState from "../../../ui/primitives/EmptyState";
 import { StarsFA } from "../../../ui/primitives/StarsFA";
-import type { Player } from "../../../api/types";
-import { CommentCard } from "../TournamentCommentParts";
-import {
-  type CommentAuthor,
-  type CommentScope,
-  type TournamentComment,
-} from "../tournamentCommentTypes";
+import { CommentCard, type CommentCardContextValue } from "../TournamentCommentParts";
+import { type TournamentComment } from "../tournamentCommentTypes";
 import { type CommentFilterValue } from "./CommentFilterBar";
 
 type CommentMatchHeaderClub = {
@@ -58,44 +53,8 @@ export type CommentListProps = {
   collapsedThreads: Set<number>;
   toggleThread: (id: number) => void;
 
-  // --- viewer / permissions ---
-  token: string | null;
-  seen: { has: (id: number) => boolean };
-  canWrite: boolean;
-  canDelete: boolean;
-  players: Player[];
-  currentPlayerId: number | null;
-  currentPlayerName: string | null;
-  avatarUpdatedAtByPlayerId: Map<number, string>;
-  authorLabel: (a: CommentAuthor) => string;
-
-  // --- card state ---
-  editingId: number | null;
-  editingDirty: boolean;
-  pinnedTournamentCommentId: number | null;
-  flashId: number | null;
-  draftAuthor: "general" | number;
-  draftBody: string;
-  canSubmit: boolean;
-  replyToId: number | null;
-  replyDraft: string;
-  replySubmitting: boolean;
-
-  // --- card callbacks ---
-  onMarkSeen: (id: number) => void;
-  onTogglePin: (c: TournamentComment) => void;
-  onVote: (id: number, value: -1 | 0 | 1) => void;
-  onOpenVoters: (id: number) => void;
-  onOpenImage: (src: string) => void;
-  openReply: (c: TournamentComment) => void;
-  cancelReply: () => void;
-  submitReply: (c: TournamentComment) => void;
-  setReplyDraft: (v: string) => void;
-  toggleEdit: (c: TournamentComment) => void;
-  deleteComment: (id: number) => void;
-  setDraftAuthor: (v: "general" | number) => void;
-  setDraftBody: (v: string) => void;
-  upsertComment: (scope: CommentScope) => void;
+  // --- shared/stable card-level values (viewer/permissions, card state, card callbacks) ---
+  ctx: CommentCardContextValue;
 };
 
 export default function CommentList(props: CommentListProps) {
@@ -117,40 +76,29 @@ export default function CommentList(props: CommentListProps) {
     toggleBlock,
     collapsedThreads,
     toggleThread,
+    ctx,
+  } = props;
+  const {
     token,
     seen,
     canWrite,
-    canDelete,
-    players,
-    currentPlayerId,
-    currentPlayerName,
-    avatarUpdatedAtByPlayerId,
-    authorLabel,
+    pinnedTournamentCommentId,
     editingId,
     editingDirty,
-    pinnedTournamentCommentId,
     flashId,
-    draftAuthor,
-    draftBody,
+    avatarUpdatedAtByPlayerId,
     canSubmit,
     replyToId,
-    replyDraft,
-    replySubmitting,
     onMarkSeen,
     onTogglePin,
     onVote,
     onOpenVoters,
-    onOpenImage,
     openReply,
-    cancelReply,
     submitReply,
-    setReplyDraft,
     toggleEdit,
     deleteComment,
-    setDraftAuthor,
-    setDraftBody,
     upsertComment,
-  } = props;
+  } = ctx;
 
   function renderCommentCard(c: TournamentComment, surface: string, opts: { childCount: number; collapsed: boolean }) {
     const pinnable =
@@ -168,40 +116,26 @@ export default function CommentList(props: CommentListProps) {
         flash={flashId === c.id}
         surfaceClassName={surface}
         avatarUpdatedAt={c.author.kind === "player" ? avatarUpdatedAtByPlayerId.get(c.author.playerId) ?? null : null}
-        onOpenImage={onOpenImage}
         canPin={pinnable}
         onTogglePin={pinnable ? () => onTogglePin(c) : null}
         canEdit={c.canEdit}
-        canDelete={canDelete}
-        canReply={canWrite}
         onReply={() => openReply(c)}
         replyOpen={replyToId === c.id}
-        replyDraft={replyDraft}
-        onChangeReplyDraft={setReplyDraft}
         onSubmitReply={() => void submitReply(c)}
-        onCancelReply={cancelReply}
-        replySubmitting={replySubmitting}
         childCount={opts.childCount}
         collapsed={opts.collapsed}
         onToggleCollapse={() => toggleThread(c.id)}
-        players={players}
-        currentPlayerId={currentPlayerId}
-        currentPlayerName={currentPlayerName}
-        authorLabel={authorLabel}
         onToggleEdit={() => toggleEdit(c)}
         onDelete={() => {
           void deleteComment(c.id);
         }}
         onVote={(value) => onVote(c.id, value)}
         onOpenVoters={() => onOpenVoters(c.id)}
-        draftAuthor={draftAuthor}
-        onChangeDraftAuthor={setDraftAuthor}
-        draftBody={draftBody}
-        onChangeDraftBody={setDraftBody}
         onSave={() => {
           void upsertComment(c.scope);
         }}
         canSubmit={canSubmit && (editingId !== c.id || editingDirty)}
+        ctx={ctx}
       />
     );
   }

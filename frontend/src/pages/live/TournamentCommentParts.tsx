@@ -7,7 +7,57 @@ import type { Player } from "../../api/types";
 import { commentImageUrl } from "../../api/comments.api";
 import CommentCreateComposer, { type CommentGoalSide, type CommentGoalTeamOption } from "./CommentCreateComposer";
 import { fmtTs } from "../../utils/format";
-import type { CommentAuthor, TournamentComment } from "./tournamentCommentTypes";
+import type { CommentAuthor, CommentScope, TournamentComment } from "./tournamentCommentTypes";
+
+/**
+ * Shared/stable card-level values for rendering a comment: the viewer's
+ * permissions, the shared draft/reply/edit state, and the callbacks a card
+ * can trigger. Bundled into one object (built once via useMemo in
+ * TournamentCommentsCard) so CommentList and CommentCard don't have to relay
+ * ~30 individual props; only the comment-specific values (the comment
+ * itself, depth/reply nesting, etc.) stay as separate props. Mirrors
+ * `GuestbookCardContextValue` in profile/GuestbookEntryCard.tsx.
+ */
+export type CommentCardContextValue = {
+  // --- viewer / permissions ---
+  token: string | null;
+  seen: { has: (id: number) => boolean };
+  canWrite: boolean;
+  canDelete: boolean;
+  players: Player[];
+  currentPlayerId: number | null;
+  currentPlayerName: string | null;
+  avatarUpdatedAtByPlayerId: Map<number, string>;
+  authorLabel: (a: CommentAuthor) => string;
+
+  // --- card state ---
+  editingId: number | null;
+  editingDirty: boolean;
+  pinnedTournamentCommentId: number | null;
+  flashId: number | null;
+  draftAuthor: "general" | number;
+  draftBody: string;
+  canSubmit: boolean;
+  replyToId: number | null;
+  replyDraft: string;
+  replySubmitting: boolean;
+
+  // --- card callbacks ---
+  onMarkSeen: (id: number) => void;
+  onTogglePin: (c: TournamentComment) => void;
+  onVote: (id: number, value: -1 | 0 | 1) => void;
+  onOpenVoters: (id: number) => void;
+  onOpenImage: (src: string) => void;
+  openReply: (c: TournamentComment) => void;
+  cancelReply: () => void;
+  submitReply: (c: TournamentComment) => void;
+  setReplyDraft: (v: string) => void;
+  toggleEdit: (c: TournamentComment) => void;
+  deleteComment: (id: number) => void;
+  setDraftAuthor: (v: "general" | number) => void;
+  setDraftBody: (v: string) => void;
+  upsertComment: (scope: CommentScope) => void;
+};
 
 
 export function ScopeActionButton({
@@ -139,36 +189,22 @@ export function CommentCard({
   canPin,
   onTogglePin,
   canEdit,
-  canDelete,
-  canReply,
   onReply,
   replyOpen,
-  replyDraft,
-  onChangeReplyDraft,
   onSubmitReply,
-  onCancelReply,
-  replySubmitting,
   childCount,
   collapsed,
   onToggleCollapse,
-  players,
-  currentPlayerId,
-  currentPlayerName,
-  authorLabel,
   onToggleEdit,
   onDelete,
   onVote,
   onOpenVoters,
-  draftAuthor,
-  onChangeDraftAuthor,
-  draftBody,
-  onChangeDraftBody,
   onSave,
   canSubmit,
   flash,
   surfaceClassName = "panel-subtle",
   avatarUpdatedAt,
-  onOpenImage,
+  ctx,
 }: {
   c: TournamentComment;
   isEditing: boolean;
@@ -178,37 +214,40 @@ export function CommentCard({
   canPin: boolean;
   onTogglePin: (() => void) | null;
   canEdit: boolean;
-  canDelete: boolean;
-  canReply: boolean;
   onReply: () => void;
   replyOpen: boolean;
-  replyDraft: string;
-  onChangeReplyDraft: (v: string) => void;
   onSubmitReply: () => void;
-  onCancelReply: () => void;
-  replySubmitting: boolean;
   childCount: number;
   collapsed: boolean;
   onToggleCollapse: () => void;
-  players: Player[];
-  currentPlayerId: number | null;
-  currentPlayerName: string | null;
-  authorLabel: (a: CommentAuthor) => string;
   onToggleEdit: () => void;
   onDelete: () => void;
   onVote: (value: -1 | 0 | 1) => void;
   onOpenVoters: () => void;
-  draftAuthor: "general" | number;
-  onChangeDraftAuthor: (v: "general" | number) => void;
-  draftBody: string;
-  onChangeDraftBody: (v: string) => void;
   onSave: () => void;
   canSubmit: boolean;
   flash: boolean;
   surfaceClassName?: string;
   avatarUpdatedAt?: string | null;
-  onOpenImage: (src: string) => void;
+  ctx: CommentCardContextValue;
 }) {
+  const {
+    canDelete,
+    canWrite: canReply,
+    players,
+    currentPlayerId,
+    currentPlayerName,
+    authorLabel,
+    draftAuthor,
+    setDraftAuthor: onChangeDraftAuthor,
+    draftBody,
+    setDraftBody: onChangeDraftBody,
+    replyDraft,
+    setReplyDraft: onChangeReplyDraft,
+    cancelReply: onCancelReply,
+    replySubmitting,
+    onOpenImage,
+  } = ctx;
   const showActions =
     canEdit || canDelete || (canPin && !!onTogglePin) || canReply || isUnseen || childCount > 0;
   const edited = c.updatedAt > c.createdAt;

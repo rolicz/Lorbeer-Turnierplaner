@@ -20,7 +20,7 @@ import { qk } from "../../api/queryKeys";
 import { useAuth } from "../../auth/AuthContext";
 import { useSeenSet } from "../../hooks/useSeenComments";
 import { usePlayerAvatarMap } from "../../hooks/usePlayerAvatarMap";
-import { AddCommentDropdown } from "./TournamentCommentParts";
+import { AddCommentDropdown, type CommentCardContextValue } from "./TournamentCommentParts";
 import { useCommentMutations } from "./comments/useCommentMutations";
 import CommentFilterBar from "./comments/CommentFilterBar";
 import CommentList from "./comments/CommentList";
@@ -441,6 +441,11 @@ export default function TournamentCommentsCard({
     return playerById.get(author.playerId) ?? `Player #${author.playerId}`;
   }
 
+  const matchesOrdered = useMemo(
+    () => matches.slice().sort((a, b) => a.order_index - b.order_index),
+    [matches],
+  );
+
   const grouped = useMemo(() => {
     // Build the reply tree. Roots (no parent, or parent not in this payload) are grouped
     // by scope; replies render nested under their parent regardless of their own scope.
@@ -496,7 +501,6 @@ export default function TournamentCommentsCard({
 
     const blocks: { matchId: number; comments: TournamentComment[] }[] = [];
     const seen = new Set<number>();
-    const matchesOrdered = matches.slice().sort((a, b) => a.order_index - b.order_index);
     for (const m of matchesOrdered) {
       const arr = byMatch.get(m.id) ?? [];
       blocks.push({ matchId: m.id, comments: arr });
@@ -510,7 +514,7 @@ export default function TournamentCommentsCard({
     for (const [mid, arr] of leftovers) blocks.push({ matchId: mid, comments: arr });
 
     return { tournament, blocks, childrenByParent, rootScopeKey };
-  }, [comments, matches]);
+  }, [comments, matchesOrdered]);
   const childrenByParent = grouped.childrenByParent;
 
   const pinnedTournamentComment = useMemo(() => {
@@ -678,10 +682,6 @@ export default function TournamentCommentsCard({
     return options;
   }, [currentPlayerId, currentPlayerName, draftAuthor, playerById]);
 
-  const matchesOrdered = useMemo(
-    () => matches.slice().sort((a, b) => a.order_index - b.order_index),
-    [matches],
-  );
   const matchIndexById = useMemo(() => {
     const m = new Map<number, number>();
     matchesOrdered.forEach((mt, i) => m.set(mt.id, i + 1));
@@ -787,6 +787,58 @@ export default function TournamentCommentsCard({
   const entryScope = defaultAddScope();
   const entryAllowsEvents = entryScope.kind === "match";
 
+  // Shared/stable card-level values (viewer permissions, draft/reply/edit state, callbacks)
+  // handed to CommentList/CommentCard as one bundle instead of ~30 individual props —
+  // mirrors GuestbookCardContextValue in profile/useProfileGuestbook.ts. Built fresh each
+  // render (not useMemo'd): several of its callbacks close over plain function declarations
+  // above (openReply, submitReply, toggleEdit, deleteComment, upsertComment, authorLabel)
+  // that are recreated every render, so memoizing here would either recompute every render
+  // anyway or — if under-declared as deps — reintroduce the stale-closure trap fixed in F1.
+  const commentCardCtx: CommentCardContextValue = {
+    token,
+    seen,
+    canWrite,
+    canDelete,
+    players,
+    currentPlayerId,
+    currentPlayerName,
+    avatarUpdatedAtByPlayerId,
+    authorLabel,
+    editingId,
+    editingDirty,
+    pinnedTournamentCommentId,
+    flashId,
+    draftAuthor,
+    draftBody,
+    canSubmit,
+    replyToId,
+    replyDraft,
+    replySubmitting: createMut.isPending,
+    onMarkSeen: (id) => {
+      if (!token || markReadMut.isPending) return;
+      markReadMut.mutate(id);
+    },
+    onTogglePin: (c) => {
+      const next = pinnedTournamentCommentId === c.id ? null : c.id;
+      void pinMut.mutateAsync(next);
+    },
+    onVote: (id, value) => {
+      if (!token || voteMut.isPending) return;
+      voteMut.mutate({ commentId: id, value });
+    },
+    onOpenVoters: (id) => setVoteVotersCommentId(id),
+    onOpenImage: (src) => setLightboxSrc(src),
+    openReply,
+    cancelReply,
+    submitReply: (c) => void submitReply(c),
+    setReplyDraft,
+    toggleEdit,
+    deleteComment: (id) => void deleteComment(id),
+    setDraftAuthor,
+    setDraftBody,
+    upsertComment: (scope) => void upsertComment(scope),
+  };
+
   const commentsContent = (
     <>
         <ErrorToastOnError error={commentsQ.error} title="Comments loading failed" />
@@ -857,48 +909,7 @@ export default function TournamentCommentsCard({
             toggleBlock={toggleBlock}
             collapsedThreads={collapsedThreads}
             toggleThread={toggleThread}
-            token={token}
-            seen={seen}
-            canWrite={canWrite}
-            canDelete={canDelete}
-            players={players}
-            currentPlayerId={currentPlayerId}
-            currentPlayerName={currentPlayerName}
-            avatarUpdatedAtByPlayerId={avatarUpdatedAtByPlayerId}
-            authorLabel={authorLabel}
-            editingId={editingId}
-            editingDirty={editingDirty}
-            pinnedTournamentCommentId={pinnedTournamentCommentId}
-            flashId={flashId}
-            draftAuthor={draftAuthor}
-            draftBody={draftBody}
-            canSubmit={canSubmit}
-            replyToId={replyToId}
-            replyDraft={replyDraft}
-            replySubmitting={createMut.isPending}
-            onMarkSeen={(id) => {
-              if (!token || markReadMut.isPending) return;
-              markReadMut.mutate(id);
-            }}
-            onTogglePin={(c) => {
-              const next = pinnedTournamentCommentId === c.id ? null : c.id;
-              void pinMut.mutateAsync(next);
-            }}
-            onVote={(id, value) => {
-              if (!token || voteMut.isPending) return;
-              voteMut.mutate({ commentId: id, value });
-            }}
-            onOpenVoters={(id) => setVoteVotersCommentId(id)}
-            onOpenImage={(src) => setLightboxSrc(src)}
-            openReply={openReply}
-            cancelReply={cancelReply}
-            submitReply={(c) => void submitReply(c)}
-            setReplyDraft={setReplyDraft}
-            toggleEdit={toggleEdit}
-            deleteComment={(id) => void deleteComment(id)}
-            setDraftAuthor={setDraftAuthor}
-            setDraftBody={setDraftBody}
-            upsertComment={(scope) => void upsertComment(scope)}
+            ctx={commentCardCtx}
           />
         </div>
     </>
