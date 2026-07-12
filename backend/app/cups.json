@@ -3,12 +3,18 @@
     {
       "key": "default",
       "name": "Lorbeerkranz",
-      "since_date": null
+      "since_date": null,
+      "eras": [
+        { "since": "2026-07-12", "mode": "2v2" }
+      ]
     },
     {
       "key": "bauernkranz",
       "name": "Bauernkranz",
-      "since_date": "2026-01-05"
+      "since_date": "2026-01-05",
+      "eras": [
+        { "since": "2026-07-12", "mode": "1v1" }
+      ]
     }
   ]
 }

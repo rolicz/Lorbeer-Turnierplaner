@@ -1,3 +1,5 @@
+import json
+
 from tests.conftest import create_player, create_tournament, generate
 
 
@@ -23,7 +25,17 @@ def _finish_tournament_with_winner(client, editor_headers, tournament_id: int, w
         assert res.status_code == 200, res.text
 
 
-def test_tournament_list_marks_cups_at_stake(client, editor_headers, admin_headers):
+def test_tournament_list_marks_cups_at_stake(client, editor_headers, admin_headers, tmp_path, monkeypatch):
+    # This test exercises the cup-at-stake plumbing with 1v1 tournaments dated today.
+    # Pin an eras-free config so the dev rollout (default cup scoped to 2v2 from
+    # 2026-07-12) doesn't exclude them — era scoping itself is covered in test_cup_eras.py.
+    cfg = tmp_path / "cups.json"
+    cfg.write_text(json.dumps({"cups": [
+        {"key": "default", "name": "Lorbeerkranz", "since_date": None},
+        {"key": "bauernkranz", "name": "Bauernkranz", "since_date": "2026-01-05"},
+    ]}))
+    monkeypatch.setenv("CUPS_CONFIG_PATH", str(cfg))
+
     owner = create_player(client, admin_headers, "CupOwner")
     p2 = create_player(client, admin_headers, "CupOpponentA")
     p3 = create_player(client, admin_headers, "CupOpponentB")

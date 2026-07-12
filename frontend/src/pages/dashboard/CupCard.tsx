@@ -3,7 +3,7 @@ import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Trophy } from "lucide-react";
 
-import { getCup } from "../../api/cup.api";
+import { currentEraMode, getCup } from "../../api/cup.api";
 import { qk } from "../../api/queryKeys";
 import { cupColorVarForKey, rgbFromCssVar } from "../../cupColors";
 import { usePlayerAvatarMap } from "../../hooks/usePlayerAvatarMap";
@@ -21,6 +21,7 @@ export default function CupCard({ cupKey }: { cupKey: string }) {
   const shown = useMemo(() => (showAll ? history.slice().reverse() : history.slice(-8).reverse()), [history, showAll]);
 
   const owner = q.data?.owner ?? null;
+  const eraMode = currentEraMode(q.data?.cup?.eras);
   const since = q.data?.streak?.since;
   // `tournaments_participated` counts the winning tournament itself, so a fresh win
   // is 1 → that's 0 actual defenses. Defenses = later tournaments the cup was held.
@@ -32,9 +33,17 @@ export default function CupCard({ cupKey }: { cupKey: string }) {
       {q.isLoading && !q.data ? <div className="text-text-muted">Loading…</div> : null}
 
       {q.data ? (
-        <div className="space-y-3">
+        <div className="relative space-y-3">
           {/* Current holder */}
           <div className="flex items-center gap-3">
+            {eraMode !== "any" ? (
+              <span
+                className="absolute right-0 top-0 rounded-full bg-bg-card-chip/60 px-1.5 py-0.5 text-[10px] font-medium leading-tight text-text-muted"
+                title={`Currently counts ${eraMode} tournaments only`}
+              >
+                {eraMode}
+              </span>
+            ) : null}
             {owner ? (
               <AvatarCircle
                 playerId={owner.id}

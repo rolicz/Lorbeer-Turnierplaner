@@ -1535,11 +1535,23 @@ export interface components {
             name: string;
             /** Since Date */
             since_date: string | null;
+            /**
+             * Eras
+             * @default []
+             */
+            eras: components["schemas"]["CupEraOut"][];
         };
         /** CupDefsOut */
         CupDefsOut: {
             /** Cups */
             cups: components["schemas"]["CupDefOut"][];
+        };
+        /** CupEraOut */
+        CupEraOut: {
+            /** Since */
+            since: string;
+            /** Mode */
+            mode: string;
         };
         /** CupHistoryItemOut */
         CupHistoryItemOut: {

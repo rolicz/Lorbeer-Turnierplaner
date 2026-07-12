@@ -148,13 +148,23 @@ The backend loads cup definitions from:
 - `CUPS_CONFIG_PATH` (recommended in Docker), or
 - fallback: `backend/app/cups.json`
 
-Format (`since_date` is optional, ISO `YYYY-MM-DD`):
+Format (`since_date` and `eras` are optional, ISO `YYYY-MM-DD`):
 
 ```json
 {
   "cups": [
-    { "key": "default", "name": "Lorbeerkranz", "since_date": null },
-    { "key": "bauernkranz", "name": "Bauernkranz", "since_date": "2026-01-05" }
+    {
+      "key": "default",
+      "name": "Lorbeerkranz",
+      "since_date": null,
+      "eras": [{ "since": "2026-07-12", "mode": "2v2" }]
+    },
+    {
+      "key": "bauernkranz",
+      "name": "Bauernkranz",
+      "since_date": "2026-01-05",
+      "eras": [{ "since": "2026-07-12", "mode": "1v1" }]
+    }
   ]
 }
 ```
@@ -162,6 +172,17 @@ Format (`since_date` is optional, ISO `YYYY-MM-DD`):
 Notes:
 - Cup `key` is used in URLs (`/cup?key=...`) and in the frontend mapping for cup colors.
 - `since_date` means “cup history starts at this date”. Before that, the cup has no owner.
+- `eras` (optional) scope which tournaments count toward a cup by **mode**, from a date
+  on. Each era is `{ "since": "YYYY-MM-DD", "mode": "1v1" | "2v2" | "any" }`. The era
+  active for a tournament dated `d` is the **last** era with `since <= d`; before the
+  earliest era the mode is implicitly `"any"`. A tournament counts toward the cup iff its
+  date passes `since_date` **and** the active era's mode is `"any"` or equals the
+  tournament's mode. Ownership is one continuous fold across era boundaries: the holder
+  carries over the boundary, and from then on only qualifying tournaments can move the cup.
+  Eras must have valid modes, parseable dates, and no duplicate `since` per cup; leave
+  `eras` out (or empty) to keep the classic “every tournament counts” behavior.
+  When the era active today scopes a mode, the dashboard/cup page shows a small `1v1`/`2v2`
+  pill next to the cup.
 
 ### Cup colors (frontend)
 

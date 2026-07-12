@@ -7,8 +7,26 @@ from typing import Optional
 from sqlalchemy.orm import selectinload
 from sqlmodel import Session, select
 
+from ..cup_defs import CupDef
 from ..models import Match, MatchSide, Player, Tournament
 from .stats.core import compute_player_standings, resolve_tournament_winner_player_id
+
+
+def tournament_qualifies(t: Tournament, cup: CupDef | None) -> bool:
+    """Whether tournament ``t`` counts toward ``cup``.
+
+    A tournament qualifies iff its date passes the cup's ``since_date``
+    (inclusive lower bound) AND the era active for that date allows the
+    tournament's mode (era mode ``"any"`` or equal to ``t.mode``). When ``cup``
+    is ``None`` (no config available) every tournament qualifies — today's
+    behavior for the era-less case.
+    """
+    if cup is None:
+        return True
+    if cup.since_date is not None and t.date < cup.since_date:
+        return False
+    mode = cup.active_era_mode(t.date)
+    return mode == "any" or mode == t.mode
 
 
 @dataclass(frozen=True)
@@ -50,7 +68,12 @@ def _load_player(session: Session, player_id: int) -> Player:
     return p
 
 
-def compute_cup(session: Session, *, since_date: dt.date | None = None) -> CupResult:
+def compute_cup(
+    session: Session,
+    *,
+    since_date: dt.date | None = None,
+    cup: CupDef | None = None,
+) -> CupResult:
     """
     Cup owner changes ONLY by TOURNAMENT WINNER (player standings).
 
@@ -72,6 +95,9 @@ def compute_cup(session: Session, *, since_date: dt.date | None = None) -> CupRe
     streak_since_tname: Optional[str] = None
     streak_since_date: Optional[str] = None
 
+    if since_date is None and cup is not None:
+        since_date = cup.since_date
+
     q = select(Tournament)
     if since_date is not None:
         q = q.where(Tournament.date >= since_date)
@@ -79,6 +105,11 @@ def compute_cup(session: Session, *, since_date: dt.date | None = None) -> CupRe
 
     for t in tournaments:
         if t.status != "done":
+            continue
+
+        # Era scoping: skip tournaments whose mode the active era doesn't count.
+        # Ownership is one continuous fold — the owner simply carries across the skip.
+        if not tournament_qualifies(t, cup):
             continue
 
         # tournament participants (force-load relationship)
@@ -190,6 +221,7 @@ def compute_cup_tournament_stakes(
     cup_key: str,
     cup_name: str,
     since_date: dt.date | None = None,
+    cup: CupDef | None = None,
     matches_by_tid: dict[int, list[Match]] | None = None,
 ) -> list[CupTournamentStake]:
     """
@@ -203,12 +235,20 @@ def compute_cup_tournament_stakes(
     owner = None
     stakes: list[CupTournamentStake] = []
 
+    if since_date is None and cup is not None:
+        since_date = cup.since_date
+
     q = select(Tournament)
     if since_date is not None:
         q = q.where(Tournament.date >= since_date)
     tournaments = session.exec(q.order_by(Tournament.date, Tournament.created_at, Tournament.id)).all()
 
     for t in tournaments:
+        # Era scoping: non-qualifying tournaments are neither at stake nor
+        # transfer ownership (the owner carries across the boundary).
+        if not tournament_qualifies(t, cup):
+            continue
+
         participants = list(t.players)
         participant_ids = {p.id for p in participants}
 
@@ -285,6 +325,7 @@ def compute_all_cup_tournament_stakes_by_tournament(
             cup_key=cup_def.key,
             cup_name=cup_def.name,
             since_date=cup_def.since_date,
+            cup=cup_def,
             matches_by_tid=matches_by_tid,
         ):
             out.setdefault(int(stake.tournament_id), []).append(

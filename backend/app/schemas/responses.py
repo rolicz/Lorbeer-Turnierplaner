@@ -384,10 +384,16 @@ class TournamentStatsOut(BaseModel):
 
 
 # ---- cup ---------------------------------------------------------------
+class CupEraOut(BaseModel):
+    since: str
+    mode: str  # "1v1" | "2v2" | "any"
+
+
 class CupDefOut(BaseModel):
     key: str
     name: str
     since_date: str | None
+    eras: list[CupEraOut] = []
 
 
 class CupDefsOut(BaseModel):

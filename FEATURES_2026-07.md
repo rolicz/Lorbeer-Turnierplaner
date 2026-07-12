@@ -267,7 +267,7 @@ computation deleted, matches modal opens; `npm run check` green.
   No live 2v2 e2e drive — the new components consume the exact same typed backend fields
   the production classic `HeadToHeadCard` already renders, so the data contract is proven.
 
-## T7 — Cup eras: config-driven mode scoping  ☐
+## T7 — Cup eras: config-driven mode scoping  ☑
 
 Today a cup = `{key, name, since_date}` and EVERY cup folds over ALL tournaments
 (`services/cup.py:75-78`); there is no tournament↔cup association. New concept: **eras** —
@@ -322,6 +322,28 @@ from a date on, a cup only counts tournaments of a given mode. Generic, config-o
 
 **DoD:** `make test` + `make lint` green incl. new era tests; `make gen-types` committed;
 cup page shows mode pill; README documents eras.
+
+**Deviations:**
+- `compute_cup()` and `compute_cup_tournament_stakes()` gained an optional `cup: CupDef | None`
+  param (default `None` = no era filtering, today's behavior) rather than threading eras some
+  other way. `tournament_qualifies(t, cup)` lives in `services/cup.py`; `CupDef.active_era_mode(d)`
+  (the "last era with since <= d" lookup) lives on the dataclass in `cup_defs.py` so both backend
+  and the mirrored frontend helper follow the same rule. The router now calls `compute_cup(s, cup=d)`;
+  `since_date` is still accepted and derived from `cup.since_date` when omitted, so no caller broke.
+- Frontend pill: added `currentEraMode(eras, today)` to `cup.api.ts` (robust to unsorted input)
+  and render the `1v1`/`2v2` pill inside `CupCard.tsx` (top-right of the card, `relative` wrapper)
+  — since `CupCard` carries no cup name of its own, the pill sits at the card header corner rather
+  than literally beside the name text. Both DashboardPage and CupsView inherit it via `CupCard`.
+  Added `CupEra`/`eras?` to the hand-written `cup.api.ts` types (the generated schema also gained
+  `CupEraOut`/`eras`).
+- Existing `test_tournament_cup_stakes.py` pinned to a temp eras-free `CUPS_CONFIG_PATH`: the dev
+  rollout scopes the `default` cup to 2v2 from 2026-07-12, and that test uses 1v1 tournaments dated
+  today, which otherwise no longer qualify. Era scoping itself is covered by the new
+  `test_cup_eras.py` (predicate, no-eras regression, boundary carry-over, non-qualifying stakes,
+  config validation). This is the era filter working as designed, not a regression in the plumbing.
+- `CupEraOut.mode` is typed `str` in the response schema (matching the existing `since_date: str`
+  style in these cup schemas) rather than a Literal; values are validated at config-load time in
+  `load_cup_defs()`.
 
 ---
 
