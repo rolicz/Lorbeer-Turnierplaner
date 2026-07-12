@@ -2,7 +2,6 @@ import { useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 
-import type { Match } from "../../api/types";
 import { getTournament } from "../../api/tournaments.api";
 import { listClubs } from "../../api/clubs.api";
 import { apiFetch } from "../../api/client";
@@ -10,6 +9,7 @@ import { qk } from "../../api/queryKeys";
 
 import { useTournamentWS } from "../../hooks/useTournamentWS";
 import { sideBy } from "../../helpers";
+import { pickPreviewMatch } from "../../utils/matchDisplay";
 import MatchOverviewPanel from "../../ui/primitives/MatchOverviewPanel";
 import InlineLoading from "../../ui/primitives/InlineLoading";
 
@@ -21,16 +21,6 @@ type LiveTournamentLite = {
   date?: string | null;
 };
 
-
-function pickPreviewMatch(matches: Match[]): Match | null {
-  const sorted = matches.slice().sort((a, b) => a.order_index - b.order_index);
-  return (
-    sorted.find((m) => m.state === "playing") ||
-    sorted.find((m) => m.state === "scheduled") ||
-    sorted.slice().reverse().find((m) => m.state === "finished") ||
-    null
-  );
-}
 
 export default function CurrentMatchPreviewCard() {
   const nav = useNavigate();

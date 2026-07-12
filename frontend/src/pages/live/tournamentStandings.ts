@@ -10,14 +10,25 @@ export type StandRow = {
   pts: number;
   gd: number;
   gf: number;
+  played: number;
 };
 
-/** Compute standings from finished matches, sorted by pts, gd, gf, then name. */
-export function computeFinishedStandings(matches: Match[], players: PlayerLite[]): StandRow[] {
+/**
+ * Compute standings from finished matches, sorted by pts, gd, gf, then name.
+ * With `includePlaying`, in-progress matches count too (mirrors
+ * `StandingsTable`'s internal `computeStandings(..., "live")` semantics) —
+ * used for the live Overview tab's compact standings block.
+ */
+export function computeFinishedStandings(
+  matches: Match[],
+  players: PlayerLite[],
+  opts?: { includePlaying?: boolean },
+): StandRow[] {
   const rows = new Map<number, StandRow>();
-  for (const p of players) rows.set(p.id, { playerId: p.id, name: p.display_name, pts: 0, gd: 0, gf: 0 });
+  for (const p of players) rows.set(p.id, { playerId: p.id, name: p.display_name, pts: 0, gd: 0, gf: 0, played: 0 });
 
-  const counted = matches.filter((m) => m.state === "finished");
+  const includePlaying = opts?.includePlaying ?? false;
+  const counted = matches.filter((m) => m.state === "finished" || (includePlaying && m.state === "playing"));
 
   for (const m of counted) {
     const a = sideBy(m, "A");
@@ -32,8 +43,9 @@ export function computeFinishedStandings(matches: Match[], players: PlayerLite[]
     const draw = aGoals === bGoals;
 
     for (const p of a.players) {
-      const r = rows.get(p.id) ?? { playerId: p.id, name: p.display_name, pts: 0, gd: 0, gf: 0 };
+      const r = rows.get(p.id) ?? { playerId: p.id, name: p.display_name, pts: 0, gd: 0, gf: 0, played: 0 };
       rows.set(p.id, r);
+      r.played += 1;
       r.gf += aGoals;
       r.gd += aGoals - bGoals;
       if (aWin) r.pts += 3;
@@ -41,8 +53,9 @@ export function computeFinishedStandings(matches: Match[], players: PlayerLite[]
     }
 
     for (const p of b.players) {
-      const r = rows.get(p.id) ?? { playerId: p.id, name: p.display_name, pts: 0, gd: 0, gf: 0 };
+      const r = rows.get(p.id) ?? { playerId: p.id, name: p.display_name, pts: 0, gd: 0, gf: 0, played: 0 };
       rows.set(p.id, r);
+      r.played += 1;
       r.gf += bGoals;
       r.gd += bGoals - aGoals;
       if (bWin) r.pts += 3;

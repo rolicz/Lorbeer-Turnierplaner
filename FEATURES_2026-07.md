@@ -145,7 +145,7 @@ hidden on detail routes, leaving the user stuck.
 **DoD:** with `history.state.idx === 0`, `goBack()` navigates to `meta.backTo`
 (`/tournaments` from `/live/:id`); tests green; `npm run check` green.
 
-## T5 — Live tournament: compact Overview tab (leftmost, default)  ☐
+## T5 — Live tournament: compact Overview tab (leftmost, default)  ☑
 
 - `frontend/src/pages/live/LiveTournamentPage.tsx`: new tab key `"overview"`
   (extend `LiveTab`/`TAB_KEYS` `:48,:98`), FIRST in the list, always shown, lucide icon
@@ -176,6 +176,25 @@ hidden on detail routes, leaving the user stuck.
 **DoD:** overview is the leftmost + default tab on mobile and desktop, fully read-only,
 all three blocks visible on a 375px viewport, taps navigate to the right tabs;
 `npm run check` + `npm run build` green.
+
+**Deviations:**
+- `pickPreviewMatch` (dashboard `CurrentMatchPreviewCard.tsx:25-33`) was moved to
+  `utils/matchDisplay.ts` (exported) instead of exporting it directly from the component
+  file, so both call sites share one implementation without a `react-refresh/only-export-
+  components` eslint warning (component files should only export components).
+- `StandRow` (`tournamentStandings.ts`) gained a `played: number` field — needed for the
+  Overview standings block's "played" column, which wasn't tracked before. Backward
+  compatible; existing `computeTopDraw` callers don't read it. The two manually-built
+  `StandRow` fixtures in `tournamentStandings.test.ts`'s `computeTopDraw` tests were
+  updated to include `played` to satisfy the type.
+- `computeFinishedStandings` gained an `opts?: { includePlaying?: boolean }` parameter
+  (default `false`, preserving prior behavior/tests) instead of a positional `includePlaying`
+  arg, to keep call sites self-documenting.
+- Verified interactively with Playwright (headless Chromium) against `make backend` +
+  a local Vite dev server pointed at it (both live and done tournaments, 375px and desktop
+  viewports): Overview is default + leftmost, all three blocks fit without scrolling on a
+  375×667 viewport for the sampled tournaments (3-6 players), and taps correctly switch to
+  `standings`/`matches`, or (for a done tournament) open the match detail page directly.
 
 ## T6 — H2H: real 2v2 stats (Insights `H2HView`)  ☐
 

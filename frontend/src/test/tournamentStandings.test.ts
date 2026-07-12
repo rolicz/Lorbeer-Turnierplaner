@@ -63,9 +63,9 @@ describe("computeFinishedStandings", () => {
 describe("computeTopDraw", () => {
   it("detects a tie at the top", () => {
     const rows = [
-      { playerId: 1, name: "P1", pts: 3, gd: 1, gf: 2 },
-      { playerId: 2, name: "P2", pts: 3, gd: 1, gf: 2 },
-      { playerId: 3, name: "P3", pts: 0, gd: -2, gf: 0 },
+      { playerId: 1, name: "P1", pts: 3, gd: 1, gf: 2, played: 2 },
+      { playerId: 2, name: "P2", pts: 3, gd: 1, gf: 2, played: 2 },
+      { playerId: 3, name: "P3", pts: 0, gd: -2, gf: 0, played: 2 },
     ];
     const res = computeTopDraw(rows);
     expect(res.isTopDraw).toBe(true);
@@ -74,8 +74,8 @@ describe("computeTopDraw", () => {
 
   it("reports no draw when the leader is unique", () => {
     const rows = [
-      { playerId: 1, name: "P1", pts: 6, gd: 3, gf: 5 },
-      { playerId: 2, name: "P2", pts: 3, gd: 0, gf: 2 },
+      { playerId: 1, name: "P1", pts: 6, gd: 3, gf: 5, played: 2 },
+      { playerId: 2, name: "P2", pts: 3, gd: 0, gf: 2, played: 2 },
     ];
     expect(computeTopDraw(rows).isTopDraw).toBe(false);
   });

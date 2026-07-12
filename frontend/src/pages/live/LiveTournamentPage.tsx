@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { MailOpen, MessageSquare, Gamepad2, ListChecks, SlidersHorizontal, Trophy } from "lucide-react";
+import { MailOpen, MessageSquare, Gamepad2, LayoutGrid, ListChecks, SlidersHorizontal, Trophy } from "lucide-react";
 
 import Button from "../../ui/primitives/Button";
 import { Pill, pillDate } from "../../ui/primitives/Pill";
@@ -31,6 +31,7 @@ import { useSeenSet } from "../../hooks/useSeenComments";
 
 import AdminPanel from "./AdminPanel";
 import MatchList from "./MatchList";
+import OverviewSection from "./OverviewSection";
 import StandingsTable from "./StandingsTable";
 import { computeFinishedStandings, computeTopDraw } from "./tournamentStandings";
 import CurrentGameSection from "./CurrentGameSection";
@@ -45,7 +46,7 @@ import { usePageTitle } from "../../ui/layout/PageTitleContext";
 import InlineBack from "../../ui/shell/InlineBack";
 
 type PlayerLite = { id: number; display_name: string };
-type LiveTab = "current" | "standings" | "matches" | "comments" | "controls";
+type LiveTab = "overview" | "current" | "standings" | "matches" | "comments" | "controls";
 
 function errorMessage(err: unknown): string {
   if (err instanceof Error) return err.message;
@@ -95,11 +96,10 @@ export default function LiveTournamentPage() {
   const isAdmin = role === "admin";
   const isEditorOrAdmin = role === "editor" || role === "admin";
 
-  const TAB_KEYS: LiveTab[] = ["current", "standings", "matches", "comments", "controls"];
+  const TAB_KEYS: LiveTab[] = ["overview", "current", "standings", "matches", "comments", "controls"];
   const initialTab = ((): LiveTab => {
     const t = searchParams.get("tab");
-    if (t === "overview") return "current"; // legacy deep links / "back" state
-    return t && (TAB_KEYS as string[]).includes(t) ? (t as LiveTab) : "current";
+    return t && (TAB_KEYS as string[]).includes(t) ? (t as LiveTab) : "overview";
   })();
   const [activeTab, setActiveTabState] = useState<LiveTab>(initialTab);
   // Active tab is mirrored to the URL so back-navigation (in-app + browser) restores it.
@@ -476,6 +476,7 @@ export default function LiveTournamentPage() {
 
   const tabs = useMemo<SectionTab<LiveTab>[]>(() => {
     const t: SectionTab<LiveTab>[] = [];
+    t.push({ key: "overview", label: "Overview", icon: <LayoutGrid size={14} /> });
     if (showCurrentGameSection) t.push({ key: "current", label: "Current", icon: <Gamepad2 size={14} /> });
     t.push({ key: "standings", label: status === "done" ? "Results" : "Standings", icon: <Trophy size={14} /> });
     t.push({ key: "matches", label: "Matches", icon: <ListChecks size={14} /> });
@@ -551,6 +552,21 @@ export default function LiveTournamentPage() {
 
       {tQ.data ? (
         <>
+          {effectiveTab === "overview" ? (
+            <OverviewSection
+              mode={tQ.data.mode}
+              matches={matchesSorted}
+              players={tQ.data.players ?? []}
+              clubs={clubs}
+              onOpenCurrentMatch={(m) => {
+                if (isDone) openEditor(m);
+                else setActiveTab("current");
+              }}
+              onGoToStandings={() => setActiveTab("standings")}
+              onGoToMatches={() => setActiveTab("matches")}
+            />
+          ) : null}
+
           {effectiveTab === "current" && showCurrentGameSection ? (
             <CurrentGameSection
               status={status}
