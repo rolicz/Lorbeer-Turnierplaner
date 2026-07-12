@@ -35,7 +35,9 @@ export type CupResponse = {
  * `CupDef.active_era_mode`. Robust to unsorted input.
  */
 export function currentEraMode(eras: CupEra[] | undefined, today: Date = new Date()): CupEra["mode"] {
-  const iso = today.toISOString().slice(0, 10);
+  // Local calendar date, not UTC — era boundaries are plain (local) dates and
+  // toISOString() would flip the pill at UTC midnight instead of local midnight.
+  const iso = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
   let best: CupEra | null = null;
   for (const e of eras ?? []) {
     if (e.since <= iso && (!best || e.since > best.since)) best = e;

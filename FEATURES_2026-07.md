@@ -363,3 +363,32 @@ branch diff, then the user's manual smoke check (mobile + desktop):
 overview tab on a live tournament, shots wheel on iOS, back button from a cold-started
 installed PWA, 2v2 H2H duos, records tournament-wins numbers, positions badges, cup page
 pills + unchanged owners, and after deploying: update `/data/cups.json` on the server.
+
+---
+
+## Review findings — 2026-07-12 (fixed)
+
+The post-implementation review (6 finder angles) produced 24 candidates; the automated
+verifier pass was cut off by a usage limit, so candidates were deduplicated to 9 distinct
+issues and verified/triaged manually (Fable). 8 fixed, 1 accepted:
+
+1. **Live tournaments counted as titles** — backend now nulls `winner_player_id` unless
+   `status == "done"` (`services/stats/players.py`); RecordsView also guards on status.
+2. **False "kein eindeutiger Sieger" tooltip** (PositionsView) for decider-resolved ties
+   and live tournaments — now requires `done` + `winner_player_id == null`.
+3. **Era scoping bypassed in legacy stats cup owner** — `compute_stats_players` now calls
+   `compute_cup(s, cup=get_cup_def("default"))` so it matches `GET /cup`.
+4. **Duo-detail matches modal opened from the opponents' perspective** — DuoDetail now
+   normalizes the rivalry to the selected duo before opening the modal.
+5. **Malformed cups.json only failed at request time (500s)** — `load_cup_defs()` now
+   runs in the app lifespan: bad config fails loudly at startup.
+6. **Non-dict era entries raised AttributeError** instead of a config ValueError —
+   explicit isinstance validation added in `cup_defs.py`.
+7. **Era pill flipped at UTC midnight** — `currentEraMode` now uses the local calendar date.
+8. **Overview tap dead-ended** when the "current" tab is hidden (all matches finished,
+   tournament not yet done) — falls through to the match page.
+
+**Accepted limitation (not fixed):** DuoDetail filters the global `team_rivalries_2v2`
+list (API limit 200, ordered by rivalry score). Groups with >200 distinct duo-vs-duo
+pairings would see truncated duo detail; irrelevant at this app's scale. Revisit with a
+duo-filtered backend query if ever needed.

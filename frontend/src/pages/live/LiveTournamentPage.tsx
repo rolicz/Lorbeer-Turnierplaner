@@ -559,7 +559,10 @@ export default function LiveTournamentPage() {
               players={tQ.data.players ?? []}
               clubs={clubs}
               onOpenCurrentMatch={(m) => {
-                if (isDone) openEditor(m);
+                // The "current" tab only exists while there is a playing/scheduled
+                // match; otherwise (done, or all matches finished but not yet done)
+                // go to the match page directly.
+                if (isDone || !showCurrentGameSection) openEditor(m);
                 else setActiveTab("current");
               }}
               onGoToStandings={() => setActiveTab("standings")}

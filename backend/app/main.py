@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .auth import decode_token_string
 from .config import CORS_ALLOW_ORIGINS
+from .cup_defs import load_cup_defs
 from .db import configure_db, get_engine, init_db
 from .logging_config import setup_logging
 from .routers.auth import router as auth_router
@@ -33,6 +34,11 @@ def create_app(settings: Settings) -> FastAPI:
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
+        # Fail fast on a malformed cups config (eras etc.) instead of 500ing
+        # every tournament/stats request at runtime.
+        load_cup_defs()
+        log.info("Cup defs validated")
+
         init_db()
         log.info("DB initialized")
 

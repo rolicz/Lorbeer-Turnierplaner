@@ -3,6 +3,7 @@ import { useMemo } from "react";
 
 import type { StatsH2HDuo, StatsH2HTeamRivalry } from "../../../api/types";
 import { fmtInt } from "../../../utils/format";
+import { normalizeTeamRivalryForFocus } from "../h2hHelpers";
 import { TeamRivalryRow } from "../HeadToHeadRows";
 
 /** True when the rivalry involves exactly the given duo (both members on one side). */
@@ -68,7 +69,9 @@ export function DuoDetail({
               key={`${r.team1.map((p) => p.id).join("-")}-${r.team2.map((p) => p.id).join("-")}`}
               r={r}
               focusPlayerId={duo.p1.id}
-              onOpenMatches={() => onOpenMatchup(r)}
+              // Pass the rivalry from the selected duo's perspective so the
+              // matches modal title/focus match the row as displayed.
+              onOpenMatches={() => onOpenMatchup(normalizeTeamRivalryForFocus(r, duo.p1.id))}
             />
           ))}
         </div>

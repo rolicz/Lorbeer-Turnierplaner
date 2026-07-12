@@ -6,6 +6,7 @@ from typing import Any
 from sqlalchemy.orm import selectinload
 from sqlmodel import Session, select
 
+from ...cup_defs import get_cup_def
 from ...models import Match, MatchSide, Player, Tournament
 from ...services.cup import compute_all_cup_tournament_stakes_by_tournament, compute_cup
 from .core import (
@@ -105,12 +106,15 @@ def compute_stats_players(s: Session, *, mode: str, lastN: int) -> dict[str, Any
                 "status": t.status,
                 "players_count": len(participants),
                 "cup_stakes": cup_stakes_by_tid.get(tid, []),
-                "winner_player_id": winner_player_id,
+                # A tournament has a winner only once it is finished; live standings
+                # leaders must not be reported as provisional title holders.
+                "winner_player_id": winner_player_id if t.status == "done" else None,
             }
         )
 
-    # Legacy: current default cup owner (frontend uses /cup for multi-cup now)
-    cup_state = compute_cup(s)
+    # Legacy: current default cup owner (frontend uses /cup for multi-cup now).
+    # Must use the configured default cup def so era scoping matches GET /cup.
+    cup_state = compute_cup(s, cup=get_cup_def("default"))
     cup_owner_player_id = int(cup_state.owner_id) if cup_state and cup_state.owner_id is not None else None
 
     # Build per-player rows

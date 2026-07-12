@@ -69,9 +69,13 @@ def load_cup_defs() -> list[CupDef]:
             raise ValueError(f"cups config: cup name is required (key={key})")
 
         eras_raw = c.get("eras", []) or []
+        if not isinstance(eras_raw, list):
+            raise ValueError(f"cups config: 'eras' must be a list of objects (key={key})")
         eras: list[CupEra] = []
         seen_since: set[date] = set()
         for e in eras_raw:
+            if not isinstance(e, dict):
+                raise ValueError(f"cups config: era entries must be objects with 'since'/'mode' (key={key})")
             since_e = e.get("since", None)
             if since_e in (None, ""):
                 raise ValueError(f"cups config: era 'since' is required (key={key})")

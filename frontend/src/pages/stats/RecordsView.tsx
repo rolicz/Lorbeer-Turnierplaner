@@ -172,7 +172,8 @@ export default function RecordsView({
       .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : b.id - a.id));
     const byPlayer = new Map<number, { count: number; latest: StatsTournamentLite | null }>();
     for (const t of chrono) {
-      if (t.winner_player_id == null) continue;
+      // Only finished tournaments have a winner (backend also guards this).
+      if (t.status !== "done" || t.winner_player_id == null) continue;
       const cur = byPlayer.get(t.winner_player_id) ?? { count: 0, latest: null };
       cur.count += 1;
       if (!cur.latest) cur.latest = t;
