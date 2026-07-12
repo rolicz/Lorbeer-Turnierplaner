@@ -28,10 +28,13 @@ def require_self_or_admin(
     """Permit acting as ``subject_player_id`` only when the caller IS that player or an admin.
 
     With ``allow_missing=True`` a ``None`` subject is allowed (e.g. an unattributed / "General"
-    author). Raises 403 with ``message`` otherwise.
+    author). Raises 403 with ``message`` otherwise (including when the subject is ``None`` and
+    ``allow_missing`` is False, rather than letting ``int(None)`` raise a 500).
     """
-    if allow_missing and subject_player_id is None:
-        return
+    if subject_player_id is None:
+        if allow_missing:
+            return
+        forbidden(message)
     is_admin = str(claims.get("role") or "") == "admin"
     if int(subject_player_id) != int(claims.get("player_id")) and not is_admin:
         forbidden(message)
