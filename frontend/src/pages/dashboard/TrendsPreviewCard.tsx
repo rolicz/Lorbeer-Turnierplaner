@@ -215,12 +215,20 @@ export default function TrendsPreviewCard() {
     const tournamentTitles = tournaments.map((t) => t.name);
 
     let maxCum = 0;
+    const tidSet = new Set(tids);
     const series = players.map((p) => {
       const pp = perPlayer.get(p.player_id);
       const tPoints = pp?.tPoints ?? new Map<number, number>();
       const tForm = pp?.tForm ?? new Map<number, number>();
       const tPlayed = pp?.tPlayed ?? new Set<number>();
+      // All-time cumulative values on a windowed x-axis: seed the running sum with
+      // every tournament OUTSIDE the plotted window (they are all older than it), so
+      // the right edge equals the player's all-time total from the stats table.
       let cum = 0;
+      if (view === "total") {
+        for (const [tid, ptsV] of tPoints) if (!tidSet.has(tid)) cum += ptsV;
+        maxCum = Math.max(maxCum, cum);
+      }
       let lastForm = 0;
       let sawAny = false;
       const c = colorOf(p.player_id);
@@ -257,10 +265,10 @@ export default function TrendsPreviewCard() {
     }
 
     const yMax = Math.max(1, Math.ceil(maxCum / 10) * 10);
-    // Points are accumulated only within the dashboard's recent window — say so,
-    // otherwise the number reads like the all-time total from the stats table.
-    return { title: `Trends (Points, last ${windowMonths} months)`, yMax, yTicks: [0, Math.floor(yMax / 2), yMax], ySuffix: "", series, tournamentTs, tournamentTitles };
-  }, [formN, perPlayer, players, tids, tournaments, view, colorOf, windowMonths]);
+    // Values are all-time cumulative totals (they match the stats table); only the
+    // x-axis is limited to the recent window.
+    return { title: "Trends (Total Points)", yMax, yTicks: [0, Math.floor(yMax / 2), yMax], ySuffix: "", series, tournamentTs, tournamentTitles };
+  }, [formN, perPlayer, players, tids, tournaments, view, colorOf]);
 
   const matchesLoading = matchesQs.some((q) => q.isLoading);
   const matchesError = matchesQs.find((q) => q.error)?.error;
