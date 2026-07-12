@@ -257,8 +257,10 @@ export default function TrendsPreviewCard() {
     }
 
     const yMax = Math.max(1, Math.ceil(maxCum / 10) * 10);
-    return { title: "Trends (Total Points)", yMax, yTicks: [0, Math.floor(yMax / 2), yMax], ySuffix: "", series, tournamentTs, tournamentTitles };
-  }, [formN, perPlayer, players, tids, tournaments, view, colorOf]);
+    // Points are accumulated only within the dashboard's recent window — say so,
+    // otherwise the number reads like the all-time total from the stats table.
+    return { title: `Trends (Points, last ${windowMonths} months)`, yMax, yTicks: [0, Math.floor(yMax / 2), yMax], ySuffix: "", series, tournamentTs, tournamentTitles };
+  }, [formN, perPlayer, players, tids, tournaments, view, colorOf, windowMonths]);
 
   const matchesLoading = matchesQs.some((q) => q.isLoading);
   const matchesError = matchesQs.find((q) => q.error)?.error;
