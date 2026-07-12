@@ -20,6 +20,8 @@ export type CommentGoalPlayerOption = {
 
 export type CommentGoalSide = "A" | "B";
 
+const shotsOptions = Array.from({ length: 51 }, (_, i) => i);
+
 export type CommentGoalTeamOption = {
   side: CommentGoalSide;
   label: string;
@@ -142,28 +144,38 @@ export default function CommentCreateComposer({
 
       {mode === "shots" && allowMatchEventModes ? (
         <div className="grid gap-2 md:grid-cols-2">
-          <Input
-            label={`Shots — ${goalTeams.find((t) => t.side === "A")?.label ?? "Team A"}`}
-            type="number"
-            inputMode="numeric"
-            min={0}
-            max={999}
-            step={1}
-            value={shotsA}
-            onChange={(event) => onShotsAChange(event.target.value)}
-            disabled={disabled}
-          />
-          <Input
-            label={`Shots — ${goalTeams.find((t) => t.side === "B")?.label ?? "Team B"}`}
-            type="number"
-            inputMode="numeric"
-            min={0}
-            max={999}
-            step={1}
-            value={shotsB}
-            onChange={(event) => onShotsBChange(event.target.value)}
-            disabled={disabled}
-          />
+          <label className="block">
+            <FormLabel>{`Shots — ${goalTeams.find((t) => t.side === "A")?.label ?? "Team A"}`}</FormLabel>
+            <select
+              className="select-field w-full"
+              value={shotsA}
+              onChange={(event) => onShotsAChange(event.target.value)}
+              disabled={disabled}
+            >
+              <option value="">–</option>
+              {shotsOptions.map((n) => (
+                <option key={n} value={String(n)}>
+                  {n}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="block">
+            <FormLabel>{`Shots — ${goalTeams.find((t) => t.side === "B")?.label ?? "Team B"}`}</FormLabel>
+            <select
+              className="select-field w-full"
+              value={shotsB}
+              onChange={(event) => onShotsBChange(event.target.value)}
+              disabled={disabled}
+            >
+              <option value="">–</option>
+              {shotsOptions.map((n) => (
+                <option key={n} value={String(n)}>
+                  {n}
+                </option>
+              ))}
+            </select>
+          </label>
         </div>
       ) : null}
 

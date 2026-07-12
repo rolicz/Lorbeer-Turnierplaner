@@ -109,7 +109,7 @@ suppressed for tied tournaments; `npm run check` green.
   concept — the spec's "×N tie badge" pattern is per-record-value, and a leaderboard has
   one shared header, so it's applied to the top rank.
 
-## T3 — Shots entry: native wheel picker  ☐
+## T3 — Shots entry: native wheel picker  ☑
 
 - `frontend/src/pages/live/CommentCreateComposer.tsx:143-168`: replace the two
   `Input type="number"` fields (Team A / Team B shots) with native `<select>` elements
