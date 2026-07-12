@@ -8,6 +8,17 @@ export type RouteMeta = {
   backTo: string | null;
 };
 
+/**
+ * Whether the browser history actually has entries behind the current one.
+ * `window.history.state.idx` is the index React Router's HTML5 history stack
+ * maintains; a fresh/replaced location can still get a non-"default" router
+ * key while `idx` stays 0, so this is the reliable signal to pop vs. fall back.
+ */
+export function historyCanPop(): boolean {
+  const idx = Number((window.history.state as { idx?: number } | null)?.idx ?? 0);
+  return idx > 0;
+}
+
 /** Classify a pathname as a top-level destination or a detail/sub page. */
 export function routeMeta(pathname: string): RouteMeta {
   const match = pathname.match(/^\/live\/([^/]+)\/match\/[^/]+\/?$/);
@@ -25,13 +36,11 @@ export function useContextualBack() {
   const loc = useLocation();
   const nav = useNavigate();
   const meta = routeMeta(loc.pathname);
-  // React Router gives the very first history entry the key "default".
-  const canPop = loc.key !== "default";
 
   const goBack = useCallback(() => {
-    if (canPop) nav(-1);
+    if (historyCanPop()) nav(-1);
     else nav(meta.backTo ?? "/dashboard");
-  }, [canPop, nav, meta.backTo]);
+  }, [nav, meta.backTo]);
 
   return { isDetail: meta.isDetail, backTo: meta.backTo, goBack };
 }

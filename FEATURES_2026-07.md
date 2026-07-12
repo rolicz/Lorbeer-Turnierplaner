@@ -124,7 +124,7 @@ suppressed for tied tournaments; `npm run check` green.
 
 **DoD:** shots mode shows two selects; posting shots works; `npm run check` green.
 
-## T4 — iOS standalone PWA: dead back button  ☐
+## T4 — iOS standalone PWA: dead back button  ☑
 
 Root cause (verified): `useContextualBack`'s `canPop = loc.key !== "default"`
 (`frontend/src/ui/shell/routeMeta.ts:29`) is falsified by the PWA resume feature —

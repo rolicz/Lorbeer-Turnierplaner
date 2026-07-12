@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { historyCanPop } from "./routeMeta";
 
 /**
  * Global edge-agnostic swipe navigation:
@@ -86,8 +87,7 @@ export function useSwipeNav(enabled = true) {
       if (nowTs - lastNavAt < 700) return; // ignore a second nav within the debounce window
       lastNavAt = nowTs;
       if (dir > 0) {
-        const idx = Number((window.history.state as { idx?: number } | null)?.idx ?? 0);
-        if (idx > 0) nav(-1);
+        if (historyCanPop()) nav(-1);
       } else {
         nav(1);
       }
