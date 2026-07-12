@@ -314,8 +314,9 @@ from a date on, a cup only counts tournaments of a given mode. Generic, config-o
 
 **Config rollout:**
 - Update `backend/app/cups.json` (dev default) with the eras above for both cups:
-  `default`/Lorbeerkranz → `[{"since": "2026-07-12", "mode": "2v2"}]`,
-  `bauernkranz` → `[{"since": "2026-07-12", "mode": "1v1"}]`.
+  `default`/Lorbeerkranz → `[{"since": "2026-07-11", "mode": "2v2"}]`,
+  `bauernkranz` → `[{"since": "2026-07-11", "mode": "1v1"}]` (superseded by T10, which moved
+  the boundary from 2026-07-12 to 2026-07-11).
 - Update README's cups section (schema, semantics, example).
 - NOTE for deployment (user action): production reads `CUPS_CONFIG_PATH=/data/cups.json`
   on the server — that file must be updated by hand with the same eras when deploying.
@@ -439,7 +440,7 @@ tapping a Best-duos row (`H2HView.tsx:52,139-143,236`; `selectedDuo` resolves on
 - **DoD:** any two players selectable in ≤2 taps; leaderboard tap and picker stay in
   sync; unplayed duos render gracefully; `npm run check` green.
 
-## T10 — Cup era boundary: 2026-07-11  ☐
+## T10 — Cup era boundary: 2026-07-11  ☑
 
 Verified against the real data: the deciding tournament (`4. Lorbeerkranzturnier`, 2v2)
 is dated 2026-07-11, so the configured boundary 2026-07-12 wrongly let it transfer the
@@ -454,6 +455,12 @@ running `compute_cup` against the dev DB with both dates).
 - **DoD:** dev `/cup?key=bauernkranz` owner is Roli, `/cup?key=default` owner is Berni
   (assert manually via curl or a quick script against the dev DB). REMINDER recorded for
   deploy: update `/data/cups.json` on the server with `2026-07-11`.
+
+**Deviations:** none — config-only change as specified. Re-verified DoD directly against
+`backend/app.db` via a one-off `compute_cup(...)` script (not curl, since the dev server
+wasn't running): `cup=default` → owner `Berni` (streak since `4. Lorbeerkranzturnier`,
+2026-07-11); `cup=bauernkranz` → owner `Roli` (streak since `5. Bauernkranzturnier`,
+2026-06-09). Matches spec exactly.
 
 ## T11 — Unify current-match card surface (darker variant)  ☐
 

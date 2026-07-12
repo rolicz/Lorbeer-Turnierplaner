@@ -157,13 +157,13 @@ Format (`since_date` and `eras` are optional, ISO `YYYY-MM-DD`):
       "key": "default",
       "name": "Lorbeerkranz",
       "since_date": null,
-      "eras": [{ "since": "2026-07-12", "mode": "2v2" }]
+      "eras": [{ "since": "2026-07-11", "mode": "2v2" }]
     },
     {
       "key": "bauernkranz",
       "name": "Bauernkranz",
       "since_date": "2026-01-05",
-      "eras": [{ "since": "2026-07-12", "mode": "1v1" }]
+      "eras": [{ "since": "2026-07-11", "mode": "1v1" }]
     }
   ]
 }
