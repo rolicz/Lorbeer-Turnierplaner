@@ -398,7 +398,7 @@ duo-filtered backend query if ever needed.
 
 # Round 2 — user feedback 2026-07-12 (T8–T11)
 
-## T8 — Positions: pill placement + tournament count line  ☐
+## T8 — Positions: pill placement + tournament count line  ☑
 
 - `frontend/src/pages/stats/PositionsView.tsx:165-194`: the mode/no-winner pills currently
   sit in a side column next to the 2-line-clamped tournament name and collide with it in
@@ -415,6 +415,13 @@ duo-filtered backend query if ever needed.
   filter is overall, so react-query dedupes it) and count `tournaments` by `mode`.
 - **DoD:** no overlap at 375px; counts correct and stable across mode filters;
   `npm run check` green.
+
+**Deviations:** none — implemented as specified. No headless browser was available in
+this environment to grab an actual screenshot; verified the layout by reasoning about the
+rendered DOM/CSS instead (fixed `nameW` grid column lives inside `overflow-x-auto`, so the
+375px viewport only affects horizontal scroll, not column width; `flex-col` header cell
+with `min-w-0 truncate` on the name `Link` and a `flex items-center gap-1` meta row for the
+pills, centered via `justify-center` within the fixed `cellH`).
 
 ## T9 — H2H Duos: explicit duo picker  ☐
 

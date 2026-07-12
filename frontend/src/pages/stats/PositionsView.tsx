@@ -19,6 +19,20 @@ export default function PositionsView({ mode }: { mode: StatsMode }) {
     queryFn: () => getStatsPlayers({ mode }),
     placeholderData: keepPreviousData, staleTime: 30_000,
   });
+  // Always-overall counts for the "N tournaments · N× 1v1 · N× 2v2" line — independent of
+  // the active Mode filter. Keyed identically to the main query when mode is already
+  // "overall" so react-query dedupes the request.
+  const overallQ = useQuery({
+    queryKey: qk.stats.players("overall", "positions"),
+    queryFn: () => getStatsPlayers({ mode: "overall" }),
+    placeholderData: keepPreviousData, staleTime: 30_000,
+  });
+  const modeCounts = useMemo(() => {
+    const ts = overallQ.data?.tournaments ?? [];
+    const counts = new Map<string, number>();
+    for (const t of ts) counts.set(t.mode, (counts.get(t.mode) ?? 0) + 1);
+    return { total: ts.length, byMode: counts };
+  }, [overallQ.data]);
   const { avatarUpdatedAtById } = usePlayerAvatarMap();
   const defsQ = useQuery({ queryKey: qk.cupDefs(), queryFn: listCupDefs });
   // Include the main (default-keyed, gold) cup too — it has its own lineage line.
@@ -128,6 +142,15 @@ export default function PositionsView({ mode }: { mode: StatsMode }) {
     <div>
       <div className="section-head"><span className="section-label">Tournament positions</span></div>
       <div className="mb-1.5 text-[11px] text-text-muted">Drag a player's icon to reorder the columns.</div>
+      {modeCounts.total > 0 ? (
+        <div className="mb-1.5 text-[11px] text-text-muted">
+          {modeCounts.total} tournament{modeCounts.total === 1 ? "" : "s"}
+          {["1v1", "2v2", ...Array.from(modeCounts.byMode.keys()).filter((m) => m !== "1v1" && m !== "2v2")]
+            .filter((m) => (modeCounts.byMode.get(m) ?? 0) > 0)
+            .map((m) => ` · ${modeCounts.byMode.get(m)}× ${m}`)
+            .join("")}
+        </div>
+      ) : null}
       <div className="overflow-x-auto" data-no-swipe-nav>
         <div className="relative" style={{ width: gridW }}>
           <div
@@ -162,17 +185,16 @@ export default function PositionsView({ mode }: { mode: StatsMode }) {
               const showModePill = mode === "overall";
               return (
               <Fragment key={t.id}>
-                <div style={{ height: cellH }} className="flex items-start gap-1 pr-1.5">
+                <div style={{ height: cellH }} className="flex flex-col justify-center gap-0.5 pr-1.5">
                   <Link
                     to={`/live/${t.id}`}
                     title={`${t.name}${showModePill ? ` · ${t.mode}` : ""}${noWinner ? " · kein eindeutiger Sieger" : ""} — open tournament`}
-                    className="block min-w-0 flex-1 text-xs leading-tight text-text-normal no-underline transition hover:text-accent"
-                    style={{ display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}
+                    className="block min-w-0 truncate text-xs leading-tight text-text-normal no-underline transition hover:text-accent"
                   >
                     {t.name}
                   </Link>
                   {showModePill || noWinner ? (
-                    <span className="flex shrink-0 flex-col items-end gap-0.5 pt-px">
+                    <span className="flex items-center gap-1">
                       {showModePill ? (
                         <span
                           className="rounded-full bg-bg-card-chip/60 px-1 text-[9px] leading-tight text-text-muted"
