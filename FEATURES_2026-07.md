@@ -423,7 +423,7 @@ rendered DOM/CSS instead (fixed `nameW` grid column lives inside `overflow-x-aut
 with `min-w-0 truncate` on the name `Link` and a `flex items-center gap-1` meta row for the
 pills, centered via `justify-center` within the fixed `cellH`).
 
-## T9 — H2H Duos: explicit duo picker  ☐
+## T9 — H2H Duos: explicit duo picker  ☑
 
 User feedback: duo selection is not intuitive — currently a duo can ONLY be selected by
 tapping a Best-duos row (`H2HView.tsx:52,139-143,236`; `selectedDuo` resolves only against
@@ -446,6 +446,17 @@ tapping a Best-duos row (`H2HView.tsx:52,139-143,236`; `selectedDuo` resolves on
   on a 375px viewport (compact avatar sizes like the existing PlayerPicker).
 - **DoD:** any two players selectable in ≤2 taps; leaderboard tap and picker stay in
   sync; unplayed duos render gracefully; `npm run check` green.
+
+**Deviations:** none of substance. New `h2h/DuoPicker.tsx` component (reuses
+`AvatarButton` + `usePlayerAvatarMap`, compact `h-9` avatars, horizontal-scroll row with a
+`shrink-0` clear `×` button and a "Pick two players." hint). Changed `H2HView` state
+`selectedDuoIds` from `[number, number] | null` to an ordered `number[]` (0–2, insertion
+order) to drive the toggle/replace-oldest logic; the leaderboard `onSelect` still sets both
+ids so the two directions stay in sync via `selectedIds.includes`. `selectedDuo` now
+synthesizes a zeroed `StatsH2HDuo` (0-0-0, names from `nameById`) when the pair has no
+`best_teammates_2v2` entry, with a subtle "No 2v2 matches together yet." note above
+`DuoDetail`. No headless browser in this environment; 375px layout verified by reasoning
+about the DOM/CSS (avatar row `min-w-0 flex-1 overflow-x-auto`, clear button `shrink-0`).
 
 ## T10 — Cup era boundary: 2026-07-11  ☑
 

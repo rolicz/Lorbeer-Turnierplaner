@@ -15,6 +15,7 @@ import { MatchHistoryList } from "./MatchHistoryList";
 import { DuoRow } from "./HeadToHeadRows";
 import { duoKey } from "./h2hHelpers";
 import { DuoLeaderboard } from "./h2h/DuoLeaderboard";
+import { DuoPicker } from "./h2h/DuoPicker";
 import { DuoRivalries } from "./h2h/DuoRivalries";
 import { DuoDetail } from "./h2h/DuoDetail";
 import type { Row } from "./standings";
@@ -49,7 +50,8 @@ export default function H2HView({ mode, scope, rows, myId }: { mode: StatsMode; 
   const [selected, setSelected] = useState<number | null>(defaultSelected);
   const [matrixMetric, setMatrixMetric] = useState<"winrate" | "played" | "gd" | "wdl" | "ppm" | "rivalry">("winrate");
   const [subView, setSubView] = useState<"players" | "duos">("duos");
-  const [selectedDuoIds, setSelectedDuoIds] = useState<[number, number] | null>(null);
+  // Ordered (insertion order) so a third tap can replace the OLDEST selection; 0–2 entries.
+  const [selectedDuoIds, setSelectedDuoIds] = useState<number[]>([]);
   const [historyModal, setHistoryModal] = useState<HistoryModalState | null>(null);
   const [historyDetails, setHistoryDetails] = useState(false);
   const nameById = useMemo(() => new Map(rows.map((r) => [r.id, r.name])), [rows]);
@@ -136,12 +138,27 @@ export default function H2HView({ mode, scope, rows, myId }: { mode: StatsMode; 
   const teamRivalries: StatsH2HTeamRivalry[] = q.data?.team_rivalries_2v2 ?? [];
   const synergyDuos: StatsH2HDuo[] = selected != null ? (detailQ.data?.with_2v2 ?? []) : bestDuos;
 
+  // A duo needs exactly two players. Look up their real 2v2 record; if they've never
+  // played together, synthesize a zeroed duo so DuoDetail still renders gracefully.
   const selectedDuo: StatsH2HDuo | null = useMemo(() => {
-    if (!selectedDuoIds) return null;
+    if (selectedDuoIds.length !== 2) return null;
     const [a, b] = selectedDuoIds;
-    return bestDuos.find((d) => (d.p1.id === a && d.p2.id === b) || (d.p1.id === b && d.p2.id === a)) ?? null;
-  }, [selectedDuoIds, bestDuos]);
-  const selectedDuoKey = selectedDuoIds ? duoKey(selectedDuoIds[0], selectedDuoIds[1]) : null;
+    const found = bestDuos.find((d) => (d.p1.id === a && d.p2.id === b) || (d.p1.id === b && d.p2.id === a));
+    if (found) return found;
+    return {
+      p1: { id: a, display_name: nameById.get(a) ?? String(a) },
+      p2: { id: b, display_name: nameById.get(b) ?? String(b) },
+      played: 0, wins: 0, draws: 0, losses: 0, gf: 0, ga: 0, gd: 0, pts: 0, pts_per_match: 0, win_rate: 0,
+    };
+  }, [selectedDuoIds, bestDuos, nameById]);
+  const selectedDuoUnplayed = selectedDuo != null && selectedDuo.played === 0;
+  const selectedDuoKey = selectedDuoIds.length === 2 ? duoKey(selectedDuoIds[0], selectedDuoIds[1]) : null;
+
+  // Picker: tapping toggles a player in/out; a third tap replaces the oldest of two.
+  const toggleDuoPlayer = (id: number) =>
+    setSelectedDuoIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : prev.length < 2 ? [...prev, id] : [prev[1], id],
+    );
 
   // Match-history modal (shared by the duo blocks).
   const clubsQ = useQuery({
@@ -231,6 +248,16 @@ export default function H2HView({ mode, scope, rows, myId }: { mode: StatsMode; 
         />
 
         <div className="space-y-2">
+          <div className="section-head"><span className="section-label">Pick a duo</span></div>
+          <DuoPicker
+            players={rows.map((r) => ({ id: r.id, name: r.name }))}
+            selectedIds={selectedDuoIds}
+            onToggle={toggleDuoPlayer}
+            onClear={() => setSelectedDuoIds([])}
+          />
+        </div>
+
+        <div className="space-y-2">
           <div className="section-head"><span className="section-label">Best duos</span></div>
           <p className="text-[11px] text-text-muted">Strongest pairings across 2v2 matches — tap a duo for detail.</p>
           <DuoLeaderboard duos={bestDuos} selectedKey={selectedDuoKey} onSelect={(d) => setSelectedDuoIds([d.p1.id, d.p2.id])} />
@@ -239,6 +266,9 @@ export default function H2HView({ mode, scope, rows, myId }: { mode: StatsMode; 
         {selectedDuo ? (
           <div className="space-y-2">
             <div className="section-head"><span className="section-label">Duo detail</span></div>
+            {selectedDuoUnplayed ? (
+              <p className="text-[11px] text-text-muted">No 2v2 matches together yet.</p>
+            ) : null}
             <DuoDetail duo={selectedDuo} rivalries={teamRivalries} onOpenTeammates={openDuoTeammates} onOpenMatchup={openTeamRivalry} />
           </div>
         ) : null}
