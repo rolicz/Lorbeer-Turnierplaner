@@ -1,16 +1,25 @@
-/** H2H tab — full matrix, per-player detail, teammate synergy and rivalries. */
+/** H2H tab — full matrix, per-player detail, teammate synergy and rivalries.
+ *  In 2v2 mode a Players | Duos sub-nav exposes the backend's real duo stats
+ *  (best_teammates_2v2 / team_rivalries_2v2) instead of a client-side recompute. */
 import { useMemo, useState } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 
 import InlineLoading from "../../ui/primitives/InlineLoading";
-import { getStatsH2H, getStatsPlayerMatches } from "../../api/stats.api";
+import Modal from "../../ui/primitives/Modal";
+import { getStatsH2H, getStatsH2HMatches, type StatsH2HMatchesRequest } from "../../api/stats.api";
+import { listClubs } from "../../api/clubs.api";
 import { qk } from "../../api/queryKeys";
 import { ChipGroup } from "./charts";
 import { PlayerPicker } from "./PlayerPicker";
+import { MatchHistoryList } from "./MatchHistoryList";
+import { DuoRow } from "./HeadToHeadRows";
+import { duoKey } from "./h2hHelpers";
+import { DuoLeaderboard } from "./h2h/DuoLeaderboard";
+import { DuoRivalries } from "./h2h/DuoRivalries";
+import { DuoDetail } from "./h2h/DuoDetail";
 import type { Row } from "./standings";
-import { matchStats } from "./standings";
 import type { StatsMode } from "./StatsControls";
-import type { StatsScope, StatsH2HPair, StatsH2HOpponentRow, StatsPlayerMatchesTournament } from "../../api/types";
+import type { StatsScope, StatsH2HPair, StatsH2HOpponentRow, StatsH2HDuo, StatsH2HTeamRivalry } from "../../api/types";
 
 function h2hTone(pct: number): string {
   const t = Math.max(0, Math.min(1, pct / 100));
@@ -28,6 +37,8 @@ function h2hDiverging(gd: number, maxAbs: number): string {
   return `hsl(0 55% ${46 + t * 18}% / ${0.55 - t * 0.3})`;
 }
 
+type HistoryModalState = { title: string; req: StatsH2HMatchesRequest; focusPlayerId: number | null };
+
 export default function H2HView({ mode, scope, rows, myId }: { mode: StatsMode; scope: StatsScope; rows: Row[]; myId?: number | null }) {
   const q = useQuery({
     queryKey: qk.stats.h2h("all", 200, "rivalry", scope),
@@ -37,7 +48,14 @@ export default function H2HView({ mode, scope, rows, myId }: { mode: StatsMode; 
   const defaultSelected = (myId != null && rows.some((r) => r.id === myId)) ? myId : (rows[0]?.id ?? null);
   const [selected, setSelected] = useState<number | null>(defaultSelected);
   const [matrixMetric, setMatrixMetric] = useState<"winrate" | "played" | "gd" | "wdl" | "ppm" | "rivalry">("winrate");
+  const [subView, setSubView] = useState<"players" | "duos">("duos");
+  const [selectedDuoIds, setSelectedDuoIds] = useState<[number, number] | null>(null);
+  const [historyModal, setHistoryModal] = useState<HistoryModalState | null>(null);
+  const [historyDetails, setHistoryDetails] = useState(false);
   const nameById = useMemo(() => new Map(rows.map((r) => [r.id, r.name])), [rows]);
+
+  // Duos sub-view is only meaningful in 2v2; other modes always show the players view.
+  const effectiveSubView: "players" | "duos" = mode === "2v2" ? subView : "players";
 
   const pairs: StatsH2HPair[] = useMemo(() => {
     const d = q.data;
@@ -112,51 +130,146 @@ export default function H2HView({ mode, scope, rows, myId }: { mode: StatsMode; 
   const favorite = mode === "1v1" ? detailQ.data?.favorite_victim_1v1 : mode === "2v2" ? detailQ.data?.favorite_victim_2v2 : detailQ.data?.favorite_victim_all;
   const selName = selected != null ? nameById.get(selected) ?? "" : "";
 
-  // 2v2 teammate synergy — how the selected player does *with* each partner.
-  const teammateQ = useQuery({
-    queryKey: qk.stats.playerMatches(selected ?? 0, scope),
-    queryFn: () => getStatsPlayerMatches({ playerId: selected as number, scope }),
-    enabled: mode === "2v2" && selected != null,
+  // 2v2 teammate synergy — real duo stats from the backend (with_2v2 when a player is
+  // selected, else best_teammates_2v2). No more client-side recomputation.
+  const bestDuos: StatsH2HDuo[] = useMemo(() => q.data?.best_teammates_2v2 ?? [], [q.data]);
+  const teamRivalries: StatsH2HTeamRivalry[] = q.data?.team_rivalries_2v2 ?? [];
+  const synergyDuos: StatsH2HDuo[] = selected != null ? (detailQ.data?.with_2v2 ?? []) : bestDuos;
+
+  const selectedDuo: StatsH2HDuo | null = useMemo(() => {
+    if (!selectedDuoIds) return null;
+    const [a, b] = selectedDuoIds;
+    return bestDuos.find((d) => (d.p1.id === a && d.p2.id === b) || (d.p1.id === b && d.p2.id === a)) ?? null;
+  }, [selectedDuoIds, bestDuos]);
+  const selectedDuoKey = selectedDuoIds ? duoKey(selectedDuoIds[0], selectedDuoIds[1]) : null;
+
+  // Match-history modal (shared by the duo blocks).
+  const clubsQ = useQuery({
+    queryKey: qk.clubs(),
+    queryFn: () => listClubs(),
+    enabled: !!historyModal,
+    staleTime: 5 * 60_000,
+  });
+  const historyQ = useQuery({
+    queryKey: qk.stats.h2hMatches(
+      historyModal?.req.mode ?? "overall",
+      historyModal?.req.relation ?? "opposed",
+      (historyModal?.req.left_player_ids ?? []).join("-"),
+      (historyModal?.req.right_player_ids ?? []).join("-"),
+      historyModal?.req.exact_teams ? "exact" : "subset",
+      historyModal?.req.scope ?? "tournaments",
+    ),
+    queryFn: () => getStatsH2HMatches(historyModal!.req),
+    enabled: !!historyModal,
     placeholderData: keepPreviousData, staleTime: 30_000,
   });
-  const teammates = useMemo(() => {
-    if (mode !== "2v2" || selected == null) return [];
-    const data = teammateQ.data as { tournaments: StatsPlayerMatchesTournament[] } | undefined;
-    type TM = { id: number; name: string; played: number; w: number; d: number; l: number; gf: number; ga: number; pts: number };
-    const acc = new Map<number, TM>();
-    for (const t of data?.tournaments ?? []) {
-      if (t.mode !== "2v2") continue;
-      for (const m of t.matches) {
-        if (m.state !== "finished") continue;
-        const sideA = m.sides.find((s) => s.side === "A");
-        const sideB = m.sides.find((s) => s.side === "B");
-        const mySide = (sideA?.players ?? []).some((p) => p.id === selected) ? sideA
-          : (sideB?.players ?? []).some((p) => p.id === selected) ? sideB : null;
-        if (!mySide) continue;
-        const st = matchStats(m, selected);
-        if (!st) continue;
-        for (const partner of (mySide.players ?? []).filter((p) => p.id !== selected)) {
-          const e = acc.get(partner.id) ?? { id: partner.id, name: partner.display_name, played: 0, w: 0, d: 0, l: 0, gf: 0, ga: 0, pts: 0 };
-          e.played++; e.gf += st.gf; e.ga += st.ga; e.pts += st.pts;
-          if (st.res === "W") e.w++; else if (st.res === "D") e.d++; else e.l++;
-          acc.set(partner.id, e);
-        }
-      }
-    }
-    return Array.from(acc.values()).sort(
-      (a, b) => b.pts / Math.max(1, b.played) - a.pts / Math.max(1, a.played) || b.played - a.played,
-    );
-  }, [teammateQ.data, mode, selected]);
-  const bestPartner = teammates.length >= 2 ? teammates[0] : null;
-  const worstPartner = teammates.length >= 2 ? teammates[teammates.length - 1] : null;
+
+  const openDuoTeammates = (d: StatsH2HDuo) =>
+    setHistoryModal({
+      title: `${d.p1.display_name} / ${d.p2.display_name}`,
+      req: { mode, relation: "teammates", left_player_ids: [d.p1.id, d.p2.id], right_player_ids: [], scope },
+      focusPlayerId: null,
+    });
+  const openTeamRivalry = (r: StatsH2HTeamRivalry) =>
+    setHistoryModal({
+      title: `${r.team1.map((p) => p.display_name).join("/")} vs ${r.team2.map((p) => p.display_name).join("/")}`,
+      req: { mode, relation: "opposed", left_player_ids: r.team1.map((p) => p.id), right_player_ids: r.team2.map((p) => p.id), exact_teams: true, scope },
+      focusPlayerId: r.team1[0]?.id ?? null,
+    });
 
   if (q.isLoading && !q.data) return <InlineLoading label="Loading…" />;
 
+  const matches = (
+    <Modal
+      open={historyModal !== null}
+      title={historyModal?.title ?? ""}
+      subtitle="Match history"
+      onClose={() => setHistoryModal(null)}
+      fullScreenOnMobile
+      maxWidth="max-w-4xl"
+      scrollBody
+      className="max-h-[88vh] overflow-hidden"
+    >
+      {historyModal !== null && (
+        <>
+          <div className="mb-3 shrink-0">
+            <ChipGroup<"compact" | "details">
+              value={historyDetails ? "details" : "compact"}
+              onChange={(v) => setHistoryDetails(v === "details")}
+              ariaLabel="History details"
+              options={[{ key: "compact", label: "Compact" }, { key: "details", label: "Details" }]}
+            />
+          </div>
+          <div className="flex-1 min-h-0 overflow-y-auto pr-1">
+            {historyQ.isLoading ? <InlineLoading label="Loading…" /> : null}
+            {!historyQ.isLoading && !(historyQ.data?.tournaments?.length ?? 0) ? (
+              <div className="text-sm text-text-muted">No matches found for this matchup.</div>
+            ) : null}
+            {historyQ.data?.tournaments?.length ? (
+              <MatchHistoryList
+                tournaments={historyQ.data.tournaments}
+                focusId={historyModal.focusPlayerId}
+                clubs={clubsQ.data ?? []}
+                showMeta={historyDetails}
+              />
+            ) : null}
+          </div>
+        </>
+      )}
+    </Modal>
+  );
+
+  // ── Duos sub-view (2v2 only) ────────────────────────────────────────────────
+  if (effectiveSubView === "duos") {
+    return (
+      <div className="space-y-5">
+        <ChipGroup<"players" | "duos">
+          value={subView}
+          onChange={setSubView}
+          ariaLabel="Head-to-head sub-view"
+          options={[{ key: "players", label: "Players" }, { key: "duos", label: "Duos" }]}
+        />
+
+        <div className="space-y-2">
+          <div className="section-head"><span className="section-label">Best duos</span></div>
+          <p className="text-[11px] text-text-muted">Strongest pairings across 2v2 matches — tap a duo for detail.</p>
+          <DuoLeaderboard duos={bestDuos} selectedKey={selectedDuoKey} onSelect={(d) => setSelectedDuoIds([d.p1.id, d.p2.id])} />
+        </div>
+
+        {selectedDuo ? (
+          <div className="space-y-2">
+            <div className="section-head"><span className="section-label">Duo detail</span></div>
+            <DuoDetail duo={selectedDuo} rivalries={teamRivalries} onOpenTeammates={openDuoTeammates} onOpenMatchup={openTeamRivalry} />
+          </div>
+        ) : null}
+
+        <div className="space-y-2">
+          <div className="section-head"><span className="section-label">Duo rivalries</span></div>
+          <p className="text-[11px] text-text-muted">Closest duo-vs-duo matchups — more games and a tighter balance score higher.</p>
+          <DuoRivalries rivalries={teamRivalries} onOpenMatches={openTeamRivalry} />
+        </div>
+
+        {matches}
+      </div>
+    );
+  }
+
+  // ── Players sub-view (default for 1v1 / overall, opt-in for 2v2) ─────────────
   return (
     <div className="space-y-5">
+      {mode === "2v2" ? (
+        <ChipGroup<"players" | "duos">
+          value={subView}
+          onChange={setSubView}
+          ariaLabel="Head-to-head sub-view"
+          options={[{ key: "players", label: "Players" }, { key: "duos", label: "Duos" }]}
+        />
+      ) : null}
+
       {/* Full-name square matrix */}
       <div>
         <div className="section-head"><span className="section-label">Matrix</span></div>
+        {mode === "2v2" ? <p className="mb-1 text-[11px] text-text-muted">Per player across 2v2 matches.</p> : null}
         <div className="mb-2 flex flex-wrap items-center gap-2">
           <ChipGroup<"winrate" | "played" | "gd" | "wdl" | "ppm" | "rivalry">
             value={matrixMetric}
@@ -257,38 +370,25 @@ export default function H2HView({ mode, scope, rows, myId }: { mode: StatsMode; 
         )}
       </div>
 
-      {/* Teammate synergy (2v2) */}
-      {mode === "2v2" && selected != null ? (
+      {/* Teammate synergy (2v2) — real duo stats from the backend. */}
+      {mode === "2v2" ? (
         <div className="space-y-2">
           <div className="section-head"><span className="section-label">Teammate synergy</span></div>
-          {teammateQ.isLoading && !teammateQ.data ? (
+          {selected != null && detailQ.isLoading && !detailQ.data ? (
             <InlineLoading label="Loading…" />
-          ) : teammates.length ? (
+          ) : synergyDuos.length ? (
             <>
-              <p className="text-[11px] text-text-muted">How {selName} performs with each partner (points per match as a duo).</p>
-              {bestPartner && worstPartner && bestPartner.id !== worstPartner.id ? (
-                <div className="grid grid-cols-2 gap-2 text-xs">
-                  <div className="card-chip px-3 py-2">
-                    <div className="inline-flex items-center gap-2 text-text-muted"><i className="fa-solid fa-handshake-angle" aria-hidden="true" /><span>Best partner</span></div>
-                    <div className="mt-0.5 font-semibold">{bestPartner.name}</div>
-                    <div className="mt-0.5 text-text-muted">{bestPartner.w}-{bestPartner.d}-{bestPartner.l} · {(bestPartner.pts / Math.max(1, bestPartner.played)).toFixed(2)} ppm</div>
-                  </div>
-                  <div className="card-chip px-3 py-2">
-                    <div className="inline-flex items-center gap-2 text-text-muted"><i className="fa-solid fa-user-slash" aria-hidden="true" /><span>Toughest pairing</span></div>
-                    <div className="mt-0.5 font-semibold">{worstPartner.name}</div>
-                    <div className="mt-0.5 text-text-muted">{worstPartner.w}-{worstPartner.d}-{worstPartner.l} · {(worstPartner.pts / Math.max(1, worstPartner.played)).toFixed(2)} ppm</div>
-                  </div>
-                </div>
-              ) : null}
-              <div className="list-divided">
-                {teammates.map((tm) => (
-                  <button key={tm.id} type="button" onClick={() => setSelected(tm.id)} className="row row-tap">
-                    <span className="min-w-0 flex-1 truncate text-sm text-text-normal">{tm.name}</span>
-                    <span className="shrink-0 font-mono text-[11px] tabular-nums text-text-muted">
-                      {tm.played}P · <span className="text-status-text-green">{tm.w}</span>-<span className="text-amber-300">{tm.d}</span>-<span className="text-[color:rgb(var(--delta-down)/1)]">{tm.l}</span>
-                    </span>
-                    <span className="w-14 shrink-0 text-right text-sm font-semibold tabular-nums text-accent">{(tm.pts / Math.max(1, tm.played)).toFixed(2)}</span>
-                  </button>
+              <p className="text-[11px] text-text-muted">
+                {selected != null ? <>How {selName} performs with each partner (points per match as a duo).</> : <>Strongest 2v2 pairings (points per match as a duo).</>}
+              </p>
+              <div className="space-y-2">
+                {synergyDuos.map((d) => (
+                  <DuoRow
+                    key={`syn-${duoKey(d.p1.id, d.p2.id)}`}
+                    r={d}
+                    focusPlayerId={selected}
+                    onOpenMatches={openDuoTeammates}
+                  />
                 ))}
               </div>
             </>
@@ -298,7 +398,7 @@ export default function H2HView({ mode, scope, rows, myId }: { mode: StatsMode; 
         </div>
       ) : null}
 
-      {/* Top rivalries */}
+      {/* Top rivalries (player-based in this sub-view) */}
       <div className="space-y-2">
         <div className="section-head"><span className="section-label">Top rivalries</span></div>
         <p className="text-[11px] text-text-muted">Most-played and closest matchups — a higher rivalry score means more games and a tighter win balance.</p>
@@ -319,6 +419,8 @@ export default function H2HView({ mode, scope, rows, myId }: { mode: StatsMode; 
         ))}
         {!topRivalries.length ? <div className="text-sm text-text-muted">No rivalries yet.</div> : null}
       </div>
+
+      {matches}
     </div>
   );
 }

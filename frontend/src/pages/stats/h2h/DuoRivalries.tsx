@@ -1,0 +1,32 @@
+/** Duo-vs-duo rivalries (2v2) — top `team_rivalries_2v2` rows by rivalry score. */
+import { useMemo } from "react";
+
+import type { StatsH2HTeamRivalry } from "../../../api/types";
+import { TeamRivalryRow } from "../HeadToHeadRows";
+
+export function DuoRivalries({
+  rivalries,
+  limit = 8,
+  onOpenMatches,
+}: {
+  rivalries: StatsH2HTeamRivalry[];
+  limit?: number;
+  onOpenMatches?: (r: StatsH2HTeamRivalry) => void;
+}) {
+  const top = useMemo(
+    () => rivalries.slice().sort((a, b) => b.rivalry_score - a.rivalry_score).slice(0, limit),
+    [rivalries, limit],
+  );
+  if (!top.length) return <div className="text-sm text-text-muted">No duo rivalries yet.</div>;
+  return (
+    <div className="space-y-2">
+      {top.map((r) => (
+        <TeamRivalryRow
+          key={`${r.team1.map((p) => p.id).join("-")}-${r.team2.map((p) => p.id).join("-")}`}
+          r={r}
+          onOpenMatches={onOpenMatches ? () => onOpenMatches(r) : null}
+        />
+      ))}
+    </div>
+  );
+}

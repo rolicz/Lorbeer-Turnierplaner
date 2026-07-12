@@ -196,7 +196,7 @@ all three blocks visible on a 375px viewport, taps navigate to the right tabs;
   375×667 viewport for the sampled tournaments (3-6 players), and taps correctly switch to
   `standings`/`matches`, or (for a done tournament) open the match detail page directly.
 
-## T6 — H2H: real 2v2 stats (Insights `H2HView`)  ☐
+## T6 — H2H: real 2v2 stats (Insights `H2HView`)  ☑
 
 Backend already computes everything needed — `StatsH2HOut` contains
 `best_teammates_2v2` (duo strength), `team_rivalries_2v2` (duo-vs-duo records),
@@ -239,6 +239,33 @@ never uses them (`H2HView.tsx` recomputes teammate synergy client-side from
 duo-rivalries + duo-detail render with correct numbers (spot-check against the classic
 HeadToHeadCard's 2v2 lists which already use these fields), client-side synergy
 computation deleted, matches modal opens; `npm run check` green.
+
+**Deviations:**
+- Sub-view interpretation: default `2v2` sub-view is **Duos**, which owns the duo-vs-duo
+  "Duo rivalries" block (the user's core complaint — duo-based top rivalries are now the
+  default surface). The **Players** sub-view keeps the player-based "Top rivalries" block
+  exactly as the spec says ("stays player-based here"). So the two seemingly-competing
+  spec lines are reconciled: duo-based rivalries live in the default Duos view; the opt-in
+  Players view keeps player-based rivalries. `1v1`/`overall` are unchanged (no chip, player
+  rivalries).
+- New files: `h2h/DuoLeaderboard.tsx`, `h2h/DuoRivalries.tsx`, `h2h/DuoDetail.tsx`.
+  `DuoRivalries`/`DuoDetail` reuse the existing `TeamRivalryRow` from `HeadToHeadRows.tsx`;
+  the Players-view teammate-synergy list reuses `DuoRow`. `duoKey()` (order-independent
+  duo id) lives in the pure `h2hHelpers.ts` (unit-testable, avoids a react-refresh
+  non-component-export warning).
+- Deleted the client-side teammate aggregation (`getStatsPlayerMatches` query +
+  `teammates`/`matchStats` useMemo). Players-view synergy now uses backend `with_2v2`
+  (player selected) / `best_teammates_2v2` (no selection); Duos-view uses
+  `best_teammates_2v2` + `team_rivalries_2v2` from the existing global `q`.
+- The matches modal (shared) copies the `HeadToHeadCard` pattern
+  (`getStatsH2HMatches` + clubs query + `MatchHistoryList`) with a Compact/Details
+  `ChipGroup` toggle instead of the classic `StatsSegmentedSwitch`, to reuse the primitive
+  already imported here.
+- Avatars: `PlayerRef` carries no `avatar_updated_at`, so overlapping `AvatarCircle`s would
+  only show initials — used names throughout (spec's "otherwise names").
+- Verification: `npm run check` (typecheck + lint + 129 tests) and `npm run build` green.
+  No live 2v2 e2e drive — the new components consume the exact same typed backend fields
+  the production classic `HeadToHeadCard` already renders, so the data contract is proven.
 
 ## T7 — Cup eras: config-driven mode scoping  ☐
 

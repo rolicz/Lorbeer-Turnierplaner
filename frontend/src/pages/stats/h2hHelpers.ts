@@ -1,6 +1,11 @@
 /** Pure helpers for the Head-to-Head card (unit-tested). */
 import type { StatsH2HTeamRivalry } from "../../api/types";
 
+/** Stable key for a duo, order-independent (sorted player ids joined). */
+export function duoKey(a: number, b: number): string {
+  return [a, b].sort((x, y) => x - y).join("-");
+}
+
 /** Format a 0..1 ratio as a rounded percentage string (e.g. 0.5 -> "50%"). */
 export function pct(n: number): string {
   if (!Number.isFinite(n)) return "0%";
