@@ -157,17 +157,41 @@ export default function PositionsView({ mode }: { mode: StatsMode }) {
                 </div>
               );
             })}
-            {tournaments.map((t) => (
+            {tournaments.map((t) => {
+              const noWinner = t.status === "done" && t.winner_player_id == null;
+              const showModePill = mode === "overall";
+              return (
               <Fragment key={t.id}>
-                <div style={{ height: cellH }} className="flex items-center pr-1.5">
+                <div style={{ height: cellH }} className="flex items-start gap-1 pr-1.5">
                   <Link
                     to={`/live/${t.id}`}
-                    title={`${t.name} — open tournament`}
-                    className="block w-full text-xs leading-tight text-text-normal no-underline transition hover:text-accent"
+                    title={`${t.name}${showModePill ? ` · ${t.mode}` : ""}${noWinner ? " · kein eindeutiger Sieger" : ""} — open tournament`}
+                    className="block min-w-0 flex-1 text-xs leading-tight text-text-normal no-underline transition hover:text-accent"
                     style={{ display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}
                   >
                     {t.name}
                   </Link>
+                  {showModePill || noWinner ? (
+                    <span className="flex shrink-0 flex-col items-end gap-0.5 pt-px">
+                      {showModePill ? (
+                        <span
+                          className="rounded-full bg-bg-card-chip/60 px-1 text-[9px] leading-tight text-text-muted"
+                          title={`Mode: ${t.mode}`}
+                        >
+                          {t.mode}
+                        </span>
+                      ) : null}
+                      {noWinner ? (
+                        <span
+                          className="rounded-full bg-bg-card-chip/60 px-1 text-[9px] leading-tight text-text-muted"
+                          title="Kein eindeutiger Sieger"
+                          aria-label="Kein eindeutiger Sieger"
+                        >
+                          =
+                        </span>
+                      ) : null}
+                    </span>
+                  ) : null}
                 </div>
                 {orderedPlayers.map((p) => {
                   const pos = p.positions_by_tournament?.[String(t.id)];
@@ -176,16 +200,16 @@ export default function PositionsView({ mode }: { mode: StatsMode }) {
                   const total = t.players_count || 1;
                   const frac = total > 1 ? (pos - 1) / (total - 1) : 0;
                   const stakes = t.cup_stakes ?? [];
-                  const isWinner = pos === 1 && stakes.length > 0;
+                  const isWinner = pos === 1 && t.winner_player_id === p.player_id;
                   return (
                     <Link
                       key={p.player_id}
                       to={`/live/${t.id}`}
                       style={{ height: cellH, ["--pos-p"]: frac } as React.CSSProperties}
                       className="pos-tile relative grid place-items-center rounded border text-[11px] font-semibold tabular-nums no-underline transition hover:z-10 hover:ring-2 hover:ring-inset hover:ring-accent/70"
-                      title={`${p.display_name} · ${t.name}: ${fmtRank(pos, total)}${isWinner ? ` · won ${stakes.map((s) => s.name).join(", ")}` : ""} — open tournament`}
+                      title={`${p.display_name} · ${t.name}: ${fmtRank(pos, total)}${isWinner && stakes.length ? ` · won ${stakes.map((s) => s.name).join(", ")}` : ""}${pos === 1 && !isWinner ? " · kein eindeutiger Sieger" : ""} — open tournament`}
                     >
-                      {isWinner ? (
+                      {isWinner && stakes.length ? (
                         <span className="absolute right-0.5 top-0.5 inline-flex gap-px">
                           {stakes.map((s) => (
                             <i key={s.key} className="fa-solid fa-crown text-[8px]" style={{ color: cupColor(s.key) }} aria-hidden="true" />
@@ -197,7 +221,8 @@ export default function PositionsView({ mode }: { mode: StatsMode }) {
                   );
                 })}
               </Fragment>
-            ))}
+              );
+            })}
           </div>
           {laurelPolylines.length ? (
             <svg className="pointer-events-none absolute left-0 top-0" width={gridW} height={gridH} aria-hidden="true">

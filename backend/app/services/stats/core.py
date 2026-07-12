@@ -276,6 +276,28 @@ def unique_winner_player_id(standings_rows: list[dict]) -> int | None:
     return int(top["player_id"])
 
 
+def resolve_tournament_winner_player_id(
+    standings_rows: list[dict],
+    *,
+    decider_type: str,
+    decider_winner_player_id: int | None,
+    participant_ids: set[int],
+) -> int | None:
+    """Unique winner from standings, falling back to an explicit tournament decider.
+
+    Mirrors the winner-resolution logic used for cup ownership transfers
+    (see ``services/cup.py``): a tied top-of-table defers to the tournament's
+    decider, and any resolved winner must actually be a participant.
+    """
+    winner_id = unique_winner_player_id(standings_rows)
+    if winner_id is None:
+        if decider_type != "none" and decider_winner_player_id:
+            winner_id = int(decider_winner_player_id)
+    if winner_id not in participant_ids:
+        winner_id = None
+    return winner_id
+
+
 def compute_points_table_finished(matches: list[Match]) -> dict[int, tuple[int, int, int]]:
     """Per-player (points, goal_diff, goals_for) using ONLY finished matches."""
     pts: dict[int, int] = {}

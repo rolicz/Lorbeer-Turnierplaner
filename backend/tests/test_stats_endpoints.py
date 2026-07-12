@@ -92,6 +92,52 @@ def test_stats_players_includes_last_n_goal_arrays(client, editor_headers, admin
     assert rows[right]["lastN_ga"] == [4]
 
 
+def test_stats_players_mode_and_winner_player_id(client, editor_headers, admin_headers):
+    ids = [create_player(client, admin_headers, n) for n in ["W1", "W2", "W3"]]
+    tid = create_tournament(client, editor_headers, "stats-mode-winner", "1v1", ids)
+    generate(client, editor_headers, tid, randomize=False)
+
+    detail = client.get(f"/tournaments/{tid}")
+    assert detail.status_code == 200, detail.text
+    matches = detail.json()["matches"]
+
+    # Finish every match as a 0:0 draw -> tied top, no unique winner.
+    for match in matches:
+        r = client.patch(
+            f"/matches/{match['id']}",
+            json={"state": "finished", "sideA": {"goals": 0}, "sideB": {"goals": 0}},
+            headers=editor_headers,
+        )
+        assert r.status_code == 200, r.text
+
+    tied = client.get("/stats/players")
+    assert tied.status_code == 200, tied.text
+    by_id = {int(t["id"]): t for t in tied.json()["tournaments"]}
+    assert by_id[tid]["mode"] == "1v1"
+    assert by_id[tid]["winner_player_id"] is None
+
+    # Tournament is now "done" (all matches finished) -> editor may not set a decider,
+    # but admin can, at any time.
+    p1, p2 = ids[0], ids[1]
+    dec = client.patch(
+        f"/tournaments/{tid}/decider",
+        json={
+            "type": "penalties",
+            "winner_player_id": p1,
+            "loser_player_id": p2,
+            "winner_goals": 5,
+            "loser_goals": 3,
+        },
+        headers=admin_headers,
+    )
+    assert dec.status_code == 200, dec.text
+
+    decided = client.get("/stats/players")
+    assert decided.status_code == 200, decided.text
+    by_id2 = {int(t["id"]): t for t in decided.json()["tournaments"]}
+    assert by_id2[tid]["winner_player_id"] == p1
+
+
 def test_stats_h2h_empty(client):
     r = client.get("/stats/h2h")
     assert r.status_code == 200, r.text

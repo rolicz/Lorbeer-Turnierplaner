@@ -137,7 +137,14 @@ export default function TrendsPreviewCard() {
       const d = new Date(t.date ?? 0);
       return d >= startD && d <= endD;
     });
-    const lite: StatsTournamentLite[] = window.map((t) => ({ id: t.id, name: t.name, date: t.date, players_count: 0 }));
+    const lite: StatsTournamentLite[] = window.map((t) => ({
+      id: t.id,
+      name: t.name,
+      date: t.date,
+      mode: t.mode,
+      status: t.status,
+      players_count: 0,
+    }));
     return {
       tournaments: lite,
       tids: lite.map((t) => t.id),

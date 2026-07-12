@@ -106,6 +106,8 @@ export default function TrendsCard({
       id: t.id,
       name: t.name,
       date: t.date,
+      mode: t.mode,
+      status: t.status,
       players_count: 0,
     }));
     return { tournaments: lite, tids: lite.map((t) => t.id) };

@@ -2575,10 +2575,16 @@ export interface components {
              * Format: date
              */
             date: string;
+            /** Mode */
+            mode: string;
+            /** Status */
+            status: string;
             /** Players Count */
             players_count: number;
             /** Cup Stakes */
             cup_stakes: components["schemas"]["CupStakeOut"][];
+            /** Winner Player Id */
+            winner_player_id?: number | null;
         };
         /** StatsRatingsHistoryOut */
         StatsRatingsHistoryOut: {

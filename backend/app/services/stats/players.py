@@ -8,7 +8,12 @@ from sqlmodel import Session, select
 
 from ...models import Match, MatchSide, Player, Tournament
 from ...services.cup import compute_all_cup_tournament_stakes_by_tournament, compute_cup
-from .core import compute_overall_and_lastN, compute_player_standings, positions_from_standings
+from .core import (
+    compute_overall_and_lastN,
+    compute_player_standings,
+    positions_from_standings,
+    resolve_tournament_winner_player_id,
+)
 
 
 def _finished_matches_with_players(s: Session, *, mode: str) -> list[Match]:
@@ -83,13 +88,24 @@ def compute_stats_players(s: Session, *, mode: str, lastN: int) -> dict[str, Any
         pos_map = positions_from_standings(rows)
         positions_by_tid[tid] = pos_map
 
+        participant_ids = {int(p.id) for p in participants}
+        winner_player_id = resolve_tournament_winner_player_id(
+            rows,
+            decider_type=getattr(t, "decider_type", "none"),
+            decider_winner_player_id=getattr(t, "decider_winner_player_id", None),
+            participant_ids=participant_ids,
+        )
+
         tournaments_out.append(
             {
                 "id": tid,
                 "name": t.name,
                 "date": t.date,
+                "mode": t.mode,
+                "status": t.status,
                 "players_count": len(participants),
                 "cup_stakes": cup_stakes_by_tid.get(tid, []),
+                "winner_player_id": winner_player_id,
             }
         )
 

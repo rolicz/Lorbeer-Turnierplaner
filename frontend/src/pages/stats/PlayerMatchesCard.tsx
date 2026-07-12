@@ -333,6 +333,7 @@ export default function PlayerMatchesCard({
                   tournaments={tournamentTiles}
                   positionsByTournament={tournamentStatsRow?.positions_by_tournament ?? {}}
                   expanded={showAllTournamentTiles}
+                  playerId={selected.id}
                 />
               </div>
             ) : null}

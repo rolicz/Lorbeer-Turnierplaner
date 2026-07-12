@@ -641,8 +641,11 @@ class StatsPlayersTournamentOut(BaseModel):
     id: int
     name: str
     date: date
+    mode: str
+    status: str
     players_count: int
     cup_stakes: list[CupStakeOut]
+    winner_player_id: int | None = None
 
 
 class StatsPlayerRowOut(BaseModel):

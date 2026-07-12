@@ -8,7 +8,7 @@ from sqlalchemy.orm import selectinload
 from sqlmodel import Session, select
 
 from ..models import Match, MatchSide, Player, Tournament
-from .stats.core import compute_player_standings, unique_winner_player_id
+from .stats.core import compute_player_standings, resolve_tournament_winner_player_id
 
 
 @dataclass(frozen=True)
@@ -96,14 +96,14 @@ def compute_cup(session: Session, *, since_date: dt.date | None = None) -> CupRe
         ).all()
 
         rows = compute_player_standings(matches, participants)
-        winner_id = unique_winner_player_id(rows)
-        # If standings are tied at the top, allow an explicit tournament decider to pick a winner.
-        if winner_id is None:
-            if getattr(t, "decider_type", "none") != "none" and getattr(t, "decider_winner_player_id", None):
-                winner_id = int(t.decider_winner_player_id)
-        if winner_id not in participant_ids:
-            # invalid decider data -> treat as draw
-            winner_id = None
+        # If standings are tied at the top, allow an explicit tournament decider to pick a winner;
+        # an invalid decider (not a participant) is treated as a draw.
+        winner_id = resolve_tournament_winner_player_id(
+            rows,
+            decider_type=getattr(t, "decider_type", "none"),
+            decider_winner_player_id=getattr(t, "decider_winner_player_id", None),
+            participant_ids=participant_ids,
+        )
 
         # draw / no unique winner
         if winner_id is None:
@@ -242,12 +242,12 @@ def compute_cup_tournament_stakes(
             ).all()
 
         rows = compute_player_standings(matches, participants)
-        winner_id = unique_winner_player_id(rows)
-        if winner_id is None:
-            if getattr(t, "decider_type", "none") != "none" and getattr(t, "decider_winner_player_id", None):
-                winner_id = int(t.decider_winner_player_id)
-        if winner_id not in participant_ids:
-            winner_id = None
+        winner_id = resolve_tournament_winner_player_id(
+            rows,
+            decider_type=getattr(t, "decider_type", "none"),
+            decider_winner_player_id=getattr(t, "decider_winner_player_id", None),
+            participant_ids=participant_ids,
+        )
 
         if winner_id is None:
             continue

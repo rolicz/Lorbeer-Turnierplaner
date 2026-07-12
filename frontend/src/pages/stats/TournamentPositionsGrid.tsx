@@ -40,12 +40,16 @@ export default function TournamentPositionsGrid({
   tournaments,
   positionsByTournament,
   expanded,
+  playerId,
 }: {
   tournaments: StatsTournamentLite[];
   positionsByTournament: Record<number, number | null>;
   expanded: boolean;
+  /** Profiled player id — when set, the crown only shows for this player's real unique wins. */
+  playerId?: number;
 }) {
   const cols = useTournamentCols();
+  const mixedModes = useMemo(() => new Set(tournaments.map((t) => t.mode)).size > 1, [tournaments]);
 
   const tournamentsSorted = useMemo(() => {
     const ts = tournaments.slice();
@@ -105,19 +109,22 @@ export default function TournamentPositionsGrid({
             }
 
             const totalPlayers = Number(t.players_count ?? 0) || Math.max(1, pos);
-            const isWinner = pos === 1;
+            const hasWinnerField = t.winner_player_id !== undefined;
+            const isWinner = hasWinnerField ? pos === 1 && t.winner_player_id === playerId : pos === 1;
+            const noWinner = t.status === "done" && t.winner_player_id == null;
             const gradientPosition = totalPlayers <= 1 ? 0 : clamp((pos - 1) / (totalPlayers - 1), 0, 1);
             const base =
               "inline-flex h-9 items-center justify-center rounded-xl border text-[11px] font-mono tabular-nums transition " +
               "hover:brightness-110 hover:border-accent/40";
             const cls = isWinner ? "pos-winner shadow-[0_0_0_1px_rgba(16,185,129,0.15)]" : "pos-tile";
             const posVar = "--pos-p" as const;
+            const infoSuffix = `${t.mode ? ` · ${t.mode}` : ""}${noWinner ? " · kein eindeutiger Sieger" : ""}`;
 
             return (
               <Link
                 key={t.id}
                 to={`/live/${t.id}`}
-                title={`${title} · position ${pos}/${totalPlayers}`}
+                title={`${title} · position ${pos}/${totalPlayers}${infoSuffix}`}
                 className={
                   base +
                   " " +
@@ -129,9 +136,14 @@ export default function TournamentPositionsGrid({
                     ? ({ opacity } as CSSProperties)
                     : ({ opacity, [posVar]: gradientPosition } as CSSProperties)
                 }
-                aria-label={`${title}, position ${pos} of ${totalPlayers}`}
+                aria-label={`${title}, position ${pos} of ${totalPlayers}${infoSuffix}`}
               >
                 <TournamentLaurelMarkers stakes={t.cup_stakes} />
+                {mixedModes && t.mode ? (
+                  <span className="pointer-events-none absolute bottom-0 left-0.5 text-[8px] leading-none text-text-muted/80">
+                    {t.mode}
+                  </span>
+                ) : null}
                 <span>{pos}</span>
               </Link>
             );

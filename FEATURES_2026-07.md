@@ -21,7 +21,7 @@
 
 ---
 
-## T1 — Stats payload: per-tournament `mode` + `winner_player_id`; no-winner & mode badges in positions  ☐
+## T1 — Stats payload: per-tournament `mode` + `winner_player_id`; no-winner & mode badges in positions  ☑
 
 **Backend** (`backend/app/services/stats/players.py`, `compute_stats_players`):
 - The per-tournament dict built at `players.py:86-94` (`{id, name, date, players_count, cup_stakes}`)
@@ -58,6 +58,27 @@
 
 **DoD:** backend tests green incl. new assertions; positions views render badges; crown
 suppressed for tied tournaments; `npm run check` green.
+
+**Deviations:**
+- Added a third field `status: str` (from `t.status`) to `StatsPlayersTournamentOut`
+  beyond the two the spec named. It's needed to gate the "no winner" pill to `done`
+  tournaments only (per the spec's own wording) — without it the frontend has no way to
+  tell a still-live tournament (temporarily tied) from a finished one. Cheap, load-bearing,
+  and consistent with the rest of the payload (mirrors `TrendsCard.tsx`/`TrendsPreviewCard.tsx`,
+  which already derive `mode`/`status` from other endpoints for the same reason).
+- Extracted the shared decider-fallback winner logic into
+  `resolve_tournament_winner_player_id()` in `services/stats/core.py` and switched both
+  `compute_cup()` and `compute_cup_tournament_stakes()` in `services/cup.py` to use it
+  (previously duplicated inline in three places) — this is what the spec's "small helper
+  ... if both call sites can share it" suggested.
+- `StatsTournamentLite`-typed objects hand-built in `TrendsCard.tsx` and
+  `TrendsPreviewCard.tsx` (which predate this task) needed `mode`/`status` added to satisfy
+  the now-required schema fields; both already had the source data at hand, no new
+  fetches added.
+- `TournamentPositionsGrid.tsx` crown logic falls back to the old `pos === 1` behavior only
+  when `winner_player_id` is entirely absent from the payload (defensive/back-compat per
+  spec); in practice it's now always present. Added an optional `playerId` prop, passed
+  from `PlayerMatchesCard.tsx` as the profiled player's id.
 
 ## T2 — "Most tournament wins" leaderboard in Records  ☐  *(depends on T1)*
 
