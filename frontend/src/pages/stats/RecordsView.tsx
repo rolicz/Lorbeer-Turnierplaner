@@ -4,13 +4,13 @@ import { Link } from "react-router-dom";
 import { keepPreviousData, useQueries, useQuery } from "@tanstack/react-query";
 
 import InlineLoading from "../../ui/primitives/InlineLoading";
-import { getStatsPlayerMatches, getStatsStreaks } from "../../api/stats.api";
+import { getStatsPlayerMatches, getStatsPlayers, getStatsStreaks } from "../../api/stats.api";
 import { qk } from "../../api/queryKeys";
 import { teamName } from "../../utils/matchDisplay";
 import { fmtShortDate } from "../../utils/format";
 import type { Row } from "./standings";
 import type { StatsMode } from "./StatsControls";
-import type { StatsScope, StatsMatch, StatsPlayerMatchesTournament, StatsStreakCategory } from "../../api/types";
+import type { StatsScope, StatsMatch, StatsPlayerMatchesTournament, StatsStreakCategory, StatsTournamentLite } from "../../api/types";
 import { streakDateText } from "./streakDisplay";
 
 function teamNames(m: StatsMatch, side: "A" | "B"): string {
@@ -49,7 +49,48 @@ function RecordGroup({ icon, label, matches }: { icon: string; label: string; ma
   );
 }
 
-export default function RecordsView({ mode, scope, rows }: { mode: StatsMode; scope: StatsScope; rows: Row[] }) {
+type WinLeader = { id: number; name: string; count: number; rank: number; latest: StatsTournamentLite | null };
+
+function TitlesGroup({ leaders, onSelect }: { leaders: WinLeader[]; onSelect: (id: number) => void }) {
+  if (!leaders.length) return null;
+  const shown = leaders.slice(0, 6);
+  const topTies = leaders.filter((l) => l.rank === 1).length;
+  return (
+    <div className="surface rounded-xl px-3 py-2.5">
+      <div className="inline-flex items-center gap-2 text-[11px] uppercase tracking-wide text-text-muted">
+        <i className="fa-solid fa-trophy" aria-hidden="true" />
+        Most tournament wins
+        {topTies > 1 ? <span className="text-text-muted/70">×{topTies}</span> : null}
+      </div>
+      <div className="mt-1.5 space-y-1.5">
+        {shown.map((l) => (
+          <button
+            key={l.id}
+            type="button"
+            onClick={() => onSelect(l.id)}
+            className="flex w-full items-center justify-between gap-3 rounded-lg px-1.5 py-1 -mx-1.5 text-left transition hover:bg-hover-default/30"
+          >
+            <div className="flex min-w-0 items-center gap-2">
+              <span className="w-4 shrink-0 text-right text-xs tabular-nums text-text-muted">{l.rank}.</span>
+              <div className="min-w-0">
+                <div className="truncate text-sm font-medium text-text-normal">{l.name}</div>
+                {l.latest ? (
+                  <div className="truncate text-[11px] text-text-muted">{l.latest.name} · {fmtShortDate(l.latest.date)}</div>
+                ) : null}
+              </div>
+            </div>
+            <div className="shrink-0 font-mono text-base font-bold tabular-nums text-accent">{l.count}</div>
+          </button>
+        ))}
+        {leaders.length > shown.length ? <div className="text-[11px] text-text-muted">+{leaders.length - shown.length} more</div> : null}
+      </div>
+    </div>
+  );
+}
+
+export default function RecordsView({
+  mode, scope, rows, onSelect,
+}: { mode: StatsMode; scope: StatsScope; rows: Row[]; onSelect: (id: number) => void }) {
   const eloById = useMemo(() => new Map(rows.map((r) => [r.id, r.rating])), [rows]);
   const matchesQs = useQueries({
     queries: rows.map((r) => ({
@@ -64,7 +105,13 @@ export default function RecordsView({ mode, scope, rows }: { mode: StatsMode; sc
     queryFn: () => getStatsStreaks({ mode, limit: 20, scope }),
     placeholderData: keepPreviousData, staleTime: 30_000,
   });
-  const loading = matchesQs.some((q) => q.isLoading && !q.data);
+  // Titles: wins per player, from the same tournament-winner data PositionsView uses.
+  const playersQ = useQuery({
+    queryKey: qk.stats.players(mode, "records"),
+    queryFn: () => getStatsPlayers({ mode }),
+    placeholderData: keepPreviousData, staleTime: 30_000,
+  });
+  const loading = matchesQs.some((q) => q.isLoading && !q.data) || (playersQ.isLoading && !playersQ.data);
 
   const matches = useMemo(() => {
     const seen = new Set<number>();
@@ -114,6 +161,33 @@ export default function RecordsView({ mode, scope, rows }: { mode: StatsMode; sc
     return { biggestWin, highestScoring, mostSide, upset, total: matches.length };
   }, [matches, eloById]);
 
+  const winLeaders = useMemo<WinLeader[]>(() => {
+    const players = playersQ.data?.players ?? [];
+    const tournaments = playersQ.data?.tournaments ?? [];
+    if (!players.length || !tournaments.length) return [];
+    const nameById = new Map(players.map((p) => [p.player_id, p.display_name]));
+    // Most recent won tournament first, so the first hit per player is the latest.
+    const chrono = tournaments
+      .slice()
+      .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : b.id - a.id));
+    const byPlayer = new Map<number, { count: number; latest: StatsTournamentLite | null }>();
+    for (const t of chrono) {
+      if (t.winner_player_id == null) continue;
+      const cur = byPlayer.get(t.winner_player_id) ?? { count: 0, latest: null };
+      cur.count += 1;
+      if (!cur.latest) cur.latest = t;
+      byPlayer.set(t.winner_player_id, cur);
+    }
+    const list = Array.from(byPlayer.entries())
+      .map(([id, v]) => ({ id, name: nameById.get(id) ?? `#${id}`, count: v.count, latest: v.latest }))
+      .sort((a, b) => b.count - a.count);
+    let rank = 0, prevCount = -1;
+    return list.map((x, i) => {
+      if (x.count !== prevCount) { rank = i + 1; prevCount = x.count; }
+      return { ...x, rank };
+    });
+  }, [playersQ.data]);
+
   const streakCards = useMemo(() => {
     const cats = streaksQ.data?.categories ?? [];
     return (["win_streak", "unbeaten_streak"] as const)
@@ -133,6 +207,12 @@ export default function RecordsView({ mode, scope, rows }: { mode: StatsMode; sc
 
   return (
     <div className="space-y-4">
+      {winLeaders.length ? (
+        <div>
+          <div className="section-head"><span className="section-label">Titles</span></div>
+          <TitlesGroup leaders={winLeaders} onSelect={onSelect} />
+        </div>
+      ) : null}
       <div>
         <div className="section-head"><span className="section-label">Match superlatives</span></div>
         <div className="space-y-2">

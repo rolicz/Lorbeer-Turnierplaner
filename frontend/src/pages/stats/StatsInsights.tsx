@@ -88,7 +88,7 @@ export default function StatsInsights({
       {tab === "streaks" && <StreaksView mode={mode} scope={scope} />}
       {tab === "stars" && <StarsView mode={mode} scope={scope} rows={rows} selectedId={selectedId} onSelect={onSelectPlayer} />}
       {tab === "player" && <PlayerProfile mode={mode} scope={scope} rows={rows} selectedId={selectedId} onSelect={onSelectPlayer} />}
-      {tab === "records" && <RecordsView mode={mode} scope={scope} rows={rows} />}
+      {tab === "records" && <RecordsView mode={mode} scope={scope} rows={rows} onSelect={goPlayer} />}
       {tab === "cups" && <CupsView />}
     </div>
   );

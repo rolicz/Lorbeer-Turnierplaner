@@ -80,7 +80,7 @@ suppressed for tied tournaments; `npm run check` green.
   spec); in practice it's now always present. Added an optional `playerId` prop, passed
   from `PlayerMatchesCard.tsx` as the profiled player's id.
 
-## T2 — "Most tournament wins" leaderboard in Records  ☐  *(depends on T1)*
+## T2 — "Most tournament wins" leaderboard in Records  ☑  *(depends on T1)*
 
 - `frontend/src/pages/stats/RecordsView.tsx`: add a new section ABOVE "Match superlatives"
   titled "Titles" with one leaderboard block "Most tournament wins" following the existing
@@ -97,6 +97,17 @@ suppressed for tied tournaments; `npm run check` green.
 
 **DoD:** records tab shows the block, numbers match the positions grid (count of crowns),
 `npm run check` green.
+
+**Deviations:**
+- Added an `onSelect: (id: number) => void` prop to `RecordsView` (wired from
+  `StatsInsights.tsx` as the existing `goPlayer` helper, same as `StatsTable`/`StarsView`/
+  `PlayerProfile`) so a leaderboard row click both selects the player and switches to the
+  Player tab — there was no existing way to do this from `RecordsView` since it never took
+  player-selection callback before.
+- The "×N" tie badge next to the block header counts players tied for rank 1 (mirrors the
+  streak-card badge, which counts ties at the top record value) rather than a per-row
+  concept — the spec's "×N tie badge" pattern is per-record-value, and a leaderboard has
+  one shared header, so it's applied to the top rank.
 
 ## T3 — Shots entry: native wheel picker  ☐
 
