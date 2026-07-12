@@ -392,3 +392,78 @@ issues and verified/triaged manually (Fable). 8 fixed, 1 accepted:
 list (API limit 200, ordered by rivalry score). Groups with >200 distinct duo-vs-duo
 pairings would see truncated duo detail; irrelevant at this app's scale. Revisit with a
 duo-filtered backend query if ever needed.
+
+---
+
+# Round 2 — user feedback 2026-07-12 (T8–T11)
+
+## T8 — Positions: pill placement + tournament count line  ☐
+
+- `frontend/src/pages/stats/PositionsView.tsx:165-194`: the mode/no-winner pills currently
+  sit in a side column next to the 2-line-clamped tournament name and collide with it in
+  the narrow header column. Restructure the header cell to a single column: line 1 = the
+  name Link, single-line `truncate` (full name stays in the tooltip); line 2 = a meta row
+  (`flex items-center gap-1`) containing the pills (mode pill only when the global Mode
+  filter is `overall`; no-winner pill as before). Render the meta row only when at least
+  one pill exists; keep the fixed row height (`cellH`) working — verify visually at 375px
+  AND desktop with long tournament names (e.g. "4. Lorbeerkranzturnier").
+- Count line: above the positions grid, add one muted line, e.g.
+  `14 tournaments · 9× 1v1 · 5× 2v2`. The counts always reflect ALL tournaments (both
+  modes) regardless of the active Mode filter: use a query keyed to overall
+  (`getStatsPlayers({ mode: "overall" })` — same query key as the main query when the
+  filter is overall, so react-query dedupes it) and count `tournaments` by `mode`.
+- **DoD:** no overlap at 375px; counts correct and stable across mode filters;
+  `npm run check` green.
+
+## T9 — H2H Duos: explicit duo picker  ☐
+
+User feedback: duo selection is not intuitive — currently a duo can ONLY be selected by
+tapping a Best-duos row (`H2HView.tsx:52,139-143,236`; `selectedDuo` resolves only against
+`bestDuos`, so arbitrary pairs are impossible).
+
+- Add a proper duo picker at the top of the Duos sub-view: an avatar row of all players
+  (reuse `PlayerPicker`'s look/`AvatarButton` conventions) where tapping toggles a player
+  in/out of the duo selection (max 2: tapping a third player while 2 are selected replaces
+  the OLDEST selection; tapping a selected player deselects it). Show a short hint when
+  fewer than 2 are selected ("Pick two players"), and a clear (×) affordance.
+- Selecting via the Best-duos leaderboard stays and syncs the same state (both directions:
+  picker selection highlights the matching leaderboard row via the existing
+  `selectedKey`).
+- `selectedDuo` resolution: look up `best_teammates_2v2` as today; when the chosen pair
+  has no entry (never played together in 2v2), synthesize a zeroed `StatsH2HDuo`-shaped
+  object from the two players' names so `DuoDetail` still renders (record 0-0-0, its
+  matchups list will be empty, the Matches action still works via the h2h-matches
+  endpoint) — with a subtle "no 2v2 matches together yet" note.
+- Keep it uncluttered on mobile; the picker must not push the leaderboard below the fold
+  on a 375px viewport (compact avatar sizes like the existing PlayerPicker).
+- **DoD:** any two players selectable in ≤2 taps; leaderboard tap and picker stay in
+  sync; unplayed duos render gracefully; `npm run check` green.
+
+## T10 — Cup era boundary: 2026-07-11  ☐
+
+Verified against the real data: the deciding tournament (`4. Lorbeerkranzturnier`, 2v2)
+is dated 2026-07-11, so the configured boundary 2026-07-12 wrongly let it transfer the
+Bauernkranz (era still "any" on that date). With `since: 2026-07-11` the computed owners
+are exactly the intended ones (Lorbeerkranz → Berni, Bauernkranz → Roli — verified by
+running `compute_cup` against the dev DB with both dates).
+
+- `backend/app/cups.json`: change both eras' `since` from `2026-07-12` to `2026-07-11`.
+- Update the era example dates in README's cups section and in this file's T7 section
+  (rollout snippet) to `2026-07-11` so nobody copies the wrong date to production.
+- No code change. `make test` must stay green (era tests use their own fixture dates).
+- **DoD:** dev `/cup?key=bauernkranz` owner is Roli, `/cup?key=default` owner is Berni
+  (assert manually via curl or a quick script against the dev DB). REMINDER recorded for
+  deploy: update `/data/cups.json` on the server with `2026-07-11`.
+
+## T11 — Unify current-match card surface (darker variant)  ☐
+
+The overview tab's `MatchOverviewPanel` uses `surface="panel-subtle"` (darker — the user
+prefers it); the dashboard preview and the Current tab use `surface="panel"` (lighter).
+
+- Change `surface="panel"` → `surface="panel-subtle"` at:
+  `frontend/src/pages/dashboard/CurrentMatchPreviewCard.tsx:90`,
+  `frontend/src/pages/live/CurrentGameSection.tsx:308` and `:320`.
+- Grep for any other `surface="panel"` usages of `MatchOverviewPanel` and align them too.
+  Do NOT touch the `panel`/`panel-subtle` CSS classes themselves.
+- **DoD:** dashboard "Live now" card, Current tab and Overview tab render the same
+  (darker) match-panel background; `npm run check` green.
