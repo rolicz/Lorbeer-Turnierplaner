@@ -13,6 +13,11 @@ import { fmtOdd } from "../../utils/format";
 const BADGE_MD_UP = "md:h-[22px] md:w-[22px] md:text-[10px]";
 const FLAG_MD_UP = "md:text-[13.5px]";
 
+/** National teams render a flag as their club symbol, so they take the flag's step-up. */
+function symbolMdUp(nation: string | null): string {
+  return nation ? FLAG_MD_UP : BADGE_MD_UP;
+}
+
 function namesStack(side?: MatchSide): string[] {
   const ps = side?.players ?? [];
   if (!ps.length) return ["—"];
@@ -159,13 +164,25 @@ export default function MatchOverviewPanel({
 
       <div className="mt-2 md:mt-3 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-start gap-3 md:gap-4 text-xs md:text-sm text-text-muted">
         <div className="min-w-0 flex items-baseline gap-1.5">
-          {aHasClub ? <ClubBadge name={aClubParts.name} className={BADGE_MD_UP} /> : null}
+          {aHasClub ? (
+            <ClubBadge
+              name={aClubParts.name}
+              nation={aClubParts.national_nation}
+              className={symbolMdUp(aClubParts.national_nation)}
+            />
+          ) : null}
           <span className="min-w-0 whitespace-normal md:truncate break-words leading-tight">{aClubParts.name}</span>
         </div>
         <div />
         <div className="min-w-0 flex items-baseline justify-end gap-1.5 text-right">
           <span className="min-w-0 whitespace-normal md:truncate break-words leading-tight">{bClubParts.name}</span>
-          {bHasClub ? <ClubBadge name={bClubParts.name} className={BADGE_MD_UP} /> : null}
+          {bHasClub ? (
+            <ClubBadge
+              name={bClubParts.name}
+              nation={bClubParts.national_nation}
+              className={symbolMdUp(bClubParts.national_nation)}
+            />
+          ) : null}
         </div>
       </div>
       <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-start gap-3 md:gap-4 text-xs md:text-sm text-text-muted">

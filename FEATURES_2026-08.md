@@ -359,7 +359,7 @@ Notes for later tasks:
 - Not verified in a real browser (none in this environment); 375px checked from the class
   list only, same caveat as G3/G4.
 
-## G6 — National teams: flag as the club symbol (stretch)  ☐
+## G6 — National teams: flag as the club symbol (stretch)  ☑
 
 - New `frontend/src/ui/nationalTeams.ts`: `NATIONAL_TEAM_NATIONS: Record<string, string>`
   mapping national-team club names (as they exist in the DB: `Argentina`, `Croatia`,
@@ -377,6 +377,47 @@ Notes for later tasks:
 **DoD:** a match with e.g. Germany vs France shows the two flags as club symbols in
 the current-game card and match lists; non-mapped national clubs fall back to
 monogram; `npm run check` green.
+
+*Done.* `npm run check` green (157 tests = 146 baseline + 11 new), `npm run build` green.
+Frontend only — no backend, no API/type changes, so no `make test` / `make gen-types` run.
+
+Notes:
+- New `frontend/src/ui/nationalTeams.ts` exports `NATIONAL_TEAM_NATIONS` (club name →
+  flag-icons code) plus `isNationalTeamLeague(leagueName)` (`startsWith("National (")`,
+  same test `randomClubAssignmentOk` already uses) and
+  `nationalTeamNation(clubName, leagueName)`. The lookup is **case/whitespace-insensitive**
+  (an internal lowercase index) and **gated on the National league**, so a regular club
+  named after a country (e.g. a hypothetical "Georgia" in some domestic league) keeps its
+  monogram. Unmapped national clubs return `null` → monogram, per spec.
+- **Deviation (map size):** the map covers all 29 dev-DB names (query confirmed:
+  `National (Men)` only, `National (Women)` has no clubs yet) **plus ~65 further national
+  teams** and a few alternate spellings (`Qatar`/`Quatar` — the DB has the typo —,
+  `Czechia`/`Czech Republic`, `Ireland`/`Republic of Ireland`, `United States`/`USA`,
+  `Turkey`/`Türkiye`, `Ivory Coast`/`Côte d'Ivoire`, `South Korea`). The women's league is
+  empty today, so a DB-only map would have left every future women's team on a monogram.
+  Every code was verified to exist in `flag-icons/flags/4x3/` and as a `fi-*` CSS class.
+- `ClubBadge` gained `nation?: string | null`: when set it short-circuits to
+  `<NationFlag nation={nation} size={size} className={className} />` before the monogram
+  branch (`ClubBadgeSize` and `NationFlagSize` are the same `"sm" | "md"` union, so the
+  size passes straight through). All other props/behaviour unchanged.
+- `clubLabelPartsById` gained `national_nation: string | null` (null in the no-club and
+  unresolved-`#<id>` branches). Additive — every existing caller still compiles.
+- Wiring: `MatchOverviewPanel` (both sides), `MatchHistoryList.MatchRowWithClubs` (both
+  sides) read it from `clubLabelPartsById`; `ClubCombobox` (trigger + option rows) and
+  `ClubsPage` club rows call `nationalTeamNation(c.name, …)` directly because they work
+  from `Club` objects, not from the parts helper. `SelectClubsPanel` needs nothing (G5:
+  it renders no club name of its own).
+- **Deviation (responsive sizing):** G3's `BADGE_MD_UP` (`md:h-[22px] md:w-[22px]
+  md:text-[10px]`) must not be applied to a flag — `.fi` is sized by `font-size` and a
+  forced square box would letterbox it. `MatchOverviewPanel` therefore picks the override
+  per side via a new module-level `symbolMdUp(nation)` → `FLAG_MD_UP` for national teams,
+  `BADGE_MD_UP` otherwise. The list/picker call sites pass no className (`sm` only), so
+  they were unaffected.
+- Tests: new `frontend/src/test/nationalTeams.test.ts` (all 29 dev-DB names resolve, code
+  shape regex, GB subdivisions, casing/whitespace/`Quatar`, league gate, unmapped → null)
+  and two cases added to `frontend/src/test/matchOverviewPanel.test.tsx` (Germany vs France
+  renders `.fi-de` + `.fi-fr` and no monograms; an unmapped "Atlantis" keeps its disc).
+- Not verified in a real browser (none in this environment) — same caveat as G3/G4/G5.
 
 ---
 

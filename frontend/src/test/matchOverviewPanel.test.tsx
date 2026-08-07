@@ -25,6 +25,37 @@ const CLUBS: Club[] = [
   },
 ];
 
+// National teams: the league carries no nation, the club name does.
+const NATIONAL_CLUBS: Club[] = [
+  {
+    id: 3,
+    name: "Germany",
+    game: "EA FC 26",
+    star_rating: 5,
+    league_id: 40,
+    league_name: "National (Men)",
+    league_nation: null,
+  },
+  {
+    id: 4,
+    name: "France",
+    game: "EA FC 26",
+    star_rating: 5,
+    league_id: 40,
+    league_name: "National (Men)",
+    league_nation: null,
+  },
+  {
+    id: 5,
+    name: "Atlantis",
+    game: "EA FC 26",
+    star_rating: 3,
+    league_id: 40,
+    league_name: "National (Men)",
+    league_nation: null,
+  },
+];
+
 function makeMatch(aClubId: number | null, bClubId: number | null): Match {
   return {
     id: 10,
@@ -65,5 +96,27 @@ describe("MatchOverviewPanel club symbols", () => {
     expect(getByText("No club")).toBeInTheDocument();
     expect(queryByText("NC")).toBeNull(); // no monogram for the "No club" label
     expect(container.querySelectorAll(".fi")).toHaveLength(1);
+  });
+
+  it("uses the country flag as the club symbol for national teams", () => {
+    const { container, queryByText } = render(
+      <MatchOverviewPanel match={makeMatch(3, 4)} clubs={NATIONAL_CLUBS} aGoals={2} bGoals={1} />,
+    );
+
+    // Flags replace the monograms; the National leagues themselves have no nation.
+    expect(container.querySelector(".fi-de")).not.toBeNull();
+    expect(container.querySelector(".fi-fr")).not.toBeNull();
+    expect(container.querySelectorAll(".fi")).toHaveLength(2);
+    expect(queryByText("GE")).toBeNull();
+    expect(queryByText("FR")).toBeNull();
+  });
+
+  it("falls back to the monogram for an unmapped national club", () => {
+    const { container, getByText } = render(
+      <MatchOverviewPanel match={makeMatch(3, 5)} clubs={NATIONAL_CLUBS} aGoals={0} bGoals={0} />,
+    );
+
+    expect(container.querySelectorAll(".fi")).toHaveLength(1); // only Germany
+    expect(getByText("AT")).toBeInTheDocument(); // "Atlantis" keeps its disc
   });
 });

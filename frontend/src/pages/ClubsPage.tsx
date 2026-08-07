@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import ClubBadge from "../ui/ClubBadge";
 import NationFlag from "../ui/NationFlag";
+import { nationalTeamNation } from "../ui/nationalTeams";
 import FormLabel from "../ui/primitives/FormLabel";
 import Input from "../ui/primitives/Input";
 import Button from "../ui/primitives/Button";
@@ -462,7 +463,7 @@ export default function ClubsPage() {
                           <div className="row">
                             <div className="min-w-0 flex-1">
                               <div className="flex min-w-0 items-center gap-1.5">
-                                <ClubBadge name={c.name} />
+                                <ClubBadge name={c.name} nation={nationalTeamNation(c.name, ln)} />
                                 <span className="min-w-0 truncate font-medium text-text-normal">{c.name}</span>
                               </div>
                               <div className="mt-0.5 flex flex-wrap items-center text-[11px] text-text-muted">

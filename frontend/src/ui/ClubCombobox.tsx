@@ -8,6 +8,7 @@ import NationFlag from "./NationFlag";
 import FormLabel from "./primitives/FormLabel";
 import { StarsFA } from "./primitives/StarsFA";
 import { starsLabel } from "./clubControls";
+import { nationalTeamNation } from "./nationalTeams";
 import { cn } from "./cn";
 
 /**
@@ -157,7 +158,9 @@ export default function ClubCombobox({
           open ? "border-accent" : "border-border-card-chip",
         )}
       >
-        {selected ? <ClubBadge name={selected.name} /> : null}
+        {selected ? (
+          <ClubBadge name={selected.name} nation={nationalTeamNation(selected.name, selected.league_name)} />
+        ) : null}
         <span className="min-w-0 flex-1 truncate">
           {selected ? selected.name : <span className="text-text-muted">{placeholder}</span>}
         </span>
@@ -249,7 +252,7 @@ export default function ClubCombobox({
                               isSel ? "text-accent" : "text-text-normal",
                             )}
                           >
-                            <ClubBadge name={c.name} />
+                            <ClubBadge name={c.name} nation={nationalTeamNation(c.name, c.league_name)} />
                             <span className="min-w-0 truncate">{c.name}</span>
                           </span>
                           {c.league_name ? (

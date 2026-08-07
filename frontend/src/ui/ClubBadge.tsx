@@ -1,5 +1,6 @@
 /* eslint-disable react-refresh/only-export-components */
 import { cn } from "./cn";
+import NationFlag from "./NationFlag";
 
 /**
  * Deterministic monogram badge for a club.
@@ -7,6 +8,9 @@ import { cn } from "./cn";
  * Real crests are trademarked and there are hundreds of clubs, so the symbol is
  * generated: the club's initials on a colored disc whose color is a pure
  * function of the club name (same name → same color, forever, on every device).
+ *
+ * Exception: national teams are countries, so passing a `nation` code renders
+ * that country's flag as the symbol instead (see `nationalTeams.ts`).
  */
 export type ClubBadgeSize = "sm" | "md";
 
@@ -63,13 +67,20 @@ export function clubInitials(name: string): string {
 
 export default function ClubBadge({
   name,
+  nation,
   size = "sm",
   className,
 }: {
   name?: string | null;
+  nation?: string | null;
   size?: ClubBadgeSize;
   className?: string;
 }) {
+  // National teams: the flag *is* the club symbol. Same size scale, so the
+  // footprint stays in line with the monogram discs next to it.
+  const code = typeof nation === "string" ? nation.trim() : "";
+  if (code) return <NationFlag nation={code} size={size} className={className} />;
+
   const label = (name ?? "").trim();
   if (!label) return null;
 

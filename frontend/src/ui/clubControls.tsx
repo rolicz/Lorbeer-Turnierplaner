@@ -5,6 +5,7 @@ import { Filter } from "lucide-react";
 
 import FilterSelect from "./FilterSelect";
 import FormLabel from "./primitives/FormLabel";
+import { nationalTeamNation } from "./nationalTeams";
 
 export type LeagueOpt = { id: number; name: string };
 
@@ -42,6 +43,7 @@ export function clubLabelPartsById(clubs: Club[], id: number | null | undefined)
       name: "No club",
       league_name: null as string | null,
       league_nation: null as string | null,
+      national_nation: null as string | null,
       rating: null as number | null,
       ratingText: null as string | null,
     };
@@ -52,6 +54,7 @@ export function clubLabelPartsById(clubs: Club[], id: number | null | undefined)
       name: `#${id}`,
       league_name: null as string | null,
       league_nation: null as string | null,
+      national_nation: null as string | null,
       rating: null as number | null,
       ratingText: null as string | null,
     };
@@ -61,6 +64,8 @@ export function clubLabelPartsById(clubs: Club[], id: number | null | undefined)
     name: c.name,
     league_name: c.league_name,
     league_nation: c.league_nation ?? null,
+    // Set only for National (Men)/(Women) clubs → their flag replaces the badge.
+    national_nation: nationalTeamNation(c.name, c.league_name),
     rating: Number.isFinite(r) ? r : null,
     ratingText: Number.isFinite(r) ? `${starsLabel(r)}★` : null,
   };
