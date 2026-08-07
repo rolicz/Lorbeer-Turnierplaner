@@ -1,6 +1,9 @@
 import { useMemo, useState } from "react";
+import type { ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
+import ClubBadge from "../ui/ClubBadge";
+import NationFlag from "../ui/NationFlag";
 import FormLabel from "../ui/primitives/FormLabel";
 import Input from "../ui/primitives/Input";
 import Button from "../ui/primitives/Button";
@@ -38,6 +41,14 @@ function leagueNameForClub(c: Club, leaguesById: Map<number, string>) {
   if (typeof c.league_id === "number") return leaguesById.get(c.league_id) ?? "—";
 
   return "—";
+}
+
+/** Flag code for a club's league — the club row carries it, older rows fall back to the league list. */
+function leagueNationForClub(c: Club, nationsById: Map<number, string>) {
+  if (c.league_nation) return c.league_nation;
+  if (typeof c.league_id === "number") return nationsById.get(c.league_id) ?? null;
+
+  return null;
 }
 
 function groupByStars(clubs: Club[], leaguesById: Map<number, string>) {
@@ -132,6 +143,19 @@ export default function ClubsPage() {
     const m = new Map<number, string>();
     for (const l of leagues) m.set(l.id, l.name);
     return m;
+  }, [leagues]);
+
+  // Nations for flags: by id for club rows, by name for the group-by-league headers
+  // (groups are keyed by the league's display name).
+  const leagueNations = useMemo(() => {
+    const byId = new Map<number, string>();
+    const byName = new Map<string, string>();
+    for (const l of leagues) {
+      if (!l.nation) continue;
+      byId.set(l.id, l.nation);
+      byName.set(l.name, l.nation);
+    }
+    return { byId, byName };
   }, [leagues]);
 
   // Default create league if not selected yet
@@ -408,6 +432,7 @@ export default function ClubsPage() {
                 key={`${label}|${filterKey}`}
                 title={
                   <span className="section-label inline-flex items-center gap-2">
+                    {groupMode === "league" ? <NationFlag nation={leagueNations.byName.get(label)} /> : null}
                     <span>{label}</span>
                     {suffix ? <span className="font-normal normal-case text-text-muted">{suffix}</span> : null}
                   </span>
@@ -423,14 +448,25 @@ export default function ClubsPage() {
                       const ln = leagueNameForClub(c, leaguesById);
                       const isEditing = editId === c.id;
                       const cid = c.league_id;
+                      const metaParts: ReactNode[] = [
+                        c.game,
+                        <span key="league" className="inline-flex items-center gap-1">
+                          <NationFlag nation={leagueNationForClub(c, leagueNations.byId)} />
+                          {ln}
+                        </span>,
+                        `${starsLabel(c.star_rating)}★`,
+                      ];
 
                       return (
                         <div key={c.id}>
                           <div className="row">
                             <div className="min-w-0 flex-1">
-                              <div className="truncate font-medium text-text-normal">{c.name}</div>
+                              <div className="flex min-w-0 items-center gap-1.5">
+                                <ClubBadge name={c.name} />
+                                <span className="min-w-0 truncate font-medium text-text-normal">{c.name}</span>
+                              </div>
                               <div className="mt-0.5 flex flex-wrap items-center text-[11px] text-text-muted">
-                                {[c.game, ln, `${starsLabel(c.star_rating)}★`].map((part, i) => (
+                                {metaParts.map((part, i) => (
                                   <span key={i} className="inline-flex items-center">
                                     {i > 0 ? <span className="mx-1.5 text-text-muted/40">·</span> : null}
                                     {part}

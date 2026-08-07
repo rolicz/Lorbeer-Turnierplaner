@@ -309,7 +309,7 @@ Notes for later tasks:
 - Not verified in a real browser (no browser in this environment); 375px was checked from
   the class list only, same caveat as G3.
 
-## G5 — Pickers & Clubs page  ☐
+## G5 — Pickers & Clubs page  ☑
 
 - `frontend/src/ui/ClubCombobox.tsx`: option rows and the selected-value row gain a
   `sm` `ClubBadge`; league line (if shown per option) gains a `sm` `NationFlag`.
@@ -320,6 +320,44 @@ Notes for later tasks:
 
 **DoD:** picking a club in tools/live flows shows badges in the list and in the
 selection; Clubs page shows badges + flags; `npm run check` green.
+
+*Done.* `npm run check` green (146 tests = 144 baseline + 2 new), `npm run build` green.
+Touched `ClubCombobox.tsx`, `SelectClubsPanel.tsx`, `ClubsPage.tsx` — the combobox change
+covers every picker (both `SelectClubsPanel` sides → friendlies editor/list, live
+`CurrentGameSection`, `MatchDetailPage`).
+
+Notes for later tasks:
+- `ClubCombobox`: `sm` `ClubBadge` before the club name in the trigger (only when a club is
+  selected — the placeholder gets none) and in every option row; `sm` `NationFlag` before
+  the option's league line. Both option lines are now `flex min-w-0 items-center gap-1.5`
+  with the text in a `min-w-0 truncate` `<span>` (was `block truncate`), so truncation is
+  unchanged. `items-center` (not G3/G4's `items-baseline`) because these lines always
+  truncate to one line and never wrap.
+- **Deviation (SelectClubsPanel):** the panel renders no club row of its own — the names
+  live in the two `ClubCombobox` triggers (covered above) and the star editors. Its only
+  club text is the `showSelectedMeta` league line, which got the `NationFlag`. No badge
+  there (the name it would belong to is one line up, in the trigger).
+- **Deviation (ClubsPage league filter):** the spec's `FilterSelect` bullet does not apply —
+  the Clubs page league/stars filters are plain native `<select>`s (`select-field`), and
+  `<option>` cannot host a flag element. Took the "and/or" branch: flags go on the
+  **group-by-league headers** (`groupMode === "league"`, keyed by league name via a new
+  `leagueNations.byName` map) and inline before the league name in each club row's meta
+  line. `FilterSelect` itself was left untouched — giving it per-option leading nodes would
+  have been a shared-component change beyond this task (worth its own task if the picker
+  filters should show flags too).
+- `ClubsPage` club rows: `sm` `ClubBadge` before the name (`flex min-w-0 items-center
+  gap-1.5`, name keeps `truncate font-medium`). The meta line is now a `ReactNode[]`
+  (`metaParts`) instead of a `string[]` so the league entry can carry its flag; the `·`
+  separator logic is unchanged.
+- New module-level helper `leagueNationForClub(club, nationsById)` mirrors the existing
+  `leagueNameForClub`: prefers `club.league_nation` (G1 field), falls back to the league
+  list by `league_id` so a cached/stale club payload still gets a flag.
+- Test: `frontend/src/test/clubCombobox.test.tsx` — badge in the trigger for the selected
+  club, badge per option, exactly one `.fi-de` flag for the only fixture league with a
+  nation. It stubs `Element.prototype.scrollIntoView` (jsdom has no layout) and queries
+  `document` for the options because the list renders in a body portal.
+- Not verified in a real browser (none in this environment); 375px checked from the class
+  list only, same caveat as G3/G4.
 
 ## G6 — National teams: flag as the club symbol (stretch)  ☐
 

@@ -3,6 +3,8 @@ import { createPortal } from "react-dom";
 import { Search, ChevronDown, Check, X } from "lucide-react";
 
 import type { Club } from "../api/types";
+import ClubBadge from "./ClubBadge";
+import NationFlag from "./NationFlag";
 import FormLabel from "./primitives/FormLabel";
 import { StarsFA } from "./primitives/StarsFA";
 import { starsLabel } from "./clubControls";
@@ -155,6 +157,7 @@ export default function ClubCombobox({
           open ? "border-accent" : "border-border-card-chip",
         )}
       >
+        {selected ? <ClubBadge name={selected.name} /> : null}
         <span className="min-w-0 flex-1 truncate">
           {selected ? selected.name : <span className="text-text-muted">{placeholder}</span>}
         </span>
@@ -240,9 +243,20 @@ export default function ClubCombobox({
                         )}
                       >
                         <span className="min-w-0 flex-1">
-                          <span className={cn("block truncate", isSel ? "text-accent" : "text-text-normal")}>{c.name}</span>
+                          <span
+                            className={cn(
+                              "flex min-w-0 items-center gap-1.5",
+                              isSel ? "text-accent" : "text-text-normal",
+                            )}
+                          >
+                            <ClubBadge name={c.name} />
+                            <span className="min-w-0 truncate">{c.name}</span>
+                          </span>
                           {c.league_name ? (
-                            <span className="block truncate text-[11px] text-text-muted">{c.league_name}</span>
+                            <span className="flex min-w-0 items-center gap-1.5 text-[11px] text-text-muted">
+                              <NationFlag nation={c.league_nation} />
+                              <span className="min-w-0 truncate">{c.league_name}</span>
+                            </span>
                           ) : null}
                         </span>
                         <span className="shrink-0">

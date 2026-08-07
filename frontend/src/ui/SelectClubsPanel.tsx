@@ -5,6 +5,7 @@ import type { Club } from "../api/types";
 import Button from "./primitives/Button";
 import ClubStarsEditor from "./ClubStarsEditor";
 import ClubCombobox from "./ClubCombobox";
+import NationFlag from "./NationFlag";
 import { StarsFA } from "./primitives/StarsFA";
 import {
   LeagueFilter,
@@ -247,7 +248,10 @@ export default function SelectClubsPanel({
 
           {showSelectedMeta && (
             <div className="grid grid-cols-[1fr_auto] items-center gap-2 px-1">
-              <div className="min-w-0 text-xs text-text-muted truncate">{aParts.league_name ?? "—"}</div>
+              <div className="min-w-0 flex items-center gap-1.5 text-xs text-text-muted">
+                <NationFlag nation={aParts.league_nation} />
+                <span className="min-w-0 truncate">{aParts.league_name ?? "—"}</span>
+              </div>
               <div className="justify-self-end">
                 <StarsFA rating={aParts.rating ?? 0} textClassName="text-text-muted" />
               </div>
@@ -272,7 +276,10 @@ export default function SelectClubsPanel({
 
           {showSelectedMeta && (
             <div className="grid grid-cols-[1fr_auto] items-center gap-2 px-1">
-              <div className="min-w-0 text-xs text-text-muted truncate">{bParts.league_name ?? "—"}</div>
+              <div className="min-w-0 flex items-center gap-1.5 text-xs text-text-muted">
+                <NationFlag nation={bParts.league_nation} />
+                <span className="min-w-0 truncate">{bParts.league_name ?? "—"}</span>
+              </div>
               <div className="justify-self-end">
                 <StarsFA rating={bParts.rating ?? 0} textClassName="text-text-muted" />
               </div>
