@@ -1,0 +1,239 @@
+# Feature Batch 2026-08 — League Nation Flags & Club Badges
+
+> Branch `feature/2026-08-flags-badges` off `main` (baseline `ca44b46`). Created 2026-08-07.
+> Symbol names are the source of truth; line numbers (where given) reference the baseline.
+>
+> Feature request: country flags for each league's nation, and a visual symbol for
+> clubs — shown wherever teams appear, e.g. the current-game card and matches lists.
+> Must not break existing DBs when deploying. **Local first**: no runtime CDN/external
+> requests; all assets ship in the bundle or are generated client-side.
+
+## Rules for implementing agents
+
+1. Implement ONLY your task. No drive-by reformatting, no scope creep. Match surrounding
+   code style (Tailwind + design tokens, `qk` query-key factory, generated API types).
+2. Checks must be green before committing: backend touched → `make test` + `make lint`
+   from repo root; backend response models touched → `make gen-types`, commit the
+   regenerated `frontend/src/api/generated/schema.d.ts` in the same commit; frontend
+   touched → `cd frontend && npm run check` (and `npm run build` for anything structural).
+3. UI must work at mobile ~375px and desktop. Flags/badges are *supporting* visuals:
+   small, never pushing the club/league text to wrap or truncate more than today.
+4. Tick your task's checkbox here and note deviations under the task.
+5. If blocked or the code doesn't match this spec, stop, note it here, commit nothing broken.
+
+---
+
+## Decisions (already made — do not relitigate)
+
+- **Flags: `flag-icons` npm package** (MIT), rendered via its CSS classes
+  (`<span class="fi fi-de" />`). The CSS + SVGs are bundled by Vite → fully local,
+  crisp on every OS/browser. Rejected: emoji flags (don't render on Windows),
+  any remote flag CDN (violates local-first).
+- **Nation codes** are flag-icons-compatible lowercase codes stored as strings:
+  ISO 3166-1 alpha-2 (`de`, `at`, …) plus GB subdivisions (`gb-eng`, `gb-sct`).
+- **Club symbols are generated monogram badges** (initials on a deterministic
+  colored disc). 626 clubs make curated crest images infeasible, and real crests
+  are trademarked — nothing to bundle. No DB change needed for clubs.
+  Exception (G6): clubs in the `National (Men)` / `National (Women)` leagues *are*
+  countries — they render their country's flag as their symbol.
+- **DB transition is additive + automatic**: nullable `league.nation` column added
+  via the existing `_ensure_runtime_columns()` ALTER-TABLE pattern
+  (`backend/app/db.py:32`), then an idempotent startup backfill fills `NULL`
+  nations from the exact-name map below. Fresh DBs, the current prod DB, and
+  rollbacks to old code all keep working (old code simply ignores the column).
+  **No manual server step on deploy** (unlike the cups.json rollout).
+- Backfill only ever writes rows where `nation IS NULL` — manual corrections
+  (SQL or future admin UI) are never overwritten.
+
+## League → nation map (exact `league.name` strings, incl. the NWSL `))` typo)
+
+| League name | nation |
+|---|---|
+| Premier League | gb-eng |
+| La Liga | es |
+| Bundesliga | de |
+| Serie A | it |
+| Ligue 1 | fr |
+| Süper Lig | tr |
+| Österreichische Bundesliga | at |
+| Liga Portugal | pt |
+| Eredivisie | nl |
+| Primera División | ar |
+| Scottish Premiership | gb-sct |
+| Belgian Pro League | be |
+| MLS | us |
+| Swiss Super League | ch |
+| EFL League One | gb-eng |
+| Danish Superliga | dk |
+| Eliteserien | no |
+| Ekstraklasa | pl |
+| Allsvenskan | se |
+| Serie B | it |
+| League of Ireland Premier Division | ie |
+| Saudi League | sa |
+| K League | kr |
+| Chinese Super League | cn |
+| A-League | au |
+| Liga 1 (Romania) | ro |
+| EFL Championship | gb-eng |
+| EFL League Two | gb-eng |
+| 2. Bundesliga | de |
+| 3. Bundesliga | de |
+| Woman's Super League (England) | gb-eng |
+| Liga F (Spain) | es |
+| Frauen-Bundesliga (Germany) | de |
+| Serie A Femminile (Italy) | it |
+| Arkema Première Ligue (France) | fr |
+| NWSL (North America)) | us |
+| Indian Super League | in |
+| Ligue 2 | fr |
+| LaLiga 2 | es |
+| Rest of the World | *(null — no flag)* |
+| National (Men) | *(null — clubs get own flags, G6)* |
+| National (Women) | *(null — clubs get own flags, G6)* |
+
+`Primera División` is Argentina's league (verified: Boca Juniors, River-side clubs in dev DB).
+
+---
+
+## G1 — Backend: `league.nation` column, startup backfill, API exposure  ☐
+
+- `backend/app/models.py` `League`: add `nation: Optional[str] = Field(default=None)`.
+- `backend/app/db.py` `_ensure_runtime_columns()`: extend the existing pattern —
+  if table `league` exists and column `nation` missing →
+  `ALTER TABLE league ADD COLUMN nation VARCHAR`. Keep the push-preference
+  migration intact; refactor to a small loop/helper only if it stays obviously simple.
+- New `backend/app/league_nations.py`: `LEAGUE_NATIONS: dict[str, str]` with the
+  exact-name map above (omit the null rows), plus
+  `backfill_league_nations(engine) -> int` that UPDATEs `league SET nation=? WHERE
+  name=? AND nation IS NULL` per entry and returns rows changed. Call it from
+  `init_db()` after `_ensure_runtime_columns()`; log
+  `"League nations backfilled: N"` only when N > 0.
+- `backend/app/schemas/responses.py`: `LeagueOut` gains `nation: str | None`;
+  `ClubOut` gains `league_nation: str | None`; `ClubColumnsOut` unchanged.
+- `backend/app/routers/clubs.py` `list_clubs`: the query already joins League —
+  select `League.nation` too and fill `league_nation` in the response rows.
+  `create_league`: `LeagueCreateBody` gains optional `nation: str | None`; validate
+  against `^[a-z]{2}(-[a-z]{2,3})?$` when set (400 otherwise); store it.
+- `backend/data/seed-leagues.json` + the `leagues` block in `backend/data/seed.json`:
+  add `"nation"` per league (same map) and make `upsert_leagues` in
+  `backend/app/seed.py` set nation on create and fill it on existing rows where NULL
+  (seeding stays manual/optional — backfill above is what prod relies on).
+- `make gen-types` — commit the regenerated `schema.d.ts` in the same commit.
+- Backend tests (new `backend/tests/test_league_nation.py`, style of neighbors):
+  (a) legacy table without the column → `init_db()` adds it and backfills known names;
+  (b) backfill is idempotent and never overwrites non-NULL;
+  (c) `/clubs/leagues` returns `nation`, `/clubs` returns `league_nation`;
+  (d) `POST /clubs/leagues` accepts + validates `nation`.
+
+**DoD:** `make test` + `make lint` green; schema.d.ts committed; starting the backend
+against a copy of an old DB logs the backfill once, then never again.
+
+## G2 — Frontend primitives: NationFlag, ClubBadge, enriched club lookup  ☐
+
+- `cd frontend && npm i flag-icons` (exact version in package-lock committed).
+  Import `"flag-icons/css/flag-icons.min.css"` once in `frontend/src/main.tsx`.
+- New `frontend/src/ui/NationFlag.tsx`: `({ nation, size = "sm", className })` →
+  `<span className={"fi fi-" + nation ...} />` with `rounded-[2px]`, sizes
+  `sm` (~14px wide) and `md` (~18px), `aria-hidden` (decorative — adjacent text
+  names the league). Renders `null` when `nation` is falsy. No hardcoded colors.
+- New `frontend/src/ui/ClubBadge.tsx`: deterministic monogram disc.
+  - Initials: first letters of the first two words of the club name (single-word
+    names → first two letters), uppercased.
+  - Color: stable string hash of the club name → index into a fixed ~12-entry
+    palette of Tailwind-arbitrary HSL values chosen to read well on the dark
+    surfaces (muted saturation, ~35-45% lightness backgrounds, light text).
+  - Shape: `rounded-full` disc, sizes `sm` (~16px, `text-[8px]`) and `md`
+    (~22px, `text-[10px]`), `font-semibold`, `shrink-0`, `aria-hidden`.
+  - Props: `({ name, size, className })` — pure function of the name; no fetches.
+- `frontend/src/ui/clubControls.tsx` `clubLabelPartsById`: return shape gains
+  `league_nation: string | null` (from the generated `Club` type's new field).
+  All existing callers keep compiling (additive).
+- Frontend test `frontend/src/test/clubBadge.test.ts`: initials for one/two/multi-word
+  names; same name → same palette index; different names spread across indices.
+
+**DoD:** `npm run check` + `npm run build` green; components exported and unit-tested;
+no external network request for any flag (verify build output contains the SVGs).
+
+## G3 — Current game: flags + badges in MatchOverviewPanel  ☐
+
+- `frontend/src/ui/primitives/MatchOverviewPanel.tsx` (used by the dashboard
+  `CurrentMatchPreviewCard`, live `CurrentGameSection` / `OverviewSection`,
+  `MatchDetailPage`, friendlies): in the club-name row (`aClubParts.name` /
+  `bClubParts.name`, `:150-152`) prepend a `ClubBadge` (`md` on desktop, `sm` on
+  mobile is fine as a single size if simpler); in the league row
+  (`aClubParts.league_name`, `:155-157`) prepend a `NationFlag` with the side's
+  `league_nation`. Side B mirrors side A (badge/flag trailing on the right-aligned
+  side so the visual sits toward the outer edge — match the existing symmetric layout).
+- No-club sides ("No club") render neither badge nor flag.
+- Keep truncation behavior: badges/flags `shrink-0`, text keeps `min-w-0`.
+
+**DoD:** dashboard current-match card, live Overview tab, and match detail all show
+badge + flag on both sides at 375px without wrapping regressions; `npm run check` green.
+
+## G4 — Matches lists: flags + badges in history rows  ☐
+
+- `frontend/src/pages/stats/MatchHistoryList.tsx` (stats matches modal, H2H matches,
+  player profile via `MatchHistorySection` / `PlayerMatchesCard`): each side's club
+  label (`aClub.name` / `bClub.name`, `:29-30` and their render sites) gains a `sm`
+  `ClubBadge`; where the league name is shown, prepend a `sm` `NationFlag`. If the
+  row is too dense for both on mobile, badge wins (flag only where the league name
+  already renders).
+- `frontend/src/pages/tools/FriendlyMatchesListCard.tsx`: same treatment for its
+  club labels (it resolves clubs the same way — reuse `clubLabelPartsById` parts).
+- Rows stay single-line where they are single-line today.
+
+**DoD:** stats match history, H2H matches modal, profile match history, and the
+friendlies list all show club badges (and flags where league names appear) at 375px;
+`npm run check` green.
+
+## G5 — Pickers & Clubs page  ☐
+
+- `frontend/src/ui/ClubCombobox.tsx`: option rows and the selected-value row gain a
+  `sm` `ClubBadge`; league line (if shown per option) gains a `sm` `NationFlag`.
+- `frontend/src/ui/SelectClubsPanel.tsx`: same for its club rows.
+- `frontend/src/pages/ClubsPage.tsx`: club rows gain badges; the league filter
+  options (`FilterSelect`) and/or league group headers gain flags where a league
+  name renders. Purely visual — no filtering/sorting changes.
+
+**DoD:** picking a club in tools/live flows shows badges in the list and in the
+selection; Clubs page shows badges + flags; `npm run check` green.
+
+## G6 — National teams: flag as the club symbol (stretch)  ☐
+
+- New `frontend/src/ui/nationalTeams.ts`: `NATIONAL_TEAM_NATIONS: Record<string, string>`
+  mapping national-team club names (as they exist in the DB: `Argentina`, `Croatia`,
+  `Czechia`, `Denmark`, `England`, `Finland`, `France`, `Germany`, `Ghana`, `Hungary`,
+  `Iceland`, `Ireland`, …) to flag-icons codes. Cover the names present in the dev DB
+  (query: clubs whose league is `National (Men)` / `National (Women)`); unknown names
+  simply keep the monogram badge.
+- `ClubBadge` gains an optional `nation?: string | null` prop: when set, render a
+  `NationFlag` (same footprint) instead of the monogram. Wire it where the club's
+  league is one of the National leagues — cleanest via `clubLabelPartsById`
+  (it knows `league_name`; add `national_nation: string | null` to its return,
+  resolved through the map).
+- Women's national teams share the same country codes.
+
+**DoD:** a match with e.g. Germany vs France shows the two flags as club symbols in
+the current-game card and match lists; non-mapped national clubs fall back to
+monogram; `npm run check` green.
+
+---
+
+## Verification gates (after all tasks)
+
+1. `make test` (baseline 105 + new), `make lint` from repo root.
+2. `cd frontend && npm run check` (baseline 129 + new) and `npm run build`.
+3. `make gen-types` produces no diff (schema.d.ts committed in G1).
+4. Runtime: backend against a **copy** of `backend/data/app.db` → confirm startup
+   logs the backfill once; dashboard current-match card + a stats match list show
+   flags/badges; build output serves flag SVGs locally (no external requests in
+   devtools network tab).
+5. DB safety: run the new backend against a copy of the prod-shaped DB, then run
+   the **old** backend (main) against the same file — both start clean.
+
+## Deployment
+
+Nothing manual: `git pull && docker compose up -d --build`. The nation column +
+backfill happen at startup (watch for `League nations backfilled: 39` once in
+`docker compose logs backend`). No cups.json-style config edit needed.
