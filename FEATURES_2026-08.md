@@ -261,7 +261,7 @@ Notes for later tasks:
   so the 375px check was done from the CSS/layout rules plus the emitted class list, not
   visually. Worth an eyeball during the batch-level runtime gate (Verification gates §4).
 
-## G4 — Matches lists: flags + badges in history rows  ☐
+## G4 — Matches lists: flags + badges in history rows  ☑
 
 - `frontend/src/pages/stats/MatchHistoryList.tsx` (stats matches modal, H2H matches,
   player profile via `MatchHistorySection` / `PlayerMatchesCard`): each side's club
@@ -276,6 +276,38 @@ Notes for later tasks:
 **DoD:** stats match history, H2H matches modal, profile match history, and the
 friendlies list all show club badges (and flags where league names appear) at 375px;
 `npm run check` green.
+
+*Done.* `npm run check` green (144 tests = 141 baseline + 3 new), `npm run build` green.
+Only `MatchRowWithClubs` in `MatchHistoryList.tsx` changed; every consumer inherits it
+(`PlayerMatchesCard`, `HeadToHeadCard`, `H2HView`, `PlayerProfile`, profile
+`MatchHistorySection` / `ProfileOverviewTab`, live `MatchH2HPanel`, tools
+`FriendlyMatchesListCard`).
+
+Notes for later tasks:
+- **Deviation (scope):** `FriendlyMatchesListCard.tsx` was **not** touched — it renders no
+  club label of its own. Its history rows come from `MatchHistoryList` (this task), its
+  editor preview from `MatchOverviewPanel` (G3), and its club picker from
+  `SelectClubsPanel` (G5). So the spec's second bullet is satisfied without a diff there.
+- Club/league rows only exist in the **Details** view (`showMeta`); the Compact view has
+  no club text, so it stays untouched ("rows stay single-line where they are today").
+  Consumers hard-wired to `showMeta={false}` (profile `MatchHistorySection` /
+  `ProfileOverviewTab`, `PlayerProfile`, live `MatchH2HPanel` recent meetings) therefore
+  show no symbols by design — nothing to attach them to.
+- Both meta rows now mirror `MatchOverviewPanel`: `min-w-0 flex items-baseline gap-1.5`
+  (side B adds `justify-end`, keeps `text-right`) with the text in a `min-w-0
+  whitespace-normal md:truncate break-words leading-tight` `<span>`. Truncation/wrapping
+  is unchanged; the symbols are the only new boxes.
+- Sizes are the primitives' `sm` only — no `md:` step-up here (unlike G3): these rows are
+  `text-xs md:text-sm`, a third the size of the overview panel's club line, and a 22px
+  disc next to 14px text looked top-heavy. G5/G6 should stay on `sm` for list rows too.
+- Same no-club guard as G3 (`clubs.some((c) => c.id === side?.club_id)`), so "No club" and
+  unresolved `#<id>` labels get no monogram. Flags need no guard —
+  `clubLabelPartsById` returns `league_nation: null` in both of those branches.
+- Test: `frontend/src/test/matchHistoryList.test.tsx` (renders `MatchRowWithClubs`
+  directly) — badges both sides + one `.fi-de` flag in Details, no badge for a "No club"
+  side, no symbols at all in Compact.
+- Not verified in a real browser (no browser in this environment); 375px was checked from
+  the class list only, same caveat as G3.
 
 ## G5 — Pickers & Clubs page  ☐
 

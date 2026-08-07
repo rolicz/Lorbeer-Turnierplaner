@@ -1,6 +1,8 @@
 import type { ReactNode } from "react";
 import type { Club, MatchState, StatsMatch, StatsPlayerMatchesTournament } from "../../api/types";
 import { sideBy, winnerSide } from "../../helpers";
+import ClubBadge from "../../ui/ClubBadge";
+import NationFlag from "../../ui/NationFlag";
 import { clubLabelPartsById } from "../../ui/clubControls";
 import { Pill, pillDate } from "../../ui/primitives/Pill";
 import { StarsFA } from "../../ui/primitives/StarsFA";
@@ -28,6 +30,10 @@ export function MatchRowWithClubs({
   const b = sideBy(m, "B");
   const aClub = clubLabelPartsById(clubs, a?.club_id);
   const bClub = clubLabelPartsById(clubs, b?.club_id);
+
+  // "No club" (and unresolved `#<id>` labels) render no badge — only real clubs do.
+  const aHasClub = clubs.some((c) => c.id === a?.club_id);
+  const bHasClub = clubs.some((c) => c.id === b?.club_id);
 
   const ag = a?.goals ?? 0;
   const bg = b?.goals ?? 0;
@@ -123,15 +129,27 @@ export function MatchRowWithClubs({
         {showMeta ? (
           <>
             <div className="mt-2 md:mt-3 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-start gap-3 md:gap-4 text-xs md:text-sm text-text-muted">
-              <div className="min-w-0 whitespace-normal md:truncate break-words leading-tight">{aClub.name}</div>
+              <div className="min-w-0 flex items-baseline gap-1.5">
+                {aHasClub ? <ClubBadge name={aClub.name} /> : null}
+                <span className="min-w-0 whitespace-normal md:truncate break-words leading-tight">{aClub.name}</span>
+              </div>
               <div />
-              <div className="min-w-0 whitespace-normal md:truncate break-words leading-tight text-right">{bClub.name}</div>
+              <div className="min-w-0 flex items-baseline justify-end gap-1.5 text-right">
+                <span className="min-w-0 whitespace-normal md:truncate break-words leading-tight">{bClub.name}</span>
+                {bHasClub ? <ClubBadge name={bClub.name} /> : null}
+              </div>
             </div>
 
             <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-start gap-3 md:gap-4 text-xs md:text-sm text-text-muted">
-              <div className="min-w-0 whitespace-normal md:truncate break-words leading-tight">{aClub.league_name}</div>
+              <div className="min-w-0 flex items-baseline gap-1.5">
+                <NationFlag nation={aClub.league_nation} />
+                <span className="min-w-0 whitespace-normal md:truncate break-words leading-tight">{aClub.league_name}</span>
+              </div>
               <div />
-              <div className="min-w-0 whitespace-normal md:truncate break-words leading-tight text-right">{bClub.league_name}</div>
+              <div className="min-w-0 flex items-baseline justify-end gap-1.5 text-right">
+                <span className="min-w-0 whitespace-normal md:truncate break-words leading-tight">{bClub.league_name}</span>
+                <NationFlag nation={bClub.league_nation} />
+              </div>
             </div>
 
             <div className="mt-1 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 md:gap-4 text-[11px] md:text-sm text-text-muted">
