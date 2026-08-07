@@ -5,6 +5,8 @@ import { sideBy, winnerSide } from "../../helpers";
 import { matchPalette } from "../../ui/theme";
 import { StarsFA } from "../../ui/primitives/StarsFA";
 import { clubLabelPartsById } from "../../ui/clubControls";
+import ClubBadge from "../../ui/ClubBadge";
+import NationFlag from "../../ui/NationFlag";
 import { useEffect, useState } from "react";
 import SegmentedSwitch from "../../ui/primitives/SegmentedSwitch";
 import { fmtOdd } from "../../utils/format";
@@ -125,6 +127,10 @@ export default function MatchList({
 
           const aClubParts = clubLabelPartsById(clubs, a?.club_id);
           const bClubParts = clubLabelPartsById(clubs, b?.club_id);
+
+          // "No club" (and unresolved ids) render no symbol — only real clubs do.
+          const aHasClub = clubs.some((c) => c.id === a?.club_id);
+          const bHasClub = clubs.some((c) => c.id === b?.club_id);
 
           const showMove = canReorder && m.state === "scheduled";
           const showOdds = (m.state === "scheduled" || m.state === "playing") && !!m.odds;
@@ -252,14 +258,26 @@ export default function MatchList({
                 {!compact ? (
                   <>
                     <div className="mt-1.5 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-start gap-3 text-xs text-text-muted">
-                      <div className="min-w-0 whitespace-normal break-words leading-tight">{aClubParts.name}</div>
+                      <div className="min-w-0 flex items-baseline gap-1.5">
+                        {aHasClub ? <ClubBadge name={aClubParts.name} nation={aClubParts.national_nation} /> : null}
+                        <span className="min-w-0 whitespace-normal break-words leading-tight">{aClubParts.name}</span>
+                      </div>
                       <div />
-                      <div className="min-w-0 whitespace-normal break-words text-right leading-tight">{bClubParts.name}</div>
+                      <div className="min-w-0 flex items-baseline justify-end gap-1.5 text-right">
+                        <span className="min-w-0 whitespace-normal break-words leading-tight">{bClubParts.name}</span>
+                        {bHasClub ? <ClubBadge name={bClubParts.name} nation={bClubParts.national_nation} /> : null}
+                      </div>
                     </div>
                     <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-start gap-3 text-xs text-text-muted">
-                      <div className="min-w-0 whitespace-normal break-words leading-tight">{aClubParts.league_name}</div>
+                      <div className="min-w-0 flex items-baseline gap-1.5">
+                        <NationFlag nation={aClubParts.league_nation} />
+                        <span className="min-w-0 whitespace-normal break-words leading-tight">{aClubParts.league_name}</span>
+                      </div>
                       <div />
-                      <div className="min-w-0 whitespace-normal break-words text-right leading-tight">{bClubParts.league_name}</div>
+                      <div className="min-w-0 flex items-baseline justify-end gap-1.5 text-right">
+                        <span className="min-w-0 whitespace-normal break-words leading-tight">{bClubParts.league_name}</span>
+                        <NationFlag nation={bClubParts.league_nation} />
+                      </div>
                     </div>
                     <div className="mt-1 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 text-[11px] text-text-muted">
                       <div className="min-w-0">
