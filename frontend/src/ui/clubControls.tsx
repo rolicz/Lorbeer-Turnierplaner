@@ -41,6 +41,7 @@ export function clubLabelPartsById(clubs: Club[], id: number | null | undefined)
     return {
       name: "No club",
       league_name: null as string | null,
+      league_nation: null as string | null,
       rating: null as number | null,
       ratingText: null as string | null,
     };
@@ -50,6 +51,7 @@ export function clubLabelPartsById(clubs: Club[], id: number | null | undefined)
     return {
       name: `#${id}`,
       league_name: null as string | null,
+      league_nation: null as string | null,
       rating: null as number | null,
       ratingText: null as string | null,
     };
@@ -58,6 +60,7 @@ export function clubLabelPartsById(clubs: Club[], id: number | null | undefined)
   return {
     name: c.name,
     league_name: c.league_name,
+    league_nation: c.league_nation ?? null,
     rating: Number.isFinite(r) ? r : null,
     ratingText: Number.isFinite(r) ? `${starsLabel(r)}★` : null,
   };

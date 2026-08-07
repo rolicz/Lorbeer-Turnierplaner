@@ -147,7 +147,7 @@ Notes for later tasks:
   (unlike `seed-leagues.json`); left as-is — only nations were added, no new leagues.
 - Backfill runs from `init_db()`, not from seeding; `upsert_leagues` only fills NULLs too.
 
-## G2 — Frontend primitives: NationFlag, ClubBadge, enriched club lookup  ☐
+## G2 — Frontend primitives: NationFlag, ClubBadge, enriched club lookup  ☑
 
 - `cd frontend && npm i flag-icons` (exact version in package-lock committed).
   Import `"flag-icons/css/flag-icons.min.css"` once in `frontend/src/main.tsx`.
@@ -172,6 +172,44 @@ Notes for later tasks:
 
 **DoD:** `npm run check` + `npm run build` green; components exported and unit-tested;
 no external network request for any flag (verify build output contains the SVGs).
+
+*Done.* `npm run check` green (139 tests = 129 baseline + 10 new), `npm run build` green.
+`flag-icons@7.5.0` pinned in package-lock; built CSS contains zero `url(//…)` /
+`url(http…)` references and all 542 flag SVGs are emitted into `dist/assets/`.
+
+Notes for later tasks:
+- **Deviation (additive):** `frontend/vite.config.ts` gained
+  `build.assetsInlineLimit: (filePath) => filePath.includes("flag-icons") ? false : undefined`.
+  Without it Vite inlines every flag SVG under 4 kB as a data URI and the
+  render-blocking CSS goes 68.6 kB → 491 kB (12.4 → 97.7 kB gzip). With it the CSS is
+  100.3 kB (20.4 kB gzip, i.e. +8 kB gzip for the flag-icons rule set) and the browser
+  fetches only the flags actually shown. Default inlining is untouched for all other assets.
+  `dist/` grows 1.9 MB → 7.2 MB on disk (the 542 SVGs), served on demand.
+- `NationFlag` (default export, `frontend/src/ui/NationFlag.tsx`): props
+  `{ nation?: string | null; size?: "sm" | "md"; className?: string }`. Sizing is done
+  via font-size (`.fi` is `1.333em × 1em`), so `sm` = `text-[10.5px]` (~14×10.5px),
+  `md` = `text-[13.5px]` (~18×13.5px); adding a `className` with `text-*` would override it.
+  Trims + lowercases the code, renders `null` for falsy/blank, `shrink-0 rounded-[2px]`,
+  `aria-hidden`.
+- `ClubBadge` (default export, `frontend/src/ui/ClubBadge.tsx`): props
+  `{ name?: string | null; size?: "sm" | "md"; className?: string }`; `sm` = `h-4 w-4
+  text-[8px]`, `md` = `h-[22px] w-[22px] text-[10px]`; `shrink-0`, `aria-hidden`, renders
+  `null` for a blank name. Also exports the pure helpers `clubInitials`,
+  `clubBadgeColorIndex`, `clubBadgeHash` (FNV-1a) and `CLUB_BADGE_COLORS` (12 full
+  Tailwind arbitrary `bg-[hsl(…)]` class strings — must stay literal for the JIT scanner).
+  File carries `/* eslint-disable react-refresh/only-export-components */` like
+  `clubControls.tsx` because it exports helpers next to the component.
+- G6 can add the optional `nation?` prop to `ClubBadge` and short-circuit to `NationFlag`
+  before the monogram branch; the `md` footprints (22px vs ~18px) are close enough.
+- `clubLabelPartsById` now returns `league_nation: string | null` in all three branches
+  (no club / unknown id → `null`). Purely additive; every existing caller still compiles.
+- `flag-icons/css/flag-icons.min.css` is imported in `frontend/src/main.tsx` just before
+  `./styles.css` — do not import it again anywhere else.
+- The `package-lock.json` diff was kept to the flag-icons entries only: a plain
+  `npm i flag-icons` also pruned three unrelated optional/peer entries (`@emnapi/core`,
+  `@emnapi/runtime`, `vitest/node_modules/esbuild`). That pruning reproduces on a bare
+  `npm install --package-lock-only` on `main`, so it is pre-existing drift and was left
+  out of this commit.
 
 ## G3 — Current game: flags + badges in MatchOverviewPanel  ☐
 
