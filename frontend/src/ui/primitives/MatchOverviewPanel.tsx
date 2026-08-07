@@ -1,10 +1,17 @@
 import type { Club, Match, MatchSide, TournamentMode } from "../../api/types";
 import { sideBy } from "../../helpers";
 import { cn } from "../cn";
+import ClubBadge from "../ClubBadge";
+import NationFlag from "../NationFlag";
 import { clubLabelPartsById } from "../clubControls";
 import { Pill, statusMatchPill } from "./Pill";
 import { StarsFA } from "./StarsFA";
 import { fmtOdd } from "../../utils/format";
+
+// The club/league rows scale their type at `md:` (`text-xs md:text-sm`), so the
+// symbols step up from the primitives' `sm` to their `md` footprint there too.
+const BADGE_MD_UP = "md:h-[22px] md:w-[22px] md:text-[10px]";
+const FLAG_MD_UP = "md:text-[13.5px]";
 
 function namesStack(side?: MatchSide): string[] {
   const ps = side?.players ?? [];
@@ -70,6 +77,10 @@ export default function MatchOverviewPanel({
 
   const aClubParts = clubLabelPartsById(clubs, a?.club_id);
   const bClubParts = clubLabelPartsById(clubs, b?.club_id);
+
+  // "No club" (and unresolved ids) render no symbol — only real clubs get a badge.
+  const aHasClub = clubs.some((c) => c.id === a?.club_id);
+  const bHasClub = clubs.some((c) => c.id === b?.club_id);
 
   const isScheduled = match.state === "scheduled";
   const useEmDash =
@@ -147,14 +158,26 @@ export default function MatchOverviewPanel({
       </div>
 
       <div className="mt-2 md:mt-3 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-start gap-3 md:gap-4 text-xs md:text-sm text-text-muted">
-        <div className="min-w-0 whitespace-normal md:truncate break-words leading-tight">{aClubParts.name}</div>
+        <div className="min-w-0 flex items-baseline gap-1.5">
+          {aHasClub ? <ClubBadge name={aClubParts.name} className={BADGE_MD_UP} /> : null}
+          <span className="min-w-0 whitespace-normal md:truncate break-words leading-tight">{aClubParts.name}</span>
+        </div>
         <div />
-        <div className="min-w-0 whitespace-normal md:truncate break-words leading-tight text-right">{bClubParts.name}</div>
+        <div className="min-w-0 flex items-baseline justify-end gap-1.5 text-right">
+          <span className="min-w-0 whitespace-normal md:truncate break-words leading-tight">{bClubParts.name}</span>
+          {bHasClub ? <ClubBadge name={bClubParts.name} className={BADGE_MD_UP} /> : null}
+        </div>
       </div>
       <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-start gap-3 md:gap-4 text-xs md:text-sm text-text-muted">
-        <div className="min-w-0 whitespace-normal md:truncate break-words leading-tight">{aClubParts.league_name}</div>
+        <div className="min-w-0 flex items-baseline gap-1.5">
+          <NationFlag nation={aClubParts.league_nation} className={FLAG_MD_UP} />
+          <span className="min-w-0 whitespace-normal md:truncate break-words leading-tight">{aClubParts.league_name}</span>
+        </div>
         <div />
-        <div className="min-w-0 whitespace-normal md:truncate break-words leading-tight text-right">{bClubParts.league_name}</div>
+        <div className="min-w-0 flex items-baseline justify-end gap-1.5 text-right">
+          <span className="min-w-0 whitespace-normal md:truncate break-words leading-tight">{bClubParts.league_name}</span>
+          <NationFlag nation={bClubParts.league_nation} className={FLAG_MD_UP} />
+        </div>
       </div>
 
       <div className="mt-1 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 md:gap-4 text-[11px] md:text-sm text-text-muted">

@@ -211,7 +211,7 @@ Notes for later tasks:
   `npm install --package-lock-only` on `main`, so it is pre-existing drift and was left
   out of this commit.
 
-## G3 — Current game: flags + badges in MatchOverviewPanel  ☐
+## G3 — Current game: flags + badges in MatchOverviewPanel  ☑
 
 - `frontend/src/ui/primitives/MatchOverviewPanel.tsx` (used by the dashboard
   `CurrentMatchPreviewCard`, live `CurrentGameSection` / `OverviewSection`,
@@ -226,6 +226,40 @@ Notes for later tasks:
 
 **DoD:** dashboard current-match card, live Overview tab, and match detail all show
 badge + flag on both sides at 375px without wrapping regressions; `npm run check` green.
+
+*Done.* `npm run check` green (141 tests = 139 baseline + 2 new), `npm run build` green.
+Only `MatchOverviewPanel.tsx` changed, so all six consumers (dashboard
+`CurrentMatchPreviewCard`, live `CurrentGameSection` / `OverviewSection`,
+`MatchDetailPage`, friendlies `FriendlyMatchCard` / `FriendlyMatchesListCard`) get it.
+
+Notes for later tasks:
+- Both symbol rows are now `min-w-0 flex items-baseline gap-1.5` (side B adds
+  `justify-end`, keeps `text-right`) with the text moved into a
+  `min-w-0 whitespace-normal md:truncate break-words leading-tight` `<span>` — i.e.
+  truncation/wrapping behaviour is unchanged, the symbols are the only new boxes.
+  `items-baseline` (not `items-center`) so the symbol aligns with the *first* text
+  line when a long club/league name wraps at 375px.
+- **Deviation (sizing):** the primitives only expose `sm`/`md`, and `cn()` is a plain
+  join (no tailwind-merge), so the responsive step-up is done with `md:` overrides
+  passed as `className` — module constants `BADGE_MD_UP` (`md:h-[22px] md:w-[22px]
+  md:text-[10px]`) and `FLAG_MD_UP` (`md:text-[13.5px]`) in `MatchOverviewPanel.tsx`.
+  Base size stays the primitives' `sm`; the `md:` variants are emitted after the base
+  utilities in the built CSS (verified in `dist/assets/index-*.css`), so they win at
+  `md+`. Overriding in the other direction (base classes via `className`) would be a
+  source-order coin flip — don't. The spec only asked for a responsive *badge*; the
+  flag got the same treatment so the two rows stay proportional.
+- No-club sides render neither symbol; the guard is
+  `clubs.some((c) => c.id === side?.club_id)`, which also suppresses the badge for the
+  `#<id>` unresolved-club label (`clubLabelPartsById` returns that when the id is not in
+  `clubs`) — a monogram of `#1` would be nonsense. G4/G5 want the same guard.
+- **Deviation (tests):** added `frontend/src/test/matchOverviewPanel.test.tsx`, the repo's
+  first component render test. Infra was already there (`vitest.config.ts` →
+  `environment: "jsdom"`, `@testing-library/react` + `jest-dom` in `setup.ts`); nothing
+  was configured for it. Asserts badges on both sides, a `.fi-de` flag only for the side
+  whose league has a nation, and no badge/flag for a "No club" side.
+- Not verified in a real browser: this environment has no browser (no chromium/playwright),
+  so the 375px check was done from the CSS/layout rules plus the emitted class list, not
+  visually. Worth an eyeball during the batch-level runtime gate (Verification gates §4).
 
 ## G4 — Matches lists: flags + badges in history rows  ☐
 
