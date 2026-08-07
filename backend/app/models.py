@@ -171,6 +171,19 @@ class Club(SQLModel, table=True):
     league_id: int = Field(foreign_key="league.id", index=True)
     league: League = Relationship(back_populates="clubs")
 
+class ClubCrestFile(SQLModel, table=True):
+    """
+    Club crest storage (metadata in DB, bytes on disk) — same pattern as
+    PlayerAvatarFile. Filled by the crest sync tool or admin upload; clubs
+    without a row fall back to the generated monogram badge in the frontend.
+    """
+    club_id: int = Field(foreign_key="club.id", primary_key=True)
+    content_type: str
+    file_path: str = Field(index=True)
+    file_size: int
+    updated_at: dt.datetime = Field(default_factory=dt.datetime.utcnow, index=True)
+
+
 class Match(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     tournament_id: int = Field(foreign_key="tournament.id", index=True)

@@ -259,13 +259,13 @@ export default function MatchList({
                   <>
                     <div className="mt-1.5 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-start gap-3 text-xs text-text-muted">
                       <div className="min-w-0 flex items-baseline gap-1.5">
-                        {aHasClub ? <ClubBadge name={aClubParts.name} nation={aClubParts.national_nation} /> : null}
+                        {aHasClub ? <ClubBadge name={aClubParts.name} nation={aClubParts.national_nation} clubId={aClubParts.id} crestVersion={aClubParts.crest_updated_at} /> : null}
                         <span className="min-w-0 whitespace-normal break-words leading-tight">{aClubParts.name}</span>
                       </div>
                       <div />
                       <div className="min-w-0 flex items-baseline justify-end gap-1.5 text-right">
                         <span className="min-w-0 whitespace-normal break-words leading-tight">{bClubParts.name}</span>
-                        {bHasClub ? <ClubBadge name={bClubParts.name} nation={bClubParts.national_nation} /> : null}
+                        {bHasClub ? <ClubBadge name={bClubParts.name} nation={bClubParts.national_nation} clubId={bClubParts.id} crestVersion={bClubParts.crest_updated_at} /> : null}
                       </div>
                     </div>
                     <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-start gap-3 text-xs text-text-muted">

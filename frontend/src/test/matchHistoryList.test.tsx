@@ -13,6 +13,7 @@ const CLUBS: Club[] = [
     league_id: 3,
     league_name: "Bundesliga",
     league_nation: "de",
+    crest_updated_at: null,
   },
   {
     id: 2,
@@ -22,6 +23,7 @@ const CLUBS: Club[] = [
     league_id: 9,
     league_name: "Eredivisie",
     league_nation: null,
+    crest_updated_at: null,
   },
 ];
 
@@ -62,6 +64,22 @@ describe("MatchRowWithClubs club symbols", () => {
     expect(getByText("No club")).toBeInTheDocument();
     expect(queryByText("NC")).toBeNull();
     expect(container.querySelectorAll(".fi")).toHaveLength(1);
+  });
+
+  it("renders the real crest image instead of the monogram when one is stored", () => {
+    const clubs: Club[] = [
+      { ...CLUBS[0], crest_updated_at: "2026-08-07T20:00:00Z" },
+      CLUBS[1],
+    ];
+    const { container, queryByText, getByText } = render(
+      <MatchRowWithClubs m={makeMatch(1, 2)} clubs={clubs} showMeta />,
+    );
+
+    const img = container.querySelector("img");
+    expect(img).not.toBeNull();
+    expect(img?.getAttribute("src")).toContain("/clubs/1/crest");
+    expect(queryByText("BM")).toBeNull(); // crest replaces the monogram
+    expect(getByText("AJ")).toBeInTheDocument(); // no crest → monogram stays
   });
 
   it("renders no club meta at all in the compact view", () => {

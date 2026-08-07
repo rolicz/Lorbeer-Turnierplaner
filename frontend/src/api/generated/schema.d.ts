@@ -380,6 +380,25 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/clubs/{club_id}/crest": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Club Crest */
+        get: operations["get_club_crest_clubs__club_id__crest_get"];
+        /** Put Club Crest */
+        put: operations["put_club_crest_clubs__club_id__crest_put"];
+        post?: never;
+        /** Delete Club Crest */
+        delete: operations["delete_club_crest_clubs__club_id__crest_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/clubs/{club_id}": {
         parameters: {
             query?: never;
@@ -1324,6 +1343,14 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** Body_put_club_crest_clubs__club_id__crest_put */
+        Body_put_club_crest_clubs__club_id__crest_put: {
+            /**
+             * File
+             * Format: binary
+             */
+            file: string;
+        };
         /** Body_put_comment_image_comments__comment_id__image_put */
         Body_put_comment_image_comments__comment_id__image_put: {
             /**
@@ -1375,6 +1402,16 @@ export interface components {
             /** League Id */
             league_id?: number | string | null;
         };
+        /** ClubCrestMetaOut */
+        ClubCrestMetaOut: {
+            /** Club Id */
+            club_id: number;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
         /**
          * ClubOut
          * @description Club joined with its league name (list response).
@@ -1394,6 +1431,8 @@ export interface components {
             league_name: string | null;
             /** League Nation */
             league_nation: string | null;
+            /** Crest Updated At */
+            crest_updated_at: string | null;
         };
         /** ClubPatchBody */
         ClubPatchBody: {
@@ -3701,6 +3740,103 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ClubColumnsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_club_crest_clubs__club_id__crest_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                club_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    put_club_crest_clubs__club_id__crest_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                club_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_put_club_crest_clubs__club_id__crest_put"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClubCrestMetaOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_club_crest_clubs__club_id__crest_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                club_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
                 };
             };
             /** @description Validation Error */

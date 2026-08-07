@@ -1,4 +1,5 @@
 /* eslint-disable react-refresh/only-export-components */
+import { clubCrestUrl } from "../api/clubs.api";
 import { cn } from "./cn";
 import NationFlag from "./NationFlag";
 
@@ -17,6 +18,11 @@ export type ClubBadgeSize = "sm" | "md";
 const SIZE_CLASS: Record<ClubBadgeSize, string> = {
   sm: "h-4 w-4 text-[8px]", // 16px
   md: "h-[22px] w-[22px] text-[10px]",
+};
+
+const IMG_SIZE_CLASS: Record<ClubBadgeSize, string> = {
+  sm: "h-4 w-4",
+  md: "h-[22px] w-[22px]",
 };
 
 /**
@@ -68,14 +74,34 @@ export function clubInitials(name: string): string {
 export default function ClubBadge({
   name,
   nation,
+  clubId,
+  crestVersion,
   size = "sm",
   className,
 }: {
   name?: string | null;
   nation?: string | null;
+  /** Together with `crestVersion`, renders the real crest image instead. */
+  clubId?: number | null;
+  /** `crest_updated_at` from the clubs payload; null/undefined = no crest stored. */
+  crestVersion?: string | null;
   size?: ClubBadgeSize;
   className?: string;
 }) {
+  // Real crest (synced/uploaded, served by our backend) beats everything.
+  if (clubId && crestVersion) {
+    return (
+      <img
+        src={clubCrestUrl(clubId, crestVersion)}
+        alt=""
+        loading="lazy"
+        draggable={false}
+        aria-hidden="true"
+        className={cn("shrink-0 self-center object-contain", IMG_SIZE_CLASS[size], className)}
+      />
+    );
+  }
+
   // National teams: the flag *is* the club symbol. Same size scale, so the
   // footprint stays in line with the monogram discs next to it.
   const code = typeof nation === "string" ? nation.trim() : "";

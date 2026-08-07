@@ -13,6 +13,7 @@ const CLUBS: Club[] = [
     league_id: 3,
     league_name: "Bundesliga",
     league_nation: "de",
+    crest_updated_at: null,
   },
   {
     id: 2,
@@ -22,6 +23,7 @@ const CLUBS: Club[] = [
     league_id: 9,
     league_name: "Eredivisie",
     league_nation: null,
+    crest_updated_at: null,
   },
 ];
 

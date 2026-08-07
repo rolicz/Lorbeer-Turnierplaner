@@ -168,6 +168,8 @@ export default function MatchOverviewPanel({
             <ClubBadge
               name={aClubParts.name}
               nation={aClubParts.national_nation}
+              clubId={aClubParts.id}
+              crestVersion={aClubParts.crest_updated_at}
               className={symbolMdUp(aClubParts.national_nation)}
             />
           ) : null}
@@ -180,6 +182,8 @@ export default function MatchOverviewPanel({
             <ClubBadge
               name={bClubParts.name}
               nation={bClubParts.national_nation}
+              clubId={bClubParts.id}
+              crestVersion={bClubParts.crest_updated_at}
               className={symbolMdUp(bClubParts.national_nation)}
             />
           ) : null}

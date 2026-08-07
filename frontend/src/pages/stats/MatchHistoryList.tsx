@@ -130,13 +130,13 @@ export function MatchRowWithClubs({
           <>
             <div className="mt-2 md:mt-3 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-start gap-3 md:gap-4 text-xs md:text-sm text-text-muted">
               <div className="min-w-0 flex items-baseline gap-1.5">
-                {aHasClub ? <ClubBadge name={aClub.name} nation={aClub.national_nation} /> : null}
+                {aHasClub ? <ClubBadge name={aClub.name} nation={aClub.national_nation} clubId={aClub.id} crestVersion={aClub.crest_updated_at} /> : null}
                 <span className="min-w-0 whitespace-normal md:truncate break-words leading-tight">{aClub.name}</span>
               </div>
               <div />
               <div className="min-w-0 flex items-baseline justify-end gap-1.5 text-right">
                 <span className="min-w-0 whitespace-normal md:truncate break-words leading-tight">{bClub.name}</span>
-                {bHasClub ? <ClubBadge name={bClub.name} nation={bClub.national_nation} /> : null}
+                {bHasClub ? <ClubBadge name={bClub.name} nation={bClub.national_nation} clubId={bClub.id} crestVersion={bClub.crest_updated_at} /> : null}
               </div>
             </div>
 

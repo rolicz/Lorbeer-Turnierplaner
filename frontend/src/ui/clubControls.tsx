@@ -40,10 +40,12 @@ export function leagueInfo(c: Club): { id: number | null; name: string | null } 
 export function clubLabelPartsById(clubs: Club[], id: number | null | undefined) {
   if (!id) {
     return {
+      id: null as number | null,
       name: "No club",
       league_name: null as string | null,
       league_nation: null as string | null,
       national_nation: null as string | null,
+      crest_updated_at: null as string | null,
       rating: null as number | null,
       ratingText: null as string | null,
     };
@@ -51,21 +53,25 @@ export function clubLabelPartsById(clubs: Club[], id: number | null | undefined)
   const c = clubs.find((x) => x.id === id);
   if (!c) {
     return {
+      id: null as number | null,
       name: `#${id}`,
       league_name: null as string | null,
       league_nation: null as string | null,
       national_nation: null as string | null,
+      crest_updated_at: null as string | null,
       rating: null as number | null,
       ratingText: null as string | null,
     };
   }
   const r = Number(c.star_rating);
   return {
+    id: c.id as number | null,
     name: c.name,
     league_name: c.league_name,
     league_nation: c.league_nation ?? null,
     // Set only for National (Men)/(Women) clubs → their flag replaces the badge.
     national_nation: nationalTeamNation(c.name, c.league_name),
+    crest_updated_at: c.crest_updated_at ?? null,
     rating: Number.isFinite(r) ? r : null,
     ratingText: Number.isFinite(r) ? `${starsLabel(r)}★` : null,
   };

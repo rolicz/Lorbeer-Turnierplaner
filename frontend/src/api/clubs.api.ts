@@ -1,10 +1,15 @@
-import { apiFetch } from "./client";
+import { apiFetch, mediaUrl } from "./client";
 import type { Club, League } from "./types";
 
 // Clubs
 export function listClubs(game?: string): Promise<Club[]> {
   const q = game ? `?game=${encodeURIComponent(game)}` : "";
   return apiFetch(`/clubs${q}`);
+}
+
+/** Crest image served by our own backend; `crest_updated_at` doubles as cache buster. */
+export function clubCrestUrl(clubId: number, updatedAt?: string | null): string {
+  return mediaUrl(`/clubs/${clubId}/crest`, updatedAt);
 }
 
 export function createClub(

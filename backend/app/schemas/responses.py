@@ -170,6 +170,14 @@ class ClubOut(BaseModel):
     league_id: int
     league_name: str | None
     league_nation: str | None
+    # Set when a real crest image exists (served at /clubs/{id}/crest);
+    # doubles as the cache buster. None = frontend renders a monogram badge.
+    crest_updated_at: datetime | None
+
+
+class ClubCrestMetaOut(BaseModel):
+    club_id: int
+    updated_at: datetime
 
 
 # ---- friendlies --------------------------------------------------------

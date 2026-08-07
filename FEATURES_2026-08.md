@@ -419,6 +419,51 @@ Notes:
   renders `.fi-de` + `.fi-fr` and no monograms; an unmapped "Atlantis" keeps its disc).
 - Not verified in a real browser (none in this environment) — same caveat as G3/G4/G5.
 
+## G7 — Real club crests (user feedback: "initials aren't enough")  ☑
+
+Roli wants actual club crests, overriding the monogram-only decision. Design keeps
+local-first: crest images are downloaded ONCE by a sync tool into the uploads dir
+and served by our own backend — zero runtime requests to external hosts. Monograms
+stay as the fallback for unmatched clubs; national teams keep their flags.
+
+- `backend/app/models.py`: `ClubCrestFile` (mirrors `PlayerAvatarFile`; new table →
+  no ALTER migration needed).
+- `backend/app/services/file_storage.py`: `media_path_for_club_crest` →
+  `club_crests/{club_id}.{ext}` under the uploads root (`/data/uploads` in Docker).
+- `backend/app/routers/clubs.py`: `GET /clubs/{id}/crest` (30-day cache),
+  admin-only `PUT`/`DELETE /clubs/{id}/crest` (manual override for missed clubs);
+  `list_clubs` outer-joins `ClubCrestFile` → `ClubOut.crest_updated_at`
+  (null = no crest; doubles as cache buster).
+- `backend/app/tools/sync_club_crests.py`: re-runnable sync from TheSportsDB
+  (free key `3`): bulk `search_all_teams.php` per league (LEAGUE_MAP), fuzzy
+  name matching (NFKD-normalized, stop tokens like FC/AFC dropped, alternate
+  names honored, difflib ≥ 0.85), per-club `searchteams.php` fallback, `/small`
+  badge variant (~128px), throttled to the free rate limit. Skips National
+  leagues; `--refresh`, `--dry-run`, `--limit`; prints misses for the ALIASES map.
+  Run locally: `.venv/bin/python -m app.tools.sync_club_crests` (from backend/).
+  Run on the server: `docker compose exec backend python -m app.tools.sync_club_crests`.
+- Frontend: `clubCrestUrl()` in `clubs.api.ts` (via `mediaUrl`); `ClubBadge` gains
+  `clubId`/`crestVersion` and renders the crest `<img>` (lazy, same footprint)
+  with precedence crest → nation flag → monogram; `clubLabelPartsById` returns
+  `id` + `crest_updated_at`; all seven call sites pass them.
+- Tests: `backend/tests/test_club_crests.py` (upload/serve/delete roundtrip,
+  admin-only, invalid type, offline matcher tests); crest-precedence render test
+  in `matchHistoryList.test.tsx`; fixtures gained `crest_updated_at`.
+
+*Done.* `make test` 115 passed, lint clean, `npm run check` 158 passed, build green,
+gen-types committed. Crest images are NOT in git — they live in `backend/data/uploads/
+club_crests/` (dev) / the `/data` volume (prod); after deploying, run the sync once
+on the server (command above).
+
+Sync results (dev, 2026-08-08): **591 of 597 clubs matched (99%)** across three passes
+(first pass 539, then improved fallback queries + ~55 aliases). The free TSDB key caps
+bulk league lists at 10 teams and hides some teams from search entirely — these 6 keep
+the monogram until manually uploaded via `PUT /clubs/{id}/crest`:
+Nottingham Forest F.C., San Lorenzo, St. Louis CITY SC, Wisła Płock, Al Shabab,
+United Tigewrs SC (DB-name typo). Visually verified at 375px: real crests in friendlies
++ live matches details, flags for national teams, monogram fallback — precedence
+crest → flag → monogram works per row.
+
 ---
 
 ## Verification gates (after all tasks)

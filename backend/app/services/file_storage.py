@@ -47,6 +47,11 @@ def media_path_for_profile_header(player_id: int, content_type: str) -> str:
     return f"profile_headers/{int(player_id)}.{ext}"
 
 
+def media_path_for_club_crest(club_id: int, content_type: str) -> str:
+    ext = _ext_from_content_type(content_type)
+    return f"club_crests/{int(club_id)}.{ext}"
+
+
 def read_media(rel_path: str) -> bytes | None:
     rel = _safe_rel(rel_path)
     p = _uploads_root() / rel

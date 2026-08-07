@@ -1,15 +1,24 @@
+import datetime as dt
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFile
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
 
 from ..auth import require_admin, require_editor
-from ..db import get_session
-from ..models import Club, League, MatchSide
+from ..db import get_engine, get_session
+from ..models import Club, ClubCrestFile, League, MatchSide
 from ..schemas import ClubCreateBody, ClubPatchBody, LeagueCreateBody
-from ..schemas.responses import ClubColumnsOut, ClubOut, LeagueOut
+from ..schemas.responses import ClubColumnsOut, ClubCrestMetaOut, ClubOut, LeagueOut
+from ..services.file_storage import (
+    delete_media,
+    media_path_for_club_crest,
+    read_media,
+    upsert_media_row,
+)
 from ..validation import validate_nation_code, validate_star_rating
+
+MAX_CREST_BYTES = 1_000_000
 
 log = logging.getLogger(__name__)
 router = APIRouter(prefix="/clubs", tags=["clubs"])
@@ -59,17 +68,18 @@ def create_league(body: LeagueCreateBody, s: Session = Depends(get_session), rol
 @router.get("", response_model=list[ClubOut])
 def list_clubs(game: str | None = None, s: Session = Depends(get_session)):
     q = (
-        select(Club, League.name, League.nation)
+        select(Club, League.name, League.nation, ClubCrestFile.updated_at)
         .join(League, Club.league_id == League.id, isouter=True)
+        .join(ClubCrestFile, ClubCrestFile.club_id == Club.id, isouter=True)
         .order_by(Club.game, Club.name)
     )
     if game:
         q = q.where(Club.game == game)
 
-    rows = s.exec(q).all()  # list[tuple[Club, str|None, str|None]]
+    rows = s.exec(q).all()  # list[tuple[Club, str|None, str|None, datetime|None]]
 
     out: list[ClubOut] = []
-    for club, league_name, league_nation in rows:
+    for club, league_name, league_nation, crest_updated_at in rows:
         out.append(
             ClubOut(
                 id=club.id,
@@ -79,9 +89,77 @@ def list_clubs(game: str | None = None, s: Session = Depends(get_session)):
                 league_id=club.league_id,
                 league_name=league_name,
                 league_nation=league_nation,
+                crest_updated_at=crest_updated_at,
             )
         )
     return out
+
+
+# ---- club crests (metadata in DB, bytes on disk — see PlayerAvatarFile) ----
+@router.get("/{club_id}/crest")
+def get_club_crest(club_id: int):
+    with Session(get_engine()) as s:
+        fs_row = s.get(ClubCrestFile, club_id)
+        if not fs_row:
+            raise HTTPException(status_code=404, detail="Crest not found")
+        content_type = fs_row.content_type
+        file_path = fs_row.file_path
+
+    data = read_media(file_path)
+    if data is None:
+        raise HTTPException(status_code=404, detail="Crest file missing")
+
+    # Crests change basically never; the frontend appends updated_at as a cache buster.
+    headers = {"Cache-Control": "public, max-age=2592000"}
+    return Response(content=data, media_type=content_type, headers=headers)
+
+
+@router.put("/{club_id}/crest", response_model=ClubCrestMetaOut)
+async def put_club_crest(
+    club_id: int,
+    file: UploadFile = File(...),
+    s: Session = Depends(get_session),
+    role: str = Depends(require_admin),
+):
+    club = s.get(Club, club_id)
+    if not club:
+        raise HTTPException(status_code=404, detail="Club not found")
+
+    ct = (file.content_type or "").strip().lower()
+    if not ct.startswith("image/"):
+        raise HTTPException(status_code=400, detail="Invalid file type")
+
+    data = await file.read()
+    if not data:
+        raise HTTPException(status_code=400, detail="Empty file")
+    if len(data) > MAX_CREST_BYTES:
+        raise HTTPException(status_code=413, detail=f"Crest too large (max {MAX_CREST_BYTES} bytes)")
+
+    row = upsert_media_row(
+        s,
+        row_cls=ClubCrestFile,
+        row_id=club_id,
+        id_field="club_id",
+        content_type=ct,
+        data=data,
+        path_builder=media_path_for_club_crest,
+        updated_at=dt.datetime.utcnow(),
+    )
+    s.commit()
+    s.refresh(row)
+    log.info("Club crest uploaded: club_id=%s by=%s", club_id, role)
+    return {"club_id": row.club_id, "updated_at": row.updated_at}
+
+
+@router.delete("/{club_id}/crest", dependencies=[Depends(require_admin)])
+def delete_club_crest(club_id: int, s: Session = Depends(get_session)):
+    row = s.get(ClubCrestFile, club_id)
+    if not row:
+        return Response(status_code=204)
+    delete_media(row.file_path)
+    s.delete(row)
+    s.commit()
+    return Response(status_code=204)
 
 
 @router.post("", response_model=ClubColumnsOut, dependencies=[Depends(require_editor)])

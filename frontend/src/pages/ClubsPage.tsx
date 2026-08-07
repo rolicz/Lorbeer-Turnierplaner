@@ -463,7 +463,7 @@ export default function ClubsPage() {
                           <div className="row">
                             <div className="min-w-0 flex-1">
                               <div className="flex min-w-0 items-center gap-1.5">
-                                <ClubBadge name={c.name} nation={nationalTeamNation(c.name, ln)} />
+                                <ClubBadge name={c.name} nation={nationalTeamNation(c.name, ln)} clubId={c.id} crestVersion={c.crest_updated_at} />
                                 <span className="min-w-0 truncate font-medium text-text-normal">{c.name}</span>
                               </div>
                               <div className="mt-0.5 flex flex-wrap items-center text-[11px] text-text-muted">

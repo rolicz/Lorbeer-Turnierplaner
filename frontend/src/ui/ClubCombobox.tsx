@@ -159,7 +159,7 @@ export default function ClubCombobox({
         )}
       >
         {selected ? (
-          <ClubBadge name={selected.name} nation={nationalTeamNation(selected.name, selected.league_name)} />
+          <ClubBadge name={selected.name} nation={nationalTeamNation(selected.name, selected.league_name)} clubId={selected.id} crestVersion={selected.crest_updated_at} />
         ) : null}
         <span className="min-w-0 flex-1 truncate">
           {selected ? selected.name : <span className="text-text-muted">{placeholder}</span>}
@@ -252,7 +252,7 @@ export default function ClubCombobox({
                               isSel ? "text-accent" : "text-text-normal",
                             )}
                           >
-                            <ClubBadge name={c.name} nation={nationalTeamNation(c.name, c.league_name)} />
+                            <ClubBadge name={c.name} nation={nationalTeamNation(c.name, c.league_name)} clubId={c.id} crestVersion={c.crest_updated_at} />
                             <span className="min-w-0 truncate">{c.name}</span>
                           </span>
                           {c.league_name ? (
