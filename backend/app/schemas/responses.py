@@ -149,6 +149,7 @@ class PokeIdsOut(BaseModel):
 class LeagueOut(ORMModel):
     id: int
     name: str
+    nation: str | None
 
 
 class ClubColumnsOut(ORMModel):
@@ -168,6 +169,7 @@ class ClubOut(BaseModel):
     star_rating: float
     league_id: int
     league_name: str | None
+    league_nation: str | None
 
 
 # ---- friendlies --------------------------------------------------------

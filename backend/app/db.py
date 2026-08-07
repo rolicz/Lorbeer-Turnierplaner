@@ -1,8 +1,14 @@
 from __future__ import annotations
 
+import logging
+
 from sqlalchemy import inspect, text
 from sqlalchemy.pool import NullPool, StaticPool
 from sqlmodel import Session, SQLModel, create_engine
+
+from .league_nations import backfill_league_nations
+
+log = logging.getLogger(__name__)
 
 _engine = None
 
@@ -28,23 +34,32 @@ def init_db() -> None:
     SQLModel.metadata.create_all(_engine)
     _ensure_runtime_columns()
 
+    changed = backfill_league_nations(_engine)
+    if changed > 0:
+        log.info("League nations backfilled: %s", changed)
+
+
+# Columns added to existing deployments after the fact: (table, column, DDL type/default).
+# Additive only — old code keeps working against a migrated DB.
+_RUNTIME_COLUMNS: tuple[tuple[str, str, str], ...] = (
+    ("pushsubscriptionpreference", "notification_mode", "VARCHAR NOT NULL DEFAULT 'finished_only'"),
+    ("league", "nation", "VARCHAR"),
+)
+
 
 def _ensure_runtime_columns() -> None:
     if _engine is None:
         return
     inspector = inspect(_engine)
-    if "pushsubscriptionpreference" not in inspector.get_table_names():
-        return
-    columns = {col["name"] for col in inspector.get_columns("pushsubscriptionpreference")}
-    if "notification_mode" in columns:
-        return
-    with _engine.begin() as conn:
-        conn.execute(
-            text(
-                "ALTER TABLE pushsubscriptionpreference "
-                "ADD COLUMN notification_mode VARCHAR NOT NULL DEFAULT 'finished_only'"
-            )
-        )
+    tables = set(inspector.get_table_names())
+    for table, column, ddl in _RUNTIME_COLUMNS:
+        if table not in tables:
+            continue
+        columns = {col["name"] for col in inspector.get_columns(table)}
+        if column in columns:
+            continue
+        with _engine.begin() as conn:
+            conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {column} {ddl}"))
 
 def get_session():
     if _engine is None:

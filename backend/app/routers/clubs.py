@@ -9,7 +9,7 @@ from ..db import get_session
 from ..models import Club, League, MatchSide
 from ..schemas import ClubCreateBody, ClubPatchBody, LeagueCreateBody
 from ..schemas.responses import ClubColumnsOut, ClubOut, LeagueOut
-from ..validation import validate_star_rating
+from ..validation import validate_nation_code, validate_star_rating
 
 log = logging.getLogger(__name__)
 router = APIRouter(prefix="/clubs", tags=["clubs"])
@@ -27,11 +27,18 @@ def create_league(body: LeagueCreateBody, s: Session = Depends(get_session), rol
     if not name:
         raise HTTPException(status_code=400, detail="Missing league name")
 
+    nation: str | None = None
+    if body.nation is not None:
+        try:
+            nation = validate_nation_code(body.nation)
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+
     existing = s.exec(select(League).where(League.name == name)).first()
     if existing:
         return existing
 
-    lg = League(name=name)
+    lg = League(name=name, nation=nation)
     s.add(lg)
     try:
         s.commit()
@@ -52,17 +59,17 @@ def create_league(body: LeagueCreateBody, s: Session = Depends(get_session), rol
 @router.get("", response_model=list[ClubOut])
 def list_clubs(game: str | None = None, s: Session = Depends(get_session)):
     q = (
-        select(Club, League.name)
+        select(Club, League.name, League.nation)
         .join(League, Club.league_id == League.id, isouter=True)
         .order_by(Club.game, Club.name)
     )
     if game:
         q = q.where(Club.game == game)
 
-    rows = s.exec(q).all()  # list[tuple[Club, str|None]]
+    rows = s.exec(q).all()  # list[tuple[Club, str|None, str|None]]
 
     out: list[ClubOut] = []
-    for club, league_name in rows:
+    for club, league_name, league_nation in rows:
         out.append(
             ClubOut(
                 id=club.id,
@@ -71,6 +78,7 @@ def list_clubs(game: str | None = None, s: Session = Depends(get_session)):
                 star_rating=club.star_rating,
                 league_id=club.league_id,
                 league_name=league_name,
+                league_nation=league_nation,
             )
         )
     return out

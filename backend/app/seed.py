@@ -9,7 +9,7 @@ from sqlalchemy import func
 from sqlmodel import Session, select
 
 from .models import Club, League, Match, MatchSide, Player, Tournament
-from .validation import validate_star_rating
+from .validation import validate_nation_code, validate_star_rating
 
 log = logging.getLogger(__name__)
 
@@ -51,12 +51,19 @@ def upsert_leagues(s: Session, leagues: list[dict[str, Any]]) -> dict[str, int]:
         if not name:
             raise ValueError("League name missing/empty")
 
+        nation_raw = (item.get("nation") or "").strip()
+        nation = validate_nation_code(nation_raw) if nation_raw else None
+
         existing = s.exec(select(League).where(League.name == name)).first()
         if existing:
+            # never overwrite an existing nation (manual corrections win)
+            if nation and existing.nation is None:
+                existing.nation = nation
+                s.add(existing)
             updated += 1
             continue
 
-        s.add(League(name=name))
+        s.add(League(name=name, nation=nation))
         created += 1
 
     s.commit()

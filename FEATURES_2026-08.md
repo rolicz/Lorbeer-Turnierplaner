@@ -96,7 +96,7 @@
 
 ---
 
-## G1 — Backend: `league.nation` column, startup backfill, API exposure  ☐
+## G1 — Backend: `league.nation` column, startup backfill, API exposure  ☑
 
 - `backend/app/models.py` `League`: add `nation: Optional[str] = Field(default=None)`.
 - `backend/app/db.py` `_ensure_runtime_columns()`: extend the existing pattern —
@@ -128,6 +128,24 @@
 
 **DoD:** `make test` + `make lint` green; schema.d.ts committed; starting the backend
 against a copy of an old DB logs the backfill once, then never again.
+
+*Done.* `make test` 110 passed (105 baseline + 5 new), `make lint` green, `schema.d.ts`
+regenerated. Verified against a copy of `backend/data/app.db`: first `init_db()` adds the
+column and logs `League nations backfilled: 39`, a second one logs nothing; `Rest of the
+World` / `National (Men)` / `National (Women)` stay NULL.
+
+Notes for later tasks:
+- `_ensure_runtime_columns()` is now a small table-driven loop (`_RUNTIME_COLUMNS`),
+  push-preference migration unchanged in behaviour.
+- Nation-code validation lives in `backend/app/validation.py` as `validate_nation_code`
+  (regex `^[a-z]{2}(-[a-z]{2,3})?$`, lowercases + trims); reused by `create_league` and
+  by seeding.
+- `LeagueOut.nation` / `ClubOut.league_nation` are **required** fields (`str | None`, no
+  default), so the generated TS types are `nation: string | null` /
+  `league_nation: string | null` — not optional. `LeagueCreateBody.nation` is optional.
+- `backend/data/seed.json` has no `Indian Super League` / `Ligue 2` / `LaLiga 2` rows
+  (unlike `seed-leagues.json`); left as-is — only nations were added, no new leagues.
+- Backfill runs from `init_db()`, not from seeding; `upsert_leagues` only fills NULLs too.
 
 ## G2 — Frontend primitives: NationFlag, ClubBadge, enriched club lookup  ☐
 

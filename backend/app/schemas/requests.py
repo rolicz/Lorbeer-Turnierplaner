@@ -112,6 +112,7 @@ class CommentsPinBody(BaseModel):
 
 class LeagueCreateBody(BaseModel):
     name: str
+    nation: str | None = None
 
 
 class ClubCreateBody(BaseModel):

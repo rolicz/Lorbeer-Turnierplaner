@@ -151,6 +151,9 @@ class League(SQLModel, table=True):
     """
     id: Optional[int] = Field(default=None, primary_key=True)
     name: str = Field(index=True, unique=True)
+    # flag-icons compatible country code (ISO 3166-1 alpha-2, optionally with a
+    # GB subdivision suffix, e.g. "de", "gb-eng"). NULL = no flag.
+    nation: Optional[str] = Field(default=None)
 
     clubs: List["Club"] = Relationship(back_populates="league")
 

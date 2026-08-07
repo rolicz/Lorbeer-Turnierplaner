@@ -1392,6 +1392,8 @@ export interface components {
             league_id: number;
             /** League Name */
             league_name: string | null;
+            /** League Nation */
+            league_nation: string | null;
         };
         /** ClubPatchBody */
         ClubPatchBody: {
@@ -1760,6 +1762,8 @@ export interface components {
         LeagueCreateBody: {
             /** Name */
             name: string;
+            /** Nation */
+            nation?: string | null;
         };
         /** LeagueOut */
         LeagueOut: {
@@ -1767,6 +1771,8 @@ export interface components {
             id: number;
             /** Name */
             name: string;
+            /** Nation */
+            nation: string | null;
         };
         /** LoginBody */
         LoginBody: {
