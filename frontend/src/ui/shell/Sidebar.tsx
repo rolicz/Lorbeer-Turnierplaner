@@ -3,6 +3,7 @@ import { motion } from "framer-motion";
 import { ChevronLeft, ChevronRight, Settings } from "lucide-react";
 
 import { useAuth } from "../../auth/AuthContext";
+import { useLiveTournament } from "../../hooks/useLiveTournament";
 import { activeDest, visibleDests } from "./navConfig";
 import ConnectionIndicator from "./ConnectionIndicator";
 import NotificationBell from "./NotificationBell";
@@ -21,6 +22,12 @@ export default function Sidebar({
   const active = activeDest(loc.pathname);
   const settingsActive = loc.pathname.startsWith("/settings");
 
+  // Shortcut to the live tournament, shown only while one is running. When on
+  // its page, this entry owns the active state (not "Tournaments").
+  const liveT = useLiveTournament().data ?? null;
+  const onLivePage =
+    !!liveT && (loc.pathname === `/live/${liveT.id}` || loc.pathname.startsWith(`/live/${liveT.id}/`));
+
   return (
     <aside
       className={
@@ -36,9 +43,36 @@ export default function Sidebar({
 
       {/* Nav */}
       <nav className="flex-1 space-y-1 overflow-y-auto px-2.5 py-2">
+        {liveT ? (
+          <Link
+            to={`/live/${liveT.id}`}
+            title={liveT.name}
+            aria-current={onLivePage ? "page" : undefined}
+            className={
+              "group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition focus-ring " +
+              (onLivePage
+                ? "bg-bg-card-chip/60 text-text-normal font-medium"
+                : "text-text-muted hover:bg-hover-default/40 hover:text-text-normal") +
+              (collapsed ? " justify-center px-0" : "")
+            }
+          >
+            {onLivePage ? (
+              <motion.span
+                layoutId="sidebar-active"
+                className="absolute left-0 top-1/2 h-5 w-1 -translate-y-1/2 rounded-r-full bg-accent"
+                aria-hidden="true"
+              />
+            ) : null}
+            <span className="relative flex h-[18px] w-[18px] shrink-0 items-center justify-center" aria-hidden="true">
+              <span className="absolute inline-flex h-2 w-2 animate-ping rounded-full live-ping opacity-75" />
+              <span className="relative inline-flex h-2 w-2 rounded-full live-dot" />
+            </span>
+            {!collapsed ? <span className="truncate">Live now</span> : null}
+          </Link>
+        ) : null}
         {dests.map((d) => {
           const Icon = d.icon;
-          const isActive = active?.key === d.key;
+          const isActive = active?.key === d.key && !onLivePage;
           return (
             <Link
               key={d.key}

@@ -11,19 +11,11 @@ import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
 import { SectionTabs, type SectionTab } from "../../ui/SectionTabs";
 import { listCupDefs } from "../../api/cup.api";
 import { qk } from "../../api/queryKeys";
-import { apiFetch } from "../../api/client";
 import { cupColorVarForKey, rgbFromCssVar } from "../../cupColors";
+import { useLiveTournament } from "../../hooks/useLiveTournament";
 import { useRouteEntryLoading } from "../../ui/layout/useRouteEntryLoading";
 import PageLayout from "../../ui/layout/PageLayout";
 import PageLoadingScreen from "../../ui/primitives/PageLoadingScreen";
-
-type LiveTournamentLite = {
-  id: number;
-  name: string;
-  mode: "1v1" | "2v2";
-  status: "live";
-  date?: string | null;
-};
 
 type DashTab = "overview" | "cups";
 const DASH_TABS: SectionTab<DashTab>[] = [
@@ -44,15 +36,7 @@ export default function DashboardPage() {
   };
 
   const defsQ = useQuery({ queryKey: qk.cupDefs(), queryFn: listCupDefs });
-  const liveQ = useQuery({
-    queryKey: qk.tournamentsLive(),
-    queryFn: async (): Promise<LiveTournamentLite | null> =>
-      apiFetch<LiveTournamentLite | null>("/tournaments/live"),
-    refetchOnMount: "always",
-    refetchOnWindowFocus: true,
-    refetchOnReconnect: true,
-    staleTime: 0,
-  });
+  const liveQ = useLiveTournament();
 
   const cups = useMemo(() => {
     const raw = defsQ.data?.cups?.length

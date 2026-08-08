@@ -4,38 +4,20 @@ import { useQuery } from "@tanstack/react-query";
 
 import { getTournament } from "../../api/tournaments.api";
 import { listClubs } from "../../api/clubs.api";
-import { apiFetch } from "../../api/client";
 import { qk } from "../../api/queryKeys";
 
+import { useLiveTournament } from "../../hooks/useLiveTournament";
 import { useTournamentWS } from "../../hooks/useTournamentWS";
 import { sideBy } from "../../helpers";
 import { pickPreviewMatch } from "../../utils/matchDisplay";
 import MatchOverviewPanel from "../../ui/primitives/MatchOverviewPanel";
 import InlineLoading from "../../ui/primitives/InlineLoading";
 
-type LiveTournamentLite = {
-  id: number;
-  name: string;
-  mode: "1v1" | "2v2";
-  status: "live";
-  date?: string | null;
-};
-
-
 export default function CurrentMatchPreviewCard() {
   const nav = useNavigate();
 
   // 1) which tournament is currently LIVE?
-  const liveQ = useQuery({
-    queryKey: qk.tournamentsLive(),
-    queryFn: async (): Promise<LiveTournamentLite | null> => {
-      return apiFetch<LiveTournamentLite | null>("/tournaments/live");
-    },
-    refetchOnMount: "always",
-    refetchOnWindowFocus: true,
-    refetchOnReconnect: true,
-    staleTime: 0,
-  });
+  const liveQ = useLiveTournament();
 
   const tid = typeof liveQ.data?.id === "number" ? liveQ.data.id : null;
 

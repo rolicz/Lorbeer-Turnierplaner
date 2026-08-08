@@ -97,7 +97,7 @@ export default function ClubBadge({
         loading="lazy"
         draggable={false}
         aria-hidden="true"
-        className={cn("shrink-0 self-center object-contain", IMG_SIZE_CLASS[size], className)}
+        className={cn("shrink-0 object-contain", IMG_SIZE_CLASS[size], className)}
       />
     );
   }

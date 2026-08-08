@@ -62,8 +62,8 @@ export default function MatchList({
   const [view, setView] = useState<MatchListView>(() => {
     const stored = localStorage.getItem("match_list_view");
     if (stored === "compact" || stored === "comfort") return stored;
-    // Compact by default everywhere (TODO-5); users can opt into Details.
-    return "compact";
+    // Details by default (user request 2026-08); the choice sticks via localStorage.
+    return "comfort";
   });
 
   useEffect(() => {
@@ -230,18 +230,27 @@ export default function MatchList({
                   ) : null}
                 </div>
 
-                {/* Main row: players + centered score */}
+                {/* Main row: players + centered score. Compact view has no club
+                    detail rows, so the club symbols flank the score instead. */}
                 <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3">
                   {renderNames(aPlayers, aNameColor, "A")}
 
-                  <div className="card-chip flex items-center justify-center gap-2 justify-self-center border border-border-card-inner/45 bg-bg-card-chip/30 px-3 py-1.5">
-                    <span className={(compact ? "text-base" : "text-lg") + " font-semibold tabular-nums"}>
-                      {showScore ? String(ag) : "-"}
-                    </span>
-                    <span className="text-text-muted">:</span>
-                    <span className={(compact ? "text-base" : "text-lg") + " font-semibold tabular-nums"}>
-                      {showScore ? String(bg) : "-"}
-                    </span>
+                  <div className="flex items-center gap-1.5 justify-self-center">
+                    {compact && aHasClub ? (
+                      <ClubBadge name={aClubParts.name} nation={aClubParts.national_nation} clubId={aClubParts.id} crestVersion={aClubParts.crest_updated_at} />
+                    ) : null}
+                    <div className="card-chip flex items-center justify-center gap-2 border border-border-card-inner/45 bg-bg-card-chip/30 px-3 py-1.5">
+                      <span className={(compact ? "text-base" : "text-lg") + " font-semibold tabular-nums"}>
+                        {showScore ? String(ag) : "-"}
+                      </span>
+                      <span className="text-text-muted">:</span>
+                      <span className={(compact ? "text-base" : "text-lg") + " font-semibold tabular-nums"}>
+                        {showScore ? String(bg) : "-"}
+                      </span>
+                    </div>
+                    {compact && bHasClub ? (
+                      <ClubBadge name={bClubParts.name} nation={bClubParts.national_nation} clubId={bClubParts.id} crestVersion={bClubParts.crest_updated_at} />
+                    ) : null}
                   </div>
 
                   {renderNames(bPlayers, bNameColor, "B")}
@@ -258,23 +267,23 @@ export default function MatchList({
                 {!compact ? (
                   <>
                     <div className="mt-1.5 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-start gap-3 text-xs text-text-muted">
-                      <div className="min-w-0 flex items-baseline gap-1.5">
+                      <div className="min-w-0 flex items-center gap-1.5">
                         {aHasClub ? <ClubBadge name={aClubParts.name} nation={aClubParts.national_nation} clubId={aClubParts.id} crestVersion={aClubParts.crest_updated_at} /> : null}
                         <span className="min-w-0 whitespace-normal break-words leading-tight">{aClubParts.name}</span>
                       </div>
                       <div />
-                      <div className="min-w-0 flex items-baseline justify-end gap-1.5 text-right">
+                      <div className="min-w-0 flex items-center justify-end gap-1.5 text-right">
                         <span className="min-w-0 whitespace-normal break-words leading-tight">{bClubParts.name}</span>
                         {bHasClub ? <ClubBadge name={bClubParts.name} nation={bClubParts.national_nation} clubId={bClubParts.id} crestVersion={bClubParts.crest_updated_at} /> : null}
                       </div>
                     </div>
                     <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-start gap-3 text-xs text-text-muted">
-                      <div className="min-w-0 flex items-baseline gap-1.5">
+                      <div className="min-w-0 flex items-center gap-1.5">
                         <NationFlag nation={aClubParts.league_nation} />
                         <span className="min-w-0 whitespace-normal break-words leading-tight">{aClubParts.league_name}</span>
                       </div>
                       <div />
-                      <div className="min-w-0 flex items-baseline justify-end gap-1.5 text-right">
+                      <div className="min-w-0 flex items-center justify-end gap-1.5 text-right">
                         <span className="min-w-0 whitespace-normal break-words leading-tight">{bClubParts.league_name}</span>
                         <NationFlag nation={bClubParts.league_nation} />
                       </div>

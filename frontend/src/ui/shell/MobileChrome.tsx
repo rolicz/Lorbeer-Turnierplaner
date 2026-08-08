@@ -4,6 +4,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { Menu, X, Settings, ChevronLeft } from "lucide-react";
 
 import { useAuth } from "../../auth/AuthContext";
+import { useLiveTournament } from "../../hooks/useLiveTournament";
 import { drawerLeft, scrim } from "../motion/motion";
 import { activeDest, visibleDests } from "./navConfig";
 import { usePageTitleValue } from "../layout/PageTitleContext";
@@ -28,6 +29,12 @@ export default function MobileChrome({
   const pageTitle = usePageTitleValue();
   const { hidden, atTop } = useHideOnScroll(72);
   const { isDetail, goBack } = useContextualBack();
+
+  // Shortcut to the live tournament, shown only while one is running. When on
+  // its page, this entry owns the active state (not "Tournaments").
+  const liveT = useLiveTournament().data ?? null;
+  const onLivePage =
+    !!liveT && (loc.pathname === `/live/${liveT.id}` || loc.pathname.startsWith(`/live/${liveT.id}/`));
 
   // The current page title: page-registered title wins, else the nav label, else brand.
   const title = pageTitle ?? active?.label ?? "Lorbeerkranz";
@@ -118,9 +125,29 @@ export default function MobileChrome({
               </div>
 
               <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-2">
+                {liveT ? (
+                  <Link
+                    to={`/live/${liveT.id}`}
+                    onClick={() => setOpen(false)}
+                    aria-current={onLivePage ? "page" : undefined}
+                    className={
+                      "flex items-center gap-3 rounded-xl px-3 py-3 text-[15px] transition focus-ring " +
+                      (onLivePage
+                        ? "bg-bg-card-chip/60 text-text-normal font-medium"
+                        : "text-text-muted hover:bg-hover-default/40 hover:text-text-normal")
+                    }
+                  >
+                    <span className="relative flex h-5 w-5 shrink-0 items-center justify-center" aria-hidden="true">
+                      <span className="absolute inline-flex h-2 w-2 animate-ping rounded-full live-ping opacity-75" />
+                      <span className="relative inline-flex h-2 w-2 rounded-full live-dot" />
+                    </span>
+                    <span className="min-w-0 flex-1 truncate">Live now</span>
+                    <span className="max-w-[45%] truncate text-xs text-text-muted">{liveT.name}</span>
+                  </Link>
+                ) : null}
                 {dests.map((d) => {
                   const Icon = d.icon;
-                  const isActive = active?.key === d.key;
+                  const isActive = active?.key === d.key && !onLivePage;
                   return (
                     <Link
                       key={d.key}

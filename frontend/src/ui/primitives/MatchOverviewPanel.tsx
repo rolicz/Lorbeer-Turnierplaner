@@ -10,8 +10,9 @@ import { fmtOdd } from "../../utils/format";
 
 // The club/league rows scale their type at `md:` (`text-xs md:text-sm`), so the
 // symbols step up from the primitives' `sm` to their `md` footprint there too.
+// Both step up to the same 22px box so stacked rows keep identical text offsets.
 const BADGE_MD_UP = "md:h-[22px] md:w-[22px] md:text-[10px]";
-const FLAG_MD_UP = "md:text-[13.5px]";
+const FLAG_MD_UP = "md:h-[22px] md:w-[22px] md:text-[13.5px]";
 
 /** National teams render a flag as their club symbol, so they take the flag's step-up. */
 function symbolMdUp(nation: string | null): string {
@@ -163,7 +164,7 @@ export default function MatchOverviewPanel({
       </div>
 
       <div className="mt-2 md:mt-3 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-start gap-3 md:gap-4 text-xs md:text-sm text-text-muted">
-        <div className="min-w-0 flex items-baseline gap-1.5">
+        <div className="min-w-0 flex items-center gap-1.5">
           {aHasClub ? (
             <ClubBadge
               name={aClubParts.name}
@@ -176,7 +177,7 @@ export default function MatchOverviewPanel({
           <span className="min-w-0 whitespace-normal md:truncate break-words leading-tight">{aClubParts.name}</span>
         </div>
         <div />
-        <div className="min-w-0 flex items-baseline justify-end gap-1.5 text-right">
+        <div className="min-w-0 flex items-center justify-end gap-1.5 text-right">
           <span className="min-w-0 whitespace-normal md:truncate break-words leading-tight">{bClubParts.name}</span>
           {bHasClub ? (
             <ClubBadge
@@ -190,12 +191,12 @@ export default function MatchOverviewPanel({
         </div>
       </div>
       <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-start gap-3 md:gap-4 text-xs md:text-sm text-text-muted">
-        <div className="min-w-0 flex items-baseline gap-1.5">
+        <div className="min-w-0 flex items-center gap-1.5">
           <NationFlag nation={aClubParts.league_nation} className={FLAG_MD_UP} />
           <span className="min-w-0 whitespace-normal md:truncate break-words leading-tight">{aClubParts.league_name}</span>
         </div>
         <div />
-        <div className="min-w-0 flex items-baseline justify-end gap-1.5 text-right">
+        <div className="min-w-0 flex items-center justify-end gap-1.5 text-right">
           <span className="min-w-0 whitespace-normal md:truncate break-words leading-tight">{bClubParts.league_name}</span>
           <NationFlag nation={bClubParts.league_nation} className={FLAG_MD_UP} />
         </div>

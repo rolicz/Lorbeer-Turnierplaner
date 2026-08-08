@@ -464,6 +464,24 @@ United Tigewrs SC (DB-name typo). Visually verified at 375px: real crests in fri
 + live matches details, flags for national teams, monogram fallback — precedence
 crest → flag → monogram works per row.
 
+## G8 — Post-crest polish round (user feedback 2026-08-08)  ☑
+
+- **Symbol/text alignment**: `NationFlag` reserves the same square footprint as
+  `ClubBadge` (16px sm / 22px md, flag centered inside), so stacked club/league
+  texts start at the same x offset; all symbol rows are `items-center`.
+- **Tournament matches list** (`live/MatchList.tsx`): club symbols flank the score
+  chip in Compact view; Details is the default view (localStorage choice wins).
+- **Done tournaments open on Results**: `LiveTournamentPage` derives the default
+  tab from status (`chosenTab ?? (done ? "standings" : "overview")`); URL tab
+  params and manual clicks always win.
+- **Live-now nav shortcut**: new `hooks/useLiveTournament.ts` (shared query,
+  60s refetch); `Sidebar` + `MobileChrome` show a pulsing-dot "Live now" entry
+  while a tournament is live, linking to `/live/{id}`; it owns the active state
+  on that page. Dashboard card/page refactored onto the hook.
+
+All verified in the running app (Playwright, 375px + 1280px). `npm run check`
+158 passed, build green.
+
 ---
 
 ## Verification gates (after all tasks)

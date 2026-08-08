@@ -97,15 +97,16 @@ export default function LiveTournamentPage() {
   const isEditorOrAdmin = role === "editor" || role === "admin";
 
   const TAB_KEYS: LiveTab[] = ["overview", "current", "standings", "matches", "comments", "controls"];
-  const initialTab = ((): LiveTab => {
+  const initialTab = ((): LiveTab | null => {
     const t = searchParams.get("tab");
-    return t && (TAB_KEYS as string[]).includes(t) ? (t as LiveTab) : "overview";
+    return t && (TAB_KEYS as string[]).includes(t) ? (t as LiveTab) : null;
   })();
-  const [activeTab, setActiveTabState] = useState<LiveTab>(initialTab);
+  // null = neither the URL nor the user picked a tab yet → status-dependent default below.
+  const [chosenTab, setChosenTabState] = useState<LiveTab | null>(initialTab);
   // Active tab is mirrored to the URL so back-navigation (in-app + browser) restores it.
   const setActiveTab = useCallback(
     (t: LiveTab) => {
-      setActiveTabState(t);
+      setChosenTabState(t);
       const next = new URLSearchParams(window.location.search);
       next.set("tab", t);
       setSearchParams(next, { replace: true });
@@ -118,6 +119,10 @@ export default function LiveTournamentPage() {
     queryFn: () => getTournament(tid!),
     enabled: !!tid,
   });
+
+  // Done tournaments open on Results: their "current match" is just the last
+  // finished one. Explicit choices (URL deep link or a tab click) always win.
+  const activeTab: LiveTab = chosenTab ?? (tQ.data?.status === "done" ? "standings" : "overview");
 
   useTournamentWS(tid);
 
