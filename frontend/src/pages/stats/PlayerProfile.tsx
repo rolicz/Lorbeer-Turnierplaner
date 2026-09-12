@@ -18,7 +18,7 @@ import PlayerStreakChips from "./PlayerStreakChips";
 import { StarsSection } from "./StarsView";
 import { fmtRating } from "../../utils/format";
 import type { Row } from "./standings";
-import type { StatsMode } from "./StatsControls";
+import type { StatsMode } from "./statsMode";
 import type { StatsScope } from "../../api/types";
 
 function StatTile({ label, value }: { label: string; value: string }) {

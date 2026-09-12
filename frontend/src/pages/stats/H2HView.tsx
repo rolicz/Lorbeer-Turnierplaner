@@ -22,7 +22,7 @@ import { DuoRivalries } from "./h2h/DuoRivalries";
 import { DuoDetail } from "./h2h/DuoDetail";
 import type { Row } from "./standings";
 import type { H2HSub } from "./statsNav";
-import type { StatsMode } from "./StatsControls";
+import type { StatsMode } from "./statsMode";
 import type { StatsScope, StatsH2HPair, StatsH2HOpponentRow, StatsH2HDuo, StatsH2HTeamRivalry } from "../../api/types";
 
 function h2hTone(pct: number): string {

@@ -7,7 +7,7 @@ import { SectionTabs, type SectionTab } from "../../ui/SectionTabs";
 import { ChipGroup } from "./charts";
 import StatsFilterPill from "./StatsFilterPill";
 import type { StatsScope } from "../../api/types";
-import type { StatsMode } from "./StatsControls";
+import type { StatsMode } from "./statsMode";
 import { useStandings } from "./standings";
 import StatsTable from "./StatsTable";
 import TrendsExplorer, { type Metric, type ViewMode } from "./trends/TrendsExplorer";

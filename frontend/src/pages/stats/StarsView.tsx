@@ -9,7 +9,7 @@ import { getStatsPlayerMatches } from "../../api/stats.api";
 import { listClubs } from "../../api/clubs.api";
 import { qk } from "../../api/queryKeys";
 import { matchStats, sideOf } from "./standings";
-import type { StatsMode } from "./StatsControls";
+import type { StatsMode } from "./statsMode";
 import type { Club, StatsMatch, StatsScope } from "../../api/types";
 
 const STAR_LEVELS = [5, 4.5, 4, 3.5, 3, 2.5, 2, 1.5, 1, 0.5];

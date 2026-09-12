@@ -9,7 +9,7 @@ import { qk } from "../../api/queryKeys";
 import { teamName } from "../../utils/matchDisplay";
 import { fmtShortDate } from "../../utils/format";
 import type { Row } from "./standings";
-import type { StatsMode } from "./StatsControls";
+import type { StatsMode } from "./statsMode";
 import type { StatsScope, StatsMatch, StatsPlayerMatchesTournament, StatsStreakCategory, StatsTournamentLite } from "../../api/types";
 import { streakDateText } from "./streakDisplay";
 

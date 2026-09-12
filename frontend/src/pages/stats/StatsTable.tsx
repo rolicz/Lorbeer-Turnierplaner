@@ -5,7 +5,7 @@ import { keepPreviousData, useQueries } from "@tanstack/react-query";
 import { getStatsPlayerMatches } from "../../api/stats.api";
 import { qk } from "../../api/queryKeys";
 import type { StatsPlayerMatchesTournament, StatsScope } from "../../api/types";
-import type { StatsMode } from "./StatsControls";
+import type { StatsMode } from "./statsMode";
 import AvatarCircle from "../../ui/primitives/AvatarCircle";
 import InlineLoading from "../../ui/primitives/InlineLoading";
 import { usePlayerAvatarMap } from "../../hooks/usePlayerAvatarMap";

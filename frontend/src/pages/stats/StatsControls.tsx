@@ -1,8 +1,10 @@
 import type { Player, StatsScope } from "../../api/types";
 import AvatarButton from "../../ui/primitives/AvatarButton";
 import SegmentedSwitch, { type SegmentedOption } from "../../ui/primitives/SegmentedSwitch";
+import type { StatsMode } from "./statsMode";
 
-export type StatsMode = "overall" | "1v1" | "2v2";
+// The type now lives in `statsMode.ts`; re-exported here for the Classic cards.
+export type { StatsMode };
 
 const MODE_OPTIONS: ReadonlyArray<SegmentedOption<StatsMode>> = [
   { key: "overall", label: "Overall" },

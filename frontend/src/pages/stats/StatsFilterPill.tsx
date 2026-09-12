@@ -12,7 +12,7 @@
  */
 import { ChevronDown, SlidersHorizontal } from "lucide-react";
 
-import type { StatsMode } from "./StatsControls";
+import type { StatsMode } from "./statsMode";
 import type { StatsScope } from "../../api/types";
 
 const MODE_OPTIONS: { value: StatsMode; label: string }[] = [

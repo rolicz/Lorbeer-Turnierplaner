@@ -13,7 +13,7 @@ import StarsPerformanceCard from "./stats/StarsPerformanceCard";
 import StatsFilterBar, { type StatsFilterConfig } from "./stats/StatsFilterBar";
 import StatsInsights from "./stats/StatsInsights";
 import { useStatsExperience } from "../ui/layout/useStatsMode";
-import type { StatsMode } from "./stats/StatsControls";
+import type { StatsMode } from "./stats/statsMode";
 import { SectionTabs, type SectionTab } from "../ui/SectionTabs";
 import { useRouteEntryLoading } from "../ui/layout/useRouteEntryLoading";
 import PageLayout from "../ui/layout/PageLayout";

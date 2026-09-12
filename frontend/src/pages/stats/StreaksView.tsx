@@ -7,7 +7,7 @@ import InlineLoading from "../../ui/primitives/InlineLoading";
 import { getStatsStreaks } from "../../api/stats.api";
 import { qk } from "../../api/queryKeys";
 import { usePlayerAvatarMap } from "../../hooks/usePlayerAvatarMap";
-import type { StatsMode } from "./StatsControls";
+import type { StatsMode } from "./statsMode";
 import type { StatsScope, StatsStreakCategory } from "../../api/types";
 import { streakDateText } from "./streakDisplay";
 

@@ -25,7 +25,7 @@ import { MatchHistoryList, tournamentMatchHref } from "../MatchHistoryList";
 import { currentRun, resultsTimeline, summarizeMatches, type MatchResult } from "./matchupSummary";
 import { fmtAvg } from "../../../utils/format";
 import type { Row } from "../standings";
-import type { StatsMode } from "../StatsControls";
+import type { StatsMode } from "../statsMode";
 import type { StatsScope } from "../../../api/types";
 
 /** Against = opposite sides (subset match), Together = same side. */

@@ -5,7 +5,7 @@ import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { getStatsRatings, getStatsPlayers } from "../../api/stats.api";
 import { qk } from "../../api/queryKeys";
 import type { StatsMatch, StatsScope } from "../../api/types";
-import type { StatsMode } from "./StatsControls";
+import type { StatsMode } from "./statsMode";
 import { fmtAvg, fmtRating } from "../../utils/format";
 
 export type Row = {

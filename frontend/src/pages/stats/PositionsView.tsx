@@ -13,7 +13,7 @@ import { qk } from "../../api/queryKeys";
 import { usePlayerAvatarMap } from "../../hooks/usePlayerAvatarMap";
 import { fmtRank } from "../../utils/format";
 import { InfoButton } from "./explainers";
-import type { StatsMode } from "./StatsControls";
+import type { StatsMode } from "./statsMode";
 
 /** What the cell colours, the "—" tile and the column shading mean. */
 function InfoLegend() {

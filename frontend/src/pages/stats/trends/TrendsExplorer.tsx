@@ -5,7 +5,7 @@ import { keepPreviousData, useQueries, useQuery } from "@tanstack/react-query";
 import InlineLoading from "../../../ui/primitives/InlineLoading";
 import { getStatsPlayerMatches, getStatsRatingsHistory } from "../../../api/stats.api";
 import type { StatsScope } from "../../../api/types";
-import type { StatsMode } from "../StatsControls";
+import type { StatsMode } from "../statsMode";
 import { usePlayerColors } from "../usePlayerColors";
 import { TrendChart, ChipGroup } from "../charts";
 import { qk } from "../../../api/queryKeys";

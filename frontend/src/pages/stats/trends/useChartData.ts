@@ -3,7 +3,7 @@ import { useMemo } from "react";
 
 import type { StatsPlayerMatchesTournament } from "../../../api/types";
 import type { StatsRatingsHistoryResponse } from "../../../api/stats.api";
-import type { StatsMode } from "../StatsControls";
+import type { StatsMode } from "../statsMode";
 import { type Row, matchStats } from "../standings";
 import { pooledPpm, type PlayerColor } from "../trendsMath";
 
