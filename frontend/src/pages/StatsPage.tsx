@@ -84,6 +84,9 @@ export default function StatsPage() {
   const scope: StatsScope = scopeParam && (SCOPE_VALUES as string[]).includes(scopeParam) ? (scopeParam as StatsScope) : "tournaments";
   const playerParam = Number(searchParams.get("player"));
   const playerId: number | "" = Number.isFinite(playerParam) && playerParam > 0 ? playerParam : "";
+  // Matchup drill-in (new layout): `vs` is the opponent of `player` in H2H.
+  const vsParam = Number(searchParams.get("vs"));
+  const vsId: number | "" = Number.isFinite(vsParam) && vsParam > 0 ? vsParam : "";
 
   const patchParams = (changes: Record<string, string | null>) => {
     const next = new URLSearchParams(searchParams);
@@ -98,6 +101,12 @@ export default function StatsPage() {
   const setMode = (m: StatsMode) => patchParams({ mode: m });
   const setScope = (s: StatsScope) => patchParams({ source: s });
   const setPlayer = (id: number | "") => patchParams({ player: id === "" ? null : String(id) });
+  /** Open (or clear) the matchup; pass `withPlayer` to set both sides in one write. */
+  const setVs = (id: number | "", withPlayer?: number) =>
+    patchParams({
+      vs: id === "" ? null : String(id),
+      ...(withPlayer != null ? { player: String(withPlayer) } : {}),
+    });
 
   const initialTrendsView = state?.trendsView ?? undefined;
   const config = FILTER_CONFIG[active];
@@ -121,6 +130,8 @@ export default function StatsPage() {
           onScopeChange={setScope}
           playerId={playerId}
           onSelectPlayer={(id) => setPlayer(id)}
+          vsId={vsId}
+          onSetVs={setVs}
         />
       </PageLayout>
     );

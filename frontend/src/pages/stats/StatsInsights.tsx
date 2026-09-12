@@ -13,6 +13,7 @@ import StatsTable from "./StatsTable";
 import TrendsExplorer, { type Metric, type ViewMode } from "./trends/TrendsExplorer";
 import PositionsView from "./PositionsView";
 import H2HView from "./H2HView";
+import MatchupView from "./h2h/MatchupView";
 import StreaksView from "./StreaksView";
 import { StarsSection } from "./StarsView";
 import PlayerProfile from "./PlayerProfile";
@@ -58,11 +59,13 @@ const SUB_LABELS: Record<StatsSub, string> = {
 };
 
 export default function StatsInsights({
-  mode, scope, onModeChange, onScopeChange, playerId, onSelectPlayer,
+  mode, scope, onModeChange, onScopeChange, playerId, onSelectPlayer, vsId, onSetVs,
 }: {
   mode: StatsMode; scope: StatsScope;
   onModeChange: (m: StatsMode) => void; onScopeChange: (s: StatsScope) => void;
   playerId: number | ""; onSelectPlayer: (id: number) => void;
+  /** Matchup opponent from the URL (`?vs=`); the drill-in of the H2H section. */
+  vsId: number | ""; onSetVs: (id: number | "", withPlayer?: number) => void;
 }) {
   const { rows, loading } = useStandings(mode, scope);
   const { playerId: selfId } = useAuth();
@@ -85,8 +88,12 @@ export default function StatsInsights({
     setSearchParams(canonicalStatsParams(searchParams, view, sub), { replace: true });
   }, [legacy, view, sub, searchParams, location.hash, setSearchParams]);
 
-  const setView = (v: StatsView) =>
-    setSearchParams(canonicalStatsParams(searchParams, v, subForSection(v, searchParams.get("sub"))), { replace: true });
+  const setView = (v: StatsView) => {
+    const next = canonicalStatsParams(searchParams, v, subForSection(v, searchParams.get("sub")));
+    // The matchup is a drill-in of H2H: leaving the section closes it.
+    if (v !== "h2h") next.delete("vs");
+    setSearchParams(next, { replace: true });
+  };
   const setSub = (s: StatsSub) => setSearchParams(canonicalStatsParams(searchParams, view, s), { replace: true });
 
   // Duos is 2v2-only; in the other modes H2H always shows the Players sub-view
@@ -94,17 +101,23 @@ export default function StatsInsights({
   const subs = subsFor(view);
   const activeSub: StatsSub = view === "h2h" && mode !== "2v2" ? "players" : sub;
   const h2hSub: H2HSub = activeSub === "duos" ? "duos" : "players";
-  const showSubs = subs.length > 0 && (view !== "h2h" || mode === "2v2");
 
   // Default selected player: the passed-in playerId, then self (if in the roster), then first row.
   const selfInRows = myId != null && rows.some((r) => r.id === myId);
   const selectedId = playerId !== "" ? playerId : selfInRows ? myId : (rows[0]?.id ?? null);
+  // The matchup replaces the H2H body (and its sub chips) while `?vs=` names another player.
+  const matchup =
+    view === "h2h" && selectedId != null && vsId !== "" && vsId !== selectedId
+      ? { leftId: selectedId, rightId: vsId }
+      : null;
+  const showSubs = subs.length > 0 && (view !== "h2h" || mode === "2v2") && matchup == null;
   const filters = FILTERS[view === "overview" ? `overview:${activeSub}` : view] ?? { mode: true, scope: true };
 
   // Jump to the Player section for a row tap: one URL write, so the player is not
   // overwritten by a second navigation in the same tick.
   const goPlayer = (id: number) => {
     const next = canonicalStatsParams(searchParams, "player", subForSection("player", searchParams.get("sub")));
+    next.delete("vs");
     next.set("player", String(id));
     setSearchParams(next, { replace: true });
   };
@@ -130,7 +143,26 @@ export default function StatsInsights({
 
       {view === "trends" && <TrendsExplorer mode={mode} scope={scope} rows={rows} initialMetric={initState?.trendsMetric} initialView={initState?.trendsView} initialPerMatch={initState?.trendsPerMatch} />}
 
-      {view === "h2h" && <H2HView mode={mode} scope={scope} rows={rows} subView={h2hSub} selectedId={selectedId} onSelect={onSelectPlayer} />}
+      {view === "h2h" && (matchup ? (
+        <MatchupView
+          mode={mode}
+          scope={scope}
+          leftId={matchup.leftId}
+          rightId={matchup.rightId}
+          rows={rows}
+          onBack={() => onSetVs("")}
+        />
+      ) : (
+        <H2HView
+          mode={mode}
+          scope={scope}
+          rows={rows}
+          subView={h2hSub}
+          selectedId={selectedId}
+          onSelect={onSelectPlayer}
+          onOpenMatchup={(leftId, rightId) => onSetVs(rightId, leftId)}
+        />
+      ))}
 
       {view === "player" && (
         <div className="space-y-4">

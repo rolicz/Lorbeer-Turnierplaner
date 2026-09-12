@@ -5,6 +5,7 @@
 import { useMemo, useState } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 
+import Button from "../../ui/primitives/Button";
 import InlineLoading from "../../ui/primitives/InlineLoading";
 import Modal from "../../ui/primitives/Modal";
 import { getStatsH2H, getStatsH2HMatches, type StatsH2HMatchesRequest } from "../../api/stats.api";
@@ -42,12 +43,38 @@ function h2hDiverging(gd: number, maxAbs: number): string {
 
 type HistoryModalState = { title: string; req: StatsH2HMatchesRequest; focusPlayerId: number | null };
 
-export default function H2HView({ mode, scope, rows, subView, selectedId, onSelect }: {
+/** Favorite / Nemesis chip — taps into the matchup when the opponent is known. */
+function RivalCard({ iconClass, label, row, onOpen }: {
+  iconClass: string; label: string; row: StatsH2HOpponentRow | null; onOpen: (opponentId: number) => void;
+}) {
+  const body = (
+    <>
+      <div className="inline-flex items-center gap-2 text-text-muted"><i className={iconClass} aria-hidden="true" /><span>{label}</span></div>
+      <div className="mt-0.5 font-semibold">{row?.opponent.display_name ?? "—"}</div>
+      {row ? <div className="mt-0.5 text-text-muted">{row.wins}-{row.draws}-{row.losses} · {row.pts_per_match.toFixed(2)} ppm</div> : null}
+    </>
+  );
+  if (!row) return <div className="card-chip px-3 py-2">{body}</div>;
+  return (
+    <button
+      type="button"
+      onClick={() => onOpen(row.opponent.id)}
+      title={`All matches against ${row.opponent.display_name}`}
+      className="card-chip px-3 py-2 text-left transition hover:bg-bg-card-chip/40 active:bg-bg-card-chip/50 focus-ring"
+    >
+      {body}
+    </button>
+  );
+}
+
+export default function H2HView({ mode, scope, rows, subView, selectedId, onSelect, onOpenMatchup }: {
   mode: StatsMode; scope: StatsScope; rows: Row[];
   /** Sub-view from the URL (`?sub=`); Duos is 2v2-only. */
   subView: H2HSub;
   /** Shared stats player selection (URL `?player=`), so H2H ↔ Player keep the same player. */
   selectedId: number | null; onSelect: (id: number) => void;
+  /** Drill into "A vs B, every match" (URL `?player=<a>&vs=<b>`). */
+  onOpenMatchup: (leftId: number, rightId: number) => void;
 }) {
   const q = useQuery({
     queryKey: qk.stats.h2h("all", 200, "rivalry", scope),
@@ -59,6 +86,8 @@ export default function H2HView({ mode, scope, rows, subView, selectedId, onSele
   const [selectedDuoIds, setSelectedDuoIds] = useState<number[]>([]);
   const [historyModal, setHistoryModal] = useState<HistoryModalState | null>(null);
   const [historyDetails, setHistoryDetails] = useState(false);
+  const [rivalryOrder, setRivalryOrder] = useState<"rivalry" | "played">("rivalry");
+  const [rivalriesExpanded, setRivalriesExpanded] = useState(false);
   const nameById = useMemo(() => new Map(rows.map((r) => [r.id, r.name])), [rows]);
 
   // Duos sub-view is only meaningful in 2v2; other modes always show the players view.
@@ -92,7 +121,11 @@ export default function H2HView({ mode, scope, rows, subView, selectedId, onSele
           : matrixMetric === "ppm" ? v.ppm.toFixed(2)
             : matrixMetric === "rivalry" ? String(Math.round(v.rivalry))
               : String(Math.round(v.pct));
-  const topRivalries = pairs.slice().sort((a, b) => b.rivalry_score - a.rivalry_score).slice(0, 8);
+  const sortedRivalries = useMemo(
+    () => pairs.slice().sort((a, b) => (rivalryOrder === "played" ? b.played - a.played || b.rivalry_score - a.rivalry_score : b.rivalry_score - a.rivalry_score)),
+    [pairs, rivalryOrder],
+  );
+  const topRivalries = rivalriesExpanded ? sortedRivalries : sortedRivalries.slice(0, 8);
 
   // Precompute normalization ranges for per-metric coloring.
   const matrixRanges = useMemo(() => {
@@ -332,7 +365,7 @@ export default function H2HView({ mode, scope, rows, subView, selectedId, onSele
                       <td key={c.id}>
                         <button
                           type="button"
-                          onClick={() => onSelect(r.id)}
+                          onClick={() => onOpenMatchup(r.id, c.id)}
                           title={`${r.name} vs ${c.name}: ${v.w}-${v.d}-${v.l}`}
                           className="grid h-11 w-11 place-items-center rounded text-xs font-semibold leading-none text-white"
                           style={{ backgroundColor: cellColor(v) }}
@@ -358,23 +391,15 @@ export default function H2HView({ mode, scope, rows, subView, selectedId, onSele
         ) : (
           <>
             <div className="grid grid-cols-2 gap-2 text-xs">
-              <div className="card-chip px-3 py-2">
-                <div className="inline-flex items-center gap-2 text-text-muted"><i className="fa-solid fa-face-smile" aria-hidden="true" /><span>Favorite</span></div>
-                <div className="mt-0.5 font-semibold">{favorite?.opponent.display_name ?? "—"}</div>
-                {favorite ? <div className="mt-0.5 text-text-muted">{favorite.wins}-{favorite.draws}-{favorite.losses} · {favorite.pts_per_match.toFixed(2)} ppm</div> : null}
-              </div>
-              <div className="card-chip px-3 py-2">
-                <div className="inline-flex items-center gap-2 text-text-muted"><i className="fa-solid fa-heart-crack" aria-hidden="true" /><span>Nemesis</span></div>
-                <div className="mt-0.5 font-semibold">{nemesis?.opponent.display_name ?? "—"}</div>
-                {nemesis ? <div className="mt-0.5 text-text-muted">{nemesis.wins}-{nemesis.draws}-{nemesis.losses} · {nemesis.pts_per_match.toFixed(2)} ppm</div> : null}
-              </div>
+              <RivalCard iconClass="fa-solid fa-face-smile" label="Favorite" row={favorite ?? null} onOpen={(id) => onOpenMatchup(selectedId, id)} />
+              <RivalCard iconClass="fa-solid fa-heart-crack" label="Nemesis" row={nemesis ?? null} onOpen={(id) => onOpenMatchup(selectedId, id)} />
             </div>
             {detailQ.isLoading && !detailQ.data ? (
               <InlineLoading label="Loading…" />
             ) : vs.length ? (
               <div className="list-divided">
                 {vs.map((o) => (
-                  <button key={o.opponent.id} type="button" onClick={() => onSelect(o.opponent.id)} className="row row-tap">
+                  <button key={o.opponent.id} type="button" onClick={() => onOpenMatchup(selectedId, o.opponent.id)} className="row row-tap">
                     <span className="min-w-0 flex-1 truncate text-sm text-text-normal">{o.opponent.display_name}</span>
                     <span className="shrink-0 font-mono text-[11px] tabular-nums text-text-muted">
                       {o.played}P · <span className="text-status-text-green">{o.wins}</span>-<span className="text-amber-300">{o.draws}</span>-<span className="text-[color:rgb(var(--delta-down)/1)]">{o.losses}</span>
@@ -420,10 +445,23 @@ export default function H2HView({ mode, scope, rows, subView, selectedId, onSele
 
       {/* Top rivalries (player-based in this sub-view) */}
       <div className="space-y-2">
-        <div className="section-head"><span className="section-label">Top rivalries</span></div>
+        <div className="section-head">
+          <span className="section-label">Top rivalries</span>
+          {sortedRivalries.length > 8 ? (
+            <Button variant="ghost" size="sm" onClick={() => setRivalriesExpanded((v) => !v)}>
+              {rivalriesExpanded ? "Top 8" : "Show all"}
+            </Button>
+          ) : null}
+        </div>
         <p className="text-[11px] text-text-muted">Most-played and closest matchups — a higher rivalry score means more games and a tighter win balance.</p>
+        <ChipGroup<"rivalry" | "played">
+          value={rivalryOrder}
+          onChange={setRivalryOrder}
+          ariaLabel="Rivalry order"
+          options={[{ key: "rivalry", label: "Rivalry" }, { key: "played", label: "Played" }]}
+        />
         {topRivalries.map((p) => (
-          <button key={`${p.a.id}-${p.b.id}`} type="button" onClick={() => onSelect(p.a.id)}
+          <button key={`${p.a.id}-${p.b.id}`} type="button" onClick={() => onOpenMatchup(p.a.id, p.b.id)}
             className="surface flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left transition hover:bg-hover-default/30">
             <div className="min-w-0">
               <div className="truncate text-sm font-medium text-text-normal">
