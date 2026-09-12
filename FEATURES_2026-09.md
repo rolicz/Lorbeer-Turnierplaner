@@ -466,7 +466,7 @@ stack; `MatchH2HPanel` output unchanged (compare a screenshot of `/live/19/match
 
 ---
 
-## S1 — Stats IA: four sections, sub-views, filters, shared player, legacy URLs  ☐
+## S1 — Stats IA: four sections, sub-views, filters, shared player, legacy URLs  ☑
 
 All in the "New" layout (`frontend/src/pages/stats/StatsInsights.tsx` and friends). Classic
 (`StatsPage.tsx` classic branch) is untouched until S4.
@@ -524,7 +524,52 @@ Overview; Stars under Player; `/stats?view=table` and `/stats?section=h2h` redir
 new URLs; filter chips hidden on Positions (Source) and Cups (both); player selection
 survives H2H ↔ Player; `npm run check` green; 390px screenshots of each section.
 
-**Deviations:**
+**Deviations:** (implemented 2026-09-12, four commits: resolver, sections/sub-views,
+filters, dashboard links)
+
+- **Per planner instruction:** the Mode/Source chip groups moved into one new component
+  `frontend/src/pages/stats/StatsFilters.tsx` (`{ mode, scope, onModeChange, onScopeChange,
+  showMode, showScope }`) with a single render site in `StatsInsights`, positioned as before
+  (above the `SectionTabs`). Encapsulating them makes the move that was still being decided a
+  small follow-up — now approved and enqueued as **S5** (floating pill with native selects),
+  which replaces this strip and reuses the `FILTERS` table. No pill was built here.
+- `H2HView` receives `subView` but **no** `onSubChange`: the Players | Duos chips are that
+  section's sub-view chip row and are rendered once by `StatsInsights` under the tabs (as the
+  IA decision requires), so both internal `ChipGroup`s were deleted. `H2HView` keeps a local
+  `mode === "2v2" ? subView : "players"` guard so it stays correct standalone. Its `myId` prop
+  is gone (the fallback chain now lives in `StatsInsights`).
+- `statsNav.ts` exports more than `resolveStatsView`: `subsFor` / `defaultSubFor` /
+  `subForSection` (which sub a section opens with — a fitting one survives a section switch) and
+  `canonicalStatsParams(search, view, sub)`, used by the legacy rewrite **and** by every tab/chip
+  click, so `section` can never come back. The canonical URL always carries `sub` for sections
+  that have sub-views, e.g. `/stats?view=overview&sub=table`.
+- The legacy tables are `Map`s, not object literals, so `?view=toString` cannot resolve through
+  the object prototype. An unknown `?section=` value still counts as legacy (it has to be
+  stripped) and falls back to Overview.
+- `legacy` is also true when a stale `section` param or a trends hash sits next to a canonical
+  `?view=` — the rewrite has to strip them. `setSearchParams` drops the hash and the nav state by
+  design; `TrendsExplorer` has already captured `trendsMetric`/`trendsView`/`trendsPerMatch` on
+  mount, verified from the dashboard trends card.
+- `StarsView.tsx` now exports **only** `StarsSection({ mode, scope, playerId })`; the default
+  export (picker + rows) had `StatsInsights` as its single caller and would have been dead code.
+- Row taps in Table/Records write `player` **and** `view` in one `setSearchParams` call
+  (`goPlayer`): the old `onSelectPlayer(id); setTab("player")` pair issued two navigations from
+  the same `searchParams` snapshot in one tick, so the second silently dropped the player.
+- Club stars renders *after* `PlayerProfile` (i.e. below the match history), which is what this
+  task specifies; S3's DoD order puts it above the history — S3 owns that move, together with the
+  match-history toggle.
+- `StandingsPreviewCard` also drops its now-redundant `state={{ statsTab: "table" }}`; the
+  `TrendsPreviewCard` state is unchanged (only the hash became `?view=trends`), so the classic
+  layout's `focus === "trends"` rule keeps working.
+- Classic is untouched and still verified: `/stats`, `/stats?section=h2h|streaks`, the two new
+  dashboard links and the trends state all land on the right classic tab (5 checks).
+- Runtime DoD verified with Playwright against the isolated stack (backend :8003 on a copy of
+  `app.db`, vite :8020): 54 checks at 390px and 1280px — every section and sub-view reachable,
+  18 legacy URLs redirecting (incl. `#trends`, `?section=…`, param preservation) with Back
+  leaving `/stats` for `/dashboard`, the filter matrix per section, and the player surviving
+  H2H → Player → H2H; plus 4 dashboard-link checks.
+- `npm run build` still prints the pre-existing "chunks larger than 500 kB" hint (630 kB
+  `index-*.js`); unrelated, as already noted under F1/F2/U1/U4/U5.
 
 ---
 

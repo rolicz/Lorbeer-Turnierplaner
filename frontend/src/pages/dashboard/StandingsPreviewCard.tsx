@@ -14,7 +14,7 @@ export default function StandingsPreviewCard() {
   const { rows, loading } = useStandings("overall", "tournaments");
 
   const openFullTable = () =>
-    navigate("/stats?section=players&view=table", { state: { statsTab: "table" } });
+    navigate("/stats?view=overview&sub=table");
 
   return (
     <div>

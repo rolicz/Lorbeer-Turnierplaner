@@ -316,7 +316,7 @@ export default function TrendsPreviewCard() {
             type="button"
             className="block w-full text-left"
             onClick={() =>
-              navigate("/stats#stats-trends", {
+              navigate("/stats?view=trends", {
                 state: {
                   focus: "trends",
                   statsTab: "trends",
