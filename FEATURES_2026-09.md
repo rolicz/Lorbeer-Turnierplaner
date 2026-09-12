@@ -92,8 +92,9 @@ all read-only checks; editor/admin flows can be checked by code + tests.
 | 9 | S2 | Matchup view + all entry points | frontend |
 | 10 | S3 | Player section completion + Elo/positions explainers | frontend |
 | 11 | S4 | Retire the Classic layout | frontend |
-| 12 | T1 | Test-suite audit and gap filling | backend + frontend |
-| 13 | D1 | Documentation pass (README, frontend/README, AGENTS.md) | docs |
+| 12 | U6 | Per-destination last page memory (bottom bar / sidebar / drawer) | frontend |
+| 13 | T1 | Test-suite audit and gap filling | backend + frontend |
+| 14 | D1 | Documentation pass (README, frontend/README, AGENTS.md) | docs |
 
 ---
 
@@ -625,6 +626,53 @@ still lands on H2H; 390px screenshot of `/settings?tab=appearance` shows only Th
 
 ---
 
+## U6 — Per-destination last page memory (enqueued 2026-09-12 from parked idea 1)  ☐
+
+**Goal:** tapping a top-level destination (bottom bar, desktop sidebar, mobile drawer)
+returns to the last page the user had open inside that destination — not its root. Works in
+every direction and for every subpage: `/live/:id?tab=…`, `/live/:id/match/:mid`,
+`/profiles/:id?tab=…`, `/stats?view=…&sub=…&player=…&vs=…`, `/friendlies?tab=…`,
+`/dashboard?tab=cups`, `/clubs?tab=…`.
+
+- New `frontend/src/ui/shell/lastLocation.ts` (pure, unit-tested):
+  - `rememberLocation(pathname, search)` → finds `activeDest(pathname)`
+    (`ui/shell/navConfig.tsx`); if none (login, 404, settings) do nothing; strip one-shot
+    params (`unread`, `comment`, `entry`) from `search`; store
+    `{ [destKey]: { path: pathname+search, ts } }` under `localStorage["lk:dest-last"]`
+    (same 12h TTL idea as `useLocationRestore.ts`; localStorage so the installed PWA keeps
+    it across relaunches). Wrap storage access in try/catch.
+  - `resolveDestination(dest, currentPathname)` → if the destination is the active one
+    (`activeDest(currentPathname)?.key === dest.key`) return `dest.to` (second tap = root);
+    else the remembered path if present and not expired; else `dest.to`.
+  - `forgetDestination(destKey)` and `forgetLocation(pathname)` (clears the entry whose
+    stored path equals the given one).
+- `frontend/src/ui/shell/AppShell.tsx`: a `useRememberLocation()` hook (next to
+  `useLocationRestore()`) calling `rememberLocation` on every location change.
+- Consumers: `BottomTabBar.tsx`, `Sidebar.tsx`, `MobileChrome.tsx` (drawer) compute each
+  link's `to` via `resolveDestination`. Tournaments item precedence: remembered path →
+  live shortcut (U2 behaviour) → `/tournaments`. The drawer's separate "Live now" entry is
+  unchanged. Tapping the active destination while already at its root keeps U2's
+  scroll-to-top.
+- Foolproofing: `NotFoundPage` calls `forgetLocation(location.pathname + location.search)`
+  on mount; `LiveTournamentPage` (tournament not found / deleted → it already navigates to
+  `/tournaments`) and `ProfilePage` (player not found) call `forgetLocation` for their
+  current URL too, so a deleted tournament or player never traps a tab. A remembered path
+  is always validated by `activeDest` before use.
+- Tests: `frontend/src/test/lastLocation.test.ts` (remember/resolve/strip/TTL/forget);
+  extend `bottomTabBar.test.tsx` (href uses the remembered path; the active item links to
+  its root).
+
+**DoD (isolated stack, 390px and 1280px):** `/live/19?tab=matches` → tap Stats → tap
+Tournaments → back on `/live/19?tab=matches`; `/profiles/1?tab=guestbook` → Dashboard →
+Players → same profile and tab; `/stats?view=h2h&player=1&vs=2` → Friendlies → Stats →
+same matchup; on `/live/19` tapping the active Tournaments item goes to `/tournaments`;
+reload keeps the memory; `/live/99999` (404 / not found) → tap Tournaments → root, not
+the dead URL. `npm run check` + `npm run build` green.
+
+**Deviations:**
+
+---
+
 ## T1 — Test-suite audit and gap filling  ☐
 
 **Backend** (`backend/tests/`, use `conftest.py` helpers). Routes with no test today
@@ -699,7 +747,7 @@ step. Old clients keep working (stats legacy URLs are mapped).
 
 Recorded so they are not forgotten. Do not implement without an explicit go.
 
-1. **Per-destination "last page" memory.** Tapping a top-level destination (bottom bar,
+1. **Per-destination "last page" memory.** → *enqueued as U6 (2026-09-12).* Tapping a top-level destination (bottom bar,
    sidebar, drawer) should return to the last page the user had open *inside* that
    destination, not its root — e.g. Tournaments → the live tournament that was open (with
    its tab), Players → the profile that was open, Stats → the section/sub-view/player that
