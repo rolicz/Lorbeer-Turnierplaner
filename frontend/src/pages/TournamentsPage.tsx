@@ -1,5 +1,5 @@
 import { useMemo, type ReactNode } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { List as ListIcon, Plus } from "lucide-react";
 
@@ -21,6 +21,7 @@ import { qk } from "../api/queryKeys";
 import { useAuth } from "../auth/AuthContext";
 import { useSeenIdsByTournamentId } from "../hooks/useSeenComments";
 import { useRouteEntryLoading } from "../ui/layout/useRouteEntryLoading";
+import { useTabParam } from "../ui/shell/useTabParam";
 import { fmtDate } from "../utils/format";
 
 type Status = "draft" | "live" | "done";
@@ -48,21 +49,18 @@ function CupStakePill({ stake }: { stake: NonNullable<TournamentSummary["cup_sta
   );
 }
 
+type TTab = "all" | "new";
+const T_TAB_KEYS = ["all", "new"] as const satisfies readonly TTab[];
+
 export default function TournamentsPage() {
   const navigate = useNavigate();
-  const [searchParams, setSearchParams] = useSearchParams();
   const { role, token } = useAuth();
   const canWrite = role === "editor" || role === "admin";
   const pageEntered = useRouteEntryLoading();
 
-  type TTab = "all" | "new";
-  const tab: TTab = canWrite && searchParams.get("tab") === "new" ? "new" : "all";
-  const setTab = (t: TTab) => {
-    const n = new URLSearchParams(searchParams);
-    if (t === "new") n.set("tab", "new");
-    else n.delete("tab");
-    setSearchParams(n, { replace: true });
-  };
+  const [rawTab, setTab] = useTabParam<TTab>(T_TAB_KEYS, "all");
+  // The "new" tab needs editor rights; a stale/hand-typed deep link falls back.
+  const tab: TTab = rawTab === "new" && !canWrite ? "all" : rawTab;
   const tabs: SectionTab<TTab>[] = [
     { key: "all", label: "All tournaments", icon: <ListIcon size={14} /> },
     ...(canWrite ? [{ key: "new" as TTab, label: "New tournament", icon: <Plus size={14} /> }] : []),

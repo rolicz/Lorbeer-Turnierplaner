@@ -34,7 +34,7 @@ export function useGuestbookUnreadJump({
     handledRef.current = latestUnreadGuestbookEntryId;
     // Switch to the guestbook tab (it's only mounted there) + clear the flag.
     const next = new URLSearchParams(searchParams);
-    next.set("pt", "guestbook");
+    next.set("tab", "guestbook");
     next.delete("unread");
     setSearchParams(next, { replace: true });
     // focusGuestbookEntry polls for the element, so it survives the tab switch.

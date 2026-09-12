@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
 import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 
@@ -22,6 +22,7 @@ import { usePlayerProfileWS } from "../hooks/useTournamentWS";
 import { useRouteEntryLoading } from "../ui/layout/useRouteEntryLoading";
 import { usePageTitle } from "../ui/layout/PageTitleContext";
 import { SectionTabs, type SectionTab } from "../ui/SectionTabs";
+import { useTabParam } from "../ui/shell/useTabParam";
 import { User, BarChart3, ListChecks, BookOpen } from "lucide-react";
 import GuestbookSection from "./profile/GuestbookSection";
 import ProfileHeader from "./profile/ProfileHeader";
@@ -33,6 +34,9 @@ import { useProfilePokes } from "./profile/useProfilePokes";
 import { useProfileGuestbook } from "./profile/useProfileGuestbook";
 import { useGuestbookUnreadJump } from "./profile/useGuestbookUnreadJump";
 import { qk } from "../api/queryKeys";
+
+type ProfileTab = "overview" | "stats" | "matches" | "guestbook";
+const PROFILE_TAB_KEYS = ["overview", "stats", "matches", "guestbook"] as const satisfies readonly ProfileTab[];
 
 export default function ProfilePage() {
   const { id } = useParams<{ id: string }>();
@@ -46,21 +50,7 @@ export default function ProfilePage() {
     Number.isFinite(routePlayerId) && (routePlayerId ?? 0) > 0 ? (routePlayerId as number) : currentPlayerId;
   const isOwnProfileView = !!currentPlayerId && !!targetPlayerId && currentPlayerId === targetPlayerId;
 
-  type ProfileTab = "overview" | "stats" | "matches" | "guestbook";
-  const PROFILE_TABS = ["overview", "stats", "matches", "guestbook"] as const;
-  const ptParam = searchParams.get("pt");
-  const profileTab: ProfileTab = (PROFILE_TABS as readonly string[]).includes(ptParam ?? "")
-    ? (ptParam as ProfileTab)
-    : "overview";
-  const setProfileTab = useCallback(
-    (t: ProfileTab) => {
-      const n = new URLSearchParams(searchParams);
-      if (t === "overview") n.delete("pt");
-      else n.set("pt", t);
-      setSearchParams(n, { replace: true });
-    },
-    [searchParams, setSearchParams],
-  );
+  const [profileTab, setProfileTab] = useTabParam<ProfileTab>(PROFILE_TAB_KEYS, "overview");
 
   const playersQ = useQuery({ queryKey: qk.players(), queryFn: listPlayers });
   const profileQ = useQuery({

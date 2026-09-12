@@ -1,5 +1,4 @@
 import { useMemo } from "react";
-import { useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { LayoutDashboard, Trophy } from "lucide-react";
 
@@ -16,8 +15,10 @@ import { useLiveTournament } from "../../hooks/useLiveTournament";
 import { useRouteEntryLoading } from "../../ui/layout/useRouteEntryLoading";
 import PageLayout from "../../ui/layout/PageLayout";
 import PageLoadingScreen from "../../ui/primitives/PageLoadingScreen";
+import { useTabParam } from "../../ui/shell/useTabParam";
 
 type DashTab = "overview" | "cups";
+const DASH_TAB_KEYS = ["overview", "cups"] as const satisfies readonly DashTab[];
 const DASH_TABS: SectionTab<DashTab>[] = [
   { key: "overview", label: "Overview", icon: <LayoutDashboard size={14} /> },
   { key: "cups", label: "Cups", icon: <Trophy size={14} /> },
@@ -26,14 +27,7 @@ const DASH_TABS: SectionTab<DashTab>[] = [
 export default function DashboardPage() {
   const pageEntered = useRouteEntryLoading();
   // Persist the tab in the URL so opening a tournament and going back returns here.
-  const [searchParams, setSearchParams] = useSearchParams();
-  const dashTab: DashTab = searchParams.get("tab") === "cups" ? "cups" : "overview";
-  const setDashTab = (t: DashTab) => {
-    const n = new URLSearchParams(searchParams);
-    if (t === "overview") n.delete("tab");
-    else n.set("tab", t);
-    setSearchParams(n, { replace: true });
-  };
+  const [dashTab, setDashTab] = useTabParam<DashTab>(DASH_TAB_KEYS, "overview");
 
   const defsQ = useQuery({ queryKey: qk.cupDefs(), queryFn: listCupDefs });
   const liveQ = useLiveTournament();

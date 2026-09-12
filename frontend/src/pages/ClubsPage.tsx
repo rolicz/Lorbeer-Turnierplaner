@@ -15,6 +15,7 @@ import PageLoadingScreen from "../ui/primitives/PageLoadingScreen";
 import { useRouteEntryLoading } from "../ui/layout/useRouteEntryLoading";
 import PageLayout from "../ui/layout/PageLayout";
 import { SectionTabs, type SectionTab } from "../ui/SectionTabs";
+import { useTabParam } from "../ui/shell/useTabParam";
 import { List, Plus } from "lucide-react";
 
 import { useAuth } from "../auth/AuthContext";
@@ -99,6 +100,9 @@ function groupByLeague(clubs: Club[], leaguesById: Map<number, string>) {
   return entries;
 }
 
+type ClubTab = "browse" | "new";
+const CLUB_TAB_KEYS = ["browse", "new"] as const satisfies readonly ClubTab[];
+
 export default function ClubsPage() {
   const { token, role } = useAuth();
   const qc = useQueryClient();
@@ -108,8 +112,9 @@ export default function ClubsPage() {
   const isEditorOrAdmin = role === "editor" || role === "admin";
   const canEdit = isEditorOrAdmin;
 
-  type ClubTab = "browse" | "new";
-  const [tab, setTab] = useState<ClubTab>("browse");
+  const [rawTab, setTab] = useTabParam<ClubTab>(CLUB_TAB_KEYS, "browse");
+  // The "new" tab needs editor rights; a stale/hand-typed deep link falls back.
+  const tab: ClubTab = rawTab === "new" && !canEdit ? "browse" : rawTab;
   const clubTabs: SectionTab<ClubTab>[] = [
     { key: "browse", label: "Clubs", icon: <List size={14} /> },
     ...(canEdit ? [{ key: "new" as ClubTab, label: "New club", icon: <Plus size={14} /> }] : []),

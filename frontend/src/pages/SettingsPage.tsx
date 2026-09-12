@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Check, Eye, LogIn, LogOut, UserCog } from "lucide-react";
@@ -15,6 +15,7 @@ import { listPlayers } from "../api/players.api";
 import PushNotificationsSettings from "../ui/layout/PushNotificationsSettings";
 import { THEMES } from "../themes";
 import { useRouteEntryLoading } from "../ui/layout/useRouteEntryLoading";
+import { useTabParam } from "../ui/shell/useTabParam";
 import PageLayout from "../ui/layout/PageLayout";
 import Button from "../ui/primitives/Button";
 import PageLoadingScreen from "../ui/primitives/PageLoadingScreen";
@@ -27,6 +28,9 @@ const THEME_SWATCHES: Record<string, string[]> = {
   green: ["#0a100c", "#2a4032", "#22c55e"],
 };
 const FALLBACK_SWATCH = ["#334155", "#475569", "#fe6100"];
+
+type SettingsTab = "account" | "appearance" | "notifications";
+const SETTINGS_TAB_KEYS = ["account", "appearance", "notifications"] as const satisfies readonly SettingsTab[];
 
 /** Card wrapper for a settings group. */
 function SettingsSection({ title, children }: { title: string; children: React.ReactNode }) {
@@ -77,8 +81,7 @@ export default function SettingsPage() {
   usePageTitle("Settings");
   const statsExperience = useStatsExperience();
 
-  type SettingsTab = "account" | "appearance" | "notifications";
-  const [tab, setTab] = useState<SettingsTab>("account");
+  const [tab, setTab] = useTabParam<SettingsTab>(SETTINGS_TAB_KEYS, "account");
   const settingsTabs: SectionTab<SettingsTab>[] = [
     { key: "account", label: "Account", icon: <UserCircle2 size={14} /> },
     { key: "appearance", label: "Appearance", icon: <Palette size={14} /> },

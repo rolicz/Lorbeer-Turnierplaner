@@ -12,6 +12,7 @@ import { SectionTabs, type SectionTab } from "../../ui/SectionTabs";
 import SelectClubsPanel from "../../ui/SelectClubsPanel";
 import { GoalStepper } from "../../ui/clubControls";
 import InlineBack from "../../ui/shell/InlineBack";
+import { useTabParam } from "../../ui/shell/useTabParam";
 import { usePageTitle } from "../../ui/layout/PageTitleContext";
 
 import { getTournament } from "../../api/tournaments.api";
@@ -28,6 +29,7 @@ import MatchH2HPanel from "./MatchH2HPanel";
 import TournamentCommentsCard from "./TournamentCommentsCard";
 
 type Tab = "h2h" | "comments" | "edit";
+const TAB_KEYS = ["h2h", "comments", "edit"] as const satisfies readonly Tab[];
 
 function parseGoal(v: string): number {
   const x = Number.parseInt(String(v ?? "").trim(), 10);
@@ -53,7 +55,7 @@ export default function MatchDetailPage() {
   const backTo = `/live/${tid}?tab=${fromTab}`;
   usePageTitle(matchId ? `Match #${matchId}` : "Match");
 
-  const [activeTab, setActiveTab] = useState<Tab>("h2h");
+  const [rawTab, setActiveTab] = useTabParam<Tab>(TAB_KEYS, "h2h");
   const [clubGame, setClubGame] = useState("EA FC 26");
 
   const tQ = useQuery({
@@ -76,6 +78,8 @@ export default function MatchDetailPage() {
   const isDone = (tQ.data?.status ?? "draft") === "done";
   // Match the live page: admins can edit even finished tournaments; editors only while not done.
   const canEditResult = role === "admin" || (role === "editor" && !isDone);
+  // `?tab=edit` only sticks while the result is actually editable.
+  const activeTab: Tab = rawTab === "edit" && !canEditResult ? "h2h" : rawTab;
 
   // Form state — kept in sync with the match
   const [aClub, setAClub] = useState<number | null>(null);

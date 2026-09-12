@@ -1,13 +1,15 @@
-import { useCallback, useState } from "react";
+import { useCallback } from "react";
 import FriendlyMatchCard from "./tools/FriendlyMatchCard";
 import FriendlyMatchesListCard from "./tools/FriendlyMatchesListCard";
 import { SectionTabs, type SectionTab } from "../ui/SectionTabs";
 import { useRouteEntryLoading } from "../ui/layout/useRouteEntryLoading";
+import { useTabParam } from "../ui/shell/useTabParam";
 import PageLayout from "../ui/layout/PageLayout";
 import PageLoadingScreen from "../ui/primitives/PageLoadingScreen";
 import { Plus, List } from "lucide-react";
 
 type Tab = "create" | "all";
+const TAB_KEYS = ["all", "create"] as const satisfies readonly Tab[];
 const TABS: SectionTab<Tab>[] = [
   { key: "all", label: "All Friendlies", icon: <List size={14} /> },
   { key: "create", label: "New", icon: <Plus size={14} /> },
@@ -15,7 +17,7 @@ const TABS: SectionTab<Tab>[] = [
 
 export default function FriendliesPage() {
   const pageEntered = useRouteEntryLoading();
-  const [active, setActive] = useState<Tab>("all");
+  const [active, setActive] = useTabParam<Tab>(TAB_KEYS, "all");
 
   const handleCreateReady = useCallback(() => {}, []);
   const handleListReady = useCallback(() => {}, []);
