@@ -3,10 +3,10 @@ import { Link, useLocation } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { Menu, X, Settings, ChevronLeft } from "lucide-react";
 
-import { useAuth } from "../../auth/AuthContext";
 import { useLiveTournament } from "../../hooks/useLiveTournament";
 import { drawerLeft, scrim } from "../motion/motion";
-import { activeDest, visibleDests } from "./navConfig";
+import { activeDest } from "./navConfig";
+import { useDestinationLinks } from "./useDestinationLinks";
 import { usePageTitleValue } from "../layout/PageTitleContext";
 import { useHideOnScroll } from "../layout/useHideOnScroll";
 import { useContextualBack } from "./routeMeta";
@@ -21,9 +21,9 @@ export default function MobileChrome({
   open: boolean;
   setOpen: (v: boolean) => void;
 }) {
-  const { role } = useAuth();
   const loc = useLocation();
-  const dests = visibleDests(role);
+  // Each entry points at the page you last had open in that destination (U6).
+  const links = useDestinationLinks({ hasLiveEntry: true });
   const active = activeDest(loc.pathname);
   const settingsActive = loc.pathname.startsWith("/settings");
   const pageTitle = usePageTitleValue();
@@ -145,13 +145,12 @@ export default function MobileChrome({
                     <span className="max-w-[45%] truncate text-xs text-text-muted">{liveT.name}</span>
                   </Link>
                 ) : null}
-                {dests.map((d) => {
+                {links.map(({ dest: d, to, isActive }) => {
                   const Icon = d.icon;
-                  const isActive = active?.key === d.key && !onLivePage;
                   return (
                     <Link
                       key={d.key}
-                      to={d.to}
+                      to={to}
                       onClick={() => setOpen(false)}
                       aria-current={isActive ? "page" : undefined}
                       className={

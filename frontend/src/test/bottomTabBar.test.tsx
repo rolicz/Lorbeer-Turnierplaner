@@ -5,6 +5,7 @@ import { MemoryRouter } from "react-router-dom";
 import type { LiveTournamentLite } from "../hooks/useLiveTournament";
 import { AuthProvider } from "../auth/AuthContext";
 import BottomTabBar from "../ui/shell/BottomTabBar";
+import { rememberLocation, resetForgottenPaths } from "../ui/shell/lastLocation";
 
 // The bar reads the live tournament through the query cache; stub the hook so the
 // test needs no QueryClient and no network.
@@ -27,6 +28,7 @@ describe("BottomTabBar", () => {
   beforeEach(() => {
     live.current = null;
     localStorage.clear();
+    resetForgottenPaths();
   });
 
   it("shows the five primary destinations for a reader, without Clubs", () => {
@@ -71,5 +73,37 @@ describe("BottomTabBar", () => {
 
     expect(getByRole("link", { name: "Tournaments" })).toHaveAttribute("href", "/tournaments");
     expect(container.querySelector(".live-dot")).toBeNull();
+  });
+
+  it("points an item at the page last open in that destination", () => {
+    rememberLocation("/live/19", "?tab=matches");
+    rememberLocation("/profiles/1", "?tab=guestbook");
+
+    const { getByRole } = renderAt("/stats");
+
+    expect(getByRole("link", { name: "Tournaments" })).toHaveAttribute("href", "/live/19?tab=matches");
+    expect(getByRole("link", { name: "Players" })).toHaveAttribute("href", "/profiles/1?tab=guestbook");
+    expect(getByRole("link", { name: "Friendlies" })).toHaveAttribute("href", "/friendlies");
+  });
+
+  it("links the active item to its root (second tap), not the remembered page", () => {
+    rememberLocation("/live/19", "?tab=matches");
+
+    const { getByRole } = renderAt("/live/19");
+
+    const tournaments = getByRole("link", { name: "Tournaments" });
+    expect(tournaments).toHaveAttribute("aria-current", "page");
+    expect(tournaments).toHaveAttribute("href", "/tournaments");
+  });
+
+  it("prefers the remembered page over the live shortcut", () => {
+    live.current = { id: 19, name: "4. Lorbeerkranzturnier", mode: "2v2", status: "live" };
+    rememberLocation("/tournaments", "?tab=new");
+
+    const { container, getByRole } = renderAt("/dashboard");
+
+    expect(getByRole("link", { name: "Tournaments" })).toHaveAttribute("href", "/tournaments?tab=new");
+    // The live dot still says a tournament is running.
+    expect(container.querySelector(".live-dot")).not.toBeNull();
   });
 });

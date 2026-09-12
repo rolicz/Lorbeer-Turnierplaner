@@ -18,6 +18,7 @@ import { ErrorToastViewport } from "../primitives/ErrorToast";
 import RouteErrorBoundary from "./RouteErrorBoundary";
 import { useSwipeNav } from "./useSwipeNav";
 import { useLocationRestore } from "./useLocationRestore";
+import { useRememberLocation } from "./useRememberLocation";
 
 const COLLAPSE_KEY = "sidebar-collapsed";
 
@@ -33,6 +34,8 @@ function ShellInner({ children }: { children: React.ReactNode }) {
   useSwipeNav();
   // Standalone PWA: resume at the last route after the OS evicts the app.
   useLocationRestore();
+  // Per-destination page memory: tapping a nav destination returns to its last page.
+  useRememberLocation();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [collapsed, setCollapsed] = useState<boolean>(() => localStorage.getItem(COLLAPSE_KEY) === "1");
 

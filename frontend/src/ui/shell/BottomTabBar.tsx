@@ -1,9 +1,8 @@
 import { Link, useLocation } from "react-router-dom";
 
-import { useAuth } from "../../auth/AuthContext";
 import { useLiveTournament } from "../../hooks/useLiveTournament";
 import { prefersReducedMotion } from "../scroll";
-import { activeDest, visibleDests } from "./navConfig";
+import { useDestinationLinks } from "./useDestinationLinks";
 
 /**
  * Mobile (and tablet < lg) fixed bottom tab bar with the primary destinations.
@@ -13,13 +12,12 @@ import { activeDest, visibleDests } from "./navConfig";
  * hides on scroll: it is the app's main navigation on a phone.
  */
 export default function BottomTabBar() {
-  const { role } = useAuth();
   const loc = useLocation();
-  const dests = visibleDests(role).filter((d) => d.key !== "clubs");
-  const active = activeDest(loc.pathname);
+  // Each item points at the page you last had open in that destination (U6);
+  // Tournaments falls back to the running tournament, as U2 introduced it.
+  const links = useDestinationLinks({ exclude: ["clubs"] });
 
-  // While a tournament is running, the Tournaments tab carries the live dot and
-  // is a shortcut to its page (the drawer's "Live now" entry stays as is).
+  // While a tournament is running, the Tournaments tab carries the live dot.
   const liveT = useLiveTournament().data ?? null;
 
   return (
@@ -29,19 +27,18 @@ export default function BottomTabBar() {
       className="fixed inset-x-0 bottom-0 z-30 nav-shell border-b-0 border-t backdrop-blur-md pb-[env(safe-area-inset-bottom,0px)] lg:hidden"
     >
       <div className="flex items-stretch">
-        {dests.map((d) => {
+        {links.map(({ dest: d, to, isActive }) => {
           const Icon = d.icon;
-          const isActive = active?.key === d.key;
           const live = d.key === "tournaments" ? liveT : null;
-          const to = live ? `/live/${live.id}` : d.to;
           return (
             <Link
               key={d.key}
               to={to}
               aria-current={isActive ? "page" : undefined}
               onClick={() => {
-                // Tapping the tab you are already on takes you back to the top.
-                if (!isActive) return;
+                // Tapping the destination you are already in returns to its root;
+                // when you are already there, it takes you back to the top instead.
+                if (!isActive || loc.pathname !== to) return;
                 window.scrollTo({ top: 0, behavior: prefersReducedMotion() ? "auto" : "smooth" });
               }}
               className={

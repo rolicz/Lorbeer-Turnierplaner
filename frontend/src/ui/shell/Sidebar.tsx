@@ -2,9 +2,8 @@ import { Link, useLocation } from "react-router-dom";
 import { motion } from "framer-motion";
 import { ChevronLeft, ChevronRight, Settings } from "lucide-react";
 
-import { useAuth } from "../../auth/AuthContext";
 import { useLiveTournament } from "../../hooks/useLiveTournament";
-import { activeDest, visibleDests } from "./navConfig";
+import { useDestinationLinks } from "./useDestinationLinks";
 import ConnectionIndicator from "./ConnectionIndicator";
 import NotificationBell from "./NotificationBell";
 
@@ -16,10 +15,9 @@ export default function Sidebar({
   collapsed: boolean;
   onToggleCollapse: () => void;
 }) {
-  const { role } = useAuth();
   const loc = useLocation();
-  const dests = visibleDests(role);
-  const active = activeDest(loc.pathname);
+  // Each entry points at the page you last had open in that destination (U6).
+  const links = useDestinationLinks({ hasLiveEntry: true });
   const settingsActive = loc.pathname.startsWith("/settings");
 
   // Shortcut to the live tournament, shown only while one is running. When on
@@ -70,13 +68,12 @@ export default function Sidebar({
             {!collapsed ? <span className="truncate">Live now</span> : null}
           </Link>
         ) : null}
-        {dests.map((d) => {
+        {links.map(({ dest: d, to, isActive }) => {
           const Icon = d.icon;
-          const isActive = active?.key === d.key && !onLivePage;
           return (
             <Link
               key={d.key}
-              to={d.to}
+              to={to}
               title={d.label}
               aria-current={isActive ? "page" : undefined}
               className={
