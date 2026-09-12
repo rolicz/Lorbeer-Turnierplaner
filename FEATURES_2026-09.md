@@ -635,7 +635,7 @@ bottom-right, content not covered. `npm run check` + `npm run build` green. Scre
 
 ---
 
-## S2 — Matchup view + entry points  ☐
+## S2 — Matchup view + entry points  ☑
 
 **The feature Roli asked for.** Backend needs no change: `POST /stats/h2h-matches`
 (`backend/app/services/stats/h2h_matches.py`) already filters by `mode`, `scope`, and
@@ -693,7 +693,61 @@ returns to the matrix with the same selected player; `/profiles/1` Rivals → ma
 `/live/19/match/<1v1 match>` → "All meetings" → matchup with `source=both`.
 `npm run check` green.
 
-**Deviations:**
+**Deviations:** (implemented 2026-09-12, three commits: view + H2H entry points,
+profile/match-detail links, tests)
+
+- `MatchupView` is rendered by **`StatsInsights`**, not from inside `H2HView`: it replaces the
+  whole H2H body (and its Players | Duos chip row) while `?vs=` names another player, so
+  `H2HView` only receives one new prop, `onOpenMatchup(leftId, rightId)`. `vsId` / `setVs` stop
+  at `StatsInsights`, which owns the `{ leftId, rightId }` decision (`view=h2h`, a resolved
+  player, `vs` set and different).
+- `setVs(id, withPlayer?)` writes `vs` **and** `player` in one `setSearchParams` call — the same
+  reason S1's `goPlayer` exists: two writes in one tick from the same `searchParams` snapshot
+  silently drop one. Every entry point uses it (`onSetVs(rightId, leftId)`).
+- Leaving the H2H section clears `vs` (`setView` and `goPlayer` delete it), so H2H → Player →
+  H2H returns to the matrix instead of re-opening a stale matchup. In-view changes stay
+  `replace`, so the in-view back button is the way back (browser Back leaves `/stats`), exactly
+  as the Decisions section specifies.
+- Header polish beyond the task text: the separator reads "vs" for Against and **"and"** for
+  Together, and a muted caption under the names spells out the active filters
+  ("Overall · Tournaments", "· as a team" when Together) — inside the matchup the Mode/Source
+  values are otherwise only visible in the floating pill. The back button is a ghost `Button`
+  with the lucide `ArrowLeft` icon + "Head-to-head" (no literal "←" glyph; lucide-only rule).
+- Tiles are labelled **"Pts / match"** (not "PPM") to match `PlayerProfile`'s key numbers, and
+  the Last-5 row renders only when there are results, showing however many exist (≤ 5,
+  oldest → newest). "Matches · N" uses the summary's `played`, i.e. the same helper the tiles
+  use — verified equal to the number of rows in the list.
+- Favorite / Nemesis: both call sites got a local `RivalCard` (one in `H2HView`, one in
+  `ProfileOverviewTab`) rather than a shared component — the markup differs (button vs `Link`)
+  and so does the ppm formatting already in place (`pts_per_match.toFixed(2)` vs `fmtPct`).
+  Without an opponent they stay non-interactive chips.
+- Top rivalries: the Rivalry | Played chips sort client-side (Played falls back to the rivalry
+  score on a tie); the Show all / Top 8 button only renders when there are more than 8 pairs
+  (15 in the dev DB).
+- The empty state also covers Together ("No matches with X and Y on the same team yet (mode ·
+  source).").
+- `MatchH2HPanel`'s "All meetings →" sits at the end of the summary card (right-aligned,
+  `text-xs font-medium text-accent`, like the profile's "View all →") and is rendered only in
+  1v1, as specified. The Duos sub-view modal is untouched.
+- `matchupView.test.tsx` has 6 cases (not 3): opposed request shape, summary tiles + Last-5
+  order, the grouped list with `/live/<t>/match/<m>` links, the teammates request shape after
+  switching to Together, the hidden relation chips in 1v1, and the empty state + back button.
+  It mocks `stats.api`, `clubs.api` and `playerAvatars.api`, so no network and no fetch stubs.
+  Suite: 26 files / 224 tests green.
+- Runtime DoD verified with Playwright against the isolated stack (backend :8003 on a copy of
+  `app.db`, vite :8020): **98 checks green**, the whole list at 390px and 1280px — the Roli/Flo
+  matrix cell (tooltip `19-7-5`) opening "Roli vs Flo" with an identical W-D-L (31 played,
+  95:61, 2.06 ppm, 61%); Mode 1v1 + Source Both moving list *and* summary to 30 / 16-9-5 /
+  107:71 / 1.90 / 53% with the list rows summing to 30 and friendly blocks appearing; the back
+  button clearing `vs` and keeping `player=1` on the matrix; the Favorite chip and an opponent
+  row opening their matchups; Rivalry|Played chips and Show all (8 → 15 rows); `/profiles/1`
+  Rivals linking to `/stats?view=h2h&player=1&vs=2` with browser Back returning to the profile;
+  `/live/19/match/104` → "All meetings →" (`…&mode=1v1&source=both&player=1&vs=2`) landing on
+  the same 30 matches the panel summarises; the 2v2 Against (17, 11-4-2) / Together (8, 2-2-4,
+  16:22, 1.00) toggle; the relation chips hidden in 1v1; the Players|Duos chips hidden in the
+  matchup; the filter pill still floating over the matchup and no horizontal overflow.
+- `npm run build` still prints the pre-existing "chunks larger than 500 kB" hint (630 kB
+  `index-*.js`); unrelated, as already noted under F1/F2/U1/U4/U5/S1/S5.
 
 ---
 
