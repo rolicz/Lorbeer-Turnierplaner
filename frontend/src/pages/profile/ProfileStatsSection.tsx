@@ -4,6 +4,7 @@ import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
 import type { StatsPlayerRow, StatsRatingsRow, StatsStreakCategory } from "../../api/types";
 import { fmtInt, fmtPct, fmtRating } from "../../utils/format";
 import { Radar } from "../stats/charts";
+import PlayerStreakChips from "../stats/PlayerStreakChips";
 
 function ProfileStatTile({ label, value }: { label: string; value: string }) {
   return (
@@ -12,21 +13,6 @@ function ProfileStatTile({ label, value }: { label: string; value: string }) {
       <div className="mt-0.5 text-[10px] leading-tight text-text-muted">{label}</div>
     </div>
   );
-}
-
-function streakIconForKey(key: string) {
-  switch (key) {
-    case "win_streak":
-      return { icon: "fa-fire-flame-curved", label: "Win streak" };
-    case "unbeaten_streak":
-      return { icon: "fa-shield", label: "Unbeaten streak" };
-    case "scoring_streak":
-      return { icon: "fa-futbol", label: "Scoring streak" };
-    case "clean_sheet_streak":
-      return { icon: "fa-lock", label: "Clean sheet streak" };
-    default:
-      return null;
-  }
 }
 
 /** Profile "Stats" tab: headline tiles, the radar "profile net", and streaks. */
@@ -53,22 +39,6 @@ export default function ProfileStatsSection({
   statsStreaksGlobalError: unknown;
   statsRatingsError: unknown;
 }) {
-  const streakByKey = useMemo(() => {
-    const m = new Map<string, { current: number; record: number }>();
-    for (const cat of streaksCategories) {
-      const current = cat.current?.[0]?.length ?? 0;
-      const record = cat.records?.[0]?.length ?? 0;
-      m.set(cat.key, { current, record });
-    }
-    return m;
-  }, [streaksCategories]);
-  const globalRecordByKey = useMemo(() => {
-    const m = new Map<string, number>();
-    for (const cat of streaksGlobalCategories) {
-      m.set(cat.key, cat.records?.[0]?.length ?? 0);
-    }
-    return m;
-  }, [streaksGlobalCategories]);
   const eloRow = useMemo(() => {
     if (!targetPlayerId) return null;
     return ratingsRows.find((r) => r.player.id === targetPlayerId) ?? null;
@@ -141,27 +111,7 @@ export default function ProfileStatsSection({
 
       <div>
         <div className="section-head"><span className="section-label">Streaks · current / record</span></div>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
-          {(["win_streak", "unbeaten_streak", "scoring_streak", "clean_sheet_streak"] as const).map((k) => {
-            const icon = streakIconForKey(k);
-            const cur = streakByKey.get(k)?.current ?? 0;
-            const rec = streakByKey.get(k)?.record ?? 0;
-            const globalRec = globalRecordByKey.get(k) ?? 0;
-            const isNewRecordNow = cur > 0 && cur === globalRec;
-            return (
-              <div key={k} className={"card-chip px-3 py-2 " + (isNewRecordNow ? "border-accent" : "")}>
-                <div className="inline-flex items-center gap-2 text-text-muted">
-                  {icon ? <i className={"fa-solid " + icon.icon} aria-hidden="true" /> : null}
-                  <span>{icon?.label ?? k}</span>
-                </div>
-                <div className="font-semibold mt-0.5">
-                  {cur}
-                  <span className="text-text-muted"> / {rec}</span>
-                </div>
-              </div>
-            );
-          })}
-        </div>
+        <PlayerStreakChips categories={streaksCategories} globalCategories={streaksGlobalCategories} />
       </div>
     </div>
   );
