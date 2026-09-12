@@ -1,5 +1,6 @@
+import { useEffect, useRef } from "react";
 import { useLocation, useSearchParams } from "react-router-dom";
-import { LineChart, Table2, Grid3x3, UserRound, Flame, Star, Medal, Award, Trophy } from "lucide-react";
+import { LayoutGrid, LineChart, Swords, UserRound } from "lucide-react";
 
 import { useAuth } from "../../auth/AuthContext";
 import { SectionTabs, type SectionTab } from "../../ui/SectionTabs";
@@ -12,25 +13,36 @@ import TrendsExplorer, { type Metric, type ViewMode } from "./trends/TrendsExplo
 import PositionsView from "./PositionsView";
 import H2HView from "./H2HView";
 import StreaksView from "./StreaksView";
-import StarsView from "./StarsView";
+import { StarsSection } from "./StarsView";
 import PlayerProfile from "./PlayerProfile";
 import RecordsView from "./RecordsView";
 import CupsView from "./CupsView";
+import {
+  canonicalStatsParams,
+  resolveStatsView,
+  subForSection,
+  subsFor,
+  type H2HSub,
+  type StatsSub,
+  type StatsView,
+} from "./statsNav";
 
-type Tab = "trends" | "table" | "positions" | "h2h" | "streaks" | "stars" | "player" | "records" | "cups";
-
-const TABS: SectionTab<Tab>[] = [
+const SECTIONS: SectionTab<StatsView>[] = [
+  { key: "overview", label: "Overview", icon: <LayoutGrid size={14} /> },
   { key: "trends", label: "Trends", icon: <LineChart size={14} /> },
-  { key: "table", label: "Table", icon: <Table2 size={14} /> },
-  { key: "positions", label: "Positions", icon: <Medal size={14} /> },
-  { key: "h2h", label: "H2H", icon: <Grid3x3 size={14} /> },
-  { key: "streaks", label: "Streaks", icon: <Flame size={14} /> },
-  { key: "stars", label: "Stars", icon: <Star size={14} /> },
+  { key: "h2h", label: "H2H", icon: <Swords size={14} /> },
   { key: "player", label: "Player", icon: <UserRound size={14} /> },
-  { key: "records", label: "Records", icon: <Award size={14} /> },
-  { key: "cups", label: "Cups", icon: <Trophy size={14} /> },
 ];
-const TAB_KEYS = TABS.map((t) => t.key);
+
+const SUB_LABELS: Record<StatsSub, string> = {
+  table: "Table",
+  positions: "Positions",
+  streaks: "Streaks",
+  records: "Records",
+  cups: "Cups",
+  players: "Players",
+  duos: "Duos",
+};
 
 export default function StatsInsights({
   mode, scope, onModeChange, onScopeChange, playerId, onSelectPlayer,
@@ -42,26 +54,45 @@ export default function StatsInsights({
   const { rows, loading } = useStandings(mode, scope);
   const { playerId: selfId } = useAuth();
   const myId = selfId != null ? Number(selfId) : null;
-  // Deep-link support: dashboard (and others) can pass an initial tab + trends config via nav state.
+  // Deep-link support: dashboard (and others) can pass an initial trends config via nav state.
   const location = useLocation();
-  const initState = (location.state as { statsTab?: Tab; trendsMetric?: Metric; trendsView?: ViewMode; trendsPerMatch?: boolean } | null) ?? null;
-  // The active sub-tab is persisted in the URL (`?view=`) so leaving for a tournament
-  // and pressing Back restores the same tab (e.g. Positions / Records).
+  const initState = (location.state as { trendsMetric?: Metric; trendsView?: ViewMode; trendsPerMatch?: boolean } | null) ?? null;
+  // Section + sub-view live in the URL (`?view=`/`?sub=`) so leaving for a tournament
+  // and pressing Back restores the same place (e.g. Overview · Positions).
   const [searchParams, setSearchParams] = useSearchParams();
-  const viewParam = searchParams.get("view");
-  const tab: Tab =
-    viewParam && (TAB_KEYS as readonly string[]).includes(viewParam)
-      ? (viewParam as Tab)
-      : (initState?.statsTab ?? (playerId !== "" ? "player" : "trends"));
-  const setTab = (t: Tab) => {
-    const n = new URLSearchParams(searchParams);
-    n.set("view", t);
-    setSearchParams(n, { replace: true });
-  };
+  const { view, sub, legacy } = resolveStatsView(searchParams, location.hash, location.state);
+
+  // Older URL shapes (?view=table, ?section=h2h, #trends, nav state) are rewritten once.
+  const rewrittenRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!legacy) return;
+    const key = `${searchParams}${location.hash}`;
+    if (rewrittenRef.current === key) return;
+    rewrittenRef.current = key;
+    setSearchParams(canonicalStatsParams(searchParams, view, sub), { replace: true });
+  }, [legacy, view, sub, searchParams, location.hash, setSearchParams]);
+
+  const setView = (v: StatsView) =>
+    setSearchParams(canonicalStatsParams(searchParams, v, subForSection(v, searchParams.get("sub"))), { replace: true });
+  const setSub = (s: StatsSub) => setSearchParams(canonicalStatsParams(searchParams, view, s), { replace: true });
+
+  // Duos is 2v2-only; in the other modes H2H always shows the Players sub-view
+  // (without rewriting the URL, so switching back to 2v2 returns to Duos).
+  const subs = subsFor(view);
+  const activeSub: StatsSub = view === "h2h" && mode !== "2v2" ? "players" : sub;
+  const h2hSub: H2HSub = activeSub === "duos" ? "duos" : "players";
+  const showSubs = subs.length > 0 && (view !== "h2h" || mode === "2v2");
+
   // Default selected player: the passed-in playerId, then self (if in the roster), then first row.
   const selfInRows = myId != null && rows.some((r) => r.id === myId);
   const selectedId = playerId !== "" ? playerId : selfInRows ? myId : (rows[0]?.id ?? null);
-  const goPlayer = (id: number) => { onSelectPlayer(id); setTab("player"); };
+  // Jump to the Player section for a row tap: one URL write, so the player is not
+  // overwritten by a second navigation in the same tick.
+  const goPlayer = (id: number) => {
+    const next = canonicalStatsParams(searchParams, "player", subForSection("player", searchParams.get("sub")));
+    next.set("player", String(id));
+    setSearchParams(next, { replace: true });
+  };
 
   return (
     <div className="space-y-3">
@@ -79,17 +110,38 @@ export default function StatsInsights({
         </div>
       </div>
 
-      <SectionTabs tabs={TABS} active={tab} onChange={setTab} />
+      <SectionTabs tabs={SECTIONS} active={view} onChange={setView} />
 
-      {tab === "trends" && <TrendsExplorer mode={mode} scope={scope} rows={rows} initialMetric={initState?.trendsMetric} initialView={initState?.trendsView} initialPerMatch={initState?.trendsPerMatch} />}
-      {tab === "table" && <StatsTable rows={rows} loading={loading} onSelect={goPlayer} mode={mode} scope={scope} />}
-      {tab === "positions" && <PositionsView mode={mode} />}
-      {tab === "h2h" && <H2HView mode={mode} scope={scope} rows={rows} myId={myId} />}
-      {tab === "streaks" && <StreaksView mode={mode} scope={scope} />}
-      {tab === "stars" && <StarsView mode={mode} scope={scope} rows={rows} selectedId={selectedId} onSelect={onSelectPlayer} />}
-      {tab === "player" && <PlayerProfile mode={mode} scope={scope} rows={rows} selectedId={selectedId} onSelect={onSelectPlayer} />}
-      {tab === "records" && <RecordsView mode={mode} scope={scope} rows={rows} onSelect={goPlayer} />}
-      {tab === "cups" && <CupsView />}
+      {showSubs ? (
+        <ChipGroup<StatsSub>
+          value={activeSub}
+          onChange={setSub}
+          ariaLabel={`${view === "h2h" ? "Head-to-head" : "Overview"} sub-view`}
+          options={subs.map((s) => ({ key: s, label: SUB_LABELS[s] }))}
+        />
+      ) : null}
+
+      {view === "overview" && activeSub === "table" && <StatsTable rows={rows} loading={loading} onSelect={goPlayer} mode={mode} scope={scope} />}
+      {view === "overview" && activeSub === "positions" && <PositionsView mode={mode} />}
+      {view === "overview" && activeSub === "streaks" && <StreaksView mode={mode} scope={scope} />}
+      {view === "overview" && activeSub === "records" && <RecordsView mode={mode} scope={scope} rows={rows} onSelect={goPlayer} />}
+      {view === "overview" && activeSub === "cups" && <CupsView />}
+
+      {view === "trends" && <TrendsExplorer mode={mode} scope={scope} rows={rows} initialMetric={initState?.trendsMetric} initialView={initState?.trendsView} initialPerMatch={initState?.trendsPerMatch} />}
+
+      {view === "h2h" && <H2HView mode={mode} scope={scope} rows={rows} subView={h2hSub} selectedId={selectedId} onSelect={onSelectPlayer} />}
+
+      {view === "player" && (
+        <div className="space-y-4">
+          <PlayerProfile mode={mode} scope={scope} rows={rows} selectedId={selectedId} onSelect={onSelectPlayer} />
+          {selectedId != null ? (
+            <div className="space-y-2">
+              <div className="section-head"><span className="section-label">Club stars</span></div>
+              <StarsSection mode={mode} scope={scope} playerId={selectedId} />
+            </div>
+          ) : null}
+        </div>
+      )}
     </div>
   );
 }

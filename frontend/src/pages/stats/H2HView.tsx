@@ -1,6 +1,7 @@
-/** H2H tab — full matrix, per-player detail, teammate synergy and rivalries.
- *  In 2v2 mode a Players | Duos sub-nav exposes the backend's real duo stats
- *  (best_teammates_2v2 / team_rivalries_2v2) instead of a client-side recompute. */
+/** H2H section — full matrix, per-player detail, teammate synergy and rivalries.
+ *  In 2v2 mode the Players | Duos sub-view chips (owned by StatsInsights) expose the
+ *  backend's real duo stats (best_teammates_2v2 / team_rivalries_2v2) instead of a
+ *  client-side recompute. The selected player is shared with the other sections. */
 import { useMemo, useState } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 
@@ -19,6 +20,7 @@ import { DuoPicker } from "./h2h/DuoPicker";
 import { DuoRivalries } from "./h2h/DuoRivalries";
 import { DuoDetail } from "./h2h/DuoDetail";
 import type { Row } from "./standings";
+import type { H2HSub } from "./statsNav";
 import type { StatsMode } from "./StatsControls";
 import type { StatsScope, StatsH2HPair, StatsH2HOpponentRow, StatsH2HDuo, StatsH2HTeamRivalry } from "../../api/types";
 
@@ -40,16 +42,19 @@ function h2hDiverging(gd: number, maxAbs: number): string {
 
 type HistoryModalState = { title: string; req: StatsH2HMatchesRequest; focusPlayerId: number | null };
 
-export default function H2HView({ mode, scope, rows, myId }: { mode: StatsMode; scope: StatsScope; rows: Row[]; myId?: number | null }) {
+export default function H2HView({ mode, scope, rows, subView, selectedId, onSelect }: {
+  mode: StatsMode; scope: StatsScope; rows: Row[];
+  /** Sub-view from the URL (`?sub=`); Duos is 2v2-only. */
+  subView: H2HSub;
+  /** Shared stats player selection (URL `?player=`), so H2H ↔ Player keep the same player. */
+  selectedId: number | null; onSelect: (id: number) => void;
+}) {
   const q = useQuery({
     queryKey: qk.stats.h2h("all", 200, "rivalry", scope),
     queryFn: () => getStatsH2H({ playerId: null, limit: 200, order: "rivalry", scope }),
     placeholderData: keepPreviousData, staleTime: 30_000,
   });
-  const defaultSelected = (myId != null && rows.some((r) => r.id === myId)) ? myId : (rows[0]?.id ?? null);
-  const [selected, setSelected] = useState<number | null>(defaultSelected);
   const [matrixMetric, setMatrixMetric] = useState<"winrate" | "played" | "gd" | "wdl" | "ppm" | "rivalry">("winrate");
-  const [subView, setSubView] = useState<"players" | "duos">("duos");
   // Ordered (insertion order) so a third tap can replace the OLDEST selection; 0–2 entries.
   const [selectedDuoIds, setSelectedDuoIds] = useState<number[]>([]);
   const [historyModal, setHistoryModal] = useState<HistoryModalState | null>(null);
@@ -57,7 +62,7 @@ export default function H2HView({ mode, scope, rows, myId }: { mode: StatsMode; 
   const nameById = useMemo(() => new Map(rows.map((r) => [r.id, r.name])), [rows]);
 
   // Duos sub-view is only meaningful in 2v2; other modes always show the players view.
-  const effectiveSubView: "players" | "duos" = mode === "2v2" ? subView : "players";
+  const effectiveSubView: H2HSub = mode === "2v2" ? subView : "players";
 
   const pairs: StatsH2HPair[] = useMemo(() => {
     const d = q.data;
@@ -118,9 +123,9 @@ export default function H2HView({ mode, scope, rows, myId }: { mode: StatsMode; 
 
   // Per-player detail.
   const detailQ = useQuery({
-    queryKey: qk.stats.h2hPlayerDetail(selected, scope),
-    queryFn: () => getStatsH2H({ playerId: selected as number, order: "played", limit: 50, scope }),
-    enabled: selected != null,
+    queryKey: qk.stats.h2hPlayerDetail(selectedId, scope),
+    queryFn: () => getStatsH2H({ playerId: selectedId as number, order: "played", limit: 50, scope }),
+    enabled: selectedId != null,
     placeholderData: keepPreviousData, staleTime: 30_000,
   });
   const vs = useMemo<StatsH2HOpponentRow[]>(() => {
@@ -130,13 +135,13 @@ export default function H2HView({ mode, scope, rows, myId }: { mode: StatsMode; 
   }, [detailQ.data, mode]);
   const nemesis = mode === "1v1" ? detailQ.data?.nemesis_1v1 : mode === "2v2" ? detailQ.data?.nemesis_2v2 : detailQ.data?.nemesis_all;
   const favorite = mode === "1v1" ? detailQ.data?.favorite_victim_1v1 : mode === "2v2" ? detailQ.data?.favorite_victim_2v2 : detailQ.data?.favorite_victim_all;
-  const selName = selected != null ? nameById.get(selected) ?? "" : "";
+  const selName = selectedId != null ? nameById.get(selectedId) ?? "" : "";
 
   // 2v2 teammate synergy — real duo stats from the backend (with_2v2 when a player is
   // selected, else best_teammates_2v2). No more client-side recomputation.
   const bestDuos: StatsH2HDuo[] = useMemo(() => q.data?.best_teammates_2v2 ?? [], [q.data]);
   const teamRivalries: StatsH2HTeamRivalry[] = q.data?.team_rivalries_2v2 ?? [];
-  const synergyDuos: StatsH2HDuo[] = selected != null ? (detailQ.data?.with_2v2 ?? []) : bestDuos;
+  const synergyDuos: StatsH2HDuo[] = selectedId != null ? (detailQ.data?.with_2v2 ?? []) : bestDuos;
 
   // A duo needs exactly two players. Look up their real 2v2 record; if they've never
   // played together, synthesize a zeroed duo so DuoDetail still renders gracefully.
@@ -241,13 +246,6 @@ export default function H2HView({ mode, scope, rows, myId }: { mode: StatsMode; 
   if (effectiveSubView === "duos") {
     return (
       <div className="space-y-5">
-        <ChipGroup<"players" | "duos">
-          value={subView}
-          onChange={setSubView}
-          ariaLabel="Head-to-head sub-view"
-          options={[{ key: "players", label: "Players" }, { key: "duos", label: "Duos" }]}
-        />
-
         <div className="space-y-2">
           <div className="section-head"><span className="section-label">Pick a duo</span></div>
           <DuoPicker
@@ -288,15 +286,6 @@ export default function H2HView({ mode, scope, rows, myId }: { mode: StatsMode; 
   // ── Players sub-view (default for 1v1 / overall, opt-in for 2v2) ─────────────
   return (
     <div className="space-y-5">
-      {mode === "2v2" ? (
-        <ChipGroup<"players" | "duos">
-          value={subView}
-          onChange={setSubView}
-          ariaLabel="Head-to-head sub-view"
-          options={[{ key: "players", label: "Players" }, { key: "duos", label: "Duos" }]}
-        />
-      ) : null}
-
       {/* Full-name square matrix */}
       <div>
         <div className="section-head"><span className="section-label">Matrix</span></div>
@@ -329,8 +318,8 @@ export default function H2HView({ mode, scope, rows, myId }: { mode: StatsMode; 
                   <th className="sticky left-0 z-10 bg-bg-default pr-2 text-right">
                     <button
                       type="button"
-                      onClick={() => setSelected(r.id)}
-                      className={"block max-w-[120px] truncate text-xs font-medium " + (selected === r.id ? "text-accent" : "text-text-normal hover:text-accent")}
+                      onClick={() => onSelect(r.id)}
+                      className={"block max-w-[120px] truncate text-xs font-medium " + (selectedId === r.id ? "text-accent" : "text-text-normal hover:text-accent")}
                     >
                       {r.name}
                     </button>
@@ -343,7 +332,7 @@ export default function H2HView({ mode, scope, rows, myId }: { mode: StatsMode; 
                       <td key={c.id}>
                         <button
                           type="button"
-                          onClick={() => setSelected(r.id)}
+                          onClick={() => onSelect(r.id)}
                           title={`${r.name} vs ${c.name}: ${v.w}-${v.d}-${v.l}`}
                           className="grid h-11 w-11 place-items-center rounded text-xs font-semibold leading-none text-white"
                           style={{ backgroundColor: cellColor(v) }}
@@ -363,8 +352,8 @@ export default function H2HView({ mode, scope, rows, myId }: { mode: StatsMode; 
       {/* Per-player detail */}
       <div className="space-y-2">
         <div className="section-head"><span className="section-label">Head-to-head by player</span></div>
-        <PlayerPicker players={rows.map((r) => ({ id: r.id, name: r.name }))} selectedId={selected} onSelect={setSelected} />
-        {selected == null ? (
+        <PlayerPicker players={rows.map((r) => ({ id: r.id, name: r.name }))} selectedId={selectedId} onSelect={onSelect} />
+        {selectedId == null ? (
           <div className="text-sm text-text-muted">Pick a player.</div>
         ) : (
           <>
@@ -385,7 +374,7 @@ export default function H2HView({ mode, scope, rows, myId }: { mode: StatsMode; 
             ) : vs.length ? (
               <div className="list-divided">
                 {vs.map((o) => (
-                  <button key={o.opponent.id} type="button" onClick={() => setSelected(o.opponent.id)} className="row row-tap">
+                  <button key={o.opponent.id} type="button" onClick={() => onSelect(o.opponent.id)} className="row row-tap">
                     <span className="min-w-0 flex-1 truncate text-sm text-text-normal">{o.opponent.display_name}</span>
                     <span className="shrink-0 font-mono text-[11px] tabular-nums text-text-muted">
                       {o.played}P · <span className="text-status-text-green">{o.wins}</span>-<span className="text-amber-300">{o.draws}</span>-<span className="text-[color:rgb(var(--delta-down)/1)]">{o.losses}</span>
@@ -405,19 +394,19 @@ export default function H2HView({ mode, scope, rows, myId }: { mode: StatsMode; 
       {mode === "2v2" ? (
         <div className="space-y-2">
           <div className="section-head"><span className="section-label">Teammate synergy</span></div>
-          {selected != null && detailQ.isLoading && !detailQ.data ? (
+          {selectedId != null && detailQ.isLoading && !detailQ.data ? (
             <InlineLoading label="Loading…" />
           ) : synergyDuos.length ? (
             <>
               <p className="text-[11px] text-text-muted">
-                {selected != null ? <>How {selName} performs with each partner (points per match as a duo).</> : <>Strongest 2v2 pairings (points per match as a duo).</>}
+                {selectedId != null ? <>How {selName} performs with each partner (points per match as a duo).</> : <>Strongest 2v2 pairings (points per match as a duo).</>}
               </p>
               <div className="space-y-2">
                 {synergyDuos.map((d) => (
                   <DuoRow
                     key={`syn-${duoKey(d.p1.id, d.p2.id)}`}
                     r={d}
-                    focusPlayerId={selected}
+                    focusPlayerId={selectedId}
                     onOpenMatches={openDuoTeammates}
                   />
                 ))}
@@ -434,7 +423,7 @@ export default function H2HView({ mode, scope, rows, myId }: { mode: StatsMode; 
         <div className="section-head"><span className="section-label">Top rivalries</span></div>
         <p className="text-[11px] text-text-muted">Most-played and closest matchups — a higher rivalry score means more games and a tighter win balance.</p>
         {topRivalries.map((p) => (
-          <button key={`${p.a.id}-${p.b.id}`} type="button" onClick={() => setSelected(p.a.id)}
+          <button key={`${p.a.id}-${p.b.id}`} type="button" onClick={() => onSelect(p.a.id)}
             className="surface flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left transition hover:bg-hover-default/30">
             <div className="min-w-0">
               <div className="truncate text-sm font-medium text-text-normal">

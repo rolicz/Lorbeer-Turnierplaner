@@ -1,4 +1,5 @@
-/** Stars tab — points-per-match bucketed by the played club's star rating. */
+/** Club stars — points per match bucketed by the star rating of the club played.
+ *  Rendered inside the Player section (the player comes from the shared selection). */
 import { useMemo } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 
@@ -7,8 +8,6 @@ import { StarsFA } from "../../ui/primitives/StarsFA";
 import { getStatsPlayerMatches } from "../../api/stats.api";
 import { listClubs } from "../../api/clubs.api";
 import { qk } from "../../api/queryKeys";
-import { PlayerPicker } from "./PlayerPicker";
-import type { Row } from "./standings";
 import { matchStats, sideOf } from "./standings";
 import type { StatsMode } from "./StatsControls";
 import type { Club, StatsMatch, StatsScope } from "../../api/types";
@@ -36,11 +35,11 @@ function starBuckets(matches: StatsMatch[], pid: number, clubs: Club[]) {
   return STAR_LEVELS.map((s) => { const v = by.get(s)!; return { stars: s, ...v, ppm: v.played ? v.pts / v.played : 0 }; });
 }
 
-export default function StarsView({ mode, scope, rows, selectedId, onSelect }: { mode: StatsMode; scope: StatsScope; rows: Row[]; selectedId: number | null; onSelect: (id: number) => void }) {
+export function StarsSection({ mode, scope, playerId }: { mode: StatsMode; scope: StatsScope; playerId: number | null }) {
   const matchesQ = useQuery({
-    queryKey: qk.stats.playerMatches(selectedId ?? 0, scope),
-    queryFn: () => getStatsPlayerMatches({ playerId: selectedId as number, scope }),
-    enabled: selectedId != null,
+    queryKey: qk.stats.playerMatches(playerId ?? 0, scope),
+    queryFn: () => getStatsPlayerMatches({ playerId: playerId as number, scope }),
+    enabled: playerId != null,
     placeholderData: keepPreviousData, staleTime: 30_000,
   });
   const clubsQ = useQuery({ queryKey: qk.clubs(), queryFn: () => listClubs(), staleTime: 60_000 });
@@ -48,13 +47,12 @@ export default function StarsView({ mode, scope, rows, selectedId, onSelect }: {
     const ts = matchesQ.data?.tournaments ?? [];
     return (mode === "overall" ? ts : ts.filter((t) => t.mode === mode)).flatMap((t) => t.matches);
   }, [matchesQ.data, mode]);
-  const buckets = useMemo(() => (selectedId ? starBuckets(flat, selectedId, clubsQ.data ?? []) : []), [flat, selectedId, clubsQ.data]);
+  const buckets = useMemo(() => (playerId ? starBuckets(flat, playerId, clubsQ.data ?? []) : []), [flat, playerId, clubsQ.data]);
   const active = buckets.filter((b) => b.played > 0);
   const known = active.reduce((s, b) => s + b.played, 0);
 
   return (
-    <div className="space-y-4">
-      <PlayerPicker players={rows.map((r) => ({ id: r.id, name: r.name }))} selectedId={selectedId} onSelect={onSelect} />
+    <div className="space-y-3">
       <p className="text-[11px] text-text-muted">Points per match by the star rating of the club played. {known ? `${known} rated matches.` : ""}</p>
       {matchesQ.isLoading && !matchesQ.data ? (
         <InlineLoading label="Loading…" />
