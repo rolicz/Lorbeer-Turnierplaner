@@ -265,7 +265,7 @@ last tab scrolls it into view; `/settings?tab=notifications` opens Notifications
 
 ---
 
-## U2 — Mobile bottom tab bar  ☐
+## U2 — Mobile bottom tab bar  ☑
 
 - New `frontend/src/ui/shell/BottomTabBar.tsx` (`lg:hidden`, `fixed inset-x-0 bottom-0
   z-30`, `nav-shell` look with a top border, `pb-[env(safe-area-inset-bottom,0px)]`,
@@ -293,7 +293,31 @@ last tab scrolls it into view; `/settings?tab=notifications` opens Notifications
 active item highlighted, back chevron still in the top bar on detail pages. Desktop
 (1280px): no bar. `npm run check` + `npm run build` green.
 
-**Deviations:**
+**Deviations:** (implemented 2026-09-12)
+
+- The live indicator is an **overlay badge** on the Tournaments icon (the two spans from
+  `Sidebar.tsx:60-63`, wrapped in an absolutely positioned span at the icon's top-right), not a
+  replacement for the Trophy icon: a bottom tab has to keep its icon+label identity.
+- `nav-shell` carries `@apply border-b`, so the bar adds `border-b-0 border-t` (utilities beat the
+  components layer) to get the top border the task asks for.
+- "Scroll to top on the active tab" uses `prefersReducedMotion()` from `ui/scroll.ts` to choose
+  `auto` vs `smooth`, like the rest of the app's programmatic scrolling.
+- `<main>` keeps `py-4 lg:py-6` and appends `pb-[calc(4.5rem+env(safe-area-inset-bottom,0px))]
+  lg:pb-6`; Tailwind emits `pb-*` after `py-*`, so the override wins (verified at runtime:
+  padding-bottom 72px at 390px, 24px at 1280px).
+- **Finding (not fixed here, out of U2's scope):** `ErrorToastViewport` is defined in
+  `ui/primitives/ErrorToast.tsx` but **mounted nowhere** in the app — `showErrorToast` currently
+  renders no toast at all. The `bottom-*` change is correct but has no runtime effect until the
+  viewport is mounted; the offset was verified with a DOM probe using the exact class string
+  (computed `bottom: 72px` at 390px → 15px clear of the bar, `16px` at ≥lg). Worth a line in
+  T1/D1.
+- `bottomTabBar.test.tsx` covers two cases beyond the ones named: the owning destination stays
+  active on detail routes (`/profiles/2` → Players) and the live shortcut (href `/live/19` + dot).
+  It stubs `useLiveTournament` with `vi.mock`, so no QueryClient/network is needed; `AuthProvider`
+  supplies the reader role.
+- Runtime DoD verified with Playwright against the isolated stack (backend :8003 on a copy of
+  `app.db`, vite :8020): 24 checks at 390px/1280px, plus 5 more after flipping one match of
+  tournament 19 to `playing` in the copy to exercise the live state.
 
 ---
 

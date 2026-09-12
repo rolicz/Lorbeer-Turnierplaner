@@ -13,6 +13,7 @@ import { RealtimeProvider } from "../../hooks/realtime/RealtimeProvider";
 import { useAnyTournamentWS } from "../../hooks/realtime/useRealtime";
 import Sidebar from "./Sidebar";
 import MobileChrome from "./MobileChrome";
+import BottomTabBar from "./BottomTabBar";
 import RouteErrorBoundary from "./RouteErrorBoundary";
 import { useSwipeNav } from "./useSwipeNav";
 import { useLocationRestore } from "./useLocationRestore";
@@ -88,11 +89,13 @@ function ShellInner({ children }: { children: React.ReactNode }) {
         ) : null}
 
         <main
-          className="mx-auto w-full max-w-6xl flex-1 page-x py-4 lg:py-6"
+          className="mx-auto w-full max-w-6xl flex-1 page-x py-4 pb-[calc(4.5rem+env(safe-area-inset-bottom,0px))] lg:py-6 lg:pb-6"
           style={pull.distance > 0 && !pull.refreshing ? { transform: `translateY(${Math.min(pull.distance, 64)}px)` } : undefined}
         >
           <RouteErrorBoundary resetKey={location.pathname}>{children}</RouteErrorBoundary>
         </main>
+
+        <BottomTabBar />
       </div>
     </div>
   );
