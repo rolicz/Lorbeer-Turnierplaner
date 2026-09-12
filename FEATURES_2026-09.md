@@ -834,7 +834,7 @@ explainers, profile link + plan)
 
 ---
 
-## S4 — Retire the Classic layout  ☐
+## S4 — Retire the Classic layout  ☑
 
 Everything Classic-only now exists in the New layout (S1–S3). Delete:
 - `frontend/src/pages/stats/PlayersStatsCard.tsx`, `TrendsCard.tsx`, `TrendsChart.tsx`,
@@ -861,7 +861,50 @@ Everything Classic-only now exists in the New layout (S1–S3). Delete:
 no hits in `frontend/src`; `npm run check` + `npm run build` green; `/stats?section=h2h`
 still lands on H2H; 390px screenshot of `/settings?tab=appearance` shows only Theme.
 
-**Deviations:**
+**Deviations:** (implemented 2026-09-12, three commits: type move, deletion, cleanup)
+
+- `StatsControls.tsx` kept a one-commit transitional `export type { StatsMode }` re-export so the
+  Classic cards still compiled between the type move and the deletion; both are gone now. The 14
+  surviving files import the type from the new `pages/stats/statsMode.ts`.
+- `HeadToHeadRows.tsx`: `PairRow` and `OpponentRow` are deleted — S2 did **not** reuse them
+  (`H2HView` has its own `RivalCard` and renders opponent rows itself). `RowShell`, `DuoRow` and
+  `TeamRivalryRow` stay; the `StatsH2HPair` / `StatsH2HOpponentRow` type imports went with the two
+  rows, `pct` / `normalizeTeamRivalryForFocus` / `fmtInt` are all still used.
+- `StatsPage.tsx` lost more than the task named, all of it Classic-only: `useLocation` + the
+  hash/`state.focus` trends handling (`statsNav.ts` owns it), the `listPlayers` query,
+  `usePlayerAvatarMap` and `useMemo` (fed the Classic filter bar's avatar row), `useAuth` +
+  `effPlayerId` (the self-fallback lives in `StatsInsights` since S1), `SectionTabs` / `TABS` /
+  `TabKey` and the lucide icon imports. `MODE_VALUES`, `SCOPE_VALUES`, `patchParams` and the four
+  setters (`mode`, `source`, `player`, `vs`) are unchanged, so the page is 67 lines instead of 166.
+- `SettingsPage.tsx` also dropped its now-unused `SegmentedSwitch` import (the Stats layout switch
+  was its only user on that page).
+- Rule 7 truthfulness fix in `AGENTS.md` §2: the `src/pages/` bullet still listed the Classic tab
+  names ("stats (tabs: players, trends, h2h, streaks, ratings, stars, matches)"); it now names the
+  one layout and its four sections. D1 re-checks.
+- **Finding for T1/D1:** `trendsMath.ts` stays as the task says (`pooledPpm`,
+  `buildPlayerColorMap`, `colorForIdx`, `pointsForPlayerInMatch` are live), but with
+  `TrendsChart`/`TrendsCard`/`chartSvg` gone, `avgLast`, `clampWindow`, `dist2`,
+  `monthTicksBetween` and the `SeriesPoint` type are only referenced by
+  `src/test/trendsMath.test.ts`. Left in place — removing them would delete passing tests — but
+  they are app-dead and worth a decision in T1/D1.
+- `styles.css` untouched as instructed; no primitive became orphaned (`CollapsibleCard`,
+  `AvatarButton`, `StarsFA`, `CupOwnerBadge`, `SegmentedSwitch`, `TournamentLaurelMarkers`,
+  `usePlayerColors`, `PlayerPicker`, `matchHistory.ts` all keep other callers — checked with
+  `git grep` before each deletion).
+- 15 files deleted (4,502 lines) plus 79 lines from `HeadToHeadRows.tsx` and the 28-line
+  settings section; one file added (`statsMode.ts`). Suite: 27 files / 227 tests → **26 files / 207 tests**, i.e.
+  exactly the 20 cases of the deleted `chartSvg.test.ts`. `npx tsc -p tsconfig.json --noEmit`,
+  `npm run check` and `npm run build` green; both DoD greps return nothing in `frontend/src`.
+- Runtime DoD verified with Playwright against the isolated stack (backend :8003 on a copy of
+  `app.db`, vite :8020): **50 checks green** at 390px and 1280px — `/stats?section=h2h` rewritten
+  to `/stats?view=h2h&sub=players` with the H2H tab active and the matrix rendered, `/stats`
+  landing on Overview · Table, `/settings?tab=appearance` showing exactly one section head
+  ("Theme") and no "Stats layout" string, the other legacy URLs (`?view=table`, `?view=stars`,
+  `?section=streaks`, `#trends`) still mapped, every section/sub-view rendering a body, only the
+  four new tabs in the strip, no horizontal overflow and no console errors. A stale
+  `localStorage["stats-experience"] = "classic"` is ignored, as planned.
+- `npm run build` still prints the pre-existing "chunks larger than 500 kB" hint (629 kB
+  `index-*.js`); the `StatsPage` chunk itself is now 73 kB / 20.6 kB gzip.
 
 ---
 

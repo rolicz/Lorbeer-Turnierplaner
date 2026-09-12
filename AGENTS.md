@@ -60,8 +60,9 @@ Size (2026-09): backend ≈ 14.7k LOC Python, frontend ≈ 29k LOC TS/TSX (excl.
   backoff), `wsEvents.ts` (event contract mirror of `services/events.py`), `applyEvent.ts`
   (cache merge), `RealtimeProvider.tsx`.
 - `src/pages/` — dashboard, tournaments (+ `live/` tournament page, match detail, comments,
-  admin panel), stats (tabs: players, trends, h2h, streaks, ratings, stars, matches),
-  profile, players admin, clubs, friendlies (`tools/`), settings, login.
+  admin panel), stats (one layout; sections Overview [table/positions/streaks/records/cups],
+  Trends, H2H [players/duos + matchup], Player), profile, players admin, clubs,
+  friendlies (`tools/`), settings, login.
 - `src/ui/` — `primitives/` (Button, Card, CardSection, Modal, Input, Pill, EmptyState,
   LoadingPlaceholder, MatchOverviewPanel, …), `shell/` (AppShell, Sidebar desktop, MobileChrome,
   navConfig, routeMeta/contextual back, NotificationBell), `ClubBadge`, `NationFlag`,
