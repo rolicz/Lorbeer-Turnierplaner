@@ -1,4 +1,6 @@
+import { ThumbsDown, ThumbsUp } from "lucide-react";
 import type React from "react";
+
 import Button from "./Button";
 
 export default function VoteButton({
@@ -25,7 +27,7 @@ export default function VoteButton({
     onVote();
   };
 
-  const icon = direction === "up" ? "fa-thumbs-up" : "fa-thumbs-down";
+  const Icon = direction === "up" ? ThumbsUp : ThumbsDown;
 
   return (
     <Button
@@ -35,7 +37,7 @@ export default function VoteButton({
       title={title}
       className={className}
     >
-      <i className={"fa-solid " + icon + " " + (active ? "text-accent" : "")} aria-hidden="true" />
+      <Icon size={14} className={active ? "text-accent" : undefined} aria-hidden="true" />
       <span className="tabular-nums">{count}</span>
     </Button>
   );

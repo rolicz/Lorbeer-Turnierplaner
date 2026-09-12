@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { List, Shrink } from "lucide-react";
 
 import CollapsibleCard from "../../ui/primitives/CollapsibleCard";
 import SegmentedSwitch from "../../ui/primitives/SegmentedSwitch";
@@ -322,8 +323,8 @@ export default function FriendlyMatchesListCard({
             value={showMeta}
             onChange={setShowMeta}
             options={[
-              { key: false, label: "Compact", icon: "fa-compress" },
-              { key: true, label: "Details", icon: "fa-list" },
+              { key: false, label: "Compact", icon: <Shrink size={14} aria-hidden="true" /> },
+              { key: true, label: "Details", icon: <List size={14} aria-hidden="true" /> },
             ]}
             ariaLabel="Friendly details toggle"
             title="View details"

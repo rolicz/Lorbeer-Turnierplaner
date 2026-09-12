@@ -1,4 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
+import { ThumbsDown, ThumbsUp } from "lucide-react";
+
 import type { VoteVotersResponse } from "../../api/types";
 import CardSection from "./CardSection";
 import InlineLoading from "./InlineLoading";
@@ -46,7 +48,7 @@ export default function VoteVotersModal({
         {upvoters.length ? (
           <CardSection>
             <div className="inline-flex items-center gap-2 text-[12px] text-text-muted">
-              <i className="fa-solid fa-thumbs-up text-status-text-green" aria-hidden="true" />
+              <ThumbsUp size={14} className="text-status-text-green" aria-hidden="true" />
               <span>Upvotes</span>
               <span className="tabular-nums text-text-normal">{upvoters.length}</span>
             </div>
@@ -63,7 +65,7 @@ export default function VoteVotersModal({
         {downvoters.length ? (
           <CardSection>
             <div className="inline-flex items-center gap-2 text-[12px] text-text-muted">
-              <i className="fa-solid fa-thumbs-down text-loss" aria-hidden="true" />
+              <ThumbsDown size={14} className="text-loss" aria-hidden="true" />
               <span>Downvotes</span>
               <span className="tabular-nums text-text-normal">{downvoters.length}</span>
             </div>

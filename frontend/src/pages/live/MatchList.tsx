@@ -1,3 +1,5 @@
+import { List, Shrink } from "lucide-react";
+
 import Button from "../../ui/primitives/Button";
 import type { Club, Match } from "../../api/types";
 import { teamName } from "../../utils/matchDisplay";
@@ -70,8 +72,8 @@ export default function MatchList({
           value={view}
           onChange={setView}
           options={[
-            { key: "compact", label: "Compact", icon: "fa-compress" },
-            { key: "comfort", label: "Details", icon: "fa-list" },
+            { key: "compact", label: "Compact", icon: <Shrink size={14} aria-hidden="true" /> },
+            { key: "comfort", label: "Details", icon: <List size={14} aria-hidden="true" /> },
           ]}
           widthClass="w-12 sm:w-16"
           ariaLabel="Matches view"

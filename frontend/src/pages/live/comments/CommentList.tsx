@@ -5,7 +5,7 @@
  * one bundle so this stays a presentational view over the already-grouped comment data.
  */
 import EmptyState from "../../../ui/primitives/EmptyState";
-import { StarsFA } from "../../../ui/primitives/StarsFA";
+import { Stars } from "../../../ui/primitives/Stars";
 import { CommentCard, type CommentCardContextValue } from "../TournamentCommentParts";
 import { type TournamentComment } from "../tournamentCommentTypes";
 import { type CommentFilterValue } from "./CommentFilterBar";
@@ -187,9 +187,9 @@ export default function CommentList(props: CommentListProps) {
               <div className="min-w-0 whitespace-normal break-words text-right leading-tight">{h.bClub.present ? h.bClub.name : "—"}</div>
             </div>
             <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 text-[11px] text-text-muted">
-              <div className="min-w-0">{h.aClub.present ? <StarsFA rating={h.aClub.rating ?? 0} textClassName="text-text-muted" /> : <span>—</span>}</div>
+              <div className="min-w-0">{h.aClub.present ? <Stars rating={h.aClub.rating ?? 0} textClassName="text-text-muted" /> : <span>—</span>}</div>
               <div />
-              <div className="flex min-w-0 justify-end">{h.bClub.present ? <StarsFA rating={h.bClub.rating ?? 0} textClassName="text-text-muted" /> : <span>—</span>}</div>
+              <div className="flex min-w-0 justify-end">{h.bClub.present ? <Stars rating={h.bClub.rating ?? 0} textClassName="text-text-muted" /> : <span>—</span>}</div>
             </div>
           </div>
     ) : null;

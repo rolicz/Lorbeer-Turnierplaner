@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Ban, User, Users } from "lucide-react";
 
 import CollapsibleCard from "../../ui/primitives/CollapsibleCard";
 import FormLabel from "../../ui/primitives/FormLabel";
@@ -128,7 +129,7 @@ function AvatarPlayerSelect({
             disabled={disabled}
             onClick={() => onChange(null)}
             className="h-8 w-8"
-            fallbackIconClass="fa-solid fa-ban text-[11px] text-text-muted"
+            fallbackIcon={<Ban size={12} className="text-text-muted" aria-hidden="true" />}
             noOverflowAnchor={true}
           />
           {players.map((p) => {
@@ -422,8 +423,8 @@ export default function FriendlyMatchCard({
                 }
               }}
               options={[
-                { key: "1v1", label: "1v1", icon: "fa-user" },
-                { key: "2v2", label: "2v2", icon: "fa-users" },
+                { key: "1v1", label: "1v1", icon: <User size={14} aria-hidden="true" /> },
+                { key: "2v2", label: "2v2", icon: <Users size={14} aria-hidden="true" /> },
               ]}
               ariaLabel="Match mode"
               title="Mode: 1v1 / 2v2"

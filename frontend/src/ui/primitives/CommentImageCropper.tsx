@@ -1,4 +1,6 @@
+import { Check, ImageIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+
 import Button from "./Button";
 import { ErrorToastOnError } from "./ErrorToast";
 import Modal from "./Modal";
@@ -257,7 +259,7 @@ export default function CommentImageCropper({
                   }}
                 />
                 <Button type="button" variant="ghost" onClick={() => inputRef.current?.click()} disabled={busy} title="Choose photo">
-                  <i className="fa-solid fa-image md:hidden" aria-hidden="true" />
+                  <ImageIcon size={14} className="md:hidden" aria-hidden="true" />
                   <span className="hidden md:inline">Choose</span>
                 </Button>
               </div>
@@ -286,7 +288,7 @@ export default function CommentImageCropper({
                 disabled={!img || busy}
                 title="Use image"
               >
-                <i className="fa-solid fa-check md:hidden" aria-hidden="true" />
+                <Check size={14} className="md:hidden" aria-hidden="true" />
                 <span className="hidden md:inline">{busy ? "Applying…" : "Use image"}</span>
               </Button>
             </div>

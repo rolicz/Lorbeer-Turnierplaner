@@ -1,3 +1,4 @@
+import { RotateCw } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
@@ -82,8 +83,9 @@ function ShellInner({ children }: { children: React.ReactNode }) {
             style={{ height: Math.max(0, pull.distance) }}
           >
             <span className="pull-refresh-indicator self-end mb-1" style={{ opacity: pull.refreshing ? 1 : Math.min(1, pull.distance / 60) }}>
-              <i
-                className={`fa-solid fa-arrow-rotate-right ${pull.refreshing ? "fa-spin" : ""}`}
+              <RotateCw
+                size={14}
+                className={pull.refreshing ? "animate-spin" : undefined}
                 style={{ transform: pull.refreshing ? undefined : `rotate(${pull.distance * 3}deg)` }}
                 aria-hidden="true"
               />

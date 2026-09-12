@@ -1,3 +1,4 @@
+import { ChevronDown, ChevronUp, Shuffle, ShieldHalf } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import type { Club } from "../api/types";
@@ -6,7 +7,7 @@ import Button from "./primitives/Button";
 import ClubStarsEditor from "./ClubStarsEditor";
 import ClubCombobox from "./ClubCombobox";
 import NationFlag from "./NationFlag";
-import { StarsFA } from "./primitives/StarsFA";
+import { Stars } from "./primitives/Stars";
 import {
   LeagueFilter,
   STAR_OPTIONS,
@@ -253,7 +254,7 @@ export default function SelectClubsPanel({
                 <span className="min-w-0 truncate">{aParts.league_name ?? "—"}</span>
               </div>
               <div className="justify-self-end">
-                <StarsFA rating={aParts.rating ?? 0} textClassName="text-text-muted" />
+                <Stars rating={aParts.rating ?? 0} textClassName="text-text-muted" />
               </div>
             </div>
           )}
@@ -281,7 +282,7 @@ export default function SelectClubsPanel({
                 <span className="min-w-0 truncate">{bParts.league_name ?? "—"}</span>
               </div>
               <div className="justify-self-end">
-                <StarsFA rating={bParts.rating ?? 0} textClassName="text-text-muted" />
+                <Stars rating={bParts.rating ?? 0} textClassName="text-text-muted" />
               </div>
             </div>
           )}
@@ -296,7 +297,7 @@ export default function SelectClubsPanel({
         className="w-full whitespace-nowrap"
         title="Pick a random matchup (respects the filters below)"
       >
-        <i className="fa fa-shuffle mr-2" aria-hidden="true" />
+        <Shuffle size={14} className="mr-2 inline-block align-[-2px]" aria-hidden="true" />
         Random matchup
       </Button>
 
@@ -347,10 +348,10 @@ export default function SelectClubsPanel({
         className="focus-ring flex w-full items-center justify-between gap-2 rounded-xl px-3 py-3 text-left transition hover:bg-bg-card-chip/30"
       >
         <span className="inline-flex items-center gap-2 text-sm font-semibold text-text-normal">
-          <i className="fa-solid fa-shield-halved text-text-muted" aria-hidden="true" />
+          <ShieldHalf size={14} className="text-text-muted" aria-hidden="true" />
           Select clubs
         </span>
-        <i className={`fa-solid ${open ? "fa-chevron-up" : "fa-chevron-down"} text-text-muted`} aria-hidden="true" />
+        {open ? <ChevronUp size={14} className="text-text-muted" aria-hidden="true" /> : <ChevronDown size={14} className="text-text-muted" aria-hidden="true" />}
       </button>
       {open ? <div className="border-t border-border-card-chip/40 px-3 pb-3 pt-3">{body}</div> : null}
     </div>

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
+import { Layers, Zap } from "lucide-react";
 
 import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
 import InlineLoading from "../../ui/primitives/InlineLoading";
@@ -287,8 +288,8 @@ export default function TrendsPreviewCard() {
               value={view}
               onChange={setView}
               options={[
-                { key: "lastN", label: `Last ${formN}`, icon: "fa-bolt" },
-                { key: "total", label: "Total", icon: "fa-layer-group" },
+                { key: "lastN", label: `Last ${formN}`, icon: <Zap size={14} aria-hidden="true" /> },
+                { key: "total", label: "Total", icon: <Layers size={14} aria-hidden="true" /> },
               ]}
               ariaLabel="Trends view"
               title="View"

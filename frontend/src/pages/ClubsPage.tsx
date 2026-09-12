@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { ShieldHalf, Star } from "lucide-react";
 
 import ClubBadge from "../ui/ClubBadge";
 import NationFlag from "../ui/NationFlag";
@@ -354,8 +355,8 @@ export default function ClubsPage() {
             value={groupMode}
             onChange={setGroupMode}
             options={[
-              { key: "stars", label: "Stars", icon: "fa-star" },
-              { key: "league", label: "League", icon: "fa-shield-halved" },
+              { key: "stars", label: "Stars", icon: <Star size={14} aria-hidden="true" /> },
+              { key: "league", label: "League", icon: <ShieldHalf size={14} aria-hidden="true" /> },
             ]}
             ariaLabel="Group clubs"
             title="Group by stars or league"

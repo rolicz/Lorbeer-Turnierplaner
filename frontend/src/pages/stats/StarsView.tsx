@@ -4,7 +4,7 @@ import { useMemo } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 
 import InlineLoading from "../../ui/primitives/InlineLoading";
-import { StarsFA } from "../../ui/primitives/StarsFA";
+import { Stars } from "../../ui/primitives/Stars";
 import { getStatsPlayerMatches } from "../../api/stats.api";
 import { listClubs } from "../../api/clubs.api";
 import { qk } from "../../api/queryKeys";
@@ -64,7 +64,7 @@ export function StarsSection({ mode, scope, playerId }: { mode: StatsMode; scope
             <div key={b.stars} className="relative overflow-hidden">
               <div className="absolute inset-y-1 left-0 rounded-r" style={{ width: `${Math.max(2, Math.min(100, (b.ppm / 3) * 100))}%`, backgroundColor: "rgb(var(--color-accent) / 0.16)" }} aria-hidden="true" />
               <div className="relative z-10 grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 px-1 py-2.5">
-                <StarsFA rating={b.stars} className="text-[11px]" textClassName="text-text-normal" />
+                <Stars rating={b.stars} size={12} textClassName="text-text-normal" />
                 <div className="text-center font-mono text-[11px] tabular-nums text-text-muted">
                   {b.played}P · <span className="text-win">{b.w}</span>-<span className="text-draw">{b.d}</span>-<span className="text-loss">{b.l}</span>
                 </div>

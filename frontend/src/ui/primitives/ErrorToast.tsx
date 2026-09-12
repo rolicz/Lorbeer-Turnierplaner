@@ -1,4 +1,5 @@
 /* eslint-disable react-refresh/only-export-components */
+import { CircleAlert, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 type ToastLevel = "error";
@@ -89,7 +90,7 @@ export function ErrorToastViewport() {
         <div key={t.id} className="pointer-events-auto card-outer p-2 shadow-xl">
           {/* not CardSection: custom py-2 padding, flex layout, and no rounded-2xl (clipped by parent card-outer's border-radius) */}
           <div className="card-inner-flat flex items-start gap-2 py-2">
-            <i className="fa-solid fa-circle-exclamation mt-0.5 text-[color:rgb(var(--delta-down)/1)]" aria-hidden="true" />
+            <CircleAlert size={14} className="mt-0.5 shrink-0 text-[color:rgb(var(--delta-down)/1)]" aria-hidden="true" />
             <div className="min-w-0 flex-1">
               <div className="text-xs font-semibold text-text-normal">{t.title}</div>
               <div className="mt-0.5 break-anywhere text-xs text-text-muted">{t.message}</div>
@@ -100,7 +101,7 @@ export function ErrorToastViewport() {
               className="icon-button inline-flex h-7 w-7 items-center justify-center"
               title="Dismiss"
             >
-              <i className="fa-solid fa-xmark text-[11px]" aria-hidden="true" />
+              <X size={14} aria-hidden="true" />
             </button>
           </div>
         </div>

@@ -6,7 +6,7 @@ import type { Club } from "../api/types";
 import ClubBadge from "./ClubBadge";
 import NationFlag from "./NationFlag";
 import FormLabel from "./primitives/FormLabel";
-import { StarsFA } from "./primitives/StarsFA";
+import { Stars } from "./primitives/Stars";
 import { starsLabel } from "./clubControls";
 import { nationalTeamNation } from "./nationalTeams";
 import { cn } from "./cn";
@@ -263,7 +263,7 @@ export default function ClubCombobox({
                           ) : null}
                         </span>
                         <span className="shrink-0">
-                          <StarsFA rating={Number(c.star_rating) || 0} textClassName="text-text-muted" />
+                          <Stars rating={Number(c.star_rating) || 0} textClassName="text-text-muted" />
                         </span>
                         {isSel ? <Check className="h-4 w-4 shrink-0 text-accent" aria-hidden="true" /> : null}
                       </button>

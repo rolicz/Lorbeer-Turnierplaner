@@ -1,3 +1,5 @@
+import type { ReactNode } from "react";
+
 import { playerAvatarUrl } from "../../api/playerAvatars.api";
 
 export default function AvatarCircle({
@@ -8,7 +10,7 @@ export default function AvatarCircle({
   className = "",
   imgClassName = "h-full w-full object-cover",
   fallbackClassName = "text-sm font-semibold text-text-muted",
-  fallbackIconClass,
+  fallbackIcon,
   alt = "",
 }: {
   playerId?: number | null;
@@ -18,7 +20,7 @@ export default function AvatarCircle({
   className?: string;
   imgClassName?: string;
   fallbackClassName?: string;
-  fallbackIconClass?: string;
+  fallbackIcon?: ReactNode;
   alt?: string;
 }) {
   const initial = (name || "?").trim().slice(0, 1).toUpperCase();
@@ -33,8 +35,8 @@ export default function AvatarCircle({
     >
       {playerId != null && updatedAt ? (
         <img src={playerAvatarUrl(playerId, updatedAt)} alt={alt} className={imgClassName} loading="lazy" decoding="async" />
-      ) : fallbackIconClass ? (
-        <i className={fallbackIconClass} aria-hidden="true" />
+      ) : fallbackIcon ? (
+        fallbackIcon
       ) : (
         <span className={fallbackClassName}>{initial}</span>
       )}

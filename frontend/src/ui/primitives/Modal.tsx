@@ -1,3 +1,4 @@
+import { X } from "lucide-react";
 import React, { useEffect } from "react";
 
 export default function Modal({
@@ -66,7 +67,7 @@ export default function Modal({
         aria-label="Close"
         title="Close"
       >
-        <i className="fa-solid fa-xmark" aria-hidden="true" />
+        <X size={16} aria-hidden="true" />
       </button>
     </div>
   );

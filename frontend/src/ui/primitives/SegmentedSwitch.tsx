@@ -1,11 +1,11 @@
-import { useLayoutEffect, useRef, useState } from "react";
+import { type ReactNode, useLayoutEffect, useRef, useState } from "react";
 
 type Primitive = string | number | boolean;
 
 export type SegmentedOption<T extends Primitive> = {
   key: T;
   label: string;
-  icon?: string;
+  icon?: ReactNode;
 };
 
 export default function SegmentedSwitch<T extends Primitive>({
@@ -81,7 +81,7 @@ export default function SegmentedSwitch<T extends Primitive>({
           }
           aria-pressed={value === x.key}
         >
-          {x.icon ? <i className={"fa-solid " + x.icon} aria-hidden="true" /> : null}
+          {x.icon ?? null}
           <span>{x.label}</span>
         </button>
       ))}

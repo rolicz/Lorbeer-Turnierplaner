@@ -1,7 +1,7 @@
 /* eslint-disable react-refresh/only-export-components */
 import type { Club } from "../api/types";
 import type { ReactNode } from "react";
-import { Filter } from "lucide-react";
+import { Filter, Minus, Plus } from "lucide-react";
 
 import FilterSelect from "./FilterSelect";
 import FormLabel from "./primitives/FormLabel";
@@ -191,7 +191,7 @@ export function GoalStepper({
         disabled={disabled}
         title="Decrement score"
       >
-        <i className="fa fa-minus leading-none" aria-hidden="true" />
+        <Minus size={16} strokeWidth={2.25} aria-hidden="true" />
       </button>
       <div className="stepper-divider" aria-hidden="true" />
       <div className="stepper-value">{value}</div>
@@ -203,7 +203,7 @@ export function GoalStepper({
         disabled={disabled}
         title="Increment score"
       >
-        <i className="fa fa-plus leading-none" aria-hidden="true" />
+        <Plus size={16} strokeWidth={2.25} aria-hidden="true" />
       </button>
     </div>
   );

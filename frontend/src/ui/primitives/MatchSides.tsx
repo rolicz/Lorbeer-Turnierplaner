@@ -18,7 +18,7 @@ import { cn } from "../cn";
 import ClubBadge from "../ClubBadge";
 import NationFlag from "../NationFlag";
 import { clubLabelPartsById } from "../clubControls";
-import { StarsFA } from "./StarsFA";
+import { Stars } from "./Stars";
 
 /** One row of the block: left side right-aligned, right side left-aligned. */
 function SideRow({ left, right, className }: { left: ReactNode; right: ReactNode; className?: string }) {
@@ -119,8 +119,8 @@ export default function MatchSides({
 
       <SideRow
         className="mt-1 text-xs text-text-muted"
-        left={aHasClub ? <StarsFA rating={a.rating ?? 0} textClassName="text-text-muted" /> : null}
-        right={bHasClub ? <StarsFA rating={b.rating ?? 0} textClassName="text-text-muted" /> : null}
+        left={aHasClub ? <Stars rating={a.rating ?? 0} textClassName="text-text-muted" /> : null}
+        right={bHasClub ? <Stars rating={b.rating ?? 0} textClassName="text-text-muted" /> : null}
       />
     </div>
   );

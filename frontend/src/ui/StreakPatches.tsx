@@ -1,3 +1,5 @@
+import { Flame, Goal, Lock, Shield } from "lucide-react";
+
 export type ActiveStreakKey = "win_streak" | "unbeaten_streak" | "scoring_streak" | "clean_sheet_streak";
 
 export type ActiveStreak = {
@@ -9,13 +11,13 @@ export type ActiveStreak = {
 function iconFor(key: ActiveStreakKey) {
   switch (key) {
     case "win_streak":
-      return { icon: "fa-fire-flame-curved", label: "Win streak" };
+      return { Icon: Flame, label: "Win streak" };
     case "unbeaten_streak":
-      return { icon: "fa-shield", label: "Unbeaten" };
+      return { Icon: Shield, label: "Unbeaten" };
     case "scoring_streak":
-      return { icon: "fa-futbol", label: "Scoring streak" };
+      return { Icon: Goal, label: "Scoring streak" };
     case "clean_sheet_streak":
-      return { icon: "fa-lock", label: "Clean sheet streak" };
+      return { Icon: Lock, label: "Clean sheet streak" };
   }
 }
 
@@ -39,7 +41,7 @@ export function StreakPatch({ streak, className = "" }: { streak: ActiveStreak; 
       }}
       title={`${meta.label}: ${streak.length}`}
     >
-      <i className={"fa-solid " + meta.icon + " " + (isCompact ? "text-[10px]" : "text-[11px]")} aria-hidden="true" />
+      <meta.Icon size={isCompact ? 10 : 12} strokeWidth={2.25} aria-hidden="true" />
       <span>{streak.length}</span>
     </span>
   );
