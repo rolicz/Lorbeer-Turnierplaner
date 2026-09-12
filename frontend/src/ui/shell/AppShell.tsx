@@ -14,6 +14,7 @@ import { useAnyTournamentWS } from "../../hooks/realtime/useRealtime";
 import Sidebar from "./Sidebar";
 import MobileChrome from "./MobileChrome";
 import BottomTabBar from "./BottomTabBar";
+import { ErrorToastViewport } from "../primitives/ErrorToast";
 import RouteErrorBoundary from "./RouteErrorBoundary";
 import { useSwipeNav } from "./useSwipeNav";
 import { useLocationRestore } from "./useLocationRestore";
@@ -97,6 +98,11 @@ function ShellInner({ children }: { children: React.ReactNode }) {
 
         <BottomTabBar />
       </div>
+
+      {/* The single mount for showErrorToast/ErrorToastOnError (fixed overlay, so
+          it can live outside the column): without it every toast is dispatched
+          into the void. Inside ShellInner => present on every route. */}
+      <ErrorToastViewport />
     </div>
   );
 }

@@ -358,7 +358,7 @@ the isolated stack → guestbook tab, entry scrolled into view and flashed, URL 
 
 ---
 
-## U5 — Mount the error toast viewport (found during U2)  ☐
+## U5 — Mount the error toast viewport (found during U2)  ☑
 
 **Bug:** `frontend/src/ui/primitives/ErrorToast.tsx` exports `ErrorToastViewport`, and
 ~40 call sites use `showErrorToast` / `ErrorToastOnError` (profile, guestbook, comments,
@@ -380,7 +380,25 @@ API errors.
 
 **DoD:** toast visible on mobile and desktop in the isolated stack; `npm run check` green.
 
-**Deviations:**
+**Deviations:** (implemented 2026-09-12)
+
+- `<ErrorToastViewport />` is mounted inside `ShellInner` but **outside** the inner flex
+  column (as the last child of the `min-h-screen lg:flex` root, after the column that holds
+  `<main>`/`<BottomTabBar />`): the viewport is `position: fixed`, so nesting it in the
+  scrolling column would only add a stray flex item. Still one mount, still on every route
+  including `/login`. This closes the U2 finding.
+- `errorToast.test.tsx` has 6 cases, not 2: besides "shows a toast" and "dedupes an identical
+  repeat", it covers the empty viewport before any toast, distinct toasts stacking, empty/
+  whitespace messages being dropped, and the dismiss button. `showErrorToast` dispatches a
+  window event, so each call is wrapped in `act()` and every case uses a distinct message
+  (the 1100 ms dedupe map is module-level and shared across the file).
+- Runtime DoD verified with Playwright against the isolated stack: 14 checks green —
+  `app:error-toast` dispatched on `/dashboard` and `/login` at 390px renders the toast with
+  computed `bottom: 72px`, its box ending 15px above the bottom tab bar (`barTop` 787,
+  toast bottom 772); at 1280px `bottom: 16px`, bottom-right (16px from both edges) and no
+  bottom bar.
+- `npm run build` still prints the pre-existing "chunks larger than 500 kB" hint (629 kB
+  `index-*.js`); unrelated, as already noted under F1/F2/U1.
 
 ---
 
