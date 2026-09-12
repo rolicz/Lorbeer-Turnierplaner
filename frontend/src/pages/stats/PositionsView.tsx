@@ -2,6 +2,7 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { keepPreviousData, useQueries, useQuery } from "@tanstack/react-query";
+import { Clock, Flag } from "lucide-react";
 
 import AvatarCircle from "../../ui/primitives/AvatarCircle";
 import InlineLoading from "../../ui/primitives/InlineLoading";
@@ -11,7 +12,56 @@ import { cupColorVarForKey, rgbFromCssVar } from "../../cupColors";
 import { qk } from "../../api/queryKeys";
 import { usePlayerAvatarMap } from "../../hooks/usePlayerAvatarMap";
 import { fmtRank } from "../../utils/format";
+import { InfoButton } from "./explainers";
 import type { StatsMode } from "./StatsControls";
+
+/** What the cell colours, the "—" tile and the column shading mean. */
+function InfoLegend() {
+  return (
+    <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+      <div className="flex flex-wrap items-center gap-2 text-[11px] text-text-muted">
+        <span className="inline-flex items-center gap-2">
+          <Flag size={12} aria-hidden="true" />
+          Tournament positions
+        </span>
+
+        <span className="inline-flex items-center gap-2">
+          <span className="h-2.5 w-2.5 rounded-sm border pos-best" />
+          <span>best</span>
+          <span className="h-2.5 w-2.5 rounded-sm border pos-mid" />
+          <span className="h-2.5 w-2.5 rounded-sm border pos-bad" />
+          <span className="h-2.5 w-2.5 rounded-sm border pos-worst" />
+          <span>worst</span>
+        </span>
+
+        <span className="inline-flex items-center gap-2">
+          <span className="pos-none inline-flex h-6 w-7 items-center justify-center rounded-lg border text-[11px] font-mono tabular-nums">
+            —
+          </span>
+          <span>not played</span>
+        </span>
+        <span className="inline-flex items-center gap-2">
+          <span className="pos-winner inline-flex h-6 w-7 items-center justify-center rounded-lg border text-[11px] font-mono tabular-nums">
+            1
+          </span>
+          <span>winner</span>
+        </span>
+      </div>
+
+      <div className="flex items-center gap-2 text-[11px] text-text-muted">
+        <span className="inline-flex items-center gap-2">
+          <Clock size={12} aria-hidden="true" />
+          <span>Old</span>
+        </span>
+        <div className="h-2 w-20 rounded-full border border-border-card-inner bg-gradient-to-r from-bg-card-chip to-bg-card-inner" />
+        <span className="inline-flex items-center gap-2">
+          <span>New</span>
+          <Clock size={12} className="text-text-normal" aria-hidden="true" />
+        </span>
+      </div>
+    </div>
+  );
+}
 
 export default function PositionsView({ mode }: { mode: StatsMode }) {
   const q = useQuery({
@@ -48,6 +98,7 @@ export default function PositionsView({ mode }: { mode: StatsMode }) {
   // Custom (drag-reorderable) column order; null = default (pts desc). Reset on mode.
   const baseOrder = useMemo(() => players.map((p) => p.player_id), [players]);
   const [order, setOrder] = useState<number[] | null>(null);
+  const [legend, setLegend] = useState(false);
   useEffect(() => { setOrder(null); }, [mode]);
   const orderedPlayers = useMemo(() => {
     const byId = new Map(players.map((p) => [p.player_id, p]));
@@ -140,7 +191,13 @@ export default function PositionsView({ mode }: { mode: StatsMode }) {
 
   return (
     <div>
-      <div className="section-head"><span className="section-label">Tournament positions</span></div>
+      <div className="section-head">
+        <span className="section-label inline-flex items-center gap-1.5">
+          Tournament positions
+          <InfoButton on={legend} onClick={() => setLegend((v) => !v)} label="What the colours mean" />
+        </span>
+      </div>
+      {legend ? <InfoLegend /> : null}
       <div className="mb-1.5 text-[11px] text-text-muted">Drag a player's icon to reorder the columns.</div>
       {modeCounts.total > 0 ? (
         <div className="mb-1.5 text-[11px] text-text-muted">

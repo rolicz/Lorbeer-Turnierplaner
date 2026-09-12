@@ -11,6 +11,7 @@ import { TrendChart, ChipGroup } from "../charts";
 import { qk } from "../../../api/queryKeys";
 import { type Row } from "../standings";
 import { Slider, ToggleChip } from "../controls";
+import { EloNote } from "../explainers";
 import { type Metric, type ViewMode, useChartData } from "./useChartData";
 import { useChartGestures } from "./useChartGestures";
 
@@ -153,6 +154,8 @@ export default function TrendsExplorer({ mode, scope, rows, initialMetric, initi
           <span>Pinch to zoom · drag to pan</span>
           {manualWin ? <button type="button" className="font-medium text-accent" onClick={() => setManualWin(null)}>Reset zoom</button> : null}
         </div>
+        {/* Same explainer as the Elo column in the table. */}
+        {isElo ? <div className="mt-2"><EloNote /></div> : null}
         <div className="mt-3 flex flex-wrap gap-2">
           {rows.map((r) => {
             const c = colorOf(r.id);

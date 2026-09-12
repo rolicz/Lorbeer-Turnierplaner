@@ -10,6 +10,7 @@ import AvatarCircle from "../../ui/primitives/AvatarCircle";
 import InlineLoading from "../../ui/primitives/InlineLoading";
 import { usePlayerAvatarMap } from "../../hooks/usePlayerAvatarMap";
 import { Slider, ToggleChip } from "./controls";
+import { EloNote, InfoButton } from "./explainers";
 import { type Row, TABLE_COLS, DEFAULT_COLS, COL_CHIPS, matchStats } from "./standings";
 
 export default function StatsTable({
@@ -38,6 +39,7 @@ export default function StatsTable({
   const [visible, setVisible] = useState<Set<string>>(() => new Set(DEFAULT_COLS));
   const [lastN, setLastN] = useState(false);
   const [nWin, setNWin] = useState(5);
+  const [eloNote, setEloNote] = useState(false);
 
   // Last-N: recompute every column over each player's last N tournaments (same
   // unit as Trends' Last-N). Elo is meaningless over a window, so it's hidden.
@@ -152,6 +154,8 @@ export default function StatsTable({
         </>
       ) : null}
 
+      {eloNote ? <EloNote /> : null}
+
       <div className="overflow-x-auto" data-no-swipe-nav>
         <table className="w-full text-sm">
           <thead>
@@ -162,6 +166,10 @@ export default function StatsTable({
                   <button type="button" onClick={() => setSort(c.key)} className={"inline-flex items-center gap-0.5 " + (sortKey === c.key ? "text-accent" : "hover:text-text-normal")}>
                     {c.label}{sortKey === c.key ? <span>{dir === -1 ? "▾" : "▴"}</span> : null}
                   </button>
+                  {/* How the rating works — only in the full table, not the dashboard preview. */}
+                  {c.key === "rating" && showControls && !controlled ? (
+                    <InfoButton on={eloNote} onClick={() => setEloNote((v) => !v)} label="How Elo is calculated" />
+                  ) : null}
                 </th>
               ))}
             </tr>
