@@ -21,6 +21,8 @@ import { usePlayerAvatarMap } from "../hooks/usePlayerAvatarMap";
 import { usePlayerProfileWS } from "../hooks/useTournamentWS";
 import { useRouteEntryLoading } from "../ui/layout/useRouteEntryLoading";
 import { usePageTitle } from "../ui/layout/PageTitleContext";
+import InlineBack from "../ui/shell/InlineBack";
+import { useContextualBack } from "../ui/shell/routeMeta";
 import { SectionTabs, type SectionTab } from "../ui/SectionTabs";
 import { useTabParam } from "../ui/shell/useTabParam";
 import { User, BarChart3, ListChecks, BookOpen } from "lucide-react";
@@ -51,6 +53,8 @@ export default function ProfilePage() {
   const isOwnProfileView = !!currentPlayerId && !!targetPlayerId && currentPlayerId === targetPlayerId;
 
   const [profileTab, setProfileTab] = useTabParam<ProfileTab>(PROFILE_TAB_KEYS, "overview");
+  // `/profiles/:id` is a detail route (back chevron); `/profile` is top level.
+  const { isDetail: isDetailRoute } = useContextualBack();
 
   const playersQ = useQuery({ queryKey: qk.players(), queryFn: listPlayers });
   const profileQ = useQuery({
@@ -266,6 +270,14 @@ export default function ProfilePage() {
         <ErrorToastOnError error={saveProfileMut.error} title="Could not save profile text" />
         <ErrorToastOnError error={pokes.pokeMut.error} title="Could not anpöbeln" />
         <ErrorToastOnError error={pokes.markPokesReadAllMut.error} title="Could not mark notifications as read" />
+
+        {/* Desktop title row (mobile shows the name in the top bar), like the live page. */}
+        <div className="hidden items-center gap-2 lg:flex">
+          {isDetailRoute ? <InlineBack /> : null}
+          <h1 className="truncate text-xl font-bold tracking-tight text-text-normal sm:text-2xl">
+            {displayName ?? "Profile"}
+          </h1>
+        </div>
 
         <ProfileHeader
           targetPlayerId={targetPlayerId}

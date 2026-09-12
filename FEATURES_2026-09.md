@@ -179,7 +179,7 @@ no reference to the deleted symbols/paths (except `README.md`, which D1 fixes).
 
 ---
 
-## U1 — Shell consistency  ☐
+## U1 — Shell consistency  ☑
 
 Five small, independent fixes in one task (one commit each is fine).
 
@@ -236,7 +236,32 @@ same desktop-only block as `pages/live/LiveTournamentPage.tsx:516-521` (`InlineB
 last tab scrolls it into view; `/settings?tab=notifications` opens Notifications;
 `/nope` renders the not-found page; unknown `?tab=` values fall back.
 
-**Deviations:**
+**Deviations:** (implemented 2026-09-12)
+
+- Tab key names in the plan did not all match the code; the existing keys were kept as
+  instructed: FriendliesPage is `all | create` (not `all | new`), ClubsPage is
+  `browse | new` (not `clubs | new`). Defaults unchanged everywhere.
+- `SectionTabs` ignores 24px of scroll slack on each edge before showing a fade: the
+  scroller's own end padding (`px-4` + the last button's `mr-1`) is scrollable but hides
+  nothing, so without the slack the last — usually active — tab sat under a fade and looked
+  cut off. Committed separately as `fix(U1): keep the last tab clear of the edge fade`.
+- The overlays carry `data-tabs-fade="left|right"` so tests/Playwright can assert them.
+- `useTabParam` also guards the role-gated tabs on ClubsPage (`new` → `browse`) and
+  TournamentsPage (`new` → `all`), not just PlayersAdminPage and MatchDetailPage: a
+  `?tab=new` deep link is now reachable for a reader and must fall back.
+- `LoginPage` additionally rejects a `from` starting with `//` (protocol-relative URL)
+  before navigating.
+- `ProfilePage` lost its now-unused `useCallback` import, `SettingsPage` its `useState`
+  import, `TournamentsPage` and `DashboardPage` their `useSearchParams` import.
+- The desktop title row on `/profiles/:id` uses no `mb-1` (unlike the live page): the
+  surrounding container already has `space-y-4`.
+- Runtime DoD verified with Playwright against the isolated stack (backend :8003 on a copy
+  of `app.db`, vite :8020) — 43 checks green at 390px and 1280px, including `/stats` and
+  `/live/19` fades, last-tab scroll-into-view, every `?tab=` deep link and its fallback,
+  `/nope`, the `/clubs` → `/login` redirect carrying `state.from`, and `/profile` no longer
+  bouncing a reader. Deep-linked stats tabs use `?view=` (not `?tab=`) — S1 owns that page.
+- `npm run build` still prints the pre-existing "chunks larger than 500 kB" hint; unrelated,
+  as already noted under F1/F2.
 
 ---
 
