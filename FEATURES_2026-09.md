@@ -1416,7 +1416,7 @@ pages/live/MatchList.tsx ui/primitives/MatchOverviewPanel.tsx` → 0). `npm run 
 
 ---
 
-## DS5 — Semantic colours: replace raw palette usages  ☐
+## DS5 — Semantic colours: replace raw palette usages  ☑
 
 - `git grep -nE "(text|bg|border|ring)-(amber|red|emerald|green|yellow|zinc)-[0-9]+" frontend/src`
   → every hit in components becomes a token class (`text-win/draw/loss`, `bg-win/15`, `text-live`,
@@ -1431,7 +1431,64 @@ pages/live/MatchList.tsx ui/primitives/MatchOverviewPanel.tsx` → 0). `npm run 
 **DoD:** the grep returns 0 hits under `frontend/src` (excluding `themes/`); light-theme
 screenshots of H2H, matchup, standings, profile overview show readable W/D/L; `npm run check`.
 
-**Deviations:**
+**Deviations:** (implemented 2026-09-13, three commits: components, rival-card W-D-L,
+position ramp + plan)
+
+- Grep run with the widened pattern (`from|to` and `sky|orange|lime|slate` added):
+  **41 hits in 17 files → 0** outside `themes/`. 12 of the 41 were the `styles.css` position
+  buckets; the rest were components.
+- A W-D-L string mixed *three* colour idioms, only one of which the grep caught: wins were
+  `text-status-text-green` (a status-pill token) and losses the arbitrary
+  `text-[color:rgb(var(--delta-down)/1)]`. All three numerals now use `text-win`/`text-draw`/
+  `text-loss`, in `HeadToHeadRows` (both row kinds), `H2HView`, `MatchupView`, `StandingsTable`,
+  `PlayerProfile`, `StarsView`, `DuoDetail`, `DuoLeaderboard`, `ProfileStatsSection`,
+  `MatchH2HPanel` and the `standings.ts` `TABLE_COLS` W/D/L columns.
+- `MatchupView`'s Last-5 chips and "Current run" go from three different palettes to
+  `bg-win/15 text-win ring-win/30` (+ draw/loss) — the same shape as `ScoreLine`'s result badge.
+- Two W-D-L strings the task names were **not** raw palette but plain muted text; they are
+  coloured too (second commit): the profile overview's Favorite/Nemesis and Favorite-teammates
+  cards (`ProfileOverviewTab`) and H2H's own rival cards (`H2HView`), so a card matches the
+  opponent rows under it. `RecordsView`, `StreaksView` and the dashboard have no W-D-L string
+  (Records renders scores through `ScoreLine` since DS2, Streaks renders lengths).
+- `StandingsTable`'s "could finish as high as **#N**" keeps `text-status-text-green`: it is a
+  projected *position*, not a result. (It was swept into the first pass and reverted.)
+- Non-W-D-L hits, and the token chosen for each:
+  - `ConnectionIndicator`: **Live** → `bg-live` / `text-live` — the same red as the shell's
+    `live-dot`/`live-ping`, which mark the same thing (`DESIGN.md` §2). This is a deliberate
+    hue change (emerald → red) so the app has one live marker. Reconnecting → `bg-draw`/
+    `text-draw` (amber is the only warning-ish token), Offline → `bg-status-bar-default`,
+    Connected → `bg-status-bar-green/80`.
+  - `TournamentsPage`: the "Live" meta label → `text-status-text-green`, **not** `text-live` —
+    it sits next to the row's `bg-status-bar-green` leading bar and follows the live `Pill`
+    convention; a red label next to a green bar reads as a mistake. The winner trophy
+    (`text-yellow-400`) → `text-gradient-gold-from`, the app's cup gold (`cupColors.ts`).
+  - Error / permission-denied surfaces have no token of their own in `DESIGN.md` §2, so they
+    use the loss token: push settings error box (`border-loss/40 bg-loss/10 text-loss`) and its
+    denied status text, `MatchH2HPanel`'s error line, `VoteVotersModal`'s thumbs-down icon.
+- `styles.css` positions: `.pos-best/good/mid/bad/worst/winner` no longer `@apply` palette
+  classes — they set `--pos-p` (0 best … 1 worst) and share `.pos-tile`'s hsl ramp, so there is
+  **one** dark rule and **one** `[data-theme="light"]` rule for all seven classes, plus optional
+  `--pos-border-a` / `--pos-bg-a` (only `.pos-winner` overrides one: a 0.75 border). `.pos-none`
+  stays off the ramp on surface tokens. Side effect worth knowing: the legend swatches now show
+  the exact colours of the tiles they explain — they used to be an emerald/lime/amber/orange/red
+  ramp next to the tiles' 120°→0° hsl ramp. `.pos-good` is still unused (the legend shows four
+  steps); it is kept as the ramp's 0.25 point.
+- `CupOwnerBadge`, `StreakPatches` and `TournamentLaurelMarkers` needed **no** change: they
+  already colour through `--color-cup-*` / `--color-accent` / surface tokens (their Font Awesome
+  glyphs are DS7's, their `text-[Npx]` sizes DS4's).
+- Contrast measured at runtime (computed styles, all five themes): light `text-win` 4.21:1,
+  `text-draw` 4.21:1, `text-loss` 5.43:1, `text-live` 4.05:1 against the light **page backdrop**
+  — higher on the white cards where nearly all of them sit (DS1 measured 5.0/5.1/6.5 on white);
+  dark themes are 5.0–11.9:1. `text-gradient-gold-from` is a 1.90:1 *icon* colour in light
+  (decorative, beside the winner's name in `text-text-normal`); the `text-yellow-400` it replaces
+  was worse. No token value was changed — DS1 owns `themes/*.css`.
+- Runtime verification (isolated stack: backend :8003 on a copy of `app.db`, vite :8020):
+  11 routes × `light`/`blue` × 390/1280 px = **44 full-page screenshots**, 0 console/page errors
+  and no horizontal overflow anywhere — H2H (players + duos), the matchup, live standings
+  (`/live/19?tab=standings`), profile overview, positions (+ a crop of the opened legend),
+  streaks, stats table, Player, tournaments list and `/live/19/match/106`.
+- `npm run check` green before every commit (286 tests); `npm run build` green with the
+  pre-existing "chunks larger than 500 kB" hint (625 kB `index-*.js`), as under every earlier task.
 
 ---
 
