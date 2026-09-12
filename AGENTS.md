@@ -26,7 +26,7 @@ Players are a fixed small set (5 in seed; e.g. Roli, Berni, Flo).
 | Part | Tech | Entry |
 |---|---|---|
 | `backend/` | Python 3.11, FastAPI 0.115, SQLModel 0.0.22 (SQLite), PyJWT, httpx (web push), uvicorn | `backend/run.py` → `app/main.py:create_app()` |
-| `frontend/` | React 18, Vite 5, TypeScript 5 (strict), Tailwind 3, TanStack Query 5, react-router 6, framer-motion, lucide-react, flag-icons | `frontend/src/main.tsx` → `src/app/App.tsx` |
+| `frontend/` | React 18, Vite 7, TypeScript 5 (strict), Tailwind 3, TanStack Query 5, react-router 6, framer-motion, lucide-react, flag-icons | `frontend/src/main.tsx` → `src/app/App.tsx` |
 | `deploy/` | Caddy 2 reverse proxy + auto-HTTPS | `deploy/Caddyfile` |
 | root | `docker-compose.yml` (backend + frontend/nginx + caddy), `Makefile`, `scripts/gen_types.sh` | |
 | `backup/` | git-ignored local + prod data snapshots (see §8) | |
@@ -189,7 +189,7 @@ Behind Caddy the `/ws` prefix is **not** stripped (`handle /ws/*`), `/api` **is*
   (GitHub remote `git@github.com:rolicz/Lorbeer-Turnierplaner.git`, branch `main`).
 - **Runtime:** `docker compose` with three services — `backend` (python:3.11-slim, non-root
   `${UID}:${GID}`, healthcheck `/health`, bind mounts `./backend/data:/data` and
-  `./backend/secrets.json:/app/secrets.json:ro`), `frontend` (node:20 build → nginx:alpine,
+  `./backend/secrets.json:/app/secrets.json:ro`), `frontend` (node:22 build → nginx:alpine,
   `frontend/nginx.conf`: hashed assets immutable, `index.html`/`sw.js`/manifest `no-store`,
   SPA fallback), `caddy` (ports 80/443, `deploy/Caddyfile`, certs in named volumes).
 - **Persistent data on the server** = `backend/data/` (`app.db`, `cups.json`,
@@ -280,9 +280,6 @@ Other helpers: `seed --file backend/data/seed.json` (players/leagues/clubs upser
 - Six clubs have no crest (free TheSportsDB key limits): Nottingham Forest, San Lorenzo,
   St. Louis CITY SC, Wisła Płock, Al Shabab, United Tigewrs SC → monogram fallback; admin can
   `PUT /clubs/{id}/crest` manually. Crest precedence in UI: crest → nation flag → monogram.
-- `frontend/index.html` still loads Font Awesome 6.6 from cdnjs — the one remaining local-first
-  violation (Roli asked on 2026-08-07 to bundle it; not done yet). `StarsFA.tsx` and some icons
-  depend on it.
 - iOS PWA: push needs Home-Screen install; back navigation uses the router history index
   (`routeMeta.ts`), don't replace with `history.back()` blindly.
 - Frontend Docker build uses `npm install` (not `ci`) on purpose: the lockfile is generated on the
@@ -302,8 +299,8 @@ Other helpers: `seed --file backend/data/seed.json` (players/leagues/clubs upser
   2026-08-20 backup), so main and prod are believed identical. (Verify with
   `ssh hetzner 'cd ~/projects/Lorbeer-Turnierplaner && git log -1 --oneline'` if in doubt.)
 - Baseline checks on main: `make test`, `make lint`, `npm run check` all green (2026-09-12).
-- Open follow-ups: bundle Font Awesome locally; optional cleanup of `backend/app/stats.py`
-  and `frontend/public` leftovers; the manual smoke checklist in `REFACTORING_PLAN.md` is a
+- Open follow-ups: optional cleanup of `backend/app/stats.py` and `frontend/public`
+  leftovers; the manual smoke checklist in `REFACTORING_PLAN.md` is a
   reference list, not a TODO.
 
 ## 12. Where knowledge lives

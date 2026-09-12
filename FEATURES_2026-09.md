@@ -96,7 +96,7 @@ all read-only checks; editor/admin flows can be checked by code + tests.
 
 ---
 
-## F1 — Font Awesome bundled locally + Vite 7 alignment  ☐
+## F1 — Font Awesome bundled locally + Vite 7 alignment  ☑
 
 **Why:** `frontend/index.html:15` loads Font Awesome 6.6 from cdnjs — the only remaining
 runtime CDN dependency (local-first rule, offline PWA). vitest 4 pulls its own Vite 8
@@ -122,7 +122,20 @@ external hosts; `ls frontend/dist/assets | grep -c "fa-solid"` ≥ 1 after `npm 
 `npm run check` green and warning-free; a Playwright screenshot of `/tournaments` at 390px
 shows the crown/trophy icons (they are FA glyphs) rendering.
 
-**Deviations:**
+**Deviations:** (implemented 2026-09-12)
+
+- Installed versions: `@fortawesome/fontawesome-free@6.7.2`, `vite@7.3.6`,
+  `@vitejs/plugin-react@5.2.0`; `vitest@4.1.8` unchanged. `npm ls vite` now shows a single
+  `vite@7.3.6` (vitest/@vitest/mocker dedupe onto it). `vite.config.ts` needed no change.
+- Three extra one-line truthfulness fixes in `AGENTS.md` beyond the §10 bullet the task named
+  (rule 7): §2 stack table `Vite 5` → `Vite 7`, §7 compose description `node:20 build` →
+  `node:22 build`, §11 open follow-ups drops "bundle Font Awesome locally". D1 re-checks.
+- `npm run build` still prints the pre-existing "chunks larger than 500 kB" hint for
+  `index-*.js` (624 kB); unrelated to F1, not addressed.
+- Bundle cost: `all.min.css` adds ~70 kB to `dist/assets/index-*.css` (170 kB total, 42 kB
+  gzip) and emits 8 webfont files; a browser only fetches the faces actually referenced —
+  verified in Playwright: only `fa-solid-900.woff2` is requested on `/tournaments`,
+  `fa-regular-400.woff2` only once a `fa-regular` glyph exists on the page.
 
 ---
 
