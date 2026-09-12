@@ -692,3 +692,30 @@ summary line (statements %) below — informational only, no threshold.
 `git pull && docker compose up -d --build` — the frontend image changes (node:22, new
 dependency), the backend only loses a duplicate route. No DB migration, no manual server
 step. Old clients keep working (stats legacy URLs are mapped).
+
+---
+
+## Parked ideas (from Roli while testing the WIP, 2026-09-12 — NOT planned yet)
+
+Recorded so they are not forgotten. Do not implement without an explicit go.
+
+1. **Per-destination "last page" memory.** Tapping a top-level destination (bottom bar,
+   sidebar, drawer) should return to the last page the user had open *inside* that
+   destination, not its root — e.g. Tournaments → the live tournament that was open (with
+   its tab), Players → the profile that was open, Stats → the section/sub-view/player that
+   was open. Must work in all directions and for every subpage (`/live/:id`,
+   `/live/:id/match/:mid`, `/profiles/:id?tab=…`, `/stats?view=…&sub=…&player=…&vs=…`).
+   Sketch for later: a small store `destinationKey → last pathname+search`, updated on every
+   location change via `activeDest(pathname)` (`ui/shell/navConfig.tsx`), persisted in
+   `sessionStorage` (per tab) with a `localStorage` fallback for the PWA; nav links resolve
+   to the remembered location; tapping the already-active destination goes to its root
+   (standard "second tap resets" behaviour); the 404 page clears the entry for its
+   destination so a deleted tournament never traps a tab. Not covered by the current queue
+   (`useLocationRestore` only restores the last location on a PWA cold start).
+2. **Stats Mode/Source filter placement.** The filters must not sit above the section tabs
+   (Overview/Trends/H2H/Player). Roli floated a "floating thing on the bottom". Fable's
+   take: a second bottom bar competes with the new bottom tab bar; the common app pattern is
+   either a compact filter row *below* the tabs/sub-chips (contextual, sticky while
+   scrolling) or a "Filters" pill that opens a bottom sheet. Recommendation: the row below
+   the tabs first, sheet only if the row proves too tall on phones. Natural place to do it
+   is S1 (it owns that strip) or a follow-up after S1.
