@@ -4,7 +4,7 @@ import { Pill } from "../../ui/primitives/Pill";
 import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
 import type { Club, StatsH2HOpponentRow, StatsPlayerMatchesTournament } from "../../api/types";
 import { fmtPct, fmtRank } from "../../utils/format";
-import { MatchHistoryList } from "../stats/MatchHistoryList";
+import { MatchHistoryList, tournamentMatchHref } from "../stats/MatchHistoryList";
 import { type FavoriteTeammate } from "./favoriteTeammates";
 
 /** Profile "Overview" tab: about/bio, rivals, favorite teammates, recent matches. */
@@ -138,6 +138,7 @@ export default function ProfileOverviewTab({
           focusId={targetPlayerId}
           clubs={clubs}
           showMeta={false}
+          matchHref={tournamentMatchHref}
           renderTournamentPills={(t) => {
             const row = tournamentPlacementById.get(Number(t.id));
             if (!row) return null;

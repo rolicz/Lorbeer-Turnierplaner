@@ -1,4 +1,6 @@
+/* eslint-disable react-refresh/only-export-components */
 import type { ReactNode } from "react";
+import { Link } from "react-router-dom";
 import type { Club, MatchState, StatsMatch, StatsPlayerMatchesTournament } from "../../api/types";
 import { sideBy, winnerSide } from "../../helpers";
 import ClubBadge from "../../ui/ClubBadge";
@@ -11,6 +13,14 @@ import TournamentLaurelMarkers from "./TournamentLaurelMarkers";
 import { fmtDate } from "../../utils/format";
 
 
+/**
+ * Link target for a match row: the match detail page of a real tournament.
+ * Friendlies have synthetic negative tournament ids and no detail page → `null`.
+ */
+export function tournamentMatchHref(t: StatsPlayerMatchesTournament, m: StatsMatch): string | null {
+  return t.id > 0 && t.status !== "friendly" ? `/live/${t.id}/match/${m.id}` : null;
+}
+
 export function MatchRowWithClubs({
   m,
   focusId,
@@ -18,6 +28,7 @@ export function MatchRowWithClubs({
   showMeta,
   nameColorByResult = false,
   action,
+  href,
 }: {
   m: StatsMatch;
   focusId?: number | null;
@@ -25,6 +36,8 @@ export function MatchRowWithClubs({
   showMeta: boolean;
   nameColorByResult?: boolean;
   action?: ReactNode;
+  /** When set, the row's main block becomes a link to the match detail page. */
+  href?: string | null;
 }) {
   const a = sideBy(m, "A");
   const b = sideBy(m, "B");
@@ -89,81 +102,96 @@ export function MatchRowWithClubs({
   const scorePad = showMeta ? "px-4 py-2" : "px-3 py-1.5";
   const scoreText = showMeta ? "text-xl md:text-2xl" : "text-lg md:text-xl";
 
-  return (
-    <div className="flex items-stretch gap-2">
-      <div className="min-w-0 flex-1">
-        <div className={rowPad}>
-          <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 md:gap-4">
-            <div className="min-w-0">
-              {aDisplay.map((p, i) => (
-                <div
-                  key={`${p.display_name}-${i}`}
-                  className={nameText + " whitespace-normal md:truncate break-words leading-tight font-medium " + aNameColorClass}
-                >
-                  {p.display_name}
-                </div>
-              ))}
-            </div>
+  const body = (
+    <>
+      <div className={rowPad}>
+        <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 md:gap-4">
+          <div className="min-w-0">
+            {aDisplay.map((p, i) => (
+              <div
+                key={`${p.display_name}-${i}`}
+                className={nameText + " whitespace-normal md:truncate break-words leading-tight font-medium " + aNameColorClass}
+              >
+                {p.display_name}
+              </div>
+            ))}
+          </div>
 
-            <div
-              className={`card-chip justify-self-center flex items-center justify-center gap-2 border shadow-sm ${scorePad} ${scoreCls}`}
-            >
-              <span className={scoreText + " font-semibold tabular-nums"}>{showScore ? String(ag) : "-"}</span>
-              <span className="opacity-80">:</span>
-              <span className={scoreText + " font-semibold tabular-nums"}>{showScore ? String(bg) : "-"}</span>
-            </div>
+          <div
+            className={`card-chip justify-self-center flex items-center justify-center gap-2 border shadow-sm ${scorePad} ${scoreCls}`}
+          >
+            <span className={scoreText + " font-semibold tabular-nums"}>{showScore ? String(ag) : "-"}</span>
+            <span className="opacity-80">:</span>
+            <span className={scoreText + " font-semibold tabular-nums"}>{showScore ? String(bg) : "-"}</span>
+          </div>
 
-            <div className="min-w-0 text-right">
-              {bDisplay.map((p, i) => (
-                <div
-                  key={`${p.display_name}-${i}`}
-                  className={nameText + " whitespace-normal md:truncate break-words leading-tight font-medium " + bNameColorClass}
-                >
-                  {p.display_name}
-                </div>
-              ))}
-            </div>
+          <div className="min-w-0 text-right">
+            {bDisplay.map((p, i) => (
+              <div
+                key={`${p.display_name}-${i}`}
+                className={nameText + " whitespace-normal md:truncate break-words leading-tight font-medium " + bNameColorClass}
+              >
+                {p.display_name}
+              </div>
+            ))}
           </div>
         </div>
-
-        {showMeta ? (
-          <>
-            <div className="mt-2 md:mt-3 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-start gap-3 md:gap-4 text-xs md:text-sm text-text-muted">
-              <div className="min-w-0 flex items-center gap-1.5">
-                {aHasClub ? <ClubBadge name={aClub.name} nation={aClub.national_nation} clubId={aClub.id} crestVersion={aClub.crest_updated_at} /> : null}
-                <span className="min-w-0 whitespace-normal md:truncate break-words leading-tight">{aClub.name}</span>
-              </div>
-              <div />
-              <div className="min-w-0 flex items-center justify-end gap-1.5 text-right">
-                <span className="min-w-0 whitespace-normal md:truncate break-words leading-tight">{bClub.name}</span>
-                {bHasClub ? <ClubBadge name={bClub.name} nation={bClub.national_nation} clubId={bClub.id} crestVersion={bClub.crest_updated_at} /> : null}
-              </div>
-            </div>
-
-            <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-start gap-3 md:gap-4 text-xs md:text-sm text-text-muted">
-              <div className="min-w-0 flex items-center gap-1.5">
-                <NationFlag nation={aClub.league_nation} />
-                <span className="min-w-0 whitespace-normal md:truncate break-words leading-tight">{aClub.league_name}</span>
-              </div>
-              <div />
-              <div className="min-w-0 flex items-center justify-end gap-1.5 text-right">
-                <span className="min-w-0 whitespace-normal md:truncate break-words leading-tight">{bClub.league_name}</span>
-                <NationFlag nation={bClub.league_nation} />
-              </div>
-            </div>
-
-            <div className="mt-1 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 md:gap-4 text-[11px] md:text-sm text-text-muted">
-              <div className="min-w-0">
-                <StarsFA rating={aClub.rating ?? 0} textClassName="text-text-muted" />
-              </div>
-              <div />
-              <div className="min-w-0 flex justify-end">
-                <StarsFA rating={bClub.rating ?? 0} textClassName="text-text-muted" />
-              </div>
-            </div>
-          </>
-        ) : null}
       </div>
+
+      {showMeta ? (
+        <>
+          <div className="mt-2 md:mt-3 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-start gap-3 md:gap-4 text-xs md:text-sm text-text-muted">
+            <div className="min-w-0 flex items-center gap-1.5">
+              {aHasClub ? <ClubBadge name={aClub.name} nation={aClub.national_nation} clubId={aClub.id} crestVersion={aClub.crest_updated_at} /> : null}
+              <span className="min-w-0 whitespace-normal md:truncate break-words leading-tight">{aClub.name}</span>
+            </div>
+            <div />
+            <div className="min-w-0 flex items-center justify-end gap-1.5 text-right">
+              <span className="min-w-0 whitespace-normal md:truncate break-words leading-tight">{bClub.name}</span>
+              {bHasClub ? <ClubBadge name={bClub.name} nation={bClub.national_nation} clubId={bClub.id} crestVersion={bClub.crest_updated_at} /> : null}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-start gap-3 md:gap-4 text-xs md:text-sm text-text-muted">
+            <div className="min-w-0 flex items-center gap-1.5">
+              <NationFlag nation={aClub.league_nation} />
+              <span className="min-w-0 whitespace-normal md:truncate break-words leading-tight">{aClub.league_name}</span>
+            </div>
+            <div />
+            <div className="min-w-0 flex items-center justify-end gap-1.5 text-right">
+              <span className="min-w-0 whitespace-normal md:truncate break-words leading-tight">{bClub.league_name}</span>
+              <NationFlag nation={bClub.league_nation} />
+            </div>
+          </div>
+
+          <div className="mt-1 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 md:gap-4 text-[11px] md:text-sm text-text-muted">
+            <div className="min-w-0">
+              <StarsFA rating={aClub.rating ?? 0} textClassName="text-text-muted" />
+            </div>
+            <div />
+            <div className="min-w-0 flex justify-end">
+              <StarsFA rating={bClub.rating ?? 0} textClassName="text-text-muted" />
+            </div>
+          </div>
+        </>
+      ) : null}
+    </>
+  );
+
+  return (
+    <div className="flex items-stretch gap-2">
+      {href ? (
+        <Link
+          to={href}
+          state={{ fromTab: "matches" }}
+          aria-label="Open match"
+          className="row-tap focus-ring block min-w-0 flex-1"
+        >
+          {body}
+        </Link>
+      ) : (
+        <div className="min-w-0 flex-1">{body}</div>
+      )}
       {action ? <div className="shrink-0 self-center">{action}</div> : null}
     </div>
   );
@@ -179,6 +207,7 @@ export function MatchHistoryTournamentBlock({
   extraPills,
   hideModePill = false,
   renderMatchAction,
+  matchHref,
 }: {
   t: StatsPlayerMatchesTournament;
   focusId?: number | null;
@@ -189,6 +218,7 @@ export function MatchHistoryTournamentBlock({
   extraPills?: ReactNode;
   hideModePill?: boolean;
   renderMatchAction?: (t: StatsPlayerMatchesTournament, m: StatsMatch) => ReactNode;
+  matchHref?: (t: StatsPlayerMatchesTournament, m: StatsMatch) => string | null;
 }) {
   return (
     <div className="space-y-1">
@@ -220,6 +250,7 @@ export function MatchHistoryTournamentBlock({
             showMeta={showMeta}
             nameColorByResult={nameColorByResult}
             action={renderMatchAction ? renderMatchAction(t, m) : undefined}
+            href={matchHref ? matchHref(t, m) : null}
           />
         ))}
       </div>
@@ -237,6 +268,7 @@ export function MatchHistoryList({
   renderTournamentPills,
   renderMatchActions,
   hideModePill = false,
+  matchHref,
 }: {
   tournaments: StatsPlayerMatchesTournament[];
   focusId?: number | null;
@@ -247,6 +279,7 @@ export function MatchHistoryList({
   renderTournamentPills?: (t: StatsPlayerMatchesTournament) => ReactNode;
   renderMatchActions?: (t: StatsPlayerMatchesTournament, m: StatsMatch) => ReactNode;
   hideModePill?: boolean;
+  matchHref?: (t: StatsPlayerMatchesTournament, m: StatsMatch) => string | null;
 }) {
   return (
     <div className="space-y-5">
@@ -262,6 +295,7 @@ export function MatchHistoryList({
           extraPills={renderTournamentPills ? renderTournamentPills(t) : undefined}
           hideModePill={hideModePill}
           renderMatchAction={renderMatchActions}
+          matchHref={matchHref}
         />
       ))}
     </div>

@@ -11,7 +11,7 @@ import { listClubs } from "../../api/clubs.api";
 import { qk } from "../../api/queryKeys";
 import { ChipGroup } from "./charts";
 import { PlayerPicker } from "./PlayerPicker";
-import { MatchHistoryList } from "./MatchHistoryList";
+import { MatchHistoryList, tournamentMatchHref } from "./MatchHistoryList";
 import { DuoRow } from "./HeadToHeadRows";
 import { duoKey } from "./h2hHelpers";
 import { DuoLeaderboard } from "./h2h/DuoLeaderboard";
@@ -228,6 +228,7 @@ export default function H2HView({ mode, scope, rows, myId }: { mode: StatsMode; 
                 focusId={historyModal.focusPlayerId}
                 clubs={clubsQ.data ?? []}
                 showMeta={historyDetails}
+                matchHref={tournamentMatchHref}
               />
             ) : null}
           </div>

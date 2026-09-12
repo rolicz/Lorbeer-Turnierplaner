@@ -13,7 +13,7 @@ import { usePlayerAvatarMap } from "../../hooks/usePlayerAvatarMap";
 import { usePlayerColors } from "./usePlayerColors";
 import { Sparkline, Radar } from "./charts";
 import { PlayerPicker } from "./PlayerPicker";
-import { MatchHistoryList } from "./MatchHistoryList";
+import { MatchHistoryList, tournamentMatchHref } from "./MatchHistoryList";
 import { fmtRating } from "../../utils/format";
 import type { Row } from "./standings";
 import type { StatsMode } from "./StatsControls";
@@ -146,7 +146,7 @@ export default function PlayerProfile({ mode, scope, rows, selectedId, onSelect 
           <div className="card-outer">
             <h2 className="mb-2 text-sm font-semibold text-text-normal">Match history</h2>
             {matchesQ.isLoading && !matchesQ.data ? <InlineLoading label="Loading…" /> :
-              tournaments.length ? <MatchHistoryList tournaments={tournaments} clubs={clubsQ.data ?? []} focusId={row.id} showMeta={false} nameColorByResult hideModePill /> :
+              tournaments.length ? <MatchHistoryList tournaments={tournaments} clubs={clubsQ.data ?? []} focusId={row.id} showMeta={false} nameColorByResult hideModePill matchHref={tournamentMatchHref} /> :
                 <div className="text-sm text-text-muted">No matches yet.</div>}
           </div>
         </>

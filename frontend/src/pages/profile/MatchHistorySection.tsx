@@ -2,7 +2,7 @@ import { Pill } from "../../ui/primitives/Pill";
 import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
 import type { Club, StatsPlayerMatchesTournament } from "../../api/types";
 import { fmtRank } from "../../utils/format";
-import { MatchHistoryList } from "../stats/MatchHistoryList";
+import { MatchHistoryList, tournamentMatchHref } from "../stats/MatchHistoryList";
 
 /** Profile "Matches" tab: the player's full match history with placement pills. */
 export default function MatchHistorySection({
@@ -29,6 +29,7 @@ export default function MatchHistorySection({
         focusId={targetPlayerId}
         clubs={clubs}
         showMeta={false}
+        matchHref={tournamentMatchHref}
         renderTournamentPills={(t) => {
           const row = tournamentPlacementById.get(Number(t.id));
           if (!row) return null;

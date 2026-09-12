@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { render } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 
-import type { Club, StatsMatch } from "../api/types";
-import { MatchRowWithClubs } from "../pages/stats/MatchHistoryList";
+import type { Club, StatsMatch, StatsPlayerMatchesTournament } from "../api/types";
+import { MatchHistoryList, MatchRowWithClubs, tournamentMatchHref } from "../pages/stats/MatchHistoryList";
 
 const CLUBS: Club[] = [
   {
@@ -89,5 +90,60 @@ describe("MatchRowWithClubs club symbols", () => {
 
     expect(queryByText("BM")).toBeNull();
     expect(container.querySelectorAll(".fi")).toHaveLength(0);
+  });
+});
+
+function makeTournament(id: number, status: string): StatsPlayerMatchesTournament {
+  return {
+    id,
+    name: status === "friendly" ? `Friendly #${Math.abs(id)}` : `Tournament ${id}`,
+    date: "2026-08-01",
+    mode: "1v1",
+    status,
+    cup_stakes: null,
+    matches: [makeMatch(1, 2)],
+  };
+}
+
+describe("MatchHistoryList match links", () => {
+  it("renders a link to the match detail page when matchHref is given", () => {
+    const { getByRole } = render(
+      <MemoryRouter>
+        <MatchHistoryList
+          tournaments={[makeTournament(19, "done")]}
+          clubs={CLUBS}
+          showMeta={false}
+          matchHref={tournamentMatchHref}
+        />
+      </MemoryRouter>,
+    );
+
+    const link = getByRole("link", { name: "Open match" });
+    expect(link).toHaveAttribute("href", "/live/19/match/10");
+  });
+
+  it("renders no link for friendly rows (synthetic tournament id, no detail page)", () => {
+    const { queryByRole } = render(
+      <MemoryRouter>
+        <MatchHistoryList
+          tournaments={[makeTournament(-1000001, "friendly")]}
+          clubs={CLUBS}
+          showMeta={false}
+          matchHref={tournamentMatchHref}
+        />
+      </MemoryRouter>,
+    );
+
+    expect(queryByRole("link")).toBeNull();
+  });
+
+  it("renders no link at all without matchHref", () => {
+    const { queryByRole } = render(
+      <MemoryRouter>
+        <MatchHistoryList tournaments={[makeTournament(19, "done")]} clubs={CLUBS} showMeta={false} />
+      </MemoryRouter>,
+    );
+
+    expect(queryByRole("link")).toBeNull();
   });
 });
