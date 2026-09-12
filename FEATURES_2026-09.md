@@ -139,7 +139,7 @@ shows the crown/trophy icons (they are FA glyphs) rendering.
 
 ---
 
-## F2 — Drift & dead code  ☐
+## F2 — Drift & dead code  ☑
 
 - Backend: delete the duplicate route `GET /comments/tournaments-summary`
   (`backend/app/routers/comments.py:252-255`, function `comments_summary`). The frontend
@@ -158,7 +158,24 @@ shows the crown/trophy icons (they are FA glyphs) rendering.
 **DoD:** `make test`, `make lint`, `npm run check`, `npm run build` green; `git grep` finds
 no reference to the deleted symbols/paths (except `README.md`, which D1 fixes).
 
-**Deviations:**
+**Deviations:** (implemented 2026-09-12)
+
+- `backend/app/stats.py` was **not** fully dead: `compute_tournament_stats` is imported by
+  `backend/app/routers/tournaments.py` and serves `GET /tournaments/{id}/stats` (covered by
+  `tests/test_stats_endpoints.py:266`). Only `compute_stats` was dead. Instead of deleting the
+  route's helper, `compute_tournament_stats` moved verbatim into new
+  `backend/app/services/stats/tournament_stats.py` (thin-router convention, `AGENTS.md` §2),
+  the dead `compute_stats` is gone and `backend/app/stats.py` is deleted as planned.
+- The removed `GET /comments/tournaments-summary` now answers **405**, not 404: the path still
+  matches `PATCH`/`DELETE /comments/{comment_id}`, so FastAPI rejects the method. The `s2`
+  assertion in `backend/tests/test_comments_current.py` asserts `in (404, 405)`.
+- Dropping the route also made `CommentSummaryOut` and `tournament_comments_summary` unused in
+  `backend/app/routers/comments.py`; both imports were removed (ruff F401 would fail otherwise).
+- Rule 7 truthfulness fixes in `AGENTS.md`: §2 drops the `app/stats.py` bullet and adds
+  `tournament_stats` to the `stats/` service list, §2 primitives list drops `Sheet`, §10 drops
+  the `frontend/public` leftovers gotcha, §11 drops the now-done open follow-up. D1 re-checks.
+- `npm run build` still prints the pre-existing "chunks larger than 500 kB" hint (624 kB
+  `index-*.js`); unrelated to F2, as already noted under F1.
 
 ---
 

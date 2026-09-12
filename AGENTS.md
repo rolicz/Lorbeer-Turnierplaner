@@ -40,7 +40,8 @@ Size (2026-09): backend ≈ 14.7k LOC Python, frontend ≈ 29k LOC TS/TSX (excl.
   (WS broadcasts), `notifications.py` + `webpush.py` + `notification_texts.py` (push pipeline),
   `cup.py` (cup ownership fold), `file_storage.py` (media on disk), `authorization.py`
   (owner/admin guards), `comments_view.py`, `guestbook*.py`, `poke_summary.py`,
-  `stats/` (players, h2h, streaks, ratings, odds, player_matches, core, scope, registry).
+  `stats/` (players, h2h, streaks, ratings, odds, player_matches, tournament_stats, core,
+  scope, registry).
 - `app/models.py` — all SQLModel tables. `app/schemas/requests.py` + `responses.py` — pydantic
   bodies/response models (**response models drive the generated frontend types**).
 - `app/db.py` — engine + `init_db()` (create_all + additive runtime columns + backfills).
@@ -48,8 +49,6 @@ Size (2026-09): backend ≈ 14.7k LOC Python, frontend ≈ 29k LOC TS/TSX (excl.
 - `app/scheduling.py` — fixture generation (1v1 all pairs; 2v2 circle-method partnerships).
 - `app/tournament_status.py` — **status is derived from match states** (see §5).
 - `app/seed.py`, `app/league_nations.py`, `app/validation.py`, `app/tools/sync_club_crests.py`.
-- `app/stats.py` — legacy compat module for an old `/players/stats` endpoint; nothing imports it
-  (safe to delete when convenient).
 - `manage.py` — CLI: seed, add-match, vacuum-db, generate-vapid, backups/sync (§8).
 
 ### Frontend modules
@@ -63,7 +62,7 @@ Size (2026-09): backend ≈ 14.7k LOC Python, frontend ≈ 29k LOC TS/TSX (excl.
 - `src/pages/` — dashboard, tournaments (+ `live/` tournament page, match detail, comments,
   admin panel), stats (tabs: players, trends, h2h, streaks, ratings, stars, matches),
   profile, players admin, clubs, friendlies (`tools/`), settings, login.
-- `src/ui/` — `primitives/` (Button, Card, CardSection, Modal, Sheet, Input, Pill, EmptyState,
+- `src/ui/` — `primitives/` (Button, Card, CardSection, Modal, Input, Pill, EmptyState,
   LoadingPlaceholder, MatchOverviewPanel, …), `shell/` (AppShell, Sidebar desktop, MobileChrome,
   navConfig, routeMeta/contextual back, NotificationBell), `ClubBadge`, `NationFlag`,
   `ClubCombobox`, `SectionTabs`.
@@ -288,8 +287,6 @@ Other helpers: `seed --file backend/data/seed.json` (players/leagues/clubs upser
   `Editor`/`Admin`. Frontend tests: vitest + jsdom, files in `frontend/src/test/`.
 - `backend/app.db*`, `backend/data/app.db` are real (synced) data — never commit, never run
   destructive experiments on them; copy first.
-- `frontend/public/` contains leftovers (`original.jpg` 170 kB, `index-html-snippet.txt`) that
-  ship in the build; harmless but removable.
 
 ## 11. Current state (2026-09-12)
 
@@ -299,8 +296,7 @@ Other helpers: `seed --file backend/data/seed.json` (players/leagues/clubs upser
   2026-08-20 backup), so main and prod are believed identical. (Verify with
   `ssh hetzner 'cd ~/projects/Lorbeer-Turnierplaner && git log -1 --oneline'` if in doubt.)
 - Baseline checks on main: `make test`, `make lint`, `npm run check` all green (2026-09-12).
-- Open follow-ups: optional cleanup of `backend/app/stats.py` and `frontend/public`
-  leftovers; the manual smoke checklist in `REFACTORING_PLAN.md` is a
+- Open follow-ups: the manual smoke checklist in `REFACTORING_PLAN.md` is a
   reference list, not a TODO.
 
 ## 12. Where knowledge lives
