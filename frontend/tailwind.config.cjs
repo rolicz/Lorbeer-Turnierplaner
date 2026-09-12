@@ -76,6 +76,12 @@ module.exports = {
         accent: cssVar("color-accent"),
         "accent-text": cssVar("color-accent-text"),
 
+        // Semantic result colors (DESIGN.md §2): `text-win`, `bg-loss/15`, `text-live`, …
+        win: cssVar("color-win"),
+        draw: cssVar("color-draw"),
+        loss: cssVar("color-loss"),
+        live: cssVar("color-live"),
+
         // Hover
         "hover-btn-bg": cssVar("color-hover-btn-bg"),
         "hover-nav": cssVar("color-hover-nav"),

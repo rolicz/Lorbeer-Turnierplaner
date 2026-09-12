@@ -27,6 +27,18 @@
   --delta-down: 225 56 74; /* softened red (less intense than rose-500) */
   --live-indicator: 239 68 68; /* red-500 */
 
+  /*
+   * Semantic result tokens (DESIGN.md §2). Every win/draw/loss colour in the app
+   * goes through these — never a raw Tailwind palette class. The dark values are
+   * the baseline for every dark theme (dark/blue/red/green inherit them);
+   * themes/light.css darkens win/draw/loss for white surfaces.
+   * --color-live mirrors --live-indicator and is invariant across themes.
+   */
+  --color-win: 74 222 128; /* green-400 */
+  --color-draw: 251 191 36; /* amber-400 */
+  --color-loss: 248 113 113; /* red-400 */
+  --color-live: 239 68 68; /* red-500 (= --live-indicator) */
+
   /* Cup palette (invariant across themes). */
   --color-cup-green-dark: 21 128 61; /* green-700 */
 
