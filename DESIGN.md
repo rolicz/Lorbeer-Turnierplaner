@@ -37,7 +37,7 @@ Existing families stay: `bg-default / bg-card-outer / bg-card-inner / bg-card-ch
 | `--color-win` | `text-win`, `bg-win/…` | a win for the focused side | `74 222 128` (green-400) | `21 128 61` (green-700) |
 | `--color-draw` | `text-draw`, `bg-draw/…` | a draw | `251 191 36` (amber-400) | `180 83 9` (amber-700) |
 | `--color-loss` | `text-loss`, `bg-loss/…` | a loss | `248 113 113` (red-400) | `185 28 28` (red-700) |
-| `--color-live` | `text-live`, `bg-live/…` | live/playing marker (= `--live-indicator`) | `239 68 68` | same |
+| `--color-live` | `text-live`, `bg-live/…` | live/playing marker (= `--live-indicator`) | `239 68 68` | `220 38 38` (red-600, ≥4.5:1 as text on white) |
 
 Soft backgrounds are always the token at low alpha (`bg-win/15`, `bg-loss/15`), never a second
 token. `delta-up`/`delta-down` stay for numeric deltas (ratings, form).
@@ -55,7 +55,7 @@ Retired (delete after migration): `card-outer`, `card-inner`, `card-inner-flat`,
 `card-chip` (as a box), `panel`, `panel-subtle`, `panel-inner`, `surface`, `surface-2`,
 `hairline`, `hairline-b`, `eyebrow`, `stack`, `stack-tight`, `modal-shell`, `sheet-shell`,
 `nav-link*`, `main-nav-*`, `subnav-*`, `page-slide-*`, `symbol-margin-to-text`, `accent-text`,
-`text-subtle`, `page-x-bleed`, `pill-green`. `Card`, `CardSection` and `Panel`-style
+`text-subtle`, `page-x-bleed`, `pill-green`, `accent`. `Card`, `CardSection` and `Panel`-style
 primitives map onto `card`/`inset`. Modals use `card` on a scrim.
 
 ## 4. Radius, spacing, elevation
@@ -118,8 +118,9 @@ Sizes `hero` (match panel), `md` (match rows in lists), `sm` (compact rows, mini
 - Scheduled: numerals replaced by a muted `–` pair of the same size (hero) or `vs` (`sm`).
 - Leader emphasis: leading side's names `text-text-normal font-semibold`, trailing side
   `text-text-muted`; equal → both normal.
-- Focus result (rows with a focus player): the focus side's numeral takes `text-win` /
-  `text-draw` / `text-loss`; nothing else is coloured. Optional `resultBadge` prop renders a
+- Focus result (rows with a focus player): `focus="left"|"right"` names the side, `result`
+  the outcome; that side's numeral takes `text-win` / `text-draw` / `text-loss`; nothing else
+  is coloured. Optional `resultBadge` prop renders a
   16px `W/D/L` letter chip at the row's outer edge for dense lists (Last 5, recent meetings).
 - Names: hero `text-lg`, md `text-base`, sm `text-sm`; 2v2 stacks two lines.
 - Never wrap a `ScoreLine` in `card-chip`/borders. The hero panel (`MatchOverviewPanel`) is:
