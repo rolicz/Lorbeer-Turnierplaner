@@ -1,27 +1,6 @@
 /** Pure helpers for the Trends chart (unit-tested). */
 import type { StatsMatch } from "../../api/types";
 import { sideBy, winnerSide } from "../../helpers";
-import { fmtMonthDate } from "../../utils/format";
-
-export type SeriesPoint = { y: number; present: boolean } | null; // null = no datapoint
-
-/** Month-boundary ticks (1st of each month) within [startTs, endTs]. */
-export function monthTicksBetween(startTs: number, endTs: number): Array<{ ts: number; label: string }> {
-  const out: Array<{ ts: number; label: string }> = [];
-  if (!Number.isFinite(startTs) || !Number.isFinite(endTs) || endTs <= startTs) return out;
-
-  const start = new Date(startTs);
-  const end = new Date(endTs);
-
-  let cur = new Date(start.getFullYear(), start.getMonth(), 1);
-  if (cur.getTime() < startTs) cur = new Date(start.getFullYear(), start.getMonth() + 1, 1);
-  while (cur.getTime() <= end.getTime()) {
-    out.push({ ts: cur.getTime(), label: fmtMonthDate(cur) });
-    cur = new Date(cur.getFullYear(), cur.getMonth() + 1, 1);
-  }
-  if (!out.length) out.push({ ts: startTs, label: fmtMonthDate(start) });
-  return out;
-}
 
 export type PlayerColor = { solid: string; muted: string; outline: string };
 
@@ -64,13 +43,6 @@ export function pointsForPlayerInMatch(m: StatsMatch, playerId: number): number 
   return w === side ? 3 : 0;
 }
 
-/** Average of the last n entries, dividing by n even if fewer exist (missing pad as 0). */
-export function avgLast(arr: number[], n: number): number {
-  const slice = arr.slice(-n);
-  if (!slice.length) return 0;
-  return slice.reduce((a, b) => a + b, 0) / Math.max(1, n);
-}
-
 /**
  * Pooled points-per-match over a set of per-tournament {pts, played} entries:
  * Σpts / Σplayed (null when no matches). Used for the rolling/Last-N PPM so it
@@ -85,35 +57,4 @@ export function pooledPpm(window: Array<{ pts: number; played: number }>): numbe
     sumPlayed += e.played;
   }
   return sumPlayed ? sumPts / sumPlayed : null;
-}
-
-export function dist2(
-  t1: { clientX: number; clientY: number },
-  t2: { clientX: number; clientY: number }
-): number {
-  const dx = t1.clientX - t2.clientX;
-  const dy = t1.clientY - t2.clientY;
-  return Math.hypot(dx, dy);
-}
-
-/** Clamp a [start, start+span] window into the [domainStart, domainEnd] domain. */
-export function clampWindow(
-  startTs: number,
-  spanMs: number,
-  domainStartTs: number,
-  domainEndTs: number
-): { start: number; end: number } {
-  const span = Math.max(1, spanMs);
-  let start = startTs;
-  let end = start + span;
-  if (start < domainStartTs) {
-    start = domainStartTs;
-    end = start + span;
-  }
-  if (end > domainEndTs) {
-    end = domainEndTs;
-    start = end - span;
-  }
-  if (start < domainStartTs) start = domainStartTs;
-  return { start, end: Math.max(start + 1, end) };
 }

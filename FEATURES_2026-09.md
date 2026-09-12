@@ -994,7 +994,7 @@ the dead URL. `npm run check` + `npm run build` green.
 
 ---
 
-## T1 — Test-suite audit and gap filling  ☐
+## T1 — Test-suite audit and gap filling  ☑
 
 **Backend** (`backend/tests/`, use `conftest.py` helpers). Routes with no test today
 (measured 2026-09-12: 7 of 95): add small tests for
@@ -1014,9 +1014,66 @@ Run `make test` twice (flakiness check) and record the final count below.
 → tournaments, `/profiles/2` → players). Run `npx vitest run --coverage` once and paste the
 summary line (statements %) below — informational only, no threshold.
 
-**Record here:** backend `N passed`, frontend `N tests in M files`, coverage summary.
+**Record here:** backend **130 passed** (`make test` run three times — 206.60s / 220.30s /
+206.37s — same count every time, no flakiness; 115 → 130); frontend **233 tests in 28 files** (231 in 27 before: +8 `navConfig`,
+−6 from the deleted `trendsMath` cases); `npx vitest run --coverage` (v8):
+`Statements : 63.42% ( 1283/2023 )`, `Branches : 53.77% ( 933/1735 )`,
+`Functions : 59.77% ( 315/527 )`, `Lines : 65.14% ( 1058/1624 )`.
+Route coverage (plan heuristic, re-measured): **8 of 95 uncovered → 0 of 95**.
 
-**Deviations:**
+**Deviations:** (implemented 2026-09-12, two commits: backend, frontend)
+
+- Re-measuring found **8** uncovered routes, not 7: the plan's list plus `GET /health`
+  (`app/main.py`, the only non-router route). It is tested too, so the heuristic now reports
+  95/95. The script lives only in the scratchpad; it parses `@router.<verb>("…")` per router
+  prefix (+ `@app.<verb>` in `main.py`) and greps `backend/tests/*.py` for the path with
+  `{param}` → `{anything}|digits|identifier`.
+- New backend files (4, not one per route): `test_config_endpoints.py` (`/health`, `/cup/defs`),
+  `test_match_swap_sides.py`, `test_player_meta_endpoints.py`,
+  `test_tournament_endpoints_current.py` (`/live`, `/date`, `/reassign` — one file, they are all
+  tournament-level endpoints). 15 new backend test cases.
+- The tests go a little past the bullet text where the endpoint's contract invited it:
+  swap-sides also covers the "done tournament → admin only" rule and 404; `/players/profiles`
+  and `/players/avatars` assert the empty-DB shape **and** one populated row (the profile via
+  `PATCH /players/{id}/profile` as the Editor, the avatar via `PUT …/avatar`, as
+  `test_player_profiles_auth.py` does); `/date` and `/reassign` also assert 404 and the
+  reader/editor split.
+- `POST /tournaments/{id}/reassign` cannot be asserted by match ids: SQLite reuses the ids of
+  the deleted schedule, so the test asserts the persisted `settings_json.labels` mapping, the
+  recreated `order_index` sequence and that every match is scheduled/clean instead.
+- Two endpoint facts the tests had to work around (not bugs, just constraints): a 1v1
+  tournament needs ≥ 3 players (`/generate` → 400 with two), and only one tournament may be
+  live at a time, so the mode-filter test finishes the 2v2 tournament completely before
+  starting the 1v1 one.
+- h2h-matches: two new tests next to the existing basic one, not an extension of it —
+  `test_stats_h2h_matches_exact_teams_and_teammates` (2v2 subset vs `exact_teams`, one-per-side
+  `exact_teams` matching nothing, `relation: "teammates"`) and
+  `test_stats_h2h_matches_mode_and_scope_filters` (`overall` vs `1v1` vs `2v2`, `scope`
+  `tournaments`/`both`/`friendlies` with a friendly). The expected match sets are derived from
+  the tournament payload rather than hard-coded, because `/generate` randomises 2v2 pairings.
+- Frontend: all eleven test files introduced by U1/U2/U4/U5/S1/S2/S3/S5/U6 exist and pass
+  (`sectionTabs`, `useTabParam`, `bottomTabBar`, `errorToast`, `matchHistoryList`,
+  `matchupSummary`, `statsNav`, `statsFilterPill`, `matchupView`, `playerStreakChips`,
+  `lastLocation`). New `navConfig.test.ts` has 8 cases (the two the task names plus the
+  destination roots, `/live/:id/match/:mid`, `/tournaments/new`, `/profile`, non-destination
+  paths → `null`, and same-prefix paths like `/statsomething` not matching).
+- S4's finding acted on: `avgLast`, `clampWindow`, `dist2`, `monthTicksBetween` and the
+  `SeriesPoint` type are gone from `pages/stats/trendsMath.ts` together with their 6 test cases
+  (`git grep` confirmed `src/test/trendsMath.test.ts` was their only reader; `dist2` and
+  `SeriesPoint` had no reader at all). The now-unused `fmtMonthDate` import went with them.
+  **Finding for D1:** that leaves `fmtMonthDate` in `utils/format.ts` referenced only by
+  `src/test/format.test.ts` — left in place (it is a generic formatter in a utils module and
+  was not part of the approved deletion list). Everything
+  `TrendsPreviewCard.tsx` / `useChartData.ts` / `usePlayerColors.ts` use (`pooledPpm`,
+  `buildPlayerColorMap`, `colorForIdx`, `pointsForPlayerInMatch`, `PlayerColor`) is untouched;
+  `trendsMath.ts` is at 100% statement coverage.
+- `npx vitest run --coverage` writes an untracked `frontend/coverage/` directory (not in
+  `.gitignore`); it was deleted after reading the summary rather than committed or ignored.
+- `make test` ran a third time because a readability-only refactor of a local helper in the new
+  h2h test landed while run 2 was in flight; run 3 is the final tree.
+- `make gen-types` produced no diff. `npm run build` still prints the pre-existing
+  "chunks larger than 500 kB" hint (630 kB `index-*.js`); unrelated, as noted under F1…U6.
+- No runtime verification for this task: it adds no UI and changes no behaviour.
 
 ---
 
