@@ -573,7 +573,7 @@ filters, dashboard links)
 
 ---
 
-## S5 — Floating filter pill for Mode/Source, native selects (approved 2026-09-12)  ☐
+## S5 — Floating filter pill for Mode/Source, native selects (approved 2026-09-12)  ☑
 
 **Why:** Roli wants the Mode/Source filters off the top of the section tabs and reachable
 while scrolled down. Decision: a floating pill, built from **native `<select>` elements**
@@ -607,7 +607,31 @@ while scrolled down. Decision: a floating pill, built from **native `<select>` e
 scrolling to the bottom of Positions; the old top strip is gone. 1280px — pill
 bottom-right, content not covered. `npm run check` + `npm run build` green. Screenshots.
 
-**Deviations:**
+**Deviations:** (implemented 2026-09-12)
+
+- `frontend/src/pages/stats/StatsFilters.tsx` is **deleted**; `StatsFilterPill.tsx` takes the
+  same props (`mode`, `scope`, `onModeChange`, `onScopeChange`, `showMode`, `showScope`) and the
+  same `FILTERS`-driven render site in `StatsInsights`, only moved to the end of the root element
+  (it is `fixed`, so tree position is cosmetic). No S1 test referenced `StatsFilters`.
+- The pill carries `role="group" aria-label="Stats filters"` so tests and Playwright can address
+  the capsule itself; the two selects keep `aria-label="Mode"` / `"Source"`.
+- Each select sits in a `relative` wrapper with the `ChevronDown` absolutely positioned over the
+  select's right padding (`pointer-events-none`), so a tap anywhere on the segment — chevron
+  included — opens the native picker. `.select-pill` reserves that space with `pr-5`.
+- `.select-pill` also styles `option` (explicit `--color-text-normal` on `--color-bg-card-outer`):
+  the transparent segment background would otherwise be inherited by the OS dropdown list. Focus
+  is a 2px accent ring on `:focus-visible` only (a permanent ring on the always-visible pill would
+  be noise); the themes' `color-scheme` keeps the native picker dark/light per theme.
+- Runtime DoD verified with Playwright against the isolated stack (backend :8003 on a copy of
+  `app.db`, vite :8020): **112 checks green**, the full matrix of `blue`/`light` × 390px/1280px —
+  pill showing "Overall"/"Tournaments" on Overview·Table, Mode-only on Positions, absent on Cups,
+  both selects on Trends/H2H/Player/Streaks, `selectOption("1v1")` → `mode=1v1` in the URL plus a
+  changed table (same for `source=both`), the pill still fully in the viewport after scrolling
+  Positions to the bottom with the last content line 26px above it (the new `pb-16`), no Mode/
+  Source chip group left anywhere, 16px right gutter above the bottom bar at 390px and 24px/24px
+  bottom-right with no bottom bar at 1280px, wrapper `position: fixed; z-index: 40`.
+- `npm run build` still prints the pre-existing "chunks larger than 500 kB" hint (630 kB
+  `index-*.js`); unrelated, as already noted under F1/F2/U1/U4/U5/S1.
 
 ---
 

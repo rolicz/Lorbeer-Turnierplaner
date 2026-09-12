@@ -5,7 +5,7 @@ import { LayoutGrid, LineChart, Swords, UserRound } from "lucide-react";
 import { useAuth } from "../../auth/AuthContext";
 import { SectionTabs, type SectionTab } from "../../ui/SectionTabs";
 import { ChipGroup } from "./charts";
-import StatsFilters from "./StatsFilters";
+import StatsFilterPill from "./StatsFilterPill";
 import type { StatsScope } from "../../api/types";
 import type { StatsMode } from "./StatsControls";
 import { useStandings } from "./standings";
@@ -110,17 +110,7 @@ export default function StatsInsights({
   };
 
   return (
-    <div className="space-y-3">
-      {/* Slim global filters — only the ones the active section uses. */}
-      <StatsFilters
-        mode={mode}
-        scope={scope}
-        onModeChange={onModeChange}
-        onScopeChange={onScopeChange}
-        showMode={filters.mode}
-        showScope={filters.scope}
-      />
-
+    <div className="space-y-3 pb-16">
       <SectionTabs tabs={SECTIONS} active={view} onChange={setView} />
 
       {showSubs ? (
@@ -153,6 +143,17 @@ export default function StatsInsights({
           ) : null}
         </div>
       )}
+
+      {/* Global filters float bottom-right so they stay reachable while scrolled
+          down; only the ones the active section uses are rendered. */}
+      <StatsFilterPill
+        mode={mode}
+        scope={scope}
+        onModeChange={onModeChange}
+        onScopeChange={onScopeChange}
+        showMode={filters.mode}
+        showScope={filters.scope}
+      />
     </div>
   );
 }
