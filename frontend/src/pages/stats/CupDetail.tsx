@@ -235,9 +235,10 @@ export default function CupDetail({ cupKey, cupName }: { cupKey: string; cupName
                     />
                     <span className="min-w-0 flex-1">
                       <span className="flex items-center gap-2">
-                        <span className="truncate text-sm font-semibold" style={{ color }}>
-                          {r.holder.display_name}
-                        </span>
+                        {/* Colour as a dot (not coloured text) — the app's convention and
+                            the only one that keeps contrast in the light theme. */}
+                        <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: color }} aria-hidden="true" />
+                        <span className="truncate text-sm font-semibold text-text-normal">{r.holder.display_name}</span>
                         <span className={r.current ? CHIP_ACCENT : CHIP_PLAIN} title={`${r.tournaments} tournaments held`}>
                           ×{r.tournaments}
                         </span>

@@ -1038,7 +1038,7 @@ Decisions are written in `DESIGN.md` (canon). The DS tasks migrate the code to i
 
 ---
 
-## S6 — Cups page reorganised: reigns, streak lengths, records  ☐
+## S6 — Cups page reorganised: reigns, streak lengths, records  ☑
 
 **Why:** Roli: "not a big fan of the cups stats page… reorganise. also, streak lengths and
 longest cup streak should be visible."
@@ -1082,7 +1082,61 @@ No backend change needed.
 blue and light; numbers cross-checked against the history text (e.g. "ended Roli's
 2-tournament reign" → Roli's reign row shows ×2).
 
-**Deviations:**
+**Deviations:** (implemented 2026-09-12, three commits: helper + tests, `CupDetail`,
+dashboard chip)
+
+- Reign semantics were verified against `backend/app/services/cup.py` before the helper was
+  written: `streak_duration` on a transfer is the **outgoing** holder's count, the running
+  reign is `streak.tournaments_participated`. `buildReigns` therefore reads a past reign's
+  length from the **next** history item. Cross-checked at runtime: the Bauernkranz history
+  line "ended Roli's 2-tournament reign" sits next to Roli's `×2` reign row.
+- `CupsView` no longer renders its own `section-head` (cup dot + name) around a `CupCard`:
+  the dot, the name and the era pill are part of `CupDetail`'s holder card, as the task's
+  item 1 specifies, so each cup has exactly one title. The dashboard keeps `CupCard`.
+- The holder line is split instead of repeating itself: "Holding since <date>" stays on the
+  identity line, the reign length is the `Current reign` tile's value (`×N`) and the defenses
+  are its hint ("M defended").
+- `cupRecords().longest` stays a single `Reign` (earliest wins a tie, as specified), but the
+  *Longest reign* tile names **every** holder tied for it and shows "N reigns tied" instead of
+  a date span when more than one reign shares the record (dev data: Atzi and Roli, ×2 each).
+- Reign rows carry the holder's stable colour as a **dot** before the name (the convention the
+  rest of stats uses — Trends/Player legends) instead of tinting the name text: at 390px in the
+  light theme a 56%-lightness hue on white is unreadable. The timeline, its legend and the row
+  dots all share the same colour, so the association still reads.
+- The `×N` chip uses the accent chip style for the **running** reign (in `CupDetail` and on
+  the dashboard row) and the neutral `bg-bg-card-chip` style otherwise; it is the same
+  `buildReigns` output in both places (dashboard rows look their reign up by
+  `startTournamentId`).
+- Per player table: the four sortable columns of the spec (headers `Player · Titles · Held ·
+  Longest`, with a legend line under the table because "Tournaments held" does not fit a
+  phone header). `daysHeld` — which `perPlayer` computes anyway — is a muted second line in
+  the player cell, so no information is dropped. Column ties fall back to the helper's own
+  order (held, then titles, then name) so the default view equals `perPlayer`'s. A row click
+  navigates with `useNavigate()` (the `StatsTable` idiom) and pushes
+  `/stats?view=player&player=<id>`.
+- Timeline segments are `flex-grow` proportional to `tournaments` with a 6px floor; the
+  running segment's "pulse ring" is an `animate-pulse` inset box-shadow overlay (no new
+  keyframes, no new CSS classes). Tapping a segment expands "Show all" first when the reign
+  is below the 8-row fold, then centres the row.
+- `reignDays` and `perPlayer` take an injectable `today` so day counts are unit-testable;
+  `test/cupReigns.test.ts` has 13 cases over the dev DB's Bauernkranz fold plus the empty and
+  single-reign edge cases.
+- New `ui/primitives/StatTile.tsx` per `DESIGN.md` §7 (`{label, value, hint, accessory,
+  className}`; the label row wraps so a narrow tile drops the accessory chip to its own
+  line). As instructed, surfaces use the pre-DS1 class names — `card-outer` for the level-1
+  card, `panel-subtle p-3` for insets — so DS3 can migrate them mechanically; no new CSS
+  classes and no `text-[Npx]` were added.
+- Runtime DoD verified with Playwright against the isolated stack (backend :8003 on a copy of
+  `app.db`, vite :8020): **108 checks** on the Cups sub-view over the full `blue`/`light` ×
+  390px/1280px matrix (holder card, era pill, all five Bauernkranz reign rows with their ×N
+  and took-from/ended-by text, the three record tiles, 5 proportional timeline segments with
+  the pulse ring on the current one, the per-player table and its default order, the
+  Lorbeerkranz cross-check, no horizontal overflow, segment tap → row centred, row tap →
+  `view=player&player=3`, and the `record` chip with the running streak stubbed to 2), plus
+  **28 checks** on `/dashboard?tab=cups` (every history row carries a ×N chip, exactly one
+  accent chip, `×2` next to "ended Rumpi's 1-tournament reign").
+- `npm run build` still prints the pre-existing "chunks larger than 500 kB" hint (633 kB
+  `index-*.js`); unrelated, as already noted under F1/F2/U1/U4/U5/S1/S5.
 
 ---
 

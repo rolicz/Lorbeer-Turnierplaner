@@ -6,6 +6,7 @@ import { Trophy } from "lucide-react";
 import { currentEraMode, getCup } from "../../api/cup.api";
 import { qk } from "../../api/queryKeys";
 import { cupColorVarForKey, rgbFromCssVar } from "../../cupColors";
+import { buildReigns } from "../stats/cupReigns";
 import { usePlayerAvatarMap } from "../../hooks/usePlayerAvatarMap";
 import AvatarCircle from "../../ui/primitives/AvatarCircle";
 import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
@@ -18,6 +19,9 @@ export default function CupCard({ cupKey }: { cupKey: string }) {
   const color = rgbFromCssVar(cupColorVarForKey(cupKey));
 
   const history = useMemo(() => q.data?.history ?? [], [q.data?.history]);
+  // Same reigns the Cups sub-view builds: a row's ×N is the reign the new holder
+  // started at that tournament.
+  const reignByStart = useMemo(() => new Map(buildReigns(q.data).map((r) => [r.startTournamentId, r])), [q.data]);
   const shown = useMemo(() => (showAll ? history.slice().reverse() : history.slice(-8).reverse()), [history, showAll]);
 
   const owner = q.data?.owner ?? null;
@@ -75,20 +79,32 @@ export default function CupCard({ cupKey }: { cupKey: string }) {
                 {shown.map((h) => {
                   const hasFrom = !!(h.from?.id && h.from.id > 0 && h.from.display_name && h.from.display_name !== "—");
                   // streak_duration here is the OUTGOING owner's reign that just ended.
-                  const reign = hasFrom && h.streak_duration > 0
+                  const endedNote = hasFrom && h.streak_duration > 0
                     ? ` · ended ${h.from.display_name}'s ${h.streak_duration}-tournament reign`
                     : "";
+                  const reign = reignByStart.get(h.tournament_id);
                   return (
                     <Link key={`${h.tournament_id}-${h.date}`} to={`/live/${h.tournament_id}`} className="row row-tap">
                       <span className="min-w-0 flex-1">
-                        <span className="block truncate text-sm text-text-normal">
-                          <b style={{ color }}>{h.to.display_name}</b>{" "}
-                          <span className="text-text-muted">
+                        <span className="flex min-w-0 items-center gap-1.5 text-sm text-text-normal">
+                          <b className="truncate" style={{ color }}>{h.to.display_name}</b>
+                          {reign ? (
+                            <span
+                              className={
+                                "inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-xs font-semibold tabular-nums " +
+                                (reign.current ? "bg-accent/15 text-accent ring-1 ring-inset ring-accent/40" : "bg-bg-card-chip text-text-chip")
+                              }
+                              title={`${reign.tournaments} tournaments held`}
+                            >
+                              ×{reign.tournaments}
+                            </span>
+                          ) : null}
+                          <span className="truncate text-text-muted">
                             {hasFrom ? `took it from ${h.from.display_name}` : "claimed it"}
                           </span>
                         </span>
                         <span className="block truncate text-[11px] text-text-muted">
-                          {h.tournament_name} · {fmtDate(h.date)}{reign}
+                          {h.tournament_name} · {fmtDate(h.date)}{endedNote}
                         </span>
                       </span>
                     </Link>
