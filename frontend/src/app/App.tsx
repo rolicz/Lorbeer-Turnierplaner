@@ -9,6 +9,7 @@ import DashboardPage from "../pages/dashboard/DashboardPage";
 import FriendliesPage from "../pages/FriendliesPage";
 import SettingsPage from "../pages/SettingsPage";
 import MatchDetailPage from "../pages/live/MatchDetailPage";
+import NotFoundPage from "../pages/NotFoundPage";
 import PageLoadingScreen from "../ui/primitives/PageLoadingScreen";
 import { RequireRole } from "../auth/RequireRole";
 
@@ -98,6 +99,8 @@ export default function App() {
         />
 
         <Route path="/tools" element={<Navigate to="/friendlies" replace />} />
+
+        <Route path="*" element={<NotFoundPage />} />
       </Routes>
     </AppShell>
     </MotionConfig>
