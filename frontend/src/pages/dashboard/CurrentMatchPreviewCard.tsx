@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
+import { ChevronRight } from "lucide-react";
 
 import { getTournament } from "../../api/tournaments.api";
 import { listClubs } from "../../api/clubs.api";
@@ -63,23 +64,26 @@ export default function CurrentMatchPreviewCard() {
         <button
           type="button"
           onClick={() => nav(`/live/${tid}`)}
-          className="block w-full rounded-2xl text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/35"
+          className="card block w-full text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/35"
+          title="Open live tournament"
         >
-          <div className="mb-1.5 truncate text-sm font-semibold text-text-normal">
-            {tQ.data?.name ?? `Tournament #${tid}`}
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="min-w-0 truncate text-sm font-semibold text-text-normal">
+              {tQ.data?.name ?? `Tournament #${tid}`}
+            </h2>
+            <ChevronRight size={16} className="shrink-0 text-text-muted" aria-hidden="true" />
           </div>
           <MatchOverviewPanel
-            surface="panel-subtle"
+            surface="none"
+            className="mt-2"
             match={match}
             clubs={clubs}
             mode={tQ.data?.mode}
-            showModePill={true}
+            showMode={true}
             showOdds={true}
             aGoals={Number(a?.goals ?? 0)}
             bGoals={Number(b?.goals ?? 0)}
-            scheduledScoreStyle="emdash-zero"
           />
-          <div className="mt-2 text-xs text-text-muted">Tap to open live tournament.</div>
         </button>
       )}
     </div>

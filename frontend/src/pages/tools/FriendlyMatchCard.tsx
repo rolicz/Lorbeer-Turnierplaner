@@ -389,10 +389,8 @@ export default function FriendlyMatchCard({
             mode={mode}
             aGoals={aGoals}
             bGoals={bGoals}
-            showModePill={true}
+            showMode={true}
             showOdds={true}
-            scoreBoxStyle="inner"
-            surface="panel-subtle"
           />
 
           <div className="pt-2">

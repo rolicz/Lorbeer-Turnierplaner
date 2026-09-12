@@ -246,10 +246,8 @@ export default function MatchDetailPage() {
                     clubs={clubsQ.data ?? []}
                     aGoals={aGoalsNum}
                     bGoals={bGoalsNum}
-                    showModePill={false}
                     showOdds={true}
                     showOddsWhenFinished={true}
-                    surface="panel-subtle"
                   />
                 ) : null}
 

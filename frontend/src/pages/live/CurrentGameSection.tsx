@@ -303,9 +303,8 @@ export default function CurrentGameSection({
               mode={tournamentMode}
               aGoals={aGoals}
               bGoals={bGoals}
-              showModePill={true}
+              showMode={true}
               showOdds={true}
-              surface="panel-subtle"
             />
           </button>
         ) : (
@@ -315,9 +314,8 @@ export default function CurrentGameSection({
             mode={tournamentMode}
             aGoals={aGoals}
             bGoals={bGoals}
-            showModePill={true}
+            showMode={true}
             showOdds={true}
-            surface="panel-subtle"
           />
         )}
 

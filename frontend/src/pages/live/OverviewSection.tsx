@@ -63,12 +63,10 @@ export default function OverviewSection({
               match={previewMatch}
               clubs={clubs}
               mode={mode}
-              showModePill={true}
+              showMode={true}
               showOdds={true}
               aGoals={Number(pa?.goals ?? 0)}
               bGoals={Number(pb?.goals ?? 0)}
-              scheduledScoreStyle="emdash-zero"
-              surface="panel-subtle"
             />
           </button>
         ) : (
