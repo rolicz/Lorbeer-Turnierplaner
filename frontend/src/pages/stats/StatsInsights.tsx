@@ -15,7 +15,6 @@ import PositionsView from "./PositionsView";
 import H2HView from "./H2HView";
 import MatchupView from "./h2h/MatchupView";
 import StreaksView from "./StreaksView";
-import { StarsSection } from "./StarsView";
 import PlayerProfile from "./PlayerProfile";
 import RecordsView from "./RecordsView";
 import CupsView from "./CupsView";
@@ -164,17 +163,7 @@ export default function StatsInsights({
         />
       ))}
 
-      {view === "player" && (
-        <div className="space-y-4">
-          <PlayerProfile mode={mode} scope={scope} rows={rows} selectedId={selectedId} onSelect={onSelectPlayer} />
-          {selectedId != null ? (
-            <div className="space-y-2">
-              <div className="section-head"><span className="section-label">Club stars</span></div>
-              <StarsSection mode={mode} scope={scope} playerId={selectedId} />
-            </div>
-          ) : null}
-        </div>
-      )}
+      {view === "player" && <PlayerProfile mode={mode} scope={scope} rows={rows} selectedId={selectedId} onSelect={onSelectPlayer} />}
 
       {/* Global filters float bottom-right so they stay reachable while scrolled
           down; only the ones the active section uses are rendered. */}

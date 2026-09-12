@@ -6,14 +6,16 @@ import { ChevronRight } from "lucide-react";
 
 import AvatarCircle from "../../ui/primitives/AvatarCircle";
 import InlineLoading from "../../ui/primitives/InlineLoading";
-import { getStatsPlayerMatches } from "../../api/stats.api";
+import { getStatsPlayerMatches, getStatsStreaks } from "../../api/stats.api";
 import { listClubs } from "../../api/clubs.api";
 import { qk } from "../../api/queryKeys";
 import { usePlayerAvatarMap } from "../../hooks/usePlayerAvatarMap";
 import { usePlayerColors } from "./usePlayerColors";
-import { Sparkline, Radar } from "./charts";
+import { ChipGroup, Sparkline, Radar } from "./charts";
 import { PlayerPicker } from "./PlayerPicker";
 import { MatchHistoryList, tournamentMatchHref } from "./MatchHistoryList";
+import PlayerStreakChips from "./PlayerStreakChips";
+import { StarsSection } from "./StarsView";
 import { fmtRating } from "../../utils/format";
 import type { Row } from "./standings";
 import type { StatsMode } from "./StatsControls";
@@ -66,6 +68,21 @@ export default function PlayerProfile({ mode, scope, rows, selectedId, onSelect 
   });
   const clubsQ = useQuery({ queryKey: qk.clubs(), queryFn: () => listClubs(), staleTime: 60_000 });
   const tournaments = useMemo(() => (matchesQ.data?.tournaments ?? []).filter((t) => mode === "overall" || t.mode === mode), [matchesQ.data, mode]);
+  // Streak chips: this player's runs plus the field-wide records (for the "record
+  // right now" highlight) — same pair of requests the profile Stats tab makes.
+  const streaksQ = useQuery({
+    queryKey: qk.stats.streaks(mode, `player-${selectedId ?? 0}`, scope),
+    queryFn: () => getStatsStreaks({ mode, playerId: selectedId as number, scope, limit: 3 }),
+    enabled: selectedId != null,
+    placeholderData: keepPreviousData, staleTime: 30_000,
+  });
+  const streaksGlobalQ = useQuery({
+    queryKey: qk.stats.streaks(mode, 1, scope),
+    queryFn: () => getStatsStreaks({ mode, scope, limit: 1 }),
+    placeholderData: keepPreviousData, staleTime: 30_000,
+  });
+  // Match history density (Compact hides the per-match meta line), like the matchup view.
+  const [details, setDetails] = useState(false);
   const nav = useNavigate();
 
   return (
@@ -144,9 +161,27 @@ export default function PlayerProfile({ mode, scope, rows, selectedId, onSelect 
           </div>
 
           <div className="card-outer">
-            <h2 className="mb-2 text-sm font-semibold text-text-normal">Match history</h2>
+            <h2 className="mb-2 text-sm font-semibold text-text-normal">Club stars</h2>
+            <StarsSection mode={mode} scope={scope} playerId={row.id} />
+          </div>
+
+          <div className="card-outer">
+            <h2 className="mb-2 text-sm font-semibold text-text-normal">Streaks · current / record</h2>
+            <PlayerStreakChips categories={streaksQ.data?.categories ?? []} globalCategories={streaksGlobalQ.data?.categories ?? []} />
+          </div>
+
+          <div className="card-outer">
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+              <h2 className="text-sm font-semibold text-text-normal">Match history</h2>
+              <ChipGroup<"compact" | "details">
+                value={details ? "details" : "compact"}
+                onChange={(v) => setDetails(v === "details")}
+                ariaLabel="Match details"
+                options={[{ key: "compact", label: "Compact" }, { key: "details", label: "Details" }]}
+              />
+            </div>
             {matchesQ.isLoading && !matchesQ.data ? <InlineLoading label="Loading…" /> :
-              tournaments.length ? <MatchHistoryList tournaments={tournaments} clubs={clubsQ.data ?? []} focusId={row.id} showMeta={false} nameColorByResult hideModePill matchHref={tournamentMatchHref} /> :
+              tournaments.length ? <MatchHistoryList tournaments={tournaments} clubs={clubsQ.data ?? []} focusId={row.id} showMeta={details} nameColorByResult hideModePill matchHref={tournamentMatchHref} /> :
                 <div className="text-sm text-text-muted">No matches yet.</div>}
           </div>
         </>
