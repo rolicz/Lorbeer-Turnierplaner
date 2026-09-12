@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 
 import { getStatsH2HMatches } from "../../api/stats.api";
@@ -156,6 +157,18 @@ export default function MatchH2HPanel({
               <div className="grid gap-2 md:grid-cols-2">
                 <SummaryCard title="Team A together" label={playerNames(aSide)} summary={duoASummary} />
                 <SummaryCard title="Team B together" label={playerNames(bSide)} summary={duoBSummary} />
+              </div>
+            ) : null}
+
+            {/* 1v1: the stats matchup shows every meeting, with its own filters. */}
+            {mode === "1v1" ? (
+              <div className="flex justify-end">
+                <Link
+                  to={`/stats?view=h2h&mode=1v1&source=both&player=${aIds[0]}&vs=${bIds[0]}`}
+                  className="text-xs font-medium text-accent"
+                >
+                  All meetings →
+                </Link>
               </div>
             ) : null}
           </>

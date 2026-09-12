@@ -1,3 +1,5 @@
+import { Link } from "react-router-dom";
+
 import Button from "../../ui/primitives/Button";
 import Textarea from "../../ui/primitives/Textarea";
 import { Pill } from "../../ui/primitives/Pill";
@@ -6,6 +8,42 @@ import type { Club, StatsH2HOpponentRow, StatsPlayerMatchesTournament } from "..
 import { fmtPct, fmtRank } from "../../utils/format";
 import { MatchHistoryList, tournamentMatchHref } from "../stats/MatchHistoryList";
 import { type FavoriteTeammate } from "./favoriteTeammates";
+
+/**
+ * Favorite / Nemesis chip. With a known opponent it links into the stats matchup
+ * ("every match against this player"), which follows the Mode / Source filters there.
+ */
+function RivalCard({ iconClass, label, row, playerId }: {
+  iconClass: string;
+  label: string;
+  row: StatsH2HOpponentRow | null;
+  playerId: number | null;
+}) {
+  const body = (
+    <>
+      <div className="inline-flex items-center gap-2 text-text-muted">
+        <i className={iconClass} aria-hidden="true" />
+        <span>{label}</span>
+      </div>
+      <div className="font-semibold mt-0.5">{row?.opponent.display_name ?? "—"}</div>
+      {row ? (
+        <div className="text-text-muted mt-0.5">
+          {row.wins}-{row.draws}-{row.losses} · {fmtPct(row.pts_per_match)} ppm
+        </div>
+      ) : null}
+    </>
+  );
+  if (!row || !playerId) return <div className="card-chip px-3 py-2">{body}</div>;
+  return (
+    <Link
+      to={`/stats?view=h2h&player=${playerId}&vs=${row.opponent.id}`}
+      title={`All matches against ${row.opponent.display_name}`}
+      className="card-chip block px-3 py-2 transition hover:bg-bg-card-chip/40 active:bg-bg-card-chip/50 focus-ring"
+    >
+      {body}
+    </Link>
+  );
+}
 
 /** Profile "Overview" tab: about/bio, rivals, favorite teammates, recent matches. */
 export default function ProfileOverviewTab({
@@ -76,30 +114,8 @@ export default function ProfileOverviewTab({
         <div className="section-head"><span className="section-label">Rivals</span></div>
         <ErrorToastOnError error={statsH2HError} title="H2H loading failed" />
         <div className="grid grid-cols-2 gap-2 text-xs">
-          <div className="card-chip px-3 py-2">
-            <div className="inline-flex items-center gap-2 text-text-muted">
-              <i className="fa-solid fa-face-smile" aria-hidden="true" />
-              <span>Favorite</span>
-            </div>
-            <div className="font-semibold mt-0.5">{favorite?.opponent.display_name ?? "—"}</div>
-            {favorite ? (
-              <div className="text-text-muted mt-0.5">
-                {favorite.wins}-{favorite.draws}-{favorite.losses} · {fmtPct(favorite.pts_per_match)} ppm
-              </div>
-            ) : null}
-          </div>
-          <div className="card-chip px-3 py-2">
-            <div className="inline-flex items-center gap-2 text-text-muted">
-              <i className="fa-solid fa-heart-crack" aria-hidden="true" />
-              <span>Nemesis</span>
-            </div>
-            <div className="font-semibold mt-0.5">{nemesis?.opponent.display_name ?? "—"}</div>
-            {nemesis ? (
-              <div className="text-text-muted mt-0.5">
-                {nemesis.wins}-{nemesis.draws}-{nemesis.losses} · {fmtPct(nemesis.pts_per_match)} ppm
-              </div>
-            ) : null}
-          </div>
+          <RivalCard iconClass="fa-solid fa-face-smile" label="Favorite" row={favorite} playerId={targetPlayerId} />
+          <RivalCard iconClass="fa-solid fa-heart-crack" label="Nemesis" row={nemesis} playerId={targetPlayerId} />
         </div>
       </div>
 
