@@ -89,12 +89,13 @@ all read-only checks; editor/admin flows can be checked by code + tests.
 | 6 | U5 | Mount the error toast viewport (bug found during U2) | frontend |
 | 7 | U4 | Clickable match rows + shared matchup summary helper | frontend |
 | 8 | S1 | Stats IA: four sections, sub-views, filters, shared player, legacy URL mapping | frontend |
-| 9 | S2 | Matchup view + all entry points | frontend |
-| 10 | S3 | Player section completion + Elo/positions explainers | frontend |
-| 11 | S4 | Retire the Classic layout | frontend |
-| 12 | U6 | Per-destination last page memory (bottom bar / sidebar / drawer) | frontend |
-| 13 | T1 | Test-suite audit and gap filling | backend + frontend |
-| 14 | D1 | Documentation pass (README, frontend/README, AGENTS.md) | docs |
+| 9 | S5 | Floating filter pill for Mode/Source (native selects) | frontend |
+| 10 | S2 | Matchup view + all entry points | frontend |
+| 11 | S3 | Player section completion + Elo/positions explainers | frontend |
+| 12 | S4 | Retire the Classic layout | frontend |
+| 13 | U6 | Per-destination last page memory (bottom bar / sidebar / drawer) | frontend |
+| 14 | T1 | Test-suite audit and gap filling | backend + frontend |
+| 15 | D1 | Documentation pass (README, frontend/README, AGENTS.md) | docs |
 
 ---
 
@@ -527,6 +528,44 @@ survives H2H ↔ Player; `npm run check` green; 390px screenshots of each sectio
 
 ---
 
+## S5 — Floating filter pill for Mode/Source, native selects (approved 2026-09-12)  ☐
+
+**Why:** Roli wants the Mode/Source filters off the top of the section tabs and reachable
+while scrolled down. Decision: a floating pill, built from **native `<select>` elements**
+(iOS shows its wheel picker, desktop its dropdown — same idea as the shots entry,
+`pages/live/TournamentCommentParts.tsx:393` with the `.select-field` class in
+`frontend/src/styles.css:286`). No bottom sheet needed.
+
+- New `frontend/src/pages/stats/StatsFilterPill.tsx`, the single render site is
+  `StatsInsights.tsx`; it **replaces** S1's top-of-page `StatsFilters` strip (delete that
+  component; no duplication).
+- Placement: `fixed z-40` (above content, below modals `z-50` and toasts `z-[70]`),
+  bottom-right: `right-4 bottom-[calc(4.5rem+env(safe-area-inset-bottom,0px))]` on mobile
+  (clear of the U2 bottom tab bar, same offset the toast uses) and `lg:right-6 lg:bottom-6`
+  on desktop. Give the `StatsInsights` root `pb-16` so the pill never hides the last row.
+- Look: capsule (`rounded-full border border-border-card-chip/60 bg-bg-card-outer/85
+  backdrop-blur-md shadow-pop`), a lucide `SlidersHorizontal` icon (14px, muted) on the
+  left, then one or two native selects styled as pill segments (transparent background,
+  no border, `appearance-none`, `text-sm font-medium`, a tiny `ChevronDown` after each,
+  a 1px vertical divider between them). `aria-label="Mode"` / `"Source"`. Options: Mode →
+  Overall / 1v1 / 2v2; Source → Tournaments / Both / Friendlies. Add a `.select-pill`
+  class in `styles.css` next to `.select-field` rather than inline styling.
+- Visibility follows S1's per-section `FILTERS` table: only applicable selects render;
+  when none apply (Cups) the pill is not rendered at all.
+- Changing a select updates the URL exactly as the chips did (`mode`, `source` params).
+- Add `frontend/src/test/statsFilterPill.test.tsx`: renders current values; `change`
+  events call the handlers; per-config hiding; not rendered when nothing applies.
+
+**DoD (isolated stack):** 390px — pill visible above the bottom bar on `/stats` showing
+"Overall" and "Tournaments"; only Mode on Overview/Positions; absent on Overview/Cups;
+`selectOption("1v1")` → URL gains `mode=1v1` and the table re-renders; still visible after
+scrolling to the bottom of Positions; the old top strip is gone. 1280px — pill
+bottom-right, content not covered. `npm run check` + `npm run build` green. Screenshots.
+
+**Deviations:**
+
+---
+
 ## S2 — Matchup view + entry points  ☐
 
 **The feature Roli asked for.** Backend needs no change: `POST /stats/h2h-matches`
@@ -787,7 +826,7 @@ Recorded so they are not forgotten. Do not implement without an explicit go.
    (standard "second tap resets" behaviour); the 404 page clears the entry for its
    destination so a deleted tournament never traps a tab. Not covered by the current queue
    (`useLocationRestore` only restores the last location on a PWA cold start).
-2. **Stats Mode/Source filter placement.** The filters must not sit above the section tabs
+2. **Stats Mode/Source filter placement.** → *approved as a floating pill with native selects, enqueued as S5 (2026-09-12).* The filters must not sit above the section tabs
    (Overview/Trends/H2H/Player). Roli floated a "floating thing on the bottom". Fable's
    take: a second bottom bar competes with the new bottom tab bar; the common app pattern is
    either a compact filter row *below* the tabs/sub-chips (contextual, sticky while
