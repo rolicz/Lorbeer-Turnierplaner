@@ -1302,7 +1302,7 @@ primitives + tests, docs)
 
 ---
 
-## DS2 — Score display: one `ScoreLine`, hero panel redesign  ☐
+## DS2 — Score display: one `ScoreLine`, hero panel redesign  ☑
 
 Roli's top complaint. Replace every score rendering with `ScoreLine` and rebuild the hero.
 - `ui/primitives/MatchOverviewPanel.tsx` → structure from `DESIGN.md` §8 (meta line + status
@@ -1327,7 +1327,92 @@ current|overview|matches` (compact + details), `/live/<id>/match/<mid>` (H2H + e
 score; no boxed scores anywhere (`git grep "card-chip" pages/stats/MatchHistoryList.tsx
 pages/live/MatchList.tsx ui/primitives/MatchOverviewPanel.tsx` → 0). `npm run check` + build.
 
-**Deviations:**
+**Deviations:** (implemented 2026-09-13, three commits: hero panel + callers, list rows +
+`MatchSides`, tests + plan/canon)
+
+- `MatchOverviewPanel` props follow the canon: `surface` is `"card" | "inset" | "none"`
+  (default `inset`), `showModePill` became **`showMode`** (the mode is a text token on the
+  meta line now, not a pill), and `scoreBoxStyle` / `scheduledScoreStyle` are **deleted** —
+  there is no box any more and `ScoreLine` renders the scheduled dash pair itself, so
+  `"dash"` and `"emdash-zero"` collapsed into one rendering.
+- Dashboard card: the tappable `button` **is** the `card` and the panel inside it uses
+  `surface="none"` (a `card` panel inside a card would break `DESIGN.md` §1.1). The
+  tournament name is the card's `h2` in a `flex justify-between` row (§6) with a lucide
+  `ChevronRight` as the trailing affordance, replacing "Tap to open live tournament." —
+  i.e. the chevron sits on the title row rather than in a row of its own.
+- **New shared primitive `ui/primitives/MatchSides.tsx`** (club badge + name, flag +
+  league, stars — nothing but a muted "No club" for a clubless side). The same three-row
+  block was duplicated in `MatchOverviewPanel`, `MatchList` and `MatchRowWithClubs`; all
+  three now render it, so the DS2 layout exists once. This *does* change the list details
+  layout, which the task said to leave alone: with the score hugging the centre, the old
+  edge-aligned club/league/stars lines sat ~1500 px apart at 1280 px while the score sat in
+  the middle — visibly two different layouts in one row. `MatchSides` hugs the centre gap
+  the same way the names do, with the symbols next to their text.
+- "Stars only when a club is set" is applied in the list rows too (not only the hero): the
+  audit's "empty clubs show five hollow stars" was a symptom everywhere, and after
+  `MatchSides` it is one rule in one place. A clubless side also drops its (empty) league
+  line.
+- `nameColorByResult` is **removed** from `MatchHistoryList` / `MatchHistoryTournamentBlock`
+  / `MatchRowWithClubs` and its four call sites (`PlayerProfile`, `MatchupView`,
+  `FriendlyMatchesListCard`, `MatchH2HPanel`). Colouring both of the winner's names green
+  is exactly the "tint the row" idiom §8 replaces: the focus side's numeral carries the
+  result and `ScoreLine`'s leader emphasis shows who won when there is no focus player.
+  `matchPalette` is no longer imported there; the `StatsMatch` note in `api/types.ts` now
+  names `ScoreLine`'s `state` prop as the single narrowing boundary.
+- **`ScoreLine` tweak (primitive + test, as instructed):** the `resultBadge` now renders
+  *inside* the focus side's names cell, on that side's outer edge, instead of at the row's
+  outer edge. At 390 px the two are the same; on a 1280 px row the old placement put the
+  badge ~250–750 px away from the numerals it describes (screenshots
+  `peek-profile-1280.png` vs `peek-profile-1280c.png`). Nothing else about the primitive
+  changed. `test/scoreLine.test.tsx`: the placement case now asserts the badge is the last
+  child of the right side's cell, and `DESIGN.md` §8 records the new placement (plus the
+  `MatchSides` row in the §7 table) so the canon and the code still agree. (An experiment that capped the whole line at `max-w-lg`
+  was reverted — with the badge attached to the names it had no visual effect.)
+- Sizes read as `md` = details row, `sm` = compact row in **both** lists (the task's
+  "`ScoreLine md` (compact)" for `MatchRowWithClubs` vs "`md`/`sm`" for `MatchList`): with
+  `md` names at `text-base`/numerals `text-2xl` and `sm` at `text-sm`/`text-lg`, this keeps
+  the existing compact-vs-details size relationship. `resultBadge` is on for the compact
+  rows only — the dense lists §8 means (profile matches, matchup, H2H recent meetings) —
+  since the details rows are tall enough for the coloured numeral to be obvious.
+- `MatchList` compact rows: `ScoreLine` owns the middle column, so the club badges that
+  used to flank the score now travel **with the names** (inner edge, right next to the
+  score) as a single name node per side. Nothing else moved: status dot, `#n`, state, leg,
+  reorder/swap buttons and the odds line are untouched.
+- Odds are one quiet mono line (`1 4.88 · X 4.14 · 2 1.60`, `font-mono text-xs
+  text-text-muted`) in the hero panel *and* in `MatchList`'s details rows, replacing the
+  two different `1 | X | 2` inline renderings. In the hero it moved from above the score
+  (where it split the meta line from the score) to below it, as §8 prescribes.
+- `RecordsView`'s superlative rows were the fourth score rendering (`{ag}:{bg}` in accent
+  mono, names left / score right). They now use `ScoreLine sm` with the tournament · date
+  line centred underneath.
+- `OverviewSection`: "Next matches" rows use `ScoreLine sm`, whose scheduled state renders
+  `vs` — the same text those rows hand-rolled before. The standings mini table shows no
+  score at all (rank/P/GD/Pts), so there was nothing to move onto `ScoreLine` there.
+- Light theme got the `--color-live: 220 38 38` override (`DESIGN.md` §2, amended after
+  DS1). No other token changed.
+- **DoD grep** `git grep "card-chip" pages/stats/MatchHistoryList.tsx pages/live/MatchList.tsx
+  ui/primitives/MatchOverviewPanel.tsx` returns **one** line, not zero:
+  `border-b border-border-card-chip/35` on the tournament block header — the *border token*,
+  not the retired `.card-chip` box. Filtering the token families
+  (`grep -v "border-card-chip\|bg-card-chip"`) gives 0 hits, i.e. no boxed scores remain.
+- Tests: `matchOverviewPanel.test.tsx` +6 cases (ScoreLine instead of a box, no colon, one
+  pill on the meta line, odds line only while unfinished, stars only with a club, scheduled
+  dash pair, surface prop), `matchHistoryList.test.tsx` +5 (one `ScoreLine` and no tinted
+  box, focus-side numeral colouring for W/D/L, plain numerals without a focus player, badge
+  in compact rows only, scheduled dash). `matchupView.test.tsx` needed **no** change — it
+  asserts the summary tiles, the relation switch and the match links, none of which DS2
+  touches; it passes as-is against the new rows. 286 frontend tests green (+5).
+- Runtime verification (isolated stack: backend :8003 on a copy of `app.db`, vite :8020;
+  live tournament 20 with clubs/score set on the copy so the hero shows a real matchup, one
+  side deliberately left clubless): 11 surfaces × blue/light × 390/1280 px = 44 full-page
+  screenshots, all with **0 console/page errors and no horizontal overflow** — dashboard
+  live card, `/live/20?tab=current|overview|matches` (compact **and** details),
+  `/live/20/match/108` H2H and Edit result, `/friendlies`, `/profiles/1?tab=matches`, the
+  H2H matchup and Records. The editor-only edit preview was reached without touching
+  `backend/secrets.json`: Playwright stubs `/me` as `editor` and softens other 401s, so the
+  role lives only in the browser.
+- `npm run build` still prints the pre-existing "chunks larger than 500 kB" hint (625 kB
+  `index-*.js`), as noted under every earlier task.
 
 ---
 

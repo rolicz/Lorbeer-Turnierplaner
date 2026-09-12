@@ -95,6 +95,7 @@ Never both for the same block. No uppercase labels inside cards.
 | Page sections | `SectionTabs` | underline tabs with edge fades |
 | Filters (stats) | `StatsFilterPill` | floating capsule, see §9 |
 | Any score | `ScoreLine` | see §8 — the only way to render a score |
+| Clubs under a score | `MatchSides` | badge + club, flag + league, stars; nothing but "No club" for a clubless side |
 | Key number | `StatTile` | `inset` + `text-2xl font-bold tabular-nums` value + `text-xs` muted label |
 | Lists | `List` / `ListRow` | hairline rows, stretched link |
 | Empty / loading | `EmptyState`, `InlineLoading` (lucide `Loader2` spinner), `LoadingPlaceholder` |
@@ -121,13 +122,16 @@ Sizes `hero` (match panel), `md` (match rows in lists), `sm` (compact rows, mini
 - Focus result (rows with a focus player): `focus="left"|"right"` names the side, `result`
   the outcome; that side's numeral takes `text-win` / `text-draw` / `text-loss`; nothing else
   is coloured. Optional `resultBadge` prop renders a
-  16px `W/D/L` letter chip at the row's outer edge for dense lists (Last 5, recent meetings).
+  16px `W/D/L` letter chip on that side's outer edge, inside its names cell — so it stays
+  next to the score on a wide row — for dense lists (Last 5, recent meetings).
 - Names: hero `text-lg`, md `text-base`, sm `text-sm`; 2v2 stacks two lines.
 - Never wrap a `ScoreLine` in `card-chip`/borders. The hero panel (`MatchOverviewPanel`) is:
   meta line (`Match 1 · Leg 1 · 1v1` + status `Pill`) → `ScoreLine hero` → odds line
   (`text-xs text-text-muted font-mono`, only scheduled/playing) → two side columns with
   club badge + name (`text-sm`), flag + league (`text-xs muted`), stars **only when a club is
-  set** (otherwise a muted "No club" line and nothing else). No `border-y` rules.
+  set** (otherwise a muted "No club" line and nothing else). No `border-y` rules. Those two
+  columns are `MatchSides` — the same block sits under the score in the live match list and
+  the stats match history, and it hugs the centre gap exactly like the names do.
 
 ## 9. Floating filter pill (stats)
 

@@ -28,17 +28,22 @@ const CLUBS: Club[] = [
   },
 ];
 
-function makeMatch(aClubId: number | null, bClubId: number | null): StatsMatch {
+function makeMatch(
+  aClubId: number | null,
+  bClubId: number | null,
+  goals: [number, number] = [2, 1],
+  state = "finished",
+): StatsMatch {
   return {
     id: 10,
     leg: 1,
     order_index: 0,
-    state: "finished",
+    state,
     started_at: null,
     finished_at: null,
     sides: [
-      { id: 1, side: "A", club_id: aClubId, goals: 2, players: [{ id: 1, display_name: "Alice" }] },
-      { id: 2, side: "B", club_id: bClubId, goals: 1, players: [{ id: 2, display_name: "Bob" }] },
+      { id: 1, side: "A", club_id: aClubId, goals: goals[0], players: [{ id: 1, display_name: "Alice" }] },
+      { id: 2, side: "B", club_id: bClubId, goals: goals[1], players: [{ id: 2, display_name: "Bob" }] },
     ],
   };
 }
@@ -90,6 +95,52 @@ describe("MatchRowWithClubs club symbols", () => {
 
     expect(queryByText("BM")).toBeNull();
     expect(container.querySelectorAll(".fi")).toHaveLength(0);
+  });
+});
+
+describe("MatchRowWithClubs score (DESIGN.md §8)", () => {
+  it("renders one ScoreLine and no tinted score box", () => {
+    const { container } = render(<MatchRowWithClubs m={makeMatch(1, 2)} clubs={CLUBS} showMeta />);
+
+    expect(container.querySelectorAll("[data-score-line]")).toHaveLength(1);
+    expect(container.querySelector('[data-score-line="md"]')).not.toBeNull();
+    expect(container.querySelector(".card-chip")).toBeNull();
+    expect(container.textContent).not.toContain(":");
+  });
+
+  it("colours only the focus player's numeral with the result", () => {
+    const win = render(<MatchRowWithClubs m={makeMatch(1, 2)} clubs={CLUBS} focusId={1} showMeta={false} />);
+    expect(win.container.querySelector('[data-score-numeral="left"]')?.className).toContain("text-win");
+    expect(win.container.querySelector('[data-score-numeral="right"]')?.className).toContain("text-text-normal");
+
+    const loss = render(<MatchRowWithClubs m={makeMatch(1, 2)} clubs={CLUBS} focusId={2} showMeta={false} />);
+    expect(loss.container.querySelector('[data-score-numeral="right"]')?.className).toContain("text-loss");
+
+    const draw = render(
+      <MatchRowWithClubs m={makeMatch(1, 2, [2, 2])} clubs={CLUBS} focusId={1} showMeta={false} />,
+    );
+    expect(draw.container.querySelector('[data-score-numeral="left"]')?.className).toContain("text-draw");
+  });
+
+  it("leaves both numerals plain without a focus player", () => {
+    const { container } = render(<MatchRowWithClubs m={makeMatch(1, 2)} clubs={CLUBS} showMeta={false} />);
+    expect(container.querySelector('[data-score-numeral="left"]')?.className).toContain("text-text-normal");
+    expect(container.querySelector("[data-score-result-badge]")).toBeNull();
+  });
+
+  it("adds the W/D/L badge in the dense compact rows only", () => {
+    const compact = render(<MatchRowWithClubs m={makeMatch(1, 2)} clubs={CLUBS} focusId={1} showMeta={false} />);
+    expect(compact.container.querySelector("[data-score-result-badge]")?.textContent).toBe("W");
+
+    const details = render(<MatchRowWithClubs m={makeMatch(1, 2)} clubs={CLUBS} focusId={1} showMeta />);
+    expect(details.container.querySelector("[data-score-result-badge]")).toBeNull();
+  });
+
+  it("shows a dash pair instead of numerals for a scheduled match", () => {
+    const { container } = render(
+      <MatchRowWithClubs m={makeMatch(1, 2, [0, 0], "scheduled")} clubs={CLUBS} showMeta />,
+    );
+    expect(container.querySelector('[data-score-numeral="left"]')?.textContent).toBe("–");
   });
 });
 
