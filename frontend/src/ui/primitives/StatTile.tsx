@@ -1,8 +1,8 @@
 /**
  * Key number on an inset surface: big tabular value, small muted label, optional
  * context line and an accessory (badge/chip) at the label's right edge.
- * `DESIGN.md` §7. Until DS1/DS3 land, the inset surface is spelled with today's
- * closest classes (`panel-subtle p-3`) so the migration stays mechanical.
+ * `DESIGN.md` §7: an `inset` surface, `text-2xl font-bold tabular-nums` value and a
+ * `text-xs` muted label.
  */
 import React from "react";
 
@@ -24,7 +24,7 @@ export default function StatTile({
   className?: string;
 }) {
   return (
-    <div className={cn("panel-subtle p-3", className)}>
+    <div className={cn("inset", className)}>
       <div className="flex flex-wrap items-start justify-between gap-x-2 gap-y-1">
         <span className="min-w-0 text-xs text-text-muted">{label}</span>
         {accessory ?? null}

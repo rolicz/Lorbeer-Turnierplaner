@@ -5,42 +5,11 @@ const GREEN = "rgb(34 197 94)";
 const AMBER = "rgb(234 179 8)";
 const RED = "rgb(239 68 68)";
 
-/** Wrapping pill selector — never overflows (unlike a fixed segmented switch). */
-export function ChipGroup<T extends string | number>({
-  value,
-  onChange,
-  options,
-  ariaLabel,
-}: {
-  value: T;
-  onChange: (v: T) => void;
-  options: { key: T; label: string }[];
-  ariaLabel?: string;
-}) {
-  return (
-    <div role="group" aria-label={ariaLabel} className="flex flex-wrap gap-1.5">
-      {options.map((o) => {
-        const on = o.key === value;
-        return (
-          <button
-            key={String(o.key)}
-            type="button"
-            onClick={() => onChange(o.key)}
-            aria-pressed={on}
-            className={
-              "rounded-full px-3 py-1.5 text-sm transition focus-ring " +
-              (on
-                ? "bg-accent/15 font-medium text-accent ring-1 ring-inset ring-accent/40"
-                : "bg-bg-card-chip/50 text-text-muted hover:text-text-normal")
-            }
-          >
-            {o.label}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
+/**
+ * `ChipGroup` lives in `ui/primitives/Chip.tsx` (DESIGN.md §7). Re-exported here so the
+ * stats call sites keep working until the remaining DS tasks repoint their imports.
+ */
+export { Chip, ChipGroup } from "../../ui/primitives/Chip";
 
 type RadarAxis = { label: string; value: number };
 type RadarSeries = { name: string; color: string; axes: RadarAxis[] };
