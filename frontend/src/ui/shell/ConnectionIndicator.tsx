@@ -30,12 +30,12 @@ export default function ConnectionIndicator({ compact = false }: { compact?: boo
 
   const vis: Visual =
     status === "offline"
-      ? { label: "Offline", dot: "bg-zinc-500", text: "text-text-muted", ping: false }
+      ? { label: "Offline", dot: "bg-status-bar-default", text: "text-text-muted", ping: false }
       : status === "reconnecting"
-        ? { label: "Reconnecting", dot: "bg-amber-400", text: "text-amber-300", ping: false }
+        ? { label: "Reconnecting", dot: "bg-draw", text: "text-draw", ping: false }
         : liveTid != null
-          ? { label: "Live", dot: "bg-emerald-400", text: "text-emerald-300", ping: true }
-          : { label: "Connected", dot: "bg-emerald-500/80", text: "text-text-muted", ping: false };
+          ? { label: "Live", dot: "bg-live", text: "text-live", ping: true }
+          : { label: "Connected", dot: "bg-status-bar-green/80", text: "text-text-muted", ping: false };
 
   const body = (
     <>

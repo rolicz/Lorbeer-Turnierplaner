@@ -63,7 +63,7 @@ export default function VoteVotersModal({
         {downvoters.length ? (
           <CardSection>
             <div className="inline-flex items-center gap-2 text-[12px] text-text-muted">
-              <i className="fa-solid fa-thumbs-down text-red-300" aria-hidden="true" />
+              <i className="fa-solid fa-thumbs-down text-loss" aria-hidden="true" />
               <span>Downvotes</span>
               <span className="tabular-nums text-text-normal">{downvoters.length}</span>
             </div>

@@ -375,7 +375,7 @@ export default function StandingsTable({
                 ))}
               </div>
               <div className="mt-0.5 font-mono text-[11px] tabular-nums text-text-muted">
-                {r.played}P · <span className="text-status-text-green">{r.wins}</span>-<span className="text-amber-300">{r.draws}</span>-<span className="text-[color:rgb(var(--delta-down)/1)]">{r.losses}</span> · {r.gf}:{r.ga} · GD {r.gd >= 0 ? `+${r.gd}` : r.gd}
+                {r.played}P · <span className="text-win">{r.wins}</span>-<span className="text-draw">{r.draws}</span>-<span className="text-loss">{r.losses}</span> · {r.gf}:{r.ga} · GD {r.gd >= 0 ? `+${r.gd}` : r.gd}
               </div>
             </div>
             <div className="shrink-0 text-right">

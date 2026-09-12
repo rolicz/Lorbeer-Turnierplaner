@@ -34,11 +34,11 @@ type Relation = "against" | "together";
 const MODE_LABEL: Record<StatsMode, string> = { overall: "Overall", "1v1": "1v1", "2v2": "2v2" };
 const SCOPE_LABEL: Record<StatsScope, string> = { tournaments: "Tournaments", both: "Both", friendlies: "Friendlies" };
 
-/** W-D-L colouring, same palette as HeadToHeadRows. */
+/** W-D-L colouring through the semantic tokens (DESIGN.md §2), like `ScoreLine`'s result badge. */
 const RESULT_CLASS: Record<MatchResult, string> = {
-  W: "bg-status-bg-green/35 text-status-text-green ring-status-border-green/40",
-  D: "bg-amber-500/15 text-amber-300 ring-amber-500/30",
-  L: "bg-red-500/15 text-red-300 ring-red-500/30",
+  W: "bg-win/15 text-win ring-win/30",
+  D: "bg-draw/15 text-draw ring-draw/30",
+  L: "bg-loss/15 text-loss ring-loss/30",
 };
 
 function Tile({ label, title, children }: { label: string; title?: string; children: ReactNode }) {
@@ -163,18 +163,18 @@ export default function MatchupView({ mode, scope, leftId, rightId, rows, onBack
           <div className="grid grid-cols-3 gap-2">
             <Tile label="Played">{summary.played}</Tile>
             <Tile label="W-D-L" title={`${summary.wins} wins, ${summary.draws} draws, ${summary.losses} losses`}>
-              <span className="text-status-text-green">{summary.wins}</span>
+              <span className="text-win">{summary.wins}</span>
               <span className="text-text-muted">-</span>
-              <span className="text-amber-300">{summary.draws}</span>
+              <span className="text-draw">{summary.draws}</span>
               <span className="text-text-muted">-</span>
-              <span className="text-red-300">{summary.losses}</span>
+              <span className="text-loss">{summary.losses}</span>
             </Tile>
             <Tile label="Goals" title={`${summary.gf} scored, ${summary.ga} conceded`}>{summary.gf}:{summary.ga}</Tile>
             <Tile label="Pts / match">{summary.played ? fmtAvg(summary.ptsPerMatch) : "—"}</Tile>
             <Tile label="Win %">{summary.played ? `${winPct}%` : "—"}</Tile>
             <Tile label="Current run" title="Results in a row, counted from the most recent match">
               {run ? (
-                <span className={run.kind === "W" ? "text-status-text-green" : run.kind === "D" ? "text-amber-300" : "text-red-300"}>
+                <span className={run.kind === "W" ? "text-win" : run.kind === "D" ? "text-draw" : "text-loss"}>
                   {run.kind}{run.length}
                 </span>
               ) : "—"}

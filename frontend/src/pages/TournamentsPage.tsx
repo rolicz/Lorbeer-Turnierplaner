@@ -156,14 +156,14 @@ export default function TournamentsPage() {
             const participants = t.participants ?? [];
 
             const meta: ReactNode[] = [];
-            if (st === "live") meta.push(<span className="font-medium text-emerald-400">{ui.label}</span>);
+            if (st === "live") meta.push(<span className="font-medium text-status-text-green">{ui.label}</span>);
             else if (st !== "done") meta.push(<span>{ui.label}</span>);
             meta.push(<span>{fmtDate(t.date)}</span>);
             meta.push(<span>{t.mode === "2v2" ? "2v2" : "1v1"}</span>);
             if (winner)
               meta.push(
                 <span className="inline-flex items-center gap-1 text-text-normal">
-                  <i className="fa fa-trophy text-yellow-400" aria-hidden="true" />
+                  <i className="fa fa-trophy text-gradient-gold-from" aria-hidden="true" />
                   <span className="max-w-[150px] truncate sm:max-w-[260px]">{winner}</span>
                 </span>,
               );

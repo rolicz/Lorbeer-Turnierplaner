@@ -54,7 +54,7 @@ export function DuoDetail({
         </div>
         <div className="mt-1.5 flex items-center gap-3 font-mono text-xs tabular-nums">
           <span>
-            <span className="text-status-text-green">{fmtInt(duo.wins)}</span>-<span className="text-amber-300">{fmtInt(duo.draws)}</span>-<span className="text-[color:rgb(var(--delta-down)/1)]">{fmtInt(duo.losses)}</span>
+            <span className="text-win">{fmtInt(duo.wins)}</span>-<span className="text-draw">{fmtInt(duo.draws)}</span>-<span className="text-loss">{fmtInt(duo.losses)}</span>
           </span>
           <span className="text-text-muted">·</span>
           <span className="font-semibold text-accent">{duo.pts_per_match.toFixed(2)} ppm</span>

@@ -67,11 +67,11 @@ export function DuoRow({
       <div className="shrink-0 text-right">
         <div className="font-mono tabular-nums text-sm text-text-normal">{rr.pts_per_match.toFixed(2)} ppm</div>
         <div className="font-mono tabular-nums text-[11px] text-text-muted">
-          <span className="text-status-text-green">{fmtInt(rr.wins)}</span>
+          <span className="text-win">{fmtInt(rr.wins)}</span>
           <span className="text-text-muted">-</span>
-          <span className="text-amber-300">{fmtInt(rr.draws)}</span>
+          <span className="text-draw">{fmtInt(rr.draws)}</span>
           <span className="text-text-muted">-</span>
-          <span className="text-red-300">{fmtInt(rr.losses)}</span>
+          <span className="text-loss">{fmtInt(rr.losses)}</span>
         </div>
       </div>
     </RowShell>
@@ -121,11 +121,11 @@ export function TeamRivalryRow({
           {fmtInt(rr.played)} games · {closePct} close
         </span>
         <span className="shrink-0 font-mono tabular-nums">
-          <span className="text-status-text-green">{fmtInt(rr.team1_wins)}</span>
+          <span className="text-win">{fmtInt(rr.team1_wins)}</span>
           <span className="text-text-muted">-</span>
-          <span className="text-amber-300">{fmtInt(rr.draws)}</span>
+          <span className="text-draw">{fmtInt(rr.draws)}</span>
           <span className="text-text-muted">-</span>
-          <span className="text-red-300">{fmtInt(rr.team2_wins)}</span>
+          <span className="text-loss">{fmtInt(rr.team2_wins)}</span>
           <span className="text-text-muted"> · </span>
           {fmtInt(rr.team1_gf)}:{fmtInt(rr.team1_ga)}
         </span>

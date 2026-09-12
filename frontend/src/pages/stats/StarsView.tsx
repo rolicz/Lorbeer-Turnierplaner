@@ -66,7 +66,7 @@ export function StarsSection({ mode, scope, playerId }: { mode: StatsMode; scope
               <div className="relative z-10 grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 px-1 py-2.5">
                 <StarsFA rating={b.stars} className="text-[11px]" textClassName="text-text-normal" />
                 <div className="text-center font-mono text-[11px] tabular-nums text-text-muted">
-                  {b.played}P · <span className="text-status-text-green">{b.w}</span>-<span className="text-amber-300">{b.d}</span>-<span className="text-[color:rgb(var(--delta-down)/1)]">{b.l}</span>
+                  {b.played}P · <span className="text-win">{b.w}</span>-<span className="text-draw">{b.d}</span>-<span className="text-loss">{b.l}</span>
                 </div>
                 <div className="shrink-0 text-right">
                   <span className="font-mono text-sm font-bold tabular-nums text-text-normal">{b.ppm.toFixed(2)}</span>

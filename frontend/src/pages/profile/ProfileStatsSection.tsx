@@ -101,7 +101,7 @@ export default function ProfileStatsSection({
             </div>
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-text-muted">
               <span>
-                Record <span className="tabular-nums text-status-text-green">{fmtInt(r?.wins ?? 0)}</span>-<span className="tabular-nums text-amber-300">{fmtInt(r?.draws ?? 0)}</span>-<span className="tabular-nums text-red-300">{fmtInt(r?.losses ?? 0)}</span>
+                Record <span className="tabular-nums text-win">{fmtInt(r?.wins ?? 0)}</span>-<span className="tabular-nums text-draw">{fmtInt(r?.draws ?? 0)}</span>-<span className="tabular-nums text-loss">{fmtInt(r?.losses ?? 0)}</span>
               </span>
               <span>Elo <b className="tabular-nums text-text-normal">{eloRow ? fmtRating(eloRow.rating) : "—"}</b>{eloRank != null ? ` · #${eloRank}` : ""}</span>
               <span>Last 3 <b className="tabular-nums text-text-normal">{fmtPct(r?.lastN_avg_pts ?? 0)}</b></span>

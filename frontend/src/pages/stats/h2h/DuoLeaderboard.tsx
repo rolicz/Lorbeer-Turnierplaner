@@ -31,7 +31,7 @@ export function DuoLeaderboard({
               {d.p1.display_name} <span className="text-text-muted">/</span> {d.p2.display_name}
             </span>
             <span className="shrink-0 font-mono text-[11px] tabular-nums text-text-muted">
-              {fmtInt(d.played)}P · <span className="text-status-text-green">{fmtInt(d.wins)}</span>-<span className="text-amber-300">{fmtInt(d.draws)}</span>-<span className="text-[color:rgb(var(--delta-down)/1)]">{fmtInt(d.losses)}</span> · {gd}
+              {fmtInt(d.played)}P · <span className="text-win">{fmtInt(d.wins)}</span>-<span className="text-draw">{fmtInt(d.draws)}</span>-<span className="text-loss">{fmtInt(d.losses)}</span> · {gd}
             </span>
             <span className="w-12 shrink-0 text-right text-sm font-semibold tabular-nums text-accent">{d.pts_per_match.toFixed(2)}</span>
           </button>

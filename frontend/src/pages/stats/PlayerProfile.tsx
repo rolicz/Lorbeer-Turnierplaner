@@ -105,7 +105,7 @@ export default function PlayerProfile({ mode, scope, rows, selectedId, onSelect 
                   <ChevronRight className="h-4 w-4 shrink-0 text-text-muted" aria-hidden="true" />
                 </div>
                 <div className="text-xs text-text-muted">
-                  {fmtRating(row.rating)}★ · <span className="text-status-text-green">{row.wins}</span>-<span className="text-amber-300">{row.draws}</span>-<span className="text-[color:rgb(var(--delta-down)/1)]">{row.losses}</span> · {row.pts} pts · view profile
+                  {fmtRating(row.rating)}★ · <span className="text-win">{row.wins}</span>-<span className="text-draw">{row.draws}</span>-<span className="text-loss">{row.losses}</span> · {row.pts} pts · view profile
                 </div>
               </div>
             </button>

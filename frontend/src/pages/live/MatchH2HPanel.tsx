@@ -34,11 +34,11 @@ function SummaryCard({
       <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-text-muted">
         <span>{summary.played} matches</span>
         <span className="font-mono tabular-nums text-text-normal">
-          <span className="text-status-text-green">{summary.wins}</span>
+          <span className="text-win">{summary.wins}</span>
           <span className="text-text-muted">-</span>
-          <span className="text-amber-300">{summary.draws}</span>
+          <span className="text-draw">{summary.draws}</span>
           <span className="text-text-muted">-</span>
-          <span className="text-red-300">{summary.losses}</span>
+          <span className="text-loss">{summary.losses}</span>
         </span>
         <span className="font-mono tabular-nums">{summary.gf}:{summary.ga}</span>
         <span className="font-mono tabular-nums">{fmtAvg(summary.ptsPerMatch)} ppm</span>
@@ -143,7 +143,7 @@ export default function MatchH2HPanel({
         </div>
 
         {loading ? <InlineLoading label="Loading H2H…" /> : null}
-        {error ? <div className="panel-subtle rounded-xl px-3 py-2 text-sm text-red-200">{error}</div> : null}
+        {error ? <div className="panel-subtle rounded-xl px-3 py-2 text-sm text-loss">{error}</div> : null}
 
         {!loading && !error ? (
           <>

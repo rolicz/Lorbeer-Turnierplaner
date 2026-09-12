@@ -402,7 +402,7 @@ export default function H2HView({ mode, scope, rows, subView, selectedId, onSele
                   <button key={o.opponent.id} type="button" onClick={() => onOpenMatchup(selectedId, o.opponent.id)} className="row row-tap">
                     <span className="min-w-0 flex-1 truncate text-sm text-text-normal">{o.opponent.display_name}</span>
                     <span className="shrink-0 font-mono text-[11px] tabular-nums text-text-muted">
-                      {o.played}P · <span className="text-status-text-green">{o.wins}</span>-<span className="text-amber-300">{o.draws}</span>-<span className="text-[color:rgb(var(--delta-down)/1)]">{o.losses}</span>
+                      {o.played}P · <span className="text-win">{o.wins}</span>-<span className="text-draw">{o.draws}</span>-<span className="text-loss">{o.losses}</span>
                     </span>
                     <span className="w-12 shrink-0 text-right text-sm font-semibold tabular-nums text-accent">{o.played ? Math.round(o.win_rate * 100) : 0}%</span>
                   </button>
