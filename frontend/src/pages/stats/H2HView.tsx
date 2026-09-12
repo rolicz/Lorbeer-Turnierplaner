@@ -51,7 +51,12 @@ function RivalCard({ iconClass, label, row, onOpen }: {
     <>
       <div className="inline-flex items-center gap-2 text-text-muted"><i className={iconClass} aria-hidden="true" /><span>{label}</span></div>
       <div className="mt-0.5 font-semibold">{row?.opponent.display_name ?? "—"}</div>
-      {row ? <div className="mt-0.5 text-text-muted">{row.wins}-{row.draws}-{row.losses} · {row.pts_per_match.toFixed(2)} ppm</div> : null}
+      {row ? (
+        <div className="mt-0.5 text-text-muted">
+          <span className="text-win">{row.wins}</span>-<span className="text-draw">{row.draws}</span>-<span className="text-loss">{row.losses}</span> ·{" "}
+          {row.pts_per_match.toFixed(2)} ppm
+        </div>
+      ) : null}
     </>
   );
   if (!row) return <div className="card-chip px-3 py-2">{body}</div>;

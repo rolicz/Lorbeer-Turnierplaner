@@ -28,7 +28,8 @@ function RivalCard({ iconClass, label, row, playerId }: {
       <div className="font-semibold mt-0.5">{row?.opponent.display_name ?? "—"}</div>
       {row ? (
         <div className="text-text-muted mt-0.5">
-          {row.wins}-{row.draws}-{row.losses} · {fmtPct(row.pts_per_match)} ppm
+          <span className="text-win">{row.wins}</span>-<span className="text-draw">{row.draws}</span>-<span className="text-loss">{row.losses}</span> ·{" "}
+          {fmtPct(row.pts_per_match)} ppm
         </div>
       ) : null}
     </>
@@ -128,7 +129,8 @@ export default function ProfileOverviewTab({
               <div key={tm.id} className="card-chip px-3 py-2">
                 <div className="truncate font-semibold">{tm.name}</div>
                 <div className="text-text-muted mt-0.5">
-                  {tm.w}-{tm.d}-{tm.l} · {fmtPct(tm.ppm)} ppm
+                  <span className="text-win">{tm.w}</span>-<span className="text-draw">{tm.d}</span>-<span className="text-loss">{tm.l}</span> ·{" "}
+                  {fmtPct(tm.ppm)} ppm
                 </div>
               </div>
             ))}
