@@ -1212,7 +1212,7 @@ build green; keyboard flow verified in Playwright.
 
 ---
 
-## DS1 — Design foundations: tokens, surface canon, primitives, dead CSS  ☐
+## DS1 — Design foundations: tokens, surface canon, primitives, dead CSS  ☑
 
 Everything later DS tasks build on. Follow `DESIGN.md` exactly.
 - Tokens: add `--color-win/draw/loss/live` to `themes/defaults.css` (+ `light.css` overrides,
@@ -1236,7 +1236,69 @@ Everything later DS tasks build on. Follow `DESIGN.md` exactly.
 `page.evaluate` is impractical; instead DS2 is the visual gate. Nothing user-visible changes
 in DS1 except deleted dead CSS.
 
-**Deviations:**
+**Deviations:** (implemented 2026-09-13, four commits: tokens, CSS canon + dead CSS,
+primitives + tests, docs)
+
+- Tokens are exactly `DESIGN.md` §2. `dark.css`, `red.css`, `green.css` and `blue.css` need
+  **no** override — measured against each theme's `--color-bg-card-chip`, the dark defaults
+  give win 6.1:1 (green theme, the worst case, where win-green sits next to the green accent),
+  draw 6.4:1 and loss 5.5:1 (red theme). Light: win 5.0:1, draw 5.1:1, loss 6.5:1 on white.
+  `--color-live` stays red-500 in light as specified — as *text* on white that is only 3.7:1,
+  so it must stay a dot/marker colour there (it is today); if DS5 ever wants live as small
+  text, light needs its own `--color-live`.
+- `.inset` is `bg-card-chip/50` + `border: 0` in dark and full `bg-card-chip` + a
+  `border-card-chip/35` hairline in light — the same pair `panel-subtle` used, so DS3's
+  migration is a pure rename.
+- `.text-micro` is plain CSS (`font-size: 10px; line-height: 1; font-weight: 600`) rather than
+  `@apply text-[10px]`, so it does not itself introduce the arbitrary-size syntax §5 bans.
+- Dead CSS: all 24 audit classes verified with `git grep -n "<class>" frontend` (0 hits outside
+  `styles.css`) and deleted — `nav-link`, `nav-link-active`, `nav-link-current`, `main-nav-row`,
+  `main-nav-indicator`, `surface-2`, `hairline-b`, `eyebrow`, `sheet-shell`, `card-subtle`
+  (+ light override), `pill-green`, `accent-text`, `symbol-margin-to-text`, `page-x-bleed`,
+  `no-scroll-anchor`, `page-slide-in-right/-left`, `subnav-click-blink`, `subnav-active-glow`,
+  `subnav-slide-in-right/-left`, `subnav-slide-out-left/-right` and the whole subnav morph
+  block (the four `--subnav-*` vars, 10 keyframes and 12 `[data-subnav-key]` selectors —
+  nothing renders that attribute any more), plus their `prefers-reduced-motion` entries.
+  `select-pill` was already gone (S7). `styles.css`: 764 → 495 lines.
+  Found dead but **not** deleted (not on the audit list, one-line duplicates of classes DS3
+  still has to migrate): `.accent` (0 uses; `.accent-text` was its twin) and `.text-subtle`
+  (2 uses, so not dead). DS3 should sweep both.
+- `ScoreLine` props: `size`, `leftNames`/`rightNames` (a node, or an array that stacks for
+  2v2), `leftGoals`/`rightGoals`, `state` (`MatchState`), `focus` (`"left" | "right"`),
+  `result` (`W`/`D`/`L`), `resultBadge`, `status`, `className`. `focus` is separate from
+  `result` because §8 colours *the focus side's* numeral — a result alone cannot say which
+  side it belongs to. The badge renders at the outer edge of the focus side (left when no
+  focus is given). Scheduled renders `–  |  –` at hero/md and `vs` at sm. Test hooks:
+  `data-score-line`, `data-score-numeral`, `data-score-result-badge`.
+- `Chip`/`ChipGroup`: `ChipGroup` keeps its exact old API (`value`/`onChange`/`options`/
+  `ariaLabel`, plus an optional `className`) and `pages/stats/charts.tsx` re-exports both, so
+  no stats call site changed. The S7 light-theme finding is fixed by giving an unselected chip
+  a `border-border-card-chip/40` hairline on top of `bg-bg-card-chip/50`; to keep both states
+  the same height the selected state's `ring-1 ring-inset ring-accent/40` became an equivalent
+  `border-accent/40`. **This is the one intended visual change in DS1**: chips grow 2 px
+  (32 → 34 px tall) and unselected chips are outlined instead of invisible on the light
+  theme's white popover.
+- `StatTile` (S6's file) now uses the real `inset` class instead of the `panel-subtle p-3`
+  stand-in; props, markup and `CupDetail` are untouched (dark alpha 0.65 → 0.5, light
+  identical — imperceptible in the before/after screenshots).
+- `Stars` takes StarsFA's props minus the already-deprecated `textZinc`, plus `size` (px,
+  default 14): lucide icons are SVGs and do not scale with the surrounding font the way the
+  FA glyphs did, so DS7's swap must pass a size where the text is larger than `text-sm`.
+  A half star is an outline `Star` with a filled `StarHalf` on top (lucide's `StarHalf` alone
+  has no right-hand edge).
+- Runtime no-regression evidence (isolated stack: backend :8003 on a copy of `app.db`, vite
+  :8020 for this branch and :8021 for a detached `45f1e22` worktree, removed afterwards):
+  8 routes × blue/light × 390/1280 px = 32 screenshot pairs, pixel-diffed. Dashboard,
+  `/live/19`, `/live/19?tab=matches`, `/tournaments`, `/friendlies` are **pixel-identical**
+  (0–66 px of the live-dot pulse animation, which also differs between two runs of the same
+  build). The only diffs are on the three pages with `ChipGroup`s (`/stats`, its Cups
+  sub-view, H2H: +2/+4/+6 px page height), and cropping them shows exactly the chip hairline
+  described above. Also: 0 console/page errors, 0 elements carrying any deleted class, and no
+  horizontal overflow anywhere. Baseline note for future runs — a worktree with a *symlinked*
+  `node_modules` needs `server.fs.allow`, otherwise Vite 403s the Font Awesome/flag-icons
+  font files and every icon renders as tofu (it silently invalidated the first diff run).
+- `npm run check` green before every commit (275 tests, +24 new); `npm run build` green with
+  the pre-existing "chunks larger than 500 kB" hint, as noted under every earlier task.
 
 ---
 

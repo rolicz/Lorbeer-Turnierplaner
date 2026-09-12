@@ -260,6 +260,11 @@ Other helpers: `seed --file backend/data/seed.json` (players/leagues/clubs upser
   `make gen-types` and commit `schema.d.ts` in the same commit; frontend touched →
   `npm run check` (+ `npm run build` for structural changes). UI must work at ~375px and ≥1024px;
   verify in a real browser (Playwright against an isolated stack on spare ports + DB copy).
+- **Follow `DESIGN.md`** for anything visual: it is the canon for surfaces (`card`/`inset`/
+  `chip`), semantic colour tokens (`text-win/draw/loss`, `text-live` — never raw palette
+  classes), the radius/spacing/type scale, section headers and which primitive to use
+  (`ScoreLine` for every score, `StatTile`, `Chip`/`ChipGroup`, `Button`, `Pill`, `List`).
+  When the code and `DESIGN.md` disagree, the code is wrong.
 - **Style:** match surrounding code; Tailwind + design tokens (no raw colors); compact-mobile
   idiom (`md:hidden` icon + `hidden md:inline` label, `text-xs`/`text-[11px]` for dense text);
   `qk` for every query key; generated types, no hand-written API mirrors; thin routers, logic in
@@ -305,6 +310,7 @@ Other helpers: `seed --file backend/data/seed.json` (players/leagues/clubs upser
 | What | Where |
 |---|---|
 | Canonical project knowledge (this) | `AGENTS.md` — update it when you learn something |
+| Visual language (surfaces, tokens, type, primitives) | `DESIGN.md` — the design canon, follow it for every UI change |
 | Tool entry points | `CLAUDE.md` (imports this file), `GEMINI.md` (points here) |
 | Human README / setup narrative | `README.md` |
 | Batch trackers (history + decisions) | `REFACTORING_PLAN.md`, `FEATURES_2026-07.md`, `FEATURES_2026-08.md` |
