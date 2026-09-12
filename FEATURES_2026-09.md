@@ -403,7 +403,7 @@ API errors.
 
 ---
 
-## U4 — Clickable match rows + shared matchup summary helper  ☐
+## U4 — Clickable match rows + shared matchup summary helper  ☑
 
 **a) Match rows navigate to the match page.** `frontend/src/pages/stats/MatchHistoryList.tsx`:
 - `MatchRowWithClubs` gains `href?: string | null`. When set, the row's main block (not the
@@ -434,7 +434,34 @@ Add `frontend/src/test/matchupSummary.test.ts` (perspective flip, 2v2 subset, ti
 **DoD:** `npm run check` green; profile "Matches" rows open the match page in the isolated
 stack; `MatchH2HPanel` output unchanged (compare a screenshot of `/live/19/match/<id>`).
 
-**Deviations:**
+**Deviations:** (implemented 2026-09-12, two commits: `feat(U4)` row links, `refactor(U4)` helpers)
+
+- `MatchHistoryList.tsx` now carries `/* eslint-disable react-refresh/only-export-components */`
+  at the top (the file exports `tournamentMatchHref` next to components) — the same pattern as
+  `ui/clubControls.tsx`, `ui/primitives/Pill.tsx`, `ui/primitives/ErrorToast.tsx`. Without it
+  `npm run check` prints a new eslint warning.
+- The linked block keeps the original markup: only the wrapper changes from
+  `<div className="min-w-0 flex-1">` to `<Link className="row-tap focus-ring block min-w-0 flex-1">`,
+  the row body is shared between both branches. Verified that the `MatchH2HPanel` DOM and a
+  full-page screenshot of `/live/19/match/105` are **byte-identical** to the pre-U4 baseline at
+  390px and 1280px (both after commit a and after commit b).
+- `matchupSummary.ts` exports two names beyond the list in the task: the `RecentMatch` type
+  (return type of `flattenRecentMatches`, previously private to `MatchH2HPanel`) and
+  `MatchResult` = `"W" | "D" | "L"` (the element type used by `resultsTimeline`/`currentRun`).
+- `resultsTimeline` mirrors `summarizeMatches` exactly and does **not** filter on match state:
+  `POST /stats/h2h-matches` only returns finished matches (`h2h_matches.py:152,163`).
+- Tests: `matchHistoryList.test.tsx` gained 3 cases (link present, friendly row unlinked, no
+  link without `matchHref`) — 7 in the file; new `matchupSummary.test.ts` has 10 cases
+  (perspective flip, "any opponent" mode, 2v2 subset + same-team exclusion, W-D-L/goals/ppm,
+  teammates summary, flatten order, timeline, current run, id/name helpers).
+- Runtime DoD verified with Playwright against the isolated stack (backend :8003 on a copy of
+  `app.db`, vite :8020): 25 checks green at 390px and 1280px — profile Matches rows are links
+  (`/live/19/match/106`), clicking opens the match page and the back chevron returns to
+  `/profiles/1?tab=matches` with the Matches tab selected; friendly blocks (6 blocks, 16 rows)
+  render no link; profile Overview recent matches, stats Player match history and the H2H duo
+  history modal (2v2 → Duos → a duo rivalry) all link out.
+- `npm run build` still prints the pre-existing "chunks larger than 500 kB" hint (630 kB
+  `index-*.js`); unrelated, as already noted under F1/F2/U1/U5.
 
 ---
 

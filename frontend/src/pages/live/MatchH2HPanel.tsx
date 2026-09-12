@@ -3,122 +3,19 @@ import { useQuery } from "@tanstack/react-query";
 
 import { getStatsH2HMatches } from "../../api/stats.api";
 import { qk } from "../../api/queryKeys";
-import type { Club, Match, MatchSide, StatsMatch, StatsPlayerMatchesTournament } from "../../api/types";
+import type { Club, Match } from "../../api/types";
 import { sideBy } from "../../helpers";
 import CardSection from "../../ui/primitives/CardSection";
 import InlineLoading from "../../ui/primitives/InlineLoading";
 import { MatchRowWithClubs } from "../stats/MatchHistoryList";
+import {
+  flattenRecentMatches,
+  playerIds,
+  playerNames,
+  summarizeMatches,
+  type Summary,
+} from "../stats/h2h/matchupSummary";
 import { fmtAvg, fmtDate } from "../../utils/format";
-
-type Summary = {
-  played: number;
-  wins: number;
-  draws: number;
-  losses: number;
-  gf: number;
-  ga: number;
-  ptsPerMatch: number;
-};
-
-type RecentMatch = {
-  key: string;
-  tournamentLabel: string;
-  tournamentDate: string | null;
-  match: StatsMatch;
-};
-
-function playerIds(side?: MatchSide): number[] {
-  return [...(side?.players ?? [])]
-    .map((p) => Number(p.id))
-    .filter((id) => Number.isFinite(id) && id > 0)
-    .sort((a, b) => a - b);
-}
-
-function playerNames(side?: MatchSide): string {
-  const names = (side?.players ?? []).map((p) => p.display_name).filter(Boolean);
-  if (!names.length) return "—";
-  return names.join(" / ");
-}
-
-function hasAllPlayers(side: MatchSide | undefined, ids: number[]) {
-  if (!side || !ids.length) return false;
-  const sideIds = new Set(
-    (side.players ?? [])
-      .map((p) => Number(p.id))
-      .filter((id) => Number.isFinite(id) && id > 0),
-  );
-  return ids.every((id) => sideIds.has(id));
-}
-
-function matchPerspective(match: StatsMatch, leftIds: number[], rightIds: number[] = []) {
-  const a = sideBy(match, "A");
-  const b = sideBy(match, "B");
-  if (!a || !b) return null;
-
-  if (rightIds.length) {
-    if (hasAllPlayers(a, leftIds) && hasAllPlayers(b, rightIds)) return { left: a, right: b };
-    if (hasAllPlayers(b, leftIds) && hasAllPlayers(a, rightIds)) return { left: b, right: a };
-    return null;
-  }
-
-  if (hasAllPlayers(a, leftIds)) return { left: a, right: b };
-  if (hasAllPlayers(b, leftIds)) return { left: b, right: a };
-  return null;
-}
-
-function summarizeMatches(
-  tournaments: StatsPlayerMatchesTournament[],
-  leftIds: number[],
-  rightIds: number[] = [],
-): Summary {
-  let played = 0;
-  let wins = 0;
-  let draws = 0;
-  let losses = 0;
-  let gf = 0;
-  let ga = 0;
-
-  for (const tournament of tournaments) {
-    for (const match of tournament.matches ?? []) {
-      const perspective = matchPerspective(match, leftIds, rightIds);
-      if (!perspective) continue;
-      const leftGoals = Number(perspective.left.goals ?? 0);
-      const rightGoals = Number(perspective.right.goals ?? 0);
-      played += 1;
-      gf += leftGoals;
-      ga += rightGoals;
-      if (leftGoals > rightGoals) wins += 1;
-      else if (leftGoals < rightGoals) losses += 1;
-      else draws += 1;
-    }
-  }
-
-  const pts = wins * 3 + draws;
-  return {
-    played,
-    wins,
-    draws,
-    losses,
-    gf,
-    ga,
-    ptsPerMatch: played > 0 ? pts / played : 0,
-  };
-}
-
-function flattenRecentMatches(tournaments: StatsPlayerMatchesTournament[]): RecentMatch[] {
-  const out: RecentMatch[] = [];
-  for (const tournament of tournaments) {
-    for (const match of tournament.matches ?? []) {
-      out.push({
-        key: `${tournament.id}-${match.id}`,
-        tournamentLabel: tournament.name,
-        tournamentDate: tournament.date ?? null,
-        match,
-      });
-    }
-  }
-  return out;
-}
 
 function SummaryCard({
   title,
