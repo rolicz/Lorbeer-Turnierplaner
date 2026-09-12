@@ -95,7 +95,16 @@ all read-only checks; editor/admin flows can be checked by code + tests.
 | 12 | S4 | Retire the Classic layout | frontend |
 | 13 | U6 | Per-destination last page memory (bottom bar / sidebar / drawer) | frontend |
 | 14 | T1 | Test-suite audit and gap filling | backend + frontend |
-| 15 | D1 | Documentation pass (README, frontend/README, AGENTS.md) | docs |
+| 15 | S6 | Cups page reorganised: reigns, streak lengths, records | frontend |
+| 16 | S7 | Filter pill v2: compact, icon-forward, popover | frontend |
+| 17 | DS1 | Design foundations: tokens, surface canon, ScoreLine/StatTile/Chip/Stars, dead CSS | frontend |
+| 18 | DS2 | Score display: one ScoreLine, hero panel redesign | frontend |
+| 19 | DS5 | Semantic colours replace raw palette classes | frontend |
+| 20 | DS7 | Lucide only: migrate 35 Font Awesome files, drop the dependency | frontend |
+| 21 | DS6 | Selection controls & buttons on the canon | frontend |
+| 22 | DS3 | Surface & radius migration, retire old classes | frontend |
+| 23 | DS4 | Typography & section headers on the scale | frontend |
+| 24 | D1 | Documentation pass (README, frontend/README, AGENTS.md, DESIGN.md) | docs |
 
 ---
 
@@ -994,6 +1003,275 @@ the dead URL. `npm run check` + `npm run build` green.
 
 ---
 
+## Design audit findings (Fable, 2026-09-12 — basis for S6/S7/DS1–DS7)
+
+Roli: "the app has no clear design idea but rather scattered styles for similar things"; the score
+field "looks super cheap"; the filter pill is "ugly". Audit of `styles.css` (780 lines),
+`themes/*.css`, all primitives and every page at 390/1280px in blue + light:
+
+- **Three generations of surface classes coexist** — "Cards and Panels" (`card-outer/inner/
+  inner-flat/chip`, `panel/panel-subtle/panel-inner/card-subtle`), "Sleek-minimal" (`surface`,
+  `surface-2`, `hairline`, `eyebrow`) and "Flat list-first" (`section-label`, `row`,
+  `list-divided`). 12 surface classes, `card-chip` used 122× — mostly as a *box* (score, stat
+  tile), not a chip. Radii: `rounded-full` 67, `xl` 41, `lg` 19, `2xl` 9, plus `sm/md/[2px]`;
+  nested radii mismatch (chip `lg` inside panel `xl` inside card `2xl`).
+- **Typography:** 111× `text-[11px]`, 15× `[10px]`, plus `[15px] [13px] [12px] [9px] [8px] [7px]`.
+  No scale.
+- **Raw palette colours bypass the themes:** `text-amber-300` ×14, `text-red-300` ×9,
+  `bg-red-500/15`, `bg-amber-500/15`, emerald/yellow one-offs across 14 files (W-D-L strings,
+  score result boxes). In the light theme these are light-on-light. No win/draw/loss tokens exist.
+- **Four different score renderings:** `MatchOverviewPanel` (boxed `0 : 0`, muted colon,
+  `border-y` rules, three pills `leg 1 · 1v1 · playing`, names pushed to the panel edges — on
+  desktop 900px apart), `MatchRowWithClubs` (green/red/amber tinted chip box), `MatchList`
+  (`card-chip` box, `text-base`/`text-lg`), `OverviewSection` mini. Empty clubs show five hollow
+  stars.
+- **Selection idioms:** `ChipGroup` (charts.tsx), `ToggleChip` (controls.tsx), `SegmentedSwitch`
+  (FA icon strings), `SectionTabs`, raw `icon-button`/`btn-base` classes, `FilterSelect`.
+- **Icons:** 35 files still use Font Awesome next to lucide.
+- **Dead CSS:** ≥ 20 unused classes (`subnav-*` morph animations, `nav-link*`, `main-nav-*`,
+  `eyebrow`, `surface-2`, `hairline-b`, `sheet-shell`, `page-slide-*`, `card-subtle`,
+  `pill-green`, `accent-text`, `symbol-margin-to-text`, `page-x-bleed`, `no-scroll-anchor`).
+- **Section headers:** `section-label` (11px uppercase) vs `Card` `h2` vs `CardSection` div vs
+  `card-outer + h2` (S3) — four ways.
+
+Decisions are written in `DESIGN.md` (canon). The DS tasks migrate the code to it, mechanically.
+
+---
+
+## S6 — Cups page reorganised: reigns, streak lengths, records  ☐
+
+**Why:** Roli: "not a big fan of the cups stats page… reorganise. also, streak lengths and
+longest cup streak should be visible."
+
+Data: `GET /cup?key=` (`api/cup.api.ts`) gives `owner`, `streak.tournaments_participated`
+(current reign incl. the winning tournament), `streak.since`, and `history[]` in chronological
+order, each `{tournament_id, tournament_name, date, from, to, streak_duration}` where
+`streak_duration` is the **outgoing** holder's reign length (tournaments held, incl. the win).
+No backend change needed.
+
+- New pure module `frontend/src/pages/stats/cupReigns.ts` (+ `test/cupReigns.test.ts`):
+  `buildReigns(cup: CupResponse): Reign[]` → `{ holder: PlayerRef, startTournamentId, startName,
+  startDate, endTournamentId|null, endDate|null, tournaments: number, current: boolean,
+  tookFrom: PlayerRef|null, lostTo: PlayerRef|null }` (past reign length = the *next* history
+  item's `streak_duration`; current reign = `streak.tournaments_participated`; days held =
+  end (or today) − start). `cupRecords(reigns)` → `{ longest: Reign|null, mostTitles:
+  {player, count}[], mostTournamentsHeld: {player, count}[], currentIsRecord: boolean }`.
+  `perPlayer(reigns)` → rows `{player, titles, tournamentsHeld, longestReign, daysHeld}`.
+- New `frontend/src/pages/stats/CupDetail.tsx` rendered by `CupsView.tsx` per cup (dashboard
+  `CupCard` stays for the dashboard):
+  1. **Holder card** (`card`): cup colour dot + name + era pill right; avatar + holder name +
+     `Holding since <date> · N tournaments · M defended` + a `Current reign` `StatTile`-style
+     number with `record` chip when it equals the longest reign.
+  2. **Records** row of three `StatTile`s: *Longest reign* (N tournaments · holder · from–to),
+     *Most titles* (player · count), *Most tournaments held* (player · count). Ties: list
+     names comma-separated.
+  3. **Reign timeline**: one horizontal bar (`h-3 rounded-full overflow-hidden`), segments
+     proportional to `tournaments`, coloured with `usePlayerColors().colorOf(holder.id)`,
+     current reign segment with a subtle pulse ring; legend below (avatar chips with the
+     player's colour dot); tap a segment → scroll to that reign in the list.
+  4. **Reigns list** (`list-divided`, newest first): each row: avatar, `Holder` (colour), `×N`
+     reign chip (tournaments held), `took it from X` / `claimed it`, `tournament · date`,
+     `ended by Y` when lost; `Link` to `/live/{startTournamentId}`. "Show all" after 8.
+  5. **Per player** table: Player · Titles · Tournaments held · Longest reign (sortable by
+     tapping headers, default tournaments held desc). Rows → `/stats?view=player&player=`.
+- Dashboard `CupCard`: add the `×N` reign chip to each history row (same helper), nothing else.
+- Follow `DESIGN.md` (surfaces `card`/`inset`, `StatTile` — if DS1 has not landed yet, create
+  `StatTile` in `ui/primitives/StatTile.tsx` exactly as §7 describes and DS1 will reuse it).
+
+**DoD:** `npm run check` + build green; 390px + 1280px screenshots of the Cups sub-view in
+blue and light; numbers cross-checked against the history text (e.g. "ended Roli's
+2-tournament reign" → Roli's reign row shows ×2).
+
+**Deviations:**
+
+---
+
+## S7 — Filter pill v2: compact, icon-forward, popover (no native selects)  ☐
+
+**Why:** Roli: "the pill for stats filtering is ugly af… make it smaller (icons?). you don't have
+to use native selectors but make sure it fits well to the rest of the app."
+
+Replace `StatsFilterPill.tsx` internals per `DESIGN.md` §9:
+- Capsule `h-9 rounded-full pl-2.5 pr-3` on `card`-style surface with `backdrop-blur-md
+  shadow-pop`; content: `SlidersHorizontal` 14px muted → mode token (`All`/`1v1`/`2v2`,
+  `text-xs font-semibold`) → hairline dot separator → source icon 14px (`Trophy` / `Layers` /
+  `Handshake`, with `sr-only` text). Whole capsule is one `button` (`aria-haspopup="dialog"`,
+  `aria-expanded`). Target width ≈ 100px.
+- Popover: rendered in a body portal (pattern: `ui/FilterSelect.tsx`), anchored above the pill
+  (`bottom = viewportHeight − pillTop + 8`, right-aligned), `card` surface `p-3 w-64
+  space-y-3`, two labelled `ChipGroup`s ("Mode": All/1v1/2v2 — label the overall option
+  "All" in the UI, the URL value stays `overall`; "Source": Tournaments/Both/Friendlies); only
+  the groups that apply to the section are shown. Selecting a chip updates the URL
+  immediately; the popover stays open until tap-outside/Escape/re-tap. Enter/Space open it;
+  focus moves into the popover; Escape returns focus to the pill. `framer-motion` fade/scale
+  in (app already uses it, see `ui/motion/motion.ts`).
+- Remove the `.select-pill` CSS and the native selects. Keep the S5 placement, z-index and
+  the `pb-16` on the stats root.
+- Update `test/statsFilterPill.test.tsx` (button label reflects values; opening shows the
+  groups; chip click calls the handler; hidden groups per config; Escape closes).
+
+**DoD:** 390px + 1280px screenshots in blue and light (closed and open); `npm run check` +
+build green; keyboard flow verified in Playwright.
+
+**Deviations:**
+
+---
+
+## DS1 — Design foundations: tokens, surface canon, primitives, dead CSS  ☐
+
+Everything later DS tasks build on. Follow `DESIGN.md` exactly.
+- Tokens: add `--color-win/draw/loss/live` to `themes/defaults.css` (+ `light.css` overrides,
+  and check `dark.css`, `red.css`, `green.css` inherit sensibly); map in `tailwind.config.cjs`
+  (`win`, `draw`, `loss`, `live` via the `cssVar` helper).
+- `styles.css`: add `.card`, `.inset`, `.chip`, `.text-micro` per `DESIGN.md` §3/§5 (keep the
+  old classes for now — DS3 migrates and deletes them); delete the dead classes listed in the
+  audit (verify each with `git grep` first); remove the `select-pill` block if S7 already did
+  not. Keep `pos-*`, `stepper*`, `input-*`, `select-field`, `focus-ring`, `no-scrollbar`,
+  `comment-attn`, `live-*`, `delta-*`, `pull-refresh-indicator`, `skeleton`.
+- New primitives: `ui/primitives/ScoreLine.tsx` (§8, all three sizes, `result`/`resultBadge`,
+  scheduled rendering, leader emphasis, 2v2 stacked names), `ui/primitives/StatTile.tsx`
+  (§7; reuse S6's if it exists), `ui/primitives/Chip.tsx` (move `ChipGroup` from
+  `pages/stats/charts.tsx` here + a single `Chip`; re-export from charts.tsx for now),
+  `ui/primitives/Stars.tsx` (lucide, same props as `StarsFA`). Tests: `scoreLine.test.tsx`
+  (numerals, scheduled dash, leader emphasis, result colouring, badge), `statTile.test.tsx`.
+- `AGENTS.md` §9 conventions: add "Follow `DESIGN.md`" and the §12 table row for it.
+
+**DoD:** `npm run check` + build green; a Storybook-style scratch page is NOT needed — verify
+`ScoreLine` visually by temporarily rendering it in the isolated stack via Playwright
+`page.evaluate` is impractical; instead DS2 is the visual gate. Nothing user-visible changes
+in DS1 except deleted dead CSS.
+
+**Deviations:**
+
+---
+
+## DS2 — Score display: one `ScoreLine`, hero panel redesign  ☐
+
+Roli's top complaint. Replace every score rendering with `ScoreLine` and rebuild the hero.
+- `ui/primitives/MatchOverviewPanel.tsx` → structure from `DESIGN.md` §8 (meta line + status
+  pill, `ScoreLine hero`, odds line, two side columns; no `border-y`; stars only with a club;
+  `surface` prop becomes `"card" | "inset" | "none"`). Callers: `CurrentMatchPreviewCard`
+  (dashboard → `card`), `OverviewSection`, `CurrentGameSection`, `MatchDetailPage` edit
+  preview, `FriendlyMatchCard` preview, `matchOverviewPanel.test.tsx` (update).
+- `pages/stats/MatchHistoryList.tsx` `MatchRowWithClubs` → `ScoreLine md` (compact) /
+  details layout unchanged below it; result via the focus side numeral colour; drop the tinted
+  chip box and raw palette classes.
+- `pages/live/MatchList.tsx` compact + details rows → `ScoreLine md`/`sm`; keep the status dot,
+  `#n`, leg, reorder/swap actions and odds.
+- `OverviewSection` "Next matches" and the standings mini table: `ScoreLine sm` where a score
+  is shown; `MatchH2HPanel` recent meetings, `h2h/MatchupView` list and `RecordsView` rows use
+  the same list row.
+- Dashboard: the current-match card gets `card` surface and the tournament name as its
+  `h2`; "Tap to open live tournament." becomes a trailing chevron row.
+
+**DoD:** Playwright at 390px + 1280px, blue + light: dashboard live card, `/live/<live>?tab=
+current|overview|matches` (compact + details), `/live/<id>/match/<mid>` (H2H + edit preview),
+`/friendlies`, `/profiles/1?tab=matches`, matchup, records — screenshot each; names hug the
+score; no boxed scores anywhere (`git grep "card-chip" pages/stats/MatchHistoryList.tsx
+pages/live/MatchList.tsx ui/primitives/MatchOverviewPanel.tsx` → 0). `npm run check` + build.
+
+**Deviations:**
+
+---
+
+## DS5 — Semantic colours: replace raw palette usages  ☐
+
+- `git grep -nE "(text|bg|border|ring)-(amber|red|emerald|green|yellow|zinc)-[0-9]+" frontend/src`
+  → every hit in components becomes a token class (`text-win/draw/loss`, `bg-win/15`, `text-live`,
+  `text-delta-up/down`, or a `status-*` token). W-D-L strings everywhere (`HeadToHeadRows`,
+  `H2HView`, `MatchupView`, `StandingsTable`, `PlayerProfile`, `RecordsView`, `StreaksView`,
+  `ProfileOverviewTab`, dashboard) use `text-win`/`text-draw`/`text-loss`.
+- Position buckets `pos-best…pos-worst`/`pos-winner` keep their hue logic but move to tokens or
+  to `--pos-*` variables with light overrides in one place (no raw palette in `styles.css`
+  either, except the `pos-tile` hsl formula).
+- `CupOwnerBadge`, `StreakPatches`, `TournamentLaurelMarkers`: colours through tokens/cup vars.
+
+**DoD:** the grep returns 0 hits under `frontend/src` (excluding `themes/`); light-theme
+screenshots of H2H, matchup, standings, profile overview show readable W/D/L; `npm run check`.
+
+**Deviations:**
+
+---
+
+## DS7 — Lucide only: migrate the 35 Font Awesome files, drop the dependency  ☐
+
+- Replace every `<i class="fa-…">` with the lucide equivalent (size 14/16/18 per context):
+  `fa-crown`→`Crown`, `fa-trophy`→`Trophy`, `fa-star*`→`Stars` primitive (DS1),
+  `fa-circle-notch fa-spin`→`Loader2 className="animate-spin"`, `fa-comment(s)`→
+  `MessageSquare`/`MessagesSquare`, `fa-futbol`→`Goal`, `fa-bullseye`→`Target`, `fa-bell`→`Bell`,
+  `fa-envelope`→`Mail`, `fa-xmark`→`X`, `fa-pen`→`Pencil`, `fa-trash`→`Trash2`, `fa-sign-in`→
+  `LogIn`, `fa-arrow-rotate-right`→`RotateCw`, `fa-face-smile`→`Smile`, `fa-heart-crack`→
+  `HeartCrack`, `fa-layer-group`→`Layers`, `fa-thumbs-up/down`→`ThumbsUp/Down`, `fa-image`→
+  `Image`, `fa-flag`→`Flag`, `fa-clock`→`Clock`, `fa-fire-flame-curved`→`Flame`, `fa-shield`→
+  `Shield`, `fa-lock`→`Lock`, `fa-dice`→`Dices`, `fa-hashtag`→`Hash`, `fa-handshake`→`Handshake`,
+  `fa-user*`→`User`/`Users`, `fa-check`→`Check`, `fa-chevron-*`→`Chevron*`, `fa-plus/minus`→
+  `Plus`/`Minus`, `fa-magnifying-glass`→`Search`, `fa-filter`→`Filter`, `fa-database`→
+  `Database`, `fa-list`→`List`, `fa-table-cells`→`Grid3x3`, `fa-object-group`→`Layers`.
+  Anything not in this list: pick the closest lucide icon and note it in Deviations.
+- `SegmentedSwitch` `icon?: string` → `icon?: ReactNode`; `AvatarButton`/`StatsAvatarSelector`
+  `fallbackIconClass` → `fallbackIcon?: ReactNode`.
+- Remove `import "@fortawesome/fontawesome-free/css/all.min.css"` from `main.tsx` and
+  `npm uninstall @fortawesome/fontawesome-free`; `AGENTS.md` §9/§10 updated.
+
+**DoD:** `git grep -n "fa-" frontend/src` → 0; `npm ls @fortawesome/fontawesome-free` → empty;
+`npm run check` + build; 390px screenshots of tournaments list (crowns), live comments (action
+icons), players page, profile header, clubs page (editor UI verified by reading code).
+
+**Deviations:**
+
+---
+
+## DS6 — Selection controls & buttons on the canon  ☐
+
+- `ToggleChip` (`pages/stats/controls.tsx`) → `Chip` from DS1; `ChipGroup` imports switch to
+  `ui/primitives/Chip.tsx`; delete the re-export in `charts.tsx` and `controls.tsx`'s copy.
+- `SegmentedSwitch`: track `rounded-xl` (not 2xl), segment `rounded-lg`→`rounded-[10px]` is NOT
+  allowed — use `rounded-lg` inside only via the primitive's own class (documented exception)
+  or make the indicator `rounded-xl` with `inset-y-0.5`; heights `h-8`; selected style identical
+  to `Chip` (accent/15 + ring).
+- Raw `icon-button`, `btn-base`, `btn-ghost`, `btn-solid` class usages in pages → `Button`
+  (`iconOnly` where applicable). Delete the classes only if `git grep` is 0 afterwards
+  (`Button` itself may keep using `btn-*` internally — that is fine).
+- `FilterSelect` stays (menus), restyled to `inset`/`card` surfaces.
+
+**DoD:** `git grep -nE "icon-button|btn-base|btn-ghost|btn-solid" frontend/src/pages frontend/src/ui --exclude Button.tsx` → 0; screenshots of live Current tab actions, comments composer, friendlies editor; `npm run check` + build.
+
+**Deviations:**
+
+---
+
+## DS3 — Surface & radius migration  ☐
+
+Mechanical, page by page (one commit per page group): `card-outer`→`card`; `card-inner`,
+`card-inner-flat`, `CardSection`, `panel*`, `card-subtle`, `surface` (as a box)→`inset`;
+`card-chip` as a box→`inset`, as a tag→`chip`; `rounded-lg`/`rounded-sm`/`rounded-md` (except
+positions tiles)→per §4; nested card-in-card flattened to `card` + `inset` or to a flat
+`section-label` block. `Card`/`CardSection` primitives updated to emit the new classes;
+`Modal` uses `card`. At the end delete the retired classes from `styles.css` (grep 0).
+
+**DoD:** `git grep -nE "card-outer|card-inner|card-inner-flat|card-subtle|panel-subtle|panel-inner|\bpanel\b|surface-2|\bsurface\b" frontend/src` → 0 (except the class definitions being deleted in the same commit); all pages screenshotted at 390px in blue + light with no visual regressions beyond the intended flattening; `npm run check` + build.
+
+**Deviations:**
+
+---
+
+## DS4 — Typography & section headers on the scale  ☐
+
+- Replace every `text-[Npx]`: `[11px]`/`[12px]`/`[13px]`→`text-xs` or `text-sm` by context,
+  `[15px]`→`text-base`, `[10px]`/`[9px]`/`[8px]`/`[7px]`→`text-micro` (badges) or `text-xs`;
+  `section-label` becomes `text-xs`. `Meta` primitive loses the `"11"` size.
+- Section headers: every block uses exactly one of the two canon patterns (§6); `PlayerProfile`,
+  `MatchupView`, `CupDetail`, `RecordsView`, `StreaksView`, profile sections audited.
+- Stat tiles everywhere (`PlayerProfile` key numbers, `ProfileStatsSection`, `MatchupView`,
+  `CupDetail`, `RecordsView` numbers) → `StatTile`.
+
+**DoD:** `git grep -nE "text-\[[0-9]+px\]" frontend/src` → 0; screenshots of stats Player,
+matchup, profile Stats, records, cups at 390px; `npm run check` + build.
+
+**Deviations:**
+
+---
+
 ## T1 — Test-suite audit and gap filling  ☑
 
 **Backend** (`backend/tests/`, use `conftest.py` helpers). Routes with no test today
@@ -1077,7 +1355,7 @@ Route coverage (plan heuristic, re-measured): **8 of 95 uncovered → 0 of 95**.
 
 ---
 
-## D1 — Documentation pass  ☐
+## D1 — Documentation pass (runs LAST, after DS4)  ☐
 
 - `README.md`: remove the "Tournament status" section with `PATCH /tournaments/{id}/status`
   (no such endpoint; status is derived from match states — say so in one sentence); make
@@ -1097,6 +1375,7 @@ Route coverage (plan heuristic, re-measured): **8 of 95 uncovered → 0 of 95**.
   §11 current state (this batch on `feature/2026-09-batch`, not deployed; deploy notes:
   frontend image rebuild, no DB change, no manual server step); bump the "Last full
   review" date.
+- `DESIGN.md`: re-check every statement against the migrated code; `AGENTS.md` §12 lists it.
 - Tick every task box above that is done and fill in the Verification section below.
 
 **Deviations:**
