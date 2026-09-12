@@ -293,22 +293,6 @@
     border-color: rgb(var(--color-accent));
     box-shadow: 0 0 0 3px rgb(var(--color-accent) / 0.18);
   }
-  /* Segment variant of .select-field: a borderless, transparent native <select>
-     that reads as one segment of a pill (see pages/stats/StatsFilterPill.tsx).
-     The right padding leaves room for the chevron drawn next to it. */
-  .select-pill {
-    @apply cursor-pointer appearance-none rounded-full border-0 bg-transparent py-1 pl-2 pr-5 text-sm font-medium leading-5 outline-none;
-    color: rgb(var(--color-text-normal));
-  }
-  .select-pill:focus-visible {
-    box-shadow: 0 0 0 2px rgb(var(--color-accent) / 0.45);
-  }
-  /* The dropdown list is painted by the OS and would inherit the transparent
-     background, so give the options explicit surface colors. */
-  .select-pill option {
-    color: rgb(var(--color-text-normal));
-    background-color: rgb(var(--color-bg-card-outer));
-  }
   input[type="range"] {
     accent-color: rgb(var(--color-accent));
   }

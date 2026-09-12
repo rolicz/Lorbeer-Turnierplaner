@@ -1140,7 +1140,7 @@ dashboard chip)
 
 ---
 
-## S7 — Filter pill v2: compact, icon-forward, popover (no native selects)  ☐
+## S7 — Filter pill v2: compact, icon-forward, popover (no native selects)  ☑
 
 **Why:** Roli: "the pill for stats filtering is ugly af… make it smaller (icons?). you don't have
 to use native selectors but make sure it fits well to the rest of the app."
@@ -1167,7 +1167,48 @@ Replace `StatsFilterPill.tsx` internals per `DESIGN.md` §9:
 **DoD:** 390px + 1280px screenshots in blue and light (closed and open); `npm run check` +
 build green; keyboard flow verified in Playwright.
 
-**Deviations:**
+**Deviations:** (implemented 2026-09-13)
+
+- The capsule's accessible name is one `aria-label` on the button (`"Mode: All, Source:
+  Tournaments"`, only the parts that apply) instead of per-token `sr-only` spans: inside a
+  single button the name computation concatenates sr-only text without separators
+  (`"Mode:AllSource: Tournaments"`), which is neither readable nor testable. The sliders glyph,
+  the separator dot and the source icon are `aria-hidden`; the visible mode token stays.
+- Animation is the entry only, as the task words it ("fade/scale **in**"): local `popUp`
+  variants built on `ease.out` from `ui/motion/motion.ts` (`y 6 → 0`, `scale 0.96 → 1`,
+  `transformOrigin: bottom right`, 160 ms) instead of the shared `popover` variant, which drops
+  in from above and reads wrong for a popover that opens upwards. No `AnimatePresence`: closing
+  unmounts immediately, so tap-outside/Escape/re-tap need no timers in tests.
+- Popover surface = `card-outer w-64 space-y-3 shadow-pop backdrop-blur-md` and the capsule
+  keeps the S5 classes (`bg-bg-card-outer/85 border-border-card-chip/60 backdrop-blur-md
+  shadow-pop`) — `.card` does not exist yet; DS1/DS3 migrate both mechanically.
+- `place()` (the `getBoundingClientRect` anchor) runs in the pill's click handler *before*
+  `setOpen(true)` so the portal mounts in the same commit and the focus effect finds it in the
+  DOM; it keeps the previous `DOMRect` object when nothing moved, so re-anchoring on
+  scroll/resize doesn't re-render the popover. Anchoring is
+  `bottom = innerHeight − pillTop + 8`, `right = innerWidth − pillRight` (right edges flush).
+- `.select-pill` (3 rules + comments in `styles.css`) is deleted with the native selects.
+  `StatsInsights` is untouched: same props, same render site, same `pb-16`, same `z-40`.
+- `test/statsFilterPill.test.tsx` rewritten to 12 cases (closed-pill label incl. "All" for
+  `overall`, opens on tap, both groups with the current chips pressed, focus moves to the
+  selected chip, mode/source handlers + popover stays open, Escape closes and returns focus,
+  outside click and re-tap close, per-config hidden groups, nothing rendered for Cups).
+- Measured closed pill: **95×36 px** with both filters, **61×36 px** on Positions (mode only) —
+  S5's was ~210×36. Target was ≈100×36.
+- Runtime DoD verified with Playwright against the isolated stack (backend :8003 on a copy of
+  `app.db`, vite :8020): **180 checks green**, the full matrix `blue`/`light` × 390px/1280px —
+  closed size/right gutter (16px mobile, 24px desktop), `position: fixed; z-index: 40`, no
+  `<select>` left, popover 8px above the pill with right edges flush and inside the viewport,
+  focus into the popover and back to the pill on Escape, Enter/Space open, chip taps writing
+  `mode=1v1` / `source=friendlies` while the popover stays open, Mode-only on Positions (pill
+  and popover), no pill on Cups, both filters on Trends/H2H/Player/Streaks/Records, and the
+  pill still fully visible after scrolling Positions to the bottom.
+- **Finding for DS1/DS6 (not fixed here):** in the `light` theme the unselected `ChipGroup`
+  chips (`bg-bg-card-chip/50`) are nearly invisible on the white `card-outer` popover — they
+  read fine on the page background everywhere else. `ChipGroup` is shared (and moves to a
+  primitive in DS1), so its surface is out of S7's scope.
+- `npm run build` still prints the pre-existing "chunks larger than 500 kB" hint (633 kB
+  `index-*.js`); unrelated, as already noted under F1/F2/U1/U4/U5/S1/S5.
 
 ---
 
