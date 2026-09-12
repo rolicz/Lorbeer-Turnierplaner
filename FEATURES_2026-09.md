@@ -86,13 +86,14 @@ all read-only checks; editor/admin flows can be checked by code + tests.
 | 3 | U1 | Shell consistency: tab overflow, `useTabParam`, 404, login redirect, profile header | frontend |
 | 4 | U2 | Mobile bottom tab bar | frontend |
 | 5 | U3 | Guestbook notification deep link | backend + frontend |
-| 6 | U4 | Clickable match rows + shared matchup summary helper | frontend |
-| 7 | S1 | Stats IA: four sections, sub-views, filters, shared player, legacy URL mapping | frontend |
-| 8 | S2 | Matchup view + all entry points | frontend |
-| 9 | S3 | Player section completion + Elo/positions explainers | frontend |
-| 10 | S4 | Retire the Classic layout | frontend |
-| 11 | T1 | Test-suite audit and gap filling | backend + frontend |
-| 12 | D1 | Documentation pass (README, frontend/README, AGENTS.md) | docs |
+| 6 | U5 | Mount the error toast viewport (bug found during U2) | frontend |
+| 7 | U4 | Clickable match rows + shared matchup summary helper | frontend |
+| 8 | S1 | Stats IA: four sections, sub-views, filters, shared player, legacy URL mapping | frontend |
+| 9 | S2 | Matchup view + all entry points | frontend |
+| 10 | S3 | Player section completion + Elo/positions explainers | frontend |
+| 11 | S4 | Retire the Classic layout | frontend |
+| 12 | T1 | Test-suite audit and gap filling | backend + frontend |
+| 13 | D1 | Documentation pass (README, frontend/README, AGENTS.md) | docs |
 
 ---
 
@@ -337,6 +338,32 @@ the bell's guestbook item lands on the Overview tab.
 
 **DoD:** `make test` green; manual: open `/profiles/1?tab=guestbook&entry=<existing id>` in
 the isolated stack → guestbook tab, entry scrolled into view and flashed, URL cleaned.
+
+**Deviations:**
+
+---
+
+## U5 — Mount the error toast viewport (found during U2)  ☐
+
+**Bug:** `frontend/src/ui/primitives/ErrorToast.tsx` exports `ErrorToastViewport`, and
+~40 call sites use `showErrorToast` / `ErrorToastOnError` (profile, guestbook, comments,
+friendlies, players admin, the central 401 "session expired" handler …), but **nothing
+mounts the viewport**, so every error toast is dispatched into the void. Users never see
+API errors.
+
+- Mount `<ErrorToastViewport />` once in `frontend/src/ui/shell/AppShell.tsx` (inside
+  `ShellInner`, after `<main>`/`<BottomTabBar />`, so it renders on every route including
+  `/login`).
+- Confirm the U2 offset works for real: at 390px a toast sits above the bottom tab bar
+  (`bottom` ≈ 4.5rem + safe area), at ≥1024px at `bottom-4`. Trigger one in the isolated
+  stack by e.g. calling `showErrorToast("Test")` via `page.evaluate` after importing —
+  simplest: temporarily dispatch the `app:error-toast` CustomEvent from Playwright with a
+  payload `{ id: 1, title: "Test", message: "Hello", level: "error" }` and screenshot.
+- Add `frontend/src/test/errorToast.test.tsx`: render `ErrorToastViewport`, call
+  `showErrorToast("boom", "Oops")`, assert the text appears; a second identical call
+  within the dedupe window does not add a second toast.
+
+**DoD:** toast visible on mobile and desktop in the isolated stack; `npm run check` green.
 
 **Deviations:**
 
