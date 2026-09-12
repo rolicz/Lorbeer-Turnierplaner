@@ -5,6 +5,7 @@ import { LayoutGrid, LineChart, Swords, UserRound } from "lucide-react";
 import { useAuth } from "../../auth/AuthContext";
 import { SectionTabs, type SectionTab } from "../../ui/SectionTabs";
 import { ChipGroup } from "./charts";
+import StatsFilters from "./StatsFilters";
 import type { StatsScope } from "../../api/types";
 import type { StatsMode } from "./StatsControls";
 import { useStandings } from "./standings";
@@ -33,6 +34,18 @@ const SECTIONS: SectionTab<StatsView>[] = [
   { key: "h2h", label: "H2H", icon: <Swords size={14} /> },
   { key: "player", label: "Player", icon: <UserRound size={14} /> },
 ];
+
+/** Which global filters each section (Overview: each sub-view) actually uses. */
+const FILTERS: Record<string, { mode: boolean; scope: boolean }> = {
+  "overview:table": { mode: true, scope: true },
+  "overview:positions": { mode: true, scope: false },
+  "overview:streaks": { mode: true, scope: true },
+  "overview:records": { mode: true, scope: true },
+  "overview:cups": { mode: false, scope: false },
+  trends: { mode: true, scope: true },
+  h2h: { mode: true, scope: true },
+  player: { mode: true, scope: true },
+};
 
 const SUB_LABELS: Record<StatsSub, string> = {
   table: "Table",
@@ -86,6 +99,8 @@ export default function StatsInsights({
   // Default selected player: the passed-in playerId, then self (if in the roster), then first row.
   const selfInRows = myId != null && rows.some((r) => r.id === myId);
   const selectedId = playerId !== "" ? playerId : selfInRows ? myId : (rows[0]?.id ?? null);
+  const filters = FILTERS[view === "overview" ? `overview:${activeSub}` : view] ?? { mode: true, scope: true };
+
   // Jump to the Player section for a row tap: one URL write, so the player is not
   // overwritten by a second navigation in the same tick.
   const goPlayer = (id: number) => {
@@ -96,19 +111,15 @@ export default function StatsInsights({
 
   return (
     <div className="space-y-3">
-      {/* Slim global filters */}
-      <div className="flex flex-wrap items-center gap-x-5 gap-y-2 px-0.5">
-        <div className="flex items-center gap-2">
-          <span className="text-[11px] font-semibold uppercase tracking-wide text-text-muted">Mode</span>
-          <ChipGroup<StatsMode> value={mode} onChange={onModeChange} ariaLabel="Mode"
-            options={[{ key: "overall", label: "Overall" }, { key: "1v1", label: "1v1" }, { key: "2v2", label: "2v2" }]} />
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="text-[11px] font-semibold uppercase tracking-wide text-text-muted">Source</span>
-          <ChipGroup<StatsScope> value={scope} onChange={onScopeChange} ariaLabel="Source"
-            options={[{ key: "tournaments", label: "Tournaments" }, { key: "both", label: "Both" }, { key: "friendlies", label: "Friendlies" }]} />
-        </div>
-      </div>
+      {/* Slim global filters — only the ones the active section uses. */}
+      <StatsFilters
+        mode={mode}
+        scope={scope}
+        onModeChange={onModeChange}
+        onScopeChange={onScopeChange}
+        showMode={filters.mode}
+        showScope={filters.scope}
+      />
 
       <SectionTabs tabs={SECTIONS} active={view} onChange={setView} />
 
