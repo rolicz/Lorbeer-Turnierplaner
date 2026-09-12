@@ -6,8 +6,6 @@ import { Check, Eye, LogIn, LogOut, UserCog } from "lucide-react";
 import { useAuth } from "../auth/AuthContext";
 import { useTheme } from "../ui/layout/ThemeContext";
 import { usePageTitle } from "../ui/layout/PageTitleContext";
-import { useStatsExperience, setStatsExperience } from "../ui/layout/useStatsMode";
-import SegmentedSwitch from "../ui/primitives/SegmentedSwitch";
 import { SectionTabs, type SectionTab } from "../ui/SectionTabs";
 import { UserCircle2, Bell, Palette } from "lucide-react";
 import { qk } from "../api/queryKeys";
@@ -79,7 +77,6 @@ export default function SettingsPage() {
     playerId != null && actorPlayerId != null && Number(playerId) !== Number(actorPlayerId);
 
   usePageTitle("Settings");
-  const statsExperience = useStatsExperience();
 
   const [tab, setTab] = useTabParam<SettingsTab>(SETTINGS_TAB_KEYS, "account");
   const settingsTabs: SectionTab<SettingsTab>[] = [
@@ -231,31 +228,6 @@ export default function SettingsPage() {
                 </button>
               );
             })}
-          </div>
-        </SettingsSection>
-        ) : null}
-
-        {tab === "appearance" ? (
-        /* Stats layout */
-        <SettingsSection title="Stats layout">
-          <div className="flex items-center justify-between gap-3">
-            <div className="min-w-0">
-              <div className="text-sm font-medium text-text-normal">Stats layout</div>
-              <div className="text-xs text-text-muted">
-                The new dashboard (standings + graphs + player profiles, with a
-                Simple/Detailed toggle) is the default; switch to the classic 7-section
-                view if you prefer it.
-              </div>
-            </div>
-            <SegmentedSwitch<"classic" | "insights">
-              value={statsExperience}
-              onChange={(v) => setStatsExperience(v)}
-              options={[
-                { key: "insights", label: "New" },
-                { key: "classic", label: "Classic" },
-              ]}
-              ariaLabel="Stats layout"
-            />
           </div>
         </SettingsSection>
         ) : null}
