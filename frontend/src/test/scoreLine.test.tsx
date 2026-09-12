@@ -134,8 +134,8 @@ describe("ScoreLine", () => {
     expect(container.querySelector("[data-score-result-badge]")).toBeNull();
   });
 
-  it("puts the result badge at the outer edge of the focus side", () => {
-    const { container } = render(
+  it("puts the result badge on the focus side's outer edge, next to its names", () => {
+    const { container, getByText } = render(
       <ScoreLine
         size="sm"
         leftNames="Flo"
@@ -152,10 +152,13 @@ describe("ScoreLine", () => {
     expect(badge).toHaveTextContent("W");
     expect(badge.className).toContain("text-micro");
     expect(badge.className).toContain("text-win");
-    // Last child of the row = the right (outer) edge.
-    const row = container.querySelector('[data-score-line="sm"] > div');
-    expect(row?.lastElementChild).toBe(badge);
+    // The badge travels with the focus side's names (right side → after them), so it
+    // stays next to the score at any row width instead of drifting to the page edge.
+    const cell = getByText("Atzi").parentElement?.parentElement;
+    expect(cell).toContainElement(badge);
+    expect(cell?.lastElementChild).toBe(badge);
   });
+
 
   it("stacks both names of a 2v2 side", () => {
     const { getByText } = render(

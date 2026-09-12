@@ -4,6 +4,7 @@ import type { Club, Match, TournamentMode } from "../../api/types";
 import { sideBy } from "../../helpers";
 import { pickPreviewMatch, teamName } from "../../utils/matchDisplay";
 import MatchOverviewPanel from "../../ui/primitives/MatchOverviewPanel";
+import ScoreLine from "../../ui/primitives/ScoreLine";
 import { computeFinishedStandings, type PlayerLite } from "./tournamentStandings";
 
 /**
@@ -121,12 +122,15 @@ export default function OverviewSection({
             aria-label="Open matches"
           >
             {nextMatches.map((m) => (
-              <div key={m.id} className="flex items-center gap-2 px-1.5 py-1 text-xs">
-                <span className="w-6 shrink-0 text-text-muted">#{m.order_index + 1}</span>
-                <span className="min-w-0 flex-1 truncate text-text-normal">
-                  {teamName(sideBy(m, "A"))} <span className="text-text-muted">vs</span>{" "}
-                  {teamName(sideBy(m, "B"))}
-                </span>
+              <div key={m.id} className="flex items-center gap-2 px-1.5 py-1">
+                <span className="w-6 shrink-0 text-xs text-text-muted">#{m.order_index + 1}</span>
+                <ScoreLine
+                  size="sm"
+                  state="scheduled"
+                  className="min-w-0 flex-1"
+                  leftNames={teamName(sideBy(m, "A"))}
+                  rightNames={teamName(sideBy(m, "B"))}
+                />
               </div>
             ))}
           </button>

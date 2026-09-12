@@ -343,7 +343,6 @@ export default function FriendlyMatchesListCard({
             tournaments={tournaments}
             clubs={clubsQ.data ?? []}
             showMeta={showMeta}
-            nameColorByResult
             hideModePill
             renderMatchActions={(_t, m) => {
               if (!canDelete && !canEdit) return null;

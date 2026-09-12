@@ -11,38 +11,18 @@
  * No colon, no box around the score, no `border-y` rules, and stars only for a
  * side that actually has a club.
  */
-import type { ReactNode } from "react";
-
 import type { Club, Match, MatchSide, TournamentMode } from "../../api/types";
 import { sideBy } from "../../helpers";
 import { cn } from "../cn";
-import ClubBadge from "../ClubBadge";
-import NationFlag from "../NationFlag";
-import { clubLabelPartsById } from "../clubControls";
+import MatchSides from "./MatchSides";
 import { Pill, statusMatchPill } from "./Pill";
 import ScoreLine from "./ScoreLine";
-import { StarsFA } from "./StarsFA";
 import { fmtOdd } from "../../utils/format";
 
 function namesStack(side?: MatchSide): string[] {
   const ps = side?.players ?? [];
   if (!ps.length) return ["—"];
   return ps.map((p) => p.display_name);
-}
-
-/** One meta row under the score: both sides hug the centre gap, like the names above. */
-function SideRow({ left, right, className }: { left: ReactNode; right: ReactNode; className?: string }) {
-  return (
-    <div className={cn("grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3", className)}>
-      <div className="flex min-w-0 items-center justify-end gap-1.5 text-right">{left}</div>
-      <div />
-      <div className="flex min-w-0 items-center gap-1.5 text-left">{right}</div>
-    </div>
-  );
-}
-
-function Wrapped({ children }: { children: ReactNode }) {
-  return <span className="min-w-0 whitespace-normal break-words leading-tight md:truncate">{children}</span>;
 }
 
 export default function MatchOverviewPanel({
@@ -71,14 +51,6 @@ export default function MatchOverviewPanel({
 }) {
   const a = sideBy(match, "A");
   const b = sideBy(match, "B");
-
-  const aClubParts = clubLabelPartsById(clubs, a?.club_id);
-  const bClubParts = clubLabelPartsById(clubs, b?.club_id);
-
-  // "No club" (and unresolved ids) render no symbol, no league and no stars —
-  // only real clubs get the full column.
-  const aHasClub = clubs.some((c) => c.id === a?.club_id);
-  const bHasClub = clubs.some((c) => c.id === b?.club_id);
 
   const odds = match.odds ?? null;
   const showOddsLine =
@@ -110,67 +82,7 @@ export default function MatchOverviewPanel({
         </div>
       ) : null}
 
-      <SideRow
-        className="mt-3 text-sm text-text-normal"
-        left={
-          aHasClub ? (
-            <>
-              <Wrapped>{aClubParts.name}</Wrapped>
-              <ClubBadge
-                name={aClubParts.name}
-                nation={aClubParts.national_nation}
-                clubId={aClubParts.id}
-                crestVersion={aClubParts.crest_updated_at}
-                size="md"
-              />
-            </>
-          ) : (
-            <span className="text-text-muted">{aClubParts.name}</span>
-          )
-        }
-        right={
-          bHasClub ? (
-            <>
-              <ClubBadge
-                name={bClubParts.name}
-                nation={bClubParts.national_nation}
-                clubId={bClubParts.id}
-                crestVersion={bClubParts.crest_updated_at}
-                size="md"
-              />
-              <Wrapped>{bClubParts.name}</Wrapped>
-            </>
-          ) : (
-            <span className="text-text-muted">{bClubParts.name}</span>
-          )
-        }
-      />
-
-      <SideRow
-        className="mt-0.5 text-xs text-text-muted"
-        left={
-          aHasClub ? (
-            <>
-              <Wrapped>{aClubParts.league_name}</Wrapped>
-              <NationFlag nation={aClubParts.league_nation} />
-            </>
-          ) : null
-        }
-        right={
-          bHasClub ? (
-            <>
-              <NationFlag nation={bClubParts.league_nation} />
-              <Wrapped>{bClubParts.league_name}</Wrapped>
-            </>
-          ) : null
-        }
-      />
-
-      <SideRow
-        className="mt-1 text-xs text-text-muted"
-        left={aHasClub ? <StarsFA rating={aClubParts.rating ?? 0} textClassName="text-text-muted" /> : null}
-        right={bHasClub ? <StarsFA rating={bClubParts.rating ?? 0} textClassName="text-text-muted" /> : null}
-      />
+      <MatchSides className="mt-3" size="hero" clubs={clubs} aClubId={a?.club_id} bClubId={b?.club_id} />
     </div>
   );
 }

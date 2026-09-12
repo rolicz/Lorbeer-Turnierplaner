@@ -54,13 +54,16 @@ function Names({
   size,
   align,
   emphasis,
+  badge,
 }: {
   lines: ReactNode[];
   size: ScoreLineSize;
   align: "left" | "right";
   emphasis: string;
+  /** Result badge for this side — it sits on the side's outer edge, next to the names. */
+  badge?: ReactNode;
 }) {
-  return (
+  const block = (
     <div className={cn("min-w-0", align === "right" ? "text-right" : "text-left")}>
       {lines.map((n, i) => (
         <div
@@ -74,6 +77,15 @@ function Names({
           {n}
         </div>
       ))}
+    </div>
+  );
+
+  if (!badge) return block;
+  return (
+    <div className={cn("flex min-w-0 items-center gap-2", align === "right" ? "justify-end" : "justify-start")}>
+      {align === "right" ? badge : null}
+      {block}
+      {align === "left" ? badge : null}
     </div>
   );
 }
@@ -141,40 +153,49 @@ export default function ScoreLine({
     result && focus === side ? RESULT_TEXT[result] : "text-text-normal";
 
   const badge = resultBadge && result ? <ResultBadge result={result} /> : null;
-  // The badge sits at the outer edge of the side it describes (left by default).
+  // The badge belongs to the side it describes (left by default) and travels with that
+  // side's names, so it stays next to them at any row width.
   const badgeSide: ScoreSide = focus ?? "left";
 
   return (
     <div data-score-line={size} className={cn("w-full", className)}>
-      <div className="flex items-center gap-2">
-        {badge && badgeSide === "left" ? badge : null}
-        <div className="grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3">
-          <Names lines={toLines(leftNames)} size={size} align="right" emphasis={emphasis("left")} />
+      <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3">
+        <Names
+          lines={toLines(leftNames)}
+          size={size}
+          align="right"
+          emphasis={emphasis("left")}
+          badge={badgeSide === "left" ? badge : null}
+        />
 
-          <div
-            className={cn(
-              "flex items-center justify-center gap-2 justify-self-center font-bold tabular-nums",
-              NUMERAL_CLASS[size],
-            )}
-          >
-            {scheduled && size === "sm" ? (
-              <span className="text-sm font-medium text-text-muted">vs</span>
-            ) : (
-              <>
-                <span data-score-numeral="left" className={scheduled ? "text-text-muted" : numeralColor("left")}>
-                  {scheduled ? "–" : a}
-                </span>
-                <span aria-hidden="true" className="h-[0.75em] w-px bg-border-card-chip/70" />
-                <span data-score-numeral="right" className={scheduled ? "text-text-muted" : numeralColor("right")}>
-                  {scheduled ? "–" : b}
-                </span>
-              </>
-            )}
-          </div>
-
-          <Names lines={toLines(rightNames)} size={size} align="left" emphasis={emphasis("right")} />
+        <div
+          className={cn(
+            "flex items-center justify-center gap-2 justify-self-center font-bold tabular-nums",
+            NUMERAL_CLASS[size],
+          )}
+        >
+          {scheduled && size === "sm" ? (
+            <span className="text-sm font-medium text-text-muted">vs</span>
+          ) : (
+            <>
+              <span data-score-numeral="left" className={scheduled ? "text-text-muted" : numeralColor("left")}>
+                {scheduled ? "–" : a}
+              </span>
+              <span aria-hidden="true" className="h-[0.75em] w-px bg-border-card-chip/70" />
+              <span data-score-numeral="right" className={scheduled ? "text-text-muted" : numeralColor("right")}>
+                {scheduled ? "–" : b}
+              </span>
+            </>
+          )}
         </div>
-        {badge && badgeSide === "right" ? badge : null}
+
+        <Names
+          lines={toLines(rightNames)}
+          size={size}
+          align="left"
+          emphasis={emphasis("right")}
+          badge={badgeSide === "right" ? badge : null}
+        />
       </div>
 
       {size === "hero" && status ? (

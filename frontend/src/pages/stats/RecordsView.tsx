@@ -4,6 +4,7 @@ import { Link } from "react-router-dom";
 import { keepPreviousData, useQueries, useQuery } from "@tanstack/react-query";
 
 import InlineLoading from "../../ui/primitives/InlineLoading";
+import ScoreLine from "../../ui/primitives/ScoreLine";
 import { getStatsPlayerMatches, getStatsPlayers, getStatsStreaks } from "../../api/stats.api";
 import { qk } from "../../api/queryKeys";
 import { teamName } from "../../utils/matchDisplay";
@@ -34,13 +35,10 @@ function RecordGroup({ icon, label, matches }: { icon: string; label: string; ma
             key={m.id}
             to={`/live/${m.tId}?match=${m.id}`}
             title={`${m.tName} — open tournament`}
-            className="flex items-center justify-between gap-3 rounded-lg px-1.5 py-1 -mx-1.5 no-underline transition hover:bg-hover-default/30"
+            className="block rounded-lg px-1.5 py-1 -mx-1.5 no-underline transition hover:bg-hover-default/30"
           >
-            <div className="min-w-0">
-              <div className="truncate text-sm font-medium text-text-normal">{m.a} <span className="text-text-muted">vs</span> {m.b}</div>
-              <div className="text-[11px] text-text-muted">{m.tName} · {fmtShortDate(m.date)}</div>
-            </div>
-            <div className="shrink-0 font-mono text-base font-bold tabular-nums text-accent">{m.ag}:{m.bg}</div>
+            <ScoreLine size="sm" leftNames={m.a} rightNames={m.b} leftGoals={m.ag} rightGoals={m.bg} />
+            <div className="mt-0.5 truncate text-center text-xs text-text-muted">{m.tName} · {fmtShortDate(m.date)}</div>
           </Link>
         ))}
         {matches.length > shown.length ? <div className="text-[11px] text-text-muted">+{matches.length - shown.length} more</div> : null}

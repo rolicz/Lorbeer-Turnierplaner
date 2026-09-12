@@ -217,7 +217,6 @@ export default function MatchupView({ mode, scope, leftId, rightId, rows, onBack
                 focusId={leftId}
                 clubs={clubsQ.data ?? []}
                 showMeta={details}
-                nameColorByResult
                 hideModePill={mode !== "overall"}
                 matchHref={tournamentMatchHref}
               />

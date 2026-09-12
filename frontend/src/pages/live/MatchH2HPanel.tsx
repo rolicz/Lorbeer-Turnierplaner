@@ -198,7 +198,6 @@ export default function MatchH2HPanel({
                   focusId={aIds[0] ?? null}
                   clubs={clubs}
                   showMeta={false}
-                  nameColorByResult
                 />
               </div>
             );
