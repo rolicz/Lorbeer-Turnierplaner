@@ -20,6 +20,13 @@ type Props<K extends string> = {
   className?: string;
 };
 
+/**
+ * The strip's own end padding (`px-4` plus the last button's `mr-1`) is
+ * scrollable but hides nothing, so ignore that much slack — otherwise the last
+ * tab sits under a fade that makes it look cut off.
+ */
+const EDGE_SLACK_PX = 24;
+
 export function SectionTabs<K extends string>({ tabs, active, onChange, className }: Props<K>) {
   const id = useId();
   const scrollerRef = useRef<HTMLDivElement | null>(null);
@@ -31,8 +38,8 @@ export function SectionTabs<K extends string>({ tabs, active, onChange, classNam
     const el = scrollerRef.current;
     if (!el) return;
     const max = el.scrollWidth - el.clientWidth;
-    setCanScrollLeft(el.scrollLeft > 1);
-    setCanScrollRight(max > 1 && el.scrollLeft < max - 1);
+    setCanScrollLeft(el.scrollLeft > EDGE_SLACK_PX);
+    setCanScrollRight(el.scrollLeft < max - EDGE_SLACK_PX);
   }, []);
 
   const tabCount = tabs.length;
