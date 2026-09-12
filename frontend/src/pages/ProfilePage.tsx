@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
-import { useParams, useSearchParams } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
+import { useLocation, useParams, useSearchParams } from "react-router-dom";
 import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import VoteVotersModal from "../ui/primitives/VoteVotersModal";
@@ -13,6 +13,7 @@ import {
   listPlayers,
   patchPlayerProfile,
 } from "../api/players.api";
+import { ApiError } from "../api/client";
 import { getCup, listCupDefs } from "../api/cup.api";
 import { getStatsH2H, getStatsPlayerMatches, getStatsPlayers, getStatsRatings, getStatsStreaks } from "../api/stats.api";
 import { listClubs } from "../api/clubs.api";
@@ -22,6 +23,7 @@ import { usePlayerProfileWS } from "../hooks/useTournamentWS";
 import { useRouteEntryLoading } from "../ui/layout/useRouteEntryLoading";
 import { usePageTitle } from "../ui/layout/PageTitleContext";
 import InlineBack from "../ui/shell/InlineBack";
+import { forgetLocation } from "../ui/shell/lastLocation";
 import { useContextualBack } from "../ui/shell/routeMeta";
 import { SectionTabs, type SectionTab } from "../ui/SectionTabs";
 import { useTabParam } from "../ui/shell/useTabParam";
@@ -62,6 +64,13 @@ export default function ProfilePage() {
     queryFn: () => getPlayerProfile(targetPlayerId as number),
     enabled: Number.isFinite(targetPlayerId) && (targetPlayerId ?? 0) > 0,
   });
+  // A player that no longer exists must not trap the Players tab (U6).
+  const { pathname: locPathname, search: locSearch } = useLocation();
+  useEffect(() => {
+    if (!(profileQ.error instanceof ApiError) || profileQ.error.status !== 404) return;
+    forgetLocation(locPathname + locSearch);
+  }, [profileQ.error, locPathname, locSearch]);
+
   const clubsQ = useQuery({ queryKey: qk.clubs(), queryFn: () => listClubs() });
   const statsPlayersQ = useQuery({
     queryKey: qk.stats.players("profile", targetPlayerId ?? "none"),

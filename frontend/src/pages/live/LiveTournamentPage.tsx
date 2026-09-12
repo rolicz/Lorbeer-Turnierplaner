@@ -21,6 +21,7 @@ import {
   reassign2v2Schedule,
 } from "../../api/tournaments.api";
 
+import { ApiError } from "../../api/client";
 import { patchMatch, swapMatchSides } from "../../api/matches.api";
 import { listClubs } from "../../api/clubs.api";
 import type { DeciderType, Match, Club, PatchMatchBody } from "../../api/types";
@@ -44,6 +45,7 @@ import { qk } from "../../api/queryKeys";
 import { useRouteEntryLoading } from "../../ui/layout/useRouteEntryLoading";
 import { usePageTitle } from "../../ui/layout/PageTitleContext";
 import InlineBack from "../../ui/shell/InlineBack";
+import { forgetLocation } from "../../ui/shell/lastLocation";
 
 type PlayerLite = { id: number; display_name: string };
 type LiveTab = "overview" | "current" | "standings" | "matches" | "comments" | "controls";
@@ -181,6 +183,12 @@ export default function LiveTournamentPage() {
     return bestId;
   }, [commentsQ.data?.comments, seenCommentIds, token]);
   const [focusCommentRequest, setFocusCommentRequest] = useState<{ id: number; nonce: number } | null>(null);
+
+  // A tournament that no longer exists must not trap the Tournaments tab (U6).
+  useEffect(() => {
+    if (!(tQ.error instanceof ApiError) || tQ.error.status !== 404) return;
+    forgetLocation(location.pathname + location.search);
+  }, [tQ.error, location.pathname, location.search]);
 
   useEffect(() => {
     const raw = new URLSearchParams(location.search).get("comment");
@@ -328,6 +336,7 @@ export default function LiveTournamentPage() {
       return deleteTournament(token, tid);
     },
     onSuccess: async () => {
+      forgetLocation(location.pathname + location.search);
       nav("/tournaments");
       await qc.invalidateQueries({ queryKey: qk.tournaments() });
       await qc.invalidateQueries({ queryKey: qk.cupAll() }).catch(() => {});

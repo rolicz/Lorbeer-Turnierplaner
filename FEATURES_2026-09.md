@@ -908,7 +908,7 @@ still lands on H2H; 390px screenshot of `/settings?tab=appearance` shows only Th
 
 ---
 
-## U6 — Per-destination last page memory (enqueued 2026-09-12 from parked idea 1)  ☐
+## U6 — Per-destination last page memory (enqueued 2026-09-12 from parked idea 1)  ☑
 
 **Goal:** tapping a top-level destination (bottom bar, desktop sidebar, mobile drawer)
 returns to the last page the user had open inside that destination — not its root. Works in
@@ -951,7 +951,46 @@ same matchup; on `/live/19` tapping the active Tournaments item goes to `/tourna
 reload keeps the memory; `/live/99999` (404 / not found) → tap Tournaments → root, not
 the dead URL. `npm run check` + `npm run build` green.
 
-**Deviations:**
+**Deviations:** (implemented 2026-09-12, three commits: store, shell wiring, foolproofing)
+
+- The three shells share one hook, new `frontend/src/ui/shell/useDestinationLinks.ts`
+  (`{ dest, to, isActive }[]`), so bottom bar, sidebar and drawer cannot drift. Its
+  `hasLiveEntry` option carries the only real difference: shells with their own "Live now"
+  entry (sidebar, drawer) let that entry own the active state on the live page and keep the
+  plain `/tournaments` fallback, while the bottom bar keeps U2's live shortcut as the
+  fallback *behind* the remembered page. `rememberLocation` is mounted through a second
+  small hook, `useRememberLocation.ts`, next to `useLocationRestore` (keeps `lastLocation.ts`
+  pure and React-free).
+- `forgetLocation(url)` also blocks that URL from being remembered again for the rest of the
+  session (module-level set, `resetForgottenPaths()` as the test seam): React runs a page's
+  effects *before* the shell's remember effect, so a plain delete would be undone by the very
+  navigation that revealed the dead page.
+- `forgetLocation` normalises the URL it is given (same one-shot stripping as
+  `rememberLocation`) before comparing it with the stored path, otherwise
+  `/profiles/1?tab=guestbook&entry=7` would never match its stored form.
+- The "not found" hooks fire only on a real **404** (`ApiError.status === 404` from
+  `tQ.error` / `profileQ.error`): a transient 5xx or an offline blip must not wipe the memory.
+  `LiveTournamentPage` also forgets the current URL in `deleteMut.onSuccess`, just before it
+  navigates to `/tournaments`.
+- Stored paths are validated twice: `activeDest` must still own them and they must start with
+  a single `/` (no protocol-relative `//host`), as `LoginPage` does for its `from` state.
+- `BottomTabBar` scrolls to top only when the active item's target *is* the current pathname;
+  tapping the active destination from a subpage (e.g. `/live/19`) now navigates to its root
+  instead. The sidebar/drawer never had scroll-to-top and still don't.
+- `lastLocation.ts` exports `normalizePath` and `resetForgottenPaths` beyond the four functions
+  the task names (URL normalisation is worth testing on its own; the reset keeps the
+  session-level blocklist out of test cross-talk).
+- Runtime DoD verified with Playwright against the isolated stack (backend :8003 on a copy of
+  `app.db`, vite :8020): **53 checks green** at 390px and 1280px — all three round trips
+  (`/live/19?tab=matches`, `/profiles/1?tab=guestbook`, `/stats?view=h2h&player=1&vs=2`),
+  second-tap-to-root on `/live/19`, memory surviving a reload, `/live/99999` and
+  `/tournaments/nope-404` and `/profiles/99999` falling back to the destination root, the
+  drawer at 390px and the sidebar at 1280px resolving the same remembered URLs, and the
+  bottom bar still scrolling to top at a destination root. Note: tournament 20 was live in the
+  DB copy, so the bottom bar's fallback after forgetting a dead URL is `/live/20` (the U2
+  shortcut) — re-checked with the live endpoint stubbed to `null`, where it is `/tournaments`.
+- `npm run build` still prints the pre-existing "chunks larger than 500 kB" hint (631 kB
+  `index-*.js`); unrelated, as already noted under F1/F2/U1/U4/U5/S1/S5.
 
 ---
 
