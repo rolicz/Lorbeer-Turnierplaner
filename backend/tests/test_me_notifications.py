@@ -36,9 +36,11 @@ def test_notifications_collect_reply_guestbook_and_poke(client, editor_headers, 
     reply_id = reply.json()["id"]
 
     # Admin leaves a guestbook entry + a poke on the editor's profile.
-    assert client.post(
+    gb = client.post(
         f"/players/{editor_pid}/guestbook", json={"body": "hi editor"}, headers=admin_headers
-    ).status_code == 200
+    )
+    assert gb.status_code == 200, gb.text
+    gb_id = gb.json()["id"]
     assert client.post(f"/players/{editor_pid}/pokes", json={}, headers=admin_headers).status_code == 200
 
     # Editor's notifications include all three, newest-first, with deep-link paths.
@@ -53,6 +55,16 @@ def test_notifications_collect_reply_guestbook_and_poke(client, editor_headers, 
     assert reply_item["id"] == reply_id
     assert reply_item["path"] == f"/live/{tid}?comment={reply_id}"
     assert reply_item["author_name"] == "Admin"
+
+    # The guestbook item must deep-link to the guestbook tab AND the entry, so the
+    # profile can switch tabs and scroll to it (a #hash cannot do either).
+    gb_item = next(it for it in items if it["kind"] == "guestbook")
+    assert gb_item["id"] == gb_id
+    assert gb_item["path"] == f"/profiles/{editor_pid}?tab=guestbook&entry={gb_id}"
+    assert gb_item["author_name"] == "Admin"
+
+    poke_item = next(it for it in items if it["kind"] == "poke")
+    assert poke_item["path"] == f"/profiles/{editor_pid}"
 
     # Admin should NOT see the reply (admin wrote it) nor a poke/guestbook to itself.
     r_admin = client.get("/me/notifications", headers=admin_headers)

@@ -322,7 +322,7 @@ active item highlighted, back chevron still in the top bar on detail pages. Desk
 
 ---
 
-## U3 — Guestbook notification deep link  ☐
+## U3 — Guestbook notification deep link  ☑
 
 **Bug:** `backend/app/routers/me.py:156` emits `/profiles/{me}#guestbook-entry-{id}`, but
 nothing on the profile reads `location.hash` and the guestbook only mounts on its tab, so
@@ -339,7 +339,22 @@ the bell's guestbook item lands on the Overview tab.
 **DoD:** `make test` green; manual: open `/profiles/1?tab=guestbook&entry=<existing id>` in
 the isolated stack → guestbook tab, entry scrolled into view and flashed, URL cleaned.
 
-**Deviations:**
+**Deviations:** (implemented 2026-09-12)
+
+- `?entry=` is handled by a **second effect** inside `useGuestbookUnreadJump.ts` with its own
+  `handledEntryRef`, next to the existing `?unread=1` effect (same pattern, independent ids).
+  The file name stays `useGuestbookUnreadJump.ts`; its doc comment now names both deep links.
+- A non-numeric or non-positive `entry` value is ignored and left in the URL (no navigation,
+  no focus call) instead of being treated as an error.
+- `make gen-types` produced **no diff**: the notification `path` is a plain string field, so
+  no `schema.d.ts` is part of this commit.
+- `test_notifications_collect_reply_guestbook_and_poke` now also asserts the guestbook item's
+  `author_name` and the poke item's `path` (both were untested) besides the new `path`.
+- Runtime DoD verified with Playwright against the isolated stack (backend :8003 on a copy of
+  `app.db`, vite :8020): 18 checks green — `/profiles/1?tab=guestbook&entry=1` at 390px and
+  1280px and `/profiles/1?entry=4` (no `tab` param) all land on the Guestbook tab, mount the
+  entry, scroll it fully into view, flash it (`comment-attn`) and clean the URL to
+  `/profiles/1?tab=guestbook`.
 
 ---
 
