@@ -67,10 +67,12 @@ export default function App() {
           }
         />
 
+        {/* reader: ProfilePage itself asks for a login when there is no player,
+            so "My profile" from Settings must not bounce a viewer to /login. */}
         <Route
           path="/profile"
           element={
-            <RequireRole minRole="editor">
+            <RequireRole minRole="reader">
               <Suspense fallback={pageFallback}>
                 <ProfilePage />
               </Suspense>
