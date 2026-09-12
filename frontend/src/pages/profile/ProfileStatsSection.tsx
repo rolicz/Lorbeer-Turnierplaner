@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { Link } from "react-router-dom";
 
 import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
 import type { StatsPlayerRow, StatsRatingsRow, StatsStreakCategory } from "../../api/types";
@@ -74,6 +75,16 @@ export default function ProfileStatsSection({
       <ErrorToastOnError error={statsStreaksError} title="Streaks loading failed" />
       <ErrorToastOnError error={statsStreaksGlobalError} title="Streaks loading failed" />
       <ErrorToastOnError error={statsRatingsError} title="Ratings loading failed" />
+
+      {/* The stats page's Player section has the same numbers per Mode/Source. */}
+      <div className="flex items-center justify-between gap-3">
+        <span className="section-label">Key numbers</span>
+        {targetPlayerId > 0 ? (
+          <Link to={`/stats?view=player&player=${targetPlayerId}`} className="shrink-0 text-xs font-medium text-accent no-underline">
+            Full stats →
+          </Link>
+        ) : null}
+      </div>
 
       {(() => {
         const r = playerStatsRow;

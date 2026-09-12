@@ -751,7 +751,7 @@ profile/match-detail links, tests)
 
 ---
 
-## S3 — Player section completion + explainers  ☐
+## S3 — Player section completion + explainers  ☑
 
 Folds the last Classic-only capabilities into the New layout so S4 can delete Classic.
 
@@ -780,7 +780,57 @@ net + compare, club stars, streak chips, match history with toggle and clickable
 Elo note toggles in Table and appears for the Elo metric in Trends; Positions legend
 toggles; `npm run check` green; 390px screenshot of the Player section.
 
-**Deviations:**
+**Deviations:** (implemented 2026-09-12, four commits: streak chips, player section,
+explainers, profile link + plan)
+
+- **Club stars moved into `PlayerProfile`** (S1 had rendered it from `StatsInsights` below
+  the match history). `StatsInsights`' player branch is now a single `<PlayerProfile …/>`,
+  and both new blocks (Club stars, Streaks) use the `card-outer` + `h2` shape of the
+  section's other blocks instead of S1's `section-head`, so the Player section is one
+  consistent stack of cards.
+- `PlayerStreakChips` is a default export taking `{ categories, globalCategories }`; the
+  markup, the category order and the "record right now" highlight (`border-accent`) are the
+  Classic ones, with FA glyphs swapped for lucide `Flame`/`Shield`/`Goal`/`Lock` and a new
+  `data-streak="<key>"` hook per chip so tests and Playwright can address one chip.
+- In `PlayerProfile` the two streak requests follow the section's Mode/Source filters (the
+  profile tab is fixed to overall/tournaments): keys `qk.stats.streaks(mode, "player-<id>",
+  scope)` and `qk.stats.streaks(mode, 1, scope)`, distinct from `StreaksView`'s
+  `(mode, 200, scope)`.
+- The Elo note is **not** duplicated: new `frontend/src/pages/stats/explainers.tsx` exports
+  `EloNote` (text copied verbatim from `RatingsCard.tsx:68-74`, which S4 deletes) and
+  `InfoButton` (lucide `Info`, 12px, `aria-expanded`), used by the table, the trends chart
+  and the positions legend.
+- The Elo info button renders only in the full table (`showControls && !controlled`), not in
+  the dashboard standings preview — that preview also shows the Elo column but has no
+  controls area to open a note in.
+- In `TrendsExplorer` the note sits under the chart and its "Pinch to zoom" hint and above
+  the player legend, only while `metric === "elo"` (verified: note top 509 vs chart bottom
+  471 at 390px).
+- `PositionsView`'s legend is the Classic `InfoLegend` ported as-is (FA → lucide
+  `Flag`/`Clock`), so it keeps its leading "Tournament positions" caption even though the
+  section head above says the same thing; nothing was dropped from the legend.
+- `PlayerProfile` has no `section-head` for the match history (it never had one): the `h2`
+  became a `flex … justify-between` row carrying the `ChipGroup` (`aria-label="Match
+  details"`, Compact default), the same chips the matchup view uses.
+- `ProfileStatsSection` had no section head above the tiles; the "Full stats →" `Link` sits
+  in a new head row labelled **Key numbers** (the label the stats Player section uses for the
+  same grid) and is hidden when there is no target player.
+- Tests: new `frontend/src/test/playerStreakChips.test.tsx` (3 cases — the four chips with
+  current/record, the highlight when the current run equals the global record, no highlight
+  for a zero run). Suite: 27 files / 227 tests green.
+- Runtime DoD verified with Playwright against the isolated stack (backend :8003 on a copy of
+  `app.db`, vite :8020): **71 checks green** at 390px and 1280px — the Player section in the
+  required order (picker 138 → header 213 → key numbers 315 → profile net 527 → compare 811 →
+  club stars 930 → streak chips 1494 → match history 1686 at 390px), 4 lucide streak chips
+  with no FA glyph, Compact | Details switching 34 rows from 50px to 123px and adding 56 club
+  crests plus the league lines, history rows linking to `/live/20/match/113` and opening it,
+  the Elo note toggling above the table with the Classic wording and under the Elo trend
+  (gone again for another metric), the positions legend toggling with best/worst, "not
+  played", "winner" and the old→new bar, `/profiles/1?tab=stats` → "Full stats →" pointing at
+  `/stats?view=player&player=1` and landing on the complete Player section, and no horizontal
+  overflow.
+- `npm run build` still prints the pre-existing "chunks larger than 500 kB" hint; unrelated,
+  as already noted under F1/F2/U1/U4/U5/S1/S5/S2.
 
 ---
 
