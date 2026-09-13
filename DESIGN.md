@@ -160,10 +160,10 @@ Matchup, Player) is built from the same block, so the sections read as one page:
 | 2–3 view modes | `SegmentedSwitch` | `rounded-xl` track, `h-8` `rounded-lg` segments (§4 exception), sliding indicator in `Chip`'s selected style, lucide icon nodes |
 | Page sections | `SectionTabs` | underline tabs with edge fades |
 | Filters (stats) | `StatsFilterPill` | floating capsule, see §9 |
-| Any score | `ScoreLine` | see §8 — the only way to render a score |
+| Any score | `ScoreLine` | see §8 — the only way to render a score; `ScoreNumerals` is the bare numeral pair for a control that has to *speak* a score (the goal entry's side choice) |
 | Clubs under a score | `MatchSides` | badge + club, flag + league, stars; nothing but "No club" for a clubless side |
 | Picking a club | the `MatchSides` club line + `ClubPicker` (`ui/`) | the club in the scoreboard *is* the tap target (`MatchOverviewPanel`/`MatchSides` `onPickClub`, §9b — `ClubSlot` is gone, T2); the picker is the sheet: search focused on open, the club this side already has pinned on top with its `ClubStarsEditor`, then recents, then league groups, crest + stars per row, one tap selects. The star/league **filters** are not in the sheet — they sit with the two random actions on the match card (`SelectClubsPanel`), because they narrow the list for both sides and drive *Random matchup* |
-| Writing a comment | `CommentComposer` (`pages/live/comments/`) | one chat row at the bottom of the feed; scope + author are chips above the field, goal/shots swap the row in place |
+| Writing a comment | `CommentComposer` (`pages/live/comments/`) | one chat row *inside* the feed's card, attached to its bottom edge behind a hairline and sticky, so it floats over the feed while reading and settles flush at the end (T3); scope + author are chips above the field, goal/shots swap the row in place. The guestbook's composer is the same row (`CommentSendRow`) at the end of its feed |
 | Key number | `StatTile` | `inset` + `text-2xl font-bold tabular-nums` value + `text-xs` muted label |
 | Lists | `List` / `ListRow` | hairline rows, stretched link |
 | Empty / loading | `EmptyState`, `InlineLoading` (lucide `Loader2` spinner), `LoadingPlaceholder` |
@@ -201,6 +201,9 @@ Sizes `hero` (match panel), `md` (match rows in lists), `sm` (compact rows, mini
   genuinely mixes modes — the friendlies list and any history shown in Overall mode
   (profile matches, the H2H matchup, the H2H history modal, the positions grid).
 - Names: hero `text-lg`, md `text-base`, sm `text-sm`; 2v2 stacks two lines.
+- A control that previews a score (the goal entry's "which side scores") uses the exported
+  `ScoreNumerals`, never a hand-written `1-0` string: same weight, same tabular figures, same
+  hairline separator. The numeral that changes is emphasised, the other muted.
 - Never wrap a `ScoreLine` in `card-chip`/borders. The hero panel (`MatchOverviewPanel`) is:
   meta line (`Match 1 · Leg 1` + status `Pill`) → `ScoreLine hero` → odds line
   (`text-xs text-text-muted font-mono`, only scheduled/playing) → two side columns with
@@ -248,8 +251,17 @@ An editor is not a section you unfold; it is the thing itself becoming editable.
 - **Never show one value twice on a screen.** If the scoreboard already names the club, the
   page must not carry a second club row. The picker may show it — it is a different surface.
 - **No `CollapsibleCard` around an editor or a feed.** Collapsibles are for *lists you browse*
-  (league groups on the Clubs page), never for the page's own content. A comment feed and its
-  composer are the page; they are always open.
+  (league groups on the Clubs page — the only one left), never for the page's own content. A
+  comment feed and its composer are the page; they are always open.
+- **A feed and its composer are one card.** The composer is the card's last row, separated by a
+  hairline and sticky, so it floats over the feed while you read and settles flush on the card's
+  bottom edge at the end — never a second card floating next to the feed. Groups *inside* the
+  feed (match blocks, day separators) are hairline-separated sections of that one card, not
+  cards of their own, so the rows inside them stay level-2 `inset` (§1).
+- **Only the value a control writes may be prefilled.** A field means what it says: the goal
+  entry's scorer is the footballer in the game, so it is never prefilled with a human player
+  from this app. When a field is optional, say in one quiet line what happens if it stays
+  empty.
 - **Heavy choice → sheet.** Many options, search, filters: a `Modal` sheet (full screen on
   mobile), opened from the value, closing on pick.
 - **Light input → always-visible row.** A text field with its send button sits at the bottom of

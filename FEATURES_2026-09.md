@@ -3219,7 +3219,7 @@ docs/plan)
 
 ---
 
-## T3 — Comments: composer attached to the feed, real scorer, better goal buttons  ☐
+## T3 — Comments: composer attached to the feed, real scorer, better goal buttons  ☑
 
 Roli: "i dont like how the collapsible seems so disconnected to the input fields/comments and im
 not sure if collapsible is a good idea here (similar to club selector). the scorer is not the
@@ -3250,7 +3250,129 @@ make sense. the buttons ('Rumpi 1-0') dont look nice."
 next; goal entry never suggests a human player; screenshots of all three comment surfaces +
 guestbook at 390px, blue + light; the S10 feature-equivalence list still holds; `npm run check`.
 
-**Deviations:**
+**Deviations:** (implemented 2026-09-13, four commits: one card, scorer, goal side control,
+siblings; plus this one)
+
+### What was built
+
+- `TournamentCommentsCard` renders **one `card p-0`**: header row → scope filter bar → feed →
+  hairline → composer. `CommentList`'s match/General blocks lost their own `card` and are
+  hairline-separated `<section>`s of that card (`list-divided`). `CommentComposer` lost its card
+  and shadow and is the card's last row.
+- The goal entry: no human-player source at all, an optional free-text scorer with a club
+  fallback, remembered scorers from `comments/recentScorers.ts`, and a new `GoalSideChoice`
+  built on `ScoreNumerals` (newly exported from `ScoreLine`).
+- Siblings: the guestbook composer moved to the end of its feed and became the shared
+  `CommentSendRow`; the two friendlies cards lost their (unreachable) `CollapsibleCard`.
+
+### Deviations and judgement calls
+
+- **The collapsible Roli saw was not the one the task pointed at.** All three call sites already
+  passed `collapsible={false}`, so `TournamentCommentsCard.tsx:916` was dead code; what
+  disconnected the input fields from the comments was the **"Match comments" collapse header**
+  on the live Current tab (`collapsibleHeader` + `localStorage["cmt-collapsed:<tid>:<mid>"]`).
+  Both are gone, along with the `collapsible`/`defaultCollapsed` props; `collapsibleHeader`
+  became `title`, a plain section head *inside* the card. Stale `cmt-collapsed:*` entries in a
+  browser are simply never read again.
+- **How the composer attaches (judgement point): a shared card, hairline, still sticky.** The
+  alternative — leaving the feed as a stack of cards and only removing the composer's shadow —
+  keeps the "floating island" the task rules out, so the whole feed became one card. That forces
+  the match blocks down a level: a block is now a section with a header row and a hairline, not a
+  card, which keeps the comment rows at level 2 (`inset`) and never reaches a fourth surface
+  (DESIGN.md §1). It also reads better on the tournament feed: one continuous feed with block
+  separators instead of 6 boxes. The composer stays `sticky` — inside the card it now floats
+  *over* the feed while you read (the rows scroll behind it) and settles flush on the card's
+  bottom edge when you reach the end. Measured at 390px: stuck bottom 783px with the bottom tab
+  bar at 787px; settled bottom 771px, card bottom 772px.
+- **The header is the section head the task asked for**, with the *threads* control kept as its
+  one action: `[💬 Comments 37] [Collapse all]` (the block collapse, a different thing from the
+  section collapse that was removed; it only shows on the full feed). Its count now counts what
+  the feed shows — a match-scoped card says 4, not the tournament's 37, which the old collapse
+  header got wrong.
+- **The scorer is optional, and an unnamed goal is credited to the club.** The backend requires a
+  name (`_goal_scorer_name_for_match`, 400 otherwise) and T3 forbids backend changes, so "leave
+  it empty" had to resolve to *something*. The only in-game name the app knows is the club on
+  that side, and `34' 1-0 Inter Miami FC` reads like a live ticker — never a human player. This
+  is also what keeps a goal at **3 taps** now that nothing is prefilled. The composer says so in
+  one quiet line while the field is empty (`No name: the goal goes to Inter Miami FC.`), and asks
+  for a name when that side has no club yet (the only case where Send stays disabled).
+- **Suggestions are per tournament, from what was typed.** `localStorage`
+  `comment_scorers_v1:<tournamentId>`, last 20, offered as up to 4 chips while the field is
+  empty — one tap for the second Mbeumo of the night. No `datalist`: on a phone its dropdown is
+  inconsistent, and a chip is discoverable without focusing the field first.
+- **Two S10 rules dropped with the human-player list**: the scorer field is no longer disabled
+  until a side is picked (it is free text about the game, not about the side), and changing the
+  side no longer clears a typed name (you corrected the side, not the scorer). Both were only
+  there to serve the prefill.
+- **The goal side control's shape (judgement point).** Two equal option boxes, `role="radiogroup"`
+  / `role="radio"`, each with the side's names (stacked for a 2v2, like a `ScoreLine`) over the
+  scoreline the goal would make; the numeral that goes up is emphasised, the other muted, and the
+  picked option takes the canon's selected style. To keep the numerals *the same numerals* as
+  every score in the app, `ScoreLine` now exports the block it is built from (`ScoreNumerals`) and
+  uses it itself — so the control cannot drift from DESIGN.md §8. `CommentGoalTeamOption` carries
+  `names` + `nextA`/`nextB` instead of the pre-rendered `nextScoreline` string.
+- **The guestbook adopts the row, not the shell (judgement point).** It is the same "write into a
+  feed" job, so the composer moved from *above* the feed to its end and became the same
+  `CommentSendRow` (one growing line, Send icon, Ctrl+Enter, caret returned via a new
+  `postedNonce`), sticky above the bottom tab bar. Its feed is **not** folded into one card: a
+  guestbook is a tree of root cards with replies indented up to 8 levels, so a shared shell would
+  push those replies to a fourth surface level — a bigger change than "the composer adopts the
+  same shape", and the entry cards are not what Roli complained about. The composer is therefore
+  the last card of a stack of cards, which is that feed's own language.
+- **Other `CollapsibleCard` users**: `ClubsPage` keeps it (league groups are exactly the "long
+  browsable list" §9b allows — and it is now the only user left). `FriendlyMatchCard` and
+  `FriendlyMatchesListCard` wrapped a page's own content, and their wrapper was **unreachable**:
+  `FriendliesPage` is the only caller and always passed `embedded`. The wrapper, the `embedded`
+  prop and the `open` gate it fed (query `enabled`, `disabled` on half the controls) are gone;
+  the rendered output is byte-identical.
+- **Cost, accepted:** in goal entry at 390px with remembered scorers the composer is ~330px tall,
+  taller than the sticky slot on the live Current tab, so the Send button sits below the fold
+  until you flick once (the page keeps exactly that much scroll room). Trimming it would have
+  meant dropping either the suggestions or the "what happens if I leave it empty" line; both earn
+  their row.
+- `DESIGN.md` §7 (composer + `ScoreNumerals`), §8 (a control that previews a score) and §9b
+  (a feed and its composer are one card; only the value a control writes may be prefilled) were
+  updated in the same pass (rule 7). `AGENTS.md` needed no change — nothing it claims moved.
+
+### Click counts (taps on screen, typing excluded — S10's table, re-measured in the browser)
+
+| Task | S10 | T3 |
+|---|---|---|
+| Post a comment | 2, then 1 | **2, then 1** (unchanged) |
+| Post a goal (1v1 *and* 2v2) | 3 / 4 | **3** — Goal → side → Send (the minute takes the caret; 2v2 no longer costs more) |
+| Post a goal naming the footballer | — | 4 — Goal → side → scorer field → Send (or the suggestion chip instead of typing) |
+| Post shots | 4 | **4** (unchanged) |
+| Attach an image | 4 | **4** (unchanged) |
+| Post a guestbook message | 2, then 2 | **2, then 1** (the caret now stays in the field) |
+
+### Verification
+
+- **Checks:** `cd frontend && npm run check` green before every commit — 40 files, **378 tests**
+  (375 before: `commentComposer.test.tsx` 11 → 14, covering "never suggests a human player", the
+  remembered-scorer chips, the empty-scorer hint and the two-option side control with its
+  numerals). `npm run build` green with the pre-existing 500 kB chunk hint (641 kB `index-*.js`).
+  No backend change, so no `make test` / `make gen-types` run.
+- **Runtime (isolated stack:** backend :8003 on a copy of `app.db` with a scratch secrets file
+  giving a real admin login, vite :8020 — every post below is a real write through the existing
+  endpoints): **209 checks green**.
+  - *Layout matrix* (144): the four surfaces × 390/1280 × blue/light — the feed is one `card`,
+    the composer is inside it, a ≥1px hairline separates them, it is `sticky` and clear of the
+    bottom tab bar, no disclosure wrapper around any feed, no `▾/▸` chrome left on the page, the
+    header reads "Comments"/"Match comments", the guestbook composer sits *after* the entries and
+    is sticky, no horizontal overflow, no nested `<a>`, no console errors.
+  - *Write paths + click counts* (30): comment 2 taps then 1 (caret verified on `activeElement`),
+    goal 3 taps → `34' 1-0 Inter Miami FC` and the match score 0-0 → 1-0, named goal 4 taps →
+    `50' 2-0 Haaland`, the remembered chip then offering exactly `["Haaland"]` and no human name,
+    shots 4 taps → `Shots: 7-3`, guestbook 2 taps then 1 — all re-read from the API.
+  - *S10 equivalence sweep* (35): filter chips (All/General/per match), block collapse, Collapse
+    all/Expand all, "Post to" following the filter, goal/shots offered only on a match scope,
+    image attach opening the cropper, author toggle, reply row, Edit/Delete/votes/voters on a
+    card, the `?comment=` deep link scrolling and flashing, and a reader seeing every feed with
+    no composer, no reply and the guestbook's login hint.
+- **Screenshots** (scratchpad `shots/`): `t3-{live-current,tournament-comments,match-comments,
+  guestbook}-{390,1280}-{blue,light}` (16), `t3-goal-entry-{390,1280}-{blue,light}` and
+  `t3-shots-entry-…` (8), plus `t3-write-{comment,goal-entry,goal-recents,guestbook}`,
+  `t3-equiv-{collapsed,deeplink}` and `t3-reader-{live-current,tournament-comments,guestbook}`.
 
 ---
 
