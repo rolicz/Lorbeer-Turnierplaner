@@ -5120,7 +5120,7 @@ and the plan allows editor/admin flows to be checked by code + tests (Runtime ve
 
 ---
 
-## A2 — The match page can silently overwrite another editor's result  ☐
+## A2 — The match page can silently overwrite another editor's result  ☑
 
 `frontend/src/pages/live/MatchDetailPage.tsx` reads `qk.tournament(tid)` (`:63`) but subscribes to
 **no** tournament channel — it is a sibling route (`app/App.tsx:35`), not nested under
@@ -5138,7 +5138,74 @@ second save reverts the first.
 **DoD:** two browsers on one match; A saves 2:1 finished, B (stale) saves → B does not silently
 revert A; realtime updates land on the match page; `npm run check` + build.
 
-**Deviations:**
+**Deviations:** (implemented 2026-09-13 on `feature/2026-09-audit`)
+
+Reproduced first, two browser contexts on match 116 of the live tournament 21 (isolated stack,
+DB copy): A saved 3:1 → B's page never moved, and B pressing **Save** *having touched nothing*
+wrote 1:0 back. Also reproduced with disjoint fields (B only flipped the status → A's 4:2 became
+1:0 finished) and with a real clash (B had typed 5, A saved 2:2 → B's save wrote 5:0, no warning).
+
+**The decision.** The form no longer holds a copy of the match. It holds **only the fields this
+editor changed** (`MatchEdits` in the new `pages/live/matchDraft.ts`), each with the value it
+started from (`base`); every untouched field simply renders the server's current value. That
+makes the two halves of the problem disappear rather than be managed:
+- a realtime update *is* the form for untouched fields — there is no re-seed that could land
+  under someone's hands, and no effect that writes state (see "lint" below),
+- a touched field is this editor's until they save or drop it.
+
+Three rules ride on that:
+1. **`base` is captured when the field is first changed, not at page load.** The yardstick is
+   "the value I was looking at when I touched this", so an update the editor has already watched
+   arrive is not replayed as a conflict. Setting a field back to its base drops the override, so
+   the field follows the server again.
+2. **A save sends only the changed fields.** `PATCH /matches/{id}` already applies per field
+   (`model_fields_set` on the body *and* on each side), so a narrow body is enough — no backend
+   change. Disjoint edits now merge: B flipping the status keeps A's goals.
+3. **A stale save cannot win quietly.** The save re-reads the tournament (`fetchQuery`,
+   `staleTime: 0` — the global default is 5 s, and the socket can be dead on a backgrounded
+   phone) *immediately before writing*. If a field both editors moved disagrees and this exact
+   server state has not been acknowledged, **nothing is sent**: the amber banner names
+   field / theirs / yours, an error toast says the save was not sent, and the button becomes
+   **"Save my changes anyway"** — a second, deliberate press overwrites. "Use their values"
+   drops this editor's edits instead. Acknowledgement is the *whole* match state, so another
+   change arriving between the two presses re-arms the guard (deliberately strict).
+
+Also: `useTournamentWS(tid)` is now mounted here (it is a sibling route, so it had no channel at
+all — the comments tab on this page was equally frozen); pressing Save with nothing changed sends
+no request at all and just goes back; `swap-sides` drops pending edits, because after a swap a
+per-side edit means the opposite of what it meant; goals are numbers in state now (the string
+state + `parseGoal` only existed for a text input this page no longer has).
+
+**Rejected:** re-seeding the whole form on every `tournament.sync` (that *is* clobbering someone's
+typing), and a `window.confirm` on every save (noise on the 99 % of saves where nobody else is
+editing). A version/ETag on the match would be the real fix for two saves in the same second;
+that is a backend contract change and Roli's call, not a worker's — the pre-save re-read closes
+everything except a true sub-second race.
+
+**Lint note worth keeping:** the first implementation synced state in a `useEffect` (the shape the
+old code used). `react-hooks/set-state-in-effect` (React Compiler rules, on in this repo) rejects
+it. That is what pushed the design to derived state — the rule was right.
+
+**Two-browser proof** (A = admin Roli, desktop 1280; B = editor Flo, phone 390; same match,
+`?tab=edit`; server state read back from `GET /tournaments/21`):
+
+| # | What happened | Server before A2 | Server after A2 |
+|---|---|---|---|
+| 1 | A saves 3:1; B (untouched form) presses Save | **1:0** — A's result gone; B's page still showed 1:0 | **3:1** — B's page had followed to 3:1 live, B's Save sent nothing |
+| 2 | B has typed 5; A saves 2:2; B presses Save | **5:0** — silently, and A's 2 reverted to 0 | **2:2** — refused, banner *"Goals Rumpi + Berni: now 2 on the server — you have 5"*; 2nd press ("Save my changes anyway") → **5:2**: B's 5 deliberately, A's 2 kept |
+| 3 | B flips the status only; A saves 4:2; B presses Save | **1:0 finished** — A's goals gone | **4:2 finished** — both edits survive, no banner needed |
+
+Checked in both widths and both themes (screenshots), plus one club run (random matchup → Save
+wrote `aClub`/`bClub` only, goals and state untouched). Zero console errors in every run.
+
+**Noticed, reported, not fixed** (outside A2):
+- `pages/live/CurrentGameSection.tsx` (the live page's inline editor) autosaves a *full* body
+  (`state` + both clubs + both goals) on a debounce — the same class of overwrite on a different
+  surface. It sits inside a subscribed page, so its inputs do follow the server, but two editors
+  there still fight field-by-field.
+- `hooks/realtime/applyEvent.ts:105` `applyTournamentsChanged` still never invalidates
+  `qk.tournament` — the coarse `/ws/tournaments` channel cannot refresh an open detail page.
+  Irrelevant here now (this page has its own channel) but A5 should look at it.
 
 ---
 
