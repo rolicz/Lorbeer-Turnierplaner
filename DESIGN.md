@@ -109,6 +109,34 @@ strings. Weights: `font-medium` default emphasis, `font-semibold` titles, `font-
 Never two of these for the same block. **No uppercase labels inside a card or an `inset`** —
 uppercase is reserved for `section-label` and for table column headers (`<thead>`).
 
+### Stats sub-view skeleton
+
+Every stats sub-view (Table · Positions · Streaks · Records · Cups, Trends, H2H Players/Duos/
+Matchup, Player) is built from the same block, so the sections read as one page:
+
+```
+  STREAK · LONGEST WIN RUN ───────────────  ← section-head + section-label (icon first)
+  Most wins in a row without a loss.        ← optional one-line muted explainer (text-xs)
+  1  Flo            2026-03 … 2026-05   7   ← rows: List/ListRow, ScoreLine or StatTile
+  2  Roli           2026-06 … 2026-07   5
+                              Show all  →   ← optional action, a ghost Button
+```
+
+- `frontend/src/pages/stats/StatsSection.tsx` **is** that block (`label`, `icon`, `explainer`,
+  `action`, children). Never hand-roll a `section-head` inside a stats sub-view.
+- **Category blocks** — a sub-view made of several equivalent groups (Streaks' four streak
+  kinds, Records' titles / superlatives / longest runs) — are flat `StatsSection`s in a
+  `grid gap-6 lg:grid-cols-2`, each with its own lucide icon, title, explainer and rows. They
+  are *not* cards: on the page's own surface the hairline and the grid gap separate them
+  (§1.2), and a card per group would box every number on the page.
+- Rows are the shared primitives, never a local copy: a match row is `ScoreLine` (§8) with its
+  meta line under it, a key number is `StatTile`, an identity is `AvatarCircle` + `PlayerLink`.
+- One empty state (`EmptyState`) and one loading state (`InlineLoading label="Loading…"`) per
+  sub-view; a block that is empty inside a filled sub-view renders a compact `EmptyState` in
+  place of its rows.
+- A truncated list says so in one muted `text-xs` line (`+N more`); a list with somewhere to go
+  gets a ghost `Button` as the section's `action` instead.
+
 ## 7. Components canon (`frontend/src/ui/primitives/`)
 
 | Need | Use | Notes |

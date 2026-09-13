@@ -3,16 +3,21 @@ import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { Flame, Shield, Goal, Lock } from "lucide-react";
 
 import AvatarCircle from "../../ui/primitives/AvatarCircle";
+import EmptyState from "../../ui/primitives/EmptyState";
 import PlayerLink from "../../ui/primitives/PlayerLink";
 import InlineLoading from "../../ui/primitives/InlineLoading";
 import { getStatsStreaks } from "../../api/stats.api";
 import { qk } from "../../api/queryKeys";
 import { usePlayerAvatarMap } from "../../hooks/usePlayerAvatarMap";
+import StatsSection from "./StatsSection";
 import type { StatsMode } from "./statsMode";
 import type { StatsScope, StatsStreakCategory } from "../../api/types";
 import { streakDateText } from "./streakDisplay";
 
-/** Per-category streak glyph (matches the FA badge icons used elsewhere). */
+/** How many rows / chips a category shows before the "+N more" line. */
+const SHOWN = 5;
+
+/** Per-category streak glyph (matches the badge icons used elsewhere). */
 function StreakCatIcon({ catKey, size = 12 }: { catKey: string; size?: number }) {
   if (catKey === "unbeaten_streak") return <Shield size={size} aria-hidden="true" />;
   if (catKey === "scoring_streak") return <Goal size={size} aria-hidden="true" />;
@@ -29,18 +34,17 @@ export default function StreaksView({ mode, scope }: { mode: StatsMode; scope: S
   const { avatarUpdatedAtById } = usePlayerAvatarMap();
   if (q.isLoading && !q.data) return <InlineLoading label="Loading…" />;
   const cats: StatsStreakCategory[] = q.data?.categories ?? [];
+  if (!cats.length) return <EmptyState title="No streak data yet." className="py-6" />;
 
   return (
-    <div className="grid gap-x-6 gap-y-6 lg:grid-cols-2">
+    <div className="grid gap-6 lg:grid-cols-2">
       {cats.map((c) => {
-        const records = (c.records ?? []).slice(0, 5);
-        const current = (c.current ?? []).filter((r) => r.length > 0).slice(0, 5);
+        const all = c.records ?? [];
+        const records = all.slice(0, SHOWN);
+        const currentAll = (c.current ?? []).filter((r) => r.length > 0);
+        const current = currentAll.slice(0, SHOWN);
         return (
-          <div key={c.key} className="space-y-2">
-            <div className="section-head">
-              <span className="section-label inline-flex items-center gap-1.5"><StreakCatIcon catKey={c.key} size={12} />{c.name}</span>
-            </div>
-            <p className="-mt-1 text-xs text-text-muted">{c.description}</p>
+          <StatsSection key={c.key} label={c.name} icon={<StreakCatIcon catKey={c.key} size={12} />} explainer={c.description}>
             {records.length ? (
               <div className="list-divided">
                 {records.map((r, i) => (
@@ -59,11 +63,12 @@ export default function StreaksView({ mode, scope }: { mode: StatsMode; scope: S
                   </div>
                 ))}
               </div>
-            ) : <div className="text-sm text-text-muted">None yet.</div>}
+            ) : <EmptyState title="None yet." className="py-2" />}
+            {all.length > records.length ? <div className="text-xs text-text-muted">+{all.length - records.length} more</div> : null}
             {current.length ? (
               <div className="pt-1">
                 <div className="mb-1 text-xs font-medium text-text-muted">Current</div>
-                <div className="flex flex-wrap gap-1.5">
+                <div className="flex flex-wrap items-center gap-1.5">
                   {current.map((r) => (
                     <PlayerLink
                       key={r.player.id}
@@ -74,13 +79,15 @@ export default function StreaksView({ mode, scope }: { mode: StatsMode; scope: S
                       {r.player.display_name} <b className="text-text-normal">{r.length}</b>
                     </PlayerLink>
                   ))}
+                  {currentAll.length > current.length ? (
+                    <span className="text-xs text-text-muted">+{currentAll.length - current.length} more</span>
+                  ) : null}
                 </div>
               </div>
             ) : null}
-          </div>
+          </StatsSection>
         );
       })}
-      {!cats.length ? <div className="text-sm text-text-muted">No streak data yet.</div> : null}
     </div>
   );
 }
