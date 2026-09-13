@@ -66,7 +66,8 @@ Size (2026-09): backend ≈ 14.7k LOC Python, frontend ≈ 29k LOC TS/TSX (excl.
 - `src/ui/` — `primitives/` (Button, Card, CardSection, Modal, Input, Pill, EmptyState,
   LoadingPlaceholder, MatchOverviewPanel, ScoreLine, MatchSides, StatTile, Chip, Stars, …),
   `shell/` (AppShell, Sidebar desktop, MobileChrome, navConfig, routeMeta/contextual back,
-  NotificationBell), `ClubBadge`, `NationFlag`, `ClubCombobox`, `SectionTabs`. Every icon in
+  navStack, useScrollRestoration + useReturnScroll for scroll memory, NotificationBell),
+  `ClubBadge`, `NationFlag`, `ClubCombobox`, `SectionTabs`. Every icon in
   these (and everywhere else) is a lucide-react component — see §9.
 - `src/themes/*.css` — CSS-variable themes (blue default, dark, red, light, green) consumed by
   Tailwind via `rgb(var(--color-*))`. `src/styles.css` holds shared component classes.
@@ -299,6 +300,10 @@ Other helpers: `seed --file backend/data/seed.json` (players/leagues/clubs upser
   looks too thin next to bold text.
 - iOS PWA: push needs Home-Screen install; back navigation uses the router history index
   (`routeMeta.ts`), don't replace with `history.back()` blindly.
+- Scroll position is app-managed (N2): `history.scrollRestoration` is `"manual"`, each history
+  entry's offset lives in sessionStorage (`navStack`) and in-page view swaps (tabs, stats
+  sections, the H2H matchup) keep their own offsets (`useReturnScroll`). A same-page `replace`
+  deliberately never moves the scroll, so filters and `?tab=` deep links stay put.
 - Frontend Docker build uses `npm install` (not `ci`) on purpose: the lockfile is generated on the
   arm64/glibc Pi, the image is alpine/musl on x86.
 - Tests use a temp SQLite file + `UPLOADS_DIR` in tmp (`backend/tests/conftest.py`); accounts

@@ -103,7 +103,7 @@ all read-only checks; editor/admin flows can be checked by code + tests.
 | 20 | DS7 | Lucide only: migrate 35 Font Awesome files, drop the dependency | frontend |
 | 21 | DS6 | Selection controls & buttons on the canon | frontend |
 | 22 | N1 | Back from a detail page goes up (U6 regression) ☑ | frontend |
-| 23 | N2 | Return to exactly where you were (scroll restoration) | frontend |
+| 23 | N2 | Return to exactly where you were (scroll restoration) ☑ | frontend |
 | 24 | N4 | Useful links everywhere (cross-navigation sweep) | frontend |
 | 25 | S8 | H2H matrix: W-D-L default, obviously clickable | frontend |
 | 26 | S9 | Filter pill must not be overlookable | frontend |
@@ -1829,7 +1829,7 @@ Tests: `test/contextualBack.test.tsx`.
 
 ---
 
-## N2 — Return to exactly where you were (scroll + in-view state)  ☐
+## N2 — Return to exactly where you were (scroll + in-view state)  ☑
 
 **Why (Roli #9):** "when I go back from detailed h2h, I get to top of h2h page and I want to go
 back to exactly where I was — check everywhere for similar stuff."
@@ -1859,7 +1859,88 @@ after scrolling; `/live/19?tab=matches` scrolled → open a match → chevron ba
 profile Matches scrolled → open a match → back → same offset; a fresh deep link still lands at
 the top. `npm run check` + build.
 
-**Deviations:**
+**Deviations:** (implemented 2026-09-13, three commits: route level, in-view drill-ins, tests)
+
+- **Module layout.** The in-view hook is `frontend/src/ui/shell/useReturnScroll.ts`, not
+  `pages/stats/useReturnScroll.ts`: its best single wiring point is `ui/shell/useTabParam.ts`
+  (one choke point for eight tabbed pages), and a `ui/shell` → `pages/stats` import would invert
+  the layering. It exports the hook plus `saveReturnScroll` / `readReturnScroll` /
+  `resetReturnScroll` (store + test seam). Its API is `{ save, restore, swap }` keyed by a
+  caller-chosen **view key** rather than `useReturnScroll(key)`: a call site needs two keys at
+  once (the body it leaves and the one it opens), and the URL "being left" is not stable — the
+  param that opens a drill-in is part of it.
+- `saveScroll(idx, y, pathname)` / `scrollFor(idx, pathname)` carry the pathname next to the
+  offset. A push after a back reuses a history index for a different page; without the pathname
+  the new page would inherit the old one's offset.
+- **REPLACE is not "otherwise → top".** The task says restore on POP, top otherwise. Taken
+  literally that would scroll to the top on every stats filter change and every `?tab=` switch
+  (all of which `replace`). The rule implemented is: POP → the saved offset (or top), PUSH →
+  top, REPLACE → top only when the pathname changed (`/` → `/dashboard`, the login redirect),
+  and a same-page REPLACE keeps its place, leaving those swaps to `useReturnScroll`.
+- **Retries.** One retry at 120ms was not enough: after a reload the profile page needs its lazy
+  chunk, the ~140ms route-entry skeleton and its queries before the document is tall enough. The
+  shared helper `restoreWindowScroll(top, onApplied?)` in `ui/scroll.ts` (used by both hooks)
+  re-applies every 80ms for at most 1.5s and stops the moment the offset is reached, when the
+  user scrolls (`wheel`/`touchstart`/`keydown` — their scrolling always wins) or on cancel. It
+  never scrolls when already within 4px of the target, so it cannot fight a page's own
+  scroll-into-view. Always `behavior: "auto"`.
+- `window.history.scrollRestoration` is set to `"manual"`: the browser's own restore fires
+  against the not-yet-rendered page. As a consequence **a reload now returns to where you were**
+  too (the initial render is a POP and the offset is in sessionStorage).
+- **Finding — React StrictMode wiped every offset in dev.** The mount effect's cleanup runs
+  immediately (StrictMode's remount) and persisted a fresh `0` over the stored offset. The hook
+  now only writes an offset it has actually observed (a scroll event or an applied restore); the
+  same guard stops a page that rewrites its URL right after mounting from overwriting an offset
+  that is still being restored — such a same-entry `replace` now *continues* the restore instead
+  of cancelling it (`pendingRef`, given up after 1.7s).
+- **Finding (not fixed here):** tapping a player row in Overview · Records jumps to the Player
+  section and drops `?sub=`, so the Overview tab afterwards opens on Table, not Records. The
+  scroll memory is per body and correct either way; the lost sub-view belongs to N4/DS8.
+- Note on tab strips: `SectionTabs` sits at the top of a page, so the offset a tab keeps is
+  whatever it was when the strip was tapped (you have to scroll up to reach it). The large
+  offsets come from drill-ins that can be triggered anywhere in a list — the matchup, match rows,
+  record rows — and those are exact.
+
+**Sweep** — every place that swaps a body without a route change (`setSearchParams(…, { replace:
+true })`, local view state, in-body back affordances), plus the programmatic scrolls it has to
+coexist with:
+
+| Site | What changes | Result |
+|---|---|---|
+| `StatsInsights.tsx` `openMatchup` (matrix cell, opponent row, Favorite/Nemesis, Top rivalries, duo rivalry) | H2H body → `MatchupView` | **restored** — the list's offset is saved, the matchup opens at the top |
+| `h2h/MatchupView.tsx` "← Head-to-head" (`closeMatchup`) | back to the H2H list | **restored** (Δ0px measured) |
+| `StatsInsights.tsx` `setView` (Overview/Trends/H2H/Player tabs) | body swap | **restored** per section |
+| `StatsInsights.tsx` `setSub` (Table/Positions/Streaks/Records/Cups, Players/Duos) | body swap | **restored** per sub-view |
+| `StatsInsights.tsx` `goPlayer` (Table + Records row tap) | jumps to the Player section | **restored** — the list keeps its offset, Player opens at the top |
+| `ui/shell/useTabParam.ts` → ProfilePage, MatchDetailPage, SettingsPage, FriendliesPage, ClubsPage, PlayersAdminPage, DashboardPage, TournamentsPage | body swap | **restored** per tab (one implementation) |
+| `pages/profile/ProfileOverviewTab.tsx` "View all →" | → Matches tab | **restored** (through `useTabParam`) |
+| `LiveTournamentPage.tsx` `setActiveTab` (6 tabs; also OverviewSection's "standings"/"matches" buttons) | body swap | **restored** per tab |
+| `LiveTournamentPage.tsx` `?comment=` / `?unread=1` deep links | force the Comments tab | restored to that tab's offset, then `TournamentCommentsCard`'s own scroll-to-comment wins (checked: no fight) |
+| `pages/profile/useGuestbookUnreadJump.ts` `?unread=1` / `?entry=` | forces the Guestbook tab, then focuses the entry | not applicable — bypasses the tab setter on purpose; it owns the scroll |
+| `StatsFilterPill` mode/source change | same body, refiltered | not applicable — keeping the position is the point (verified) |
+| `H2HView` `PlayerPicker`, `DuoPicker`, `onSelectPlayer` | same body, other player | not applicable — the picker sits at the top of that body |
+| `H2HView` duo selection → `DuoDetail` | section inserted inline | not applicable — no body swap, nothing scrolls away |
+| `H2HView` "Show all"/"Top 8", matrix metric chips | list grows / cells re-render | not applicable |
+| `H2HView` duo + teammates history `Modal` | overlay | not applicable (modal) |
+| `CupDetail.tsx` `showAll` + `jumpToReign` | list expand + deliberate `scrollIntoView` | not applicable (the plan says leave it) |
+| `dashboard/CupCard.tsx` `showAll` | list expand | not applicable |
+| `tools/FriendlyMatchesListCard.tsx` `expandedFriendlyId`, editor view toggle | in-row accordion | not applicable |
+| `ProfilePage` `VoteVotersModal`, `ProfileHeader` editor/lightbox, comment crop/lightbox, filter popover | overlays | not applicable (modals) |
+| `ui/SectionTabs.tsx` `scrollIntoView` | scrolls the tab strip itself | not applicable (strip-internal) |
+| `ui/shell/BottomTabBar.tsx` tap-the-active-destination → top | deliberate, unchanged | not applicable |
+| `ui/primitives/CollapsibleCard.tsx`, `live/CurrentGameSection.tsx`, `PlayersAdminPage` `scrollToSectionById` | in-page anchors after an expand / a route push | not applicable |
+| `StatsInsights.tsx` legacy URL rewrite, `useLocationRestore` (PWA resume), `LoginPage` redirect, `NotFoundPage` | URL cleanup / real navigations | handled by the route-level hook (a same-page replace keeps its place, a page change goes to the top) |
+
+- Tests: `test/navScroll.test.ts` (9), `test/returnScroll.test.tsx` (11, incl. the `useTabParam`
+  wiring), `test/restoreWindowScroll.test.ts` (5) — 25 new cases, suite at 317.
+- Runtime DoD verified with Playwright against the isolated stack (backend :8003 on a copy of
+  `app.db`, vite :8020): **25 checks green at 390×844 and 25 at 1280×900**, offsets measured
+  before/after (every Δ = 0px, tolerance ±8px) — H2H list at 1007 → matchup (0) → in-view back
+  (1007); opponent-row matchup from 700 → back (700); `/live/19?tab=matches` at 200 → match 106
+  (0) → browser back (200), and at 180 → chevron back (180); `/profiles/1?tab=matches` at 1150 →
+  match 99 (0) → back (1150); profile tabs holding 300 (Matches) and 399 (Overview)
+  independently; a fresh deep link at 0; a `mode=1v1` filter change not moving the page; a reload
+  returning to 900; a Records row at 150 → Player (0) → Overview · Table (0) → Records chip (150).
 
 ---
 
