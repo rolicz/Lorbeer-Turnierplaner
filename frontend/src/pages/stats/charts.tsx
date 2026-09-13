@@ -74,64 +74,6 @@ export function Radar({ axes, series, size = 240 }: { axes?: RadarAxis[]; series
   );
 }
 
-/** Win-rate heatmap matrix (rows beat cols). cell returns {pct, label} or null (self/no data). */
-export function Heatmap({
-  players,
-  cell,
-  onCell,
-}: {
-  players: { id: number; name: string }[];
-  cell: (rowId: number, colId: number) => { pct: number; label: string } | null;
-  onCell?: (rowId: number, colId: number) => void;
-}) {
-  const initials = (n: string) => (n || "?").trim().slice(0, 3);
-  const toneFor = (pct: number) => {
-    // 0 -> red, 50 -> neutral, 100 -> green
-    const t = Math.max(0, Math.min(1, pct / 100));
-    const hue = t * 130; // 0=red .. 130=green
-    return `hsl(${hue} 60% 42% / 0.85)`;
-  };
-  return (
-    <div className="overflow-x-auto">
-      <table className="border-separate" style={{ borderSpacing: 3 }}>
-        <thead>
-          <tr>
-            <th className="sticky left-0 z-10 bg-bg-card-inner" />
-            {players.map((p) => (
-              <th key={p.id} className="px-1 pb-1 text-xs font-medium text-text-muted">{initials(p.name)}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {players.map((rp) => (
-            <tr key={rp.id}>
-              <th className="sticky left-0 z-10 bg-bg-card-inner pr-2 text-right text-xs font-semibold text-text-normal">{initials(rp.name)}</th>
-              {players.map((cp) => {
-                if (rp.id === cp.id) return <td key={cp.id} className="h-9 w-9 rounded bg-bg-card-chip/30" />;
-                const c = cell(rp.id, cp.id);
-                if (!c) return <td key={cp.id} className="h-9 w-9 rounded bg-bg-card-chip/20 text-center text-xs text-text-muted">–</td>;
-                return (
-                  <td key={cp.id}>
-                    <button
-                      type="button"
-                      onClick={() => onCell?.(rp.id, cp.id)}
-                      title={`${rp.name} vs ${cp.name}: ${c.label}`}
-                      className="grid h-9 w-9 place-items-center rounded text-xs font-semibold text-white"
-                      style={{ backgroundColor: toneFor(c.pct) }}
-                    >
-                      {Math.round(c.pct)}
-                    </button>
-                  </td>
-                );
-              })}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
 /** Form sparkline from per-match points (0/1/3). */
 export function Sparkline({ values, w = 64, h = 22 }: { values: number[]; w?: number; h?: number }) {
   if (!values.length) return <div style={{ width: w, height: h }} />;
@@ -150,67 +92,6 @@ export function Sparkline({ values, w = 64, h = 22 }: { values: number[]; w?: nu
       <polyline points={pts.join(" ")} fill="none" stroke={tone} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
       <circle cx={(values.length - 1) * step} cy={lastY} r="2.5" fill={tone} />
     </svg>
-  );
-}
-
-/** Win/Draw/Loss donut. */
-export function WDLDonut({ w, d, l, size = 96 }: { w: number; d: number; l: number; size?: number }) {
-  const total = Math.max(1, w + d + l);
-  const r = size / 2 - 8;
-  const c = 2 * Math.PI * r;
-  const segs = [
-    { v: w, color: GREEN },
-    { v: d, color: AMBER },
-    { v: l, color: RED },
-  ];
-  let offset = 0;
-  const cx = size / 2;
-  const winPct = Math.round((w / total) * 100);
-  return (
-    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} aria-hidden="true">
-      <circle cx={cx} cy={cx} r={r} fill="none" stroke="rgb(var(--color-bg-card-chip))" strokeWidth="10" />
-      {segs.map((s, i) => {
-        if (s.v <= 0) return null;
-        const len = (s.v / total) * c;
-        const el = (
-          <circle
-            key={i}
-            cx={cx}
-            cy={cx}
-            r={r}
-            fill="none"
-            stroke={s.color}
-            strokeWidth="10"
-            strokeDasharray={`${len} ${c - len}`}
-            strokeDashoffset={-offset}
-            transform={`rotate(-90 ${cx} ${cx})`}
-            strokeLinecap="butt"
-          />
-        );
-        offset += len;
-        return el;
-      })}
-      <text x={cx} y={cx - 2} textAnchor="middle" className="fill-text-normal" style={{ fontSize: 20, fontWeight: 700 }}>
-        {winPct}%
-      </text>
-      <text x={cx} y={cx + 16} textAnchor="middle" className="fill-text-muted" style={{ fontSize: 10 }}>
-        win rate
-      </text>
-    </svg>
-  );
-}
-
-/** Horizontal labelled value bar (for goals for/against etc.). */
-export function StatBar({ label, value, max, color = "rgb(var(--color-accent))" }: { label: string; value: number; max: number; color?: string }) {
-  const pct = max > 0 ? Math.max(2, Math.round((value / max) * 100)) : 0;
-  return (
-    <div className="flex items-center gap-2">
-      <span className="w-20 shrink-0 text-xs text-text-muted">{label}</span>
-      <div className="h-2.5 flex-1 overflow-hidden rounded-full bg-bg-card-chip/50">
-        <div className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: color }} />
-      </div>
-      <span className="w-8 shrink-0 text-right text-xs font-semibold tabular-nums text-text-normal">{value}</span>
-    </div>
   );
 }
 
@@ -357,76 +238,6 @@ export function TrendChart({
           s.points.map((p, i) => (p == null || !inX(xAt(events[i].ts)) ? null : <circle key={`d${s.id}-${i}`} cx={xAt(events[i].ts)} cy={yAt(p)} r="2.2" fill={s.color} />)),
         )}
       </g>
-    </svg>
-  );
-}
-
-/**
- * Multi-series line chart (points/form over tournaments). Mobile-first, responsive
- * width via viewBox. series: { name, color, points: (number|null)[] } aligned to xLabels.
- */
-export function MultiLine({
-  series,
-  xLabels,
-  yMax,
-  yMin = 0,
-  height = 200,
-  yTicks,
-}: {
-  series: { id: number; name: string; color: string; points: (number | null)[] }[];
-  xLabels: string[];
-  yMax: number;
-  yMin?: number;
-  height?: number;
-  yTicks?: number[];
-}) {
-  const W = 320;
-  const H = height;
-  const padL = 26;
-  const padR = 8;
-  const padT = 8;
-  const padB = 18;
-  const n = xLabels.length;
-  const innerW = W - padL - padR;
-  const innerH = H - padT - padB;
-  const span = yMax - yMin || 1;
-  const xAt = (i: number) => padL + (n <= 1 ? innerW / 2 : (i / (n - 1)) * innerW);
-  const yAt = (v: number) => padT + innerH - ((Math.max(yMin, Math.min(yMax, v)) - yMin) / span) * innerH;
-  const ticks = [...new Set(yTicks ?? [yMin, Math.round((yMin + yMax) / 2), yMax])];
-
-  return (
-    <svg width="100%" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="block" role="img" aria-label="Trend chart">
-      {/* grid */}
-      {ticks.map((t) => (
-        <g key={t}>
-          <line x1={padL} x2={W - padR} y1={yAt(t)} y2={yAt(t)} stroke="rgb(var(--color-border-card-chip) / 0.4)" strokeWidth="1" />
-          <text x={padL - 6} y={yAt(t) + 3} textAnchor="end" className="fill-text-muted" style={{ fontSize: 9 }}>{t}</text>
-        </g>
-      ))}
-      {/* series */}
-      {series.map((s) => {
-        const segs: string[] = [];
-        let cur: string[] = [];
-        s.points.forEach((p, i) => {
-          if (p == null) {
-            if (cur.length) segs.push(cur.join(" "));
-            cur = [];
-          } else {
-            cur.push(`${xAt(i).toFixed(1)},${yAt(p).toFixed(1)}`);
-          }
-        });
-        if (cur.length) segs.push(cur.join(" "));
-        return segs.map((pts, k) => (
-          <polyline key={`${s.id}-${k}`} points={pts} fill="none" stroke={s.color} strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round" opacity={0.95} />
-        ));
-      })}
-      {/* end-of-line dots */}
-      {series.map((s) => {
-        let lastI = -1;
-        for (let i = s.points.length - 1; i >= 0; i--) { if (s.points[i] != null) { lastI = i; break; } }
-        if (lastI < 0) return null;
-        return <circle key={`dot-${s.id}`} cx={xAt(lastI)} cy={yAt(s.points[lastI] as number)} r="2.6" fill={s.color} />;
-      })}
     </svg>
   );
 }

@@ -112,7 +112,7 @@ all read-only checks; editor/admin flows can be checked by code + tests.
 | 29 | DS4 | Typography & section headers on the scale ☑ | frontend |
 | 30 | DS8 | Stats sub-pages made of the same stone (+ drop redundant mode pill) ☑ | frontend |
 | 31 | S10 | Match comments & club selection reworked ☑ | frontend |
-| 32 | D1 | Documentation pass (README, frontend/README, AGENTS.md, DESIGN.md) | docs |
+| 32 | D1 | Documentation pass (README, frontend/README, AGENTS.md, DESIGN.md) ☑ | docs |
 
 ---
 
@@ -2891,7 +2891,7 @@ autosave still fires per change.
 
 ---
 
-## D1 — Documentation pass (runs LAST, after every other task)  ☐
+## D1 — Documentation pass (runs LAST, after every other task)  ☑
 
 - `README.md`: remove the "Tournament status" section with `PATCH /tournaments/{id}/status`
   (no such endpoint; status is derived from match states — say so in one sentence); make
@@ -2914,25 +2914,147 @@ autosave still fires per change.
 - `DESIGN.md`: re-check every statement against the migrated code; `AGENTS.md` §12 lists it.
 - Tick every task box above that is done and fill in the Verification section below.
 
-**Deviations:**
+**Deviations:** (implemented 2026-09-13, three commits: READMEs, `AGENTS.md`/`DESIGN.md`
+re-check, dead code + bookkeeping)
+
+**Three of the task's own bullets were already stale** — the code moved after the plan was
+written, so they are recorded rather than followed blindly:
+
+- *"fix the comments-summary path"* and *"add `POST /stats/h2h-matches`"*: both were **already
+  correct** in `README.md` (`GET /tournaments/comments-summary`, `POST /stats/h2h-matches`).
+  F2 deleted the *other* path, `GET /comments/tournaments-summary`, which the README never
+  mentioned. Nothing to fix; the h2h-matches entry gained its real request body instead.
+- *"Font Awesome bundled locally (no runtime CDN)"*: DS7 **removed Font Awesome entirely**
+  (dependency, CSS import and all 41 files). Writing the bullet as given would have documented a
+  dependency that no longer exists, so the README says "no runtime CDN: icons are bundled
+  `lucide-react` components, flags come from `flag-icons`, crests from our backend".
+- *"§10 gotchas (drop the FA-CDN item)"*: F1 already dropped it; §10 had no Font Awesome bullet
+  left to remove.
+
+**Every documentation claim that had to be corrected** (each verified against the code first):
+
+| Where | Claim | Reality |
+|---|---|---|
+| `README.md` | a "Tournament status" section documenting `PATCH /tournaments/{id}/status` | no such route exists (full route dump of `app/routers/*.py` + `main.py`); status is derived in `app/tournament_status.py`. Section rewritten to say so |
+| `README.md` | Caddyfile example with `encode gzip` and an `@api path /api/* /docs* /openapi.json /ws/*` matcher | `deploy/Caddyfile` is `encode gzip zstd` + `handle_path /api/*` (strips) + `handle /ws/*` (does not). Replaced verbatim, with a note about the asymmetry |
+| `README.md` | Editor role does "status changes" | there is no status write; editors do results/clubs/reorder/swap-sides/second leg/comments |
+| `README.md` | stats page = "trends, h2h, streaks, ratings, player match history, stars performance" | one layout, four sections + sub-views + the Matchup drill-in; the real Trends metrics are Points/Goals/Conceded/Goal diff/Win %/Elo/Form |
+| `README.md` | three-container Docker list with no build details | the frontend image builds on `node:22-alpine` with `npm install` (not `ci`), backend on `python:3.11-slim` |
+| `README.md` | "Backend tests: `cd backend && make test`" | `backend/Makefile` defaults `PY ?= python3`; only the root `make test` passes the venv interpreter. Also added the Node ≥ 20.19/22.12 requirement, `.nvmrc` and `scripts/node-env.sh` |
+| `README.md` | maintenance commands `cd backend && python manage.py seed --file ./seed.json --secrets ./secrets.json` | `backend/seed.json` does not exist (`backend/data/seed.json` does) and `--secrets` already defaults to `backend/secrets.json`. Rewritten from the repo root, plus the three backup/sync commands |
+| `README.md` | WebSocket list missing `/ws/players/{id}` | that channel exists (`app/main.py`) |
+| `frontend/README.md` | pages list = `/tournaments`, `/live/:id`, `/clubs`, `/players`, `/login` | 13 routes + 2 legacy redirects + the `*` 404. Replaced with the real table incl. `?tab=` keys per page and the min role |
+| `frontend/README.md` | `cp .env.example .env` | Vite reads `.env.local`; `.env.example` points at :8001 |
+| `AGENTS.md` §2 | backend ≈ 14.7k LOC, frontend ≈ 29k | measured 13.3k / 27.2k (+4.7k tests) |
+| `AGENTS.md` §2 | `stats/` service list missing `h2h_matches`; `comments_summary`/`guestbook_summary` unlisted | added |
+| `AGENTS.md` §3 | "baseline 115 tests" / "158 tests in 18 files" | 130 backend, 369 in 40 files frontend |
+| `AGENTS.md` §5 | "there is a `PATCH /tournaments/{id}/status` mention in the README" | there no longer is (D1 removed it) |
+| `AGENTS.md` §9 | style idiom recommends `text-[11px]` | DS4 banned arbitrary `text-[Npx]`; the idiom is `text-xs` / `.text-micro`. Also: the phone width is 390px, not 375px, and both `blue` and `light` are checked |
+| `DESIGN.md` §3 | "`Card`, `CardSection` and `CollapsibleCard` take `variant`" | `CardSection` has no `variant` — it *is* an `inset` and takes `padded` |
+| `DESIGN.md` §4 | "`rounded-md` only for micro tiles (positions grid)" | DS8 moved the H2H matrix cells to `rounded-md` too; directional radii (`rounded-b-2xl`, `rounded-t`, `rounded-r`) exist and are now documented as partial edges |
+| `DESIGN.md` §7 | `Chip` selected = "`ring-accent/40`" | DS1 made it `border-accent/40` (equal heights); `chipClass()` is an export now. `PlayerLink` (N4's rule) was missing from the table |
+| `DESIGN.md` §8 | scheduled = dash pair "(hero)" or `vs` "(`sm`)" | the dash pair covers `hero` **and** `md`; only `sm` renders `vs` |
+| `DESIGN.md` §9 | source icon carries an `sr-only` label; pill = capsule + popover | S7 replaced the per-token `sr-only` with one `aria-label` (concatenation made the name unreadable) and S9 added the filtered border/halo/dot, the once-per-session pulse and the inline "Filters" chip — none of which §9 described |
+| `frontend/src/styles.css` | `.text-micro` comment "badges and superscript counters only" | §5 was widened to markers (unit captions, fixed-width indicators, the bottom-bar labels) in `4d2d11b` |
+| `frontend/src/themes/defaults.css` | "`--color-live` … is invariant across themes" | `light.css` overrides it to red-600 (DS2) |
+
+Statements that were **re-verified and left alone**: the ports (backend :8001, frontend dev
+:8000), `frontend/.env.example` (:8001, fixed by F2), the cups-config semantics, the media
+layout, the role model, the push setup, the `/api` vs `/ws` proxy rule, the deploy checklist,
+`1v1 supports 3–6 / 2v2 supports 4–6` (enforced in `_generate_schedule_for_tournament`), and
+every `DESIGN.md` §1/§2/§5/§6/§10 claim (checked by grep — see the canon's new header line).
+
+### Dead code (the findings earlier workers left for D1)
+
+Each was re-verified with `git grep` over `frontend/src` plus a scripted export sweep (every
+`export` in every non-generated, non-test file, cross-referenced against every other file).
+
+**Deleted:**
+
+| What | Evidence | Note |
+|---|---|---|
+| `ui/primitives/Meta.tsx` (`Meta`, `MetaRow`) | `git grep "primitives/Meta"` → 0; no file imports either symbol | DS4's finding |
+| `pages/stats/charts.tsx` → `Heatmap`, `WDLDonut`, `StatBar`, `MultiLine` | `git grep -n "Heatmap\|WDLDonut\|StatBar\|MultiLine" frontend/src` → only their own definitions | DS8's finding. `Heatmap` held the last unguarded `overflow-x-auto` (N3's finding), so that closes too. `Radar`, `Sparkline`, `TrendChart` stay (4 importers); `GREEN`/`AMBER`/`RED` are still used by `Sparkline`. 432 → 243 lines |
+| `ui/primitives/EmptyState.tsx` → the `icon?: string` prop | the only `icon` hit in the whole repo was the prop's own declaration; it rendered `<i className={icon}>`, i.e. a Font Awesome glyph after DS7 deleted the dependency | DS8's finding — a trap, not just dead |
+| `ui/primitives/SectionHeader.tsx` | `git grep "\bSectionHeader\b"` → 1 hit, its own `export default` | found by the sweep; same class as `Meta` (a pre-canon header helper §6 replaced) |
+| `ui/primitives/SectionSeparator.tsx` | `git grep "\bSectionSeparator\b"` → 1 hit, its own `export default` | found by the sweep |
+| `ui/theme.ts` → `matchPalette` | `git grep "\bmatchPalette\b"` → 1 hit, its own definition | DS2 removed its last caller (`MatchHistoryList`'s `nameColorByResult`) and §8 forbids tinting a row by result. `matchStatusPill` / `tournamentStatusPill` / `tournamentPalette` / `tournamentStatusUI` all keep callers |
+
+**Kept, with the reason:**
+
+- `utils/format.ts` → `fmtMonthDate` (T1's finding) **and**, found by the same sweep,
+  `parseDateSafe` and `wrapTwoLinesWords`: all three are referenced only by
+  `src/test/format.test.ts`. They are 5-line pure generic formatters in a utils module, fully
+  tested, and deleting them only removes passing tests — so all three stay and are named in
+  `AGENTS.md` §11 as a known, deliberate exception. Deleting `fmtMonthDate` alone (the only one
+  the plan names) would have left the same situation twice over.
+- `ui/motion/motion.ts` → `fadeUp`, `sheetUp`, `listStagger`: unused today, but this file is a
+  small named *vocabulary* of framer-motion presets (`fade`, `drawerLeft`, `scrim`, `popover` are
+  in use) and the three are 3–4 lines each. Recorded, not deleted.
+- Unused API wrappers (`adminPatchMatch`, `generateSchedule`, `deleteCommentImage`,
+  `listPlayerPokeAuthoredUnreadSummary`, `deleteCommentImage`) and the re-exported
+  `useSeenGuestbookSet` / `useSeenPokesSet` / `useSeenPokesByProfileId`, `scrollElementToTop`,
+  `Pill`'s `statusPill` alias: each is a one-line binding to a **live backend route or hook**, so
+  they are API surface rather than dead logic. Left alone — removing them is a judgement call for
+  Roli, not a documentation pass.
+- Exported *types* with no cross-file importer (`CupEra`, `RecentMatch`, `ColDef`, …): they
+  document their module's shape and cost nothing.
+
+`npm run check` and `npm run build` were green after the deletions; the suite is unchanged at
+**369 tests in 40 files** (nothing tested any of the deleted symbols) and `dist/assets/index-*.js`
+is 640.59 kB (the four chart components were already tree-shaken out of the bundle — the win is
+in the source, not the build).
 
 ---
 
 ## Verification gates (after all tasks)
 
-1. `make test`, `make lint` from repo root.
-2. `make gen-types` produces no diff.
-3. `cd frontend && npm run check && npm run build`; `grep -rn "https://" frontend/dist/index.html` → nothing.
-4. Runtime on the isolated stack (390px + 1280px): every stats section and the Matchup
-   flow (Overall/1v1/2v2 × Tournaments/Both); bottom bar on every page; `/live/19`,
-   `/profiles/1?tab=guestbook&entry=<id>`; 404 page; login redirect.
-5. DB safety: nothing in this batch touches the schema.
+Run on the branch head, 2026-09-13 (Raspberry Pi 5, Node v24.13.0):
+
+1. `make test` → **130 passed**, 9 warnings (run twice on the final tree: 220.03s and 190.41s,
+   same count — no flakiness). `make lint` → `All checks passed!`. ☑
+2. `make gen-types` → no diff (`git status frontend/src/api/generated/` clean). ☑
+3. `cd frontend && npm run check` → tsc clean, eslint clean, **369 tests in 40 files passed**
+   (~31s). `npm run build` → green in 7.5s; `dist/assets/index-*.js` 640.59 kB (gzip 196.97 kB),
+   `index-*.css` 91.78 kB (gzip 19.08 kB), with the long-standing "chunks larger than 500 kB"
+   hint noted under every task since F1. `grep -c "https://" frontend/dist/index.html` → **0**.
+   ☑
+4. Runtime on the isolated stack: covered **per task** rather than once at the end — every
+   UI task in this batch verified its own DoD with Playwright against backend :8003 (a copy of
+   `app.db`) + vite :8020 at 390px and 1280px, in `blue` and `light`. The gate's list is covered
+   by: S1 (54 checks: every stats section and sub-view, 18 legacy URLs), S2 (98 checks: the
+   Matchup flow across Overall/1v1/2v2 × Tournaments/Both), U2 (24 + 5 checks: the bottom bar on
+   every page incl. `/live/19`), U3 (18 checks: `/profiles/1?tab=guestbook&entry=<id>`), U1
+   (43 checks incl. `/nope` and the login redirect carrying `state.from`), and later S7/S8/S9/
+   DS2–DS8/S10 re-swept the same routes (245 checks in S10 alone). D1 itself changes no runtime
+   behaviour, so it adds no browser run. ☑
+5. DB safety: nothing in this batch touches the schema — no new table, no `_RUNTIME_COLUMNS`
+   entry, no backfill. `git diff b56b1fb..HEAD -- backend/app/models.py backend/app/db.py` is
+   empty. ☑
 
 ## Deployment (later, on Roli's go)
 
-`git pull && docker compose up -d --build` — the frontend image changes (node:22, new
-dependency), the backend only loses a duplicate route. No DB migration, no manual server
-step. Old clients keep working (stats legacy URLs are mapped).
+**Not deployed at the end of this batch** — Roli tests the branch locally first, and merging
+`feature/2026-09-batch` into `main` is his call. `main` is still `b56b1fb` and that is what
+production runs.
+
+When it does go out, the standard `git pull && docker compose up -d --build` (`AGENTS.md` §7) is
+all it needs:
+
+- **The frontend image must be rebuilt.** Its base moved `node:20-alpine` → `node:22-alpine`
+  (Vite 7 needs Node ≥ 20.19 / 22.12), Vite went 5 → 7, and the whole UI changed. Font Awesome was
+  added by F1 and removed again by DS7, so the *net* dependency change is: `@fortawesome/
+  fontawesome-free` gone, `vite`/`@vitejs/plugin-react` bumped — nothing new at runtime.
+- **Backend changes are minimal:** the duplicate `GET /comments/tournaments-summary` route is gone
+  (F2 — the frontend always used `GET /tournaments/comments-summary`), `app/stats.py` moved into
+  `app/services/stats/tournament_stats.py`, and the guestbook notification `path` now deep-links
+  to `?tab=guestbook&entry=<id>` (U3).
+- **No DB migration and no manual server step**: `git diff b56b1fb..HEAD -- backend/app/models.py
+  backend/app/db.py` is empty, no `/data/cups.json` edit, no crest sync, nothing to run inside the
+  container.
+- **Old clients keep working:** every legacy stats URL (`?view=table|stars`, `?section=…`,
+  `#trends`) is mapped by `statsNav.ts`, `/tournaments/new` and `/tools` still redirect, and a
+  stale `localStorage["stats-experience"]` is simply ignored.
 
 ---
 
