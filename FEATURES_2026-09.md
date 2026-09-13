@@ -4680,9 +4680,20 @@ affordance into the Results/Standings tab (same component, same wording pattern,
 so both blocks on that page behave alike. Say in Deviations what the label reads for a live
 tournament versus a done one.
 
+**D. Played matches: all of them, in playing order** (Roli, after seeing T12). T12 shows the last
+five newest-first behind a `Show all 6 →`. Change both halves:
+- Render **every** played match, ordered by `order_index` ascending — the order they were played,
+  the same order the Matches tab uses. (T12 chose reverse order deliberately; this overrides it.)
+- The link then no longer reveals anything, so **relabel it** for what it does: it opens the
+  Matches tab, where the rows also carry Compact/Details, reorder and swap-sides. Keep it a ghost
+  link in the same slot.
+- Do the same for **C**'s standings link: the Overview already lists every player, so its label must
+  also say it opens the Results/Standings tab rather than promising more rows. Both blocks end up
+  with the same shape: complete content, plus a quiet link to the tab that can act on it.
+
 **DoD:** opening any done tournament lands on Overview; every player avatar carries the ring and a
 cup holder's ring is still unmistakable (screenshot the standings with a holder and a non-holder
-side by side, both themes); the standings block has its own "show all" that switches tabs;
+side by side, both themes); the standings block has its own link that switches tabs; the Overview lists every played match in playing order and neither link claims to reveal more;
 screenshots 390px + 1280px, blue + light; `npm run check` + build.
 
 **Deviations:**
