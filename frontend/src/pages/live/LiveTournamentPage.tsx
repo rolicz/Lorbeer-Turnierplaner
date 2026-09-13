@@ -110,9 +110,11 @@ export default function LiveTournamentPage() {
     enabled: !!tid,
   });
 
-  // Done tournaments open on Results: their "current match" is just the last
-  // finished one. Explicit choices (URL deep link or a tab click) always win.
-  const activeTab: LiveTab = chosenTab ?? (tQ.data?.status === "done" ? "standings" : "overview");
+  // Every tournament opens on the Overview (T15). The old "done → Results" rule
+  // predates T12: a finished Overview now leads with the winner and the final
+  // standings and lists every match played, so there is nothing left to skip.
+  // Explicit choices (URL deep link or a tab click) always win.
+  const activeTab: LiveTab = chosenTab ?? "overview";
   useEffect(() => {
     activeTabRef.current = activeTab;
   }, [activeTab]);
