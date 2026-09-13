@@ -111,7 +111,7 @@ all read-only checks; editor/admin flows can be checked by code + tests.
 | 28 | DS3 | Surface & radius migration, retire old classes ☑ | frontend |
 | 29 | DS4 | Typography & section headers on the scale ☑ | frontend |
 | 30 | DS8 | Stats sub-pages made of the same stone (+ drop redundant mode pill) ☑ | frontend |
-| 31 | S10 | Match comments & club selection reworked | frontend |
+| 31 | S10 | Match comments & club selection reworked ☑ | frontend |
 | 32 | D1 | Documentation pass (README, frontend/README, AGENTS.md, DESIGN.md) | docs |
 
 ---
@@ -2598,7 +2598,7 @@ RecordsView rebuild; audit pass + the comments header; mode pill + plan/canon)
 
 ---
 
-## S10 — Match comments & club selection reworked (fewer clicks)  ☐
+## S10 — Match comments & club selection reworked (fewer clicks)  ☑
 
 **Why (Roli #5):** "match comments and select clubs need a rework, they are very cumbersome and
 require many clicks. Make sure it's feature equivalent, you can be creative. Find good design
@@ -2739,6 +2739,155 @@ rework must keep all of it; the checklist at the end of this section is ticked i
 9. `disabled` propagates from the call site (saving, loading, no permission) to every control.
 10. National teams render their nation flag instead of a crest (`nationalTeamNation`), crest
     precedence crest → flag → monogram (`ClubBadge`).
+
+### What was built (implemented 2026-09-13, four commits: inventory, club picker, composer, polish)
+
+**Club selection** — new `frontend/src/ui/ClubPicker.tsx` (`ClubPicker` sheet + `ClubSlot`), with
+the star/league filter state lifted into `useClubFilters` in `ui/clubControls.tsx`.
+`ui/SelectClubsPanel.tsx` is rewritten around them and keeps its name and its four call sites
+(`CurrentGameSection`, `MatchDetailPage` edit tab, `FriendlyMatchCard`, `FriendlyMatchesListCard`).
+`ui/ClubCombobox.tsx` had no other user and is **deleted** (its two symbol cases live on in
+`test/clubPicker.test.tsx`).
+
+**Comments** — new `frontend/src/pages/live/comments/CommentComposer.tsx` (the chat row +
+`CommentSendRow`, which the reply box also uses). `TournamentCommentsCard` renders it at the
+bottom of the feed; `pages/live/CommentCreateComposer.tsx` and `AddCommentDropdown` /
+`ScopeActionButton` in `TournamentCommentParts.tsx` are **deleted** (no callers left). The shared
+composer types moved into `pages/live/tournamentCommentTypes.ts`.
+
+### Click counts (taps on screen, typing excluded; the tap that focuses a field counts)
+
+| Task | Before | After |
+|---|---|---|
+| Post a comment (match detail / live Current) | **3** — Add comment → focus field → Post | **2** — focus field → Send · **1** for the next one (the caret stays in the field) |
+| Post a comment on a specific match from the tournament feed | **5** — Add comment → open "Add to" → pick match → focus → Post | **4** — open "Post to" → pick match → focus → Send · **2** when the feed is already filtered to that match |
+| Post a goal (1v1) | **5** — Enter goal → side → focus Minute → focus Player → Post goal | **3** — Goal → side (minute focused, scorer prefilled) → Send |
+| Post a goal (2v2) | **5** | **4** (the scorer still has to be chosen) |
+| Post shots | **5** — Enter Shots → select A → select B → Post shots (+ the entry tap) | **4** — Shots → select A → select B → Send |
+| Attach an image | **5** — Add comment → Attach → Choose → Use image → Post | **4** — 🖼 → Choose → Use image → Send |
+| Set both clubs on a live match (both empty) | **4** — combobox A → row → combobox B → row | **3** — slot A → row → row (the sheet moves to the empty side) |
+| Set both clubs on a live match (replacing a set pair) | **5** (+1 to expand the collapsed panel) | **4** |
+| Set both clubs in the match-detail edit tab | **5** (the panel starts collapsed there) | **3** |
+| Set both clubs on a friendly (new friendly form) | **4** | **3** |
+| Set both clubs on a stored friendly (admin editor) | **5** (collapsed panel) | **3** |
+
+### Feature-equivalence checklist (every inventory item, verified at runtime unless marked)
+
+**Comments** — ☑ all three render sites · ☑ `canWrite` / `canDelete` / `canAttachImage` /
+`can_edit` / pin rule / vote+read need a token · ☑ scope filter bar (All · General · per-match
+chips with counts and unseen dots) · ☑ post a comment · ☑ post a goal (side + next scoreline,
+minute 1–999, free-text scorer with the side's players as suggestions, optional note) · ☑ post
+shots (0–50 per side, 0 valid) · ☑ image attach / replace / remove / 4:3 preview · ☑ author
+"General" vs self · ☑ "Add to" match selector (now "Post to") · ☑ every validation rule, incl.
+"an image alone is enough" and "a goal needs side+minute+scorer" · ☑ goal/shots fall back to a
+comment when the scope is not a match (now *derived*, so the feed's filter can't strand the row)
+· ☑ reply · ☑ edit (incl. the "(original)" author option) with the dirty check · ☑ delete with
+`window.confirm`, subtree included · ☑ vote up/down + voters modal · ☑ pin/unpin, pinned first ·
+☑ mark-as-read + unseen dots · ☑ thread collapse with child count · ☑ match-block collapse +
+Collapse all/Expand all · ☑ match-block header (ScoreLine + clubs + stars) · ☑ image lightbox ·
+☑ notification deep link (`?comment=`) scrolls to and flashes the comment · ☑ empty and loading
+states · ☑ the "Match comments" collapsible on the live Current tab (localStorage) · ☑ realtime
+merge and cache invalidations (untouched; `applyEvent` still preserves the viewer's votes) ·
+☑ reader sees the feed and the counts but no composer.
+
+**Club selection** — ☑ all four render sites · ☑ per-side pick · ☑ clear ("No club") · ☑ search
+over club **and** league name · ☑ crest / national flag / monogram precedence · ☑ stars in every
+row · ☑ selected-club check mark · ☑ "No clubs found" · ☑ keyboard ArrowUp/ArrowDown/Enter ·
+☑ Escape and the close button · ☑ star filter · ☑ league filter · ☑ the dice (animated star-tier
+roll over the steps that exist) · ☑ Random matchup (crypto RNG, both filters, no duplicate club,
+no national-vs-club) and its `onChangeClubs` single-write path · ☑ `ensureSelectedClubVisible` ·
+☑ `ClubStarsEditor` per side (editor+ only) · ☑ league + stars shown for the selected club ·
+☑ the Game field and the tip on the match-detail tab · ☑ `disabled` propagation · ☑ live-match
+autosave still fires per change.
+
+### Deviations and judgement calls
+
+- **The collapse is gone.** `SelectClubsPanel` dropped `wrap` / `wrapClassName` / `defaultOpen` /
+  `narrowLayout` / `showSelectedMeta`: the two slots *are* the panel now, always open, and the
+  selected league/stars are always visible (what `showSelectedMeta` used to opt into). The
+  match-detail tab wraps them in a `card` with a `Clubs` heading, the friendly form in a
+  `section-head` "Clubs"; the live match and the stored-friendly editor render them bare, because
+  a slot is already an `inset` and `DESIGN.md` §1 forbids a third nesting level.
+- **The sheet advances instead of closing** when the side you just set was the only one filled —
+  that is where the third tap is saved. It is visible (the two side chips at the top of the sheet
+  switch, the subtitle names the side) and reversible (tap the other chip, or Escape). A pick
+  that leaves nothing empty closes the sheet, as the plan asked.
+- **Search is focused on open**, per the plan's direction. On a phone that opens the keyboard
+  immediately and the list shrinks to ~4 rows until you type or dismiss it. The recents sit above
+  the fold, so the "same clubs as last time" case still works; if Roli dislikes the keyboard,
+  the fix is one line in `ClubPicker`.
+- **League grouping only while browsing.** Groups are ordered by the league's best star rating
+  (so Bundesliga/Premier League still lead, as the old stars-first sort did) and rows inside a
+  group drop their league line. A search result is a flat list with the league in each row.
+- **Recents are per browser** (`localStorage["club_picker_recent_v1"]`, 6 entries, written on
+  every pick) — there is no API for "most used", and inventing one would have meant a backend
+  change, which the task forbids.
+- **The stars editor stays next to the slot**, not inside the sheet: it is a one-tap native
+  control today and burying it behind the sheet would have cost a tap. The slot therefore shows
+  the star *glyphs* only for viewers who cannot edit; editors see `ClubStarsEditor`'s
+  `4.5★ ▾` button in the same spot, so the rating is visible either way.
+- **The club filters moved into the sheet** (that is where the list is), but *Random matchup* and
+  the dice stayed on the panel because they act on both sides at once. So the panel shows a
+  "Club list filtered: 4.5★ ✕ · Bundesliga ✕" line whenever a filter narrows the random pool —
+  the one thing that was implicit before.
+- **The match card's own club rows are not the tap target.** The plan's direction says "opened by
+  tapping the club slot on the match card"; `MatchOverviewPanel`/`MatchSides` is a read-only
+  primitive used on ~8 read-only surfaces, and on the live page the whole panel is already a link
+  to the match detail. The slots sit directly under the panel instead. The cost is that the club
+  names appear twice on that screen (once in the score panel, once in the editable slots).
+- **The composer is sticky, not fixed**: `sticky bottom-[calc(4.5rem+env(safe-area-inset-bottom))]
+  lg:bottom-4`, so it floats above the bottom tab bar while the comment section is on screen and
+  scrolls away with it — a fixed bar would have covered the page on every other tab.
+- **There is no Cancel button any more** (the composer is never "open"): clearing the field is
+  the cancel, and goal/shots entry carries an ✕ that returns the row to a comment.
+- **The author control is a toggle chip**, not a select: after the edit form got its own state
+  the composer only ever has two options (self / General), so a select would have been a menu
+  with two entries. The third option, `<name> (original)`, still exists where it is reachable —
+  the inline edit form in the comment card.
+- **Two coupling bugs fixed on the way** (both would have been visible now that the composer is
+  always on screen): starting an inline edit used to overwrite the composer's draft, because both
+  shared `draftAuthor`/`draftBody`; and a comment image only appeared after some unrelated
+  refetch, because `has_image` is derived from the stored file while the create call's
+  invalidation ran *before* the upload. The edit now has `editAuthor`/`editBody`/`canSaveEdit`,
+  and the upload goes through a new `putImageMut` in `useCommentMutations` that invalidates after
+  itself. `CommentCardContextValue` renamed accordingly (`editingDirty`→`editDirty`,
+  `canSubmit`→`canSaveEdit`, `upsertComment`→`saveEdit`).
+- **Focus is returned to the field after posting** (`focusNonce`): clicking Send moves focus to
+  the button, which then disables itself, so the caret would otherwise land on `<body>` and the
+  second comment would cost an extra tap.
+- **Thread depth cue (the DS3 hand-off).** A root comment is the boxed `inset`; a reply is a flat,
+  tighter row (`px-3 py-2`) on the block's own surface, hanging off a 2px `border-accent/25` rule
+  with a 8px indent. Fill, padding, indent and rule now all say "reply", and no fourth surface
+  was needed. `CommentCard` no longer hardcodes `p-3` — the surface class brings its own padding
+  (`.inset` already has `p-3`, so this also removes a double declaration).
+- **Friendlies** use the same `SelectClubsPanel`/`ClubPicker` in both places (the new-friendly
+  form and the admin editor of a stored friendly) and were walked through explicitly. They have
+  no comments at all (comments are tournament-scoped), so the composer does not apply there.
+- `DESIGN.md` §7 gains two rows (`ClubSlot` + `ClubPicker`, `CommentComposer`) and `AGENTS.md` §2
+  replaces the deleted `ClubCombobox` in the `src/ui/` list — rule 7, D1 re-checks.
+
+### Verification
+
+- **Checks:** `npm run check` green before every commit — 40 test files, **369 tests** (349
+  before; +11 `clubPicker.test.tsx`, +11 `commentComposer.test.tsx`, −2 with the deleted
+  `clubCombobox.test.tsx`). `npm run build` green, with the pre-existing "chunks larger than
+  500 kB" hint (639 kB `index-*.js`), as under every earlier task. No backend change, so no
+  `make test` / `make gen-types` run was needed.
+- **Runtime (isolated stack:** backend :8003 on a copy of `app.db` with a scratch secrets file
+  giving a real admin login, vite :8020 — so every walkthrough below is a *real* write through
+  the existing endpoints, not a stub): **six Playwright suites, 245 checks green**, blue + light,
+  390 px throughout and 1280 px for three of them —
+  club picker on the live match (28), on the match-detail edit tab and both friendly forms (44),
+  the composer on the match detail (36) and on the live tournament tab (48), images/votes/edit/
+  delete/pin (21), reader + notification deep link + sticky offsets (48), plus a 44-check
+  feature-equivalence sweep and a 2-check screenshot gallery. Every suite also asserts 0 console
+  errors, no horizontal overflow and (where relevant) no nested `<a>`.
+- **Screenshots** (390 px, `blue` and `light`, in the session scratchpad):
+  `s10-01-live-current`, `s10-02-club-picker`, `s10-03-club-picker-search`,
+  `s10-04-club-picker-advanced`, `s10-05-composer`, `s10-06-goal-entry`, `s10-07-shots-entry`,
+  `s10-08-thread-depth`, `s10-09-tournament-comments`, `s10-10-match-edit`,
+  `s10-11-friendly-new`, `s10-12-friendly-picker` — plus the per-suite interaction shots
+  (`cmt-*`, `club-*`, `final-filter-chip-*`).
 
 ---
 

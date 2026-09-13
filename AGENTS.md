@@ -69,8 +69,9 @@ Size (2026-09): backend ≈ 14.7k LOC Python, frontend ≈ 29k LOC TS/TSX (excl.
   `shell/` (AppShell, Sidebar desktop, MobileChrome, navConfig, routeMeta + backNavigation
   [contextual back], navStack, useScrollRestoration + useReturnScroll for scroll memory,
   NotificationBell),
-  `ClubBadge`, `NationFlag`, `ClubCombobox`, `SectionTabs`. Every icon in
-  these (and everywhere else) is a lucide-react component — see §9.
+  `ClubBadge`, `NationFlag`, `SectionTabs`, and the club pickers `ClubPicker` (+ `ClubSlot`)
+  and `SelectClubsPanel`. Every icon in these (and everywhere else) is a lucide-react
+  component — see §9.
 - `src/themes/*.css` — CSS-variable themes (blue default, dark, red, light, green) consumed by
   Tailwind via `rgb(var(--color-*))`. `src/styles.css` holds shared component classes.
 - `src/push/` — service-worker registration + subscription; `public/sw.js` handles push/click.

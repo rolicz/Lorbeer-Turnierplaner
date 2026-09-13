@@ -83,7 +83,7 @@ export default function TournamentCommentsCard({
 
   // --- composer state (the chat row at the bottom of the feed) ---
   const [draftAuthor, setDraftAuthor] = useState<"general" | number>(currentPlayerId ?? "general");
-  const [draftMode, setDraftMode] = useState<CommentCreateMode>("comment");
+  const [draftModeState, setDraftMode] = useState<CommentCreateMode>("comment");
   const [goalSide, setGoalSide] = useState<CommentGoalSide | null>(null);
   const [goalMinute, setGoalMinute] = useState("");
   const [goalPlayerName, setGoalPlayerName] = useState("");
@@ -102,6 +102,8 @@ export default function TournamentCommentsCard({
   /** Set only when the user picks a different scope than the feed's own filter. */
   const [scopeOverride, setScopeOverride] = useState<CommentScope | null>(null);
   const [pendingFocusId, setPendingFocusId] = useState<number | null>(null);
+  /** Bumped after a comment is posted, to put the caret back in the composer. */
+  const [composerFocusNonce, setComposerFocusNonce] = useState(0);
   // Active scope filter for the feed: "all" | "general" | matchId.
   const [filter, setFilter] = useState<"all" | "general" | number>(
     onlyMatchId != null ? onlyMatchId : "all",
@@ -408,6 +410,7 @@ export default function TournamentCommentsCard({
       }
       setPendingFocusId(created.id);
       resetDraft();
+      if (draftMode === "comment") setComposerFocusNonce((n) => n + 1);
     } catch {
       // handled by mutation errors (shown in UI)
     }
@@ -638,6 +641,9 @@ export default function TournamentCommentsCard({
     return { kind: "tournament" };
   }
   const composerScope: CommentScope = scopeOverride ?? defaultAddScope();
+  // A goal or shots entry only exists on a match: if the scope moves back to the
+  // tournament (by selector *or* by the feed's filter), the row is a comment again.
+  const draftMode: CommentCreateMode = composerScope.kind === "match" ? draftModeState : "comment";
   const composerScopeValue =
     composerScope.kind === "tournament" ? "general" : `m-${composerScope.matchId}`;
 
@@ -776,6 +782,7 @@ export default function TournamentCommentsCard({
       canSubmit={canSubmit}
       submitting={createMut.isPending}
       playersListId={goalPlayersListId}
+      focusNonce={composerFocusNonce}
     />
   ) : null;
 

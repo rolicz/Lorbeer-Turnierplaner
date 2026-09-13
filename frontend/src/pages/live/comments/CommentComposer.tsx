@@ -34,6 +34,7 @@ function AutoTextarea({
   ariaLabel,
   autoFocus,
   maxRows = 6,
+  focusNonce,
 }: {
   value: string;
   onChange: (v: string) => void;
@@ -43,8 +44,15 @@ function AutoTextarea({
   ariaLabel: string;
   autoFocus?: boolean;
   maxRows?: number;
+  /** Bumped by the caller to put the caret back after a successful post. */
+  focusNonce?: number;
 }) {
   const ref = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    if (!focusNonce) return;
+    ref.current?.focus();
+  }, [focusNonce]);
 
   useEffect(() => {
     const el = ref.current;
@@ -89,6 +97,7 @@ export function CommentSendRow({
   sendLabel = "Send",
   disabled = false,
   autoFocus = false,
+  focusNonce,
   leading,
   trailing,
 }: {
@@ -102,6 +111,8 @@ export function CommentSendRow({
   sendLabel?: string;
   disabled?: boolean;
   autoFocus?: boolean;
+  /** Bumped by the caller to put the caret back after a successful post. */
+  focusNonce?: number;
   leading?: React.ReactNode;
   trailing?: React.ReactNode;
 }) {
@@ -118,6 +129,7 @@ export function CommentSendRow({
         ariaLabel={ariaLabel}
         disabled={disabled}
         autoFocus={autoFocus}
+        focusNonce={focusNonce}
       />
       {trailing}
       <Button
@@ -187,6 +199,7 @@ export default function CommentComposer({
   disabled = false,
   sticky = true,
   playersListId,
+  focusNonce,
 }: {
   mode: CommentCreateMode;
   onModeChange: (mode: CommentCreateMode) => void;
@@ -221,6 +234,12 @@ export default function CommentComposer({
   /** Pin the row above the bottom tab bar while the feed is on screen. */
   sticky?: boolean;
   playersListId: string;
+  /**
+   * Bumped after a successful post: clicking Send moves focus to the button, which
+   * then disables itself, so without this the caret lands on `<body>` and posting a
+   * second comment would cost an extra tap.
+   */
+  focusNonce?: number;
 }) {
   const teamA = goalTeams.find((t) => t.side === "A");
   const teamB = goalTeams.find((t) => t.side === "B");
@@ -244,8 +263,9 @@ export default function CommentComposer({
       data-comment-composer
     >
       <div className="card space-y-2 p-2 shadow-pop">
-        {/* The scope selector takes its own line: "Match 2 — Rumpi vs Roli" has to stay readable. */}
-        {mode === "comment" && scopeControl ? <div>{scopeControl}</div> : null}
+        {/* The scope selector takes its own line: "Match 2 — Rumpi vs Roli" has to stay
+            readable, and in goal/shots entry it is the label that says which match it is for. */}
+        {scopeControl ? <div>{scopeControl}</div> : null}
 
         {mode === "comment" && (authorControl || allowMatchEventModes) ? (
           <div className="flex flex-wrap items-center gap-1.5">
@@ -427,6 +447,7 @@ export default function CommentComposer({
             ariaLabel={mode === "goal" ? "Goal note" : "Comment"}
             placeholder={mode === "goal" ? "Note (optional)…" : "Write a comment…"}
             sendLabel={sendLabel}
+            focusNonce={focusNonce}
             leading={
               mode === "comment" && canAttachImage && !imagePreviewUrl ? (
                 <Button

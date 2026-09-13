@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, within } from "@testing-library/react";
 
 import type { Club } from "../api/types";
@@ -68,6 +68,11 @@ function Harness({
     />
   );
 }
+
+beforeAll(() => {
+  // The active row is scrolled into view; jsdom has no layout.
+  Element.prototype.scrollIntoView = vi.fn();
+});
 
 beforeEach(() => {
   window.localStorage.clear();
@@ -178,6 +183,22 @@ describe("ClubPicker", () => {
     expect(getByRole("button", { name: "Roli" })).toHaveAttribute("aria-pressed", "true");
     fireEvent.click(flo);
     expect(onActiveKeyChange).toHaveBeenCalledWith("B");
+  });
+
+  it("keeps the combobox's keyboard control: arrows move, Enter picks", () => {
+    const onPick = vi.fn();
+    render(<Harness onPick={onPick} />);
+
+    const input = document.querySelector("input") as HTMLInputElement;
+    fireEvent.keyDown(input, { key: "ArrowDown" });
+    fireEvent.keyDown(input, { key: "Enter" });
+    // Bundesliga (5★) leads the grouping, so row 2 is the Eredivisie 4.5★ club.
+    expect(onPick).toHaveBeenCalledWith("A", 2);
+
+    onPick.mockClear();
+    fireEvent.change(input, { target: { value: "bayern" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(onPick).toHaveBeenCalledWith("A", 1);
   });
 
   it("narrows the list through the shared star filter", () => {

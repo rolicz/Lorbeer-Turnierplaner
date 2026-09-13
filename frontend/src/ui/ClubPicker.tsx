@@ -115,22 +115,29 @@ export function ClubSlot({
 function ClubRow({
   club,
   selected,
+  active,
   showLeague,
   onPick,
+  onHover,
 }: {
   club: Club;
   selected: boolean;
+  active: boolean;
   showLeague: boolean;
   onPick: () => void;
+  onHover: () => void;
 }) {
   return (
     <button
       type="button"
       role="option"
       aria-selected={selected}
+      data-active={active ? "true" : undefined}
+      onMouseEnter={onHover}
       onClick={onPick}
       className={cn(
-        "flex w-full items-center gap-2 px-3 py-2 text-left transition-colors hover:bg-bg-card-chip/40",
+        "flex w-full items-center gap-2 px-3 py-2 text-left transition-colors",
+        active ? "bg-bg-card-chip/60" : "hover:bg-bg-card-chip/40",
         selected && "bg-accent/10",
       )}
     >
@@ -182,7 +189,9 @@ export default function ClubPicker({
 }) {
   const [query, setQuery] = useState("");
   const [recentIds, setRecentIds] = useState<number[]>([]);
+  const [activeIdx, setActiveIdx] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
 
   const active = sides.find((s) => s.key === activeKey) ?? sides[0] ?? null;
   const activeClubId = active?.clubId ?? null;
@@ -193,6 +202,7 @@ export default function ClubPicker({
     if (!open) return;
     /* eslint-disable react-hooks/set-state-in-effect */
     setQuery("");
+    setActiveIdx(0);
     setRecentIds(readRecentClubIds());
     /* eslint-enable react-hooks/set-state-in-effect */
     const t = window.setTimeout(() => inputRef.current?.focus(), 30);
@@ -236,6 +246,38 @@ export default function ClubPicker({
     }
     return Array.from(byLeague.values()).sort((a, b) => b.top - a.top || a.name.localeCompare(b.name));
   }, [matches, q]);
+
+  // Keyboard order over exactly what is rendered (recents first, then the
+  // groups or the flat search result) — the combobox this replaced had
+  // ArrowUp/ArrowDown/Enter and they must keep working on a desktop.
+  const { flat, indexById } = useMemo(() => {
+    const tail = groups ? groups.flatMap((g) => g.clubs) : matches;
+    const byId = new Map<number, number>();
+    tail.forEach((c, i) => byId.set(c.id, recent.length + i));
+    return { flat: [...recent, ...tail], indexById: byId };
+  }, [recent, groups, matches]);
+  const activeClamped = Math.min(activeIdx, Math.max(0, flat.length - 1));
+
+  useEffect(() => {
+    if (!open) return;
+    listRef.current?.querySelectorAll<HTMLElement>('[role="option"]')[activeClamped]?.scrollIntoView({
+      block: "nearest",
+    });
+  }, [activeClamped, open]);
+
+  const onSearchKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setActiveIdx(Math.min(activeClamped + 1, flat.length - 1));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setActiveIdx(Math.max(activeClamped - 1, 0));
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      const c = flat[activeClamped];
+      if (c) pick(c.id);
+    }
+  };
 
   const pick = (clubId: number | null) => {
     if (disabled) return;
@@ -281,7 +323,11 @@ export default function ClubPicker({
           <input
             ref={inputRef}
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              setActiveIdx(0);
+            }}
+            onKeyDown={onSearchKeyDown}
             placeholder="Search clubs…"
             aria-label="Search clubs"
             className="w-full bg-transparent text-sm text-text-normal outline-none placeholder:text-text-muted"
@@ -317,7 +363,12 @@ export default function ClubPicker({
           />
         </div>
 
-        <div role="listbox" aria-label="Clubs" className="-mx-1 min-h-0 flex-1 overflow-y-auto overscroll-contain">
+        <div
+          ref={listRef}
+          role="listbox"
+          aria-label="Clubs"
+          className="-mx-1 min-h-0 flex-1 overflow-y-auto overscroll-contain"
+        >
           {activeClubId != null ? (
             <button
               type="button"
@@ -334,12 +385,14 @@ export default function ClubPicker({
               <div className="px-3 pb-1 pt-2 text-xs font-semibold uppercase tracking-wide text-text-muted">
                 Recent
               </div>
-              {recent.map((c) => (
+              {recent.map((c, i) => (
                 <ClubRow
                   key={`r-${c.id}`}
                   club={c}
                   selected={c.id === activeClubId}
+                  active={i === activeClamped}
                   showLeague
+                  onHover={() => setActiveIdx(i)}
                   onPick={() => pick(c.id)}
                 />
               ))}
@@ -354,21 +407,37 @@ export default function ClubPicker({
                 <div className="sticky top-0 z-10 bg-bg-card-outer px-3 pb-1 pt-2 text-xs font-semibold uppercase tracking-wide text-text-muted">
                   {g.name}
                 </div>
-                {g.clubs.map((c) => (
-                  <ClubRow
-                    key={c.id}
-                    club={c}
-                    selected={c.id === activeClubId}
-                    showLeague={false}
-                    onPick={() => pick(c.id)}
-                  />
-                ))}
+                {g.clubs.map((c) => {
+                  const i = indexById.get(c.id) ?? -1;
+                  return (
+                    <ClubRow
+                      key={c.id}
+                      club={c}
+                      selected={c.id === activeClubId}
+                      active={i === activeClamped}
+                      showLeague={false}
+                      onHover={() => setActiveIdx(i)}
+                      onPick={() => pick(c.id)}
+                    />
+                  );
+                })}
               </div>
             ))
           ) : (
-            matches.map((c) => (
-              <ClubRow key={c.id} club={c} selected={c.id === activeClubId} showLeague onPick={() => pick(c.id)} />
-            ))
+            matches.map((c) => {
+              const i = indexById.get(c.id) ?? -1;
+              return (
+                <ClubRow
+                  key={c.id}
+                  club={c}
+                  selected={c.id === activeClubId}
+                  active={i === activeClamped}
+                  showLeague
+                  onHover={() => setActiveIdx(i)}
+                  onPick={() => pick(c.id)}
+                />
+              );
+            })
           )}
         </div>
       </div>

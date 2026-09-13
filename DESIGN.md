@@ -149,6 +149,8 @@ Matchup, Player) is built from the same block, so the sections read as one page:
 | Filters (stats) | `StatsFilterPill` | floating capsule, see §9 |
 | Any score | `ScoreLine` | see §8 — the only way to render a score |
 | Clubs under a score | `MatchSides` | badge + club, flag + league, stars; nothing but "No club" for a clubless side |
+| Picking a club | `ClubSlot` + `ClubPicker` (`ui/`) | the slot is the tap target on a match card, the picker the sheet: search focused on open, recents first, then league groups, crest + stars per row, one tap selects |
+| Writing a comment | `CommentComposer` (`pages/live/comments/`) | one chat row at the bottom of the feed; scope + author are chips above the field, goal/shots swap the row in place |
 | Key number | `StatTile` | `inset` + `text-2xl font-bold tabular-nums` value + `text-xs` muted label |
 | Lists | `List` / `ListRow` | hairline rows, stretched link |
 | Empty / loading | `EmptyState`, `InlineLoading` (lucide `Loader2` spinner), `LoadingPlaceholder` |
