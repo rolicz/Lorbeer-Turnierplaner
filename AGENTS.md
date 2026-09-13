@@ -69,7 +69,8 @@ Size (2026-09-13): backend ≈ 13.3k LOC Python (`app/` + `manage.py` + `run.py`
   `h2h/matchupSummary.ts` the "A vs B, every match" drill-in.
 - `src/ui/` — `primitives/` (Button, Card, CardSection, Modal, Input, Pill, EmptyState,
   InlineLoading, LoadingPlaceholder, MatchOverviewPanel, ScoreLine, MatchSides, StatTile, Chip,
-  Stars, List/ListRow, PlayerLink, …),
+  Stars, List/ListRow, PlayerLink, RecordLine [the `3P 3-0-0 14:6 GD +8` line under a
+  standings/results row — fixed columns sized per list by `recordWidths(rows)`], …),
   `shell/` (AppShell, Sidebar desktop, MobileChrome drawer, BottomTabBar [mobile, 5 destinations],
   navConfig, useDestinationLinks + lastLocation [per-destination last-page memory],
   routeMeta + backNavigation [contextual back, shared with the swipe gesture], navStack,

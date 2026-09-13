@@ -159,6 +159,29 @@
   }
   .row-tap:active { background-color: rgb(var(--color-bg-card-chip) / 0.5); }
 
+  /* A numeral that holds a fixed column, so the segment after it starts at the same
+     x in every row of a list (`ui/primitives/RecordLine.tsx`, DESIGN.md §7).
+     The width comes from an invisible pad of `--record-pad` zeros rendered as a
+     zero-height block: with `tabular-nums` every digit has the same advance, so the
+     pad is exactly as wide as the widest value in the list. The `ch` unit cannot do
+     this — it is the advance of the *proportional* "0" (7.48px vs 7.78px in Inter),
+     so a two-digit value would overhang its track by 0.6px. The pad is a pseudo
+     element, so it stays out of `textContent` and out of the accessibility tree. */
+  .record-num {
+    display: inline-block;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+  .record-num::before {
+    content: var(--record-pad, "0");
+    display: block;
+    height: 0;
+    overflow: hidden;
+    visibility: hidden;
+  }
+  /* The number right of a separator (`15:4`) hugs it instead. */
+  .record-num-start { text-align: left; }
+
   /* Modal scrim (the dialog itself is a `card`). */
   .overlay-scrim {
     @apply absolute inset-0 bg-black/60;
