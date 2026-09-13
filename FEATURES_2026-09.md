@@ -3893,7 +3893,7 @@ computed `background-color` of the panel element is identical in a Playwright ch
 
 ---
 
-## T9 — Club selection as one self-contained panel (Roli, after testing T2)  ☐
+## T9 — Club selection as one self-contained panel (Roli, after testing T2)  ☑
 
 Roli: "im still not happy at all with the club selection. i dont want to see 'filter clubs',
 'dice', 'random matchup' all the time -> when i do, i want to be able to select the club there,
@@ -3927,7 +3927,98 @@ surfaces; opening it reveals a single bounded block where a club can be picked; 
 start open; the choice is remembered; screenshots 390px + 1280px, blue + light, collapsed and open,
 for all four surfaces; `npm run check` + build.
 
-**Deviations:**
+**Deviations:** (implemented 2026-09-13, three commits: panel + trigger, defaults/persistence,
+tests + docs/plan)
+
+- **The scoreboard's club line is not a second way in — it is read-only again, everywhere.**
+  The task left this open ("allowed, not required"); Roli's words were "i want to be able to
+  select the club there, and *not in the score board*", and §9b's own re-check line asks for
+  "one trigger, one container, nothing about clubs outside it except the read-only scoreboard".
+  A club line that opens the panel while collapsed and is dead while open would also be the same
+  pixel meaning two different things. So `onPickClub` (and the `aLabel`/`bLabel` that only fed its
+  aria-label) are **deleted** from `MatchOverviewPanel`/`MatchSides` together with the
+  `ClubTrigger` button — leaving them would have been a dead second implementation of the job.
+  `MatchSides` is a plain read-only primitive again on every surface that shows a score, and the
+  live Current tab's stretched "open match details" overlay no longer needs anything below it to
+  stay clickable. The panel's own header carries the discoverability instead: it *shows* both
+  club names, so the trigger still names what it edits (§9b, first bullet).
+- **The container is a `card`, not an `inset`** (the task's parenthetical suggested `inset`).
+  Everything the panel holds is a level-2 control — the two `ClubSlot`s and, when the filter row
+  is open, two `FilterSelect` triggers, which *are* `inset`s. An `inset` container would have
+  nested level 2 inside level 2 (§1), which is exactly the rule T2 had to bend around when it
+  refused to make the filter row an inset. `card` → `inset` is the canon, it is the strongest
+  "this is one unit" boundary the design has (own background, hairline, radius, soft shadow),
+  and it is the same box the neighbouring Comments card and Result/Advanced cards already use, so
+  the club panel reads as a sibling block rather than a floating fragment. On all four surfaces
+  the card sits at page level (or in the friendlies list's accent rail) — no card inside a card.
+- **The trigger is a row, not a chip:** `🛡 Clubs` in `text-sm font-semibold` with the summary
+  under it (`Inter Miami FC · Doncaster`, `Leverkusen · not set`, or `Not set` when neither side
+  has one) and a rotating chevron. Two lines rather than one: at 390px "Clubs" plus two club
+  names on one line truncates the second name away, and the summary is the reason the collapsed
+  state is honest about what is inside. The whole row is the tap target (44px+).
+- **Order inside, top to bottom: values → filters → randomisers**, as the task asked, all in one
+  `sm:max-w-md` column. The cap is §1.7: at 1280px an uncapped grid stretched the two slots to
+  ~740px each, which made the panel look like a page section instead of a tool. `extraTop`
+  (the Game field) and `extraBottom` (the match-detail tip) moved *inside* that column too, so
+  the open body is one visually aligned stack.
+- **`ClubSlot` is back** (T2 had deleted it), now local to `SelectClubsPanel` and richer than the
+  S10 version: side players · crest + club name · flag + league · stars, `items-stretch` so both
+  slots are the same height. The stars are read-only glyphs here; editing a rating stays in the
+  picker sheet where T2 put it (the club being chosen owns its rating), so the panel has no
+  second stars control.
+- **Remembered per surface, not per match:** `localStorage["club_panel_open:<surface>"]` with
+  `live-current`, `match-detail`, `friendly-new`, `friendly-edit` (the `match_list_view` idiom,
+  values `"1"`/`"0"`, written on toggle only — a first visit never writes). Per match would have
+  meant a key per tournament/match id and a "why is it closed again" surprise on the next match.
+  The stored value beats the surface default, so a Roli who closes the friendly form's panel
+  keeps it closed; the two friendly forms still *start* open, the live/match-detail ones closed.
+- **Collapsing also closes the picker sheet** (`selection.closePicker()` in the toggle) — the
+  sheet's values would otherwise outlive the panel that owns them.
+- **A collapsed panel says nothing about active filters.** A filter only narrows things that live
+  inside the panel (the sheet's list, the random pool), so a "filtered" badge on the collapsed row
+  would be exactly the kind of always-on tool chatter Roli objected to. The chips are right there
+  the moment it opens.
+- **The match-detail "Clubs" card is gone** — the panel *is* that card now (its header replaced
+  the `<h2>Clubs</h2>`), so the Edit tab still reads Result / Clubs / Advanced. The tip lost its
+  first half ("tap a club in the scoreboard above to change it") and is now just "Tip: nothing is
+  saved until you press Save.". On the new-friendly form the `section-head` "Clubs" was dropped
+  for the same reason (the card's header is the heading) and the "Loading clubs…" line moved into
+  `extraTop`.
+- **Click cost, measured in the browser** (taps, panel collapsed as it now starts): setting both
+  clubs on the live match is 4 (Clubs → slot A → row → row, the sheet still advances to the empty
+  side) against T2's 3, and on the friendly forms it stays 3 because they start open. That one tap
+  is the price of Roli's request; it is paid once per surface per browser, because the panel then
+  stays open until he closes it.
+- Tests: `clubPicker.test.tsx`'s "T2 controls row" block became "T9 — one self-contained panel"
+  (collapsed hides every tool, the summary text, one container the trigger owns, pick-inside-the-
+  panel, remembered state, plus the filter/random cases it already had);
+  `matchOverviewPanel.test.tsx`'s trigger block became "is read-only (T9)" (no buttons at all, and
+  "No club" instead of a "Select club" slot). 400 → **403** tests.
+- `DESIGN.md` §7 (the "Picking a club" row), §9b's first and toolbox bullets and `AGENTS.md` §2
+  were updated in the same pass (rule 7).
+
+**Verification**
+
+- `cd frontend && npm run check`: **41 files, 403 tests** green (400 before). `npm run build`
+  green with the pre-existing "chunks larger than 500 kB" hint. No backend change.
+- Runtime, isolated stack (backend :8003 on a **copy** of `app.db` + a scratch secrets file with a
+  real admin account, vite :8020), Playwright, blue + light × 390px + 1280px:
+  **372 layout checks** — collapsed shows the one trigger and *no* "Filter clubs" / dice /
+  "Random matchup" / club list, the score panel has 0 buttons, the open panel is one card that
+  contains both slots and all three tools, a club is picked inside it (slot → sheet on that side →
+  row → the slot carries the new club), the random row stays balanced, no overflow, no nested
+  `<a>`, 0 console errors — over all four surfaces, collapsed and open.
+- **20 write-path / persistence / reader checks** against the DB copy: the live match autosaves a
+  pick made in the panel (`A 32 → 19`), the stars editor in the sheet still writes
+  (`PATCH /clubs/{id}`, 4.5 → 4 → 4.5), the league filter narrows *Random matchup* (both draws
+  from Bundesliga) and the dice sets a star tier, the match-detail tab writes nothing before
+  `Save result` and the right club after it, the stored friendly likewise, `club_panel_open:*`
+  survives a reload per surface (open stays open, collapsed stays collapsed, the two surfaces are
+  independent), and a reader sees no panel, no randomisers and a plain-text scoreboard. Every
+  write was made against the copy and restored afterwards.
+- Screenshots (scratchpad `shots/`): `t9-{live-current,match-edit,friendly-new,friendly-stored}-
+  {390,1280}-{blue,light}-{collapsed,open,picked}` plus `t9-write-{live-after-pick,stars-editor,
+  random-filtered,dice,match-edit-saved,friendly-stored-saved}` and `t9-reader-live-current`.
 
 ---
 
@@ -3975,5 +4066,40 @@ a header block above its tab strip; the vertical offset from the top bar to the 
 identical on dashboard, tournaments, live tournament, profile, settings, friendlies, clubs, stats
 (assert the measured offsets); screenshots 390px + 1280px, blue + light, of those pages plus a
 done tournament; `npm run check` + build.
+
+**Deviations:**
+
+---
+
+## T11 — Back out of the matchup returns where you came from (Roli, 2026-09-13)  ☐
+
+Roli: "if i get to h2h from stats page (eg clicking on matrix cell) i want swipe back to go back
+to stats h2h page. if i get there from eg match details, i want swipe back to go to match details
+again."
+
+**Cause.** S2 opens the matchup by writing `?vs=` with `replace: true`, so entering it creates no
+history entry. Arriving from the H2H matrix, a swipe (or the browser back) therefore pops past the
+whole stats page to whatever preceded it; arriving from a match page it happens to work, because
+that link is a real push. The in-view "← Head-to-head" button clears the param, which is a third
+behaviour again.
+
+- **Opening a matchup from inside stats becomes a push**, not a replace — it changes what the page
+  shows, so it deserves a history step. Deep links from outside (match detail, profile) already
+  push and must keep working unchanged.
+- **The in-view back button and the gesture must agree.** Reuse the N1/N3 decision helper
+  (`ui/shell/backNavigation.ts`, `previousEntryPath()`): if the entry behind us is the same stats
+  page without `vs`, pop (N2 then restores the matrix's scroll offset); otherwise clear the param
+  in place, which is the right thing for a deep link with no stats page behind it.
+- Check the neighbours for the same smell now that the rule is "a drill-in that changes the page
+  is a history step": the Cups deep link (`?cup=`, one-shot, correctly a replace), the stats
+  section/sub-view chips (replace — switching tabs is not a drill-in), `goPlayer` row taps, and the
+  profile's tab param. Say in Deviations which ones stay replace and why.
+- Keep every param the matchup carries (`player`, `vs`, `rel`, `mode`, `source`) intact through the
+  push, and do not break `collapseMatchupSide` when H2H is left.
+
+**DoD:** from `/stats?view=h2h` tap a matrix cell → swipe right → back on the matrix at the same
+scroll offset (±8px), `vs` gone; from `/live/<t>/match/<m>` tap "All matches: A vs B" → swipe right
+→ back on the match page; the in-view back button does exactly what the gesture does in both cases;
+Playwright with touch emulation at 390px plus a desktop check; `npm run check` + build.
 
 **Deviations:**
