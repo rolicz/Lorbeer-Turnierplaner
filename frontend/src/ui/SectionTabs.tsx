@@ -67,6 +67,7 @@ export function SectionTabs<K extends string>({ tabs, active, onChange, classNam
         role="tablist"
         aria-label="Page sections"
         onScroll={syncOverflow}
+        data-no-swipe-nav
         className="no-scrollbar flex overflow-x-auto border-b border-border-card-chip/60 px-4 lg:px-6"
       >
         {tabs.map((tab) => {

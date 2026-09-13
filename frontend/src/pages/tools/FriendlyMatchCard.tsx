@@ -119,7 +119,7 @@ function AvatarPlayerSelect({
         <FormLabel>{label}</FormLabel>
         <div className="text-[11px] text-text-muted truncate">{currentName}</div>
       </div>
-      <div className="-mx-1 overflow-x-auto px-1 py-0.5">
+      <div className="-mx-1 overflow-x-auto px-1 py-0.5" data-no-swipe-nav>
         <div className="flex min-w-full items-center justify-between gap-2">
           <AvatarButton
             playerId={null}

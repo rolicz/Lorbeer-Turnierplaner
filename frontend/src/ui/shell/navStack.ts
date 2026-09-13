@@ -48,17 +48,25 @@ function write(stack: Stack): void {
   }
 }
 
+/** How a location became current — the browser's own three kinds. */
+export type NavKind = "PUSH" | "POP" | "REPLACE";
+
 /**
- * Record the current location at its history index. A push truncates whatever
- * the browser dropped above it, so entries beyond the current index go too.
+ * Record the current location at its history index.
+ *
+ * Only a **push** truncates: it drops whatever the browser dropped in front of
+ * the new entry. A pop or a replace leaves the forward entries in place, which
+ * is what makes "is there anything to go forward to?" answerable at all
+ * (`canGoForward`) — the swipe-left gesture needs that answer before it fires.
  */
-export function recordNavigation(pathname: string, search = ""): void {
+export function recordNavigation(pathname: string, search = "", kind: NavKind = "PUSH"): void {
   const idx = currentHistoryIndex();
   const stack = read();
   stack[String(idx)] = `${pathname}${search || ""}`;
   for (const key of Object.keys(stack)) {
     const n = Number(key);
-    if (!Number.isFinite(n) || n > idx || n < idx - MAX_ENTRIES) delete stack[key];
+    const stale = !Number.isFinite(n) || n < idx - MAX_ENTRIES || n > idx + MAX_ENTRIES;
+    if (stale || (kind === "PUSH" && n > idx)) delete stack[key];
   }
   write(stack);
 }
@@ -68,6 +76,25 @@ export function previousEntryPath(): string | null {
   const idx = currentHistoryIndex();
   if (idx <= 0) return null;
   return read()[String(idx - 1)] ?? null;
+}
+
+/** The front of the mirrored stack: the highest index still recorded. */
+export function highestHistoryIndex(): number {
+  let max = 0;
+  for (const key of Object.keys(read())) {
+    const n = Number(key);
+    if (Number.isFinite(n) && n > max) max = n;
+  }
+  return max;
+}
+
+/**
+ * Is there an entry in front of the current one — i.e. would `navigate(1)`
+ * actually move? `history.length` cannot answer this (it counts the whole
+ * session), but the mirrored stack can.
+ */
+export function canGoForward(): boolean {
+  return currentHistoryIndex() < highestHistoryIndex();
 }
 
 /* ── Scroll offsets per history entry ───────────────────────────────────────

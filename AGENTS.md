@@ -306,7 +306,11 @@ Other helpers: `seed --file backend/data/seed.json` (players/leagues/clubs upser
   `text-base`, 12 inside 10–11px runs and pills, plus `strokeWidth={2.25}` where a stroked icon
   looks too thin next to bold text.
 - iOS PWA: push needs Home-Screen install; back navigation uses the router history index
-  (`routeMeta.ts`), don't replace with `history.back()` blindly.
+  (`routeMeta.ts` classifies the route, `backNavigation.ts` decides pop-vs-up), don't replace
+  with `history.back()` blindly. The swipe gesture (`useSwipeNav`) asks the *same* decision, so
+  a chevron and a swipe can never land in different places; on a top-level page with nothing to
+  pop the gesture does nothing at all. Any horizontally draggable element must carry
+  `data-no-swipe-nav`, or a swipe past its scroll edge navigates.
 - Scroll position is app-managed (N2): `history.scrollRestoration` is `"manual"`, each history
   entry's offset lives in sessionStorage (`navStack`) and in-page view swaps (tabs, stats
   sections, the H2H matchup) keep their own offsets (`useReturnScroll`). A same-page `replace`

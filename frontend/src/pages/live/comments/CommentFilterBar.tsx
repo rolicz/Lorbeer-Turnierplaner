@@ -58,7 +58,7 @@ export default function CommentFilterBar({
   matchChips: CommentMatchChip[];
 }) {
   return (
-    <div className="no-scrollbar -mx-1 flex gap-1.5 overflow-x-auto px-1 py-0.5">
+    <div className="no-scrollbar -mx-1 flex gap-1.5 overflow-x-auto px-1 py-0.5" data-no-swipe-nav>
       <FilterChip active={filter === "all"} onClick={() => onChange("all")} label="All" count={totalCount} />
       <FilterChip
         active={filter === "general"}

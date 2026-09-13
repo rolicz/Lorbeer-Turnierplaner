@@ -1,13 +1,13 @@
 import { useCallback } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 
-import { previousEntryPath } from "./navStack";
+import { canGoForward, previousEntryPath } from "./navStack";
 import { historyCanPop, routeMeta } from "./routeMeta";
 
 /**
- * What "back" should do from here, as data: one decision the top-bar chevron and
- * the desktop `InlineBack` button share, so no back affordance can drift away
- * from the others.
+ * What "back" should do from here, as data: one decision the top-bar chevron,
+ * the desktop `InlineBack` button and the swipe gesture share, so no back
+ * affordance can drift away from the others.
  */
 export type BackAction =
   /** The entry behind us *is* the right page: pop it, and it keeps its scroll and open tab. */
@@ -16,6 +16,9 @@ export type BackAction =
   | { kind: "up"; to: string }
   /** Nothing sensible to do. Stay exactly where we are. */
   | { kind: "none" };
+
+/** A swipe can also go forward; everything else it does is a `BackAction`. */
+export type SwipeAction = BackAction | { kind: "forward" };
 
 /** Path part of a URL that may carry a query string. */
 function pathnameOf(url: string): string {
@@ -83,6 +86,16 @@ export function backActionFor(pathname: string, state: unknown, fallback: string
     previousPath: previousEntryPath(),
     fallback,
   });
+}
+
+/**
+ * What a horizontal swipe should do. `dir > 0` is a swipe right (back), which
+ * follows the chevron exactly; a swipe left goes forward, but only while an
+ * entry actually sits in front of us.
+ */
+export function swipeAction(dir: number, pathname: string, state: unknown): SwipeAction {
+  if (dir > 0) return backActionFor(pathname, state, null);
+  return canGoForward() ? { kind: "forward" } : { kind: "none" };
 }
 
 /**

@@ -107,7 +107,7 @@ all read-only checks; editor/admin flows can be checked by code + tests.
 | 24 | N4 | Useful links everywhere (cross-navigation sweep) ☑ | frontend |
 | 25 | S8 | H2H matrix: W-D-L default, obviously clickable | frontend |
 | 26 | S9 | Filter pill must not be overlookable | frontend |
-| 27 | N3 | Swipe back/forward always makes sense | frontend |
+| 27 | N3 | Swipe back/forward always makes sense ☑ | frontend |
 | 28 | DS3 | Surface & radius migration, retire old classes | frontend |
 | 29 | DS4 | Typography & section headers on the scale | frontend |
 | 30 | DS8 | Stats sub-pages made of the same stone (+ drop redundant mode pill) | frontend |
@@ -1944,7 +1944,7 @@ coexist with:
 
 ---
 
-## N3 — Swipe back/forward always makes sense  ☐
+## N3 — Swipe back/forward always makes sense  ☑
 
 **Why (Roli #10).** `ui/shell/useSwipeNav.ts` fires raw `nav(-1)` / `nav(1)`.
 - Swipe right (back) must use the **same resolution as the chevron** on detail pages: call the
@@ -1962,7 +1962,62 @@ coexist with:
 from Stats lands on `/live/19?tab=matches`; swipe right on `/stats` with no history does nothing;
 swipe left after a back returns forward; swiping a horizontally scrolled matrix never navigates.
 
-**Deviations:**
+**Deviations:** (implemented 2026-09-13, two commits: `refactor(N3)` extract, `feat(N3)` gesture)
+
+- **Module layout.** `ui/shell/backNavigation.ts` holds the decision as data — `BackAction`
+  (`pop` | `up` | `none`), the pure `resolveBackAction({ pathname, state, canPop, previousPath,
+  fallback })`, `backActionFor()` (the same against the live browser/session state) and
+  `swipeAction(dir, pathname, state)`. `resolveBackTarget` **and** `useContextualBack` moved
+  there with it: the decision has to read `routeMeta()` and `historyCanPop()`, so leaving the
+  hook in `routeMeta.ts` would have made the two modules import each other. `routeMeta.ts` is now
+  pure route facts and imports nothing. Import sites updated: `ui/shell/InlineBack.tsx`,
+  `ui/shell/MobileChrome.tsx`, `pages/ProfilePage.tsx`, `test/contextualBack.test.tsx`.
+- **Button vs gesture is one argument.** `fallback` is where back goes on a top-level page with
+  nothing to pop: `"/dashboard"` for the chevron, `null` for the gesture → `{ kind: "none" }`.
+  Everything else — including "up" from a deep-linked detail page — is identical by construction.
+- **Forward detection.** `navStack.recordNavigation(pathname, search, kind)` now takes the
+  navigation kind and truncates the entries in front of the current one **only on a PUSH** (which
+  is what the browser does; a pop or a replace keeps them). That makes `highestHistoryIndex()` /
+  `canGoForward()` answerable, which is what gates the swipe-left. `useRememberLocation` feeds
+  `useNavigationType()` in and keys its effect on `location.key`, so pushing the same URL twice
+  is recorded at its new index too.
+- **A no-op does not spend the debounce.** `lastNavAt` is now written only when a navigation
+  really happens, so an ignored gesture (nothing to pop, nothing in front) does not swallow the
+  next one for 700 ms.
+- **Guards.** The stats matrix (`H2HView.tsx`) and the trends chart (`trends/TrendsExplorer.tsx`)
+  already carried `data-no-swipe-nav` — verified, nothing to add. But three horizontal scrollers
+  did **not**, and a swipe that reaches their scroll edge mid-gesture then navigates (the guard
+  re-reads `scrollLeft`, which the native scroll has meanwhile driven to 0). Reproduced on
+  `ui/SectionTabs.tsx` — the app-wide tab strip, 406 px of content in 390 px, so a swipe right on
+  the tabs of *any* page navigated back. Added `data-no-swipe-nav` there and to the two other
+  drag rows of the same kind, `pages/live/comments/CommentFilterBar.tsx` and
+  `pages/tools/FriendlyMatchCard.tsx` — `PlayerPicker`/`DuoPicker`, the identical affordance,
+  already opted out. This is one attribute per file and is exactly what "swipe always makes
+  sense" means; flagged here because the task text only named the matrix and the chart.
+- **Finding (not fixed here):** the last unguarded `overflow-x-auto` is `Heatmap` in
+  `pages/stats/charts.tsx`, which is **dead code** (`git grep Heatmap` finds no importer). D1/F2
+  territory, left alone.
+- Scroll restoration (N2) is unchanged and still right: a gesture that pops restores the parent's
+  offset (measured 200 → 200 px), a gesture that navigates *up* is a PUSH and opens the parent at
+  the top (measured 0).
+- Tests: `frontend/src/test/swipeNav.test.ts`, 14 cases over the decision functions only
+  (`resolveBackAction` pop/up/fallback/no-fallback/path-vs-query comparison, `swipeAction` for
+  the four DoD situations, `canGoForward` incl. "a push after a back drops what it destroyed" and
+  "a replace keeps the forward entries"). Suite 335 → 349 in 39 files.
+- **Finding — Playwright only.** Chromium's touch adjustment snaps a dispatched touch to a nearby
+  button/link, so a verification swipe started next to a guarded element (the tab strip) is
+  blocked even though `elementFromPoint` says otherwise. The DoD script therefore picks a start
+  point whose whole neighbourhood is free of interactive elements; no app change.
+- Runtime DoD verified with Playwright against the isolated stack (backend :8003 on a copy of
+  `app.db`, vite :8020) with touch emulation (`isMobile`/`hasTouch`, CDP `Input.dispatchTouchEvent`):
+  **30 checks green** at 390×844 (plus one at 320×844) — a match page opened from the Stats H2H
+  matchup swipes right to `/live/19?tab=matches` at the top; `/stats` with `idx=0` swipes right to
+  nothing at all; `/dashboard` → `/players` → swipe right pops → swipe left returns forward;
+  swiping the matrix (and, at 320 px, the genuinely scrolled matrix), the trends chart and the
+  section-tab strip never navigates; a match opened from its own tournament pops and the parent
+  keeps its 200 px offset; a deep-linked `/profiles/2` swipes up to `/players`.
+- `npm run build` still prints the pre-existing "chunks larger than 500 kB" hint (641 kB
+  `index-*.js`); unrelated, as already noted under F1/F2/U1/U4/U5/S1/S5.
 
 ---
 
