@@ -22,32 +22,32 @@ export default function CollapsibleCard({
   hideHeader?: boolean;
   children: React.ReactNode | ((open: boolean) => React.ReactNode);
   className?: string;
-  variant?: "outer" | "inner" | "none";
-  bodyVariant?: "none" | "inner";
+  /** Surface level (`DESIGN.md` §3): `card` = level 1, `inset` = level 2. */
+  variant?: "card" | "inset" | "none";
+  bodyVariant?: "none" | "inset";
   bodyClassName?: string;
   scrollOnOpen?: boolean;
 }) {
   const [open, setOpen] = useState(defaultOpen);
   const sectionRef = useRef<HTMLElement | null>(null);
   const prevOpenRef = useRef<boolean>(open);
-  const variantCls =
-    variant === "outer" ? "card-outer" : variant === "inner" ? "card-inner" : "";
+  const variantCls = variant === "card" ? "card" : variant === "inset" ? "inset" : "";
   const pad = variant === "none" ? "px-3 py-2.5" : "";
   const bodyPad = variant === "none" ? "px-3 pb-3" : "";
 
-  const resolvedBodyVariant: "none" | "inner" =
-    bodyVariant ?? (variant === "outer" ? "inner" : "none");
+  const resolvedBodyVariant: "none" | "inset" =
+    bodyVariant ?? (variant === "card" ? "inset" : "none");
 
   const innerBodyCls =
-    resolvedBodyVariant === "inner"
-      ? variant === "outer"
-        ? // For outer cards: make the body a lighter "inner" surface without double padding.
-          // We "bleed" the body to the outer edges, keep the header on the darker surface.
+    resolvedBodyVariant === "inset"
+      ? variant === "card"
+        ? // On a level-1 card: bleed the body to the card's edges instead of nesting a
+          // second rounded box inside it, and keep the header on the card surface.
           "bg-bg-card-inner border-t border-border-card-inner/45 -mx-3 -mb-3 rounded-b-2xl p-3"
-        : "card-inner"
+        : "inset"
       : "";
 
-  const bodyTopGap = variant === "outer" && resolvedBodyVariant === "inner" ? "" : "mt-3";
+  const bodyTopGap = variant === "card" && resolvedBodyVariant === "inset" ? "" : "mt-3";
 
   useEffect(() => {
     if (!scrollOnOpen) return;
@@ -106,14 +106,14 @@ export default function CollapsibleCard({
 
           <div className="flex items-center gap-2">
             {right}
-            <span className="text-subtle">{open ? "▾" : "▸"}</span>
+            <span className="text-text-muted/80">{open ? "▾" : "▸"}</span>
           </div>
         </button>
       ) : null}
 
       {open && (
         <div className={cn(hideHeader ? "" : bodyTopGap, bodyPad)}>
-          {resolvedBodyVariant === "inner" ? (
+          {resolvedBodyVariant === "inset" ? (
             <div className={cn(innerBodyCls, bodyClassName)}>
               {typeof children === "function" ? children(open) : children}
             </div>

@@ -1,13 +1,13 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { MailOpen, MessageSquare, Gamepad2, LayoutGrid, ListChecks, SlidersHorizontal, Trophy } from "lucide-react";
 
 import Button from "../../ui/primitives/Button";
-import { Pill, pillDate } from "../../ui/primitives/Pill";
 import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
 import PageLoadingScreen from "../../ui/primitives/PageLoadingScreen";
 import { SectionTabs, type SectionTab } from "../../ui/SectionTabs";
+import PageLayout from "../../ui/layout/PageLayout";
 
 import {
   getTournament,
@@ -21,6 +21,7 @@ import {
   reassign2v2Schedule,
 } from "../../api/tournaments.api";
 
+import { ApiError } from "../../api/client";
 import { patchMatch, swapMatchSides } from "../../api/matches.api";
 import { listClubs } from "../../api/clubs.api";
 import type { DeciderType, Match, Club, PatchMatchBody } from "../../api/types";
@@ -36,14 +37,16 @@ import StandingsTable from "./StandingsTable";
 import { computeFinishedStandings, computeTopDraw } from "./tournamentStandings";
 import CurrentGameSection from "./CurrentGameSection";
 import TournamentCommentsCard from "./TournamentCommentsCard";
+import TournamentMetaPills from "./TournamentMetaPills";
 import { shuffle, sideBy } from "../../helpers";
 
-import { fmtDate } from "../../utils/format";
 import { listTournamentComments, markAllTournamentCommentsRead } from "../../api/comments.api";
 import { qk } from "../../api/queryKeys";
 import { useRouteEntryLoading } from "../../ui/layout/useRouteEntryLoading";
 import { usePageTitle } from "../../ui/layout/PageTitleContext";
 import InlineBack from "../../ui/shell/InlineBack";
+import { forgetLocation } from "../../ui/shell/lastLocation";
+import { useReturnScroll } from "../../ui/shell/useReturnScroll";
 
 type PlayerLite = { id: number; display_name: string };
 type LiveTab = "overview" | "current" | "standings" | "matches" | "comments" | "controls";
@@ -52,30 +55,6 @@ function errorMessage(err: unknown): string {
   if (err instanceof Error) return err.message;
   if (typeof err === "string") return err;
   return "Request failed";
-}
-
-/** Status chip with a pulsing dot for live tournaments. */
-function StatusChip({ status }: { status: "draft" | "live" | "done" }) {
-  if (status === "live") {
-    return (
-      <span className="inline-flex items-center gap-1.5 rounded-full bg-status-bg-green/70 px-2.5 py-0.5 text-xs font-semibold text-status-text-green">
-        <span className="relative flex h-2 w-2">
-          <span className="absolute inline-flex h-full w-full animate-ping rounded-full live-ping opacity-75" />
-          <span className="relative inline-flex h-2 w-2 rounded-full live-dot" />
-        </span>
-        Live
-      </span>
-    );
-  }
-  const cls =
-    status === "draft"
-      ? "bg-status-bg-blue/70 text-status-text-blue"
-      : "bg-bg-card-chip/70 text-text-muted";
-  return (
-    <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${cls}`}>
-      {status === "draft" ? "Draft" : "Done"}
-    </span>
-  );
 }
 
 export default function LiveTournamentPage() {
@@ -104,14 +83,23 @@ export default function LiveTournamentPage() {
   // null = neither the URL nor the user picked a tab yet → status-dependent default below.
   const [chosenTab, setChosenTabState] = useState<LiveTab | null>(initialTab);
   // Active tab is mirrored to the URL so back-navigation (in-app + browser) restores it.
+  // Each tab keeps its own scroll offset (this page has its own tab state, so it
+  // wires `useReturnScroll` itself instead of going through `useTabParam`).
+  const { swap: swapTabScroll } = useReturnScroll();
+  // The effective tab (see `activeTab` below), kept in a ref so the setter can
+  // name the tab it is leaving without depending on it.
+  const activeTabRef = useRef<LiveTab | null>(initialTab);
   const setActiveTab = useCallback(
     (t: LiveTab) => {
+      if (activeTabRef.current !== t) {
+        swapTabScroll(`${location.pathname}?tab=${activeTabRef.current ?? ""}`, `${location.pathname}?tab=${t}`);
+      }
       setChosenTabState(t);
       const next = new URLSearchParams(window.location.search);
       next.set("tab", t);
       setSearchParams(next, { replace: true });
     },
-    [setSearchParams],
+    [location.pathname, setSearchParams, swapTabScroll],
   );
 
   const tQ = useQuery({
@@ -123,6 +111,9 @@ export default function LiveTournamentPage() {
   // Done tournaments open on Results: their "current match" is just the last
   // finished one. Explicit choices (URL deep link or a tab click) always win.
   const activeTab: LiveTab = chosenTab ?? (tQ.data?.status === "done" ? "standings" : "overview");
+  useEffect(() => {
+    activeTabRef.current = activeTab;
+  }, [activeTab]);
 
   useTournamentWS(tid);
 
@@ -181,6 +172,12 @@ export default function LiveTournamentPage() {
     return bestId;
   }, [commentsQ.data?.comments, seenCommentIds, token]);
   const [focusCommentRequest, setFocusCommentRequest] = useState<{ id: number; nonce: number } | null>(null);
+
+  // A tournament that no longer exists must not trap the Tournaments tab (U6).
+  useEffect(() => {
+    if (!(tQ.error instanceof ApiError) || tQ.error.status !== 404) return;
+    forgetLocation(location.pathname + location.search);
+  }, [tQ.error, location.pathname, location.search]);
 
   useEffect(() => {
     const raw = new URLSearchParams(location.search).get("comment");
@@ -328,6 +325,7 @@ export default function LiveTournamentPage() {
       return deleteTournament(token, tid);
     },
     onSuccess: async () => {
+      forgetLocation(location.pathname + location.search);
       nav("/tournaments");
       await qc.invalidateQueries({ queryKey: qk.tournaments() });
       await qc.invalidateQueries({ queryKey: qk.cupAll() }).catch(() => {});
@@ -496,7 +494,7 @@ export default function LiveTournamentPage() {
   // "current" on a done tournament, or a legacy deep link).
   const effectiveTab: LiveTab = tabs.some((t) => t.key === activeTab) ? activeTab : (tabs[0]?.key ?? "standings");
 
-  if (!tid) return <div className="panel-subtle px-3 py-2 text-sm text-text-muted">Invalid tournament id</div>;
+  if (!tid) return <div className="inset px-3 py-2 text-sm text-text-muted">Invalid tournament id</div>;
 
   const initialLoading = !pageEntered || (!tQ.error && !tQ.data && (tQ.isLoading || clubsQ.isLoading || commentsQ.isLoading));
   if (initialLoading) {
@@ -507,59 +505,40 @@ export default function LiveTournamentPage() {
     );
   }
 
+  const markAllReadAction =
+    unreadCommentsCount > 0 ? (
+      <Button
+        variant="ghost"
+        type="button"
+        title="Mark all unread comments as read"
+        onClick={() => {
+          if (!token || !tid || unreadCommentIds.length === 0 || markAllReadMut.isPending) return;
+          const ok = window.confirm(`Mark ${unreadCommentIds.length} unread comment(s) as read?`);
+          if (!ok) return;
+          markAllReadMut.mutate();
+        }}
+        disabled={!token || markAllReadMut.isPending}
+      >
+        <MailOpen size={15} />
+      </Button>
+    ) : null;
+
   return (
-    <div className="page">
-      {/* Header */}
-      <div className="mb-3">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0 flex-1">
-            <div className="mb-1 hidden items-center gap-2 lg:flex">
-              <InlineBack />
-              <h1 className="truncate text-xl font-bold tracking-tight text-text-normal sm:text-2xl">
-                {cardTitle}
-              </h1>
-            </div>
-            {tQ.data ? (
-              <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-                <StatusChip status={tQ.data.status} />
-                <Pill>{tQ.data.mode}</Pill>
-                <Pill className={pillDate()} title="Date">
-                  {fmtDate(tQ.data.date)}
-                </Pill>
-              </div>
-            ) : null}
-          </div>
+    <PageLayout
+      title={cardTitle}
+      back={<InlineBack />}
+      meta={<TournamentMetaPills mode={tQ.data?.mode} date={tQ.data?.date} />}
+    >
+      <ErrorToastOnError error={tQ.error} title="Tournament loading failed" />
 
-          <div className="inline-flex shrink-0 items-center gap-2">
-            {unreadCommentsCount > 0 ? (
-              <Button
-                variant="ghost"
-                type="button"
-                title="Mark all unread comments as read"
-                onClick={() => {
-                  if (!token || !tid || unreadCommentIds.length === 0 || markAllReadMut.isPending) return;
-                  const ok = window.confirm(`Mark ${unreadCommentIds.length} unread comment(s) as read?`);
-                  if (!ok) return;
-                  markAllReadMut.mutate();
-                }}
-                disabled={!token || markAllReadMut.isPending}
-              >
-                <MailOpen size={15} />
-              </Button>
-            ) : null}
-          </div>
-        </div>
-
-        <ErrorToastOnError error={tQ.error} title="Tournament loading failed" />
-      </div>
-
-      <SectionTabs tabs={tabs} active={effectiveTab} onChange={setActiveTab} className="mb-4" />
+      <SectionTabs tabs={tabs} active={effectiveTab} onChange={setActiveTab} />
 
       {tQ.data ? (
         <>
           {effectiveTab === "overview" ? (
             <OverviewSection
               mode={tQ.data.mode}
+              date={tQ.data.date}
               matches={matchesSorted}
               players={tQ.data.players ?? []}
               clubs={clubs}
@@ -594,7 +573,7 @@ export default function LiveTournamentPage() {
           ) : null}
 
           {effectiveTab === "standings" ? (
-            <div className="stack-tight">
+            <div className="flex flex-col gap-3">
               {showDeciderReadOnly ? (
                 <div>
                   <div className="section-head"><span className="section-label">Decider</span></div>
@@ -665,7 +644,7 @@ export default function LiveTournamentPage() {
               canWrite={isEditorOrAdmin}
               canDelete={isAdmin}
               focusCommentRequest={focusCommentRequest}
-              collapsible={false}
+              headerAction={markAllReadAction}
             />
           ) : null}
 
@@ -747,7 +726,6 @@ export default function LiveTournamentPage() {
           ) : null}
         </>
       ) : null}
-
-    </div>
+    </PageLayout>
   );
 }

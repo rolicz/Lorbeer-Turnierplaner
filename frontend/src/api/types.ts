@@ -148,7 +148,7 @@ export type PatchMatchBody = {
 // Unlike Match, `state` stays a plain string here (the stats endpoints type it that way) and the
 // raw response data flows directly into StatsMatch slots — so narrowing state to MatchState would
 // force an `as MatchState` cast at every data-entry point instead of removing one. The single
-// localized cast in MatchHistoryList (matchPalette) is the deliberate state-narrowing boundary.
+// localized cast in MatchHistoryList (ScoreLine's `state`) is the deliberate narrowing boundary.
 export type StatsMatch = S["StatsMatchOut"];
 
 // H2H / player-matches — aliases to generated schema types

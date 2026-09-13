@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Check, Eye, LogIn, LogOut, UserCog } from "lucide-react";
@@ -6,8 +6,6 @@ import { Check, Eye, LogIn, LogOut, UserCog } from "lucide-react";
 import { useAuth } from "../auth/AuthContext";
 import { useTheme } from "../ui/layout/ThemeContext";
 import { usePageTitle } from "../ui/layout/PageTitleContext";
-import { useStatsExperience, setStatsExperience } from "../ui/layout/useStatsMode";
-import SegmentedSwitch from "../ui/primitives/SegmentedSwitch";
 import { SectionTabs, type SectionTab } from "../ui/SectionTabs";
 import { UserCircle2, Bell, Palette } from "lucide-react";
 import { qk } from "../api/queryKeys";
@@ -15,8 +13,9 @@ import { listPlayers } from "../api/players.api";
 import PushNotificationsSettings from "../ui/layout/PushNotificationsSettings";
 import { THEMES } from "../themes";
 import { useRouteEntryLoading } from "../ui/layout/useRouteEntryLoading";
+import { useTabParam } from "../ui/shell/useTabParam";
 import PageLayout from "../ui/layout/PageLayout";
-import Button from "../ui/primitives/Button";
+import Button, { buttonClass } from "../ui/primitives/Button";
 import PageLoadingScreen from "../ui/primitives/PageLoadingScreen";
 
 const THEME_SWATCHES: Record<string, string[]> = {
@@ -28,10 +27,13 @@ const THEME_SWATCHES: Record<string, string[]> = {
 };
 const FALLBACK_SWATCH = ["#334155", "#475569", "#fe6100"];
 
+type SettingsTab = "account" | "appearance" | "notifications";
+const SETTINGS_TAB_KEYS = ["account", "appearance", "notifications"] as const satisfies readonly SettingsTab[];
+
 /** Card wrapper for a settings group. */
 function SettingsSection({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section className="card-outer">
+    <section className="card">
       <h2 className="mb-3 text-sm font-semibold text-text-normal">{title}</h2>
       {children}
     </section>
@@ -75,10 +77,8 @@ export default function SettingsPage() {
     playerId != null && actorPlayerId != null && Number(playerId) !== Number(actorPlayerId);
 
   usePageTitle("Settings");
-  const statsExperience = useStatsExperience();
 
-  type SettingsTab = "account" | "appearance" | "notifications";
-  const [tab, setTab] = useState<SettingsTab>("account");
+  const [tab, setTab] = useTabParam<SettingsTab>(SETTINGS_TAB_KEYS, "account");
   const settingsTabs: SectionTab<SettingsTab>[] = [
     { key: "account", label: "Account", icon: <UserCircle2 size={14} /> },
     { key: "appearance", label: "Appearance", icon: <Palette size={14} /> },
@@ -91,7 +91,7 @@ export default function SettingsPage() {
 
   return (
     <PageLayout title="Settings">
-      <SectionTabs tabs={settingsTabs} active={tab} onChange={setTab} className="mb-4" />
+      <SectionTabs tabs={settingsTabs} active={tab} onChange={setTab} />
 
       <div className="mx-auto grid max-w-2xl gap-4">
         {tab === "account" ? (
@@ -108,15 +108,17 @@ export default function SettingsPage() {
               </div>
             </div>
             {canCycleRole ? (
-              <button
+              <Button
                 type="button"
+                variant="ghost"
+                size="md"
                 onClick={cycleRole}
                 title={`Switch role (currently ${role})`}
-                className="icon-button focus-ring inline-flex h-9 items-center justify-center gap-2 px-3 text-sm"
+                className="justify-center gap-2"
               >
                 <UserCog className="h-4 w-4" aria-hidden="true" />
                 <span>Switch role</span>
-              </button>
+              </Button>
             ) : null}
           </div>
           <div className="mt-3 flex items-center gap-2">
@@ -124,7 +126,7 @@ export default function SettingsPage() {
               <>
                 <Link
                   to="/profile"
-                  className="btn-ghost inline-flex h-9 flex-1 items-center justify-center"
+                  className={buttonClass({ variant: "ghost", size: "md", className: "flex-1 justify-center" })}
                 >
                   My profile
                 </Link>
@@ -141,7 +143,7 @@ export default function SettingsPage() {
                 </Button>
               </>
             ) : (
-              <Link to="/login" className="btn-solid inline-flex h-9 flex-1 items-center justify-center gap-2">
+              <Link to="/login" className={buttonClass({ variant: "solid", size: "md", className: "flex-1 justify-center gap-2" })}>
                 <LogIn className="h-4 w-4" aria-hidden="true" />
                 <span>Login</span>
               </Link>
@@ -160,7 +162,7 @@ export default function SettingsPage() {
                 type="button"
                 onClick={() => setActorPlayer(null, null)}
                 className={
-                  "rounded-lg px-2.5 py-2 text-left text-sm transition " +
+                  "rounded-xl px-2.5 py-2 text-left text-sm transition " +
                   (!actorDifferent ? "bg-bg-card-chip/50 text-text-normal" : "hover:bg-hover-default/40 text-text-muted")
                 }
               >
@@ -174,7 +176,7 @@ export default function SettingsPage() {
                     type="button"
                     onClick={() => setActorPlayer(p.id, p.display_name)}
                     className={
-                      "rounded-lg px-2.5 py-2 text-left text-sm transition " +
+                      "rounded-xl px-2.5 py-2 text-left text-sm transition " +
                       (active ? "bg-bg-card-chip/50 text-text-normal" : "hover:bg-hover-default/40 text-text-muted")
                     }
                   >
@@ -209,7 +211,7 @@ export default function SettingsPage() {
                   onClick={() => setTheme(opt)}
                   title={opt}
                   className={
-                    "flex items-center justify-between gap-2 rounded-lg px-2.5 py-2 capitalize transition hairline " +
+                    "flex items-center justify-between gap-2 rounded-xl border border-border-card-chip/40 px-2.5 py-2 capitalize transition " +
                     (active ? "bg-bg-card-chip/55" : "hover:bg-hover-default/40")
                   }
                 >
@@ -228,31 +230,6 @@ export default function SettingsPage() {
                 </button>
               );
             })}
-          </div>
-        </SettingsSection>
-        ) : null}
-
-        {tab === "appearance" ? (
-        /* Stats layout */
-        <SettingsSection title="Stats layout">
-          <div className="flex items-center justify-between gap-3">
-            <div className="min-w-0">
-              <div className="text-sm font-medium text-text-normal">Stats layout</div>
-              <div className="text-xs text-text-muted">
-                The new dashboard (standings + graphs + player profiles, with a
-                Simple/Detailed toggle) is the default; switch to the classic 7-section
-                view if you prefer it.
-              </div>
-            </div>
-            <SegmentedSwitch<"classic" | "insights">
-              value={statsExperience}
-              onChange={(v) => setStatsExperience(v)}
-              options={[
-                { key: "insights", label: "New" },
-                { key: "classic", label: "Classic" },
-              ]}
-              ariaLabel="Stats layout"
-            />
           </div>
         </SettingsSection>
         ) : null}

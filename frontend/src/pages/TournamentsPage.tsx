@@ -1,7 +1,7 @@
 import { useMemo, type ReactNode } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { List as ListIcon, Plus } from "lucide-react";
+import { Crown, List as ListIcon, MessageSquare, Plus, Trophy } from "lucide-react";
 
 import { Pill } from "../ui/primitives/Pill";
 import { List, ListRow } from "../ui/primitives/List";
@@ -21,6 +21,7 @@ import { qk } from "../api/queryKeys";
 import { useAuth } from "../auth/AuthContext";
 import { useSeenIdsByTournamentId } from "../hooks/useSeenComments";
 import { useRouteEntryLoading } from "../ui/layout/useRouteEntryLoading";
+import { useTabParam } from "../ui/shell/useTabParam";
 import { fmtDate } from "../utils/format";
 
 type Status = "draft" | "live" | "done";
@@ -43,26 +44,23 @@ function CupStakePill({ stake }: { stake: NonNullable<TournamentSummary["cup_sta
       }}
       title={`${stake.name} at stake`}
     >
-      <i className="fa-solid fa-crown" aria-hidden="true" />
+      <Crown size={14} strokeWidth={2.25} aria-hidden="true" />
     </span>
   );
 }
 
+type TTab = "all" | "new";
+const T_TAB_KEYS = ["all", "new"] as const satisfies readonly TTab[];
+
 export default function TournamentsPage() {
   const navigate = useNavigate();
-  const [searchParams, setSearchParams] = useSearchParams();
   const { role, token } = useAuth();
   const canWrite = role === "editor" || role === "admin";
   const pageEntered = useRouteEntryLoading();
 
-  type TTab = "all" | "new";
-  const tab: TTab = canWrite && searchParams.get("tab") === "new" ? "new" : "all";
-  const setTab = (t: TTab) => {
-    const n = new URLSearchParams(searchParams);
-    if (t === "new") n.set("tab", "new");
-    else n.delete("tab");
-    setSearchParams(n, { replace: true });
-  };
+  const [rawTab, setTab] = useTabParam<TTab>(T_TAB_KEYS, "all");
+  // The "new" tab needs editor rights; a stale/hand-typed deep link falls back.
+  const tab: TTab = rawTab === "new" && !canWrite ? "all" : rawTab;
   const tabs: SectionTab<TTab>[] = [
     { key: "all", label: "All tournaments", icon: <ListIcon size={14} /> },
     ...(canWrite ? [{ key: "new" as TTab, label: "New tournament", icon: <Plus size={14} /> }] : []),
@@ -122,7 +120,7 @@ export default function TournamentsPage() {
     <PageLayout title="Tournaments">
       <ErrorToastOnError error={tournamentsQ.error} title="Tournaments loading failed" />
 
-      <SectionTabs tabs={tabs} active={tab} onChange={setTab} className="mb-4" />
+      <SectionTabs tabs={tabs} active={tab} onChange={setTab} />
 
       {tab === "new" && canWrite ? (
         <NewTournamentForm onCancel={() => setTab("all")} />
@@ -140,7 +138,7 @@ export default function TournamentsPage() {
           ) : null}
         </div>
       ) : (
-        <div className="stack">
+        <div className="flex flex-col gap-5">
           {monthGroups.map((g) => (
             <div key={g.key}>
               <div className="section-head"><span className="section-label">{g.label}</span></div>
@@ -158,14 +156,14 @@ export default function TournamentsPage() {
             const participants = t.participants ?? [];
 
             const meta: ReactNode[] = [];
-            if (st === "live") meta.push(<span className="font-medium text-emerald-400">{ui.label}</span>);
+            if (st === "live") meta.push(<span className="font-medium text-status-text-green">{ui.label}</span>);
             else if (st !== "done") meta.push(<span>{ui.label}</span>);
             meta.push(<span>{fmtDate(t.date)}</span>);
             meta.push(<span>{t.mode === "2v2" ? "2v2" : "1v1"}</span>);
             if (winner)
               meta.push(
                 <span className="inline-flex items-center gap-1 text-text-normal">
-                  <i className="fa fa-trophy text-yellow-400" aria-hidden="true" />
+                  <Trophy size={12} className="shrink-0 text-gradient-gold-from" aria-hidden="true" />
                   <span className="max-w-[150px] truncate sm:max-w-[260px]">{winner}</span>
                 </span>,
               );
@@ -195,7 +193,7 @@ export default function TournamentsPage() {
                           }
                         >
                           <Pill title="Unread comments">
-                            <i className="fa-solid fa-comment text-accent" aria-hidden="true" />
+                            <MessageSquare size={12} className="text-accent" aria-hidden="true" />
                             <span className="tabular-nums text-text-normal">{unseenCount}</span>
                           </Pill>
                         </button>
@@ -204,7 +202,7 @@ export default function TournamentsPage() {
                   ) : undefined
                 }
               >
-                <span className="block truncate text-[15px] font-semibold text-text-normal">{t.name}</span>
+                <span className="block truncate text-base font-semibold text-text-normal">{t.name}</span>
                 <span className="mt-0.5 flex flex-wrap items-center text-xs text-text-muted">
                   {meta.map((node, i) => (
                     <span key={i} className="inline-flex items-center">
@@ -214,7 +212,7 @@ export default function TournamentsPage() {
                   ))}
                 </span>
                 {participants.length > 0 ? (
-                  <span className="mt-0.5 block truncate text-[11px] text-text-muted/60">
+                  <span className="mt-0.5 block truncate text-xs text-text-muted/60">
                     {participants.map((p) => p.display_name).join(", ")}
                   </span>
                 ) : null}

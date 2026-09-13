@@ -76,9 +76,10 @@ def test_comments_summary_endpoints(client, editor_headers, admin_headers):
     assert row is not None
     assert cid in row.get("comment_ids", [])
 
-    # Secondary endpoint (non-tournaments prefix) should behave the same.
+    # The duplicate endpoint under the /comments prefix was removed (F2). The path now only
+    # matches PATCH/DELETE /comments/{comment_id}, so a GET is rejected (405) instead of served.
     s2 = client.get("/comments/tournaments-summary")
-    assert s2.status_code == 200, s2.text
+    assert s2.status_code in (404, 405), s2.text
 
 
 def test_comments_read_tracking_per_player(client, editor_headers, admin_headers):

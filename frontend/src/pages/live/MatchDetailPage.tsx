@@ -9,9 +9,11 @@ import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
 import PageLoadingScreen from "../../ui/primitives/PageLoadingScreen";
 import MatchOverviewPanel from "../../ui/primitives/MatchOverviewPanel";
 import { SectionTabs, type SectionTab } from "../../ui/SectionTabs";
+import PageLayout from "../../ui/layout/PageLayout";
 import SelectClubsPanel from "../../ui/SelectClubsPanel";
-import { GoalStepper } from "../../ui/clubControls";
+import { GoalStepper, useClubSelection } from "../../ui/clubControls";
 import InlineBack from "../../ui/shell/InlineBack";
+import { useTabParam } from "../../ui/shell/useTabParam";
 import { usePageTitle } from "../../ui/layout/PageTitleContext";
 
 import { getTournament } from "../../api/tournaments.api";
@@ -28,6 +30,7 @@ import MatchH2HPanel from "./MatchH2HPanel";
 import TournamentCommentsCard from "./TournamentCommentsCard";
 
 type Tab = "h2h" | "comments" | "edit";
+const TAB_KEYS = ["h2h", "comments", "edit"] as const satisfies readonly Tab[];
 
 function parseGoal(v: string): number {
   const x = Number.parseInt(String(v ?? "").trim(), 10);
@@ -53,7 +56,7 @@ export default function MatchDetailPage() {
   const backTo = `/live/${tid}?tab=${fromTab}`;
   usePageTitle(matchId ? `Match #${matchId}` : "Match");
 
-  const [activeTab, setActiveTab] = useState<Tab>("h2h");
+  const [rawTab, setActiveTab] = useTabParam<Tab>(TAB_KEYS, "h2h");
   const [clubGame, setClubGame] = useState("EA FC 26");
 
   const tQ = useQuery({
@@ -76,6 +79,8 @@ export default function MatchDetailPage() {
   const isDone = (tQ.data?.status ?? "draft") === "done";
   // Match the live page: admins can edit even finished tournaments; editors only while not done.
   const canEditResult = role === "admin" || (role === "editor" && !isDone);
+  // `?tab=edit` only sticks while the result is actually editable.
+  const activeTab: Tab = rawTab === "edit" && !canEditResult ? "h2h" : rawTab;
 
   // Form state — kept in sync with the match
   const [aClub, setAClub] = useState<number | null>(null);
@@ -139,8 +144,26 @@ export default function MatchDetailPage() {
     },
   });
 
+  const aSide = match ? sideBy(match, "A") : undefined;
+  const bSide = match ? sideBy(match, "B") : undefined;
+  const aPlayers = teamName(aSide);
+  const bPlayers = teamName(bSide);
+
+  // Clubs: one panel under the preview holds the whole job — both slots, the
+  // filters and the two random actions (T9 / DESIGN.md §9b).
+  const clubSelection = useClubSelection({
+    clubs: clubsQ.data ?? [],
+    disabled: saveMut.isPending,
+    aLabel: aPlayers,
+    bLabel: bPlayers,
+    aClub,
+    bClub,
+    onChangeAClub: setAClub,
+    onChangeBClub: setBClub,
+  });
+
   if (!tid || !matchId) {
-    return <div className="panel-subtle px-3 py-2 text-sm text-text-muted">Invalid match URL.</div>;
+    return <div className="inset px-3 py-2 text-sm text-text-muted">Invalid match URL.</div>;
   }
 
   const initialLoading = !pageEntered || (!tQ.error && !tQ.data && tQ.isLoading);
@@ -151,7 +174,7 @@ export default function MatchDetailPage() {
   if (!match && tQ.data) {
     return (
       <div className="page">
-        <div className="panel-subtle px-3 py-2 text-sm text-text-muted">
+        <div className="inset px-3 py-2 text-sm text-text-muted">
           Match not found in tournament.
           <button type="button" className="ml-2 text-accent" onClick={() => nav(`/live/${tid}`)}>
             Back
@@ -161,11 +184,6 @@ export default function MatchDetailPage() {
     );
   }
 
-  const aSide = match ? sideBy(match, "A") : undefined;
-  const bSide = match ? sideBy(match, "B") : undefined;
-  const aPlayers = teamName(aSide);
-  const bPlayers = teamName(bSide);
-
   const tabs: SectionTab<Tab>[] = [
     { key: "h2h", label: "Head-to-Head" },
     { key: "comments", label: "Comments" },
@@ -173,29 +191,24 @@ export default function MatchDetailPage() {
   ];
 
   return (
-    <div className="page">
-      {/* Header */}
-      <div className="mb-4">
-        <div className="mb-1 hidden items-center gap-2 lg:flex">
-          <InlineBack />
-          <h1 className="text-xl font-bold tracking-tight text-text-normal">
-            Match #{matchId}
-          </h1>
-        </div>
-        {match ? (
-          <p className="mt-1 text-sm text-text-muted">
+    <PageLayout
+      title={`Match #${matchId}`}
+      back={<InlineBack />}
+      meta={
+        match ? (
+          <span className="truncate text-sm text-text-muted">
             {aPlayers} vs {bPlayers}
-          </p>
-        ) : null}
-      </div>
-
+          </span>
+        ) : null
+      }
+    >
       <ErrorToastOnError error={tQ.error} title="Tournament loading failed" />
       <ErrorToastOnError error={saveMut.error} title="Could not save match" />
       <ErrorToastOnError error={clubsQ.error} title="Could not load clubs" />
 
       {match ? (
         <>
-          <SectionTabs tabs={tabs} active={activeTab} onChange={setActiveTab} className="mb-4" />
+          <SectionTabs tabs={tabs} active={activeTab} onChange={setActiveTab} />
 
           {activeTab === "h2h" ? (
             <MatchH2HPanel match={match} clubs={clubsQ.data ?? []} />
@@ -209,7 +222,6 @@ export default function MatchDetailPage() {
               players={tQ.data?.players ?? []}
               canWrite={canEdit}
               canDelete={isAdmin}
-              collapsible={false}
               onlyMatchId={matchId}
             />
           ) : null}
@@ -217,7 +229,7 @@ export default function MatchDetailPage() {
           {activeTab === "edit" && canEditResult ? (
             <div className="space-y-4">
               {/* Live preview */}
-              <section className="card-outer space-y-3">
+              <section className="card space-y-3">
                 <h2 className="text-sm font-semibold text-text-normal">Result</h2>
 
                 <div>
@@ -242,10 +254,8 @@ export default function MatchDetailPage() {
                     clubs={clubsQ.data ?? []}
                     aGoals={aGoalsNum}
                     bGoals={bGoalsNum}
-                    showModePill={false}
                     showOdds={true}
                     showOddsWhenFinished={true}
-                    surface="panel-subtle"
                   />
                 ) : null}
 
@@ -275,33 +285,27 @@ export default function MatchDetailPage() {
                 </div>
               </section>
 
-              {/* Clubs */}
+              {/* Clubs — the panel *is* the card here: its header names the job and
+                  both clubs, and everything the job needs lives inside it (T9). */}
               <SelectClubsPanel
-                clubs={clubsQ.data ?? []}
-                disabled={saveMut.isPending}
-                aLabel={`${aPlayers} — club`}
-                bLabel={`${bPlayers} — club`}
-                aClub={aClub}
-                bClub={bClub}
-                onChangeAClub={setAClub}
-                onChangeBClub={setBClub}
-                defaultOpen={false}
-                wrapClassName="card-outer"
-                narrowLayout
+                selection={clubSelection}
+                storageKey="match-detail"
                 extraTop={
-                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  <div className="space-y-2">
                     <Input label="Game" value={clubGame} onChange={(e) => setClubGame(e.target.value)} />
                     {clubsQ.isLoading && <div className="text-sm text-text-muted">Loading clubs…</div>}
                   </div>
                 }
                 extraBottom={
-                  <div className="text-xs text-text-muted">Tip: change clubs anytime before saving.</div>
+                  <div className="text-xs text-text-muted">
+                    Tip: nothing is saved until you press Save.
+                  </div>
                 }
               />
 
               {/* Swap sides (admin only) */}
               {isAdmin ? (
-                <section className="card-outer">
+                <section className="card">
                   <h2 className="mb-2 text-sm font-semibold text-text-normal">Advanced</h2>
                   <Button
                     variant="ghost"
@@ -334,6 +338,6 @@ export default function MatchDetailPage() {
           ) : null}
         </>
       ) : null}
-    </div>
+    </PageLayout>
   );
 }

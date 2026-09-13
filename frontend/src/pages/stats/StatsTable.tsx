@@ -5,11 +5,15 @@ import { keepPreviousData, useQueries } from "@tanstack/react-query";
 import { getStatsPlayerMatches } from "../../api/stats.api";
 import { qk } from "../../api/queryKeys";
 import type { StatsPlayerMatchesTournament, StatsScope } from "../../api/types";
-import type { StatsMode } from "./StatsControls";
+import type { StatsMode } from "./statsMode";
 import AvatarCircle from "../../ui/primitives/AvatarCircle";
+import EmptyState from "../../ui/primitives/EmptyState";
+import PlayerLink from "../../ui/primitives/PlayerLink";
 import InlineLoading from "../../ui/primitives/InlineLoading";
 import { usePlayerAvatarMap } from "../../hooks/usePlayerAvatarMap";
-import { Slider, ToggleChip } from "./controls";
+import { Slider } from "./controls";
+import { Chip } from "../../ui/primitives/Chip";
+import { EloNote, InfoButton } from "./explainers";
 import { type Row, TABLE_COLS, DEFAULT_COLS, COL_CHIPS, matchStats } from "./standings";
 
 export default function StatsTable({
@@ -38,6 +42,7 @@ export default function StatsTable({
   const [visible, setVisible] = useState<Set<string>>(() => new Set(DEFAULT_COLS));
   const [lastN, setLastN] = useState(false);
   const [nWin, setNWin] = useState(5);
+  const [eloNote, setEloNote] = useState(false);
 
   // Last-N: recompute every column over each player's last N tournaments (same
   // unit as Trends' Last-N). Elo is meaningless over a window, so it's hidden.
@@ -104,45 +109,37 @@ export default function StatsTable({
       {showControls && !controlled ? (
         <>
           <div className="flex flex-wrap items-center gap-2">
-            <ToggleChip on={lastN} onClick={() => setLastN((v) => !v)}>Last N</ToggleChip>
+            <Chip selected={lastN} onClick={() => setLastN((v) => !v)}>Last N</Chip>
             {lastN ? (
               <>
-                <span className="text-[11px] text-text-muted">last {nWin} tournaments</span>
+                <span className="text-xs text-text-muted">last {nWin} tournaments</span>
                 <div className="min-w-[160px] flex-1">
                   <Slider label="" value={nWin} min={2} max={20} onChange={setNWin} />
                 </div>
               </>
             ) : (
-              <span className="text-[11px] text-text-muted">all-time totals</span>
+              <span className="text-xs text-text-muted">all-time totals</span>
             )}
           </div>
 
-          <div>
-            <div className="section-head"><span className="section-label">Columns</span></div>
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
+            <span className="section-label">Columns</span>
             <div className="flex flex-wrap gap-1.5">
               {COL_CHIPS.map((item) => {
                 const isElo = item.cols.includes("rating");
                 const disabled = lastN && isElo;
                 const on = !disabled && item.cols.every((k) => effVisible.has(k));
                 return (
-                  <button
+                  <Chip
                     key={item.label}
-                    type="button"
+                    selected={on}
                     disabled={disabled}
                     onClick={() => toggleGroup(item.cols, on)}
-                    aria-pressed={on}
                     title={disabled ? "Elo isn't available over a Last-N window" : undefined}
-                    className={
-                      "rounded-full px-2.5 py-1 text-xs transition focus-ring " +
-                      (disabled
-                        ? "cursor-not-allowed bg-bg-card-chip/30 text-text-muted/40 line-through"
-                        : on
-                          ? "bg-accent/15 font-medium text-accent ring-1 ring-inset ring-accent/40"
-                          : "bg-bg-card-chip/50 text-text-muted hover:text-text-normal")
-                    }
+                    className={disabled ? "cursor-not-allowed line-through" : undefined}
                   >
                     {item.label}
-                  </button>
+                  </Chip>
                 );
               })}
             </div>
@@ -152,16 +149,23 @@ export default function StatsTable({
         </>
       ) : null}
 
+      {eloNote ? <EloNote /> : null}
+
+      {!sorted.length ? <EmptyState title="No players yet." className="py-6" /> : (
       <div className="overflow-x-auto" data-no-swipe-nav>
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-border-card-chip/50 text-[11px] uppercase tracking-wide text-text-muted">
+            <tr className="border-b border-border-card-chip/50 text-xs uppercase tracking-wide text-text-muted">
               <th className="sticky left-0 z-10 bg-bg-default py-2 pl-1 pr-2 text-left font-medium">Player</th>
               {cols.map((c) => (
                 <th key={c.key} className="px-2 py-2 text-right font-medium">
                   <button type="button" onClick={() => setSort(c.key)} className={"inline-flex items-center gap-0.5 " + (sortKey === c.key ? "text-accent" : "hover:text-text-normal")}>
                     {c.label}{sortKey === c.key ? <span>{dir === -1 ? "▾" : "▴"}</span> : null}
                   </button>
+                  {/* How the rating works — only in the full table, not the dashboard preview. */}
+                  {c.key === "rating" && showControls && !controlled ? (
+                    <InfoButton on={eloNote} onClick={() => setEloNote((v) => !v)} label="How Elo is calculated" />
+                  ) : null}
                 </th>
               ))}
             </tr>
@@ -172,8 +176,11 @@ export default function StatsTable({
                 <td className="sticky left-0 z-10 bg-bg-default py-2 pl-1 pr-2">
                   <div className="flex items-center gap-2">
                     <span className="w-4 text-right text-xs tabular-nums text-text-muted">{i + 1}</span>
-                    <AvatarCircle playerId={r.id} name={r.name} updatedAt={avatarUpdatedAtById.get(r.id) ?? null} sizeClass="h-7 w-7" />
-                    <span className="truncate font-medium text-text-normal">{r.name}</span>
+                    {/* The row opens this player in Stats; the identity opens their profile. */}
+                    <PlayerLink playerId={r.id} name={r.name} className="flex min-w-0 items-center gap-2">
+                      <AvatarCircle playerId={r.id} name={r.name} updatedAt={avatarUpdatedAtById.get(r.id) ?? null} sizeClass="h-7 w-7" />
+                      <span className="truncate font-medium text-text-normal">{r.name}</span>
+                    </PlayerLink>
                   </div>
                 </td>
                 {cols.map((c) => (
@@ -186,6 +193,7 @@ export default function StatsTable({
           </tbody>
         </table>
       </div>
+      )}
     </div>
   );
 }

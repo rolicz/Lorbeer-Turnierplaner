@@ -1,12 +1,13 @@
+import { ArrowDown, ArrowRightLeft, ArrowUp, Layers, List, Shrink } from "lucide-react";
+
 import Button from "../../ui/primitives/Button";
 import type { Club, Match } from "../../api/types";
 import { teamName } from "../../utils/matchDisplay";
-import { sideBy, winnerSide } from "../../helpers";
-import { matchPalette } from "../../ui/theme";
-import { StarsFA } from "../../ui/primitives/StarsFA";
+import { sideBy } from "../../helpers";
+import MatchSides from "../../ui/primitives/MatchSides";
+import ScoreLine from "../../ui/primitives/ScoreLine";
 import { clubLabelPartsById } from "../../ui/clubControls";
 import ClubBadge from "../../ui/ClubBadge";
-import NationFlag from "../../ui/NationFlag";
 import { useEffect, useState } from "react";
 import SegmentedSwitch from "../../ui/primitives/SegmentedSwitch";
 import { fmtOdd } from "../../utils/format";
@@ -15,23 +16,11 @@ function splitPlayers(names: string): string[] {
   return names.split(" + ").map((s) => s.trim()).filter(Boolean);
 }
 
+/** The quiet mono odds line of `DESIGN.md` §8, same shape as the hero panel's. */
 function OddsInline({ odds }: { odds: { home: number; draw: number; away: number } }) {
   return (
-    <div className="inline-flex items-center gap-2 text-[11px]">
-      <span className="inline-flex items-baseline gap-1">
-        <span className="font-semibold text-text-muted">1</span>
-        <span className="font-mono tabular-nums text-text-normal">{fmtOdd(Number(odds.home))}</span>
-      </span>
-      <span className="text-text-muted/50">|</span>
-      <span className="inline-flex items-baseline gap-1">
-        <span className="font-semibold text-text-muted">X</span>
-        <span className="font-mono tabular-nums text-text-normal">{fmtOdd(Number(odds.draw))}</span>
-      </span>
-      <span className="text-text-muted/50">|</span>
-      <span className="inline-flex items-baseline gap-1">
-        <span className="font-semibold text-text-muted">2</span>
-        <span className="font-mono tabular-nums text-text-normal">{fmtOdd(Number(odds.away))}</span>
-      </span>
+    <div className="font-mono text-xs tabular-nums text-text-muted">
+      1 {fmtOdd(Number(odds.home))} · X {fmtOdd(Number(odds.draw))} · 2 {fmtOdd(Number(odds.away))}
     </div>
   );
 }
@@ -74,22 +63,24 @@ export default function MatchList({
 
   return (
     <div className="space-y-2">
-      <div className="flex items-center justify-between gap-2 px-1">
+      <div className="section-head px-1">
         <div className="section-label inline-flex items-center gap-1.5">
-          <i className="fa-solid fa-layer-group" aria-hidden="true" />
+          <Layers size={14} aria-hidden="true" />
           <span>{matches.length} matches</span>
         </div>
+        <div className="order-1 shrink-0">
         <SegmentedSwitch<MatchListView>
           value={view}
           onChange={setView}
           options={[
-            { key: "compact", label: "Compact", icon: "fa-compress" },
-            { key: "comfort", label: "Details", icon: "fa-list" },
+            { key: "compact", label: "Compact", icon: <Shrink size={14} aria-hidden="true" /> },
+            { key: "comfort", label: "Details", icon: <List size={14} aria-hidden="true" /> },
           ]}
           widthClass="w-12 sm:w-16"
           ariaLabel="Matches view"
           title="Matches view"
         />
+        </div>
       </div>
 
       <div className="list-divided">
@@ -102,7 +93,6 @@ export default function MatchList({
           if (!aPlayers.length) aPlayers.push("—");
           if (!bPlayers.length) bPlayers.push("—");
 
-          const pal = matchPalette(m.state);
           const statusTextCls =
             m.state === "playing"
               ? "text-status-text-green"
@@ -116,14 +106,8 @@ export default function MatchList({
                 ? "bg-status-text-blue"
                 : "bg-text-muted/60";
 
-          const w = winnerSide(m);
-          const hasWinner = w !== null;
-          const isDraw = w === null && m.state === "finished";
-
-          const showScore = m.state !== "scheduled";
           const ag = a?.goals ?? 0;
           const bg = b?.goals ?? 0;
-          const leader: "A" | "B" | null = !showScore || ag === bg ? null : ag > bg ? "A" : "B";
 
           const aClubParts = clubLabelPartsById(clubs, a?.club_id);
           const bClubParts = clubLabelPartsById(clubs, b?.club_id);
@@ -136,23 +120,34 @@ export default function MatchList({
           const showOdds = (m.state === "scheduled" || m.state === "playing") && !!m.odds;
           const odds = m.odds ?? null;
 
-          const aNameColor = hasWinner && !isDraw ? (w === "A" ? pal.win : pal.lose) : "text-text-normal";
-          const bNameColor = hasWinner && !isDraw ? (w === "B" ? pal.win : pal.lose) : "text-text-normal";
-
-          const renderNames = (players: string[], colorCls: string, side: "A" | "B") => (
-            <div className={`min-w-0 ${side === "B" ? "text-right" : ""} ${colorCls}`}>
-              {players.map((n, i) => (
-                <div
-                  key={i}
-                  className={`whitespace-normal break-words leading-tight ${compact ? "text-[13px]" : "text-[15px]"} ${
-                    leader === side ? "font-bold" : "font-medium"
-                  }`}
-                >
-                  {n}
-                </div>
-              ))}
-            </div>
-          );
+          // Compact rows carry no club detail lines, so the club symbol travels with the
+          // names — on the inner edge, where it sits right next to the score.
+          const withBadge = (players: string[], side: "A" | "B") => {
+            const parts = side === "A" ? aClubParts : bClubParts;
+            const hasClub = side === "A" ? aHasClub : bHasClub;
+            if (!compact || !hasClub) return players;
+            const badge = (
+              <ClubBadge
+                key="badge"
+                name={parts.name}
+                nation={parts.national_nation}
+                clubId={parts.id}
+                crestVersion={parts.crest_updated_at}
+              />
+            );
+            const names = (
+              <div key="names" className="min-w-0">
+                {players.map((n, i) => (
+                  <div key={i}>{n}</div>
+                ))}
+              </div>
+            );
+            return [
+              <div key="side" className={`flex items-center gap-1.5 ${side === "A" ? "justify-end" : ""}`}>
+                {side === "A" ? [names, badge] : [badge, names]}
+              </div>,
+            ];
+          };
 
           return (
             <div key={m.id} id={`match-row-${m.id}`} className="scroll-mt-28 sm:scroll-mt-24">
@@ -171,7 +166,7 @@ export default function MatchList({
               >
                 {/* Meta line: status + order + leg, with reorder/swap actions */}
                 <div className="mb-1 flex items-center justify-between gap-2">
-                  <div className="inline-flex min-w-0 items-center gap-1.5 text-[11px] font-medium">
+                  <div className="inline-flex min-w-0 items-center gap-1.5 text-xs font-medium">
                     <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${dotCls}`} aria-hidden="true" />
                     <span className="text-text-muted">#{m.order_index + 1}</span>
                     <span className={statusTextCls}>{m.state}</span>
@@ -194,7 +189,7 @@ export default function MatchList({
                             className="h-8 w-8 p-0 inline-flex items-center justify-center"
                             title="Move up"
                           >
-                            <i className="fa fa-arrow-up text-text-normal" aria-hidden="true" />
+                            <ArrowUp size={14} className="text-text-normal" aria-hidden="true" />
                           </Button>
                           <Button
                             variant="ghost"
@@ -207,7 +202,7 @@ export default function MatchList({
                             className="h-8 w-8 p-0 inline-flex items-center justify-center"
                             title="Move down"
                           >
-                            <i className="fa fa-arrow-down text-text-normal" aria-hidden="true" />
+                            <ArrowDown size={14} className="text-text-normal" aria-hidden="true" />
                           </Button>
                         </>
                       ) : null}
@@ -223,38 +218,22 @@ export default function MatchList({
                           className="h-8 w-8 p-0 inline-flex items-center justify-center"
                           title="Swap sides"
                         >
-                          <i className="fa fa-arrow-right-arrow-left text-text-normal" aria-hidden="true" />
+                          <ArrowRightLeft size={14} className="text-text-normal" aria-hidden="true" />
                         </Button>
                       ) : null}
                     </div>
                   ) : null}
                 </div>
 
-                {/* Main row: players + centered score. Compact view has no club
-                    detail rows, so the club symbols flank the score instead. */}
-                <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3">
-                  {renderNames(aPlayers, aNameColor, "A")}
-
-                  <div className="flex items-center gap-1.5 justify-self-center">
-                    {compact && aHasClub ? (
-                      <ClubBadge name={aClubParts.name} nation={aClubParts.national_nation} clubId={aClubParts.id} crestVersion={aClubParts.crest_updated_at} />
-                    ) : null}
-                    <div className="card-chip flex items-center justify-center gap-2 border border-border-card-inner/45 bg-bg-card-chip/30 px-3 py-1.5">
-                      <span className={(compact ? "text-base" : "text-lg") + " font-semibold tabular-nums"}>
-                        {showScore ? String(ag) : "-"}
-                      </span>
-                      <span className="text-text-muted">:</span>
-                      <span className={(compact ? "text-base" : "text-lg") + " font-semibold tabular-nums"}>
-                        {showScore ? String(bg) : "-"}
-                      </span>
-                    </div>
-                    {compact && bHasClub ? (
-                      <ClubBadge name={bClubParts.name} nation={bClubParts.national_nation} clubId={bClubParts.id} crestVersion={bClubParts.crest_updated_at} />
-                    ) : null}
-                  </div>
-
-                  {renderNames(bPlayers, bNameColor, "B")}
-                </div>
+                {/* Main row: the one score rendering (DESIGN.md §8). */}
+                <ScoreLine
+                  size={compact ? "sm" : "md"}
+                  state={m.state}
+                  leftNames={withBadge(aPlayers, "A")}
+                  rightNames={withBadge(bPlayers, "B")}
+                  leftGoals={ag}
+                  rightGoals={bg}
+                />
 
                 {/* Odds (details only, scheduled/playing) */}
                 {!compact && showOdds && odds ? (
@@ -265,39 +244,7 @@ export default function MatchList({
 
                 {/* Details: clubs / leagues / stars */}
                 {!compact ? (
-                  <>
-                    <div className="mt-1.5 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-start gap-3 text-xs text-text-muted">
-                      <div className="min-w-0 flex items-center gap-1.5">
-                        {aHasClub ? <ClubBadge name={aClubParts.name} nation={aClubParts.national_nation} clubId={aClubParts.id} crestVersion={aClubParts.crest_updated_at} /> : null}
-                        <span className="min-w-0 whitespace-normal break-words leading-tight">{aClubParts.name}</span>
-                      </div>
-                      <div />
-                      <div className="min-w-0 flex items-center justify-end gap-1.5 text-right">
-                        <span className="min-w-0 whitespace-normal break-words leading-tight">{bClubParts.name}</span>
-                        {bHasClub ? <ClubBadge name={bClubParts.name} nation={bClubParts.national_nation} clubId={bClubParts.id} crestVersion={bClubParts.crest_updated_at} /> : null}
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-start gap-3 text-xs text-text-muted">
-                      <div className="min-w-0 flex items-center gap-1.5">
-                        <NationFlag nation={aClubParts.league_nation} />
-                        <span className="min-w-0 whitespace-normal break-words leading-tight">{aClubParts.league_name}</span>
-                      </div>
-                      <div />
-                      <div className="min-w-0 flex items-center justify-end gap-1.5 text-right">
-                        <span className="min-w-0 whitespace-normal break-words leading-tight">{bClubParts.league_name}</span>
-                        <NationFlag nation={bClubParts.league_nation} />
-                      </div>
-                    </div>
-                    <div className="mt-1 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 text-[11px] text-text-muted">
-                      <div className="min-w-0">
-                        <StarsFA rating={aClubParts.rating ?? 0} textClassName="text-text-muted" />
-                      </div>
-                      <div />
-                      <div className="flex min-w-0 justify-end">
-                        <StarsFA rating={bClubParts.rating ?? 0} textClassName="text-text-muted" />
-                      </div>
-                    </div>
-                  </>
+                  <MatchSides className="mt-1.5" clubs={clubs} aClubId={a?.club_id} bClubId={b?.club_id} />
                 ) : null}
               </div>
             </div>

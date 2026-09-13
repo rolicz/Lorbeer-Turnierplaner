@@ -1,3 +1,5 @@
+import type { ReactNode } from "react";
+
 import AvatarCircle from "./AvatarCircle";
 
 export default function AvatarButton({
@@ -8,7 +10,7 @@ export default function AvatarButton({
   onClick,
   className = "h-9 w-9",
   disabled = false,
-  fallbackIconClass = "",
+  fallbackIcon,
   noOverflowAnchor = false,
 }: {
   playerId: number | null;
@@ -18,7 +20,7 @@ export default function AvatarButton({
   onClick: () => void;
   className?: string;
   disabled?: boolean;
-  fallbackIconClass?: string;
+  fallbackIcon?: ReactNode;
   noOverflowAnchor?: boolean;
 }) {
   return (
@@ -41,7 +43,7 @@ export default function AvatarButton({
         updatedAt={updatedAt}
         sizeClass={className}
         className={selected ? "ring-2 ring-[color:rgb(var(--color-accent)/0.85)]" : ""}
-        fallbackIconClass={playerId == null ? fallbackIconClass : undefined}
+        fallbackIcon={playerId == null ? fallbackIcon : undefined}
       />
       <span className="sr-only">{name}</span>
     </button>

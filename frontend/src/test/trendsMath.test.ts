@@ -1,10 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
-  avgLast,
   buildPlayerColorMap,
-  clampWindow,
   colorForIdx,
-  monthTicksBetween,
   pointsForPlayerInMatch,
   pooledPpm,
 } from "../pages/stats/trendsMath";
@@ -60,14 +57,6 @@ describe("pointsForPlayerInMatch", () => {
   });
 });
 
-describe("avgLast", () => {
-  it("averages over the last n, padding missing with 0 (divides by n)", () => {
-    expect(avgLast([3, 3, 3], 3)).toBe(3);
-    expect(avgLast([3], 3)).toBeCloseTo(1); // 3 / 3
-    expect(avgLast([], 5)).toBe(0);
-  });
-});
-
 describe("pooledPpm", () => {
   const timeline = [
     { pts: 3, played: 1 }, // T1: 3.0 ppm
@@ -95,23 +84,6 @@ describe("pooledPpm", () => {
   });
 });
 
-describe("clampWindow", () => {
-  it("keeps a window within the domain", () => {
-    const r = clampWindow(50, 100, 0, 1000);
-    expect(r.start).toBe(50);
-    expect(r.end).toBe(150);
-  });
-  it("shifts a window that overflows the domain end", () => {
-    const r = clampWindow(950, 100, 0, 1000);
-    expect(r.end).toBe(1000);
-    expect(r.start).toBe(900);
-  });
-  it("clamps a window starting before the domain", () => {
-    const r = clampWindow(-50, 100, 0, 1000);
-    expect(r.start).toBe(0);
-  });
-});
-
 describe("colorForIdx", () => {
   it("produces distinct hues and the expected shape", () => {
     const c = colorForIdx(0, 4);
@@ -134,18 +106,5 @@ describe("buildPlayerColorMap", () => {
     const m = buildPlayerColorMap([10, 20, 20, 30]);
     expect(m.size).toBe(3);
     expect(new Set([m.get(10)!.solid, m.get(20)!.solid, m.get(30)!.solid]).size).toBe(3);
-  });
-});
-
-describe("monthTicksBetween", () => {
-  it("returns month-boundary ticks within the range", () => {
-    const start = new Date(2024, 0, 15).getTime();
-    const end = new Date(2024, 3, 5).getTime();
-    const ticks = monthTicksBetween(start, end);
-    expect(ticks.length).toBeGreaterThanOrEqual(3);
-    expect(ticks.every((t) => typeof t.label === "string")).toBe(true);
-  });
-  it("returns empty for an invalid/empty range", () => {
-    expect(monthTicksBetween(100, 100)).toEqual([]);
   });
 });

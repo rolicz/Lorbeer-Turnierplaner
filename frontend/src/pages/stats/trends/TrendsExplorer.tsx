@@ -5,12 +5,14 @@ import { keepPreviousData, useQueries, useQuery } from "@tanstack/react-query";
 import InlineLoading from "../../../ui/primitives/InlineLoading";
 import { getStatsPlayerMatches, getStatsRatingsHistory } from "../../../api/stats.api";
 import type { StatsScope } from "../../../api/types";
-import type { StatsMode } from "../StatsControls";
+import type { StatsMode } from "../statsMode";
 import { usePlayerColors } from "../usePlayerColors";
-import { TrendChart, ChipGroup } from "../charts";
+import { TrendChart } from "../charts";
+import { Chip, ChipGroup } from "../../../ui/primitives/Chip";
 import { qk } from "../../../api/queryKeys";
 import { type Row } from "../standings";
-import { Slider, ToggleChip } from "../controls";
+import { Slider } from "../controls";
+import { EloNote } from "../explainers";
 import { type Metric, type ViewMode, useChartData } from "./useChartData";
 import { useChartGestures } from "./useChartGestures";
 
@@ -31,7 +33,7 @@ type RangeKey = "1y" | "2y" | "all";
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="space-y-1.5">
-      <span className="block text-xs font-semibold uppercase tracking-wide text-text-muted">{label}</span>
+      <span className="section-label block">{label}</span>
       {children}
     </div>
   );
@@ -149,10 +151,12 @@ export default function TrendsExplorer({ mode, scope, rows, initialMetric, initi
             <TrendChart events={events} series={series} yMax={isPpm ? 3 : Math.ceil(yMax)} yMin={isPpm ? 0 : Math.floor(yMin)} yTicks={yTicks} width={plotW - 16} viewT0={win.t0} viewT1={win.t1} showLabels height={240} />
           )}
         </div>
-        <div className="mt-1 flex items-center justify-between gap-2 text-[11px] text-text-muted">
+        <div className="mt-1 flex items-center justify-between gap-2 text-xs text-text-muted">
           <span>Pinch to zoom · drag to pan</span>
           {manualWin ? <button type="button" className="font-medium text-accent" onClick={() => setManualWin(null)}>Reset zoom</button> : null}
         </div>
+        {/* Same explainer as the Elo column in the table. */}
+        {isElo ? <div className="mt-2"><EloNote /></div> : null}
         <div className="mt-3 flex flex-wrap gap-2">
           {rows.map((r) => {
             const c = colorOf(r.id);
@@ -160,7 +164,13 @@ export default function TrendsExplorer({ mode, scope, rows, initialMetric, initi
             return (
               <button key={r.id} type="button"
                 onClick={() => setHidden((prev) => { const n = new Set(prev); if (n.has(r.id)) n.delete(r.id); else n.add(r.id); return n; })}
-                className={"inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs transition " + (on ? "bg-bg-card-chip/60 text-text-normal" : "bg-bg-card-chip/20 text-text-muted line-through")}>
+                className={
+                  // A legend key, not a selection chip: the `chip` surface (DESIGN.md §3 level 3)
+                  // when the series is drawn, the same outline hollowed out and struck through
+                  // when it is hidden.
+                  "chip inline-flex items-center gap-1.5 transition focus-ring " +
+                  (on ? "text-text-normal" : "border-dashed bg-transparent text-text-muted line-through")
+                }>
                 <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: c.solid, opacity: on ? 1 : 0.4 }} />
                 {r.name}
               </button>
@@ -174,7 +184,7 @@ export default function TrendsExplorer({ mode, scope, rows, initialMetric, initi
         <Field label="Metric">
           <div className="flex flex-wrap items-center gap-2">
             <ChipGroup<Metric> value={metric} onChange={setMetric} ariaLabel="Metric" options={METRIC_OPTS} />
-            {!isElo && !isForm && metric !== "winrate" ? <ToggleChip on={perMatch} onClick={() => setPerMatch((v) => !v)}>Per match</ToggleChip> : null}
+            {!isElo && !isForm && metric !== "winrate" ? <Chip selected={perMatch} onClick={() => setPerMatch((v) => !v)}>Per match</Chip> : null}
           </div>
         </Field>
         <Field label="View">
@@ -196,7 +206,7 @@ export default function TrendsExplorer({ mode, scope, rows, initialMetric, initi
         {effView === "rolling" || isForm ? (
           <div className="space-y-1">
             <Slider label="Last N" value={rollN} min={2} max={Math.max(3, Math.min(20, events.length || 10))} onChange={setRollN} />
-            <div className="text-[11px] text-text-muted">
+            <div className="text-xs text-text-muted">
               {isForm
                 ? `Form = average points over the last ${rollN} matches (÷N), as on profiles.`
                 : `Rolling average over the last ${rollN} tournaments.`}

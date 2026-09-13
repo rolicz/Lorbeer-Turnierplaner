@@ -1,5 +1,6 @@
+import { LogIn } from "lucide-react";
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import Card from "../ui/primitives/Card";
 import Input from "../ui/primitives/Input";
 import Button from "../ui/primitives/Button";
@@ -13,7 +14,18 @@ export default function LoginPage() {
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const nav = useNavigate();
+  const location = useLocation();
   const auth = useAuth();
+
+  // Where RequireRole bounced us from; ignore anything that isn't an in-app path.
+  const fromState = (location.state as { from?: unknown } | null)?.from;
+  const from =
+    typeof fromState === "string" &&
+    fromState.startsWith("/") &&
+    !fromState.startsWith("//") &&
+    !fromState.startsWith("/login")
+      ? fromState
+      : "/dashboard";
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -22,7 +34,7 @@ export default function LoginPage() {
     try {
       const res = await login(username.trim(), pw);
       auth.login(res.token, res.role, res.player_id, res.player_name);
-      nav("/tournaments");
+      nav(from, { replace: true });
     } catch (e: unknown) {
       if (e instanceof Error && e.message) setErr(e.message);
       else setErr("Login failed");
@@ -32,7 +44,7 @@ export default function LoginPage() {
   }
 
   return (
-    <Card title="Player Login" variant="outer">
+    <Card title="Player Login" variant="card">
       <ErrorToastOnError error={err} title="Login failed" />
       <form
         onSubmit={(e) => {
@@ -55,7 +67,7 @@ export default function LoginPage() {
           placeholder="profile password"
         />
         <Button disabled={busy || !pw.trim() || !username.trim()} className="w-full">
-          <i className="fa fa-sign-in md:hidden" aria-hidden="true" />
+          <LogIn size={14} className="md:hidden" aria-hidden="true" />
           <span className="hidden md:inline">{busy ? "Logging in..." : "Login"}</span>
         </Button>
         <div className="text-sm text-text-muted">

@@ -1,10 +1,20 @@
-import { useEffect } from "react";
-import { useNavigate } from "react-router-dom";
-import { historyCanPop } from "./routeMeta";
+import { useEffect, useRef } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
+
+import { swipeAction } from "./backNavigation";
 
 /**
  * Global edge-agnostic swipe navigation:
  *   swipe right → back, swipe left → forward.
+ *
+ * The gesture makes the *same* decision as the back chevron (`swipeAction` →
+ * `resolveBackAction`): on a detail page it goes up to the parent, popping only
+ * when the entry behind really is that parent; on a top-level page it is a plain
+ * history pop. Where a button would fall back to `/dashboard`, the gesture does
+ * nothing at all — a swipe that teleports you somewhere you never asked for is
+ * worse than a swipe that is ignored. A swipe left only fires while there is an
+ * entry in front of us.
+ *
  * Guards against hijacking horizontal scrollers (tables, charts, chip rows,
  * carousels) and range sliders, and respects a `data-no-swipe-nav` opt-out.
  */
@@ -37,6 +47,13 @@ function isBlocked(target: EventTarget | null, dir: number): boolean {
 
 export function useSwipeNav(enabled = true) {
   const nav = useNavigate();
+  const loc = useLocation();
+  // The listeners are registered once; they read the current route through this
+  // ref instead of re-binding on every navigation.
+  const locRef = useRef(loc);
+  useEffect(() => {
+    locRef.current = loc;
+  }, [loc]);
 
   useEffect(() => {
     if (!enabled) return;
@@ -83,14 +100,15 @@ export function useSwipeNav(enabled = true) {
         return;
       }
       fired = true;
+      const action = swipeAction(dir, locRef.current.pathname, locRef.current.state);
+      // Nothing to do — and nothing was spent: the next swipe is not debounced.
+      if (action.kind === "none") return;
       const nowTs = Date.now();
       if (nowTs - lastNavAt < 700) return; // ignore a second nav within the debounce window
       lastNavAt = nowTs;
-      if (dir > 0) {
-        if (historyCanPop()) nav(-1);
-      } else {
-        nav(1);
-      }
+      if (action.kind === "pop") nav(-1);
+      else if (action.kind === "forward") nav(1);
+      else nav(action.to);
     };
 
     const onEnd = () => {

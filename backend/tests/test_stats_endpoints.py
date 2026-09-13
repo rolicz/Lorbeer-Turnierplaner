@@ -248,6 +248,156 @@ def test_stats_h2h_matches_endpoint_basic(client, admin_headers, editor_headers)
     assert tournaments[0]["matches"]
 
 
+def _finish_all_matches(client, editor_headers, tournament_id: int) -> None:
+    for m in client.get(f"/tournaments/{tournament_id}").json()["matches"]:
+        r = client.patch(
+            f"/matches/{m['id']}",
+            json={"state": "finished", "sideA": {"goals": 2}, "sideB": {"goals": 1}},
+            headers=editor_headers,
+        )
+        assert r.status_code == 200, r.text
+
+
+def _match_ids(payload: dict) -> set[int]:
+    return {int(m["id"]) for t in payload["tournaments"] for m in t["matches"]}
+
+
+def _h2h_matches(client, **body):
+    r = client.post("/stats/h2h-matches", json=body)
+    assert r.status_code == 200, r.text
+    return r.json()
+
+
+def test_stats_h2h_matches_exact_teams_and_teammates(client, admin_headers, editor_headers):
+    ids = [create_player(client, admin_headers, n) for n in ["HX1", "HX2", "HX3", "HX4"]]
+    tid = create_tournament(client, editor_headers, "h2h-2v2", "2v2", ids)
+    generate(client, editor_headers, tid, randomize=False)
+    _finish_all_matches(client, editor_headers, tid)
+
+    matches = client.get(f"/tournaments/{tid}").json()["matches"]
+    first = matches[0]
+    team_a = [int(p["id"]) for p in first["sides"][0]["players"]]
+    team_b = [int(p["id"]) for p in first["sides"][1]["players"]]
+    assert len(team_a) == len(team_b) == 2
+
+    def sides_of(m: dict) -> list[set[int]]:
+        return [{int(p["id"]) for p in side["players"]} for side in m["sides"]]
+
+    def opposed(m: dict, left: int, right: int) -> bool:
+        a, b = sides_of(m)
+        return (left in a and right in b) or (left in b and right in a)
+
+    # Subset: one player per side matches every meeting of those two, not just the exact teams.
+    subset = _h2h_matches(
+        client,
+        mode="2v2",
+        relation="opposed",
+        left_player_ids=[team_a[0]],
+        right_player_ids=[team_b[0]],
+        exact_teams=False,
+    )
+    expected_subset = {int(m["id"]) for m in matches if opposed(m, team_a[0], team_b[0])}
+    assert _match_ids(subset) == expected_subset
+    assert int(first["id"]) in expected_subset
+
+    # exact_teams: the same one-per-side request matches nothing (teams are pairs).
+    exact_partial = _h2h_matches(
+        client,
+        mode="2v2",
+        relation="opposed",
+        left_player_ids=[team_a[0]],
+        right_player_ids=[team_b[0]],
+        exact_teams=True,
+    )
+    assert exact_partial["tournaments"] == []
+
+    # exact_teams with both full teams: only the meeting of exactly those two duos.
+    exact_full = _h2h_matches(
+        client,
+        mode="2v2",
+        relation="opposed",
+        left_player_ids=team_a,
+        right_player_ids=team_b,
+        exact_teams=True,
+    )
+    expected_exact = {
+        int(m["id"])
+        for m in matches
+        if sides_of(m) in ([set(team_a), set(team_b)], [set(team_b), set(team_a)])
+    }
+    assert _match_ids(exact_full) == expected_exact
+    assert int(first["id"]) in expected_exact
+
+    # relation=teammates: every match where the two share a side (right ids are ignored).
+    mates = _h2h_matches(
+        client,
+        mode="2v2",
+        relation="teammates",
+        left_player_ids=team_a,
+        right_player_ids=[],
+    )
+    assert mates["relation"] == "teammates"
+    assert mates["right_player_ids"] == []
+    expected_mates = {int(m["id"]) for m in matches if any(set(team_a) <= side for side in sides_of(m))}
+    assert _match_ids(mates) == expected_mates
+    assert int(first["id"]) in expected_mates
+    assert expected_mates != expected_subset
+
+
+def test_stats_h2h_matches_mode_and_scope_filters(client, admin_headers, editor_headers):
+    ids = [create_player(client, admin_headers, n) for n in ["HY1", "HY2", "HY3", "HY4"]]
+    left, right = ids[0], ids[2]
+
+    tid_2v2 = create_tournament(client, editor_headers, "h2h-mode-2v2", "2v2", ids)
+    generate(client, editor_headers, tid_2v2, randomize=False)
+    _finish_all_matches(client, editor_headers, tid_2v2)
+
+    tid_1v1 = create_tournament(client, editor_headers, "h2h-mode-1v1", "1v1", [left, right, ids[1]])
+    generate(client, editor_headers, tid_1v1, randomize=False)
+    _finish_all_matches(client, editor_headers, tid_1v1)
+
+    rf = client.post(
+        "/friendlies",
+        json={
+            "mode": "1v1",
+            "teamA_player_ids": [left],
+            "teamB_player_ids": [right],
+            "clubA_id": None,
+            "clubB_id": None,
+            "a_goals": 4,
+            "b_goals": 2,
+        },
+        headers=editor_headers,
+    )
+    assert rf.status_code == 200, rf.text
+
+    base = {"relation": "opposed", "left_player_ids": [left], "right_player_ids": [right]}
+
+    overall = _h2h_matches(client, mode="overall", **base)
+    assert {int(t["id"]) for t in overall["tournaments"]} == {tid_1v1, tid_2v2}
+
+    # mode=1v1 drops the 2v2 tournament even though both players met there.
+    only_1v1 = _h2h_matches(client, mode="1v1", **base)
+    assert [int(t["id"]) for t in only_1v1["tournaments"]] == [tid_1v1]
+    assert {t["mode"] for t in only_1v1["tournaments"]} == {"1v1"}
+
+    only_2v2 = _h2h_matches(client, mode="2v2", **base)
+    assert [int(t["id"]) for t in only_2v2["tournaments"]] == [tid_2v2]
+
+    # Default scope stays on tournaments; scope=both adds the friendly.
+    assert only_1v1["scope"] == "tournaments"
+    both = _h2h_matches(client, mode="1v1", scope="both", **base)
+    assert both["scope"] == "both"
+    friendlies = [t for t in both["tournaments"] if t["status"] == "friendly"]
+    assert len(friendlies) == 1
+    assert int(friendlies[0]["id"]) < 0
+    assert len(friendlies[0]["matches"]) == 1
+    assert {int(t["id"]) for t in both["tournaments"]} == {tid_1v1, int(friendlies[0]["id"])}
+
+    only_friendlies = _h2h_matches(client, mode="1v1", scope="friendlies", **base)
+    assert [t["status"] for t in only_friendlies["tournaments"]] == ["friendly"]
+
+
 def test_tournament_stats_are_scoped_to_tournament(client, editor_headers, admin_headers):
     # Tournament A players
     a1 = create_player(client, admin_headers, "TA1")

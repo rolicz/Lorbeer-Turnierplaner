@@ -1,5 +1,24 @@
 /** Shared comment view types + scope helper for the tournament comments UI. */
 
+/** What the composer is currently writing: a comment, a goal or a shots entry. */
+export type CommentCreateMode = "comment" | "goal" | "shots";
+
+export type CommentDraftAuthorValue = "general" | number;
+
+export type CommentGoalSide = "A" | "B";
+
+/** One side of the match as a goal target, with the scoreline the goal would make. */
+export type CommentGoalTeamOption = {
+  side: CommentGoalSide;
+  /** "Rumpi/Flo" — the side on one line, for labels and titles. */
+  label: string;
+  /** One entry per player, so a 2v2 side stacks like a `ScoreLine`. */
+  names: string[];
+  /** The scoreline this side scoring would make. */
+  nextA: number;
+  nextB: number;
+};
+
 export type CommentScope = { kind: "tournament" } | { kind: "match"; matchId: number };
 
 export type CommentAuthor = { kind: "general" } | { kind: "player"; playerId: number };

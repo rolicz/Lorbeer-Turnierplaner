@@ -1,11 +1,13 @@
+import { ArrowRightLeft, Flag, MessagesSquare, Play, RotateCcw } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
+
 import Button from "../../ui/primitives/Button";
 import type { Club, Match, MatchSide, Player, TournamentMode } from "../../api/types";
 import { teamName } from "../../utils/matchDisplay";
 import { sideBy } from "../../helpers";
 import MatchOverviewPanel from "../../ui/primitives/MatchOverviewPanel";
 import SelectClubsPanel from "../../ui/SelectClubsPanel";
-import { GoalStepper } from "../../ui/clubControls";
+import { GoalStepper, useClubSelection } from "../../ui/clubControls";
 import { scrollToSectionById } from "../../ui/scrollToSection";
 import TournamentCommentsCard from "./TournamentCommentsCard";
 
@@ -66,6 +68,32 @@ export default function CurrentGameSection({
   const [bClub, setBClub] = useState<number | null>(b?.club_id ?? null);
   const [aGoals, setAGoals] = useState<number>(Number(a?.goals ?? 0));
   const [bGoals, setBGoals] = useState<number>(Number(b?.goals ?? 0));
+
+  // Clubs: `SelectClubsPanel` below holds the whole job — both slots, the
+  // filters and the two random actions — behind one disclosure (T9).
+  const clubSelection = useClubSelection({
+    clubs,
+    disabled: busy || !canControl,
+    aLabel: aInline,
+    bLabel: bInline,
+    aClub,
+    bClub,
+    onChangeClubs: (aId, bId) => {
+      setAClub(aId);
+      setBClub(bId);
+      queueAutosave({ aClub: aId, bClub: bId });
+    },
+    onChangeAClub: (v) => {
+      if (v === aClub) return;
+      setAClub(v);
+      queueAutosave({ aClub: v });
+    },
+    onChangeBClub: (v) => {
+      if (v === bClub) return;
+      setBClub(v);
+      queueAutosave({ bClub: v });
+    },
+  });
 
   // -------------------------
   // AUTO-SAVE (debounced)
@@ -222,7 +250,7 @@ export default function CurrentGameSection({
               }}
               title="Open comments for this match"
             >
-              <i className="fa fa-comments md:hidden" aria-hidden="true" />
+              <MessagesSquare size={14} className="md:hidden" aria-hidden="true" />
               <span className="hidden md:inline">Comments</span>
             </Button>
 
@@ -235,7 +263,7 @@ export default function CurrentGameSection({
                 disabled={busy}
                 title="Swap home/away (A↔B)"
               >
-                <i className="fa fa-arrow-right-arrow-left md:hidden" aria-hidden="true" />
+                <ArrowRightLeft size={14} className="md:hidden" aria-hidden="true" />
                 <span className="hidden md:inline">Swap Home/Away</span>
               </Button>
             )}
@@ -249,7 +277,7 @@ export default function CurrentGameSection({
                 disabled={busy}
                 title="Start"
               >
-                <i className="fa fa-play md:hidden" aria-hidden="true" />
+                <Play size={14} className="md:hidden" aria-hidden="true" />
                 <span className="hidden md:inline">Start</span>
               </Button>
             )}
@@ -265,7 +293,7 @@ export default function CurrentGameSection({
                 disabled={busy}
                 title="Reset"
               >
-                <i className="fa fa-rotate-left md:hidden" aria-hidden="true" />
+                <RotateCcw size={14} className="md:hidden" aria-hidden="true" />
                 <span className="hidden md:inline">Reset</span>
               </Button>
             )}
@@ -283,43 +311,34 @@ export default function CurrentGameSection({
                 }}
                 title="Finish match"
               >
-                <i className="fa fa-flag-checkered md:hidden" aria-hidden="true" />
+                <Flag size={14} className="md:hidden" aria-hidden="true" />
                 <span className="hidden md:inline">Finish</span>
               </Button>
             )}
           </div>
         </div>
 
-        {onOpenMatch ? (
-          <button
-            type="button"
-            className="block w-full appearance-none rounded-xl border-0 bg-transparent p-0 text-left"
-            onClick={() => onOpenMatch(activeMatch)}
-            title="Open match details"
-          >
-            <MatchOverviewPanel
-              match={activeMatch}
-              clubs={clubs}
-              mode={tournamentMode}
-              aGoals={aGoals}
-              bGoals={bGoals}
-              showModePill={true}
-              showOdds={true}
-              surface="panel-subtle"
-            />
-          </button>
-        ) : (
+        {/* The panel is read-only and opens the match detail; the clubs are set
+            in the club panel below it (T9). */}
+        <div className="relative">
           <MatchOverviewPanel
             match={activeMatch}
             clubs={clubs}
             mode={tournamentMode}
             aGoals={aGoals}
             bGoals={bGoals}
-            showModePill={true}
             showOdds={true}
-            surface="panel-subtle"
           />
-        )}
+          {onOpenMatch ? (
+            <button
+              type="button"
+              className="focus-ring absolute inset-0 rounded-xl"
+              onClick={() => onOpenMatch(activeMatch)}
+              aria-label="Open match details"
+              title="Open match details"
+            />
+          ) : null}
+        </div>
 
         {showGoalInputs ? (
           <div className="pt-2">
@@ -353,33 +372,10 @@ export default function CurrentGameSection({
       </div>
 
       <div className="mt-2 space-y-2">
-        {/* Filter + clubs */}
-        {canControl && (
-          <SelectClubsPanel
-            clubs={clubs}
-            disabled={busy || !canControl}
-            aLabel={`${aInline} — club`}
-            bLabel={`${bInline} — club`}
-            aClub={aClub}
-            bClub={bClub}
-            onChangeClubs={(aId, bId) => {
-              setAClub(aId);
-              setBClub(bId);
-              queueAutosave({ aClub: aId, bClub: bId });
-            }}
-            onChangeAClub={(v) => {
-              if (v === aClub) return;
-              setAClub(v);
-              queueAutosave({ aClub: v });
-            }}
-            onChangeBClub={(v) => {
-              if (v === bClub) return;
-              setBClub(v);
-              queueAutosave({ bClub: v });
-            }}
-            wrapClassName="panel-inner"
-          />
-        )}
+        {/* One panel for the whole club job: collapsed it is a single "Clubs" row
+            naming both clubs, open it holds the slots, the filters and the
+            randomisers. The choice sticks per surface (T9). */}
+        {canControl && <SelectClubsPanel selection={clubSelection} storageKey="live-current" />}
 
         {Number.isFinite(Number(activeMatch.tournament_id)) && activeMatch.tournament_id > 0 ? (
           <div id={`current-match-comments-${activeMatch.id}`} className="scroll-mt-28 sm:scroll-mt-32">
@@ -390,10 +386,9 @@ export default function CurrentGameSection({
               players={players}
               canWrite={canControl}
               canDelete={canDeleteComments}
-              collapsible={false}
               onlyMatchId={activeMatch.id}
               showMatchHeader={false}
-              collapsibleHeader="Match comments"
+              title="Match comments"
             />
           </div>
         ) : null}

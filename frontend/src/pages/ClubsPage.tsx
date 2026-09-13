@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Eraser, RotateCw, ShieldHalf, Star } from "lucide-react";
 
 import ClubBadge from "../ui/ClubBadge";
 import NationFlag from "../ui/NationFlag";
@@ -15,6 +16,7 @@ import PageLoadingScreen from "../ui/primitives/PageLoadingScreen";
 import { useRouteEntryLoading } from "../ui/layout/useRouteEntryLoading";
 import PageLayout from "../ui/layout/PageLayout";
 import { SectionTabs, type SectionTab } from "../ui/SectionTabs";
+import { useTabParam } from "../ui/shell/useTabParam";
 import { List, Plus } from "lucide-react";
 
 import { useAuth } from "../auth/AuthContext";
@@ -99,6 +101,9 @@ function groupByLeague(clubs: Club[], leaguesById: Map<number, string>) {
   return entries;
 }
 
+type ClubTab = "browse" | "new";
+const CLUB_TAB_KEYS = ["browse", "new"] as const satisfies readonly ClubTab[];
+
 export default function ClubsPage() {
   const { token, role } = useAuth();
   const qc = useQueryClient();
@@ -108,8 +113,9 @@ export default function ClubsPage() {
   const isEditorOrAdmin = role === "editor" || role === "admin";
   const canEdit = isEditorOrAdmin;
 
-  type ClubTab = "browse" | "new";
-  const [tab, setTab] = useState<ClubTab>("browse");
+  const [rawTab, setTab] = useTabParam<ClubTab>(CLUB_TAB_KEYS, "browse");
+  // The "new" tab needs editor rights; a stale/hand-typed deep link falls back.
+  const tab: ClubTab = rawTab === "new" && !canEdit ? "browse" : rawTab;
   const clubTabs: SectionTab<ClubTab>[] = [
     { key: "browse", label: "Clubs", icon: <List size={14} /> },
     ...(canEdit ? [{ key: "new" as ClubTab, label: "New club", icon: <Plus size={14} /> }] : []),
@@ -280,7 +286,7 @@ export default function ClubsPage() {
       <ErrorToastOnError error={patchMut.error} title="Could not update club" />
       <ErrorToastOnError error={deleteMut.error} title="Could not delete club" />
 
-      <SectionTabs tabs={clubTabs} active={tab} onChange={setTab} className="mb-4" />
+      <SectionTabs tabs={clubTabs} active={tab} onChange={setTab} />
 
       {tab === "new" && canEdit ? (
       <section className="mx-auto w-full max-w-lg">
@@ -349,8 +355,8 @@ export default function ClubsPage() {
             value={groupMode}
             onChange={setGroupMode}
             options={[
-              { key: "stars", label: "Stars", icon: "fa-star" },
-              { key: "league", label: "League", icon: "fa-shield-halved" },
+              { key: "stars", label: "Stars", icon: <Star size={14} aria-hidden="true" /> },
+              { key: "league", label: "League", icon: <ShieldHalf size={14} aria-hidden="true" /> },
             ]}
             ariaLabel="Group clubs"
             title="Group by stars or league"
@@ -404,7 +410,7 @@ export default function ClubsPage() {
             type="button"
             title="Clear filters"
           >
-            <i className="fa-solid fa-eraser md:hidden" aria-hidden="true" />
+            <Eraser size={14} className="md:hidden" aria-hidden="true" />
             <span className="hidden md:inline">Clear</span>
           </Button>
         ) : null}
@@ -414,7 +420,7 @@ export default function ClubsPage() {
         <div className="flex items-center justify-between gap-2 text-xs text-text-muted">
           <span>{filteredClubs.length} of {clubs.length} clubs</span>
           <Button variant="ghost" onClick={() => void qc.invalidateQueries({ queryKey: qk.clubs(game) })} title="Refresh">
-            <i className="fa-solid fa-rotate-right md:hidden" aria-hidden="true" />
+            <RotateCw size={14} className="md:hidden" aria-hidden="true" />
             <span className="hidden md:inline">Refresh</span>
           </Button>
         </div>
@@ -466,7 +472,7 @@ export default function ClubsPage() {
                                 <ClubBadge name={c.name} nation={nationalTeamNation(c.name, ln)} clubId={c.id} crestVersion={c.crest_updated_at} />
                                 <span className="min-w-0 truncate font-medium text-text-normal">{c.name}</span>
                               </div>
-                              <div className="mt-0.5 flex flex-wrap items-center text-[11px] text-text-muted">
+                              <div className="mt-0.5 flex flex-wrap items-center text-xs text-text-muted">
                                 {metaParts.map((part, i) => (
                                   <span key={i} className="inline-flex items-center">
                                     {i > 0 ? <span className="mx-1.5 text-text-muted/40">·</span> : null}
@@ -510,7 +516,7 @@ export default function ClubsPage() {
                           </div>
 
                           {isEditing ? (
-                            <div className="panel-inner mt-2 p-2">
+                            <div className="inset mt-2 p-2">
                               <div className="grid gap-2 md:grid-cols-3">
                                 {isAdmin ? (
                                   <Input

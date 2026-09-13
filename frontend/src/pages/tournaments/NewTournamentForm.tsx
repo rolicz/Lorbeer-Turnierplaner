@@ -55,7 +55,7 @@ export default function NewTournamentForm({ onCancel }: { onCancel?: () => void 
       <ErrorToastOnError error={createMut.error} title="Could not create tournament" />
       <ErrorToastOnError error={playersQ.error} title="Could not load players" />
 
-      <section className="card-outer space-y-2">
+      <section className="card space-y-2">
         <h2 className="text-sm font-semibold text-text-normal">Name</h2>
         <input
           className="input-field w-full"
@@ -68,7 +68,7 @@ export default function NewTournamentForm({ onCancel }: { onCancel?: () => void 
         />
       </section>
 
-      <section className="card-outer space-y-2">
+      <section className="card space-y-2">
         <h2 className="text-sm font-semibold text-text-normal">Mode</h2>
         <SegmentedSwitch<"1v1" | "2v2">
           value={mode}
@@ -79,7 +79,7 @@ export default function NewTournamentForm({ onCancel }: { onCancel?: () => void 
         />
       </section>
 
-      <section className="card-outer space-y-3">
+      <section className="card space-y-3">
         <div className="flex items-center justify-between gap-2">
           <h2 className="text-sm font-semibold text-text-normal">Players</h2>
           <span className="text-xs text-text-muted">

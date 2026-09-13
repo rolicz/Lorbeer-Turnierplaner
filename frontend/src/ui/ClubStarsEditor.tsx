@@ -8,6 +8,7 @@ import { useAuth } from "../auth/AuthContext";
 import { cn } from "./cn";
 import { STAR_OPTIONS, starsLabel, toHalfStep } from "./clubControls";
 import { ErrorToastOnError } from "./primitives/ErrorToast";
+import { buttonClass } from "./primitives/Button";
 import FormLabel from "./primitives/FormLabel";
 
 export default function ClubStarsEditor({
@@ -73,14 +74,17 @@ export default function ClubStarsEditor({
         <ErrorToastOnError error={err} title="Could not update club stars" />
         <div className="relative inline-flex">
           <div
-            className={cn(
-              "btn-base btn-ghost inline-flex items-center gap-2 px-3 py-2",
-              uiDisabled ? "opacity-60 cursor-not-allowed" : "cursor-pointer"
-            )}
+            className={buttonClass({
+              variant: "ghost",
+              className: cn(
+                "inline-flex items-center gap-2 px-3 py-2",
+                uiDisabled ? "opacity-60 cursor-not-allowed" : "cursor-pointer"
+              ),
+            })}
             aria-hidden="true"
           >
             <span className="tabular-nums">{txt}</span>
-            <span className="text-subtle">▾</span>
+            <span className="text-text-muted/80">▾</span>
           </div>
 
           {/* Native select overlaid for mobile-friendly UX */}

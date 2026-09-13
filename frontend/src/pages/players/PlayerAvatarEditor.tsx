@@ -1,3 +1,4 @@
+import { ImageIcon, Save, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import Button from "../../ui/primitives/Button";
@@ -198,13 +199,12 @@ export default function PlayerAvatarEditor({
       onClose={onClose}
       fullScreenOnMobile
       maxWidth="max-w-lg"
-      variant="panel"
     >
           <ErrorToastOnError error={err} title="Avatar action failed" />
           <div className="mt-3 grid gap-3">
             <div
               ref={viewportRef}
-              className="panel-subtle relative mx-auto w-full max-w-[420px] aspect-square overflow-hidden touch-none"
+              className="inset p-0 relative mx-auto w-full max-w-[420px] aspect-square overflow-hidden touch-none"
               onPointerDown={(e) => {
                 if (!img) return;
                 (e.currentTarget as HTMLDivElement).setPointerCapture(e.pointerId);
@@ -284,7 +284,7 @@ export default function PlayerAvatarEditor({
                   disabled={!canEdit || busy}
                   title="Choose photo"
                 >
-                  <i className="fa-solid fa-image md:hidden" aria-hidden="true" />
+                  <ImageIcon size={14} className="md:hidden" aria-hidden="true" />
                   <span className="hidden md:inline">Choose</span>
                 </Button>
               </div>
@@ -313,7 +313,7 @@ export default function PlayerAvatarEditor({
                   disabled={!canEdit || busy}
                   title="Delete avatar"
                 >
-                  <i className="fa-solid fa-trash md:hidden" aria-hidden="true" />
+                  <Trash2 size={14} className="md:hidden" aria-hidden="true" />
                   <span className="hidden md:inline">Delete</span>
                 </Button>
               ) : (
@@ -341,7 +341,7 @@ export default function PlayerAvatarEditor({
                 disabled={!canEdit || busy || !img}
                 title="Save"
               >
-                <i className="fa-solid fa-floppy-disk md:hidden" aria-hidden="true" />
+                <Save size={14} className="md:hidden" aria-hidden="true" />
                 <span className="hidden md:inline">Save</span>
               </Button>
             </div>

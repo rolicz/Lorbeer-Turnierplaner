@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { List, Loader2, Pencil, Shrink, Trash2, X } from "lucide-react";
 
-import CollapsibleCard from "../../ui/primitives/CollapsibleCard";
 import SegmentedSwitch from "../../ui/primitives/SegmentedSwitch";
 import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
 import InlineLoading from "../../ui/primitives/InlineLoading";
@@ -10,7 +10,7 @@ import Button from "../../ui/primitives/Button";
 import EmptyState from "../../ui/primitives/EmptyState";
 import MatchOverviewPanel from "../../ui/primitives/MatchOverviewPanel";
 import SelectClubsPanel from "../../ui/SelectClubsPanel";
-import { GoalStepper } from "../../ui/clubControls";
+import { GoalStepper, useClubSelection } from "../../ui/clubControls";
 
 import { listClubs } from "../../api/clubs.api";
 import { qk } from "../../api/queryKeys";
@@ -136,8 +136,20 @@ function FriendlyEditor({
   const aPlayers = teamName(aSide);
   const bPlayers = teamName(bSide);
 
+  // Clubs: one panel under the preview holds slots, filters and randomisers (T9).
+  const clubSelection = useClubSelection({
+    clubs: editorClubsQ.data ?? clubs,
+    disabled: saveMut.isPending,
+    aLabel: aPlayers,
+    bLabel: bPlayers,
+    aClub,
+    bClub,
+    onChangeAClub: setAClub,
+    onChangeBClub: setBClub,
+  });
+
   return (
-    <div className="mt-2 rounded-xl border border-border-card-chip/60 bg-bg-card-inner p-3 space-y-4">
+    <div className="space-y-4">
       <div className="flex items-center gap-2">
         <SegmentedSwitch<"h2h" | "edit">
           value={activeView}
@@ -161,9 +173,7 @@ function FriendlyEditor({
             clubs={editorClubsQ.data ?? clubs}
             aGoals={aGoalsNum}
             bGoals={bGoalsNum}
-            showModePill={false}
             showOdds={false}
-            surface="panel-subtle"
           />
 
           <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3">
@@ -187,20 +197,10 @@ function FriendlyEditor({
           </div>
 
           <SelectClubsPanel
-            clubs={editorClubsQ.data ?? clubs}
-            disabled={saveMut.isPending}
-            aLabel={`${aPlayers} — club`}
-            bLabel={`${bPlayers} — club`}
-            aClub={aClub}
-            bClub={bClub}
-            onChangeAClub={setAClub}
-            onChangeBClub={setBClub}
-            defaultOpen={false}
-            wrapClassName="card-inner"
-            narrowLayout
-            extraTop={
-              <Input label="Game" value={clubGame} onChange={(e) => setClubGame(e.target.value)} />
-            }
+            selection={clubSelection}
+            storageKey="friendly-edit"
+            defaultOpen
+            extraTop={<Input label="Game" value={clubGame} onChange={(e) => setClubGame(e.target.value)} />}
           />
 
           <div className="flex items-center justify-end gap-2">
@@ -215,13 +215,7 @@ function FriendlyEditor({
   );
 }
 
-export default function FriendlyMatchesListCard({
-  embedded = false,
-  onInitialReady,
-}: {
-  embedded?: boolean;
-  onInitialReady?: () => void;
-}) {
+export default function FriendlyMatchesListCard({ onInitialReady }: { onInitialReady?: () => void }) {
   const qc = useQueryClient();
   const { role, token } = useAuth();
   const canDelete = role === "admin" && !!token;
@@ -324,8 +318,8 @@ export default function FriendlyMatchesListCard({
             value={showMeta}
             onChange={setShowMeta}
             options={[
-              { key: false, label: "Compact", icon: "fa-compress" },
-              { key: true, label: "Details", icon: "fa-list" },
+              { key: false, label: "Compact", icon: <Shrink size={14} aria-hidden="true" /> },
+              { key: true, label: "Details", icon: <List size={14} aria-hidden="true" /> },
             ]}
             ariaLabel="Friendly details toggle"
             title="View details"
@@ -345,8 +339,6 @@ export default function FriendlyMatchesListCard({
             tournaments={tournaments}
             clubs={clubsQ.data ?? []}
             showMeta={showMeta}
-            nameColorByResult
-            hideModePill
             renderMatchActions={(_t, m) => {
               if (!canDelete && !canEdit) return null;
               const fid = Number(m.id);
@@ -355,51 +347,52 @@ export default function FriendlyMatchesListCard({
               const pendingDelete = deleteMut.isPending && deleteMut.variables === fid;
 
               return (
-                <div>
-                  <div className="inline-flex items-center gap-1">
-                    {canEdit ? (
-                      <Button
-                        type="button"
-                        variant="ghost" size="sm" iconOnly
-                        title={isExpanded ? "Close editor" : `Edit friendly #${fid}`}
-                        onClick={() => setExpandedFriendlyId(isExpanded ? null : fid)}
-                      >
-                        <i className={"fa-solid " + (isExpanded ? "fa-xmark" : "fa-pen")} aria-hidden="true" />
-                      </Button>
-                    ) : null}
-                    {canDelete ? (
-                      <Button
-                        type="button"
-                        variant="ghost" size="sm" iconOnly
-                        title={`Delete friendly #${fid}`}
-                        disabled={pendingDelete}
-                        onClick={() => {
-                          if (!window.confirm(`Delete friendly #${fid}?`)) return;
-                          if (isExpanded) setExpandedFriendlyId(null);
-                          deleteMut.mutate(fid);
-                        }}
-                      >
-                        <i className={"fa-solid " + (pendingDelete ? "fa-spinner fa-spin" : "fa-trash-can")} aria-hidden="true" />
-                      </Button>
-                    ) : null}
-                  </div>
-
-                  {isExpanded && canEdit ? (() => {
-                    const row = findFriendlyById(fid);
-                    if (!row) return null;
-                    const friendlyMatch = friendlyToMatch(row, 0);
-                    return (
-                      <FriendlyEditor
-                        friendlyId={fid}
-                        match={friendlyMatch}
-                        clubs={clubsQ.data ?? []}
-                        clubsById={clubsById}
-                        onSaved={() => setExpandedFriendlyId(null)}
-                        onCancel={() => setExpandedFriendlyId(null)}
-                      />
-                    );
-                  })() : null}
+                <div className="inline-flex items-center gap-1">
+                  {canEdit ? (
+                    <Button
+                      type="button"
+                      variant="ghost" size="sm" iconOnly
+                      title={isExpanded ? "Close editor" : `Edit friendly #${fid}`}
+                      onClick={() => setExpandedFriendlyId(isExpanded ? null : fid)}
+                    >
+                      {isExpanded ? <X size={14} aria-hidden="true" /> : <Pencil size={14} aria-hidden="true" />}
+                    </Button>
+                  ) : null}
+                  {canDelete ? (
+                    <Button
+                      type="button"
+                      variant="ghost" size="sm" iconOnly
+                      title={`Delete friendly #${fid}`}
+                      disabled={pendingDelete}
+                      onClick={() => {
+                        if (!window.confirm(`Delete friendly #${fid}?`)) return;
+                        if (isExpanded) setExpandedFriendlyId(null);
+                        deleteMut.mutate(fid);
+                      }}
+                    >
+                      {pendingDelete ? <Loader2 size={14} className="animate-spin" aria-hidden="true" /> : <Trash2 size={14} aria-hidden="true" />}
+                    </Button>
+                  ) : null}
                 </div>
+              );
+            }}
+            /* The editor is a panel, not a row action: full width under its row, so
+               nothing is clipped by the action slot's `shrink-0` (T2's finding). */
+            renderMatchExpanded={(_t, m) => {
+              if (!canEdit) return null;
+              const fid = Number(m.id);
+              if (!fid || expandedFriendlyId !== fid) return null;
+              const row = findFriendlyById(fid);
+              if (!row) return null;
+              return (
+                <FriendlyEditor
+                  friendlyId={fid}
+                  match={friendlyToMatch(row, 0)}
+                  clubs={clubsQ.data ?? []}
+                  clubsById={clubsById}
+                  onSaved={() => setExpandedFriendlyId(null)}
+                  onCancel={() => setExpandedFriendlyId(null)}
+                />
               );
             }}
           />
@@ -408,24 +401,5 @@ export default function FriendlyMatchesListCard({
     </>
   );
 
-  if (embedded) {
-    return <div className="space-y-3">{content}</div>;
-  }
-
-  return (
-    <CollapsibleCard
-      title={
-        <span className="inline-flex items-center gap-2">
-          <i className="fa-solid fa-list text-text-muted" aria-hidden="true" />
-          All Friendlies
-        </span>
-      }
-      defaultOpen={true}
-      variant="outer"
-      bodyVariant="none"
-      bodyClassName="space-y-3"
-    >
-      {content}
-    </CollapsibleCard>
-  );
+  return <div className="space-y-3">{content}</div>;
 }

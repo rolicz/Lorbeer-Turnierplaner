@@ -200,10 +200,10 @@ export default function AdminPanel({
 
       {/* Status summary */}
       <div className="flex flex-wrap items-center gap-2 text-xs">
-        <span className="card-chip">
+        <span className="chip">
           status <span className="font-semibold text-text-normal">{status}</span>
         </span>
-        <span className="card-chip">
+        <span className="chip">
           second leg <span className="font-semibold text-text-normal">{secondLegEnabled ? "on" : "off"}</span>
         </span>
       </div>
@@ -446,7 +446,7 @@ export default function AdminPanel({
 
   if (!wrap) return content;
 
-  // `wrap` is a flat panel fallback; the live page already supplies its own
+  // `wrap` is a level-1 `card` fallback; the live page already supplies its own
   // section header, so it passes wrap={false}.
-  return <div className="panel-subtle p-3">{content}</div>;
+  return <div className="card">{content}</div>;
 }

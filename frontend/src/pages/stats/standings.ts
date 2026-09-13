@@ -5,7 +5,7 @@ import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { getStatsRatings, getStatsPlayers } from "../../api/stats.api";
 import { qk } from "../../api/queryKeys";
 import type { StatsMatch, StatsScope } from "../../api/types";
-import type { StatsMode } from "./StatsControls";
+import type { StatsMode } from "./statsMode";
 import { fmtAvg, fmtRating } from "../../utils/format";
 
 export type Row = {
@@ -75,9 +75,9 @@ export const TABLE_COLS: ColDef[] = [
   { key: "pts", label: "Pts", val: (r) => r.pts, fmt: (n) => String(n), bold: true },
   { key: "ppm", label: "PPM", val: (r) => (r.played ? r.pts / r.played : 0), fmt: (_n, r) => (r.played ? fmtAvg(r.pts / r.played) : "—") },
   { key: "played", label: "P", val: (r) => r.played, fmt: (n) => String(n), cls: "text-text-muted" },
-  { key: "wins", label: "W", val: (r) => r.wins, fmt: (n) => String(n), cls: "text-status-text-green" },
-  { key: "draws", label: "D", val: (r) => r.draws, fmt: (n) => String(n), cls: "text-amber-300" },
-  { key: "losses", label: "L", val: (r) => r.losses, fmt: (n) => String(n), cls: "text-[color:rgb(var(--delta-down)/1)]" },
+  { key: "wins", label: "W", val: (r) => r.wins, fmt: (n) => String(n), cls: "text-win" },
+  { key: "draws", label: "D", val: (r) => r.draws, fmt: (n) => String(n), cls: "text-draw" },
+  { key: "losses", label: "L", val: (r) => r.losses, fmt: (n) => String(n), cls: "text-loss" },
   { key: "winrate", label: "Win%", val: (r) => (r.played ? r.wins / r.played : 0), fmt: (_n, r) => (r.played ? `${Math.round((r.wins / r.played) * 100)}%` : "—") },
   { key: "gf", label: "GF", val: (r) => r.gf, fmt: (n) => String(n) },
   { key: "ga", label: "GA", val: (r) => r.ga, fmt: (n) => String(n) },

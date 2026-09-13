@@ -1,3 +1,4 @@
+import { Bell, CircleCheck, HandFist, ImageIcon, Loader2, Mail, Trash2, UserPen } from "lucide-react";
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
@@ -182,7 +183,7 @@ export default function ProfileHeader({
               ) : null}
             </div>
             <div className="text-xs text-text-muted">{isOwnProfile ? "This is your profile" : "Public profile"}</div>
-            <div className="mt-0.5 text-[11px] text-text-muted">
+            <div className="mt-0.5 text-xs text-text-muted">
               {isOwnProfile ? (
                 <>
                   Guestbook: <span className="tabular-nums text-text-normal">{totalGuestbookCount}</span> · Angepöbelt:{" "}
@@ -190,7 +191,7 @@ export default function ProfileHeader({
                 </>
               ) : (
                 <span className="inline-flex items-center gap-1.5">
-                  <i className="fa-solid fa-hand-fist" aria-hidden="true" />
+                  <HandFist size={12} aria-hidden="true" />
                   <span>
                     Angepöbelt: <span className="tabular-nums text-text-normal">{totalPokeCount}</span>
                   </span>
@@ -213,13 +214,13 @@ export default function ProfileHeader({
                   className="h-9 w-9 p-0 inline-flex items-center justify-center active:scale-95"
                 >
                   {markPokesReadAllMut.isPending ? (
-                    <i className="fa-solid fa-spinner fa-spin text-accent" aria-hidden="true" />
+                    <Loader2 size={14} className="animate-spin text-accent" aria-hidden="true" />
                   ) : pokeFlashKind === "read" ? (
-                    <i className="fa-solid fa-circle-check text-accent" aria-hidden="true" />
+                    <CircleCheck size={14} className="text-accent" aria-hidden="true" />
                   ) : (
                     <span className="inline-flex items-center gap-1">
-                      <i className="fa-solid fa-bell text-accent" aria-hidden="true" />
-                      <span className="text-[11px] tabular-nums text-text-normal">{unreadPokeCount}</span>
+                      <Bell size={14} className="text-accent" aria-hidden="true" />
+                      <span className="text-xs tabular-nums text-text-normal">{unreadPokeCount}</span>
                     </span>
                   )}
                 </Button>
@@ -233,7 +234,7 @@ export default function ProfileHeader({
                     onClick={() => setHeaderEditorOpen(true)}
                     title={headerImageSrc ? "Edit header image" : "Upload header image"}
                   >
-                    <i className="fa-solid fa-image md:hidden" aria-hidden="true" />
+                    <ImageIcon size={14} className="md:hidden" aria-hidden="true" />
                     <span className="hidden md:inline">{headerImageSrc ? "Edit header" : "Upload header"}</span>
                   </Button>
                   {headerImageSrc ? (
@@ -246,11 +247,11 @@ export default function ProfileHeader({
                       title="Delete header image"
                       className="h-9 w-9 p-0 inline-flex items-center justify-center"
                     >
-                      <i className="fa-solid fa-trash" aria-hidden="true" />
+                      <Trash2 size={14} aria-hidden="true" />
                     </Button>
                   ) : null}
                   <Button type="button" variant="ghost" onClick={() => setAvatarEditorOpen(true)} title="Edit avatar">
-                    <i className="fa-solid fa-user-pen md:hidden" aria-hidden="true" />
+                    <UserPen size={14} className="md:hidden" aria-hidden="true" />
                     <span className="hidden md:inline">Edit avatar</span>
                   </Button>
                 </>
@@ -260,8 +261,8 @@ export default function ProfileHeader({
         </div>
         <div className="pt-1 space-y-1">
           {isOwnProfile && unreadGuestbookCount > 0 ? (
-            <div className="inline-flex max-w-full items-center gap-1.5 text-[11px] text-text-muted">
-              <i className="fa-solid fa-envelope text-accent" aria-hidden="true" />
+            <div className="inline-flex max-w-full items-center gap-1.5 text-xs text-text-muted">
+              <Mail size={12} className="shrink-0 text-accent" aria-hidden="true" />
               <span className="truncate">
                 New guestbook: <span className="tabular-nums text-accent">{unreadGuestbookCount}</span>
                 {unreadGuestbookAuthorsText
@@ -270,9 +271,10 @@ export default function ProfileHeader({
               </span>
             </div>
           ) : null}
-          <div className="inline-flex max-w-full items-center gap-1.5 text-[11px] text-text-muted">
-            <i
-              className={"fa-solid fa-bell " + (unreadPokeCount > 0 ? "text-accent" : "text-text-muted")}
+          <div className="inline-flex max-w-full items-center gap-1.5 text-xs text-text-muted">
+            <Bell
+              size={12}
+              className={"shrink-0 " + (unreadPokeCount > 0 ? "text-accent" : "text-text-muted")}
               aria-hidden="true"
             />
             <span className="truncate">
@@ -299,17 +301,13 @@ export default function ProfileHeader({
               className="active:scale-95 w-full sm:w-auto sm:ml-auto sm:flex"
             >
               <span className="inline-flex items-center gap-2">
-                <i
-                  className={
-                    "fa-solid " +
-                    (pokeMut.isPending
-                      ? "fa-spinner fa-spin"
-                      : pokeFlashKind === "sent"
-                        ? "fa-circle-check text-accent"
-                        : "fa-hand-fist")
-                  }
-                  aria-hidden="true"
-                />
+                {pokeMut.isPending ? (
+                  <Loader2 size={14} className="animate-spin" aria-hidden="true" />
+                ) : pokeFlashKind === "sent" ? (
+                  <CircleCheck size={14} className="text-accent" aria-hidden="true" />
+                ) : (
+                  <HandFist size={14} aria-hidden="true" />
+                )}
                 <span>
                   {pokeMut.isPending
                     ? "Anpöbeln…"

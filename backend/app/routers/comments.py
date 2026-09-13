@@ -31,7 +31,6 @@ from ..schemas.responses import (
     CommentListOut,
     CommentOut,
     CommentReadMapOut,
-    CommentSummaryOut,
     MarkedResponse,
     OkResponse,
     PinnedCommentOut,
@@ -39,7 +38,6 @@ from ..schemas.responses import (
     VotersOut,
 )
 from ..services.authorization import require_self_or_admin
-from ..services.comments_summary import tournament_comments_summary
 from ..services.comments_view import comment_can_edit, comment_dict, list_comments_for_tournament, parent_comment_map
 from ..services.events import (
     broadcast_tournament,
@@ -247,11 +245,6 @@ def list_comments(
 ) -> dict:
     get_or_404(s, Tournament, tournament_id, name="Tournament")
     return list_comments_for_tournament(s, tournament_id, claims)
-
-
-@router.get("/comments/tournaments-summary", response_model=list[CommentSummaryOut])
-def comments_summary(s: Session = Depends(get_session)) -> list[dict]:
-    return tournament_comments_summary(s)
 
 
 @router.get("/tournaments/{tournament_id}/comments/read", response_model=CommentIdsOut)

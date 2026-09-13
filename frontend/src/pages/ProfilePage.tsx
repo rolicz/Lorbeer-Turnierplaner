@@ -1,5 +1,5 @@
-import { useCallback, useMemo, useState } from "react";
-import { useParams, useSearchParams } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
+import { useLocation, useParams, useSearchParams } from "react-router-dom";
 import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import VoteVotersModal from "../ui/primitives/VoteVotersModal";
@@ -13,6 +13,7 @@ import {
   listPlayers,
   patchPlayerProfile,
 } from "../api/players.api";
+import { ApiError } from "../api/client";
 import { getCup, listCupDefs } from "../api/cup.api";
 import { getStatsH2H, getStatsPlayerMatches, getStatsPlayers, getStatsRatings, getStatsStreaks } from "../api/stats.api";
 import { listClubs } from "../api/clubs.api";
@@ -21,7 +22,12 @@ import { usePlayerAvatarMap } from "../hooks/usePlayerAvatarMap";
 import { usePlayerProfileWS } from "../hooks/useTournamentWS";
 import { useRouteEntryLoading } from "../ui/layout/useRouteEntryLoading";
 import { usePageTitle } from "../ui/layout/PageTitleContext";
+import InlineBack from "../ui/shell/InlineBack";
+import { forgetLocation } from "../ui/shell/lastLocation";
+import { useContextualBack } from "../ui/shell/backNavigation";
 import { SectionTabs, type SectionTab } from "../ui/SectionTabs";
+import PageLayout from "../ui/layout/PageLayout";
+import { useTabParam } from "../ui/shell/useTabParam";
 import { User, BarChart3, ListChecks, BookOpen } from "lucide-react";
 import GuestbookSection from "./profile/GuestbookSection";
 import ProfileHeader from "./profile/ProfileHeader";
@@ -33,6 +39,9 @@ import { useProfilePokes } from "./profile/useProfilePokes";
 import { useProfileGuestbook } from "./profile/useProfileGuestbook";
 import { useGuestbookUnreadJump } from "./profile/useGuestbookUnreadJump";
 import { qk } from "../api/queryKeys";
+
+type ProfileTab = "overview" | "stats" | "matches" | "guestbook";
+const PROFILE_TAB_KEYS = ["overview", "stats", "matches", "guestbook"] as const satisfies readonly ProfileTab[];
 
 export default function ProfilePage() {
   const { id } = useParams<{ id: string }>();
@@ -46,21 +55,9 @@ export default function ProfilePage() {
     Number.isFinite(routePlayerId) && (routePlayerId ?? 0) > 0 ? (routePlayerId as number) : currentPlayerId;
   const isOwnProfileView = !!currentPlayerId && !!targetPlayerId && currentPlayerId === targetPlayerId;
 
-  type ProfileTab = "overview" | "stats" | "matches" | "guestbook";
-  const PROFILE_TABS = ["overview", "stats", "matches", "guestbook"] as const;
-  const ptParam = searchParams.get("pt");
-  const profileTab: ProfileTab = (PROFILE_TABS as readonly string[]).includes(ptParam ?? "")
-    ? (ptParam as ProfileTab)
-    : "overview";
-  const setProfileTab = useCallback(
-    (t: ProfileTab) => {
-      const n = new URLSearchParams(searchParams);
-      if (t === "overview") n.delete("pt");
-      else n.set("pt", t);
-      setSearchParams(n, { replace: true });
-    },
-    [searchParams, setSearchParams],
-  );
+  const [profileTab, setProfileTab] = useTabParam<ProfileTab>(PROFILE_TAB_KEYS, "overview");
+  // `/profiles/:id` is a detail route (back chevron); `/profile` is top level.
+  const { isDetail: isDetailRoute } = useContextualBack();
 
   const playersQ = useQuery({ queryKey: qk.players(), queryFn: listPlayers });
   const profileQ = useQuery({
@@ -68,6 +65,13 @@ export default function ProfilePage() {
     queryFn: () => getPlayerProfile(targetPlayerId as number),
     enabled: Number.isFinite(targetPlayerId) && (targetPlayerId ?? 0) > 0,
   });
+  // A player that no longer exists must not trap the Players tab (U6).
+  const { pathname: locPathname, search: locSearch } = useLocation();
+  useEffect(() => {
+    if (!(profileQ.error instanceof ApiError) || profileQ.error.status !== 404) return;
+    forgetLocation(locPathname + locSearch);
+  }, [profileQ.error, locPathname, locSearch]);
+
   const clubsQ = useQuery({ queryKey: qk.clubs(), queryFn: () => listClubs() });
   const statsPlayersQ = useQuery({
     queryKey: qk.stats.players("profile", targetPlayerId ?? "none"),
@@ -267,8 +271,8 @@ export default function ProfilePage() {
   }
 
   return (
-    <div className="page">
-      <div id="profile-section-main" className="space-y-4">
+    <PageLayout title={displayName ?? "Profile"} back={isDetailRoute ? <InlineBack /> : null}>
+      <div id="profile-section-main" className="space-y-3">
         <ErrorToastOnError error={playersQ.error} title="Players loading failed" />
         <ErrorToastOnError error={profileQ.error} title="Profile loading failed" />
         <ErrorToastOnError error={pokes.pokesError} title="Pokes loading failed" />
@@ -371,6 +375,6 @@ export default function ProfilePage() {
         queryFn={() => listPlayerGuestbookEntryVoters(guestbook.voteVotersEntryId as number)}
         onClose={() => guestbook.setVoteVotersEntryId(null)}
       />
-    </div>
+    </PageLayout>
   );
 }

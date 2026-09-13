@@ -1,6 +1,7 @@
 /** Duo-vs-duo rivalries (2v2) — top `team_rivalries_2v2` rows by rivalry score. */
 import { useMemo } from "react";
 
+import EmptyState from "../../../ui/primitives/EmptyState";
 import type { StatsH2HTeamRivalry } from "../../../api/types";
 import { TeamRivalryRow } from "../HeadToHeadRows";
 
@@ -17,7 +18,7 @@ export function DuoRivalries({
     () => rivalries.slice().sort((a, b) => b.rivalry_score - a.rivalry_score).slice(0, limit),
     [rivalries, limit],
   );
-  if (!top.length) return <div className="text-sm text-text-muted">No duo rivalries yet.</div>;
+  if (!top.length) return <EmptyState title="No duo rivalries yet." className="py-2" />;
   return (
     <div className="space-y-2">
       {top.map((r) => (

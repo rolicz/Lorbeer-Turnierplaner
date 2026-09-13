@@ -1,6 +1,8 @@
 /** Detail for a selected 2v2 duo: overall record, matches action, and its duo-vs-duo matchups. */
 import { useMemo } from "react";
 
+import EmptyState from "../../../ui/primitives/EmptyState";
+import StatsSection from "../StatsSection";
 import type { StatsH2HDuo, StatsH2HTeamRivalry } from "../../../api/types";
 import { fmtInt } from "../../../utils/format";
 import { normalizeTeamRivalryForFocus } from "../h2hHelpers";
@@ -34,34 +36,34 @@ export function DuoDetail({
 
   return (
     <div className="space-y-2">
-      <div className="surface rounded-xl px-3 py-2.5">
+      <div className="inset px-3 py-2.5">
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
             <div className="truncate text-sm font-semibold text-text-normal">
               {duo.p1.display_name} <span className="text-text-muted">/</span> {duo.p2.display_name}
             </div>
-            <div className="mt-0.5 text-[11px] text-text-muted">
+            <div className="mt-0.5 text-xs text-text-muted">
               {fmtInt(duo.played)} games together · {fmtInt(duo.gf)}:{fmtInt(duo.ga)} · GD {gd}
             </div>
           </div>
           <button
             type="button"
             onClick={() => onOpenTeammates(duo)}
-            className="shrink-0 rounded-full bg-bg-card-chip/50 px-3 py-1.5 text-[11px] font-medium text-text-normal transition hover:text-accent"
+            className="shrink-0 rounded-full bg-bg-card-chip/50 px-3 py-1.5 text-xs font-medium text-text-normal transition hover:text-accent"
           >
             Matches
           </button>
         </div>
         <div className="mt-1.5 flex items-center gap-3 font-mono text-xs tabular-nums">
           <span>
-            <span className="text-status-text-green">{fmtInt(duo.wins)}</span>-<span className="text-amber-300">{fmtInt(duo.draws)}</span>-<span className="text-[color:rgb(var(--delta-down)/1)]">{fmtInt(duo.losses)}</span>
+            <span className="text-win">{fmtInt(duo.wins)}</span>-<span className="text-draw">{fmtInt(duo.draws)}</span>-<span className="text-loss">{fmtInt(duo.losses)}</span>
           </span>
           <span className="text-text-muted">·</span>
           <span className="font-semibold text-accent">{duo.pts_per_match.toFixed(2)} ppm</span>
         </div>
       </div>
 
-      <div className="section-head"><span className="section-label">Matchups as a duo</span></div>
+      <StatsSection label="Matchups as a duo">
       {matchups.length ? (
         <div className="space-y-2">
           {matchups.map((r) => (
@@ -76,8 +78,9 @@ export function DuoDetail({
           ))}
         </div>
       ) : (
-        <div className="text-sm text-text-muted">No duo-vs-duo matchups recorded yet.</div>
+        <EmptyState title="No duo-vs-duo matchups recorded yet." className="py-2" />
       )}
+      </StatsSection>
     </div>
   );
 }

@@ -1,4 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
+import { ThumbsDown, ThumbsUp } from "lucide-react";
+
 import type { VoteVotersResponse } from "../../api/types";
 import CardSection from "./CardSection";
 import InlineLoading from "./InlineLoading";
@@ -45,14 +47,14 @@ export default function VoteVotersModal({
 
         {upvoters.length ? (
           <CardSection>
-            <div className="inline-flex items-center gap-2 text-[12px] text-text-muted">
-              <i className="fa-solid fa-thumbs-up text-status-text-green" aria-hidden="true" />
+            <div className="inline-flex items-center gap-2 text-xs text-text-muted">
+              <ThumbsUp size={14} className="text-status-text-green" aria-hidden="true" />
               <span>Upvotes</span>
               <span className="tabular-nums text-text-normal">{upvoters.length}</span>
             </div>
             <div className="flex flex-wrap gap-2">
               {upvoters.map((row) => (
-                <span key={row.id} className="card-chip px-2 py-1 text-[12px]">
+                <span key={row.id} className="chip">
                   {row.display_name}
                 </span>
               ))}
@@ -62,14 +64,14 @@ export default function VoteVotersModal({
 
         {downvoters.length ? (
           <CardSection>
-            <div className="inline-flex items-center gap-2 text-[12px] text-text-muted">
-              <i className="fa-solid fa-thumbs-down text-red-300" aria-hidden="true" />
+            <div className="inline-flex items-center gap-2 text-xs text-text-muted">
+              <ThumbsDown size={14} className="text-loss" aria-hidden="true" />
               <span>Downvotes</span>
               <span className="tabular-nums text-text-normal">{downvoters.length}</span>
             </div>
             <div className="flex flex-wrap gap-2">
               {downvoters.map((row) => (
-                <span key={row.id} className="card-chip px-2 py-1 text-[12px]">
+                <span key={row.id} className="chip">
                   {row.display_name}
                 </span>
               ))}

@@ -4,6 +4,11 @@ A small tournament planner for EA FC nights, branded as **Lorbeerkranz**.
 Supports **1v1** and **2v2** formats for small groups, generates fixtures, lets you enter live results, assign clubs **per match**, and keeps tournament history.
 Designed to be snappy and work well on both mobile and desktop.
 
+> **Working on the code?** `AGENTS.md` in this repo root is the canonical project knowledge
+> (commands, conventions, data semantics, deploy quirks, gotchas) and `DESIGN.md` is the visual
+> canon every UI change follows. This README is the setup/ops narrative; when the two disagree,
+> `AGENTS.md` is newer.
+
 ---
 
 ## Important first
@@ -59,9 +64,13 @@ Production / Docker:
 
 ```
 .
-├── backend/   # FastAPI + SQLModel (SQLite) + JWT auth + WebSocket
-├── frontend/  # React + Vite + Tailwind (responsive UI)
-└── deploy/    # Caddy reverse proxy config (production)
+├── backend/    # FastAPI + SQLModel (SQLite) + JWT auth + WebSocket
+├── frontend/   # React 18 + Vite 7 + Tailwind 3 + TanStack Query (responsive PWA)
+├── deploy/     # Caddy reverse proxy config (production)
+├── scripts/    # gen_types.sh (OpenAPI → TS), node-env.sh (nvm loader for the make targets)
+├── AGENTS.md   # canonical project knowledge (commands, conventions, gotchas)
+├── DESIGN.md   # the visual canon (surfaces, tokens, type scale, primitives)
+└── FEATURES_*.md / REFACTORING_PLAN.md   # per-batch work trackers with decisions + deviations
 ```
 
 ---
@@ -81,9 +90,20 @@ Production / Docker:
 - **Unread comments** indicators/actions (stored locally in the browser): jump to latest unread + mark all read
 - Comment images + profile images (cropped in UI), stored on disk
 - Push notifications for installed PWAs (Android and iOS Home Screen)
-- Stats page: trends (pan/zoom), h2h (lists + matrix + matchup history), streaks, ratings (Elo-like), player match history, stars performance
+- Stats page — one layout with four sections, addressable via `?view=`:
+  - **Overview** (`?sub=`): Table (incl. Elo-like ratings) · Positions · Streaks · Records · Cups
+  - **Trends**: pinch/pan chart over Points · Goals · Conceded · Goal diff · Win % · Elo · Form
+  - **H2H**: Players (matrix + rivals) · Duos, plus a **Matchup** drill-in listing every match between two players (`?player=<a>&vs=<b>`)
+  - **Player**: profile, key numbers, form, club stars, streak chips, match history
+  - Mode (Overall / 1v1 / 2v2) and Source (Tournaments / Both / Friendlies) are global filters in a floating filter pill
 - Friendlies page: create friendly matches and store them in DB (admin can delete); supported as optional data scope in stats
 - “Bookmaker-style” prematch odds (form, ratings, direct duels, partner synergy, club stars, etc.)
+- Mobile navigation: a fixed bottom tab bar (Dashboard · Tournaments · Friendlies · Stats · Players)
+  where each tab returns to the last page you had open inside it; back (chevron **and** swipe)
+  goes up the hierarchy, and every history entry keeps its scroll position
+- Tabbed pages keep their tab in the URL as `?tab=` so every view is deep-linkable
+- **No runtime CDN**: icons are bundled `lucide-react` components, flags come from the
+  `flag-icons` package and club crests are served by our own backend — the PWA works offline-first
 
 ---
 
@@ -237,6 +257,12 @@ make frontend       # http://127.0.0.1:8000
 make dev            # both on LAN (0.0.0.0)
 ```
 
+The frontend needs **Node ≥ 20.19 (or ≥ 22.12)** — Vite 7's floor. `.nvmrc` pins 24 and the
+`make frontend`, `make frontend-lan` and `make frontend-install` targets source
+`scripts/node-env.sh`, which activates nvm when it is installed, so they work from a login shell
+that has no nvm loaded. Running `npm` directly? `. scripts/node-env.sh` first, or make sure
+`node -v` is new enough.
+
 ### Backend
 
 ```bash
@@ -271,8 +297,10 @@ npm run dev -- --host 0.0.0.0 --port 8000
 ## Docker deployment (HTTPS with Caddy)
 
 This setup runs three containers:
-- `frontend` (static site)
-- `backend` (FastAPI)
+- `frontend` (built with `node:22-alpine`, served by `nginx:alpine` — see `frontend/Dockerfile`;
+  the build step uses `npm install`, not `npm ci`, because the lockfile is generated on glibc/arm64
+  and the build image is musl)
+- `backend` (FastAPI on `python:3.11-slim`)
 - `caddy` (reverse proxy + HTTPS certs)
 
 ### 1) DNS + firewall prerequisites
@@ -318,17 +346,17 @@ services:
 
 ### 3) Caddyfile
 
-Place your Caddyfile at:
-- `deploy/Caddyfile`
-
-Typical structure:
+The Caddyfile lives at `deploy/Caddyfile` and is exactly:
 
 ```caddyfile
 lorbeerkranz.xyz, www.lorbeerkranz.xyz {
-  encode gzip
+  encode gzip zstd
 
-  @api path /api/* /docs* /openapi.json /ws/*
-  handle @api {
+  handle_path /api/* {
+    reverse_proxy backend:8001
+  }
+
+  handle /ws/* {
     reverse_proxy backend:8001
   }
 
@@ -337,6 +365,9 @@ lorbeerkranz.xyz, www.lorbeerkranz.xyz {
   }
 }
 ```
+
+Note the asymmetry: `handle_path` **strips** the `/api` prefix before proxying, while `handle`
+**keeps** `/ws` — the backend mounts its WebSocket routes at `/ws/...`.
 
 ### 4) Build + run
 
@@ -382,7 +413,7 @@ curl -i https://lorbeerkranz.xyz/api/tournaments
 ## Authentication / roles
 
 - **Reader**: no login; read-only access.
-- **Editor**: normal write operations (enter results, manage clubs, reorder matches, second leg when allowed, status changes).
+- **Editor**: normal write operations (enter results, manage clubs, reorder matches, swap sides, second leg when allowed, comments).
 - **Admin**: advanced operations (create/rename players, delete tournaments/friendlies, edit past data, etc.).
 
 Login:
@@ -395,39 +426,58 @@ Login:
 
 ## Tournament status
 
-Tournament status is:
-- `draft` → `live` → `done`
-
-API:
-- `PATCH /tournaments/{tournament_id}/status` with body `{ "status": "draft" | "live" | "done" }`
+A tournament is `draft` → `live` → `done`, but **status is derived, never set**: the backend
+computes it from the states of the tournament's matches (`backend/app/tournament_status.py`) —
+all matches `scheduled` → `draft`, all `finished` → `done`, anything in between → `live`. There is
+no status endpoint; entering results is what moves a tournament forward.
 
 ---
 
 ## Tests
 
-Backend tests:
+Backend tests (from the repo root, so the venv interpreter is used):
 
 ```bash
-cd backend
-make test
+make test           # pytest
+make lint           # ruff
+```
+
+Frontend checks (`tsc` + eslint + vitest) need Node ≥ 20.19 / ≥ 22.12 — `.nvmrc` pins 24 and the
+`make frontend*` targets source `scripts/node-env.sh`, which loads nvm when it is available:
+
+```bash
+cd frontend && npm run check
+cd frontend && npm run build
 ```
 
 ### Maintenance commands
 
-From `backend/`:
+`backend/manage.py` defaults `--secrets` to `backend/secrets.json`, so it can be run from the
+repo root. Anything that opens the DB needs the backend venv interpreter:
 
 ```bash
-# Seed DB
-python manage.py seed --file ./seed.json --secrets ./secrets.json
+# Seed DB (players / leagues / clubs upsert)
+backend/.venv/bin/python backend/manage.py seed --file backend/data/seed.json
 
 # Add one match
-python manage.py add-match --file ./match.json --secrets ./secrets.json
+backend/.venv/bin/python backend/manage.py add-match --file backend/data/add-match.json
 
 # Reclaim SQLite space after deletes/migrations
-python manage.py vacuum-db --secrets ./secrets.json
+backend/.venv/bin/python backend/manage.py vacuum-db
 
 # Optional: refresh SQLite planner statistics
-python manage.py vacuum-db --analyze --secrets ./secrets.json
+backend/.venv/bin/python backend/manage.py vacuum-db --analyze
+
+# Web push keys (no DB access)
+python3 backend/manage.py generate-vapid --private-key-out backend/data/vapid_private_key.pem
+```
+
+Backups / dev-data sync (details in `AGENTS.md` §8):
+
+```bash
+python3 backend/manage.py backup-local-data        # → backup/local/<ts>/
+python3 backend/manage.py backup-deploy-data       # rsync prod backend/data → backup/deploy/<ts>/
+python3 backend/manage.py sync-local-from-deploy   # refresh the dev DB from production
 ```
 
 ---
@@ -437,12 +487,19 @@ python manage.py vacuum-db --analyze --secrets ./secrets.json
 - WebSocket endpoints:
   - `/ws/tournaments/{tournament_id}` (live tournament updates + comments updates)
   - `/ws/tournaments` (global “something changed” updates)
+  - `/ws/players/{player_id}` (profile-channel events: guestbook, pokes)
 - Behind Caddy, websockets should use **wss** automatically via the same domain.
 - Frontend env is build-time; after changing `frontend/.env.production`, rebuild the frontend image (`docker compose up -d --build frontend`).
 - Live tournament reload button is a full fallback refresh (invalidates/refetches related tournament, comments, cup and stats queries).
 
 ### Useful API endpoints (quick reference)
 
+Full, always-current list: `http://127.0.0.1:8001/docs`.
+
+- Me / notifications:
+  - `GET /me` (role + acting player for the bearer token)
+  - `GET /me/notifications` (bell menu: unread comments, guestbook entries, pokes — each item
+    carries the in-app `path` to open, e.g. `/profiles/3?tab=guestbook&entry=17`)
 - Cups:
   - `GET /cup/defs`
   - `GET /cup?key=<cupKey>`
@@ -478,11 +535,23 @@ python manage.py vacuum-db --analyze --secrets ./secrets.json
   - `POST /friendlies` (editor+)
   - `DELETE /friendlies/{friendly_id}` (admin)
 - Stats:
+  - `GET /stats/overview`
   - `GET /stats/players`
   - `GET /stats/h2h`
-  - `POST /stats/h2h-matches`
+  - `POST /stats/h2h-matches` — every match between two sides; body takes `mode`,
+    `scope`, `left_player_ids`, `right_player_ids`, `relation` (`opposed` | `teammates`) and
+    `exact_teams` (`false` = "these players on opposite sides, whatever the partners"). This is
+    what the stats **Matchup** view (`/stats?view=h2h&player=<a>&vs=<b>`) is built on.
   - `GET /stats/streaks`
-  - `GET /stats/ratings`
+  - `GET /stats/ratings`, `GET /stats/ratings/history`
   - `GET /stats/player-matches`
-  - Most stats endpoints support `scope=tournaments|both|friendlies`
   - `POST /stats/odds`
+  - Most stats endpoints support `scope=tournaments|both|friendlies`
+- Tournaments:
+  - `GET /tournaments`, `GET /tournaments/live`, `GET /tournaments/{id}`
+  - `GET /tournaments/{id}/stats`
+  - `PATCH /tournaments/{id}/date` (admin), `POST /tournaments/{id}/generate` (editor+),
+    `POST /tournaments/{id}/reassign` (editor+, 2v2 draft)
+- Matches:
+  - `PATCH /matches/{id}` (score / state / clubs, editor+)
+  - `PATCH /matches/{id}/swap-sides` (editor+)

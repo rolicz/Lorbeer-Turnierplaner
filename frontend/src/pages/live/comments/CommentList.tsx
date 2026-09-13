@@ -4,8 +4,11 @@
  * interactive state lives in the coordinator (TournamentCommentsCard) and is handed down as
  * one bundle so this stays a presentational view over the already-grouped comment data.
  */
+import { ChevronDown, ChevronRight } from "lucide-react";
+
 import EmptyState from "../../../ui/primitives/EmptyState";
-import { StarsFA } from "../../../ui/primitives/StarsFA";
+import ScoreLine from "../../../ui/primitives/ScoreLine";
+import { Stars } from "../../../ui/primitives/Stars";
 import { CommentCard, type CommentCardContextValue } from "../TournamentCommentParts";
 import { type TournamentComment } from "../tournamentCommentTypes";
 import { type CommentFilterValue } from "./CommentFilterBar";
@@ -31,6 +34,9 @@ export type CommentMatchHeader = {
 
 type CommentBlock = { matchId: number; comments: TournamentComment[] };
 
+/** A reply is flat and tighter than the `inset` box of the comment it answers. */
+const REPLY_SURFACE = "px-3 py-2";
+
 export type CommentListProps = {
   // --- feed shape / scope ---
   onlyMatchId: number | null;
@@ -48,7 +54,6 @@ export type CommentListProps = {
   // --- per-block / per-thread collapse ---
   showMatchHeader: boolean;
   collapsedBlocks: Set<string>;
-  setCollapsedBlocks: (next: Set<string>) => void;
   toggleBlock: (key: string) => void;
   collapsedThreads: Set<number>;
   toggleThread: (id: number) => void;
@@ -72,7 +77,6 @@ export default function CommentList(props: CommentListProps) {
     matchHeaderMeta,
     showMatchHeader,
     collapsedBlocks,
-    setCollapsedBlocks,
     toggleBlock,
     collapsedThreads,
     toggleThread,
@@ -84,10 +88,9 @@ export default function CommentList(props: CommentListProps) {
     canWrite,
     pinnedTournamentCommentId,
     editingId,
-    editingDirty,
+    canSaveEdit,
     flashId,
     avatarUpdatedAtByPlayerId,
-    canSubmit,
     replyToId,
     onMarkSeen,
     onTogglePin,
@@ -97,7 +100,7 @@ export default function CommentList(props: CommentListProps) {
     submitReply,
     toggleEdit,
     deleteComment,
-    upsertComment,
+    saveEdit,
   } = ctx;
 
   function renderCommentCard(c: TournamentComment, surface: string, opts: { childCount: number; collapsed: boolean }) {
@@ -131,25 +134,30 @@ export default function CommentList(props: CommentListProps) {
         }}
         onVote={(value) => onVote(c.id, value)}
         onOpenVoters={() => onOpenVoters(c.id)}
-        onSave={() => {
-          void upsertComment(c.scope);
-        }}
-        canSubmit={canSubmit && (editingId !== c.id || editingDirty)}
+        onSave={saveEdit}
+        canSubmit={canSaveEdit}
         ctx={ctx}
       />
     );
   }
 
-  /** Render a comment and its (collapsible) reply subtree, recursively. */
+  /**
+   * Render a comment and its (collapsible) reply subtree, recursively.
+   *
+   * Depth cue (S10, closing the DS3 finding): a root comment is a boxed `inset`,
+   * a reply is a flat, tighter row on the block's own surface, hanging off an
+   * accent-tinted left rule. Fill, padding, indent and rule all say "reply", and
+   * nothing needs a fourth surface to do it.
+   */
   function renderCommentTree(c: TournamentComment, surface: string, depth: number) {
     const children = childrenByParent.get(c.id) ?? [];
     const collapsed = collapsedThreads.has(c.id);
     return (
-      <div key={c.id} className="space-y-2">
+      <div key={c.id} className={depth === 0 ? "space-y-2" : "space-y-1"}>
         {renderCommentCard(c, surface, { childCount: children.length, collapsed })}
         {children.length && !collapsed ? (
-          <div className="ml-1 space-y-2 border-l border-border-card-inner/40 pl-2 sm:pl-3">
-            {children.map((ch) => renderCommentTree(ch, "panel-inner", depth + 1))}
+          <div className="ml-2 space-y-1 border-l-2 border-accent/25 pl-2 sm:pl-3">
+            {children.map((ch) => renderCommentTree(ch, REPLY_SURFACE, depth + 1))}
           </div>
         ) : null}
       </div>
@@ -164,38 +172,36 @@ export default function CommentList(props: CommentListProps) {
     const isCollapsed = showMatchHeader && collapsedBlocks.has(blockKey);
     const unseenHere =
       !!token && comments.some((c) => rootScopeKey.get(c.id) === blockKey && !seen.has(c.id));
+    // The score is a `ScoreLine` like every other score in the app (DESIGN.md §8):
+    // no colon, no box, and the club/stars rows hug the centre gap under it the
+    // way `MatchSides` does elsewhere.
     const headerInner = h ? (
-          <div className="space-y-1">
-            <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3">
-              <div className="min-w-0 truncate text-sm text-text-normal">{h.aPlayers}</div>
-              <div className="card-chip flex items-center justify-center gap-2 justify-self-center">
-                {h.aGoals == null || h.bGoals == null ? (
-                  <span className="text-sm font-semibold tabular-nums text-text-muted">—</span>
-                ) : (
-                  <>
-                    <span className="text-sm font-semibold tabular-nums">{h.aGoals}</span>
-                    <span className="text-text-muted">:</span>
-                    <span className="text-sm font-semibold tabular-nums">{h.bGoals}</span>
-                  </>
-                )}
-              </div>
-              <div className="min-w-0 truncate text-right text-sm text-text-normal">{h.bPlayers}</div>
-            </div>
-            <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-start gap-3 text-xs text-text-muted">
-              <div className="min-w-0 whitespace-normal break-words leading-tight">{h.aClub.present ? h.aClub.name : "—"}</div>
+          <div>
+            <ScoreLine
+              size="sm"
+              state={h.aGoals == null || h.bGoals == null ? "scheduled" : "finished"}
+              leftNames={h.aPlayers}
+              rightNames={h.bPlayers}
+              leftGoals={h.aGoals}
+              rightGoals={h.bGoals}
+            />
+            <div className="mt-1 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-start gap-3 text-xs text-text-muted">
+              <div className="min-w-0 whitespace-normal break-words text-right leading-tight">{h.aClub.present ? h.aClub.name : "—"}</div>
               <div />
-              <div className="min-w-0 whitespace-normal break-words text-right leading-tight">{h.bClub.present ? h.bClub.name : "—"}</div>
+              <div className="min-w-0 whitespace-normal break-words leading-tight">{h.bClub.present ? h.bClub.name : "—"}</div>
             </div>
-            <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 text-[11px] text-text-muted">
-              <div className="min-w-0">{h.aClub.present ? <StarsFA rating={h.aClub.rating ?? 0} textClassName="text-text-muted" /> : <span>—</span>}</div>
+            <div className="mt-1 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 text-xs text-text-muted">
+              <div className="flex min-w-0 justify-end">{h.aClub.present ? <Stars rating={h.aClub.rating ?? 0} textClassName="text-text-muted" /> : <span>—</span>}</div>
               <div />
-              <div className="flex min-w-0 justify-end">{h.bClub.present ? <StarsFA rating={h.bClub.rating ?? 0} textClassName="text-text-muted" /> : <span>—</span>}</div>
+              <div className="flex min-w-0">{h.bClub.present ? <Stars rating={h.bClub.rating ?? 0} textClassName="text-text-muted" /> : <span>—</span>}</div>
             </div>
           </div>
     ) : null;
-    // not CardSection: rounded-2xl omitted so the block spans edge-to-edge inside the parent card; scroll-mt critical for anchor navigation
+    // A block is a hairline-separated section *inside* the feed's card (T3): the feed and
+    // its composer are one unit, so a block cannot be a card of its own — its comments are
+    // the level-2 `inset` rows (DESIGN.md §3). scroll-mt is critical for anchor navigation.
     return (
-      <div key={matchId} id={`comments-block-match-${matchId}`} className="card-inner-flat scroll-mt-28 sm:scroll-mt-32">
+      <section key={matchId} id={`comments-block-match-${matchId}`} className="scroll-mt-28 px-3 py-3 sm:scroll-mt-32">
         {h && showMatchHeader ? (
           <button
             type="button"
@@ -203,9 +209,9 @@ export default function CommentList(props: CommentListProps) {
             className="flex w-full items-start gap-2 text-left"
             aria-expanded={!isCollapsed}
           >
-            <i className={`fa-solid ${isCollapsed ? "fa-chevron-right" : "fa-chevron-down"} mt-1 text-[11px] text-text-muted`} aria-hidden="true" />
+            {isCollapsed ? <ChevronRight size={12} className="mt-1 shrink-0 text-text-muted" aria-hidden="true" /> : <ChevronDown size={12} className="mt-1 shrink-0 text-text-muted" aria-hidden="true" />}
             <span className="min-w-0 flex-1">{headerInner}</span>
-            <span className="mt-0.5 inline-flex items-center gap-1.5 text-[11px] text-text-muted">
+            <span className="mt-0.5 inline-flex items-center gap-1.5 text-xs text-text-muted">
               {unseenHere ? <span className="h-1.5 w-1.5 rounded-full bg-accent" aria-hidden="true" /> : null}
               {arr.length}
             </span>
@@ -213,13 +219,13 @@ export default function CommentList(props: CommentListProps) {
         ) : null}
 
         {!isCollapsed ? (
-          <div className="mt-3 space-y-2">
+          <div className={h && showMatchHeader ? "mt-3 space-y-2" : "space-y-2"}>
             {arr.length ? arr.map((c) => renderCommentTree(c, surface, 0)) : (
               <EmptyState title="No comments on this match yet." />
             )}
           </div>
         ) : null}
-      </div>
+      </section>
     );
   }
 
@@ -227,54 +233,37 @@ export default function CommentList(props: CommentListProps) {
     if (!generalComments.length) return <EmptyState title="No general comments yet." />;
     const ordered = [pinnedTournamentComment, ...generalComments.filter((c) => c.id !== pinnedTournamentComment?.id)]
       .filter(Boolean) as TournamentComment[];
-    return <div className="space-y-2">{ordered.map((c) => renderCommentTree(c, "panel", 0))}</div>;
+    return <div className="space-y-2">{ordered.map((c) => renderCommentTree(c, "inset", 0))}</div>;
   }
 
   if (onlyMatchId != null) {
-    return renderMatchBlock(onlyMatchId, "panel-subtle");
+    return renderMatchBlock(onlyMatchId, "inset");
   }
   if (filter === "general") {
     return (
-      <div className="panel-subtle p-3">
+      <section className="px-3 py-3">
         <div className="mb-3 text-sm font-semibold">General</div>
         {renderGeneralList()}
-      </div>
+      </section>
     );
   }
   if (typeof filter === "number") {
-    return renderMatchBlock(filter, "panel-subtle");
+    return renderMatchBlock(filter, "inset");
   }
   return (
-    <div className="space-y-2">
-      {matchBlocksWithComments.length ? (
-        <div className="flex justify-end">
-          <button
-            type="button"
-            onClick={() => {
-              const keys = matchBlocksWithComments.map((b) => `m-${b.matchId}`);
-              const allCollapsed = keys.every((k) => collapsedBlocks.has(k));
-              setCollapsedBlocks(allCollapsed ? new Set() : new Set(keys));
-            }}
-            className="text-xs text-text-muted transition hover:text-text-normal"
-          >
-            {matchBlocksWithComments.every((b) => collapsedBlocks.has(`m-${b.matchId}`))
-              ? "Expand all"
-              : "Collapse all"}
-          </button>
-        </div>
-      ) : null}
+    <div className="list-divided">
       {generalComments.length ? (
-        <div className="panel-subtle p-3">
+        <section className="px-3 py-3">
           <div className="mb-3 flex items-center justify-between gap-2">
             <div className="text-sm font-semibold">General</div>
             <div className="text-xs text-text-muted">{generalComments.length}</div>
           </div>
           {renderGeneralList()}
-        </div>
+        </section>
       ) : null}
-      {matchBlocksWithComments.map((b) => renderMatchBlock(b.matchId, "panel-subtle"))}
+      {matchBlocksWithComments.map((b) => renderMatchBlock(b.matchId, "inset"))}
       {totalComments === 0 ? (
-        <EmptyState title={`No comments yet.${canWrite ? " Be the first to add one." : ""}`} className="panel-subtle px-3 py-6" />
+        <EmptyState title={`No comments yet.${canWrite ? " Be the first to add one." : ""}`} className="px-3 py-6" />
       ) : null}
     </div>
   );

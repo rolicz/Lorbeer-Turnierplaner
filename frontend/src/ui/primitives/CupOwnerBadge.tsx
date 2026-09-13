@@ -1,3 +1,5 @@
+import { Crown } from "lucide-react";
+
 import { cupColorVarForKey } from "../../cupColors";
 import { cn } from "../cn";
 
@@ -17,10 +19,8 @@ export default function CupOwnerBadge({
   className,
 }: CupOwnerBadgeProps) {
   const varName = cupColorVarForKey(cupKey);
-  const sizeCls =
-    size === "md"
-      ? "h-7 w-7 text-[13px]"
-      : "h-6 w-6 text-[11px]";
+  const sizeCls = size === "md" ? "h-7 w-7" : "h-6 w-6";
+  const iconSize = size === "md" ? 14 : 12;
 
   return (
     <span
@@ -36,7 +36,7 @@ export default function CupOwnerBadge({
       }}
       title={title ?? `${cupName} owner`}
     >
-      <i className="fa-solid fa-crown" aria-hidden="true" />
+      <Crown size={iconSize} strokeWidth={2.25} aria-hidden="true" />
     </span>
   );
 }

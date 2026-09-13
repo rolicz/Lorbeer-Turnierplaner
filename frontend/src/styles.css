@@ -33,12 +33,6 @@
   }
 }
 
-.accent { color: rgb(var(--color-accent)); }
-
-/* Browser scroll anchoring can cause visible "jumps" on highly dynamic pages (stats).
-   Apply this class on containers where we prefer stable scroll behavior. */
-.no-scroll-anchor { overflow-anchor: none; }
-
 @layer components {
   /* Main page structure */
   body {
@@ -46,8 +40,51 @@
     color: rgb(var(--color-text-normal));
   }
 
-  .accent-text {
-    color: rgb(var(--color-accent));
+  /* ---- Surface canon (DESIGN.md §3) ----
+     Three levels and nothing deeper: page → card → inset, plus `chip` for inline
+     tags. These three replaced the older card-outer / card-inner / card-inner-flat /
+     panel / panel-subtle / panel-inner / surface / card-chip-as-a-box families,
+     which DS3 migrated and deleted. Nothing else may define a box surface. */
+
+  /* Level 1 — a standalone block on the page (also the modal surface). */
+  .card {
+    @apply rounded-2xl p-3;
+    background-color: rgb(var(--color-bg-card-outer));
+    border: 1px solid rgb(var(--color-border-card-outer) / 0.55);
+    box-shadow: 0 1px 2px rgb(0 0 0 / 0.18), 0 8px 20px rgb(0 0 0 / 0.14);
+  }
+
+  /* Level 2 — a box inside a card or a page section (score panel, stat tile, sub-panel). */
+  .inset {
+    @apply rounded-xl p-3;
+    background-color: rgb(var(--color-bg-card-chip) / 0.5);
+    border: 0;
+  }
+  /* Light theme: `--color-bg-card-chip` is pure white there — right for a chip or an
+     input on the grey page, but an inset painted white on a white `card` disappears.
+     So light insets take the subtle grey surface (`bg-card-inner`) and its hairline;
+     that separates them on a white card *and* on the grey page backdrop. */
+  [data-theme="light"] .inset {
+    background-color: rgb(var(--color-bg-card-inner));
+    border: 1px solid rgb(var(--color-border-card-inner));
+  }
+
+  /* Level 3 — an inline tag/pill/badge. Never a container for numbers. */
+  .chip {
+    @apply rounded-full px-2.5 py-1 text-xs;
+    background-color: rgb(var(--color-bg-card-chip));
+    border: 1px solid rgb(var(--color-border-card-chip) / 0.55);
+    color: rgb(var(--color-text-chip));
+  }
+
+  /* The single allowed step below text-xs (DESIGN.md §5): text that is a *marker*
+     rather than prose — badges, counters, unit captions (`pts`), fixed-width
+     indicators and the bottom tab bar's labels. Never a sentence, never a value
+     the reader has to read carefully. */
+  .text-micro {
+    font-size: 10px;
+    line-height: 1;
+    font-weight: 600;
   }
 
   /* Main navigation / header */
@@ -61,77 +98,10 @@
       background-color: rgb(var(--color-bg-default) / 0.55);
     }
   }
-  .nav-link {
-    @apply rounded-xl px-3 py-2 text-sm;
-  }
-  @media (hover: hover) and (pointer: fine) {
-    .nav-link:hover {
-      background-color: rgb(var(--color-hover-nav));
-    }
-  }
-  .nav-link-active {
-    background-color: rgb(var(--color-hover-nav));
-  }
-  .nav-link-current {
-    color: rgb(var(--color-text-normal));
-    font-weight: 600;
-  }
-  .main-nav-row {
-    position: relative;
-    isolation: isolate;
-    --main-nav-indicator-left: 0px;
-    --main-nav-indicator-width: 0px;
-    --main-nav-indicator-opacity: 0;
-  }
-  .main-nav-indicator {
-    position: absolute;
-    top: 0;
-    bottom: 0;
-    left: 0;
-    width: var(--main-nav-indicator-width);
-    transform: translateX(var(--main-nav-indicator-left));
-    opacity: var(--main-nav-indicator-opacity);
-    border-radius: 0.75rem;
-    pointer-events: none;
-    border: 1px solid rgb(var(--color-border-card-chip) / 0.72);
-    background-color: rgb(var(--color-hover-nav));
-    box-shadow:
-      inset 0 0 0 1px rgb(var(--color-accent) / 0.22),
-      0 0 0 1px rgb(var(--color-accent) / 0.08);
-    transition:
-      transform 320ms cubic-bezier(0.22, 1, 0.36, 1),
-      width 320ms cubic-bezier(0.22, 1, 0.36, 1),
-      opacity 160ms ease-out;
-  }
 
-  /* ---- Sleek-minimal building blocks (new shell + restyled pages) ---- */
-  /* Primary surface: low-contrast hairline + soft elevation. */
-  .surface {
-    @apply rounded-2xl;
-    background-color: rgb(var(--color-bg-card-inner));
-    border: 1px solid rgb(var(--color-border-card-chip) / 0.45);
-    box-shadow: 0 1px 2px rgb(0 0 0 / 0.04), 0 8px 24px rgb(0 0 0 / 0.06);
-  }
-  .surface-2 {
-    @apply rounded-2xl;
-    background-color: rgb(var(--color-bg-card-chip) / 0.55);
-    border: 1px solid rgb(var(--color-border-card-chip) / 0.4);
-  }
-  /* 1px low-contrast divider/border. */
-  .hairline {
-    border: 1px solid rgb(var(--color-border-card-chip) / 0.4);
-  }
-  .hairline-b {
-    border-bottom: 1px solid rgb(var(--color-border-card-chip) / 0.4);
-  }
-  /* Section label (uppercase, tracked, muted) for the minimal aesthetic. */
-  .eyebrow {
-    @apply text-[11px] font-medium uppercase tracking-wider;
-    color: rgb(var(--color-text-muted));
-  }
   /* Shimmer skeleton for loading states. */
   .skeleton {
-    @apply rounded-lg;
+    @apply rounded-xl;
     background-image: linear-gradient(
       90deg,
       rgb(var(--color-bg-card-chip) / 0.35) 25%,
@@ -154,13 +124,9 @@
      uppercase label, hairline dividers, and dense full-width rows. No nested
      borders/shadows eating horizontal space. */
 
-  /* Stacked page sections (vertical rhythm between flat blocks). */
-  .stack { @apply flex flex-col gap-5; }
-  .stack-tight { @apply flex flex-col gap-3; }
-
   /* Small uppercase section heading. */
   .section-label {
-    @apply text-[11px] font-semibold uppercase tracking-wider;
+    @apply text-xs font-semibold uppercase tracking-wider;
     color: rgb(var(--color-text-muted));
   }
   /* Optional trailing rule next to a section label (label · ─────). */
@@ -187,55 +153,19 @@
     min-height: 3.25rem;
   }
   /* Interactive row: subtle hover/press feedback. */
-  .row-tap { @apply rounded-lg transition-colors; }
+  .row-tap { @apply rounded-xl transition-colors; }
   @media (hover: hover) and (pointer: fine) {
     .row-tap:hover { background-color: rgb(var(--color-bg-card-chip) / 0.35); }
   }
   .row-tap:active { background-color: rgb(var(--color-bg-card-chip) / 0.5); }
 
-  /* Cards and Panels
-   * Surface canon:
-   *   card-outer       — top-level page card (rounded-2xl, p-3, outer shadow/border)
-   *   card-inner-flat  — nested section inside a card (use <CardSection> primitive)
-   *   panel-subtle     — de-emphasised row or info block, no border in dark mode
-   *   card-chip        — small inline chip (tight px/py, border)
-   *   surface          — shell-level container (sidebar, modal bg)
-   *   surface-2        — secondary shell layer
-   */
-  .card-outer {
-    @apply rounded-2xl p-3;
-    background-color: rgb(var(--color-bg-card-outer));
-    border: 1px solid rgb(var(--color-border-card-outer) / 0.55);
-    box-shadow: 0 1px 2px rgb(0 0 0 / 0.18), 0 8px 20px rgb(0 0 0 / 0.14);
-  }
-  .card-inner {
-    @apply rounded-xl p-3;
-    background-color: rgb(var(--color-bg-card-inner));
-    border: 1px solid rgb(var(--color-border-card-inner) / 0.45);
-  }
-  .card-chip {
-    @apply rounded-lg px-3 py-1.5;
-    background-color: rgb(var(--color-bg-card-chip));
-    border: 1px solid rgb(var(--color-border-card-chip));
-    color: rgb(var(--color-text-chip));
-  }
-
-  /* Modals and Sheets */
-  .modal-shell {
-    @apply rounded-2xl p-4 shadow-xl;
-    background-color: rgb(var(--color-bg-card-outer));
-    border: 1px solid rgb(var(--color-border-card-outer));
-  }
-  .sheet-shell {
-    @apply p-4 shadow-xl;
-    background-color: rgb(var(--color-bg-card-outer));
-    border: 1px solid rgb(var(--color-border-card-outer));
-  }
+  /* Modal scrim (the dialog itself is a `card`). */
   .overlay-scrim {
     @apply absolute inset-0 bg-black/60;
   }
 
-  /* Buttons */
+  /* Buttons — used only by `ui/primitives/Button.tsx` (DESIGN.md §7); pages and other
+     primitives go through `Button` / `buttonClass`, never these classes directly. */
   .btn-base {
     @apply rounded-xl px-4 py-2 text-sm font-medium transition active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/35;
   }
@@ -255,13 +185,21 @@
   .btn-ghost:hover {
     background-color: rgb(var(--color-bg-card-chip) / 0.55);
   }
-  .icon-button {
-    @apply rounded-xl p-2 text-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/35;
-    color: rgb(var(--color-text-normal));
-    background-color: rgb(var(--color-bg-card-chip) / 0.25);
+  /* Light theme: `--color-bg-card-chip` *is* white there, so the tint above is invisible
+     on a white `card` (DESIGN.md §3 level 1). A ghost button needs a resting edge — drawn
+     as an inset shadow, not a border, so the button keeps its exact box in every theme.
+     The focus ring is restated because it is the same property (DS3). */
+  [data-theme="light"] .btn-ghost {
+    background-color: rgb(var(--color-bg-card-chip));
+    box-shadow: inset 0 0 0 1px rgb(var(--color-border-card-chip) / 0.45);
   }
-  .icon-button:hover {
-    background-color: rgb(var(--color-bg-card-chip) / 0.45);
+  [data-theme="light"] .btn-ghost:hover {
+    background-color: rgb(var(--color-hover-default));
+  }
+  [data-theme="light"] .btn-ghost:focus-visible {
+    box-shadow:
+      inset 0 0 0 1px rgb(var(--color-border-card-chip) / 0.45),
+      0 0 0 2px rgb(var(--color-accent) / 0.35);
   }
 
   /* Forms */
@@ -332,99 +270,56 @@
 
   /* Semantic pills (used in Players tournament positions etc.) */
   .pill-default { @apply bg-status-bg-default text-status-text-default border-status-border-default; }
-  .pill-green { @apply bg-status-bg-green text-status-text-green border-status-border-green; }
 
-  /* Tournament positions (Players page). */
-  /* Continuous red->green tile. Set `--pos-p` (0 best .. 1 worst). */
-  .pos-tile {
+  /* Tournament positions (Players page). One red->green ramp for the grid tiles *and*
+     the legend buckets — the hue is written down exactly once per theme (DESIGN.md §1.4:
+     no raw Tailwind palette classes). Callers set `--pos-p` (0 best .. 1 worst), the
+     discrete buckets below pick fixed points on the same ramp. */
+  .pos-tile,
+  .pos-best,
+  .pos-good,
+  .pos-mid,
+  .pos-bad,
+  .pos-worst,
+  .pos-winner {
     --pos-p: 0.5;
     --pos-h: calc((1 - var(--pos-p)) * 120deg); /* 120deg=green .. 0deg=red */
-    border-color: hsl(var(--pos-h) 75% 55% / 0.45);
-    background-color: hsl(var(--pos-h) 70% 45% / 0.22);
+    border-color: hsl(var(--pos-h) 75% 55% / var(--pos-border-a, 0.45));
+    background-color: hsl(var(--pos-h) 70% 45% / var(--pos-bg-a, 0.22));
     color: hsl(var(--pos-h) 85% 90% / 1);
   }
-  [data-theme="light"] .pos-tile {
-    border-color: hsl(var(--pos-h) 70% 35% / 0.40);
-    background-color: hsl(var(--pos-h) 75% 60% / 0.38);
+  /* Light theme needs a darker ramp (otherwise it's bright-on-bright) — one override for all. */
+  [data-theme="light"] .pos-tile,
+  [data-theme="light"] .pos-best,
+  [data-theme="light"] .pos-good,
+  [data-theme="light"] .pos-mid,
+  [data-theme="light"] .pos-bad,
+  [data-theme="light"] .pos-worst,
+  [data-theme="light"] .pos-winner {
+    border-color: hsl(var(--pos-h) 70% 35% / var(--pos-border-a, 0.40));
+    background-color: hsl(var(--pos-h) 75% 60% / var(--pos-bg-a, 0.38));
     color: hsl(var(--pos-h) 85% 14% / 1);
   }
 
-  /* Discrete buckets (used in legend + fallback). */
-  .pos-best { @apply border-emerald-400/35 bg-emerald-400/10 text-emerald-200; }
-  .pos-good { @apply border-lime-400/35 bg-lime-400/10 text-lime-200; }
-  .pos-mid { @apply border-amber-400/35 bg-amber-400/10 text-amber-200; }
-  .pos-bad { @apply border-orange-400/35 bg-orange-400/10 text-orange-200; }
-  .pos-worst { @apply border-red-500/35 bg-red-500/10 text-red-200; }
-  .pos-none { @apply border-border-card-inner/70 bg-bg-card-outer/30 text-text-muted; }
-  .pos-winner { @apply border-emerald-500/70 bg-emerald-500/20 text-emerald-100; }
+  /* Discrete buckets (used in legend + fallback): fixed points on the ramp above. */
+  .pos-best { --pos-p: 0; }
+  .pos-good { --pos-p: 0.25; }
+  .pos-mid { --pos-p: 0.5; }
+  .pos-bad { --pos-p: 0.75; }
+  .pos-worst { --pos-p: 1; }
+  /* Winner = the best tile with a stronger edge. */
+  .pos-winner { --pos-p: 0; --pos-border-a: 0.75; }
 
-  /* Light theme needs darker text for the position buckets (otherwise it's bright-on-bright). */
-  [data-theme="light"] .pos-best { @apply border-emerald-700/50 bg-emerald-500/30 text-emerald-950; }
-  [data-theme="light"] .pos-good { @apply border-lime-800/50 bg-lime-500/30 text-lime-950; }
-  [data-theme="light"] .pos-mid { @apply border-amber-800/50 bg-amber-500/30 text-amber-950; }
-  [data-theme="light"] .pos-bad { @apply border-orange-800/50 bg-orange-500/30 text-orange-950; }
-  [data-theme="light"] .pos-worst { @apply border-red-800/50 bg-red-500/30 text-red-950; }
+  /* "Not played" is off the ramp: a neutral surface. */
+  .pos-none { @apply border-border-card-inner/70 bg-bg-card-outer/30 text-text-muted; }
   [data-theme="light"] .pos-none { @apply border-border-card-inner bg-bg-card-inner text-text-muted; }
-  [data-theme="light"] .pos-winner { @apply border-emerald-700/60 bg-emerald-500/35 text-emerald-950; }
 
   /* Page Layout */
   .page { @apply space-y-3; }
   .page-x { padding-left: var(--page-pad-x); padding-right: var(--page-pad-x); }
-  .page-x-bleed {
-    margin-left: calc(var(--page-pad-x) * -1);
-    margin-right: calc(var(--page-pad-x) * -1);
-    padding-left: var(--page-pad-x);
-    padding-right: var(--page-pad-x);
-  }
 
   /* Misc */
   .text-muted { color: rgb(var(--color-text-muted)); }
-  .text-subtle { color: rgb(var(--color-text-muted) / 0.8); }
-
-  .panel {
-    @apply rounded-xl;
-    background-color: rgb(var(--color-bg-card-chip));
-    border: 1px solid rgb(var(--color-border-card-chip) / 0.55);
-  }
-  .panel-subtle {
-    @apply rounded-xl;
-    background-color: rgb(var(--color-bg-card-chip) / 0.65);
-    border: 0;
-  }
-  /* Inner-surface panels: use when you want to avoid the extra "chip" layer. */
-  .panel-inner {
-    @apply rounded-xl;
-    background-color: rgb(var(--color-bg-card-inner));
-    border: 0;
-  }
-  .card-subtle {
-    @apply rounded-xl p-3;
-    background-color: rgb(var(--color-bg-card-chip) / 0.6);
-    border: 0;
-  }
-  .card-inner-flat {
-    @apply rounded-xl p-3;
-    background-color: rgb(var(--color-bg-card-inner));
-    border: 0;
-  }
-
-  /* Light theme: subtle surfaces need an outline + full chip background for clear separation. */
-  [data-theme="light"] .panel-subtle {
-    background-color: rgb(var(--color-bg-card-chip));
-    border: 1px solid rgb(var(--color-border-card-chip) / 0.35);
-  }
-  [data-theme="light"] .card-subtle {
-    background-color: rgb(var(--color-bg-card-chip));
-    border: 1px solid rgb(var(--color-border-card-chip) / 0.35);
-  }
-  [data-theme="light"] .panel-inner {
-    background-color: rgb(var(--color-bg-card-inner));
-    border: 1px solid rgb(var(--color-border-card-chip) / 0.30);
-  }
-  [data-theme="light"] .card-inner-flat {
-    background-color: rgb(var(--color-bg-card-inner));
-    border: 1px solid rgb(var(--color-border-card-chip) / 0.30);
-  }
 
   @keyframes comment-attn {
     0% {
@@ -450,86 +345,6 @@
     will-change: transform, box-shadow;
   }
 
-  @keyframes subnav-click-blink {
-    0% {
-      box-shadow: inset 0 0 0 0 rgb(var(--color-accent) / 0);
-      filter: brightness(1);
-    }
-    30% {
-      box-shadow: inset 0 0 0 2px rgb(var(--color-accent) / 0.28), inset 0 0 14px rgb(var(--color-accent) / 0.18);
-      filter: brightness(1.08);
-    }
-    100% {
-      box-shadow: inset 0 0 0 0 rgb(var(--color-accent) / 0);
-      filter: brightness(1);
-    }
-  }
-
-  .subnav-click-blink {
-    animation: subnav-click-blink 420ms ease-out 1;
-    will-change: box-shadow, filter;
-  }
-
-  .subnav-active-glow {
-    box-shadow:
-      inset 0 0 0 1px rgb(var(--color-accent) / 0.42),
-      inset 0 0 12px rgb(var(--color-accent) / 0.16);
-  }
-
-  @keyframes page-slide-in-right {
-    0% { transform: translateX(30vw); opacity: 0.38; }
-    60% { opacity: 0.82; }
-    100% { transform: translateX(0); opacity: 1; }
-  }
-  @keyframes page-slide-in-left {
-    0% { transform: translateX(-30vw); opacity: 0.38; }
-    60% { opacity: 0.82; }
-    100% { transform: translateX(0); opacity: 1; }
-  }
-
-  .page-slide-in-right {
-    animation: page-slide-in-right 420ms cubic-bezier(0.16, 1, 0.3, 1) both;
-    will-change: transform, opacity;
-  }
-  .page-slide-in-left {
-    animation: page-slide-in-left 420ms cubic-bezier(0.16, 1, 0.3, 1) both;
-    will-change: transform, opacity;
-  }
-
-  @keyframes subnav-slide-in-right {
-    0% { transform: translateX(110vw); opacity: 0; }
-    100% { transform: translateX(0); opacity: 1; }
-  }
-  @keyframes subnav-slide-in-left {
-    0% { transform: translateX(-110vw); opacity: 0; }
-    100% { transform: translateX(0); opacity: 1; }
-  }
-  @keyframes subnav-slide-out-left {
-    0% { transform: translateX(0); opacity: 1; }
-    100% { transform: translateX(-110vw); opacity: 0; }
-  }
-  @keyframes subnav-slide-out-right {
-    0% { transform: translateX(0); opacity: 1; }
-    100% { transform: translateX(110vw); opacity: 0; }
-  }
-
-  .subnav-slide-in-right {
-    animation: subnav-slide-in-right 210ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
-    will-change: transform, opacity;
-  }
-  .subnav-slide-in-left {
-    animation: subnav-slide-in-left 210ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
-    will-change: transform, opacity;
-  }
-  .subnav-slide-out-left {
-    animation: subnav-slide-out-left 170ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
-    will-change: transform, opacity;
-  }
-  .subnav-slide-out-right {
-    animation: subnav-slide-out-right 170ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
-    will-change: transform, opacity;
-  }
-
   .pull-refresh-indicator {
     @apply mt-1 inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs;
     color: rgb(var(--color-text-muted));
@@ -542,152 +357,10 @@
     will-change: opacity, transform;
   }
 
-  :root {
-    --subnav-anchor-w: 2.25rem; /* icon-only button (h-9 w-9) */
-    --subnav-create-w: 6.25rem; /* approximate "Create New" width */
-    --subnav-all-w: 9.75rem; /* approximate "All Tournaments" width */
-    --subnav-gap-w: 0.25rem; /* gap-1 */
-  }
-
-  @keyframes subnav-enter-create-slot-collapse {
-    0% { width: var(--subnav-create-w); margin-right: 0; }
-    100% { width: 0; margin-right: calc(var(--subnav-gap-w) * -1); }
-  }
-  @keyframes subnav-enter-create-item-out {
-    0% { transform: translateX(0); opacity: 1; }
-    100% { transform: translateX(-120%); opacity: 0; }
-  }
-  @keyframes subnav-enter-anchor-slot-shrink {
-    0% { width: var(--subnav-all-w); }
-    100% { width: var(--subnav-anchor-w); }
-  }
-  @keyframes subnav-enter-rest-in {
-    0% { transform: translateX(-14px); opacity: 0; }
-    100% { transform: translateX(0); opacity: 1; }
-  }
-
-  @keyframes subnav-exit-rest-out {
-    0% { transform: translateX(0); opacity: 1; }
-    100% { transform: translateX(-16px); opacity: 0; }
-  }
-  @keyframes subnav-exit-create-slot-expand {
-    0% { width: 0; margin-right: calc(var(--subnav-gap-w) * -1); }
-    100% { width: var(--subnav-create-w); margin-right: 0; }
-  }
-  @keyframes subnav-exit-create-item-in {
-    0% { transform: translateX(-90%); opacity: 0; }
-    100% { transform: translateX(0); opacity: 1; }
-  }
-  @keyframes subnav-exit-anchor-slot-grow {
-    0% { width: var(--subnav-anchor-w); }
-    100% { width: var(--subnav-all-w); }
-  }
-  @keyframes subnav-exit-anchor-label-in {
-    0% { opacity: 0; }
-    100% { opacity: 1; }
-  }
-
-  /* Tournaments list -> live subnav morph */
-  .subnav-morph-enter-create-slot {
-    width: var(--subnav-create-w);
-    margin-right: 0;
-    animation: subnav-enter-create-slot-collapse 200ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
-    will-change: width, margin-right;
-  }
-  .subnav-morph-enter-create-item [data-subnav-key="create-new"] {
-    animation: subnav-enter-create-item-out 200ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
-    will-change: transform, opacity;
-  }
-  .subnav-morph-enter-anchor-slot {
-    width: var(--subnav-all-w);
-    overflow: hidden;
-    animation: subnav-enter-anchor-slot-shrink 210ms cubic-bezier(0.16, 1, 0.3, 1) 200ms both;
-    will-change: width;
-  }
-  .subnav-morph-enter-anchor-item [data-subnav-key="all-tournaments"] {
-    width: 100%;
-    justify-content: center;
-    padding-left: 0;
-    padding-right: 0;
-  }
-  .subnav-morph-enter-anchor-item [data-subnav-key="all-tournaments"] [data-subnav-label] {
-    display: none;
-  }
-  .subnav-morph-enter-anchor-item [data-subnav-key="all-tournaments"] > span:first-child {
-    margin-right: 0 !important;
-  }
-  .subnav-morph-enter-rest [data-subnav-key] {
-    animation: subnav-enter-rest-in 240ms cubic-bezier(0.16, 1, 0.3, 1) 410ms both;
-    will-change: transform, opacity;
-  }
-
-  /* Live -> tournaments list subnav morph */
-  .subnav-morph-exit-rest [data-subnav-key] {
-    animation: subnav-exit-rest-out 180ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
-    will-change: transform, opacity;
-  }
-  .subnav-morph-exit-create-slot {
-    width: 0;
-    margin-right: calc(var(--subnav-gap-w) * -1);
-    animation: subnav-exit-create-slot-expand 200ms cubic-bezier(0.16, 1, 0.3, 1) 400ms both;
-    will-change: width, margin-right;
-  }
-  .subnav-morph-exit-create-item [data-subnav-key="create-new"] {
-    animation: subnav-exit-create-item-in 200ms cubic-bezier(0.16, 1, 0.3, 1) 400ms both;
-    will-change: transform, opacity;
-  }
-  .subnav-morph-exit-anchor-slot {
-    width: var(--subnav-anchor-w);
-    overflow: hidden;
-    animation: subnav-exit-anchor-slot-grow 220ms cubic-bezier(0.16, 1, 0.3, 1) 180ms both;
-    will-change: width;
-  }
-  .subnav-morph-exit-anchor-item [data-subnav-key="all-tournaments"] {
-    width: 100%;
-    justify-content: center;
-    padding-left: 0;
-    padding-right: 0;
-  }
-  .subnav-morph-exit-anchor-item [data-subnav-key="all-tournaments"] [data-subnav-label] {
-    opacity: 0;
-    animation: subnav-exit-anchor-label-in 90ms ease-out 330ms both;
-  }
-  .subnav-morph-exit-anchor-item [data-subnav-key="all-tournaments"] > span:first-child {
-    margin-right: 0 !important;
-  }
-
   @media (prefers-reduced-motion: reduce) {
     .comment-attn {
       animation: none;
       box-shadow: 0 0 0 2px rgb(var(--color-accent) / 0.20);
-    }
-    .subnav-click-blink {
-      animation: none;
-      box-shadow: inset 0 0 0 2px rgb(var(--color-accent) / 0.20);
-    }
-    .subnav-slide-in-right,
-    .subnav-slide-in-left,
-    .subnav-slide-out-left,
-    .subnav-slide-out-right,
-    .subnav-morph-enter-create-slot,
-    .subnav-morph-enter-create-item [data-subnav-key],
-    .subnav-morph-enter-anchor-slot,
-    .subnav-morph-enter-anchor-item [data-subnav-key],
-    .subnav-morph-enter-rest [data-subnav-key],
-    .subnav-morph-exit-create-slot,
-    .subnav-morph-exit-create-item [data-subnav-key],
-    .subnav-morph-exit-anchor-slot,
-    .subnav-morph-exit-anchor-item [data-subnav-key],
-    .subnav-morph-exit-rest [data-subnav-key] {
-      animation: none;
-      transform: none;
-      opacity: 1;
-    }
-    .page-slide-in-right,
-    .page-slide-in-left {
-      animation: none;
-      transform: none;
-      opacity: 1;
     }
   }
 
@@ -759,6 +432,3 @@ img, svg, video, canvas {
   word-break: break-word;
 }
 
-.symbol-margin-to-text {
-  margin-right: 0.4rem; /* adjust */
-}

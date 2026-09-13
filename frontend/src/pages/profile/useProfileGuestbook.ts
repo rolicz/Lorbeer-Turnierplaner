@@ -95,6 +95,8 @@ export function useProfileGuestbook({
   );
 
   const canPostGuestbook = !!token && role !== "reader";
+  /** Bumped after a posted message, to return the caret to the composer. */
+  const [postedNonce, setPostedNonce] = useState(0);
   const seenGuestbook = useMemo(
     () => new Set((guestbookReadQ.data?.entry_ids ?? []).map((x) => Number(x))),
     [guestbookReadQ.data?.entry_ids]
@@ -190,6 +192,9 @@ export function useProfileGuestbook({
     onSuccess: async (_result, vars) => {
       if (targetPlayerId && vars.parentEntryId == null) {
         setGuestbookDraftByPlayerId((prev) => ({ ...prev, [targetPlayerId]: "" }));
+        // Send moves focus to the button, which then disables itself — put the caret
+        // back in the field so the next message costs one tap (same as the comments).
+        setPostedNonce((n) => n + 1);
       }
       if (targetPlayerId && vars.parentEntryId != null) {
         const parentEntryId = vars.parentEntryId;
@@ -432,6 +437,7 @@ export function useProfileGuestbook({
     },
     onPost: () => createGuestbookMut.mutate({ body: guestbookDraft.trim(), parentEntryId: null }),
     posting: createGuestbookMut.isPending,
+    postedNonce,
   };
 
   return {

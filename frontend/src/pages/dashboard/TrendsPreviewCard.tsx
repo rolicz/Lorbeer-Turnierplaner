@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQueries, useQuery } from "@tanstack/react-query";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import { ChevronRight, Layers, Zap } from "lucide-react";
 
 import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
 import InlineLoading from "../../ui/primitives/InlineLoading";
@@ -276,7 +277,15 @@ export default function TrendsPreviewCard() {
   return (
     <div>
       <div className="section-head">
-        <span className="section-label">Trends</span>
+        {/* The header is the door to the full Trends section (the chart below is too). */}
+        <Link
+          to="/stats?view=trends"
+          title="Open Trends in Stats"
+          className="section-label inline-flex items-center gap-2 no-underline transition hover:text-text-normal"
+        >
+          Trends
+          <ChevronRight size={14} aria-hidden="true" />
+        </Link>
       </div>
       <div className="space-y-2">
         <ErrorToastOnError error={statsQ.error} title="Trends loading failed" />
@@ -287,8 +296,8 @@ export default function TrendsPreviewCard() {
               value={view}
               onChange={setView}
               options={[
-                { key: "lastN", label: `Last ${formN}`, icon: "fa-bolt" },
-                { key: "total", label: "Total", icon: "fa-layer-group" },
+                { key: "lastN", label: `Last ${formN}`, icon: <Zap size={14} aria-hidden="true" /> },
+                { key: "total", label: "Total", icon: <Layers size={14} aria-hidden="true" /> },
               ]}
               ariaLabel="Trends view"
               title="View"
@@ -298,7 +307,7 @@ export default function TrendsPreviewCard() {
             <div className="min-w-0 pt-1">
               <div className="grid grid-cols-3 gap-x-3 gap-y-1">
                 {chart.series.map((s) => (
-                  <div key={s.id} className="flex min-w-0 items-center gap-2 text-[11px] text-text-muted">
+                  <div key={s.id} className="flex min-w-0 items-center gap-2 text-xs text-text-muted">
                     <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: s.color }} aria-hidden="true" />
                     <span className="min-w-0 truncate">{s.name}</span>
                   </div>
@@ -316,7 +325,7 @@ export default function TrendsPreviewCard() {
             type="button"
             className="block w-full text-left"
             onClick={() =>
-              navigate("/stats#stats-trends", {
+              navigate("/stats?view=trends", {
                 state: {
                   focus: "trends",
                   statsTab: "trends",

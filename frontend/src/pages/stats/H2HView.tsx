@@ -1,17 +1,23 @@
-/** H2H tab — full matrix, per-player detail, teammate synergy and rivalries.
- *  In 2v2 mode a Players | Duos sub-nav exposes the backend's real duo stats
- *  (best_teammates_2v2 / team_rivalries_2v2) instead of a client-side recompute. */
-import { useMemo, useState } from "react";
+/** H2H section — full matrix, per-player detail, teammate synergy and rivalries.
+ *  In 2v2 mode the Players | Duos sub-view chips (owned by StatsInsights) expose the
+ *  backend's real duo stats (best_teammates_2v2 / team_rivalries_2v2) instead of a
+ *  client-side recompute. The selected player is shared with the other sections. */
+import { HeartCrack, Smile } from "lucide-react";
+import { type ReactNode, useMemo, useState } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 
+import Button from "../../ui/primitives/Button";
+import EmptyState from "../../ui/primitives/EmptyState";
 import InlineLoading from "../../ui/primitives/InlineLoading";
 import Modal from "../../ui/primitives/Modal";
+import PlayerLink from "../../ui/primitives/PlayerLink";
 import { getStatsH2H, getStatsH2HMatches, type StatsH2HMatchesRequest } from "../../api/stats.api";
 import { listClubs } from "../../api/clubs.api";
 import { qk } from "../../api/queryKeys";
-import { ChipGroup } from "./charts";
+import { ChipGroup } from "../../ui/primitives/Chip";
 import { PlayerPicker } from "./PlayerPicker";
-import { MatchHistoryList } from "./MatchHistoryList";
+import StatsSection from "./StatsSection";
+import { MatchHistoryList, tournamentMatchHref } from "./MatchHistoryList";
 import { DuoRow } from "./HeadToHeadRows";
 import { duoKey } from "./h2hHelpers";
 import { DuoLeaderboard } from "./h2h/DuoLeaderboard";
@@ -19,7 +25,8 @@ import { DuoPicker } from "./h2h/DuoPicker";
 import { DuoRivalries } from "./h2h/DuoRivalries";
 import { DuoDetail } from "./h2h/DuoDetail";
 import type { Row } from "./standings";
-import type { StatsMode } from "./StatsControls";
+import type { H2HSub } from "./statsNav";
+import type { StatsMode } from "./statsMode";
 import type { StatsScope, StatsH2HPair, StatsH2HOpponentRow, StatsH2HDuo, StatsH2HTeamRivalry } from "../../api/types";
 
 function h2hTone(pct: number): string {
@@ -40,24 +47,62 @@ function h2hDiverging(gd: number, maxAbs: number): string {
 
 type HistoryModalState = { title: string; req: StatsH2HMatchesRequest; focusPlayerId: number | null };
 
-export default function H2HView({ mode, scope, rows, myId }: { mode: StatsMode; scope: StatsScope; rows: Row[]; myId?: number | null }) {
+/** Favorite / Nemesis chip — taps into the matchup when the opponent is known. */
+function RivalCard({ icon, label, row, onOpen }: {
+  icon: ReactNode; label: string; row: StatsH2HOpponentRow | null; onOpen: (opponentId: number) => void;
+}) {
+  const body = (
+    <>
+      <div className="inline-flex items-center gap-2 text-text-muted">{icon}<span>{label}</span></div>
+      <div className="mt-0.5 font-semibold">{row?.opponent.display_name ?? "—"}</div>
+      {row ? (
+        <div className="mt-0.5 text-text-muted">
+          <span className="text-win">{row.wins}</span>-<span className="text-draw">{row.draws}</span>-<span className="text-loss">{row.losses}</span> ·{" "}
+          {row.pts_per_match.toFixed(2)} ppm
+        </div>
+      ) : null}
+    </>
+  );
+  if (!row) return <div className="inset px-3 py-2">{body}</div>;
+  return (
+    <button
+      type="button"
+      onClick={() => onOpen(row.opponent.id)}
+      title={`All matches against ${row.opponent.display_name}`}
+      className="inset px-3 py-2 text-left transition hover:bg-bg-card-chip/40 active:bg-bg-card-chip/50 focus-ring"
+    >
+      {body}
+    </button>
+  );
+}
+
+export default function H2HView({ mode, scope, rows, subView, selectedId, onSelect, onOpenMatchup }: {
+  mode: StatsMode; scope: StatsScope; rows: Row[];
+  /** Sub-view from the URL (`?sub=`); Duos is 2v2-only. */
+  subView: H2HSub;
+  /** Shared stats player selection (URL `?player=`), so H2H ↔ Player keep the same player. */
+  selectedId: number | null; onSelect: (id: number) => void;
+  /** Drill into "A vs B, every match" (URL `?player=<a>&vs=<b>`). */
+  onOpenMatchup: (leftId: number, rightId: number) => void;
+}) {
   const q = useQuery({
     queryKey: qk.stats.h2h("all", 200, "rivalry", scope),
     queryFn: () => getStatsH2H({ playerId: null, limit: 200, order: "rivalry", scope }),
     placeholderData: keepPreviousData, staleTime: 30_000,
   });
-  const defaultSelected = (myId != null && rows.some((r) => r.id === myId)) ? myId : (rows[0]?.id ?? null);
-  const [selected, setSelected] = useState<number | null>(defaultSelected);
-  const [matrixMetric, setMatrixMetric] = useState<"winrate" | "played" | "gd" | "wdl" | "ppm" | "rivalry">("winrate");
-  const [subView, setSubView] = useState<"players" | "duos">("duos");
+  // W-D-L is the default: the full record answers "how do these two compare?"
+  // without a legend, where a bare win-rate number needs one (S8).
+  const [matrixMetric, setMatrixMetric] = useState<"winrate" | "played" | "gd" | "wdl" | "ppm" | "rivalry">("wdl");
   // Ordered (insertion order) so a third tap can replace the OLDEST selection; 0–2 entries.
   const [selectedDuoIds, setSelectedDuoIds] = useState<number[]>([]);
   const [historyModal, setHistoryModal] = useState<HistoryModalState | null>(null);
   const [historyDetails, setHistoryDetails] = useState(false);
+  const [rivalryOrder, setRivalryOrder] = useState<"rivalry" | "played">("rivalry");
+  const [rivalriesExpanded, setRivalriesExpanded] = useState(false);
   const nameById = useMemo(() => new Map(rows.map((r) => [r.id, r.name])), [rows]);
 
   // Duos sub-view is only meaningful in 2v2; other modes always show the players view.
-  const effectiveSubView: "players" | "duos" = mode === "2v2" ? subView : "players";
+  const effectiveSubView: H2HSub = mode === "2v2" ? subView : "players";
 
   const pairs: StatsH2HPair[] = useMemo(() => {
     const d = q.data;
@@ -87,22 +132,28 @@ export default function H2HView({ mode, scope, rows, myId }: { mode: StatsMode; 
           : matrixMetric === "ppm" ? v.ppm.toFixed(2)
             : matrixMetric === "rivalry" ? String(Math.round(v.rivalry))
               : String(Math.round(v.pct));
-  const topRivalries = pairs.slice().sort((a, b) => b.rivalry_score - a.rivalry_score).slice(0, 8);
+  const sortedRivalries = useMemo(
+    () => pairs.slice().sort((a, b) => (rivalryOrder === "played" ? b.played - a.played || b.rivalry_score - a.rivalry_score : b.rivalry_score - a.rivalry_score)),
+    [pairs, rivalryOrder],
+  );
+  const topRivalries = rivalriesExpanded ? sortedRivalries : sortedRivalries.slice(0, 8);
 
-  // Precompute normalization ranges for per-metric coloring.
+  // Precompute normalization ranges for per-metric coloring (and whether any cell
+  // is tappable at all — an empty matrix must not advertise a tap).
   const matrixRanges = useMemo(() => {
-    let maxPlayed = 1, maxRivalry = 1, maxAbsGd = 1;
+    let maxPlayed = 1, maxRivalry = 1, maxAbsGd = 1, anyPlayed = false;
     for (const r of rows) {
       for (const c of rows) {
         if (r.id === c.id) continue;
         const v = cell(r.id, c.id);
         if (!v) continue;
+        anyPlayed = true;
         maxPlayed = Math.max(maxPlayed, v.played);
         maxRivalry = Math.max(maxRivalry, v.rivalry);
         maxAbsGd = Math.max(maxAbsGd, Math.abs(v.gd));
       }
     }
-    return { maxPlayed, maxRivalry, maxAbsGd };
+    return { maxPlayed, maxRivalry, maxAbsGd, anyPlayed };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pairs, rows]);
 
@@ -118,9 +169,9 @@ export default function H2HView({ mode, scope, rows, myId }: { mode: StatsMode; 
 
   // Per-player detail.
   const detailQ = useQuery({
-    queryKey: qk.stats.h2hPlayerDetail(selected, scope),
-    queryFn: () => getStatsH2H({ playerId: selected as number, order: "played", limit: 50, scope }),
-    enabled: selected != null,
+    queryKey: qk.stats.h2hPlayerDetail(selectedId, scope),
+    queryFn: () => getStatsH2H({ playerId: selectedId as number, order: "played", limit: 50, scope }),
+    enabled: selectedId != null,
     placeholderData: keepPreviousData, staleTime: 30_000,
   });
   const vs = useMemo<StatsH2HOpponentRow[]>(() => {
@@ -130,13 +181,13 @@ export default function H2HView({ mode, scope, rows, myId }: { mode: StatsMode; 
   }, [detailQ.data, mode]);
   const nemesis = mode === "1v1" ? detailQ.data?.nemesis_1v1 : mode === "2v2" ? detailQ.data?.nemesis_2v2 : detailQ.data?.nemesis_all;
   const favorite = mode === "1v1" ? detailQ.data?.favorite_victim_1v1 : mode === "2v2" ? detailQ.data?.favorite_victim_2v2 : detailQ.data?.favorite_victim_all;
-  const selName = selected != null ? nameById.get(selected) ?? "" : "";
+  const selName = selectedId != null ? nameById.get(selectedId) ?? "" : "";
 
   // 2v2 teammate synergy — real duo stats from the backend (with_2v2 when a player is
   // selected, else best_teammates_2v2). No more client-side recomputation.
   const bestDuos: StatsH2HDuo[] = useMemo(() => q.data?.best_teammates_2v2 ?? [], [q.data]);
   const teamRivalries: StatsH2HTeamRivalry[] = q.data?.team_rivalries_2v2 ?? [];
-  const synergyDuos: StatsH2HDuo[] = selected != null ? (detailQ.data?.with_2v2 ?? []) : bestDuos;
+  const synergyDuos: StatsH2HDuo[] = selectedId != null ? (detailQ.data?.with_2v2 ?? []) : bestDuos;
 
   // A duo needs exactly two players. Look up their real 2v2 record; if they've never
   // played together, synthesize a zeroed duo so DuoDetail still renders gracefully.
@@ -220,7 +271,7 @@ export default function H2HView({ mode, scope, rows, myId }: { mode: StatsMode; 
           <div className="flex-1 min-h-0 overflow-y-auto pr-1">
             {historyQ.isLoading ? <InlineLoading label="Loading…" /> : null}
             {!historyQ.isLoading && !(historyQ.data?.tournaments?.length ?? 0) ? (
-              <div className="text-sm text-text-muted">No matches found for this matchup.</div>
+              <EmptyState title="No matches found for this matchup." className="py-2" />
             ) : null}
             {historyQ.data?.tournaments?.length ? (
               <MatchHistoryList
@@ -228,6 +279,8 @@ export default function H2HView({ mode, scope, rows, myId }: { mode: StatsMode; 
                 focusId={historyModal.focusPlayerId}
                 clubs={clubsQ.data ?? []}
                 showMeta={historyDetails}
+                showModePill={mode === "overall"}
+                matchHref={tournamentMatchHref}
               />
             ) : null}
           </div>
@@ -240,44 +293,28 @@ export default function H2HView({ mode, scope, rows, myId }: { mode: StatsMode; 
   if (effectiveSubView === "duos") {
     return (
       <div className="space-y-5">
-        <ChipGroup<"players" | "duos">
-          value={subView}
-          onChange={setSubView}
-          ariaLabel="Head-to-head sub-view"
-          options={[{ key: "players", label: "Players" }, { key: "duos", label: "Duos" }]}
-        />
-
-        <div className="space-y-2">
-          <div className="section-head"><span className="section-label">Pick a duo</span></div>
+        <StatsSection label="Pick a duo">
           <DuoPicker
             players={rows.map((r) => ({ id: r.id, name: r.name }))}
             selectedIds={selectedDuoIds}
             onToggle={toggleDuoPlayer}
             onClear={() => setSelectedDuoIds([])}
           />
-        </div>
+        </StatsSection>
 
-        <div className="space-y-2">
-          <div className="section-head"><span className="section-label">Best duos</span></div>
-          <p className="text-[11px] text-text-muted">Strongest pairings across 2v2 matches — tap a duo for detail.</p>
+        <StatsSection label="Best duos" explainer="Strongest pairings across 2v2 matches — tap a duo for detail.">
           <DuoLeaderboard duos={bestDuos} selectedKey={selectedDuoKey} onSelect={(d) => setSelectedDuoIds([d.p1.id, d.p2.id])} />
-        </div>
+        </StatsSection>
 
         {selectedDuo ? (
-          <div className="space-y-2">
-            <div className="section-head"><span className="section-label">Duo detail</span></div>
-            {selectedDuoUnplayed ? (
-              <p className="text-[11px] text-text-muted">No 2v2 matches together yet.</p>
-            ) : null}
+          <StatsSection label="Duo detail" explainer={selectedDuoUnplayed ? "No 2v2 matches together yet." : undefined}>
             <DuoDetail duo={selectedDuo} rivalries={teamRivalries} onOpenTeammates={openDuoTeammates} onOpenMatchup={openTeamRivalry} />
-          </div>
+          </StatsSection>
         ) : null}
 
-        <div className="space-y-2">
-          <div className="section-head"><span className="section-label">Duo rivalries</span></div>
-          <p className="text-[11px] text-text-muted">Closest duo-vs-duo matchups — more games and a tighter balance score higher.</p>
+        <StatsSection label="Duo rivalries" explainer="Closest duo-vs-duo matchups — more games and a tighter balance score higher.">
           <DuoRivalries rivalries={teamRivalries} onOpenMatches={openTeamRivalry} />
-        </div>
+        </StatsSection>
 
         {matches}
       </div>
@@ -287,27 +324,21 @@ export default function H2HView({ mode, scope, rows, myId }: { mode: StatsMode; 
   // ── Players sub-view (default for 1v1 / overall, opt-in for 2v2) ─────────────
   return (
     <div className="space-y-5">
-      {mode === "2v2" ? (
-        <ChipGroup<"players" | "duos">
-          value={subView}
-          onChange={setSubView}
-          ariaLabel="Head-to-head sub-view"
-          options={[{ key: "players", label: "Players" }, { key: "duos", label: "Duos" }]}
-        />
-      ) : null}
-
       {/* Full-name square matrix */}
-      <div>
-        <div className="section-head"><span className="section-label">Matrix</span></div>
-        {mode === "2v2" ? <p className="mb-1 text-[11px] text-text-muted">Per player across 2v2 matches.</p> : null}
-        <div className="mb-2 flex flex-wrap items-center gap-2">
+      <StatsSection label="Matrix" explainer={mode === "2v2" ? "Per player across 2v2 matches." : undefined}>
+        <div className="flex flex-wrap items-center gap-2">
           <ChipGroup<"winrate" | "played" | "gd" | "wdl" | "ppm" | "rivalry">
             value={matrixMetric}
             onChange={setMatrixMetric}
             ariaLabel="Matrix metric"
-            options={[{ key: "winrate", label: "Win %" }, { key: "wdl", label: "W-D-L" }, { key: "ppm", label: "PPM" }, { key: "played", label: "Played" }, { key: "gd", label: "Goal diff" }, { key: "rivalry", label: "Rivalry" }]}
+            options={[{ key: "wdl", label: "W-D-L" }, { key: "winrate", label: "Win %" }, { key: "ppm", label: "PPM" }, { key: "played", label: "Played" }, { key: "gd", label: "Goal diff" }, { key: "rivalry", label: "Rivalry" }]}
           />
         </div>
+        {/* The cells are buttons (they open the matchup) — say so, because on a
+            phone there is no hover to discover it with. */}
+        {matrixRanges.anyPlayed ? (
+          <p className="text-xs text-text-muted">Tap a cell for every match between two players.</p>
+        ) : null}
         <div className="overflow-x-auto" data-no-swipe-nav>
           <table className="border-separate" style={{ borderSpacing: 3 }}>
             <thead>
@@ -316,7 +347,7 @@ export default function H2HView({ mode, scope, rows, myId }: { mode: StatsMode; 
                 {rows.map((c) => (
                   <th key={c.id} className="p-0 align-bottom">
                     <div className="mx-auto flex h-24 w-11 items-center justify-center overflow-visible">
-                      <span className="-rotate-90 whitespace-nowrap text-[11px] font-medium text-text-muted">{c.name}</span>
+                      <span className="-rotate-90 whitespace-nowrap text-xs font-medium text-text-muted">{c.name}</span>
                     </div>
                   </th>
                 ))}
@@ -328,23 +359,28 @@ export default function H2HView({ mode, scope, rows, myId }: { mode: StatsMode; 
                   <th className="sticky left-0 z-10 bg-bg-default pr-2 text-right">
                     <button
                       type="button"
-                      onClick={() => setSelected(r.id)}
-                      className={"block max-w-[120px] truncate text-xs font-medium " + (selected === r.id ? "text-accent" : "text-text-normal hover:text-accent")}
+                      onClick={() => onSelect(r.id)}
+                      title={`Show ${r.name}'s head-to-head`}
+                      className={"block max-w-[120px] cursor-pointer truncate text-xs font-medium " + (selectedId === r.id ? "text-accent" : "text-text-normal hover:text-accent")}
                     >
                       {r.name}
                     </button>
                   </th>
                   {rows.map((c) => {
-                    if (r.id === c.id) return <td key={c.id} className="h-11 w-11 rounded bg-bg-card-chip/30" />;
+                    if (r.id === c.id) return <td key={c.id} className="h-11 w-11 rounded-md bg-bg-card-chip/30" />;
                     const v = cell(r.id, c.id);
-                    if (!v) return <td key={c.id} className="h-11 w-11 rounded bg-bg-card-chip/15 text-center text-xs text-text-muted">–</td>;
+                    if (!v) return <td key={c.id} className="h-11 w-11 rounded-md bg-bg-card-chip/15 text-center text-xs text-text-muted">–</td>;
                     return (
                       <td key={c.id}>
                         <button
                           type="button"
-                          onClick={() => setSelected(r.id)}
-                          title={`${r.name} vs ${c.name}: ${v.w}-${v.d}-${v.l}`}
-                          className="grid h-11 w-11 place-items-center rounded text-xs font-semibold leading-none text-white"
+                          onClick={() => onOpenMatchup(r.id, c.id)}
+                          title={`${r.name} vs ${c.name} — open matches`}
+                          aria-label={`${r.name} vs ${c.name}: ${v.w}-${v.d}-${v.l} — open matches`}
+                          className={
+                            "focus-ring grid h-11 w-11 cursor-pointer place-items-center rounded-md text-xs font-semibold leading-none text-white transition hover:brightness-125 active:scale-[0.97] " +
+                            (matrixMetric === "wdl" ? "tracking-tight" : "")
+                          }
                           style={{ backgroundColor: cellColor(v) }}
                         >
                           {cellText(v)}
@@ -357,98 +393,117 @@ export default function H2HView({ mode, scope, rows, myId }: { mode: StatsMode; 
             </tbody>
           </table>
         </div>
-      </div>
+      </StatsSection>
 
       {/* Per-player detail */}
-      <div className="space-y-2">
-        <div className="section-head"><span className="section-label">Head-to-head by player</span></div>
-        <PlayerPicker players={rows.map((r) => ({ id: r.id, name: r.name }))} selectedId={selected} onSelect={setSelected} />
-        {selected == null ? (
-          <div className="text-sm text-text-muted">Pick a player.</div>
+      <StatsSection label="Head-to-head by player">
+        <PlayerPicker players={rows.map((r) => ({ id: r.id, name: r.name }))} selectedId={selectedId} onSelect={onSelect} />
+        {selectedId == null ? (
+          <EmptyState title="Pick a player." className="py-2" />
         ) : (
           <>
             <div className="grid grid-cols-2 gap-2 text-xs">
-              <div className="card-chip px-3 py-2">
-                <div className="inline-flex items-center gap-2 text-text-muted"><i className="fa-solid fa-face-smile" aria-hidden="true" /><span>Favorite</span></div>
-                <div className="mt-0.5 font-semibold">{favorite?.opponent.display_name ?? "—"}</div>
-                {favorite ? <div className="mt-0.5 text-text-muted">{favorite.wins}-{favorite.draws}-{favorite.losses} · {favorite.pts_per_match.toFixed(2)} ppm</div> : null}
-              </div>
-              <div className="card-chip px-3 py-2">
-                <div className="inline-flex items-center gap-2 text-text-muted"><i className="fa-solid fa-heart-crack" aria-hidden="true" /><span>Nemesis</span></div>
-                <div className="mt-0.5 font-semibold">{nemesis?.opponent.display_name ?? "—"}</div>
-                {nemesis ? <div className="mt-0.5 text-text-muted">{nemesis.wins}-{nemesis.draws}-{nemesis.losses} · {nemesis.pts_per_match.toFixed(2)} ppm</div> : null}
-              </div>
+              <RivalCard icon={<Smile size={14} aria-hidden="true" />} label="Favorite" row={favorite ?? null} onOpen={(id) => onOpenMatchup(selectedId, id)} />
+              <RivalCard icon={<HeartCrack size={14} aria-hidden="true" />} label="Nemesis" row={nemesis ?? null} onOpen={(id) => onOpenMatchup(selectedId, id)} />
             </div>
             {detailQ.isLoading && !detailQ.data ? (
               <InlineLoading label="Loading…" />
             ) : vs.length ? (
               <div className="list-divided">
                 {vs.map((o) => (
-                  <button key={o.opponent.id} type="button" onClick={() => setSelected(o.opponent.id)} className="row row-tap">
-                    <span className="min-w-0 flex-1 truncate text-sm text-text-normal">{o.opponent.display_name}</span>
-                    <span className="shrink-0 font-mono text-[11px] tabular-nums text-text-muted">
-                      {o.played}P · <span className="text-status-text-green">{o.wins}</span>-<span className="text-amber-300">{o.draws}</span>-<span className="text-[color:rgb(var(--delta-down)/1)]">{o.losses}</span>
+                  /* The row opens the matchup (stretched button); the opponent's name
+                     opens their profile — two targets, never a nested link. */
+                  <div key={o.opponent.id} className="row row-tap relative">
+                    <button
+                      type="button"
+                      onClick={() => onOpenMatchup(selectedId, o.opponent.id)}
+                      aria-label={`All matches against ${o.opponent.display_name}`}
+                      className="absolute inset-0 z-0 rounded-xl focus-ring"
+                    />
+                    <span className="pointer-events-none relative z-10 flex w-full items-center gap-3">
+                      <span className="min-w-0 flex-1">
+                        {/* The link hugs the name so the rest of the row stays the matchup. */}
+                        <PlayerLink playerId={o.opponent.id} name={o.opponent.display_name} className="pointer-events-auto inline-block max-w-full">
+                          <span className="block truncate text-sm text-text-normal">{o.opponent.display_name}</span>
+                        </PlayerLink>
+                      </span>
+                      <span className="shrink-0 font-mono text-xs tabular-nums text-text-muted">
+                        {o.played}P · <span className="text-win">{o.wins}</span>-<span className="text-draw">{o.draws}</span>-<span className="text-loss">{o.losses}</span>
+                      </span>
+                      <span className="w-12 shrink-0 text-right text-sm font-semibold tabular-nums text-accent">{o.played ? Math.round(o.win_rate * 100) : 0}%</span>
                     </span>
-                    <span className="w-12 shrink-0 text-right text-sm font-semibold tabular-nums text-accent">{o.played ? Math.round(o.win_rate * 100) : 0}%</span>
-                  </button>
+                  </div>
                 ))}
               </div>
             ) : (
-              <div className="text-sm text-text-muted">No head-to-head matches for {selName}.</div>
+              <EmptyState title={`No head-to-head matches for ${selName}.`} className="py-2" />
             )}
           </>
         )}
-      </div>
+      </StatsSection>
 
       {/* Teammate synergy (2v2) — real duo stats from the backend. */}
       {mode === "2v2" ? (
-        <div className="space-y-2">
-          <div className="section-head"><span className="section-label">Teammate synergy</span></div>
-          {selected != null && detailQ.isLoading && !detailQ.data ? (
+        <StatsSection
+          label="Teammate synergy"
+          explainer={selectedId != null
+            ? `How ${selName} performs with each partner (points per match as a duo).`
+            : "Strongest 2v2 pairings (points per match as a duo)."}
+        >
+          {selectedId != null && detailQ.isLoading && !detailQ.data ? (
             <InlineLoading label="Loading…" />
           ) : synergyDuos.length ? (
             <>
-              <p className="text-[11px] text-text-muted">
-                {selected != null ? <>How {selName} performs with each partner (points per match as a duo).</> : <>Strongest 2v2 pairings (points per match as a duo).</>}
-              </p>
               <div className="space-y-2">
                 {synergyDuos.map((d) => (
                   <DuoRow
                     key={`syn-${duoKey(d.p1.id, d.p2.id)}`}
                     r={d}
-                    focusPlayerId={selected}
+                    focusPlayerId={selectedId}
                     onOpenMatches={openDuoTeammates}
                   />
                 ))}
               </div>
             </>
           ) : (
-            <div className="text-sm text-text-muted">No 2v2 matches with a partner yet.</div>
+            <EmptyState title="No 2v2 matches with a partner yet." className="py-2" />
           )}
-        </div>
+        </StatsSection>
       ) : null}
 
       {/* Top rivalries (player-based in this sub-view) */}
-      <div className="space-y-2">
-        <div className="section-head"><span className="section-label">Top rivalries</span></div>
-        <p className="text-[11px] text-text-muted">Most-played and closest matchups — a higher rivalry score means more games and a tighter win balance.</p>
+      <StatsSection
+        label="Top rivalries"
+        explainer="Most-played and closest matchups — a higher rivalry score means more games and a tighter win balance."
+        action={sortedRivalries.length > 8 ? (
+          <Button variant="ghost" size="sm" onClick={() => setRivalriesExpanded((v) => !v)}>
+            {rivalriesExpanded ? "Top 8" : "Show all"}
+          </Button>
+        ) : null}
+      >
+        <ChipGroup<"rivalry" | "played">
+          value={rivalryOrder}
+          onChange={setRivalryOrder}
+          ariaLabel="Rivalry order"
+          options={[{ key: "rivalry", label: "Rivalry" }, { key: "played", label: "Played" }]}
+        />
         {topRivalries.map((p) => (
-          <button key={`${p.a.id}-${p.b.id}`} type="button" onClick={() => setSelected(p.a.id)}
-            className="surface flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left transition hover:bg-hover-default/30">
+          <button key={`${p.a.id}-${p.b.id}`} type="button" onClick={() => onOpenMatchup(p.a.id, p.b.id)}
+            className="inset flex w-full items-center justify-between gap-3 px-3 py-2 text-left transition hover:bg-hover-default/30">
             <div className="min-w-0">
               <div className="truncate text-sm font-medium text-text-normal">
                 {nameById.get(p.a.id) ?? p.a.display_name} <span className="text-text-muted">vs</span> {nameById.get(p.b.id) ?? p.b.display_name}
               </div>
-              <div className="text-[11px] text-text-muted">{p.played} matches · {p.a_wins}-{p.draws}-{p.b_wins}</div>
+              <div className="text-xs text-text-muted">{p.played} matches · {p.a_wins}-{p.draws}-{p.b_wins}</div>
             </div>
             <div className="shrink-0 text-right">
               <div className="text-sm font-bold tabular-nums text-accent">{Math.round(p.rivalry_score)}</div>
-              <div className="text-[11px] text-text-muted">rivalry</div>
+              <div className="text-xs text-text-muted">rivalry</div>
             </div>
           </button>
         ))}
-        {!topRivalries.length ? <div className="text-sm text-text-muted">No rivalries yet.</div> : null}
-      </div>
+        {!topRivalries.length ? <EmptyState title="No rivalries yet." className="py-2" /> : null}
+      </StatsSection>
 
       {matches}
     </div>

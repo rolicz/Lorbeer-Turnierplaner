@@ -1,96 +1,150 @@
-/** Records tab — match superlatives and longest streak runs. */
-import { useMemo } from "react";
+/**
+ * Records tab — titles and match superlatives.
+ *
+ * Built from the same block as every other stats sub-view (`DESIGN.md` §6 "Stats
+ * sub-view skeleton"): one `StatsSection` per category — icon, title, one-line
+ * explainer, then rows — and every match row is a `ScoreLine` (§8), never a local
+ * score rendering.
+ *
+ * **Longest runs live in Streaks** (T6): every streak record — win, unbeaten,
+ * scoring, clean sheet — is owned by the Streaks sub-view, which shows all four
+ * categories with their current runs. Records used to repeat two of them; it now
+ * only points there.
+ */
+import { Flame, Goal, TrendingUp, Trophy, Zap } from "lucide-react";
+import { type ReactNode, useMemo } from "react";
 import { Link } from "react-router-dom";
 import { keepPreviousData, useQueries, useQuery } from "@tanstack/react-query";
 
+import AvatarCircle from "../../ui/primitives/AvatarCircle";
+import Button from "../../ui/primitives/Button";
+import EmptyState from "../../ui/primitives/EmptyState";
 import InlineLoading from "../../ui/primitives/InlineLoading";
-import { getStatsPlayerMatches, getStatsPlayers, getStatsStreaks } from "../../api/stats.api";
+import PlayerLink from "../../ui/primitives/PlayerLink";
+import ScoreLine from "../../ui/primitives/ScoreLine";
+import { getStatsPlayerMatches, getStatsPlayers } from "../../api/stats.api";
 import { qk } from "../../api/queryKeys";
+import { usePlayerAvatarMap } from "../../hooks/usePlayerAvatarMap";
 import { teamName } from "../../utils/matchDisplay";
 import { fmtShortDate } from "../../utils/format";
+import { tournamentMatchHref } from "./MatchHistoryList";
+import StatsSection from "./StatsSection";
 import type { Row } from "./standings";
-import type { StatsMode } from "./StatsControls";
-import type { StatsScope, StatsMatch, StatsPlayerMatchesTournament, StatsStreakCategory, StatsTournamentLite } from "../../api/types";
-import { streakDateText } from "./streakDisplay";
+import type { StatsMode } from "./statsMode";
+import type { StatsScope, StatsMatch, StatsPlayerMatchesTournament, StatsTournamentLite } from "../../api/types";
+
+/** How many rows a category shows before the "+N more" line (`DESIGN.md` §6). */
+const SHOWN = 6;
 
 function teamNames(m: StatsMatch, side: "A" | "B"): string {
   return teamName(m.sides.find((x) => x.side === side));
 }
-type RecMatch = { id: number; tId: number; tName: string; date: string; a: string; b: string; ag: number; bg: number; aIds: number[]; bIds: number[] };
+type RecMatch = {
+  id: number; tName: string; date: string;
+  a: string; b: string; ag: number; bg: number;
+  aIds: number[]; bIds: number[];
+  /** Match detail page, or null for a friendly (no detail page). */
+  href: string | null;
+};
 
-function RecordGroup({ icon, label, matches }: { icon: string; label: string; matches: RecMatch[] }) {
-  if (!matches.length) return null;
-  const shown = matches.slice(0, 6);
+/** Tie count next to a category title ("×4 matches share this record"). */
+function TieCount({ n }: { n: number }) {
+  if (n <= 1) return null;
+  return <span className="text-xs font-normal text-text-muted">×{n}</span>;
+}
+
+/** "+N more" — the one way a truncated stats list says it is truncated. */
+function MoreLine({ total, shown }: { total: number; shown: number }) {
+  if (total <= shown) return null;
+  return <div className="text-xs text-text-muted">+{total - shown} more</div>;
+}
+
+/** A match superlative: every match tied at the record, each as a `ScoreLine` row. */
+function RecordGroup({ icon, label, explainer, matches }: { icon: ReactNode; label: string; explainer: string; matches: RecMatch[] }) {
+  const shown = matches.slice(0, SHOWN);
   return (
-    <div className="surface rounded-xl px-3 py-2.5">
-      <div className="inline-flex items-center gap-2 text-[11px] uppercase tracking-wide text-text-muted">
-        <i className={"fa-solid " + icon} aria-hidden="true" />
-        {label}
-        {matches.length > 1 ? <span className="text-text-muted/70">×{matches.length}</span> : null}
-      </div>
-      <div className="mt-1.5 space-y-2">
-        {shown.map((m) => (
-          <Link
-            key={m.id}
-            to={`/live/${m.tId}?match=${m.id}`}
-            title={`${m.tName} — open tournament`}
-            className="flex items-center justify-between gap-3 rounded-lg px-1.5 py-1 -mx-1.5 no-underline transition hover:bg-hover-default/30"
-          >
-            <div className="min-w-0">
-              <div className="truncate text-sm font-medium text-text-normal">{m.a} <span className="text-text-muted">vs</span> {m.b}</div>
-              <div className="text-[11px] text-text-muted">{m.tName} · {fmtShortDate(m.date)}</div>
-            </div>
-            <div className="shrink-0 font-mono text-base font-bold tabular-nums text-accent">{m.ag}:{m.bg}</div>
-          </Link>
-        ))}
-        {matches.length > shown.length ? <div className="text-[11px] text-text-muted">+{matches.length - shown.length} more</div> : null}
-      </div>
-    </div>
+    <StatsSection label={label} icon={icon} explainer={explainer} action={<TieCount n={matches.length} />}>
+      {shown.length ? (
+        <div className="list-divided">
+          {shown.map((m) => {
+            const body = (
+              <>
+                <ScoreLine size="sm" leftNames={m.a} rightNames={m.b} leftGoals={m.ag} rightGoals={m.bg} />
+                <div className="mt-0.5 truncate text-center text-xs text-text-muted">{m.tName} · {fmtShortDate(m.date)}</div>
+              </>
+            );
+            return m.href ? (
+              <Link key={m.id} to={m.href} state={{ fromTab: "matches" }} aria-label="Open match" className="row-tap focus-ring block py-2 no-underline">
+                {body}
+              </Link>
+            ) : (
+              <div key={m.id} className="py-2">{body}</div>
+            );
+          })}
+        </div>
+      ) : <EmptyState title="None yet." className="py-2" />}
+      <MoreLine total={matches.length} shown={shown.length} />
+    </StatsSection>
   );
 }
 
 type WinLeader = { id: number; name: string; count: number; rank: number; latest: StatsTournamentLite | null };
 
+/** Most tournament wins — a ranked identity list, the same row shape as Streaks'. */
 function TitlesGroup({ leaders, onSelect }: { leaders: WinLeader[]; onSelect: (id: number) => void }) {
-  if (!leaders.length) return null;
-  const shown = leaders.slice(0, 6);
+  const { avatarUpdatedAtById } = usePlayerAvatarMap();
+  const shown = leaders.slice(0, SHOWN);
+  // "×N" here means N players share the top count — the same meaning it had before.
   const topTies = leaders.filter((l) => l.rank === 1).length;
   return (
-    <div className="surface rounded-xl px-3 py-2.5">
-      <div className="inline-flex items-center gap-2 text-[11px] uppercase tracking-wide text-text-muted">
-        <i className="fa-solid fa-trophy" aria-hidden="true" />
-        Most tournament wins
-        {topTies > 1 ? <span className="text-text-muted/70">×{topTies}</span> : null}
-      </div>
-      <div className="mt-1.5 space-y-1.5">
-        {shown.map((l) => (
-          <button
-            key={l.id}
-            type="button"
-            onClick={() => onSelect(l.id)}
-            className="flex w-full items-center justify-between gap-3 rounded-lg px-1.5 py-1 -mx-1.5 text-left transition hover:bg-hover-default/30"
-          >
-            <div className="flex min-w-0 items-center gap-2">
-              <span className="w-4 shrink-0 text-right text-xs tabular-nums text-text-muted">{l.rank}.</span>
-              <div className="min-w-0">
-                <div className="truncate text-sm font-medium text-text-normal">{l.name}</div>
-                {l.latest ? (
-                  <div className="truncate text-[11px] text-text-muted">{l.latest.name} · {fmtShortDate(l.latest.date)}</div>
-                ) : null}
+    <StatsSection
+      label="Most tournament wins"
+      icon={<Trophy size={12} aria-hidden="true" />}
+      explainer="Tournaments won, with each player's most recent title."
+      action={<TieCount n={topTies} />}
+    >
+      {shown.length ? (
+        <div className="list-divided">
+          {shown.map((l) => (
+            /* The row opens this player in Stats (stretched button), the name their profile. */
+            <div key={l.id} className="relative flex items-center gap-2 py-2">
+              <button
+                type="button"
+                onClick={() => onSelect(l.id)}
+                aria-label={`Open ${l.name} in Stats`}
+                className="absolute inset-0 z-0 rounded-xl focus-ring"
+              />
+              <span className="relative z-10 w-4 shrink-0 text-center text-xs font-bold tabular-nums text-text-muted">{l.rank}</span>
+              <div className="pointer-events-none relative z-10 flex min-w-0 flex-1 items-center gap-2">
+                {/* The link hugs the identity; the rest of the row opens the player in Stats. */}
+                <PlayerLink playerId={l.id} name={l.name} className="pointer-events-auto flex min-w-0 flex-1 items-center gap-2">
+                  <AvatarCircle playerId={l.id} name={l.name} updatedAt={avatarUpdatedAtById.get(l.id) ?? null} sizeClass="h-6 w-6" />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm text-text-normal">{l.name}</span>
+                    {l.latest ? (
+                      <span className="block truncate text-xs text-text-muted">{l.latest.name} · {fmtShortDate(l.latest.date)}</span>
+                    ) : null}
+                  </span>
+                </PlayerLink>
               </div>
+              <span className="relative z-10 text-sm font-bold tabular-nums text-accent">{l.count}</span>
             </div>
-            <div className="shrink-0 font-mono text-base font-bold tabular-nums text-accent">{l.count}</div>
-          </button>
-        ))}
-        {leaders.length > shown.length ? <div className="text-[11px] text-text-muted">+{leaders.length - shown.length} more</div> : null}
-      </div>
-    </div>
+          ))}
+        </div>
+      ) : <EmptyState title="None yet." className="py-2" />}
+      <MoreLine total={leaders.length} shown={shown.length} />
+    </StatsSection>
   );
 }
 
 export default function RecordsView({
-  mode, scope, rows, onSelect,
-}: { mode: StatsMode; scope: StatsScope; rows: Row[]; onSelect: (id: number) => void }) {
+  mode, scope, rows, onSelect, onOpenStreaks,
+}: {
+  mode: StatsMode; scope: StatsScope; rows: Row[];
+  onSelect: (id: number) => void;
+  /** Opens the Streaks sub-view — the single home of every longest run (T6). */
+  onOpenStreaks: () => void;
+}) {
   const eloById = useMemo(() => new Map(rows.map((r) => [r.id, r.rating])), [rows]);
   const matchesQs = useQueries({
     queries: rows.map((r) => ({
@@ -99,11 +153,6 @@ export default function RecordsView({
       enabled: rows.length > 0,
       placeholderData: keepPreviousData, staleTime: 30_000,
     })),
-  });
-  const streaksQ = useQuery({
-    queryKey: qk.stats.streaks(mode, 20, scope),
-    queryFn: () => getStatsStreaks({ mode, limit: 20, scope }),
-    placeholderData: keepPreviousData, staleTime: 30_000,
   });
   // Titles: wins per player, from the same tournament-winner data PositionsView uses.
   const playersQ = useQuery({
@@ -126,10 +175,12 @@ export default function RecordsView({
           const A = m.sides.find((s) => s.side === "A");
           const B = m.sides.find((s) => s.side === "B");
           out.push({
-            id: m.id, tId: t.id, tName: t.name, date: t.date,
+            id: m.id, tName: t.name, date: t.date,
             a: teamNames(m, "A"), b: teamNames(m, "B"),
             ag: Number(A?.goals ?? 0), bg: Number(B?.goals ?? 0),
             aIds: (A?.players ?? []).map((p) => p.id), bIds: (B?.players ?? []).map((p) => p.id),
+            // The shared match link: a friendly has no detail page, so the row stays inert.
+            href: tournamentMatchHref(t, m),
           });
         }
       }
@@ -189,68 +240,46 @@ export default function RecordsView({
     });
   }, [playersQ.data]);
 
-  const streakCards = useMemo(() => {
-    const cats = streaksQ.data?.categories ?? [];
-    return (["win_streak", "unbeaten_streak"] as const)
-      .map((k) => cats.find((c) => c.key === k))
-      .filter((c): c is StatsStreakCategory => !!c && (c.records?.[0]?.length ?? 0) > 0)
-      .map((c) => {
-        const maxLen = Math.max(...c.records.map((r) => r.length ?? 0));
-        // Show every player tied at the record length, not just the first.
-        const runs = c.records.filter((r) => (r.length ?? 0) === maxLen);
-        return { name: c.name, length: maxLen, runs };
-      })
-      .filter((c) => c.length > 0);
-  }, [streaksQ.data]);
-
   if (loading) return <InlineLoading label="Loading…" />;
-  if (!records) return <div className="text-sm text-text-muted">No finished matches yet.</div>;
+  if (!records) return <EmptyState title="No finished matches yet." className="py-6" />;
 
   return (
-    <div className="space-y-4">
-      {winLeaders.length ? (
-        <div>
-          <div className="section-head"><span className="section-label">Titles</span></div>
-          <TitlesGroup leaders={winLeaders} onSelect={onSelect} />
-        </div>
-      ) : null}
-      <div>
-        <div className="section-head"><span className="section-label">Match superlatives</span></div>
-        <div className="space-y-2">
-          <RecordGroup icon="fa-bolt" label="Biggest win" matches={records.biggestWin} />
-          <RecordGroup icon="fa-futbol" label="Highest-scoring match" matches={records.highestScoring} />
-          <RecordGroup icon="fa-fire" label="Most goals by one side" matches={records.mostSide} />
-          <RecordGroup icon="fa-arrow-trend-up" label="Biggest upset (by Elo)" matches={records.upset} />
-        </div>
+    <div className="space-y-6">
+      <div className="grid gap-6 lg:grid-cols-2">
+        {winLeaders.length ? <TitlesGroup leaders={winLeaders} onSelect={onSelect} /> : null}
+        <RecordGroup
+          icon={<Zap size={12} aria-hidden="true" />}
+          label="Biggest win"
+          explainer="Largest goal difference in a finished match."
+          matches={records.biggestWin}
+        />
+        <RecordGroup
+          icon={<Goal size={12} aria-hidden="true" />}
+          label="Highest-scoring match"
+          explainer="Most goals in one match, both sides together."
+          matches={records.highestScoring}
+        />
+        <RecordGroup
+          icon={<Flame size={12} aria-hidden="true" />}
+          label="Most goals by one side"
+          explainer="The biggest single-side tally in a match."
+          matches={records.mostSide}
+        />
+        <RecordGroup
+          icon={<TrendingUp size={12} aria-hidden="true" />}
+          label="Biggest upset (by Elo)"
+          explainer="Win against the largest Elo gap between the two sides."
+          matches={records.upset}
+        />
       </div>
-      {streakCards.length ? (
-        <div>
-          <div className="section-head"><span className="section-label">Longest runs</span></div>
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-            {streakCards.map((s) => (
-              <div key={s.name} className="surface rounded-xl px-3 py-2.5">
-                <div className="flex items-center justify-between gap-2">
-                  <div className="inline-flex items-center gap-2 text-[11px] uppercase tracking-wide text-text-muted">
-                    {s.name}
-                    {s.runs.length > 1 ? <span className="text-text-muted/70">×{s.runs.length}</span> : null}
-                  </div>
-                  <div className="shrink-0 font-mono text-lg font-bold tabular-nums text-accent">{s.length}</div>
-                </div>
-                <div className="mt-1.5 space-y-1.5">
-                  {s.runs.slice(0, 6).map((run, i) => (
-                    <div key={(run.player?.id ?? i) + "-" + i} className="min-w-0">
-                      <div className="truncate text-sm font-medium text-text-normal">{run.player.display_name}</div>
-                      <div className="text-[11px] text-text-muted">{streakDateText(run)}</div>
-                    </div>
-                  ))}
-                  {s.runs.length > 6 ? <div className="text-[11px] text-text-muted">+{s.runs.length - 6} more</div> : null}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      ) : null}
-      <p className="text-[11px] text-text-muted">Across {records.total} finished matches.</p>
+      {/* Streak records are not repeated here — Streaks owns every run (T6). */}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-xs text-text-muted">Across {records.total} finished matches.</p>
+        <Button variant="ghost" size="sm" onClick={onOpenStreaks} className="gap-1.5" title="Open the Streaks sub-view">
+          <Flame size={14} aria-hidden="true" />
+          Longest runs in Streaks
+        </Button>
+      </div>
     </div>
   );
 }

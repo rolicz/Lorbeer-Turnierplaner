@@ -4,6 +4,8 @@ import type { Club, Match, TournamentMode } from "../../api/types";
 import { sideBy } from "../../helpers";
 import { pickPreviewMatch, teamName } from "../../utils/matchDisplay";
 import MatchOverviewPanel from "../../ui/primitives/MatchOverviewPanel";
+import TournamentMetaPills from "./TournamentMetaPills";
+import ScoreLine from "../../ui/primitives/ScoreLine";
 import { computeFinishedStandings, type PlayerLite } from "./tournamentStandings";
 
 /**
@@ -14,6 +16,7 @@ import { computeFinishedStandings, type PlayerLite } from "./tournamentStandings
  */
 export default function OverviewSection({
   mode,
+  date,
   matches,
   players,
   clubs,
@@ -22,6 +25,7 @@ export default function OverviewSection({
   onGoToMatches,
 }: {
   mode?: TournamentMode | null;
+  date?: string | null;
   matches: Match[];
   players: PlayerLite[];
   clubs: Club[];
@@ -48,7 +52,11 @@ export default function OverviewSection({
   }, [matches, previewMatch]);
 
   return (
-    <div className="stack-tight">
+    <div className="flex flex-col gap-3">
+      {/* The tournament's own meta (T10). On desktop it sits next to the page
+          title, so this copy is the phone's — the page header is gone there. */}
+      <TournamentMetaPills mode={mode} date={date} className="lg:hidden" />
+
       <div>
         <div className="section-head">
           <span className="section-label">Current match</span>
@@ -57,22 +65,19 @@ export default function OverviewSection({
           <button
             type="button"
             onClick={() => onOpenCurrentMatch(previewMatch)}
-            className="block w-full rounded-2xl text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/35"
+            className="focus-ring block w-full rounded-xl text-left transition"
           >
             <MatchOverviewPanel
               match={previewMatch}
               clubs={clubs}
               mode={mode}
-              showModePill={true}
               showOdds={true}
               aGoals={Number(pa?.goals ?? 0)}
               bGoals={Number(pb?.goals ?? 0)}
-              scheduledScoreStyle="emdash-zero"
-              surface="panel-subtle"
             />
           </button>
         ) : (
-          <div className="panel-subtle p-3 text-sm text-text-muted">No matches yet.</div>
+          <div className="inset text-sm text-text-muted">No matches yet.</div>
         )}
       </div>
 
@@ -83,10 +88,10 @@ export default function OverviewSection({
         <button
           type="button"
           onClick={onGoToStandings}
-          className="block w-full rounded-xl panel-subtle p-1.5 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/35"
+          className="inset block w-full p-1.5 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/35"
           aria-label="Open standings"
         >
-          <div className="flex items-center gap-2 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-text-muted">
+          <div className="flex items-center gap-2 px-1.5 py-0.5 text-xs uppercase tracking-wide text-text-muted">
             <span className="w-4 text-right">#</span>
             <span className="min-w-0 flex-1">Player</span>
             <span className="w-5 text-right">P</span>
@@ -119,16 +124,19 @@ export default function OverviewSection({
           <button
             type="button"
             onClick={onGoToMatches}
-            className="block w-full rounded-xl panel-subtle p-1.5 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/35"
+            className="inset block w-full p-1.5 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/35"
             aria-label="Open matches"
           >
             {nextMatches.map((m) => (
-              <div key={m.id} className="flex items-center gap-2 px-1.5 py-1 text-xs">
-                <span className="w-6 shrink-0 text-text-muted">#{m.order_index + 1}</span>
-                <span className="min-w-0 flex-1 truncate text-text-normal">
-                  {teamName(sideBy(m, "A"))} <span className="text-text-muted">vs</span>{" "}
-                  {teamName(sideBy(m, "B"))}
-                </span>
+              <div key={m.id} className="flex items-center gap-2 px-1.5 py-1">
+                <span className="w-6 shrink-0 text-xs text-text-muted">#{m.order_index + 1}</span>
+                <ScoreLine
+                  size="sm"
+                  state="scheduled"
+                  className="min-w-0 flex-1"
+                  leftNames={teamName(sideBy(m, "A"))}
+                  rightNames={teamName(sideBy(m, "B"))}
+                />
               </div>
             ))}
           </button>

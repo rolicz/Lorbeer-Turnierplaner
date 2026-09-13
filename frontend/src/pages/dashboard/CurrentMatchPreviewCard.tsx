@@ -1,6 +1,7 @@
 import { useMemo } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
+import { ChevronRight } from "lucide-react";
 
 import { getTournament } from "../../api/tournaments.api";
 import { listClubs } from "../../api/clubs.api";
@@ -48,14 +49,21 @@ export default function CurrentMatchPreviewCard() {
 
   return (
     <div>
+      {/* The header names the tournament and is the second door into it, the way
+          Trends/Standings head their blocks; the scoreboard below is the first. */}
       <div className="section-head">
-        <span className="section-label inline-flex items-center gap-2">
-          <span className="relative flex h-2 w-2">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full live-ping opacity-75" />
-            <span className="relative inline-flex h-2 w-2 rounded-full live-dot" />
-          </span>
-          Live now
-        </span>
+        {/* The words carry it: the one pulsing "a tournament is running" dot on
+            screen belongs to the nav (bottom bar / sidebar), not to a section
+            label repeating it half a screen away (T10). */}
+        <span className="section-label">Live now</span>
+        <Link
+          to={`/live/${tid}`}
+          title="Open live tournament"
+          className="order-1 inline-flex min-w-0 items-center gap-1 text-xs font-medium text-text-normal no-underline transition hover:text-accent"
+        >
+          <span className="min-w-0 truncate">{tQ.data?.name ?? `Tournament #${tid}`}</span>
+          <ChevronRight size={14} className="shrink-0" aria-hidden="true" />
+        </Link>
       </div>
       {!match ? (
         <InlineLoading label="Loading live match…" className="py-2" />
@@ -63,23 +71,17 @@ export default function CurrentMatchPreviewCard() {
         <button
           type="button"
           onClick={() => nav(`/live/${tid}`)}
-          className="block w-full rounded-2xl text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/35"
+          className="focus-ring block w-full rounded-xl text-left transition"
+          title="Open live tournament"
         >
-          <div className="mb-1.5 truncate text-sm font-semibold text-text-normal">
-            {tQ.data?.name ?? `Tournament #${tid}`}
-          </div>
           <MatchOverviewPanel
-            surface="panel-subtle"
             match={match}
             clubs={clubs}
             mode={tQ.data?.mode}
-            showModePill={true}
             showOdds={true}
             aGoals={Number(a?.goals ?? 0)}
             bGoals={Number(b?.goals ?? 0)}
-            scheduledScoreStyle="emdash-zero"
           />
-          <div className="mt-2 text-xs text-text-muted">Tap to open live tournament.</div>
         </button>
       )}
     </div>

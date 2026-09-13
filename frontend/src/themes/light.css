@@ -1,6 +1,13 @@
 :root[data-theme="light"] {
   color-scheme: light;
 
+  /* Semantic result tokens (DESIGN.md §2): the dark defaults are light-on-light here. */
+  --color-win: 21 128 61; /* green-700 */
+  --color-draw: 180 83 9; /* amber-700 */
+  --color-loss: 185 28 28; /* red-700 */
+  /* red-600: as text on white the defaults' red-500 is only 3.7:1 (DESIGN.md §2). */
+  --color-live: 220 38 38; /* red-600 */
+
   /* Backgrounds */
   /* Light: grey page with white, elevated cards (modern light elevation). */
   --color-bg-default: 236 235 233; /* Page backdrop (light grey) */

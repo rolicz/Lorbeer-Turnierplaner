@@ -1,9 +1,11 @@
+import { Mail, MailOpen } from "lucide-react";
+
 import Button from "../../ui/primitives/Button";
 import EmptyState from "../../ui/primitives/EmptyState";
 import LoadingPlaceholder from "../../ui/primitives/LoadingPlaceholder";
-import Textarea from "../../ui/primitives/Textarea";
 import { Pill } from "../../ui/primitives/Pill";
 import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
+import { CommentSendRow } from "../live/comments/CommentComposer";
 import type { PlayerGuestbookEntry } from "../../api/types";
 import GuestbookEntryCard, {
   GuestbookCardProvider,
@@ -33,6 +35,8 @@ export type GuestbookSectionProps = {
   onDraftChange: (text: string) => void;
   onPost: () => void;
   posting: boolean;
+  /** Bumped after a posted message, to put the caret back in the field. */
+  postedNonce?: number;
   placeholder: string;
 };
 
@@ -51,6 +55,7 @@ export default function GuestbookSection({
   onDraftChange,
   onPost,
   posting,
+  postedNonce,
   placeholder,
 }: GuestbookSectionProps) {
   return (
@@ -59,7 +64,7 @@ export default function GuestbookSection({
         <div className="flex items-center justify-end gap-2">
           <button type="button" title="Jump to latest unread guestbook message" onClick={onJumpUnread}>
             <Pill title="Unread guestbook messages">
-              <i className="fa-solid fa-envelope text-accent" aria-hidden="true" />
+              <Mail size={12} className="text-accent" aria-hidden="true" />
               <span className="tabular-nums text-text-normal">{unreadCount}</span>
             </Pill>
           </button>
@@ -70,7 +75,7 @@ export default function GuestbookSection({
             title="Mark all unread guestbook messages as read"
             disabled={markAllPending}
           >
-            <i className="fa-solid fa-envelope-open md:hidden" aria-hidden="true" />
+            <MailOpen size={14} className="md:hidden" aria-hidden="true" />
             <span className="hidden md:inline">Read all</span>
           </Button>
         </div>
@@ -83,28 +88,9 @@ export default function GuestbookSection({
       <ErrorToastOnError error={errors.markAll} title="Could not mark guestbook as read" />
       <ErrorToastOnError error={errors.vote} title="Could not vote guestbook message" />
 
-      {canPost ? (
-        <div className="panel-subtle p-3 space-y-2">
-          <Textarea
-            label="Leave a message"
-            value={draft}
-            onChange={(e) => onDraftChange(e.target.value)}
-            placeholder={placeholder}
-          />
-          <div className="flex justify-end">
-            <Button type="button" onClick={onPost} disabled={posting || !draft.trim()} title="Post message">
-              <i className="fa-solid fa-paper-plane md:hidden" aria-hidden="true" />
-              <span className="hidden md:inline">{posting ? "Posting…" : "Post"}</span>
-            </Button>
-          </div>
-        </div>
-      ) : (
-        <div className="panel-subtle p-3 text-sm text-text-muted">Login as a player to post guestbook messages.</div>
-      )}
-
       {loading ? <LoadingPlaceholder /> : null}
       {!loading && isEmpty ? (
-        <EmptyState title="No messages yet." className="panel-subtle p-3" />
+        <EmptyState title="No messages yet." className="card" />
       ) : null}
 
       <GuestbookCardProvider value={cardContext}>
@@ -114,6 +100,26 @@ export default function GuestbookSection({
           ))}
         </div>
       </GuestbookCardProvider>
+
+      {/* You write at the end of the feed, in the same chat row as the comments
+          (T3 / DESIGN.md §9b) — never behind a button, never above what you read. */}
+      {canPost ? (
+        <div className="card sticky bottom-[calc(4.5rem+env(safe-area-inset-bottom,0px))] z-10 p-2 lg:bottom-4">
+          <CommentSendRow
+            value={draft}
+            onChange={onDraftChange}
+            onSubmit={onPost}
+            canSubmit={!!draft.trim()}
+            submitting={posting}
+            ariaLabel="Guestbook message"
+            placeholder={placeholder}
+            sendLabel="Post message"
+            focusNonce={postedNonce}
+          />
+        </div>
+      ) : (
+        <div className="card text-sm text-text-muted">Login as a player to post guestbook messages.</div>
+      )}
     </div>
   );
 }

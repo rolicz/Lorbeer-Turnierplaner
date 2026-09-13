@@ -1,30 +1,54 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+/**
+ * The club selection of a match — **one self-contained panel** (T9).
+ *
+ * Collapsed it is a single row that names the job and its current values; open it
+ * is one bounded block that holds *everything* the job needs, in the order the job
+ * is done (`DESIGN.md` §9b, "a group of secondary editing controls may hide behind
+ * one disclosure"):
+ *
+ *   [🛡 Clubs · Bayern München · FC Barcelona                    ⌄]  ← the one trigger
+ *   ├──────────────────────────────────────────────────────────────
+ *   │ [ Roli            ] [ Berni            ]   ← the two club slots → ClubPicker
+ *   │ [⚙ Filter clubs] [4.5★ ✕] [Bundesliga ✕]  ← narrows both slots *and* the pool
+ *   │ [🎲] [ Random matchup ...................] ← draw from the pool
+ *
+ * The values live **inside** the panel, so the scoreboard above it is read-only
+ * again (T2 had it the other way round: tools on the card, values in the
+ * scoreboard — the one shape §9b calls worse than no panel). The club names
+ * therefore appear twice while the panel is open, which is the accepted cost.
+ *
+ * The container is a `card` because everything inside it is a level-2 control
+ * (the slots, the two `FilterSelect`s): card → inset is the canon, inset → inset
+ * is not. Open/closed is remembered per surface (`storageKey`).
+ */
+import { ChevronDown, ShieldHalf, Shuffle, SlidersHorizontal, X } from "lucide-react";
+import { useId, useState } from "react";
 
 import type { Club } from "../api/types";
 
 import Button from "./primitives/Button";
+import { chipClass } from "./primitives/Chip";
+import ClubBadge from "./ClubBadge";
 import ClubStarsEditor from "./ClubStarsEditor";
-import ClubCombobox from "./ClubCombobox";
+import ClubPicker from "./ClubPicker";
 import NationFlag from "./NationFlag";
-import { StarsFA } from "./primitives/StarsFA";
+import { Stars } from "./primitives/Stars";
 import {
-  LeagueFilter,
-  STAR_OPTIONS,
-  StarFilter,
   clubLabelPartsById,
-  ensureSelectedClubVisible,
-  leagueInfo,
-  randomClubAssignmentOk,
-  sortClubsForDropdown,
-  toHalfStep,
-  type LeagueOpt,
+  LeagueFilter,
+  StarFilter,
+  starsLabel,
+  useClubPanelOpen,
+  type ClubSelection,
 } from "./clubControls";
+import { useAuth } from "../auth/AuthContext";
+import { cn } from "./cn";
 
 function DiceIcon({ spinning }: { spinning: boolean }) {
   return (
     <svg
       viewBox="0 0 24 24"
-      className={"h-4 w-4 " + (spinning ? "dice-roll" : "")}
+      className={"h-5 w-5 " + (spinning ? "dice-roll" : "")}
       stroke="currentColor"
       strokeWidth="1.6"
       strokeLinejoin="round"
@@ -41,318 +65,301 @@ function DiceIcon({ spinning }: { spinning: boolean }) {
   );
 }
 
-// Unbiased RNG using Web Crypto (prevents modulo bias).
-function cryptoRandomInt(maxExclusive: number): number {
-  if (maxExclusive <= 0) return 0;
-  const max = 0xffffffff;
-  const limit = max - (max % maxExclusive);
-  const u32 = new Uint32Array(1);
-  while (true) {
-    crypto.getRandomValues(u32);
-    const x = u32[0];
-    if (x == null) continue;
-    if (x < limit) return x % maxExclusive;
-  }
-}
+/**
+ * One side's club, inside the panel: the side's players on top, then the club
+ * with its crest, league and stars. Tapping it opens the `ClubPicker` sheet for
+ * that side — this is where a club is picked now, not in the scoreboard (T9).
+ */
+function ClubSlot({
+  label,
+  clubs,
+  clubId,
+  onOpen,
+  disabled = false,
+}: {
+  label: string;
+  clubs: Club[];
+  clubId: number | null;
+  onOpen: () => void;
+  disabled?: boolean;
+}) {
+  const parts = clubLabelPartsById(clubs, clubId);
+  const known = clubs.some((c) => c.id === clubId);
 
-function randomPick<T>(arr: T[]): T {
-  if (!arr.length) {
-    throw new Error("randomPick requires a non-empty array");
-  }
-  const value = arr[cryptoRandomInt(arr.length)];
-  if (value == null) {
-    throw new Error("randomPick failed to select a value");
-  }
-  return value;
-}
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      disabled={disabled}
+      aria-label={`${label} — ${known ? parts.name : "select club"}`}
+      title={known ? `${label} — ${parts.name}` : `${label} — select club`}
+      className="focus-ring inset flex h-full w-full flex-col px-3 py-2 text-left transition hover:bg-bg-card-chip/70 disabled:opacity-60"
+    >
+      <span className="block truncate text-xs text-text-muted">{label}</span>
 
-function randomPickDifferent(arr: number[], prev: number | null): number {
-  if (arr.length <= 1 || prev == null) return randomPick(arr);
-  for (let i = 0; i < 6; i++) {
-    const v = randomPick(arr);
-    if (v !== prev) return v;
-  }
-  return randomPick(arr);
+      <span className="mt-0.5 flex items-start gap-1.5">
+        {known ? (
+          <ClubBadge
+            name={parts.name}
+            nation={parts.national_nation}
+            clubId={parts.id}
+            crestVersion={parts.crest_updated_at}
+          />
+        ) : (
+          <ShieldHalf size={16} className="mt-0.5 shrink-0 text-text-muted" aria-hidden="true" />
+        )}
+        <span
+          className={cn(
+            // The club name is the identity of the slot — it wraps instead of
+            // truncating, and both slots stretch to the taller one.
+            "min-w-0 whitespace-normal break-words text-sm leading-tight",
+            known ? "font-medium text-text-normal" : "text-text-muted",
+          )}
+        >
+          {known ? parts.name : "Select club"}
+        </span>
+      </span>
+
+      <span className="mt-1 flex items-center gap-1.5 text-xs text-text-muted">
+        {known && parts.league_name ? (
+          <>
+            <NationFlag nation={parts.league_nation} />
+            <span className="min-w-0 truncate">{parts.league_name}</span>
+          </>
+        ) : (
+          <span className="truncate">{known ? "—" : "Tap to choose"}</span>
+        )}
+      </span>
+
+      {known ? (
+        <span className="mt-auto flex items-center pt-1">
+          <Stars rating={parts.rating ?? 0} textClassName="text-text-muted" />
+        </span>
+      ) : null}
+    </button>
+  );
 }
 
 export default function SelectClubsPanel({
-  clubs,
-  disabled,
-  aLabel,
-  bLabel,
-  aClub,
-  bClub,
-  onChangeAClub,
-  onChangeBClub,
-  onChangeClubs,
-  defaultOpen,
+  selection,
+  storageKey,
+  defaultOpen = false,
   extraTop,
   extraBottom,
-  wrap = true,
-  wrapClassName = "panel-subtle",
-  showSelectedMeta = false,
-  narrowLayout = false,
+  className,
 }: {
-  clubs: Club[];
-  disabled: boolean;
-  aLabel: string;
-  bLabel: string;
-  aClub: number | null;
-  bClub: number | null;
-  onChangeAClub: (v: number | null) => void;
-  onChangeBClub: (v: number | null) => void;
-  onChangeClubs?: (a: number, b: number) => void;
+  selection: ClubSelection;
+  /** Remembers open/closed for this surface (localStorage, like `match_list_view`). */
+  storageKey?: string;
+  /** Where setting clubs is the point of the form (the friendlies), start open. */
   defaultOpen?: boolean;
   extraTop?: React.ReactNode;
   extraBottom?: React.ReactNode;
-  /** If false, renders only the panel body (no CollapsibleCard wrapper). */
-  wrap?: boolean;
-  /** Show league + stars for currently selected clubs (read-only). */
-  showSelectedMeta?: boolean;
-  /** Wrapper class for the CollapsibleCard when `wrap` is true. */
-  wrapClassName?: string;
-  /** Force stacked layout (useful inside narrow drawers/sheets where viewport breakpoints are misleading). */
-  narrowLayout?: boolean;
+  className?: string;
 }) {
-  const clubsSorted = useMemo(() => sortClubsForDropdown(clubs), [clubs]);
+  const { role, token } = useAuth();
+  const canEditStars = (role === "editor" || role === "admin") && !!token;
 
-  // Start collapsed when both sides already have a club (e.g. a configured live
-  // match); open when something still needs picking. An explicit defaultOpen wins.
-  const [open, setOpen] = useState(() => defaultOpen ?? !(aClub != null && bClub != null));
-  const [starFilter, setStarFilter] = useState<number | null>(null);
-  const [leagueFilter, setLeagueFilter] = useState<number | null>(null);
+  const { clubs, disabled, filters } = selection;
+  const [open, setOpen] = useClubPanelOpen(storageKey, defaultOpen);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const bodyId = useId();
 
-  const leagueOptions = useMemo<LeagueOpt[]>(() => {
-    const byId = new Map<number, string>();
-    for (const c of clubsSorted) {
-      const li = leagueInfo(c);
-      if (li.id == null) continue;
-      if (!byId.has(li.id)) byId.set(li.id, li.name ?? `League #${li.id}`);
-    }
-    return Array.from(byId.entries())
-      .map(([id, name]) => ({ id, name }))
-      .sort((x, y) => x.name.localeCompare(y.name));
-  }, [clubsSorted]);
+  const leagueName = filters.leagueOptions.find((o) => o.id === filters.leagueFilter)?.name ?? "League";
+  const activeClubId = selection.activeKey === "A" ? selection.aClub : selection.bClub;
 
-  const availableStarSteps = useMemo(() => {
-    const set = new Set<number>();
-    for (const c of clubsSorted) {
-      if (leagueFilter != null && leagueInfo(c).id !== leagueFilter) continue;
-      const s = toHalfStep(c.star_rating);
-      if (s != null) set.add(s);
-    }
-    const arr = Array.from(set.values()).sort((a, b) => a - b);
-    return arr.length ? arr : STAR_OPTIONS;
-  }, [clubsSorted, leagueFilter]);
-
-  const clubsFiltered = useMemo(() => {
-    let out = clubsSorted;
-    if (starFilter != null) out = out.filter((c) => toHalfStep(c.star_rating) === starFilter);
-    if (leagueFilter != null) out = out.filter((c) => leagueInfo(c).id === leagueFilter);
-    return out;
-  }, [clubsSorted, starFilter, leagueFilter]);
-
-  const clubsForA = useMemo(
-    () => ensureSelectedClubVisible(clubsFiltered, clubsSorted, aClub),
-    [clubsFiltered, clubsSorted, aClub]
-  );
-  const clubsForB = useMemo(
-    () => ensureSelectedClubVisible(clubsFiltered, clubsSorted, bClub),
-    [clubsFiltered, clubsSorted, bClub]
-  );
-
-  const aParts = useMemo(() => clubLabelPartsById(clubs, aClub), [clubs, aClub]);
-  const bParts = useMemo(() => clubLabelPartsById(clubs, bClub), [clubs, bClub]);
-
-  const [starRoll, setStarRoll] = useState(false);
-  const lastStarRollRef = useRef<number | null>(null);
-  const starRollIntervalRef = useRef<number | null>(null);
-  const starRollTimeoutRef = useRef<number | null>(null);
-
-  useEffect(() => {
-    return () => {
-      if (starRollIntervalRef.current) window.clearInterval(starRollIntervalRef.current);
-      if (starRollTimeoutRef.current) window.clearTimeout(starRollTimeoutRef.current);
-    };
-  }, []);
-
-  function rollStars() {
-    if (disabled) return;
-    if (starRollIntervalRef.current) window.clearInterval(starRollIntervalRef.current);
-    if (starRollTimeoutRef.current) window.clearTimeout(starRollTimeoutRef.current);
-
-    setStarRoll(true);
-    starRollIntervalRef.current = window.setInterval(() => {
-      setStarFilter(randomPickDifferent(STAR_OPTIONS, lastStarRollRef.current));
-    }, 75);
-
-    starRollTimeoutRef.current = window.setTimeout(() => {
-      if (starRollIntervalRef.current) window.clearInterval(starRollIntervalRef.current);
-      starRollIntervalRef.current = null;
-
-      const v = randomPickDifferent(availableStarSteps, lastStarRollRef.current);
-      lastStarRollRef.current = v;
-      setStarFilter(v);
-      setStarRoll(false);
-    }, 700);
-  }
-
-  function randomizeClubs() {
-    if (disabled) return;
-    if (!clubsFiltered.length) return;
-
-    const clubA = clubsFiltered[cryptoRandomInt(clubsFiltered.length)];
-    const firstClubB = clubsFiltered[cryptoRandomInt(clubsFiltered.length)];
-    if (!clubA || !firstClubB) return;
-    let clubB = firstClubB;
-
-    if (clubsFiltered.length > 1) {
-      let guard = 0;
-      while (!randomClubAssignmentOk(clubA, clubB) && guard < 50) {
-        const candidate = clubsFiltered[cryptoRandomInt(clubsFiltered.length)];
-        if (!candidate) break;
-        clubB = candidate;
-        guard++;
-      }
-    }
-
-    if (onChangeClubs) {
-      onChangeClubs(clubA.id, clubB.id);
-      return;
-    }
-
-    onChangeAClub(clubA.id);
-    onChangeBClub(clubB.id);
-  }
-
-  const body = (
-    <div className="grid gap-4">
-      {extraTop ? <div>{extraTop}</div> : null}
-
-      {/* Primary: pick each side's club */}
-      <div className={"grid grid-cols-1 gap-3 " + (narrowLayout ? "" : "md:grid-cols-2")}>
-        <div className="space-y-1.5">
-          <div className="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-2">
-            <div className="min-w-0">
-              <ClubCombobox
-                label={aLabel}
-                value={aClub}
-                onChange={onChangeAClub}
-                disabled={disabled}
-                clubs={clubsForA}
-                placeholder="Select club…"
-              />
-            </div>
-            <ClubStarsEditor clubId={aClub} clubs={clubs} disabled={disabled} />
-          </div>
-
-          {showSelectedMeta && (
-            <div className="grid grid-cols-[1fr_auto] items-center gap-2 px-1">
-              <div className="min-w-0 flex items-center gap-1.5 text-xs text-text-muted">
-                <NationFlag nation={aParts.league_nation} />
-                <span className="min-w-0 truncate">{aParts.league_name ?? "—"}</span>
-              </div>
-              <div className="justify-self-end">
-                <StarsFA rating={aParts.rating ?? 0} textClassName="text-text-muted" />
-              </div>
-            </div>
-          )}
-        </div>
-
-        <div className="space-y-1.5">
-          <div className="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-2">
-            <div className="min-w-0">
-              <ClubCombobox
-                label={bLabel}
-                value={bClub}
-                onChange={onChangeBClub}
-                disabled={disabled}
-                clubs={clubsForB}
-                placeholder="Select club…"
-              />
-            </div>
-            <ClubStarsEditor clubId={bClub} clubs={clubs} disabled={disabled} />
-          </div>
-
-          {showSelectedMeta && (
-            <div className="grid grid-cols-[1fr_auto] items-center gap-2 px-1">
-              <div className="min-w-0 flex items-center gap-1.5 text-xs text-text-muted">
-                <NationFlag nation={bParts.league_nation} />
-                <span className="min-w-0 truncate">{bParts.league_name ?? "—"}</span>
-              </div>
-              <div className="justify-self-end">
-                <StarsFA rating={bParts.rating ?? 0} textClassName="text-text-muted" />
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Quick action: random matchup */}
-      <Button
-        variant="ghost"
-        onClick={randomizeClubs}
-        disabled={disabled}
-        className="w-full whitespace-nowrap"
-        title="Pick a random matchup (respects the filters below)"
-      >
-        <i className="fa fa-shuffle mr-2" aria-hidden="true" />
-        Random matchup
-      </Button>
-
-      {/* Secondary: optional filters that narrow the picker + random pool */}
-      <div className="space-y-2 border-t border-border-card-chip/40 pt-3">
-        <span className="section-label">Filter the club list</span>
-        <div className={"grid grid-cols-1 gap-3 " + (narrowLayout ? "" : "md:grid-cols-2")}>
-          <StarFilter
-            value={starFilter}
-            onChange={setStarFilter}
-            disabled={disabled}
-            right={
-              <button
-                type="button"
-                className="icon-button h-10 w-10 shrink-0 p-0 flex items-center justify-center"
-                onMouseDown={(e) => e.preventDefault()}
-                onTouchStart={(e) => e.preventDefault()}
-                onClick={rollStars}
-                disabled={disabled}
-                title="Randomize star filter"
-              >
-                <DiceIcon spinning={starRoll} />
-              </button>
-            }
-          />
-
-          <LeagueFilter
-            value={leagueFilter}
-            onChange={setLeagueFilter}
-            disabled={disabled}
-            options={leagueOptions}
-          />
-        </div>
-      </div>
-
-      {extraBottom ? <div>{extraBottom}</div> : null}
-    </div>
-  );
-
-  if (!wrap) return body;
+  const aKnown = clubs.some((c) => c.id === selection.aClub);
+  const bKnown = clubs.some((c) => c.id === selection.bClub);
+  const aName = aKnown ? clubLabelPartsById(clubs, selection.aClub).name : "not set";
+  const bName = bKnown ? clubLabelPartsById(clubs, selection.bClub).name : "not set";
+  const summary = aKnown || bKnown ? `${aName} · ${bName}` : "Not set";
 
   return (
-    <div className={wrapClassName}>
+    <section className={cn("card overflow-hidden p-0", className)}>
+      {/* The one way in: it names the job and shows the two values it holds. */}
       <button
         type="button"
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => {
+          const next = !open;
+          setOpen(next);
+          if (!next) selection.closePicker();
+        }}
         aria-expanded={open}
-        className="focus-ring flex w-full items-center justify-between gap-2 rounded-xl px-3 py-3 text-left transition hover:bg-bg-card-chip/30"
+        aria-controls={bodyId}
+        title={open ? "Hide the club selection" : "Select the clubs of this match"}
+        className="focus-ring flex w-full items-center gap-2.5 px-3 py-2.5 text-left transition hover:bg-bg-card-chip/25"
       >
-        <span className="inline-flex items-center gap-2 text-sm font-semibold text-text-normal">
-          <i className="fa-solid fa-shield-halved text-text-muted" aria-hidden="true" />
-          Select clubs
+        <ShieldHalf size={16} className="shrink-0 text-text-muted" aria-hidden="true" />
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-semibold text-text-normal">Clubs</span>
+          <span className="mt-0.5 block truncate text-xs text-text-muted">{summary}</span>
         </span>
-        <i className={`fa-solid ${open ? "fa-chevron-up" : "fa-chevron-down"} text-text-muted`} aria-hidden="true" />
+        <ChevronDown
+          size={18}
+          className={cn("shrink-0 text-text-muted transition-transform", open && "rotate-180")}
+          aria-hidden="true"
+        />
       </button>
-      {open ? <div className="border-t border-border-card-chip/40 px-3 pb-3 pt-3">{body}</div> : null}
-    </div>
+
+      {open ? (
+        <div id={bodyId} className="border-t border-border-card-outer/55 p-3">
+          {/* The job in one readable column: a 1280px card must not stretch two club
+              slots across the screen (DESIGN.md §1.7). */}
+          <div className="space-y-3 sm:max-w-md">
+            {extraTop ? <div>{extraTop}</div> : null}
+
+            {/* 1. the values: one slot per side, side by side like the scoreboard. */}
+            <div className="grid grid-cols-2 items-stretch gap-2">
+              <ClubSlot
+                label={selection.aLabel}
+                clubs={clubs}
+                clubId={selection.aClub}
+                disabled={disabled}
+                onOpen={() => selection.openPicker("A")}
+              />
+              <ClubSlot
+                label={selection.bLabel}
+                clubs={clubs}
+                clubId={selection.bClub}
+                disabled={disabled}
+                onOpen={() => selection.openPicker("B")}
+              />
+            </div>
+
+            {/* 2. the filters: they narrow both slots' lists *and* the random pool. */}
+            <div className="flex flex-wrap items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => setFiltersOpen((v) => !v)}
+                disabled={disabled}
+                aria-expanded={filtersOpen}
+                aria-controls="club-filters"
+                title="Narrow the club list and the random matchup"
+                className={chipClass(filters.active, "inline-flex items-center gap-1.5")}
+              >
+                <SlidersHorizontal size={14} aria-hidden="true" />
+                Filter clubs
+                <ChevronDown
+                  size={14}
+                  className={cn("transition-transform", filtersOpen && "rotate-180")}
+                  aria-hidden="true"
+                />
+              </button>
+
+              {/* While the row is open the two selects say what is on; closed, these chips do. */}
+              {!filtersOpen && filters.starFilter != null ? (
+                <button
+                  type="button"
+                  onClick={() => filters.setStarFilter(null)}
+                  className={chipClass(true, "inline-flex items-center gap-1")}
+                  aria-label="Clear the star filter"
+                  title="Clear the star filter"
+                >
+                  {starsLabel(filters.starFilter)}★
+                  <X size={12} aria-hidden="true" />
+                </button>
+              ) : null}
+              {!filtersOpen && filters.leagueFilter != null ? (
+                <button
+                  type="button"
+                  onClick={() => filters.setLeagueFilter(null)}
+                  className={chipClass(true, "inline-flex max-w-[60%] items-center gap-1")}
+                  aria-label="Clear the league filter"
+                  title="Clear the league filter"
+                >
+                  <span className="min-w-0 truncate">{leagueName}</span>
+                  <X size={12} className="shrink-0" aria-hidden="true" />
+                </button>
+              ) : null}
+            </div>
+
+            {filtersOpen ? (
+              <div id="club-filters" className="space-y-2">
+                <div className="grid grid-cols-2 gap-2">
+                  <StarFilter
+                    value={filters.starFilter}
+                    onChange={filters.setStarFilter}
+                    disabled={disabled}
+                  />
+                  <LeagueFilter
+                    value={filters.leagueFilter}
+                    onChange={filters.setLeagueFilter}
+                    disabled={disabled}
+                    options={filters.leagueOptions}
+                  />
+                </div>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="min-w-0 truncate text-xs text-text-muted">
+                    {filters.active
+                      ? `${filters.filtered.length} of ${filters.sorted.length} clubs`
+                      : "All clubs"}
+                  </span>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={filters.clear}
+                    disabled={disabled || !filters.active}
+                  >
+                    Clear filters
+                  </Button>
+                </div>
+              </div>
+            ) : null}
+
+            {/* 3. the two random actions: equal height, the dice square because it is
+                the secondary one, "Random matchup" filling the rest (DESIGN.md §9b). */}
+            <div className="flex items-stretch gap-2">
+              <Button
+                type="button"
+                variant="ghost"
+                onMouseDown={(e) => e.preventDefault()}
+                onTouchStart={(e) => e.preventDefault()}
+                onClick={filters.rollStars}
+                disabled={disabled}
+                title="Randomize the star filter"
+                aria-label="Randomize the star filter"
+                className="inline-flex h-10 w-10 shrink-0 items-center justify-center p-0"
+              >
+                <DiceIcon spinning={filters.rolling} />
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={selection.randomize}
+                disabled={disabled}
+                className="inline-flex h-10 min-w-0 flex-1 items-center justify-center gap-2 whitespace-nowrap"
+                title="Pick a random matchup (respects the club filters)"
+              >
+                <Shuffle size={16} aria-hidden="true" />
+                Random matchup
+              </Button>
+            </div>
+
+            {extraBottom ? <div>{extraBottom}</div> : null}
+          </div>
+        </div>
+      ) : null}
+
+      <ClubPicker
+        open={selection.pickerOpen}
+        onClose={selection.closePicker}
+        clubs={clubs}
+        sides={[
+          { key: "A", label: selection.aLabel, clubId: selection.aClub },
+          { key: "B", label: selection.bLabel, clubId: selection.bClub },
+        ]}
+        activeKey={selection.activeKey}
+        onActiveKeyChange={selection.setActiveKey}
+        onPick={selection.pick}
+        filters={filters}
+        disabled={disabled}
+        starsEditor={
+          canEditStars ? (
+            <ClubStarsEditor clubId={activeClubId} clubs={clubs} disabled={disabled} />
+          ) : null
+        }
+      />
+    </section>
   );
 }

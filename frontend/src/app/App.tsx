@@ -9,6 +9,7 @@ import DashboardPage from "../pages/dashboard/DashboardPage";
 import FriendliesPage from "../pages/FriendliesPage";
 import SettingsPage from "../pages/SettingsPage";
 import MatchDetailPage from "../pages/live/MatchDetailPage";
+import NotFoundPage from "../pages/NotFoundPage";
 import PageLoadingScreen from "../ui/primitives/PageLoadingScreen";
 import { RequireRole } from "../auth/RequireRole";
 
@@ -66,10 +67,12 @@ export default function App() {
           }
         />
 
+        {/* reader: ProfilePage itself asks for a login when there is no player,
+            so "My profile" from Settings must not bounce a viewer to /login. */}
         <Route
           path="/profile"
           element={
-            <RequireRole minRole="editor">
+            <RequireRole minRole="reader">
               <Suspense fallback={pageFallback}>
                 <ProfilePage />
               </Suspense>
@@ -98,6 +101,8 @@ export default function App() {
         />
 
         <Route path="/tools" element={<Navigate to="/friendlies" replace />} />
+
+        <Route path="*" element={<NotFoundPage />} />
       </Routes>
     </AppShell>
     </MotionConfig>

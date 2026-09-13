@@ -2,8 +2,11 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { keepPreviousData, useQueries, useQuery } from "@tanstack/react-query";
+import { Clock, Crown, Flag } from "lucide-react";
 
 import AvatarCircle from "../../ui/primitives/AvatarCircle";
+import PlayerLink from "../../ui/primitives/PlayerLink";
+import EmptyState from "../../ui/primitives/EmptyState";
 import InlineLoading from "../../ui/primitives/InlineLoading";
 import { getStatsPlayers } from "../../api/stats.api";
 import { getCup, listCupDefs } from "../../api/cup.api";
@@ -11,7 +14,57 @@ import { cupColorVarForKey, rgbFromCssVar } from "../../cupColors";
 import { qk } from "../../api/queryKeys";
 import { usePlayerAvatarMap } from "../../hooks/usePlayerAvatarMap";
 import { fmtRank } from "../../utils/format";
-import type { StatsMode } from "./StatsControls";
+import StatsSection from "./StatsSection";
+import { InfoButton } from "./explainers";
+import type { StatsMode } from "./statsMode";
+
+/** What the cell colours, the "—" tile and the column shading mean. */
+function InfoLegend() {
+  return (
+    <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+      <div className="flex flex-wrap items-center gap-2 text-xs text-text-muted">
+        <span className="inline-flex items-center gap-2">
+          <Flag size={12} aria-hidden="true" />
+          Tournament positions
+        </span>
+
+        <span className="inline-flex items-center gap-2">
+          <span className="h-2.5 w-2.5 rounded-md border pos-best" />
+          <span>best</span>
+          <span className="h-2.5 w-2.5 rounded-md border pos-mid" />
+          <span className="h-2.5 w-2.5 rounded-md border pos-bad" />
+          <span className="h-2.5 w-2.5 rounded-md border pos-worst" />
+          <span>worst</span>
+        </span>
+
+        <span className="inline-flex items-center gap-2">
+          <span className="pos-none inline-flex h-6 w-7 items-center justify-center rounded-md border text-xs font-mono tabular-nums">
+            —
+          </span>
+          <span>not played</span>
+        </span>
+        <span className="inline-flex items-center gap-2">
+          <span className="pos-winner inline-flex h-6 w-7 items-center justify-center rounded-md border text-xs font-mono tabular-nums">
+            1
+          </span>
+          <span>winner</span>
+        </span>
+      </div>
+
+      <div className="flex items-center gap-2 text-xs text-text-muted">
+        <span className="inline-flex items-center gap-2">
+          <Clock size={12} aria-hidden="true" />
+          <span>Old</span>
+        </span>
+        <div className="h-2 w-20 rounded-full border border-border-card-inner bg-gradient-to-r from-bg-card-chip to-bg-card-inner" />
+        <span className="inline-flex items-center gap-2">
+          <span>New</span>
+          <Clock size={12} className="text-text-normal" aria-hidden="true" />
+        </span>
+      </div>
+    </div>
+  );
+}
 
 export default function PositionsView({ mode }: { mode: StatsMode }) {
   const q = useQuery({
@@ -48,6 +101,7 @@ export default function PositionsView({ mode }: { mode: StatsMode }) {
   // Custom (drag-reorderable) column order; null = default (pts desc). Reset on mode.
   const baseOrder = useMemo(() => players.map((p) => p.player_id), [players]);
   const [order, setOrder] = useState<number[] | null>(null);
+  const [legend, setLegend] = useState(false);
   useEffect(() => { setOrder(null); }, [mode]);
   const orderedPlayers = useMemo(() => {
     const byId = new Map(players.map((p) => [p.player_id, p]));
@@ -61,14 +115,27 @@ export default function PositionsView({ mode }: { mode: StatsMode }) {
 
   // Pointer-based column drag (works on touch).
   const dragRef = useRef<number | null>(null);
+  // A column header is both a drag handle and a link to the player's profile: a
+  // pointer that actually moved is a drag, and its click must not navigate.
+  const dragStartRef = useRef<{ x: number; y: number } | null>(null);
+  const draggedRef = useRef(false);
   const [dragId, setDragId] = useState<number | null>(null);
   const [overId, setOverId] = useState<number | null>(null);
   const onColDown = (e: React.PointerEvent, pid: number) => {
     dragRef.current = pid; setDragId(pid); setOverId(pid);
-    try { (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); } catch { /* noop */ }
+    dragStartRef.current = { x: e.clientX, y: e.clientY };
+    draggedRef.current = false;
+    // Pointer capture is taken on the first real move, not here: a captured pointer
+    // retargets the following click to this element, which would swallow the tap on
+    // the header's profile link.
   };
   const onColMove = (e: React.PointerEvent) => {
     if (dragRef.current == null) return;
+    const start = dragStartRef.current;
+    if (start && !draggedRef.current && Math.hypot(e.clientX - start.x, e.clientY - start.y) > 6) {
+      draggedRef.current = true;
+      try { (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); } catch { /* noop */ }
+    }
     const cell = (document.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null)?.closest("[data-col-pid]");
     const pid = cell?.getAttribute("data-col-pid");
     if (pid) setOverId(Number(pid));
@@ -136,14 +203,17 @@ export default function PositionsView({ mode }: { mode: StatsMode }) {
   }, [cupDefs, ownerByCup, tournaments, colByPlayer, players.length]);
 
   if (q.isLoading && !q.data) return <InlineLoading label="Loading…" />;
-  if (!tournaments.length) return <div className="text-sm text-text-muted">No tournaments yet.</div>;
+  if (!tournaments.length) return <EmptyState title="No tournaments yet." className="py-6" />;
 
   return (
-    <div>
-      <div className="section-head"><span className="section-label">Tournament positions</span></div>
-      <div className="mb-1.5 text-[11px] text-text-muted">Drag a player's icon to reorder the columns.</div>
+    <StatsSection
+      label="Tournament positions"
+      explainer="Drag a player's icon to reorder the columns."
+      action={<InfoButton on={legend} onClick={() => setLegend((v) => !v)} label="What the colours mean" />}
+    >
+      {legend ? <InfoLegend /> : null}
       {modeCounts.total > 0 ? (
-        <div className="mb-1.5 text-[11px] text-text-muted">
+        <div className="text-xs text-text-muted">
           {modeCounts.total} tournament{modeCounts.total === 1 ? "" : "s"}
           {["1v1", "2v2", ...Array.from(modeCounts.byMode.keys()).filter((m) => m !== "1v1" && m !== "2v2")]
             .filter((m) => (modeCounts.byMode.get(m) ?? 0) > 0)
@@ -175,8 +245,16 @@ export default function PositionsView({ mode }: { mode: StatsMode }) {
                   }
                   title="Drag to reorder"
                 >
-                  <AvatarCircle playerId={p.player_id} name={p.display_name} updatedAt={avatarUpdatedAtById.get(p.player_id) ?? null} sizeClass="h-6 w-6" />
-                  <span className="w-full truncate text-center text-[11px] text-text-muted">{p.display_name}</span>
+                  <PlayerLink
+                    playerId={p.player_id}
+                    name={p.display_name}
+                    title={`Open ${p.display_name}'s profile · drag to reorder`}
+                    className="flex w-full flex-col items-center gap-1"
+                    onClick={(e) => { if (draggedRef.current) e.preventDefault(); }}
+                  >
+                    <AvatarCircle playerId={p.player_id} name={p.display_name} updatedAt={avatarUpdatedAtById.get(p.player_id) ?? null} sizeClass="h-6 w-6" />
+                    <span className="w-full truncate text-center text-xs text-text-muted">{p.display_name}</span>
+                  </PlayerLink>
                 </div>
               );
             })}
@@ -197,7 +275,7 @@ export default function PositionsView({ mode }: { mode: StatsMode }) {
                     <span className="flex items-center gap-1">
                       {showModePill ? (
                         <span
-                          className="rounded-full bg-bg-card-chip/60 px-1 text-[9px] leading-tight text-text-muted"
+                          className="rounded-full bg-bg-card-chip/60 px-1 text-micro leading-tight text-text-muted"
                           title={`Mode: ${t.mode}`}
                         >
                           {t.mode}
@@ -205,7 +283,7 @@ export default function PositionsView({ mode }: { mode: StatsMode }) {
                       ) : null}
                       {noWinner ? (
                         <span
-                          className="rounded-full bg-bg-card-chip/60 px-1 text-[9px] leading-tight text-text-muted"
+                          className="rounded-full bg-bg-card-chip/60 px-1 text-micro leading-tight text-text-muted"
                           title="Kein eindeutiger Sieger"
                           aria-label="Kein eindeutiger Sieger"
                         >
@@ -218,7 +296,7 @@ export default function PositionsView({ mode }: { mode: StatsMode }) {
                 {orderedPlayers.map((p) => {
                   const pos = p.positions_by_tournament?.[String(t.id)];
                   if (pos == null)
-                    return <div key={p.player_id} style={{ height: cellH }} className="grid place-items-center rounded bg-bg-card-chip/15 text-xs text-text-muted">·</div>;
+                    return <div key={p.player_id} style={{ height: cellH }} className="grid place-items-center rounded-md bg-bg-card-chip/15 text-xs text-text-muted">·</div>;
                   const total = t.players_count || 1;
                   const frac = total > 1 ? (pos - 1) / (total - 1) : 0;
                   const stakes = t.cup_stakes ?? [];
@@ -228,13 +306,13 @@ export default function PositionsView({ mode }: { mode: StatsMode }) {
                       key={p.player_id}
                       to={`/live/${t.id}`}
                       style={{ height: cellH, ["--pos-p"]: frac } as React.CSSProperties}
-                      className="pos-tile relative grid place-items-center rounded border text-[11px] font-semibold tabular-nums no-underline transition hover:z-10 hover:ring-2 hover:ring-inset hover:ring-accent/70"
+                      className="pos-tile relative grid place-items-center rounded-md border text-xs font-semibold tabular-nums no-underline transition hover:z-10 hover:ring-2 hover:ring-inset hover:ring-accent/70"
                       title={`${p.display_name} · ${t.name}: ${fmtRank(pos, total)}${isWinner && stakes.length ? ` · won ${stakes.map((s) => s.name).join(", ")}` : ""}${pos === 1 && t.status === "done" && t.winner_player_id == null ? " · kein eindeutiger Sieger" : ""} — open tournament`}
                     >
                       {isWinner && stakes.length ? (
                         <span className="absolute right-0.5 top-0.5 inline-flex gap-px">
                           {stakes.map((s) => (
-                            <i key={s.key} className="fa-solid fa-crown text-[8px]" style={{ color: cupColor(s.key) }} aria-hidden="true" />
+                            <Crown key={s.key} size={9} fill="currentColor" style={{ color: cupColor(s.key) }} aria-hidden="true" />
                           ))}
                         </span>
                       ) : null}
@@ -255,6 +333,6 @@ export default function PositionsView({ mode }: { mode: StatsMode }) {
           ) : null}
         </div>
       </div>
-    </div>
+    </StatsSection>
   );
 }

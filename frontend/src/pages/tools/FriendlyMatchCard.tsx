@@ -1,14 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Ban, Eraser, RotateCw, Save, User, Users } from "lucide-react";
 
-import CollapsibleCard from "../../ui/primitives/CollapsibleCard";
 import FormLabel from "../../ui/primitives/FormLabel";
 import Input from "../../ui/primitives/Input";
 import Button from "../../ui/primitives/Button";
 import AvatarButton from "../../ui/primitives/AvatarButton";
 import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
 import SelectClubsPanel from "../../ui/SelectClubsPanel";
-import { GoalStepper } from "../../ui/clubControls";
+import { GoalStepper, useClubSelection } from "../../ui/clubControls";
 import MatchOverviewPanel from "../../ui/primitives/MatchOverviewPanel";
 import SegmentedSwitch from "../../ui/primitives/SegmentedSwitch";
 
@@ -116,9 +116,9 @@ function AvatarPlayerSelect({
     <div className="space-y-1.5">
       <div className="flex items-center justify-between gap-2">
         <FormLabel>{label}</FormLabel>
-        <div className="text-[11px] text-text-muted truncate">{currentName}</div>
+        <div className="text-xs text-text-muted truncate">{currentName}</div>
       </div>
-      <div className="-mx-1 overflow-x-auto px-1 py-0.5">
+      <div className="-mx-1 overflow-x-auto px-1 py-0.5" data-no-swipe-nav>
         <div className="flex min-w-full items-center justify-between gap-2">
           <AvatarButton
             playerId={null}
@@ -128,7 +128,7 @@ function AvatarPlayerSelect({
             disabled={disabled}
             onClick={() => onChange(null)}
             className="h-8 w-8"
-            fallbackIconClass="fa-solid fa-ban text-[11px] text-text-muted"
+            fallbackIcon={<Ban size={12} className="text-text-muted" aria-hidden="true" />}
             noOverflowAnchor={true}
           />
           {players.map((p) => {
@@ -153,20 +153,12 @@ function AvatarPlayerSelect({
   );
 }
 
-export default function FriendlyMatchCard({
-  embedded = false,
-  onInitialReady,
-}: {
-  embedded?: boolean;
-  onInitialReady?: () => void;
-}) {
+export default function FriendlyMatchCard({ onInitialReady }: { onInitialReady?: () => void }) {
   const qc = useQueryClient();
   const { role, token } = useAuth();
   const canStore = role === "editor" || role === "admin";
   const [initialState] = useState<FriendlyMatchPersistedState>(() => loadFriendlyState());
 
-  const [collapsibleOpen, setCollapsibleOpen] = useState(false);
-  const open = embedded || collapsibleOpen;
   const [clubGame, setClubGame] = useState(initialState.clubGame);
 
   const [mode, setMode] = useState<"1v1" | "2v2">(initialState.mode);
@@ -187,17 +179,15 @@ export default function FriendlyMatchCard({
   const clubsQ = useQuery({
     queryKey: qk.clubs(clubGame),
     queryFn: () => listClubs(clubGame),
-    enabled: open,
   });
   const clubs = useMemo(() => clubsQ.data ?? [], [clubsQ.data]);
 
   const playersQ = useQuery({
     queryKey: qk.players(),
     queryFn: listPlayers,
-    enabled: open,
     staleTime: 60_000,
   });
-  const { avatarUpdatedAtById } = usePlayerAvatarMap({ enabled: open });
+  const { avatarUpdatedAtById } = usePlayerAvatarMap();
   const players = useMemo(() => playersQ.data ?? [], [playersQ.data]);
 
   const usedIds = useMemo(() => {
@@ -236,7 +226,7 @@ export default function FriendlyMatchCard({
   const oddsQ = useQuery({
     queryKey: qk.stats.odds(oddsReq),
     queryFn: () => getStatsOdds(oddsReq as StatsOddsRequest),
-    enabled: open && oddsReq != null,
+    enabled: oddsReq != null,
     staleTime: 2_000,
     refetchOnWindowFocus: false,
   });
@@ -269,6 +259,22 @@ export default function FriendlyMatchCard({
       odds,
     };
   }, [aTeamIds, bTeamIds, players, aClub, bClub, aGoals, bGoals, odds]);
+
+  // Clubs: one panel under the preview holds slots, filters and randomisers (T9).
+  const clubSelection = useClubSelection({
+    clubs,
+    disabled: clubsQ.isFetching || !!clubsQ.error,
+    aLabel,
+    bLabel,
+    aClub,
+    bClub,
+    onChangeClubs: (aId, bId) => {
+      setAClub(aId);
+      setBClub(bId);
+    },
+    onChangeAClub: setAClub,
+    onChangeBClub: setBClub,
+  });
 
   const saveMut = useMutation({
     mutationFn: () => {
@@ -308,11 +314,10 @@ export default function FriendlyMatchCard({
 
   useEffect(() => {
     if (initialReadyFiredRef.current) return;
-    if (!open) return;
     if (playersQ.isLoading || clubsQ.isLoading) return;
     initialReadyFiredRef.current = true;
     onInitialReady?.();
-  }, [open, playersQ.isLoading, clubsQ.isLoading, onInitialReady]);
+  }, [playersQ.isLoading, clubsQ.isLoading, onInitialReady]);
 
   function clearAll() {
     setA1(null);
@@ -340,11 +345,10 @@ export default function FriendlyMatchCard({
             variant="ghost"
             onClick={clearAll}
             type="button"
-            disabled={!open}
             title="Clear"
             className="h-10 w-10 p-0 inline-flex items-center justify-center md:w-auto md:px-4 md:py-2"
           >
-            <i className="fa-solid fa-eraser md:hidden" aria-hidden="true" />
+            <Eraser size={16} className="md:hidden" aria-hidden="true" />
             <span className="hidden md:inline">Clear</span>
           </Button>
 
@@ -355,11 +359,11 @@ export default function FriendlyMatchCard({
               void playersQ.refetch();
             }}
             type="button"
-            disabled={!open || clubsQ.isFetching}
+            disabled={clubsQ.isFetching}
             title="Refresh"
             className="h-10 w-10 p-0 inline-flex items-center justify-center md:w-auto md:px-4 md:py-2"
           >
-            <i className="fa-solid fa-rotate-right md:hidden" aria-hidden="true" />
+            <RotateCw size={16} className="md:hidden" aria-hidden="true" />
             <span className="hidden md:inline">Refresh</span>
           </Button>
 
@@ -367,11 +371,11 @@ export default function FriendlyMatchCard({
             variant="solid"
             onClick={() => saveMut.mutate()}
             type="button"
-            disabled={!open || !canStore || !token || !canSave || saveMut.isPending}
+            disabled={!canStore || !token || !canSave || saveMut.isPending}
             title={canStore && token ? "Save friendly match" : "Login as editor/admin to save"}
             className="h-10 w-10 p-0 inline-flex items-center justify-center md:w-auto md:px-4 md:py-2"
           >
-            <i className="fa-solid fa-floppy-disk md:hidden" aria-hidden="true" />
+            <Save size={16} className="md:hidden" aria-hidden="true" />
             <span className="hidden md:inline">{saveMut.isPending ? "Saving…" : "Save"}</span>
           </Button>
         </div>
@@ -389,20 +393,18 @@ export default function FriendlyMatchCard({
             mode={mode}
             aGoals={aGoals}
             bGoals={bGoals}
-            showModePill={true}
+            showMode={true}
             showOdds={true}
-            scoreBoxStyle="inner"
-            surface="panel-subtle"
           />
 
           <div className="pt-2">
             <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 md:gap-4">
               <div className="flex justify-start">
-                <GoalStepper value={aGoals} onChange={setAGoals} disabled={!open} ariaLabel="Goals left" />
+                <GoalStepper value={aGoals} onChange={setAGoals} disabled={false} ariaLabel="Goals left" />
               </div>
               <div />
               <div className="flex justify-end">
-                <GoalStepper value={bGoals} onChange={setBGoals} disabled={!open} ariaLabel="Goals right" />
+                <GoalStepper value={bGoals} onChange={setBGoals} disabled={false} ariaLabel="Goals right" />
               </div>
             </div>
           </div>
@@ -410,9 +412,21 @@ export default function FriendlyMatchCard({
           {oddsQ.isFetching ? <div className="text-xs text-text-muted">Computing odds…</div> : null}
         </div>
 
+        {/* Setting the clubs is the point of this form, so the panel starts open
+            (and remembers the choice). Its header is the section heading (T9). */}
+        <SelectClubsPanel
+          selection={clubSelection}
+          storageKey="friendly-new"
+          defaultOpen
+          extraTop={
+            clubsQ.isLoading ? <div className="text-sm text-text-muted">Loading clubs…</div> : null
+          }
+        />
+
         <div className="space-y-3">
-          <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="section-head">
             <span className="section-label">Setup</span>
+            <div className="order-1 shrink-0">
             <SegmentedSwitch<"1v1" | "2v2">
               value={mode}
               onChange={(m) => {
@@ -424,12 +438,13 @@ export default function FriendlyMatchCard({
                 }
               }}
               options={[
-                { key: "1v1", label: "1v1", icon: "fa-user" },
-                { key: "2v2", label: "2v2", icon: "fa-users" },
+                { key: "1v1", label: "1v1", icon: <User size={14} aria-hidden="true" /> },
+                { key: "2v2", label: "2v2", icon: <Users size={14} aria-hidden="true" /> },
               ]}
               ariaLabel="Match mode"
               title="Mode: 1v1 / 2v2"
             />
+            </div>
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2">
@@ -438,7 +453,7 @@ export default function FriendlyMatchCard({
                 label={mode === "2v2" ? "Team A (1)" : "Team A"}
                 value={a1}
                 onChange={setA1}
-                disabled={!open || playersQ.isLoading || !!playersQ.error}
+                disabled={playersQ.isLoading || !!playersQ.error}
                 players={players}
                 usedIds={usedIds}
                 avatarUpdatedAtById={avatarUpdatedAtById}
@@ -448,7 +463,7 @@ export default function FriendlyMatchCard({
                   label="Team A (2)"
                   value={a2}
                   onChange={setA2}
-                  disabled={!open || playersQ.isLoading || !!playersQ.error}
+                  disabled={playersQ.isLoading || !!playersQ.error}
                   players={players}
                   usedIds={usedIds}
                   avatarUpdatedAtById={avatarUpdatedAtById}
@@ -461,7 +476,7 @@ export default function FriendlyMatchCard({
                 label={mode === "2v2" ? "Team B (1)" : "Team B"}
                 value={b1}
                 onChange={setB1}
-                disabled={!open || playersQ.isLoading || !!playersQ.error}
+                disabled={playersQ.isLoading || !!playersQ.error}
                 players={players}
                 usedIds={usedIds}
                 avatarUpdatedAtById={avatarUpdatedAtById}
@@ -471,7 +486,7 @@ export default function FriendlyMatchCard({
                   label="Team B (2)"
                   value={b2}
                   onChange={setB2}
-                  disabled={!open || playersQ.isLoading || !!playersQ.error}
+                  disabled={playersQ.isLoading || !!playersQ.error}
                   players={players}
                   usedIds={usedIds}
                   avatarUpdatedAtById={avatarUpdatedAtById}
@@ -483,41 +498,9 @@ export default function FriendlyMatchCard({
           </div>
         </div>
 
-        {clubsQ.isLoading && <div className="text-sm text-text-muted">Loading clubs…</div>}
 
-        <SelectClubsPanel
-          clubs={clubs}
-          disabled={!open || clubsQ.isFetching || !!clubsQ.error}
-          showSelectedMeta={true}
-          aLabel={`${aLabel} — club`}
-          bLabel={`${bLabel} — club`}
-          aClub={aClub}
-          bClub={bClub}
-          onChangeClubs={(aId, bId) => {
-            setAClub(aId);
-            setBClub(bId);
-          }}
-          onChangeAClub={setAClub}
-          onChangeBClub={setBClub}
-          defaultOpen={true}
-          // In Tools, this sits inside a `card-inner` already, so `panel-inner` would blend in.
-          // Use the subtle chip surface for a clear, consistent separation like in live views.
-          wrapClassName="panel-subtle"
-        />
     </div>
   );
 
-  if (embedded) return content;
-
-  return (
-    <CollapsibleCard
-      title="New Friendly"
-      defaultOpen={false}
-      variant="outer"
-      onOpenChange={setCollapsibleOpen}
-      bodyVariant="none"
-    >
-      {content}
-    </CollapsibleCard>
-  );
+  return content;
 }

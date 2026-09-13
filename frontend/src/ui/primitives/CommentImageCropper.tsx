@@ -1,4 +1,6 @@
+import { Check, ImageIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+
 import Button from "./Button";
 import { ErrorToastOnError } from "./ErrorToast";
 import Modal from "./Modal";
@@ -190,13 +192,12 @@ export default function CommentImageCropper({
       onClose={onClose}
       fullScreenOnMobile
       maxWidth="max-w-2xl"
-      variant="panel"
     >
           <ErrorToastOnError error={err} title="Image crop failed" />
           <div className="mt-3 grid gap-3">
             <div
               ref={viewportRef}
-              className="panel-subtle relative mx-auto w-full max-w-[760px] overflow-hidden touch-none"
+              className="inset p-0 relative mx-auto w-full max-w-[760px] overflow-hidden touch-none"
               style={{ aspectRatio: `${aspectW} / ${aspectH}` }}
               onPointerDown={(e) => {
                 if (!img) return;
@@ -257,7 +258,7 @@ export default function CommentImageCropper({
                   }}
                 />
                 <Button type="button" variant="ghost" onClick={() => inputRef.current?.click()} disabled={busy} title="Choose photo">
-                  <i className="fa-solid fa-image md:hidden" aria-hidden="true" />
+                  <ImageIcon size={14} className="md:hidden" aria-hidden="true" />
                   <span className="hidden md:inline">Choose</span>
                 </Button>
               </div>
@@ -286,7 +287,7 @@ export default function CommentImageCropper({
                 disabled={!img || busy}
                 title="Use image"
               >
-                <i className="fa-solid fa-check md:hidden" aria-hidden="true" />
+                <Check size={14} className="md:hidden" aria-hidden="true" />
                 <span className="hidden md:inline">{busy ? "Applying…" : "Use image"}</span>
               </Button>
             </div>

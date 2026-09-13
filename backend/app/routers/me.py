@@ -153,7 +153,7 @@ def my_notifications(
                     "author_player_id": int(e.author_player_id),
                     "snippet": _snippet(e.body),
                     "created_at": e.created_at.isoformat(),
-                    "path": f"/profiles/{me_id}#guestbook-entry-{int(e.id)}",
+                    "path": f"/profiles/{me_id}?tab=guestbook&entry={int(e.id)}",
                 }
             )
 

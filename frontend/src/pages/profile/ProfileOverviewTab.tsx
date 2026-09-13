@@ -1,11 +1,53 @@
+import { HeartCrack, Smile } from "lucide-react";
+import type { ReactNode } from "react";
+import { Link } from "react-router-dom";
+
 import Button from "../../ui/primitives/Button";
 import Textarea from "../../ui/primitives/Textarea";
 import { Pill } from "../../ui/primitives/Pill";
 import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
 import type { Club, StatsH2HOpponentRow, StatsPlayerMatchesTournament } from "../../api/types";
 import { fmtPct, fmtRank } from "../../utils/format";
-import { MatchHistoryList } from "../stats/MatchHistoryList";
+import { MatchHistoryList, tournamentMatchHref } from "../stats/MatchHistoryList";
+import { statsMatchupHref } from "../stats/statsNav";
 import { type FavoriteTeammate } from "./favoriteTeammates";
+
+/**
+ * Favorite / Nemesis chip. With a known opponent it links into the stats matchup
+ * ("every match against this player"), which follows the Mode / Source filters there.
+ */
+function RivalCard({ icon, label, row, playerId }: {
+  icon: ReactNode;
+  label: string;
+  row: StatsH2HOpponentRow | null;
+  playerId: number | null;
+}) {
+  const body = (
+    <>
+      <div className="inline-flex items-center gap-2 text-text-muted">
+        {icon}
+        <span>{label}</span>
+      </div>
+      <div className="font-semibold mt-0.5">{row?.opponent.display_name ?? "—"}</div>
+      {row ? (
+        <div className="text-text-muted mt-0.5">
+          <span className="text-win">{row.wins}</span>-<span className="text-draw">{row.draws}</span>-<span className="text-loss">{row.losses}</span> ·{" "}
+          {fmtPct(row.pts_per_match)} ppm
+        </div>
+      ) : null}
+    </>
+  );
+  if (!row || !playerId) return <div className="inset px-3 py-2">{body}</div>;
+  return (
+    <Link
+      to={statsMatchupHref({ left: [playerId], right: [row.opponent.id] })}
+      title={`All matches against ${row.opponent.display_name}`}
+      className="inset block px-3 py-2 transition hover:bg-bg-card-chip/40 active:bg-bg-card-chip/50 focus-ring"
+    >
+      {body}
+    </Link>
+  );
+}
 
 /** Profile "Overview" tab: about/bio, rivals, favorite teammates, recent matches. */
 export default function ProfileOverviewTab({
@@ -76,30 +118,8 @@ export default function ProfileOverviewTab({
         <div className="section-head"><span className="section-label">Rivals</span></div>
         <ErrorToastOnError error={statsH2HError} title="H2H loading failed" />
         <div className="grid grid-cols-2 gap-2 text-xs">
-          <div className="card-chip px-3 py-2">
-            <div className="inline-flex items-center gap-2 text-text-muted">
-              <i className="fa-solid fa-face-smile" aria-hidden="true" />
-              <span>Favorite</span>
-            </div>
-            <div className="font-semibold mt-0.5">{favorite?.opponent.display_name ?? "—"}</div>
-            {favorite ? (
-              <div className="text-text-muted mt-0.5">
-                {favorite.wins}-{favorite.draws}-{favorite.losses} · {fmtPct(favorite.pts_per_match)} ppm
-              </div>
-            ) : null}
-          </div>
-          <div className="card-chip px-3 py-2">
-            <div className="inline-flex items-center gap-2 text-text-muted">
-              <i className="fa-solid fa-heart-crack" aria-hidden="true" />
-              <span>Nemesis</span>
-            </div>
-            <div className="font-semibold mt-0.5">{nemesis?.opponent.display_name ?? "—"}</div>
-            {nemesis ? (
-              <div className="text-text-muted mt-0.5">
-                {nemesis.wins}-{nemesis.draws}-{nemesis.losses} · {fmtPct(nemesis.pts_per_match)} ppm
-              </div>
-            ) : null}
-          </div>
+          <RivalCard icon={<Smile size={14} aria-hidden="true" />} label="Favorite" row={favorite} playerId={targetPlayerId} />
+          <RivalCard icon={<HeartCrack size={14} aria-hidden="true" />} label="Nemesis" row={nemesis} playerId={targetPlayerId} />
         </div>
       </div>
 
@@ -108,14 +128,30 @@ export default function ProfileOverviewTab({
         <div className="section-head"><span className="section-label">Favorite teammates</span></div>
         {favoriteTeammates.length ? (
           <div className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-3">
-            {favoriteTeammates.map((tm) => (
-              <div key={tm.id} className="card-chip px-3 py-2">
-                <div className="truncate font-semibold">{tm.name}</div>
-                <div className="text-text-muted mt-0.5">
-                  {tm.w}-{tm.d}-{tm.l} · {fmtPct(tm.ppm)} ppm
-                </div>
-              </div>
-            ))}
+            {favoriteTeammates.map((tm) => {
+              const body = (
+                <>
+                  <div className="truncate font-semibold">{tm.name}</div>
+                  <div className="text-text-muted mt-0.5">
+                    <span className="text-win">{tm.w}</span>-<span className="text-draw">{tm.d}</span>-<span className="text-loss">{tm.l}</span> ·{" "}
+                    {fmtPct(tm.ppm)} ppm
+                  </div>
+                </>
+              );
+              // Like the rival cards: the summary opens every match behind it — here the
+              // 2v2 matchup in its "Together" relation.
+              if (!targetPlayerId) return <div key={tm.id} className="inset px-3 py-2">{body}</div>;
+              return (
+                <Link
+                  key={tm.id}
+                  to={statsMatchupHref({ mode: "2v2", left: [targetPlayerId], right: [tm.id], relation: "together" })}
+                  title={`All 2v2 matches together with ${tm.name}`}
+                  className="inset block px-3 py-2 transition hover:bg-bg-card-chip/40 active:bg-bg-card-chip/50 focus-ring"
+                >
+                  {body}
+                </Link>
+              );
+            })}
           </div>
         ) : (
           <div className="text-sm text-text-muted">No 2v2 matches recorded yet.</div>
@@ -124,10 +160,10 @@ export default function ProfileOverviewTab({
 
       {/* Recent activity */}
       <div className="space-y-2">
-        <div className="mb-2 flex items-center justify-between gap-3">
+        <div className="section-head">
           <span className="section-label">Recent matches</span>
           {allMatchTournaments.length > 2 ? (
-            <button type="button" className="shrink-0 text-xs font-medium text-accent" onClick={onViewAllMatches}>
+            <button type="button" className="order-1 shrink-0 text-xs font-medium text-accent" onClick={onViewAllMatches}>
               View all →
             </button>
           ) : null}
@@ -138,6 +174,8 @@ export default function ProfileOverviewTab({
           focusId={targetPlayerId}
           clubs={clubs}
           showMeta={false}
+          showModePill
+          matchHref={tournamentMatchHref}
           renderTournamentPills={(t) => {
             const row = tournamentPlacementById.get(Number(t.id));
             if (!row) return null;

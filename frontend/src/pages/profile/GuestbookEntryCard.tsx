@@ -1,3 +1,4 @@
+import { ChevronDown, ChevronRight, ChevronUp, Mail, Pencil, Reply, Trash2, Users } from "lucide-react";
 import { createContext, useContext, type JSX } from "react";
 
 import Button from "../../ui/primitives/Button";
@@ -85,7 +86,9 @@ export default function GuestbookEntryCard({
   const editOpen = ctx.editOpenEntryId === entry.id;
   const editDraft = ctx.editDraftByEntryId[entry.id] ?? entry.body;
   const isCollapsed = ctx.collapsedEntryIds.has(entry.id);
-  const surfaceClass = depth === 0 ? "panel-subtle" : "panel-inner";
+  // A root entry is a level-1 `card` on the page; a reply is the level-2 `inset`
+  // under it, indented by depth (DESIGN.md §3).
+  const surfaceClass = depth === 0 ? "card" : "inset";
   const indentPx = Math.min(depth, 8) * 14;
 
   return (
@@ -109,7 +112,7 @@ export default function GuestbookEntryCard({
             />
             <div className="min-w-0">
               <div className="truncate text-xs font-semibold text-text-normal">{entry.author_display_name}</div>
-              <div className="text-[11px] text-text-muted">
+              <div className="text-xs text-text-muted">
                 {fmtDateTime(entry.created_at)}
                 {entry.updated_at !== entry.created_at ? " · edited" : ""}
               </div>
@@ -128,8 +131,8 @@ export default function GuestbookEntryCard({
                 title={isCollapsed ? `Show ${children.length} repl${children.length === 1 ? "y" : "ies"}` : "Hide replies"}
                 className="h-8 px-2 p-0 inline-flex items-center justify-center gap-1"
               >
-                <i className={`fa-solid ${isCollapsed ? "fa-chevron-right" : "fa-chevron-down"}`} aria-hidden="true" />
-                <span className="text-[11px] tabular-nums">{children.length}</span>
+                {isCollapsed ? <ChevronRight size={14} aria-hidden="true" /> : <ChevronDown size={14} aria-hidden="true" />}
+                <span className="text-xs tabular-nums">{children.length}</span>
               </Button>
             ) : null}
             {isUnseen ? (
@@ -145,15 +148,15 @@ export default function GuestbookEntryCard({
                 title="Mark as read"
                 className="h-8 w-8 p-0 inline-flex items-center justify-center"
               >
-                <i className="fa-solid fa-envelope text-accent motion-safe:animate-pulse" aria-hidden="true" />
+                <Mail size={14} className="text-accent motion-safe:animate-pulse" aria-hidden="true" />
               </Button>
             ) : null}
             {!isUnseen && unreadReplies > 0 ? (
               <span
                 title={`Unread replies: ${unreadReplies}`}
-                className="inline-flex h-8 items-center gap-1 rounded-full border border-border-card-inner bg-bg-card-chip/25 px-2 text-[11px]"
+                className="inline-flex h-8 items-center gap-1 rounded-full border border-border-card-inner bg-bg-card-chip/25 px-2 text-xs"
               >
-                <i className="fa-solid fa-reply text-accent" aria-hidden="true" />
+                <Reply size={12} className="text-accent" aria-hidden="true" />
                 <span className="tabular-nums text-text-normal">{unreadReplies}</span>
               </span>
             ) : null}
@@ -169,7 +172,7 @@ export default function GuestbookEntryCard({
                 title="Reply"
                 className="h-8 w-8 p-0 inline-flex items-center justify-center"
               >
-                <i className="fa-solid fa-reply" aria-hidden="true" />
+                <Reply size={14} aria-hidden="true" />
               </Button>
             ) : null}
             {canEditThis ? (
@@ -184,7 +187,7 @@ export default function GuestbookEntryCard({
                 title={editOpen ? "Cancel edit" : "Edit message"}
                 className="h-8 w-8 p-0 inline-flex items-center justify-center"
               >
-                <i className={`fa-solid ${editOpen ? "fa-chevron-up" : "fa-pen"}`} aria-hidden="true" />
+                {editOpen ? <ChevronUp size={14} aria-hidden="true" /> : <Pencil size={14} aria-hidden="true" />}
               </Button>
             ) : null}
             {canDeleteEntry ? (
@@ -202,7 +205,7 @@ export default function GuestbookEntryCard({
                 title="Delete message"
                 className="h-8 w-8 p-0 inline-flex items-center justify-center"
               >
-                <i className="fa-solid fa-trash" aria-hidden="true" />
+                <Trash2 size={14} aria-hidden="true" />
               </Button>
             ) : null}
           </div>
@@ -231,7 +234,7 @@ export default function GuestbookEntryCard({
         ) : (
           <div className="mt-2 text-sm whitespace-pre-wrap">{entry.body}</div>
         )}
-        <div className="mt-2 flex items-center gap-2 text-[11px] text-text-muted">
+        <div className="mt-2 flex items-center gap-2 text-xs text-text-muted">
           <VoteButton
             direction="up"
             active={myVote === 1}
@@ -267,13 +270,13 @@ export default function GuestbookEntryCard({
             title="Show voters"
             className="h-8 w-8 p-0 inline-flex items-center justify-center"
           >
-            <i className="fa-solid fa-users text-text-muted" aria-hidden="true" />
+            <Users size={14} className="text-text-muted" aria-hidden="true" />
           </Button>
         </div>
 
         {replyOpen && ctx.canPostGuestbook ? (
           <div
-            className="mt-2 panel-inner p-2 space-y-2"
+            className="mt-2 inset p-2 space-y-2"
             onClick={(e) => {
               e.stopPropagation();
             }}

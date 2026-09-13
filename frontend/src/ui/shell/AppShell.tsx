@@ -1,3 +1,4 @@
+import { RotateCw } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
@@ -13,9 +14,13 @@ import { RealtimeProvider } from "../../hooks/realtime/RealtimeProvider";
 import { useAnyTournamentWS } from "../../hooks/realtime/useRealtime";
 import Sidebar from "./Sidebar";
 import MobileChrome from "./MobileChrome";
+import BottomTabBar from "./BottomTabBar";
+import { ErrorToastViewport } from "../primitives/ErrorToast";
 import RouteErrorBoundary from "./RouteErrorBoundary";
 import { useSwipeNav } from "./useSwipeNav";
 import { useLocationRestore } from "./useLocationRestore";
+import { useRememberLocation } from "./useRememberLocation";
+import { useScrollRestoration } from "./useScrollRestoration";
 
 const COLLAPSE_KEY = "sidebar-collapsed";
 
@@ -31,6 +36,10 @@ function ShellInner({ children }: { children: React.ReactNode }) {
   useSwipeNav();
   // Standalone PWA: resume at the last route after the OS evicts the app.
   useLocationRestore();
+  // Per-destination page memory: tapping a nav destination returns to its last page.
+  useRememberLocation();
+  // Back lands where you left off: every history entry keeps its own scroll offset.
+  useScrollRestoration();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [collapsed, setCollapsed] = useState<boolean>(() => localStorage.getItem(COLLAPSE_KEY) === "1");
 
@@ -77,8 +86,9 @@ function ShellInner({ children }: { children: React.ReactNode }) {
             style={{ height: Math.max(0, pull.distance) }}
           >
             <span className="pull-refresh-indicator self-end mb-1" style={{ opacity: pull.refreshing ? 1 : Math.min(1, pull.distance / 60) }}>
-              <i
-                className={`fa-solid fa-arrow-rotate-right ${pull.refreshing ? "fa-spin" : ""}`}
+              <RotateCw
+                size={14}
+                className={pull.refreshing ? "animate-spin" : undefined}
                 style={{ transform: pull.refreshing ? undefined : `rotate(${pull.distance * 3}deg)` }}
                 aria-hidden="true"
               />
@@ -88,12 +98,19 @@ function ShellInner({ children }: { children: React.ReactNode }) {
         ) : null}
 
         <main
-          className="mx-auto w-full max-w-6xl flex-1 page-x py-4 lg:py-6"
+          className="mx-auto w-full max-w-6xl flex-1 page-x py-4 pb-[calc(4.5rem+env(safe-area-inset-bottom,0px))] lg:py-6 lg:pb-6"
           style={pull.distance > 0 && !pull.refreshing ? { transform: `translateY(${Math.min(pull.distance, 64)}px)` } : undefined}
         >
           <RouteErrorBoundary resetKey={location.pathname}>{children}</RouteErrorBoundary>
         </main>
+
+        <BottomTabBar />
       </div>
+
+      {/* The single mount for showErrorToast/ErrorToastOnError (fixed overlay, so
+          it can live outside the column): without it every toast is dispatched
+          into the void. Inside ShellInner => present on every route. */}
+      <ErrorToastViewport />
     </div>
   );
 }

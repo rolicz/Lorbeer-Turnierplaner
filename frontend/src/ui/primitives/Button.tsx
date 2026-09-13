@@ -1,13 +1,25 @@
+/* eslint-disable react-refresh/only-export-components */
 import React from "react";
 import { cn } from "../cn";
 
-type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
-  variant?: "solid" | "ghost";
-  size?: "sm" | "md";
+export type ButtonVariant = "solid" | "ghost";
+export type ButtonSize = "sm" | "md";
+
+type ButtonLook = {
+  variant?: ButtonVariant;
+  size?: ButtonSize;
   iconOnly?: boolean;
+  className?: string;
 };
 
-export default function Button({ variant = "solid", size, iconOnly = false, className = "", ...rest }: ButtonProps) {
+type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & Omit<ButtonLook, "className"> & { className?: string };
+
+/**
+ * The button look as a class string (`DESIGN.md` §7). Use it only where a real
+ * `<button>` is impossible — a react-router `<Link>`, or a decorative box that sits
+ * under a native control. The `btn-*` classes live in this file and nowhere else.
+ */
+export function buttonClass({ variant = "solid", size, iconOnly = false, className }: ButtonLook = {}) {
   const variantCls = variant === "solid" ? "btn-solid" : "btn-ghost";
   const sizeCls =
     size === "md"
@@ -17,5 +29,9 @@ export default function Button({ variant = "solid", size, iconOnly = false, clas
           ? "inline-flex h-8 w-8 items-center justify-center p-0"
           : "inline-flex h-8 items-center px-3"
         : "";
-  return <button className={cn("btn-base", variantCls, sizeCls, className)} {...rest} />;
+  return cn("btn-base", variantCls, sizeCls, className);
+}
+
+export default function Button({ variant = "solid", size, iconOnly = false, className = "", ...rest }: ButtonProps) {
+  return <button className={buttonClass({ variant, size, iconOnly, className })} {...rest} />;
 }

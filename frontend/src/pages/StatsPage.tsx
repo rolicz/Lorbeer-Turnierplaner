@@ -1,155 +1,98 @@
 import { useMemo } from "react";
-import { useLocation, useSearchParams } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
-import { Users, TrendingUp, Swords, Flame, Star, ListChecks, BarChart3 } from "lucide-react";
+import { useSearchParams } from "react-router-dom";
 
-import PlayersStatsCard from "./stats/PlayersStatsCard";
-import TrendsCard from "./stats/TrendsCard";
-import HeadToHeadCard from "./stats/HeadToHeadCard";
-import StreaksCard from "./stats/StreaksCard";
-import PlayerMatchesCard from "./stats/PlayerMatchesCard";
-import RatingsCard from "./stats/RatingsCard";
-import StarsPerformanceCard from "./stats/StarsPerformanceCard";
-import StatsFilterBar, { type StatsFilterConfig } from "./stats/StatsFilterBar";
 import StatsInsights from "./stats/StatsInsights";
-import { useStatsExperience } from "../ui/layout/useStatsMode";
-import type { StatsMode } from "./stats/StatsControls";
-import { SectionTabs, type SectionTab } from "../ui/SectionTabs";
+import { formatMatchupSide, parseMatchupSide } from "./stats/statsNav";
+import type { StatsMode } from "./stats/statsMode";
 import { useRouteEntryLoading } from "../ui/layout/useRouteEntryLoading";
 import PageLayout from "../ui/layout/PageLayout";
 import PageLoadingScreen from "../ui/primitives/PageLoadingScreen";
-import { listPlayers } from "../api/players.api";
-import { qk } from "../api/queryKeys";
-import { usePlayerAvatarMap } from "../hooks/usePlayerAvatarMap";
-import { useAuth } from "../auth/AuthContext";
 import type { StatsScope } from "../api/types";
 
-type TabKey = "players" | "trends" | "h2h" | "streaks" | "ratings" | "stars" | "matches";
-
-const TABS: SectionTab<TabKey>[] = [
-  { key: "players", label: "Players", icon: <Users size={14} /> },
-  { key: "trends", label: "Trends", icon: <TrendingUp size={14} /> },
-  { key: "h2h", label: "H2H", icon: <Swords size={14} /> },
-  { key: "streaks", label: "Streaks", icon: <Flame size={14} /> },
-  { key: "ratings", label: "Ratings", icon: <Star size={14} /> },
-  { key: "stars", label: "Stars", icon: <BarChart3 size={14} /> },
-  { key: "matches", label: "Matches", icon: <ListChecks size={14} /> },
-];
-
-// Which shared filters each section actually uses.
-const FILTER_CONFIG: Record<TabKey, StatsFilterConfig> = {
-  players: { mode: true, scope: false, player: "none" },
-  trends: { mode: true, scope: false, player: "none" },
-  h2h: { mode: true, scope: true, player: "optional" },
-  streaks: { mode: true, scope: true, player: "none" },
-  ratings: { mode: true, scope: true, player: "none" },
-  stars: { mode: true, scope: true, player: "required" },
-  matches: { mode: true, scope: true, player: "required" },
-};
-
-const TAB_KEYS = TABS.map((t) => t.key);
 const MODE_VALUES: StatsMode[] = ["overall", "1v1", "2v2"];
 const SCOPE_VALUES: StatsScope[] = ["tournaments", "both", "friendlies"];
 
 export default function StatsPage() {
-  const location = useLocation();
   const pageEntered = useRouteEntryLoading();
   const [searchParams, setSearchParams] = useSearchParams();
 
-  const experience = useStatsExperience();
-  const { playerId: selfId } = useAuth();
-  const playersQ = useQuery({ queryKey: qk.players(), queryFn: listPlayers });
-  const { avatarUpdatedAtById } = usePlayerAvatarMap();
-  const players = useMemo(
-    () => (playersQ.data ?? []).slice().sort((a, b) => a.display_name.localeCompare(b.display_name)),
-    [playersQ.data],
-  );
-
   // --- shared state, persisted in the URL so it survives section switches ---
-  const state = (location.state as { focus?: string; trendsView?: "lastN" | "total" } | null) ?? null;
-  const wantsTrends =
-    location.hash === "#trends" || location.hash === "#stats-trends" || state?.focus === "trends";
-
-  const tabParam = searchParams.get("section");
-  const active: TabKey =
-    tabParam && (TAB_KEYS as string[]).includes(tabParam)
-      ? (tabParam as TabKey)
-      : wantsTrends
-        ? "trends"
-        : "players";
-
+  // (the section/sub-view themselves live in `?view=`/`?sub=`, owned by StatsInsights;
+  // older URL shapes are mapped by `stats/statsNav.ts`)
   const modeParam = searchParams.get("mode");
   const mode: StatsMode = modeParam && (MODE_VALUES as string[]).includes(modeParam) ? (modeParam as StatsMode) : "overall";
   const scopeParam = searchParams.get("source");
   const scope: StatsScope = scopeParam && (SCOPE_VALUES as string[]).includes(scopeParam) ? (scopeParam as StatsScope) : "tournaments";
-  const playerParam = Number(searchParams.get("player"));
-  const playerId: number | "" = Number.isFinite(playerParam) && playerParam > 0 ? playerParam : "";
+  // Both matchup sides carry one or two ids (`?player=1,5&vs=2,4`, T7); everything
+  // outside the matchup uses the first id, so single-id URLs behave exactly as before.
+  // (memoised on the raw param, so the arrays stay stable across renders and the
+  // matchup's request / summary memos are not recomputed on every keystroke elsewhere)
+  const playerParam = searchParams.get("player");
+  const playerIds = useMemo(() => parseMatchupSide(playerParam), [playerParam]);
+  // Matchup drill-in: `vs` is the opposing player (or team) of `player` in H2H.
+  const vsParam = searchParams.get("vs");
+  const vsIds = useMemo(() => parseMatchupSide(vsParam), [vsParam]);
 
-  const patchParams = (changes: Record<string, string | null>) => {
+  /**
+   * Every stats param is a same-page rewrite (`replace`), so browser Back leaves
+   * `/stats` instead of undoing filter taps — except a drill-in that swaps the
+   * whole body, which asks for `push` and becomes its own history entry (T11).
+   */
+  const patchParams = (changes: Record<string, string | null>, opts?: { push?: boolean }) => {
     const next = new URLSearchParams(searchParams);
     for (const [k, v] of Object.entries(changes)) {
       if (v == null || v === "") next.delete(k);
       else next.set(k, v);
     }
-    setSearchParams(next, { replace: true });
+    setSearchParams(next, { replace: !opts?.push });
   };
 
-  const setActive = (t: TabKey) => patchParams({ section: t });
   const setMode = (m: StatsMode) => patchParams({ mode: m });
   const setScope = (s: StatsScope) => patchParams({ source: s });
   const setPlayer = (id: number | "") => patchParams({ player: id === "" ? null : String(id) });
-
-  const initialTrendsView = state?.trendsView ?? undefined;
-  const config = FILTER_CONFIG[active];
-
-  // Effective player: explicit URL choice, else self for sections that require one.
-  const effPlayerId: number | "" =
-    playerId !== "" ? playerId : config.player === "required" ? (selfId ?? "") : "";
+  /**
+   * Open (or clear) the matchup; pass `withPlayer` to set both sides in one write.
+   * Each side is one or two player ids — two on both sides means the exact team
+   * matchup. `rel` (the matchup's Against/Together relation, only set by deep links
+   * from a match page) is always reset here: an in-app matchup opens on "Against".
+   * Clearing the matchup also collapses a team back to its first player, because
+   * outside the drill-in only one player can be selected.
+   *
+   * Opening one is `push`ed (T11): it changes what the page shows, so back — the
+   * gesture, the browser button and the in-view one alike — returns to the list
+   * it was opened from. Clearing stays a `replace`, because that is the *other*
+   * way out, used when there is no stats page behind the drill-in at all.
+   */
+  const setVs = (ids: number[], withPlayer?: number[], opts?: { push?: boolean }) =>
+    patchParams(
+      {
+        vs: formatMatchupSide(ids),
+        rel: null,
+        ...(withPlayer?.length
+          ? { player: formatMatchupSide(withPlayer) }
+          : ids.length
+            ? {}
+            : { player: formatMatchupSide(playerIds.slice(0, 1)) }),
+      },
+      opts,
+    );
 
   if (!pageEntered) {
     return <PageLayout><PageLoadingScreen sectionCount={3} /></PageLayout>;
   }
 
-  // --- Insights (opt-in) mode: graph-first dashboard with its own controls ---
-  if (experience === "insights") {
-    return (
-      <PageLayout title="Stats">
-        <StatsInsights
-          mode={mode}
-          scope={scope}
-          onModeChange={setMode}
-          onScopeChange={setScope}
-          playerId={playerId}
-          onSelectPlayer={(id) => setPlayer(id)}
-        />
-      </PageLayout>
-    );
-  }
-
-  // --- Classic mode (default) ---
   return (
     <PageLayout title="Stats">
-      <SectionTabs tabs={TABS} active={active} onChange={setActive} className="mb-4" />
-
-      <StatsFilterBar
-        config={config}
+      <StatsInsights
         mode={mode}
-        onModeChange={setMode}
         scope={scope}
+        onModeChange={setMode}
         onScopeChange={setScope}
-        playerId={effPlayerId}
-        onPlayerChange={setPlayer}
-        players={players}
-        avatarUpdatedAtById={avatarUpdatedAtById}
+        playerIds={playerIds}
+        onSelectPlayer={(id) => setPlayer(id)}
+        vsIds={vsIds}
+        onSetVs={setVs}
       />
-
-      {active === "players" && <PlayersStatsCard embedded mode={mode} />}
-      {active === "trends" && <TrendsCard embedded defaultOpen initialView={initialTrendsView} mode={mode} />}
-      {active === "h2h" && <HeadToHeadCard embedded mode={mode} scope={scope} playerId={effPlayerId} />}
-      {active === "streaks" && <StreaksCard embedded mode={mode} scope={scope} />}
-      {active === "ratings" && <RatingsCard embedded mode={mode} scope={scope} />}
-      {active === "stars" && <StarsPerformanceCard embedded mode={mode} scope={scope} playerId={effPlayerId} />}
-      {active === "matches" && <PlayerMatchesCard embedded mode={mode} scope={scope} playerId={effPlayerId} />}
     </PageLayout>
   );
 }

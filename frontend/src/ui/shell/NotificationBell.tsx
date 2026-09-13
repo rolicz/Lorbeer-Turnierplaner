@@ -12,6 +12,7 @@ import {
 } from "../../api/notifications.api";
 import { fmtDate } from "../../utils/format";
 import { useClickOutside } from "../layout/useClickOutside";
+import Button from "../primitives/Button";
 
 function timeAgo(iso: string): string {
   const t = new Date(iso).getTime();
@@ -86,21 +87,22 @@ export default function NotificationBell({
 
   return (
     <div ref={wrapRef} className="relative">
-      <button
+      <Button
         type="button"
+        variant="ghost"
         onClick={() => setOpen((v) => !v)}
         aria-label={count > 0 ? `Notifications (${count} unread)` : "Notifications"}
         aria-expanded={open}
-        className="icon-button focus-ring relative inline-flex h-9 w-9 items-center justify-center"
+        className="relative inline-flex h-9 w-9 items-center justify-center p-0"
         title="Notifications"
       >
         <Bell className="h-5 w-5" aria-hidden="true" />
         {count > 0 ? (
-          <span className="absolute -right-0.5 -top-0.5 inline-flex min-w-[1.05rem] items-center justify-center rounded-full bg-accent px-1 text-[10px] font-semibold leading-4 text-white ring-2 ring-bg-card-outer">
+          <span className="absolute -right-0.5 -top-0.5 inline-flex min-w-[1.05rem] items-center justify-center rounded-full bg-accent px-1 text-micro leading-4 text-white ring-2 ring-bg-card-outer">
             {count > 99 ? "99+" : count}
           </span>
         ) : null}
-      </button>
+      </Button>
 
       {open ? (
         <div
@@ -112,7 +114,7 @@ export default function NotificationBell({
         >
           <div className="flex items-center justify-between gap-2 border-b border-border-card-chip/40 px-3 py-2">
             <span className="text-sm font-semibold text-text-normal">Notifications</span>
-            <span className="text-[11px] text-text-muted">{count > 0 ? `${count} new` : "All caught up"}</span>
+            <span className="text-xs text-text-muted">{count > 0 ? `${count} new` : "All caught up"}</span>
           </div>
 
           <div className="max-h-[min(70vh,26rem)] overflow-y-auto">
@@ -137,7 +139,7 @@ export default function NotificationBell({
                         {n.snippet ? (
                           <span className="mt-0.5 block truncate text-xs text-text-muted">{n.snippet}</span>
                         ) : null}
-                        <span className="mt-0.5 block text-[11px] text-text-muted">{timeAgo(n.created_at)}</span>
+                        <span className="mt-0.5 block text-xs text-text-muted">{timeAgo(n.created_at)}</span>
                       </span>
                     </button>
                   </li>

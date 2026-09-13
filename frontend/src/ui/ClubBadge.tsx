@@ -16,8 +16,8 @@ import NationFlag from "./NationFlag";
 export type ClubBadgeSize = "sm" | "md";
 
 const SIZE_CLASS: Record<ClubBadgeSize, string> = {
-  sm: "h-4 w-4 text-[8px]", // 16px
-  md: "h-[22px] w-[22px] text-[10px]",
+  sm: "h-4 w-4 text-micro", // 16px
+  md: "h-[22px] w-[22px] text-micro",
 };
 
 const IMG_SIZE_CLASS: Record<ClubBadgeSize, string> = {

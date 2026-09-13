@@ -1,3 +1,4 @@
+import { Bell, Mail, Pencil, X } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -14,6 +15,7 @@ import { SectionTabs, type SectionTab } from "../ui/SectionTabs";
 import { Users, UserPlus } from "lucide-react";
 import { useRouteEntryLoading } from "../ui/layout/useRouteEntryLoading";
 import PageLayout from "../ui/layout/PageLayout";
+import { useTabParam } from "../ui/shell/useTabParam";
 
 import { useAuth } from "../auth/AuthContext";
 import {
@@ -31,6 +33,9 @@ import { usePlayerAvatarMap } from "../hooks/usePlayerAvatarMap";
 import { useSeenGuestbookIdsByProfileId } from "../hooks/useSeenGuestbook";
 import { scrollToSectionById } from "../ui/scrollToSection";
 
+type PlayersTab = "players" | "add";
+const PLAYERS_TAB_KEYS = ["players", "add"] as const satisfies readonly PlayersTab[];
+
 /** Solid ring for a single cup, evenly-split conic-gradient ring for multiple. */
 function cupRingBackground(defs: CupDef[]): string | undefined {
   const colors = defs.map((c) => rgbFromCssVar(cupColorVarForKey(c.key)));
@@ -47,8 +52,9 @@ export default function PlayersAdminPage() {
   const navigate = useNavigate();
   const qc = useQueryClient();
 
-  type PlayersTab = "players" | "add";
-  const [tab, setTab] = useState<PlayersTab>("players");
+  const [rawTab, setTab] = useTabParam<PlayersTab>(PLAYERS_TAB_KEYS, "players");
+  // The "add" tab is admin-only; a stale/hand-typed deep link falls back.
+  const tab: PlayersTab = rawTab === "add" && !isAdmin ? "players" : rawTab;
   const playersTabs: SectionTab<PlayersTab>[] = [
     { key: "players", label: "Players", icon: <Users size={14} /> },
     ...(isAdmin ? [{ key: "add" as PlayersTab, label: "Add player", icon: <UserPlus size={14} /> }] : []),
@@ -230,7 +236,7 @@ export default function PlayersAdminPage() {
                       {hasUnreadPokes ? (
                         <button type="button" title="Unread anpöbel notifications" onClick={() => openProfile(p.id, false)}>
                           <Pill title="Unread anpöbel notifications">
-                            <i className="fa-solid fa-bell text-accent" aria-hidden="true" />
+                            <Bell size={12} className="text-accent" aria-hidden="true" />
                             <span className="tabular-nums text-text-normal">{unseenPokes}</span>
                           </Pill>
                         </button>
@@ -238,7 +244,7 @@ export default function PlayersAdminPage() {
                       {hasUnseen ? (
                         <button type="button" title="Jump to latest unread guestbook message" onClick={() => openProfile(p.id, true)}>
                           <Pill title="Unread guestbook messages">
-                            <i className="fa-solid fa-envelope text-accent" aria-hidden="true" />
+                            <Mail size={12} className="text-accent" aria-hidden="true" />
                             <span className="tabular-nums text-text-normal">{unseenCount}</span>
                           </Pill>
                         </button>
@@ -246,11 +252,11 @@ export default function PlayersAdminPage() {
                       {isAdmin ? (
                         editing ? (
                           <Button variant="ghost" type="button" onClick={() => { setEditId(null); setEditName(""); }} title="Cancel">
-                            <i className="fa-solid fa-xmark" aria-hidden="true" />
+                            <X size={14} aria-hidden="true" />
                           </Button>
                         ) : (
                           <Button variant="ghost" type="button" onClick={() => { setEditId(p.id); setEditName(p.display_name); }} title="Rename">
-                            <i className="fa-solid fa-pen" aria-hidden="true" />
+                            <Pencil size={14} aria-hidden="true" />
                           </Button>
                         )
                       ) : null}
