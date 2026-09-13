@@ -9,6 +9,7 @@ import InlineLoading from "../../ui/primitives/InlineLoading";
 import { getStatsStreaks } from "../../api/stats.api";
 import { qk } from "../../api/queryKeys";
 import { usePlayerAvatarMap } from "../../hooks/usePlayerAvatarMap";
+import { useCupHolders } from "../../hooks/useCupHolders";
 import StatsSection from "./StatsSection";
 import type { StatsMode } from "./statsMode";
 import type { StatsScope, StatsStreakCategory } from "../../api/types";
@@ -32,6 +33,7 @@ export default function StreaksView({ mode, scope }: { mode: StatsMode; scope: S
     placeholderData: keepPreviousData, staleTime: 30_000,
   });
   const { avatarUpdatedAtById } = usePlayerAvatarMap();
+  const { cupsHeldByPlayerId } = useCupHolders();
   if (q.isLoading && !q.data) return <InlineLoading label="Loading…" />;
   const cats: StatsStreakCategory[] = q.data?.categories ?? [];
   if (!cats.length) return <EmptyState title="No streak data yet." className="py-6" />;
@@ -52,7 +54,7 @@ export default function StreaksView({ mode, scope }: { mode: StatsMode; scope: S
                     <span className="w-4 text-center text-xs font-bold tabular-nums text-text-muted">{i + 1}</span>
                     {/* Identity → profile (the row itself has no other action). */}
                     <PlayerLink playerId={r.player.id} name={r.player.display_name} className="flex min-w-0 flex-1 items-center gap-2">
-                      <AvatarCircle playerId={r.player.id} name={r.player.display_name} updatedAt={avatarUpdatedAtById.get(r.player.id) ?? null} sizeClass="h-6 w-6" />
+                      <AvatarCircle playerId={r.player.id} name={r.player.display_name} updatedAt={avatarUpdatedAtById.get(r.player.id) ?? null} sizeClass="h-6 w-6" cups={cupsHeldByPlayerId.get(r.player.id)} />
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-sm text-text-normal">{r.player.display_name}</span>
                         {streakDateText(r) ? <span className="block text-xs tabular-nums text-text-muted">{streakDateText(r)}</span> : null}

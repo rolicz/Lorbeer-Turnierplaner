@@ -12,6 +12,7 @@ import { getStatsPlayerMatches, getStatsStreaks } from "../../api/stats.api";
 import { listClubs } from "../../api/clubs.api";
 import { qk } from "../../api/queryKeys";
 import { usePlayerAvatarMap } from "../../hooks/usePlayerAvatarMap";
+import { useCupHolders } from "../../hooks/useCupHolders";
 import { usePlayerColors } from "./usePlayerColors";
 import { Sparkline, Radar } from "./charts";
 import { ChipGroup, chipClass } from "../../ui/primitives/Chip";
@@ -26,6 +27,7 @@ import type { StatsScope } from "../../api/types";
 
 export default function PlayerProfile({ mode, scope, rows, selectedId, onSelect }: { mode: StatsMode; scope: StatsScope; rows: Row[]; selectedId: number | null; onSelect: (id: number) => void }) {
   const { avatarUpdatedAtById } = usePlayerAvatarMap();
+  const { cupsHeldByPlayerId } = useCupHolders();
   const { colorOf } = usePlayerColors();
   const row = rows.find((r) => r.id === selectedId) ?? null;
 
@@ -92,7 +94,7 @@ export default function PlayerProfile({ mode, scope, rows, selectedId, onSelect 
               className="flex min-w-0 flex-1 items-center gap-3 rounded-xl text-left focus-ring"
               title={`Open ${row.name}'s full profile`}
             >
-              <AvatarCircle playerId={row.id} name={row.name} updatedAt={avatarUpdatedAtById.get(row.id) ?? null} sizeClass="h-14 w-14" />
+              <AvatarCircle playerId={row.id} name={row.name} updatedAt={avatarUpdatedAtById.get(row.id) ?? null} sizeClass="h-14 w-14" cups={cupsHeldByPlayerId.get(row.id)} />
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-1.5">
                   <span className="truncate text-lg font-bold text-text-normal">{row.name}</span>

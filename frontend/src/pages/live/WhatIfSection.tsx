@@ -14,6 +14,7 @@ import type { Match } from "../../api/types";
 import { sideBy } from "../../helpers";
 import { useAuth } from "../../auth/AuthContext";
 import { usePlayerAvatarMap } from "../../hooks/usePlayerAvatarMap";
+import { useCupHolders } from "../../hooks/useCupHolders";
 import AvatarCircle from "../../ui/primitives/AvatarCircle";
 import Button from "../../ui/primitives/Button";
 import { Chip } from "../../ui/primitives/Chip";
@@ -164,6 +165,7 @@ function focusClause(name: string, wins: number, draws: number, losses: number):
 export default function WhatIfSection({ matches, players }: { matches: Match[]; players: PlayerLite[] }) {
   const { actorPlayerId } = useAuth();
   const { avatarUpdatedAtById } = usePlayerAvatarMap();
+  const { cupsHeldByPlayerId } = useCupHolders();
 
   const liveTable = useMemo(
     () => computeFinishedStandings(matches, players, { includePlaying: true }),
@@ -299,6 +301,7 @@ export default function WhatIfSection({ matches, players }: { matches: Match[]; 
                       name={r.name}
                       updatedAt={avatarUpdatedAtById.get(r.playerId) ?? null}
                       sizeClass="h-8 w-8"
+                      cups={cupsHeldByPlayerId.get(r.playerId)}
                     />
                     <span
                       className={

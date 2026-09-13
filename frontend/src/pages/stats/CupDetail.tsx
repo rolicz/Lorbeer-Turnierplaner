@@ -21,6 +21,7 @@ import { qk } from "../../api/queryKeys";
 import { fmtDate } from "../../utils/format";
 import { prefersReducedMotion } from "../../ui/scroll";
 import { usePlayerAvatarMap } from "../../hooks/usePlayerAvatarMap";
+import { useCupHolders } from "../../hooks/useCupHolders";
 import StatsSection from "./StatsSection";
 import { usePlayerColors } from "./usePlayerColors";
 import { buildReigns, cupRecords, perPlayer, reignSpan, type CupRecordEntry, type Reign } from "./cupReigns";
@@ -37,6 +38,7 @@ function names(entries: CupRecordEntry[]): string {
 export default function CupDetail({ cupKey, cupName }: { cupKey: string; cupName: string }) {
   const q = useQuery({ queryKey: qk.cup(cupKey), queryFn: () => getCup(cupKey) });
   const { avatarUpdatedAtById } = usePlayerAvatarMap();
+  const { cupsHeldByPlayerId } = useCupHolders();
   const { colorOf } = usePlayerColors();
   const nav = useNavigate();
   const [showAll, setShowAll] = useState(false);
@@ -193,6 +195,7 @@ export default function CupDetail({ cupKey, cupName }: { cupKey: string; cupName
                         name={r.holder.display_name}
                         updatedAt={avatarUpdatedAtById.get(r.holder.id) ?? null}
                         sizeClass="h-8 w-8"
+                        cups={cupsHeldByPlayerId.get(r.holder.id)}
                       />
                     </PlayerLink>
                     <span className="pointer-events-none relative z-10 min-w-0 flex-1">
@@ -264,6 +267,7 @@ export default function CupDetail({ cupKey, cupName }: { cupKey: string; cupName
                           name={row.player.display_name}
                           updatedAt={avatarUpdatedAtById.get(row.player.id) ?? null}
                           sizeClass="h-7 w-7"
+                          cups={cupsHeldByPlayerId.get(row.player.id)}
                         />
                         <span className="min-w-0">
                           <span className="block truncate font-medium text-text-normal">{row.player.display_name}</span>

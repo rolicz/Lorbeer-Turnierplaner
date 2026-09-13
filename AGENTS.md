@@ -69,8 +69,9 @@ Size (2026-09-13): backend ≈ 13.3k LOC Python (`app/` + `manage.py` + `run.py`
   `h2h/matchupSummary.ts` the "A vs B, every match" drill-in.
 - `src/ui/` — `primitives/` (Button, Card, CardSection, Modal, Input, Pill, EmptyState,
   InlineLoading, LoadingPlaceholder, MatchOverviewPanel, ScoreLine, MatchSides, StatTile, Chip,
-  Stars, List/ListRow, PlayerLink, RecordLine [the `3P 3-0-0 14:6 GD +8` line under a
-  standings/results row — fixed columns sized per list by `recordWidths(rows)`], …),
+  Stars, List/ListRow, PlayerLink, AvatarCircle [one ringed avatar, T15], RecordLine [the
+  `3P 3-0-0 14:6 GD +8` line under a standings/results row — fixed columns sized per list by
+  `recordWidths(rows)`], …),
   `shell/` (AppShell, Sidebar desktop, MobileChrome drawer, BottomTabBar [mobile, 5 destinations],
   navConfig, useDestinationLinks + lastLocation [per-destination last-page memory],
   routeMeta + backNavigation [contextual back, shared with the swipe gesture], navStack,
@@ -290,6 +291,11 @@ Other helpers: `seed --file backend/data/seed.json` (players/leagues/clubs upser
   page, player stats). A row that already has an action keeps it — the identity link hugs its text
   and sits above a stretched link/button overlay (`ListRow` pattern). **Never nest an `<a>` in an
   `<a>`**; `document.querySelectorAll("a a").length` must stay 0.
+- **An avatar speaks in the present tense** (T15, 2026-09-13): every player avatar is
+  `ui/primitives/AvatarCircle` and wears a ring — neutral hairline by default, the cup's colour
+  when `cups` says that player holds it **today** (`hooks/useCupHolders`). A ring is never used for
+  historic ownership (that is the standings' `CupOwnerBadge` crown), and comment authors, guestbook
+  entries and pickers carry no cup marking at all.
 - **Icons: lucide-react only** (`DESIGN.md` §1.5). Font Awesome is gone (DS7, 2026-09-13) —
   the dependency, the CSS import and every `<i class="fa-…">` with it. Import the component
   (`import { Crown } from "lucide-react"`) and give it an explicit `size` in px; `aria-hidden`

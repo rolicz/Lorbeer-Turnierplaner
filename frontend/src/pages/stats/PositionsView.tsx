@@ -13,6 +13,7 @@ import { getCup, listCupDefs } from "../../api/cup.api";
 import { cupColorVarForKey, rgbFromCssVar } from "../../cupColors";
 import { qk } from "../../api/queryKeys";
 import { usePlayerAvatarMap } from "../../hooks/usePlayerAvatarMap";
+import { useCupHolders } from "../../hooks/useCupHolders";
 import { fmtRank } from "../../utils/format";
 import StatsSection from "./StatsSection";
 import { InfoButton } from "./explainers";
@@ -87,6 +88,7 @@ export default function PositionsView({ mode }: { mode: StatsMode }) {
     return { total: ts.length, byMode: counts };
   }, [overallQ.data]);
   const { avatarUpdatedAtById } = usePlayerAvatarMap();
+  const { cupsHeldByPlayerId } = useCupHolders();
   const defsQ = useQuery({ queryKey: qk.cupDefs(), queryFn: listCupDefs });
   // Include the main (default-keyed, gold) cup too — it has its own lineage line.
   const cupDefs = useMemo(() => defsQ.data?.cups ?? [], [defsQ.data]);
@@ -252,7 +254,7 @@ export default function PositionsView({ mode }: { mode: StatsMode }) {
                     className="flex w-full flex-col items-center gap-1"
                     onClick={(e) => { if (draggedRef.current) e.preventDefault(); }}
                   >
-                    <AvatarCircle playerId={p.player_id} name={p.display_name} updatedAt={avatarUpdatedAtById.get(p.player_id) ?? null} sizeClass="h-6 w-6" />
+                    <AvatarCircle playerId={p.player_id} name={p.display_name} updatedAt={avatarUpdatedAtById.get(p.player_id) ?? null} sizeClass="h-6 w-6" cups={cupsHeldByPlayerId.get(p.player_id)} />
                     <span className="w-full truncate text-center text-xs text-text-muted">{p.display_name}</span>
                   </PlayerLink>
                 </div>

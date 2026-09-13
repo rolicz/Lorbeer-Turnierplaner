@@ -29,6 +29,7 @@ import { getStatsH2HMatches, type StatsH2HMatchesRequest } from "../../../api/st
 import { listClubs } from "../../../api/clubs.api";
 import { qk } from "../../../api/queryKeys";
 import { usePlayerAvatarMap } from "../../../hooks/usePlayerAvatarMap";
+import { useCupHolders } from "../../../hooks/useCupHolders";
 import { ChipGroup } from "../../../ui/primitives/Chip";
 import { MatchHistoryList, tournamentMatchHref } from "../MatchHistoryList";
 import StatsSection from "../StatsSection";
@@ -67,6 +68,7 @@ function MatchupSide({ ids, nameOf, align = "left" }: {
   align?: "left" | "right";
 }) {
   const { avatarUpdatedAtById } = usePlayerAvatarMap();
+  const { cupsHeldByPlayerId } = useCupHolders();
   const solo = ids.length === 1;
   return (
     <div className={"flex min-w-0 flex-col gap-1 " + (align === "right" ? "items-end" : "items-start")}>
@@ -82,6 +84,7 @@ function MatchupSide({ ids, nameOf, align = "left" }: {
             name={nameOf(id)}
             updatedAt={avatarUpdatedAtById.get(id) ?? null}
             sizeClass={solo ? "h-10 w-10" : "h-8 w-8"}
+            cups={cupsHeldByPlayerId.get(id)}
           />
           <span className={"truncate font-bold text-text-normal " + (solo ? "text-base" : "text-sm")}>{nameOf(id)}</span>
         </PlayerLink>

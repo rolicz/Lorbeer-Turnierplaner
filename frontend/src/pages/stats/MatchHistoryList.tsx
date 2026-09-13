@@ -1,13 +1,14 @@
 /* eslint-disable react-refresh/only-export-components */
 import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
-import type { Club, MatchState, StatsMatch, StatsPlayerMatchesTournament } from "../../api/types";
+import type { Club, MatchState, StatsMatch, StatsPlayerMatchesTournament, TournamentCupStake } from "../../api/types";
 import { sideBy, winnerSide } from "../../helpers";
 import MatchSides from "../../ui/primitives/MatchSides";
 import { Pill, pillDate } from "../../ui/primitives/Pill";
 import ScoreLine, { type ScoreResult, type ScoreSide } from "../../ui/primitives/ScoreLine";
 import TournamentLaurelMarkers from "./TournamentLaurelMarkers";
 import { fmtDate } from "../../utils/format";
+import { useCupFirstClaims } from "../../hooks/useCupHolders";
 
 
 /**
@@ -121,6 +122,41 @@ export function MatchRowWithClubs({
   );
 }
 
+/**
+ * What the laurel on the date pill is about, in words (T15-B): which cup was on
+ * the line in this tournament and who went into it holding the thing.
+ *
+ * Per block, never per row — a cup cannot change hands mid tournament. The
+ * marker alone only says "a cup was at stake"; the name is what Roli asked for,
+ * and the two together read as "Rumpi had it, and this is where he had to keep
+ * it". The one tournament per cup where nobody held it yet (the cup's first
+ * claim, `useCupFirstClaims`) says exactly that instead of inventing a
+ * defender: `cup_stakes` names the *winner* there.
+ */
+function CupStakeLine({ tournamentId, stakes }: { tournamentId: number; stakes?: TournamentCupStake[] | null }) {
+  const rows = (stakes ?? []).filter((s) => s.owner_player_name);
+  // The lineage query lives one component deeper on purpose: a list with no cup
+  // at stake (every friendly, most tournaments) then asks the server nothing and
+  // needs no `QueryClient` around it — this list is rendered on five surfaces.
+  return rows.length ? <CupStakeLineRows tournamentId={tournamentId} rows={rows} /> : null;
+}
+
+function CupStakeLineRows({ tournamentId, rows }: { tournamentId: number; rows: TournamentCupStake[] }) {
+  const { firstClaimTournamentByCupKey } = useCupFirstClaims();
+
+  return (
+    <div className="mt-1 text-xs text-text-muted">
+      {rows
+        .map((s) =>
+          firstClaimTournamentByCupKey.get(s.key) === tournamentId
+            ? `${s.name} at stake · nobody held it yet`
+            : `${s.name} at stake · ${s.owner_player_name} defending`,
+        )
+        .join(" · ")}
+    </div>
+  );
+}
+
 export function MatchHistoryTournamentBlock({
   t,
   focusId,
@@ -159,6 +195,7 @@ export function MatchHistoryTournamentBlock({
             {showModePill ? <Pill className="pill-default">{t.mode}</Pill> : null}
             {extraPills}
           </div>
+          <CupStakeLine tournamentId={t.id} stakes={t.cup_stakes} />
         </div>
         <div className="shrink-0 flex items-center gap-2">
           <div className="text-xs text-text-muted">{t.matches.length} matches</div>
