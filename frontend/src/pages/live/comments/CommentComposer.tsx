@@ -241,6 +241,7 @@ export default function CommentComposer({
   onGoalPlayerNameChange,
   scorerSuggestions = [],
   goalFallbackScorer = null,
+  scorerPlaceholder = "Scorer",
   shotsA,
   onShotsAChange,
   shotsB,
@@ -277,6 +278,8 @@ export default function CommentComposer({
   scorerSuggestions?: string[];
   /** The scoring side's club: what an unnamed goal is credited to. */
   goalFallbackScorer?: string | null;
+  /** Example name for the empty scorer field (a footballer, never a human player). */
+  scorerPlaceholder?: string;
   shotsA: string;
   onShotsAChange: (value: string) => void;
   shotsB: string;
@@ -414,7 +417,7 @@ export default function CommentComposer({
               <input
                 className="input-field"
                 type="text"
-                placeholder={`Scorer (default: ${goalFallbackScorer ?? "—"})`}
+                placeholder={scorerPlaceholder}
                 value={goalPlayerName}
                 onChange={(e) => onGoalPlayerNameChange(e.target.value)}
                 disabled={disabled}
@@ -440,7 +443,7 @@ export default function CommentComposer({
               <div className="text-xs text-text-muted">
                 {goalFallbackScorer
                   ? `No name: the goal goes to ${goalFallbackScorer}.`
-                  : "Name the scorer — this side has no club yet."}
+                  : "Name the scorer."}
               </div>
             ) : null}
           </div>

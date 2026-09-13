@@ -59,6 +59,7 @@ export default function MobileChrome({
     <>
       {/* Auto-hiding top bar — slides up on scroll-down, back down on scroll-up. */}
       <header
+        id="app-top-nav"
         className={
           "sticky top-0 z-30 nav-shell backdrop-blur-md pt-[env(safe-area-inset-top,0px)] transition-transform duration-300 ease-out-expo lg:hidden " +
           (hidden && !open ? "-translate-y-full" : "translate-y-0") +

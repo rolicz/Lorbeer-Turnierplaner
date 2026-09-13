@@ -24,11 +24,11 @@ import { useCommentMutations } from "./comments/useCommentMutations";
 import { readRecentScorers, rememberScorer } from "./comments/recentScorers";
 
 /**
- * Who scores when nobody is named. The scorer is the footballer in the game, and
- * the backend requires one, so an unnamed goal goes to the house legend rather
- * than to a club or to one of the humans at the console.
+ * The example shown in the empty scorer field — a footballer, never one of the
+ * humans at the console. It is a placeholder only: it disappears as you type and
+ * is never posted, so a goal always carries the name you actually entered.
  */
-const DEFAULT_SCORER = "Krankl";
+const SCORER_PLACEHOLDER = "Krankl";
 import CommentFilterBar from "./comments/CommentFilterBar";
 import CommentList from "./comments/CommentList";
 import {
@@ -656,8 +656,9 @@ export default function TournamentCommentsCard({
     setScopeOverride(null);
   }
 
-  const goalFallbackScorer = DEFAULT_SCORER;
-  const goalScorerForPost = goalPlayerName.trim() || goalFallbackScorer || "";
+  // No silent fallback: the scorer is whatever was typed (the field is required).
+  const goalFallbackScorer = null;
+  const goalScorerForPost = goalPlayerName.trim();
 
   const canSubmit =
     draftMode === "goal"
@@ -767,6 +768,7 @@ export default function TournamentCommentsCard({
       onGoalPlayerNameChange={setGoalPlayerName}
       scorerSuggestions={scorerSuggestions}
       goalFallbackScorer={goalFallbackScorer}
+      scorerPlaceholder={SCORER_PLACEHOLDER}
       shotsA={shotsA}
       onShotsAChange={setShotsA}
       shotsB={shotsB}

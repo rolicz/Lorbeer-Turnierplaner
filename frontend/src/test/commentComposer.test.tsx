@@ -131,14 +131,15 @@ describe("CommentComposer", () => {
     const { getByLabelText, container } = renderComposer({
       mode: "goal",
       goalSide: "A",
-      goalFallbackScorer: "Krankl",
+      goalFallbackScorer: null,
+      scorerPlaceholder: "Krankl",
     });
 
     const scorer = getByLabelText("Goal scorer") as HTMLInputElement;
     // free text, always editable, and nothing is prefilled or suggested from the app's players
     expect(scorer).not.toBeDisabled();
     expect(scorer.value).toBe("");
-    expect(scorer.getAttribute("placeholder")).toBe("Scorer (default: Krankl)");
+    expect(scorer.getAttribute("placeholder")).toBe("Krankl");
     expect(scorer.getAttribute("list")).toBeNull();
     expect(container.querySelector("datalist")).toBeNull();
     // the side buttons name the two teams, but nothing offers a human as the scorer
@@ -150,12 +151,12 @@ describe("CommentComposer", () => {
     const { getByText, getByTitle, queryByText, rerender } = renderComposer({
       mode: "goal",
       goalSide: "A",
-      goalFallbackScorer: "Krankl",
+      goalFallbackScorer: null,
       scorerSuggestions: ["Mbeumo", "Fernandes"],
       onGoalPlayerNameChange,
     });
 
-    expect(getByText("No name: the goal goes to Krankl.")).toBeInTheDocument();
+    expect(getByText("Name the scorer.")).toBeInTheDocument();
     fireEvent.click(getByTitle("Scorer: Mbeumo"));
     expect(onGoalPlayerNameChange).toHaveBeenCalledWith("Mbeumo");
 
@@ -166,16 +167,16 @@ describe("CommentComposer", () => {
         mode="goal"
         goalSide="A"
         goalPlayerName="Mbeumo"
-        goalFallbackScorer="Krankl"
+        scorerPlaceholder="Krankl"
         scorerSuggestions={["Mbeumo", "Fernandes"]}
       />,
     );
-    expect(queryByText("No name: the goal goes to Krankl.")).toBeNull();
+    expect(queryByText("Name the scorer.")).toBeNull();
   });
 
   it("says a scorer is needed when the scoring side has no club to credit", () => {
     const { getByText } = renderComposer({ mode: "goal", goalSide: "B", goalFallbackScorer: null });
-    expect(getByText("Name the scorer — this side has no club yet.")).toBeInTheDocument();
+    expect(getByText("Name the scorer.")).toBeInTheDocument();
   });
 
   it("turns into the shots entry with one select per team", () => {
