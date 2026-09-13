@@ -244,18 +244,25 @@ Carrying the job alone, it states itself in three ways (S9, resized by T4):
 The stats root keeps `pb-16` so the last content row still clears the capsule when the page is
 scrolled to the end (20px of air at 390px and at 1280px).
 
-## 9b. Editing in place (pickers, composers) — no disclosure wrappers
+## 9b. Editing in place (pickers, composers, toolboxes)
 
 An editor is not a section you unfold; it is the thing itself becoming editable.
 
-- **The trigger is the value.** Tapping the club in the scoreboard opens the club picker;
-  tapping a score opens the score control. Never a separate row that repeats the same value
-  with an "edit" affordance next to it.
-- **Never show one value twice on a screen.** If the scoreboard already names the club, the
-  page must not carry a second club row. The picker may show it — it is a different surface.
-- **No `CollapsibleCard` around an editor or a feed.** Collapsibles are for *lists you browse*
-  (league groups on the Clubs page — the only one left), never for the page's own content. A
-  comment feed and its composer are the page; they are always open.
+- **The trigger names or shows what it edits.** Tapping the club in the scoreboard opens the
+  club editor; tapping a score opens the score control. Never a bare "edit" affordance next to a
+  value it does not describe.
+- **Don't scatter one job across two places.** Whatever a value needs to be edited — the value
+  itself, its tools, its filters — belongs to one surface.
+- **No disclosure around a feed or a single input.** A comment feed and its composer are the
+  page; they are always open. Collapsibles are for *lists you browse* (league groups on the
+  Clubs page).
+- **A group of secondary editing controls may hide behind one disclosure** — and should, when
+  leaving it open clutters the screen with tools the reader does not need (club filters,
+  randomisers). Rules when you do: one trigger that names what is inside, one clearly bounded
+  container so it is obvious what belongs to it, and **everything that job needs lives inside**,
+  including the values being edited. A panel that hides the tools but sends you elsewhere to pick
+  the value is worse than no panel — that is the one case where repeating a value on screen (the
+  read-only scoreboard and the open editor) is correct.
 - **A feed and its composer are one card.** The composer is the card's last row, separated by a
   hairline and sticky, so it floats over the feed while you read and settles flush on the card's
   bottom edge at the end — never a second card floating next to the feed. Groups *inside* the
@@ -282,7 +289,8 @@ An editor is not a section you unfold; it is the thing itself becoming editable.
 - Do colour a result through `text-win/draw/loss`; don't tint whole boxes red/green.
 - Do keep names next to scores; don't push them to the panel edges.
 - Do use `section-label` for flat page sections; don't invent new header styles.
-- Do open an editor from the value it edits; don't wrap it in a collapsible or repeat the value.
+- Do open an editor from the value it edits; don't scatter one job across two places.
+- Do hide a *toolbox* behind one named disclosure; don't leave secondary tools on screen forever.
 - Do prefer `ListRow`; don't hand-roll `flex justify-between` rows with ad-hoc paddings.
 - Do let the page say the mode; don't print `1v1`/`2v2` on a match card that sits in a
   single-mode context.
