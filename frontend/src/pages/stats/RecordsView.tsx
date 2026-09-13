@@ -7,6 +7,7 @@ import { keepPreviousData, useQueries, useQuery } from "@tanstack/react-query";
 import InlineLoading from "../../ui/primitives/InlineLoading";
 import PlayerLink from "../../ui/primitives/PlayerLink";
 import ScoreLine from "../../ui/primitives/ScoreLine";
+import StatTile from "../../ui/primitives/StatTile";
 import { getStatsPlayerMatches, getStatsPlayers, getStatsStreaks } from "../../api/stats.api";
 import { qk } from "../../api/queryKeys";
 import { teamName } from "../../utils/matchDisplay";
@@ -233,30 +234,30 @@ export default function RecordsView({
           <div className="section-head"><span className="section-label">Longest runs</span></div>
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             {streakCards.map((s) => (
-              <div key={s.name} className="inset px-3 py-2.5">
-                <div className="flex items-center justify-between gap-2">
-                  <h3 className="inline-flex items-center gap-2 text-sm font-semibold text-text-normal">
-                    {s.name}
-                    {s.runs.length > 1 ? <span className="font-normal text-text-muted">×{s.runs.length}</span> : null}
-                  </h3>
-                  <div className="shrink-0 font-mono text-lg font-bold tabular-nums text-accent">{s.length}</div>
-                </div>
-                <div className="mt-1.5 space-y-1.5">
-                  {s.runs.slice(0, 6).map((run, i) => (
-                    <div key={(run.player?.id ?? i) + "-" + i} className="min-w-0">
-                      {run.player?.id ? (
-                        <PlayerLink playerId={run.player.id} name={run.player.display_name} className="inline-block max-w-full">
-                          <span className="block truncate text-sm font-medium text-text-normal">{run.player.display_name}</span>
-                        </PlayerLink>
-                      ) : (
-                        <div className="truncate text-sm font-medium text-text-normal">{run.player.display_name}</div>
-                      )}
-                      <div className="text-xs text-text-muted">{streakDateText(run)}</div>
-                    </div>
-                  ))}
-                  {s.runs.length > 6 ? <div className="text-xs text-text-muted">+{s.runs.length - 6} more</div> : null}
-                </div>
-              </div>
+              /* Label + record length + who holds it — the `StatTile` shape exactly. */
+              <StatTile
+                key={s.name}
+                label={s.name}
+                accessory={s.runs.length > 1 ? <span className="shrink-0 text-xs text-text-muted">×{s.runs.length}</span> : null}
+                value={<span className="text-accent">{s.length}</span>}
+                hint={
+                  <div className="space-y-1.5">
+                    {s.runs.slice(0, 6).map((run, i) => (
+                      <div key={(run.player?.id ?? i) + "-" + i} className="min-w-0">
+                        {run.player?.id ? (
+                          <PlayerLink playerId={run.player.id} name={run.player.display_name} className="inline-block max-w-full">
+                            <span className="block truncate text-sm font-medium text-text-normal">{run.player.display_name}</span>
+                          </PlayerLink>
+                        ) : (
+                          <div className="truncate text-sm font-medium text-text-normal">{run.player.display_name}</div>
+                        )}
+                        <div>{streakDateText(run)}</div>
+                      </div>
+                    ))}
+                    {s.runs.length > 6 ? <div>+{s.runs.length - 6} more</div> : null}
+                  </div>
+                }
+              />
             ))}
           </div>
         </div>

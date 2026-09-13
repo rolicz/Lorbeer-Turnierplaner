@@ -6,6 +6,7 @@ import { ChevronRight } from "lucide-react";
 
 import AvatarCircle from "../../ui/primitives/AvatarCircle";
 import InlineLoading from "../../ui/primitives/InlineLoading";
+import StatTile from "../../ui/primitives/StatTile";
 import { getStatsPlayerMatches, getStatsStreaks } from "../../api/stats.api";
 import { listClubs } from "../../api/clubs.api";
 import { qk } from "../../api/queryKeys";
@@ -21,15 +22,6 @@ import { fmtRating } from "../../utils/format";
 import type { Row } from "./standings";
 import type { StatsMode } from "./statsMode";
 import type { StatsScope } from "../../api/types";
-
-function StatTile({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="inset px-2 py-2 text-center">
-      <div className="text-base font-bold tabular-nums text-text-normal">{value}</div>
-      <div className="text-xs text-text-muted">{label}</div>
-    </div>
-  );
-}
 
 export default function PlayerProfile({ mode, scope, rows, selectedId, onSelect }: { mode: StatsMode; scope: StatsScope; rows: Row[]; selectedId: number | null; onSelect: (id: number) => void }) {
   const { avatarUpdatedAtById } = usePlayerAvatarMap();
@@ -118,7 +110,7 @@ export default function PlayerProfile({ mode, scope, rows, selectedId, onSelect 
 
           <div className="card">
             <h2 className="mb-2 text-sm font-semibold text-text-normal">Key numbers</h2>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
               <StatTile label="Played" value={String(row.played)} />
               <StatTile label="Win rate" value={row.played ? `${Math.round((row.wins / row.played) * 100)}%` : "—"} />
               <StatTile label="Pts / match" value={row.played ? (row.pts / row.played).toFixed(2) : "—"} />

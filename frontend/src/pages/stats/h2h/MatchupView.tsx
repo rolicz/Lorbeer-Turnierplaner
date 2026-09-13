@@ -16,6 +16,7 @@ import AvatarCircle from "../../../ui/primitives/AvatarCircle";
 import Button from "../../../ui/primitives/Button";
 import PlayerLink from "../../../ui/primitives/PlayerLink";
 import InlineLoading from "../../../ui/primitives/InlineLoading";
+import StatTile from "../../../ui/primitives/StatTile";
 import { ErrorToastOnError } from "../../../ui/primitives/ErrorToast";
 import { getStatsH2HMatches, type StatsH2HMatchesRequest } from "../../../api/stats.api";
 import { listClubs } from "../../../api/clubs.api";
@@ -42,13 +43,9 @@ const RESULT_CLASS: Record<MatchResult, string> = {
   L: "bg-loss/15 text-loss ring-loss/30",
 };
 
+/** `StatTile` with the matchup's `title` tooltip kept on the box. */
 function Tile({ label, title, children }: { label: string; title?: string; children: ReactNode }) {
-  return (
-    <div className="inset px-2 py-2 text-center" title={title}>
-      <div className="text-base font-bold tabular-nums text-text-normal">{children}</div>
-      <div className="text-xs text-text-muted">{label}</div>
-    </div>
-  );
+  return <StatTile label={label} value={children} title={title} />;
 }
 
 function PlayerSide({ id, name, updatedAt, align = "left" }: { id: number; name: string; updatedAt: string | null; align?: "left" | "right" }) {
@@ -167,7 +164,7 @@ export default function MatchupView({ mode, scope, leftId, rightId, rows, onBack
 
       {!loading ? (
         <div className="card space-y-3">
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
             <Tile label="Played">{summary.played}</Tile>
             <Tile label="W-D-L" title={`${summary.wins} wins, ${summary.draws} draws, ${summary.losses} losses`}>
               <span className="text-win">{summary.wins}</span>

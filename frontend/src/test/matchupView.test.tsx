@@ -117,14 +117,15 @@ describe("MatchupView", () => {
 
     // Played / W-D-L / goals / ppm / win% / current run.
     expect(await screen.findByText("Played")).toBeInTheDocument();
+    // `StatTile` (DESIGN.md §7) renders the label above the value.
     const tiles = Array.from(container.querySelectorAll(".inset")).map((el) => el.textContent);
-    expect(tiles).toContain("3Played");
-    expect(tiles).toContain("1-1-1W-D-L");
-    expect(tiles).toContain("5:5Goals");
-    expect(tiles).toContain("1.33Pts / match");
-    expect(tiles).toContain("33%Win %");
+    expect(tiles).toContain("Played3");
+    expect(tiles).toContain("W-D-L1-1-1");
+    expect(tiles).toContain("Goals5:5");
+    expect(tiles).toContain("Pts / match1.33");
+    expect(tiles).toContain("Win %33%");
     // Newest match (3:1) was a win, the one before a loss → a run of one.
-    expect(tiles).toContain("W1Current run");
+    expect(tiles).toContain("Current runW1");
 
     // Last 5, oldest → newest.
     const chips = screen.getByLabelText("Recent results (oldest first)");

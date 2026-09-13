@@ -13,6 +13,7 @@ export default function StatTile({
   value,
   hint,
   accessory,
+  title,
   className,
 }: {
   label: React.ReactNode;
@@ -21,10 +22,12 @@ export default function StatTile({
   hint?: React.ReactNode;
   /** Rendered next to the label, right-aligned (e.g. a "record" chip). */
   accessory?: React.ReactNode;
+  /** Native tooltip on the whole tile (spelling out an abbreviated value). */
+  title?: string;
   className?: string;
 }) {
   return (
-    <div className={cn("inset", className)}>
+    <div className={cn("inset", className)} title={title}>
       <div className="flex flex-wrap items-start justify-between gap-x-2 gap-y-1">
         <span className="min-w-0 text-xs text-text-muted">{label}</span>
         {accessory ?? null}
