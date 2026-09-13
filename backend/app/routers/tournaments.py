@@ -771,6 +771,9 @@ async def patch_decider(
     """
     t = get_or_404(s, Tournament, tournament_id, name="Tournament")
 
+    status_now = compute_status_for_tournament(s, tournament_id)
+    ensure_not_done_or_admin(status_now, role, action="set the decider")
+
     dec_type = (body.type or "none").strip()
     if dec_type not in ALLOWED_DECIDERS:
         bad_request(f"Invalid decider type (allowed: {ALLOWED_DECIDERS})")

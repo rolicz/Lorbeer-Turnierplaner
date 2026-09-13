@@ -142,7 +142,8 @@ export default function AdminPanel({
     currentDecider?.loser_goals,
   ]);
 
-  const canEditDecider = !!showDeciderEditor && isEditorOrAdmin && !!onSaveDecider;
+  // Editors: only while the tournament is NOT done (same rule as reorder and the server's).
+  const canEditDecider = !!showDeciderEditor && !!onSaveDecider && (isAdmin || (role === "editor" && !done));
 
   function normalizeInt(s: string): number | null {
     const t = s.trim();
@@ -322,6 +323,10 @@ export default function AdminPanel({
           <div className="section-head"><span className="section-label">Decider</span></div>
 
           {!isEditorOrAdmin && <div className="text-xs text-text-muted">Login as editor/admin to set a decider.</div>}
+
+          {role === "editor" && done && (
+            <div className="text-xs text-text-muted">Tournament is done — only an admin can set the decider.</div>
+          )}
 
           {canEditDecider && (
             <div className="space-y-3">

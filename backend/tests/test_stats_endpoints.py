@@ -119,17 +119,17 @@ def test_stats_players_mode_and_winner_player_id(client, editor_headers, admin_h
     # Tournament is now "done" (all matches finished) -> editor may not set a decider,
     # but admin can, at any time.
     p1, p2 = ids[0], ids[1]
-    dec = client.patch(
-        f"/tournaments/{tid}/decider",
-        json={
-            "type": "penalties",
-            "winner_player_id": p1,
-            "loser_player_id": p2,
-            "winner_goals": 5,
-            "loser_goals": 3,
-        },
-        headers=admin_headers,
-    )
+    decider_body = {
+        "type": "penalties",
+        "winner_player_id": p1,
+        "loser_player_id": p2,
+        "winner_goals": 5,
+        "loser_goals": 3,
+    }
+    blocked = client.patch(f"/tournaments/{tid}/decider", json=decider_body, headers=editor_headers)
+    assert blocked.status_code == 403, blocked.text
+
+    dec = client.patch(f"/tournaments/{tid}/decider", json=decider_body, headers=admin_headers)
     assert dec.status_code == 200, dec.text
 
     decided = client.get("/stats/players")
