@@ -3575,3 +3575,52 @@ start open; the choice is remembered; screenshots 390px + 1280px, blue + light, 
 for all four surfaces; `npm run check` + build.
 
 **Deviations:**
+
+---
+
+## T10 — "Live" once, and a uniform page header rhythm (Roli, 2026-09-13)  ☐
+
+Roli: "in live tournament (or done tournament view): i dont like the 'live' pill there. also not
+on top of screen (beside bell) -> it is visible in the bottom row now with the red blinking dot ->
+same info in three places, i only want it on the bottom thing." + "the subnavs have a lot of
+vertical space above them that feels wasted. i also dont want it to be too cramped. come up with a
+nice solution that does not waste space. also, the pills in live tournament/done tournament are
+the only thing that uses that area, right? can you find another spot for them, so we can have
+uniform subnav bars? (dashboard has none after your changes)"
+
+**A. One live indicator.** Today it says "live" in three places: the tournament header's
+`StatusChip` (`pages/live/LiveTournamentPage.tsx`), the top bar's `ui/shell/ConnectionIndicator.tsx`
+next to the bell, and the bottom tab bar's pulsing dot (U2). Keep **only** the bottom-bar dot.
+- Remove the status pill from the tournament header. Status is still readable from the content
+  (a done tournament shows Results, a live one has the Current tab and the pulsing nav dot); if a
+  tab body genuinely needs the word, put it there, not in the header.
+- `ConnectionIndicator` must stop announcing the happy path: render **nothing while connected**
+  and only appear when the realtime connection is reconnecting or offline (that is real
+  information the user cannot get elsewhere). Keep it in both shells; check the desktop sidebar
+  footer too, which shows the same thing.
+- Sweep for other "live" repetitions: the tournaments list row, the dashboard's "Live now"
+  section label, the drawer/sidebar "Live now" entry. One per surface is fine — three on one
+  screen is not. Say in Deviations what each surface ends up showing.
+
+**B. Uniform sub-navigation.** Every tabbed page should present its tab strip the same way, with
+the space above it earning its place.
+- Measure first (390px and 1280px, a few pages) and put the numbers in Deviations: today the live
+  tournament page has title + a pill row above the tabs, most pages have an empty gap (the title
+  lives in the mobile top bar), and the dashboard now has no strip at all after T5.
+- Give the tournament pills (mode, date, and anything else that survives A) a new home so no page
+  needs a header block above its tabs. Recommendation, yours to refine: fold them into the page's
+  first content block — the Overview tab's own meta line — and keep them next to the desktop `h1`
+  where there is room. They must stay reachable on a done tournament too.
+- Then normalise the rhythm: the same top offset and the same spacing under the strip on every
+  tabbed page (`SectionTabs` and `PageLayout` are the two places to change it, not each page), and
+  a page without a strip (dashboard) must not look like it lost something. Not cramped: keep the
+  tap targets at 44px and the strip's fade affordance from U1.
+
+**DoD:** exactly one live indicator on screen at a time; `ConnectionIndicator` invisible while
+connected and visible when the socket drops (force it in the browser to prove it); no page renders
+a header block above its tab strip; the vertical offset from the top bar to the first tab is
+identical on dashboard, tournaments, live tournament, profile, settings, friendlies, clubs, stats
+(assert the measured offsets); screenshots 390px + 1280px, blue + light, of those pages plus a
+done tournament; `npm run check` + build.
+
+**Deviations:**
