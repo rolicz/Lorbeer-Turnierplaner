@@ -62,7 +62,10 @@ primitives map onto `card`/`inset`. Modals use `card` on a scrim.
 
 - Radius scale: `rounded-2xl` (16px) cards and modals · `rounded-xl` (12px) insets, buttons,
   inputs, segmented controls · `rounded-full` chips, pills, avatars, dots. `rounded-md` only for
-  micro tiles (positions grid). Never `rounded-lg`/`rounded-sm`.
+  micro tiles (positions grid). Never `rounded-lg`/`rounded-sm` — with **one exception**:
+  `SegmentedSwitch` gives its segments and its sliding indicator `rounded-lg` (8px) inside
+  the `rounded-xl` track, because a control nested in a 12px box with 4px of padding cannot
+  repeat that radius without cutting the track's corners. Nothing else may use `rounded-lg`.
 - Spacing rhythm: `gap-2` inside rows, `gap-3` between elements, `space-y-3` inside cards,
   `space-y-5` between page sections. Page padding via `--page-pad-x`.
 - Elevation: only `card` has a shadow. Floating elements (filter pill, toasts, bottom bar) use
@@ -91,7 +94,7 @@ Never both for the same block. No uppercase labels inside cards.
 | Actions | `Button` (`solid`/`ghost`, `sm`/`md`, `iconOnly`) | never raw `btn-base`/`icon-button` classes |
 | Status tag | `Pill` (+ `statusMatchPill`/`statusPill`) | rounded-full, `chip` surface + status tokens |
 | Single/multi choice | `Chip` / `ChipGroup` (`ui/primitives/Chip.tsx`) | rounded-full; selected = `bg-accent/15 text-accent ring-accent/40`; replaces `ToggleChip` |
-| 2–3 view modes | `SegmentedSwitch` | rounded-xl track, sliding accent indicator, lucide icon nodes |
+| 2–3 view modes | `SegmentedSwitch` | `rounded-xl` track, `h-8` `rounded-lg` segments (§4 exception), sliding indicator in `Chip`'s selected style, lucide icon nodes |
 | Page sections | `SectionTabs` | underline tabs with edge fades |
 | Filters (stats) | `StatsFilterPill` | floating capsule, see §9 |
 | Any score | `ScoreLine` | see §8 — the only way to render a score |
