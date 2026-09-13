@@ -4321,7 +4321,7 @@ screenshots 390px + 1280px, blue + light, of both states; `npm run check` + buil
 
 ---
 
-## T13 — A "what if" tab: the best case, shown as the matches that produce it  ☐
+## T13 — A "what if" tab: the best case, shown as the matches that produce it  ☑
 
 Roli: "for standings, best-case positions: can you remove that from the current standings and add
 another tab right of comments that has the best-positions simulation/computation and also shows how
@@ -4390,6 +4390,145 @@ best case" restores the computed scenario; the brute-force test passes; screensh
 blue + light; `npm run check` + build.
 
 **Deviations:**
+
+Implemented 2026-09-13 on `feature/2026-09-round5`, three commits: the algorithm + proof, the tab,
+the move out of Standings. Files: `pages/live/bestCase.ts` (rewritten), `pages/live/WhatIfSection.tsx`
+(new), `pages/live/LiveTournamentPage.tsx`, `pages/live/StandingsTable.tsx`, `test/bestCase.test.ts`,
+`test/whatIfSection.test.tsx` (new).
+
+**The semantics, as written at the top of `bestCase.ts`**
+
+- A **finished** match is a fact — goals and points fixed, not editable.
+- A match **being played counts as it stands**: the goals are on the board and the side that is
+  ahead takes the three points (level = one each), exactly as the live Standings table counts it.
+  This is the judgement call the task left open, and it is the one that answers Roli's complaint:
+  a side 0:5 down is no longer assumed to win. Because the game is genuinely not over, the row is
+  still *editable* — the honest default, the reader's call — so nothing is lost, only assumed
+  sensibly. The row says "live" and its marker says "as it stands".
+- **Best case for F:** F's side wins every remaining match F plays (+3 to both players on the side
+  in 2v2); every other remaining match resolves to whatever minimises the number of players
+  finishing strictly above F; **ties go to F**, so `position = 1 + #{p : pts(p) > pts(F)}`.
+- **Goals:** an assumed result has no scoreline, so the projection does not invent goal difference.
+  Only points decide the position (the second option the task offered). The other players are
+  ordered among themselves by points, then by the goal difference actually played out, then goals
+  for, then name — purely for a stable list; that order can never move F. The tab says so in one
+  line under the table.
+- **Why "F wins everything they play" is optimal, 2v2 included** (spelled out in the file so nobody
+  second-guesses it): for one of F's matches and every other player p, look at `pts(p) − pts(F)`. A
+  partner moves exactly with F (+3/+1/0 both), so the difference to one's own partner is untouched;
+  an opponent gains 0/1/3 while F gains 3/1/0; anyone outside the match gains nothing while F gains
+  3/1/0. "F's side wins" minimises that difference simultaneously for every p, in every match, so
+  the search only has to explore the rival matches.
+
+**Exactness — and where the old code was actually wrong**
+
+The cap is gone. F's total is fixed, so every other player is measured by `slack = pts(F) − fixed(p)`
+and `reach = 3 × rival matches they play`: `slack < 0` = above whatever happens, `slack ≥ reach` =
+can never catch up, the rest are *contenders* and only they are searched over. Branch and bound over
+the rival matches containing a contender, ordered most dangerous first, pruned by (a) contenders
+already above — points only go up, so that count can never fall — and (b) a capacity bound: a match
+with a still-below contender on both sides must hand each of them at least a point (a draw is its
+cheapest outcome), so if the forced total no longer fits in the room those players have left, one
+more of them must go above; if it does not fit for any single player dropped either, two more must.
+The incumbent is seeded with one greedy run per "sacrifice set" of contenders, which is what finds
+the shape of the optimum ("one rival runs away with it, the rest stay level") that a plain
+cheapest-outcome greedy never sees. A rival match with no contender cannot change the position at
+all: it is shown as a draw and marked "any result". A `NODE_BUDGET` (2M nodes) exists only as a
+safety valve — it cannot trigger at this app's sizes; if it ever did, `exact: false` is surfaced in
+the verdict line rather than silently pretending.
+
+Two fixtures where the old implementation gave the **wrong answer**, measured by running
+`5b4af31:bestCase.ts` and the new one side by side:
+
+| Fixture | Old | New |
+|---|---|---|
+| Dev tournament 19 with match #3 in progress (Roli 3:4 Flo), focus **Roli** | **#1** — it treated the live match as unplayed and handed Roli the win he is currently losing | **#3** |
+| 5 players, focus on 6 points, 18 scheduled rival matches (triple round-robin, past `CAP = 13`) | **#5** — above the cap it drew every rival game | **#2**, and #2 is provably the ceiling (18 matches hand out ≥ 36 points, the four rivals can absorb 4 × 6 = 24 while staying level, so at least one must pass; three of them drawing everything among themselves reaches it) |
+
+The goal-difference flaw was display-only in the old code (the position itself was counted on points),
+but it was misleading: it sorted the projection by a goal difference that could never reflect an
+assumed result. It is now stated instead of implied, and the goals of a match in progress count as
+the facts they are.
+
+**The proof (`test/bestCase.test.ts`, 13 cases, ~0.3 s)**
+
+240 randomised fixtures — 120 1v1 (3–6 players, full round-robin draw) and 120 2v2 (4–6 players,
+randomly rotating duos, so a rival is regularly F's partner in another match) — each with up to 12
+matches of which up to 8 are still open, randomly finished / in progress / scheduled with random
+scores. Every fixture is brute-forced over all 3^k combinations by an evaluator written from the
+semantics rather than from the implementation, and three things are asserted: the reported position
+equals the true optimum, the scenario handed to the UI reproduces that position under the independent
+evaluator (so search and projection cannot drift apart), and no single edit of one open match can
+beat it. Half the fixtures focus the *trailing* player, which is where the race is contested: the
+optimum is worse than #1 in ~36% of them (positions #1–#6 all occur). A third case filters the 2v2
+generator down to fixtures where a rival really is F's partner elsewhere and proves 40 of those.
+Alongside: the two original 1v1 cases and the 2v2 partner case, a tie-goes-to-F case, the live-match
+cases, the 18-match cap case, and the hand-built partner trap (F wins with partner q, q then plays a
+rival match — letting q *draw* it already puts F's own partner above them, so the best case is the
+other side winning).
+
+One existing assertion was relaxed: `flo.pts + roli.pts >= 3` became `>= 2`. Its intent ("the rival
+game must distribute points, not leave both on 0") is unchanged; the 3 was incidental to the old
+brute force picking a home win, while the exact search now shows the cheapest of several equally
+optimal outcomes — a draw — because neither player can reach the focus player either way.
+
+**Judgement calls in the UI**
+
+- **Name: "What if"** (lucide `Signpost`). Roli's own words, and the only name that stays true once
+  the reader has edited the scenario — "Best case" would be a lie the moment they touch a control,
+  "Projection"/"Scenarios" is jargon this app does not speak. `DESIGN.md` has no tab-label rule
+  beyond the strip's rhythm (one short label + a 14px lucide icon), which this keeps; with seven tabs
+  the strip scrolls, which it already did at six.
+- **The three-way control: `1 · X · 2`, three `Chip`s under the score.** The app already prints
+  `1 2.10 · X 3.40 · 2 2.90` on exactly these matches (the odds line), so the vocabulary is on
+  screen already; team names would not fit three ways at 390px with two names per side. Each chip is
+  44px wide with a real `aria-label` ("Rumpi + Atzi win", "Draw"), the group is labelled
+  "Result: <side> versus <side>", and one muted line under the section head spells the notation out.
+  Not a `SegmentedSwitch`: that is the canon's *view mode* control (`DESIGN.md` §7), while this
+  writes a value, which is `Chip`'s job — and `Chip` is the only one of the two that takes a
+  per-option accessible name.
+- **Assumed vs played.** A played match shows real numerals and *no control at all* — the strongest
+  possible difference. An open one shows `vs` where the score would be (the canon's scheduled state,
+  §8), the control under it, and the side assumed to *lose* quietened: the row says who has to win
+  without inventing a scoreline. Every non-played row carries one `text-micro` marker naming where
+  its result comes from: "as it stands" (live), "assumed" (the computation), "any result" (no outcome
+  of this match can move the focus player) or "your call" in accent once edited. "any result" is the
+  honest half of exactness: it stops the tab claiming a match "must" be drawn when the draw is only
+  the cheapest of three equal choices.
+- **How much of the table: all of it.** A tournament here has 4–6 players, so the whole projected
+  table is 4–6 rows, and the question the tab answers *is* who finishes above you — cutting it to
+  "you ± 1" would hide exactly that. Each row carries the projected points and, muted, what the
+  scenario adds to today's total (`+6`); the focus row keeps the accent wash the old block used.
+- **Layout.** Phone: picker → verdict → table → matches, so the two numbers that change (position,
+  points) are above the fold while the long list scrolls. Desktop (`lg`): two columns, matches left,
+  verdict + table right, so nothing is ever off-screen while editing. No sticky summary — it would
+  need a hand-rolled opaque bar under the top bar, which `DESIGN.md` reserves for the floating pill,
+  toasts and the tab bar.
+- **The picker opens on the reader's own player** when they are in this tournament (`actorPlayerId`),
+  otherwise on the current leader (what the old block did). Edits are kept per focus player: picking
+  someone else asks a different question, so it starts from that player's best case.
+- The page is live, so an edit to a match that finishes in the meantime drops itself and the row
+  becomes a fact.
+
+**Not done / rejected**
+
+- No "this match decides your place" badge on the rows that *do* matter — the mirror image of
+  "any result" would mark most rows in a tight tournament and cost a second marker column at 390px.
+- The tab is shown on a **draft** tournament too (nothing played yet): the task's rule is "while the
+  tournament has unplayed matches", and "what do I need" is exactly the question before the first
+  kick-off. It disappears the moment the last match is finished (verified: tournament 18 shows
+  Overview · Results · Matches · Comments, and `?tab=whatif` falls back to Overview there).
+
+**Verification**
+
+- `cd frontend && npm run check` → typecheck + eslint clean, **44 files / 433 tests passed** (~35 s);
+  `npm run build` green.
+- Isolated stack: backend `:8003` on a copy of the dev DB (`backend/data/verify.db`, tournaments 19
+  and 17 rewound so each has finished + playing + scheduled matches), vite `:8020`. Playwright at
+  390×844 and 1280×900, blue and light, for the 1v1 (t19) and the 2v2 (t17): default best case, an
+  edited scenario, and reset — the verdict line, the position and the table follow every edit and
+  come back on reset (1v1 Roli #3 → #4 edited → #3 reset; 2v2 Mike #2 → #4 edited → #2 reset). No
+  console or page errors.
 
 ---
 
