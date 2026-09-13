@@ -14,12 +14,12 @@ export default function Card({
   right?: React.ReactNode;
   children: React.ReactNode;
   className?: string;
-  variant?: "outer" | "inner" | "none";
+  /** Surface level (`DESIGN.md` §3): `card` = level 1, `inset` = level 2. */
+  variant?: "card" | "inset" | "none";
   bodyClassName?: string;
   showHeader?: boolean;
 }) {
-  const variantCls =
-    variant === "outer" ? "card-outer" : variant === "inner" ? "card-inner" : "";
+  const variantCls = variant === "card" ? "card" : variant === "inset" ? "inset" : "";
   const hasHeader = showHeader && title != null && title !== "";
 
   return (

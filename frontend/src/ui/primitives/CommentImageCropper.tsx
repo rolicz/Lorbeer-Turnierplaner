@@ -192,13 +192,12 @@ export default function CommentImageCropper({
       onClose={onClose}
       fullScreenOnMobile
       maxWidth="max-w-2xl"
-      variant="panel"
     >
           <ErrorToastOnError error={err} title="Image crop failed" />
           <div className="mt-3 grid gap-3">
             <div
               ref={viewportRef}
-              className="panel-subtle relative mx-auto w-full max-w-[760px] overflow-hidden touch-none"
+              className="inset p-0 relative mx-auto w-full max-w-[760px] overflow-hidden touch-none"
               style={{ aspectRatio: `${aspectW} / ${aspectH}` }}
               onPointerDown={(e) => {
                 if (!img) return;

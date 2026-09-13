@@ -1,6 +1,10 @@
 import React from "react";
 import { cn } from "../cn";
 
+/**
+ * A titled block *inside* a card or a page section — the level-2 `inset` surface
+ * of `DESIGN.md` §3 (`rounded-xl`, chip fill, hairline in the light theme).
+ */
 export default function CardSection({
   title,
   actions,
@@ -15,7 +19,7 @@ export default function CardSection({
   children?: React.ReactNode;
 }) {
   return (
-    <div className={cn("card-inner-flat rounded-2xl", padded && "p-3 space-y-2", className)}>
+    <div className={cn("inset", padded ? "space-y-2" : "p-0", className)}>
       {(title != null || actions != null) ? (
         <div className="flex items-center justify-between gap-3">
           {title != null ? <div className="min-w-0 text-sm font-semibold">{title}</div> : null}

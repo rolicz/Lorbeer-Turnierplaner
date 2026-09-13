@@ -54,7 +54,7 @@ export default function VoteVotersModal({
             </div>
             <div className="flex flex-wrap gap-2">
               {upvoters.map((row) => (
-                <span key={row.id} className="card-chip px-2 py-1 text-[12px]">
+                <span key={row.id} className="chip">
                   {row.display_name}
                 </span>
               ))}
@@ -71,7 +71,7 @@ export default function VoteVotersModal({
             </div>
             <div className="flex flex-wrap gap-2">
               {downvoters.map((row) => (
-                <span key={row.id} className="card-chip px-2 py-1 text-[12px]">
+                <span key={row.id} className="chip">
                   {row.display_name}
                 </span>
               ))}

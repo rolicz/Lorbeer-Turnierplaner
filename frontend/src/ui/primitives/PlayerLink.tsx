@@ -44,7 +44,7 @@ export default function PlayerLink({
       onKeyDown={(e) => e.stopPropagation()}
       aria-hidden={decorative || undefined}
       tabIndex={decorative ? -1 : undefined}
-      className={cn("focus-ring rounded-lg no-underline transition hover:text-accent", className)}
+      className={cn("focus-ring rounded-xl no-underline transition hover:text-accent", className)}
     >
       {children}
     </Link>

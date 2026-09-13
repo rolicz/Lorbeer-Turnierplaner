@@ -27,7 +27,7 @@ export default function AvatarCircle({
   return (
     <span
       className={
-        "panel-subtle inline-flex items-center justify-center overflow-hidden rounded-full shrink-0 " +
+        "inset p-0 inline-flex items-center justify-center overflow-hidden rounded-full shrink-0 " +
         sizeClass +
         " " +
         className

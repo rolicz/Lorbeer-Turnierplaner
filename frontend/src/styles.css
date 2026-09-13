@@ -229,6 +229,22 @@
   .btn-ghost:hover {
     background-color: rgb(var(--color-bg-card-chip) / 0.55);
   }
+  /* Light theme: `--color-bg-card-chip` *is* white there, so the tint above is invisible
+     on a white `card` (DESIGN.md §3 level 1). A ghost button needs a resting edge — drawn
+     as an inset shadow, not a border, so the button keeps its exact box in every theme.
+     The focus ring is restated because it is the same property (DS3). */
+  [data-theme="light"] .btn-ghost {
+    background-color: rgb(var(--color-bg-card-chip));
+    box-shadow: inset 0 0 0 1px rgb(var(--color-border-card-chip) / 0.45);
+  }
+  [data-theme="light"] .btn-ghost:hover {
+    background-color: rgb(var(--color-hover-default));
+  }
+  [data-theme="light"] .btn-ghost:focus-visible {
+    box-shadow:
+      inset 0 0 0 1px rgb(var(--color-border-card-chip) / 0.45),
+      0 0 0 2px rgb(var(--color-accent) / 0.35);
+  }
 
   /* Forms */
   .input-label {

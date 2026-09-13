@@ -44,7 +44,7 @@ export default function LoginPage() {
   }
 
   return (
-    <Card title="Player Login" variant="outer">
+    <Card title="Player Login" variant="card">
       <ErrorToastOnError error={err} title="Login failed" />
       <form
         onSubmit={(e) => {

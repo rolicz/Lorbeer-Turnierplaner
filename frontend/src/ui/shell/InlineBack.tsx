@@ -15,7 +15,7 @@ export default function InlineBack({ className = "" }: { className?: string }) {
       aria-label="Back"
       title="Back"
       className={
-        "hidden h-8 w-8 shrink-0 items-center justify-center rounded-lg text-text-muted transition hover:bg-bg-card-chip/50 hover:text-text-normal focus-ring lg:inline-flex " +
+        "hidden h-8 w-8 shrink-0 items-center justify-center rounded-xl text-text-muted transition hover:bg-bg-card-chip/50 hover:text-text-normal focus-ring lg:inline-flex " +
         className
       }
     >

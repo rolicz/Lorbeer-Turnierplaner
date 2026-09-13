@@ -84,7 +84,7 @@ export default function ClubStarsEditor({
             aria-hidden="true"
           >
             <span className="tabular-nums">{txt}</span>
-            <span className="text-subtle">▾</span>
+            <span className="text-text-muted/80">▾</span>
           </div>
 
           {/* Native select overlaid for mobile-friendly UX */}

@@ -199,13 +199,12 @@ export default function PlayerAvatarEditor({
       onClose={onClose}
       fullScreenOnMobile
       maxWidth="max-w-lg"
-      variant="panel"
     >
           <ErrorToastOnError error={err} title="Avatar action failed" />
           <div className="mt-3 grid gap-3">
             <div
               ref={viewportRef}
-              className="panel-subtle relative mx-auto w-full max-w-[420px] aspect-square overflow-hidden touch-none"
+              className="inset p-0 relative mx-auto w-full max-w-[420px] aspect-square overflow-hidden touch-none"
               onPointerDown={(e) => {
                 if (!img) return;
                 (e.currentTarget as HTMLDivElement).setPointerCapture(e.pointerId);

@@ -940,7 +940,7 @@ export default function TournamentCommentsCard({
         {!collapsed ? commentsContent : null}
       </div>
     ) : collapsible ? (
-      <CollapsibleCard title="Comments" defaultOpen={true} variant="outer" bodyVariant="none" bodyClassName="space-y-3">
+      <CollapsibleCard title="Comments" defaultOpen={true} variant="card" bodyVariant="none" bodyClassName="space-y-3">
         {commentsContent}
       </CollapsibleCard>
     ) : (

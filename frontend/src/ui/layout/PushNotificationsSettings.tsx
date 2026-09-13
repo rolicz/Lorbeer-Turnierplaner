@@ -79,7 +79,7 @@ export default function PushNotificationsSettings({ token }: { token: string | n
         </Button>
       </div>
 
-      <p className="rounded-lg bg-bg-card-chip/35 p-3 text-xs text-text-muted">
+      <p className="inset text-xs text-text-muted">
         Default notifications cover finished tournaments and anpoebeln aimed at you. Switch to <b>Everything</b> for
         live comments, goals, all anpoebeln and score changes, or <b>Off</b> to stay subscribed but silent.
       </p>
@@ -122,22 +122,22 @@ export default function PushNotificationsSettings({ token }: { token: string | n
       </div>
 
       {push.platform === "ios" && !push.standalone ? (
-        <div className="rounded-lg bg-bg-card-chip/35 p-3 text-xs text-text-muted">
+        <div className="inset text-xs text-text-muted">
           On iPhone/iPad, install the app to the Home Screen first — web push only works from the installed PWA.
         </div>
       ) : null}
       {!push.supported ? (
-        <div className="rounded-lg bg-bg-card-chip/35 p-3 text-xs text-text-muted">
+        <div className="inset text-xs text-text-muted">
           This browser does not expose the required Service Worker and Push APIs.
         </div>
       ) : null}
       {(!push.configured || !push.serverEnabled) ? (
-        <div className="rounded-lg bg-bg-card-chip/35 p-3 text-xs text-text-muted">
+        <div className="inset text-xs text-text-muted">
           {push.serverReason || "Push notifications are not configured on the server."}
         </div>
       ) : null}
       {push.error ? (
-        <div className="rounded-lg border border-loss/40 bg-loss/10 p-3 text-xs text-loss">
+        <div className="rounded-xl border border-loss/40 bg-loss/10 p-3 text-xs text-loss">
           <div>{push.error}</div>
           <button type="button" className="mt-2 text-[11px] font-medium underline underline-offset-2" onClick={push.clearError}>
             Dismiss

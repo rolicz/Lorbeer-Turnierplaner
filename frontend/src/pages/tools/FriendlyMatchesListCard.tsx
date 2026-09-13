@@ -419,7 +419,7 @@ export default function FriendlyMatchesListCard({
         </span>
       }
       defaultOpen={true}
-      variant="outer"
+      variant="card"
       bodyVariant="none"
       bodyClassName="space-y-3"
     >

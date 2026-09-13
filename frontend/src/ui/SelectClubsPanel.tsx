@@ -90,7 +90,7 @@ export default function SelectClubsPanel({
   extraTop,
   extraBottom,
   wrap = true,
-  wrapClassName = "panel-subtle",
+  wrapClassName = "inset p-0",
   showSelectedMeta = false,
   narrowLayout = false,
 }: {

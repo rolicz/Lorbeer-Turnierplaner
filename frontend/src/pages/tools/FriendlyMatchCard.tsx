@@ -512,7 +512,7 @@ export default function FriendlyMatchCard({
     <CollapsibleCard
       title="New Friendly"
       defaultOpen={false}
-      variant="outer"
+      variant="card"
       onOpenChange={setCollapsibleOpen}
       bodyVariant="none"
     >

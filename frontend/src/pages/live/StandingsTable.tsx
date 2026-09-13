@@ -446,5 +446,5 @@ export default function StandingsTable({
 
   if (!wrap) return content;
 
-  return <Card title={title} variant="inner">{content}</Card>;
+  return <Card title={title} variant="inset">{content}</Card>;
 }

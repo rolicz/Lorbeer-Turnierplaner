@@ -89,9 +89,9 @@ export function ErrorToastViewport() {
   return (
     <div className="pointer-events-none fixed bottom-[calc(4.5rem+env(safe-area-inset-bottom,0px))] right-4 z-[70] flex max-w-[min(92vw,420px)] flex-col gap-2 lg:bottom-4">
       {items.map((t) => (
-        <div key={t.id} className="pointer-events-auto card-outer p-2 shadow-xl">
-          {/* not CardSection: custom py-2 padding, flex layout, and no rounded-2xl (clipped by parent card-outer's border-radius) */}
-          <div className="card-inner-flat flex items-start gap-2 py-2">
+        <div key={t.id} className="pointer-events-auto card p-2 shadow-xl">
+          {/* not CardSection: custom py-2 padding and a flex layout. */}
+          <div className="inset flex items-start gap-2 py-2">
             <CircleAlert size={14} className="mt-0.5 shrink-0 text-[color:rgb(var(--delta-down)/1)]" aria-hidden="true" />
             <div className="min-w-0 flex-1">
               <div className="text-xs font-semibold text-text-normal">{t.title}</div>

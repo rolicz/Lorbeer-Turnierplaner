@@ -59,7 +59,7 @@ export function ListRow({
   const showChevron = chevron ?? (interactive && trailing == null);
   const label = ariaLabel ?? (typeof title === "string" ? title : undefined);
 
-  const overlayClass = "absolute inset-0 z-0 rounded-lg focus-ring";
+  const overlayClass = "absolute inset-0 z-0 rounded-xl focus-ring";
   const overlay = !interactive ? null : to ? (
     <Link to={to} state={state} aria-label={label} className={overlayClass} aria-current={active ? "page" : undefined} />
   ) : (
