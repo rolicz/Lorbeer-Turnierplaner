@@ -1,6 +1,9 @@
 import { describe, it, expect } from "vitest";
 import {
+  CUP_PARAM,
   canonicalStatsParams,
+  cupSectionHref,
+  cupSectionId,
   defaultSubFor,
   resolveStatsView,
   subForSection,
@@ -138,5 +141,23 @@ describe("subsFor / defaultSubFor / subForSection", () => {
     expect(subForSection("h2h", "duos")).toBe("duos");
     expect(subForSection("h2h", null)).toBe("players");
     expect(subForSection("trends", "duos")).toBe("table");
+  });
+});
+
+describe("the Cups deep link", () => {
+  it("opens the Cups sub-view at one cup's section", () => {
+    expect(cupSectionHref("bauernkranz")).toBe("/stats?view=overview&sub=cups&cup=bauernkranz");
+    expect(cupSectionId("bauernkranz")).toBe("cup-bauernkranz");
+    // The dashboard's default cup and anything that needs escaping survive the trip.
+    expect(cupSectionHref("default")).toBe("/stats?view=overview&sub=cups&cup=default");
+    expect(cupSectionHref("a b&c")).toBe("/stats?view=overview&sub=cups&cup=a%20b%26c");
+  });
+
+  it("resolves to Overview / Cups and keeps the one-shot param for the view to consume", () => {
+    const search = new URLSearchParams(cupSectionHref("bauernkranz").split("?")[1]);
+    expect(resolveStatsView(search, "", null)).toEqual({ view: "overview", sub: "cups", legacy: false });
+    expect(search.get(CUP_PARAM)).toBe("bauernkranz");
+    // A filter change (canonicalisation) must not drop it before the jump happened.
+    expect(canonicalStatsParams(search, "overview", "cups").get(CUP_PARAM)).toBe("bauernkranz");
   });
 });

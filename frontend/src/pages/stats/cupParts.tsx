@@ -121,7 +121,11 @@ export function CupReignTimeline({
 
   return (
     <div className={cn("space-y-2", className)}>
-      <div className="flex h-3 w-full overflow-hidden rounded-full bg-bg-card-chip/50" aria-hidden={onSelect ? undefined : true}>
+      <div
+        data-reign-timeline
+        className="flex h-3 w-full overflow-hidden rounded-full bg-bg-card-chip/50"
+        aria-hidden={onSelect ? undefined : true}
+      >
         {reigns.map((r, i) => {
           const style = { flexGrow: Math.max(1, r.tournaments), flexBasis: 0, backgroundColor: colorOf(r.holder.id).solid };
           const title = `${r.holder.display_name} · ${r.tournaments} tournaments · ${reignSpan(r)}`;

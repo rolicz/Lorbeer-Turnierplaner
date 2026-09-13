@@ -56,7 +56,7 @@ function CupPreview({ cup }: { cup: CupDef }) {
   const defended = Math.max(0, (current?.tournaments ?? 0) - 1);
 
   return (
-    <section>
+    <section data-cup={cup.key}>
       <ErrorToastOnError error={q.error} title="Cup loading failed" />
 
       {/* The header is the first door to the full cup page; the era pill says

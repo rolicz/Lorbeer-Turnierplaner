@@ -3493,7 +3493,7 @@ anywhere; pill clears the bottom tab bar and the last row; `npm run check` + bui
 
 ---
 
-## T5 — Dashboard: cups preview instead of a Cups tab  ☐
+## T5 — Dashboard: cups preview instead of a Cups tab  ☑
 
 Roli: "put the cups preview on the main dashboard page, above trends and below a potential live
 tournament. it should show the current cup holders for both (or more) cups and the reign timeline.
@@ -3515,12 +3515,118 @@ subnavigation on top -> make sure its still consistent with the rest of the app"
   (U6/`lastLocation`) cannot trap the Dashboard tab.
 - While you are there: `pages/dashboard/CupCard.tsx` and `CupDetail` now overlap. Keep exactly
   what each surface needs, share the rest, and say in Deviations what is rendered where.
+- **Added by Roli while T5 was running:** "if i click on 'Lorbeerkranz' (or other cup) i want to
+  get to this location in the stats page and not the top of the stats/cups page" — the preview's
+  links carry `&cup=<key>`, the Cups sub-view scrolls to that cup's section and drops the param
+  again (one-shot, like `?entry=`), and it must not fight N2's scroll restoration.
 
 **DoD:** dashboard order = live tournament (when live) → cups preview → trends → standings; no tab
-strip; both cups visible with holders + timeline; every link lands correctly; `?tab=cups`
-redirects; screenshots 390px + 1280px, blue + light; `npm run check` + build.
+strip; both cups visible with holders + timeline; every link lands correctly (a cup's links land
+*on that cup's section*, asserted by its bounding box, not just the URL); `?tab=cups` redirects;
+screenshots 390px + 1280px, blue + light; `npm run check` + build.
 
-**Deviations:**
+**Deviations:** (implemented 2026-09-13, three commits: shared parts + preview card, tab removal +
+redirect + `?cup=`, tests + docs)
+
+- **What is rendered where after the split.** `pages/dashboard/CupCard.tsx` is **deleted** — with
+  the Cups tab gone it had no caller, and its two halves already existed elsewhere. The overlap
+  now lives in one new file, `pages/stats/cupParts.tsx`, which both surfaces render:
+  `CupHolder` (avatar + name in the cup's colour + "Holding since … · N defended" + a `trailing`
+  slot), `CupReignTimeline` (the proportional bar, the pulse on the running reign, the colour
+  legend) and `ReignChip` (`×N`, accent while the reign runs) plus the two chip classes.
+  **Only on the Cups page** (`CupDetail`): the cup's `card` header, the `Current reign` tile, the
+  three record tiles, the full reign list and the per-player table. **Only on the dashboard:** the
+  `section-head` with the cup's name and the era pill, and the two links into Stats.
+  `CupCard`'s old "Title history" list is *not* reproduced: the Cups page's Reigns list is the
+  same data with more of it (took-from / ended-by, `×N`, avatars), so nothing was lost app-wide.
+- **How compact the preview is** (the judgement the task left open): per cup one header line, one
+  holder line (40px avatar, since-date, `×N` chip) and the timeline + legend — ~130px at 390px, so
+  both cups together weigh about as much as the Standings preview. Everything that needs a table,
+  a tile row or eight rows of history stayed on the Cups page. Deliberately *not* on the
+  dashboard: the reign list, the record tiles, the per-player table, the timeline's "tap a segment
+  to jump" (there is no row to jump to — without `onSelect` the bar renders as spans and is
+  `aria-hidden`, with the block's link carrying the tap).
+- **Two flat sections, not one "Cups" block.** Each cup is its own `section-head` (colour dot +
+  name + chevron, era pill as the trailing item), so the dashboard reads *Live now · Bauernkranz ·
+  Lorbeerkranz · Trends · Standings* — five siblings of the same shape (T8's rhythm) instead of a
+  generic "Cups" label that would have to repeat both names underneath anyway. On desktop the two
+  cups share a row (`grid gap-4 lg:grid-cols-2`, `DESIGN.md` §6 "category blocks"); on a phone
+  they stack. The grid gap is `gap-4`, matching the page's `space-y-4`, so a cup is not further
+  from its neighbour cup than from Trends.
+- **Two doors per cup, no nested `<a>`:** the header link (with the chevron) and a stretched link
+  behind the whole block (`row-tap -mx-2 px-2 py-2`, the idiom from `pages/live/MatchList.tsx`),
+  with the holder's identity above it as its own `PlayerLink` — `document.querySelectorAll("a a")`
+  stays 0. The block's content is `pointer-events-none` so the stretched link owns every pixel the
+  identity does not; the price is that the segments' hover titles do not appear on the dashboard
+  (they do on the Cups page, where the segments are buttons).
+- **The `×N` chip stays the reign length** (the S6 idiom the dashboard already used on its history
+  rows), not a word: it is accent-coloured exactly like the running segment in the timeline right
+  under it, and the defenses are spelled out in the line next to it ("Holding since 11/07/2026 ·
+  2 defended"). The `Current reign` tile that carries the same number on the Cups page would have
+  doubled the block's height.
+- **The dashboard without a tab strip.** `SectionTabs`, `useTabParam` and the `DashTab` type are
+  gone from the page; `PageLayout title="Dashboard"` and `space-y-4` stay. Measured at 390px: the
+  first section label now sits at y=89, where the tab strip used to start (y=85) — so the page
+  begins exactly where its siblings begin and the content simply moved up by the strip's 41px.
+  The 4px difference to every other page is the dashboard's pre-existing `space-y-4` (the others
+  are `.page`'s `space-y-3`) collapsing through the desktop-only title; left for **T10**, which
+  owns the header rhythm. `SectionTabs`/`PageLayout` were not touched.
+- **`?tab=cups` redirects *and* un-traps the tab.** `DashboardPage` renders
+  `<Navigate to="/stats?view=overview&sub=cups" replace />` and, in the same render, calls
+  `forgetLocation("/dashboard?tab=cups")` — U6's own mechanism for a URL that turned out to be
+  dead. Verified end to end: with the memory seeded, the Dashboard nav item points at
+  `/dashboard?tab=cups`, one tap lands on the Cups page, and the *next* tap opens `/dashboard`.
+  `useLocationRestore`'s standalone-PWA resume needs nothing: it overwrites its stored path with
+  the new URL on the very next navigation.
+- **`&cup=<key>` (Roli's mid-task addition) is owned by `statsNav.ts`**, next to the rest of the
+  stats URL scheme (`CUP_PARAM`, `cupSectionId`, `cupSectionHref`), not by the Cups view — that
+  also keeps the lazy `StatsPage` chunk out of the dashboard bundle (the preview imports one pure
+  module, and `StatsPage-*.js` is still its own 80 kB chunk after the build).
+  `CupsView` wraps each cup in `<div id="cup-<key>">` and jumps with the existing
+  `scrollToSectionById` helper — but only once **every** cup's query has settled (it subscribes to
+  the same `qk.cup()` keys through `useQueries`, so the cache answers and nothing is fetched
+  twice). Without that gate the jump lands next to a still-loading first cup and is then 1 200px
+  off when its content arrives. It then deletes the param with `replace`, so: it fires once, Back
+  lands on a clean URL, and N2 keeps the offset (a `replace` on the same path never moves the
+  scroll; the PUSH's restore-to-top is a single rAF that is already satisfied when the jump runs
+  ~300ms later). Measured: a POP back to the Cups page restores 600 → 600 px and does not re-jump.
+  `cup` is a one-shot param in `lastLocation.ts`, so the Stats tab remembers
+  `/stats?view=overview&sub=cups` and never replays the jump.
+- **Found, not fixed (for T10/D1):** `ui/scrollToSection.ts` (and the guestbook's
+  `focusGuestbookEntry`) offset the sticky header by looking up `#app-top-nav` — **an id that no
+  longer exists** anywhere in the app, so both compute a header height of 0. It is harmless today
+  *because* the mobile top bar translates itself away on a downward scroll (`-translate-y-full`,
+  measured) and is `lg:hidden` on desktop, which is why the cup sections land at y=4 with nothing
+  over them. If T10 makes any header stay put, these jumps will land underneath it.
+- Small shared-code notes: `orderCups()` (named cups first, `default` last) moved next to the cup
+  API so the preview and the Cups page cannot drift apart; `reignSpan()` moved into the pure
+  `cupReigns.ts` (keeping `cupParts.tsx` components-only for react-refresh); the timeline carries
+  `data-reign-timeline` and each preview block `data-cup="<key>"` as test seams, the house style
+  of `data-match-panel`/`data-streak`.
+- Tests: new `test/cupsPreview.test.tsx` (9 cases — both cups with holder, since-line and reign
+  chip; the two timelines and their legends; both links carrying `&cup=`; no nested `<a>`; the
+  empty cup; the timeline decorative vs. selectable, reporting the chronological index; the
+  `?tab=cups` redirect; and the remembered-URL trap), plus `?cup=` cases in `statsNav.test.ts`
+  and a one-shot-param case in `lastLocation.test.ts`. `swipeNav.test.ts` lost its one reference
+  to the now-dead `/dashboard?tab=cups` (it used it as an arbitrary same-path replace; it is
+  `/tournaments?tab=new` now). Suite 378 → **389** in 41 files.
+- Runtime on the isolated stack (backend :8003 on a copy of `app.db`, vite :8020): **144 checks**
+  = 36 per cell over blue/light × 390/1280 px — the section order with and without a live
+  tournament, no tab strip, both cups' holder/since/chip/era pill/timeline segments/legend, the
+  header and block links, the holder opening `/profiles/3`, the live block still opening
+  `/live/21`, `?tab=cups` → the Cups page, the seeded memory trap healing itself, both cups'
+  deep links landing with the section's bounding box inside the viewport (390px: y=220 and
+  y=1493; 1280px: y=163 and y=1318) and the param gone, Back restoring the offset, the Cups page
+  still rendering two sections with selectable segments, no horizontal overflow and 0 console
+  errors.
+- Screenshots (scratchpad `shots/`): `t5-dashboard-{390,1280}-{blue,light}`,
+  `t5-dashboard-nolive-…`, `t5-jump-{bauernkranz,default}-…`, `t5-cupspage-…`.
+- **Housekeeping note:** the deletion of `frontend/src/pages/dashboard/CupCard.tsx` was staged by
+  this task but committed by a *concurrent* session's `docs(plan)` commit (`92d538b`) — the repo's
+  index is shared and that session committed while the deletion sat staged. The file is gone and
+  the tree is correct; only the authorship of that one deletion is off.
+- `npm run build` still prints the pre-existing "chunks larger than 500 kB" hint (643 kB
+  `index-*.js`).
 
 ---
 

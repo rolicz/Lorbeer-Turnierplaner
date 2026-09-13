@@ -323,16 +323,19 @@ Other helpers: `seed --file backend/data/seed.json` (players/leagues/clubs upser
   a chevron and a swipe can never land in different places; on a top-level page with nothing to
   pop the gesture does nothing at all. Any horizontally draggable element must carry
   `data-no-swipe-nav`, or a swipe past its scroll edge navigates.
-- **Tab state is `?tab=` on every tabbed page** (U1). Eight pages go through
+- **Tab state is `?tab=` on every tabbed page** (U1). Seven pages go through
   `ui/shell/useTabParam.ts` (unknown or role-forbidden values fall back to the page default, the
   default value is deleted from the URL, writes are `replace`); `LiveTournamentPage` keeps its own
   `?tab=` state because its default depends on the tournament's status. Profile tabs used to be
-  `?pt=` — that param is gone.
+  `?pt=` — that param is gone. **The dashboard has no tabs at all** since T5 (the Cups tab became
+  the cups preview); its old `?tab=cups` redirects to `/stats?view=overview&sub=cups`.
 - **Stats URL scheme** (S1/S2/N4): `/stats?view=overview|trends|h2h|player`, `&sub=` = the
   section's sub-view (`table|positions|streaks|records|cups` for Overview,
   `players|duos` for H2H), `&mode=overall|1v1|2v2`, `&source=tournaments|both|friendlies`,
-  `&player=<id>`, `&vs=<id>` (opens the Matchup drill-in inside H2H) and `&rel=together`
-  (deep links only — an in-app matchup always opens on "Against"). Every stats param is written
+  `&player=<id>`, `&vs=<id>` (opens the Matchup drill-in inside H2H), `&rel=together`
+  (deep links only — an in-app matchup always opens on "Against") and `&cup=<key>` (T5: opens the
+  Cups sub-view at that cup's section, then drops itself — a one-shot param, see
+  `ui/shell/lastLocation.ts`). Every stats param is written
   with `replace`, so browser Back leaves `/stats` and in-view back buttons undo the drill-ins.
   All older shapes (`?view=table|stars`, `?section=…`, `#trends`, nav `state.statsTab`) are
   mapped once by `pages/stats/statsNav.ts` and rewritten — **never re-introduce `?section=`**.

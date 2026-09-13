@@ -203,6 +203,8 @@ describe("lastLocation", () => {
       expect(normalizePath("/tournaments", "")).toBe("/tournaments");
       expect(normalizePath("/profiles/1", "?entry=3")).toBe("/profiles/1");
       expect(normalizePath("/profiles/1", "?tab=guestbook&unread=1")).toBe("/profiles/1?tab=guestbook");
+      // `?cup=` jumps to one cup once; the Stats tab must not replay it (T5).
+      expect(normalizePath("/stats", "?view=overview&sub=cups&cup=bauernkranz")).toBe("/stats?view=overview&sub=cups");
     });
   });
 });

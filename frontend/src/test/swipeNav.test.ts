@@ -153,12 +153,12 @@ describe("canGoForward", () => {
 
   it("a replace keeps the forward entries", () => {
     atIndex(0);
-    recordNavigation("/dashboard");
+    recordNavigation("/tournaments");
     atIndex(1);
     recordNavigation("/stats");
     atIndex(0);
-    recordNavigation("/dashboard", "", "POP");
-    recordNavigation("/dashboard", "?tab=cups", "REPLACE");
+    recordNavigation("/tournaments", "", "POP");
+    recordNavigation("/tournaments", "?tab=new", "REPLACE");
     expect(canGoForward()).toBe(true);
   });
 });
