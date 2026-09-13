@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { MailOpen, MessageSquare, Gamepad2, LayoutGrid, ListChecks, SlidersHorizontal, Trophy } from "lucide-react";
@@ -46,6 +46,7 @@ import { useRouteEntryLoading } from "../../ui/layout/useRouteEntryLoading";
 import { usePageTitle } from "../../ui/layout/PageTitleContext";
 import InlineBack from "../../ui/shell/InlineBack";
 import { forgetLocation } from "../../ui/shell/lastLocation";
+import { useReturnScroll } from "../../ui/shell/useReturnScroll";
 
 type PlayerLite = { id: number; display_name: string };
 type LiveTab = "overview" | "current" | "standings" | "matches" | "comments" | "controls";
@@ -106,14 +107,23 @@ export default function LiveTournamentPage() {
   // null = neither the URL nor the user picked a tab yet → status-dependent default below.
   const [chosenTab, setChosenTabState] = useState<LiveTab | null>(initialTab);
   // Active tab is mirrored to the URL so back-navigation (in-app + browser) restores it.
+  // Each tab keeps its own scroll offset (this page has its own tab state, so it
+  // wires `useReturnScroll` itself instead of going through `useTabParam`).
+  const { swap: swapTabScroll } = useReturnScroll();
+  // The effective tab (see `activeTab` below), kept in a ref so the setter can
+  // name the tab it is leaving without depending on it.
+  const activeTabRef = useRef<LiveTab | null>(initialTab);
   const setActiveTab = useCallback(
     (t: LiveTab) => {
+      if (activeTabRef.current !== t) {
+        swapTabScroll(`${location.pathname}?tab=${activeTabRef.current ?? ""}`, `${location.pathname}?tab=${t}`);
+      }
       setChosenTabState(t);
       const next = new URLSearchParams(window.location.search);
       next.set("tab", t);
       setSearchParams(next, { replace: true });
     },
-    [setSearchParams],
+    [location.pathname, setSearchParams, swapTabScroll],
   );
 
   const tQ = useQuery({
@@ -125,6 +135,9 @@ export default function LiveTournamentPage() {
   // Done tournaments open on Results: their "current match" is just the last
   // finished one. Explicit choices (URL deep link or a tab click) always win.
   const activeTab: LiveTab = chosenTab ?? (tQ.data?.status === "done" ? "standings" : "overview");
+  useEffect(() => {
+    activeTabRef.current = activeTab;
+  }, [activeTab]);
 
   useTournamentWS(tid);
 

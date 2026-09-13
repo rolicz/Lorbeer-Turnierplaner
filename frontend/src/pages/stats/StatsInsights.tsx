@@ -6,6 +6,7 @@ import { useAuth } from "../../auth/AuthContext";
 import { SectionTabs, type SectionTab } from "../../ui/SectionTabs";
 import { ChipGroup } from "../../ui/primitives/Chip";
 import StatsFilterPill from "./StatsFilterPill";
+import { useReturnScroll } from "../../ui/shell/useReturnScroll";
 import type { StatsScope } from "../../api/types";
 import type { StatsMode } from "./statsMode";
 import { useStandings } from "./standings";
@@ -47,6 +48,14 @@ const FILTERS: Record<string, { mode: boolean; scope: boolean }> = {
   player: { mode: true, scope: true },
 };
 
+/** Stable scroll key of a body: sections without sub-views are one body. */
+function bodyKey(view: StatsView, sub: StatsSub): string {
+  return subsFor(view).length ? `/stats:${view}:${sub}` : `/stats:${view}`;
+}
+
+/** The matchup replaces the whole H2H body, so it counts as its own view. */
+const MATCHUP_KEY = "/stats:h2h:matchup";
+
 const SUB_LABELS: Record<StatsSub, string> = {
   table: "Table",
   positions: "Positions",
@@ -87,14 +96,6 @@ export default function StatsInsights({
     setSearchParams(canonicalStatsParams(searchParams, view, sub), { replace: true });
   }, [legacy, view, sub, searchParams, location.hash, setSearchParams]);
 
-  const setView = (v: StatsView) => {
-    const next = canonicalStatsParams(searchParams, v, subForSection(v, searchParams.get("sub")));
-    // The matchup is a drill-in of H2H: leaving the section closes it.
-    if (v !== "h2h") next.delete("vs");
-    setSearchParams(next, { replace: true });
-  };
-  const setSub = (s: StatsSub) => setSearchParams(canonicalStatsParams(searchParams, view, s), { replace: true });
-
   // Duos is 2v2-only; in the other modes H2H always shows the Players sub-view
   // (without rewriting the URL, so switching back to 2v2 returns to Duos).
   const subs = subsFor(view);
@@ -112,13 +113,47 @@ export default function StatsInsights({
   const showSubs = subs.length > 0 && (view !== "h2h" || mode === "2v2") && matchup == null;
   const filters = FILTERS[view === "overview" ? `overview:${activeSub}` : view] ?? { mode: true, scope: true };
 
+  // Every section, sub-view and the matchup swap the body without navigating
+  // (all params are written with `replace`), so each one keeps its own scroll
+  // offset: you come back to a list exactly where you left it, and a body you
+  // open for the first time starts at the top.
+  const currentKey = matchup ? MATCHUP_KEY : bodyKey(view, activeSub);
+  const { swap, restore } = useReturnScroll();
+
+  const setView = (v: StatsView) => {
+    const nextSub = subForSection(v, searchParams.get("sub"));
+    const next = canonicalStatsParams(searchParams, v, nextSub);
+    // The matchup is a drill-in of H2H: leaving the section closes it.
+    if (v !== "h2h") next.delete("vs");
+    // Tapping H2H while the matchup is open keeps `vs` — the body does not change.
+    const nextKey = v === "h2h" && matchup ? MATCHUP_KEY : bodyKey(v, nextSub);
+    if (nextKey !== currentKey) swap(currentKey, nextKey);
+    setSearchParams(next, { replace: true });
+  };
+  const setSub = (s: StatsSub) => {
+    if (s !== activeSub) swap(currentKey, bodyKey(view, s));
+    setSearchParams(canonicalStatsParams(searchParams, view, s), { replace: true });
+  };
+
   // Jump to the Player section for a row tap: one URL write, so the player is not
   // overwritten by a second navigation in the same tick.
   const goPlayer = (id: number) => {
-    const next = canonicalStatsParams(searchParams, "player", subForSection("player", searchParams.get("sub")));
+    const playerSub = subForSection("player", searchParams.get("sub"));
+    const next = canonicalStatsParams(searchParams, "player", playerSub);
     next.delete("vs");
     next.set("player", String(id));
+    swap(currentKey, bodyKey("player", playerSub));
     setSearchParams(next, { replace: true });
+  };
+
+  /** Drill into "A vs B, every match" — the H2H list keeps its place for the way back. */
+  const openMatchup = (leftId: number, rightId: number) => {
+    swap(currentKey, null);
+    onSetVs(rightId, leftId);
+  };
+  const closeMatchup = () => {
+    restore(bodyKey("h2h", h2hSub));
+    onSetVs("");
   };
 
   return (
@@ -149,7 +184,7 @@ export default function StatsInsights({
           leftId={matchup.leftId}
           rightId={matchup.rightId}
           rows={rows}
-          onBack={() => onSetVs("")}
+          onBack={closeMatchup}
         />
       ) : (
         <H2HView
@@ -159,7 +194,7 @@ export default function StatsInsights({
           subView={h2hSub}
           selectedId={selectedId}
           onSelect={onSelectPlayer}
-          onOpenMatchup={(leftId, rightId) => onSetVs(rightId, leftId)}
+          onOpenMatchup={openMatchup}
         />
       ))}
 

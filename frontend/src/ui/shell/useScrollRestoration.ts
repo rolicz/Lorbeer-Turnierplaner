@@ -1,20 +1,8 @@
 import { useEffect, useRef } from "react";
 import { NavigationType, useLocation, useNavigationType } from "react-router-dom";
 
+import { restoreWindowScroll } from "../scroll";
 import { currentHistoryIndex, saveScroll, scrollFor } from "./navStack";
-
-/**
- * Retries after the first (immediate) attempt, in ms. Content that arrives late —
- * a lazy route chunk, the ~140ms route-entry skeleton, a query that resolves after
- * paint — makes the document too short for the saved offset, and the browser
- * silently clamps the scroll. Each retry only *re-applies* when we are still above
- * the target, so it can never undo the user's own scrolling or a page's deliberate
- * scroll-into-view.
- */
-const RETRY_MS = [120, 360];
-
-/** Only re-apply when we are this far short of the target (px). */
-const TOLERANCE = 4;
 
 /**
  * Browser-grade scroll restoration for the SPA.
@@ -34,8 +22,8 @@ const TOLERANCE = 4;
  * Offsets are captured from `scroll` events rather than read at navigation time:
  * by the time an effect runs, the new (often shorter) page is laid out and the
  * browser has already clamped `window.scrollY`, so the outgoing value would be
- * wrong. Restoration is always instant (`behavior: "auto"`) — smooth scrolling on
- * a back navigation reads as a glitch, and `prefers-reduced-motion` forbids it.
+ * wrong. Restoring goes through `restoreWindowScroll` (instant, with retries for
+ * content that arrives after paint).
  *
  * Mounted once, in `AppShell`.
  */
@@ -102,20 +90,8 @@ export function useScrollRestoration(): void {
     // a hash target belongs to whoever owns that anchor.
     if (target == null || location.hash) return;
 
-    const top = target;
-    const apply = () => {
-      window.scrollTo({ top, left: 0, behavior: "auto" });
+    return restoreWindowScroll(target, (top) => {
       yRef.current = top;
-    };
-    const raf = requestAnimationFrame(apply);
-    const timers = RETRY_MS.map((ms) =>
-      window.setTimeout(() => {
-        if (window.scrollY < top - TOLERANCE) apply();
-      }, ms),
-    );
-    return () => {
-      cancelAnimationFrame(raf);
-      timers.forEach((t) => window.clearTimeout(t));
-    };
+    });
   }, [location.key, location.pathname, location.search, location.hash, navType]);
 }
