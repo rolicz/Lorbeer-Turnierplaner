@@ -32,7 +32,8 @@
    * goes through these — never a raw Tailwind palette class. The dark values are
    * the baseline for every dark theme (dark/blue/red/green inherit them);
    * themes/light.css darkens win/draw/loss for white surfaces.
-   * --color-live mirrors --live-indicator and is invariant across themes.
+   * --color-live mirrors --live-indicator in the dark themes; light.css darkens it
+   * to red-600 so it is legible as text on white.
    */
   --color-win: 74 222 128; /* green-400 */
   --color-draw: 251 191 36; /* amber-400 */

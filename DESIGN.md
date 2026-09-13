@@ -4,6 +4,11 @@
 > file; when something here and the code disagree, the code is wrong. Companion to `AGENTS.md`
 > (project knowledge). Created 2026-09-12 after a full audit of the frontend (see
 > `FEATURES_2026-09.md` § "Design audit findings").
+>
+> Last checked against the code: **2026-09-13** (D1, after DS1–DS8/S6–S10). Every claim below
+> was re-verified by grep at that point: no retired surface class is defined or used, no
+> `text-[Npx]`, no raw Tailwind palette class outside `src/themes/`, `rounded-lg` only inside
+> `SegmentedSwitch`, and no hand-rolled `section-head` in `pages/stats`.
 
 ## 1. Principles
 
@@ -55,10 +60,12 @@ Retired and **deleted** (DS1 + DS3, 2026-09-13): `card-outer`, `card-inner`, `ca
 `card-subtle`, `card-chip` (as a box), `panel`, `panel-subtle`, `panel-inner`, `surface`,
 `surface-2`, `hairline`, `hairline-b`, `eyebrow`, `stack`, `stack-tight`, `modal-shell`,
 `sheet-shell`, `nav-link*`, `main-nav-*`, `subnav-*`, `page-slide-*`, `symbol-margin-to-text`,
-`accent-text`, `text-subtle`, `page-x-bleed`, `pill-green`, `accent`. `Card`, `CardSection` and
-`CollapsibleCard` take `variant="card" | "inset" | "none"`; `Modal` is always a `card` on a
-scrim. `card` and `inset` bring their own `p-3` — write `inset p-0` (or `card p-0`) where the
-box's children already carry the padding (avatars, collapsible headers, tight rows).
+`accent-text`, `text-subtle`, `page-x-bleed`, `pill-green`, `accent`, `icon-button`.
+`Card` and `CollapsibleCard` take `variant="card" | "inset" | "none"` (plus
+`bodyVariant` on the collapsible); `CardSection` **is** an `inset` and only takes `padded`;
+`Modal` is always a `card` on a scrim. `card` and `inset` bring their own `p-3` — write
+`inset p-0` (or `card p-0`) where the box's children already carry the padding (avatars,
+collapsible headers, tight rows).
 
 **Light theme, level 2 vs level 3.** In `light.css` `--color-bg-card-chip` is pure *white*:
 right for a `chip` or an input on the grey page, wrong for an `inset`, which would then be
@@ -70,11 +77,17 @@ while `chip`, `.input-field` and `.select-field` stay white. Dark themes are una
 ## 4. Radius, spacing, elevation
 
 - Radius scale: `rounded-2xl` (16px) cards and modals · `rounded-xl` (12px) insets, buttons,
-  inputs, segmented controls · `rounded-full` chips, pills, avatars, dots. `rounded-md` only for
-  micro tiles (positions grid). Never `rounded-lg`/`rounded-sm` — with **one exception**:
+  inputs, segmented controls · `rounded-full` chips, pills, avatars, dots. `rounded-md` (6px)
+  only for the two micro-tile grids — the positions grid (tiles, legend swatches and legend
+  examples) and the H2H matrix cells, which are the same thing at the same size.
+  Never `rounded-lg`/`rounded-sm` — with **one exception**:
   `SegmentedSwitch` gives its segments and its sliding indicator `rounded-lg` (8px) inside
   the `rounded-xl` track, because a control nested in a 12px box with 4px of padding cannot
   repeat that radius without cutting the track's corners. Nothing else may use `rounded-lg`.
+- Directional radii are for partial edges only and follow the scale of the box they belong to
+  (`rounded-b-2xl` on a collapsible card's body, `rounded-t` on the positions grid's sticky
+  header, `rounded`/`rounded-r` on 2px accent bars and progress fills). Never use one to give a
+  whole box an off-scale radius.
 - Spacing rhythm: `gap-2` inside rows, `gap-3` between elements, `space-y-3` inside cards,
   `space-y-5` between page sections. Page padding via `--page-pad-x`.
 - Elevation: only `card` has a shadow. Floating elements (filter pill, toasts, bottom bar) use
@@ -143,7 +156,7 @@ Matchup, Player) is built from the same block, so the sections read as one page:
 |---|---|---|
 | Actions | `Button` (`solid`/`ghost`, `sm`/`md`, `iconOnly`) | never raw `btn-base`/`icon-button` classes; in light themes a ghost button carries a hairline resting edge, because `bg-card-chip` is white there |
 | Status tag | `Pill` (+ `statusMatchPill`/`statusPill`) | rounded-full, `chip` surface + status tokens |
-| Single/multi choice | `Chip` / `ChipGroup` (`ui/primitives/Chip.tsx`) | rounded-full; selected = `bg-accent/15 text-accent ring-accent/40`; replaces `ToggleChip` |
+| Single/multi choice | `Chip` / `ChipGroup` (`ui/primitives/Chip.tsx`) | `rounded-full border px-3 py-1.5 text-sm`; selected = `bg-accent/15 text-accent border-accent/40`, unselected = `bg-bg-card-chip/50` + a `border-border-card-chip/40` hairline (both states are the same height, and the hairline keeps an unselected chip visible on the light theme's white card). `chipClass()` is exported for the few triggers that cannot be a `Chip`. Replaces `ToggleChip` |
 | 2–3 view modes | `SegmentedSwitch` | `rounded-xl` track, `h-8` `rounded-lg` segments (§4 exception), sliding indicator in `Chip`'s selected style, lucide icon nodes |
 | Page sections | `SectionTabs` | underline tabs with edge fades |
 | Filters (stats) | `StatsFilterPill` | floating capsule, see §9 |
@@ -156,6 +169,7 @@ Matchup, Player) is built from the same block, so the sections read as one page:
 | Empty / loading | `EmptyState`, `InlineLoading` (lucide `Loader2` spinner), `LoadingPlaceholder` |
 | Overlay | `Modal` (card on scrim, full-screen sheet on mobile) |
 | Identity | `AvatarCircle`, `ClubBadge`, `NationFlag`, `CupOwnerBadge` (lucide `Crown`) |
+| Identity → profile | `PlayerLink` | the only way an avatar/name becomes a link; hugs its text, stops click/Enter from bubbling so a row keeps its own action, `decorative` for an avatar that duplicates the name link. Never nest it in another `<a>` |
 | Stars | `Stars` (lucide `Star`/`StarHalf`, replaces `StarsFA`) |
 
 ## 8. Score display (`ScoreLine`)
@@ -171,7 +185,8 @@ Sizes `hero` (match panel), `md` (match rows in lists), `sm` (compact rows, mini
   names `text-left`, so the trio is centred and never spreads across the panel.
 - Numerals `font-bold tabular-nums`: hero `text-4xl`, md `text-2xl`, sm `text-lg`; separator is
   a vertical hairline (`w-px h-[0.75em] bg-border-card-chip/70`), **no colon, no box**.
-- Scheduled: numerals replaced by a muted `–` pair of the same size (hero) or `vs` (`sm`).
+- Scheduled: numerals replaced by a muted `–` pair of the same size (`hero` and `md`); at `sm`,
+  where a dash pair is too quiet to read, a single muted `vs`.
 - Leader emphasis: leading side's names `text-text-normal font-semibold`, trailing side
   `text-text-muted`; equal → both normal.
 - Focus result (rows with a focus player): `focus="left"|"right"` names the side, `result`
@@ -196,11 +211,32 @@ Sizes `hero` (match panel), `md` (match rows in lists), `sm` (compact rows, mini
 
 ## 9. Floating filter pill (stats)
 
-Capsule `h-9 rounded-full` with `SlidersHorizontal` (14px) and the current values as two compact
-tokens: mode as text (`All` / `1v1` / `2v2`), source as a lucide icon (`Trophy` tournaments,
-`Layers` both, `Handshake` friendlies) with `sr-only` label. Tapping opens an anchored popover
-(above the pill, `card` surface) with two `ChipGroup`s (Mode, Source); tap outside or Escape
-closes. Hidden where no filter applies.
+Capsule `h-9 rounded-full` (≈95×36px with both filters) with `SlidersHorizontal` (14px) and the
+current values as two compact tokens: mode as text (`All` / `1v1` / `2v2`), source as a lucide
+icon (`Trophy` tournaments, `Layers` both, `Handshake` friendlies). The glyphs are `aria-hidden`
+and the whole button carries one `aria-label` (`"Mode: All, Source: Tournaments"`) — inside a
+single button, per-token `sr-only` text concatenates into an unreadable name.
+
+It floats bottom-right (`right-4 bottom-[calc(4.5rem+safe-area)]`, `lg:right-6 lg:bottom-6`) at
+`z-40`, above the mobile bottom tab bar and below modals. Tapping it opens an anchored popover
+(`card` surface, portalled to `body`, 8px from the trigger, right edges flush) with two
+`ChipGroup`s (Mode, Source); tap outside, Escape or a re-tap closes and focus returns to the
+trigger. Only the groups the current section uses are shown; where neither applies (Cups) nothing
+is rendered at all.
+
+Because it is small it announces itself instead of growing (S9):
+
+- **Default state:** solid `bg-bg-card-outer` with a `border-accent/30` hairline and `shadow-pop`.
+- **Filtered state** — any filter *the section actually uses* is off its default: the border goes
+  `border-accent/60`, a soft `ring-2 ring-accent/20` halo appears, a small accent dot sits on the
+  sliders glyph, and the token that is off default turns accent, so the pill says *which* filter
+  is active. Exposed as `data-filtered` for tests.
+- **First visit per session:** one short attention pulse (framer-motion scale, `data-pulse`,
+  gated by `sessionStorage`), cancelled by the first tap and dropped under
+  `prefers-reduced-motion`.
+- **Second entry point:** on mobile (`lg:hidden`) the section's sub-view chip row carries a
+  trailing "Filters" chip that opens the same popover (portalled into a slot the section renders,
+  so there is exactly one popover and one piece of state).
 
 ## 10. Do / Don't
 

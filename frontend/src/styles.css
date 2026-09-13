@@ -77,8 +77,10 @@
     color: rgb(var(--color-text-chip));
   }
 
-  /* The single allowed step below text-xs (DESIGN.md §5): badges and superscript
-     counters only — never body text, never a label. */
+  /* The single allowed step below text-xs (DESIGN.md §5): text that is a *marker*
+     rather than prose — badges, counters, unit captions (`pts`), fixed-width
+     indicators and the bottom tab bar's labels. Never a sentence, never a value
+     the reader has to read carefully. */
   .text-micro {
     font-size: 10px;
     line-height: 1;
