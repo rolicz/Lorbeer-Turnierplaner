@@ -66,8 +66,9 @@ Size (2026-09): backend ≈ 14.7k LOC Python, frontend ≈ 29k LOC TS/TSX (excl.
 - `src/ui/` — `primitives/` (Button, Card, CardSection, Modal, Input, Pill, EmptyState,
   LoadingPlaceholder, MatchOverviewPanel, ScoreLine, MatchSides, StatTile, Chip, Stars,
   PlayerLink, …),
-  `shell/` (AppShell, Sidebar desktop, MobileChrome, navConfig, routeMeta/contextual back,
-  navStack, useScrollRestoration + useReturnScroll for scroll memory, NotificationBell),
+  `shell/` (AppShell, Sidebar desktop, MobileChrome, navConfig, routeMeta + backNavigation
+  [contextual back], navStack, useScrollRestoration + useReturnScroll for scroll memory,
+  NotificationBell),
   `ClubBadge`, `NationFlag`, `ClubCombobox`, `SectionTabs`. Every icon in
   these (and everywhere else) is a lucide-react component — see §9.
 - `src/themes/*.css` — CSS-variable themes (blue default, dark, red, light, green) consumed by

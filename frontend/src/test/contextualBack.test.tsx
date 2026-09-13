@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 
-import { useContextualBack, resolveBackTarget } from "../ui/shell/routeMeta";
+import { useContextualBack, resolveBackTarget } from "../ui/shell/backNavigation";
 import { recordNavigation, resetNavStack } from "../ui/shell/navStack";
 
 function BackProbe() {

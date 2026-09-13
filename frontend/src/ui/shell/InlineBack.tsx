@@ -1,6 +1,6 @@
 import { ChevronLeft } from "lucide-react";
 
-import { useContextualBack } from "./routeMeta";
+import { useContextualBack } from "./backNavigation";
 
 /**
  * Compact desktop-only back chevron for detail pages. On mobile the top bar

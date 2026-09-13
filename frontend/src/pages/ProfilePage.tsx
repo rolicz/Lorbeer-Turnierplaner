@@ -24,7 +24,7 @@ import { useRouteEntryLoading } from "../ui/layout/useRouteEntryLoading";
 import { usePageTitle } from "../ui/layout/PageTitleContext";
 import InlineBack from "../ui/shell/InlineBack";
 import { forgetLocation } from "../ui/shell/lastLocation";
-import { useContextualBack } from "../ui/shell/routeMeta";
+import { useContextualBack } from "../ui/shell/backNavigation";
 import { SectionTabs, type SectionTab } from "../ui/SectionTabs";
 import { useTabParam } from "../ui/shell/useTabParam";
 import { User, BarChart3, ListChecks, BookOpen } from "lucide-react";

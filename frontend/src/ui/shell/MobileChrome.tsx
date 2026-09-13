@@ -9,7 +9,7 @@ import { activeDest } from "./navConfig";
 import { useDestinationLinks } from "./useDestinationLinks";
 import { usePageTitleValue } from "../layout/PageTitleContext";
 import { useHideOnScroll } from "../layout/useHideOnScroll";
-import { useContextualBack } from "./routeMeta";
+import { useContextualBack } from "./backNavigation";
 import Button from "../primitives/Button";
 import ConnectionIndicator from "./ConnectionIndicator";
 import NotificationBell from "./NotificationBell";
