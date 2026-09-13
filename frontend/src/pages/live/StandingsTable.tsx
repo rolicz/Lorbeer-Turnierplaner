@@ -6,6 +6,7 @@ import { sideBy } from "../../helpers";
 import Card from "../../ui/primitives/Card";
 import AvatarCircle from "../../ui/primitives/AvatarCircle";
 import CupOwnerBadge from "../../ui/primitives/CupOwnerBadge";
+import RecordLine, { recordWidths } from "../../ui/primitives/RecordLine";
 import { getCup, listCupDefs } from "../../api/cup.api";
 import { qk } from "../../api/queryKeys";
 import { getStatsStreaks } from "../../api/stats.api";
@@ -140,6 +141,8 @@ export default function StandingsTable({
   const navigate = useNavigate();
   const baseRows = useMemo(() => computeStandings(matches, players, "finished"), [matches, players]);
   const liveRows = useMemo(() => computeStandings(matches, players, "live"), [matches, players]);
+  // One set of column widths for the whole table, so every meta line lines up (T14).
+  const metaWidths = useMemo(() => recordWidths(liveRows), [liveRows]);
   const basePos = useMemo(() => posMap(baseRows), [baseRows]);
 
   const { avatarUpdatedAtById: avatarUpdatedAtByPlayerId } = usePlayerAvatarMap();
@@ -355,9 +358,11 @@ export default function StandingsTable({
                   <StreakPatch key={s.key + "-" + i} streak={s} className="streak-compact" />
                 ))}
               </div>
-              <div className="mt-0.5 text-xs tabular-nums text-text-muted">
-                {r.played}P · <span className="text-win">{r.wins}</span>-<span className="text-draw">{r.draws}</span>-<span className="text-loss">{r.losses}</span> · {r.gf}:{r.ga} · GD {r.gd >= 0 ? `+${r.gd}` : r.gd}
-              </div>
+              <RecordLine
+                {...r}
+                widths={metaWidths}
+                className="mt-0.5 text-xs text-text-muted"
+              />
             </div>
             <div className="shrink-0 text-right">
               <div className="text-base font-bold tabular-nums text-text-normal">{r.pts}</div>

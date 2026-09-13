@@ -4613,7 +4613,7 @@ optimal outcomes — a draw — because neither player can reach the focus playe
 
 ---
 
-## T14 — The standings meta line lines up across rows  ☐
+## T14 — The standings meta line lines up across rows  ☑
 
 Roli: "for standings/results table: make sure the data in the lower row (e.g. 3P · 3-0-0 · 15:4
 etc) is aligned so its in the same location in every row (the goals and played move it e.g. 9 vs
@@ -4645,7 +4645,126 @@ against `15:14` shifts everything to its right, and the whole line is proportion
 (assert it in Playwright by measuring the bounding boxes of the segment elements per row, not by
 eye); no wrapping at 390px; screenshots 390px + 1280px, blue + light; `npm run check` + build.
 
-**Deviations:**
+**Deviations:** (implemented 2026-09-13 on `feature/2026-09-round5`, two commits: the
+shared component, then the call sites)
+
+New: `ui/primitives/RecordLine.tsx`, the `.record-num` utility in `styles.css`, and
+`test/recordLine.test.tsx` (8 cases). Call sites: `pages/live/StandingsTable.tsx`,
+`pages/live/WhatIfSection.tsx`, `pages/stats/H2HView.tsx` (four lists),
+`pages/stats/HeadToHeadRows.tsx` (both row components, plus `teamRivalryWidths`),
+`pages/stats/h2h/{DuoRivalries,DuoDetail,DuoLeaderboard}.tsx`, `pages/stats/StarsView.tsx`,
+`pages/profile/ProfileOverviewTab.tsx`, `pages/live/MatchH2HPanel.tsx`. Plus one canon row in
+`DESIGN.md` §7 and the primitives list in `AGENTS.md`. No backend change, no new dependency.
+
+**How a column is actually held — and why not `ch`.** The obvious spelling, `width: 2ch`,
+is wrong here: `ch` is the advance of the font's *proportional* `0` (**7.48px** in Inter at
+12px), while `tabular-nums` — which this line has always had — makes every digit **7.78px**.
+A two-digit value would overhang its own track by 0.6px and take the next segment with it.
+So `.record-num` sizes itself from an invisible pad of N zeros rendered as a zero-height
+block (`::before { content: var(--record-pad) }`), measured in the element's own font with
+its own variant settings. Being a pseudo element, the pad never reaches `textContent`, the
+accessibility tree, or a copy-paste. A signed value pads with `"+00"` rather than `"000"`,
+because `+` is 7.92px and a digit 7.78px — with a zero there, `+8` came out 0.14px wider
+than its track (measured, then fixed; the test pins it).
+
+**Track widths: per list, not per app (judgement 1).** `recordWidths(rows)` is called once
+per list and takes the widest value *in that list*; every row of the list then asks for the
+same tracks. A fixed app-wide "2 digits everywhere" would have stranded ~39px of whitespace
+in a typical 4-player tournament row (1 digit for played, 3 for W-D-L, 1 for goals) out of
+the 230.5px that row has — a sixth of the line, on the phone where it is tightest. Per-list
+widths strand nothing: the dev tournaments render at **144.8px of 230.5px** and the inflated
+worst case at **207px of 224.2px**. It also means the widths can never be *too small*: a
+three-digit goal total simply makes that list's track three digits wide. `widths` is a
+**required** prop (and on `DuoRow`/`TeamRivalryRow` too, which is why `DuoRivalries`,
+`DuoDetail` and `H2HView` now compute and pass it) — a row cannot see its siblings, so only
+the list can size the columns, and an optional prop would let a call site silently fall back
+to per-row widths, which is the bug itself.
+
+**The separators do not survive on screen — they survive for screen readers (judgement 2).**
+Each `·` costs 10.06px (against the 8px `gap-2` that replaces it) and, once the segments are
+columns, it is a separator drawn between two things that are already separated. Dropping all
+three buys 30px, which is most of what the `GD` segment needs. But the line is still read
+aloud and still copied, so every gap carries an `sr-only` `" · "`: `textContent` is character
+for character what it was before (`3P · 3-0-0 · 14:6 · GD +8`), which is also why all 444
+pre-existing tests passed untouched. The units stay glued to their numbers with a nbsp
+(`GD +8`, `12 matches`).
+
+**Nothing had to be dropped (judgement 3).** The task allowed losing the least useful segment
+rather than wrapping. It was not needed, and here is the budget. In the live standings row at
+390px the meta line has **230.5px** (measured; T10's 187px was a different row). The real
+worst case for a tournament — two-digit played, two-digit W-D-L, three-digit goals both ways,
+signed three-digit GD — measures **207px**: played 23.2 + W-D-L 57.8 + goals 50.0 + GD 52.2
++ three 8px gaps. It fits with 17px to spare, at one line, with no page overflow (asserted in
+the browser on an inflated tournament 19: `12P 8-0-4 180:110 GD +70` next to
+`12P 1-0-11 34:212 GD -178`, all four segments at x = 116 / 147.17 / 212.88 / 270.84 in every
+row). Had it not fitted, `GD` was the segment to go — it is the only one derivable from
+another (`GF:GA`) — but it is also the standings' first tie-break, so keeping it was worth
+the 52px.
+
+**W, D and L get one column each, not one for the group (judgement 4).** Where a list mixes
+one- and two-digit counts the numerals are right-aligned in their own tracks, so the reader
+gets `20- 7- 5` / `15- 4- 8` / ` 8- 6-11` — the wins line up under the wins. The alternative,
+one fixed track for the whole `W-D-L` token, keeps the token tight but only lines up its last
+digit. A tournament never notices the difference (three single digits either way, `3-0-0`);
+the H2H lists, where the counts reach 20, are exactly where a reader wants to compare wins
+down the list, so the columns earn the 7.8px of padding a shorter number leaves in front of
+itself. The `:` in `GF:GA` follows the same logic — GF right-aligned, GA left-aligned, so the
+colon is the fixed point (`14:6` over ` 5:8`).
+
+**The audit — every surface that shows this data, and what happened to it**
+
+| Surface | File | What was done |
+|---|---|---|
+| Live/done standings rows | `pages/live/StandingsTable.tsx` | **Converted.** The line Roli complained about: `played · W-D-L · GF:GA · GD`, one `recordWidths(liveRows)` for the table |
+| What-if projected table | `pages/live/WhatIfSection.tsx` | **Converted** (`RecordNum`, no full line — the columns there are `+gained` and `pts`). Also fixed the focus row, below |
+| H2H opponent rows ("Head-to-head by player") | `pages/stats/H2HView.tsx` | **Converted** (`played · W-D-L`), widths across the whole `vs` list |
+| Favorite / Nemesis cards | `pages/stats/H2HView.tsx` | **Converted** (`W-D-L · ppm`); both cards share one set of widths so the two halves of the grid line up with each other |
+| Teammate synergy rows | `pages/stats/HeadToHeadRows.tsx` `DuoRow` | **Converted**, both of its lines (`games · GF:GA · win%` on the left, `W-D-L` on the right) |
+| Duo-vs-duo rivalry rows | `pages/stats/HeadToHeadRows.tsx` `TeamRivalryRow` | **Converted**, both lines. Widths come from `teamRivalryWidths`, which measures *both* orientations because the row flips to put the focus duo first |
+| Top rivalries (players) | `pages/stats/H2HView.tsx` | **Converted** (`matches · W-D-L`). It gained the win/draw/loss colours it never had — the row is titled "A vs B", so green = A's wins is unambiguous, and every other W-D-L in the app is coloured |
+| Best-duos leaderboard | `pages/stats/h2h/DuoLeaderboard.tsx` | **Converted** (`played · W-D-L · GD`, `gdLabel=""` — the row has no room for the word and the column is obvious next to W-D-L) |
+| Club-stars buckets | `pages/stats/StarsView.tsx` | **Converted** (`played · W-D-L`) |
+| Profile rivals + favorite teammates | `pages/profile/ProfileOverviewTab.tsx` | **Converted** (`W-D-L · ppm`), one set of widths per grid |
+| Match detail → H2H summaries | `pages/live/MatchH2HPanel.tsx` | **Converted** (`matches · W-D-L · GF:GA · ppm`). In 2v2 two of the three cards sit side by side, so all three share widths. Same component in the friendlies row editor (editor-only, so checked through the match page) |
+| Overview's compact standings | `pages/live/OverviewSection.tsx` | **Left alone, confirmed aligned.** It is already a column layout (`w-4`/`w-5`/`w-7`/`w-6` right-aligned spans with a header row); measured 5 columns at x = 28 / 52 / 274 / 302 / 338 in every row, and the tracks hold two digits (`w-5` = 20px > 15.6px) and a signed two-digit GD (`w-7` = 28px > 23.5px) |
+| Dashboard standings preview | `pages/dashboard/StandingsPreviewCard.tsx` | **Left alone, confirmed aligned** — it *is* the stats table with `fixedColumns`; a real `<table>` with `text-right` cells, measured 6 columns identical across 6 rows |
+| Stats → Overview → Table | `pages/stats/StatsTable.tsx` | **Left alone, confirmed aligned** — real `<table>`, 6 columns identical across 6 rows |
+| H2H matrix | `pages/stats/H2HView.tsx` | **Left alone, confirmed aligned** — real `<table>`, 7 columns identical across 6 rows |
+| Matchup summary | `pages/stats/h2h/MatchupView.tsx` | **Left alone, confirmed aligned** — it is not a line but a `StatTile` grid; measured, the tiles hold two grid columns at x = 29 / 199 |
+| Duo detail summary | `pages/stats/h2h/DuoDetail.tsx` | **Left alone deliberately.** One summary at the top of its own view — it has no sibling row to line up with, and a lone line reads better with `·` separators than with gaps. (Its matchup rows below it *are* converted.) |
+| Player hero line | `pages/stats/PlayerProfile.tsx` | **Left alone**, same reason: one line, and its W-D-L sits inside prose (`4.2★ · 3-0-0 · 12 pts · view profile`) |
+| Profile "Record / Elo / Last 3" | `pages/profile/ProfileStatsSection.tsx` | **Left alone**, same reason: one wrapping line of three unlike facts, under a tile grid that already carries the numbers |
+| Winner block's `6 matches · GD +3` | `pages/live/OverviewSection.tsx` | **Left alone**, same reason: one line inside the T12 winner inset |
+
+The rule the last four follow: `RecordLine` is for a line that has siblings to line up with —
+rows of a list, cards of a grid. A line that is alone on its surface keeps the flowing text,
+because there is nothing to align and a separator carries more in isolation than a gap does.
+
+**One fix outside the record line, in the same spirit.** The What-if projected table's focus
+row was `-mx-2 rounded-xl bg-accent/10 px-2`. With `w-full` being border-box, the negative
+margin made the row 16px wider than its content box allowed, so the focus row's points column
+sat **16px left of every other row's** (measured: 283.75 vs 299.75). The wash now hugs the row
+box, exactly like `.row-tap`'s hover wash everywhere else in the app.
+
+**Verification**
+
+- `cd frontend && npm run check` → typecheck + eslint clean, **46 files / 452 tests passed**
+  (45/444 before). `npm run build` green, same pre-existing 500 kB chunk hint. No backend change.
+- Isolated stack: backend `:8003` on a copy of the dev DB (`backend/data/verify.db`), vite `:8020`.
+- Playwright, **16 surfaces × 2 widths (390 / 1280) × 2 themes (blue / light)**: for every list
+  the x offset of every segment element is compared across all its rows (and for the real
+  `<table>`s and the hand-built column rows, every cell's x). **480 column checks, 0 misaligned,
+  0 wrapped lines, no horizontal overflow, 0 console errors** (119 checks at 390, 121 at 1280,
+  per theme — 1280 adds a third tile column to the matchup summary). Grid surfaces (the rival
+  cards, the teammate cards, the two "together" cards) are compared by offset within the card,
+  with the card origins printed, since equal cards sit at different absolute x by design.
+- The worst case was forced in the browser (`extreme.js`: tournament 19's payload rewritten on
+  the wire, its 6 matches replayed 4× with big scores) — **two-digit played, two-digit losses
+  and three-digit goal totals** — at both widths and in both themes: segments identical,
+  no wrap, 207px of 224.2px.
+- Screenshots (scratchpad `shots/`): `t14-{standings,standings2v2,whatif,h2hplayers,h2hduos,
+  stars,profile,matchh2h,overview}-{390,1280}-{blue,light}.png` (clipped to the block that holds
+  the rows) plus `t14-extreme-{390,1280}-{blue,light}.png`.
 
 ---
 

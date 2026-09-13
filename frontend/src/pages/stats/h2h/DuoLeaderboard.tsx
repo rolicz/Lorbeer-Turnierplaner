@@ -1,7 +1,7 @@
 /** Best-duos leaderboard (2v2) — ranked list from `best_teammates_2v2`. */
 import EmptyState from "../../../ui/primitives/EmptyState";
+import RecordLine, { recordWidths } from "../../../ui/primitives/RecordLine";
 import type { StatsH2HDuo } from "../../../api/types";
-import { fmtInt } from "../../../utils/format";
 import { duoKey } from "../h2hHelpers";
 
 export function DuoLeaderboard({
@@ -13,13 +13,13 @@ export function DuoLeaderboard({
   selectedKey: string | null;
   onSelect: (d: StatsH2HDuo) => void;
 }) {
+  const widths = recordWidths(duos);
   if (!duos.length) return <EmptyState title="No 2v2 duos yet." className="py-2" />;
   return (
     <div className="list-divided">
       {duos.map((d, i) => {
         const k = duoKey(d.p1.id, d.p2.id);
         const on = k === selectedKey;
-        const gd = d.gd >= 0 ? `+${d.gd}` : String(d.gd);
         return (
           <button
             key={k}
@@ -31,9 +31,16 @@ export function DuoLeaderboard({
             <span className="min-w-0 flex-1 truncate text-sm text-text-normal">
               {d.p1.display_name} <span className="text-text-muted">/</span> {d.p2.display_name}
             </span>
-            <span className="shrink-0 font-mono text-xs tabular-nums text-text-muted">
-              {fmtInt(d.played)}P · <span className="text-win">{fmtInt(d.wins)}</span>-<span className="text-draw">{fmtInt(d.draws)}</span>-<span className="text-loss">{fmtInt(d.losses)}</span> · {gd}
-            </span>
+            <RecordLine
+              played={d.played}
+              wins={d.wins}
+              draws={d.draws}
+              losses={d.losses}
+              gd={d.gd}
+              gdLabel=""
+              widths={widths}
+              className="shrink-0 font-mono text-xs text-text-muted"
+            />
             <span className="w-12 shrink-0 text-right text-sm font-semibold tabular-nums text-accent">{d.pts_per_match.toFixed(2)}</span>
           </button>
         );

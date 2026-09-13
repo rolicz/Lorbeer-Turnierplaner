@@ -18,6 +18,7 @@ import AvatarCircle from "../../ui/primitives/AvatarCircle";
 import Button from "../../ui/primitives/Button";
 import { Chip } from "../../ui/primitives/Chip";
 import EmptyState from "../../ui/primitives/EmptyState";
+import { RecordNum } from "../../ui/primitives/RecordLine";
 import ScoreLine from "../../ui/primitives/ScoreLine";
 import { PlayerPicker } from "../stats/PlayerPicker";
 import {
@@ -210,6 +211,11 @@ export default function WhatIfSection({ matches, players }: { matches: Match[]; 
   }
 
   const focusName = players.find((p) => p.id === focusId)?.display_name ?? "";
+  // The projected table's two numeric columns hold a fixed width, so "+6 / 12 pts" and
+  // "+12 / 9 pts" put their digits in the same place down the list (T14).
+  const digits = (n: number) => Math.max(1, Math.abs(Math.trunc(n)).toString().length);
+  const gainedDigits = Math.max(...projection.proj.map((r) => digits(r.pts - r.nowPts)), 1);
+  const ptsDigits = Math.max(...projection.proj.map((r) => digits(r.pts)), 1);
   const dirty = rows.some((r) => r.edited);
   const mine = rows.filter((r) => r.kind === "open" && r.focusSide);
   const wins = mine.filter((r) => r.outcome === r.focusSide).length;
@@ -280,7 +286,12 @@ export default function WhatIfSection({ matches, players }: { matches: Match[]; 
                 return (
                   <div
                     key={r.playerId}
-                    className={"row " + (r.isFocus ? "-mx-2 rounded-xl bg-accent/10 px-2" : "")}
+                    /* The focus row's wash hugs the row box like every other wash in the
+                       app (`.row-tap`'s hover). It used to bleed 8px into the gutter with
+                       `-mx-2 px-2`, which — `w-full` being border-box — narrowed its
+                       content area by 16px and pushed its points column left of every
+                       other row's (T14). */
+                    className={"row " + (r.isFocus ? "rounded-xl bg-accent/10" : "")}
                   >
                     <span className="w-4 shrink-0 text-right text-xs tabular-nums text-text-muted">{idx + 1}</span>
                     <AvatarCircle
@@ -296,10 +307,12 @@ export default function WhatIfSection({ matches, players }: { matches: Match[]; 
                     >
                       {r.name}
                     </span>
-                    <span className="shrink-0 text-xs tabular-nums text-text-muted">
+                    <RecordNum digits={gainedDigits} sign className="shrink-0 text-xs text-text-muted">
                       {gained > 0 ? `+${gained}` : ""}
-                    </span>
-                    <span className="shrink-0 text-sm font-bold tabular-nums text-text-normal">{r.pts}</span>
+                    </RecordNum>
+                    <RecordNum digits={ptsDigits} className="shrink-0 text-sm font-bold text-text-normal">
+                      {r.pts}
+                    </RecordNum>
                     <span className="shrink-0 text-micro leading-none text-text-muted">pts</span>
                   </div>
                 );

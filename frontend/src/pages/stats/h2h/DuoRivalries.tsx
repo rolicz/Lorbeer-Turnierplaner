@@ -3,7 +3,7 @@ import { useMemo } from "react";
 
 import EmptyState from "../../../ui/primitives/EmptyState";
 import type { StatsH2HTeamRivalry } from "../../../api/types";
-import { TeamRivalryRow } from "../HeadToHeadRows";
+import { TeamRivalryRow, teamRivalryWidths } from "../HeadToHeadRows";
 
 export function DuoRivalries({
   rivalries,
@@ -18,6 +18,7 @@ export function DuoRivalries({
     () => rivalries.slice().sort((a, b) => b.rivalry_score - a.rivalry_score).slice(0, limit),
     [rivalries, limit],
   );
+  const widths = teamRivalryWidths(top);
   if (!top.length) return <EmptyState title="No duo rivalries yet." className="py-2" />;
   return (
     <div className="space-y-2">
@@ -25,6 +26,7 @@ export function DuoRivalries({
         <TeamRivalryRow
           key={`${r.team1.map((p) => p.id).join("-")}-${r.team2.map((p) => p.id).join("-")}`}
           r={r}
+          widths={widths}
           onOpenMatches={onOpenMatches ? () => onOpenMatches(r) : null}
         />
       ))}

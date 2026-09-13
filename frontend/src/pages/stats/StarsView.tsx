@@ -5,6 +5,7 @@ import { keepPreviousData, useQuery } from "@tanstack/react-query";
 
 import EmptyState from "../../ui/primitives/EmptyState";
 import InlineLoading from "../../ui/primitives/InlineLoading";
+import RecordLine, { recordWidths } from "../../ui/primitives/RecordLine";
 import { Stars } from "../../ui/primitives/Stars";
 import { getStatsPlayerMatches } from "../../api/stats.api";
 import { listClubs } from "../../api/clubs.api";
@@ -50,6 +51,8 @@ export function StarsSection({ mode, scope, playerId }: { mode: StatsMode; scope
   }, [matchesQ.data, mode]);
   const buckets = useMemo(() => (playerId ? starBuckets(flat, playerId, clubsQ.data ?? []) : []), [flat, playerId, clubsQ.data]);
   const active = buckets.filter((b) => b.played > 0);
+  // One set of column widths for the whole list, so every row lines up (T14).
+  const starWidths = useMemo(() => recordWidths(active.map((b) => ({ played: b.played, wins: b.w, draws: b.d, losses: b.l }))), [active]);
   const known = active.reduce((s, b) => s + b.played, 0);
 
   return (
@@ -66,8 +69,15 @@ export function StarsSection({ mode, scope, playerId }: { mode: StatsMode; scope
               <div className="absolute inset-y-1 left-0 rounded-r" style={{ width: `${Math.max(2, Math.min(100, (b.ppm / 3) * 100))}%`, backgroundColor: "rgb(var(--color-accent) / 0.16)" }} aria-hidden="true" />
               <div className="relative z-10 grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 px-1 py-2.5">
                 <Stars rating={b.stars} size={12} textClassName="text-text-normal" />
-                <div className="text-center font-mono text-xs tabular-nums text-text-muted">
-                  {b.played}P · <span className="text-win">{b.w}</span>-<span className="text-draw">{b.d}</span>-<span className="text-loss">{b.l}</span>
+                <div className="text-center">
+                  <RecordLine
+                    played={b.played}
+                    wins={b.w}
+                    draws={b.d}
+                    losses={b.l}
+                    widths={starWidths}
+                    className="font-mono text-xs text-text-muted"
+                  />
                 </div>
                 <div className="shrink-0 text-right">
                   <span className="font-mono text-sm font-bold tabular-nums text-text-normal">{b.ppm.toFixed(2)}</span>

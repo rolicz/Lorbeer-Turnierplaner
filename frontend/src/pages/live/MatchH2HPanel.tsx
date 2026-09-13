@@ -11,6 +11,7 @@ import { sideBy } from "../../helpers";
 import CardSection from "../../ui/primitives/CardSection";
 import InlineLoading from "../../ui/primitives/InlineLoading";
 import { buttonClass } from "../../ui/primitives/Button";
+import RecordLine, { recordWidths, type RecordWidths } from "../../ui/primitives/RecordLine";
 import { statsMatchupHref } from "../stats/statsNav";
 import { MatchRowWithClubs } from "../stats/MatchHistoryList";
 import {
@@ -26,12 +27,15 @@ function SummaryCard({
   title,
   label,
   summary,
+  widths,
   link,
 }: {
   title: string;
   /** Who these numbers belong to — omitted where the button below already says it. */
   label?: string | null;
   summary: Summary;
+  /** Column widths shared by every summary card on this panel (T14). */
+  widths: RecordWidths;
   /**
    * The card's primary action: a real button into the stats matchup, which lists
    * every match behind these numbers (T7 — it used to be a small "All meetings"
@@ -43,18 +47,18 @@ function SummaryCard({
     <div className="inset px-3 py-2.5">
       <h3 className="text-sm font-semibold text-text-normal">{title}</h3>
       {label ? <div className="mt-0.5 text-xs text-text-muted">{label}</div> : null}
-      <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-text-muted">
-        <span>{summary.played} matches</span>
-        <span className="font-mono tabular-nums text-text-normal">
-          <span className="text-win">{summary.wins}</span>
-          <span className="text-text-muted">-</span>
-          <span className="text-draw">{summary.draws}</span>
-          <span className="text-text-muted">-</span>
-          <span className="text-loss">{summary.losses}</span>
-        </span>
-        <span className="font-mono tabular-nums">{summary.gf}:{summary.ga}</span>
-        <span className="font-mono tabular-nums">{fmtAvg(summary.ptsPerMatch)} ppm</span>
-      </div>
+      <RecordLine
+        played={summary.played}
+        wins={summary.wins}
+        draws={summary.draws}
+        losses={summary.losses}
+        gf={summary.gf}
+        ga={summary.ga}
+        widths={widths}
+        playedLabel="matches"
+        extra={`${fmtAvg(summary.ptsPerMatch)} ppm`}
+        className="mt-2 font-mono text-xs text-text-muted"
+      />
       {link ? (
         <Link
           to={link.to}
@@ -148,6 +152,12 @@ export default function MatchH2HPanel({
     () => summarizeMatches(duoBQuery.data?.tournaments ?? [], bIds),
     [bIds, duoBQuery.data?.tournaments],
   );
+  // The three summary cards share one set of column widths (T14): two of them sit side
+  // by side in a grid, so their lines have to line up with each other.
+  const summaryWidths = useMemo(
+    () => recordWidths([matchupSummary, duoASummary, duoBSummary]),
+    [matchupSummary, duoASummary, duoBSummary],
+  );
   const recentMatches = useMemo(
     () => flattenRecentMatches(matchupQuery.data?.tournaments ?? []).slice(0, 5),
     [matchupQuery.data?.tournaments],
@@ -185,6 +195,7 @@ export default function MatchH2HPanel({
             <SummaryCard
               title={mode === "2v2" ? "Exact matchup" : "Head-to-head"}
               summary={matchupSummary}
+              widths={summaryWidths}
               link={{
                 // Both sides go into the link, so a 2v2 opens the *exact* team
                 // matchup instead of the two first players (T7).
@@ -205,6 +216,7 @@ export default function MatchH2HPanel({
                   title="Team A together"
                   label={playerNames(aSide)}
                   summary={duoASummary}
+                  widths={summaryWidths}
                   link={{
                     to: statsMatchupHref({ mode: "2v2", left: [aIds[0]], right: [aIds[1]], scope: SCOPE, relation: "together" }),
                     label: `All matches as a team`,
@@ -216,6 +228,7 @@ export default function MatchH2HPanel({
                   title="Team B together"
                   label={playerNames(bSide)}
                   summary={duoBSummary}
+                  widths={summaryWidths}
                   link={{
                     to: statsMatchupHref({ mode: "2v2", left: [bIds[0]], right: [bIds[1]], scope: SCOPE, relation: "together" }),
                     label: `All matches as a team`,

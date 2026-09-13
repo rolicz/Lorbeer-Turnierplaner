@@ -11,6 +11,7 @@ import EmptyState from "../../ui/primitives/EmptyState";
 import InlineLoading from "../../ui/primitives/InlineLoading";
 import Modal from "../../ui/primitives/Modal";
 import PlayerLink from "../../ui/primitives/PlayerLink";
+import RecordLine, { recordWidths, type RecordWidths } from "../../ui/primitives/RecordLine";
 import { getStatsH2H, getStatsH2HMatches, type StatsH2HMatchesRequest } from "../../api/stats.api";
 import { listClubs } from "../../api/clubs.api";
 import { qk } from "../../api/queryKeys";
@@ -48,18 +49,22 @@ function h2hDiverging(gd: number, maxAbs: number): string {
 type HistoryModalState = { title: string; req: StatsH2HMatchesRequest; focusPlayerId: number | null };
 
 /** Favorite / Nemesis chip — taps into the matchup when the opponent is known. */
-function RivalCard({ icon, label, row, onOpen }: {
-  icon: ReactNode; label: string; row: StatsH2HOpponentRow | null; onOpen: (opponentId: number) => void;
+function RivalCard({ icon, label, row, widths, onOpen }: {
+  icon: ReactNode; label: string; row: StatsH2HOpponentRow | null; widths: RecordWidths; onOpen: (opponentId: number) => void;
 }) {
   const body = (
     <>
       <div className="inline-flex items-center gap-2 text-text-muted">{icon}<span>{label}</span></div>
       <div className="mt-0.5 font-semibold">{row?.opponent.display_name ?? "—"}</div>
       {row ? (
-        <div className="mt-0.5 text-text-muted">
-          <span className="text-win">{row.wins}</span>-<span className="text-draw">{row.draws}</span>-<span className="text-loss">{row.losses}</span> ·{" "}
-          {row.pts_per_match.toFixed(2)} ppm
-        </div>
+        <RecordLine
+          wins={row.wins}
+          draws={row.draws}
+          losses={row.losses}
+          widths={widths}
+          extra={`${row.pts_per_match.toFixed(2)} ppm`}
+          className="mt-0.5 text-text-muted"
+        />
       ) : null}
     </>
   );
@@ -188,6 +193,15 @@ export default function H2HView({ mode, scope, rows, subView, selectedId, onSele
   const bestDuos: StatsH2HDuo[] = useMemo(() => q.data?.best_teammates_2v2 ?? [], [q.data]);
   const teamRivalries: StatsH2HTeamRivalry[] = q.data?.team_rivalries_2v2 ?? [];
   const synergyDuos: StatsH2HDuo[] = selectedId != null ? (detailQ.data?.with_2v2 ?? []) : bestDuos;
+
+  // One set of column widths per list, so the meta lines line up down the list (T14).
+  const vsWidths = useMemo(() => recordWidths(vs), [vs]);
+  const rivalWidths = useMemo(() => recordWidths([favorite ?? null, nemesis ?? null]), [favorite, nemesis]);
+  const synergyWidths = recordWidths(synergyDuos);
+  const rivalryWidths = useMemo(
+    () => recordWidths(topRivalries.map((p) => ({ played: p.played, wins: p.a_wins, draws: p.draws, losses: p.b_wins }))),
+    [topRivalries],
+  );
 
   // A duo needs exactly two players. Look up their real 2v2 record; if they've never
   // played together, synthesize a zeroed duo so DuoDetail still renders gracefully.
@@ -403,8 +417,8 @@ export default function H2HView({ mode, scope, rows, subView, selectedId, onSele
         ) : (
           <>
             <div className="grid grid-cols-2 gap-2 text-xs">
-              <RivalCard icon={<Smile size={14} aria-hidden="true" />} label="Favorite" row={favorite ?? null} onOpen={(id) => onOpenMatchup(selectedId, id)} />
-              <RivalCard icon={<HeartCrack size={14} aria-hidden="true" />} label="Nemesis" row={nemesis ?? null} onOpen={(id) => onOpenMatchup(selectedId, id)} />
+              <RivalCard icon={<Smile size={14} aria-hidden="true" />} label="Favorite" row={favorite ?? null} widths={rivalWidths} onOpen={(id) => onOpenMatchup(selectedId, id)} />
+              <RivalCard icon={<HeartCrack size={14} aria-hidden="true" />} label="Nemesis" row={nemesis ?? null} widths={rivalWidths} onOpen={(id) => onOpenMatchup(selectedId, id)} />
             </div>
             {detailQ.isLoading && !detailQ.data ? (
               <InlineLoading label="Loading…" />
@@ -427,9 +441,14 @@ export default function H2HView({ mode, scope, rows, subView, selectedId, onSele
                           <span className="block truncate text-sm text-text-normal">{o.opponent.display_name}</span>
                         </PlayerLink>
                       </span>
-                      <span className="shrink-0 font-mono text-xs tabular-nums text-text-muted">
-                        {o.played}P · <span className="text-win">{o.wins}</span>-<span className="text-draw">{o.draws}</span>-<span className="text-loss">{o.losses}</span>
-                      </span>
+                      <RecordLine
+                        played={o.played}
+                        wins={o.wins}
+                        draws={o.draws}
+                        losses={o.losses}
+                        widths={vsWidths}
+                        className="shrink-0 font-mono text-xs text-text-muted"
+                      />
                       <span className="w-12 shrink-0 text-right text-sm font-semibold tabular-nums text-accent">{o.played ? Math.round(o.win_rate * 100) : 0}%</span>
                     </span>
                   </div>
@@ -459,6 +478,7 @@ export default function H2HView({ mode, scope, rows, subView, selectedId, onSele
                   <DuoRow
                     key={`syn-${duoKey(d.p1.id, d.p2.id)}`}
                     r={d}
+                    widths={synergyWidths}
                     focusPlayerId={selectedId}
                     onOpenMatches={openDuoTeammates}
                   />
@@ -494,7 +514,15 @@ export default function H2HView({ mode, scope, rows, subView, selectedId, onSele
               <div className="truncate text-sm font-medium text-text-normal">
                 {nameById.get(p.a.id) ?? p.a.display_name} <span className="text-text-muted">vs</span> {nameById.get(p.b.id) ?? p.b.display_name}
               </div>
-              <div className="text-xs text-text-muted">{p.played} matches · {p.a_wins}-{p.draws}-{p.b_wins}</div>
+              <RecordLine
+                played={p.played}
+                wins={p.a_wins}
+                draws={p.draws}
+                losses={p.b_wins}
+                widths={rivalryWidths}
+                playedLabel="matches"
+                className="text-xs text-text-muted"
+              />
             </div>
             <div className="shrink-0 text-right">
               <div className="text-sm font-bold tabular-nums text-accent">{Math.round(p.rivalry_score)}</div>
