@@ -10,7 +10,7 @@ import PageLoadingScreen from "../../ui/primitives/PageLoadingScreen";
 import MatchOverviewPanel from "../../ui/primitives/MatchOverviewPanel";
 import { SectionTabs, type SectionTab } from "../../ui/SectionTabs";
 import SelectClubsPanel from "../../ui/SelectClubsPanel";
-import { GoalStepper } from "../../ui/clubControls";
+import { GoalStepper, useClubSelection } from "../../ui/clubControls";
 import InlineBack from "../../ui/shell/InlineBack";
 import { useTabParam } from "../../ui/shell/useTabParam";
 import { usePageTitle } from "../../ui/layout/PageTitleContext";
@@ -143,6 +143,24 @@ export default function MatchDetailPage() {
     },
   });
 
+  const aSide = match ? sideBy(match, "A") : undefined;
+  const bSide = match ? sideBy(match, "B") : undefined;
+  const aPlayers = teamName(aSide);
+  const bPlayers = teamName(bSide);
+
+  // Clubs: the preview scoreboard is the trigger (T2 / DESIGN.md §9b); the panel
+  // below it only carries the filters and the two random actions.
+  const clubSelection = useClubSelection({
+    clubs: clubsQ.data ?? [],
+    disabled: saveMut.isPending,
+    aLabel: aPlayers,
+    bLabel: bPlayers,
+    aClub,
+    bClub,
+    onChangeAClub: setAClub,
+    onChangeBClub: setBClub,
+  });
+
   if (!tid || !matchId) {
     return <div className="inset px-3 py-2 text-sm text-text-muted">Invalid match URL.</div>;
   }
@@ -164,11 +182,6 @@ export default function MatchDetailPage() {
       </div>
     );
   }
-
-  const aSide = match ? sideBy(match, "A") : undefined;
-  const bSide = match ? sideBy(match, "B") : undefined;
-  const aPlayers = teamName(aSide);
-  const bPlayers = teamName(bSide);
 
   const tabs: SectionTab<Tab>[] = [
     { key: "h2h", label: "Head-to-Head" },
@@ -248,6 +261,9 @@ export default function MatchDetailPage() {
                     bGoals={bGoalsNum}
                     showOdds={true}
                     showOddsWhenFinished={true}
+                    aLabel={aPlayers}
+                    bLabel={bPlayers}
+                    onPickClub={clubSelection.openPicker}
                   />
                 ) : null}
 
@@ -277,18 +293,12 @@ export default function MatchDetailPage() {
                 </div>
               </section>
 
-              {/* Clubs */}
+              {/* Clubs — the names live in the scoreboard above; tapping one there
+                  opens the picker, so this card only holds what acts on both sides. */}
               <section className="card space-y-3">
                 <h2 className="text-sm font-semibold text-text-normal">Clubs</h2>
                 <SelectClubsPanel
-                  clubs={clubsQ.data ?? []}
-                  disabled={saveMut.isPending}
-                  aLabel={aPlayers}
-                  bLabel={bPlayers}
-                  aClub={aClub}
-                  bClub={bClub}
-                  onChangeAClub={setAClub}
-                  onChangeBClub={setBClub}
+                  selection={clubSelection}
                   extraTop={
                     <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                       <Input label="Game" value={clubGame} onChange={(e) => setClubGame(e.target.value)} />
@@ -296,7 +306,10 @@ export default function MatchDetailPage() {
                     </div>
                   }
                   extraBottom={
-                    <div className="text-xs text-text-muted">Tip: change clubs anytime before saving.</div>
+                    <div className="text-xs text-text-muted">
+                      Tip: tap a club in the scoreboard above to change it — nothing is saved until you
+                      press Save.
+                    </div>
                   }
                 />
               </section>

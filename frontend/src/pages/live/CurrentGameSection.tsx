@@ -7,7 +7,7 @@ import { teamName } from "../../utils/matchDisplay";
 import { sideBy } from "../../helpers";
 import MatchOverviewPanel from "../../ui/primitives/MatchOverviewPanel";
 import SelectClubsPanel from "../../ui/SelectClubsPanel";
-import { GoalStepper } from "../../ui/clubControls";
+import { GoalStepper, useClubSelection } from "../../ui/clubControls";
 import { scrollToSectionById } from "../../ui/scrollToSection";
 import TournamentCommentsCard from "./TournamentCommentsCard";
 
@@ -68,6 +68,32 @@ export default function CurrentGameSection({
   const [bClub, setBClub] = useState<number | null>(b?.club_id ?? null);
   const [aGoals, setAGoals] = useState<number>(Number(a?.goals ?? 0));
   const [bGoals, setBGoals] = useState<number>(Number(b?.goals ?? 0));
+
+  // Clubs: the scoreboard below is the trigger, `SelectClubsPanel` holds the
+  // filters, the dice and Random matchup (T2 / DESIGN.md §9b).
+  const clubSelection = useClubSelection({
+    clubs,
+    disabled: busy || !canControl,
+    aLabel: aInline,
+    bLabel: bInline,
+    aClub,
+    bClub,
+    onChangeClubs: (aId, bId) => {
+      setAClub(aId);
+      setBClub(bId);
+      queueAutosave({ aClub: aId, bClub: bId });
+    },
+    onChangeAClub: (v) => {
+      if (v === aClub) return;
+      setAClub(v);
+      queueAutosave({ aClub: v });
+    },
+    onChangeBClub: (v) => {
+      if (v === bClub) return;
+      setBClub(v);
+      queueAutosave({ bClub: v });
+    },
+  });
 
   // -------------------------
   // AUTO-SAVE (debounced)
@@ -292,23 +318,10 @@ export default function CurrentGameSection({
           </div>
         </div>
 
-        {onOpenMatch ? (
-          <button
-            type="button"
-            className="block w-full appearance-none rounded-xl border-0 bg-transparent p-0 text-left"
-            onClick={() => onOpenMatch(activeMatch)}
-            title="Open match details"
-          >
-            <MatchOverviewPanel
-              match={activeMatch}
-              clubs={clubs}
-              mode={tournamentMode}
-              aGoals={aGoals}
-              bGoals={bGoals}
-              showOdds={true}
-            />
-          </button>
-        ) : (
+        {/* The panel opens the match detail, its club lines open the club picker:
+            the "open" affordance is a stretched overlay *behind* them, never a
+            button wrapping a button. */}
+        <div className="relative">
           <MatchOverviewPanel
             match={activeMatch}
             clubs={clubs}
@@ -316,8 +329,20 @@ export default function CurrentGameSection({
             aGoals={aGoals}
             bGoals={bGoals}
             showOdds={true}
+            aLabel={aInline}
+            bLabel={bInline}
+            onPickClub={canControl ? clubSelection.openPicker : undefined}
           />
-        )}
+          {onOpenMatch ? (
+            <button
+              type="button"
+              className="focus-ring absolute inset-0 rounded-xl"
+              onClick={() => onOpenMatch(activeMatch)}
+              aria-label="Open match details"
+              title="Open match details"
+            />
+          ) : null}
+        </div>
 
         {showGoalInputs ? (
           <div className="pt-2">
@@ -351,32 +376,9 @@ export default function CurrentGameSection({
       </div>
 
       <div className="mt-2 space-y-2">
-        {/* Filter + clubs */}
-        {canControl && (
-          <SelectClubsPanel
-            clubs={clubs}
-            disabled={busy || !canControl}
-            aLabel={aInline}
-            bLabel={bInline}
-            aClub={aClub}
-            bClub={bClub}
-            onChangeClubs={(aId, bId) => {
-              setAClub(aId);
-              setBClub(bId);
-              queueAutosave({ aClub: aId, bClub: bId });
-            }}
-            onChangeAClub={(v) => {
-              if (v === aClub) return;
-              setAClub(v);
-              queueAutosave({ aClub: v });
-            }}
-            onChangeBClub={(v) => {
-              if (v === bClub) return;
-              setBClub(v);
-              queueAutosave({ bClub: v });
-            }}
-          />
-        )}
+        {/* Club filters + the two random actions (the clubs themselves are named
+            once, in the scoreboard above). */}
+        {canControl && <SelectClubsPanel selection={clubSelection} />}
 
         {Number.isFinite(Number(activeMatch.tournament_id)) && activeMatch.tournament_id > 0 ? (
           <div id={`current-match-comments-${activeMatch.id}`} className="scroll-mt-28 sm:scroll-mt-32">

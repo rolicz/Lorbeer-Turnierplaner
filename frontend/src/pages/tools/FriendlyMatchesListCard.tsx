@@ -11,7 +11,7 @@ import Button from "../../ui/primitives/Button";
 import EmptyState from "../../ui/primitives/EmptyState";
 import MatchOverviewPanel from "../../ui/primitives/MatchOverviewPanel";
 import SelectClubsPanel from "../../ui/SelectClubsPanel";
-import { GoalStepper } from "../../ui/clubControls";
+import { GoalStepper, useClubSelection } from "../../ui/clubControls";
 
 import { listClubs } from "../../api/clubs.api";
 import { qk } from "../../api/queryKeys";
@@ -137,6 +137,18 @@ function FriendlyEditor({
   const aPlayers = teamName(aSide);
   const bPlayers = teamName(bSide);
 
+  // Clubs: the preview scoreboard above is the trigger (T2 / DESIGN.md §9b).
+  const clubSelection = useClubSelection({
+    clubs: editorClubsQ.data ?? clubs,
+    disabled: saveMut.isPending,
+    aLabel: aPlayers,
+    bLabel: bPlayers,
+    aClub,
+    bClub,
+    onChangeAClub: setAClub,
+    onChangeBClub: setBClub,
+  });
+
   return (
     <div className="mt-2 rounded-xl border border-border-card-chip/60 bg-bg-card-inner p-3 space-y-4">
       <div className="flex items-center gap-2">
@@ -163,6 +175,9 @@ function FriendlyEditor({
             aGoals={aGoalsNum}
             bGoals={bGoalsNum}
             showOdds={false}
+            aLabel={aPlayers}
+            bLabel={bPlayers}
+            onPickClub={clubSelection.openPicker}
           />
 
           <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3">
@@ -186,17 +201,8 @@ function FriendlyEditor({
           </div>
 
           <SelectClubsPanel
-            clubs={editorClubsQ.data ?? clubs}
-            disabled={saveMut.isPending}
-            aLabel={aPlayers}
-            bLabel={bPlayers}
-            aClub={aClub}
-            bClub={bClub}
-            onChangeAClub={setAClub}
-            onChangeBClub={setBClub}
-            extraTop={
-              <Input label="Game" value={clubGame} onChange={(e) => setClubGame(e.target.value)} />
-            }
+            selection={clubSelection}
+            extraTop={<Input label="Game" value={clubGame} onChange={(e) => setClubGame(e.target.value)} />}
           />
 
           <div className="flex items-center justify-end gap-2">

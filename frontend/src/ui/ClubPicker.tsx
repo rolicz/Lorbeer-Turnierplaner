@@ -1,16 +1,21 @@
 /**
- * One club picker for the whole app (S10): a `Modal` sheet that opens from a club
- * slot on a match card, in the match-detail edit tab and in both friendly forms.
+ * One club picker for the whole app (S10): a `Modal` sheet opened by tapping a
+ * club in the scoreboard — on the live match, in the match-detail edit tab and in
+ * both friendly forms.
  *
  * The common path is one tap: the search field is focused on open, the clubs you
  * picked most recently sit on top, every row carries its crest and stars, and a
  * tap selects and closes. When the *other* side of the match has no club yet the
  * sheet stays open and switches to it, so setting both clubs is three taps.
  *
- * Replaces `ClubCombobox` + the two-step `SelectClubsPanel` dropdowns.
+ * T2 moved the star/league **filters** out to the match card (they narrow the
+ * list for both sides and drive Random matchup) — the sheet only *reports* them —
+ * and moved the **stars editor** in here, into the row of the selected club,
+ * where a rating is a property of the club being chosen.
  */
-import { Check, Search, ShieldHalf, X } from "lucide-react";
+import { Check, Filter, Search, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import type { ReactNode } from "react";
 
 import type { Club } from "../api/types";
 
@@ -20,13 +25,11 @@ import { Chip } from "./primitives/Chip";
 import Modal from "./primitives/Modal";
 import { Stars } from "./primitives/Stars";
 import {
-  LeagueFilter,
-  StarFilter,
-  clubLabelPartsById,
   ensureSelectedClubVisible,
   leagueInfo,
   readRecentClubIds,
   rememberRecentClubId,
+  starsLabel,
   type ClubFilters,
 } from "./clubControls";
 import { cn } from "./cn";
@@ -39,78 +42,6 @@ export type ClubPickerSide = {
   clubId: number | null;
 };
 
-/**
- * The tappable club slot on a match card: side label, crest + club name, flag +
- * league. Stars sit next to it in `SelectClubsPanel` (or are the editor's
- * `ClubStarsEditor` control), so the slot itself stays one flat button.
- */
-export function ClubSlot({
-  label,
-  clubs,
-  clubId,
-  onOpen,
-  disabled = false,
-  className,
-}: {
-  label: string;
-  clubs: Club[];
-  clubId: number | null;
-  onOpen: () => void;
-  disabled?: boolean;
-  className?: string;
-}) {
-  const parts = clubLabelPartsById(clubs, clubId);
-  const known = clubs.some((c) => c.id === clubId);
-
-  return (
-    <button
-      type="button"
-      onClick={onOpen}
-      disabled={disabled}
-      aria-label={`${label} — ${known ? parts.name : "select club"}`}
-      title={known ? `${label} — ${parts.name}` : `${label} — select club`}
-      className={cn(
-        "focus-ring inset w-full px-3 py-2 text-left transition hover:bg-bg-card-chip/70 disabled:opacity-60",
-        className,
-      )}
-    >
-      <span className="block truncate text-xs text-text-muted">{label}</span>
-      <span className="mt-0.5 flex items-start gap-1.5">
-        {known ? (
-          <ClubBadge
-            name={parts.name}
-            nation={parts.national_nation}
-            clubId={parts.id}
-            crestVersion={parts.crest_updated_at}
-          />
-        ) : (
-          <ShieldHalf size={16} className="shrink-0 text-text-muted" aria-hidden="true" />
-        )}
-        <span
-          className={cn(
-            // The club name is the identity of the slot — it wraps instead of
-            // truncating, and both slots stretch to the taller one.
-            "min-w-0 whitespace-normal break-words text-sm leading-tight",
-            known ? "font-medium text-text-normal" : "text-text-muted",
-          )}
-        >
-          {known ? parts.name : "Select club"}
-        </span>
-      </span>
-      <span className="mt-0.5 flex items-center gap-1.5 text-xs text-text-muted">
-        {known && parts.league_name ? (
-          <>
-            <NationFlag nation={parts.league_nation} />
-            <span className="min-w-0 truncate">{parts.league_name}</span>
-          </>
-        ) : (
-          <span className="truncate">{known ? "—" : "Tap to choose"}</span>
-        )}
-      </span>
-    </button>
-  );
-}
-
 /** One club row in the sheet. */
 function ClubRow({
   club,
@@ -119,6 +50,7 @@ function ClubRow({
   showLeague,
   onPick,
   onHover,
+  trailing,
 }: {
   club: Club;
   selected: boolean;
@@ -126,41 +58,55 @@ function ClubRow({
   showLeague: boolean;
   onPick: () => void;
   onHover: () => void;
+  /** Replaces the static stars — the selected row gets the editable control. */
+  trailing?: ReactNode;
 }) {
   return (
-    <button
-      type="button"
-      role="option"
-      aria-selected={selected}
-      data-active={active ? "true" : undefined}
-      onMouseEnter={onHover}
-      onClick={onPick}
+    <div
       className={cn(
-        "flex w-full items-center gap-2 px-3 py-2 text-left transition-colors",
+        "flex w-full items-center gap-2 px-3 transition-colors",
         active ? "bg-bg-card-chip/60" : "hover:bg-bg-card-chip/40",
         selected && "bg-accent/10",
       )}
     >
-      <ClubBadge
-        name={club.name}
-        nation={nationalTeamNation(club.name, club.league_name)}
-        clubId={club.id}
-        crestVersion={club.crest_updated_at}
-      />
-      <span className="min-w-0 flex-1">
-        <span className={cn("block truncate text-sm", selected ? "text-accent" : "text-text-normal")}>
-          {club.name}
-        </span>
-        {showLeague && club.league_name ? (
-          <span className="flex min-w-0 items-center gap-1.5 text-xs text-text-muted">
-            <NationFlag nation={club.league_nation} />
-            <span className="min-w-0 truncate">{club.league_name}</span>
+      <button
+        type="button"
+        role="option"
+        aria-selected={selected}
+        data-active={active ? "true" : undefined}
+        onMouseEnter={onHover}
+        onClick={onPick}
+        className="flex min-w-0 flex-1 items-center gap-2 py-2 text-left"
+      >
+        <ClubBadge
+          name={club.name}
+          nation={nationalTeamNation(club.name, club.league_name)}
+          clubId={club.id}
+          crestVersion={club.crest_updated_at}
+        />
+        <span className="min-w-0 flex-1">
+          <span className={cn("block truncate text-sm", selected ? "text-accent" : "text-text-normal")}>
+            {club.name}
           </span>
-        ) : null}
-      </span>
-      <Stars rating={Number(club.star_rating) || 0} textClassName="text-text-muted" />
+          {showLeague && club.league_name ? (
+            <span className="flex min-w-0 items-center gap-1.5 text-xs text-text-muted">
+              <NationFlag nation={club.league_nation} />
+              <span className="min-w-0 truncate">{club.league_name}</span>
+            </span>
+          ) : null}
+        </span>
+      </button>
+      {trailing ?? <Stars rating={Number(club.star_rating) || 0} textClassName="text-text-muted" />}
       {selected ? <Check size={16} className="shrink-0 text-accent" aria-hidden="true" /> : null}
-    </button>
+    </div>
+  );
+}
+
+function GroupLabel({ children }: { children: ReactNode }) {
+  return (
+    <div className="px-3 pb-1 pt-2 text-xs font-semibold uppercase tracking-wide text-text-muted">
+      {children}
+    </div>
   );
 }
 
@@ -174,6 +120,7 @@ export default function ClubPicker({
   onPick,
   filters,
   disabled = false,
+  starsEditor,
 }: {
   open: boolean;
   onClose: () => void;
@@ -186,6 +133,8 @@ export default function ClubPicker({
   onPick: (key: "A" | "B", clubId: number | null) => void;
   filters: ClubFilters;
   disabled?: boolean;
+  /** `ClubStarsEditor` for the selected club (editors/admins); readers pass nothing. */
+  starsEditor?: ReactNode;
 }) {
   const [query, setQuery] = useState("");
   const [recentIds, setRecentIds] = useState<number[]>([]);
@@ -211,8 +160,8 @@ export default function ClubPicker({
 
   const q = query.trim().toLowerCase();
 
-  // `filters.filtered` is the star/league-narrowed list; the selected club stays
-  // visible even when the filters exclude it (same rule as the old combobox).
+  // `filters.filtered` is the star/league-narrowed list (set on the match card);
+  // the selected club stays reachable even when the filters exclude it.
   const pool = useMemo(
     () => ensureSelectedClubVisible(filters.filtered, clubs, activeClubId),
     [filters.filtered, clubs, activeClubId],
@@ -225,18 +174,30 @@ export default function ClubPicker({
     );
   }, [pool, q]);
 
+  // While browsing, the club this side already has sits on top with its stars
+  // editor instead of being buried in its league group (it is listed once).
+  const pinned = useMemo(() => {
+    if (q || activeClubId == null) return null;
+    return pool.find((c) => c.id === activeClubId) ?? null;
+  }, [pool, q, activeClubId]);
+
+  const browse = useMemo(
+    () => (pinned ? matches.filter((c) => c.id !== pinned.id) : matches),
+    [matches, pinned],
+  );
+
   const recent = useMemo(() => {
     if (q) return [];
-    const byId = new Map(pool.map((c) => [c.id, c]));
+    const byId = new Map(browse.map((c) => [c.id, c]));
     return recentIds.map((id) => byId.get(id)).filter((c): c is Club => !!c);
-  }, [pool, q, recentIds]);
+  }, [browse, q, recentIds]);
 
   // Browsing (no query) groups by league — best league first, so the strongest
   // clubs still lead the list; searching drops the grouping and stays flat.
   const groups = useMemo(() => {
     if (q) return null;
     const byLeague = new Map<string, { name: string; clubs: Club[]; top: number }>();
-    for (const c of matches) {
+    for (const c of browse) {
       const li = leagueInfo(c);
       const key = li.id == null ? "none" : String(li.id);
       const entry = byLeague.get(key) ?? { name: li.name ?? "Other", clubs: [], top: 0 };
@@ -245,17 +206,18 @@ export default function ClubPicker({
       byLeague.set(key, entry);
     }
     return Array.from(byLeague.values()).sort((a, b) => b.top - a.top || a.name.localeCompare(b.name));
-  }, [matches, q]);
+  }, [browse, q]);
 
-  // Keyboard order over exactly what is rendered (recents first, then the
-  // groups or the flat search result) — the combobox this replaced had
+  // Keyboard order over exactly what is rendered (the selected club, recents,
+  // then the groups or the flat search result) — the combobox this replaced had
   // ArrowUp/ArrowDown/Enter and they must keep working on a desktop.
-  const { flat, indexById } = useMemo(() => {
-    const tail = groups ? groups.flatMap((g) => g.clubs) : matches;
+  const { flat, headLen, indexById } = useMemo(() => {
+    const head = pinned ? [pinned] : [];
+    const tail = groups ? groups.flatMap((g) => g.clubs) : browse;
     const byId = new Map<number, number>();
-    tail.forEach((c, i) => byId.set(c.id, recent.length + i));
-    return { flat: [...recent, ...tail], indexById: byId };
-  }, [recent, groups, matches]);
+    tail.forEach((c, i) => byId.set(c.id, head.length + recent.length + i));
+    return { flat: [...head, ...recent, ...tail], headLen: head.length, indexById: byId };
+  }, [pinned, recent, groups, browse]);
   const activeClamped = Math.min(activeIdx, Math.max(0, flat.length - 1));
 
   useEffect(() => {
@@ -289,6 +251,8 @@ export default function ClubPicker({
   };
 
   if (!active) return null;
+
+  const leagueName = filters.leagueOptions.find((o) => o.id === filters.leagueFilter)?.name ?? "League";
 
   return (
     <Modal
@@ -347,21 +311,21 @@ export default function ClubPicker({
           ) : null}
         </div>
 
-        <div className="grid shrink-0 grid-cols-2 gap-2">
-          <StarFilter
-            value={filters.starFilter}
-            onChange={filters.setStarFilter}
-            disabled={disabled}
-            hideLabel
-          />
-          <LeagueFilter
-            value={filters.leagueFilter}
-            onChange={filters.setLeagueFilter}
-            disabled={disabled}
-            options={filters.leagueOptions}
-            hideLabel
-          />
-        </div>
+        {/* The filters live on the match card now (they drive Random matchup too);
+            the sheet only says why the list is short. */}
+        {filters.active ? (
+          <div
+            data-club-filter-note
+            className="flex shrink-0 items-center gap-1.5 px-1 text-xs text-text-muted"
+          >
+            <Filter size={12} className="shrink-0" aria-hidden="true" />
+            <span className="min-w-0 truncate">
+              Filtered by{filters.starFilter != null ? ` ${starsLabel(filters.starFilter)}★` : ""}
+              {filters.starFilter != null && filters.leagueFilter != null ? " ·" : ""}
+              {filters.leagueFilter != null ? ` ${leagueName}` : ""}
+            </span>
+          </div>
+        ) : null}
 
         <div
           ref={listRef}
@@ -369,6 +333,21 @@ export default function ClubPicker({
           aria-label="Clubs"
           className="-mx-1 min-h-0 flex-1 overflow-y-auto overscroll-contain"
         >
+          {pinned ? (
+            <>
+              <GroupLabel>Selected</GroupLabel>
+              <ClubRow
+                club={pinned}
+                selected
+                active={activeClamped === 0}
+                showLeague
+                onHover={() => setActiveIdx(0)}
+                onPick={() => pick(pinned.id)}
+                trailing={starsEditor ?? undefined}
+              />
+            </>
+          ) : null}
+
           {activeClubId != null ? (
             <button
               type="button"
@@ -382,17 +361,15 @@ export default function ClubPicker({
 
           {recent.length ? (
             <>
-              <div className="px-3 pb-1 pt-2 text-xs font-semibold uppercase tracking-wide text-text-muted">
-                Recent
-              </div>
+              <GroupLabel>Recent</GroupLabel>
               {recent.map((c, i) => (
                 <ClubRow
                   key={`r-${c.id}`}
                   club={c}
                   selected={c.id === activeClubId}
-                  active={i === activeClamped}
+                  active={headLen + i === activeClamped}
                   showLeague
-                  onHover={() => setActiveIdx(i)}
+                  onHover={() => setActiveIdx(headLen + i)}
                   onPick={() => pick(c.id)}
                 />
               ))}
@@ -424,17 +401,19 @@ export default function ClubPicker({
               </div>
             ))
           ) : (
-            matches.map((c) => {
+            browse.map((c) => {
               const i = indexById.get(c.id) ?? -1;
+              const isSelected = c.id === activeClubId;
               return (
                 <ClubRow
                   key={c.id}
                   club={c}
-                  selected={c.id === activeClubId}
+                  selected={isSelected}
                   active={i === activeClamped}
                   showLeague
                   onHover={() => setActiveIdx(i)}
                   onPick={() => pick(c.id)}
+                  trailing={isSelected ? starsEditor ?? undefined : undefined}
                 />
               );
             })

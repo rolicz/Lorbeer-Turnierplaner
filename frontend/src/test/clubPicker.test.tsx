@@ -1,9 +1,13 @@
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, within } from "@testing-library/react";
+import { fireEvent, render } from "@testing-library/react";
+import { useState } from "react";
 
 import type { Club } from "../api/types";
-import ClubPicker, { ClubSlot } from "../ui/ClubPicker";
-import { useClubFilters } from "../ui/clubControls";
+import { AuthProvider } from "../auth/AuthContext";
+import ClubPicker from "../ui/ClubPicker";
+import SelectClubsPanel from "../ui/SelectClubsPanel";
+import MatchSides from "../ui/primitives/MatchSides";
+import { useClubFilters, useClubSelection } from "../ui/clubControls";
 
 const CLUBS: Club[] = [
   {
@@ -44,12 +48,14 @@ function Harness({
   activeKey = "A",
   onPick = () => {},
   onActiveKeyChange = () => {},
+  starsEditor,
 }: {
   aClub?: number | null;
   bClub?: number | null;
   activeKey?: "A" | "B";
   onPick?: (key: "A" | "B", clubId: number | null) => void;
   onActiveKeyChange?: (key: "A" | "B") => void;
+  starsEditor?: React.ReactNode;
 }) {
   const filters = useClubFilters(CLUBS);
   return (
@@ -65,7 +71,43 @@ function Harness({
       onActiveKeyChange={onActiveKeyChange}
       onPick={onPick}
       filters={filters}
+      starsEditor={starsEditor}
     />
+  );
+}
+
+/**
+ * The T2 shape: the scoreboard's club line is the trigger, the panel under it
+ * carries the filters and the two random actions, and the sheet is shared.
+ */
+function PanelHarness({ initialA = null, initialB = null }: { initialA?: number | null; initialB?: number | null }) {
+  const [aClub, setAClub] = useState<number | null>(initialA);
+  const [bClub, setBClub] = useState<number | null>(initialB);
+  const selection = useClubSelection({
+    clubs: CLUBS,
+    aLabel: "Roli",
+    bLabel: "Flo",
+    aClub,
+    bClub,
+    onChangeAClub: setAClub,
+    onChangeBClub: setBClub,
+    onChangeClubs: (a, b) => {
+      setAClub(a);
+      setBClub(b);
+    },
+  });
+  return (
+    <AuthProvider>
+      <MatchSides
+        clubs={CLUBS}
+        aClubId={aClub}
+        bClubId={bClub}
+        aLabel="Roli"
+        bLabel="Flo"
+        onPickClub={selection.openPicker}
+      />
+      <SelectClubsPanel selection={selection} />
+    </AuthProvider>
   );
 }
 
@@ -76,30 +118,6 @@ beforeAll(() => {
 
 beforeEach(() => {
   window.localStorage.clear();
-});
-
-describe("ClubSlot", () => {
-  it("shows the selected club with its symbol and league", () => {
-    const { getByRole, getByText } = render(
-      <ClubSlot label="Roli" clubs={CLUBS} clubId={1} onOpen={() => {}} />,
-    );
-
-    const slot = getByRole("button", { name: "Roli — Bayern München" });
-    expect(within(slot).getByText("Bayern München")).toBeInTheDocument();
-    expect(within(slot).getByText("Bundesliga")).toBeInTheDocument();
-    // Monogram badge (no crest file in the fixture).
-    expect(getByText("BM")).toBeInTheDocument();
-  });
-
-  it("invites a pick when no club is set", () => {
-    const onOpen = vi.fn();
-    const { getByRole } = render(<ClubSlot label="Flo" clubs={CLUBS} clubId={null} onOpen={onOpen} />);
-
-    const slot = getByRole("button", { name: "Flo — select club" });
-    expect(within(slot).getByText("Select club")).toBeInTheDocument();
-    fireEvent.click(slot);
-    expect(onOpen).toHaveBeenCalledTimes(1);
-  });
 });
 
 describe("ClubPicker", () => {
@@ -175,6 +193,21 @@ describe("ClubPicker", () => {
     expect(onPick).toHaveBeenCalledWith("A", null);
   });
 
+  it("pins the club this side already has on top — listed once, with room for the stars editor", () => {
+    const { getByTestId } = render(
+      <Harness aClub={1} starsEditor={<span data-testid="stars-editor">4.5★</span>} />,
+    );
+
+    expect(document.body.textContent).toContain("Selected");
+    expect(getByTestId("stars-editor")).toBeInTheDocument();
+
+    // Bayern is the pinned row and is *not* repeated inside its league group.
+    const rows = Array.from(document.querySelectorAll('[role="option"]'));
+    expect(rows.filter((el) => el.textContent?.includes("Bayern München"))).toHaveLength(1);
+    expect(rows[0]?.textContent).toContain("Bayern München");
+    expect(rows[0]).toHaveAttribute("aria-selected", "true");
+  });
+
   it("lets the sheet switch between both sides", () => {
     const onActiveKeyChange = vi.fn();
     const { getByRole } = render(<Harness onActiveKeyChange={onActiveKeyChange} />);
@@ -200,18 +233,73 @@ describe("ClubPicker", () => {
     fireEvent.keyDown(input, { key: "Enter" });
     expect(onPick).toHaveBeenCalledWith("A", 1);
   });
+});
 
-  it("narrows the list through the shared star filter", () => {
-    render(<Harness />);
+describe("SelectClubsPanel (T2 controls row)", () => {
+  it("never repeats a club name outside the scoreboard", () => {
+    const { container } = render(<PanelHarness initialA={1} initialB={2} />);
 
-    fireEvent.click(document.querySelector('[aria-label="Filter by stars"]') as HTMLElement);
+    expect(container.textContent?.match(/Bayern München/g)).toHaveLength(1);
+    expect(container.textContent?.match(/Ajax/g)).toHaveLength(1);
+  });
+
+  it("opens the picker on the side whose club was tapped in the scoreboard", () => {
+    const { getByRole, getByLabelText } = render(<PanelHarness initialA={1} initialB={2} />);
+
+    fireEvent.click(getByLabelText("Flo — select club"));
+    expect(getByRole("button", { name: "Flo" })).toHaveAttribute("aria-pressed", "true");
+    // The sheet's subtitle names the side it is picking for.
+    expect(document.body.textContent).toContain("Flo · 3 clubs");
+  });
+
+  it("reaches the star/league filters without opening a club", () => {
+    const { getByRole, queryByLabelText } = render(<PanelHarness />);
+
+    expect(queryByLabelText("Filter by stars")).toBeNull();
+    const trigger = getByRole("button", { name: /Filter clubs/ });
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+
+    fireEvent.click(trigger);
+    expect(trigger).toHaveAttribute("aria-expanded", "true");
+    expect(queryByLabelText("Filter by stars")).not.toBeNull();
+    expect(queryByLabelText("Filter by league")).not.toBeNull();
+  });
+
+  it("narrows the picker list through the filters set on the match card", () => {
+    const { getByLabelText, getByRole } = render(<PanelHarness />);
+
+    fireEvent.click(getByRole("button", { name: /Filter clubs/ }));
+    fireEvent.click(getByLabelText("Filter by stars"));
     const option = Array.from(document.querySelectorAll('[role="option"]')).find(
       (el) => el.textContent?.trim() === "5★",
     );
     fireEvent.click(option as HTMLElement);
 
+    // The active filter is a chip with a ✕ once the row is closed again.
+    fireEvent.click(getByRole("button", { name: /Filter clubs/ }));
+    expect(getByRole("button", { name: "Clear the star filter" })).toBeInTheDocument();
+
+    // …and the sheet, opened from the scoreboard, lists only what is left.
+    fireEvent.click(getByLabelText("Roli — select club"));
     const rows = Array.from(document.querySelectorAll('[role="option"]'));
     expect(rows).toHaveLength(1);
     expect(rows[0]?.textContent).toContain("Bayern München");
+    expect(document.querySelector("[data-club-filter-note]")?.textContent).toContain("5★");
+  });
+
+  it("balances the two random actions in one row and fills both sides at once", () => {
+    const { container, getByRole } = render(<PanelHarness />);
+
+    const dice = getByRole("button", { name: "Randomize the star filter" });
+    const random = getByRole("button", { name: /Random matchup/ });
+    expect(dice.className).toContain("h-10");
+    expect(random.className).toContain("h-10");
+    expect(random.className).toContain("flex-1");
+    expect(dice.parentElement).toBe(random.parentElement);
+
+    // One tap fills both sides, so neither club line is a placeholder any more.
+    expect(container.textContent?.match(/Select club/g)).toHaveLength(2);
+    fireEvent.click(random);
+    expect(container.textContent).not.toContain("Select club");
   });
 });

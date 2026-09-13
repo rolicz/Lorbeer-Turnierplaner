@@ -369,6 +369,129 @@ export function useClubFilters(clubs: Club[]): ClubFilters {
   };
 }
 
+// --- Club selection for both sides of a match ---------------------------------
+
+export type ClubSelection = {
+  clubs: Club[];
+  disabled: boolean;
+  aLabel: string;
+  bLabel: string;
+  aClub: number | null;
+  bClub: number | null;
+  filters: ClubFilters;
+  pickerOpen: boolean;
+  /** The side the picker sheet is currently showing. */
+  activeKey: "A" | "B";
+  setActiveKey: (key: "A" | "B") => void;
+  /** Opens the sheet on one side — this is what the scoreboard's club line calls. */
+  openPicker: (side: "A" | "B") => void;
+  closePicker: () => void;
+  /** Applies a pick, then advances to the empty side or closes. */
+  pick: (side: "A" | "B", clubId: number | null) => void;
+  /** Random matchup over the filtered pool (crypto RNG, no duplicate, no national vs club). */
+  randomize: () => void;
+};
+
+/**
+ * The whole club-selection state of one match: the shared star/league filters,
+ * which side the picker sheet is on, and the random matchup. It is a hook rather
+ * than component state because the *trigger* now lives in the scoreboard
+ * (`MatchOverviewPanel`) while the controls row and the sheet live in
+ * `SelectClubsPanel` (T2/`DESIGN.md` §9b).
+ */
+export function useClubSelection({
+  clubs,
+  disabled = false,
+  aLabel,
+  bLabel,
+  aClub,
+  bClub,
+  onChangeAClub,
+  onChangeBClub,
+  onChangeClubs,
+}: {
+  clubs: Club[];
+  disabled?: boolean;
+  /** The side's players, e.g. "Roli" or "Flo + Berni". */
+  aLabel: string;
+  bLabel: string;
+  aClub: number | null;
+  bClub: number | null;
+  onChangeAClub: (v: number | null) => void;
+  onChangeBClub: (v: number | null) => void;
+  /** Preferred for the random matchup, so a call site can save both sides in one write. */
+  onChangeClubs?: (a: number, b: number) => void;
+}): ClubSelection {
+  const filters = useClubFilters(clubs);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [activeKey, setActiveKey] = useState<"A" | "B">("A");
+
+  function openPicker(side: "A" | "B") {
+    if (disabled) return;
+    setActiveKey(side);
+    setPickerOpen(true);
+  }
+
+  function pick(side: "A" | "B", clubId: number | null) {
+    if (side === "A") onChangeAClub(clubId);
+    else onChangeBClub(clubId);
+
+    // Setting one side while the other is still empty keeps the sheet open and
+    // moves to that side — picking both clubs stays a single visit.
+    const otherEmpty = side === "A" ? bClub == null : aClub == null;
+    if (clubId != null && otherEmpty) {
+      setActiveKey(side === "A" ? "B" : "A");
+      return;
+    }
+    setPickerOpen(false);
+  }
+
+  function randomize() {
+    if (disabled) return;
+    const pool = filters.filtered;
+    if (!pool.length) return;
+
+    const clubA = pool[cryptoRandomInt(pool.length)];
+    const firstClubB = pool[cryptoRandomInt(pool.length)];
+    if (!clubA || !firstClubB) return;
+    let clubB = firstClubB;
+
+    if (pool.length > 1) {
+      let guard = 0;
+      while (!randomClubAssignmentOk(clubA, clubB) && guard < 50) {
+        const candidate = pool[cryptoRandomInt(pool.length)];
+        if (!candidate) break;
+        clubB = candidate;
+        guard++;
+      }
+    }
+
+    if (onChangeClubs) {
+      onChangeClubs(clubA.id, clubB.id);
+      return;
+    }
+    onChangeAClub(clubA.id);
+    onChangeBClub(clubB.id);
+  }
+
+  return {
+    clubs,
+    disabled,
+    aLabel,
+    bLabel,
+    aClub,
+    bClub,
+    filters,
+    pickerOpen,
+    activeKey,
+    setActiveKey,
+    openPicker,
+    closePicker: () => setPickerOpen(false),
+    pick,
+    randomize,
+  };
+}
+
 // --- Recently picked clubs (club picker) --------------------------------------
 
 const RECENT_CLUBS_KEY = "club_picker_recent_v1";

@@ -10,6 +10,10 @@
  *
  * No colon, no box around the score, no `border-y` rules, and stars only for a
  * side that actually has a club.
+ *
+ * On an editable surface (`onPickClub`, T2) the two club lines are the trigger of
+ * the club picker — the scoreboard is the only place a club is named, never a
+ * second row below it (`DESIGN.md` §9b).
  */
 import type { Club, Match, MatchSide, TournamentMode } from "../../api/types";
 import { sideBy } from "../../helpers";
@@ -35,6 +39,9 @@ export default function MatchOverviewPanel({
   showOdds = true,
   showOddsWhenFinished = false,
   surface = "inset",
+  aLabel,
+  bLabel,
+  onPickClub,
   className,
 }: {
   match: Match;
@@ -49,6 +56,11 @@ export default function MatchOverviewPanel({
   showOdds?: boolean;
   showOddsWhenFinished?: boolean;
   surface?: "card" | "inset" | "none";
+  /** Side labels for the picker trigger; defaults to the side's players. */
+  aLabel?: string;
+  bLabel?: string;
+  /** Editable panels only: each club line opens the club picker for that side. */
+  onPickClub?: (side: "A" | "B") => void;
   className?: string;
 }) {
   const a = sideBy(match, "A");
@@ -84,7 +96,16 @@ export default function MatchOverviewPanel({
         </div>
       ) : null}
 
-      <MatchSides className="mt-3" size="hero" clubs={clubs} aClubId={a?.club_id} bClubId={b?.club_id} />
+      <MatchSides
+        className="mt-3"
+        size="hero"
+        clubs={clubs}
+        aClubId={a?.club_id}
+        bClubId={b?.club_id}
+        aLabel={aLabel ?? namesStack(a).join(" + ")}
+        bLabel={bLabel ?? namesStack(b).join(" + ")}
+        onPickClub={onPickClub}
+      />
     </div>
   );
 }

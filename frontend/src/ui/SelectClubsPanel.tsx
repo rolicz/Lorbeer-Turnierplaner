@@ -1,37 +1,35 @@
 /**
- * Club selection for both sides of a match (S10).
+ * The club controls of a match (T2) — everything that is *not* a club name.
  *
- * Two always-visible club slots — no collapse, no dropdown step. Tapping a slot
- * opens the shared `ClubPicker` sheet (search focused, recents first, one tap
- * selects); when the other side is still empty the sheet switches to it instead
- * of closing, so both clubs are three taps. The star/league filters live in the
- * sheet and are shared with *Random matchup* and the dice, which stay out here
- * because they act on both sides at once.
+ * The clubs themselves are named once, in the scoreboard above, and tapping one
+ * there opens the `ClubPicker` sheet (`DESIGN.md` §9b: the value is the trigger).
+ * What is left here acts on *both* sides and therefore belongs to the match card,
+ * not to a per-side sheet:
+ *
+ *   [⚙ Filter clubs ⌄]                      ← star/league filters, inline row
+ *   [🎲]  [ Random matchup ................] ← the two random actions, one height
+ *
+ * State lives in `useClubSelection` (`clubControls.tsx`) because the trigger sits
+ * in another component; a call site calls the hook once and passes the result to
+ * the scoreboard (`onPickClub`) and to this panel.
  */
-import { Shuffle, X } from "lucide-react";
+import { ChevronDown, Shuffle, SlidersHorizontal, X } from "lucide-react";
 import { useState } from "react";
 
-import type { Club } from "../api/types";
 import { useAuth } from "../auth/AuthContext";
 
 import Button from "./primitives/Button";
 import { chipClass } from "./primitives/Chip";
-import { Stars } from "./primitives/Stars";
 import ClubStarsEditor from "./ClubStarsEditor";
-import ClubPicker, { ClubSlot } from "./ClubPicker";
-import {
-  clubLabelPartsById,
-  cryptoRandomInt,
-  randomClubAssignmentOk,
-  starsLabel,
-  useClubFilters,
-} from "./clubControls";
+import ClubPicker from "./ClubPicker";
+import { LeagueFilter, StarFilter, starsLabel, type ClubSelection } from "./clubControls";
+import { cn } from "./cn";
 
 function DiceIcon({ spinning }: { spinning: boolean }) {
   return (
     <svg
       viewBox="0 0 24 24"
-      className={"h-4 w-4 " + (spinning ? "dice-roll" : "")}
+      className={"h-5 w-5 " + (spinning ? "dice-roll" : "")}
       stroke="currentColor"
       strokeWidth="1.6"
       strokeLinejoin="round"
@@ -49,30 +47,12 @@ function DiceIcon({ spinning }: { spinning: boolean }) {
 }
 
 export default function SelectClubsPanel({
-  clubs,
-  disabled,
-  aLabel,
-  bLabel,
-  aClub,
-  bClub,
-  onChangeAClub,
-  onChangeBClub,
-  onChangeClubs,
+  selection,
   extraTop,
   extraBottom,
   className,
 }: {
-  clubs: Club[];
-  disabled: boolean;
-  /** The side's players, e.g. "Roli" or "Flo/Berni". */
-  aLabel: string;
-  bLabel: string;
-  aClub: number | null;
-  bClub: number | null;
-  onChangeAClub: (v: number | null) => void;
-  onChangeBClub: (v: number | null) => void;
-  /** Preferred for the random matchup, so a call site can save both sides in one write. */
-  onChangeClubs?: (a: number, b: number) => void;
+  selection: ClubSelection;
   extraTop?: React.ReactNode;
   extraBottom?: React.ReactNode;
   className?: string;
@@ -80,98 +60,95 @@ export default function SelectClubsPanel({
   const { role, token } = useAuth();
   const canEditStars = (role === "editor" || role === "admin") && !!token;
 
-  const filters = useClubFilters(clubs);
-  const [pickerOpen, setPickerOpen] = useState(false);
-  const [activeKey, setActiveKey] = useState<"A" | "B">("A");
+  const { clubs, disabled, filters } = selection;
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
-  const aParts = clubLabelPartsById(clubs, aClub);
-  const bParts = clubLabelPartsById(clubs, bClub);
-
-  function openPicker(key: "A" | "B") {
-    if (disabled) return;
-    setActiveKey(key);
-    setPickerOpen(true);
-  }
-
-  function handlePick(key: "A" | "B", clubId: number | null) {
-    if (key === "A") onChangeAClub(clubId);
-    else onChangeBClub(clubId);
-
-    // Setting one side while the other is still empty keeps the sheet open and
-    // moves to that side — picking both clubs stays a single visit.
-    const otherEmpty = key === "A" ? bClub == null : aClub == null;
-    if (clubId != null && otherEmpty) {
-      setActiveKey(key === "A" ? "B" : "A");
-      return;
-    }
-    setPickerOpen(false);
-  }
-
-  function randomizeClubs() {
-    if (disabled) return;
-    const pool = filters.filtered;
-    if (!pool.length) return;
-
-    const clubA = pool[cryptoRandomInt(pool.length)];
-    const firstClubB = pool[cryptoRandomInt(pool.length)];
-    if (!clubA || !firstClubB) return;
-    let clubB = firstClubB;
-
-    if (pool.length > 1) {
-      let guard = 0;
-      while (!randomClubAssignmentOk(clubA, clubB) && guard < 50) {
-        const candidate = pool[cryptoRandomInt(pool.length)];
-        if (!candidate) break;
-        clubB = candidate;
-        guard++;
-      }
-    }
-
-    if (onChangeClubs) {
-      onChangeClubs(clubA.id, clubB.id);
-      return;
-    }
-    onChangeAClub(clubA.id);
-    onChangeBClub(clubB.id);
-  }
-
-  const sideMeta = (clubId: number | null, parts: ReturnType<typeof clubLabelPartsById>) =>
-    canEditStars ? (
-      <ClubStarsEditor clubId={clubId} clubs={clubs} disabled={disabled} />
-    ) : clubId != null ? (
-      <Stars rating={parts.rating ?? 0} textClassName="text-text-muted" />
-    ) : null;
+  const leagueName = filters.leagueOptions.find((o) => o.id === filters.leagueFilter)?.name ?? "League";
+  const activeClubId = selection.activeKey === "A" ? selection.aClub : selection.bClub;
 
   return (
-    <div className={className ? `space-y-3 ${className}` : "space-y-3"}>
+    <div className={cn("space-y-3", className)}>
       {extraTop ? <div>{extraTop}</div> : null}
 
-      <div className="grid grid-cols-2 items-stretch gap-2">
-        <div className="flex flex-col gap-1.5">
-          <ClubSlot
-            label={aLabel}
-            clubs={clubs}
-            clubId={aClub}
-            disabled={disabled}
-            onOpen={() => openPicker("A")}
-            className="flex-1"
+      <div className="flex flex-wrap items-center gap-1.5">
+        <button
+          type="button"
+          onClick={() => setFiltersOpen((v) => !v)}
+          disabled={disabled}
+          aria-expanded={filtersOpen}
+          aria-controls="club-filters"
+          title="Narrow the club list and the random matchup"
+          className={chipClass(filters.active, "inline-flex items-center gap-1.5")}
+        >
+          <SlidersHorizontal size={14} aria-hidden="true" />
+          Filter clubs
+          <ChevronDown
+            size={14}
+            className={cn("transition-transform", filtersOpen && "rotate-180")}
+            aria-hidden="true"
           />
-          <div className="flex min-h-[1.25rem] items-center justify-end px-1">{sideMeta(aClub, aParts)}</div>
-        </div>
-        <div className="flex flex-col gap-1.5">
-          <ClubSlot
-            label={bLabel}
-            clubs={clubs}
-            clubId={bClub}
-            disabled={disabled}
-            onOpen={() => openPicker("B")}
-            className="flex-1"
-          />
-          <div className="flex min-h-[1.25rem] items-center justify-end px-1">{sideMeta(bClub, bParts)}</div>
-        </div>
+        </button>
+
+        {/* While the row is open the two selects say what is on; closed, these chips do. */}
+        {!filtersOpen && filters.starFilter != null ? (
+          <button
+            type="button"
+            onClick={() => filters.setStarFilter(null)}
+            className={chipClass(true, "inline-flex items-center gap-1")}
+            aria-label="Clear the star filter"
+            title="Clear the star filter"
+          >
+            {starsLabel(filters.starFilter)}★
+            <X size={12} aria-hidden="true" />
+          </button>
+        ) : null}
+        {!filtersOpen && filters.leagueFilter != null ? (
+          <button
+            type="button"
+            onClick={() => filters.setLeagueFilter(null)}
+            className={chipClass(true, "inline-flex max-w-[60%] items-center gap-1")}
+            aria-label="Clear the league filter"
+            title="Clear the league filter"
+          >
+            <span className="min-w-0 truncate">{leagueName}</span>
+            <X size={12} className="shrink-0" aria-hidden="true" />
+          </button>
+        ) : null}
       </div>
 
-      <div className="flex items-center gap-2">
+      {filtersOpen ? (
+        <div id="club-filters" className="inset space-y-2">
+          <div className="grid grid-cols-2 gap-2">
+            <StarFilter
+              value={filters.starFilter}
+              onChange={filters.setStarFilter}
+              disabled={disabled}
+            />
+            <LeagueFilter
+              value={filters.leagueFilter}
+              onChange={filters.setLeagueFilter}
+              disabled={disabled}
+              options={filters.leagueOptions}
+            />
+          </div>
+          <div className="flex items-center justify-between gap-2">
+            <span className="min-w-0 truncate text-xs text-text-muted">
+              {filters.active ? `${filters.filtered.length} of ${filters.sorted.length} clubs` : "All clubs"}
+            </span>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={filters.clear}
+              disabled={disabled || !filters.active}
+            >
+              Clear filters
+            </Button>
+          </div>
+        </div>
+      ) : null}
+
+      <div className="flex items-stretch gap-2">
         <Button
           type="button"
           variant="ghost"
@@ -181,70 +158,43 @@ export default function SelectClubsPanel({
           disabled={disabled}
           title="Randomize the star filter"
           aria-label="Randomize the star filter"
-          className="flex h-10 w-10 shrink-0 items-center justify-center p-0"
+          className="inline-flex h-10 w-10 shrink-0 items-center justify-center p-0"
         >
           <DiceIcon spinning={filters.rolling} />
         </Button>
         <Button
           type="button"
           variant="ghost"
-          onClick={randomizeClubs}
+          onClick={selection.randomize}
           disabled={disabled}
-          className="min-w-0 flex-1 whitespace-nowrap"
+          className="inline-flex h-10 min-w-0 flex-1 items-center justify-center gap-2 whitespace-nowrap"
           title="Pick a random matchup (respects the club filters)"
         >
-          <Shuffle size={14} className="mr-2 inline-block align-[-2px]" aria-hidden="true" />
+          <Shuffle size={16} aria-hidden="true" />
           Random matchup
         </Button>
       </div>
 
-      {filters.active ? (
-        <div className="flex flex-wrap items-center gap-1.5">
-          <span className="text-xs text-text-muted">Club list filtered:</span>
-          {filters.starFilter != null ? (
-            <button
-              type="button"
-              onClick={() => filters.setStarFilter(null)}
-              className={chipClass(true, "inline-flex items-center gap-1")}
-              aria-label="Clear the star filter"
-              title="Clear the star filter"
-            >
-              {starsLabel(filters.starFilter)}★
-              <X size={12} aria-hidden="true" />
-            </button>
-          ) : null}
-          {filters.leagueFilter != null ? (
-            <button
-              type="button"
-              onClick={() => filters.setLeagueFilter(null)}
-              className={chipClass(true, "inline-flex max-w-[60%] items-center gap-1")}
-              aria-label="Clear the league filter"
-              title="Clear the league filter"
-            >
-              <span className="min-w-0 truncate">
-                {filters.leagueOptions.find((o) => o.id === filters.leagueFilter)?.name ?? "League"}
-              </span>
-              <X size={12} className="shrink-0" aria-hidden="true" />
-            </button>
-          ) : null}
-        </div>
-      ) : null}
-
       {extraBottom ? <div>{extraBottom}</div> : null}
 
       <ClubPicker
-        open={pickerOpen}
-        onClose={() => setPickerOpen(false)}
+        open={selection.pickerOpen}
+        onClose={selection.closePicker}
         clubs={clubs}
         sides={[
-          { key: "A", label: aLabel, clubId: aClub },
-          { key: "B", label: bLabel, clubId: bClub },
+          { key: "A", label: selection.aLabel, clubId: selection.aClub },
+          { key: "B", label: selection.bLabel, clubId: selection.bClub },
         ]}
-        activeKey={activeKey}
-        onActiveKeyChange={setActiveKey}
-        onPick={handlePick}
+        activeKey={selection.activeKey}
+        onActiveKeyChange={selection.setActiveKey}
+        onPick={selection.pick}
         filters={filters}
         disabled={disabled}
+        starsEditor={
+          canEditStars ? (
+            <ClubStarsEditor clubId={activeClubId} clubs={clubs} disabled={disabled} />
+          ) : null
+        }
       />
     </div>
   );

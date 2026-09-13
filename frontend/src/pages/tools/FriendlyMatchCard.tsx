@@ -9,7 +9,7 @@ import Button from "../../ui/primitives/Button";
 import AvatarButton from "../../ui/primitives/AvatarButton";
 import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
 import SelectClubsPanel from "../../ui/SelectClubsPanel";
-import { GoalStepper } from "../../ui/clubControls";
+import { GoalStepper, useClubSelection } from "../../ui/clubControls";
 import MatchOverviewPanel from "../../ui/primitives/MatchOverviewPanel";
 import SegmentedSwitch from "../../ui/primitives/SegmentedSwitch";
 
@@ -271,6 +271,22 @@ export default function FriendlyMatchCard({
     };
   }, [aTeamIds, bTeamIds, players, aClub, bClub, aGoals, bGoals, odds]);
 
+  // Clubs: the preview scoreboard above is the trigger (T2 / DESIGN.md §9b).
+  const clubSelection = useClubSelection({
+    clubs,
+    disabled: !open || clubsQ.isFetching || !!clubsQ.error,
+    aLabel,
+    bLabel,
+    aClub,
+    bClub,
+    onChangeClubs: (aId, bId) => {
+      setAClub(aId);
+      setBClub(bId);
+    },
+    onChangeAClub: setAClub,
+    onChangeBClub: setBClub,
+  });
+
   const saveMut = useMutation({
     mutationFn: () => {
       if (!token) throw new Error("Missing token");
@@ -392,6 +408,9 @@ export default function FriendlyMatchCard({
             bGoals={bGoals}
             showMode={true}
             showOdds={true}
+            aLabel={aLabel}
+            bLabel={bLabel}
+            onPickClub={clubSelection.openPicker}
           />
 
           <div className="pt-2">
@@ -490,20 +509,7 @@ export default function FriendlyMatchCard({
           <div className="section-head">
             <span className="section-label">Clubs</span>
           </div>
-          <SelectClubsPanel
-            clubs={clubs}
-            disabled={!open || clubsQ.isFetching || !!clubsQ.error}
-            aLabel={aLabel}
-            bLabel={bLabel}
-            aClub={aClub}
-            bClub={bClub}
-            onChangeClubs={(aId, bId) => {
-              setAClub(aId);
-              setBClub(bId);
-            }}
-            onChangeAClub={setAClub}
-            onChangeBClub={setBClub}
-          />
+          <SelectClubsPanel selection={clubSelection} />
         </div>
     </div>
   );

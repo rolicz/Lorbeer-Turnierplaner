@@ -10,8 +10,14 @@
  * Both sides hug the centre gap, mirroring the `ScoreLine` above them, so the
  * block stays a readable cluster instead of spreading across a desktop panel.
  * Shared by the hero panel, the live match list and the stats match history.
+ *
+ * **The club line is the editor's trigger** (`DESIGN.md` §9b, T2): pass
+ * `onPickClub` and each club becomes a button that opens the club picker for
+ * that side — an empty side reads "Select club" in a dashed slot. Read-only call
+ * sites pass nothing and render exactly as before.
  */
 import type { ReactNode } from "react";
+import { ShieldHalf } from "lucide-react";
 
 import type { Club } from "../../api/types";
 import { cn } from "../cn";
@@ -35,11 +41,48 @@ function Wrapped({ children }: { children: ReactNode }) {
   return <span className="min-w-0 whitespace-normal break-words leading-tight md:truncate">{children}</span>;
 }
 
+/**
+ * The tappable club line. Positioned (`relative z-10`) so it stays above a
+ * stretched "open match" overlay a call site may lay over the panel, and pulled
+ * back by its own padding so the cluster keeps hugging the centre gap.
+ */
+function ClubTrigger({
+  label,
+  hasClub,
+  onClick,
+  children,
+}: {
+  label: string;
+  hasClub: boolean;
+  onClick: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={`${label} — select club`}
+      title={`${label} — select club`}
+      className={cn(
+        "focus-ring relative z-10 -mx-2 -my-1 flex min-w-0 items-center gap-1.5 rounded-full px-2 py-1 transition",
+        hasClub
+          ? "bg-bg-card-chip/40 hover:bg-bg-card-chip/80"
+          : "border border-dashed border-border-card-chip/70 hover:bg-bg-card-chip/50",
+      )}
+    >
+      {children}
+    </button>
+  );
+}
+
 export default function MatchSides({
   clubs,
   aClubId,
   bClubId,
   size = "row",
+  aLabel,
+  bLabel,
+  onPickClub,
   className,
 }: {
   clubs: Club[];
@@ -47,6 +90,11 @@ export default function MatchSides({
   bClubId?: number | null;
   /** `hero` gives the club symbols their larger footprint and a normal-weight name. */
   size?: "hero" | "row";
+  /** The side's players ("Roli", "Flo + Berni") — only used for the picker's label. */
+  aLabel?: string;
+  bLabel?: string;
+  /** Editable panels only: makes each club line the trigger of the club picker. */
+  onPickClub?: (side: "A" | "B") => void;
   className?: string;
 }) {
   const a = clubLabelPartsById(clubs, aClubId);
@@ -59,43 +107,75 @@ export default function MatchSides({
   const badgeSize = size === "hero" ? "md" : "sm";
   const clubTone = size === "hero" ? "text-text-normal" : "text-text-muted";
 
+  const aBadge = (
+    <ClubBadge
+      name={a.name}
+      nation={a.national_nation}
+      clubId={a.id}
+      crestVersion={a.crest_updated_at}
+      size={badgeSize}
+    />
+  );
+  const bBadge = (
+    <ClubBadge
+      name={b.name}
+      nation={b.national_nation}
+      clubId={b.id}
+      crestVersion={b.crest_updated_at}
+      size={badgeSize}
+    />
+  );
+  const shield = <ShieldHalf size={16} className="shrink-0 text-text-muted" aria-hidden="true" />;
+  const placeholder = <span className="whitespace-nowrap text-text-muted">Select club</span>;
+
+  const clubCell = (side: "A" | "B") => {
+    const isA = side === "A";
+    const has = isA ? aHasClub : bHasClub;
+    const parts = isA ? a : b;
+    const badge = isA ? aBadge : bBadge;
+    // Symbols sit next to the centre gap: name → badge on the left, badge → name on the right.
+    const filled = isA ? (
+      <>
+        <Wrapped>{parts.name}</Wrapped>
+        {badge}
+      </>
+    ) : (
+      <>
+        {badge}
+        <Wrapped>{parts.name}</Wrapped>
+      </>
+    );
+
+    if (!onPickClub) {
+      return has ? filled : <span className="text-text-muted">{parts.name}</span>;
+    }
+
+    return (
+      <ClubTrigger
+        label={(isA ? aLabel : bLabel) || (isA ? "Side A" : "Side B")}
+        hasClub={has}
+        onClick={() => onPickClub(side)}
+      >
+        {has ? (
+          filled
+        ) : isA ? (
+          <>
+            {placeholder}
+            {shield}
+          </>
+        ) : (
+          <>
+            {shield}
+            {placeholder}
+          </>
+        )}
+      </ClubTrigger>
+    );
+  };
+
   return (
     <div className={className}>
-      <SideRow
-        className={cn("text-sm", clubTone)}
-        left={
-          aHasClub ? (
-            <>
-              <Wrapped>{a.name}</Wrapped>
-              <ClubBadge
-                name={a.name}
-                nation={a.national_nation}
-                clubId={a.id}
-                crestVersion={a.crest_updated_at}
-                size={badgeSize}
-              />
-            </>
-          ) : (
-            <span className="text-text-muted">{a.name}</span>
-          )
-        }
-        right={
-          bHasClub ? (
-            <>
-              <ClubBadge
-                name={b.name}
-                nation={b.national_nation}
-                clubId={b.id}
-                crestVersion={b.crest_updated_at}
-                size={badgeSize}
-              />
-              <Wrapped>{b.name}</Wrapped>
-            </>
-          ) : (
-            <span className="text-text-muted">{b.name}</span>
-          )
-        }
-      />
+      <SideRow className={cn("text-sm", clubTone)} left={clubCell("A")} right={clubCell("B")} />
 
       <SideRow
         className="mt-0.5 text-xs text-text-muted"
