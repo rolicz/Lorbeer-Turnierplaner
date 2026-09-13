@@ -238,6 +238,28 @@ Because it is small it announces itself instead of growing (S9):
   trailing "Filters" chip that opens the same popover (portalled into a slot the section renders,
   so there is exactly one popover and one piece of state).
 
+## 9b. Editing in place (pickers, composers) — no disclosure wrappers
+
+An editor is not a section you unfold; it is the thing itself becoming editable.
+
+- **The trigger is the value.** Tapping the club in the scoreboard opens the club picker;
+  tapping a score opens the score control. Never a separate row that repeats the same value
+  with an "edit" affordance next to it.
+- **Never show one value twice on a screen.** If the scoreboard already names the club, the
+  page must not carry a second club row. The picker may show it — it is a different surface.
+- **No `CollapsibleCard` around an editor or a feed.** Collapsibles are for *lists you browse*
+  (league groups on the Clubs page), never for the page's own content. A comment feed and its
+  composer are the page; they are always open.
+- **Heavy choice → sheet.** Many options, search, filters: a `Modal` sheet (full screen on
+  mobile), opened from the value, closing on pick.
+- **Light input → always-visible row.** A text field with its send button sits at the bottom of
+  the feed like a chat, never behind a button that reveals a form.
+- **Controls that act on more than one side live with the container, not inside a per-side
+  sheet.** Club filters, "random matchup" and the dice belong to the match card that owns both
+  clubs; a sheet for side A must not be the only way to reach them.
+- Paired actions get equal weight: two buttons in one row are the same height and share the
+  width, unless one is genuinely secondary (then it is an icon button, and the other fills).
+
 ## 10. Do / Don't
 
 - Do put one idea per card; don't stack a card inside a card.
@@ -245,6 +267,7 @@ Because it is small it announces itself instead of growing (S9):
 - Do colour a result through `text-win/draw/loss`; don't tint whole boxes red/green.
 - Do keep names next to scores; don't push them to the panel edges.
 - Do use `section-label` for flat page sections; don't invent new header styles.
+- Do open an editor from the value it edits; don't wrap it in a collapsible or repeat the value.
 - Do prefer `ListRow`; don't hand-roll `flex justify-between` rows with ad-hoc paddings.
 - Do let the page say the mode; don't print `1v1`/`2v2` on a match card that sits in a
   single-mode context.
