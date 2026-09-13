@@ -3087,8 +3087,27 @@ Recorded so they are not forgotten. Do not implement without an explicit go.
    - **Already possible today:** star ratings are editable by editors/admins in two places — the
      Clubs page edit panel and, since T2, the club picker's selected row (`ClubStarsEditor` →
      `PATCH /clubs/{id}`). That is how Roli set them last time.
-   - **Still open:** whether ratings are imported automatically or typed in, and whether an import
-     may also correct existing FC 26 ratings (Roli set those by hand).
+   - **An import must never touch existing FC 26 ratings** (Roli, 2026-09-13) — those are his, set
+     by hand. A star import writes only the clubs of the game being imported.
+   - **Still open:** whether FC 27 ratings are imported automatically or typed in.
+
+4. **Star-rating history (Roli, 2026-09-13):** "when it has 2 stars and then 3, it should still
+   count as 2 stars for stats if played before the change."
+   - **Today there is no history.** `Club.star_rating` is a single float (`models.py:168`), a
+     `PATCH /clubs/{id}` overwrites it, and `MatchSide` stores only `club_id`. The stats "Club
+     stars" view joins *today's* rating onto every historical match, so re-rating a club silently
+     rewrites the past. `services/stats/odds.py` also reads the current rating — correct there,
+     since odds are a prematch estimate.
+   - **Proposal:** a new `ClubStarRating` table (`club_id`, `stars`, `valid_from`, `changed_at`) —
+     a new table, not a column, per the project's schema rules. Every star write appends a row;
+     `init_db()` seeds one row per club with its current rating. Stats resolve the rating *as of
+     the match's date*; anything before the first recorded row uses that first value.
+   - **Caveat to state plainly when this is built:** the ratings Roli already changed by hand are
+     unrecoverable — history can only start at the seeding date, so every match up to then keeps
+     the club's current rating. Nothing is lost that we ever had.
+   - Cheaper alternative if the history itself is not wanted: snapshot the rating onto
+     `MatchSide`/`FriendlyMatchSide` when a match finishes. Exact per match, but it answers
+     "what did this match count as", not "how did this club's rating move".
 
 1. **Per-destination "last page" memory.** → *enqueued as U6 (2026-09-12).* Tapping a top-level destination (bottom bar,
    sidebar, drawer) should return to the last page the user had open *inside* that
