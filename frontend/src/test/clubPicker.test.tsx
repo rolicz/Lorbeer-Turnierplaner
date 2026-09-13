@@ -83,9 +83,13 @@ function Harness({
 function PanelHarness({
   initialA = null,
   initialB = null,
+  storageKey,
+  defaultOpen = true,
 }: {
   initialA?: number | null;
   initialB?: number | null;
+  storageKey?: string;
+  defaultOpen?: boolean;
 }) {
   const [aClub, setAClub] = useState<number | null>(initialA);
   const [bClub, setBClub] = useState<number | null>(initialB);
@@ -104,7 +108,7 @@ function PanelHarness({
   });
   return (
     <AuthProvider>
-      <SelectClubsPanel selection={selection} />
+      <SelectClubsPanel selection={selection} storageKey={storageKey} defaultOpen={defaultOpen} />
     </AuthProvider>
   );
 }
@@ -236,7 +240,7 @@ describe("ClubPicker", () => {
 describe("SelectClubsPanel (T9 — one self-contained panel)", () => {
   it("shows nothing but the trigger while it is collapsed", () => {
     const { getByRole, queryByRole, queryByLabelText } = render(
-      <PanelHarness initialA={1} initialB={2} />,
+      <PanelHarness initialA={1} initialB={2} defaultOpen={false} />,
     );
 
     const trigger = getByRole("button", { name: /Clubs/ });
@@ -251,17 +255,17 @@ describe("SelectClubsPanel (T9 — one self-contained panel)", () => {
   });
 
   it("summarises an unset side as 'not set'", () => {
-    const both = render(<PanelHarness />);
+    const both = render(<PanelHarness defaultOpen={false} />);
     expect(both.getByRole("button", { name: /Clubs/ }).textContent).toContain("Not set");
     both.unmount();
 
-    const one = render(<PanelHarness initialA={1} />);
+    const one = render(<PanelHarness initialA={1} defaultOpen={false} />);
     expect(one.getByRole("button", { name: /Clubs/ }).textContent).toContain("Bayern München · not set");
   });
 
   it("opens one block that holds the clubs, the filters and the randomisers", () => {
     const { getByRole, getByLabelText, queryByRole } = render(
-      <PanelHarness initialA={1} initialB={2} />,
+      <PanelHarness initialA={1} initialB={2} defaultOpen={false} />,
     );
 
     const trigger = getByRole("button", { name: /Clubs/ });
@@ -288,7 +292,6 @@ describe("SelectClubsPanel (T9 — one self-contained panel)", () => {
   it("picks a club inside the panel: slot → sheet → row", () => {
     const { getByLabelText, getByRole } = render(<PanelHarness initialA={1} initialB={2} />);
 
-    fireEvent.click(getByRole("button", { name: /Clubs/ }));
     fireEvent.click(getByLabelText("Flo — Ajax"));
     expect(getByRole("button", { name: "Flo" })).toHaveAttribute("aria-pressed", "true");
     // The sheet's subtitle names the side it is picking for.
@@ -301,9 +304,25 @@ describe("SelectClubsPanel (T9 — one self-contained panel)", () => {
     expect(getByLabelText("Flo — Austria")).toBeInTheDocument();
   });
 
+  it("remembers open/closed per surface", () => {
+    const first = render(<PanelHarness storageKey="unit-test" defaultOpen={false} />);
+    fireEvent.click(first.getByRole("button", { name: /Clubs/ }));
+    expect(window.localStorage.getItem("club_panel_open:unit-test")).toBe("1");
+    first.unmount();
+
+    const second = render(<PanelHarness storageKey="unit-test" defaultOpen={false} />);
+    expect(second.getByRole("button", { name: /Clubs/ })).toHaveAttribute("aria-expanded", "true");
+    fireEvent.click(second.getByRole("button", { name: /Clubs/ }));
+    expect(window.localStorage.getItem("club_panel_open:unit-test")).toBe("0");
+    second.unmount();
+
+    // A stored choice beats the surface's default (the friendly forms open by default).
+    const third = render(<PanelHarness storageKey="unit-test" defaultOpen />);
+    expect(third.getByRole("button", { name: /Clubs/ })).toHaveAttribute("aria-expanded", "false");
+  });
+
   it("reaches the star/league filters without opening a club", () => {
     const { getByRole, queryByLabelText } = render(<PanelHarness />);
-    fireEvent.click(getByRole("button", { name: /Clubs/ }));
 
     expect(queryByLabelText("Filter by stars")).toBeNull();
     const trigger = getByRole("button", { name: /Filter clubs/ });
@@ -317,7 +336,6 @@ describe("SelectClubsPanel (T9 — one self-contained panel)", () => {
 
   it("narrows the picker list through the filters set on the panel", () => {
     const { getByLabelText, getByRole } = render(<PanelHarness />);
-    fireEvent.click(getByRole("button", { name: /Clubs/ }));
 
     fireEvent.click(getByRole("button", { name: /Filter clubs/ }));
     fireEvent.click(getByLabelText("Filter by stars"));
@@ -340,7 +358,6 @@ describe("SelectClubsPanel (T9 — one self-contained panel)", () => {
 
   it("balances the two random actions in one row and fills both sides at once", () => {
     const { container, getByRole } = render(<PanelHarness />);
-    fireEvent.click(getByRole("button", { name: /Clubs/ }));
 
     const dice = getByRole("button", { name: "Randomize the star filter" });
     const random = getByRole("button", { name: /Random matchup/ });

@@ -293,6 +293,7 @@ export default function MatchDetailPage() {
                   both clubs, and everything the job needs lives inside it (T9). */}
               <SelectClubsPanel
                 selection={clubSelection}
+                storageKey="match-detail"
                 extraTop={
                   <div className="space-y-2">
                     <Input label="Game" value={clubGame} onChange={(e) => setClubGame(e.target.value)} />

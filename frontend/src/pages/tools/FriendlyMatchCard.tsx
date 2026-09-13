@@ -412,9 +412,12 @@ export default function FriendlyMatchCard({ onInitialReady }: { onInitialReady?:
           {oddsQ.isFetching ? <div className="text-xs text-text-muted">Computing odds…</div> : null}
         </div>
 
-        {/* One panel for the whole club job; its header is the section heading (T9). */}
+        {/* Setting the clubs is the point of this form, so the panel starts open
+            (and remembers the choice). Its header is the section heading (T9). */}
         <SelectClubsPanel
           selection={clubSelection}
+          storageKey="friendly-new"
+          defaultOpen
           extraTop={
             clubsQ.isLoading ? <div className="text-sm text-text-muted">Loading clubs…</div> : null
           }

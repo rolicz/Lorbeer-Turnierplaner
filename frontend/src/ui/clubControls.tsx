@@ -492,6 +492,45 @@ export function useClubSelection({
   };
 }
 
+// --- Remembered panel state (T9) ----------------------------------------------
+
+const CLUB_PANEL_OPEN_PREFIX = "club_panel_open:";
+
+/**
+ * Open/closed of `SelectClubsPanel`, remembered per surface (the live Current
+ * tab, the match-detail Edit tab and the two friendly forms each have their own
+ * key). Same idiom as `match_list_view`: a plain localStorage string, the
+ * surface's own default when nothing is stored yet.
+ */
+export function useClubPanelOpen(
+  storageKey: string | undefined,
+  defaultOpen: boolean,
+): [boolean, (open: boolean) => void] {
+  const [open, setOpenState] = useState<boolean>(() => {
+    if (!storageKey) return defaultOpen;
+    try {
+      const raw = window.localStorage.getItem(CLUB_PANEL_OPEN_PREFIX + storageKey);
+      if (raw === "1") return true;
+      if (raw === "0") return false;
+    } catch {
+      // ignore storage failures (private mode, quota)
+    }
+    return defaultOpen;
+  });
+
+  const setOpen = (next: boolean) => {
+    setOpenState(next);
+    if (!storageKey) return;
+    try {
+      window.localStorage.setItem(CLUB_PANEL_OPEN_PREFIX + storageKey, next ? "1" : "0");
+    } catch {
+      // ignore storage failures (private mode, quota)
+    }
+  };
+
+  return [open, setOpen];
+}
+
 // --- Recently picked clubs (club picker) --------------------------------------
 
 const RECENT_CLUBS_KEY = "club_picker_recent_v1";

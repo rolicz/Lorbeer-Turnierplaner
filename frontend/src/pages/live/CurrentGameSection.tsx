@@ -374,8 +374,8 @@ export default function CurrentGameSection({
       <div className="mt-2 space-y-2">
         {/* One panel for the whole club job: collapsed it is a single "Clubs" row
             naming both clubs, open it holds the slots, the filters and the
-            randomisers (T9). */}
-        {canControl && <SelectClubsPanel selection={clubSelection} />}
+            randomisers. The choice sticks per surface (T9). */}
+        {canControl && <SelectClubsPanel selection={clubSelection} storageKey="live-current" />}
 
         {Number.isFinite(Number(activeMatch.tournament_id)) && activeMatch.tournament_id > 0 ? (
           <div id={`current-match-comments-${activeMatch.id}`} className="scroll-mt-28 sm:scroll-mt-32">

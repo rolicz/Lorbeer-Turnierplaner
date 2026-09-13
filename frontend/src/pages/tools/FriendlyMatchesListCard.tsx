@@ -198,6 +198,8 @@ function FriendlyEditor({
 
           <SelectClubsPanel
             selection={clubSelection}
+            storageKey="friendly-edit"
+            defaultOpen
             extraTop={<Input label="Game" value={clubGame} onChange={(e) => setClubGame(e.target.value)} />}
           />
 

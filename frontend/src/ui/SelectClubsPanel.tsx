@@ -19,7 +19,7 @@
  *
  * The container is a `card` because everything inside it is a level-2 control
  * (the slots, the two `FilterSelect`s): card → inset is the canon, inset → inset
- * is not.
+ * is not. Open/closed is remembered per surface (`storageKey`).
  */
 import { ChevronDown, ShieldHalf, Shuffle, SlidersHorizontal, X } from "lucide-react";
 import { useId, useState } from "react";
@@ -38,6 +38,7 @@ import {
   LeagueFilter,
   StarFilter,
   starsLabel,
+  useClubPanelOpen,
   type ClubSelection,
 } from "./clubControls";
 import { useAuth } from "../auth/AuthContext";
@@ -141,11 +142,17 @@ function ClubSlot({
 
 export default function SelectClubsPanel({
   selection,
+  storageKey,
+  defaultOpen = false,
   extraTop,
   extraBottom,
   className,
 }: {
   selection: ClubSelection;
+  /** Remembers open/closed for this surface (localStorage, like `match_list_view`). */
+  storageKey?: string;
+  /** Where setting clubs is the point of the form (the friendlies), start open. */
+  defaultOpen?: boolean;
   extraTop?: React.ReactNode;
   extraBottom?: React.ReactNode;
   className?: string;
@@ -154,7 +161,7 @@ export default function SelectClubsPanel({
   const canEditStars = (role === "editor" || role === "admin") && !!token;
 
   const { clubs, disabled, filters } = selection;
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useClubPanelOpen(storageKey, defaultOpen);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const bodyId = useId();
 
