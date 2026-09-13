@@ -7,6 +7,12 @@
  * (the floating pill) and, outside 1v1, offers the two relations the backend
  * supports: Against (A and B on opposite sides, partners may differ) and
  * Together (A and B on the same side).
+ *
+ * Each side is **one player or a whole 2v2 team** (`?player=1,5&vs=2,4`, T7).
+ * With two ids on both sides the view asks the backend for `exact_teams`, i.e.
+ * only matches these four played in exactly this pairing — the "exact matchup" a
+ * 2v2 match page links to. Against/Together only exist for a pair of players, so
+ * a team matchup hides the relation chips.
  */
 import { useMemo, useState, type ReactNode } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
@@ -50,48 +56,77 @@ function Tile({ label, title, children }: { label: string; title?: string; child
   return <StatTile label={label} value={children} title={title} />;
 }
 
-function PlayerSide({ id, name, updatedAt, align = "left" }: { id: number; name: string; updatedAt: string | null; align?: "left" | "right" }) {
+/**
+ * One side of the header: a single player, or a 2v2 team as two stacked identities
+ * (every name stays its own link to the profile, N4). A solo side keeps the bigger
+ * avatar and type it always had.
+ */
+function MatchupSide({ ids, nameOf, align = "left" }: {
+  ids: number[];
+  nameOf: (id: number) => string;
+  align?: "left" | "right";
+}) {
+  const { avatarUpdatedAtById } = usePlayerAvatarMap();
+  const solo = ids.length === 1;
   return (
-    <PlayerLink
-      playerId={id}
-      name={name}
-      className={"flex min-w-0 items-center gap-2 " + (align === "right" ? "flex-row-reverse text-right" : "")}
-    >
-      <AvatarCircle playerId={id} name={name} updatedAt={updatedAt} sizeClass="h-10 w-10" />
-      <span className="truncate text-base font-bold text-text-normal">{name}</span>
-    </PlayerLink>
+    <div className={"flex min-w-0 flex-col gap-1 " + (align === "right" ? "items-end" : "items-start")}>
+      {ids.map((id) => (
+        <PlayerLink
+          key={id}
+          playerId={id}
+          name={nameOf(id)}
+          className={"flex min-w-0 max-w-full items-center gap-2 " + (align === "right" ? "flex-row-reverse text-right" : "")}
+        >
+          <AvatarCircle
+            playerId={id}
+            name={nameOf(id)}
+            updatedAt={avatarUpdatedAtById.get(id) ?? null}
+            sizeClass={solo ? "h-10 w-10" : "h-8 w-8"}
+          />
+          <span className={"truncate font-bold text-text-normal " + (solo ? "text-base" : "text-sm")}>{nameOf(id)}</span>
+        </PlayerLink>
+      ))}
+    </div>
   );
 }
 
-export default function MatchupView({ mode, scope, leftId, rightId, rows, onBack, initialRelation }: {
+export default function MatchupView({ mode, scope, leftIds, rightIds, rows, onBack, initialRelation }: {
   mode: StatsMode;
   scope: StatsScope;
-  /** The "own" side — perspective of every number shown here. */
-  leftId: number;
-  rightId: number;
+  /** The "own" side — perspective of every number shown here. One id, or a 2v2 team. */
+  leftIds: number[];
+  /** The opposing side: one id, or the two players of the opposing team. */
+  rightIds: number[];
   rows: Row[];
   onBack: () => void;
   /** Relation to open with (`?rel=together`, from a match page's "together" card). */
   initialRelation?: Relation;
 }) {
-  const { avatarUpdatedAtById } = usePlayerAvatarMap();
   const nameById = useMemo(() => new Map(rows.map((r) => [r.id, r.name])), [rows]);
-  const leftName = nameById.get(leftId) ?? `#${leftId}`;
-  const rightName = nameById.get(rightId) ?? `#${rightId}`;
+  const nameOf = (id: number) => nameById.get(id) ?? `#${id}`;
+  // "Roli" / "Roli / Berni" — the same shape the match page's H2H panel prints.
+  const leftName = leftIds.map(nameOf).join(" / ");
+  const rightName = rightIds.map(nameOf).join(" / ");
 
-  // Together is meaningless in 1v1 (nobody has a partner), so the chips are hidden
-  // and the relation forced back to Against there.
+  // Two ids on both sides = the exact team matchup; anything else is subset matching
+  // ("these players were on opposite sides, whoever else played").
+  const exactTeams = leftIds.length > 1 && rightIds.length > 1;
+  const teamMatchup = leftIds.length > 1 || rightIds.length > 1;
+
+  // Together is meaningless in 1v1 (nobody has a partner) and for a team matchup
+  // (two teams are never teammates), so the chips are hidden and the relation
+  // forced back to Against there.
   const [relationChoice, setRelationChoice] = useState<Relation>(initialRelation ?? "against");
   const [details, setDetails] = useState(false);
-  const showRelation = mode !== "1v1";
+  const showRelation = mode !== "1v1" && !teamMatchup;
   const relation: Relation = showRelation ? relationChoice : "against";
   const together = relation === "together";
 
   const req: StatsH2HMatchesRequest = useMemo(
     () => (together
-      ? { mode, relation: "teammates", left_player_ids: [leftId, rightId], right_player_ids: [], scope }
-      : { mode, relation: "opposed", left_player_ids: [leftId], right_player_ids: [rightId], exact_teams: false, scope }),
-    [together, mode, scope, leftId, rightId],
+      ? { mode, relation: "teammates", left_player_ids: [...leftIds, ...rightIds], right_player_ids: [], scope }
+      : { mode, relation: "opposed", left_player_ids: leftIds, right_player_ids: rightIds, exact_teams: exactTeams, scope }),
+    [together, mode, scope, leftIds, rightIds, exactTeams],
   );
 
   const q = useQuery({
@@ -100,7 +135,7 @@ export default function MatchupView({ mode, scope, leftId, rightId, rows, onBack
       req.relation,
       req.left_player_ids.join("-"),
       (req.right_player_ids ?? []).join("-"),
-      "subset",
+      exactTeams ? "exact" : "subset",
       scope,
     ),
     queryFn: () => getStatsH2HMatches(req),
@@ -112,8 +147,8 @@ export default function MatchupView({ mode, scope, leftId, rightId, rows, onBack
   const tournaments = useMemo(() => q.data?.tournaments ?? [], [q.data]);
   // Perspective: the left player alone vs the right one, or both as one team.
   const perspective = useMemo<{ left: number[]; right: number[] }>(
-    () => (together ? { left: [leftId, rightId], right: [] } : { left: [leftId], right: [rightId] }),
-    [together, leftId, rightId],
+    () => (together ? { left: [...leftIds, ...rightIds], right: [] } : { left: leftIds, right: rightIds }),
+    [together, leftIds, rightIds],
   );
   const summary = useMemo(
     () => summarizeMatches(tournaments, perspective.left, perspective.right),
@@ -142,14 +177,15 @@ export default function MatchupView({ mode, scope, leftId, rightId, rows, onBack
 
       <div className="card">
         <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3">
-          <PlayerSide id={leftId} name={leftName} updatedAt={avatarUpdatedAtById.get(leftId) ?? null} />
+          <MatchupSide ids={leftIds} nameOf={nameOf} />
           <span className="shrink-0 text-sm font-medium text-text-muted">
             {together ? "and" : "vs"}
           </span>
-          <PlayerSide id={rightId} name={rightName} updatedAt={avatarUpdatedAtById.get(rightId) ?? null} align="right" />
+          <MatchupSide ids={rightIds} nameOf={nameOf} align="right" />
         </div>
         <div className="mt-1 text-center text-xs text-text-muted">
-          {MODE_LABEL[mode]} · {SCOPE_LABEL[scope]}{together ? " · as a team" : ""}
+          {MODE_LABEL[mode]} · {SCOPE_LABEL[scope]}
+          {together ? " · as a team" : exactTeams ? " · exact teams" : ""}
         </div>
       </div>
 
@@ -217,7 +253,7 @@ export default function MatchupView({ mode, scope, leftId, rightId, rows, onBack
               />
               <MatchHistoryList
                 tournaments={tournaments}
-                focusId={leftId}
+                focusId={leftIds[0]}
                 clubs={clubsQ.data ?? []}
                 showMeta={details}
                 showModePill={mode === "overall"}

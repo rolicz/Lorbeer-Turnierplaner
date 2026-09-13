@@ -329,13 +329,18 @@ Other helpers: `seed --file backend/data/seed.json` (players/leagues/clubs upser
   `?tab=` state because its default depends on the tournament's status. Profile tabs used to be
   `?pt=` — that param is gone. **The dashboard has no tabs at all** since T5 (the Cups tab became
   the cups preview); its old `?tab=cups` redirects to `/stats?view=overview&sub=cups`.
-- **Stats URL scheme** (S1/S2/N4): `/stats?view=overview|trends|h2h|player`, `&sub=` = the
+- **Stats URL scheme** (S1/S2/N4/T7): `/stats?view=overview|trends|h2h|player`, `&sub=` = the
   section's sub-view (`table|positions|streaks|records|cups` for Overview,
   `players|duos` for H2H), `&mode=overall|1v1|2v2`, `&source=tournaments|both|friendlies`,
-  `&player=<id>`, `&vs=<id>` (opens the Matchup drill-in inside H2H), `&rel=together`
+  `&player=<ids>`, `&vs=<ids>` (opens the Matchup drill-in inside H2H), `&rel=together`
   (deep links only — an in-app matchup always opens on "Against") and `&cup=<key>` (T5: opens the
   Cups sub-view at that cup's section, then drops itself — a one-shot param, see
-  `ui/shell/lastLocation.ts`). Every stats param is written
+  `ui/shell/lastLocation.ts`). **`player` and `vs` carry one *or two* comma-separated ids**
+  (T7): one per side is "this player vs that one, whatever the partners", two on both sides is
+  the exact team matchup (`?player=1,4&vs=2,5` → `exact_teams` on `POST /stats/h2h-matches`).
+  Outside the matchup only the first id counts, and leaving H2H collapses a team back to it.
+  Every shortcut into a matchup is built by `statsMatchupHref()` (`pages/stats/statsNav.ts`) and
+  defaults to **Source = Tournaments**. Every stats param is written
   with `replace`, so browser Back leaves `/stats` and in-view back buttons undo the drill-ins.
   All older shapes (`?view=table|stars`, `?section=…`, `#trends`, nav `state.statsTab`) are
   mapped once by `pages/stats/statsNav.ts` and rewritten — **never re-introduce `?section=`**.

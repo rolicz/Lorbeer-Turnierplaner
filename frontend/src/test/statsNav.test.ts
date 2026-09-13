@@ -2,10 +2,14 @@ import { describe, it, expect } from "vitest";
 import {
   CUP_PARAM,
   canonicalStatsParams,
+  collapseMatchupSide,
   cupSectionHref,
   cupSectionId,
   defaultSubFor,
+  formatMatchupSide,
+  parseMatchupSide,
   resolveStatsView,
+  statsMatchupHref,
   subForSection,
   subsFor,
 } from "../pages/stats/statsNav";
@@ -159,5 +163,76 @@ describe("the Cups deep link", () => {
     expect(search.get(CUP_PARAM)).toBe("bauernkranz");
     // A filter change (canonicalisation) must not drop it before the jump happened.
     expect(canonicalStatsParams(search, "overview", "cups").get(CUP_PARAM)).toBe("bauernkranz");
+  });
+});
+
+describe("matchup sides (one player or a 2v2 team, T7)", () => {
+  it("parses one id exactly as before", () => {
+    expect(parseMatchupSide("2")).toEqual([2]);
+    expect(parseMatchupSide(null)).toEqual([]);
+    expect(parseMatchupSide("")).toEqual([]);
+  });
+
+  it("parses two comma-separated ids as a team, keeping the URL's order", () => {
+    expect(parseMatchupSide("1,5")).toEqual([1, 5]);
+    expect(parseMatchupSide("5,1")).toEqual([5, 1]);
+    expect(parseMatchupSide(" 1 , 5 ")).toEqual([1, 5]);
+  });
+
+  it("drops junk, zero, duplicates and anything past the second id", () => {
+    expect(parseMatchupSide("abc")).toEqual([]);
+    expect(parseMatchupSide("0,-3,2")).toEqual([2]);
+    expect(parseMatchupSide("1.5,2")).toEqual([2]);
+    expect(parseMatchupSide("3,3")).toEqual([3]);
+    expect(parseMatchupSide("1,2,3")).toEqual([1, 2]);
+  });
+
+  it("formats a side back into the param value", () => {
+    expect(formatMatchupSide([1])).toBe("1");
+    expect(formatMatchupSide([1, 5])).toBe("1,5");
+    expect(formatMatchupSide([])).toBe("");
+    expect(formatMatchupSide([1, 5, 9])).toBe("1,5");
+    expect(formatMatchupSide([0, 4])).toBe("4");
+  });
+
+  it("collapses a team to its first player when the matchup is left", () => {
+    const p = new URLSearchParams("view=h2h&player=1,5&vs=2,4");
+    collapseMatchupSide(p, "player");
+    expect(p.get("player")).toBe("1");
+    // A single id (and a missing param) is untouched.
+    const q = new URLSearchParams("player=7");
+    collapseMatchupSide(q, "player");
+    expect(q.get("player")).toBe("7");
+    const r = new URLSearchParams("view=h2h");
+    collapseMatchupSide(r, "player");
+    expect(r.get("player")).toBeNull();
+  });
+});
+
+describe("statsMatchupHref — the shortcuts into H2H", () => {
+  it("defaults to the Tournaments source (T7)", () => {
+    expect(statsMatchupHref({ left: [1], right: [2] })).toBe(
+      "/stats?view=h2h&mode=overall&source=tournaments&player=1&vs=2",
+    );
+  });
+
+  it("addresses both teams for a 2v2 exact matchup", () => {
+    expect(statsMatchupHref({ mode: "2v2", left: [1, 5], right: [2, 4] })).toBe(
+      "/stats?view=h2h&mode=2v2&source=tournaments&player=1,5&vs=2,4",
+    );
+  });
+
+  it("carries the together relation and honours an explicit scope", () => {
+    expect(statsMatchupHref({ mode: "2v2", left: [1], right: [5], relation: "together", scope: "both" })).toBe(
+      "/stats?view=h2h&mode=2v2&source=both&player=1&vs=5&rel=together",
+    );
+  });
+
+  it("resolves to the H2H section with both sides intact", () => {
+    const search = new URLSearchParams(statsMatchupHref({ mode: "2v2", left: [1, 5], right: [2, 4] }).split("?")[1]);
+    expect(resolveStatsView(search, "", null)).toEqual({ view: "h2h", sub: "players", legacy: false });
+    expect(parseMatchupSide(search.get("player"))).toEqual([1, 5]);
+    expect(parseMatchupSide(search.get("vs"))).toEqual([2, 4]);
+    expect(search.get("source")).toBe("tournaments");
   });
 });

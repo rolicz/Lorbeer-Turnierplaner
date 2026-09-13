@@ -9,6 +9,7 @@ import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
 import type { Club, StatsH2HOpponentRow, StatsPlayerMatchesTournament } from "../../api/types";
 import { fmtPct, fmtRank } from "../../utils/format";
 import { MatchHistoryList, tournamentMatchHref } from "../stats/MatchHistoryList";
+import { statsMatchupHref } from "../stats/statsNav";
 import { type FavoriteTeammate } from "./favoriteTeammates";
 
 /**
@@ -39,7 +40,7 @@ function RivalCard({ icon, label, row, playerId }: {
   if (!row || !playerId) return <div className="inset px-3 py-2">{body}</div>;
   return (
     <Link
-      to={`/stats?view=h2h&player=${playerId}&vs=${row.opponent.id}`}
+      to={statsMatchupHref({ left: [playerId], right: [row.opponent.id] })}
       title={`All matches against ${row.opponent.display_name}`}
       className="inset block px-3 py-2 transition hover:bg-bg-card-chip/40 active:bg-bg-card-chip/50 focus-ring"
     >
@@ -143,7 +144,7 @@ export default function ProfileOverviewTab({
               return (
                 <Link
                   key={tm.id}
-                  to={`/stats?view=h2h&mode=2v2&source=both&player=${targetPlayerId}&vs=${tm.id}&rel=together`}
+                  to={statsMatchupHref({ mode: "2v2", left: [targetPlayerId], right: [tm.id], relation: "together" })}
                   title={`All 2v2 matches together with ${tm.name}`}
                   className="inset block px-3 py-2 transition hover:bg-bg-card-chip/40 active:bg-bg-card-chip/50 focus-ring"
                 >

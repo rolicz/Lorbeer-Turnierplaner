@@ -1,6 +1,5 @@
 import { useMemo, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import { LineChart } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import type { Match, Player } from "../../api/types";
 import { sideBy } from "../../helpers";
@@ -383,17 +382,6 @@ export default function StandingsTable({
               <div className="text-base font-bold tabular-nums text-text-normal">{r.pts}</div>
               <div className="text-micro leading-none text-text-muted">pts</div>
             </div>
-            {/* The row opens the profile; this is the second door — all-time stats. */}
-            <Link
-              to={`/stats?view=player&player=${r.playerId}`}
-              title={`Open ${r.name}'s stats`}
-              aria-label={`Open ${r.name}'s stats`}
-              onClick={(e) => e.stopPropagation()}
-              onKeyDown={(e) => e.stopPropagation()}
-              className="focus-ring grid h-8 w-8 shrink-0 place-items-center rounded-xl text-text-muted no-underline transition hover:bg-bg-card-chip/50 hover:text-accent"
-            >
-              <LineChart size={16} aria-hidden="true" />
-            </Link>
           </div>
         );
       })}

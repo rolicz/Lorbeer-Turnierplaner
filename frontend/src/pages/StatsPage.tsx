@@ -1,6 +1,8 @@
+import { useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
 
 import StatsInsights from "./stats/StatsInsights";
+import { formatMatchupSide, parseMatchupSide } from "./stats/statsNav";
 import type { StatsMode } from "./stats/statsMode";
 import { useRouteEntryLoading } from "../ui/layout/useRouteEntryLoading";
 import PageLayout from "../ui/layout/PageLayout";
@@ -21,11 +23,15 @@ export default function StatsPage() {
   const mode: StatsMode = modeParam && (MODE_VALUES as string[]).includes(modeParam) ? (modeParam as StatsMode) : "overall";
   const scopeParam = searchParams.get("source");
   const scope: StatsScope = scopeParam && (SCOPE_VALUES as string[]).includes(scopeParam) ? (scopeParam as StatsScope) : "tournaments";
-  const playerParam = Number(searchParams.get("player"));
-  const playerId: number | "" = Number.isFinite(playerParam) && playerParam > 0 ? playerParam : "";
-  // Matchup drill-in: `vs` is the opponent of `player` in H2H.
-  const vsParam = Number(searchParams.get("vs"));
-  const vsId: number | "" = Number.isFinite(vsParam) && vsParam > 0 ? vsParam : "";
+  // Both matchup sides carry one or two ids (`?player=1,5&vs=2,4`, T7); everything
+  // outside the matchup uses the first id, so single-id URLs behave exactly as before.
+  // (memoised on the raw param, so the arrays stay stable across renders and the
+  // matchup's request / summary memos are not recomputed on every keystroke elsewhere)
+  const playerParam = searchParams.get("player");
+  const playerIds = useMemo(() => parseMatchupSide(playerParam), [playerParam]);
+  // Matchup drill-in: `vs` is the opposing player (or team) of `player` in H2H.
+  const vsParam = searchParams.get("vs");
+  const vsIds = useMemo(() => parseMatchupSide(vsParam), [vsParam]);
 
   const patchParams = (changes: Record<string, string | null>) => {
     const next = new URLSearchParams(searchParams);
@@ -41,14 +47,21 @@ export default function StatsPage() {
   const setPlayer = (id: number | "") => patchParams({ player: id === "" ? null : String(id) });
   /**
    * Open (or clear) the matchup; pass `withPlayer` to set both sides in one write.
-   * `rel` (the matchup's Against/Together relation, only set by deep links from a
-   * match page) is always reset here: an in-app matchup opens on "Against".
+   * Each side is one or two player ids — two on both sides means the exact team
+   * matchup. `rel` (the matchup's Against/Together relation, only set by deep links
+   * from a match page) is always reset here: an in-app matchup opens on "Against".
+   * Clearing the matchup also collapses a team back to its first player, because
+   * outside the drill-in only one player can be selected.
    */
-  const setVs = (id: number | "", withPlayer?: number) =>
+  const setVs = (ids: number[], withPlayer?: number[]) =>
     patchParams({
-      vs: id === "" ? null : String(id),
+      vs: formatMatchupSide(ids),
       rel: null,
-      ...(withPlayer != null ? { player: String(withPlayer) } : {}),
+      ...(withPlayer?.length
+        ? { player: formatMatchupSide(withPlayer) }
+        : ids.length
+          ? {}
+          : { player: formatMatchupSide(playerIds.slice(0, 1)) }),
     });
 
   if (!pageEntered) {
@@ -62,9 +75,9 @@ export default function StatsPage() {
         scope={scope}
         onModeChange={setMode}
         onScopeChange={setScope}
-        playerId={playerId}
+        playerIds={playerIds}
         onSelectPlayer={(id) => setPlayer(id)}
-        vsId={vsId}
+        vsIds={vsIds}
         onSetVs={setVs}
       />
     </PageLayout>

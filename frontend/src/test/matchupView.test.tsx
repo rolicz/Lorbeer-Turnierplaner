@@ -30,6 +30,7 @@ import MatchupView from "../pages/stats/h2h/MatchupView";
 const ROLI = { id: 1, display_name: "Roli" };
 const FLO = { id: 2, display_name: "Flo" };
 const RUMPI = { id: 3, display_name: "Rumpi" };
+const BERNI = { id: 4, display_name: "Berni" };
 
 function match(id: number, aGoals: number, bGoals: number, aPlayers = [ROLI], bPlayers = [FLO]): StatsMatch {
   return {
@@ -56,7 +57,14 @@ const AGAINST = [
   tournament(2, "Aprilturnier", [match(103, 2, 2)]),
 ];
 // Roli and Flo on the same side, once, won 4:0.
-const TOGETHER = [tournament(3, "Duoturnier", [match(201, 4, 0, [ROLI, FLO], [RUMPI, { id: 4, display_name: "Berni" }])])];
+const TOGETHER = [tournament(3, "Duoturnier", [match(201, 4, 0, [ROLI, FLO], [RUMPI, BERNI])])];
+// The exact team matchup Roli + Berni vs Flo + Rumpi: one win, one draw.
+const EXACT_TEAMS = [
+  tournament(4, "Teamturnier", [
+    match(301, 3, 2, [ROLI, BERNI], [FLO, RUMPI]),
+    match(302, 1, 1, [FLO, RUMPI], [ROLI, BERNI]),
+  ]),
+];
 
 function response(req: StatsH2HMatchesRequest, tournaments: StatsPlayerMatchesTournament[]): StatsH2HMatchesResponse {
   return {
@@ -70,10 +78,9 @@ function response(req: StatsH2HMatchesRequest, tournaments: StatsPlayerMatchesTo
   };
 }
 
-const ROWS: Row[] = [
-  { id: 1, name: "Roli", pts: 0, rating: 1000, played: 0, wins: 0, draws: 0, losses: 0, gf: 0, ga: 0, gd: 0, form: [], formAvg: 0 },
-  { id: 2, name: "Flo", pts: 0, rating: 1000, played: 0, wins: 0, draws: 0, losses: 0, gf: 0, ga: 0, gd: 0, form: [], formAvg: 0 },
-];
+const row = (id: number, name: string): Row =>
+  ({ id, name, pts: 0, rating: 1000, played: 0, wins: 0, draws: 0, losses: 0, gf: 0, ga: 0, gd: 0, form: [], formAvg: 0 });
+const ROWS: Row[] = [row(1, "Roli"), row(2, "Flo"), row(3, "Rumpi"), row(4, "Berni")];
 
 function renderView(props: Partial<React.ComponentProps<typeof MatchupView>> = {}) {
   const onBack = vi.fn();
@@ -81,7 +88,7 @@ function renderView(props: Partial<React.ComponentProps<typeof MatchupView>> = {
   const utils = render(
     <MemoryRouter>
       <QueryClientProvider client={client}>
-        <MatchupView mode="overall" scope="tournaments" leftId={1} rightId={2} rows={ROWS} onBack={onBack} {...props} />
+        <MatchupView mode="overall" scope="tournaments" leftIds={[1]} rightIds={[2]} rows={ROWS} onBack={onBack} {...props} />
       </QueryClientProvider>
     </MemoryRouter>,
   );
@@ -92,7 +99,9 @@ describe("MatchupView", () => {
   beforeEach(() => {
     api.getStatsH2HMatches.mockReset();
     api.getStatsH2HMatches.mockImplementation((req) =>
-      Promise.resolve(response(req, req.relation === "teammates" ? TOGETHER : AGAINST)),
+      Promise.resolve(
+        response(req, req.relation === "teammates" ? TOGETHER : req.exact_teams ? EXACT_TEAMS : AGAINST),
+      ),
     );
     api.listClubs.mockResolvedValue([]);
     api.listPlayerAvatarMeta.mockResolvedValue([]);
@@ -199,6 +208,42 @@ describe("MatchupView", () => {
     await screen.findByText("Matches · 3");
     expect(screen.queryByRole("button", { name: "Together" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Against" })).toBeNull();
+  });
+
+  it("asks for the exact team matchup when both sides name two players (T7)", async () => {
+    renderView({ mode: "2v2", leftIds: [1, 4], rightIds: [2, 3] });
+
+    await waitFor(() => expect(api.getStatsH2HMatches).toHaveBeenCalled());
+    expect(api.getStatsH2HMatches).toHaveBeenCalledWith({
+      mode: "2v2",
+      relation: "opposed",
+      left_player_ids: [1, 4],
+      right_player_ids: [2, 3],
+      exact_teams: true,
+      scope: "tournaments",
+    });
+  });
+
+  it("shows a team matchup as four linked identities, without the relation chips", async () => {
+    renderView({ mode: "2v2", leftIds: [1, 4], rightIds: [2, 3] });
+
+    await screen.findByText("Matches · 2");
+    // Both teams are spelled out, every player still links to their profile (N4).
+    const profiles = screen
+      .getAllByRole("link")
+      .map((l) => l.getAttribute("href"))
+      .filter((h) => h?.startsWith("/profiles/"));
+    expect(profiles).toEqual(["/profiles/1", "/profiles/4", "/profiles/2", "/profiles/3"]);
+    // Against / Together is a question about a pair of players, not two teams.
+    expect(screen.queryByRole("button", { name: "Together" })).toBeNull();
+    expect(screen.getByText(/2v2 · Tournaments · exact teams/)).toBeInTheDocument();
+  });
+
+  it("names both teams in the empty state of a team matchup", async () => {
+    api.getStatsH2HMatches.mockImplementation((req) => Promise.resolve(response(req, [])));
+    renderView({ mode: "2v2", leftIds: [1, 4], rightIds: [2, 3] });
+
+    expect(await screen.findByText(/No matches between Roli \/ Berni and Flo \/ Rumpi yet/)).toBeInTheDocument();
   });
 
   it("explains an empty matchup and offers the way back", async () => {

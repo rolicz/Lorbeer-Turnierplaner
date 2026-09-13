@@ -3686,7 +3686,7 @@ Roli: "make sure there are no duplicates in records that already exist in streak
 
 ---
 
-## T7 — H2H shortcuts: name them, target them correctly, default to Tournaments  ☐
+## T7 — H2H shortcuts: name them, target them correctly, default to Tournaments  ☑
 
 Roli: "in match details, the 'All meetings' button is a bit weird.. not sure where we call it
 'meeting' elsewhere. make it a prominent button so you know at a glance that this brings you to
@@ -3716,7 +3716,93 @@ stats button/icon in the table."
 its match list matches the panel's summary); no `source=both` shortcut remains; no icon button in
 the standings table; screenshots 390px + 1280px; `npm run check` + build.
 
-**Deviations:**
+**Deviations:** (implemented 2026-09-13, one commit)
+
+- **The button.** `MatchH2HPanel`'s summary card ends in a full-width `Link` carrying the solid
+  button look (`buttonClass`, the primitive's escape hatch for a router link) with a lucide
+  `Swords` icon: **"All matches: Roli vs Flo"** / **"All matches: Roli / Berni vs Flo / Atzi"** —
+  Roli's own example wording, so the button says both *what* it opens and *for whom*. It fits at
+  390px without truncating (measured; it `truncate`s if names ever get longer, and the `title`
+  spells the whole thing out: "Head-to-head stats: every match … in exactly this pairing").
+  The two "together" cards get the same shape one weight down — a **ghost** full-width button
+  "All matches as a team" with the `Users` icon — so the exact matchup reads as the primary
+  action and the two duo cards stay equal to each other (`DESIGN.md` §9b).
+- **The card lost its names line.** With the button carrying the names, the matchup card printed
+  them three times (panel header → card label → link). The `label` prop is now optional and the
+  main card omits it; the two "together" cards keep theirs, because there the label is the only
+  place the duo is named.
+- **"Meeting" is gone from the app.** Not just the button: "Recent meetings" → "Recent matches",
+  "No finished meetings for this matchup yet." → "…no finished matches…", and the internal
+  `recentMeetings` → `recentMatches`. `git grep -in meeting frontend/src` now only hits one test
+  name.
+- **Two ids per side (the hard part).** `statsNav.ts` owns the shape: `parseMatchupSide` (one or
+  two positive ints, junk/zero/duplicates/overflow dropped, URL order kept), `formatMatchupSide`,
+  `collapseMatchupSide` and `statsMatchupHref`. `StatsPage` parses `player`/`vs` through it
+  (memoised on the raw param so the matchup's request/summary memos stay stable) and passes
+  `playerIds` / `vsIds` down; `setVs(ids, withPlayer?)` takes arrays. `StatsInsights` decides the
+  matchup from `leftIds`/`vsIds` and **refuses a matchup whose sides share a player**
+  (`?player=1,5&vs=1,2` is nonsense). Everything outside the matchup still works on one player:
+  `playerIds[0]` feeds the H2H matrix and the Player section, and leaving H2H collapses
+  `player=1,4` back to `player=1` — a team only means something inside the drill-in.
+- **Single-id URLs are untouched**, by construction and by test: `player=1&vs=2` parses to
+  `[1]`/`[2]`, produces the same request (`exact_teams: false`) and the same header as before.
+  Verified in the browser with the exact URL shape N4 used to write, `source=both` and all
+  (`/stats?view=h2h&mode=1v1&source=both&player=1&vs=2` still opens Roli vs Flo on "Both").
+- **What a team matchup looks like.** The header's side component renders each side as one
+  identity (`h-10` avatar, `text-base`) or two stacked ones (`h-8`, `text-sm`), every name still a
+  `PlayerLink` to its profile (N4) — four links for a 2v2. The caption under it gains a third
+  token, `2v2 · Tournaments · exact teams`, because "exact" is the whole difference between this
+  list and the subset one. The **Against/Together chips are hidden for a team matchup**: the
+  question "were these two on the same side?" only exists for a pair of players, and two teams
+  are never teammates (`relation` is forced to Against there, as it already was in 1v1).
+- **Names join with " / "** (`Roli / Berni`), the separator `matchupSummary.playerNames` already
+  uses in the match page's H2H panel, so the panel and the matchup it opens read the same. The
+  score lines keep `teamName`'s `Roli + Berni` — that is `ScoreLine`'s own idiom and untouched.
+- **The panel itself moved to Tournaments, not just its links.** The three queries behind the
+  match page's H2H numbers asked for `scope: "both"`. Sending the reader to a Tournaments-only
+  matchup from a card that counts friendlies would have shown *different numbers on both sides of
+  one tap* — and the DoD asks for exactly the opposite. So `SCOPE = "tournaments"` is one constant
+  for the panel and its shortcuts, and the explainer says "H2H across tournaments". A tournament
+  match is read in its tournament context; the matchup's own filter pill is one tap from "Both"
+  if Roli wants friendlies included. (Alternative, rejected: keep the panel on "both" and let the
+  link disagree with the card above it.)
+- **Profile shortcuts** (rivals, favorite teammates) go through `statsMatchupHref` too, so they
+  state `source=tournaments` instead of `source=both`. The rival cards' data is already
+  tournaments-only, so those numbers now match their destination. **Known residual:** the
+  *favorite teammates* card is computed from the profile's `scope: "both"` match history, so its
+  W-D-L can count friendlies the Tournaments matchup does not list. Making that card
+  tournaments-only changes the profile's own numbers (and the same query feeds "Recent matches"),
+  which is S3/N4 territory, not T7's.
+- **Standings icon removed, and the two tables stay honest about their difference.**
+  `StandingsTable`'s trailing chart-icon `Link` (added by N4) is gone — that row of the N4 table
+  is superseded. The rule the two standings now follow: **one row, one door, chosen by the page
+  the row lives on.** In a tournament the row opens the player's *profile* (that is what a
+  tournament is about — people), and on the dashboard the preview row opens the player's *stats*
+  with the name linking on to the profile (N4's split, unchanged, because that preview **is** the
+  stats table and shares `StatsTable` with the Overview sub-view). Neither has an icon button any
+  more.
+- **Cosmetic note:** in-app writes go through `URLSearchParams`, which percent-encodes the comma
+  (`?player=1%2C4`), while the hand-built shortcut hrefs keep it literal (`?player=1,4`). Both
+  parse identically; the literal form is what Roli sees when he follows a link.
+- Tests: `statsNav.test.ts` +9 cases (side parsing, formatting, collapsing, and the four
+  `statsMatchupHref` shapes incl. "defaults to Tournaments"), `matchupView.test.tsx` +3 (the
+  `exact_teams: true` request, the four linked identities with no relation chips, both team names
+  in the empty state) and its fixtures gained an exact-team tournament. Suite **401 tests in 41
+  files** (was 389), `npm run check` green, `npm run build` green with the pre-existing
+  "chunks larger than 500 kB" hint (644 kB `index-*.js`).
+- Runtime verification (isolated stack: backend :8003 on a copy of `app.db`, vite :8020),
+  **36/36 checks green at 390px/blue and 1280px/light**: the 2v2 match 93 (Roli + Berni vs
+  Flo + Atzi) → button target `…&mode=2v2&source=tournaments&player=1,4&vs=2,5` → a matchup whose
+  header names all four, says "exact teams", hides the relation chips, shows Played 1 · W-D-L
+  0-0-1 · Goals 1:2 — the same numbers as the "Exact matchup" card — and whose list holds exactly
+  1 row; "All matches as a team" → `…&player=1&vs=4&rel=together` with Played 4 = the Team A card;
+  the 1v1 match 104 → `…&mode=1v1&source=tournaments&player=1&vs=2` with 14 · 8-3-3 · 48:33 =
+  the panel's summary and `Matches · 14`; `/profiles/1`'s H2H links all carry
+  `source=tournaments`; **no `source=both` href on any of six pages**; `/live/17` has 0 links to
+  `?view=player` and its rows still open the profile; the legacy single-id URL still resolves;
+  0 console/page errors, 0 horizontal overflow, 0 nested anchors.
+- `AGENTS.md` §10's stats URL scheme documents the two-id sides, the collapse rule and
+  `statsMatchupHref`'s Tournaments default (rule 7 of this file).
 
 ---
 

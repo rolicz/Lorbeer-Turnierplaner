@@ -3,12 +3,21 @@
  * from every URL shape earlier layouts produced onto the canonical pair
  * `?view=overview|trends|h2h|player` + `?sub=…`.
  *
+ * The matchup drill-in addresses its two sides with `?player=` and `?vs=`, each of
+ * which carries **one or two** comma-separated player ids (T7): one id per side is
+ * "this player against that one, whatever the partners", two ids on both sides is
+ * the exact team matchup (`exact_teams` on the backend). Single-id URLs — every
+ * link written before T7 and everything in browser history — keep their meaning.
+ *
  * Legacy inputs that are mapped here (and rewritten once by `StatsInsights`):
  *  - `?view=table|positions|streaks|records|cups|stars` (the old insights tabs),
  *  - `?section=players|ratings|trends|h2h|streaks|stars|matches` (the classic tabs),
  *  - `#trends` / `#stats-trends` and nav state `{ focus: "trends" }`,
  *  - nav state `{ statsTab: … }` (dashboard deep links).
  */
+
+import type { StatsMode } from "./statsMode";
+import type { StatsScope } from "../../api/types";
 
 /**
  * One-shot deep-link param of the Cups sub-view: which cup to open at
@@ -26,6 +35,74 @@ export function cupSectionId(cupKey: string): string {
 /** Link into the Cups sub-view, opening at that cup. */
 export function cupSectionHref(cupKey: string): string {
   return `/stats?view=overview&sub=cups&${CUP_PARAM}=${encodeURIComponent(cupKey)}`;
+}
+
+/** How many player ids one matchup side can carry (`?player=1,5`): a 2v2 team. */
+export const MATCHUP_SIDE_MAX = 2;
+
+/**
+ * Player ids of one matchup side. Accepts `"1"` and `"1,5"`; ignores junk, zero,
+ * negative and duplicate ids and keeps at most `MATCHUP_SIDE_MAX` of them, in the
+ * order the URL gives them (the side's display order).
+ */
+export function parseMatchupSide(raw: string | null): number[] {
+  if (!raw) return [];
+  const out: number[] = [];
+  for (const part of raw.split(",")) {
+    const id = Number(part.trim());
+    if (!Number.isInteger(id) || id <= 0 || out.includes(id)) continue;
+    out.push(id);
+    if (out.length >= MATCHUP_SIDE_MAX) break;
+  }
+  return out;
+}
+
+/** The param value for a matchup side ("" when there is none, so it gets deleted). */
+export function formatMatchupSide(ids: number[]): string {
+  return ids
+    .filter((id) => Number.isInteger(id) && id > 0)
+    .slice(0, MATCHUP_SIDE_MAX)
+    .join(",");
+}
+
+/**
+ * A matchup side only means something inside the matchup, so a team collapses to
+ * its first player wherever the drill-in is left (`setView`, a cleared `vs`).
+ */
+export function collapseMatchupSide(params: URLSearchParams, key: string): void {
+  const ids = parseMatchupSide(params.get(key));
+  if (ids.length > 1) params.set(key, String(ids[0]));
+}
+
+/**
+ * Link into the matchup from outside `/stats` (match detail, profile cards).
+ *
+ * Every such shortcut states its filters, and **Source is Tournaments** unless the
+ * caller says otherwise (T7, Roli: "always use 'tournaments' and not both"). Pass
+ * two ids per side for the exact team matchup.
+ */
+export function statsMatchupHref({
+  left,
+  right,
+  mode = "overall",
+  scope = "tournaments",
+  relation,
+}: {
+  left: number[];
+  right?: number[];
+  mode?: StatsMode;
+  scope?: StatsScope;
+  /** "together" opens the matchup on its teammates relation (`?rel=together`). */
+  relation?: "against" | "together";
+}): string {
+  const player = formatMatchupSide(left);
+  const vs = formatMatchupSide(right ?? []);
+  // Ids are digits and commas, so the query needs no escaping and stays readable.
+  const parts = [`view=h2h`, `mode=${mode}`, `source=${scope}`];
+  if (player) parts.push(`player=${player}`);
+  if (vs) parts.push(`vs=${vs}`);
+  if (relation === "together") parts.push("rel=together");
+  return `/stats?${parts.join("&")}`;
 }
 
 export type StatsView = "overview" | "trends" | "h2h" | "player";
