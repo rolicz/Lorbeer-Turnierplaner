@@ -389,10 +389,9 @@ export default function CurrentGameSection({
               players={players}
               canWrite={canControl}
               canDelete={canDeleteComments}
-              collapsible={false}
               onlyMatchId={activeMatch.id}
               showMatchHeader={false}
-              collapsibleHeader="Match comments"
+              title="Match comments"
             />
           </div>
         ) : null}

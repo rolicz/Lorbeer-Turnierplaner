@@ -257,12 +257,13 @@ export default function CommentComposer({
   return (
     <div
       className={cn(
-        "z-20",
+        // Attached to the feed's card: a hairline separates them, nothing floats (T3).
+        "z-10 rounded-b-2xl border-t border-border-card-outer/55 bg-bg-card-outer p-2",
         sticky && "sticky bottom-[calc(4.5rem+env(safe-area-inset-bottom,0px))] lg:bottom-4",
       )}
       data-comment-composer
     >
-      <div className="card space-y-2 p-2 shadow-pop">
+      <div className="space-y-2">
         {/* The scope selector takes its own line: "Match 2 — Rumpi vs Roli" has to stay
             readable, and in goal/shots entry it is the label that says which match it is for. */}
         {scopeControl ? <div>{scopeControl}</div> : null}

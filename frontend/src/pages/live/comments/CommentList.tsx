@@ -54,7 +54,6 @@ export type CommentListProps = {
   // --- per-block / per-thread collapse ---
   showMatchHeader: boolean;
   collapsedBlocks: Set<string>;
-  setCollapsedBlocks: (next: Set<string>) => void;
   toggleBlock: (key: string) => void;
   collapsedThreads: Set<number>;
   toggleThread: (id: number) => void;
@@ -78,7 +77,6 @@ export default function CommentList(props: CommentListProps) {
     matchHeaderMeta,
     showMatchHeader,
     collapsedBlocks,
-    setCollapsedBlocks,
     toggleBlock,
     collapsedThreads,
     toggleThread,
@@ -199,10 +197,11 @@ export default function CommentList(props: CommentListProps) {
             </div>
           </div>
     ) : null;
-    // A match block is a level-1 `card` on the page (DESIGN.md §3); its comments are the
-    // level-2 `inset` rows inside it. scroll-mt is critical for anchor navigation.
+    // A block is a hairline-separated section *inside* the feed's card (T3): the feed and
+    // its composer are one unit, so a block cannot be a card of its own — its comments are
+    // the level-2 `inset` rows (DESIGN.md §3). scroll-mt is critical for anchor navigation.
     return (
-      <div key={matchId} id={`comments-block-match-${matchId}`} className="card scroll-mt-28 sm:scroll-mt-32">
+      <section key={matchId} id={`comments-block-match-${matchId}`} className="scroll-mt-28 px-3 py-3 sm:scroll-mt-32">
         {h && showMatchHeader ? (
           <button
             type="button"
@@ -220,13 +219,13 @@ export default function CommentList(props: CommentListProps) {
         ) : null}
 
         {!isCollapsed ? (
-          <div className="mt-3 space-y-2">
+          <div className={h && showMatchHeader ? "mt-3 space-y-2" : "space-y-2"}>
             {arr.length ? arr.map((c) => renderCommentTree(c, surface, 0)) : (
               <EmptyState title="No comments on this match yet." />
             )}
           </div>
         ) : null}
-      </div>
+      </section>
     );
   }
 
@@ -242,46 +241,29 @@ export default function CommentList(props: CommentListProps) {
   }
   if (filter === "general") {
     return (
-      <div className="card">
+      <section className="px-3 py-3">
         <div className="mb-3 text-sm font-semibold">General</div>
         {renderGeneralList()}
-      </div>
+      </section>
     );
   }
   if (typeof filter === "number") {
     return renderMatchBlock(filter, "inset");
   }
   return (
-    <div className="space-y-2">
-      {matchBlocksWithComments.length ? (
-        <div className="flex justify-end">
-          <button
-            type="button"
-            onClick={() => {
-              const keys = matchBlocksWithComments.map((b) => `m-${b.matchId}`);
-              const allCollapsed = keys.every((k) => collapsedBlocks.has(k));
-              setCollapsedBlocks(allCollapsed ? new Set() : new Set(keys));
-            }}
-            className="text-xs text-text-muted transition hover:text-text-normal"
-          >
-            {matchBlocksWithComments.every((b) => collapsedBlocks.has(`m-${b.matchId}`))
-              ? "Expand all"
-              : "Collapse all"}
-          </button>
-        </div>
-      ) : null}
+    <div className="list-divided">
       {generalComments.length ? (
-        <div className="card">
+        <section className="px-3 py-3">
           <div className="mb-3 flex items-center justify-between gap-2">
             <div className="text-sm font-semibold">General</div>
             <div className="text-xs text-text-muted">{generalComments.length}</div>
           </div>
           {renderGeneralList()}
-        </div>
+        </section>
       ) : null}
       {matchBlocksWithComments.map((b) => renderMatchBlock(b.matchId, "inset"))}
       {totalComments === 0 ? (
-        <EmptyState title={`No comments yet.${canWrite ? " Be the first to add one." : ""}`} className="card px-3 py-6" />
+        <EmptyState title={`No comments yet.${canWrite ? " Be the first to add one." : ""}`} className="px-3 py-6" />
       ) : null}
     </div>
   );

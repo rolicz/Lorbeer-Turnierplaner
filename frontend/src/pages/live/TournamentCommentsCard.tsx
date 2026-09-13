@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronUp, CornerDownRight, MessagesSquare } from "lucide-react";
+import { CornerDownRight, MessagesSquare } from "lucide-react";
 import { useEffect, useId, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { sideBy } from "../../helpers";
@@ -6,7 +6,6 @@ import { sideBy } from "../../helpers";
 import FilterSelect from "../../ui/FilterSelect";
 import { Chip } from "../../ui/primitives/Chip";
 import LoadingPlaceholder from "../../ui/primitives/LoadingPlaceholder";
-import CollapsibleCard from "../../ui/primitives/CollapsibleCard";
 import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
 import { showErrorToast } from "../../ui/primitives/ErrorToast";
 import CommentImageCropper from "../../ui/primitives/CommentImageCropper";
@@ -41,11 +40,9 @@ export default function TournamentCommentsCard({
   canWrite,
   canDelete,
   focusCommentRequest,
-  collapsible = true,
   onlyMatchId = null,
   showMatchHeader = true,
-  collapsibleHeader = null,
-  defaultCollapsed = false,
+  title = "Comments",
 }: {
   tournamentId: number;
   matches: Match[];
@@ -54,14 +51,12 @@ export default function TournamentCommentsCard({
   canWrite: boolean;
   canDelete: boolean;
   focusCommentRequest?: { id: number; nonce: number } | null;
-  collapsible?: boolean;
   /** When set, render only this match's comments + composer (used on the match detail page). */
   onlyMatchId?: number | null;
   /** Show the match score/clubs/stars header inside match blocks (off when score is shown elsewhere). */
   showMatchHeader?: boolean;
-  /** When set, render a collapse header with this title (e.g. "Match comments"); state persisted. */
-  collapsibleHeader?: string | null;
-  defaultCollapsed?: boolean;
+  /** Heading of the feed's card — the section is never collapsible (DESIGN.md §9b). */
+  title?: string;
 }) {
   const { token, role, actorPlayerId: currentPlayerId, actorPlayerName: currentPlayerName } = useAuth();
   const canAttachImage = role === "admin" || role === "editor";
@@ -111,19 +106,6 @@ export default function TournamentCommentsCard({
   const [flashId, setFlashId] = useState<number | null>(null);
   const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
 
-  // Collapse state (persisted) for the inline collapse header.
-  const collapseKey = `cmt-collapsed:${tournamentId}:${onlyMatchId ?? "all"}`;
-  const [collapsed, setCollapsed] = useState<boolean>(() => {
-    const raw = localStorage.getItem(collapseKey);
-    return raw == null ? defaultCollapsed : raw === "1";
-  });
-  const toggleCollapsed = () => {
-    setCollapsed((v) => {
-      const next = !v;
-      localStorage.setItem(collapseKey, next ? "1" : "0");
-      return next;
-    });
-  };
   const [voteVotersCommentId, setVoteVotersCommentId] = useState<number | null>(null);
 
   // Reply composer (per parent comment) + collapsed reply subtrees.
@@ -837,88 +819,89 @@ export default function TournamentCommentsCard({
     saveEdit: () => void saveEdit(),
   };
 
-  const commentsContent = (
-    <>
-        <ErrorToastOnError error={commentsQ.error} title="Comments loading failed" />
-        <ErrorToastOnError error={actionError} title="Comment action failed" />
-        {commentsQ.isLoading ? <LoadingPlaceholder /> : null}
-
-        <div className="space-y-3">
-          {/* Scope filter chips */}
-          {onlyMatchId == null ? (
-            <CommentFilterBar
-              filter={filter}
-              onChange={changeFilter}
-              totalCount={totalComments}
-              generalCount={generalComments.length}
-              generalUnseen={generalUnseen}
-              matchChips={matchBlocksWithComments.map((b) => ({
-                matchId: b.matchId,
-                label: `Match ${matchIndexById.get(b.matchId) ?? b.matchId}`,
-                count: b.comments.length,
-                unseen: !!token && b.comments.some((c) => !seen.has(c.id)),
-              }))}
-            />
-          ) : null}
-
-          {/* Feed */}
-          <CommentList
-            onlyMatchId={onlyMatchId}
-            filter={filter}
-            blocks={grouped.blocks}
-            matchBlocksWithComments={matchBlocksWithComments}
-            generalComments={generalComments}
-            pinnedTournamentComment={pinnedTournamentComment}
-            comments={comments}
-            totalComments={totalComments}
-            childrenByParent={childrenByParent}
-            rootScopeKey={grouped.rootScopeKey}
-            matchHeaderMeta={matchHeaderMeta}
-            showMatchHeader={showMatchHeader}
-            collapsedBlocks={collapsedBlocks}
-            setCollapsedBlocks={setCollapsedBlocks}
-            toggleBlock={toggleBlock}
-            collapsedThreads={collapsedThreads}
-            toggleThread={toggleThread}
-            ctx={commentCardCtx}
-          />
-
-          {/* The composer lives at the bottom of the feed, chat-style. */}
-          {composer}
-        </div>
-    </>
-  );
-
-  const collapseHeader = collapsibleHeader ? (
-    <button
-      type="button"
-      onClick={toggleCollapsed}
-      className="focus-ring flex w-full items-center justify-between gap-2 rounded-xl bg-bg-card-chip/30 px-3 py-3 text-left transition hover:bg-bg-card-chip/45"
-      aria-expanded={!collapsed}
-    >
-      <span className="inline-flex items-center gap-2 text-sm font-semibold text-text-normal">
-        <MessagesSquare size={14} className="text-text-muted" aria-hidden="true" />
-        {collapsibleHeader}
-        <span className="rounded-full bg-bg-card-chip/70 px-1.5 text-xs font-normal tabular-nums text-text-muted">{comments.length}</span>
-      </span>
-      {collapsed ? <ChevronDown size={14} className="text-text-muted" aria-hidden="true" /> : <ChevronUp size={14} className="text-text-muted" aria-hidden="true" />}
-    </button>
-  ) : null;
+  // "Collapse all" folds the match blocks of the full feed — a different thing from the
+  // section collapse T3 removed, so it stays, as the header's one action.
+  const blockKeys = matchBlocksWithComments.map((b) => `m-${b.matchId}`);
+  const allBlocksCollapsed = blockKeys.length > 0 && blockKeys.every((k) => collapsedBlocks.has(k));
+  const showCollapseAll = onlyMatchId == null && filter === "all" && blockKeys.length > 0;
+  // The count says what this feed shows: a match-scoped card counts that match's thread.
+  const headerCount =
+    onlyMatchId == null
+      ? totalComments
+      : comments.filter((c) => grouped.rootScopeKey.get(c.id) === `m-${onlyMatchId}`).length;
 
   return (
     <>
-    {collapsibleHeader ? (
-      <div className="space-y-3">
-        {collapseHeader}
-        {!collapsed ? commentsContent : null}
+    {/* Feed and composer are one card (DESIGN.md §9b): a header row, the feed, a hairline,
+        and the composer attached to the card's bottom edge — never a collapsible. */}
+    <section className="card min-w-0 p-0" data-comments-feed>
+      <div className="flex items-center justify-between gap-2 border-b border-border-card-outer/55 px-3 py-2.5">
+        <h2 className="inline-flex min-w-0 items-center gap-2 text-sm font-semibold text-text-normal">
+          <MessagesSquare size={14} className="shrink-0 text-text-muted" aria-hidden="true" />
+          <span className="truncate">{title}</span>
+          <span className="shrink-0 text-xs font-normal tabular-nums text-text-muted">{headerCount}</span>
+        </h2>
+        {showCollapseAll ? (
+          <button
+            type="button"
+            onClick={() => setCollapsedBlocks(allBlocksCollapsed ? new Set() : new Set(blockKeys))}
+            className="focus-ring shrink-0 rounded-full px-1 text-xs text-text-muted transition hover:text-text-normal"
+          >
+            {allBlocksCollapsed ? "Expand all" : "Collapse all"}
+          </button>
+        ) : null}
       </div>
-    ) : collapsible ? (
-      <CollapsibleCard title="Comments" defaultOpen={true} variant="card" bodyVariant="none" bodyClassName="space-y-3">
-        {commentsContent}
-      </CollapsibleCard>
-    ) : (
-      <div className="space-y-3">{commentsContent}</div>
-    )}
+
+      <ErrorToastOnError error={commentsQ.error} title="Comments loading failed" />
+      <ErrorToastOnError error={actionError} title="Comment action failed" />
+
+      {onlyMatchId == null ? (
+        <div className="border-b border-border-card-outer/55 px-3 py-2">
+          <CommentFilterBar
+            filter={filter}
+            onChange={changeFilter}
+            totalCount={totalComments}
+            generalCount={generalComments.length}
+            generalUnseen={generalUnseen}
+            matchChips={matchBlocksWithComments.map((b) => ({
+              matchId: b.matchId,
+              label: `Match ${matchIndexById.get(b.matchId) ?? b.matchId}`,
+              count: b.comments.length,
+              unseen: !!token && b.comments.some((c) => !seen.has(c.id)),
+            }))}
+          />
+        </div>
+      ) : null}
+
+      {commentsQ.isLoading ? (
+        <div className="px-3 py-3">
+          <LoadingPlaceholder />
+        </div>
+      ) : null}
+
+      <CommentList
+        onlyMatchId={onlyMatchId}
+        filter={filter}
+        blocks={grouped.blocks}
+        matchBlocksWithComments={matchBlocksWithComments}
+        generalComments={generalComments}
+        pinnedTournamentComment={pinnedTournamentComment}
+        comments={comments}
+        totalComments={totalComments}
+        childrenByParent={childrenByParent}
+        rootScopeKey={grouped.rootScopeKey}
+        matchHeaderMeta={matchHeaderMeta}
+        showMatchHeader={showMatchHeader}
+        collapsedBlocks={collapsedBlocks}
+        toggleBlock={toggleBlock}
+        collapsedThreads={collapsedThreads}
+        toggleThread={toggleThread}
+        ctx={commentCardCtx}
+      />
+
+      {/* The composer is the card's last row, chat-style. */}
+      {composer}
+    </section>
     <CommentImageCropper
       open={imageCropOpen}
       title="Attach comment image"

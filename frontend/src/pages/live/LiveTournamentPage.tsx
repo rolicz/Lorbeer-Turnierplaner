@@ -687,7 +687,6 @@ export default function LiveTournamentPage() {
               canWrite={isEditorOrAdmin}
               canDelete={isAdmin}
               focusCommentRequest={focusCommentRequest}
-              collapsible={false}
             />
           ) : null}
 

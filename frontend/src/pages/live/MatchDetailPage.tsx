@@ -226,7 +226,6 @@ export default function MatchDetailPage() {
               players={tQ.data?.players ?? []}
               canWrite={canEdit}
               canDelete={isAdmin}
-              collapsible={false}
               onlyMatchId={matchId}
             />
           ) : null}
