@@ -353,14 +353,20 @@ Other helpers: `seed --file backend/data/seed.json` (players/leagues/clubs upser
   the exact team matchup (`?player=1,4&vs=2,5` → `exact_teams` on `POST /stats/h2h-matches`).
   Outside the matchup only the first id counts, and leaving H2H collapses a team back to it.
   Every shortcut into a matchup is built by `statsMatchupHref()` (`pages/stats/statsNav.ts`) and
-  defaults to **Source = Tournaments**. Every stats param is written
-  with `replace`, so browser Back leaves `/stats` and in-view back buttons undo the drill-ins.
+  defaults to **Source = Tournaments**. Every stats param is written with `replace` — except
+  **opening the matchup, which is a push** (T11): the drill-in swaps the whole body, so it owns a
+  history entry and swipe/browser back return to the list it was opened from (N2 restores that
+  list's offset). Its in-view "Head-to-head" button asks the same question the gesture does
+  (`resolveDrillInBackAction` in `ui/shell/backNavigation.ts`): pop when the entry behind is this
+  stats page without `vs`, otherwise — a deep link from a match page or a profile — clear the
+  param in place.
   All older shapes (`?view=table|stars`, `?section=…`, `#trends`, nav `state.statsTab`) are
   mapped once by `pages/stats/statsNav.ts` and rewritten — **never re-introduce `?section=`**.
 - Scroll position is app-managed (N2): `history.scrollRestoration` is `"manual"`, each history
   entry's offset lives in sessionStorage (`navStack`) and in-page view swaps (tabs, stats
-  sections, the H2H matchup) keep their own offsets (`useReturnScroll`). A same-page `replace`
-  deliberately never moves the scroll, so filters and `?tab=` deep links stay put.
+  sections) keep their own offsets (`useReturnScroll`) — the H2H matchup rides on its own history
+  entry instead (T11). A same-page `replace` deliberately never moves the scroll, so filters and
+  `?tab=` deep links stay put.
 - Frontend Docker build uses `npm install` (not `ci`) on purpose: the lockfile is generated on the
   arm64/glibc Pi, the image is alpine/musl on x86.
 - Tests use a temp SQLite file + `UPLOADS_DIR` in tmp (`backend/tests/conftest.py`); accounts

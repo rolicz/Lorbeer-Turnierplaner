@@ -33,13 +33,18 @@ export default function StatsPage() {
   const vsParam = searchParams.get("vs");
   const vsIds = useMemo(() => parseMatchupSide(vsParam), [vsParam]);
 
-  const patchParams = (changes: Record<string, string | null>) => {
+  /**
+   * Every stats param is a same-page rewrite (`replace`), so browser Back leaves
+   * `/stats` instead of undoing filter taps — except a drill-in that swaps the
+   * whole body, which asks for `push` and becomes its own history entry (T11).
+   */
+  const patchParams = (changes: Record<string, string | null>, opts?: { push?: boolean }) => {
     const next = new URLSearchParams(searchParams);
     for (const [k, v] of Object.entries(changes)) {
       if (v == null || v === "") next.delete(k);
       else next.set(k, v);
     }
-    setSearchParams(next, { replace: true });
+    setSearchParams(next, { replace: !opts?.push });
   };
 
   const setMode = (m: StatsMode) => patchParams({ mode: m });
@@ -52,17 +57,25 @@ export default function StatsPage() {
    * from a match page) is always reset here: an in-app matchup opens on "Against".
    * Clearing the matchup also collapses a team back to its first player, because
    * outside the drill-in only one player can be selected.
+   *
+   * Opening one is `push`ed (T11): it changes what the page shows, so back — the
+   * gesture, the browser button and the in-view one alike — returns to the list
+   * it was opened from. Clearing stays a `replace`, because that is the *other*
+   * way out, used when there is no stats page behind the drill-in at all.
    */
-  const setVs = (ids: number[], withPlayer?: number[]) =>
-    patchParams({
-      vs: formatMatchupSide(ids),
-      rel: null,
-      ...(withPlayer?.length
-        ? { player: formatMatchupSide(withPlayer) }
-        : ids.length
-          ? {}
-          : { player: formatMatchupSide(playerIds.slice(0, 1)) }),
-    });
+  const setVs = (ids: number[], withPlayer?: number[], opts?: { push?: boolean }) =>
+    patchParams(
+      {
+        vs: formatMatchupSide(ids),
+        rel: null,
+        ...(withPlayer?.length
+          ? { player: formatMatchupSide(withPlayer) }
+          : ids.length
+            ? {}
+            : { player: formatMatchupSide(playerIds.slice(0, 1)) }),
+      },
+      opts,
+    );
 
   if (!pageEntered) {
     return <PageLayout><PageLoadingScreen sectionCount={3} /></PageLayout>;

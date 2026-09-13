@@ -89,6 +89,45 @@ export function backActionFor(pathname: string, state: unknown, fallback: string
 }
 
 /**
+ * What the in-view back button of a **param drill-in** should do (T11).
+ *
+ * A drill-in that is a query param on the page it drills into — the stats
+ * matchup, `?vs=` — is opened with a *push*, so it owns a history entry and the
+ * swipe gesture and the browser's back button simply pop it. The in-view button
+ * asks this function before doing the same, because popping is only the way back
+ * when the entry behind us is this very page *without* the param (then the pop
+ * also restores the list's scroll offset, N2). Arriving by deep link a match
+ * page or a profile sits behind the drill-in instead: popping would leave the
+ * page the button points at, so it clears the param in place.
+ */
+export type DrillInBackAction = { kind: "pop" } | { kind: "clear" };
+
+export type DrillInBackInput = {
+  /** The page the drill-in lives on. */
+  pathname: string;
+  /** The query param that *is* the drill-in (`"vs"`). */
+  param: string;
+  /** Does the history stack have anything behind this entry? */
+  canPop: boolean;
+  /** The URL of the entry a pop would land on, when we know it. */
+  previousPath: string | null;
+};
+
+export function resolveDrillInBackAction({ pathname, param, canPop, previousPath }: DrillInBackInput): DrillInBackAction {
+  if (!canPop || !previousPath) return { kind: "clear" };
+  if (pathnameOf(previousPath) !== pathnameOf(pathname)) return { kind: "clear" };
+  const q = previousPath.indexOf("?");
+  const previousParams = new URLSearchParams(q < 0 ? "" : previousPath.slice(q + 1));
+  // Another drill-in behind us is not the page this button promises either.
+  return previousParams.get(param) ? { kind: "clear" } : { kind: "pop" };
+}
+
+/** `resolveDrillInBackAction` against the live browser/session state. */
+export function drillInBackActionFor(pathname: string, param: string): DrillInBackAction {
+  return resolveDrillInBackAction({ pathname, param, canPop: historyCanPop(), previousPath: previousEntryPath() });
+}
+
+/**
  * What a horizontal swipe should do. `dir > 0` is a swipe right (back), which
  * follows the chevron exactly; a swipe left goes forward, but only while an
  * entry actually sits in front of us.
