@@ -3537,3 +3537,41 @@ computed `background-color` of the panel element is identical in a Playwright ch
 390px, blue + light; `npm run check` + build.
 
 **Deviations:**
+
+---
+
+## T9 — Club selection as one self-contained panel (Roli, after testing T2)  ☐
+
+Roli: "im still not happy at all with the club selection. i dont want to see 'filter clubs',
+'dice', 'random matchup' all the time -> when i do, i want to be able to select the club there,
+and not in the score board. i know that i said i dont want it twice on screen, but i think here
+its not avoidable. just make sure the club selection is integrated nice, with either collapsible
+or something better -> it should be clear what belongs to it."
+
+T2 got half of it right (one club on screen, filters out of the per-side sheet) and half wrong:
+the tools now sit on the card permanently while the value they act on lives somewhere else.
+`DESIGN.md` §9b has been amended for this — a *toolbox* may hide behind one named disclosure, and
+when it is open it must contain **everything that job needs, including the values**.
+
+- **Collapsed by default**, the match card shows the scoreboard only (clubs read-only, as before
+  T2). One trigger — a row or button that names the job ("Clubs", with the two current clubs or
+  "not set" as its summary) — opens the panel. Tapping a club in the scoreboard may open the panel
+  too, but must not be the only way in.
+- **Open**, the panel is one clearly bounded unit (`inset`, its own header, one visual block) that
+  holds, in this order: the two club slots (tap → `ClubPicker` sheet, as T2 built), the filter
+  controls, then the dice + "Random matchup" row. Repeating the club names here while the
+  scoreboard shows them is accepted and expected.
+- **Default open where setting clubs is the point**: the new-friendly form (and the stored-friendly
+  editor) start expanded; the live Current tab and the match-detail Edit tab start collapsed and
+  remember the user's last choice per surface (localStorage, same idiom as `match_list_view`).
+- Keep everything T2 achieved: filters act on both sides and on the random pool, stars editing in
+  the picker, balanced random row, the four surfaces behaving identically.
+- Re-check §9b compliance afterwards: one trigger, one container, nothing about clubs outside it
+  except the read-only scoreboard.
+
+**DoD:** with the panel collapsed no filter/dice/random control is visible on any of the four
+surfaces; opening it reveals a single bounded block where a club can be picked; the friendly forms
+start open; the choice is remembered; screenshots 390px + 1280px, blue + light, collapsed and open,
+for all four surfaces; `npm run check` + build.
+
+**Deviations:**
