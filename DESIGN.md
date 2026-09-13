@@ -47,7 +47,7 @@ token. `delta-up`/`delta-down` stay for numeric deltas (ratings, form).
 | Class | Level | Use | Style |
 |---|---|---|---|
 | `card` | 1 | a standalone block on the page | `rounded-2xl p-3`, `bg-card-outer`, hairline `border-card-outer/55`, soft shadow |
-| `inset` | 2 | a box *inside* a card or a page section: score panel, stat tile, sub-panel, list block | `rounded-xl p-3`, `bg-card-chip/50` (light: `bg-card-chip` + hairline), no shadow |
+| `inset` | 2 | a box *inside* a card or a page section: score panel, stat tile, sub-panel, list block | `rounded-xl p-3`, `bg-card-chip/50` (light: `bg-card-inner` + a `border-card-inner` hairline), no shadow |
 | `chip` | 3 | inline tag/pill/badge | `rounded-full px-2.5 py-1 text-xs`, `bg-card-chip`, hairline |
 | `divider` / `list-divided` | — | hairlines between rows | unchanged |
 
@@ -59,6 +59,13 @@ Retired and **deleted** (DS1 + DS3, 2026-09-13): `card-outer`, `card-inner`, `ca
 `CollapsibleCard` take `variant="card" | "inset" | "none"`; `Modal` is always a `card` on a
 scrim. `card` and `inset` bring their own `p-3` — write `inset p-0` (or `card p-0`) where the
 box's children already carry the padding (avatars, collapsible headers, tight rows).
+
+**Light theme, level 2 vs level 3.** In `light.css` `--color-bg-card-chip` is pure *white*:
+right for a `chip` or an input on the grey page, wrong for an `inset`, which would then be
+white on a white `card`. So in light an `inset` is `--color-bg-card-inner` (247 246 245) with
+a `--color-border-card-inner` hairline — separated both on a white card and on the grey page —
+while `chip`, `.input-field` and `.select-field` stay white. Dark themes are unaffected
+(`bg-card-chip/50`, no border).
 
 ## 4. Radius, spacing, elevation
 

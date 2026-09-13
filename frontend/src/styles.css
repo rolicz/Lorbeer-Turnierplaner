@@ -60,10 +60,13 @@
     background-color: rgb(var(--color-bg-card-chip) / 0.5);
     border: 0;
   }
-  /* Light theme: a 50%-alpha chip on white is invisible — full chip fill + a hairline. */
+  /* Light theme: `--color-bg-card-chip` is pure white there — right for a chip or an
+     input on the grey page, but an inset painted white on a white `card` disappears.
+     So light insets take the subtle grey surface (`bg-card-inner`) and its hairline;
+     that separates them on a white card *and* on the grey page backdrop. */
   [data-theme="light"] .inset {
-    background-color: rgb(var(--color-bg-card-chip));
-    border: 1px solid rgb(var(--color-border-card-chip) / 0.35);
+    background-color: rgb(var(--color-bg-card-inner));
+    border: 1px solid rgb(var(--color-border-card-inner));
   }
 
   /* Level 3 — an inline tag/pill/badge. Never a container for numbers. */
