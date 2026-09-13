@@ -61,13 +61,13 @@ function RivalCard({ icon, label, row, onOpen }: {
       ) : null}
     </>
   );
-  if (!row) return <div className="card-chip px-3 py-2">{body}</div>;
+  if (!row) return <div className="inset px-3 py-2">{body}</div>;
   return (
     <button
       type="button"
       onClick={() => onOpen(row.opponent.id)}
       title={`All matches against ${row.opponent.display_name}`}
-      className="card-chip px-3 py-2 text-left transition hover:bg-bg-card-chip/40 active:bg-bg-card-chip/50 focus-ring"
+      className="inset px-3 py-2 text-left transition hover:bg-bg-card-chip/40 active:bg-bg-card-chip/50 focus-ring"
     >
       {body}
     </button>
@@ -427,7 +427,7 @@ export default function H2HView({ mode, scope, rows, subView, selectedId, onSele
                       type="button"
                       onClick={() => onOpenMatchup(selectedId, o.opponent.id)}
                       aria-label={`All matches against ${o.opponent.display_name}`}
-                      className="absolute inset-0 z-0 rounded-lg focus-ring"
+                      className="absolute inset-0 z-0 rounded-xl focus-ring"
                     />
                     <span className="pointer-events-none relative z-10 flex w-full items-center gap-3">
                       <span className="min-w-0 flex-1">
@@ -498,7 +498,7 @@ export default function H2HView({ mode, scope, rows, subView, selectedId, onSele
         />
         {topRivalries.map((p) => (
           <button key={`${p.a.id}-${p.b.id}`} type="button" onClick={() => onOpenMatchup(p.a.id, p.b.id)}
-            className="surface flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left transition hover:bg-hover-default/30">
+            className="inset flex w-full items-center justify-between gap-3 px-3 py-2 text-left transition hover:bg-hover-default/30">
             <div className="min-w-0">
               <div className="truncate text-sm font-medium text-text-normal">
                 {nameById.get(p.a.id) ?? p.a.display_name} <span className="text-text-muted">vs</span> {nameById.get(p.b.id) ?? p.b.display_name}

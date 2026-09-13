@@ -104,7 +104,8 @@ describe("MatchRowWithClubs score (DESIGN.md §8)", () => {
 
     expect(container.querySelectorAll("[data-score-line]")).toHaveLength(1);
     expect(container.querySelector('[data-score-line="md"]')).not.toBeNull();
-    expect(container.querySelector(".card-chip")).toBeNull();
+    expect(container.querySelector(".chip")).toBeNull();
+    expect(container.querySelector(".inset")).toBeNull();
     expect(container.textContent).not.toContain(":");
   });
 

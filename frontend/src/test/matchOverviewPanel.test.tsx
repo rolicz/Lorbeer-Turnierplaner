@@ -144,7 +144,8 @@ describe("MatchOverviewPanel layout (DESIGN.md §8)", () => {
     expect(line?.querySelector('[data-score-numeral="left"]')?.textContent).toBe("3");
     expect(line?.querySelector('[data-score-numeral="right"]')?.textContent).toBe("1");
     expect(container.textContent).not.toContain(":");
-    expect(container.querySelector(".card-chip")).toBeNull();
+    expect(line?.querySelector(".chip")).toBeNull();
+    expect(line?.querySelector(".inset")).toBeNull();
     expect(container.querySelector("[class*='border-y']")).toBeNull();
   });
 

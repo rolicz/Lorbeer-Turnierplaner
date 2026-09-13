@@ -54,7 +54,7 @@ export function DuoRow({
   return (
     <RowShell
       onClick={onOpenMatches ? () => onOpenMatches(rr) : null}
-      className="panel-subtle flex items-center justify-between gap-3 rounded-xl px-3 py-2"
+      className="inset flex items-center justify-between gap-3 px-3 py-2"
     >
       <div className="min-w-0">
         <div className="truncate text-sm font-semibold text-text-normal">
@@ -104,7 +104,7 @@ export function TeamRivalryRow({
   return (
     <RowShell
       onClick={onOpenMatches ? () => onOpenMatches(rr) : null}
-      className="panel-subtle rounded-xl px-3 py-2"
+      className="inset px-3 py-2"
     >
       <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
         <div className="min-w-0">

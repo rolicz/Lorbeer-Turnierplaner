@@ -44,7 +44,7 @@ const RESULT_CLASS: Record<MatchResult, string> = {
 
 function Tile({ label, title, children }: { label: string; title?: string; children: ReactNode }) {
   return (
-    <div className="surface rounded-xl px-2 py-2 text-center" title={title}>
+    <div className="inset px-2 py-2 text-center" title={title}>
       <div className="text-base font-bold tabular-nums text-text-normal">{children}</div>
       <div className="text-[11px] text-text-muted">{label}</div>
     </div>
@@ -141,7 +141,7 @@ export default function MatchupView({ mode, scope, leftId, rightId, rows, onBack
 
       <ErrorToastOnError error={q.error} title="Matchup loading failed" />
 
-      <div className="card-outer">
+      <div className="card">
         <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3">
           <PlayerSide id={leftId} name={leftName} updatedAt={avatarUpdatedAtById.get(leftId) ?? null} />
           <span className="shrink-0 text-[11px] font-semibold uppercase tracking-[0.14em] text-text-muted">
@@ -166,7 +166,7 @@ export default function MatchupView({ mode, scope, leftId, rightId, rows, onBack
       {loading ? <InlineLoading label="Loading…" /> : null}
 
       {!loading ? (
-        <div className="card-outer space-y-3">
+        <div className="card space-y-3">
           <div className="grid grid-cols-3 gap-2">
             <Tile label="Played">{summary.played}</Tile>
             <Tile label="W-D-L" title={`${summary.wins} wins, ${summary.draws} draws, ${summary.losses} losses`}>
@@ -195,7 +195,7 @@ export default function MatchupView({ mode, scope, leftId, rightId, rows, onBack
                 {last5.map((r, i) => (
                   <span
                     key={i}
-                    className={"grid h-6 w-6 place-items-center rounded-md text-[11px] font-bold ring-1 ring-inset " + RESULT_CLASS[r]}
+                    className={"grid h-6 w-6 place-items-center rounded-full text-[11px] font-bold ring-1 ring-inset " + RESULT_CLASS[r]}
                   >
                     {r}
                   </span>

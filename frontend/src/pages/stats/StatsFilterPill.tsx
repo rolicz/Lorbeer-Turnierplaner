@@ -262,7 +262,7 @@ export default function StatsFilterPill({
                   ? { bottom: window.innerHeight - anchor.top + 8, right: window.innerWidth - anchor.right, transformOrigin: "bottom right" }
                   : { top: anchor.bottom + 8, right: window.innerWidth - anchor.right, transformOrigin: "top right" }
               }
-              className="card-outer fixed z-40 w-64 space-y-3 shadow-pop backdrop-blur-md"
+              className="card fixed z-40 w-64 space-y-3 shadow-pop backdrop-blur-md"
             >
               {showMode ? (
                 <div className="space-y-1.5">

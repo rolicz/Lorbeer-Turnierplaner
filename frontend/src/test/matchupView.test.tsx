@@ -117,7 +117,7 @@ describe("MatchupView", () => {
 
     // Played / W-D-L / goals / ppm / win% / current run.
     expect(await screen.findByText("Played")).toBeInTheDocument();
-    const tiles = Array.from(container.querySelectorAll(".surface")).map((el) => el.textContent);
+    const tiles = Array.from(container.querySelectorAll(".inset")).map((el) => el.textContent);
     expect(tiles).toContain("3Played");
     expect(tiles).toContain("1-1-1W-D-L");
     expect(tiles).toContain("5:5Goals");

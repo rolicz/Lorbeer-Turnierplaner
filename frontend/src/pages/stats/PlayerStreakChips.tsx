@@ -51,7 +51,7 @@ export default function PlayerStreakChips({
           <div
             key={key}
             data-streak={key}
-            className={"card-chip px-3 py-2 " + (isNewRecordNow ? "border-accent" : "")}
+            className={"inset px-3 py-2 " + (isNewRecordNow ? "border border-accent" : "")}
           >
             <div className="inline-flex items-center gap-2 text-text-muted">
               <Icon size={12} aria-hidden="true" />

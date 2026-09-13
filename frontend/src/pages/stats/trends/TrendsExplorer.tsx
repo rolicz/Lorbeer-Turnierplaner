@@ -164,7 +164,13 @@ export default function TrendsExplorer({ mode, scope, rows, initialMetric, initi
             return (
               <button key={r.id} type="button"
                 onClick={() => setHidden((prev) => { const n = new Set(prev); if (n.has(r.id)) n.delete(r.id); else n.add(r.id); return n; })}
-                className={"inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs transition " + (on ? "bg-bg-card-chip/60 text-text-normal" : "bg-bg-card-chip/20 text-text-muted line-through")}>
+                className={
+                  // A legend key, not a selection chip: the `chip` surface (DESIGN.md §3 level 3)
+                  // when the series is drawn, the same outline hollowed out and struck through
+                  // when it is hidden.
+                  "chip inline-flex items-center gap-1.5 transition focus-ring " +
+                  (on ? "text-text-normal" : "border-dashed bg-transparent text-text-muted line-through")
+                }>
                 <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: c.solid, opacity: on ? 1 : 0.4 }} />
                 {r.name}
               </button>

@@ -27,22 +27,22 @@ function InfoLegend() {
         </span>
 
         <span className="inline-flex items-center gap-2">
-          <span className="h-2.5 w-2.5 rounded-sm border pos-best" />
+          <span className="h-2.5 w-2.5 rounded-md border pos-best" />
           <span>best</span>
-          <span className="h-2.5 w-2.5 rounded-sm border pos-mid" />
-          <span className="h-2.5 w-2.5 rounded-sm border pos-bad" />
-          <span className="h-2.5 w-2.5 rounded-sm border pos-worst" />
+          <span className="h-2.5 w-2.5 rounded-md border pos-mid" />
+          <span className="h-2.5 w-2.5 rounded-md border pos-bad" />
+          <span className="h-2.5 w-2.5 rounded-md border pos-worst" />
           <span>worst</span>
         </span>
 
         <span className="inline-flex items-center gap-2">
-          <span className="pos-none inline-flex h-6 w-7 items-center justify-center rounded-lg border text-[11px] font-mono tabular-nums">
+          <span className="pos-none inline-flex h-6 w-7 items-center justify-center rounded-md border text-[11px] font-mono tabular-nums">
             —
           </span>
           <span>not played</span>
         </span>
         <span className="inline-flex items-center gap-2">
-          <span className="pos-winner inline-flex h-6 w-7 items-center justify-center rounded-lg border text-[11px] font-mono tabular-nums">
+          <span className="pos-winner inline-flex h-6 w-7 items-center justify-center rounded-md border text-[11px] font-mono tabular-nums">
             1
           </span>
           <span>winner</span>
@@ -297,7 +297,7 @@ export default function PositionsView({ mode }: { mode: StatsMode }) {
                 {orderedPlayers.map((p) => {
                   const pos = p.positions_by_tournament?.[String(t.id)];
                   if (pos == null)
-                    return <div key={p.player_id} style={{ height: cellH }} className="grid place-items-center rounded bg-bg-card-chip/15 text-xs text-text-muted">·</div>;
+                    return <div key={p.player_id} style={{ height: cellH }} className="grid place-items-center rounded-md bg-bg-card-chip/15 text-xs text-text-muted">·</div>;
                   const total = t.players_count || 1;
                   const frac = total > 1 ? (pos - 1) / (total - 1) : 0;
                   const stakes = t.cup_stakes ?? [];
@@ -307,7 +307,7 @@ export default function PositionsView({ mode }: { mode: StatsMode }) {
                       key={p.player_id}
                       to={`/live/${t.id}`}
                       style={{ height: cellH, ["--pos-p"]: frac } as React.CSSProperties}
-                      className="pos-tile relative grid place-items-center rounded border text-[11px] font-semibold tabular-nums no-underline transition hover:z-10 hover:ring-2 hover:ring-inset hover:ring-accent/70"
+                      className="pos-tile relative grid place-items-center rounded-md border text-[11px] font-semibold tabular-nums no-underline transition hover:z-10 hover:ring-2 hover:ring-inset hover:ring-accent/70"
                       title={`${p.display_name} · ${t.name}: ${fmtRank(pos, total)}${isWinner && stakes.length ? ` · won ${stakes.map((s) => s.name).join(", ")}` : ""}${pos === 1 && t.status === "done" && t.winner_player_id == null ? " · kein eindeutiger Sieger" : ""} — open tournament`}
                     >
                       {isWinner && stakes.length ? (

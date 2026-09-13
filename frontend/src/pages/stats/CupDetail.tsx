@@ -1,8 +1,7 @@
 /**
  * One cup on the Stats → Overview → Cups sub-view: current holder, records,
  * a reign timeline, the full reign list and per-player totals.
- * Surfaces follow `DESIGN.md` §3 with today's class names (`card-outer` = level-1
- * card, `panel-subtle p-3` = inset) so DS3 can migrate them mechanically.
+ * Surfaces follow `DESIGN.md` §3: `card` for each block, `inset` for the boxes inside.
  */
 import { useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
@@ -113,7 +112,7 @@ export default function CupDetail({ cupKey, cupName }: { cupKey: string; cupName
       <ErrorToastOnError error={q.error} title="Cup loading failed" />
 
       {/* 1 — current holder */}
-      <div className="card-outer space-y-3">
+      <div className="card space-y-3">
         <div className="flex items-center gap-2">
           <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: cupColor }} aria-hidden="true" />
           <h2 className="min-w-0 flex-1 truncate text-lg font-semibold text-text-normal">{cupName}</h2>
@@ -242,7 +241,7 @@ export default function CupDetail({ cupKey, cupName }: { cupKey: string; cupName
                     <Link
                       to={`/live/${r.startTournamentId}`}
                       aria-label={`${r.startName} — open tournament`}
-                      className="absolute inset-0 z-0 rounded-lg focus-ring"
+                      className="absolute inset-0 z-0 rounded-xl focus-ring"
                     />
                     <PlayerLink
                       playerId={r.holder.id}

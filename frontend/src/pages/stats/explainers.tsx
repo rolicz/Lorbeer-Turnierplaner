@@ -24,7 +24,7 @@ export function InfoButton({ on, onClick, label }: { on: boolean; onClick: () =>
 /** How the Elo-like rating is computed (shown next to the Elo column and the Elo trend). */
 export function EloNote() {
   return (
-    <div className="panel-subtle rounded-xl px-3 py-2 text-[11px] text-text-muted">
+    <div className="inset px-3 py-2 text-[11px] text-text-muted">
       Elo-like ladder: start <span className="font-mono text-text-normal">1000</span>, expected score uses the standard{" "}
       <span className="font-mono text-text-normal">400</span>-scale logistic curve,{" "}
       <span className="font-mono text-text-normal">K=24</span>. Goal difference boosts the update up to{" "}

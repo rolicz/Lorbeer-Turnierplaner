@@ -12,7 +12,7 @@ import { qk } from "../../api/queryKeys";
 import { usePlayerAvatarMap } from "../../hooks/usePlayerAvatarMap";
 import { usePlayerColors } from "./usePlayerColors";
 import { Sparkline, Radar } from "./charts";
-import { ChipGroup } from "../../ui/primitives/Chip";
+import { ChipGroup, chipClass } from "../../ui/primitives/Chip";
 import { PlayerPicker } from "./PlayerPicker";
 import { MatchHistoryList, tournamentMatchHref } from "./MatchHistoryList";
 import PlayerStreakChips from "./PlayerStreakChips";
@@ -24,7 +24,7 @@ import type { StatsScope } from "../../api/types";
 
 function StatTile({ label, value }: { label: string; value: string }) {
   return (
-    <div className="surface rounded-xl px-2 py-2 text-center">
+    <div className="inset px-2 py-2 text-center">
       <div className="text-base font-bold tabular-nums text-text-normal">{value}</div>
       <div className="text-[11px] text-text-muted">{label}</div>
     </div>
@@ -90,9 +90,9 @@ export default function PlayerProfile({ mode, scope, rows, selectedId, onSelect 
     <div className="space-y-4">
       <PlayerPicker players={rows.map((r) => ({ id: r.id, name: r.name }))} selectedId={selectedId} onSelect={onSelect} />
 
-      {!row ? <div className="card-outer text-sm text-text-muted">Pick a player above.</div> : (
+      {!row ? <div className="card text-sm text-text-muted">Pick a player above.</div> : (
         <>
-          <div className="card-outer flex items-center gap-3">
+          <div className="card flex items-center gap-3">
             <button
               type="button"
               onClick={() => nav(`/profiles/${row.id}`)}
@@ -116,7 +116,7 @@ export default function PlayerProfile({ mode, scope, rows, selectedId, onSelect 
             </div>
           </div>
 
-          <div className="card-outer">
+          <div className="card">
             <h2 className="mb-2 text-sm font-semibold text-text-normal">Key numbers</h2>
             <div className="grid grid-cols-3 gap-2">
               <StatTile label="Played" value={String(row.played)} />
@@ -128,7 +128,7 @@ export default function PlayerProfile({ mode, scope, rows, selectedId, onSelect 
             </div>
           </div>
 
-          <div className="card-outer">
+          <div className="card">
             <h2 className="text-sm font-semibold text-text-normal">Profile net</h2>
             <div className="flex flex-col items-center">
               <Radar series={radarSeries} />
@@ -147,10 +147,7 @@ export default function PlayerProfile({ mode, scope, rows, selectedId, onSelect 
                       type="button"
                       aria-pressed={on}
                       onClick={() => setOverlayIds((prev) => { const s = new Set(prev); if (s.has(r.id)) s.delete(r.id); else s.add(r.id); return s; })}
-                      className={
-                        "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs transition focus-ring " +
-                        (on ? "bg-bg-card-chip/70 text-text-normal ring-1 ring-inset ring-border-card-chip" : "bg-bg-card-chip/30 text-text-muted hover:text-text-normal")
-                      }
+                      className={chipClass(on, "inline-flex items-center gap-1.5")}
                     >
                       <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: c, opacity: on ? 1 : 0.45 }} />
                       {r.name}
@@ -161,17 +158,17 @@ export default function PlayerProfile({ mode, scope, rows, selectedId, onSelect 
             </div>
           </div>
 
-          <div className="card-outer">
+          <div className="card">
             <h2 className="mb-2 text-sm font-semibold text-text-normal">Club stars</h2>
             <StarsSection mode={mode} scope={scope} playerId={row.id} />
           </div>
 
-          <div className="card-outer">
+          <div className="card">
             <h2 className="mb-2 text-sm font-semibold text-text-normal">Streaks · current / record</h2>
             <PlayerStreakChips categories={streaksQ.data?.categories ?? []} globalCategories={streaksGlobalQ.data?.categories ?? []} />
           </div>
 
-          <div className="card-outer">
+          <div className="card">
             <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
               <h2 className="text-sm font-semibold text-text-normal">Match history</h2>
               <ChipGroup<"compact" | "details">

@@ -25,7 +25,7 @@ function RecordGroup({ icon, label, matches }: { icon: ReactNode; label: string;
   if (!matches.length) return null;
   const shown = matches.slice(0, 6);
   return (
-    <div className="surface rounded-xl px-3 py-2.5">
+    <div className="inset px-3 py-2.5">
       <div className="inline-flex items-center gap-2 text-[11px] uppercase tracking-wide text-text-muted">
         {icon}
         {label}
@@ -37,7 +37,7 @@ function RecordGroup({ icon, label, matches }: { icon: ReactNode; label: string;
             key={m.id}
             to={`/live/${m.tId}?match=${m.id}`}
             title={`${m.tName} — open tournament`}
-            className="block rounded-lg px-1.5 py-1 -mx-1.5 no-underline transition hover:bg-hover-default/30"
+            className="block rounded-xl px-1.5 py-1 -mx-1.5 no-underline transition hover:bg-hover-default/30"
           >
             <ScoreLine size="sm" leftNames={m.a} rightNames={m.b} leftGoals={m.ag} rightGoals={m.bg} />
             <div className="mt-0.5 truncate text-center text-xs text-text-muted">{m.tName} · {fmtShortDate(m.date)}</div>
@@ -56,7 +56,7 @@ function TitlesGroup({ leaders, onSelect }: { leaders: WinLeader[]; onSelect: (i
   const shown = leaders.slice(0, 6);
   const topTies = leaders.filter((l) => l.rank === 1).length;
   return (
-    <div className="surface rounded-xl px-3 py-2.5">
+    <div className="inset px-3 py-2.5">
       <div className="inline-flex items-center gap-2 text-[11px] uppercase tracking-wide text-text-muted">
         <Trophy size={14} aria-hidden="true" />
         Most tournament wins
@@ -65,12 +65,12 @@ function TitlesGroup({ leaders, onSelect }: { leaders: WinLeader[]; onSelect: (i
       <div className="mt-1.5 space-y-1.5">
         {shown.map((l) => (
           /* The row opens this player in Stats (stretched button), the name their profile. */
-          <div key={l.id} className="relative flex w-full items-center justify-between gap-3 rounded-lg px-1.5 py-1 -mx-1.5 text-left transition hover:bg-hover-default/30">
+          <div key={l.id} className="relative flex w-full items-center justify-between gap-3 rounded-xl px-1.5 py-1 -mx-1.5 text-left transition hover:bg-hover-default/30">
             <button
               type="button"
               onClick={() => onSelect(l.id)}
               aria-label={`Open ${l.name} in Stats`}
-              className="absolute inset-0 z-0 rounded-lg focus-ring"
+              className="absolute inset-0 z-0 rounded-xl focus-ring"
             />
             <div className="pointer-events-none relative z-10 flex min-w-0 items-center gap-2">
               <span className="w-4 shrink-0 text-right text-xs tabular-nums text-text-muted">{l.rank}.</span>
@@ -233,7 +233,7 @@ export default function RecordsView({
           <div className="section-head"><span className="section-label">Longest runs</span></div>
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             {streakCards.map((s) => (
-              <div key={s.name} className="surface rounded-xl px-3 py-2.5">
+              <div key={s.name} className="inset px-3 py-2.5">
                 <div className="flex items-center justify-between gap-2">
                   <div className="inline-flex items-center gap-2 text-[11px] uppercase tracking-wide text-text-muted">
                     {s.name}
