@@ -115,6 +115,10 @@ describe("Overview tab", () => {
     expect(screen.getByText("2 matches · GD +6")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Roli" })).toHaveAttribute("href", "/profiles/1");
     expect(playedHrefs()).toEqual(hrefs([DONE[0], DONE[1], DONE[2]]));
+    // One tense per screen (T15-B, Roli's correction): a tournament is a past
+    // event, so no avatar on it carries a cup-coloured "holds it today" ring.
+    expect(document.querySelectorAll('[data-avatar-ring="cup"]')).toHaveLength(0);
+    expect(document.querySelectorAll('[data-avatar-ring="neutral"]').length).toBeGreaterThan(0);
   });
 
   it("names the decider winner when the table ends level", () => {

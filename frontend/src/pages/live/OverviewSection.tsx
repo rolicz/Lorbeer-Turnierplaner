@@ -12,7 +12,6 @@ import Button from "../../ui/primitives/Button";
 import PlayerLink from "../../ui/primitives/PlayerLink";
 import ScoreLine from "../../ui/primitives/ScoreLine";
 import { usePlayerAvatarMap } from "../../hooks/usePlayerAvatarMap";
-import { useCupHolders } from "../../hooks/useCupHolders";
 import {
   computeFinishedStandings,
   resolveTournamentOutcome,
@@ -95,7 +94,6 @@ export default function OverviewSection({
   );
 
   const { avatarUpdatedAtById } = usePlayerAvatarMap({ enabled: isDone });
-  const { cupsHeldByPlayerId } = useCupHolders({ enabled: isDone });
 
   const nextMatches = useMemo(() => {
     const excludeId = previewMatch?.id ?? null;
@@ -142,7 +140,6 @@ export default function OverviewSection({
                   name={outcome.row.name}
                   updatedAt={avatarUpdatedAtById.get(outcome.row.playerId) ?? null}
                   sizeClass="h-10 w-10"
-                  cups={cupsHeldByPlayerId.get(outcome.row.playerId)}
                 />
               </PlayerLink>
               <div className="min-w-0 flex-1">

@@ -294,8 +294,13 @@ Other helpers: `seed --file backend/data/seed.json` (players/leagues/clubs upser
 - **An avatar speaks in the present tense** (T15, 2026-09-13): every player avatar is
   `ui/primitives/AvatarCircle` and wears a ring — neutral hairline by default, the cup's colour
   when `cups` says that player holds it **today** (`hooks/useCupHolders`). A ring is never used for
-  historic ownership (that is the standings' `CupOwnerBadge` crown), and comment authors, guestbook
-  entries and pickers carry no cup marking at all.
+  historic ownership, and **one tense per screen**: only surfaces about *now* pass `cups` (Players
+  page, profiles, the stats leaderboards, the dashboard cups preview). Inside a tournament — its
+  standings/results, What-if, match lists, Overview — and in the Positions grid of past
+  tournaments, avatars keep the hairline alone; cup information there comes only from the
+  standings' `CupOwnerBadge` crown ("owned it going into this tournament", Roli's call after
+  seeing rings on old results). Comment authors, guestbook entries and pickers carry no cup
+  marking at all.
 - **Icons: lucide-react only** (`DESIGN.md` §1.5). Font Awesome is gone (DS7, 2026-09-13) —
   the dependency, the CSS import and every `<i class="fa-…">` with it. Import the component
   (`import { Crown } from "lucide-react"`) and give it an explicit `size` in px; `aria-hidden`

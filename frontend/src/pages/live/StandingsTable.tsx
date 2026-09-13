@@ -13,7 +13,6 @@ import { getStatsStreaks } from "../../api/stats.api";
 import type { StatsStreakRow, StatsStreaksResponse } from "../../api/types";
 import { StreakPatch, type ActiveStreak } from "../../ui/StreakPatches";
 import { usePlayerAvatarMap } from "../../hooks/usePlayerAvatarMap";
-import { useCupHolders } from "../../hooks/useCupHolders";
 
 type Row = {
   playerId: number;
@@ -147,9 +146,6 @@ export default function StandingsTable({
   const basePos = useMemo(() => posMap(baseRows), [baseRows]);
 
   const { avatarUpdatedAtById: avatarUpdatedAtByPlayerId } = usePlayerAvatarMap();
-  // Ring = holds the cup today; the crown badge below stays "owner before this
-  // tournament". The two answer different questions and may disagree (T15).
-  const { cupsHeldByPlayerId } = useCupHolders();
 
   const cupDefsQ = useQuery({ queryKey: qk.cupDefs(), queryFn: listCupDefs });
   const cups = useMemo(() => {
@@ -356,7 +352,6 @@ export default function StandingsTable({
               name={r.name}
               updatedAt={avatarUpdatedAtByPlayerId.get(r.playerId) ?? null}
               sizeClass="h-9 w-9"
-              cups={cupsHeldByPlayerId.get(r.playerId)}
             />
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-1.5">
