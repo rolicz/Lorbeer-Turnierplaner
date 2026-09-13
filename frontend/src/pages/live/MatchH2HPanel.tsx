@@ -18,14 +18,23 @@ import {
 } from "../stats/h2h/matchupSummary";
 import { fmtAvg, fmtDate } from "../../utils/format";
 
+/** Deep link into the stats matchup ("A vs B, every match") for the given pair. */
+function matchupHref(mode: string, leftId: number, rightId: number, relation: "against" | "together"): string {
+  const rel = relation === "together" ? "&rel=together" : "";
+  return `/stats?view=h2h&mode=${mode}&source=both&player=${leftId}&vs=${rightId}${rel}`;
+}
+
 function SummaryCard({
   title,
   label,
   summary,
+  link,
 }: {
   title: string;
   label: string;
   summary: Summary;
+  /** Optional door into the stats matchup that shows every match behind these numbers. */
+  link?: { to: string; label: string; title: string } | null;
 }) {
   return (
     <div className="panel-subtle rounded-xl px-3 py-2.5">
@@ -43,6 +52,13 @@ function SummaryCard({
         <span className="font-mono tabular-nums">{summary.gf}:{summary.ga}</span>
         <span className="font-mono tabular-nums">{fmtAvg(summary.ptsPerMatch)} ppm</span>
       </div>
+      {link ? (
+        <div className="mt-2 flex justify-end">
+          <Link to={link.to} title={link.title} className="text-xs font-medium text-accent no-underline">
+            {link.label} →
+          </Link>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -61,6 +77,13 @@ export default function MatchH2HPanel({
 
   const mode = aIds.length === 2 && bIds.length === 2 ? "2v2" : aIds.length === 1 && bIds.length === 1 ? "1v1" : "overall";
   const showDuoStats = mode === "2v2";
+  // `playerIds` sorts by id, so the matchup links can address a different player than
+  // the one listed first on the side — look the name up by id for the tooltips.
+  const nameById = useMemo(
+    () => new Map([...(aSide?.players ?? []), ...(bSide?.players ?? [])].map((p) => [Number(p.id), p.display_name])),
+    [aSide, bSide],
+  );
+  const nameOf = (id: number | undefined) => (id != null ? nameById.get(id) ?? `#${id}` : "—");
 
   const matchupQuery = useQuery({
     queryKey: qk.matchH2h("opposed", mode, aIds, bIds),
@@ -147,28 +170,44 @@ export default function MatchH2HPanel({
 
         {!loading && !error ? (
           <>
+            {/* Every summary is a door into the stats matchup, which lists every match
+                behind these numbers and keeps its own Mode / Source filters. */}
             <SummaryCard
               title={mode === "2v2" ? "Exact matchup" : "Head-to-head"}
               label={`${playerNames(aSide)} vs ${playerNames(bSide)}`}
               summary={matchupSummary}
+              link={{
+                to: matchupHref(mode, aIds[0], bIds[0], "against"),
+                label: "All meetings",
+                title:
+                  mode === "1v1"
+                    ? `Every match between ${playerNames(aSide)} and ${playerNames(bSide)}`
+                    : `Every match ${nameOf(aIds[0])} played against ${nameOf(bIds[0])} (any partners)`,
+              }}
             />
 
             {showDuoStats ? (
               <div className="grid gap-2 md:grid-cols-2">
-                <SummaryCard title="Team A together" label={playerNames(aSide)} summary={duoASummary} />
-                <SummaryCard title="Team B together" label={playerNames(bSide)} summary={duoBSummary} />
-              </div>
-            ) : null}
-
-            {/* 1v1: the stats matchup shows every meeting, with its own filters. */}
-            {mode === "1v1" ? (
-              <div className="flex justify-end">
-                <Link
-                  to={`/stats?view=h2h&mode=1v1&source=both&player=${aIds[0]}&vs=${bIds[0]}`}
-                  className="text-xs font-medium text-accent"
-                >
-                  All meetings →
-                </Link>
+                <SummaryCard
+                  title="Team A together"
+                  label={playerNames(aSide)}
+                  summary={duoASummary}
+                  link={{
+                    to: matchupHref("2v2", aIds[0], aIds[1], "together"),
+                    label: "All games together",
+                    title: `Every 2v2 match ${playerNames(aSide)} played as a team`,
+                  }}
+                />
+                <SummaryCard
+                  title="Team B together"
+                  label={playerNames(bSide)}
+                  summary={duoBSummary}
+                  link={{
+                    to: matchupHref("2v2", bIds[0], bIds[1], "together"),
+                    label: "All games together",
+                    title: `Every 2v2 match ${playerNames(bSide)} played as a team`,
+                  }}
+                />
               </div>
             ) : null}
           </>

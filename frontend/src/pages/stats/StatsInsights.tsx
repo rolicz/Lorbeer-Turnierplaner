@@ -124,7 +124,7 @@ export default function StatsInsights({
     const nextSub = subForSection(v, searchParams.get("sub"));
     const next = canonicalStatsParams(searchParams, v, nextSub);
     // The matchup is a drill-in of H2H: leaving the section closes it.
-    if (v !== "h2h") next.delete("vs");
+    if (v !== "h2h") { next.delete("vs"); next.delete("rel"); }
     // Tapping H2H while the matchup is open keeps `vs` — the body does not change.
     const nextKey = v === "h2h" && matchup ? MATCHUP_KEY : bodyKey(v, nextSub);
     if (nextKey !== currentKey) swap(currentKey, nextKey);
@@ -141,6 +141,7 @@ export default function StatsInsights({
     const playerSub = subForSection("player", searchParams.get("sub"));
     const next = canonicalStatsParams(searchParams, "player", playerSub);
     next.delete("vs");
+    next.delete("rel");
     next.set("player", String(id));
     swap(currentKey, bodyKey("player", playerSub));
     setSearchParams(next, { replace: true });
@@ -185,6 +186,7 @@ export default function StatsInsights({
           rightId={matchup.rightId}
           rows={rows}
           onBack={closeMatchup}
+          initialRelation={searchParams.get("rel") === "together" ? "together" : undefined}
         />
       ) : (
         <H2HView

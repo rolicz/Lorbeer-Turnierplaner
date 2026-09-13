@@ -29,7 +29,7 @@ import type { StatsMode } from "../statsMode";
 import type { StatsScope } from "../../../api/types";
 
 /** Against = opposite sides (subset match), Together = same side. */
-type Relation = "against" | "together";
+export type Relation = "against" | "together";
 
 const MODE_LABEL: Record<StatsMode, string> = { overall: "Overall", "1v1": "1v1", "2v2": "2v2" };
 const SCOPE_LABEL: Record<StatsScope, string> = { tournaments: "Tournaments", both: "Both", friendlies: "Friendlies" };
@@ -59,7 +59,7 @@ function PlayerSide({ id, name, updatedAt, align = "left" }: { id: number; name:
   );
 }
 
-export default function MatchupView({ mode, scope, leftId, rightId, rows, onBack }: {
+export default function MatchupView({ mode, scope, leftId, rightId, rows, onBack, initialRelation }: {
   mode: StatsMode;
   scope: StatsScope;
   /** The "own" side — perspective of every number shown here. */
@@ -67,6 +67,8 @@ export default function MatchupView({ mode, scope, leftId, rightId, rows, onBack
   rightId: number;
   rows: Row[];
   onBack: () => void;
+  /** Relation to open with (`?rel=together`, from a match page's "together" card). */
+  initialRelation?: Relation;
 }) {
   const { avatarUpdatedAtById } = usePlayerAvatarMap();
   const nameById = useMemo(() => new Map(rows.map((r) => [r.id, r.name])), [rows]);
@@ -75,7 +77,7 @@ export default function MatchupView({ mode, scope, leftId, rightId, rows, onBack
 
   // Together is meaningless in 1v1 (nobody has a partner), so the chips are hidden
   // and the relation forced back to Against there.
-  const [relationChoice, setRelationChoice] = useState<Relation>("against");
+  const [relationChoice, setRelationChoice] = useState<Relation>(initialRelation ?? "against");
   const [details, setDetails] = useState(false);
   const showRelation = mode !== "1v1";
   const relation: Relation = showRelation ? relationChoice : "against";

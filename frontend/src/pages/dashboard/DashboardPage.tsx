@@ -1,6 +1,7 @@
 import { useMemo } from "react";
+import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { LayoutDashboard, Trophy } from "lucide-react";
+import { ChevronRight, LayoutDashboard, Trophy } from "lucide-react";
 
 import CupCard from "./CupCard";
 import CurrentMatchPreviewCard from "./CurrentMatchPreviewCard";
@@ -74,8 +75,13 @@ export default function DashboardPage() {
       <div className="grid gap-6 lg:grid-cols-2">
         {cups.map((c) => (
           <section key={c.key}>
+            {/* The header is the door to the full cup page (reigns, records, per player). */}
             <div className="section-head">
-              <span className="section-label inline-flex items-center gap-2">
+              <Link
+                to="/stats?view=overview&sub=cups"
+                title={`Open ${c.name} in Stats — reigns, records and per-player totals`}
+                className="section-label inline-flex min-w-0 items-center gap-2 no-underline transition hover:text-text-normal"
+              >
                 <span
                   className="h-2.5 w-2.5 rounded-full"
                   style={{
@@ -85,7 +91,8 @@ export default function DashboardPage() {
                   aria-hidden="true"
                 />
                 <span className="truncate">{c.name}</span>
-              </span>
+                <ChevronRight size={14} aria-hidden="true" />
+              </Link>
             </div>
             <CupCard cupKey={c.key} />
           </section>

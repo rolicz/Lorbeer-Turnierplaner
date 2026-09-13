@@ -9,6 +9,7 @@ import { cupColorVarForKey, rgbFromCssVar } from "../../cupColors";
 import { buildReigns } from "../stats/cupReigns";
 import { usePlayerAvatarMap } from "../../hooks/usePlayerAvatarMap";
 import AvatarCircle from "../../ui/primitives/AvatarCircle";
+import PlayerLink from "../../ui/primitives/PlayerLink";
 import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
 import { fmtDate } from "../../utils/format";
 
@@ -48,27 +49,36 @@ export default function CupCard({ cupKey }: { cupKey: string }) {
                 {eraMode}
               </span>
             ) : null}
+            {/* The holder is an identity: avatar + name open their profile. */}
             {owner ? (
-              <AvatarCircle
-                playerId={owner.id}
-                name={owner.display_name}
-                updatedAt={avatarUpdatedAtByPlayerId.get(owner.id) ?? null}
-                sizeClass="h-10 w-10"
-              />
+              <PlayerLink playerId={owner.id} name={owner.display_name} className="flex min-w-0 flex-1 items-center gap-3">
+                <AvatarCircle
+                  playerId={owner.id}
+                  name={owner.display_name}
+                  updatedAt={avatarUpdatedAtByPlayerId.get(owner.id) ?? null}
+                  sizeClass="h-10 w-10"
+                />
+                <span className="min-w-0">
+                  <span className="block truncate text-base font-semibold" style={{ color }}>
+                    {owner.display_name}
+                  </span>
+                  <span className="block text-[11px] text-text-muted">
+                    {since?.date ? `Holding since ${fmtDate(since.date)}` : "—"}
+                    {defended > 0 ? ` · ${defended} defended` : ""}
+                  </span>
+                </span>
+              </PlayerLink>
             ) : (
-              <span className="grid h-10 w-10 place-items-center rounded-full bg-bg-card-chip/40 text-text-muted">
-                <Trophy size={16} />
-              </span>
+              <>
+                <span className="grid h-10 w-10 place-items-center rounded-full bg-bg-card-chip/40 text-text-muted">
+                  <Trophy size={16} />
+                </span>
+                <div className="min-w-0">
+                  <div className="truncate text-base font-semibold">No owner yet</div>
+                  <div className="text-[11px] text-text-muted">—{defended > 0 ? ` · ${defended} defended` : ""}</div>
+                </div>
+              </>
             )}
-            <div className="min-w-0">
-              <div className="truncate text-base font-semibold" style={{ color: owner ? color : undefined }}>
-                {owner ? owner.display_name : "No owner yet"}
-              </div>
-              <div className="text-[11px] text-text-muted">
-                {owner && since?.date ? `Holding since ${fmtDate(since.date)}` : "—"}
-                {defended > 0 ? ` · ${defended} defended` : ""}
-              </div>
-            </div>
           </div>
 
           {/* Title history */}
@@ -83,11 +93,25 @@ export default function CupCard({ cupKey }: { cupKey: string }) {
                     ? ` · ended ${h.from.display_name}'s ${h.streak_duration}-tournament reign`
                     : "";
                   const reign = reignByStart.get(h.tournament_id);
+                  const toId = h.to?.id && h.to.id > 0 ? h.to.id : null;
                   return (
-                    <Link key={`${h.tournament_id}-${h.date}`} to={`/live/${h.tournament_id}`} className="row row-tap">
-                      <span className="min-w-0 flex-1">
+                    /* Two targets in one row without nesting links: the tournament link is a
+                       stretched overlay, the winner's name sits above it as its own link. */
+                    <div key={`${h.tournament_id}-${h.date}`} className="row row-tap relative">
+                      <Link
+                        to={`/live/${h.tournament_id}`}
+                        aria-label={`${h.tournament_name} — open tournament`}
+                        className="absolute inset-0 z-0 rounded-lg focus-ring"
+                      />
+                      <span className="pointer-events-none relative z-10 min-w-0 flex-1">
                         <span className="flex min-w-0 items-center gap-1.5 text-sm text-text-normal">
-                          <b className="truncate" style={{ color }}>{h.to.display_name}</b>
+                          {toId ? (
+                            <PlayerLink playerId={toId} name={h.to.display_name} className="pointer-events-auto min-w-0">
+                              <b className="block truncate" style={{ color }}>{h.to.display_name}</b>
+                            </PlayerLink>
+                          ) : (
+                            <b className="truncate" style={{ color }}>{h.to.display_name}</b>
+                          )}
                           {reign ? (
                             <span
                               className={
@@ -107,7 +131,7 @@ export default function CupCard({ cupKey }: { cupKey: string }) {
                           {h.tournament_name} · {fmtDate(h.date)}{endedNote}
                         </span>
                       </span>
-                    </Link>
+                    </div>
                   );
                 })}
               </div>

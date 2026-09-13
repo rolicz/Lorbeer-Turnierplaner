@@ -39,10 +39,15 @@ export default function StatsPage() {
   const setMode = (m: StatsMode) => patchParams({ mode: m });
   const setScope = (s: StatsScope) => patchParams({ source: s });
   const setPlayer = (id: number | "") => patchParams({ player: id === "" ? null : String(id) });
-  /** Open (or clear) the matchup; pass `withPlayer` to set both sides in one write. */
+  /**
+   * Open (or clear) the matchup; pass `withPlayer` to set both sides in one write.
+   * `rel` (the matchup's Against/Together relation, only set by deep links from a
+   * match page) is always reset here: an in-app matchup opens on "Against".
+   */
   const setVs = (id: number | "", withPlayer?: number) =>
     patchParams({
       vs: id === "" ? null : String(id),
+      rel: null,
       ...(withPlayer != null ? { player: String(withPlayer) } : {}),
     });
 
