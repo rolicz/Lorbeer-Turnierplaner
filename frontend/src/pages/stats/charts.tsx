@@ -5,12 +5,6 @@ const GREEN = "rgb(34 197 94)";
 const AMBER = "rgb(234 179 8)";
 const RED = "rgb(239 68 68)";
 
-/**
- * `ChipGroup` lives in `ui/primitives/Chip.tsx` (DESIGN.md §7). Re-exported here so the
- * stats call sites keep working until the remaining DS tasks repoint their imports.
- */
-export { Chip, ChipGroup } from "../../ui/primitives/Chip";
-
 type RadarAxis = { label: string; value: number };
 type RadarSeries = { name: string; color: string; axes: RadarAxis[] };
 

@@ -9,7 +9,8 @@ import type { StatsMode } from "./statsMode";
 import AvatarCircle from "../../ui/primitives/AvatarCircle";
 import InlineLoading from "../../ui/primitives/InlineLoading";
 import { usePlayerAvatarMap } from "../../hooks/usePlayerAvatarMap";
-import { Slider, ToggleChip } from "./controls";
+import { Slider } from "./controls";
+import { Chip } from "../../ui/primitives/Chip";
 import { EloNote, InfoButton } from "./explainers";
 import { type Row, TABLE_COLS, DEFAULT_COLS, COL_CHIPS, matchStats } from "./standings";
 
@@ -106,7 +107,7 @@ export default function StatsTable({
       {showControls && !controlled ? (
         <>
           <div className="flex flex-wrap items-center gap-2">
-            <ToggleChip on={lastN} onClick={() => setLastN((v) => !v)}>Last N</ToggleChip>
+            <Chip selected={lastN} onClick={() => setLastN((v) => !v)}>Last N</Chip>
             {lastN ? (
               <>
                 <span className="text-[11px] text-text-muted">last {nWin} tournaments</span>
@@ -127,24 +128,16 @@ export default function StatsTable({
                 const disabled = lastN && isElo;
                 const on = !disabled && item.cols.every((k) => effVisible.has(k));
                 return (
-                  <button
+                  <Chip
                     key={item.label}
-                    type="button"
+                    selected={on}
                     disabled={disabled}
                     onClick={() => toggleGroup(item.cols, on)}
-                    aria-pressed={on}
                     title={disabled ? "Elo isn't available over a Last-N window" : undefined}
-                    className={
-                      "rounded-full px-2.5 py-1 text-xs transition focus-ring " +
-                      (disabled
-                        ? "cursor-not-allowed bg-bg-card-chip/30 text-text-muted/40 line-through"
-                        : on
-                          ? "bg-accent/15 font-medium text-accent ring-1 ring-inset ring-accent/40"
-                          : "bg-bg-card-chip/50 text-text-muted hover:text-text-normal")
-                    }
+                    className={disabled ? "cursor-not-allowed line-through" : undefined}
                   >
                     {item.label}
-                  </button>
+                  </Chip>
                 );
               })}
             </div>

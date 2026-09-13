@@ -2,7 +2,6 @@ import { describe, expect, it, vi } from "vitest";
 import { fireEvent, render } from "@testing-library/react";
 
 import { Chip, ChipGroup } from "../ui/primitives/Chip";
-import { ChipGroup as ChipGroupFromCharts } from "../pages/stats/charts";
 
 const OPTIONS = [
   { key: "all", label: "All" },
@@ -78,9 +77,5 @@ describe("ChipGroup", () => {
 
     fireEvent.click(getByRole("button", { name: "2v2" }));
     expect(onChange).toHaveBeenCalledWith("2v2");
-  });
-
-  it("is still re-exported from pages/stats/charts for the existing call sites", () => {
-    expect(ChipGroupFromCharts).toBe(ChipGroup);
   });
 });

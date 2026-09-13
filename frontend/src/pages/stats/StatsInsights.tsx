@@ -4,7 +4,7 @@ import { LayoutGrid, LineChart, Swords, UserRound } from "lucide-react";
 
 import { useAuth } from "../../auth/AuthContext";
 import { SectionTabs, type SectionTab } from "../../ui/SectionTabs";
-import { ChipGroup } from "./charts";
+import { ChipGroup } from "../../ui/primitives/Chip";
 import StatsFilterPill from "./StatsFilterPill";
 import type { StatsScope } from "../../api/types";
 import type { StatsMode } from "./statsMode";

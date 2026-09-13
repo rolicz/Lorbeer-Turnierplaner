@@ -1,18 +1,4 @@
 /** Small shared stats controls (used by StatsInsights and the extracted StatsTable). */
-import type { ReactNode } from "react";
-
-export function ToggleChip({ on, onClick, children }: { on: boolean; onClick: () => void; children: ReactNode }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={on}
-      className={"rounded-full px-2.5 py-1 text-xs transition focus-ring " + (on ? "bg-accent/15 font-medium text-accent ring-1 ring-inset ring-accent/40" : "bg-bg-card-chip/50 text-text-muted hover:text-text-normal")}
-    >
-      {children}
-    </button>
-  );
-}
 
 export function Slider({ label, value, min, max, onChange }: { label: string; value: number; min: number; max: number; onChange: (v: number) => void }) {
   return (

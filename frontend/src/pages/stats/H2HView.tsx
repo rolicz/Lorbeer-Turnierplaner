@@ -12,7 +12,7 @@ import Modal from "../../ui/primitives/Modal";
 import { getStatsH2H, getStatsH2HMatches, type StatsH2HMatchesRequest } from "../../api/stats.api";
 import { listClubs } from "../../api/clubs.api";
 import { qk } from "../../api/queryKeys";
-import { ChipGroup } from "./charts";
+import { ChipGroup } from "../../ui/primitives/Chip";
 import { PlayerPicker } from "./PlayerPicker";
 import { MatchHistoryList, tournamentMatchHref } from "./MatchHistoryList";
 import { DuoRow } from "./HeadToHeadRows";

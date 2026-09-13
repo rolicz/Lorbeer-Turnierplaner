@@ -7,10 +7,11 @@ import { getStatsPlayerMatches, getStatsRatingsHistory } from "../../../api/stat
 import type { StatsScope } from "../../../api/types";
 import type { StatsMode } from "../statsMode";
 import { usePlayerColors } from "../usePlayerColors";
-import { TrendChart, ChipGroup } from "../charts";
+import { TrendChart } from "../charts";
+import { Chip, ChipGroup } from "../../../ui/primitives/Chip";
 import { qk } from "../../../api/queryKeys";
 import { type Row } from "../standings";
-import { Slider, ToggleChip } from "../controls";
+import { Slider } from "../controls";
 import { EloNote } from "../explainers";
 import { type Metric, type ViewMode, useChartData } from "./useChartData";
 import { useChartGestures } from "./useChartGestures";
@@ -177,7 +178,7 @@ export default function TrendsExplorer({ mode, scope, rows, initialMetric, initi
         <Field label="Metric">
           <div className="flex flex-wrap items-center gap-2">
             <ChipGroup<Metric> value={metric} onChange={setMetric} ariaLabel="Metric" options={METRIC_OPTS} />
-            {!isElo && !isForm && metric !== "winrate" ? <ToggleChip on={perMatch} onClick={() => setPerMatch((v) => !v)}>Per match</ToggleChip> : null}
+            {!isElo && !isForm && metric !== "winrate" ? <Chip selected={perMatch} onClick={() => setPerMatch((v) => !v)}>Per match</Chip> : null}
           </div>
         </Field>
         <Field label="View">

@@ -16,7 +16,7 @@ import { createPortal } from "react-dom";
 import { motion, type Variants } from "framer-motion";
 import { Handshake, Layers, SlidersHorizontal, Trophy, type LucideIcon } from "lucide-react";
 
-import { ChipGroup } from "./charts";
+import { ChipGroup } from "../../ui/primitives/Chip";
 import { ease } from "../../ui/motion/motion";
 import type { StatsMode } from "./statsMode";
 import type { StatsScope } from "../../api/types";

@@ -2,8 +2,8 @@
  * Single/multi choice pills (`DESIGN.md` §7). `Chip` is one selectable pill,
  * `ChipGroup` a wrapping row of them (never overflows, unlike a segmented switch).
  *
- * Moved here from `pages/stats/charts.tsx`, which re-exports `ChipGroup` until the
- * remaining DS tasks repoint the stats call sites.
+ * Moved here from `pages/stats/charts.tsx` (DS1); DS6 repointed every stats call site
+ * and removed both the re-export and the older `ToggleChip` copy in `stats/controls.tsx`.
  */
 import type { ReactNode } from "react";
 

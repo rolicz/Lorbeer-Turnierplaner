@@ -20,7 +20,7 @@ import { getStatsH2HMatches, type StatsH2HMatchesRequest } from "../../../api/st
 import { listClubs } from "../../../api/clubs.api";
 import { qk } from "../../../api/queryKeys";
 import { usePlayerAvatarMap } from "../../../hooks/usePlayerAvatarMap";
-import { ChipGroup } from "../charts";
+import { ChipGroup } from "../../../ui/primitives/Chip";
 import { MatchHistoryList, tournamentMatchHref } from "../MatchHistoryList";
 import { currentRun, resultsTimeline, summarizeMatches, type MatchResult } from "./matchupSummary";
 import { fmtAvg } from "../../../utils/format";
