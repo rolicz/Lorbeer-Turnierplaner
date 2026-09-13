@@ -2075,7 +2075,7 @@ identity sweep, summary → stats links + the `?sub=` fix)
 
 ---
 
-## S8 — H2H matrix: W-D-L by default, obviously clickable  ☐
+## S8 — H2H matrix: W-D-L by default, obviously clickable  ☑
 
 **Why (Roli #8).** `pages/stats/H2HView.tsx` defaults `matrixMetric` to `"winrate"`, and the
 cells give no hint that they open the matchup (S2 made them do so).
@@ -2090,7 +2090,40 @@ cells give no hint that they open the matchup (S2 made them do so).
 **DoD:** 390px + 1280px screenshots (blue + light) with W-D-L showing by default; hover state
 visible in a desktop screenshot; a tap opens the matchup. `npm run check` + build.
 
-**Deviations:**
+**Deviations:** (implemented 2026-09-13)
+
+- **`hover:brightness-125`, not `-110`.** Measured on the real matrix, a 10 % lift on those
+  mid-tone cells is invisible next to its neighbours (the DoD asks for a hover state that *shows*
+  in a screenshot); 125 % reads clearly in both themes and still looks like the same cell.
+  `active:scale-[0.97]` + `transition` + `focus-ring` + `cursor-pointer` are as specified.
+- **Long W-D-L strings get `tracking-tight`** (only while the metric is `wdl`). `11-10-5` is
+  44.1 px at `text-xs font-semibold` in a 44 px cell, so the widest real pairings wrapped to two
+  lines ("11-10-/5"); `-0.025em` brings them to 42 px. No type-size or cell-size change, so the
+  matrix still fits 6 players at 390 px without horizontal scrolling.
+- **`title` per spec, record moved to `aria-label`.** The cell's title is
+  `"<A> vs <B> — open matches"` as written; the W-D-L record the old title carried lives on in
+  `aria-label="<A> vs <B>: 7-6-11 — open matches"`, so the accessible name stays informative for
+  the metrics that don't show the record (Win %, PPM, …) instead of being just "29".
+- **Column headers stay non-interactive.** The task says "the row/column header names keep
+  selecting a player (unchanged)", but only the *row* headers ever were buttons — the rotated
+  column labels are plain spans. They are left alone (making them selectable is new behaviour,
+  not this task); the row header button gets `cursor-pointer` and a
+  `title="Show <name>'s head-to-head"`.
+- The hint line is `text-[11px] text-text-muted`, matching the other hint paragraphs in this
+  file ("Per player across 2v2 matches.", "Strongest pairings…") rather than `DESIGN.md` §5's
+  `text-xs`; DS4 sweeps all of them together. It is hidden when no pair has been played
+  (`matrixRanges.anyPlayed`), so an empty matrix advertises nothing.
+- New `test/h2hMatrix.test.tsx` (4 cases: W-D-L pressed and first, both mirrored cells labelled,
+  hint + title + `onOpenMatchup(row, col)` on tap, unplayed pairs render no button and the row
+  header still calls `onSelect`, no hint on an empty matrix). Suite 324 → 328.
+- Runtime DoD on the isolated stack (backend :8003 on a copy of `app.db`, vite :8020):
+  **54 checks green** over blue/light × 390/1280 px — W-D-L pressed by default and first in the
+  chip row, the hint visible, every cell `cursor: pointer` with a transition and no wrapped text,
+  titles/labels as above, the 6 diagonal/empty `<td>`s inert (`cursor: auto`, no button),
+  `filter: brightness(1.1…)` on hover at 1280 px, and a cell tap landing on
+  `/stats?view=h2h&vs=5&player=1` with the matchup's "← Head-to-head" back button rendered.
+  0 console errors. N2's scroll restoration and N4's links are untouched (the opponent rows'
+  `PlayerLink` and the stretched matchup button are not part of the matrix).
 
 ---
 

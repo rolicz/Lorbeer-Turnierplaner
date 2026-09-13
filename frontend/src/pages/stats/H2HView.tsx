@@ -88,7 +88,9 @@ export default function H2HView({ mode, scope, rows, subView, selectedId, onSele
     queryFn: () => getStatsH2H({ playerId: null, limit: 200, order: "rivalry", scope }),
     placeholderData: keepPreviousData, staleTime: 30_000,
   });
-  const [matrixMetric, setMatrixMetric] = useState<"winrate" | "played" | "gd" | "wdl" | "ppm" | "rivalry">("winrate");
+  // W-D-L is the default: the full record answers "how do these two compare?"
+  // without a legend, where a bare win-rate number needs one (S8).
+  const [matrixMetric, setMatrixMetric] = useState<"winrate" | "played" | "gd" | "wdl" | "ppm" | "rivalry">("wdl");
   // Ordered (insertion order) so a third tap can replace the OLDEST selection; 0–2 entries.
   const [selectedDuoIds, setSelectedDuoIds] = useState<number[]>([]);
   const [historyModal, setHistoryModal] = useState<HistoryModalState | null>(null);
@@ -134,20 +136,22 @@ export default function H2HView({ mode, scope, rows, subView, selectedId, onSele
   );
   const topRivalries = rivalriesExpanded ? sortedRivalries : sortedRivalries.slice(0, 8);
 
-  // Precompute normalization ranges for per-metric coloring.
+  // Precompute normalization ranges for per-metric coloring (and whether any cell
+  // is tappable at all — an empty matrix must not advertise a tap).
   const matrixRanges = useMemo(() => {
-    let maxPlayed = 1, maxRivalry = 1, maxAbsGd = 1;
+    let maxPlayed = 1, maxRivalry = 1, maxAbsGd = 1, anyPlayed = false;
     for (const r of rows) {
       for (const c of rows) {
         if (r.id === c.id) continue;
         const v = cell(r.id, c.id);
         if (!v) continue;
+        anyPlayed = true;
         maxPlayed = Math.max(maxPlayed, v.played);
         maxRivalry = Math.max(maxRivalry, v.rivalry);
         maxAbsGd = Math.max(maxAbsGd, Math.abs(v.gd));
       }
     }
-    return { maxPlayed, maxRivalry, maxAbsGd };
+    return { maxPlayed, maxRivalry, maxAbsGd, anyPlayed };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pairs, rows]);
 
@@ -335,9 +339,14 @@ export default function H2HView({ mode, scope, rows, subView, selectedId, onSele
             value={matrixMetric}
             onChange={setMatrixMetric}
             ariaLabel="Matrix metric"
-            options={[{ key: "winrate", label: "Win %" }, { key: "wdl", label: "W-D-L" }, { key: "ppm", label: "PPM" }, { key: "played", label: "Played" }, { key: "gd", label: "Goal diff" }, { key: "rivalry", label: "Rivalry" }]}
+            options={[{ key: "wdl", label: "W-D-L" }, { key: "winrate", label: "Win %" }, { key: "ppm", label: "PPM" }, { key: "played", label: "Played" }, { key: "gd", label: "Goal diff" }, { key: "rivalry", label: "Rivalry" }]}
           />
         </div>
+        {/* The cells are buttons (they open the matchup) — say so, because on a
+            phone there is no hover to discover it with. */}
+        {matrixRanges.anyPlayed ? (
+          <p className="mb-2 text-[11px] text-text-muted">Tap a cell for every match between two players.</p>
+        ) : null}
         <div className="overflow-x-auto" data-no-swipe-nav>
           <table className="border-separate" style={{ borderSpacing: 3 }}>
             <thead>
@@ -359,7 +368,8 @@ export default function H2HView({ mode, scope, rows, subView, selectedId, onSele
                     <button
                       type="button"
                       onClick={() => onSelect(r.id)}
-                      className={"block max-w-[120px] truncate text-xs font-medium " + (selectedId === r.id ? "text-accent" : "text-text-normal hover:text-accent")}
+                      title={`Show ${r.name}'s head-to-head`}
+                      className={"block max-w-[120px] cursor-pointer truncate text-xs font-medium " + (selectedId === r.id ? "text-accent" : "text-text-normal hover:text-accent")}
                     >
                       {r.name}
                     </button>
@@ -373,8 +383,12 @@ export default function H2HView({ mode, scope, rows, subView, selectedId, onSele
                         <button
                           type="button"
                           onClick={() => onOpenMatchup(r.id, c.id)}
-                          title={`${r.name} vs ${c.name}: ${v.w}-${v.d}-${v.l}`}
-                          className="grid h-11 w-11 place-items-center rounded text-xs font-semibold leading-none text-white"
+                          title={`${r.name} vs ${c.name} — open matches`}
+                          aria-label={`${r.name} vs ${c.name}: ${v.w}-${v.d}-${v.l} — open matches`}
+                          className={
+                            "focus-ring grid h-11 w-11 cursor-pointer place-items-center rounded text-xs font-semibold leading-none text-white transition hover:brightness-125 active:scale-[0.97] " +
+                            (matrixMetric === "wdl" ? "tracking-tight" : "")
+                          }
                           style={{ backgroundColor: cellColor(v) }}
                         >
                           {cellText(v)}
