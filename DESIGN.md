@@ -85,7 +85,11 @@ while `chip`, `.input-field` and `.select-field` stay white. Dark themes are una
 Tailwind scale only: `text-xs` (12) meta/labels · `text-sm` (14) body/rows · `text-base` (16)
 emphasised body · `text-lg` (18) card titles, names next to scores · `text-2xl` (24) stat values
 · `text-3xl`/`text-4xl` (30/36) hero scores. One extra utility `.text-micro` (10px, semibold) for
-badges and superscript counters only. **No other arbitrary `text-[Npx]`.**
+text that is a *marker* rather than prose: badges, superscript counters, unit captions
+(`pts`, `ppm`), fixed-width indicators (▲/▼, W/D/L letters) and the bottom tab bar's labels,
+which do not fit at 12px. Never for a sentence or a value the reader must read carefully.
+**No other arbitrary `text-[Npx]`** — except where the size *is* geometry rather than type
+(`NationFlag` sizes the flag glyph itself in em).
 Numbers: `tabular-nums` always. `font-mono` only for date pills, odds and compact `W-D-L`
 strings. Weights: `font-medium` default emphasis, `font-semibold` titles, `font-bold` numerals.
 
