@@ -45,6 +45,16 @@ export function currentEraMode(eras: CupEra[] | undefined, today: Date = new Dat
   return best?.mode ?? "any";
 }
 
+/**
+ * Display order for the cup list: the named cups first, the `default` cup last
+ * (the Cups sub-view and the dashboard preview show them in the same order).
+ * Falls back to one unnamed cup when the backend has no defs at all.
+ */
+export function orderCups(cups: CupDef[] | undefined): CupDef[] {
+  const raw = cups?.length ? cups : [{ key: "default", name: "Cup", since_date: null }];
+  return raw.filter((c) => c.key !== "default").concat(raw.filter((c) => c.key === "default"));
+}
+
 export function listCupDefs(): Promise<{ cups: CupDef[] }> {
   return apiFetch(`/cup/defs`, { method: "GET" });
 }

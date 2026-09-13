@@ -3,16 +3,13 @@ import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import InlineLoading from "../../ui/primitives/InlineLoading";
-import { listCupDefs } from "../../api/cup.api";
+import { listCupDefs, orderCups } from "../../api/cup.api";
 import { qk } from "../../api/queryKeys";
 import CupDetail from "./CupDetail";
 
 export default function CupsView() {
   const defsQ = useQuery({ queryKey: qk.cupDefs(), queryFn: listCupDefs });
-  const cups = useMemo(() => {
-    const raw = defsQ.data?.cups?.length ? defsQ.data.cups : [{ key: "default", name: "Cup", since_date: null }];
-    return raw.filter((c) => c.key !== "default").concat(raw.filter((c) => c.key === "default"));
-  }, [defsQ.data]);
+  const cups = useMemo(() => orderCups(defsQ.data?.cups), [defsQ.data]);
 
   if (defsQ.isLoading && !defsQ.data) return <InlineLoading label="Loading…" />;
 

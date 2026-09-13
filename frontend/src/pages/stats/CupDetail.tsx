@@ -6,7 +6,6 @@
 import { useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { Trophy } from "lucide-react";
 
 import AvatarCircle from "../../ui/primitives/AvatarCircle";
 import Button from "../../ui/primitives/Button";
@@ -24,23 +23,15 @@ import { prefersReducedMotion } from "../../ui/scroll";
 import { usePlayerAvatarMap } from "../../hooks/usePlayerAvatarMap";
 import StatsSection from "./StatsSection";
 import { usePlayerColors } from "./usePlayerColors";
-import { buildReigns, cupRecords, perPlayer, type CupRecordEntry, type Reign } from "./cupReigns";
+import { buildReigns, cupRecords, perPlayer, reignSpan, type CupRecordEntry, type Reign } from "./cupReigns";
+import { CHIP_ACCENT, CupHolder, CupReignTimeline, ReignChip } from "./cupParts";
 
 const SHOWN_REIGNS = 8;
-
-const CHIP = "inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-xs font-semibold tabular-nums";
-const CHIP_PLAIN = `${CHIP} bg-bg-card-chip text-text-chip`;
-const CHIP_ACCENT = `${CHIP} bg-accent/15 text-accent ring-1 ring-inset ring-accent/40`;
 
 type SortKey = "player" | "titles" | "tournamentsHeld" | "longestReign";
 
 function names(entries: CupRecordEntry[]): string {
   return entries.map((e) => e.player.display_name).join(", ");
-}
-
-/** "27.03.2026 – 23.04.2026" / "… – now" for a running reign. */
-function span(r: Reign): string {
-  return `${fmtDate(r.startDate)} – ${r.endDate ? fmtDate(r.endDate) : "now"}`;
 }
 
 export default function CupDetail({ cupKey, cupName }: { cupKey: string; cupName: string }) {
@@ -59,12 +50,6 @@ export default function CupDetail({ cupKey, cupName }: { cupKey: string; cupName
   // Newest first in the list; the timeline stays chronological.
   const newest = useMemo(() => reigns.slice().reverse(), [reigns]);
   const shown = showAll ? newest : newest.slice(0, SHOWN_REIGNS);
-  const legend = useMemo(() => {
-    const seen = new Map<number, string>();
-    for (const r of reigns) if (!seen.has(r.holder.id)) seen.set(r.holder.id, r.holder.display_name);
-    return [...seen.entries()].map(([id, name]) => ({ id, name }));
-  }, [reigns]);
-
   // Several reigns can share the record — name every holder, and only show the
   // date span when exactly one reign holds it.
   const longest = useMemo(() => {
@@ -122,36 +107,13 @@ export default function CupDetail({ cupKey, cupName }: { cupKey: string; cupName
           {eraMode !== "any" ? <Pill title={`Currently counts ${eraMode} tournaments only`}>{eraMode}</Pill> : null}
         </div>
 
-        <div className="flex items-center gap-3">
-          {owner ? (
-            /* The holder is an identity — avatar and name open their profile. */
-            <PlayerLink playerId={owner.id} name={owner.display_name} className="flex min-w-0 flex-1 items-center gap-3">
-              <AvatarCircle
-                playerId={owner.id}
-                name={owner.display_name}
-                updatedAt={avatarUpdatedAtById.get(owner.id) ?? null}
-                sizeClass="h-12 w-12"
-              />
-              <span className="min-w-0 flex-1">
-                <span className="block truncate text-base font-semibold" style={{ color: cupColor }}>
-                  {owner.display_name}
-                </span>
-                {/* The reign length and the defenses live in the tile on the right. */}
-                <span className="block text-xs text-text-muted">{since?.date ? `Holding since ${fmtDate(since.date)}` : "—"}</span>
-              </span>
-            </PlayerLink>
-          ) : (
-            <>
-              <span className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-bg-card-chip/40 text-text-muted">
-                <Trophy size={18} aria-hidden="true" />
-              </span>
-              <div className="min-w-0 flex-1">
-                <div className="truncate text-base font-semibold">No owner yet</div>
-                <div className="text-xs text-text-muted">—</div>
-              </div>
-            </>
-          )}
-          {current ? (
+        {/* The reign length and the defenses live in the tile on the right, so the
+            holder line only carries the identity and the start date. */}
+        <CupHolder
+          owner={owner}
+          color={cupColor}
+          since={since?.date}
+          trailing={current ? (
             <StatTile
               className="w-32 shrink-0"
               label="Current reign"
@@ -160,7 +122,7 @@ export default function CupDetail({ cupKey, cupName }: { cupKey: string; cupName
               accessory={records.currentIsRecord ? <span className={CHIP_ACCENT}>record</span> : null}
             />
           ) : null}
-        </div>
+        />
       </div>
 
       {reigns.length ? (
@@ -176,7 +138,7 @@ export default function CupDetail({ cupKey, cupName }: { cupKey: string; cupName
                   records.longest ? (
                     <>
                       <span className="block truncate">{longest.holders}</span>
-                      <span className="block truncate">{longest.tied === 1 ? span(records.longest) : `${longest.tied} reigns tied`}</span>
+                      <span className="block truncate">{longest.tied === 1 ? reignSpan(records.longest) : `${longest.tied} reigns tied`}</span>
                     </>
                   ) : null
                 }
@@ -196,31 +158,7 @@ export default function CupDetail({ cupKey, cupName }: { cupKey: string; cupName
 
           {/* 3 — timeline */}
           <StatsSection label="Reign timeline" explainer="Each block is one reign — tap it to jump to that row.">
-            <div className="flex h-3 w-full overflow-hidden rounded-full bg-bg-card-chip/50">
-              {reigns.map((r, i) => (
-                <button
-                  key={`${r.startTournamentId}-${r.holder.id}`}
-                  type="button"
-                  onClick={() => jumpToReign(r, reigns.length - 1 - i)}
-                  title={`${r.holder.display_name} · ${r.tournaments} tournaments · ${span(r)}`}
-                  aria-label={`${r.holder.display_name}, ${r.tournaments} tournaments — jump to this reign`}
-                  className="relative h-full min-w-[6px] border-0 p-0"
-                  style={{ flexGrow: Math.max(1, r.tournaments), flexBasis: 0, backgroundColor: colorOf(r.holder.id).solid }}
-                >
-                  {r.current ? (
-                    <span className="absolute inset-0 animate-pulse" style={{ boxShadow: "inset 0 0 0 2px rgb(var(--color-text-normal) / 0.45)" }} />
-                  ) : null}
-                </button>
-              ))}
-            </div>
-            <div className="flex flex-wrap gap-x-3 gap-y-1">
-              {legend.map((p) => (
-                <span key={p.id} className="inline-flex items-center gap-1.5 text-xs text-text-muted">
-                  <span className="h-2 w-2 rounded-full" style={{ backgroundColor: colorOf(p.id).solid }} aria-hidden="true" />
-                  {p.name}
-                </span>
-              ))}
-            </div>
+            <CupReignTimeline reigns={reigns} onSelect={(r, i) => jumpToReign(r, reigns.length - 1 - i)} />
           </StatsSection>
 
           {/* 4 — reigns, newest first */}
@@ -269,9 +207,7 @@ export default function CupDetail({ cupKey, cupName }: { cupKey: string; cupName
                         >
                           <span className="block truncate text-sm font-semibold text-text-normal">{r.holder.display_name}</span>
                         </PlayerLink>
-                        <span className={r.current ? CHIP_ACCENT : CHIP_PLAIN} title={`${r.tournaments} tournaments held`}>
-                          ×{r.tournaments}
-                        </span>
+                        <ReignChip tournaments={r.tournaments} current={r.current} />
                         {r.current ? <span className="text-xs text-text-muted">current</span> : null}
                       </span>
                       <span className="block truncate text-xs text-text-muted">

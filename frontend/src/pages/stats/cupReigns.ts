@@ -12,6 +12,7 @@
  * - `streak.tournaments_participated` is the **running** reign of the current
  *   owner, counted the same way (so a fresh win is 1 = zero defenses).
  */
+import { fmtDate } from "../../utils/format";
 import type { CupHistoryItem, CupOwner, CupResponse } from "../../api/cup.api";
 
 export type PlayerRef = CupOwner;
@@ -97,6 +98,11 @@ export function buildReigns(cup: CupResponse | null | undefined): Reign[] {
       lostTo: next ? next.to : null,
     };
   });
+}
+
+/** "27.03.2026 – 23.04.2026", "… – now" while the reign is running. */
+export function reignSpan(reign: Reign): string {
+  return `${fmtDate(reign.startDate)} – ${reign.endDate ? fmtDate(reign.endDate) : "now"}`;
 }
 
 /** Days the cup was held in this reign (a running reign counts up to `today`). */

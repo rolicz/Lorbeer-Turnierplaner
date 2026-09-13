@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { ChevronRight, LayoutDashboard, Trophy } from "lucide-react";
 
 import CupCard from "./CupCard";
+import CupsPreviewCard from "./CupsPreviewCard";
 import CurrentMatchPreviewCard from "./CurrentMatchPreviewCard";
 import TrendsPreviewCard from "./TrendsPreviewCard";
 import StandingsPreviewCard from "./StandingsPreviewCard";
@@ -67,6 +68,7 @@ export default function DashboardPage() {
       {dashTab === "overview" ? (
         <div className="space-y-4">
           <CurrentMatchPreviewCard />
+          <CupsPreviewCard />
           <TrendsPreviewCard />
           <StandingsPreviewCard />
         </div>
