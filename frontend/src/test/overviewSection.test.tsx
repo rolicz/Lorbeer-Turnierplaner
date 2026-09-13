@@ -102,8 +102,8 @@ describe("Overview tab", () => {
   it("leads a live tournament with the current match and ends with what has been played", () => {
     renderTab();
     expect(sections()).toEqual(["Current match", "Standings", "Next matches", "Played matches"]);
-    // Only finished matches, newest first — the one being played is the lead block.
-    expect(playedHrefs()).toEqual(hrefs([LIVE[1], LIVE[0]]));
+    // Only finished matches, in playing order — the one being played is the lead block.
+    expect(playedHrefs()).toEqual(hrefs([LIVE[0], LIVE[1]]));
   });
 
   it("leads a done tournament with the winner and no current match", () => {
@@ -114,7 +114,7 @@ describe("Overview tab", () => {
     expect(screen.getByText("pts").previousElementSibling).toHaveTextContent("6");
     expect(screen.getByText("2 matches · GD +6")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Roli" })).toHaveAttribute("href", "/profiles/1");
-    expect(playedHrefs()).toEqual(hrefs([DONE[2], DONE[1], DONE[0]]));
+    expect(playedHrefs()).toEqual(hrefs([DONE[0], DONE[1], DONE[2]]));
   });
 
   it("names the decider winner when the table ends level", () => {
@@ -129,11 +129,13 @@ describe("Overview tab", () => {
     expect(screen.getByText(/Atzi · Flo · Roli finished on the same points/)).toBeInTheDocument();
   });
 
-  it("hands a long list over to the Matches tab instead of dumping every row", () => {
+  it("lists every played match, however long, and links to the tab that can act on them", () => {
     const many = Array.from({ length: 8 }, (_, i) => match(i, "finished", [1], [2], 1, 0));
     const { onGoToMatches } = renderTab({ isDone: true, matches: many });
-    expect(playedHrefs()).toHaveLength(5);
-    fireEvent.click(screen.getByRole("button", { name: /Show all 8/ }));
+    // No row is hidden, so the link cannot claim to reveal any (T15-D).
+    expect(playedHrefs()).toEqual(hrefs(many));
+    expect(screen.queryByText(/Show all/)).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Open Matches/ }));
     expect(onGoToMatches).toHaveBeenCalled();
   });
 

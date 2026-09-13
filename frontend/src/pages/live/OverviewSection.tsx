@@ -20,9 +20,6 @@ import {
   type PlayerLite,
 } from "./tournamentStandings";
 
-/** How many played matches the Overview shows before it hands over to the Matches tab. */
-const PLAYED_PREVIEW = 5;
-
 /** The decider in one word, for the winner line. */
 function deciderLabel(type: string): string {
   if (type === "penalties") return "penalties";
@@ -47,6 +44,10 @@ function sideNames(side?: MatchSide | null): string[] {
  *
  *   live/draft:  current match → standings → next matches → played matches
  *   done:        winner        → final standings          → played matches
+ *
+ * Both list blocks are complete — every player, every match played, in playing
+ * order — and each ends with one quiet link naming the tab that can act on it
+ * (T15). Nothing on this tab hides rows behind a "show all".
  *
  * A finished tournament has no "current" match; presenting its last game as if
  * it were happening now is exactly what this tab used to get wrong. Everything
@@ -105,16 +106,16 @@ export default function OverviewSection({
       .slice(0, 3);
   }, [matches, previewMatch]);
 
-  // Newest first = the reverse of the playing order the Matches tab lists them in.
+  // Playing order, every one of them (T15-D): this block *is* the Matches tab's
+  // list, so it reads in the same direction, and the `#N` markers count up.
   const played = useMemo(
     () =>
       matches
         .filter((m) => m.state === "finished")
         .slice()
-        .sort((a, b) => b.order_index - a.order_index),
+        .sort((a, b) => a.order_index - b.order_index),
     [matches],
   );
-  const playedShown = played.slice(0, PLAYED_PREVIEW);
 
   return (
     <div className="flex flex-col gap-3">
@@ -267,25 +268,26 @@ export default function OverviewSection({
         <div>
           <div className="section-head">
             <span className="section-label">Played matches</span>
-            {played.length > PLAYED_PREVIEW ? (
-              <div className="order-1 shrink-0">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  type="button"
-                  onClick={onGoToMatches}
-                  title="Open the Matches tab"
-                  className="gap-1.5"
-                >
-                  <span>Show all {played.length}</span>
-                  <ArrowRight size={14} aria-hidden="true" />
-                </Button>
-              </div>
-            ) : null}
+            {/* Every match is already here, so the link promises no extra rows —
+                it names the tab it opens, where the same list can be acted on
+                (Compact/Details, reorder, swap sides). */}
+            <div className="order-1 shrink-0">
+              <Button
+                variant="ghost"
+                size="sm"
+                type="button"
+                onClick={onGoToMatches}
+                title="Open the Matches tab, where this list can be reordered and shown in detail"
+                className="gap-1.5"
+              >
+                <span>Open Matches</span>
+                <ArrowRight size={14} aria-hidden="true" />
+              </Button>
+            </div>
           </div>
           <div className="inset p-1.5">
             <div className="list-divided">
-              {playedShown.map((m) => {
+              {played.map((m) => {
                 const a = sideBy(m, "A");
                 const b = sideBy(m, "B");
                 return (
