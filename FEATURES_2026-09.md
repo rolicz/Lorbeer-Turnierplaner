@@ -4374,3 +4374,39 @@ best case" restores the computed scenario; the brute-force test passes; screensh
 blue + light; `npm run check` + build.
 
 **Deviations:**
+
+---
+
+## T14 — The standings meta line lines up across rows  ☐
+
+Roli: "for standings/results table: make sure the data in the lower row (e.g. 3P · 3-0-0 · 15:4
+etc) is aligned so its in the same location in every row (the goals and played move it e.g. 9 vs
+10). make sure to fix this everywhere a results table is shown."
+
+Cause: `pages/live/StandingsTable.tsx:377-379` renders the line as flowing text with `·`
+separators, so every segment's x position depends on the width of the digits before it — `9:4`
+against `15:14` shifts everything to its right, and the whole line is proportional since T10 took
+`font-mono` off it (it wrapped at 390px).
+
+- Give the line **fixed columns**, not separators: a grid whose tracks are wide enough for the
+  widest realistic value (played ≤ 2 digits, `W-D-L` ≤ 3 single digits, `GF:GA` ≤ 2+2, `GD` signed
+  ≤ 3), `tabular-nums` throughout, so segment N starts at the same x in every row. Keep the win /
+  draw / loss token colours. It must still fit 390px inside the row's remaining width — measure it
+  (T10 recorded 187px available there) and drop the least useful segment into a second line or out
+  entirely rather than let it wrap unevenly.
+- Do it once, in a small shared component (`ui/primitives/` — a `StatLine`/`RecordLine` taking
+  played, W-D-L, GF, GA, GD), then use it everywhere a results/standings row shows that data.
+- **Everywhere it appears** — audit and list each in Deviations: the live standings rows and the
+  best-case/projection rows in the same file, the compact standings in `OverviewSection`, the
+  dashboard standings preview and the stats **Table** (both are real `<table>`s, so they are
+  already column-aligned — confirm and say so rather than changing them), the H2H opponent rows and
+  the matchup summary in `pages/stats/H2HView.tsx` and `h2h/MatchupView.tsx`, the duo rows in
+  `pages/stats/HeadToHeadRows.tsx`, and the profile's rivals/teammates cards.
+- Check both themes and both widths, and make sure the alignment survives a two-digit played count
+  and a three-digit goal total.
+
+**DoD:** in every listed surface, the x position of each segment is identical across all rows
+(assert it in Playwright by measuring the bounding boxes of the segment elements per row, not by
+eye); no wrapping at 390px; screenshots 390px + 1280px, blue + light; `npm run check` + build.
+
+**Deviations:**
