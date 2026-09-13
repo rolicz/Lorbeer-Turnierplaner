@@ -3093,7 +3093,7 @@ Rules for implementing agents, runtime verification and the hard constraints fro
 file all still apply. **Check every sibling location for each change** (Roli: "make sure to check
 if a change should affect other locations as well").
 
-## T2 — Club selection: show the club once, filters where they belong  ☐
+## T2 — Club selection: show the club once, filters where they belong  ☑
 
 Roli: "it shows the club twice close to each other now (in the score board *and* in the club
 selection) … it should only be visible when i open the club selection. not sure if collapsible is
@@ -3127,7 +3127,95 @@ below the club. the buttons for random star and random matchup are unbalanced."
 opens the picker on that side; filters reachable without opening a club; stars editable from the
 picker; screenshots 390px + 1280px, blue + light, of all four screens; `npm run check` + build.
 
-**Deviations:**
+**Deviations:** (implemented 2026-09-13, three commits: trigger + controls row, runtime polish,
+docs/plan)
+
+- **The club line is the trigger, not the whole side column.** `MatchSides` gained
+  `onPickClub` + `aLabel`/`bLabel`; only the *name + crest* row becomes a button (a
+  `rounded-full` tap target with a quiet `bg-card-chip/40` fill, pulled back by `-mx-2 -my-1`
+  so the cluster still hugs the centre gap). The league line and the stars stay read-only text
+  under it — wrapping all three rows in one button would have meant restructuring the shared
+  three-row grid that eight read-only surfaces depend on. Read-only callers pass nothing and
+  render byte-identical (`matchOverviewPanel.test.tsx` asserts "no buttons without
+  `onPickClub`"; a Playwright pass re-checked dashboard, live Overview, live Matches and the
+  friendlies list in both themes).
+- **The empty placeholder is a dashed slot**, not just a muted shield: `🛡 Select club` inside a
+  `border-dashed` pill. Judgement call — a filled club reads as a *value* you can tap (solid
+  quiet fill), an empty one as a *slot waiting to be filled* (dashed outline, no fill), and the
+  two are told apart at a glance on the new-friendly form where both sides start empty.
+- **Filters: chip + inline row, not a popover.** At 390px an anchored popover hanging off a
+  small chip is a full-width sheet anyway, needs portal/flip code (`StatsFilterPill`'s 50 lines)
+  and can be clipped inside the friendlies list editor. The chip (`chipClass`, accent while a
+  filter is on, `aria-expanded` + `aria-controls`) toggles the two `FilterSelect`s in the flow
+  right below it, with a "`N` of `M` clubs" line and a `Clear filters` ghost button. The
+  active-filter ✕ chips sit next to the trigger while the row is *closed* — while it is open the
+  selects already say what is on, and §9b's "never show one value twice" applies to filters too.
+  The filter row is **not** an `inset`: `FilterSelect` already is one (§1, no surface inside a
+  surface of its own level).
+- **The controls row is two rows, not one.** `[⚙ Filter clubs] [4.5★ ✕] [Bundesliga ✕]` /
+  `[🎲] [Random matchup ………]`. Measured: at 390px the three controls in one row need ~373px of
+  the 334px a card leaves, so one of them would have had to shrink or wrap mid-row. Two rows
+  also separate the two jobs — narrow the pool, then draw from it.
+- **The random pair is balanced by making the dice explicitly secondary** (§9b's last bullet):
+  both are `h-10` ghost buttons in one `flex items-stretch` row, the dice a 40×40 icon button
+  with a 20px die (was 16px in a box that was already 40px tall next to a 36px button — that
+  mismatch is what Roli saw), "Random matchup" `flex-1` with a 16px `Shuffle` + label, centred.
+  Capped at `sm:max-w-md` so a 1280px card does not turn it into a 944px banner.
+- **`ClubStarsEditor` moved into the sheet, and the sheet pins the selected club.** Burying the
+  rating behind a scroll to wherever the club sits in its league group would have cost taps, so
+  the picker now shows a `SELECTED` block on top (the club this side has, with its
+  `4.5★ ▾` control and the check mark) followed by `No club`, and that club is *not* repeated
+  in its league group below — it is listed once. While searching there is no pinned block and
+  the editor rides along in the matching row. The row had to become a `<div>` with the tap
+  target as an inner `<button role="option">`, because a `<select>` cannot live inside a button.
+  Write path unchanged (`PATCH /clubs/{id}`, optimistic value, `qk.clubs()` invalidation) and
+  verified at runtime against the DB copy: 1.5★ → 4★ → 1.5★ on a real club. Readers get the
+  static `Stars` (the panel passes `starsEditor` only for editor/admin, so `ClubPicker` itself
+  stays auth-free and testable).
+- **`ClubSlot` is deleted**, not left unused — it had no other caller once the two slots went.
+  Its two test cases were rewritten against the new trigger in `matchOverviewPanel.test.tsx`;
+  `DESIGN.md` §7 and `AGENTS.md` §2 were updated in the same pass (rule 7).
+- **The state is a hook** (`useClubSelection` in `ui/clubControls.tsx`): the trigger now lives in
+  `MatchOverviewPanel` and the sheet in `SelectClubsPanel`, which are siblings, so a call site
+  calls the hook once and hands the result to both (`selection` prop). `SelectClubsPanel` keeps
+  its name, its four call sites and `extraTop`/`extraBottom`.
+- **Live Current tab: the "open match details" affordance became a stretched overlay** behind
+  the panel (`absolute inset-0`, the club triggers `relative z-10`) instead of a `<button>`
+  wrapping the whole panel — a button inside a button is invalid HTML and the outer one would
+  have swallowed the club taps. Verified both still work: tapping a club opens the sheet,
+  tapping anywhere else opens `/live/21/match/114`.
+- **New-friendly form: the club controls moved up**, from the bottom of the form to directly
+  under the score preview, so all four surfaces read scoreboard → controls. The `Clubs`
+  `section-head` and the "Loading clubs…" line moved with them.
+- **`disabled` no longer greys the trigger.** The old slots were visibly disabled while a save
+  was in flight; the scoreboard's club line would flicker on every 350 ms autosave, so the guard
+  sits in `useClubSelection.openPicker` instead (a tap during a save is a no-op). Every control
+  in the panel and the sheet still takes `disabled` as before.
+- **Pre-existing, not fixed here (for T8):** in the friendlies list the inline editor is rendered
+  into `MatchHistoryList`'s `action` slot, a `shrink-0 self-center` wrapper, so its content is
+  ~449px wide inside a 358px row at 390px and gets clipped on the right. Measured on both sides
+  of this task: **450px before T2, 449px after** — T2 neither caused nor worsened it, and T8
+  already owns "the friendlies list rows".
+
+**Verification**
+
+- `cd frontend && npm run check`: **40 files, 375 tests** green (369 before: +6 net —
+  `clubPicker.test.tsx` lost the two `ClubSlot` cases and gained five for the new panel/sheet,
+  `matchOverviewPanel.test.tsx` gained three for the trigger). `npm run build` green with the
+  pre-existing 500 kB chunk hint (642 kB `index-*.js`). No backend change.
+- Runtime, isolated stack (backend :8003 on a **copy** of `app.db` + a scratch secrets file with
+  a real admin account, vite :8020), Playwright, blue + light, 390px + 1280px:
+  **152 layout checks** over the four surfaces (triggers, "no club name twice" on the surface
+  text, filter reachability, the balanced random row, the sheet opening on the tapped side, no
+  overflow, no nested `<a>`, no console errors), **20 write-path checks** (autosave on the live
+  match, `Save result` on the match detail, the stars editor, the league filter narrowing the
+  *random pool*, the dice, reader has no trigger and no stars editor) and **18 read-only
+  regression checks**. Every write was made against the DB copy and restored afterwards.
+- Screenshots (scratchpad `shots/`): `t2-live-current-{390,1280}-{blue,light}-{rest,filters,
+  picker}`, `t2-match-edit-…`, `t2-friendly-new-…-{rest,picker,picked}`,
+  `t2-friendly-stored-…-{rest,picker}`, plus `t2-write-{live-after-pick,stars-editor,
+  filter-active,random,dice,match-edit-picked}`, `t2-reader-{live-current,picker}` and
+  `t2-readonly-{dashboard,live-overview,live-matches,friendlies-list}-390-{blue,light}`.
 
 ---
 
