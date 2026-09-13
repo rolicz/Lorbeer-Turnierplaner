@@ -3082,3 +3082,210 @@ Recorded so they are not forgotten. Do not implement without an explicit go.
    scrolling) or a "Filters" pill that opens a bottom sheet. Recommendation: the row below
    the tabs first, sheet only if the row proves too tall on phones. Natural place to do it
    is S1 (it owns that strip) or a follow-up after S1.
+
+---
+
+# Round 4 — Roli's tweaks after testing the finished batch (2026-09-13)
+
+His items, verbatim where it matters, grouped into T2–T8. `DESIGN.md` §9b ("Editing in place")
+is the shared decision behind T2 and T3 — read it first; it was written for these two tasks.
+Rules for implementing agents, runtime verification and the hard constraints from the top of this
+file all still apply. **Check every sibling location for each change** (Roli: "make sure to check
+if a change should affect other locations as well").
+
+## T2 — Club selection: show the club once, filters where they belong  ☐
+
+Roli: "it shows the club twice close to each other now (in the score board *and* in the club
+selection) … it should only be visible when i open the club selection. not sure if collapsible is
+a good idea for that, come up with something nice. to filter leagues or chose stars filter, i need
+to click on one players club now -> this is not intuitive. the stars modifier is awkwardly placed
+below the club. the buttons for random star and random matchup are unbalanced."
+
+- **The scoreboard is the trigger** (§9b). Delete the two `ClubSlot` rows from
+  `ui/SelectClubsPanel.tsx`; the club names already live in `MatchSides` under the score. Make
+  the club line of `MatchSides` tappable **when the panel is editable** — a new optional
+  `onPickClub?: (side: "A" | "B") => void` on `MatchOverviewPanel`/`MatchSides` renders each club
+  line as a button (focus ring, hover, `aria-label="<side players> — select club"`, and a "Select
+  club" placeholder with a muted shield when empty). Read-only call sites pass nothing and are
+  unchanged.
+- What remains under the scoreboard is one controls row: the club filters and the two random
+  actions, nothing that repeats a club.
+- **Filters move out of the per-side sheet** to that row (they narrow the list for both sides and
+  drive Random matchup): a "Filter clubs" `Chip` (accent when active) opens the star/league
+  controls — a small popover or an inline row, your call, but reachable without opening a club.
+  Keep the active-filter chips with their ✕. `ClubPicker` keeps applying `filters`, and may keep a
+  compact read-only indicator of the active filter, but is no longer the only way to set it.
+- **Stars modifier**: `ClubStarsEditor` moves out from under each slot into the `ClubPicker` row
+  of the *selected* club (editors/admins only), where a star rating is a property of the club
+  being chosen. Verify the write path and permissions are unchanged.
+- **Balance the random buttons**: the dice (random star filter) and "Random matchup" become one
+  row of equal-height controls that share the width sensibly (§9b last bullet).
+- Sibling locations: live Current tab, match-detail Edit tab, new-friendly form, stored-friendly
+  editor. All four must end up with the same interaction.
+
+**DoD:** no club name appears twice on any of the four screens; tapping a club in the scoreboard
+opens the picker on that side; filters reachable without opening a club; stars editable from the
+picker; screenshots 390px + 1280px, blue + light, of all four screens; `npm run check` + build.
+
+**Deviations:**
+
+---
+
+## T3 — Comments: composer attached to the feed, real scorer, better goal buttons  ☐
+
+Roli: "i dont like how the collapsible seems so disconnected to the input fields/comments and im
+not sure if collapsible is a good idea here (similar to club selector). the scorer is not the
+(human) player but the football player who scored the goal, so pre-filling e.g. 'Rumpi' does not
+make sense. the buttons ('Rumpi 1-0') dont look nice."
+
+- **Drop the `CollapsibleCard`** around the comments (`TournamentCommentsCard.tsx:916`) — the feed
+  and its composer are the page's content (§9b). Keep the header (title + count + the collapse-all
+  control for *threads*, which is a different thing) as a plain section head, and make sure the
+  composer reads as one unit with the feed (shared card, composer attached to its bottom edge,
+  hairline between feed and composer — not a floating island).
+- **Scorer is the football player in the game**, not a human player: drop the human-player
+  datalist/prefill (`CommentGoalPlayerOption`, `goalPlayers`) and any prefilling. Free text,
+  placeholder naming a footballer (e.g. "Scorer, e.g. Haaland"), optional and forgettable. If you
+  want a suggestion list, the only defensible source is *previously typed scorers* in this
+  tournament (localStorage, last ~20) — implement that only if it stays simple.
+- **Goal side buttons**: today they render the human team label plus the resulting scoreline as a
+  chip pair ("Rumpi 1-0"). Redesign as a proper two-option control that shows *which side scores*
+  and *the score it makes*, using the app's score vocabulary (`ScoreLine sm` or the same numerals),
+  not a text chip. It must be obvious at a glance and work for 2v2 (two names per side).
+- Sibling locations: live Current tab (match comments), match-detail Comments tab, tournament
+  Comments tab, and the **profile guestbook composer** — check whether it should follow the same
+  shape (it is the same "write into a feed" job). Also review the other `CollapsibleCard` users
+  (`FriendlyMatchCard`, `FriendlyMatchesListCard`, `ClubsPage`): keep it where it groups a long
+  browsable list, drop it where it wraps a page's own content.
+
+**DoD:** no collapsible around a feed or an editor; posting a comment still 2 taps / 1 for the
+next; goal entry never suggests a human player; screenshots of all three comment surfaces +
+guestbook at 390px, blue + light; the S10 feature-equivalence list still holds; `npm run check`.
+
+**Deviations:**
+
+---
+
+## T4 — Stats filter pill: bigger, and the only entry point  ☐
+
+Roli: "i dont like that you put the 'filters' on top again -> the pill alone is enough, but make
+it bigger so it cant be overlooked (i like the accent border around it)."
+
+- Remove S9's inline "Filters" chip from the sub-view row (`StatsInsights` slot + the
+  `inlineSlot` prop on `StatsFilterPill`); the floating pill is the only trigger.
+- Make the pill **bigger**: target ≈ `h-11` with the mode token at `text-sm` and a 16px icon, so
+  it reads as a control from across the screen while staying a capsule. Keep the accent border,
+  the filtered halo/dot and the session pulse.
+- Re-check the bottom-bar clearance and the `pb-*` on the stats root after the size change.
+
+**DoD:** screenshots 390px + 1280px, blue + light: rest, filtered, popover open; no inline entry
+anywhere; pill clears the bottom tab bar and the last row; `npm run check` + build.
+
+**Deviations:**
+
+---
+
+## T5 — Dashboard: cups preview instead of a Cups tab  ☐
+
+Roli: "put the cups preview on the main dashboard page, above trends and below a potential live
+tournament. it should show the current cup holders for both (or more) cups and the reign timeline.
+make sure to re-use elements from stats cups page and that i can click in dashboard and get to
+stats cups page" + "cups tab can go, preview replaces it. for dashboard, i then dont need the
+subnavigation on top -> make sure its still consistent with the rest of the app".
+
+- New `pages/dashboard/CupsPreviewCard.tsx`, rendered between `CurrentMatchPreviewCard` and
+  `TrendsPreviewCard`: one compact block per cup — holder (avatar + name + "holding since", linked
+  to the profile) and the **reign timeline reused from `pages/stats/CupDetail.tsx`** (extract the
+  timeline into its own component both can render; do not copy it). The section header links to
+  `/stats?view=overview&sub=cups`, and so does the whole block's trailing chevron.
+- **Delete the dashboard Cups tab** and, with only one view left, the `SectionTabs` row on the
+  dashboard entirely. The page keeps `PageLayout title="Dashboard"` and the section rhythm of the
+  rest of the app (`section-head` per block) — check it still looks like a sibling of the other
+  pages without a tab strip.
+- `?tab=cups` must not land on a dead tab: redirect it (replace) to
+  `/stats?view=overview&sub=cups`, and make sure a remembered dashboard URL with that param
+  (U6/`lastLocation`) cannot trap the Dashboard tab.
+- While you are there: `pages/dashboard/CupCard.tsx` and `CupDetail` now overlap. Keep exactly
+  what each surface needs, share the rest, and say in Deviations what is rendered where.
+
+**DoD:** dashboard order = live tournament (when live) → cups preview → trends → standings; no tab
+strip; both cups visible with holders + timeline; every link lands correctly; `?tab=cups`
+redirects; screenshots 390px + 1280px, blue + light; `npm run check` + build.
+
+**Deviations:**
+
+---
+
+## T6 — Records and Streaks: no duplicates  ☐
+
+Roli: "make sure there are no duplicates in records that already exist in streaks."
+
+- DS8 gave both views the same skeleton, which made the overlap obvious: the streak records
+  ("Longest runs" / win + unbeaten streak categories) appear in **both**. Records keeps what is
+  unique to it (titles, match superlatives) and **drops the streak categories**; Streaks stays the
+  single home for runs. Add a one-line pointer in Records ("Longest runs live in Streaks") only if
+  it does not become clutter.
+- Check the reverse direction too, and the neighbours: does Streaks show anything that is really a
+  "record" (then move it), and does the profile's streak chips or the Player section duplicate
+  either? List the final ownership per fact in Deviations.
+
+**DoD:** every fact appears in exactly one stats sub-view; screenshots of Records and Streaks at
+390px; `npm run check` + build.
+
+**Deviations:**
+
+---
+
+## T7 — H2H shortcuts: name them, target them correctly, default to Tournaments  ☐
+
+Roli: "in match details, the 'All meetings' button is a bit weird.. not sure where we call it
+'meeting' elsewhere. make it a prominent button so you know at a glance that this brings you to
+the h2h details between those 2. in 2v2 case, exact matchup button brings me to first player of
+teams matchups (its 2v2, but its not the exact matchup). for all shortcuts here to h2h stats ->
+always use 'tournaments' and not both as default." + "in tournament standings, i dont like the
+stats button/icon in the table."
+
+- **Wording + prominence**: drop "meetings". The button says what it opens — e.g. "Head-to-head"
+  with the two names, or "All matches: Roli vs Flo" — and is a real `Button` (solid or a full-width
+  bordered row), not a text link, placed where it reads as the card's primary action.
+- **2v2 targets the actual teams.** Today `player=<a1>&vs=<b1>` opens a *player* matchup. Extend
+  the matchup URL so `player` and `vs` accept **one or two comma-separated ids**
+  (`?view=h2h&player=1,5&vs=2,4`): two ids on both sides → `relation: "opposed"` with
+  `exact_teams: true`; one id each → today's behaviour; `rel=together` keeps meaning "these two as
+  teammates". Update `statsNav.ts` parsing/canonicalisation, `StatsPage`'s `vs` handling and
+  `MatchupView` (header shows both team names; the Against/Together chips only make sense for a
+  player pair — hide or adapt them for a team matchup). The backend already accepts
+  `left_player_ids`/`right_player_ids` + `exact_teams`.
+- **Default source = Tournaments** for every shortcut into H2H stats (match detail, profile rivals,
+  profile teammates, anywhere N4 added `source=both`).
+- **Remove the stats icon button** from the live standings rows (`pages/live/StandingsTable.tsx`);
+  the row already opens the profile, which links on to full stats. Check the dashboard standings
+  rows for the same smell and make the two consistent (say which behaviour you chose).
+
+**DoD:** 1v1 and 2v2 buttons both open the right matchup (2v2 shows the team-vs-team record, and
+its match list matches the panel's summary); no `source=both` shortcut remains; no icon button in
+the standings table; screenshots 390px + 1280px; `npm run check` + build.
+
+**Deviations:**
+
+---
+
+## T8 — One scoreboard surface everywhere  ☐
+
+Roli: "why does the dashboard scoreboard use a different background color than in the tournament
+view? consistency!"
+
+- Cause: `CurrentMatchPreviewCard` renders the tappable wrapper as `card` and passes
+  `surface="none"`, so the panel sits on the outer card colour, while the live Current/Overview
+  tabs render `MatchOverviewPanel` with its default `inset`.
+- Make the score panel look the same wherever it appears: the panel is an `inset` in every
+  location, and the dashboard's tappable wrapper stays a `card` around it (card → inset is the
+  canon) with the tournament name as its header row.
+- Sweep every caller: dashboard preview, live Overview, live Current, match-detail edit preview,
+  friendly form preview, and the friendlies list rows.
+
+**DoD:** the same rendered background/border for the score panel on all six surfaces (assert the
+computed `background-color` of the panel element is identical in a Playwright check); screenshots
+390px, blue + light; `npm run check` + build.
+
+**Deviations:**
