@@ -5,8 +5,8 @@
  *                   Live · 34'              ← optional status line (hero only)
  *
  * Numerals are big, tabular and unboxed; the separator is a hairline, never a colon
- * and never a box. Never wrap this in `card-chip`/borders — the surface belongs to
- * the row or panel around it.
+ * and never a box. Never wrap this in a `chip`/`inset`/borders — the surface belongs
+ * to the row or panel around it.
  */
 import type { ReactNode } from "react";
 

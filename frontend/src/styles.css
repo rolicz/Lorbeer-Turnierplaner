@@ -33,8 +33,6 @@
   }
 }
 
-.accent { color: rgb(var(--color-accent)); }
-
 @layer components {
   /* Main page structure */
   body {
@@ -44,9 +42,9 @@
 
   /* ---- Surface canon (DESIGN.md §3) ----
      Three levels and nothing deeper: page → card → inset, plus `chip` for inline
-     tags. The older families below (card-outer, card-inner, panel, panel-subtle,
-     panel-inner, surface, card-chip-as-a-box) are retired; DS3 migrates their
-     call sites onto these three and deletes them. */
+     tags. These three replaced the older card-outer / card-inner / card-inner-flat /
+     panel / panel-subtle / panel-inner / surface / card-chip-as-a-box families,
+     which DS3 migrated and deleted. Nothing else may define a box surface. */
 
   /* Level 1 — a standalone block on the page (also the modal surface). */
   .card {
@@ -96,21 +94,9 @@
     }
   }
 
-  /* ---- Sleek-minimal building blocks (new shell + restyled pages) ---- */
-  /* Primary surface: low-contrast hairline + soft elevation. */
-  .surface {
-    @apply rounded-2xl;
-    background-color: rgb(var(--color-bg-card-inner));
-    border: 1px solid rgb(var(--color-border-card-chip) / 0.45);
-    box-shadow: 0 1px 2px rgb(0 0 0 / 0.04), 0 8px 24px rgb(0 0 0 / 0.06);
-  }
-  /* 1px low-contrast divider/border. */
-  .hairline {
-    border: 1px solid rgb(var(--color-border-card-chip) / 0.4);
-  }
   /* Shimmer skeleton for loading states. */
   .skeleton {
-    @apply rounded-lg;
+    @apply rounded-xl;
     background-image: linear-gradient(
       90deg,
       rgb(var(--color-bg-card-chip) / 0.35) 25%,
@@ -132,10 +118,6 @@
      Replaces the heavy card-in-card look: edge-to-edge sections with a small
      uppercase label, hairline dividers, and dense full-width rows. No nested
      borders/shadows eating horizontal space. */
-
-  /* Stacked page sections (vertical rhythm between flat blocks). */
-  .stack { @apply flex flex-col gap-5; }
-  .stack-tight { @apply flex flex-col gap-3; }
 
   /* Small uppercase section heading. */
   .section-label {
@@ -166,44 +148,13 @@
     min-height: 3.25rem;
   }
   /* Interactive row: subtle hover/press feedback. */
-  .row-tap { @apply rounded-lg transition-colors; }
+  .row-tap { @apply rounded-xl transition-colors; }
   @media (hover: hover) and (pointer: fine) {
     .row-tap:hover { background-color: rgb(var(--color-bg-card-chip) / 0.35); }
   }
   .row-tap:active { background-color: rgb(var(--color-bg-card-chip) / 0.5); }
 
-  /* Cards and Panels
-   * Surface canon:
-   *   card-outer       — top-level page card (rounded-2xl, p-3, outer shadow/border)
-   *   card-inner-flat  — nested section inside a card (use <CardSection> primitive)
-   *   panel-subtle     — de-emphasised row or info block, no border in dark mode
-   *   card-chip        — small inline chip (tight px/py, border)
-   *   surface          — shell-level container (sidebar, modal bg)
-   */
-  .card-outer {
-    @apply rounded-2xl p-3;
-    background-color: rgb(var(--color-bg-card-outer));
-    border: 1px solid rgb(var(--color-border-card-outer) / 0.55);
-    box-shadow: 0 1px 2px rgb(0 0 0 / 0.18), 0 8px 20px rgb(0 0 0 / 0.14);
-  }
-  .card-inner {
-    @apply rounded-xl p-3;
-    background-color: rgb(var(--color-bg-card-inner));
-    border: 1px solid rgb(var(--color-border-card-inner) / 0.45);
-  }
-  .card-chip {
-    @apply rounded-lg px-3 py-1.5;
-    background-color: rgb(var(--color-bg-card-chip));
-    border: 1px solid rgb(var(--color-border-card-chip));
-    color: rgb(var(--color-text-chip));
-  }
-
-  /* Modals and Sheets */
-  .modal-shell {
-    @apply rounded-2xl p-4 shadow-xl;
-    background-color: rgb(var(--color-bg-card-outer));
-    border: 1px solid rgb(var(--color-border-card-outer));
-  }
+  /* Modal scrim (the dialog itself is a `card`). */
   .overlay-scrim {
     @apply absolute inset-0 bg-black/60;
   }
@@ -364,43 +315,6 @@
 
   /* Misc */
   .text-muted { color: rgb(var(--color-text-muted)); }
-  .text-subtle { color: rgb(var(--color-text-muted) / 0.8); }
-
-  .panel {
-    @apply rounded-xl;
-    background-color: rgb(var(--color-bg-card-chip));
-    border: 1px solid rgb(var(--color-border-card-chip) / 0.55);
-  }
-  .panel-subtle {
-    @apply rounded-xl;
-    background-color: rgb(var(--color-bg-card-chip) / 0.65);
-    border: 0;
-  }
-  /* Inner-surface panels: use when you want to avoid the extra "chip" layer. */
-  .panel-inner {
-    @apply rounded-xl;
-    background-color: rgb(var(--color-bg-card-inner));
-    border: 0;
-  }
-  .card-inner-flat {
-    @apply rounded-xl p-3;
-    background-color: rgb(var(--color-bg-card-inner));
-    border: 0;
-  }
-
-  /* Light theme: subtle surfaces need an outline + full chip background for clear separation. */
-  [data-theme="light"] .panel-subtle {
-    background-color: rgb(var(--color-bg-card-chip));
-    border: 1px solid rgb(var(--color-border-card-chip) / 0.35);
-  }
-  [data-theme="light"] .panel-inner {
-    background-color: rgb(var(--color-bg-card-inner));
-    border: 1px solid rgb(var(--color-border-card-chip) / 0.30);
-  }
-  [data-theme="light"] .card-inner-flat {
-    background-color: rgb(var(--color-bg-card-inner));
-    border: 1px solid rgb(var(--color-border-card-chip) / 0.30);
-  }
 
   @keyframes comment-attn {
     0% {

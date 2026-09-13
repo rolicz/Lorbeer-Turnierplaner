@@ -51,12 +51,14 @@ token. `delta-up`/`delta-down` stay for numeric deltas (ratings, form).
 | `chip` | 3 | inline tag/pill/badge | `rounded-full px-2.5 py-1 text-xs`, `bg-card-chip`, hairline |
 | `divider` / `list-divided` | — | hairlines between rows | unchanged |
 
-Retired (delete after migration): `card-outer`, `card-inner`, `card-inner-flat`, `card-subtle`,
-`card-chip` (as a box), `panel`, `panel-subtle`, `panel-inner`, `surface`, `surface-2`,
-`hairline`, `hairline-b`, `eyebrow`, `stack`, `stack-tight`, `modal-shell`, `sheet-shell`,
-`nav-link*`, `main-nav-*`, `subnav-*`, `page-slide-*`, `symbol-margin-to-text`, `accent-text`,
-`text-subtle`, `page-x-bleed`, `pill-green`, `accent`. `Card`, `CardSection` and `Panel`-style
-primitives map onto `card`/`inset`. Modals use `card` on a scrim.
+Retired and **deleted** (DS1 + DS3, 2026-09-13): `card-outer`, `card-inner`, `card-inner-flat`,
+`card-subtle`, `card-chip` (as a box), `panel`, `panel-subtle`, `panel-inner`, `surface`,
+`surface-2`, `hairline`, `hairline-b`, `eyebrow`, `stack`, `stack-tight`, `modal-shell`,
+`sheet-shell`, `nav-link*`, `main-nav-*`, `subnav-*`, `page-slide-*`, `symbol-margin-to-text`,
+`accent-text`, `text-subtle`, `page-x-bleed`, `pill-green`, `accent`. `Card`, `CardSection` and
+`CollapsibleCard` take `variant="card" | "inset" | "none"`; `Modal` is always a `card` on a
+scrim. `card` and `inset` bring their own `p-3` — write `inset p-0` (or `card p-0`) where the
+box's children already carry the padding (avatars, collapsible headers, tight rows).
 
 ## 4. Radius, spacing, elevation
 
@@ -91,7 +93,7 @@ Never both for the same block. No uppercase labels inside cards.
 
 | Need | Use | Notes |
 |---|---|---|
-| Actions | `Button` (`solid`/`ghost`, `sm`/`md`, `iconOnly`) | never raw `btn-base`/`icon-button` classes |
+| Actions | `Button` (`solid`/`ghost`, `sm`/`md`, `iconOnly`) | never raw `btn-base`/`icon-button` classes; in light themes a ghost button carries a hairline resting edge, because `bg-card-chip` is white there |
 | Status tag | `Pill` (+ `statusMatchPill`/`statusPill`) | rounded-full, `chip` surface + status tokens |
 | Single/multi choice | `Chip` / `ChipGroup` (`ui/primitives/Chip.tsx`) | rounded-full; selected = `bg-accent/15 text-accent ring-accent/40`; replaces `ToggleChip` |
 | 2–3 view modes | `SegmentedSwitch` | `rounded-xl` track, `h-8` `rounded-lg` segments (§4 exception), sliding indicator in `Chip`'s selected style, lucide icon nodes |

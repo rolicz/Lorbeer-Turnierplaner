@@ -108,7 +108,7 @@ all read-only checks; editor/admin flows can be checked by code + tests.
 | 25 | S8 | H2H matrix: W-D-L default, obviously clickable | frontend |
 | 26 | S9 | Filter pill must not be overlookable | frontend |
 | 27 | N3 | Swipe back/forward always makes sense ☑ | frontend |
-| 28 | DS3 | Surface & radius migration, retire old classes | frontend |
+| 28 | DS3 | Surface & radius migration, retire old classes ☑ | frontend |
 | 29 | DS4 | Typography & section headers on the scale | frontend |
 | 30 | DS8 | Stats sub-pages made of the same stone (+ drop redundant mode pill) | frontend |
 | 31 | S10 | Match comments & club selection reworked | frontend |
@@ -1687,7 +1687,7 @@ live/comments, profile/players/clubs/tools, dependency + docs)
 
 ---
 
-## DS3 — Surface & radius migration  ☐
+## DS3 — Surface & radius migration  ☑
 
 Mechanical, page by page (one commit per page group): `card-outer`→`card`; `card-inner`,
 `card-inner-flat`, `CardSection`, `panel*`, `card-subtle`, `surface` (as a box)→`inset`;
@@ -1698,7 +1698,111 @@ positions tiles)→per §4; nested card-in-card flattened to `card` + `inset` or
 
 **DoD:** `git grep -nE "card-outer|card-inner|card-inner-flat|card-subtle|panel-subtle|panel-inner|\bpanel\b|surface-2|\bsurface\b" frontend/src` → 0 (except the class definitions being deleted in the same commit); all pages screenshotted at 390px in blue + light with no visual regressions beyond the intended flattening; `npm run check` + build.
 
-**Deviations:**
+**Deviations:** (implemented 2026-09-13, five commits: shell + primitives, dashboard/tournaments/
+live, stats, profile/players/clubs/tools/settings, CSS deletions + canon)
+
+- **DoD grep.** Run verbatim it returns 114 lines, all of them prose, identifiers or token
+  classes — `MatchOverviewPanel`'s `surface` prop (DS2), `CommentList`'s `surface` parameter,
+  `StatsFilterPill`'s `panel` local, `bg-bg-card-inner` / `border-border-card-outer` token
+  classes, vitest `it("…surface…")` titles and the `styles.css` comment that records the
+  deletion. A token-exact scan (every quoted string in all 252 tracked frontend files, split
+  into class tokens, matched against the 24 retired names) returns **0 class usages**, and
+  `git grep -nE '^\s*\.(card-outer|card-inner|…)' frontend/src/styles.css` returns nothing:
+  the definitions are gone. `styles.css` 499 → **429 lines**; `dist/assets/index-*.css`
+  94.6 → **92.3 kB**.
+- **Class map used throughout:** `card-outer`→`card` (identical geometry, pure rename) ·
+  `card-inner`, `card-inner-flat`, `panel`, `panel-subtle`, `panel-inner`, `surface`-as-a-box,
+  `card-chip`-as-a-box → `inset` · `card-chip`-as-a-tag → `chip` · `modal-shell` → `card p-4` ·
+  `hairline` → `border border-border-card-chip/40` · `stack`/`stack-tight` →
+  `flex flex-col gap-5`/`gap-3` · `text-subtle` → `text-text-muted/80`.
+  `card`/`inset` carry their own `p-3`, which the old `panel*`/`surface` classes did not, so
+  every site that brought its own padding keeps it (`inset px-3 py-2` — utilities beat the
+  component layer) and every site that wanted none gets **`inset p-0`** (`AvatarCircle`, the
+  `SelectClubsPanel` wrapper, the image croppers). `DESIGN.md` §3 now records that idiom.
+- **Primitive APIs renamed to the canon** (the old values *were* the retired vocabulary):
+  `Card` / `CollapsibleCard` take `variant="card" | "inset" | "none"` and `bodyVariant="inset"`,
+  matching `MatchOverviewPanel`'s DS2 `surface` prop. `Modal`'s `variant="card" | "panel"` is
+  **deleted** — §3 says a modal is a `card` on a scrim — which changes the two image croppers
+  (avatar, comment image) from the `panel` surface to `card`. The forced one-line call-site
+  updates (`LoginPage`, `StandingsTable`, `TournamentCommentsCard`, both friendlies cards,
+  `PlayerAvatarEditor`) ride in the primitives commit, like DS7's spill; those files are
+  otherwise finished in their own group commit.
+- **`btn-ghost` on the light theme (the DS6 hand-off).** `--color-bg-card-chip` *is* white in
+  `light.css`, so `bg-card-chip/0.35` was literally invisible on a white `card` — Settings'
+  "My profile"/"Logout", the stats "Show all", every icon button on a card. Fixed once in
+  `styles.css`: in `[data-theme="light"]` a ghost button gets the full chip fill **plus a
+  hairline**, drawn as `box-shadow: inset 0 0 0 1px …` rather than a border so the button keeps
+  its exact box in every theme (a border would have grown every ghost button by 2px, or made
+  ghost and solid different sizes). Because that is the same CSS property as Tailwind's focus
+  ring, `[data-theme="light"] .btn-ghost:focus-visible` restates both. Hover moves to
+  `--color-hover-default` (the theme's "subtle darken"). Dark themes are untouched. This is the
+  single largest visible change in DS3 and it is an improvement everywhere: Cancel/Edit/Delete/
+  Send test/dice/refresh/vote buttons all have a resting edge now.
+- **Comments feed flattened** (`CommentList`): it used four surface families three levels deep
+  (`card-inner-flat` block → `panel-subtle`/`panel` comment → `panel-inner` reply). It is now
+  page → `card` (a match block or the General block) → `inset` (every comment, replies
+  included); thread depth is carried by the indent and the left rule that were already there.
+  The same decision is applied to the profile guestbook: a root entry is a `card`, a reply the
+  `inset` indented under it (it used `panel-subtle`/`panel-inner` at every depth).
+- **The match-block header's score lost its box.** `CommentList` rendered the block header score
+  inside a `card-chip` — a fifth score rendering that DS2 never saw. Since `card-chip` is
+  retired, the choice was `inset` (a box around numbers, which §10 forbids) or no box; it is now
+  unboxed. It still renders `4 : 0` with a literal colon instead of `ScoreLine`; converting it is
+  a §8 job, not a surface job, so it is **left for DS8** and noted here.
+- **`rounded-lg`/`rounded-sm` are gone from the rendered DOM** except `SegmentedSwitch`'s
+  segments and indicator (§4's documented exception): a Playwright sweep of 38 routes ×
+  blue/light × 390/1280 px (152 page loads) finds **116 such elements, all inside a
+  SegmentedSwitch, 0 anywhere else**. Stretched-link focus overlays, row hovers, icon buttons,
+  image previews, Settings' theme/"View as" buttons and `InlineBack` are `rounded-xl`.
+- **Positions grid:** the task allows `rounded-md` for the micro tiles, but the grid actually
+  used four values (`rounded` tiles, `rounded-sm` legend swatches, `rounded-lg` legend example
+  tiles). All four are now `rounded-md`, so the legend shows exactly the shape it explains.
+  The `MatchupView` Last-5 result chips go `rounded-md` → `rounded-full`, matching `ScoreLine`'s
+  result badge (DS5 already gave them its colours).
+- **`TrendsExplorer`'s series legend** (the DS6 hand-off): a legend key is not a selection chip,
+  so it does not get the accent wash. Drawn series wear the `chip` surface (§3 level 3); a
+  hidden series keeps the same pill but hollowed out — `bg-transparent`, `border-dashed`,
+  muted, struck through. Both states were invisible on the light theme before.
+- **One extra, related change:** `PlayerProfile`'s "Compare with" overlay pills were an inline
+  copy of the same hand-rolled pill (`bg-bg-card-chip/70` vs `/30`, i.e. white-on-white in
+  light) sitting three lines from a real `ChipGroup`. They are genuine `aria-pressed`
+  multi-select toggles, so they now render `chipClass` from `ui/primitives/Chip`. Visible
+  effect: they grow from 26px/`text-xs` to 34px/`text-sm`, like every other stats chip since
+  DS6. Not named in DS3's bullets — flagged here as a judgement call.
+- **Not done here** (out of DS3's scope, listed so the next task can pick them up): the
+  `text-[Npx]` sizes and `section-label`'s 11px are DS4's; `PlayerProfile`/`ProfileStatsSection`/
+  `MatchupView`/`RecordsView` still hand-roll their own stat tile instead of the `StatTile`
+  primitive (DS4 owns that) — DS3 only moved those tiles onto the `inset` surface; `rounded-t`
+  on the positions sticky header is not in §4's vocabulary and was left alone.
+- **Honest note on what looks flatter.** In the light theme `.inset` is white + a hairline while
+  `surface`/`panel-inner`/`card-inner-flat` were a light grey fill. So stat tiles, records
+  groups, rival cards and the H2H rivalry rows changed from "grey box on a white card" to
+  "white box with a hairline on a white card" — correct per §3, but one notch less separation
+  where a tile sits *inside* a card (stats Player "Key numbers", profile Stats, matchup
+  summary). On the grey page backdrop the same boxes read stronger than before. In the dark
+  themes the difference is imperceptible (chip/0.5 vs card-inner). Second: the comments and
+  guestbook threads lost the fill difference between a comment and its replies; the indent and
+  the left rule are now the only depth cue. Both are deliberate per §1/§3 and are the only
+  regressions I can find.
+- **Tests:** `matchupView.test.tsx` selected tiles by `.surface`, `matchHistoryList.test.tsx` and
+  `matchOverviewPanel.test.tsx` asserted "no `.card-chip` box". They now select `.inset` and
+  assert that the `ScoreLine` itself carries no `.chip`/`.inset` — the same intent against the
+  canon's names. 349 frontend tests green (no new tests: DS3 adds no behaviour).
+- **Runtime verification** (isolated stack: backend :8003 on a copy of `app.db` with match 109
+  set to `playing` so the live pages show a real match, vite :8020 for this branch and :8021 for
+  a detached `76964ec` worktree that produced the "before" shots; editor/admin UI via a stubbed
+  `/me` as DS2/DS7 did, with the token-only read endpoints answered empty):
+  **38 routes × blue/light × 390 px, plus a full 1280 px pass and the 152-load audit** —
+  0 console/page errors, 0 horizontal overflow, 0 nested `<a>`, **0 elements carrying any of the
+  20 deleted classes**, on every route in both themes at both widths. Before/after pairs were
+  taken for every route (`before-*-390.png` / `after-*-390.png` in the session scratchpad) plus
+  interaction shots for the trends legend toggled off, the clubs inline edit form, the match
+  "Edit result" tab, the friendlies editor and the Settings appearance/notifications tabs.
+- `npm run check` green before every commit (349 tests); `npm run build` green with the
+  pre-existing "chunks larger than 500 kB" hint (640 kB `index-*.js`).
+- `DESIGN.md` updated so the canon stays truthful: §3's "retired (delete after migration)" list
+  now says retired **and deleted**, records the renamed `variant` props and the `inset p-0`
+  idiom, and §7's Button row records the light-theme ghost hairline.
 
 ---
 
