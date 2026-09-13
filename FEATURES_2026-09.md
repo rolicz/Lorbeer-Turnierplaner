@@ -4286,3 +4286,91 @@ Playwright with touch emulation at 390px plus a desktop check; `npm run check` +
 - `AGENTS.md` §10 updated (rule 7): the stats-URL bullet now says the matchup is the one pushed
   param and names `resolveDrillInBackAction`, and the N2 scroll bullet says the matchup rides on
   its history entry instead of `useReturnScroll`.
+
+---
+
+# Round 5 — Roli, 2026-09-13 (planned, not started)
+
+## T12 — The Overview earns its place on a finished tournament  ☐
+
+Roli: "when a tournament is done and i click on it, it does not make much sense to have the
+current match (=last match) in the overview. make the overview page also show done matches at the
+bottom (figure out how to handle this nicely with a live tournament as well)."
+
+`pages/live/OverviewSection.tsx` always leads with `pickPreviewMatch(matches)`, which on a finished
+tournament is simply the last match played — presented as if it were happening now.
+
+- **Done tournament:** drop the "current match" block. Lead with the outcome instead — the winner
+  (the standings' top row, with the decider taken into account like `services/cup.py` does) and the
+  compact standings, then every match played, newest first, at the bottom.
+- **Live tournament:** keep the current match and the next-matches block exactly as they are, and
+  add the same played-matches block underneath. Both states then share one layout, the top of which
+  differs.
+- Use the shared row primitives (`ScoreLine sm`, `MatchHistoryList`'s row where it fits) so these
+  rows look like every other match row, and make them open the match page (`tournamentMatchHref`).
+  Long tournaments should not dump 30 rows: show the last few with a "Show all" like the rest of
+  the app, or link to the Matches tab — your call, defend it.
+- Check the neighbours: the Matches tab still owns the full ordered list, and the dashboard's live
+  card is unaffected.
+
+**DoD:** a done tournament's Overview shows winner → standings → played matches and no "current
+match"; a live one shows current → standings → next → played; rows open the match page;
+screenshots 390px + 1280px, blue + light, of both states; `npm run check` + build.
+
+**Deviations:**
+
+---
+
+## T13 — A "what if" tab: the best case, shown as the matches that produce it  ☐
+
+Roli: "for standings, best-case positions: can you remove that from the current standings and add
+another tab right of comments that has the best-positions simulation/computation and also shows how
+the matches for others have to play out (ie every match, if its done, or what the best case result
+for one person would be and then let me modify that as well) -> also check if the best-case really
+does compute the best case in every case."
+
+**Move.** Delete the "Best-case positions" block from `pages/live/StandingsTable.tsx` (the
+`PlayerPicker` + projection, `showBestCase`). Add a new tab **right of Comments** and left of
+Controls in `pages/live/LiveTournamentPage.tsx` (`LiveTab`, `TAB_KEYS`, the `tabs` array and the
+body switch). It exists only while the tournament has unplayed matches. Name it for what it does —
+"What if" is the planner's suggestion, settle it against `DESIGN.md`.
+
+**The tab.** A player picker at the top (same `PlayerPicker` as today), then two halves that stay
+in sync:
+- **The matches**, in playing order: a finished match shows its real result as a fact and cannot be
+  edited; every remaining match shows the outcome the computation chose (focus win, rival result or
+  draw) as an editable control — three states, home / draw / away — defaulting to the best case and
+  marked as "assumed". Changing one recomputes the table immediately. A "Reset to best case"
+  action returns every match to the computed assignment.
+- **The projected table**, with each player's projected points, the focus player's position, and a
+  clear line saying what it takes ("if X wins their 3 remaining matches and these results hold,
+  they finish #2").
+
+**Correctness — the part Roli explicitly doubts.** `pages/live/bestCase.ts` today:
+brute-forces `3^k` rival-vs-rival outcomes with `CAP = 13`, and **above the cap it draws every
+rival game**, which is merely a valid scenario, not the best one; it ranks by points only, using
+*finished-only* goal difference as the tie-break, so the focus player's own assumed wins never
+affect their GD; and it treats a `playing` match as unplayed, so a side losing 0:5 right now is
+still assumed to win. Fix, in this order:
+1. **Write down the semantics** at the top of the file: best case = the focus player (and, in 2v2,
+   whoever is on their side in a given match) wins every remaining match they play; every other
+   remaining match resolves to whatever minimises the number of players finishing above them;
+   ties are resolved in the focus player's favour. State how a `playing` match is treated — the
+   honest choice is to keep its current goals as the floor for the side that is already ahead, or
+   to say plainly that it is treated as unplayed.
+2. **Make it exact, with no cap.** This is the classic "can team X still finish first" problem;
+   a branch-and-bound over rival matches (order by the rivals closest to the focus player's
+   projected points, prune a branch as soon as more players are already above them than the best
+   found) is exact and fast at this size, and a draw-only fallback stops being needed.
+3. **Prove it**: a test that brute-forces every outcome for randomised small fixtures (≤ 8 rival
+   matches) and asserts the algorithm's position equals the true optimum, plus the existing cases
+   in `test/bestCase.test.ts`. Keep the 2v2 partner cases — points go to both players on a side.
+4. Tie-breaks: use the projected goal difference (finished + assumed) if GD is used at all, or
+   state that only points decide and ties favour the focus player.
+
+**DoD:** Standings has no best-case block; the new tab sits right of Comments and disappears once
+every match is played; editing a match's outcome updates the table and the position line; "reset to
+best case" restores the computed scenario; the brute-force test passes; screenshots 390px + 1280px,
+blue + light; `npm run check` + build.
+
+**Deviations:**
