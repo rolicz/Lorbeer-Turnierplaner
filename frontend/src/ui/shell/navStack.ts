@@ -70,10 +70,64 @@ export function previousEntryPath(): string | null {
   return read()[String(idx - 1)] ?? null;
 }
 
+/* ── Scroll offsets per history entry ───────────────────────────────────────
+ *
+ * Same idea, second key: the vertical offset each history entry was left at, so
+ * a POP can put the user back exactly where they were instead of at the top.
+ * The pathname is stored next to the offset because an index is reused — a push
+ * after a back creates a *different* page at the same index, and its predecessor's
+ * offset must not leak onto it.
+ */
+const SCROLL_KEY = "lk:nav-scroll";
+
+type ScrollEntry = { p: string; y: number };
+type ScrollStack = Record<string, ScrollEntry>;
+
+function readScroll(): ScrollStack {
+  try {
+    const raw = sessionStorage.getItem(SCROLL_KEY);
+    if (!raw) return {};
+    const parsed: unknown = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
+    const out: ScrollStack = {};
+    for (const [k, v] of Object.entries(parsed as Record<string, unknown>)) {
+      const e = v as { p?: unknown; y?: unknown } | null;
+      if (e && typeof e.p === "string" && typeof e.y === "number" && Number.isFinite(e.y)) out[k] = { p: e.p, y: e.y };
+    }
+    return out;
+  } catch {
+    return {};
+  }
+}
+
+/** Remember the offset `pathname` was left at, at history index `idx`. */
+export function saveScroll(idx: number, y: number, pathname: string): void {
+  if (!Number.isFinite(idx) || idx < 0 || !Number.isFinite(y)) return;
+  const stack = readScroll();
+  stack[String(idx)] = { p: pathname, y: Math.max(0, Math.round(y)) };
+  for (const key of Object.keys(stack)) {
+    const n = Number(key);
+    if (!Number.isFinite(n) || n < idx - MAX_ENTRIES || n > idx + MAX_ENTRIES) delete stack[key];
+  }
+  try {
+    sessionStorage.setItem(SCROLL_KEY, JSON.stringify(stack));
+  } catch {
+    // ignore storage failures
+  }
+}
+
+/** The offset saved for `idx`, but only if that entry still is `pathname`. */
+export function scrollFor(idx: number, pathname: string): number | null {
+  const entry = readScroll()[String(idx)];
+  if (!entry || entry.p !== pathname) return null;
+  return entry.y;
+}
+
 /** Test seam. */
 export function resetNavStack(): void {
   try {
     sessionStorage.removeItem(KEY);
+    sessionStorage.removeItem(SCROLL_KEY);
   } catch {
     // ignore
   }

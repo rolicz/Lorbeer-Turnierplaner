@@ -20,6 +20,7 @@ import RouteErrorBoundary from "./RouteErrorBoundary";
 import { useSwipeNav } from "./useSwipeNav";
 import { useLocationRestore } from "./useLocationRestore";
 import { useRememberLocation } from "./useRememberLocation";
+import { useScrollRestoration } from "./useScrollRestoration";
 
 const COLLAPSE_KEY = "sidebar-collapsed";
 
@@ -37,6 +38,8 @@ function ShellInner({ children }: { children: React.ReactNode }) {
   useLocationRestore();
   // Per-destination page memory: tapping a nav destination returns to its last page.
   useRememberLocation();
+  // Back lands where you left off: every history entry keeps its own scroll offset.
+  useScrollRestoration();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [collapsed, setCollapsed] = useState<boolean>(() => localStorage.getItem(COLLAPSE_KEY) === "1");
 
