@@ -19,7 +19,7 @@ export default function NotFoundPage() {
 
   return (
     <PageLayout title="Not found">
-      <section className="card-outer flex flex-col items-center gap-3 py-10 text-center">
+      <section className="card flex flex-col items-center gap-3 py-10 text-center">
         <Compass className="h-8 w-8 text-text-muted opacity-60" aria-hidden="true" />
         <p className="text-sm text-text-muted">
           This page does not exist — the link may be outdated or mistyped.

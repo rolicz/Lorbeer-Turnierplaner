@@ -195,7 +195,7 @@ function FriendlyEditor({
             onChangeAClub={setAClub}
             onChangeBClub={setBClub}
             defaultOpen={false}
-            wrapClassName="card-inner"
+            wrapClassName="inset p-0"
             narrowLayout
             extraTop={
               <Input label="Game" value={clubGame} onChange={(e) => setClubGame(e.target.value)} />

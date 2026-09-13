@@ -33,7 +33,7 @@ const SETTINGS_TAB_KEYS = ["account", "appearance", "notifications"] as const sa
 /** Card wrapper for a settings group. */
 function SettingsSection({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section className="card-outer">
+    <section className="card">
       <h2 className="mb-3 text-sm font-semibold text-text-normal">{title}</h2>
       {children}
     </section>
@@ -162,7 +162,7 @@ export default function SettingsPage() {
                 type="button"
                 onClick={() => setActorPlayer(null, null)}
                 className={
-                  "rounded-lg px-2.5 py-2 text-left text-sm transition " +
+                  "rounded-xl px-2.5 py-2 text-left text-sm transition " +
                   (!actorDifferent ? "bg-bg-card-chip/50 text-text-normal" : "hover:bg-hover-default/40 text-text-muted")
                 }
               >
@@ -176,7 +176,7 @@ export default function SettingsPage() {
                     type="button"
                     onClick={() => setActorPlayer(p.id, p.display_name)}
                     className={
-                      "rounded-lg px-2.5 py-2 text-left text-sm transition " +
+                      "rounded-xl px-2.5 py-2 text-left text-sm transition " +
                       (active ? "bg-bg-card-chip/50 text-text-normal" : "hover:bg-hover-default/40 text-text-muted")
                     }
                   >
@@ -211,7 +211,7 @@ export default function SettingsPage() {
                   onClick={() => setTheme(opt)}
                   title={opt}
                   className={
-                    "flex items-center justify-between gap-2 rounded-lg px-2.5 py-2 capitalize transition hairline " +
+                    "flex items-center justify-between gap-2 rounded-xl border border-border-card-chip/40 px-2.5 py-2 capitalize transition " +
                     (active ? "bg-bg-card-chip/55" : "hover:bg-hover-default/40")
                   }
                 >

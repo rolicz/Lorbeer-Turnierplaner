@@ -36,12 +36,12 @@ function RivalCard({ icon, label, row, playerId }: {
       ) : null}
     </>
   );
-  if (!row || !playerId) return <div className="card-chip px-3 py-2">{body}</div>;
+  if (!row || !playerId) return <div className="inset px-3 py-2">{body}</div>;
   return (
     <Link
       to={`/stats?view=h2h&player=${playerId}&vs=${row.opponent.id}`}
       title={`All matches against ${row.opponent.display_name}`}
-      className="card-chip block px-3 py-2 transition hover:bg-bg-card-chip/40 active:bg-bg-card-chip/50 focus-ring"
+      className="inset block px-3 py-2 transition hover:bg-bg-card-chip/40 active:bg-bg-card-chip/50 focus-ring"
     >
       {body}
     </Link>
@@ -139,13 +139,13 @@ export default function ProfileOverviewTab({
               );
               // Like the rival cards: the summary opens every match behind it — here the
               // 2v2 matchup in its "Together" relation.
-              if (!targetPlayerId) return <div key={tm.id} className="card-chip px-3 py-2">{body}</div>;
+              if (!targetPlayerId) return <div key={tm.id} className="inset px-3 py-2">{body}</div>;
               return (
                 <Link
                   key={tm.id}
                   to={`/stats?view=h2h&mode=2v2&source=both&player=${targetPlayerId}&vs=${tm.id}&rel=together`}
                   title={`All 2v2 matches together with ${tm.name}`}
-                  className="card-chip block px-3 py-2 transition hover:bg-bg-card-chip/40 active:bg-bg-card-chip/50 focus-ring"
+                  className="inset block px-3 py-2 transition hover:bg-bg-card-chip/40 active:bg-bg-card-chip/50 focus-ring"
                 >
                   {body}
                 </Link>

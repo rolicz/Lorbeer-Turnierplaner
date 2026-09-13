@@ -86,7 +86,9 @@ export default function GuestbookEntryCard({
   const editOpen = ctx.editOpenEntryId === entry.id;
   const editDraft = ctx.editDraftByEntryId[entry.id] ?? entry.body;
   const isCollapsed = ctx.collapsedEntryIds.has(entry.id);
-  const surfaceClass = depth === 0 ? "panel-subtle" : "panel-inner";
+  // A root entry is a level-1 `card` on the page; a reply is the level-2 `inset`
+  // under it, indented by depth (DESIGN.md §3).
+  const surfaceClass = depth === 0 ? "card" : "inset";
   const indentPx = Math.min(depth, 8) * 14;
 
   return (
@@ -274,7 +276,7 @@ export default function GuestbookEntryCard({
 
         {replyOpen && ctx.canPostGuestbook ? (
           <div
-            className="mt-2 panel-inner p-2 space-y-2"
+            className="mt-2 inset p-2 space-y-2"
             onClick={(e) => {
               e.stopPropagation();
             }}

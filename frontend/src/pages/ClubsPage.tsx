@@ -516,7 +516,7 @@ export default function ClubsPage() {
                           </div>
 
                           {isEditing ? (
-                            <div className="panel-inner mt-2 p-2">
+                            <div className="inset mt-2 p-2">
                               <div className="grid gap-2 md:grid-cols-3">
                                 {isAdmin ? (
                                   <Input

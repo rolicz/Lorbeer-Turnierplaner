@@ -9,7 +9,7 @@ import PlayerStreakChips from "../stats/PlayerStreakChips";
 
 function ProfileStatTile({ label, value }: { label: string; value: string }) {
   return (
-    <div className="surface rounded-xl px-2 py-2.5 text-center">
+    <div className="inset px-2 py-2.5 text-center">
       <div className="text-base font-bold tabular-nums text-text-normal">{value}</div>
       <div className="mt-0.5 text-[10px] leading-tight text-text-muted">{label}</div>
     </div>

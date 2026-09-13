@@ -86,7 +86,7 @@ export default function GuestbookSection({
       <ErrorToastOnError error={errors.vote} title="Could not vote guestbook message" />
 
       {canPost ? (
-        <div className="panel-subtle p-3 space-y-2">
+        <div className="card space-y-2">
           <Textarea
             label="Leave a message"
             value={draft}
@@ -101,12 +101,12 @@ export default function GuestbookSection({
           </div>
         </div>
       ) : (
-        <div className="panel-subtle p-3 text-sm text-text-muted">Login as a player to post guestbook messages.</div>
+        <div className="card text-sm text-text-muted">Login as a player to post guestbook messages.</div>
       )}
 
       {loading ? <LoadingPlaceholder /> : null}
       {!loading && isEmpty ? (
-        <EmptyState title="No messages yet." className="panel-subtle p-3" />
+        <EmptyState title="No messages yet." className="card" />
       ) : null}
 
       <GuestbookCardProvider value={cardContext}>

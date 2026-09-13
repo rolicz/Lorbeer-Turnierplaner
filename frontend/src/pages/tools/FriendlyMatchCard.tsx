@@ -499,9 +499,7 @@ export default function FriendlyMatchCard({
           onChangeAClub={setAClub}
           onChangeBClub={setBClub}
           defaultOpen={true}
-          // In Tools, this sits inside a `card-inner` already, so `panel-inner` would blend in.
-          // Use the subtle chip surface for a clear, consistent separation like in live views.
-          wrapClassName="panel-subtle"
+          wrapClassName="inset p-0"
         />
     </div>
   );
