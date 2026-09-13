@@ -1,4 +1,6 @@
 import { describe, it, expect } from "vitest";
+import { QueryClient } from "@tanstack/react-query";
+
 import { qk } from "../api/queryKeys";
 
 describe("queryKeys factory", () => {
@@ -37,5 +39,25 @@ describe("queryKeys factory", () => {
   it("clubs key is optional-game", () => {
     expect(qk.clubs()).toEqual(["clubs"]);
     expect(qk.clubs("fc25")).toEqual(["clubs", "fc25"]);
+  });
+
+  // A3: prefix matching runs one way only. Invalidating the *filtered* key would
+  // leave Stats, profiles and the friendlies list on their stale club names.
+  it("invalidating qk.clubs() reaches the filtered and the unfiltered query", async () => {
+    const qc = new QueryClient();
+    qc.setQueryData(qk.clubs(), [{ id: 1 }]);
+    qc.setQueryData(qk.clubs("EA FC 26"), [{ id: 1 }]);
+
+    await qc.invalidateQueries({ queryKey: qk.clubs() });
+    expect(qc.getQueryState(qk.clubs())?.isInvalidated).toBe(true);
+    expect(qc.getQueryState(qk.clubs("EA FC 26"))?.isInvalidated).toBe(true);
+
+    // the other direction does not hold — which is exactly what A3 fixed
+    const qc2 = new QueryClient();
+    qc2.setQueryData(qk.clubs(), [{ id: 1 }]);
+    qc2.setQueryData(qk.clubs("EA FC 26"), [{ id: 1 }]);
+    await qc2.invalidateQueries({ queryKey: qk.clubs("EA FC 26") });
+    expect(qc2.getQueryState(qk.clubs())?.isInvalidated).toBe(false);
+    expect(qc2.getQueryState(qk.clubs("EA FC 26"))?.isInvalidated).toBe(true);
   });
 });

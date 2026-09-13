@@ -185,7 +185,10 @@ export default function ClubsPage() {
     },
     onSuccess: async () => {
       setName("");
-      await qc.invalidateQueries({ queryKey: qk.clubs(game) });
+      // `qk.clubs()` = ["clubs"] is the PREFIX: it matches this page's
+      // ["clubs", game] query and the unfiltered one Stats, profiles and the
+      // friendlies list use. `qk.clubs(game)` matches only this page's (A3).
+      await qc.invalidateQueries({ queryKey: qk.clubs() });
     },
   });
 
@@ -218,7 +221,7 @@ export default function ClubsPage() {
     },
     onSuccess: async () => {
       setEditId(null);
-      await qc.invalidateQueries({ queryKey: qk.clubs(game) });
+      await qc.invalidateQueries({ queryKey: qk.clubs() });
     },
   });
 
@@ -228,7 +231,7 @@ export default function ClubsPage() {
       return deleteClub(token, clubId);
     },
     onSuccess: async () => {
-      await qc.invalidateQueries({ queryKey: qk.clubs(game) });
+      await qc.invalidateQueries({ queryKey: qk.clubs() });
     },
   });
 
@@ -419,7 +422,7 @@ export default function ClubsPage() {
       <section className="space-y-2">
         <div className="flex items-center justify-between gap-2 text-xs text-text-muted">
           <span>{filteredClubs.length} of {clubs.length} clubs</span>
-          <Button variant="ghost" onClick={() => void qc.invalidateQueries({ queryKey: qk.clubs(game) })} title="Refresh">
+          <Button variant="ghost" onClick={() => void qc.invalidateQueries({ queryKey: qk.clubs() })} title="Refresh">
             <RotateCw size={14} className="md:hidden" aria-hidden="true" />
             <span className="hidden md:inline">Refresh</span>
           </Button>

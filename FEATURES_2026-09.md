@@ -5209,7 +5209,7 @@ wrote `aClub`/`bClub` only, goals and state untouched). Zero console errors in e
 
 ---
 
-## A3 — A club edit never reaches stats, profiles or friendlies  ☐
+## A3 — A club edit never reaches stats, profiles or friendlies  ☑
 
 `frontend/src/pages/ClubsPage.tsx:188,221,231,422` invalidate `qk.clubs(game)` = `["clubs", game]`.
 TanStack prefix matching is one-directional, so the **unfiltered** `["clubs"]` key is never
@@ -5223,7 +5223,66 @@ trap — report what you find, `qk` was swept once in A1 of the June refactor an
 **DoD:** rename a club / change its stars on the Clubs page → the new value is visible on Stats,
 a profile and the friendlies list without a reload; `npm run check`.
 
-**Deviations:**
+**Deviations:** (implemented 2026-09-13 on `feature/2026-09-audit`)
+
+All four invalidations in `ClubsPage.tsx` (create `:188`, patch `:221`, delete `:231` and the
+manual **Refresh** button `:422`) now pass `qk.clubs()`; the page's own *query* keeps
+`qk.clubs(game)` — the prefix has to be on the invalidation side, never on the query side. One
+comment at the first site says why, so the trap does not grow back. `src/test/queryKeys.test.ts`
+gained a regression test that asserts **both** directions against a real `QueryClient`:
+`qk.clubs()` invalidates `["clubs"]` *and* `["clubs", game]`, while `qk.clubs(game)` leaves
+`["clubs"]` untouched.
+
+**Runtime proof** (isolated stack, DB copy, admin session, **one SPA session** — the only page
+load is the first one; every later hop is a nav click). Club 7 `Paris Saint-Germain F.C.` →
+`Paris A3 Renamed FC`, renamed on `/clubs`:
+
+| Surface (after the rename, no reload) | before A3 | after A3 |
+|---|---|---|
+| `/friendlies` → *Details* | old name still shown | new name, old name gone |
+| `/stats` → *Player* → *Details* (match history) | old name still shown | new name, old name gone |
+
+Zero console errors. Every consumer listed in the finding shares the **same** cache entry
+(`["clubs"]`), so the two surfaces above prove the invalidation for `H2HView`, `MatchupView`,
+`PlayerProfile`, `StarsView` and `ProfilePage` as well.
+
+**Where the DoD could not be checked as written:** `/profiles/:id` renders **no** club name or
+rating today — both of its `MatchHistoryList`s hardcode `showMeta={false}`
+(`profile/MatchHistorySection.tsx:31`, `profile/ProfileOverviewTab.tsx:189`), so its
+`qk.clubs()` query (`ProfilePage.tsx:75`) feeds a prop nothing displays. The invalidation now
+reaches it; there is simply nothing on that page to look at. Reported, not changed.
+
+**Sweep of every key factory that takes an optional argument** (the one-way-prefix trap):
+
+| Key | Query sites | Invalidated with | Verdict |
+|---|---|---|---|
+| `clubs(game?)` | `["clubs", game]` (Clubs page, live page, match page, friendly cards) **and** `["clubs"]` (stats, matchup, profile, stars, friendlies list) | was `clubs(game)` → now `clubs()` | **the bug — fixed** |
+| `friendlies(mode?)` | `friendlies(mode)` (`FriendlyMatchesListCard:235`) | `friendlies()` (`FriendlyMatchCard:295`, `FriendlyMatchesListCard:130,278`) | right way round |
+| `stats.players / h2h / streaks / ratings / playerMatches / playerTiles / starsPerformance` | always the full form | only ever `stats.all()` = `["stats"]` | safe; the zero-arg forms of these factories are used **nowhere** outside `queryKeys.test.ts` |
+| `push.subscriptions(token)` | full key | `push.subscriptionsAll()` (prefix) *and* `push.subscriptions(token)` (exact) | both correct |
+
+Correct prefix/full pairs elsewhere, checked and left alone: `commentsTournament(tid)` ⊂
+`commentsTournamentFull(tid, token)`, `playerPokesReadPrefix(pid)` ⊂ `playerPokesReadIds(pid,
+token)`, `notificationsAll()` ⊂ `notifications(token)`, `cupAll()` ⊂ `cup(key)`/`cupDefs()`,
+`tournaments()` ⊂ `tournamentsLive()`.
+
+**Noticed, reported, not fixed:**
+- `qk.players()` = `["players"]` is a prefix of **every** player key — profiles, avatars,
+  headers, guestbook, pokes and all their read-maps. `PlayersAdminPage:74,94` invalidates it
+  after a create/rename, so all of those refetch too. A superset, not a bug, but worth knowing
+  before anyone puts an expensive query under `["players"]`.
+- `qk.tournament(id)` (singular) is deliberately **not** under `qk.tournaments()`, which is why
+  the coarse `/ws/tournaments` channel cannot refresh an open detail page (see A2, A5).
+- The `?? "none"` keys (`playerProfile`, `playerGuestbook`, `playerPokes`, `stats.*` on the
+  profile) use the identical expression on both the query and the invalidation side, so they
+  match; with a null id both sides address a placeholder key no query ever holds — a no-op.
+- `qk.leagues()` is invalidated nowhere. Nothing in the UI creates a league (the Clubs page only
+  picks from the existing list), so nothing goes stale today.
+- There is no crest-upload UI (`PUT /clubs/{id}/crest` is API-only), so no invalidation is
+  missing for crests.
+- Club **names and star ratings are resolved client-side from the clubs list** on every surface
+  (the stats endpoints return `club_id` only), so `["clubs"]` really is the single cache entry a
+  club edit has to reach — no `stats.all()` invalidation is needed on top.
 
 ---
 
