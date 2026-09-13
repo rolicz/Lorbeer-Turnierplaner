@@ -4,6 +4,7 @@ import type { Club, Match, TournamentMode } from "../../api/types";
 import { sideBy } from "../../helpers";
 import { pickPreviewMatch, teamName } from "../../utils/matchDisplay";
 import MatchOverviewPanel from "../../ui/primitives/MatchOverviewPanel";
+import TournamentMetaPills from "./TournamentMetaPills";
 import ScoreLine from "../../ui/primitives/ScoreLine";
 import { computeFinishedStandings, type PlayerLite } from "./tournamentStandings";
 
@@ -15,6 +16,7 @@ import { computeFinishedStandings, type PlayerLite } from "./tournamentStandings
  */
 export default function OverviewSection({
   mode,
+  date,
   matches,
   players,
   clubs,
@@ -23,6 +25,7 @@ export default function OverviewSection({
   onGoToMatches,
 }: {
   mode?: TournamentMode | null;
+  date?: string | null;
   matches: Match[];
   players: PlayerLite[];
   clubs: Club[];
@@ -50,6 +53,10 @@ export default function OverviewSection({
 
   return (
     <div className="flex flex-col gap-3">
+      {/* The tournament's own meta (T10). On desktop it sits next to the page
+          title, so this copy is the phone's — the page header is gone there. */}
+      <TournamentMetaPills mode={mode} date={date} className="lg:hidden" />
+
       <div>
         <div className="section-head">
           <span className="section-label">Current match</span>

@@ -4,10 +4,10 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { MailOpen, MessageSquare, Gamepad2, LayoutGrid, ListChecks, SlidersHorizontal, Trophy } from "lucide-react";
 
 import Button from "../../ui/primitives/Button";
-import { Pill, pillDate } from "../../ui/primitives/Pill";
 import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
 import PageLoadingScreen from "../../ui/primitives/PageLoadingScreen";
 import { SectionTabs, type SectionTab } from "../../ui/SectionTabs";
+import PageLayout from "../../ui/layout/PageLayout";
 
 import {
   getTournament,
@@ -37,9 +37,9 @@ import StandingsTable from "./StandingsTable";
 import { computeFinishedStandings, computeTopDraw } from "./tournamentStandings";
 import CurrentGameSection from "./CurrentGameSection";
 import TournamentCommentsCard from "./TournamentCommentsCard";
+import TournamentMetaPills from "./TournamentMetaPills";
 import { shuffle, sideBy } from "../../helpers";
 
-import { fmtDate } from "../../utils/format";
 import { listTournamentComments, markAllTournamentCommentsRead } from "../../api/comments.api";
 import { qk } from "../../api/queryKeys";
 import { useRouteEntryLoading } from "../../ui/layout/useRouteEntryLoading";
@@ -505,58 +505,40 @@ export default function LiveTournamentPage() {
     );
   }
 
+  const markAllReadAction =
+    unreadCommentsCount > 0 ? (
+      <Button
+        variant="ghost"
+        type="button"
+        title="Mark all unread comments as read"
+        onClick={() => {
+          if (!token || !tid || unreadCommentIds.length === 0 || markAllReadMut.isPending) return;
+          const ok = window.confirm(`Mark ${unreadCommentIds.length} unread comment(s) as read?`);
+          if (!ok) return;
+          markAllReadMut.mutate();
+        }}
+        disabled={!token || markAllReadMut.isPending}
+      >
+        <MailOpen size={15} />
+      </Button>
+    ) : null;
+
   return (
-    <div className="page">
-      {/* Header */}
-      <div className="mb-3">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0 flex-1">
-            <div className="mb-1 hidden items-center gap-2 lg:flex">
-              <InlineBack />
-              <h1 className="truncate text-xl font-bold tracking-tight text-text-normal sm:text-2xl">
-                {cardTitle}
-              </h1>
-            </div>
-            {tQ.data ? (
-              <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-                <Pill>{tQ.data.mode}</Pill>
-                <Pill className={pillDate()} title="Date">
-                  {fmtDate(tQ.data.date)}
-                </Pill>
-              </div>
-            ) : null}
-          </div>
+    <PageLayout
+      title={cardTitle}
+      back={<InlineBack />}
+      meta={<TournamentMetaPills mode={tQ.data?.mode} date={tQ.data?.date} />}
+    >
+      <ErrorToastOnError error={tQ.error} title="Tournament loading failed" />
 
-          <div className="inline-flex shrink-0 items-center gap-2">
-            {unreadCommentsCount > 0 ? (
-              <Button
-                variant="ghost"
-                type="button"
-                title="Mark all unread comments as read"
-                onClick={() => {
-                  if (!token || !tid || unreadCommentIds.length === 0 || markAllReadMut.isPending) return;
-                  const ok = window.confirm(`Mark ${unreadCommentIds.length} unread comment(s) as read?`);
-                  if (!ok) return;
-                  markAllReadMut.mutate();
-                }}
-                disabled={!token || markAllReadMut.isPending}
-              >
-                <MailOpen size={15} />
-              </Button>
-            ) : null}
-          </div>
-        </div>
-
-        <ErrorToastOnError error={tQ.error} title="Tournament loading failed" />
-      </div>
-
-      <SectionTabs tabs={tabs} active={effectiveTab} onChange={setActiveTab} className="mb-4" />
+      <SectionTabs tabs={tabs} active={effectiveTab} onChange={setActiveTab} />
 
       {tQ.data ? (
         <>
           {effectiveTab === "overview" ? (
             <OverviewSection
               mode={tQ.data.mode}
+              date={tQ.data.date}
               matches={matchesSorted}
               players={tQ.data.players ?? []}
               clubs={clubs}
@@ -662,6 +644,7 @@ export default function LiveTournamentPage() {
               canWrite={isEditorOrAdmin}
               canDelete={isAdmin}
               focusCommentRequest={focusCommentRequest}
+              headerAction={markAllReadAction}
             />
           ) : null}
 
@@ -743,7 +726,6 @@ export default function LiveTournamentPage() {
           ) : null}
         </>
       ) : null}
-
-    </div>
+    </PageLayout>
   );
 }

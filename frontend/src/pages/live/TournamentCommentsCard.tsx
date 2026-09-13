@@ -1,5 +1,5 @@
 import { CornerDownRight, MessagesSquare } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { sideBy } from "../../helpers";
 
@@ -51,6 +51,7 @@ export default function TournamentCommentsCard({
   onlyMatchId = null,
   showMatchHeader = true,
   title = "Comments",
+  headerAction = null,
 }: {
   tournamentId: number;
   matches: Match[];
@@ -65,6 +66,12 @@ export default function TournamentCommentsCard({
   showMatchHeader?: boolean;
   /** Heading of the feed's card — the section is never collapsible (DESIGN.md §9b). */
   title?: string;
+  /**
+   * Optional control in the header row, for an action that acts on this feed —
+   * the tournament's "mark all unread as read" lives here since T10 took the
+   * page header away.
+   */
+  headerAction?: ReactNode;
 }) {
   const { token, role, actorPlayerId: currentPlayerId, actorPlayerName: currentPlayerName } = useAuth();
   const canAttachImage = role === "admin" || role === "editor";
@@ -859,15 +866,18 @@ export default function TournamentCommentsCard({
           <span className="truncate">{title}</span>
           <span className="shrink-0 text-xs font-normal tabular-nums text-text-muted">{headerCount}</span>
         </h2>
-        {showCollapseAll ? (
-          <button
-            type="button"
-            onClick={() => setCollapsedBlocks(allBlocksCollapsed ? new Set() : new Set(blockKeys))}
-            className="focus-ring shrink-0 rounded-full px-1 text-xs text-text-muted transition hover:text-text-normal"
-          >
-            {allBlocksCollapsed ? "Expand all" : "Collapse all"}
-          </button>
-        ) : null}
+        <span className="inline-flex shrink-0 items-center gap-2">
+          {showCollapseAll ? (
+            <button
+              type="button"
+              onClick={() => setCollapsedBlocks(allBlocksCollapsed ? new Set() : new Set(blockKeys))}
+              className="focus-ring shrink-0 rounded-full px-1 text-xs text-text-muted transition hover:text-text-normal"
+            >
+              {allBlocksCollapsed ? "Expand all" : "Collapse all"}
+            </button>
+          ) : null}
+          {headerAction}
+        </span>
       </div>
 
       <ErrorToastOnError error={commentsQ.error} title="Comments loading failed" />
