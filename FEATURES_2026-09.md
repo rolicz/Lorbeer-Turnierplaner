@@ -5484,3 +5484,80 @@ themes.
    `restoreWindowScroll(0)` on the PUSH, so the `comment-attn` flash plays off-screen.
 
 **Deviations:**
+
+---
+
+## A10 — Editors can finish what they started: a one-hour grace window  ☐
+
+Roli, after A1 made the decider admin-only in practice: "make sure an editor can also set a decider
+-> admin does not always participate in tournament. editors should be able to edit/set live
+tournaments and delete accidentally created ones for a limited time (eg 1h). also friendlies!"
+
+**Decisions (settled with Roli — do not relitigate):** window **1 hour**, the same constant comments
+already use. **Only the creator** (and any admin) may delete. Deleting is allowed **even when
+results exist**, and therefore **every delete asks for confirmation — for admins too**.
+
+**Why the decider needed this.** A decider only resolves a tie at the *top*, which is only known
+once every match is finished, and `LiveTournamentPage.tsx:258` only renders the editor on a done
+tournament. So "editors may set it while not done" (the old docstring, and A1a's fix) was nearly
+meaningless in practice. The window has to start **when the tournament finishes**, not when it is
+created.
+
+### What has to change
+
+1. **Record who created a tournament and a friendly.** Neither row has a creator today. Add two
+   link tables — `TournamentCreatorLink(tournament_id PK, creator_player_id)` and
+   `FriendlyCreatorLink(friendly_match_id PK, creator_player_id)` — written in the create handlers.
+   New tables, no `ALTER`, matching this project's schema rule and the `CommentAuthorLink`
+   precedent (`models.py`). **Rows created before this ship have no creator and stay admin-only**;
+   say so in the UI wording rather than showing a button that 403s.
+2. **One policy module, one window.** Put the rules in `backend/app/services/authorization.py`
+   next to `ensure_not_done_or_admin`, sharing the comments' 1h constant (find it, do not redefine
+   it):
+   - *edit / set decider*: admin always; editor while the tournament is **not done**, or within 1h
+     of it finishing (finish time = the latest `Match.finished_at` of its matches; fall back to
+     `updated_at` when a tournament is marked done with no finished match).
+   - *delete*: admin always; editor only if they are the recorded creator **and** within 1h of
+     `created_at`.
+   - friendlies: admin always; editor only if recorded creator and within 1h of `created_at` — for
+     **both** `PATCH /friendlies/{id}` and `DELETE /friendlies/{id}` (both are admin-only today,
+     `routers/friendlies.py:182,200`).
+3. **Return what the caller may do; stop re-deriving it in the client.** The frontend currently
+   spells out its own copy of the rule (`AdminPanel.tsx` `canEditDecider`/`canReorder`,
+   `LiveTournamentPage` `canEditMatch`, `FriendlyMatchesListCard` `canEdit`/`canDelete`) — that is
+   exactly how the docstring, the server and the UI drifted apart before A1. Add per-caller
+   capability flags to the payloads (`TournamentDetailOut`, `TournamentListItemOut`, `FriendlyOut`):
+   `can_edit`, `can_delete`, `can_set_decider`. Computed server-side, so the window is measured
+   against server time and no client clock can disagree. `make gen-types` and commit `schema.d.ts`.
+   Render every one of those controls from the flags.
+4. **Confirmation on every delete, including admin's** (Roli's explicit ask, because a delete may
+   now take real results with it). Use the app's `Modal`, not `window.confirm` — the tournament
+   delete at `AdminPanel.tsx:255-259` and the friendly delete both use the native dialog today,
+   which §7 does not bless. The dialog must name what is lost: the tournament's name, its match
+   count, and the cups it would move. For a friendly, its two sides and date.
+5. **Wording.** Where a control is hidden because the window closed, say why in the same muted
+   idiom the app already uses ("Tournament is done — only an admin can set the decider." exists
+   from A1). An editor past the hour should read something true, e.g. "Only an admin can delete a
+   tournament after the first hour."
+
+### Care
+
+- **Deleting a tournament moves cups** (ownership is a fold over finished tournaments). The
+  confirmation must say so when the tournament is a cup stake, and the cup queries must be
+  invalidated after the delete (`qk.cup*`, `qk.stats.all()`), the way the admin delete already does.
+- A tournament with **no matches at all** has no finish time — the delete window uses `created_at`,
+  which is the accidental-creation case this is for.
+- Push notifications already fire on delete; nothing to change, but check an editor-triggered
+  delete produces the same notification an admin's does.
+- The **second-leg** endpoint (`routers/tournaments.py:602`) can still revive a done tournament to
+  "live", which is a documented back door around the done rule. Out of scope here — but once the
+  grace window exists, that endpoint should use it too. Note it in Deviations rather than fixing it.
+
+**DoD:** a matrix test per endpoint (reader / editor-not-creator / editor-creator-in-window /
+editor-creator-past-window / admin) for tournament edit, decider, delete, friendly patch and
+friendly delete; flags present and correct in the three payloads; every delete confirms through a
+`Modal` naming what is lost; the decider editor renders for an editor within the hour on a done
+tournament; `make test`, `make lint`, `make gen-types` (schema committed), `npm run check`, build;
+screenshots of the confirmation dialog and of the decider editor as an editor, 390px + 1280px.
+
+**Deviations:**
