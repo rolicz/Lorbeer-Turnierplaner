@@ -4768,7 +4768,7 @@ box, exactly like `.row-tap`'s hover wash everywhere else in the app.
 
 ---
 
-## T15 — Done tournaments open on the Overview; ringed avatars; standings gets its own "show all"  ☐
+## T15 — Done tournaments open on the Overview; ringed avatars; standings gets its own "show all"  ☑
 
 Three items from Roli after seeing T12, 2026-09-13.
 
@@ -4839,3 +4839,180 @@ side by side, both themes); the standings block has its own link that switches t
 screenshots 390px + 1280px, blue + light; `npm run check` + build.
 
 **Deviations:**
+
+Implemented 2026-09-13 on `feature/2026-09-round5`, five commits — one per part, plus Roli's
+mid-task correction to B as its own commit: `253c9e6` (A), `9028dca` (B), `269451e` (D),
+`cd0fe96` (C), `b52643e` (B, corrected). No backend change, no new dependency, no generated types.
+
+Files: `pages/live/LiveTournamentPage.tsx`, `pages/live/OverviewSection.tsx`,
+`ui/primitives/AvatarCircle.tsx`, `hooks/useCupHolders.ts` (new), `pages/stats/MatchHistoryList.tsx`,
+plus the ring's call sites (`pages/PlayersAdminPage.tsx`, `pages/profile/ProfileHeader.tsx`,
+`pages/stats/{StatsTable,RecordsView,StreaksView,PlayerProfile,CupDetail,cupParts}.tsx`,
+`pages/stats/h2h/MatchupView.tsx`) and the four that were stripped again by the correction
+(`pages/live/{StandingsTable,WhatIfSection,OverviewSection}.tsx`, `pages/stats/PositionsView.tsx`).
+Tests: `test/avatarRing.test.tsx` (6, new), `test/cupStakeLine.test.tsx` (3, new),
+`test/overviewSection.test.tsx` (6 → 8). Docs: `DESIGN.md` §7 identity row, `AGENTS.md` §2 + §9.
+
+**A — every tournament opens on the Overview.** One line
+(`chosenTab ?? (status === "done" ? "standings" : "overview")` → `chosenTab ?? "overview"`). The
+neighbours were checked rather than assumed: the tournaments list rows, the dashboard's live card,
+the sidebar/drawer "Live now" links, `NewTournamentForm` and U6's `lastLocation` all navigate to
+`/live/{id}` with **no** `?tab=`, so they simply land on the Overview now; every caller that does
+set one still wins, verified in the browser — `?tab=matches` opens Matches, the match page's back
+chevron returns to the tab it came from, and the `?comment=` / `?unread=1` effects still force the
+Comments tab. A remembered `/live/19?tab=standings` from before this change also still opens
+Results, because U6 stores `pathname + search`.
+
+**B — one ring, and (after Roli's correction) one tense per screen**
+
+`AvatarCircle` is now the only avatar in the app and always wears a ring, drawn **inside** its own
+box as padding + a background behind an inner disc:
+
+- **neutral**, 1px, `rgb(var(--color-border-card-chip) / 0.55)` — decoration;
+- **cup**, 2.5px, the cup's colour, or an evenly split `conic-gradient` when a player holds both.
+
+*Judgement 1 — the hairline's treatment.* It had to read as deliberate in a dark theme *and* on the
+light theme's white surfaces, without a second look in either. Three things make it one:
+(a) it is the **same token the app already draws hairlines with** (`--color-border-card-chip`, at
+the same 0.55 alpha `.chip` uses), so it is the same grey as every chip edge and pill border on the
+screen rather than a new colour; (b) it is on **every** avatar, so a bare disc no longer exists to
+compare it against — an edge that is universal reads as the shape of the component, while an edge on
+half the avatars reads as a state; (c) it is drawn as an inset track rather than an outline, so the
+photo sits *inside* the ring and the two form one object. In light (`t15b2-players-390-light.png`)
+the hairline is plainly visible against the white row; in blue (`t15b-standings-390-blue.png`) it is
+quiet but present at the disc's edge. Note it also replaces something: in the light theme the avatar
+already carried `.inset`'s 1px `border-card-inner`, which no dark theme had — the ring is the first
+time the disc has the same edge in every theme.
+
+*Judgement 2 — a cup ring next to it at 390px.* Two signals, not one: **2.5× the width** and a
+saturated hue against a muted grey. The smallest avatar that can wear one is 24px (`h-6`, Records
+and Streaks) and at that size a 2.5px ring still leaves a 19px photo and reads as a coloured
+annulus, not a thick border — see `t15b-streaks-390-blue.png`, where Rumpi (green) and Berni (gold)
+sit three rows apart from three hairlined players. A proportional ring (`padding: 6%`) was rejected
+for exactly this: at 24px it would have been 1.4px against the hairline's 1px, which is the case the
+DoD warns about. One fixed width also keeps the rule sayable in a sentence.
+
+*Judgement 3 — where the tooltip lives.* On a `title` + `aria-hidden` overlay span, not on the
+avatar. A `title` on the avatar itself is pulled into the accessible name of the `PlayerLink` most
+avatars sit inside, so `getByRole("link", { name: "Roli" })` would have become
+"Holds Bauernkranz" — pinned by a test.
+
+*Judgement 4 — a shared hook, not per-page plumbing.* `hooks/useCupHolders` answers "who holds each
+cup right now" from the `qk.cupDefs` / `qk.cup` entries the dashboard, the Cups page and the Players
+page already fetch, so adopting it costs no request and never blocks a render — an avatar simply
+gains its ring when the answer arrives. The Players page's own `cupRingBackground` (the 2.5px
+wrapper that was the prototype for all this) is deleted, along with its local `useQueries` fold.
+
+**Roli's correction, mid-task: the ring has no place inside a tournament.** After seeing it —
+*"ok no i dont like that the ring is shown when i look at results of older tournaments"* — the
+present-tense rule kept its scope. A cup-coloured ring is now passed **only** on surfaces about now
+(Players, profiles, the stats leaderboards, the dashboard cups preview); inside a tournament
+(standings/results, What-if, match lists, the Overview's blocks) every avatar carries the hairline
+alone, and cup information there has the single carrier Roli asked to leave untouched: the standings
+crown badge. The rings were removed from those files, not hidden behind a flag — they pass no `cups`
+and no longer call the hook. **The Positions grid went with them** (it was never on the task's list;
+adding it was my own call, withdrawn): its body is a matrix of finished tournaments, which is the
+same complaint. The comparison shot the correction asked for is
+`t15b2-standings-{390,1280}-{blue,light}.png`: Rumpi holds the Bauernkranz today and wears the same
+hairline as Flo and Atzi, while Roli — who went into *that* tournament holding it — wears the crown.
+
+*The call-site audit (16 avatars, and what each says)*
+
+| Surface | File | Ring |
+|---|---|---|
+| Players page rows | `pages/PlayersAdminPage.tsx` | **cup** (its own wrapper replaced by the shared prop) |
+| Profile header | `pages/profile/ProfileHeader.tsx` | **cup**, from the `ownedCups` prop it already had |
+| Stats → Table | `pages/stats/StatsTable.tsx` | **cup** (also the dashboard's standings preview, same component) |
+| Stats → Records | `pages/stats/RecordsView.tsx` | **cup** |
+| Stats → Streaks | `pages/stats/StreaksView.tsx` | **cup** |
+| Stats → Cups: holder line | `pages/stats/cupParts.tsx` `CupHolder` | **cup** (also the dashboard cups preview, same component) |
+| Stats → Cups: reigns + per-player table | `pages/stats/CupDetail.tsx` | **cup** — a *past* holder therefore shows a hairline, which is the rule working |
+| Stats → H2H matchup header | `pages/stats/h2h/MatchupView.tsx` | **cup** |
+| Stats → Player hero | `pages/stats/PlayerProfile.tsx` | **cup** |
+| Live/done standings rows | `pages/live/StandingsTable.tsx` | **hairline** (correction) — the crown badge is untouched |
+| What-if projected table | `pages/live/WhatIfSection.tsx` | **hairline** (correction) |
+| Overview winner block | `pages/live/OverviewSection.tsx` | **hairline** (correction) |
+| Stats → Positions column heads | `pages/stats/PositionsView.tsx` | **hairline** (correction) |
+| Tournament comment authors | `pages/live/TournamentCommentParts.tsx` | **hairline**, by decision |
+| Guestbook entries | `pages/profile/GuestbookEntryCard.tsx` | **hairline**, by decision |
+| Pickers (`PlayerPicker`, `DuoPicker`, friendly + new-tournament forms) | `ui/primitives/AvatarButton.tsx` | **hairline**, by decision; the selection `ring-2 accent` still sits outside it |
+
+Stats → H2H itself (`H2HView`, `HeadToHeadRows`) has **no avatars at all** — its rows are names and
+records — so "H2H" in the task's list is the matchup header, which is done.
+
+**The separable "defending" line: built, and made truthful.** A match-history tournament block now
+says under its pills what the laurel on its date pill means:
+`Lorbeerkranz at stake · Berni defending`. It sits well: the pill row stays one line (a stake
+*pill* was tried first and pushed 5 of 12 blocks to a second pill line at 390px — `t15b-stake-*`
+versus `t15b-stake2-*`), the line costs 19px on the blocks that have a stake, and unlike a crown
+pill it cannot be misread as "Berni won this one".
+
+One correctness catch worth recording: `cup_stakes` does **not** always name a defender. For the
+single tournament that created each cup there was no holder, and `services/cup.py` fills the entry
+with the *winner* instead (dev data: t2 "1. Lorbeerkranzturnier" → Atzi, t7 "Wundleckturnier" →
+Berni). "Atzi defending" there is simply false, and no backend change was allowed, so
+`useCupFirstClaims` reads the cup's own lineage — `history[…].from.id === 0` marks the first claim —
+and those two blocks read `Bauernkranz at stake · nobody held it yet` instead. Verified in the
+browser on Atzi's player history, where both first claims and eight real defences appear in one
+list. The lineage query sits one component deeper than the line itself, so a list with no cup at
+stake (every friendly, most tournaments) asks the server nothing and still needs no `QueryClient`
+around it — which is why the five surfaces that render `MatchHistoryList`, and its existing tests,
+were untouched.
+
+**C + D — two blocks, one shape**
+
+The played block lists **every** match in `order_index` order (T12's "last five, newest first" is
+overridden, and the `#N` markers now count up, reading exactly like the Matches tab). The standings
+block already listed every player. So neither link reveals anything and both were labelled for what
+they do instead, naming the tab they land on so the word on the button is the word on the tab:
+
+| Block | Live tournament | Done tournament |
+|---|---|---|
+| Standings | `Open Standings →` | `Open Results →` |
+| Played matches | `Open Matches →` | `Open Matches →` |
+
+The standings link also **replaces** the block-wide tap target that used to sit there, which was not
+only redundant next to a labelled link but a real accessibility bug: a `<button
+aria-label="Open results">` wrapped around the table means the label *replaces* its contents in the
+accessibility tree, so the whole standings read as two words to a screen reader. The block is now
+plain content with one labelled action beside its section label, and the rows are byte-for-byte the
+ones T14 measured (columns still at x = 28 / 52 / 274 / 302 / 338 at 390px, identical in every row,
+re-asserted after the change).
+
+**Not done, deliberately.** The live-only **Next matches** block keeps its block-wide button and the
+same `aria-label` swallowing — it is T12's block, T15 names only the two, and unlike them it *does*
+truncate (3 of N), so relabelling it "Open Matches" without an in-place expander would be a
+different decision than the one taken here. Flagged for Roli rather than fixed in this task.
+
+**Verification**
+
+- `cd frontend && npm run check` → typecheck + eslint clean, **48 files / 463 tests passed**
+  (~39 s; 46/452 before). `npm run build` green, same pre-existing 500 kB chunk hint. No backend
+  change, so no `make test` / `make gen-types`.
+- Isolated stack: backend `:8003` on a copy of the dev DB (`backend/data/verify.db`), vite `:8020`.
+  Dev data holders: Berni = Lorbeerkranz (gold), Rumpi = Bauernkranz (green), which is what puts a
+  holder and a non-holder side by side in t19's standings.
+- Playwright at **390×844 and 1280×900 in blue and light** (4 combos, 0 console/page errors, no
+  horizontal overflow anywhere, `a a` = 0):
+  - **A**: `/live/{19,17,18}` (done), `/live/21` (live), `/live/20` (draft) all land on Overview;
+    `/live/19?tab=matches` still opens Matches.
+  - **D**: t19 lists 6 rows `#1…#6`, t17 nine `#1…#9`, t21 two — every finished match, ascending,
+    each href the match page.
+  - **C**: section heads are exactly `Winner · Final standings [Open Results] · Played matches
+    [Open Matches]` when done and `Current match · Standings [Open Standings] · Next matches ·
+    Played matches [Open Matches]` when live; clicking them lands on `?tab=standings` /
+    `?tab=matches` with the right tab selected.
+  - **B**: a 17-surface sweep counting `[data-avatar-ring]` per page — the nine "now" surfaces all
+    show cup rings (e.g. Streaks 8 of 20, Cups 9 of 19, dashboard 4 of 8) and the eight tournament /
+    past / no-marking surfaces show **0 cup rings out of 44 avatars** (standings 4, 2v2 standings 6,
+    What-if 10, Positions 6, comments 15, guestbook entries 1, Overview 1, plus the pickers). Comment
+    authors were checked on t11 and t9 *specifically because* Berni and Rumpi wrote comments there.
+    Every avatar's box measures exactly its call site's `sizeClass` (36×36 for `h-9` with and without
+    a ring), so nothing moved.
+- Screenshots (scratchpad `shots/`): `t15-final-t{19,17,21,20}-{390,1280}-{blue,light}.png` (the
+  finished tabs), `t15b2-standings-{390,1280}-{blue,light}.png` (holder + non-holder + crown, the
+  corrected treatment), `t15b2-players-{390,1280}-{blue,light}.png` (cup rings where they belong),
+  `t15b-{standings,streaks,records,cups,statstable,positions,player,matchup,dashboard,players,profile,
+  guestbook,whatif,overview,comments}-{390,1280}-{blue,light}.png` (the call-site sweep),
+  `t15b-commentauthors-t{11,9}-*`, `t15b-picker-*`, and `t15b-stake{,2,3}-*` (the two "defending"
+  renderings that were compared, and the final one).
