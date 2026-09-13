@@ -1492,7 +1492,7 @@ position ramp + plan)
 
 ---
 
-## DS7 — Lucide only: migrate the 35 Font Awesome files, drop the dependency  ☐
+## DS7 — Lucide only: migrate the 35 Font Awesome files, drop the dependency  ☑
 
 - Replace every `<i class="fa-…">` with the lucide equivalent (size 14/16/18 per context):
   `fa-crown`→`Crown`, `fa-trophy`→`Trophy`, `fa-star*`→`Stars` primitive (DS1),
@@ -1516,7 +1516,86 @@ position ramp + plan)
 `npm run check` + build; 390px screenshots of tournaments list (crowns), live comments (action
 icons), players page, profile header, clubs page (editor UI verified by reading code).
 
-**Deviations:**
+**Deviations:** (implemented 2026-09-13, five commits: primitives + shared ui, stats pages,
+live/comments, profile/players/clubs/tools, dependency + docs)
+
+- **Scope was 41 files, not 35.** The 35 the task's grep finds, plus six that referenced Font
+  Awesome only indirectly: `AvatarButton.tsx` / `AvatarCircle.tsx` (`fallbackIconClass`) and
+  `pages/dashboard/TrendsPreviewCard.tsx` (`SegmentedSwitch` icon strings), and the three
+  `StarsFA` callers that never write `fa-` themselves (`ui/primitives/MatchSides.tsx`,
+  `ui/ClubCombobox.tsx`, `pages/stats/StarsView.tsx`). 40 files migrated, `StarsFA.tsx` deleted.
+  `git grep -n "fa-" frontend/src` → **0 hits**.
+- **`StatsAvatarSelector` does not exist** (gone before this batch). The `fallbackIconClass`
+  prop lived on `AvatarButton` *and* on `AvatarCircle` (which is what actually rendered it);
+  both are now `fallbackIcon?: ReactNode`. Single call site: `FriendlyMatchCard`'s "None"
+  avatar (`fa-ban` → `Ban`).
+- **Icons chosen that are not in the task's mapping table:** `fa-eraser`→`Eraser`,
+  `fa-rotate-right`→`RotateCw` (same as `fa-arrow-rotate-right`), `fa-rotate-left`→`RotateCcw`,
+  `fa-paper-plane`→`Send`, `fa-reply`→`Reply`, `fa-thumbtack`→`Pin`, `fa-thumbtack-slash`→
+  `PinOff`, `fa-floppy-disk`→`Save`, `fa-spinner fa-spin`→`Loader2 animate-spin` (like
+  `fa-circle-notch`), `fa-circle-check`→`CircleCheck`, `fa-circle-exclamation`→`CircleAlert`,
+  `fa-arrow-up`/`fa-arrow-down`→`ArrowUp`/`ArrowDown`, `fa-arrow-right-arrow-left`→
+  `ArrowRightLeft`, `fa-play`→`Play`, `fa-shuffle`→`Shuffle`, `fa-shield-halved`→`ShieldHalf`,
+  `fa-user-pen`→`UserPen`, `fa-trash-can`→`Trash2`, `fa-envelope-open`→`MailOpen`,
+  `fa-hand-fist`→`HandFist`, `fa-bolt`→`Zap`, `fa-arrow-trend-up`→`TrendingUp`, `fa-ban`→`Ban`.
+  Three that have no faithful lucide counterpart: **`fa-flag-checkered`→`Flag`** (the "Finish
+  match" button — lucide has no chequered flag), **`fa-compress`→`Shrink`** (the Compact/Details
+  switch; `Shrink`'s inward arrows are FA's compress glyph) and **`fa-fire`→`Flame`**, which
+  makes `fa-fire` and `fa-fire-flame-curved` the same icon (Records "Most goals by one side" and
+  the win-streak patch never appear together).
+- `Image` is imported as **`ImageIcon`**: `CommentImageCropper` and `PlayerAvatarEditor` both
+  call `new Image()`, which a plain `Image` import would shadow.
+- **Sizing rule applied** (lucide SVGs do not inherit `font-size`): 14 in `text-xs`/`text-sm`
+  context (buttons, list rows, tabs) · 16 where the context is `text-base` (modal close, the
+  goal steppers, the friendly-editor toolbar) · 12 inside 10–11px text runs and inside `Pill`
+  (profile header lines, unread pills, the winner trophy in the tournaments meta line, thread
+  chevrons) · 9/8 for the two micro crowns. `strokeWidth={2.25}` where a stroked icon looked
+  thin next to bold text: `CupOwnerBadge`, the tournaments cup-stake pill, `StreakPatches`, the
+  `+`/`−` steppers.
+- **The two micro crowns render filled** (`fill="currentColor"`): the positions grid (9px, was
+  `text-[8px]`) and `TournamentLaurelMarkers` (8px). An outline crown at that size is a smudge;
+  filled it reads like the FA glyph it replaces. `CupOwnerBadge` and the cup-stake pill (12–14px)
+  stay stroked.
+- Five `text-[Npx]` classes existed **only** to size an FA glyph and are gone with it
+  (`CupOwnerBadge` `text-[13px]`/`text-[11px]`, `TournamentLaurelMarkers` `text-[7px]`,
+  `PositionsView` `text-[8px]`, `StarsView`'s `className="text-[11px]"`, `StreakPatches`
+  `text-[10px]`/`text-[11px]`) — a small head start for DS4, no other type change.
+- `StarsFA.tsx` is deleted; its six call sites (`MatchSides`, `ClubCombobox`, `SelectClubsPanel`
+  ×2, `CommentList` ×2, `StarsView`) render `Stars`. Only `StarsView` needed an explicit
+  `size` (12, it used to shrink the glyphs with `text-[11px]`); everything else sits in
+  `text-xs`/`text-sm`, where the primitive's default 14 is right. The deprecated `textZinc`
+  prop died with the file (0 users).
+- Commit grouping follows the task, with one unavoidable spill: the `SegmentedSwitch`
+  `icon?: ReactNode` and `fallbackIcon?: ReactNode` type changes and the `StarsFA` deletion
+  force their call sites (in `ClubsPage`, `TrendsPreviewCard`, `MatchList`, both friendlies
+  cards, `StarsView`, `CommentList`) into the **primitives** commit; those files are finished in
+  their own group commit.
+- **Lockfile:** `npm uninstall` also pruned 12 unrelated optional entries (`lightningcss-*` for
+  every platform + `detect-libc`, none of them installed on this arm64 Pi). They were restored
+  by hand, so `frontend/package-lock.json` loses exactly the `@fortawesome/fontawesome-free`
+  block and its `dependencies` line. `npm ls @fortawesome/fontawesome-free` → `(empty)`.
+- **Bundle** (same tree, only the CSS import differs): `dist/assets/index-*.css`
+  **164,562 → 94,599 B** (−69,963 B, −42.5%; gzip 41.38 → 19.37 kB) and **8 webfont files gone**
+  (`fa-solid-900` woff2+ttf, `fa-regular-400` woff2+ttf, `fa-brands-400` woff2+ttf,
+  `fa-v4compatibility` woff2+ttf = **1,023,976 B**). `dist/` 6.4 → 5.4 MB. `index-*.js` is
+  unchanged at 632,443 B — both builds already contain the lucide migration, so this number does
+  not include the (small) JS the extra lucide imports add; they are tree-shaken single-path SVG
+  components.
+- `AGENTS.md`: §2 lists the new primitives and says every icon is lucide; §9 gains an
+  "**Icons: lucide-react only**" bullet; §10 gains the non-obvious bit (lucide ignores
+  `font-size`, so every icon needs an explicit `size` — with the house sizes). §10 had **no** FA
+  note to remove: F1 bundled the dependency but never wrote a gotcha for it.
+- Runtime verification (isolated stack: backend :8003 on a copy of `app.db`, vite :8020;
+  Playwright at 390px, blue + light, plus 1280px spot checks): tournaments list (+ a crown/
+  trophy crop), players, profile header, stats positions with the legend open (+ a crown crop),
+  live matches, live comments feed and the opened composer, clubs (incl. the editor's Clear/
+  Refresh with a filter active), friendlies list and the friendly **editor** — **0 console/page
+  errors, no horizontal overflow anywhere**. The editor-only UI was reached the DS2 way:
+  Playwright stubs `/me` as `editor` and answers the six token-only read endpoints
+  (`/me/notifications`, the comment/guestbook/poke read-maps) empty, so nothing but the browser
+  believes in the role and no write is ever issued.
+- `npm run check` green before every commit (286 tests, unchanged — no test asserts on icons);
+  `npm run build` green with the pre-existing "chunks larger than 500 kB" hint.
 
 ---
 

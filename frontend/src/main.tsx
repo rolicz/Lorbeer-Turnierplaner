@@ -5,8 +5,6 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AuthProvider } from "./auth/AuthContext";
 import App from "./app/App";
 import { registerNotificationServiceWorker } from "./push/push";
-// Bundled locally by Vite (CSS + webfonts) — no runtime CDN request for any icon.
-import "@fortawesome/fontawesome-free/css/all.min.css";
 // Bundled locally by Vite (CSS + SVGs) — no runtime CDN request for any flag.
 import "flag-icons/css/flag-icons.min.css";
 import "./styles.css";

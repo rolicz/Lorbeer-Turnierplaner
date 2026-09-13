@@ -64,9 +64,10 @@ Size (2026-09): backend ≈ 14.7k LOC Python, frontend ≈ 29k LOC TS/TSX (excl.
   Trends, H2H [players/duos + matchup], Player), profile, players admin, clubs,
   friendlies (`tools/`), settings, login.
 - `src/ui/` — `primitives/` (Button, Card, CardSection, Modal, Input, Pill, EmptyState,
-  LoadingPlaceholder, MatchOverviewPanel, …), `shell/` (AppShell, Sidebar desktop, MobileChrome,
-  navConfig, routeMeta/contextual back, NotificationBell), `ClubBadge`, `NationFlag`,
-  `ClubCombobox`, `SectionTabs`.
+  LoadingPlaceholder, MatchOverviewPanel, ScoreLine, MatchSides, StatTile, Chip, Stars, …),
+  `shell/` (AppShell, Sidebar desktop, MobileChrome, navConfig, routeMeta/contextual back,
+  NotificationBell), `ClubBadge`, `NationFlag`, `ClubCombobox`, `SectionTabs`. Every icon in
+  these (and everywhere else) is a lucide-react component — see §9.
 - `src/themes/*.css` — CSS-variable themes (blue default, dark, red, light, green) consumed by
   Tailwind via `rgb(var(--color-*))`. `src/styles.css` holds shared component classes.
 - `src/push/` — service-worker registration + subscription; `public/sw.js` handles push/click.
@@ -268,6 +269,10 @@ Other helpers: `seed --file backend/data/seed.json` (players/leagues/clubs upser
   classes), the radius/spacing/type scale, section headers and which primitive to use
   (`ScoreLine` for every score, `StatTile`, `Chip`/`ChipGroup`, `Button`, `Pill`, `List`).
   When the code and `DESIGN.md` disagree, the code is wrong.
+- **Icons: lucide-react only** (`DESIGN.md` §1.5). Font Awesome is gone (DS7, 2026-09-13) —
+  the dependency, the CSS import and every `<i class="fa-…">` with it. Import the component
+  (`import { Crown } from "lucide-react"`) and give it an explicit `size` in px; `aria-hidden`
+  unless the icon carries meaning on its own, then `aria-label`/`title`.
 - **Style:** match surrounding code; Tailwind + design tokens (no raw colors); compact-mobile
   idiom (`md:hidden` icon + `hidden md:inline` label, `text-xs`/`text-[11px]` for dense text);
   `qk` for every query key; generated types, no hand-written API mirrors; thin routers, logic in
@@ -288,6 +293,10 @@ Other helpers: `seed --file backend/data/seed.json` (players/leagues/clubs upser
 - Six clubs have no crest (free TheSportsDB key limits): Nottingham Forest, San Lorenzo,
   St. Louis CITY SC, Wisła Płock, Al Shabab, United Tigewrs SC → monogram fallback; admin can
   `PUT /clubs/{id}/crest` manually. Crest precedence in UI: crest → nation flag → monogram.
+- lucide icons are SVGs, not glyphs: they do **not** inherit the surrounding `font-size`, so an
+  icon without `size` renders at 24px. House sizes: 14 in `text-xs`/`text-sm` context, 16 at
+  `text-base`, 12 inside 10–11px runs and pills, plus `strokeWidth={2.25}` where a stroked icon
+  looks too thin next to bold text.
 - iOS PWA: push needs Home-Screen install; back navigation uses the router history index
   (`routeMeta.ts`), don't replace with `history.back()` blindly.
 - Frontend Docker build uses `npm install` (not `ci`) on purpose: the lockfile is generated on the
