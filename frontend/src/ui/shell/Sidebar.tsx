@@ -57,7 +57,7 @@ export default function Sidebar({
             {onLivePage ? (
               <motion.span
                 layoutId="sidebar-active"
-                className="absolute left-0 top-1/2 h-5 w-1 -translate-y-1/2 rounded-r-full bg-accent"
+                className="absolute inset-y-0 left-0 my-auto h-5 w-1 rounded-r-full bg-accent"
                 aria-hidden="true"
               />
             ) : null}
@@ -85,9 +85,12 @@ export default function Sidebar({
               }
             >
               {isActive ? (
+                // Centred with auto margins, not -translate-y-1/2: framer-motion's
+                // layout animation owns `transform` and drops the utility, which
+                // left the bar hanging half a row low.
                 <motion.span
                   layoutId="sidebar-active"
-                  className="absolute left-0 top-1/2 h-5 w-1 -translate-y-1/2 rounded-r-full bg-accent"
+                  className="absolute inset-y-0 left-0 my-auto h-5 w-1 rounded-r-full bg-accent"
                   aria-hidden="true"
                 />
               ) : null}
