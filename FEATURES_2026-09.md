@@ -102,17 +102,17 @@ all read-only checks; editor/admin flows can be checked by code + tests.
 | 19 | DS5 | Semantic colours replace raw palette classes | frontend |
 | 20 | DS7 | Lucide only: migrate 35 Font Awesome files, drop the dependency | frontend |
 | 21 | DS6 | Selection controls & buttons on the canon | frontend |
-| 24 | N1 | Back from a detail page goes up (U6 regression) ☑ | frontend |
-| 25 | N2 | Return to exactly where you were (scroll restoration) | frontend |
-| 26 | N4 | Useful links everywhere (cross-navigation sweep) | frontend |
-| 27 | S8 | H2H matrix: W-D-L default, obviously clickable | frontend |
-| 28 | S9 | Filter pill must not be overlookable | frontend |
-| 29 | N3 | Swipe back/forward always makes sense | frontend |
-| 30 | DS3 | Surface & radius migration, retire old classes | frontend |
-| 31 | DS4 | Typography & section headers on the scale | frontend |
-| 32 | DS8 | Stats sub-pages made of the same stone (+ drop redundant mode pill) | frontend |
-| 33 | S10 | Match comments & club selection reworked | frontend |
-| 34 | D1 | Documentation pass (README, frontend/README, AGENTS.md, DESIGN.md) | docs |
+| 22 | N1 | Back from a detail page goes up (U6 regression) ☑ | frontend |
+| 23 | N2 | Return to exactly where you were (scroll restoration) | frontend |
+| 24 | N4 | Useful links everywhere (cross-navigation sweep) | frontend |
+| 25 | S8 | H2H matrix: W-D-L default, obviously clickable | frontend |
+| 26 | S9 | Filter pill must not be overlookable | frontend |
+| 27 | N3 | Swipe back/forward always makes sense | frontend |
+| 28 | DS3 | Surface & radius migration, retire old classes | frontend |
+| 29 | DS4 | Typography & section headers on the scale | frontend |
+| 30 | DS8 | Stats sub-pages made of the same stone (+ drop redundant mode pill) | frontend |
+| 31 | S10 | Match comments & club selection reworked | frontend |
+| 32 | D1 | Documentation pass (README, frontend/README, AGENTS.md, DESIGN.md) | docs |
 
 ---
 
