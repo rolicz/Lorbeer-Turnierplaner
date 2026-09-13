@@ -3630,7 +3630,7 @@ redirect + `?cup=`, tests + docs, one visual fix found in the screenshots)
 
 ---
 
-## T6 — Records and Streaks: no duplicates  ☐
+## T6 — Records and Streaks: no duplicates  ☑
 
 Roli: "make sure there are no duplicates in records that already exist in streaks."
 
@@ -3646,7 +3646,43 @@ Roli: "make sure there are no duplicates in records that already exist in streak
 **DoD:** every fact appears in exactly one stats sub-view; screenshots of Records and Streaks at
 390px; `npm run check` + build.
 
-**Deviations:**
+**Deviations:** (implemented 2026-09-13, one commit)
+
+- **What was removed.** `RecordsView`'s two `LongestRunGroup` blocks ("Longest win streak",
+  "Longest unbeaten streak") are gone, with the `getStatsStreaks` query that fed them. They were
+  literally Streaks' first row plus every holder tied at it — same number, same date range, same
+  `live` marker — so nothing is lost: Streaks shows all four categories, the top five per
+  category, the `+N more` line and the current runs.
+- **Records keeps a pointer, and the pointer works.** A muted line alone would have been a
+  dead end, so the footer row is `Across N finished matches.` + a ghost `Button`
+  ("Longest runs in Streaks", lucide `Flame`) that switches the sub-view in place through
+  `StatsInsights`' existing `setSub("streaks")` — the same `replace` write and scroll swap the
+  sub-view chips use, so Back still leaves `/stats`. `RecordsView` gained one prop,
+  `onOpenStreaks`. Verified at 390px and 1280px that it does not collide with the floating filter
+  pill (the stats root's `pb-16` keeps the pill 52px below it).
+- **Ownership of every fact after the change** (checked in both directions):
+
+  | Fact | Owner | Nothing else shows it |
+  |---|---|---|
+  | Most tournament wins (rank, count, latest title) | Overview · Records | Cups' "Most titles" is per cup and era/mode-filtered; Positions' laurel markers name one tournament's winner |
+  | Biggest win · Highest-scoring match · Most goals by one side · Biggest upset (by Elo) | Overview · Records | — |
+  | "Across N finished matches." | Overview · Records | — |
+  | Longest win / unbeaten / scoring / clean-sheet run (record rows, ties, date range, `live`) | Overview · Streaks | **was duplicated in Records for two of the four — removed here** |
+  | Current win / unbeaten / scoring / clean-sheet run (the "Current" chips) | Overview · Streaks | — |
+  | One player's current / personal-record run per category | `PlayerStreakChips` (stats Player + profile Stats tab) | player-scoped, not the field leaderboard: it prints *that player's* best, and only borders the tile when the current run reaches the all-time record |
+  | A player's ongoing run inside a tournament | `StreakPatches` in the live standings | a badge on a row, no record value printed |
+  | Longest reign · Most titles · Most tournaments held | Overview · Cups (`CupDetail`) | cup-scoped reign facts, not tournament titles and not runs |
+
+- **Reverse direction: nothing moved out of Streaks.** It shows runs only — no titles, no match
+  superlatives — so there is no "record" living in the wrong sub-view. Table, Positions, Trends
+  and H2H carry neither kind of fact.
+- Verification (isolated stack, backend :8003 on a copy of `app.db`, vite :8020): Records and
+  Streaks side by side at 390px and 1280px in blue and light — Records' `section-label`s are
+  exactly `Most tournament wins · Biggest win · Highest-scoring match · Most goals by one side ·
+  Biggest upset (by Elo)` and Streaks' are `Win streak · Unbeaten streak · Scoring streak ·
+  Clean sheet streak`; tapping "Longest runs in Streaks" lands on
+  `/stats?view=overview&sub=streaks`; 0 console errors, 0 horizontal overflow, 0 nested anchors.
+  `npm run check` green (41 files / 389 tests).
 
 ---
 

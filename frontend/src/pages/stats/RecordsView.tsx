@@ -1,22 +1,28 @@
 /**
- * Records tab — titles, match superlatives and the longest runs.
+ * Records tab — titles and match superlatives.
  *
  * Built from the same block as every other stats sub-view (`DESIGN.md` §6 "Stats
  * sub-view skeleton"): one `StatsSection` per category — icon, title, one-line
  * explainer, then rows — and every match row is a `ScoreLine` (§8), never a local
  * score rendering.
+ *
+ * **Longest runs live in Streaks** (T6): every streak record — win, unbeaten,
+ * scoring, clean sheet — is owned by the Streaks sub-view, which shows all four
+ * categories with their current runs. Records used to repeat two of them; it now
+ * only points there.
  */
-import { Flame, Goal, Shield, TrendingUp, Trophy, Zap } from "lucide-react";
+import { Flame, Goal, TrendingUp, Trophy, Zap } from "lucide-react";
 import { type ReactNode, useMemo } from "react";
 import { Link } from "react-router-dom";
 import { keepPreviousData, useQueries, useQuery } from "@tanstack/react-query";
 
 import AvatarCircle from "../../ui/primitives/AvatarCircle";
+import Button from "../../ui/primitives/Button";
 import EmptyState from "../../ui/primitives/EmptyState";
 import InlineLoading from "../../ui/primitives/InlineLoading";
 import PlayerLink from "../../ui/primitives/PlayerLink";
 import ScoreLine from "../../ui/primitives/ScoreLine";
-import { getStatsPlayerMatches, getStatsPlayers, getStatsStreaks } from "../../api/stats.api";
+import { getStatsPlayerMatches, getStatsPlayers } from "../../api/stats.api";
 import { qk } from "../../api/queryKeys";
 import { usePlayerAvatarMap } from "../../hooks/usePlayerAvatarMap";
 import { teamName } from "../../utils/matchDisplay";
@@ -25,8 +31,7 @@ import { tournamentMatchHref } from "./MatchHistoryList";
 import StatsSection from "./StatsSection";
 import type { Row } from "./standings";
 import type { StatsMode } from "./statsMode";
-import type { StatsScope, StatsMatch, StatsPlayerMatchesTournament, StatsStreakCategory, StatsStreakRun, StatsTournamentLite } from "../../api/types";
-import { streakDateText } from "./streakDisplay";
+import type { StatsScope, StatsMatch, StatsPlayerMatchesTournament, StatsTournamentLite } from "../../api/types";
 
 /** How many rows a category shows before the "+N more" line (`DESIGN.md` §6). */
 const SHOWN = 6;
@@ -132,46 +137,14 @@ function TitlesGroup({ leaders, onSelect }: { leaders: WinLeader[]; onSelect: (i
   );
 }
 
-/** The record length of one streak category and every player tied at it. */
-function LongestRunGroup({ icon, label, explainer, length, runs }: { icon: ReactNode; label: string; explainer: string; length: number; runs: StatsStreakRun[] }) {
-  const { avatarUpdatedAtById } = usePlayerAvatarMap();
-  const shown = runs.slice(0, SHOWN);
-  return (
-    <StatsSection label={label} icon={icon} explainer={explainer} action={<TieCount n={runs.length} />}>
-      <div className="list-divided">
-        {shown.map((run, i) => {
-          const pid = run.player?.id ?? 0;
-          const identity = (
-            <>
-              <AvatarCircle playerId={pid} name={run.player.display_name} updatedAt={avatarUpdatedAtById.get(pid) ?? null} sizeClass="h-6 w-6" />
-              <span className="min-w-0 flex-1">
-                <span className="block truncate text-sm text-text-normal">{run.player.display_name}</span>
-                {streakDateText(run) ? <span className="block text-xs tabular-nums text-text-muted">{streakDateText(run)}</span> : null}
-              </span>
-            </>
-          );
-          return (
-            <div key={`${pid}-${i}`} className="flex items-center gap-2 py-2">
-              <span className="w-4 text-center text-xs font-bold tabular-nums text-text-muted">{i + 1}</span>
-              {pid ? (
-                <PlayerLink playerId={pid} name={run.player.display_name} className="flex min-w-0 flex-1 items-center gap-2">{identity}</PlayerLink>
-              ) : (
-                <div className="flex min-w-0 flex-1 items-center gap-2">{identity}</div>
-              )}
-              {run.ongoing ? <span className="shrink-0 rounded-full bg-status-bg-green/60 px-1.5 text-xs text-status-text-green">live</span> : null}
-              <span className="text-sm font-bold tabular-nums text-accent">{length}</span>
-            </div>
-          );
-        })}
-      </div>
-      <MoreLine total={runs.length} shown={shown.length} />
-    </StatsSection>
-  );
-}
-
 export default function RecordsView({
-  mode, scope, rows, onSelect,
-}: { mode: StatsMode; scope: StatsScope; rows: Row[]; onSelect: (id: number) => void }) {
+  mode, scope, rows, onSelect, onOpenStreaks,
+}: {
+  mode: StatsMode; scope: StatsScope; rows: Row[];
+  onSelect: (id: number) => void;
+  /** Opens the Streaks sub-view — the single home of every longest run (T6). */
+  onOpenStreaks: () => void;
+}) {
   const eloById = useMemo(() => new Map(rows.map((r) => [r.id, r.rating])), [rows]);
   const matchesQs = useQueries({
     queries: rows.map((r) => ({
@@ -180,11 +153,6 @@ export default function RecordsView({
       enabled: rows.length > 0,
       placeholderData: keepPreviousData, staleTime: 30_000,
     })),
-  });
-  const streaksQ = useQuery({
-    queryKey: qk.stats.streaks(mode, 20, scope),
-    queryFn: () => getStatsStreaks({ mode, limit: 20, scope }),
-    placeholderData: keepPreviousData, staleTime: 30_000,
   });
   // Titles: wins per player, from the same tournament-winner data PositionsView uses.
   const playersQ = useQuery({
@@ -272,20 +240,6 @@ export default function RecordsView({
     });
   }, [playersQ.data]);
 
-  const streakCards = useMemo(() => {
-    const cats = streaksQ.data?.categories ?? [];
-    return (["win_streak", "unbeaten_streak"] as const)
-      .map((k) => cats.find((c) => c.key === k))
-      .filter((c): c is StatsStreakCategory => !!c && (c.records?.[0]?.length ?? 0) > 0)
-      .map((c) => {
-        const maxLen = Math.max(...c.records.map((r) => r.length ?? 0));
-        // Show every player tied at the record length, not just the first.
-        const runs = c.records.filter((r) => (r.length ?? 0) === maxLen);
-        return { key: c.key, name: c.name, description: c.description, length: maxLen, runs };
-      })
-      .filter((c) => c.length > 0);
-  }, [streaksQ.data]);
-
   if (loading) return <InlineLoading label="Loading…" />;
   if (!records) return <EmptyState title="No finished matches yet." className="py-6" />;
 
@@ -317,18 +271,15 @@ export default function RecordsView({
           explainer="Win against the largest Elo gap between the two sides."
           matches={records.upset}
         />
-        {streakCards.map((s) => (
-          <LongestRunGroup
-            key={s.key}
-            icon={s.key === "unbeaten_streak" ? <Shield size={12} aria-hidden="true" /> : <Flame size={12} aria-hidden="true" />}
-            label={`Longest ${s.name.toLowerCase()}`}
-            explainer={s.description}
-            length={s.length}
-            runs={s.runs}
-          />
-        ))}
       </div>
-      <p className="text-xs text-text-muted">Across {records.total} finished matches.</p>
+      {/* Streak records are not repeated here — Streaks owns every run (T6). */}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-xs text-text-muted">Across {records.total} finished matches.</p>
+        <Button variant="ghost" size="sm" onClick={onOpenStreaks} className="gap-1.5" title="Open the Streaks sub-view">
+          <Flame size={14} aria-hidden="true" />
+          Longest runs in Streaks
+        </Button>
+      </div>
     </div>
   );
 }
