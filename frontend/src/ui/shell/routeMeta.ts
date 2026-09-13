@@ -1,10 +1,12 @@
 import { useCallback } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 
+import { previousEntryPath } from "./navStack";
+
 export type RouteMeta = {
   /** Detail/sub page that should show a back affordance instead of the menu. */
   isDetail: boolean;
-  /** Sensible fallback destination when there's no in-app history to pop. */
+  /** The page one level up — where "back" goes when popping would not land there. */
   backTo: string | null;
 };
 
@@ -28,19 +30,57 @@ export function routeMeta(pathname: string): RouteMeta {
   return { isDetail: false, backTo: null };
 }
 
+/** Path part of a URL that may carry a query string. */
+function pathnameOf(url: string): string {
+  const i = url.indexOf("?");
+  return (i < 0 ? url : url.slice(0, i)).replace(/\/+$/, "") || "/";
+}
+
 /**
- * Contextual back navigation: pops in-app history when available, otherwise
- * routes to a sensible fallback (so deep links / fresh loads still go somewhere).
+ * Where a detail page's back control leads, including the tab the caller came
+ * from: a match page returns to the live tournament's *Matches* tab (or whatever
+ * tab launched it), not to its default tab.
+ */
+export function resolveBackTarget(pathname: string, state: unknown): string | null {
+  const meta = routeMeta(pathname);
+  if (!meta.backTo) return null;
+  const fromTab = (state as { fromTab?: unknown } | null)?.fromTab;
+  if (/^\/live\/[^/]+\/match\//.test(pathname) && typeof fromTab === "string" && fromTab) {
+    return `${meta.backTo}?tab=${encodeURIComponent(fromTab)}`;
+  }
+  return meta.backTo;
+}
+
+/**
+ * Contextual back navigation for detail pages — hierarchical, not "whatever was
+ * on the stack".
+ *
+ * Popping is only right when the entry behind us *is* the parent page, and then
+ * it is the best option (the parent keeps its scroll position and open tab).
+ * Otherwise — arriving from a deep link, a notification, or the nav bar's
+ * remembered page — back navigates up one level, so a match page always returns
+ * to its tournament instead of to whatever you were looking at before.
  */
 export function useContextualBack() {
   const loc = useLocation();
   const nav = useNavigate();
   const meta = routeMeta(loc.pathname);
+  const backTo = resolveBackTarget(loc.pathname, loc.state);
 
   const goBack = useCallback(() => {
-    if (historyCanPop()) nav(-1);
-    else nav(meta.backTo ?? "/dashboard");
-  }, [nav, meta.backTo]);
+    if (!backTo) {
+      // Not a detail page: plain history back, with a safe landing spot.
+      if (historyCanPop()) nav(-1);
+      else nav("/dashboard");
+      return;
+    }
+    const prev = previousEntryPath();
+    if (historyCanPop() && prev && pathnameOf(prev) === pathnameOf(backTo)) {
+      nav(-1);
+      return;
+    }
+    nav(backTo);
+  }, [backTo, nav]);
 
-  return { isDetail: meta.isDetail, backTo: meta.backTo, goBack };
+  return { isDetail: meta.isDetail, backTo, goBack };
 }
