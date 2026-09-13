@@ -15,12 +15,7 @@ import { useEffect, useRef } from "react";
 import Button from "../../../ui/primitives/Button";
 import { Chip } from "../../../ui/primitives/Chip";
 import { cn } from "../../../ui/cn";
-import type {
-  CommentCreateMode,
-  CommentGoalPlayerOption,
-  CommentGoalSide,
-  CommentGoalTeamOption,
-} from "../tournamentCommentTypes";
+import type { CommentCreateMode, CommentGoalSide, CommentGoalTeamOption } from "../tournamentCommentTypes";
 
 const SHOTS_OPTIONS = Array.from({ length: 51 }, (_, i) => i);
 
@@ -178,11 +173,12 @@ export default function CommentComposer({
   goalTeams,
   goalSide,
   onGoalSideChange,
-  goalPlayers,
   goalMinute,
   onGoalMinuteChange,
   goalPlayerName,
   onGoalPlayerNameChange,
+  scorerSuggestions = [],
+  goalFallbackScorer = null,
   shotsA,
   onShotsAChange,
   shotsB,
@@ -198,7 +194,6 @@ export default function CommentComposer({
   submitting = false,
   disabled = false,
   sticky = true,
-  playersListId,
   focusNonce,
 }: {
   mode: CommentCreateMode;
@@ -212,11 +207,14 @@ export default function CommentComposer({
   goalTeams: CommentGoalTeamOption[];
   goalSide: CommentGoalSide | null;
   onGoalSideChange: (side: CommentGoalSide) => void;
-  goalPlayers: CommentGoalPlayerOption[];
   goalMinute: string;
   onGoalMinuteChange: (value: string) => void;
   goalPlayerName: string;
   onGoalPlayerNameChange: (value: string) => void;
+  /** Scorer names typed before in this tournament (newest first) — the only defensible source. */
+  scorerSuggestions?: string[];
+  /** The scoring side's club: what an unnamed goal is credited to. */
+  goalFallbackScorer?: string | null;
   shotsA: string;
   onShotsAChange: (value: string) => void;
   shotsB: string;
@@ -233,7 +231,6 @@ export default function CommentComposer({
   disabled?: boolean;
   /** Pin the row above the bottom tab bar while the feed is on screen. */
   sticky?: boolean;
-  playersListId: string;
   /**
    * Bumped after a successful post: clicking Send moves focus to the button, which
    * then disables itself, so without this the caret lands on `<body>` and posting a
@@ -364,24 +361,40 @@ export default function CommentComposer({
                 placeholder="Min"
                 aria-label="Goal minute"
               />
+              {/* The scorer is the footballer in the game, so there is nothing to
+                  prefill from the app's players — free text, optional (T3). */}
               <input
                 className="input-field"
                 type="text"
-                list={goalSide && goalPlayers.length ? playersListId : undefined}
-                placeholder={goalSide ? "Scorer" : "Pick the scoring side first"}
+                placeholder="Scorer, e.g. Haaland"
                 value={goalPlayerName}
                 onChange={(e) => onGoalPlayerNameChange(e.target.value)}
-                disabled={disabled || goalSide == null}
+                disabled={disabled}
                 aria-label="Goal scorer"
               />
-              {goalSide && goalPlayers.length ? (
-                <datalist id={playersListId}>
-                  {goalPlayers.map((p) => (
-                    <option key={p.label} value={p.label} />
-                  ))}
-                </datalist>
-              ) : null}
             </div>
+            {!goalPlayerName.trim() && scorerSuggestions.length ? (
+              <div className="no-scrollbar -mx-0.5 flex gap-1.5 overflow-x-auto px-0.5" data-no-swipe-nav>
+                {scorerSuggestions.slice(0, 4).map((name) => (
+                  <Chip
+                    key={name}
+                    onClick={() => onGoalPlayerNameChange(name)}
+                    disabled={disabled}
+                    className="shrink-0"
+                    title={`Scorer: ${name}`}
+                  >
+                    {name}
+                  </Chip>
+                ))}
+              </div>
+            ) : null}
+            {!goalPlayerName.trim() && goalSide != null ? (
+              <div className="text-xs text-text-muted">
+                {goalFallbackScorer
+                  ? `No name: the goal goes to ${goalFallbackScorer}.`
+                  : "Name the scorer — this side has no club yet."}
+              </div>
+            ) : null}
           </div>
         ) : null}
 

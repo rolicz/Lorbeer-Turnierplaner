@@ -14,9 +14,6 @@ export type CommentGoalTeamOption = {
   nextScoreline: string;
 };
 
-/** A suggested scorer name (the side's players) for the free-text scorer field. */
-export type CommentGoalPlayerOption = { label: string };
-
 export type CommentScope = { kind: "tournament" } | { kind: "match"; matchId: number };
 
 export type CommentAuthor = { kind: "general" } | { kind: "player"; playerId: number };

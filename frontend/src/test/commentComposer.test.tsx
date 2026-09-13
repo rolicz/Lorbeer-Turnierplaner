@@ -17,7 +17,6 @@ function renderComposer(overrides: Partial<React.ComponentProps<typeof CommentCo
     goalTeams: GOAL_TEAMS,
     goalSide: null,
     onGoalSideChange: vi.fn(),
-    goalPlayers: [],
     goalMinute: "",
     onGoalMinuteChange: vi.fn(),
     goalPlayerName: "",
@@ -30,7 +29,6 @@ function renderComposer(overrides: Partial<React.ComponentProps<typeof CommentCo
     onChangeDraftBody: vi.fn(),
     onSubmit: vi.fn(),
     canSubmit: false,
-    playersListId: "players",
     ...overrides,
   };
   return { ...render(<CommentComposer {...props} />), props };
@@ -82,7 +80,6 @@ describe("CommentComposer", () => {
         goalTeams={[]}
         goalSide={null}
         onGoalSideChange={vi.fn()}
-        goalPlayers={[]}
         goalMinute=""
         onGoalMinuteChange={vi.fn()}
         goalPlayerName=""
@@ -95,7 +92,6 @@ describe("CommentComposer", () => {
         onChangeDraftBody={vi.fn()}
         onSubmit={vi.fn()}
         canSubmit={false}
-        playersListId="players"
       />,
     );
     expect(queryByTitle("Enter a goal")).toBeNull();
@@ -117,8 +113,6 @@ describe("CommentComposer", () => {
     fireEvent.click(getByTitle("Goal for Rumpi — makes it 1-0"));
     expect(onGoalSideChange).toHaveBeenCalledWith("A");
 
-    // the scorer is locked until a side is picked, and the note field stays
-    expect(getByLabelText("Goal scorer")).toBeDisabled();
     expect(getByLabelText("Goal minute")).toBeInTheDocument();
     expect(getByLabelText("Goal note")).toBeInTheDocument();
 
@@ -126,18 +120,55 @@ describe("CommentComposer", () => {
     expect(onModeChange).toHaveBeenCalledWith("comment");
   });
 
-  it("suggests the side's players as scorers once a side is picked", () => {
+  it("asks for the footballer who scored, never for a human player", () => {
     const { getByLabelText, container } = renderComposer({
       mode: "goal",
       goalSide: "A",
-      goalPlayers: [{ label: "Rumpi" }],
-      goalPlayerName: "Rumpi",
+      goalFallbackScorer: "Man City",
     });
 
     const scorer = getByLabelText("Goal scorer") as HTMLInputElement;
+    // free text, always editable, and nothing is prefilled or suggested from the app's players
     expect(scorer).not.toBeDisabled();
-    expect(scorer.value).toBe("Rumpi");
-    expect(container.querySelector("datalist#players option")).toHaveAttribute("value", "Rumpi");
+    expect(scorer.value).toBe("");
+    expect(scorer.getAttribute("placeholder")).toBe("Scorer, e.g. Haaland");
+    expect(scorer.getAttribute("list")).toBeNull();
+    expect(container.querySelector("datalist")).toBeNull();
+    // the side buttons name the two teams, but nothing offers a human as the scorer
+    expect(container.querySelectorAll('[title^="Scorer: "]')).toHaveLength(0);
+  });
+
+  it("says where an unnamed goal goes, and only suggests scorers typed before", () => {
+    const onGoalPlayerNameChange = vi.fn();
+    const { getByText, getByTitle, queryByText, rerender } = renderComposer({
+      mode: "goal",
+      goalSide: "A",
+      goalFallbackScorer: "Man City",
+      scorerSuggestions: ["Mbeumo", "Fernandes"],
+      onGoalPlayerNameChange,
+    });
+
+    expect(getByText("No name: the goal goes to Man City.")).toBeInTheDocument();
+    fireEvent.click(getByTitle("Scorer: Mbeumo"));
+    expect(onGoalPlayerNameChange).toHaveBeenCalledWith("Mbeumo");
+
+    // once a scorer is named, neither the hint nor the suggestions are in the way
+    rerender(
+      <CommentComposer
+        {...renderComposer({}).props}
+        mode="goal"
+        goalSide="A"
+        goalPlayerName="Mbeumo"
+        goalFallbackScorer="Man City"
+        scorerSuggestions={["Mbeumo", "Fernandes"]}
+      />,
+    );
+    expect(queryByText("No name: the goal goes to Man City.")).toBeNull();
+  });
+
+  it("says a scorer is needed when the scoring side has no club to credit", () => {
+    const { getByText } = renderComposer({ mode: "goal", goalSide: "B", goalFallbackScorer: null });
+    expect(getByText("Name the scorer — this side has no club yet.")).toBeInTheDocument();
   });
 
   it("turns into the shots entry with one select per team", () => {

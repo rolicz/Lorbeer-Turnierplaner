@@ -1,5 +1,5 @@
 import { CornerDownRight, MessagesSquare } from "lucide-react";
-import { useEffect, useId, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { sideBy } from "../../helpers";
 
@@ -21,6 +21,7 @@ import { usePlayerAvatarMap } from "../../hooks/usePlayerAvatarMap";
 import { type CommentCardContextValue } from "./TournamentCommentParts";
 import CommentComposer from "./comments/CommentComposer";
 import { useCommentMutations } from "./comments/useCommentMutations";
+import { readRecentScorers, rememberScorer } from "./comments/recentScorers";
 import CommentFilterBar from "./comments/CommentFilterBar";
 import CommentList from "./comments/CommentList";
 import {
@@ -61,7 +62,6 @@ export default function TournamentCommentsCard({
   const { token, role, actorPlayerId: currentPlayerId, actorPlayerName: currentPlayerName } = useAuth();
   const canAttachImage = role === "admin" || role === "editor";
   const seen = useSeenSet(tournamentId);
-  const goalPlayersListId = useId();
 
   const { avatarUpdatedAtById: avatarUpdatedAtByPlayerId } = usePlayerAvatarMap();
 
@@ -104,6 +104,8 @@ export default function TournamentCommentsCard({
     onlyMatchId != null ? onlyMatchId : "all",
   );
   const [flashId, setFlashId] = useState<number | null>(null);
+  /** Scorer names typed in this tournament before (localStorage, newest first). */
+  const [scorerSuggestions, setScorerSuggestions] = useState<string[]>(() => readRecentScorers(tournamentId));
   const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
 
   const [voteVotersCommentId, setVoteVotersCommentId] = useState<number | null>(null);
@@ -197,6 +199,7 @@ export default function TournamentCommentsCard({
     setScopeOverride(null);
     setPendingFocusId(null);
     setFlashId(null);
+    setScorerSuggestions(readRecentScorers(tournamentId));
     /* eslint-enable react-hooks/set-state-in-effect */
   }, [tournamentId, currentPlayerId]);
 
@@ -342,7 +345,7 @@ export default function TournamentCommentsCard({
     if (draftMode === "goal") {
       if (
         goalSide == null ||
-        !goalPlayerName.trim() ||
+        !goalScorerForPost ||
         normalizeGoalMinute(goalMinute) == null ||
         goalScoreForScope(scope, goalSide) == null
       ) {
@@ -366,7 +369,7 @@ export default function TournamentCommentsCard({
               has_image: false,
               event_type: "goal",
               goal_minute: normalizeGoalMinute(goalMinute) ?? undefined,
-              goal_player_name: goalPlayerName.trim(),
+              goal_player_name: goalScorerForPost,
               result_score_a: goalScoreForScope(scope, goalSide)?.a,
               result_score_b: goalScoreForScope(scope, goalSide)?.b,
             }
@@ -389,6 +392,11 @@ export default function TournamentCommentsCard({
         } catch (e: unknown) {
           showErrorToast(e instanceof Error ? e.message : "Image upload failed", "Comment image upload failed");
         }
+      }
+      // Remember a hand-typed scorer so the next goal by the same footballer is one tap.
+      if (draftMode === "goal" && goalPlayerName.trim()) {
+        rememberScorer(tournamentId, goalPlayerName);
+        setScorerSuggestions(readRecentScorers(tournamentId));
       }
       setPendingFocusId(created.id);
       resetDraft();
@@ -594,15 +602,21 @@ export default function TournamentCommentsCard({
     return { a: aGoals, b: bGoals };
   }
 
-  function goalPlayersForScope(
+  /**
+   * The club playing on that side — what an unnamed goal is credited to, because
+   * the scorer is a footballer in the game and the club is the only in-game name
+   * the app knows (T3). Never a human player's name.
+   */
+  function goalClubNameForScope(
     scope: CommentScope | null | undefined,
     side: CommentGoalSide | null | undefined,
-  ): { label: string }[] {
-    if (!scope || scope.kind !== "match" || side == null) return [];
+  ): string | null {
+    if (!scope || scope.kind !== "match" || side == null) return null;
     const match = matchById.get(scope.matchId);
-    if (!match) return [];
-    const team = sideBy(match, side);
-    return (team?.players ?? []).map((player) => ({ label: player.display_name }));
+    if (!match) return null;
+    const clubId = sideBy(match, side)?.club_id ?? null;
+    if (!clubId) return null;
+    return clubLabelPartsById(clubs, clubId).name || null;
   }
 
   function goalScoreForScope(
@@ -642,9 +656,12 @@ export default function TournamentCommentsCard({
     setScopeOverride(null);
   }
 
+  const goalFallbackScorer = goalClubNameForScope(composerScope, goalSide);
+  const goalScorerForPost = goalPlayerName.trim() || goalFallbackScorer || "";
+
   const canSubmit =
     draftMode === "goal"
-      ? !!goalPlayerName.trim() &&
+      ? !!goalScorerForPost &&
         goalSide != null &&
         normalizeGoalMinute(goalMinute) != null &&
         goalScoreForScope(composerScope, goalSide) != null
@@ -687,10 +704,9 @@ export default function TournamentCommentsCard({
   }
 
   function handleGoalSideChange(nextSide: CommentGoalSide) {
+    // The scorer is a footballer, not one of us: nothing to prefill, and a typed
+    // name survives a corrected side (T3).
     setGoalSide(nextSide);
-    // A 1v1 side has exactly one player — prefill the scorer instead of asking for it.
-    const players = goalPlayersForScope(composerScope, nextSide);
-    setGoalPlayerName(players.length === 1 ? (players[0]?.label ?? "") : "");
   }
 
   const matchIndexById = useMemo(() => {
@@ -745,11 +761,12 @@ export default function TournamentCommentsCard({
       goalTeams={composerScope.kind === "match" ? goalTeamsForScope(composerScope) : []}
       goalSide={goalSide}
       onGoalSideChange={handleGoalSideChange}
-      goalPlayers={composerScope.kind === "match" ? goalPlayersForScope(composerScope, goalSide) : []}
       goalMinute={goalMinute}
       onGoalMinuteChange={setGoalMinute}
       goalPlayerName={goalPlayerName}
       onGoalPlayerNameChange={setGoalPlayerName}
+      scorerSuggestions={scorerSuggestions}
+      goalFallbackScorer={goalFallbackScorer}
       shotsA={shotsA}
       onShotsAChange={setShotsA}
       shotsB={shotsB}
@@ -763,7 +780,6 @@ export default function TournamentCommentsCard({
       onSubmit={() => void postComment()}
       canSubmit={canSubmit}
       submitting={createMut.isPending}
-      playersListId={goalPlayersListId}
       focusNonce={composerFocusNonce}
     />
   ) : null;
