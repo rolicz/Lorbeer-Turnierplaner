@@ -138,7 +138,39 @@ describe("MatchupView", () => {
     expect(screen.getByText("Maiturnier")).toBeInTheDocument();
     expect(screen.getByText("Aprilturnier")).toBeInTheDocument();
     const hrefs = screen.getAllByRole("link").map((l) => l.getAttribute("href"));
-    expect(hrefs).toEqual(["/live/1/match/101", "/live/1/match/102", "/live/2/match/103"]);
+    expect(hrefs.filter((h) => h?.startsWith("/live/"))).toEqual([
+      "/live/1/match/101",
+      "/live/1/match/102",
+      "/live/2/match/103",
+    ]);
+  });
+
+  it("makes both header identities a link to their profile (N4)", async () => {
+    renderView();
+
+    await screen.findByText("Matches · 3");
+    const profiles = screen
+      .getAllByRole("link")
+      .map((l) => l.getAttribute("href"))
+      .filter((h) => h?.startsWith("/profiles/"));
+    expect(profiles).toEqual(["/profiles/1", "/profiles/2"]);
+    expect(screen.getByTitle("Open Roli's profile")).toBeInTheDocument();
+    expect(screen.getByTitle("Open Flo's profile")).toBeInTheDocument();
+  });
+
+  it("opens on the Together relation when the URL asked for it", async () => {
+    renderView({ mode: "2v2", initialRelation: "together" });
+
+    await waitFor(() =>
+      expect(api.getStatsH2HMatches).toHaveBeenCalledWith({
+        mode: "2v2",
+        relation: "teammates",
+        left_player_ids: [1, 2],
+        right_player_ids: [],
+        scope: "tournaments",
+      }),
+    );
+    expect(screen.getByRole("button", { name: "Together" })).toHaveAttribute("aria-pressed", "true");
   });
 
   it("switches to the teammates request when Together is picked", async () => {

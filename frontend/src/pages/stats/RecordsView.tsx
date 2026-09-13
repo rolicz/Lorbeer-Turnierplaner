@@ -5,6 +5,7 @@ import { Link } from "react-router-dom";
 import { keepPreviousData, useQueries, useQuery } from "@tanstack/react-query";
 
 import InlineLoading from "../../ui/primitives/InlineLoading";
+import PlayerLink from "../../ui/primitives/PlayerLink";
 import ScoreLine from "../../ui/primitives/ScoreLine";
 import { getStatsPlayerMatches, getStatsPlayers, getStatsStreaks } from "../../api/stats.api";
 import { qk } from "../../api/queryKeys";
@@ -63,23 +64,28 @@ function TitlesGroup({ leaders, onSelect }: { leaders: WinLeader[]; onSelect: (i
       </div>
       <div className="mt-1.5 space-y-1.5">
         {shown.map((l) => (
-          <button
-            key={l.id}
-            type="button"
-            onClick={() => onSelect(l.id)}
-            className="flex w-full items-center justify-between gap-3 rounded-lg px-1.5 py-1 -mx-1.5 text-left transition hover:bg-hover-default/30"
-          >
-            <div className="flex min-w-0 items-center gap-2">
+          /* The row opens this player in Stats (stretched button), the name their profile. */
+          <div key={l.id} className="relative flex w-full items-center justify-between gap-3 rounded-lg px-1.5 py-1 -mx-1.5 text-left transition hover:bg-hover-default/30">
+            <button
+              type="button"
+              onClick={() => onSelect(l.id)}
+              aria-label={`Open ${l.name} in Stats`}
+              className="absolute inset-0 z-0 rounded-lg focus-ring"
+            />
+            <div className="pointer-events-none relative z-10 flex min-w-0 items-center gap-2">
               <span className="w-4 shrink-0 text-right text-xs tabular-nums text-text-muted">{l.rank}.</span>
               <div className="min-w-0">
-                <div className="truncate text-sm font-medium text-text-normal">{l.name}</div>
+                {/* The link hugs the name; the rest of the row opens the player in Stats. */}
+                <PlayerLink playerId={l.id} name={l.name} className="pointer-events-auto inline-block max-w-full">
+                  <span className="block truncate text-sm font-medium text-text-normal">{l.name}</span>
+                </PlayerLink>
                 {l.latest ? (
                   <div className="truncate text-[11px] text-text-muted">{l.latest.name} · {fmtShortDate(l.latest.date)}</div>
                 ) : null}
               </div>
             </div>
-            <div className="shrink-0 font-mono text-base font-bold tabular-nums text-accent">{l.count}</div>
-          </button>
+            <div className="pointer-events-none relative z-10 shrink-0 font-mono text-base font-bold tabular-nums text-accent">{l.count}</div>
+          </div>
         ))}
         {leaders.length > shown.length ? <div className="text-[11px] text-text-muted">+{leaders.length - shown.length} more</div> : null}
       </div>
@@ -238,7 +244,13 @@ export default function RecordsView({
                 <div className="mt-1.5 space-y-1.5">
                   {s.runs.slice(0, 6).map((run, i) => (
                     <div key={(run.player?.id ?? i) + "-" + i} className="min-w-0">
-                      <div className="truncate text-sm font-medium text-text-normal">{run.player.display_name}</div>
+                      {run.player?.id ? (
+                        <PlayerLink playerId={run.player.id} name={run.player.display_name} className="inline-block max-w-full">
+                          <span className="block truncate text-sm font-medium text-text-normal">{run.player.display_name}</span>
+                        </PlayerLink>
+                      ) : (
+                        <div className="truncate text-sm font-medium text-text-normal">{run.player.display_name}</div>
+                      )}
                       <div className="text-[11px] text-text-muted">{streakDateText(run)}</div>
                     </div>
                   ))}

@@ -3,6 +3,7 @@ import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { Flame, Shield, Goal, Lock } from "lucide-react";
 
 import AvatarCircle from "../../ui/primitives/AvatarCircle";
+import PlayerLink from "../../ui/primitives/PlayerLink";
 import InlineLoading from "../../ui/primitives/InlineLoading";
 import { getStatsStreaks } from "../../api/stats.api";
 import { qk } from "../../api/queryKeys";
@@ -45,11 +46,14 @@ export default function StreaksView({ mode, scope }: { mode: StatsMode; scope: S
                 {records.map((r, i) => (
                   <div key={`${r.player.id}-${i}`} className="flex items-center gap-2 py-2">
                     <span className="w-4 text-center text-xs font-bold tabular-nums text-text-muted">{i + 1}</span>
-                    <AvatarCircle playerId={r.player.id} name={r.player.display_name} updatedAt={avatarUpdatedAtById.get(r.player.id) ?? null} sizeClass="h-6 w-6" />
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm text-text-normal">{r.player.display_name}</span>
-                      {streakDateText(r) ? <span className="block text-[11px] tabular-nums text-text-muted">{streakDateText(r)}</span> : null}
-                    </span>
+                    {/* Identity → profile (the row itself has no other action). */}
+                    <PlayerLink playerId={r.player.id} name={r.player.display_name} className="flex min-w-0 flex-1 items-center gap-2">
+                      <AvatarCircle playerId={r.player.id} name={r.player.display_name} updatedAt={avatarUpdatedAtById.get(r.player.id) ?? null} sizeClass="h-6 w-6" />
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm text-text-normal">{r.player.display_name}</span>
+                        {streakDateText(r) ? <span className="block text-[11px] tabular-nums text-text-muted">{streakDateText(r)}</span> : null}
+                      </span>
+                    </PlayerLink>
                     {r.ongoing ? <span className="shrink-0 rounded-full bg-status-bg-green/60 px-1.5 text-[11px] text-status-text-green">live</span> : null}
                     <span className="text-sm font-bold tabular-nums text-accent">{r.length}</span>
                   </div>
@@ -61,9 +65,14 @@ export default function StreaksView({ mode, scope }: { mode: StatsMode; scope: S
                 <div className="mb-1 text-xs uppercase tracking-wide text-text-muted">Current</div>
                 <div className="flex flex-wrap gap-1.5">
                   {current.map((r) => (
-                    <span key={r.player.id} className="inline-flex items-center gap-1 rounded-full bg-bg-card-chip/50 px-2 py-0.5 text-[11px]">
+                    <PlayerLink
+                      key={r.player.id}
+                      playerId={r.player.id}
+                      name={r.player.display_name}
+                      className="inline-flex items-center gap-1 rounded-full bg-bg-card-chip/50 px-2 py-0.5 text-[11px]"
+                    >
                       {r.player.display_name} <b className="text-text-normal">{r.length}</b>
-                    </span>
+                    </PlayerLink>
                   ))}
                 </div>
               </div>

@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { MouseEvent, ReactNode } from "react";
 import { Link } from "react-router-dom";
 
 import { cn } from "../cn";
@@ -18,6 +18,8 @@ export default function PlayerLink({
   name,
   className,
   title,
+  decorative = false,
+  onClick,
   children,
 }: {
   playerId: number;
@@ -25,14 +27,23 @@ export default function PlayerLink({
   name: string;
   className?: string;
   title?: string;
+  /**
+   * The link only duplicates a neighbouring one (an avatar next to the linked
+   * name): keep it tappable but out of the tab order and the accessibility tree.
+   */
+  decorative?: boolean;
+  /** Runs before navigation; call `preventDefault()` to suppress it (e.g. after a drag). */
+  onClick?: (e: MouseEvent<HTMLAnchorElement>) => void;
   children: ReactNode;
 }) {
   return (
     <Link
       to={`/profiles/${playerId}`}
       title={title ?? `Open ${name}'s profile`}
-      onClick={(e) => e.stopPropagation()}
+      onClick={(e) => { e.stopPropagation(); onClick?.(e); }}
       onKeyDown={(e) => e.stopPropagation()}
+      aria-hidden={decorative || undefined}
+      tabIndex={decorative ? -1 : undefined}
       className={cn("focus-ring rounded-lg no-underline transition hover:text-accent", className)}
     >
       {children}

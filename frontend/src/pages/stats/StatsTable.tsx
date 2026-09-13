@@ -7,6 +7,7 @@ import { qk } from "../../api/queryKeys";
 import type { StatsPlayerMatchesTournament, StatsScope } from "../../api/types";
 import type { StatsMode } from "./statsMode";
 import AvatarCircle from "../../ui/primitives/AvatarCircle";
+import PlayerLink from "../../ui/primitives/PlayerLink";
 import InlineLoading from "../../ui/primitives/InlineLoading";
 import { usePlayerAvatarMap } from "../../hooks/usePlayerAvatarMap";
 import { Slider } from "./controls";
@@ -173,8 +174,11 @@ export default function StatsTable({
                 <td className="sticky left-0 z-10 bg-bg-default py-2 pl-1 pr-2">
                   <div className="flex items-center gap-2">
                     <span className="w-4 text-right text-xs tabular-nums text-text-muted">{i + 1}</span>
-                    <AvatarCircle playerId={r.id} name={r.name} updatedAt={avatarUpdatedAtById.get(r.id) ?? null} sizeClass="h-7 w-7" />
-                    <span className="truncate font-medium text-text-normal">{r.name}</span>
+                    {/* The row opens this player in Stats; the identity opens their profile. */}
+                    <PlayerLink playerId={r.id} name={r.name} className="flex min-w-0 items-center gap-2">
+                      <AvatarCircle playerId={r.id} name={r.name} updatedAt={avatarUpdatedAtById.get(r.id) ?? null} sizeClass="h-7 w-7" />
+                      <span className="truncate font-medium text-text-normal">{r.name}</span>
+                    </PlayerLink>
                   </div>
                 </td>
                 {cols.map((c) => (

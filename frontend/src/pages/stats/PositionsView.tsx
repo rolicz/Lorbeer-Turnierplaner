@@ -5,6 +5,7 @@ import { keepPreviousData, useQueries, useQuery } from "@tanstack/react-query";
 import { Clock, Crown, Flag } from "lucide-react";
 
 import AvatarCircle from "../../ui/primitives/AvatarCircle";
+import PlayerLink from "../../ui/primitives/PlayerLink";
 import InlineLoading from "../../ui/primitives/InlineLoading";
 import { getStatsPlayers } from "../../api/stats.api";
 import { getCup, listCupDefs } from "../../api/cup.api";
@@ -112,14 +113,27 @@ export default function PositionsView({ mode }: { mode: StatsMode }) {
 
   // Pointer-based column drag (works on touch).
   const dragRef = useRef<number | null>(null);
+  // A column header is both a drag handle and a link to the player's profile: a
+  // pointer that actually moved is a drag, and its click must not navigate.
+  const dragStartRef = useRef<{ x: number; y: number } | null>(null);
+  const draggedRef = useRef(false);
   const [dragId, setDragId] = useState<number | null>(null);
   const [overId, setOverId] = useState<number | null>(null);
   const onColDown = (e: React.PointerEvent, pid: number) => {
     dragRef.current = pid; setDragId(pid); setOverId(pid);
-    try { (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); } catch { /* noop */ }
+    dragStartRef.current = { x: e.clientX, y: e.clientY };
+    draggedRef.current = false;
+    // Pointer capture is taken on the first real move, not here: a captured pointer
+    // retargets the following click to this element, which would swallow the tap on
+    // the header's profile link.
   };
   const onColMove = (e: React.PointerEvent) => {
     if (dragRef.current == null) return;
+    const start = dragStartRef.current;
+    if (start && !draggedRef.current && Math.hypot(e.clientX - start.x, e.clientY - start.y) > 6) {
+      draggedRef.current = true;
+      try { (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); } catch { /* noop */ }
+    }
     const cell = (document.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null)?.closest("[data-col-pid]");
     const pid = cell?.getAttribute("data-col-pid");
     if (pid) setOverId(Number(pid));
@@ -232,8 +246,16 @@ export default function PositionsView({ mode }: { mode: StatsMode }) {
                   }
                   title="Drag to reorder"
                 >
-                  <AvatarCircle playerId={p.player_id} name={p.display_name} updatedAt={avatarUpdatedAtById.get(p.player_id) ?? null} sizeClass="h-6 w-6" />
-                  <span className="w-full truncate text-center text-[11px] text-text-muted">{p.display_name}</span>
+                  <PlayerLink
+                    playerId={p.player_id}
+                    name={p.display_name}
+                    title={`Open ${p.display_name}'s profile · drag to reorder`}
+                    className="flex w-full flex-col items-center gap-1"
+                    onClick={(e) => { if (draggedRef.current) e.preventDefault(); }}
+                  >
+                    <AvatarCircle playerId={p.player_id} name={p.display_name} updatedAt={avatarUpdatedAtById.get(p.player_id) ?? null} sizeClass="h-6 w-6" />
+                    <span className="w-full truncate text-center text-[11px] text-text-muted">{p.display_name}</span>
+                  </PlayerLink>
                 </div>
               );
             })}

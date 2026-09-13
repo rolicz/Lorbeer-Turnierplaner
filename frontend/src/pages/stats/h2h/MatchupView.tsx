@@ -14,6 +14,7 @@ import { ArrowLeft } from "lucide-react";
 
 import AvatarCircle from "../../../ui/primitives/AvatarCircle";
 import Button from "../../../ui/primitives/Button";
+import PlayerLink from "../../../ui/primitives/PlayerLink";
 import InlineLoading from "../../../ui/primitives/InlineLoading";
 import { ErrorToastOnError } from "../../../ui/primitives/ErrorToast";
 import { getStatsH2HMatches, type StatsH2HMatchesRequest } from "../../../api/stats.api";
@@ -52,10 +53,14 @@ function Tile({ label, title, children }: { label: string; title?: string; child
 
 function PlayerSide({ id, name, updatedAt, align = "left" }: { id: number; name: string; updatedAt: string | null; align?: "left" | "right" }) {
   return (
-    <div className={"flex min-w-0 items-center gap-2 " + (align === "right" ? "flex-row-reverse text-right" : "")}>
+    <PlayerLink
+      playerId={id}
+      name={name}
+      className={"flex min-w-0 items-center gap-2 " + (align === "right" ? "flex-row-reverse text-right" : "")}
+    >
       <AvatarCircle playerId={id} name={name} updatedAt={updatedAt} sizeClass="h-10 w-10" />
       <span className="truncate text-base font-bold text-text-normal">{name}</span>
-    </div>
+    </PlayerLink>
   );
 }
 

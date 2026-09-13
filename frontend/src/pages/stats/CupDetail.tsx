@@ -10,6 +10,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Trophy } from "lucide-react";
 
 import AvatarCircle from "../../ui/primitives/AvatarCircle";
+import PlayerLink from "../../ui/primitives/PlayerLink";
 import InlineLoading from "../../ui/primitives/InlineLoading";
 import StatTile from "../../ui/primitives/StatTile";
 import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
@@ -121,24 +122,33 @@ export default function CupDetail({ cupKey, cupName }: { cupKey: string; cupName
 
         <div className="flex items-center gap-3">
           {owner ? (
-            <AvatarCircle
-              playerId={owner.id}
-              name={owner.display_name}
-              updatedAt={avatarUpdatedAtById.get(owner.id) ?? null}
-              sizeClass="h-12 w-12"
-            />
+            /* The holder is an identity — avatar and name open their profile. */
+            <PlayerLink playerId={owner.id} name={owner.display_name} className="flex min-w-0 flex-1 items-center gap-3">
+              <AvatarCircle
+                playerId={owner.id}
+                name={owner.display_name}
+                updatedAt={avatarUpdatedAtById.get(owner.id) ?? null}
+                sizeClass="h-12 w-12"
+              />
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-base font-semibold" style={{ color: cupColor }}>
+                  {owner.display_name}
+                </span>
+                {/* The reign length and the defenses live in the tile on the right. */}
+                <span className="block text-xs text-text-muted">{since?.date ? `Holding since ${fmtDate(since.date)}` : "—"}</span>
+              </span>
+            </PlayerLink>
           ) : (
-            <span className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-bg-card-chip/40 text-text-muted">
-              <Trophy size={18} aria-hidden="true" />
-            </span>
+            <>
+              <span className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-bg-card-chip/40 text-text-muted">
+                <Trophy size={18} aria-hidden="true" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-base font-semibold">No owner yet</div>
+                <div className="text-xs text-text-muted">—</div>
+              </div>
+            </>
           )}
-          <div className="min-w-0 flex-1">
-            <div className="truncate text-base font-semibold" style={{ color: owner ? cupColor : undefined }}>
-              {owner ? owner.display_name : "No owner yet"}
-            </div>
-            {/* The reign length and the defenses live in the tile on the right. */}
-            <div className="text-xs text-text-muted">{owner && since?.date ? `Holding since ${fmtDate(since.date)}` : "—"}</div>
-          </div>
           {current ? (
             <StatTile
               className="w-32 shrink-0"
@@ -226,19 +236,39 @@ export default function CupDetail({ cupKey, cupName }: { cupKey: string; cupName
               {shown.map((r) => {
                 const color = colorOf(r.holder.id).solid;
                 return (
-                  <Link key={rowId(r)} id={rowId(r)} to={`/live/${r.startTournamentId}`} className="row row-tap scroll-mt-20">
-                    <AvatarCircle
+                  /* Two targets, no nesting: the tournament is a stretched link behind the
+                     row, the holder's avatar + name sit above it as their own link. */
+                  <div key={rowId(r)} id={rowId(r)} className="row row-tap relative scroll-mt-20">
+                    <Link
+                      to={`/live/${r.startTournamentId}`}
+                      aria-label={`${r.startName} — open tournament`}
+                      className="absolute inset-0 z-0 rounded-lg focus-ring"
+                    />
+                    <PlayerLink
                       playerId={r.holder.id}
                       name={r.holder.display_name}
-                      updatedAt={avatarUpdatedAtById.get(r.holder.id) ?? null}
-                      sizeClass="h-8 w-8"
-                    />
-                    <span className="min-w-0 flex-1">
+                      decorative
+                      className="pointer-events-auto relative z-10 shrink-0"
+                    >
+                      <AvatarCircle
+                        playerId={r.holder.id}
+                        name={r.holder.display_name}
+                        updatedAt={avatarUpdatedAtById.get(r.holder.id) ?? null}
+                        sizeClass="h-8 w-8"
+                      />
+                    </PlayerLink>
+                    <span className="pointer-events-none relative z-10 min-w-0 flex-1">
                       <span className="flex items-center gap-2">
                         {/* Colour as a dot (not coloured text) — the app's convention and
                             the only one that keeps contrast in the light theme. */}
                         <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: color }} aria-hidden="true" />
-                        <span className="truncate text-sm font-semibold text-text-normal">{r.holder.display_name}</span>
+                        <PlayerLink
+                          playerId={r.holder.id}
+                          name={r.holder.display_name}
+                          className="pointer-events-auto min-w-0"
+                        >
+                          <span className="block truncate text-sm font-semibold text-text-normal">{r.holder.display_name}</span>
+                        </PlayerLink>
                         <span className={r.current ? CHIP_ACCENT : CHIP_PLAIN} title={`${r.tournaments} tournaments held`}>
                           ×{r.tournaments}
                         </span>
@@ -253,7 +283,7 @@ export default function CupDetail({ cupKey, cupName }: { cupKey: string; cupName
                         </span>
                       ) : null}
                     </span>
-                  </Link>
+                  </div>
                 );
               })}
             </div>
@@ -299,18 +329,19 @@ export default function CupDetail({ cupKey, cupName }: { cupKey: string; cupName
                     className="cursor-pointer border-b border-border-card-inner/40 transition hover:bg-hover-default/30"
                   >
                     <td className="py-2 pl-1 pr-2">
-                      <div className="flex items-center gap-2">
+                      {/* The row opens this player's stats; the identity opens their profile. */}
+                      <PlayerLink playerId={row.player.id} name={row.player.display_name} className="flex items-center gap-2">
                         <AvatarCircle
                           playerId={row.player.id}
                           name={row.player.display_name}
                           updatedAt={avatarUpdatedAtById.get(row.player.id) ?? null}
                           sizeClass="h-7 w-7"
                         />
-                        <div className="min-w-0">
-                          <div className="truncate font-medium text-text-normal">{row.player.display_name}</div>
-                          <div className="text-xs text-text-muted">{row.daysHeld} days held</div>
-                        </div>
-                      </div>
+                        <span className="min-w-0">
+                          <span className="block truncate font-medium text-text-normal">{row.player.display_name}</span>
+                          <span className="block text-xs text-text-muted">{row.daysHeld} days held</span>
+                        </span>
+                      </PlayerLink>
                     </td>
                     <td className="px-2 text-right tabular-nums">{row.titles}</td>
                     <td className="px-2 text-right font-bold tabular-nums">{row.tournamentsHeld}</td>

@@ -9,6 +9,7 @@ import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import Button from "../../ui/primitives/Button";
 import InlineLoading from "../../ui/primitives/InlineLoading";
 import Modal from "../../ui/primitives/Modal";
+import PlayerLink from "../../ui/primitives/PlayerLink";
 import { getStatsH2H, getStatsH2HMatches, type StatsH2HMatchesRequest } from "../../api/stats.api";
 import { listClubs } from "../../api/clubs.api";
 import { qk } from "../../api/queryKeys";
@@ -405,13 +406,28 @@ export default function H2HView({ mode, scope, rows, subView, selectedId, onSele
             ) : vs.length ? (
               <div className="list-divided">
                 {vs.map((o) => (
-                  <button key={o.opponent.id} type="button" onClick={() => onOpenMatchup(selectedId, o.opponent.id)} className="row row-tap">
-                    <span className="min-w-0 flex-1 truncate text-sm text-text-normal">{o.opponent.display_name}</span>
-                    <span className="shrink-0 font-mono text-[11px] tabular-nums text-text-muted">
-                      {o.played}P · <span className="text-win">{o.wins}</span>-<span className="text-draw">{o.draws}</span>-<span className="text-loss">{o.losses}</span>
+                  /* The row opens the matchup (stretched button); the opponent's name
+                     opens their profile — two targets, never a nested link. */
+                  <div key={o.opponent.id} className="row row-tap relative">
+                    <button
+                      type="button"
+                      onClick={() => onOpenMatchup(selectedId, o.opponent.id)}
+                      aria-label={`All matches against ${o.opponent.display_name}`}
+                      className="absolute inset-0 z-0 rounded-lg focus-ring"
+                    />
+                    <span className="pointer-events-none relative z-10 flex w-full items-center gap-3">
+                      <span className="min-w-0 flex-1">
+                        {/* The link hugs the name so the rest of the row stays the matchup. */}
+                        <PlayerLink playerId={o.opponent.id} name={o.opponent.display_name} className="pointer-events-auto inline-block max-w-full">
+                          <span className="block truncate text-sm text-text-normal">{o.opponent.display_name}</span>
+                        </PlayerLink>
+                      </span>
+                      <span className="shrink-0 font-mono text-[11px] tabular-nums text-text-muted">
+                        {o.played}P · <span className="text-win">{o.wins}</span>-<span className="text-draw">{o.draws}</span>-<span className="text-loss">{o.losses}</span>
+                      </span>
+                      <span className="w-12 shrink-0 text-right text-sm font-semibold tabular-nums text-accent">{o.played ? Math.round(o.win_rate * 100) : 0}%</span>
                     </span>
-                    <span className="w-12 shrink-0 text-right text-sm font-semibold tabular-nums text-accent">{o.played ? Math.round(o.win_rate * 100) : 0}%</span>
-                  </button>
+                  </div>
                 ))}
               </div>
             ) : (
