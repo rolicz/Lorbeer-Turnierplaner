@@ -1,73 +1,54 @@
-import { useNavigate } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
 
-import { apiFetch } from "../../api/client";
-import { qk } from "../../api/queryKeys";
 import { useRealtimeStatus } from "../RealtimeStatusContext";
 
-type LiveTournamentLite = { id: number; name: string };
-
-type Visual = { label: string; dot: string; text: string; ping: boolean };
-
 /**
- * Realtime status pill. Distinguishes a **running live tournament** ("Live",
- * tappable → its current match) from a merely **connected** socket ("Connected"),
- * plus Reconnecting / Offline from `RealtimeStatusContext`.
+ * Realtime **trouble** indicator (T10).
+ *
+ * The happy path says nothing: a working connection is the normal state, and
+ * announcing it next to the bell put a third "live" marker on a screen that
+ * already has the bottom bar's pulsing dot and the page's own content. This
+ * renders only while the socket is reconnecting or offline — the one thing the
+ * reader cannot see anywhere else.
+ *
+ * A short grace period keeps the startup handshake (and any blink between two
+ * sockets) quiet: every page load passes through `reconnecting` for a moment.
  */
-export default function ConnectionIndicator({ compact = false }: { compact?: boolean }) {
+const TROUBLE_GRACE_MS = 1200;
+
+export default function ConnectionIndicator() {
   const status = useRealtimeStatus();
-  const navigate = useNavigate();
+  const trouble = status !== "live";
+  const [visible, setVisible] = useState(false);
 
-  // Is a tournament actually live right now? (cheap, shared cache key)
-  const liveQ = useQuery({
-    queryKey: qk.tournamentsLive(),
-    queryFn: () => apiFetch<LiveTournamentLite | null>("/tournaments/live"),
-    refetchOnWindowFocus: true,
-    refetchOnReconnect: true,
-    staleTime: 15_000,
-  });
-  const liveTid = status !== "offline" && typeof liveQ.data?.id === "number" ? liveQ.data.id : null;
+  useEffect(() => {
+    if (!trouble) return;
+    const t = window.setTimeout(() => setVisible(true), TROUBLE_GRACE_MS);
+    // Recovery (or unmount) clears the pending timer and arms the grace period
+    // again, so a second drop is just as quiet as the first.
+    return () => {
+      window.clearTimeout(t);
+      setVisible(false);
+    };
+  }, [trouble]);
 
-  const vis: Visual =
-    status === "offline"
-      ? { label: "Offline", dot: "bg-status-bar-default", text: "text-text-muted", ping: false }
-      : status === "reconnecting"
-        ? { label: "Reconnecting", dot: "bg-draw", text: "text-draw", ping: false }
-        : liveTid != null
-          ? { label: "Live", dot: "bg-live", text: "text-live", ping: true }
-          : { label: "Connected", dot: "bg-status-bar-green/80", text: "text-text-muted", ping: false };
+  if (!trouble || !visible) return null;
 
-  const body = (
-    <>
-      <span className="relative inline-flex h-2 w-2 shrink-0">
-        {vis.ping ? (
-          <span className={`absolute inline-flex h-full w-full rounded-full ${vis.dot} opacity-60 animate-live-ping`} />
-        ) : null}
-        <span className={`relative inline-flex h-2 w-2 rounded-full ${vis.dot}`} />
-      </span>
-      {!compact ? <span className="truncate">{vis.label}</span> : null}
-    </>
-  );
-
-  const cls = `inline-flex items-center gap-1.5 text-xs ${vis.text}`;
-
-  if (liveTid != null) {
-    return (
-      <button
-        type="button"
-        onClick={() => navigate(`/live/${liveTid}`)}
-        className={`${cls} focus-ring rounded-full px-2 py-1 -mr-1 transition hover:bg-bg-card-chip/40`}
-        title="Open the live tournament's current match"
-        aria-label="Live tournament running — open current match"
-      >
-        {body}
-      </button>
-    );
-  }
+  const offline = status === "offline";
+  const label = offline ? "Offline" : "Reconnecting";
 
   return (
-    <span className={cls} title={`Realtime: ${vis.label}`} aria-label={`Realtime status: ${vis.label}`}>
-      {body}
+    <span
+      data-connection-status={status}
+      className={`inline-flex items-center gap-1.5 text-xs ${offline ? "text-text-muted" : "text-draw"}`}
+      title={`Realtime: ${label}`}
+      aria-label={`Realtime status: ${label}`}
+    >
+      <span
+        className={`inline-flex h-2 w-2 shrink-0 rounded-full ${offline ? "bg-status-bar-default" : "bg-draw"}`}
+        aria-hidden="true"
+      />
+      <span className="truncate">{label}</span>
     </span>
   );
 }

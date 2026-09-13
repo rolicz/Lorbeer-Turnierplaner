@@ -57,30 +57,6 @@ function errorMessage(err: unknown): string {
   return "Request failed";
 }
 
-/** Status chip with a pulsing dot for live tournaments. */
-function StatusChip({ status }: { status: "draft" | "live" | "done" }) {
-  if (status === "live") {
-    return (
-      <span className="inline-flex items-center gap-1.5 rounded-full bg-status-bg-green/70 px-2.5 py-0.5 text-xs font-semibold text-status-text-green">
-        <span className="relative flex h-2 w-2">
-          <span className="absolute inline-flex h-full w-full animate-ping rounded-full live-ping opacity-75" />
-          <span className="relative inline-flex h-2 w-2 rounded-full live-dot" />
-        </span>
-        Live
-      </span>
-    );
-  }
-  const cls =
-    status === "draft"
-      ? "bg-status-bg-blue/70 text-status-text-blue"
-      : "bg-bg-card-chip/70 text-text-muted";
-  return (
-    <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${cls}`}>
-      {status === "draft" ? "Draft" : "Done"}
-    </span>
-  );
-}
-
 export default function LiveTournamentPage() {
   const { id } = useParams();
   const tid = id ? Number(id) : null;
@@ -543,7 +519,6 @@ export default function LiveTournamentPage() {
             </div>
             {tQ.data ? (
               <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-                <StatusChip status={tQ.data.status} />
                 <Pill>{tQ.data.mode}</Pill>
                 <Pill className={pillDate()} title="Date">
                   {fmtDate(tQ.data.date)}
