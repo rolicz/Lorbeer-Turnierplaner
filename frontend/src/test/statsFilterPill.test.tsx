@@ -1,6 +1,6 @@
 import type { ComponentProps } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, within } from "@testing-library/react";
 
 import StatsFilterPill from "../pages/stats/StatsFilterPill";
 
@@ -18,17 +18,9 @@ function setup(props: Partial<ComponentProps<typeof StatsFilterPill>> = {}) {
       {...props}
     />,
   );
-  // The floating capsule; with an `inlineSlot` a second trigger lives outside the container.
+  // The floating capsule — since T4 the only trigger the filters have.
   const pill = utils.container.querySelector<HTMLButtonElement>("[data-filtered]") as HTMLButtonElement;
   return { ...utils, pill, onModeChange, onScopeChange };
-}
-
-/** The section's chip row hands the pill a slot; the second trigger is portalled into it. */
-function setupWithSlot(props: Partial<ComponentProps<typeof StatsFilterPill>> = {}) {
-  const slot = document.createElement("span");
-  document.body.appendChild(slot);
-  const utils = setup({ ...props, inlineSlot: slot });
-  return { ...utils, slot, chip: within(slot).getByRole("button") };
 }
 
 beforeEach(() => {
@@ -157,41 +149,18 @@ describe("StatsFilterPill", () => {
     expect(setup().pill).toHaveAttribute("data-pulse", "false");
   });
 
-  it("puts a second trigger in the slot the section provides", () => {
-    const { chip, pill } = setupWithSlot({ mode: "2v2" });
-    expect(chip).toHaveAccessibleName("Filters — Mode: 2v2, Source: Tournaments");
-    expect(chip).toHaveAttribute("aria-haspopup", "dialog");
-    expect(chip).toHaveTextContent("Filters");
-    expect(pill).toBeInTheDocument();
+  // ── T4: the pill is the only entry point, and big enough to be seen ────────
+
+  it("is the only trigger the filters have", () => {
+    const { baseElement, pill } = setup();
+    // Nothing else — no inline "Filters" chip anywhere in the tree — opens the popover.
+    expect(within(baseElement).getAllByRole("button")).toEqual([pill]);
+    expect(within(baseElement).queryByRole("button", { name: /^Filters/ })).toBeNull();
   });
 
-  it("opens and closes the same popover from the inline chip", () => {
-    const { chip, onModeChange } = setupWithSlot();
-    fireEvent.mouseDown(chip);
-    fireEvent.click(chip);
-    const panel = screen.getByRole("dialog", { name: "Stats filters" });
-    expect(chip).toHaveAttribute("aria-expanded", "true");
-
-    fireEvent.click(within(panel).getByRole("button", { name: "2v2" }));
-    expect(onModeChange).toHaveBeenCalledWith("2v2");
-    expect(screen.getByRole("dialog", { name: "Stats filters" })).toBeInTheDocument();
-
-    // Re-tapping the chip closes it (the outside-click guard ignores both triggers).
-    fireEvent.mouseDown(chip);
-    fireEvent.click(chip);
-    expect(screen.queryByRole("dialog")).toBeNull();
-  });
-
-  it("returns focus to the trigger that opened it", () => {
-    const { chip } = setupWithSlot();
-    fireEvent.click(chip);
-    fireEvent.keyDown(document, { key: "Escape" });
-    expect(screen.queryByRole("dialog")).toBeNull();
-    expect(chip).toHaveFocus();
-  });
-
-  it("renders no inline trigger without a slot", () => {
-    const { baseElement } = setup();
-    expect(within(baseElement).queryByRole("button", { name: /^Filters — / })).toBeNull();
+  it("keeps the capsule a big, single tap target", () => {
+    const { pill } = setup();
+    expect(pill.className).toContain("h-11");
+    expect(pill.className).toContain("rounded-full");
   });
 });

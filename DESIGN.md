@@ -214,11 +214,13 @@ Sizes `hero` (match panel), `md` (match rows in lists), `sm` (compact rows, mini
 
 ## 9. Floating filter pill (stats)
 
-Capsule `h-9 rounded-full` (≈95×36px with both filters) with `SlidersHorizontal` (14px) and the
-current values as two compact tokens: mode as text (`All` / `1v1` / `2v2`), source as a lucide
-icon (`Trophy` tournaments, `Layers` both, `Handshake` friendlies). The glyphs are `aria-hidden`
-and the whole button carries one `aria-label` (`"Mode: All, Source: Tournaments"`) — inside a
-single button, per-token `sr-only` text concatenates into an unreadable name.
+Capsule `h-11 rounded-full` (≈118×44px with both filters) with `SlidersHorizontal` (16px) and the
+current values as two compact tokens: mode as text (`All` / `1v1` / `2v2`, `text-sm font-semibold`),
+source as a lucide icon (`Trophy` tournaments, `Layers` both, `Handshake` friendlies). The glyphs
+are `aria-hidden` and the whole button carries one `aria-label`
+(`"Mode: All, Source: Tournaments"`) — inside a single button, per-token `sr-only` text
+concatenates into an unreadable name. It is a full 44px tap target because it is the **only** way
+into the filters (T4): no inline "Filters" chip in the sub-view row, no second trigger anywhere.
 
 It floats bottom-right (`right-4 bottom-[calc(4.5rem+safe-area)]`, `lg:right-6 lg:bottom-6`) at
 `z-40`, above the mobile bottom tab bar and below modals. Tapping it opens an anchored popover
@@ -227,19 +229,20 @@ It floats bottom-right (`right-4 bottom-[calc(4.5rem+safe-area)]`, `lg:right-6 l
 trigger. Only the groups the current section uses are shown; where neither applies (Cups) nothing
 is rendered at all.
 
-Because it is small it announces itself instead of growing (S9):
+Carrying the job alone, it states itself in three ways (S9, resized by T4):
 
-- **Default state:** solid `bg-bg-card-outer` with a `border-accent/30` hairline and `shadow-pop`.
+- **Default state:** solid `bg-bg-card-outer` with a 2px `border-accent/45` accent edge and
+  `shadow-pop`.
 - **Filtered state** — any filter *the section actually uses* is off its default: the border goes
-  `border-accent/60`, a soft `ring-2 ring-accent/20` halo appears, a small accent dot sits on the
+  `border-accent/70`, a soft `ring-2 ring-accent/20` halo appears, a small accent dot sits on the
   sliders glyph, and the token that is off default turns accent, so the pill says *which* filter
   is active. Exposed as `data-filtered` for tests.
 - **First visit per session:** one short attention pulse (framer-motion scale, `data-pulse`,
   gated by `sessionStorage`), cancelled by the first tap and dropped under
   `prefers-reduced-motion`.
-- **Second entry point:** on mobile (`lg:hidden`) the section's sub-view chip row carries a
-  trailing "Filters" chip that opens the same popover (portalled into a slot the section renders,
-  so there is exactly one popover and one piece of state).
+
+The stats root keeps `pb-16` so the last content row still clears the capsule when the page is
+scrolled to the end (20px of air at 390px and at 1280px).
 
 ## 9b. Editing in place (pickers, composers) — no disclosure wrappers
 

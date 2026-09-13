@@ -3376,7 +3376,7 @@ siblings; plus this one)
 
 ---
 
-## T4 — Stats filter pill: bigger, and the only entry point  ☐
+## T4 — Stats filter pill: bigger, and the only entry point  ☑
 
 Roli: "i dont like that you put the 'filters' on top again -> the pill alone is enough, but make
 it bigger so it cant be overlooked (i like the accent border around it)."
@@ -3391,7 +3391,45 @@ it bigger so it cant be overlooked (i like the accent border around it)."
 **DoD:** screenshots 390px + 1280px, blue + light: rest, filtered, popover open; no inline entry
 anywhere; pill clears the bottom tab bar and the last row; `npm run check` + build.
 
-**Deviations:**
+**Deviations:** (implemented 2026-09-13)
+
+- **Size: 118×44 px** (`h-11`, `pl-3.5 pr-4`, `gap-2.5`, 16px glyphs, the mode token at
+  `text-sm font-semibold`) — up from S7/S9's 95×36. Judgement call on "big enough": 44px is the
+  platform tap-target size and makes the capsule as tall as a `Button md`, so it reads as a
+  *control* rather than a badge, while the width stays ≈30% of the phone's 390px, i.e. still a
+  capsule and not a bar. Mode-only sections (Positions) are 77×44.
+- **The accent edge is 2px, not a hairline** (`border-2`, `border-accent/45` at rest →
+  `border-accent/70` filtered, with S9's `ring-2 ring-accent/20` halo kept). Roli's "i like the
+  accent border around it" is the thing that must not be overlookable; at 44px a 1px `accent/30`
+  line looked thinner than before, not stronger. The filtered dot grew with the glyph
+  (`h-2 w-2`, was `h-1.5 w-1.5`).
+- **Everything the second trigger needed is gone, not just hidden:** the `inlineSlot` prop, the
+  portalled chip, its `chipRef`, the `triggerRef` indirection, the `"above" | "below"` placement
+  in `Anchor`/`popUp` and the `chipClass` import. The popover has one anchor again (above the
+  pill, right edges flush). `chipClass` itself stays — `SelectClubsPanel` (T2) and
+  `PlayerProfile` still use it.
+- **`StatsInsights`' chip row is a plain `ChipGroup` again**: with the slot gone the flex row,
+  the `min-w-0 flex-1` on the group, the `ml-auto` span, the `showFilterChip` flag and the
+  `useState` import all went with it. Sections without sub-views (Trends, Player, H2H outside
+  2v2, the open matchup) now render **no** row at all — S9 rendered an `lg:hidden` row there
+  only to host the chip.
+- **`pb-16` on the stats root is unchanged and still correct.** Measured at the bottom of the
+  longest section (Positions, scrolled to the end): the last content row ends 20px above the
+  capsule at 390px *and* at 1280px, and the capsule's bottom sits 15px above the bottom tab bar
+  (mobile) — the extra 8px of height ate into a 28px gap, not into the content.
+- Tests: `statsFilterPill.test.tsx` 19 → 16 cases — the four `inlineSlot` cases are replaced by
+  "is the only trigger the filters have" (the whole tree has exactly one button, none named
+  `Filters`) and "keeps the capsule a big, single tap target" (`h-11`, `rounded-full`). Suite
+  378 → 376.
+- Runtime DoD on the isolated stack (backend :8003 on a copy of `app.db`, vite :8020):
+  **124 checks green** over blue/light × 390/1280 px — 118×44 rest / 125×44 filtered, capsule
+  radius, `position: fixed; z-index: 40`, the 16/24px right gutter, no `Filters` trigger and
+  exactly one pill in all six sections (none on Cups), the clearance measurements above, the
+  popover 8px above the pill with flush right edges and on screen, Escape closing it and
+  returning focus, no horizontal overflow and 0 console errors.
+- Screenshots (scratchpad `shots/`): `t4-{rest,filtered,open,bottom}-{390,1280}-{blue,light}`.
+- `npm run build` still prints the pre-existing "chunks larger than 500 kB" hint, as under every
+  earlier task.
 
 ---
 

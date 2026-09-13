@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { useLocation, useSearchParams } from "react-router-dom";
 import { LayoutGrid, LineChart, Swords, UserRound } from "lucide-react";
 
@@ -112,10 +112,6 @@ export default function StatsInsights({
       : null;
   const showSubs = subs.length > 0 && (view !== "h2h" || mode === "2v2") && matchup == null;
   const filters = FILTERS[view === "overview" ? `overview:${activeSub}` : view] ?? { mode: true, scope: true };
-  // Mobile's second filter trigger lives in the chip row; the slot element is
-  // handed to the pill, which portals its chip into it (S9).
-  const showFilterChip = filters.mode || filters.scope;
-  const [filterSlot, setFilterSlot] = useState<HTMLSpanElement | null>(null);
 
   // Every section, sub-view and the matchup swap the body without navigating
   // (all params are written with `replace`), so each one keeps its own scroll
@@ -165,23 +161,15 @@ export default function StatsInsights({
     <div className="space-y-3 pb-16">
       <SectionTabs tabs={SECTIONS} active={view} onChange={setView} />
 
-      {/* Sub-views and, on mobile, the filters trigger share one row: the floating
-          pill is easy to miss while reading the top of a section (S9). The span is
-          only a slot — `StatsFilterPill` portals its chip into it, so both triggers
-          drive the same popover. */}
-      {showSubs || showFilterChip ? (
-        <div className={"flex items-start gap-1.5" + (showSubs ? "" : " lg:hidden")}>
-          {showSubs ? (
-            <ChipGroup<StatsSub>
-              value={activeSub}
-              onChange={setSub}
-              ariaLabel={`${view === "h2h" ? "Head-to-head" : "Overview"} sub-view`}
-              options={subs.map((s) => ({ key: s, label: SUB_LABELS[s] }))}
-              className="min-w-0 flex-1"
-            />
-          ) : null}
-          <span ref={setFilterSlot} className="ml-auto flex shrink-0 lg:hidden" />
-        </div>
+      {/* Sub-views only: the filters have exactly one entry point, the floating
+          pill (T4) — S9's inline "Filters" chip is gone from this row. */}
+      {showSubs ? (
+        <ChipGroup<StatsSub>
+          value={activeSub}
+          onChange={setSub}
+          ariaLabel={`${view === "h2h" ? "Head-to-head" : "Overview"} sub-view`}
+          options={subs.map((s) => ({ key: s, label: SUB_LABELS[s] }))}
+        />
       ) : null}
 
       {view === "overview" && activeSub === "table" && <StatsTable rows={rows} loading={loading} onSelect={goPlayer} mode={mode} scope={scope} />}
@@ -225,7 +213,6 @@ export default function StatsInsights({
         onScopeChange={onScopeChange}
         showMode={filters.mode}
         showScope={filters.scope}
-        inlineSlot={filterSlot}
       />
     </div>
   );
