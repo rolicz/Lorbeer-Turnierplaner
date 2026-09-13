@@ -24,13 +24,18 @@ export function MatchRowWithClubs({
   clubs,
   showMeta,
   action,
+  expanded,
   href,
 }: {
   m: StatsMatch;
   focusId?: number | null;
   clubs: Club[];
   showMeta: boolean;
+  /** Compact controls next to the score — icon buttons, never a panel (see `expanded`). */
   action?: ReactNode;
+  /** A panel the row opens (the friendlies editor): full width *under* the row, never
+   *  squeezed into the `shrink-0` action slot, where it is wider than the row itself. */
+  expanded?: ReactNode;
   /** When set, the row's main block becomes a link to the match detail page. */
   href?: string | null;
 }) {
@@ -93,20 +98,25 @@ export function MatchRowWithClubs({
   );
 
   return (
-    <div className="flex items-stretch gap-2">
-      {href ? (
-        <Link
-          to={href}
-          state={{ fromTab: "matches" }}
-          aria-label="Open match"
-          className="row-tap focus-ring block min-w-0 flex-1"
-        >
-          {body}
-        </Link>
-      ) : (
-        <div className="min-w-0 flex-1">{body}</div>
-      )}
-      {action ? <div className="shrink-0 self-center">{action}</div> : null}
+    <div>
+      <div className="flex items-stretch gap-2">
+        {href ? (
+          <Link
+            to={href}
+            state={{ fromTab: "matches" }}
+            aria-label="Open match"
+            className="row-tap focus-ring block min-w-0 flex-1"
+          >
+            {body}
+          </Link>
+        ) : (
+          <div className="min-w-0 flex-1">{body}</div>
+        )}
+        {action ? <div className="shrink-0 self-center">{action}</div> : null}
+      </div>
+      {/* The accent rail says "this belongs to the row above" without adding a
+          surface — the same cue a comment thread's replies use. */}
+      {expanded ? <div className="mb-2 mt-2 border-l-2 border-accent/30 pl-2 sm:pl-3">{expanded}</div> : null}
     </div>
   );
 }
@@ -120,6 +130,7 @@ export function MatchHistoryTournamentBlock({
   extraPills,
   showModePill = false,
   renderMatchAction,
+  renderMatchExpanded,
   matchHref,
 }: {
   t: StatsPlayerMatchesTournament;
@@ -132,6 +143,7 @@ export function MatchHistoryTournamentBlock({
    *  worth a pill where the surrounding list actually mixes modes (DS8). */
   showModePill?: boolean;
   renderMatchAction?: (t: StatsPlayerMatchesTournament, m: StatsMatch) => ReactNode;
+  renderMatchExpanded?: (t: StatsPlayerMatchesTournament, m: StatsMatch) => ReactNode;
   matchHref?: (t: StatsPlayerMatchesTournament, m: StatsMatch) => string | null;
 }) {
   return (
@@ -163,6 +175,7 @@ export function MatchHistoryTournamentBlock({
             clubs={clubs}
             showMeta={showMeta}
             action={renderMatchAction ? renderMatchAction(t, m) : undefined}
+            expanded={renderMatchExpanded ? renderMatchExpanded(t, m) : undefined}
             href={matchHref ? matchHref(t, m) : null}
           />
         ))}
@@ -179,6 +192,7 @@ export function MatchHistoryList({
   renderTournamentActions,
   renderTournamentPills,
   renderMatchActions,
+  renderMatchExpanded,
   showModePill = false,
   matchHref,
 }: {
@@ -189,6 +203,8 @@ export function MatchHistoryList({
   renderTournamentActions?: (t: StatsPlayerMatchesTournament) => ReactNode;
   renderTournamentPills?: (t: StatsPlayerMatchesTournament) => ReactNode;
   renderMatchActions?: (t: StatsPlayerMatchesTournament, m: StatsMatch) => ReactNode;
+  /** A panel rendered full width under a row (the friendlies list's inline editor). */
+  renderMatchExpanded?: (t: StatsPlayerMatchesTournament, m: StatsMatch) => ReactNode;
   /** See `MatchHistoryTournamentBlock` — only a mixed-mode list shows it. */
   showModePill?: boolean;
   matchHref?: (t: StatsPlayerMatchesTournament, m: StatsMatch) => string | null;
@@ -206,6 +222,7 @@ export function MatchHistoryList({
           extraPills={renderTournamentPills ? renderTournamentPills(t) : undefined}
           showModePill={showModePill}
           renderMatchAction={renderMatchActions}
+          renderMatchExpanded={renderMatchExpanded}
           matchHref={matchHref}
         />
       ))}

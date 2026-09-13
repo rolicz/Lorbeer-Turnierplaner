@@ -211,14 +211,19 @@ describe("MatchOverviewPanel layout (DESIGN.md §8)", () => {
     expect(container.querySelector('[data-score-numeral="right"]')?.textContent).toBe("–");
   });
 
-  it("carries the surface class the caller asks for", () => {
-    const inset = render(<MatchOverviewPanel match={makeMatch(1, 2)} clubs={CLUBS} aGoals={1} bGoals={0} />);
-    expect(inset.container.firstElementChild?.className).toContain("inset");
+  // T8: one scoreboard surface everywhere — the panel is an `inset`, and no prop
+  // lets a caller opt out of it (the dashboard preview used to pass `surface="none"`).
+  it("is always an inset, on every surface", () => {
+    const { container } = render(<MatchOverviewPanel match={makeMatch(1, 2)} clubs={CLUBS} aGoals={1} bGoals={0} />);
+    const panel = container.firstElementChild as HTMLElement;
+    expect(panel.className).toContain("inset");
+    expect(panel).toHaveAttribute("data-match-panel");
 
-    const none = render(
-      <MatchOverviewPanel match={makeMatch(1, 2)} clubs={CLUBS} aGoals={1} bGoals={0} surface="none" />,
+    const withClass = render(
+      <MatchOverviewPanel match={makeMatch(1, 2)} clubs={CLUBS} aGoals={1} bGoals={0} className="mt-2" />,
     );
-    expect(none.container.firstElementChild?.className).not.toContain("inset");
+    // A caller may position the panel; it cannot take the surface away.
+    expect(withClass.container.firstElementChild?.className).toContain("inset");
   });
 });
 

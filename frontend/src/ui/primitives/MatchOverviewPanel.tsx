@@ -14,6 +14,12 @@
  * On an editable surface (`onPickClub`, T2) the two club lines are the trigger of
  * the club picker — the scoreboard is the only place a club is named, never a
  * second row below it (`DESIGN.md` §9b).
+ *
+ * The panel **is** an `inset`, on every surface that shows a score (T8): dashboard
+ * preview, live Overview, live Current, the match-detail edit preview, the friendly
+ * form and the friendlies list's row editor. There is no `surface` prop any more —
+ * a caller that wants the panel to look different is the bug. `data-match-panel`
+ * marks it for tests, in the house style of `data-score-line`.
  */
 import type { Club, Match, MatchSide, TournamentMode } from "../../api/types";
 import { sideBy } from "../../helpers";
@@ -38,7 +44,6 @@ export default function MatchOverviewPanel({
   showMode = false,
   showOdds = true,
   showOddsWhenFinished = false,
-  surface = "inset",
   aLabel,
   bLabel,
   onPickClub,
@@ -55,7 +60,6 @@ export default function MatchOverviewPanel({
   showMode?: boolean;
   showOdds?: boolean;
   showOddsWhenFinished?: boolean;
-  surface?: "card" | "inset" | "none";
   /** Side labels for the picker trigger; defaults to the side's players. */
   aLabel?: string;
   bLabel?: string;
@@ -71,7 +75,7 @@ export default function MatchOverviewPanel({
     showOdds && !!odds && (showOddsWhenFinished || match.state === "scheduled" || match.state === "playing");
 
   return (
-    <div className={cn(surface === "card" ? "card" : surface === "inset" ? "inset" : "", className)}>
+    <div data-match-panel="" className={cn("inset", className)}>
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0 truncate text-xs text-text-muted">
           Match {match.order_index + 1} · Leg {match.leg}

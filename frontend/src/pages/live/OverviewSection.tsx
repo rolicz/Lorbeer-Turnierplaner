@@ -58,7 +58,7 @@ export default function OverviewSection({
           <button
             type="button"
             onClick={() => onOpenCurrentMatch(previewMatch)}
-            className="block w-full rounded-2xl text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/35"
+            className="focus-ring block w-full rounded-xl text-left transition"
           >
             <MatchOverviewPanel
               match={previewMatch}

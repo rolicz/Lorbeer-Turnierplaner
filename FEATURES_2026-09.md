@@ -3518,7 +3518,7 @@ the standings table; screenshots 390px + 1280px; `npm run check` + build.
 
 ---
 
-## T8 — One scoreboard surface everywhere  ☐
+## T8 — One scoreboard surface everywhere  ☑
 
 Roli: "why does the dashboard scoreboard use a different background color than in the tournament
 view? consistency!"
@@ -3536,7 +3536,72 @@ view? consistency!"
 computed `background-color` of the panel element is identical in a Playwright check); screenshots
 390px, blue + light; `npm run check` + build.
 
-**Deviations:**
+**Deviations:** (implemented 2026-09-13)
+
+- **The `surface` prop is gone, not re-pointed.** `MatchOverviewPanel` *is* an `inset`
+  (`data-match-panel` marks it, house style of `data-score-line`); there is no longer a way for a
+  caller to render the score panel differently, which is what "one scoreboard surface everywhere"
+  means. `"card"` had no caller left and `"none"` had exactly one — the dashboard.
+- **The dashboard's card wrapper disappears** (the judgement call the task left open). The plan's
+  other option was `card` → `inset`, but then the dashboard panel would still *paint* differently
+  from the live tabs in the dark themes: `.inset` is `bg-card-chip/50`, so it blends with whatever
+  is behind it (measured in blue: 29,40,60 on the page vs 34,47,69 on a card). Dropping the
+  wrapper makes the dashboard block and the live Overview "Current match" block the same thing
+  pixel for pixel — which is exactly the comparison Roli made — *and* makes the live card a
+  sibling of its own neighbours: `TrendsPreviewCard` and `StandingsPreviewCard` are flat
+  `section-head` + content blocks, so the live card was the only card on the Overview tab.
+  The tournament name moved from the card's `h2` into the `section-head` as its trailing action
+  (`<Link>` + `ChevronRight`, the shape Trends/Standings already use), so nothing was lost: the
+  name is still there, still a door into the tournament, and the panel itself stays tappable.
+- **Five of six surfaces now paint identically; the sixth is the canon working as intended.**
+  Computed `background-color`, border and radius are identical on all six in both themes (the
+  DoD's assertion), and the *painted* colour is identical in `light` (opaque inset) and on five
+  of six in `blue` — the match-detail edit preview sits inside the "Result" `card`, where a
+  translucent level-2 box legitimately picks up the level-1 surface behind it (34,47,69 vs
+  29,40,60, ~5/255). Flattening that card would have restructured a three-card form (Result /
+  Clubs / Advanced) for a difference nobody can see without a colour picker, and making `.inset`
+  opaque is a canon-wide DS1/DS3 decision, not T8's. `DESIGN.md` §8 now states both the rule and
+  this one exception.
+- **The friendlies-list editor is fixed here, as a row-layout bug** (T2 handed it over): it *is*
+  one. `MatchRowWithClubs` gained an `expanded` slot (threaded through
+  `MatchHistoryTournamentBlock` and `MatchHistoryList` as `renderMatchExpanded`) that renders a
+  panel **after** the row at the row's full width; the `action` slot keeps only the two icon
+  buttons it was sized for. Measured at 390px: the editor was **449px inside a 358px row**
+  (clipped on the right), it is now **358px inside a 358px row**, in both Compact and Details
+  view. The editor's own box (`rounded-xl border bg-bg-card-inner p-3`, an off-canon level-2
+  surface) is replaced by an accent rail (`border-l-2 border-accent/30 pl-2 sm:pl-3`, the cue
+  `CommentList` uses for thread replies), so the score panel inside it sits on the page like the
+  others instead of on a third background (it painted 40,54,78 before).
+- **Small alignments in the sweep:** live Overview's tap wrapper was `rounded-2xl` around a
+  `rounded-xl` inset (a focus ring 4px off the box it framed) and now matches the dashboard's
+  wrapper exactly (`focus-ring block w-full rounded-xl text-left transition`). Live Current's
+  stretched overlay was already `rounded-xl`; the match-detail, friendly-form and friendlies-list
+  panels needed no change beyond the ones above.
+- **Not touched, deliberately:** in the friendlies list's *Details* view an expanded row shows the
+  clubs twice — once in the row's own `MatchSides`, once in the editor's scoreboard. That is a
+  list row next to an editor (not "one screen naming the same value twice", §9b, which T2 fixed
+  inside the editor); collapsing the row while its editor is open is a separate decision.
+  Also pre-existing and left alone: the new-friendly form offers its club triggers to readers too
+  (the form is usable without a login, only saving is not — T2).
+- Tests: `matchOverviewPanel.test.tsx`'s "carries the surface class the caller asks for" became
+  "is always an inset, on every surface" (asserts `inset` + `data-match-panel`, and that a
+  `className` cannot take the surface away); `matchHistoryList.test.tsx` gained two cases for the
+  `expanded` slot (rendered after the row, outside the `shrink-0` action slot; nothing extra
+  without it). Suite 376 → 378.
+- Runtime on the isolated stack (backend :8003 on a copy of `app.db`, vite :8020), blue + light ×
+  390 + 1280 px: **132 surface checks** — the six panels' computed `background-color`, border and
+  radius identical per theme, `inset` on all six, the panel outside a `card` on five and inside
+  the Result card on the sixth, the editor fitting its row, the dashboard header's link target and
+  text, no horizontal overflow, no nested `<a>`, 0 console errors — plus **128 behaviour and
+  reader checks**: the dashboard panel and its header link both opening `/live/21`, the Overview
+  panel switching to the Current tab, the Current tab's club trigger opening the picker while the
+  rest of the panel opens the match detail, the list editor opening under its row in both views
+  with a working club picker and Cancel, and a reader seeing the same `inset` everywhere with no
+  edit affordances. Painted-pixel samples (2×2 patch inside each panel) are quoted above.
+- Screenshots (scratchpad `shots/`): `t8-before-…` and `t8-after-{dashboard,live-overview,
+  live-current,match-edit,friendly-form,friendlies-list}-{390,1280}-{blue,light}`,
+  `t8-list-{compact,details}-…` and `t8-reader-…`.
+- `npm run build` still prints the pre-existing "chunks larger than 500 kB" hint.
 
 ---
 

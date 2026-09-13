@@ -157,6 +157,36 @@ function makeTournament(id: number, status: string): StatsPlayerMatchesTournamen
   };
 }
 
+// T8: a row's editor is a panel, not an action — the action slot is `shrink-0`, so a
+// 449px editor rendered into it is clipped by a 358px row at 390px.
+describe("MatchRowWithClubs expanded panel", () => {
+  it("renders the expanded panel under the row, outside the action slot", () => {
+    const { container, getByTestId } = render(
+      <MatchRowWithClubs
+        m={makeMatch(1, 2)}
+        clubs={CLUBS}
+        showMeta
+        action={<button type="button">Edit</button>}
+        expanded={<div data-testid="editor">editor</div>}
+      />,
+    );
+
+    const editor = getByTestId("editor");
+    const actionSlot = container.querySelector(".shrink-0.self-center");
+    expect(actionSlot).not.toBeNull();
+    expect(actionSlot?.contains(editor)).toBe(false);
+    // It is a sibling *after* the row, so it gets the row's full width.
+    const row = container.firstElementChild;
+    expect(row?.lastElementChild?.contains(editor)).toBe(true);
+    expect(row?.firstElementChild?.contains(editor)).toBe(false);
+  });
+
+  it("renders nothing extra without an expanded panel", () => {
+    const { container } = render(<MatchRowWithClubs m={makeMatch(1, 2)} clubs={CLUBS} showMeta />);
+    expect(container.firstElementChild?.children).toHaveLength(1);
+  });
+});
+
 describe("MatchHistoryList match links", () => {
   it("renders a link to the match detail page when matchHref is given", () => {
     const { getByRole } = render(

@@ -204,6 +204,16 @@ Sizes `hero` (match panel), `md` (match rows in lists), `sm` (compact rows, mini
 - A control that previews a score (the goal entry's "which side scores") uses the exported
   `ScoreNumerals`, never a hand-written `1-0` string: same weight, same tabular figures, same
   hairline separator. The numeral that changes is emphasised, the other muted.
+- **One panel surface everywhere (T8).** `MatchOverviewPanel` **is** an `inset` and has no
+  `surface` prop to opt out of it: the dashboard preview, live Overview, live Current, the
+  match-detail edit preview, the friendly form and the friendlies list's row editor all render
+  the same box (marked `data-match-panel`). Where the panel is tappable, the tap target is a bare
+  wrapper (`focus-ring block w-full rounded-xl`, or a stretched overlay behind it) — never a
+  `card` around the panel; the block's title and its link belong in the `section-head` above it,
+  like every other flat block. The one panel on a `card` is the match-detail "Result" editor,
+  where the card groups the whole form: card → inset is the canon, and the translucent inset
+  then paints ~5/255 lighter there than on the page (light themes are identical, the inset being
+  opaque).
 - Never wrap a `ScoreLine` in `card-chip`/borders. The hero panel (`MatchOverviewPanel`) is:
   meta line (`Match 1 · Leg 1` + status `Pill`) → `ScoreLine hero` → odds line
   (`text-xs text-text-muted font-mono`, only scheduled/playing) → two side columns with
@@ -272,6 +282,12 @@ An editor is not a section you unfold; it is the thing itself becoming editable.
   entry's scorer is the footballer in the game, so it is never prefilled with a human player
   from this app. When a field is optional, say in one quiet line what happens if it stays
   empty.
+- **An editor a row opens belongs under the row, full width.** A list row's action slot is
+  `shrink-0` and sized for icon buttons; a panel rendered into it is wider than the row and gets
+  clipped. `MatchRowWithClubs` takes `expanded` for exactly this (the friendlies list's inline
+  editor): it renders after the row, at the row's full width, behind an accent rail
+  (`border-l-2 border-accent/30`) instead of a surface of its own — so the score panel inside it
+  is still the one `inset` (§8).
 - **Heavy choice → sheet.** Many options, search, filters: a `Modal` sheet (full screen on
   mobile), opened from the value, closing on pick.
 - **Light input → always-visible row.** A text field with its send button sits at the bottom of

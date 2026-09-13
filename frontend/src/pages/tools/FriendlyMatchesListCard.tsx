@@ -149,7 +149,7 @@ function FriendlyEditor({
   });
 
   return (
-    <div className="mt-2 rounded-xl border border-border-card-chip/60 bg-bg-card-inner p-3 space-y-4">
+    <div className="space-y-4">
       <div className="flex items-center gap-2">
         <SegmentedSwitch<"h2h" | "edit">
           value={activeView}
@@ -348,51 +348,52 @@ export default function FriendlyMatchesListCard({ onInitialReady }: { onInitialR
               const pendingDelete = deleteMut.isPending && deleteMut.variables === fid;
 
               return (
-                <div>
-                  <div className="inline-flex items-center gap-1">
-                    {canEdit ? (
-                      <Button
-                        type="button"
-                        variant="ghost" size="sm" iconOnly
-                        title={isExpanded ? "Close editor" : `Edit friendly #${fid}`}
-                        onClick={() => setExpandedFriendlyId(isExpanded ? null : fid)}
-                      >
-                        {isExpanded ? <X size={14} aria-hidden="true" /> : <Pencil size={14} aria-hidden="true" />}
-                      </Button>
-                    ) : null}
-                    {canDelete ? (
-                      <Button
-                        type="button"
-                        variant="ghost" size="sm" iconOnly
-                        title={`Delete friendly #${fid}`}
-                        disabled={pendingDelete}
-                        onClick={() => {
-                          if (!window.confirm(`Delete friendly #${fid}?`)) return;
-                          if (isExpanded) setExpandedFriendlyId(null);
-                          deleteMut.mutate(fid);
-                        }}
-                      >
-                        {pendingDelete ? <Loader2 size={14} className="animate-spin" aria-hidden="true" /> : <Trash2 size={14} aria-hidden="true" />}
-                      </Button>
-                    ) : null}
-                  </div>
-
-                  {isExpanded && canEdit ? (() => {
-                    const row = findFriendlyById(fid);
-                    if (!row) return null;
-                    const friendlyMatch = friendlyToMatch(row, 0);
-                    return (
-                      <FriendlyEditor
-                        friendlyId={fid}
-                        match={friendlyMatch}
-                        clubs={clubsQ.data ?? []}
-                        clubsById={clubsById}
-                        onSaved={() => setExpandedFriendlyId(null)}
-                        onCancel={() => setExpandedFriendlyId(null)}
-                      />
-                    );
-                  })() : null}
+                <div className="inline-flex items-center gap-1">
+                  {canEdit ? (
+                    <Button
+                      type="button"
+                      variant="ghost" size="sm" iconOnly
+                      title={isExpanded ? "Close editor" : `Edit friendly #${fid}`}
+                      onClick={() => setExpandedFriendlyId(isExpanded ? null : fid)}
+                    >
+                      {isExpanded ? <X size={14} aria-hidden="true" /> : <Pencil size={14} aria-hidden="true" />}
+                    </Button>
+                  ) : null}
+                  {canDelete ? (
+                    <Button
+                      type="button"
+                      variant="ghost" size="sm" iconOnly
+                      title={`Delete friendly #${fid}`}
+                      disabled={pendingDelete}
+                      onClick={() => {
+                        if (!window.confirm(`Delete friendly #${fid}?`)) return;
+                        if (isExpanded) setExpandedFriendlyId(null);
+                        deleteMut.mutate(fid);
+                      }}
+                    >
+                      {pendingDelete ? <Loader2 size={14} className="animate-spin" aria-hidden="true" /> : <Trash2 size={14} aria-hidden="true" />}
+                    </Button>
+                  ) : null}
                 </div>
+              );
+            }}
+            /* The editor is a panel, not a row action: full width under its row, so
+               nothing is clipped by the action slot's `shrink-0` (T2's finding). */
+            renderMatchExpanded={(_t, m) => {
+              if (!canEdit) return null;
+              const fid = Number(m.id);
+              if (!fid || expandedFriendlyId !== fid) return null;
+              const row = findFriendlyById(fid);
+              if (!row) return null;
+              return (
+                <FriendlyEditor
+                  friendlyId={fid}
+                  match={friendlyToMatch(row, 0)}
+                  clubs={clubsQ.data ?? []}
+                  clubsById={clubsById}
+                  onSaved={() => setExpandedFriendlyId(null)}
+                  onCancel={() => setExpandedFriendlyId(null)}
+                />
               );
             }}
           />
