@@ -135,7 +135,7 @@ export default function MobileChrome({
                     onClick={() => setOpen(false)}
                     aria-current={onLivePage ? "page" : undefined}
                     className={
-                      "flex items-center gap-3 rounded-xl px-3 py-3 text-[15px] transition focus-ring " +
+                      "flex items-center gap-3 rounded-xl px-3 py-3 text-base transition focus-ring " +
                       (onLivePage
                         ? "bg-bg-card-chip/60 text-text-normal font-medium"
                         : "text-text-muted hover:bg-hover-default/40 hover:text-text-normal")
@@ -158,7 +158,7 @@ export default function MobileChrome({
                       onClick={() => setOpen(false)}
                       aria-current={isActive ? "page" : undefined}
                       className={
-                        "flex items-center gap-3 rounded-xl px-3 py-3 text-[15px] transition focus-ring " +
+                        "flex items-center gap-3 rounded-xl px-3 py-3 text-base transition focus-ring " +
                         (isActive
                           ? "bg-bg-card-chip/60 text-text-normal font-medium"
                           : "text-text-muted hover:bg-hover-default/40 hover:text-text-normal")
@@ -177,7 +177,7 @@ export default function MobileChrome({
                   onClick={() => setOpen(false)}
                   aria-current={settingsActive ? "page" : undefined}
                   className={
-                    "flex items-center gap-3 rounded-xl px-3 py-3 text-[15px] transition focus-ring " +
+                    "flex items-center gap-3 rounded-xl px-3 py-3 text-base transition focus-ring " +
                     (settingsActive
                       ? "bg-bg-card-chip/60 text-text-normal font-medium"
                       : "text-text-muted hover:bg-hover-default/40 hover:text-text-normal")

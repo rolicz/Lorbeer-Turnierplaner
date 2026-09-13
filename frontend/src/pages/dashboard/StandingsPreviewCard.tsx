@@ -46,7 +46,7 @@ export default function StandingsPreviewCard() {
         <button
           type="button"
           onClick={openFullTable}
-          className="inline-flex items-center gap-1 text-[11px] text-text-muted transition hover:text-text-normal"
+          className="inline-flex items-center gap-1 text-xs text-text-muted transition hover:text-text-normal"
           title="Open the full table in Stats"
         >
           Full table <ChevronRight size={14} />

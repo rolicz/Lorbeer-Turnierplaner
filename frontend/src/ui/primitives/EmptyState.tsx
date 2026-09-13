@@ -11,7 +11,7 @@ export default function EmptyState({ icon, title, hint, className }: {
     <div className={cn("text-center text-sm text-text-muted", className)}>
       {icon != null ? <i className={cn(icon, "mb-2 block opacity-60")} aria-hidden="true" /> : null}
       <div>{title}</div>
-      {hint != null ? <div className="mt-1 text-[11px] opacity-75">{hint}</div> : null}
+      {hint != null ? <div className="mt-1 text-xs opacity-75">{hint}</div> : null}
     </div>
   );
 }

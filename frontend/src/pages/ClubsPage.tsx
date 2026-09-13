@@ -472,7 +472,7 @@ export default function ClubsPage() {
                                 <ClubBadge name={c.name} nation={nationalTeamNation(c.name, ln)} clubId={c.id} crestVersion={c.crest_updated_at} />
                                 <span className="min-w-0 truncate font-medium text-text-normal">{c.name}</span>
                               </div>
-                              <div className="mt-0.5 flex flex-wrap items-center text-[11px] text-text-muted">
+                              <div className="mt-0.5 flex flex-wrap items-center text-xs text-text-muted">
                                 {metaParts.map((part, i) => (
                                   <span key={i} className="inline-flex items-center">
                                     {i > 0 ? <span className="mx-1.5 text-text-muted/40">·</span> : null}

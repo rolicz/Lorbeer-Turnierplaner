@@ -11,7 +11,7 @@ function ProfileStatTile({ label, value }: { label: string; value: string }) {
   return (
     <div className="inset px-2 py-2.5 text-center">
       <div className="text-base font-bold tabular-nums text-text-normal">{value}</div>
-      <div className="mt-0.5 text-[10px] leading-tight text-text-muted">{label}</div>
+      <div className="mt-0.5 text-xs leading-tight text-text-muted">{label}</div>
     </div>
   );
 }
@@ -115,7 +115,7 @@ export default function ProfileStatsSection({
           <div className="section-head"><span className="section-label">Profile net</span></div>
           <div className="flex flex-col items-center">
             <Radar axes={radarAxes} />
-            <div className="text-[11px] text-text-muted">Strengths relative to the field.</div>
+            <div className="text-xs text-text-muted">Strengths relative to the field.</div>
           </div>
         </div>
       ) : null}

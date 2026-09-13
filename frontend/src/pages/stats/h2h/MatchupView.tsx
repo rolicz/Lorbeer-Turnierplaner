@@ -46,7 +46,7 @@ function Tile({ label, title, children }: { label: string; title?: string; child
   return (
     <div className="inset px-2 py-2 text-center" title={title}>
       <div className="text-base font-bold tabular-nums text-text-normal">{children}</div>
-      <div className="text-[11px] text-text-muted">{label}</div>
+      <div className="text-xs text-text-muted">{label}</div>
     </div>
   );
 }
@@ -144,12 +144,12 @@ export default function MatchupView({ mode, scope, leftId, rightId, rows, onBack
       <div className="card">
         <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3">
           <PlayerSide id={leftId} name={leftName} updatedAt={avatarUpdatedAtById.get(leftId) ?? null} />
-          <span className="shrink-0 text-[11px] font-semibold uppercase tracking-[0.14em] text-text-muted">
+          <span className="shrink-0 text-xs font-semibold uppercase tracking-[0.14em] text-text-muted">
             {together ? "and" : "vs"}
           </span>
           <PlayerSide id={rightId} name={rightName} updatedAt={avatarUpdatedAtById.get(rightId) ?? null} align="right" />
         </div>
-        <div className="mt-1 text-center text-[11px] text-text-muted">
+        <div className="mt-1 text-center text-xs text-text-muted">
           {MODE_LABEL[mode]} · {SCOPE_LABEL[scope]}{together ? " · as a team" : ""}
         </div>
       </div>
@@ -190,12 +190,12 @@ export default function MatchupView({ mode, scope, leftId, rightId, rows, onBack
 
           {last5.length ? (
             <div className="flex items-center gap-2">
-              <span className="text-[11px] text-text-muted">Last {last5.length}</span>
+              <span className="text-xs text-text-muted">Last {last5.length}</span>
               <div className="flex items-center gap-1" aria-label="Recent results (oldest first)">
                 {last5.map((r, i) => (
                   <span
                     key={i}
-                    className={"grid h-6 w-6 place-items-center rounded-full text-[11px] font-bold ring-1 ring-inset " + RESULT_CLASS[r]}
+                    className={"grid h-6 w-6 place-items-center rounded-full text-xs font-bold ring-1 ring-inset " + RESULT_CLASS[r]}
                   >
                     {r}
                   </span>

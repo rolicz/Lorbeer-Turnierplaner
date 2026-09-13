@@ -26,7 +26,7 @@ function RecordGroup({ icon, label, matches }: { icon: ReactNode; label: string;
   const shown = matches.slice(0, 6);
   return (
     <div className="inset px-3 py-2.5">
-      <div className="inline-flex items-center gap-2 text-[11px] uppercase tracking-wide text-text-muted">
+      <div className="inline-flex items-center gap-2 text-xs uppercase tracking-wide text-text-muted">
         {icon}
         {label}
         {matches.length > 1 ? <span className="text-text-muted/70">×{matches.length}</span> : null}
@@ -43,7 +43,7 @@ function RecordGroup({ icon, label, matches }: { icon: ReactNode; label: string;
             <div className="mt-0.5 truncate text-center text-xs text-text-muted">{m.tName} · {fmtShortDate(m.date)}</div>
           </Link>
         ))}
-        {matches.length > shown.length ? <div className="text-[11px] text-text-muted">+{matches.length - shown.length} more</div> : null}
+        {matches.length > shown.length ? <div className="text-xs text-text-muted">+{matches.length - shown.length} more</div> : null}
       </div>
     </div>
   );
@@ -57,7 +57,7 @@ function TitlesGroup({ leaders, onSelect }: { leaders: WinLeader[]; onSelect: (i
   const topTies = leaders.filter((l) => l.rank === 1).length;
   return (
     <div className="inset px-3 py-2.5">
-      <div className="inline-flex items-center gap-2 text-[11px] uppercase tracking-wide text-text-muted">
+      <div className="inline-flex items-center gap-2 text-xs uppercase tracking-wide text-text-muted">
         <Trophy size={14} aria-hidden="true" />
         Most tournament wins
         {topTies > 1 ? <span className="text-text-muted/70">×{topTies}</span> : null}
@@ -80,14 +80,14 @@ function TitlesGroup({ leaders, onSelect }: { leaders: WinLeader[]; onSelect: (i
                   <span className="block truncate text-sm font-medium text-text-normal">{l.name}</span>
                 </PlayerLink>
                 {l.latest ? (
-                  <div className="truncate text-[11px] text-text-muted">{l.latest.name} · {fmtShortDate(l.latest.date)}</div>
+                  <div className="truncate text-xs text-text-muted">{l.latest.name} · {fmtShortDate(l.latest.date)}</div>
                 ) : null}
               </div>
             </div>
             <div className="pointer-events-none relative z-10 shrink-0 font-mono text-base font-bold tabular-nums text-accent">{l.count}</div>
           </div>
         ))}
-        {leaders.length > shown.length ? <div className="text-[11px] text-text-muted">+{leaders.length - shown.length} more</div> : null}
+        {leaders.length > shown.length ? <div className="text-xs text-text-muted">+{leaders.length - shown.length} more</div> : null}
       </div>
     </div>
   );
@@ -235,7 +235,7 @@ export default function RecordsView({
             {streakCards.map((s) => (
               <div key={s.name} className="inset px-3 py-2.5">
                 <div className="flex items-center justify-between gap-2">
-                  <div className="inline-flex items-center gap-2 text-[11px] uppercase tracking-wide text-text-muted">
+                  <div className="inline-flex items-center gap-2 text-xs uppercase tracking-wide text-text-muted">
                     {s.name}
                     {s.runs.length > 1 ? <span className="text-text-muted/70">×{s.runs.length}</span> : null}
                   </div>
@@ -251,17 +251,17 @@ export default function RecordsView({
                       ) : (
                         <div className="truncate text-sm font-medium text-text-normal">{run.player.display_name}</div>
                       )}
-                      <div className="text-[11px] text-text-muted">{streakDateText(run)}</div>
+                      <div className="text-xs text-text-muted">{streakDateText(run)}</div>
                     </div>
                   ))}
-                  {s.runs.length > 6 ? <div className="text-[11px] text-text-muted">+{s.runs.length - 6} more</div> : null}
+                  {s.runs.length > 6 ? <div className="text-xs text-text-muted">+{s.runs.length - 6} more</div> : null}
                 </div>
               </div>
             ))}
           </div>
         </div>
       ) : null}
-      <p className="text-[11px] text-text-muted">Across {records.total} finished matches.</p>
+      <p className="text-xs text-text-muted">Across {records.total} finished matches.</p>
     </div>
   );
 }

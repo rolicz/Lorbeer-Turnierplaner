@@ -302,7 +302,7 @@ export default function H2HView({ mode, scope, rows, subView, selectedId, onSele
 
         <div className="space-y-2">
           <div className="section-head"><span className="section-label">Best duos</span></div>
-          <p className="text-[11px] text-text-muted">Strongest pairings across 2v2 matches — tap a duo for detail.</p>
+          <p className="text-xs text-text-muted">Strongest pairings across 2v2 matches — tap a duo for detail.</p>
           <DuoLeaderboard duos={bestDuos} selectedKey={selectedDuoKey} onSelect={(d) => setSelectedDuoIds([d.p1.id, d.p2.id])} />
         </div>
 
@@ -310,7 +310,7 @@ export default function H2HView({ mode, scope, rows, subView, selectedId, onSele
           <div className="space-y-2">
             <div className="section-head"><span className="section-label">Duo detail</span></div>
             {selectedDuoUnplayed ? (
-              <p className="text-[11px] text-text-muted">No 2v2 matches together yet.</p>
+              <p className="text-xs text-text-muted">No 2v2 matches together yet.</p>
             ) : null}
             <DuoDetail duo={selectedDuo} rivalries={teamRivalries} onOpenTeammates={openDuoTeammates} onOpenMatchup={openTeamRivalry} />
           </div>
@@ -318,7 +318,7 @@ export default function H2HView({ mode, scope, rows, subView, selectedId, onSele
 
         <div className="space-y-2">
           <div className="section-head"><span className="section-label">Duo rivalries</span></div>
-          <p className="text-[11px] text-text-muted">Closest duo-vs-duo matchups — more games and a tighter balance score higher.</p>
+          <p className="text-xs text-text-muted">Closest duo-vs-duo matchups — more games and a tighter balance score higher.</p>
           <DuoRivalries rivalries={teamRivalries} onOpenMatches={openTeamRivalry} />
         </div>
 
@@ -333,7 +333,7 @@ export default function H2HView({ mode, scope, rows, subView, selectedId, onSele
       {/* Full-name square matrix */}
       <div>
         <div className="section-head"><span className="section-label">Matrix</span></div>
-        {mode === "2v2" ? <p className="mb-1 text-[11px] text-text-muted">Per player across 2v2 matches.</p> : null}
+        {mode === "2v2" ? <p className="mb-1 text-xs text-text-muted">Per player across 2v2 matches.</p> : null}
         <div className="mb-2 flex flex-wrap items-center gap-2">
           <ChipGroup<"winrate" | "played" | "gd" | "wdl" | "ppm" | "rivalry">
             value={matrixMetric}
@@ -345,7 +345,7 @@ export default function H2HView({ mode, scope, rows, subView, selectedId, onSele
         {/* The cells are buttons (they open the matchup) — say so, because on a
             phone there is no hover to discover it with. */}
         {matrixRanges.anyPlayed ? (
-          <p className="mb-2 text-[11px] text-text-muted">Tap a cell for every match between two players.</p>
+          <p className="mb-2 text-xs text-text-muted">Tap a cell for every match between two players.</p>
         ) : null}
         <div className="overflow-x-auto" data-no-swipe-nav>
           <table className="border-separate" style={{ borderSpacing: 3 }}>
@@ -355,7 +355,7 @@ export default function H2HView({ mode, scope, rows, subView, selectedId, onSele
                 {rows.map((c) => (
                   <th key={c.id} className="p-0 align-bottom">
                     <div className="mx-auto flex h-24 w-11 items-center justify-center overflow-visible">
-                      <span className="-rotate-90 whitespace-nowrap text-[11px] font-medium text-text-muted">{c.name}</span>
+                      <span className="-rotate-90 whitespace-nowrap text-xs font-medium text-text-muted">{c.name}</span>
                     </div>
                   </th>
                 ))}
@@ -436,7 +436,7 @@ export default function H2HView({ mode, scope, rows, subView, selectedId, onSele
                           <span className="block truncate text-sm text-text-normal">{o.opponent.display_name}</span>
                         </PlayerLink>
                       </span>
-                      <span className="shrink-0 font-mono text-[11px] tabular-nums text-text-muted">
+                      <span className="shrink-0 font-mono text-xs tabular-nums text-text-muted">
                         {o.played}P · <span className="text-win">{o.wins}</span>-<span className="text-draw">{o.draws}</span>-<span className="text-loss">{o.losses}</span>
                       </span>
                       <span className="w-12 shrink-0 text-right text-sm font-semibold tabular-nums text-accent">{o.played ? Math.round(o.win_rate * 100) : 0}%</span>
@@ -459,7 +459,7 @@ export default function H2HView({ mode, scope, rows, subView, selectedId, onSele
             <InlineLoading label="Loading…" />
           ) : synergyDuos.length ? (
             <>
-              <p className="text-[11px] text-text-muted">
+              <p className="text-xs text-text-muted">
                 {selectedId != null ? <>How {selName} performs with each partner (points per match as a duo).</> : <>Strongest 2v2 pairings (points per match as a duo).</>}
               </p>
               <div className="space-y-2">
@@ -489,7 +489,7 @@ export default function H2HView({ mode, scope, rows, subView, selectedId, onSele
             </Button>
           ) : null}
         </div>
-        <p className="text-[11px] text-text-muted">Most-played and closest matchups — a higher rivalry score means more games and a tighter win balance.</p>
+        <p className="text-xs text-text-muted">Most-played and closest matchups — a higher rivalry score means more games and a tighter win balance.</p>
         <ChipGroup<"rivalry" | "played">
           value={rivalryOrder}
           onChange={setRivalryOrder}
@@ -503,11 +503,11 @@ export default function H2HView({ mode, scope, rows, subView, selectedId, onSele
               <div className="truncate text-sm font-medium text-text-normal">
                 {nameById.get(p.a.id) ?? p.a.display_name} <span className="text-text-muted">vs</span> {nameById.get(p.b.id) ?? p.b.display_name}
               </div>
-              <div className="text-[11px] text-text-muted">{p.played} matches · {p.a_wins}-{p.draws}-{p.b_wins}</div>
+              <div className="text-xs text-text-muted">{p.played} matches · {p.a_wins}-{p.draws}-{p.b_wins}</div>
             </div>
             <div className="shrink-0 text-right">
               <div className="text-sm font-bold tabular-nums text-accent">{Math.round(p.rivalry_score)}</div>
-              <div className="text-[11px] text-text-muted">rivalry</div>
+              <div className="text-xs text-text-muted">rivalry</div>
             </div>
           </button>
         ))}

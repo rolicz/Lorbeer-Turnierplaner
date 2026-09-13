@@ -363,7 +363,7 @@ export default function StandingsTable({
           >
             {isLeader ? <span className="absolute inset-y-1 left-0 w-0.5 rounded bg-status-bar-green" aria-hidden="true" /> : null}
             <span className="w-4 shrink-0 text-right text-xs tabular-nums text-text-muted">{idx + 1}</span>
-            <span className="w-3 shrink-0 text-center text-[10px] leading-none"><Arrow delta={delta} /></span>
+            <span className="w-3 shrink-0 text-center text-micro leading-none"><Arrow delta={delta} /></span>
             <AvatarCircle playerId={r.playerId} name={r.name} updatedAt={avatarUpdatedAtByPlayerId.get(r.playerId) ?? null} sizeClass="h-9 w-9" />
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-1.5">
@@ -375,13 +375,13 @@ export default function StandingsTable({
                   <StreakPatch key={s.key + "-" + i} streak={s} className="streak-compact" />
                 ))}
               </div>
-              <div className="mt-0.5 font-mono text-[11px] tabular-nums text-text-muted">
+              <div className="mt-0.5 text-xs tabular-nums text-text-muted">
                 {r.played}P · <span className="text-win">{r.wins}</span>-<span className="text-draw">{r.draws}</span>-<span className="text-loss">{r.losses}</span> · {r.gf}:{r.ga} · GD {r.gd >= 0 ? `+${r.gd}` : r.gd}
               </div>
             </div>
             <div className="shrink-0 text-right">
               <div className="text-base font-bold tabular-nums text-text-normal">{r.pts}</div>
-              <div className="text-[10px] leading-none text-text-muted">pts</div>
+              <div className="text-micro leading-none text-text-muted">pts</div>
             </div>
             {/* The row opens the profile; this is the second door — all-time stats. */}
             <Link
@@ -432,10 +432,10 @@ export default function StandingsTable({
                 <AvatarCircle playerId={r.playerId} name={r.name} updatedAt={avatarUpdatedAtByPlayerId.get(r.playerId) ?? null} sizeClass="h-8 w-8" />
                 <span className={"min-w-0 flex-1 truncate " + (r.isFocus ? "font-semibold text-text-normal" : "text-text-normal")}>
                   {r.name}
-                  {r.isFocus ? <span className="ml-1.5 text-[10px] uppercase tracking-wide text-accent">best case</span> : null}
+                  {r.isFocus ? <span className="ml-1.5 text-micro uppercase tracking-wide text-accent">best case</span> : null}
                 </span>
                 <span className="shrink-0 text-sm font-bold tabular-nums text-text-normal">{r.pts}</span>
-                <span className="shrink-0 text-[10px] leading-none text-text-muted">pts</span>
+                <span className="shrink-0 text-micro leading-none text-text-muted">pts</span>
               </div>
             ))}
           </div>

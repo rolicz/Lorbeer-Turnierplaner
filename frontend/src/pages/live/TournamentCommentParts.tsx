@@ -284,15 +284,15 @@ export function CommentCard({
                 name={authorLabel(c.author)}
                 updatedAt={avatarUpdatedAt}
                 sizeClass="h-7 w-7"
-                fallbackClassName="text-[12px] font-semibold text-text-muted"
+                fallbackClassName="text-xs font-semibold text-text-muted"
               />
             ) : null}
             <div className="text-xs font-semibold text-text-normal">{authorLabel(c.author)}</div>
-            {isPinned ? <span className="chip text-[10px] py-1 px-2">pinned</span> : null}
-            {isEditing ? <span className="chip text-[10px] py-1 px-2">editing</span> : null}
+            {isPinned ? <span className="chip">pinned</span> : null}
+            {isEditing ? <span className="chip">editing</span> : null}
           </div>
           {/* Row 2: timestamp (+ edited) */}
-          <div className="mt-0.5 text-[11px] text-text-muted">
+          <div className="mt-0.5 text-xs text-text-muted">
             {fmtTs(c.createdAt)}
             {edited ? ` · edited ${fmtTs(c.updatedAt)}` : ""}
           </div>
@@ -313,7 +313,7 @@ export function CommentCard({
                 className="h-9 px-2 p-0 inline-flex items-center justify-center gap-1"
               >
                 {collapsed ? <ChevronRight size={14} aria-hidden="true" /> : <ChevronDown size={14} aria-hidden="true" />}
-                <span className="text-[11px] tabular-nums">{childCount}</span>
+                <span className="text-xs tabular-nums">{childCount}</span>
               </Button>
             ) : null}
             {isUnseen ? (
@@ -447,7 +447,7 @@ export function CommentCard({
               </button>
             </div>
           ) : null}
-          <div className="flex items-center gap-2 text-[11px] text-text-muted">
+          <div className="flex items-center gap-2 text-xs text-text-muted">
             <VoteButton
               direction="up"
               active={c.myVote === 1}

@@ -188,7 +188,7 @@ export default function CommentList(props: CommentListProps) {
               <div />
               <div className="min-w-0 whitespace-normal break-words text-right leading-tight">{h.bClub.present ? h.bClub.name : "—"}</div>
             </div>
-            <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 text-[11px] text-text-muted">
+            <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 text-xs text-text-muted">
               <div className="min-w-0">{h.aClub.present ? <Stars rating={h.aClub.rating ?? 0} textClassName="text-text-muted" /> : <span>—</span>}</div>
               <div />
               <div className="flex min-w-0 justify-end">{h.bClub.present ? <Stars rating={h.bClub.rating ?? 0} textClassName="text-text-muted" /> : <span>—</span>}</div>
@@ -208,7 +208,7 @@ export default function CommentList(props: CommentListProps) {
           >
             {isCollapsed ? <ChevronRight size={12} className="mt-1 shrink-0 text-text-muted" aria-hidden="true" /> : <ChevronDown size={12} className="mt-1 shrink-0 text-text-muted" aria-hidden="true" />}
             <span className="min-w-0 flex-1">{headerInner}</span>
-            <span className="mt-0.5 inline-flex items-center gap-1.5 text-[11px] text-text-muted">
+            <span className="mt-0.5 inline-flex items-center gap-1.5 text-xs text-text-muted">
               {unseenHere ? <span className="h-1.5 w-1.5 rounded-full bg-accent" aria-hidden="true" /> : null}
               {arr.length}
             </span>

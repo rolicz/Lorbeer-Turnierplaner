@@ -26,7 +26,7 @@ function StatTile({ label, value }: { label: string; value: string }) {
   return (
     <div className="inset px-2 py-2 text-center">
       <div className="text-base font-bold tabular-nums text-text-normal">{value}</div>
-      <div className="text-[11px] text-text-muted">{label}</div>
+      <div className="text-xs text-text-muted">{label}</div>
     </div>
   );
 }
@@ -112,7 +112,7 @@ export default function PlayerProfile({ mode, scope, rows, selectedId, onSelect 
             </button>
             <div className="flex shrink-0 flex-col items-center" title="Recent form — points per match in the last games">
               <Sparkline values={row.form} />
-              <span className="mt-0.5 text-[11px] uppercase tracking-wide text-text-muted">Form (last {row.form.length})</span>
+              <span className="mt-0.5 text-xs uppercase tracking-wide text-text-muted">Form (last {row.form.length})</span>
             </div>
           </div>
 
@@ -132,11 +132,11 @@ export default function PlayerProfile({ mode, scope, rows, selectedId, onSelect 
             <h2 className="text-sm font-semibold text-text-normal">Profile net</h2>
             <div className="flex flex-col items-center">
               <Radar series={radarSeries} />
-              <div className="text-[11px] text-text-muted">Strengths relative to the field.</div>
+              <div className="text-xs text-text-muted">Strengths relative to the field.</div>
             </div>
             {/* Overlay other players, each in their consistent colour. */}
             <div className="mt-2">
-              <div className="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-text-muted">Compare with</div>
+              <div className="mb-1.5 text-xs font-medium uppercase tracking-wide text-text-muted">Compare with</div>
               <div className="flex flex-wrap gap-1.5">
                 {rows.filter((r) => r.id !== row.id).map((r) => {
                   const on = overlayIds.has(r.id);

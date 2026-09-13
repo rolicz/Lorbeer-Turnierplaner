@@ -164,7 +164,7 @@ export default function MatchList({
               >
                 {/* Meta line: status + order + leg, with reorder/swap actions */}
                 <div className="mb-1 flex items-center justify-between gap-2">
-                  <div className="inline-flex min-w-0 items-center gap-1.5 text-[11px] font-medium">
+                  <div className="inline-flex min-w-0 items-center gap-1.5 text-xs font-medium">
                     <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${dotCls}`} aria-hidden="true" />
                     <span className="text-text-muted">#{m.order_index + 1}</span>
                     <span className={statusTextCls}>{m.state}</span>

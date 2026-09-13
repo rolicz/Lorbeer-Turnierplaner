@@ -147,7 +147,7 @@ export function MatchHistoryTournamentBlock({
           </div>
         </div>
         <div className="shrink-0 flex items-center gap-2">
-          <div className="text-[11px] text-text-muted">{t.matches.length} matches</div>
+          <div className="text-xs text-text-muted">{t.matches.length} matches</div>
           {actions ?? null}
         </div>
       </div>

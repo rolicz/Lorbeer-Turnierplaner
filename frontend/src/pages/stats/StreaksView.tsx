@@ -40,7 +40,7 @@ export default function StreaksView({ mode, scope }: { mode: StatsMode; scope: S
             <div className="section-head">
               <span className="section-label inline-flex items-center gap-1.5"><StreakCatIcon catKey={c.key} size={12} />{c.name}</span>
             </div>
-            <p className="-mt-1 text-[11px] text-text-muted">{c.description}</p>
+            <p className="-mt-1 text-xs text-text-muted">{c.description}</p>
             {records.length ? (
               <div className="list-divided">
                 {records.map((r, i) => (
@@ -51,10 +51,10 @@ export default function StreaksView({ mode, scope }: { mode: StatsMode; scope: S
                       <AvatarCircle playerId={r.player.id} name={r.player.display_name} updatedAt={avatarUpdatedAtById.get(r.player.id) ?? null} sizeClass="h-6 w-6" />
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-sm text-text-normal">{r.player.display_name}</span>
-                        {streakDateText(r) ? <span className="block text-[11px] tabular-nums text-text-muted">{streakDateText(r)}</span> : null}
+                        {streakDateText(r) ? <span className="block text-xs tabular-nums text-text-muted">{streakDateText(r)}</span> : null}
                       </span>
                     </PlayerLink>
-                    {r.ongoing ? <span className="shrink-0 rounded-full bg-status-bg-green/60 px-1.5 text-[11px] text-status-text-green">live</span> : null}
+                    {r.ongoing ? <span className="shrink-0 rounded-full bg-status-bg-green/60 px-1.5 text-xs text-status-text-green">live</span> : null}
                     <span className="text-sm font-bold tabular-nums text-accent">{r.length}</span>
                   </div>
                 ))}
@@ -69,7 +69,7 @@ export default function StreaksView({ mode, scope }: { mode: StatsMode; scope: S
                       key={r.player.id}
                       playerId={r.player.id}
                       name={r.player.display_name}
-                      className="inline-flex items-center gap-1 rounded-full bg-bg-card-chip/50 px-2 py-0.5 text-[11px]"
+                      className="inline-flex items-center gap-1 rounded-full bg-bg-card-chip/50 px-2 py-0.5 text-xs"
                     >
                       {r.player.display_name} <b className="text-text-normal">{r.length}</b>
                     </PlayerLink>

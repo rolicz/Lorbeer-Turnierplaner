@@ -20,7 +20,7 @@ import type { StatsMode } from "./statsMode";
 function InfoLegend() {
   return (
     <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-      <div className="flex flex-wrap items-center gap-2 text-[11px] text-text-muted">
+      <div className="flex flex-wrap items-center gap-2 text-xs text-text-muted">
         <span className="inline-flex items-center gap-2">
           <Flag size={12} aria-hidden="true" />
           Tournament positions
@@ -36,20 +36,20 @@ function InfoLegend() {
         </span>
 
         <span className="inline-flex items-center gap-2">
-          <span className="pos-none inline-flex h-6 w-7 items-center justify-center rounded-md border text-[11px] font-mono tabular-nums">
+          <span className="pos-none inline-flex h-6 w-7 items-center justify-center rounded-md border text-xs font-mono tabular-nums">
             —
           </span>
           <span>not played</span>
         </span>
         <span className="inline-flex items-center gap-2">
-          <span className="pos-winner inline-flex h-6 w-7 items-center justify-center rounded-md border text-[11px] font-mono tabular-nums">
+          <span className="pos-winner inline-flex h-6 w-7 items-center justify-center rounded-md border text-xs font-mono tabular-nums">
             1
           </span>
           <span>winner</span>
         </span>
       </div>
 
-      <div className="flex items-center gap-2 text-[11px] text-text-muted">
+      <div className="flex items-center gap-2 text-xs text-text-muted">
         <span className="inline-flex items-center gap-2">
           <Clock size={12} aria-hidden="true" />
           <span>Old</span>
@@ -212,9 +212,9 @@ export default function PositionsView({ mode }: { mode: StatsMode }) {
         </span>
       </div>
       {legend ? <InfoLegend /> : null}
-      <div className="mb-1.5 text-[11px] text-text-muted">Drag a player's icon to reorder the columns.</div>
+      <div className="mb-1.5 text-xs text-text-muted">Drag a player's icon to reorder the columns.</div>
       {modeCounts.total > 0 ? (
-        <div className="mb-1.5 text-[11px] text-text-muted">
+        <div className="mb-1.5 text-xs text-text-muted">
           {modeCounts.total} tournament{modeCounts.total === 1 ? "" : "s"}
           {["1v1", "2v2", ...Array.from(modeCounts.byMode.keys()).filter((m) => m !== "1v1" && m !== "2v2")]
             .filter((m) => (modeCounts.byMode.get(m) ?? 0) > 0)
@@ -254,7 +254,7 @@ export default function PositionsView({ mode }: { mode: StatsMode }) {
                     onClick={(e) => { if (draggedRef.current) e.preventDefault(); }}
                   >
                     <AvatarCircle playerId={p.player_id} name={p.display_name} updatedAt={avatarUpdatedAtById.get(p.player_id) ?? null} sizeClass="h-6 w-6" />
-                    <span className="w-full truncate text-center text-[11px] text-text-muted">{p.display_name}</span>
+                    <span className="w-full truncate text-center text-xs text-text-muted">{p.display_name}</span>
                   </PlayerLink>
                 </div>
               );
@@ -276,7 +276,7 @@ export default function PositionsView({ mode }: { mode: StatsMode }) {
                     <span className="flex items-center gap-1">
                       {showModePill ? (
                         <span
-                          className="rounded-full bg-bg-card-chip/60 px-1 text-[9px] leading-tight text-text-muted"
+                          className="rounded-full bg-bg-card-chip/60 px-1 text-micro leading-tight text-text-muted"
                           title={`Mode: ${t.mode}`}
                         >
                           {t.mode}
@@ -284,7 +284,7 @@ export default function PositionsView({ mode }: { mode: StatsMode }) {
                       ) : null}
                       {noWinner ? (
                         <span
-                          className="rounded-full bg-bg-card-chip/60 px-1 text-[9px] leading-tight text-text-muted"
+                          className="rounded-full bg-bg-card-chip/60 px-1 text-micro leading-tight text-text-muted"
                           title="Kein eindeutiger Sieger"
                           aria-label="Kein eindeutiger Sieger"
                         >
@@ -307,7 +307,7 @@ export default function PositionsView({ mode }: { mode: StatsMode }) {
                       key={p.player_id}
                       to={`/live/${t.id}`}
                       style={{ height: cellH, ["--pos-p"]: frac } as React.CSSProperties}
-                      className="pos-tile relative grid place-items-center rounded-md border text-[11px] font-semibold tabular-nums no-underline transition hover:z-10 hover:ring-2 hover:ring-inset hover:ring-accent/70"
+                      className="pos-tile relative grid place-items-center rounded-md border text-xs font-semibold tabular-nums no-underline transition hover:z-10 hover:ring-2 hover:ring-inset hover:ring-accent/70"
                       title={`${p.display_name} · ${t.name}: ${fmtRank(pos, total)}${isWinner && stakes.length ? ` · won ${stakes.map((s) => s.name).join(", ")}` : ""}${pos === 1 && t.status === "done" && t.winner_player_id == null ? " · kein eindeutiger Sieger" : ""} — open tournament`}
                     >
                       {isWinner && stakes.length ? (

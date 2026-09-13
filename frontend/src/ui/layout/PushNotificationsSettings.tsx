@@ -139,7 +139,7 @@ export default function PushNotificationsSettings({ token }: { token: string | n
       {push.error ? (
         <div className="rounded-xl border border-loss/40 bg-loss/10 p-3 text-xs text-loss">
           <div>{push.error}</div>
-          <button type="button" className="mt-2 text-[11px] font-medium underline underline-offset-2" onClick={push.clearError}>
+          <button type="button" className="mt-2 text-xs font-medium underline underline-offset-2" onClick={push.clearError}>
             Dismiss
           </button>
         </div>

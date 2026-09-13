@@ -8,11 +8,11 @@ export function Meta({
   children,
 }: {
   as?: keyof React.JSX.IntrinsicElements;
-  size?: "xs" | "sm" | "11";
+  size?: "xs" | "sm";
   className?: string;
   children: React.ReactNode;
 }) {
-  const sizeCls = size === "sm" ? "text-sm" : size === "11" ? "text-[11px]" : "text-xs";
+  const sizeCls = size === "sm" ? "text-sm" : "text-xs";
   return <Component className={cn(sizeCls, "text-text-muted", className)}>{children}</Component>;
 }
 
@@ -23,7 +23,7 @@ export function MetaRow({
   children,
 }: {
   as?: keyof React.JSX.IntrinsicElements;
-  size?: "xs" | "sm" | "11";
+  size?: "xs" | "sm";
   className?: string;
   children: React.ReactNode;
 }) {

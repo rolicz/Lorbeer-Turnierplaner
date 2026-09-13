@@ -202,7 +202,7 @@ export default function TournamentsPage() {
                   ) : undefined
                 }
               >
-                <span className="block truncate text-[15px] font-semibold text-text-normal">{t.name}</span>
+                <span className="block truncate text-base font-semibold text-text-normal">{t.name}</span>
                 <span className="mt-0.5 flex flex-wrap items-center text-xs text-text-muted">
                   {meta.map((node, i) => (
                     <span key={i} className="inline-flex items-center">
@@ -212,7 +212,7 @@ export default function TournamentsPage() {
                   ))}
                 </span>
                 {participants.length > 0 ? (
-                  <span className="mt-0.5 block truncate text-[11px] text-text-muted/60">
+                  <span className="mt-0.5 block truncate text-xs text-text-muted/60">
                     {participants.map((p) => p.display_name).join(", ")}
                   </span>
                 ) : null}

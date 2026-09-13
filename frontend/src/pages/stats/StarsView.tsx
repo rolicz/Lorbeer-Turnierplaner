@@ -53,7 +53,7 @@ export function StarsSection({ mode, scope, playerId }: { mode: StatsMode; scope
 
   return (
     <div className="space-y-3">
-      <p className="text-[11px] text-text-muted">Points per match by the star rating of the club played. {known ? `${known} rated matches.` : ""}</p>
+      <p className="text-xs text-text-muted">Points per match by the star rating of the club played. {known ? `${known} rated matches.` : ""}</p>
       {matchesQ.isLoading && !matchesQ.data ? (
         <InlineLoading label="Loading…" />
       ) : !active.length ? (
@@ -65,12 +65,12 @@ export function StarsSection({ mode, scope, playerId }: { mode: StatsMode; scope
               <div className="absolute inset-y-1 left-0 rounded-r" style={{ width: `${Math.max(2, Math.min(100, (b.ppm / 3) * 100))}%`, backgroundColor: "rgb(var(--color-accent) / 0.16)" }} aria-hidden="true" />
               <div className="relative z-10 grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 px-1 py-2.5">
                 <Stars rating={b.stars} size={12} textClassName="text-text-normal" />
-                <div className="text-center font-mono text-[11px] tabular-nums text-text-muted">
+                <div className="text-center font-mono text-xs tabular-nums text-text-muted">
                   {b.played}P · <span className="text-win">{b.w}</span>-<span className="text-draw">{b.d}</span>-<span className="text-loss">{b.l}</span>
                 </div>
                 <div className="shrink-0 text-right">
                   <span className="font-mono text-sm font-bold tabular-nums text-text-normal">{b.ppm.toFixed(2)}</span>
-                  <span className="ml-1 text-[11px] text-text-muted">ppm</span>
+                  <span className="ml-1 text-xs text-text-muted">ppm</span>
                 </div>
               </div>
             </div>

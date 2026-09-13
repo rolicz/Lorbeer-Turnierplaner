@@ -256,7 +256,7 @@ export default function ClubCombobox({
                             <span className="min-w-0 truncate">{c.name}</span>
                           </span>
                           {c.league_name ? (
-                            <span className="flex min-w-0 items-center gap-1.5 text-[11px] text-text-muted">
+                            <span className="flex min-w-0 items-center gap-1.5 text-xs text-text-muted">
                               <NationFlag nation={c.league_nation} />
                               <span className="min-w-0 truncate">{c.league_name}</span>
                             </span>

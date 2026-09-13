@@ -183,7 +183,7 @@ export default function ProfileHeader({
               ) : null}
             </div>
             <div className="text-xs text-text-muted">{isOwnProfile ? "This is your profile" : "Public profile"}</div>
-            <div className="mt-0.5 text-[11px] text-text-muted">
+            <div className="mt-0.5 text-xs text-text-muted">
               {isOwnProfile ? (
                 <>
                   Guestbook: <span className="tabular-nums text-text-normal">{totalGuestbookCount}</span> · Angepöbelt:{" "}
@@ -220,7 +220,7 @@ export default function ProfileHeader({
                   ) : (
                     <span className="inline-flex items-center gap-1">
                       <Bell size={14} className="text-accent" aria-hidden="true" />
-                      <span className="text-[11px] tabular-nums text-text-normal">{unreadPokeCount}</span>
+                      <span className="text-xs tabular-nums text-text-normal">{unreadPokeCount}</span>
                     </span>
                   )}
                 </Button>
@@ -261,7 +261,7 @@ export default function ProfileHeader({
         </div>
         <div className="pt-1 space-y-1">
           {isOwnProfile && unreadGuestbookCount > 0 ? (
-            <div className="inline-flex max-w-full items-center gap-1.5 text-[11px] text-text-muted">
+            <div className="inline-flex max-w-full items-center gap-1.5 text-xs text-text-muted">
               <Mail size={12} className="shrink-0 text-accent" aria-hidden="true" />
               <span className="truncate">
                 New guestbook: <span className="tabular-nums text-accent">{unreadGuestbookCount}</span>
@@ -271,7 +271,7 @@ export default function ProfileHeader({
               </span>
             </div>
           ) : null}
-          <div className="inline-flex max-w-full items-center gap-1.5 text-[11px] text-text-muted">
+          <div className="inline-flex max-w-full items-center gap-1.5 text-xs text-text-muted">
             <Bell
               size={12}
               className={"shrink-0 " + (unreadPokeCount > 0 ? "text-accent" : "text-text-muted")}

@@ -93,7 +93,7 @@ export function SectionTabs<K extends string>({ tabs, active, onChange, classNam
               {tab.badge ? (
                 <span
                   className={cn(
-                    "ml-0.5 inline-flex min-w-[1.25rem] items-center justify-center rounded-full px-1.5 text-[11px] font-semibold tabular-nums",
+                    "ml-0.5 inline-flex min-w-[1.25rem] items-center justify-center rounded-full px-1.5 text-xs font-semibold tabular-nums",
                     isActive ? "bg-accent/15 text-accent" : "bg-bg-card-chip/70 text-text-muted",
                   )}
                 >

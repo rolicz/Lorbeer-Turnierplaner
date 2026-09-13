@@ -49,7 +49,7 @@ export function DuoPicker({
         ) : null}
       </div>
       {selectedIds.length < 2 ? (
-        <p className="text-[11px] text-text-muted">Pick two players.</p>
+        <p className="text-xs text-text-muted">Pick two players.</p>
       ) : null}
     </div>
   );

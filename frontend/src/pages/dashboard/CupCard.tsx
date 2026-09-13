@@ -43,7 +43,7 @@ export default function CupCard({ cupKey }: { cupKey: string }) {
           <div className="flex items-center gap-3">
             {eraMode !== "any" ? (
               <span
-                className="absolute right-0 top-0 rounded-full bg-bg-card-chip/60 px-1.5 py-0.5 text-[10px] font-medium leading-tight text-text-muted"
+                className="absolute right-0 top-0 rounded-full bg-bg-card-chip/60 px-1.5 py-0.5 text-micro font-medium leading-tight text-text-muted"
                 title={`Currently counts ${eraMode} tournaments only`}
               >
                 {eraMode}
@@ -62,7 +62,7 @@ export default function CupCard({ cupKey }: { cupKey: string }) {
                   <span className="block truncate text-base font-semibold" style={{ color }}>
                     {owner.display_name}
                   </span>
-                  <span className="block text-[11px] text-text-muted">
+                  <span className="block text-xs text-text-muted">
                     {since?.date ? `Holding since ${fmtDate(since.date)}` : "—"}
                     {defended > 0 ? ` · ${defended} defended` : ""}
                   </span>
@@ -75,7 +75,7 @@ export default function CupCard({ cupKey }: { cupKey: string }) {
                 </span>
                 <div className="min-w-0">
                   <div className="truncate text-base font-semibold">No owner yet</div>
-                  <div className="text-[11px] text-text-muted">—{defended > 0 ? ` · ${defended} defended` : ""}</div>
+                  <div className="text-xs text-text-muted">—{defended > 0 ? ` · ${defended} defended` : ""}</div>
                 </div>
               </>
             )}
@@ -127,7 +127,7 @@ export default function CupCard({ cupKey }: { cupKey: string }) {
                             {hasFrom ? `took it from ${h.from.display_name}` : "claimed it"}
                           </span>
                         </span>
-                        <span className="block truncate text-[11px] text-text-muted">
+                        <span className="block truncate text-xs text-text-muted">
                           {h.tournament_name} · {fmtDate(h.date)}{endedNote}
                         </span>
                       </span>

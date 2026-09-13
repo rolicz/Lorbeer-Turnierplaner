@@ -85,7 +85,7 @@ export default function OverviewSection({
           className="inset block w-full p-1.5 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/35"
           aria-label="Open standings"
         >
-          <div className="flex items-center gap-2 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-text-muted">
+          <div className="flex items-center gap-2 px-1.5 py-0.5 text-xs uppercase tracking-wide text-text-muted">
             <span className="w-4 text-right">#</span>
             <span className="min-w-0 flex-1">Player</span>
             <span className="w-5 text-right">P</span>

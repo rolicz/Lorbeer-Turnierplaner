@@ -55,7 +55,7 @@ export default function BottomTabBar() {
                   </span>
                 ) : null}
               </span>
-              <span className="text-[10px] font-medium leading-none">{d.label}</span>
+              <span className="text-micro font-medium leading-none">{d.label}</span>
             </Link>
           );
         })}

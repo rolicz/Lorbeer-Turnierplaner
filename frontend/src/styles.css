@@ -121,7 +121,7 @@
 
   /* Small uppercase section heading. */
   .section-label {
-    @apply text-[11px] font-semibold uppercase tracking-wider;
+    @apply text-xs font-semibold uppercase tracking-wider;
     color: rgb(var(--color-text-muted));
   }
   /* Optional trailing rule next to a section label (label · ─────). */

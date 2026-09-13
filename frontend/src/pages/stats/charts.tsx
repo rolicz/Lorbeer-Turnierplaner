@@ -103,7 +103,7 @@ export function Heatmap({
         <tbody>
           {players.map((rp) => (
             <tr key={rp.id}>
-              <th className="sticky left-0 z-10 bg-bg-card-inner pr-2 text-right text-[11px] font-semibold text-text-normal">{initials(rp.name)}</th>
+              <th className="sticky left-0 z-10 bg-bg-card-inner pr-2 text-right text-xs font-semibold text-text-normal">{initials(rp.name)}</th>
               {players.map((cp) => {
                 if (rp.id === cp.id) return <td key={cp.id} className="h-9 w-9 rounded bg-bg-card-chip/30" />;
                 const c = cell(rp.id, cp.id);

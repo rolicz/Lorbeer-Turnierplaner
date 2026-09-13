@@ -47,7 +47,7 @@ export default function VoteVotersModal({
 
         {upvoters.length ? (
           <CardSection>
-            <div className="inline-flex items-center gap-2 text-[12px] text-text-muted">
+            <div className="inline-flex items-center gap-2 text-xs text-text-muted">
               <ThumbsUp size={14} className="text-status-text-green" aria-hidden="true" />
               <span>Upvotes</span>
               <span className="tabular-nums text-text-normal">{upvoters.length}</span>
@@ -64,7 +64,7 @@ export default function VoteVotersModal({
 
         {downvoters.length ? (
           <CardSection>
-            <div className="inline-flex items-center gap-2 text-[12px] text-text-muted">
+            <div className="inline-flex items-center gap-2 text-xs text-text-muted">
               <ThumbsDown size={14} className="text-loss" aria-hidden="true" />
               <span>Downvotes</span>
               <span className="tabular-nums text-text-normal">{downvoters.length}</span>

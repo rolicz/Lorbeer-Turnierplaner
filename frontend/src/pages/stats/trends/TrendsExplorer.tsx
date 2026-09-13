@@ -151,7 +151,7 @@ export default function TrendsExplorer({ mode, scope, rows, initialMetric, initi
             <TrendChart events={events} series={series} yMax={isPpm ? 3 : Math.ceil(yMax)} yMin={isPpm ? 0 : Math.floor(yMin)} yTicks={yTicks} width={plotW - 16} viewT0={win.t0} viewT1={win.t1} showLabels height={240} />
           )}
         </div>
-        <div className="mt-1 flex items-center justify-between gap-2 text-[11px] text-text-muted">
+        <div className="mt-1 flex items-center justify-between gap-2 text-xs text-text-muted">
           <span>Pinch to zoom · drag to pan</span>
           {manualWin ? <button type="button" className="font-medium text-accent" onClick={() => setManualWin(null)}>Reset zoom</button> : null}
         </div>
@@ -206,7 +206,7 @@ export default function TrendsExplorer({ mode, scope, rows, initialMetric, initi
         {effView === "rolling" || isForm ? (
           <div className="space-y-1">
             <Slider label="Last N" value={rollN} min={2} max={Math.max(3, Math.min(20, events.length || 10))} onChange={setRollN} />
-            <div className="text-[11px] text-text-muted">
+            <div className="text-xs text-text-muted">
               {isForm
                 ? `Form = average points over the last ${rollN} matches (÷N), as on profiles.`
                 : `Rolling average over the last ${rollN} tournaments.`}

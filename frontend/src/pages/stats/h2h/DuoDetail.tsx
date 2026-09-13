@@ -40,14 +40,14 @@ export function DuoDetail({
             <div className="truncate text-sm font-semibold text-text-normal">
               {duo.p1.display_name} <span className="text-text-muted">/</span> {duo.p2.display_name}
             </div>
-            <div className="mt-0.5 text-[11px] text-text-muted">
+            <div className="mt-0.5 text-xs text-text-muted">
               {fmtInt(duo.played)} games together · {fmtInt(duo.gf)}:{fmtInt(duo.ga)} · GD {gd}
             </div>
           </div>
           <button
             type="button"
             onClick={() => onOpenTeammates(duo)}
-            className="shrink-0 rounded-full bg-bg-card-chip/50 px-3 py-1.5 text-[11px] font-medium text-text-normal transition hover:text-accent"
+            className="shrink-0 rounded-full bg-bg-card-chip/50 px-3 py-1.5 text-xs font-medium text-text-normal transition hover:text-accent"
           >
             Matches
           </button>

@@ -307,7 +307,7 @@ export default function TrendsPreviewCard() {
             <div className="min-w-0 pt-1">
               <div className="grid grid-cols-3 gap-x-3 gap-y-1">
                 {chart.series.map((s) => (
-                  <div key={s.id} className="flex min-w-0 items-center gap-2 text-[11px] text-text-muted">
+                  <div key={s.id} className="flex min-w-0 items-center gap-2 text-xs text-text-muted">
                     <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: s.color }} aria-hidden="true" />
                     <span className="min-w-0 truncate">{s.name}</span>
                   </div>

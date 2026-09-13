@@ -111,13 +111,13 @@ export default function StatsTable({
             <Chip selected={lastN} onClick={() => setLastN((v) => !v)}>Last N</Chip>
             {lastN ? (
               <>
-                <span className="text-[11px] text-text-muted">last {nWin} tournaments</span>
+                <span className="text-xs text-text-muted">last {nWin} tournaments</span>
                 <div className="min-w-[160px] flex-1">
                   <Slider label="" value={nWin} min={2} max={20} onChange={setNWin} />
                 </div>
               </>
             ) : (
-              <span className="text-[11px] text-text-muted">all-time totals</span>
+              <span className="text-xs text-text-muted">all-time totals</span>
             )}
           </div>
 
@@ -153,7 +153,7 @@ export default function StatsTable({
       <div className="overflow-x-auto" data-no-swipe-nav>
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-border-card-chip/50 text-[11px] uppercase tracking-wide text-text-muted">
+            <tr className="border-b border-border-card-chip/50 text-xs uppercase tracking-wide text-text-muted">
               <th className="sticky left-0 z-10 bg-bg-default py-2 pl-1 pr-2 text-left font-medium">Player</th>
               {cols.map((c) => (
                 <th key={c.key} className="px-2 py-2 text-right font-medium">

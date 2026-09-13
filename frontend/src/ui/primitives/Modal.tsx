@@ -61,7 +61,7 @@ export default function Modal({
     <div className="mb-3 flex shrink-0 items-start justify-between gap-3">
       <div className="min-w-0">
         {titleEl}
-        {subtitle && <div className="text-[11px] text-text-muted">{subtitle}</div>}
+        {subtitle && <div className="text-xs text-text-muted">{subtitle}</div>}
       </div>
       <Button
         type="button"
