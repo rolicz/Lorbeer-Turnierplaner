@@ -2,6 +2,8 @@
 import { CircleAlert, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
+import Button from "./Button";
+
 type ToastLevel = "error";
 
 type ToastPayload = {
@@ -95,14 +97,15 @@ export function ErrorToastViewport() {
               <div className="text-xs font-semibold text-text-normal">{t.title}</div>
               <div className="mt-0.5 break-anywhere text-xs text-text-muted">{t.message}</div>
             </div>
-            <button
+            <Button
               type="button"
+              variant="ghost"
               onClick={() => setItems((prev) => prev.filter((x) => x.id !== t.id))}
-              className="icon-button inline-flex h-7 w-7 items-center justify-center"
+              className="inline-flex h-7 w-7 items-center justify-center p-0"
               title="Dismiss"
             >
               <X size={14} aria-hidden="true" />
-            </button>
+            </Button>
           </div>
         </div>
       ))}

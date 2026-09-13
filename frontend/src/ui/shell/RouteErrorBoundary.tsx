@@ -1,5 +1,7 @@
 import { Component, type ReactNode } from "react";
 
+import Button from "../primitives/Button";
+
 /**
  * Catches render errors in the routed page so a crash shows a recoverable
  * message instead of a white screen. Resets automatically when `resetKey`
@@ -29,8 +31,8 @@ export default class RouteErrorBoundary extends Component<
             <div className="text-base font-semibold text-text-normal">Something went wrong</div>
             <p className="mt-1 text-sm text-text-muted">This page hit an error. Go back or reload to continue.</p>
             <div className="mt-4 flex justify-center gap-2">
-              <button type="button" className="btn-ghost" onClick={() => window.history.back()}>Go back</button>
-              <button type="button" className="btn-solid" onClick={() => window.location.reload()}>Reload</button>
+              <Button type="button" variant="ghost" onClick={() => window.history.back()}>Go back</Button>
+              <Button type="button" onClick={() => window.location.reload()}>Reload</Button>
             </div>
           </div>
         </div>

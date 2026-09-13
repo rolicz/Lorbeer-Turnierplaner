@@ -10,6 +10,7 @@ import { useDestinationLinks } from "./useDestinationLinks";
 import { usePageTitleValue } from "../layout/PageTitleContext";
 import { useHideOnScroll } from "../layout/useHideOnScroll";
 import { useContextualBack } from "./routeMeta";
+import Button from "../primitives/Button";
 import ConnectionIndicator from "./ConnectionIndicator";
 import NotificationBell from "./NotificationBell";
 
@@ -66,23 +67,25 @@ export default function MobileChrome({
       >
         <div className="flex h-14 items-center gap-2 px-3">
           {isDetail ? (
-            <button
+            <Button
               type="button"
+              variant="ghost"
               onClick={goBack}
               aria-label="Back"
-              className="icon-button focus-ring inline-flex h-10 w-10 shrink-0 items-center justify-center"
+              className="inline-flex h-10 w-10 shrink-0 items-center justify-center p-0"
             >
               <ChevronLeft className="h-5 w-5" aria-hidden="true" />
-            </button>
+            </Button>
           ) : (
-            <button
+            <Button
               type="button"
+              variant="ghost"
               onClick={() => setOpen(true)}
               aria-label="Open menu"
-              className="icon-button focus-ring inline-flex h-10 w-10 shrink-0 items-center justify-center"
+              className="inline-flex h-10 w-10 shrink-0 items-center justify-center p-0"
             >
               <Menu className="h-5 w-5" aria-hidden="true" />
-            </button>
+            </Button>
           )}
           <span className="min-w-0 flex-1 truncate text-base font-semibold tracking-tight">{title}</span>
           <ConnectionIndicator />
@@ -114,14 +117,15 @@ export default function MobileChrome({
                   <img src="/icon-512.png" alt="" className="h-8 w-8 shrink-0 rounded-xl object-cover ring-1 ring-border-card-chip/40" />
                   <span className="text-sm font-semibold tracking-tight">Lorbeerkranz</span>
                 </span>
-                <button
+                <Button
                   type="button"
+                  variant="ghost"
                   onClick={() => setOpen(false)}
                   aria-label="Close menu"
-                  className="icon-button focus-ring inline-flex h-9 w-9 items-center justify-center"
+                  className="inline-flex h-9 w-9 items-center justify-center p-0"
                 >
                   <X className="h-5 w-5" aria-hidden="true" />
-                </button>
+                </Button>
               </div>
 
               <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-2">

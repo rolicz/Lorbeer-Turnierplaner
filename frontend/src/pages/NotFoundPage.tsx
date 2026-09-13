@@ -5,6 +5,7 @@ import { Compass } from "lucide-react";
 import PageLayout from "../ui/layout/PageLayout";
 import { usePageTitle } from "../ui/layout/PageTitleContext";
 import { forgetLocation } from "../ui/shell/lastLocation";
+import { buttonClass } from "../ui/primitives/Button";
 
 /** Catch-all route: an unknown URL should explain itself instead of rendering nothing. */
 export default function NotFoundPage() {
@@ -23,7 +24,7 @@ export default function NotFoundPage() {
         <p className="text-sm text-text-muted">
           This page does not exist — the link may be outdated or mistyped.
         </p>
-        <Link to="/dashboard" className="btn-base btn-solid inline-flex h-9 items-center px-3">
+        <Link to="/dashboard" className={buttonClass({ variant: "solid", size: "md" })}>
           Back to dashboard
         </Link>
       </section>

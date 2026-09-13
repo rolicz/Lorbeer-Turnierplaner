@@ -1,6 +1,8 @@
 import { X } from "lucide-react";
 import React, { useEffect } from "react";
 
+import Button from "./Button";
+
 export default function Modal({
   open,
   title,
@@ -60,15 +62,16 @@ export default function Modal({
         {titleEl}
         {subtitle && <div className="text-[11px] text-text-muted">{subtitle}</div>}
       </div>
-      <button
+      <Button
         type="button"
-        className="icon-button h-10 w-10 p-0 inline-flex items-center justify-center shrink-0"
+        variant="ghost"
+        className="inline-flex h-10 w-10 shrink-0 items-center justify-center p-0"
         onClick={onClose}
         aria-label="Close"
         title="Close"
       >
         <X size={16} aria-hidden="true" />
-      </button>
+      </Button>
     </div>
   );
 

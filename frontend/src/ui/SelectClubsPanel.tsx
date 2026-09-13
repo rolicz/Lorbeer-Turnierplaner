@@ -310,9 +310,10 @@ export default function SelectClubsPanel({
             onChange={setStarFilter}
             disabled={disabled}
             right={
-              <button
+              <Button
                 type="button"
-                className="icon-button h-10 w-10 shrink-0 p-0 flex items-center justify-center"
+                variant="ghost"
+                className="flex h-10 w-10 shrink-0 items-center justify-center p-0"
                 onMouseDown={(e) => e.preventDefault()}
                 onTouchStart={(e) => e.preventDefault()}
                 onClick={rollStars}
@@ -320,7 +321,7 @@ export default function SelectClubsPanel({
                 title="Randomize star filter"
               >
                 <DiceIcon spinning={starRoll} />
-              </button>
+              </Button>
             }
           />
 

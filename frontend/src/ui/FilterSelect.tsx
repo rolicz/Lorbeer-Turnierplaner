@@ -12,9 +12,10 @@ export type FilterSelectOption = {
 };
 
 /**
- * On-brand replacement for native <select> filters. Flat trigger styled like the
- * club picker; options render in a body portal so the menu never gets clipped by
- * collapsible cards / overflow ancestors and flips above when there's no room.
+ * On-brand replacement for native <select> filters. The trigger is an `inset`
+ * surface, the menu a `card` (DESIGN.md §3); options render in a body portal so the
+ * menu never gets clipped by collapsible cards / overflow ancestors and flips above
+ * when there's no room.
  */
 export default function FilterSelect({
   value,
@@ -102,8 +103,10 @@ export default function FilterSelect({
         aria-expanded={open}
         aria-label={ariaLabel}
         className={cn(
-          "focus-ring flex w-full items-center gap-2 rounded-xl border bg-bg-card-chip px-3 py-2 text-left text-sm text-text-normal transition disabled:opacity-60",
-          open ? "border-accent" : "border-border-card-chip",
+          // `inset` is the level-2 surface (DESIGN.md §3); px-3 py-2 overrides its p-3
+          // and the open state is an inset ring so the row never shifts by a border.
+          "inset focus-ring flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-text-normal transition disabled:opacity-60",
+          open && "ring-1 ring-inset ring-accent",
           className,
         )}
       >
@@ -124,7 +127,7 @@ export default function FilterSelect({
               ref={panelRef}
               role="listbox"
               aria-label={ariaLabel}
-              className="fixed z-[60] flex flex-col overflow-y-auto overscroll-contain rounded-xl border border-border-card-chip bg-bg-card-outer py-1 shadow-pop"
+              className="card fixed z-[60] flex flex-col overflow-y-auto overscroll-contain px-0 py-1 shadow-pop"
               style={{
                 left: rect.left,
                 width: rect.width,

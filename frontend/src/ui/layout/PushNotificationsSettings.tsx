@@ -67,15 +67,16 @@ export default function PushNotificationsSettings({ token }: { token: string | n
             <div className={`text-xs ${statusTone}`}>{label}</div>
           </div>
         </div>
-        <button
+        <Button
           type="button"
+          variant="ghost"
           title="Refresh status"
-          className="icon-button inline-flex h-9 w-9 items-center justify-center"
+          className="inline-flex h-9 w-9 items-center justify-center p-0"
           onClick={() => void push.refresh()}
           disabled={push.loading || push.syncing || push.testing}
         >
           <RotateCw className={"h-4 w-4 " + (push.loading || push.syncing ? "animate-spin" : "")} aria-hidden="true" />
-        </button>
+        </Button>
       </div>
 
       <p className="rounded-lg bg-bg-card-chip/35 p-3 text-xs text-text-muted">

@@ -15,7 +15,7 @@ import { THEMES } from "../themes";
 import { useRouteEntryLoading } from "../ui/layout/useRouteEntryLoading";
 import { useTabParam } from "../ui/shell/useTabParam";
 import PageLayout from "../ui/layout/PageLayout";
-import Button from "../ui/primitives/Button";
+import Button, { buttonClass } from "../ui/primitives/Button";
 import PageLoadingScreen from "../ui/primitives/PageLoadingScreen";
 
 const THEME_SWATCHES: Record<string, string[]> = {
@@ -108,15 +108,17 @@ export default function SettingsPage() {
               </div>
             </div>
             {canCycleRole ? (
-              <button
+              <Button
                 type="button"
+                variant="ghost"
+                size="md"
                 onClick={cycleRole}
                 title={`Switch role (currently ${role})`}
-                className="icon-button focus-ring inline-flex h-9 items-center justify-center gap-2 px-3 text-sm"
+                className="justify-center gap-2"
               >
                 <UserCog className="h-4 w-4" aria-hidden="true" />
                 <span>Switch role</span>
-              </button>
+              </Button>
             ) : null}
           </div>
           <div className="mt-3 flex items-center gap-2">
@@ -124,7 +126,7 @@ export default function SettingsPage() {
               <>
                 <Link
                   to="/profile"
-                  className="btn-ghost inline-flex h-9 flex-1 items-center justify-center"
+                  className={buttonClass({ variant: "ghost", size: "md", className: "flex-1 justify-center" })}
                 >
                   My profile
                 </Link>
@@ -141,7 +143,7 @@ export default function SettingsPage() {
                 </Button>
               </>
             ) : (
-              <Link to="/login" className="btn-solid inline-flex h-9 flex-1 items-center justify-center gap-2">
+              <Link to="/login" className={buttonClass({ variant: "solid", size: "md", className: "flex-1 justify-center gap-2" })}>
                 <LogIn className="h-4 w-4" aria-hidden="true" />
                 <span>Login</span>
               </Link>

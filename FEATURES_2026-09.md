@@ -1607,7 +1607,7 @@ live/comments, profile/players/clubs/tools, dependency + docs)
 
 ---
 
-## DS6 — Selection controls & buttons on the canon  ☐
+## DS6 — Selection controls & buttons on the canon  ☑
 
 - `ToggleChip` (`pages/stats/controls.tsx`) → `Chip` from DS1; `ChipGroup` imports switch to
   `ui/primitives/Chip.tsx`; delete the re-export in `charts.tsx` and `controls.tsx`'s copy.
@@ -1622,7 +1622,68 @@ live/comments, profile/players/clubs/tools, dependency + docs)
 
 **DoD:** `git grep -nE "icon-button|btn-base|btn-ghost|btn-solid" frontend/src/pages frontend/src/ui --exclude Button.tsx` → 0; screenshots of live Current tab actions, comments composer, friendlies editor; `npm run check` + build.
 
-**Deviations:**
+**Deviations:** (implemented 2026-09-13, three commits: chips, segmented switch, buttons +
+`FilterSelect`)
+
+- **Radius, as clarified by the planner:** the `SegmentedSwitch` track is `rounded-xl` (12px),
+  its segments *and* the sliding indicator are `rounded-lg` (8px) — `rounded-[10px]` was never
+  used. This is the one documented exception to `DESIGN.md` §4 (a control nested in a 12px box
+  with 4px of padding cannot repeat that radius without cutting the track's corners); §4 and the
+  §7 table row now say so, and the component carries the same note as its file comment.
+- `SegmentedSwitch` sizing: `h-8` sits on the **segments** (where the height class already
+  lived), so with the track's `p-1` the control is 40px tall (was 44). Selected state is now
+  `Chip`'s verbatim — `bg-accent/15` + `ring-1 ring-inset ring-accent/40` on the indicator and
+  `font-medium text-accent` on the label (was `accent/0.16` + an `accent/0.45` inset shadow and
+  `font-semibold`). Two inline `style` objects became token classes (`bg-bg-card-chip/35` on the
+  track); only `left`/`width` stay inline, since they are measured.
+- **One chip extra:** `StatsTable`'s "Columns" buttons were an inline copy of `ToggleChip`'s
+  class string (plus a disabled variant). Left alone they would have sat 2px shorter and one
+  type step smaller than the "Last N" `Chip` directly above them, so they render `Chip` too —
+  `disabled` keeps its `line-through`/`cursor-not-allowed` via `className`. Visible effect: all
+  stats chips are now 34px tall `text-sm` (`ToggleChip` was 26px `text-xs`), so the Columns row
+  wraps to two lines at 390px.
+- **`buttonClass()` is a new named export of `ui/primitives/Button.tsx`.** Three call sites
+  cannot render a `<button>`: two react-router `<Link>`s (the 404 page's "Back to dashboard",
+  Settings' "My profile" / "Login") and `ClubStarsEditor`'s decorative box, which sits *under* a
+  transparent native `<select>` and must stay non-interactive. They take the class string instead,
+  so `btn-base`/`btn-solid`/`btn-ghost` still occur in exactly one file. The file gains
+  `/* eslint-disable react-refresh/only-export-components */`, the same pattern as
+  `ui/clubControls.tsx` / `ui/primitives/Pill.tsx`.
+- **`.icon-button` is deleted** from `styles.css` (0 usages left); the `btn-*` block stays,
+  because `Button` is built on it, and now carries a comment saying it is that file's private
+  API. Its 12 former users are `Button variant="ghost"`: Settings "Switch role", the
+  `SelectClubsPanel` dice, the push-settings refresh, the error-toast dismiss, the `Modal`
+  close, the notification bell, and MobileChrome's back / menu / drawer-close.
+  Two consequences, both intended: the ghost surface is a touch stronger
+  (`bg-card-chip/0.35` vs `icon-button`'s `/0.25`, hover `/0.55` vs `/0.45`) and icon buttons
+  now share `btn-base`'s `active:scale-[0.98]` press feedback.
+- Every icon-only migration adds an explicit **`p-0`** next to its `h-*`/`w-*`: `.icon-button`
+  had `p-2`, while `btn-base` has `px-4 py-2`, which inside a fixed 28–40px box would squeeze the
+  lucide SVG (`flex-shrink` on an `h-4 w-4` icon). `RouteErrorBoundary`'s two text buttons keep
+  the default padding (no size prop), exactly as before.
+- `FilterSelect`: the trigger is the `inset` surface with `px-3 py-2` overriding its `p-3`, and
+  the **open** state is `ring-1 ring-inset ring-accent` instead of a border colour swap — `.inset`
+  has no border in the dark themes, so a border-based open state would shift the row by 2px.
+  The menu is `card` + `px-0 py-1` (the options bring their own padding) and therefore goes
+  `rounded-xl` → `rounded-2xl`, per §3/§4.
+- `pages/stats/charts.tsx` loses the `Chip`/`ChipGroup` re-export and `test/chip.test.tsx` its
+  "still re-exported" case; `pages/stats/controls.tsx` is down to `Slider`. Seven files import
+  `ChipGroup` from `ui/primitives/Chip` directly now.
+- **Not touched** (not in DS6's bullets, flagged for DS3/DS4): `TrendsExplorer`'s series-legend
+  pills (a colour-dot visibility toggle, inverse semantics) and the fact that `btn-ghost` is
+  nearly invisible on the light theme's white `card` — that is a surface-token question and
+  predates this task (the Settings "My profile"/"Logout" pair already looked like that).
+- Runtime verification (isolated stack: backend :8003 on a copy of `app.db`, vite :8020;
+  editor-only UI via a stubbed `/me`, every other token-only read answered empty instead of 401,
+  as DS2/DS7 did): **128 checks green** over `blue`/`light` × 390/1280 px — stats Table and
+  Trends controls (chip geometry 34px, accent wash on toggle), the segmented switch measured at
+  12px track / 8px segments / 8px indicator / 32px segment / 40px track with the accent inset
+  ring, live Current-tab actions, the comments composer with its `FilterSelect` open (trigger
+  carries `inset`, menu carries `card`, 16px radius, no card padding), the friendlies editor,
+  Settings, the H2H history modal's 40×40 close button, the 404 link, plus "no element carries
+  `.icon-button`", no horizontal overflow and 0 console/page errors on every page.
+- `npm run check` green before every commit (292 tests); `npm run build` green with the
+  pre-existing "chunks larger than 500 kB" hint (633 kB `index-*.js`), as under every earlier task.
 
 ---
 
