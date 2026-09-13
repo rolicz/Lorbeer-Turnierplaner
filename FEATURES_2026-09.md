@@ -5027,7 +5027,7 @@ backend claims were re-verified by the planner before being written down here. B
 already holds and must not regress: zero console errors, zero failed requests, zero horizontal
 overflow, zero nested anchors, no page hidden behind the bottom bar.
 
-## A1 — Permissions: two endpoints trust "editor" too far  ☐
+## A1 — Permissions: two endpoints trust "editor" too far  ☑
 
 **A1a. A finished tournament's result can be rewritten by any editor — and that moves the cup.**
 `backend/app/routers/tournaments.py:745-751`: `PATCH /tournaments/{id}/decider` is guarded by
@@ -5051,7 +5051,72 @@ only ever calls with admin headers — fix that too.
 
 **DoD:** `make test` green with the new cases; a reader/editor/admin matrix in Deviations.
 
-**Deviations:**
+**Deviations:** (implemented 2026-09-13 on `feature/2026-09-audit`)
+
+Both findings reproduced exactly as written before anything was changed.
+
+**A1a.** `patch_decider` now does what every sibling does, in the same two lines and the same
+place (right after the `get_or_404`): `compute_status_for_tournament` + `ensure_not_done_or_admin(
+status_now, role, action="set the decider")` — the previously unused `role` is what it reads.
+Detail string: `Tournament is done (admin required to set the decider)`.
+
+**A1b.** The rule was not re-invented: the block `patch_comment` already ran is now a helper,
+`_ensure_can_edit_comment(s, c, claims)` in `routers/comments.py` (next to the other `_validate_*`
+guards), which calls the same `comment_can_edit` and raises the same 403
+(`You can only edit your own comment within an hour of posting`, now through `api_utils.forbidden`
+instead of an inline `HTTPException` — same response, the documented convention). It returns
+`(viewer_id, is_admin, real_author_id)` so `patch_comment` still recomputes `can_edit` after the
+edit without loading the author link twice. Both image routes dropped
+`dependencies=[Depends(require_editor)]` for `claims: dict = Depends(require_editor_claims)` and
+call the helper — the shape `players.py` uses for owner-guarded media.
+
+**Matrix** (verified by the new tests):
+
+| Endpoint | reader (no token) | editor, not own / done | editor, own / not done | admin |
+|---|---|---|---|---|
+| `PATCH /tournaments/{id}/decider` | 401 `Missing token` | 403 `Tournament is done (admin required to set the decider)` | 200 (tournament draft/live) | 200 always |
+| `PUT /comments/{id}/image` | 401 `Missing token` | 403 `You can only edit your own comment within an hour of posting` | 200 (own comment, <1h) | 200 always |
+| `DELETE /comments/{id}/image` | 401 `Missing token` | 403 (same string) | 200 (own comment, <1h) | 200 always |
+
+(Reader = no `Authorization` header → 401 from `require_auth_claims`; a token below `editor`
+would be 403 `Insufficient privileges`. There is no such account.)
+
+**Frontend.** `AdminPanel.tsx:145` mirrors the server rule the way `canReorder` (`:112`) already
+did — `isAdmin || (role === "editor" && !done)` — and an editor on a done tournament now gets the
+muted line *"Tournament is done — only an admin can set the decider."*, the same shape as the
+existing *"Tournament is done."* under the reorder buttons (`:261`). **Consequence worth knowing:**
+`LiveTournamentPage.tsx:258` only shows the decider editor at all when `isDone && isTopDraw`, so in
+today's UI the decider is now effectively **admin-only**; the editor path exists on the API (a tie
+at the top of a *live* tournament) but nothing renders it. That is what the docstring always said,
+and it is exactly the hole A1a describes, so it was not softened.
+
+**Tests.** `test_tournament_endpoints_current.py::test_decider_is_open_to_editors_only_until_the_
+tournament_is_done` (reader/editor/admin, live *and* done, asserting the detail string);
+`test_comments_current.py::test_comment_image_follows_the_text_edit_rule` (reader, non-author
+editor on PUT and DELETE, author, admin override); one window case appended to
+`test_comment_guestbook_edits.py::test_comment_edit_window_expires` (past 1h the author cannot
+attach an image either, the admin can) — that file already owns the backdating helper.
+`test_stats_endpoints.py:119` now actually calls the decider as editor (403) before the admin call
+(200), so its comment is true.
+
+**Noticed, reported, not fixed** (out of A1's scope):
+- `tournaments.py:602` `PATCH /second-leg` also injects `role` and never reads it, and its own NOTE
+  says it may revive a *done* tournament to "live" on purpose — an editor can therefore still
+  re-open finished tournament data through it (and then edit matches, which the revival makes legal).
+  Same class as A1a, but documented as intended, so it needs Roli's call, not a worker's.
+- `tournaments.py:855` `POST /reassign` injects an unused `role` too, but its own preconditions
+  (every match still `scheduled` and untouched) make a done tournament unreachable — harmless.
+- `matches.py:94` and `:276` hand-write the `Tournament is done (admin required to …)` string
+  instead of calling `ensure_not_done_or_admin` (`:94` has a deliberate last-match exception and
+  cannot use it as-is; `:276` could).
+- The reader hint under the decider still reads *"Login as editor/admin to set a decider."* — with
+  the editor path unreachable in the UI (above) that is now imprecise; left alone deliberately.
+- `deleteCommentImage` (`frontend/src/api/comments.api.ts:112`) has no call site — dead API surface.
+
+**Verification:** `make test` → **132 passed** (130 before, +2 cases), `make lint` → *All checks passed!*,
+`make gen-types` → no diff (no response model changed), `cd frontend && npm run check` → typecheck
++ eslint clean, **48 files / 463 tests passed**. No browser run: both changes are permission logic,
+and the plan allows editor/admin flows to be checked by code + tests (Runtime verification note).
 
 ---
 

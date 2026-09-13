@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, Request, Response, 
 from sqlalchemy.orm import selectinload
 from sqlmodel import Session, select
 
-from ..api_utils import bad_request, conflict, get_or_404
+from ..api_utils import bad_request, conflict, forbidden, get_or_404
 from ..auth import decode_token, require_admin, require_auth_claims, require_editor, require_editor_claims
 from ..db import get_engine, get_session
 from ..models import (
@@ -79,7 +79,19 @@ def _comment_image_updated_at(s: Session, comment_id: int) -> datetime | None:
     return None
 
 
+def _ensure_can_edit_comment(s: Session, c: Comment, claims: dict) -> tuple[int, bool, int | None]:
+    """Guard every comment mutation with the same rule: own comment in the window, or admin.
 
+    Returns ``(viewer_id, is_admin, real_author_id)`` so callers can re-evaluate
+    ``comment_can_edit`` after the change without loading the author link twice.
+    """
+    viewer_id = int(claims.get("player_id"))
+    is_admin = str(claims.get("role") or "") == "admin"
+    real_author_link = s.get(CommentAuthorLink, int(c.id))
+    real_author_id = int(real_author_link.real_author_player_id) if real_author_link else None
+    if not comment_can_edit(c, viewer_id=viewer_id, is_admin=is_admin, real_author_id=real_author_id):
+        forbidden("You can only edit your own comment within an hour of posting")
+    return viewer_id, is_admin, real_author_id
 
 
 def _validate_author(s: Session, tournament_id: int, author_player_id: int | None) -> None:
@@ -591,15 +603,7 @@ async def patch_comment(
     image_updated_at = _comment_image_updated_at(s, comment_id)
     fields = body.model_fields_set
 
-    viewer_id = int(claims.get("player_id"))
-    is_admin = str(claims.get("role") or "") == "admin"
-    real_author_link = s.get(CommentAuthorLink, comment_id)
-    real_author_id = int(real_author_link.real_author_player_id) if real_author_link else None
-    if not comment_can_edit(c, viewer_id=viewer_id, is_admin=is_admin, real_author_id=real_author_id):
-        raise HTTPException(
-            status_code=403,
-            detail="You can only edit your own comment within an hour of posting",
-        )
+    viewer_id, is_admin, real_author_id = _ensure_can_edit_comment(s, c, claims)
 
     if "body" in fields:
         text = str(body.body or "").strip()
@@ -699,13 +703,16 @@ def get_comment_image(comment_id: int):
     return Response(content=data, media_type=content_type, headers=headers)
 
 
-@router.put("/comments/{comment_id}/image", response_model=CommentOut, dependencies=[Depends(require_editor)])
+@router.put("/comments/{comment_id}/image", response_model=CommentOut)
 async def put_comment_image(
     comment_id: int,
     file: UploadFile = File(...),
     s: Session = Depends(get_session),
+    claims: dict = Depends(require_editor_claims),
 ) -> dict:
     c = get_or_404(s, Comment, comment_id, name="Comment")
+    _ensure_can_edit_comment(s, c, claims)
+
     ct = (file.content_type or "").strip().lower()
     if not ct.startswith("image/"):
         bad_request("Invalid file type")
@@ -741,9 +748,15 @@ async def put_comment_image(
     return comment_dict(c, img_file.updated_at, parent_comment_id=parent_comment_id)
 
 
-@router.delete("/comments/{comment_id}/image", response_model=OkResponse, dependencies=[Depends(require_editor)])
-async def delete_comment_image(comment_id: int, s: Session = Depends(get_session)) -> dict:
+@router.delete("/comments/{comment_id}/image", response_model=OkResponse)
+async def delete_comment_image(
+    comment_id: int,
+    s: Session = Depends(get_session),
+    claims: dict = Depends(require_editor_claims),
+) -> dict:
     c = get_or_404(s, Comment, comment_id, name="Comment")
+    _ensure_can_edit_comment(s, c, claims)
+
     img_file = s.get(CommentImageFile, comment_id)
     if img_file is None:
         return {"ok": True}

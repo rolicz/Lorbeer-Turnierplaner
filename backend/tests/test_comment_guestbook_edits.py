@@ -81,6 +81,13 @@ def test_comment_edit_window_expires(client, editor_headers, admin_headers):
     fixed = client.patch(f"/comments/{cid}", json={"body": "admin fix"}, headers=admin_headers)
     assert fixed.status_code == 200, fixed.text
 
+    # The image routes are the same rule: past the window only the admin may still attach one.
+    files = {"file": ("comment.webp", b"fakewebpdata", "image/webp")}
+    late_image = client.put(f"/comments/{cid}/image", files=files, headers=editor_headers)
+    assert late_image.status_code == 403, late_image.text
+    admin_image = client.put(f"/comments/{cid}/image", files=files, headers=admin_headers)
+    assert admin_image.status_code == 200, admin_image.text
+
 
 def test_comment_replies_tree_and_cascade_delete(client, editor_headers, admin_headers):
     editor_id, admin_id = _player_ids(client)
