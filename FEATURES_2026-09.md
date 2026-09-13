@@ -104,7 +104,7 @@ all read-only checks; editor/admin flows can be checked by code + tests.
 | 21 | DS6 | Selection controls & buttons on the canon | frontend |
 | 22 | N1 | Back from a detail page goes up (U6 regression) ☑ | frontend |
 | 23 | N2 | Return to exactly where you were (scroll restoration) ☑ | frontend |
-| 24 | N4 | Useful links everywhere (cross-navigation sweep) | frontend |
+| 24 | N4 | Useful links everywhere (cross-navigation sweep) ☑ | frontend |
 | 25 | S8 | H2H matrix: W-D-L default, obviously clickable | frontend |
 | 26 | S9 | Filter pill must not be overlookable | frontend |
 | 27 | N3 | Swipe back/forward always makes sense | frontend |
@@ -1966,7 +1966,7 @@ swipe left after a back returns forward; swiping a horizontally scrolled matrix 
 
 ---
 
-## N4 — Useful links everywhere (cross-navigation sweep)  ☐
+## N4 — Useful links everywhere (cross-navigation sweep)  ☑
 
 **Why (Roli #2, #3, #7).** Make every identity and every summary a door to its detail page.
 
@@ -1994,7 +1994,84 @@ clicks through: dashboard cup → cups, cup holder → profile, reign row player
 match H2H (1v1 and 2v2) → matchup, records row name → profile. No nested anchors
 (`document.querySelectorAll("a a").length === 0` on every stats page). `npm run check` + build.
 
-**Deviations:**
+**Deviations:** (implemented 2026-09-13, three commits: match detail + dashboard cup,
+identity sweep, summary → stats links + the `?sub=` fix)
+
+**Every element made clickable and its target**
+
+| Where | Element | Target |
+|---|---|---|
+| Match detail · H2H (`MatchH2HPanel`) | "All meetings" under the head-to-head summary — **new for 2v2 and mixed sides**, was 1v1-only | `/stats?view=h2h&mode=<mode>&source=both&player=<a>&vs=<b>` |
+| Match detail · H2H | "All games together" under each "Team A/B together" card (2v2) | `/stats?view=h2h&mode=2v2&source=both&player=<p1>&vs=<p2>&rel=together` |
+| Dashboard · Cups | cup section header (`DashboardPage`) | `/stats?view=overview&sub=cups` |
+| Dashboard · Cups (`CupCard`) | current holder (avatar + name + "holding since") | `/profiles/<owner>` |
+| Dashboard · Cups (`CupCard`) | title-history row: the winner's name | `/profiles/<winner>` |
+| Dashboard · Cups (`CupCard`) | title-history row: the rest of the row (unchanged target, now a stretched link) | `/live/<tournament>` |
+| Dashboard · Overview | "Standings" section header (`StandingsPreviewCard`) | `/stats?view=overview&sub=table` |
+| Dashboard · Overview | standings preview row (**changed**: was "open the full table") | `/stats?view=player&player=<id>` |
+| Dashboard · Overview | standings preview row: avatar + name | `/profiles/<id>` |
+| Dashboard · Overview | "Trends" section header (`TrendsPreviewCard`) | `/stats?view=trends` |
+| Tournament page · Standings / Results (`StandingsTable`) | new trailing chart-icon button per row | `/stats?view=player&player=<id>` |
+| Stats · Overview · Table (`StatsTable`) | row avatar + name (row body still opens the Player section) | `/profiles/<id>` |
+| Stats · Overview · Records | "Most tournament wins" row: the name (row body still opens the Player section) | `/profiles/<id>` |
+| Stats · Overview · Records | "Longest runs" player names | `/profiles/<id>` |
+| Stats · Overview · Streaks | record row avatar + name | `/profiles/<id>` |
+| Stats · Overview · Streaks | "Current" chips | `/profiles/<id>` |
+| Stats · Overview · Positions | column header avatar + name (drag still works) | `/profiles/<id>` |
+| Stats · Overview · Cups (`CupDetail`) | current holder | `/profiles/<owner>` |
+| Stats · Overview · Cups (`CupDetail`) | reign row avatar + name (row body still opens the tournament) | `/profiles/<holder>` |
+| Stats · Overview · Cups (`CupDetail`) | per-player table row identity (row body still opens the player's stats) | `/profiles/<id>` |
+| Stats · H2H · Players | opponent row name (row body still opens the matchup) | `/profiles/<id>` |
+| Stats · H2H · Matchup | both header identities (avatar + name) | `/profiles/<id>` |
+| Profile · Overview | favorite-teammate card (was a dead card) | `/stats?view=h2h&mode=2v2&source=both&player=<me>&vs=<teammate>&rel=together` |
+
+- **One primitive, one rule.** New `frontend/src/ui/primitives/PlayerLink.tsx` is the only way an
+  identity becomes a link: `<a href="/profiles/<id>">` with `title="Open <name>'s profile"`, click
+  and Enter kept from bubbling (so a row with its own `onClick` keeps that action), an optional
+  `decorative` flag (an avatar that duplicates the name link next to it → `aria-hidden`,
+  `tabIndex={-1}`) and an optional `onClick` for callers that must suppress navigation. Tested in
+  `frontend/src/test/playerLink.test.tsx` (4 cases).
+- **No nested anchors, two shapes.** Where a row already had a *link* (cup title history, cup
+  reigns) the row link became a stretched overlay (`absolute inset-0 z-0`) with the content layer
+  `pointer-events-none relative z-10` above it and the identity link `pointer-events-auto` — the
+  `ListRow` pattern. Where the row's action was a *button* (Records titles, H2H opponents) the
+  button became that overlay. Identity links inside such rows are `inline-block max-w-full` so they
+  hug their text: a link stretched over the whole row would have swallowed the row's own action
+  (caught in Playwright — the first attempt made the H2H matchup unreachable).
+- **`?rel=together` is new.** S2's matchup URL could not address the "Together" relation, which the
+  task's "link to that duo's matches" needs. `StatsPage` resets `rel` in `setVs` and `StatsInsights`
+  deletes it wherever `vs` is dropped, so only a deep link can set it: an in-app matchup always
+  opens on "Against". `MatchupView` takes it as `initialRelation` (seed for its existing local chip
+  state) rather than becoming a controlled component — the chips stay a local, immediate toggle.
+- **The N2 bug (Records row dropped `?sub=`) is fixed in `canonicalStatsParams`**: a section without
+  sub-views (Trends, Player) now *keeps* the `sub` the URL already carries instead of deleting it.
+  `resolveStatsView` ignores a sub that is foreign to the active section, so nothing else changes,
+  and `subForSection` brings Overview back to Records. Verified end to end (Records row → Player →
+  Overview tab → Records, same scroll offset). Known limitation, not fixed: Overview·Records → H2H →
+  Overview lands on Table, because H2H overwrites `sub` with its own (`players`/`duos`) — a
+  per-section memory would need a second param and is not worth it.
+- **Positions column headers are a drag handle *and* a link.** `setPointerCapture` now happens on
+  the first real pointer move (>6px) instead of on `pointerdown`: a captured pointer retargets the
+  following `click` to the capturing element, which swallowed the tap on the link (verified in the
+  browser, both before and after). A click after a drag is additionally suppressed via
+  `e.preventDefault()`. Drag behaviour is unchanged (Playwright's synthetic mouse drag does not
+  reorder the columns on this build either — identical before and after the change).
+- **Not linked on purpose:** the H2H matrix cells and its row/column header names (S8 owns them),
+  team names inside a `ScoreLine` (they sit inside the match link — nesting), `MatchHistoryList`
+  rows (same reason), and `PlayerProfile`'s header (it already opens the profile).
+- Tests: `playerLink.test.tsx` (4 new), `matchupView.test.tsx` +2 (profile links in the header, the
+  `initialRelation` deep link), `statsNav.test.ts` rewritten around the kept `sub` +1 — suite at
+  **324** (37 files).
+- Runtime DoD verified with Playwright against the isolated stack (backend :8003 on a copy of
+  `app.db`, vite :8020): **22 + 21 + 25 checks green at 390×844** and a 12-page sweep at 1280×900,
+  `document.querySelectorAll("a a").length === 0` on every page touched (dashboard, cups,
+  `/live/19`, match detail, all five Overview sub-views, H2H, matchup, profile). Every new link was
+  clicked and its landing URL asserted; every row that had an action was re-clicked to prove the
+  action survived. N2 re-checked after the sweep: H2H list → matchup → in-view back = same offset
+  (424 → 424), profile Matches → match page → back = 700 → 700, Records list offset kept across
+  Player → Overview (150 → 150).
+- `npm run build` still prints the pre-existing "chunks larger than 500 kB" hint (640 kB
+  `index-*.js`); unrelated, as already noted under F1/F2/U1/U4/U5/S1/S5.
 
 ---
 

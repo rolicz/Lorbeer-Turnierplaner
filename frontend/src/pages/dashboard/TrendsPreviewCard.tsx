@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQueries, useQuery } from "@tanstack/react-query";
-import { useNavigate } from "react-router-dom";
-import { Layers, Zap } from "lucide-react";
+import { Link, useNavigate } from "react-router-dom";
+import { ChevronRight, Layers, Zap } from "lucide-react";
 
 import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
 import InlineLoading from "../../ui/primitives/InlineLoading";
@@ -277,7 +277,15 @@ export default function TrendsPreviewCard() {
   return (
     <div>
       <div className="section-head">
-        <span className="section-label">Trends</span>
+        {/* The header is the door to the full Trends section (the chart below is too). */}
+        <Link
+          to="/stats?view=trends"
+          title="Open Trends in Stats"
+          className="section-label inline-flex items-center gap-2 no-underline transition hover:text-text-normal"
+        >
+          Trends
+          <ChevronRight size={14} aria-hidden="true" />
+        </Link>
       </div>
       <div className="space-y-2">
         <ErrorToastOnError error={statsQ.error} title="Trends loading failed" />

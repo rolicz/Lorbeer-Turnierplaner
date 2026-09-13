@@ -64,7 +64,8 @@ Size (2026-09): backend ≈ 14.7k LOC Python, frontend ≈ 29k LOC TS/TSX (excl.
   Trends, H2H [players/duos + matchup], Player), profile, players admin, clubs,
   friendlies (`tools/`), settings, login.
 - `src/ui/` — `primitives/` (Button, Card, CardSection, Modal, Input, Pill, EmptyState,
-  LoadingPlaceholder, MatchOverviewPanel, ScoreLine, MatchSides, StatTile, Chip, Stars, …),
+  LoadingPlaceholder, MatchOverviewPanel, ScoreLine, MatchSides, StatTile, Chip, Stars,
+  PlayerLink, …),
   `shell/` (AppShell, Sidebar desktop, MobileChrome, navConfig, routeMeta/contextual back,
   navStack, useScrollRestoration + useReturnScroll for scroll memory, NotificationBell),
   `ClubBadge`, `NationFlag`, `ClubCombobox`, `SectionTabs`. Every icon in
@@ -270,6 +271,11 @@ Other helpers: `seed --file backend/data/seed.json` (players/leagues/clubs upser
   classes), the radius/spacing/type scale, section headers and which primitive to use
   (`ScoreLine` for every score, `StatTile`, `Chip`/`ChipGroup`, `Button`, `Pill`, `List`).
   When the code and `DESIGN.md` disagree, the code is wrong.
+- **Identity is a link** (N4, 2026-09-13): a player's avatar/name opens `/profiles/<id>` through
+  `ui/primitives/PlayerLink`, and a summary opens the detail it summarises (stats matchup, cup
+  page, player stats). A row that already has an action keeps it — the identity link hugs its text
+  and sits above a stretched link/button overlay (`ListRow` pattern). **Never nest an `<a>` in an
+  `<a>`**; `document.querySelectorAll("a a").length` must stay 0.
 - **Icons: lucide-react only** (`DESIGN.md` §1.5). Font Awesome is gone (DS7, 2026-09-13) —
   the dependency, the CSS import and every `<i class="fa-…">` with it. Import the component
   (`import { Crown } from "lucide-react"`) and give it an explicit `size` in px; `aria-hidden`

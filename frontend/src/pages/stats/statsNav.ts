@@ -107,13 +107,20 @@ export function resolveStatsView(search: URLSearchParams, hash: string, state: u
   return { view, sub, legacy };
 }
 
-/** The canonical search params for a section + sub-view (drops `section`). */
+/**
+ * The canonical search params for a section + sub-view (drops `section`).
+ *
+ * A section without sub-views (Trends, Player) keeps whatever `sub` the URL already
+ * carries instead of dropping it: `resolveStatsView` ignores a sub that does not
+ * belong to the active section, and keeping it is what lets a jump to the Player
+ * section (a Table or Records row tap, a cross-link) come back to the sub-view it
+ * started from instead of falling back to Table.
+ */
 export function canonicalStatsParams(search: URLSearchParams, view: StatsView, sub: StatsSub): URLSearchParams {
   const next = new URLSearchParams(search);
   next.delete("section");
   next.set("view", view);
   if (subsFor(view).length) next.set("sub", sub);
-  else next.delete("sub");
   return next;
 }
 

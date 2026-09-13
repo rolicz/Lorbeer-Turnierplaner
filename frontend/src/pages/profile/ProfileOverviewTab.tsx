@@ -127,15 +127,30 @@ export default function ProfileOverviewTab({
         <div className="section-head"><span className="section-label">Favorite teammates</span></div>
         {favoriteTeammates.length ? (
           <div className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-3">
-            {favoriteTeammates.map((tm) => (
-              <div key={tm.id} className="card-chip px-3 py-2">
-                <div className="truncate font-semibold">{tm.name}</div>
-                <div className="text-text-muted mt-0.5">
-                  <span className="text-win">{tm.w}</span>-<span className="text-draw">{tm.d}</span>-<span className="text-loss">{tm.l}</span> ·{" "}
-                  {fmtPct(tm.ppm)} ppm
-                </div>
-              </div>
-            ))}
+            {favoriteTeammates.map((tm) => {
+              const body = (
+                <>
+                  <div className="truncate font-semibold">{tm.name}</div>
+                  <div className="text-text-muted mt-0.5">
+                    <span className="text-win">{tm.w}</span>-<span className="text-draw">{tm.d}</span>-<span className="text-loss">{tm.l}</span> ·{" "}
+                    {fmtPct(tm.ppm)} ppm
+                  </div>
+                </>
+              );
+              // Like the rival cards: the summary opens every match behind it — here the
+              // 2v2 matchup in its "Together" relation.
+              if (!targetPlayerId) return <div key={tm.id} className="card-chip px-3 py-2">{body}</div>;
+              return (
+                <Link
+                  key={tm.id}
+                  to={`/stats?view=h2h&mode=2v2&source=both&player=${targetPlayerId}&vs=${tm.id}&rel=together`}
+                  title={`All 2v2 matches together with ${tm.name}`}
+                  className="card-chip block px-3 py-2 transition hover:bg-bg-card-chip/40 active:bg-bg-card-chip/50 focus-ring"
+                >
+                  {body}
+                </Link>
+              );
+            })}
           </div>
         ) : (
           <div className="text-sm text-text-muted">No 2v2 matches recorded yet.</div>

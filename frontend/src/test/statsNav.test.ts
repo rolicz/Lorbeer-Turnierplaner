@@ -101,12 +101,24 @@ describe("canonicalStatsParams", () => {
     expect(p.toString()).toBe("mode=1v1&view=overview&sub=table");
   });
 
-  it("drops sub for sections without sub-views and keeps other params", () => {
-    const p = canonicalStatsParams(new URLSearchParams("sub=duos&player=2&source=both"), "trends", "table");
-    expect(p.get("sub")).toBeNull();
+  it("keeps the source section's sub (and every other param) for a section without sub-views", () => {
+    // Trends and Player have no sub-views; `resolveStatsView` ignores a foreign sub,
+    // and keeping it is what brings a Records row tap back to Records (N4).
+    const p = canonicalStatsParams(new URLSearchParams("sub=records&player=2&source=both"), "player", "table");
+    expect(p.get("sub")).toBe("records");
     expect(p.get("player")).toBe("2");
     expect(p.get("source")).toBe("both");
-    expect(p.get("view")).toBe("trends");
+    expect(p.get("view")).toBe("player");
+    // …and the section it returns to opens on that sub again.
+    expect(subForSection("overview", p.get("sub"))).toBe("records");
+    // A foreign sub does not leak into the resolved view.
+    expect(resolveStatsView(p, "", null)).toEqual({ view: "player", sub: "table", legacy: false });
+  });
+
+  it("adds no sub when the URL never had one", () => {
+    const p = canonicalStatsParams(new URLSearchParams("player=2"), "trends", "table");
+    expect(p.get("sub")).toBeNull();
+    expect(p.toString()).toBe("player=2&view=trends");
   });
 });
 
