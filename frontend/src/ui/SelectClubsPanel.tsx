@@ -116,8 +116,10 @@ export default function SelectClubsPanel({
         ) : null}
       </div>
 
+      {/* Not an `inset`: the two selects already are one (DESIGN.md §1 — a surface
+          never nests inside a surface of the same level). */}
       {filtersOpen ? (
-        <div id="club-filters" className="inset space-y-2">
+        <div id="club-filters" className="space-y-2">
           <div className="grid grid-cols-2 gap-2">
             <StarFilter
               value={filters.starFilter}
@@ -148,7 +150,10 @@ export default function SelectClubsPanel({
         </div>
       ) : null}
 
-      <div className="flex items-stretch gap-2">
+      {/* The two random actions: equal height, the dice square because it is the
+          secondary one, "Random matchup" filling the rest (DESIGN.md §9b). Capped
+          on desktop so the wide screen does not turn it into a banner. */}
+      <div className="flex items-stretch gap-2 sm:max-w-md">
         <Button
           type="button"
           variant="ghost"

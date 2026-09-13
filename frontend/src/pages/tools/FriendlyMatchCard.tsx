@@ -428,6 +428,16 @@ export default function FriendlyMatchCard({
           {oddsQ.isFetching ? <div className="text-xs text-text-muted">Computing odds…</div> : null}
         </div>
 
+        {/* The clubs are named in the preview above and picked by tapping them
+            there; these controls act on both sides (DESIGN.md §9b). */}
+        <div className="space-y-3">
+          <div className="section-head">
+            <span className="section-label">Clubs</span>
+          </div>
+          {clubsQ.isLoading ? <div className="text-sm text-text-muted">Loading clubs…</div> : null}
+          <SelectClubsPanel selection={clubSelection} />
+        </div>
+
         <div className="space-y-3">
           <div className="section-head">
             <span className="section-label">Setup</span>
@@ -503,14 +513,7 @@ export default function FriendlyMatchCard({
           </div>
         </div>
 
-        {clubsQ.isLoading && <div className="text-sm text-text-muted">Loading clubs…</div>}
 
-        <div className="space-y-3">
-          <div className="section-head">
-            <span className="section-label">Clubs</span>
-          </div>
-          <SelectClubsPanel selection={clubSelection} />
-        </div>
     </div>
   );
 
