@@ -4368,6 +4368,22 @@ still assumed to win. Fix, in this order:
 4. Tie-breaks: use the projected goal difference (finished + assumed) if GD is used at all, or
    state that only points decide and ties favour the focus player.
 
+**2v2 must work as well as 1v1** (Roli, explicitly). Points go to *both* players on a side, and
+in 2v2 the focus player partners with different people through the tournament, so their own wins
+also lift whoever they play with:
+- The projection stays **per player**, never per duo — the table and the position line are about
+  one person.
+- "The focus wins all their remaining matches" is still optimal in 2v2, and the code should say
+  why so nobody second-guesses it: against a partner a win and a draw move both by the same
+  amount, so their gap is untouched, while a win always gives the opponents less. It is therefore
+  never better for the focus player's rank to drop points.
+- Every remaining match's three-way control shows both names per side (the score primitive already
+  stacks them), and a match where the focus player's *partner* plays without them is an ordinary
+  rival match.
+- The brute-force proof test must cover 2v2 fixtures too, including the case where a rival is the
+  focus player's partner in a later match — that is exactly where a naive implementation goes
+  wrong.
+
 **DoD:** Standings has no best-case block; the new tab sits right of Comments and disappears once
 every match is played; editing a match's outcome updates the table and the position line; "reset to
 best case" restores the computed scenario; the brute-force test passes; screenshots 390px + 1280px,
