@@ -109,7 +109,7 @@ all read-only checks; editor/admin flows can be checked by code + tests.
 | 26 | S9 | Filter pill must not be overlookable | frontend |
 | 27 | N3 | Swipe back/forward always makes sense ☑ | frontend |
 | 28 | DS3 | Surface & radius migration, retire old classes ☑ | frontend |
-| 29 | DS4 | Typography & section headers on the scale | frontend |
+| 29 | DS4 | Typography & section headers on the scale ☑ | frontend |
 | 30 | DS8 | Stats sub-pages made of the same stone (+ drop redundant mode pill) | frontend |
 | 31 | S10 | Match comments & club selection reworked | frontend |
 | 32 | D1 | Documentation pass (README, frontend/README, AGENTS.md, DESIGN.md) | docs |
@@ -1806,7 +1806,7 @@ live, stats, profile/players/clubs/tools/settings, CSS deletions + canon)
 
 ---
 
-## DS4 — Typography & section headers on the scale  ☐
+## DS4 — Typography & section headers on the scale  ☑
 
 - Replace every `text-[Npx]`: `[11px]`/`[12px]`/`[13px]`→`text-xs` or `text-sm` by context,
   `[15px]`→`text-base`, `[10px]`/`[9px]`/`[8px]`/`[7px]`→`text-micro` (badges) or `text-xs`;
@@ -1819,7 +1819,107 @@ live, stats, profile/players/clubs/tools/settings, CSS deletions + canon)
 **DoD:** `git grep -nE "text-\[[0-9]+px\]" frontend/src` → 0; screenshots of stats Player,
 matchup, profile Stats, records, cups at 390px; `npm run check` + build.
 
-**Deviations:**
+**Deviations:** (implemented 2026-09-13, four commits: type scale, section headers, `StatTile`,
+light-theme inset fix)
+
+- **Sweep result.** 122 `text-[Npx]` occurrences in 44 files → **0**
+  (`git grep -nE "text-\[[0-9]+px\]" frontend/src`). Mapping by context per §5:
+  `[11px]`×100 + `[12px]`×3 → `text-xs`; `[15px]`×4 (the drawer's three nav rows, the
+  tournaments-list title) → `text-base`; `[10px]`×13 / `[9px]`×2 / `[8px]`×1 → `.text-micro`
+  where the text is a badge/counter/micro-caption, `text-xs` where it is a label
+  (the live mini-standings column header, the profile stat-tile label). `section-label` is
+  `text-xs`; `Meta`/`MetaRow` lost the `"11"` size. No `[13px]`/`[7px]` existed.
+- **Proposed §5 amendment (NOT applied to `DESIGN.md` — Roli's call).** §5 restricts
+  `.text-micro` to "badges and superscript counters only", but three kinds of 10px text are
+  neither, and 12px measurably breaks them: a unit caption under a number (`pts` under the
+  standings points), a fixed-width marker (the ▲/▼ delta glyph in a 12px-wide column, the
+  "best case" tag) and the **bottom tab bar's labels** (at 12px "Tournaments" needs 76px of a
+  78px item). They use `.text-micro` today. Suggested wording: *"One extra utility
+  `.text-micro` (10px, semibold) for badges, counters and micro-captions — text that annotates
+  something rather than being read as content. Never body text, never a section label."*
+- **`NationFlag`'s `text-[10.5px]`/`text-[13.5px]` stay.** They are not typography: the
+  `flag-icons` `.fi` span is sized in `em`, so the font size *is* the flag's 14×10.5 / 18×13.5
+  geometry. They fall outside the DoD grep by construction (decimal point). Flagged so a later
+  reader does not mistake them for a miss.
+- **Density calls (the planner asked for these to be named, not hidden):**
+  1. `StandingsTable`'s row meta line (`3P · 1-1-1 · 11:13 · GD -2`) drops `font-mono` and
+     keeps `tabular-nums`: at 12px the mono string measures exactly the 187px available and
+     wrapped onto a second line, so every standings row had a different height. Proportional
+     needs 149px. §5 permits mono there, it does not require it.
+  2. `ClubBadge` `sm` goes 8px → 10px (`text-micro`) — two initials in a 16px disc are tighter
+     than before but do not clip (measured 16/16px, no overflow). Only the six crest-less clubs
+     render a monogram at all.
+  3. The comment "pinned"/"editing" badges drop `text-[10px] py-1 px-2` and render the plain
+     `chip` (§3: a chip is `text-xs`), so they grow 2px.
+  4. The three 6-tile stat grids (`PlayerProfile` key numbers, `ProfileStatsSection`,
+     `MatchupView` summary) go `grid-cols-2 sm:grid-cols-3` — see the `StatTile` note below.
+  Everything else the scale touched fits: the H2H matrix, the stats table header, the
+  positions grid and its legend, the live mini-standings header (`# Player P GD Pts`) and the
+  five bottom-bar labels were all measured at 390px with no overflow and no new wrapping.
+- **Section headers — what actually deviated.** `PlayerProfile`, `CupDetail`, `PositionsView`,
+  `StatsTable`, `StreaksView`, `H2HView`, `SettingsPage`, `AdminPanel` and the live tournament
+  sections were already on one of the two patterns. Fixed:
+  - flat sections whose header carried a trailing action used a bare `flex justify-between`
+    with no `section-head` (so no hairline): profile "Key numbers" + "Full stats →", profile
+    overview "Recent matches" + "View all →", `MatchList`'s "N matches" + view switch,
+    `FriendlyMatchCard`'s "Setup" + mode switch. They use `section-head` now, with `order-1`
+    on the action so the `::after` hairline runs *between* label and action.
+  - headers inside an `inset` were a third pattern (`text-xs uppercase tracking-wide`):
+    `RecordsView`'s record/titles/streak groups and `MatchH2HPanel`'s `SummaryCard`. They are
+    `<h3 class="text-sm font-semibold text-text-normal">` now. `SummaryCard`'s pairing line
+    ("Roli vs Flo") drops to a muted caption under the heading — the same names already head
+    the card two rows above.
+  - uppercase mini-labels inside a card: `PlayerProfile`'s "Compare with" and "Form (last N)",
+    `StreaksView`'s "Current" — now plain muted `text-xs`.
+  - `TrendsExplorer`'s `Field` and `controls.tsx`'s `Slider` hand-rolled `section-label`'s
+    exact class string; they use the class.
+- **`DESIGN.md` §6 was edited** (not only §3). It still allows exactly two header patterns; the
+  additions are mechanical clarifications the task needed: where a trailing action sits, that a
+  header inside an `inset` follows the in-card rule, that a card which *is* one entity may keep
+  the `text-lg` title §5 allows (this resolved a §5/§6 contradiction — §5 says `text-lg` "card
+  titles", §6 said `text-sm`; `CupDetail`'s cup name keeps `text-lg`, everything nested under it
+  is `text-sm`), and that a bare `section-label` next to a control is the app's field-label
+  idiom (`ClubsPage` Group/Stars/League, the friendlies Mode/View filters,
+  `SelectClubsPanel`) — those were left alone deliberately.
+- **`StatTile` adoption.** `PlayerProfile`, `ProfileStatsSection` and `MatchupView` each had a
+  private copy of the same tile (centred, `text-base` value *above* a `text-xs` label); all
+  three now render the primitive, so the label sits above a `text-2xl font-bold` value per §7.
+  `RecordsView`'s "Longest runs" cards are `StatTile`s too (label = the streak name,
+  `accessory` = the ×N tie count, value = the record length in `text-accent`, `hint` = the
+  holders). `CupDetail` already used it.
+  - **Not converted:** `RecordsView`'s `RecordGroup` (a list of matches under a heading) and
+    `TitlesGroup` (a ranked list of players). Their numbers are per-row values in a list, not
+    one key number per box — forcing them into `StatTile` would have restructured the page.
+  - **The grids go 2 columns at 390px** (`grid-cols-2 sm:grid-cols-3`, which `CupDetail`'s
+    records grid already used): at three columns a tile has 83px of content, and a 24px
+    `19-7-5` or a one-line "Conceded / match" does not fit — both wrapped. Cost: one extra
+    tile row per grid; gain: §1.3's "numbers are the hero" actually holds on a phone.
+  - `StatTile` gains an optional `title` (native tooltip) — `MatchupView`'s W-D-L and Goals
+    tiles carried one on their box.
+  - `matchupView.test.tsx` asserted tile text in value-then-label order; it now asserts the
+    canon's label-then-value order (same six tiles, same values).
+- **Planner instruction — the light-theme `inset` fix (DS3 hand-off).** In `light.css`
+  `--color-bg-card-chip` is pure white, so DS3's `.inset` (full chip fill + hairline) was white
+  on a white `card`. Light insets now take `--color-bg-card-inner` (247 246 245) with a
+  `--color-border-card-inner` hairline; `chip`, `.input-field` and `.select-field` keep white,
+  dark themes are untouched. Verified in light at 390px on stats Player "Key numbers", profile
+  Stats tiles, the matchup summary tiles, the Cups record + "Current reign" tiles and the live
+  standings/current-match panels — separated on a white card *and* on the grey page.
+  `DESIGN.md` §3 states the rule. One honest note: on the grey page backdrop these boxes are
+  now a touch quieter than DS3's white-on-grey; the hairline carries the edge.
+- **Finding for D1:** `frontend/src/ui/primitives/Meta.tsx` (`Meta`, `MetaRow`) has **no
+  importers anywhere** — it is dead code. The task asked to drop its `"11"` size, so that is
+  what this task did; deleting the file is a dead-code call, not a typography one.
+- **Runtime verification** (isolated stack: backend :8003 on a copy of `app.db`, vite :8020;
+  editor/admin UI via a stubbed `/me` with token-only 401/403 reads answered empty, as
+  DS2/DS3/DS6 did): **29 routes × blue/light × 390px and 1280px** — 0 console/page errors,
+  0 horizontal overflow, **0 elements carrying any `text-[Npx]` class**, 0 nested `<a>`, plus
+  4 editor-only routes (clubs, the friendlies editor, live Admin controls, match Edit result)
+  in both themes. Before/after pairs for every route are in the session scratchpad
+  (`before-<route>-<theme>-390.png` / `ds4after-<route>-<theme>-<width>.png`).
+- `npm run check` green before every commit (349 tests); `npm run build` green with the
+  pre-existing "chunks larger than 500 kB" hint (640 kB `index-*.js`), as under every earlier
+  task.
 
 ---
 
