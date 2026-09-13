@@ -3102,9 +3102,22 @@ Recorded so they are not forgotten. Do not implement without an explicit go.
      a new table, not a column, per the project's schema rules. Every star write appends a row;
      `init_db()` seeds one row per club with its current rating. Stats resolve the rating *as of
      the match's date*; anything before the first recorded row uses that first value.
-   - **Caveat to state plainly when this is built:** the ratings Roli already changed by hand are
-     unrecoverable — history can only start at the seeding date, so every match up to then keeps
-     the club's current rating. Nothing is lost that we ever had.
+   - **History IS partly recoverable** (measured 2026-09-13, Roli asked): the 11 **production**
+     snapshots in `backup/deploy/*/data/app.db` (2026-03-28 → 2026-09-12) contain the full `club`
+     table, so diffing them yields **31 star changes across 31 clubs**. Seed the history table from
+     those diffs, dating each change at the snapshot where it first appears (conservative: the
+     rating changed *no later than* that), then continue live from `PATCH /clubs/{id}`.
+     Use **deploy snapshots only** — `backup/local/*` are pre-sync dev copies and interleaving them
+     with deploy fakes changes that revert.
+   - **Limits of that recovery, state them plainly:** the oldest snapshot is 2026-03-28 while
+     tournaments start 2025-10-18, so anything before March 2026 keeps the value recorded then; and
+     inside a gap between two snapshots the exact day is unknown (the biggest gap, 2026-04-03 →
+     2026-05-31, holds 25 of the 31 changes and contains three tournaments).
+   - **Actual impact today is tiny:** only 2 of the 31 re-rated clubs were ever played before their
+     change, so exactly **2 of 178 finished match sides** are currently misattributed
+     (San Jose Earthquakes 2.0→2.5, Carrarese Calcio 3.0→2.5, both dated 2026-05-31). The value of
+     this feature is protecting the *future*, not fixing the past — worth saying out loud before
+     anyone spends a day on the recovery half.
    - Cheaper alternative if the history itself is not wanted: snapshot the rating onto
      `MatchSide`/`FriendlyMatchSide` when a match finishes. Exact per match, but it answers
      "what did this match count as", not "how did this club's rating move".
