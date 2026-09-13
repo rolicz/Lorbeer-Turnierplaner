@@ -1,5 +1,8 @@
 .PHONY: help dev backend backend-lan test lint format gen-types clean frontend frontend-lan frontend-install
 
+# Recipes need bash: scripts/node-env.sh sources nvm (not POSIX sh compatible).
+SHELL := /bin/bash
+
 BACKEND_DIR := backend
 FRONTEND_DIR := frontend
 
@@ -41,21 +44,25 @@ clean:
 gen-types:
 	bash scripts/gen_types.sh
 
+# Frontend targets load the right Node (Vite 7 needs >=20.19 / >=22.12) via nvm
+# when available — see scripts/node-env.sh and .nvmrc.
+NODE_ENV_SH := . scripts/node-env.sh;
+
 frontend-install:
-	cd $(FRONTEND_DIR) && npm install
+	$(NODE_ENV_SH) cd $(FRONTEND_DIR) && npm install
 
 frontend:
-	cd $(FRONTEND_DIR) && npm run dev -- --port $(FRONTEND_PORT)
+	$(NODE_ENV_SH) cd $(FRONTEND_DIR) && npm run dev -- --port $(FRONTEND_PORT)
 
 frontend-lan:
-	cd $(FRONTEND_DIR) && npm run dev -- --host 0.0.0.0 --port $(FRONTEND_PORT)
+	$(NODE_ENV_SH) cd $(FRONTEND_DIR) && npm run dev -- --host 0.0.0.0 --port $(FRONTEND_PORT)
 
 # Runs both concurrently (Linux/macOS). On Windows, use two terminals:
 #   make backend-lan
 #   make frontend-lan
 dev:
 	@echo "Starting backend (LAN) + frontend (LAN) ..."
-	@bash -lc 'set -m; \
+	@bash -c 'set -m; \
 		$(MAKE) backend-lan & \
 		$(MAKE) frontend-lan & \
 		wait'

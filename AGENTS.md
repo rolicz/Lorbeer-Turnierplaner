@@ -93,6 +93,9 @@ cd frontend && npm run check   # tsc + eslint + vitest (baseline 158 tests in 18
 cd frontend && npm run build   # tsc -b + vite build (run for structural changes)
 ```
 
+- **Node ≥ 20.19 / ≥ 22.12 is required** (Vite 7). `.nvmrc` pins 24; the frontend make targets
+  source `scripts/node-env.sh`, which loads nvm when present, so `make dev`/`make frontend` work
+  from any shell (login bash on this Pi does not load nvm and would otherwise pick system Node 18).
 - `make format` = ruff format. Frontend has no prettier; match surrounding style.
 - Backend API docs: `http://127.0.0.1:8001/docs`.
 - Dev machine is a Raspberry Pi 5 (arm64, LAN IP 192.168.178.78). `frontend/.env.local` points
