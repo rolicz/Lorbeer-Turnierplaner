@@ -151,7 +151,7 @@ export default function CommentList(props: CommentListProps) {
         {renderCommentCard(c, surface, { childCount: children.length, collapsed })}
         {children.length && !collapsed ? (
           <div className="ml-1 space-y-2 border-l border-border-card-inner/40 pl-2 sm:pl-3">
-            {children.map((ch) => renderCommentTree(ch, "panel-inner", depth + 1))}
+            {children.map((ch) => renderCommentTree(ch, "inset", depth + 1))}
           </div>
         ) : null}
       </div>
@@ -170,7 +170,7 @@ export default function CommentList(props: CommentListProps) {
           <div className="space-y-1">
             <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3">
               <div className="min-w-0 truncate text-sm text-text-normal">{h.aPlayers}</div>
-              <div className="card-chip flex items-center justify-center gap-2 justify-self-center">
+              <div className="flex items-center justify-center gap-2 justify-self-center">
                 {h.aGoals == null || h.bGoals == null ? (
                   <span className="text-sm font-semibold tabular-nums text-text-muted">—</span>
                 ) : (
@@ -195,9 +195,10 @@ export default function CommentList(props: CommentListProps) {
             </div>
           </div>
     ) : null;
-    // not CardSection: rounded-2xl omitted so the block spans edge-to-edge inside the parent card; scroll-mt critical for anchor navigation
+    // A match block is a level-1 `card` on the page (DESIGN.md §3); its comments are the
+    // level-2 `inset` rows inside it. scroll-mt is critical for anchor navigation.
     return (
-      <div key={matchId} id={`comments-block-match-${matchId}`} className="card-inner-flat scroll-mt-28 sm:scroll-mt-32">
+      <div key={matchId} id={`comments-block-match-${matchId}`} className="card scroll-mt-28 sm:scroll-mt-32">
         {h && showMatchHeader ? (
           <button
             type="button"
@@ -229,22 +230,22 @@ export default function CommentList(props: CommentListProps) {
     if (!generalComments.length) return <EmptyState title="No general comments yet." />;
     const ordered = [pinnedTournamentComment, ...generalComments.filter((c) => c.id !== pinnedTournamentComment?.id)]
       .filter(Boolean) as TournamentComment[];
-    return <div className="space-y-2">{ordered.map((c) => renderCommentTree(c, "panel", 0))}</div>;
+    return <div className="space-y-2">{ordered.map((c) => renderCommentTree(c, "inset", 0))}</div>;
   }
 
   if (onlyMatchId != null) {
-    return renderMatchBlock(onlyMatchId, "panel-subtle");
+    return renderMatchBlock(onlyMatchId, "inset");
   }
   if (filter === "general") {
     return (
-      <div className="panel-subtle p-3">
+      <div className="card">
         <div className="mb-3 text-sm font-semibold">General</div>
         {renderGeneralList()}
       </div>
     );
   }
   if (typeof filter === "number") {
-    return renderMatchBlock(filter, "panel-subtle");
+    return renderMatchBlock(filter, "inset");
   }
   return (
     <div className="space-y-2">
@@ -266,7 +267,7 @@ export default function CommentList(props: CommentListProps) {
         </div>
       ) : null}
       {generalComments.length ? (
-        <div className="panel-subtle p-3">
+        <div className="card">
           <div className="mb-3 flex items-center justify-between gap-2">
             <div className="text-sm font-semibold">General</div>
             <div className="text-xs text-text-muted">{generalComments.length}</div>
@@ -274,9 +275,9 @@ export default function CommentList(props: CommentListProps) {
           {renderGeneralList()}
         </div>
       ) : null}
-      {matchBlocksWithComments.map((b) => renderMatchBlock(b.matchId, "panel-subtle"))}
+      {matchBlocksWithComments.map((b) => renderMatchBlock(b.matchId, "inset"))}
       {totalComments === 0 ? (
-        <EmptyState title={`No comments yet.${canWrite ? " Be the first to add one." : ""}`} className="panel-subtle px-3 py-6" />
+        <EmptyState title={`No comments yet.${canWrite ? " Be the first to add one." : ""}`} className="card px-3 py-6" />
       ) : null}
     </div>
   );

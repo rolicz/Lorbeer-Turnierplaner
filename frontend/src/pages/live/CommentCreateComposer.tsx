@@ -58,7 +58,7 @@ export default function CommentCreateComposer({
   onCancel,
   canSubmit,
   disabled = false,
-  surfaceClassName = "panel-subtle p-3",
+  surfaceClassName = "card",
 }: {
   authorOptions: CommentDraftAuthorOption[];
   authorValue: CommentDraftAuthorValue;
@@ -282,8 +282,8 @@ export default function CommentCreateComposer({
                 </div>
               </div>
               {imagePreviewUrl ? (
-                <div className="panel-subtle p-2">
-                  <img src={imagePreviewUrl} alt="" className="w-full rounded-lg object-cover aspect-[4/3]" />
+                <div className="inset p-2">
+                  <img src={imagePreviewUrl} alt="" className="w-full rounded-xl object-cover aspect-[4/3]" />
                 </div>
               ) : null}
             </div>

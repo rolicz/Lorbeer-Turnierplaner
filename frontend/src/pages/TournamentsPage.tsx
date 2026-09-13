@@ -138,7 +138,7 @@ export default function TournamentsPage() {
           ) : null}
         </div>
       ) : (
-        <div className="stack">
+        <div className="flex flex-col gap-5">
           {monthGroups.map((g) => (
             <div key={g.key}>
               <div className="section-head"><span className="section-label">{g.label}</span></div>

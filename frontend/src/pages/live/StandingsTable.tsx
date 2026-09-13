@@ -390,7 +390,7 @@ export default function StandingsTable({
               aria-label={`Open ${r.name}'s stats`}
               onClick={(e) => e.stopPropagation()}
               onKeyDown={(e) => e.stopPropagation()}
-              className="focus-ring grid h-8 w-8 shrink-0 place-items-center rounded-lg text-text-muted no-underline transition hover:bg-bg-card-chip/50 hover:text-accent"
+              className="focus-ring grid h-8 w-8 shrink-0 place-items-center rounded-xl text-text-muted no-underline transition hover:bg-bg-card-chip/50 hover:text-accent"
             >
               <LineChart size={16} aria-hidden="true" />
             </Link>
@@ -427,7 +427,7 @@ export default function StandingsTable({
           </p>
           <div className="mt-2 list-divided">
             {bestCase.proj.map((r, idx) => (
-              <div key={r.playerId} className={"row " + (r.isFocus ? "rounded-lg bg-accent/10 px-2 -mx-2" : "")}>
+              <div key={r.playerId} className={"row " + (r.isFocus ? "rounded-xl bg-accent/10 px-2 -mx-2" : "")}>
                 <span className="w-4 shrink-0 text-right text-xs tabular-nums text-text-muted">{idx + 1}</span>
                 <AvatarCircle playerId={r.playerId} name={r.name} updatedAt={avatarUpdatedAtByPlayerId.get(r.playerId) ?? null} sizeClass="h-8 w-8" />
                 <span className={"min-w-0 flex-1 truncate " + (r.isFocus ? "font-semibold text-text-normal" : "text-text-normal")}>

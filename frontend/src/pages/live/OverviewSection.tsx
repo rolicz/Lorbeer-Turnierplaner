@@ -49,7 +49,7 @@ export default function OverviewSection({
   }, [matches, previewMatch]);
 
   return (
-    <div className="stack-tight">
+    <div className="flex flex-col gap-3">
       <div>
         <div className="section-head">
           <span className="section-label">Current match</span>
@@ -71,7 +71,7 @@ export default function OverviewSection({
             />
           </button>
         ) : (
-          <div className="panel-subtle p-3 text-sm text-text-muted">No matches yet.</div>
+          <div className="inset text-sm text-text-muted">No matches yet.</div>
         )}
       </div>
 
@@ -82,7 +82,7 @@ export default function OverviewSection({
         <button
           type="button"
           onClick={onGoToStandings}
-          className="block w-full rounded-xl panel-subtle p-1.5 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/35"
+          className="inset block w-full p-1.5 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/35"
           aria-label="Open standings"
         >
           <div className="flex items-center gap-2 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-text-muted">
@@ -118,7 +118,7 @@ export default function OverviewSection({
           <button
             type="button"
             onClick={onGoToMatches}
-            className="block w-full rounded-xl panel-subtle p-1.5 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/35"
+            className="inset block w-full p-1.5 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/35"
             aria-label="Open matches"
           >
             {nextMatches.map((m) => (

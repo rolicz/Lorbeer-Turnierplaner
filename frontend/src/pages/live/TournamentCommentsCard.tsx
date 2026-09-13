@@ -729,7 +729,7 @@ export default function TournamentCommentsCard({
   const totalComments = comments.length;
 
   const composer = canWrite && addTarget ? (
-    <div className="panel-subtle p-3 space-y-3">
+    <div className="card space-y-3">
       {onlyMatchId == null ? (
         <div className="block">
           <FormLabel>Add to</FormLabel>

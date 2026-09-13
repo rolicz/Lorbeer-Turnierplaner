@@ -115,7 +115,7 @@ export function AddCommentDropdown({
   onSubmit,
   onCancel,
   canSubmit,
-  surfaceClassName = "panel-subtle",
+  surfaceClassName = "inset",
 }: {
   open: boolean;
   authorOptions: { value: "general" | number; label: string }[];
@@ -204,7 +204,7 @@ export function CommentCard({
   onSave,
   canSubmit,
   flash,
-  surfaceClassName = "panel-subtle",
+  surfaceClassName = "inset",
   avatarUpdatedAt,
   ctx,
 }: {
@@ -288,8 +288,8 @@ export function CommentCard({
               />
             ) : null}
             <div className="text-xs font-semibold text-text-normal">{authorLabel(c.author)}</div>
-            {isPinned ? <span className="card-chip text-[10px] py-1 px-2">pinned</span> : null}
-            {isEditing ? <span className="card-chip text-[10px] py-1 px-2">editing</span> : null}
+            {isPinned ? <span className="chip text-[10px] py-1 px-2">pinned</span> : null}
+            {isEditing ? <span className="chip text-[10px] py-1 px-2">editing</span> : null}
           </div>
           {/* Row 2: timestamp (+ edited) */}
           <div className="mt-0.5 text-[11px] text-text-muted">
@@ -430,7 +430,7 @@ export function CommentCard({
         <div className="mt-2 space-y-2">
           {c.body ? <div className="whitespace-pre-wrap text-sm">{c.body}</div> : null}
           {c.hasImage ? (
-            <div className="panel-subtle p-2">
+            <div className="inset p-2">
               <button
                 type="button"
                 className="block w-full"
@@ -440,7 +440,7 @@ export function CommentCard({
                 <img
                   src={commentImageUrl(c.id, c.imageUpdatedAt)}
                   alt=""
-                  className="w-full rounded-lg object-cover aspect-[4/3] cursor-zoom-in"
+                  className="w-full rounded-xl object-cover aspect-[4/3] cursor-zoom-in"
                   loading="lazy"
                   decoding="async"
                 />
@@ -480,7 +480,7 @@ export function CommentCard({
       )}
 
       {replyOpen ? (
-        <div className="mt-2 panel-inner p-2 space-y-2" onClick={(e) => e.stopPropagation()}>
+        <div className="mt-2 inset p-2 space-y-2" onClick={(e) => e.stopPropagation()}>
           <Textarea
             label={`Reply to ${authorLabel(c.author)}`}
             value={replyDraft}

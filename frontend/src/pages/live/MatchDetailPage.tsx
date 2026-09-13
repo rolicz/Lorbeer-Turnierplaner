@@ -144,7 +144,7 @@ export default function MatchDetailPage() {
   });
 
   if (!tid || !matchId) {
-    return <div className="panel-subtle px-3 py-2 text-sm text-text-muted">Invalid match URL.</div>;
+    return <div className="inset px-3 py-2 text-sm text-text-muted">Invalid match URL.</div>;
   }
 
   const initialLoading = !pageEntered || (!tQ.error && !tQ.data && tQ.isLoading);
@@ -155,7 +155,7 @@ export default function MatchDetailPage() {
   if (!match && tQ.data) {
     return (
       <div className="page">
-        <div className="panel-subtle px-3 py-2 text-sm text-text-muted">
+        <div className="inset px-3 py-2 text-sm text-text-muted">
           Match not found in tournament.
           <button type="button" className="ml-2 text-accent" onClick={() => nav(`/live/${tid}`)}>
             Back
@@ -221,7 +221,7 @@ export default function MatchDetailPage() {
           {activeTab === "edit" && canEditResult ? (
             <div className="space-y-4">
               {/* Live preview */}
-              <section className="card-outer space-y-3">
+              <section className="card space-y-3">
                 <h2 className="text-sm font-semibold text-text-normal">Result</h2>
 
                 <div>
@@ -288,7 +288,7 @@ export default function MatchDetailPage() {
                 onChangeAClub={setAClub}
                 onChangeBClub={setBClub}
                 defaultOpen={false}
-                wrapClassName="card-outer"
+                wrapClassName="card p-0"
                 narrowLayout
                 extraTop={
                   <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
@@ -303,7 +303,7 @@ export default function MatchDetailPage() {
 
               {/* Swap sides (admin only) */}
               {isAdmin ? (
-                <section className="card-outer">
+                <section className="card">
                   <h2 className="mb-2 text-sm font-semibold text-text-normal">Advanced</h2>
                   <Button
                     variant="ghost"

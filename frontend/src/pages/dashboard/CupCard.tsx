@@ -101,7 +101,7 @@ export default function CupCard({ cupKey }: { cupKey: string }) {
                       <Link
                         to={`/live/${h.tournament_id}`}
                         aria-label={`${h.tournament_name} — open tournament`}
-                        className="absolute inset-0 z-0 rounded-lg focus-ring"
+                        className="absolute inset-0 z-0 rounded-xl focus-ring"
                       />
                       <span className="pointer-events-none relative z-10 min-w-0 flex-1">
                         <span className="flex min-w-0 items-center gap-1.5 text-sm text-text-normal">

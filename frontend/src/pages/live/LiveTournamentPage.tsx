@@ -518,7 +518,7 @@ export default function LiveTournamentPage() {
   // "current" on a done tournament, or a legacy deep link).
   const effectiveTab: LiveTab = tabs.some((t) => t.key === activeTab) ? activeTab : (tabs[0]?.key ?? "standings");
 
-  if (!tid) return <div className="panel-subtle px-3 py-2 text-sm text-text-muted">Invalid tournament id</div>;
+  if (!tid) return <div className="inset px-3 py-2 text-sm text-text-muted">Invalid tournament id</div>;
 
   const initialLoading = !pageEntered || (!tQ.error && !tQ.data && (tQ.isLoading || clubsQ.isLoading || commentsQ.isLoading));
   if (initialLoading) {
@@ -616,7 +616,7 @@ export default function LiveTournamentPage() {
           ) : null}
 
           {effectiveTab === "standings" ? (
-            <div className="stack-tight">
+            <div className="flex flex-col gap-3">
               {showDeciderReadOnly ? (
                 <div>
                   <div className="section-head"><span className="section-label">Decider</span></div>

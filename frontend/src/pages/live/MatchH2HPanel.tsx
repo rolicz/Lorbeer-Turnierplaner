@@ -37,7 +37,7 @@ function SummaryCard({
   link?: { to: string; label: string; title: string } | null;
 }) {
   return (
-    <div className="panel-subtle rounded-xl px-3 py-2.5">
+    <div className="inset px-3 py-2.5">
       <div className="text-[11px] font-medium uppercase tracking-[0.14em] text-text-muted">{title}</div>
       <div className="mt-1 text-sm font-semibold text-text-normal">{label}</div>
       <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-text-muted">
@@ -166,7 +166,7 @@ export default function MatchH2HPanel({
         </div>
 
         {loading ? <InlineLoading label="Loading H2H…" /> : null}
-        {error ? <div className="panel-subtle rounded-xl px-3 py-2 text-sm text-loss">{error}</div> : null}
+        {error ? <div className="inset px-3 py-2 text-sm text-loss">{error}</div> : null}
 
         {!loading && !error ? (
           <>
@@ -221,7 +221,7 @@ export default function MatchH2HPanel({
         </div>
 
         {!loading && !error && matchupSummary.played === 0 ? (
-          <div className="panel-subtle rounded-xl px-3 py-2 text-sm text-text-muted">No finished meetings for this matchup yet.</div>
+          <div className="inset px-3 py-2 text-sm text-text-muted">No finished meetings for this matchup yet.</div>
         ) : null}
 
         <div className="space-y-2">
