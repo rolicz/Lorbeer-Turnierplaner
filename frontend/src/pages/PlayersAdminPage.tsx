@@ -1,3 +1,4 @@
+import { Bell, Mail, Pencil, X } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -235,7 +236,7 @@ export default function PlayersAdminPage() {
                       {hasUnreadPokes ? (
                         <button type="button" title="Unread anpöbel notifications" onClick={() => openProfile(p.id, false)}>
                           <Pill title="Unread anpöbel notifications">
-                            <i className="fa-solid fa-bell text-accent" aria-hidden="true" />
+                            <Bell size={12} className="text-accent" aria-hidden="true" />
                             <span className="tabular-nums text-text-normal">{unseenPokes}</span>
                           </Pill>
                         </button>
@@ -243,7 +244,7 @@ export default function PlayersAdminPage() {
                       {hasUnseen ? (
                         <button type="button" title="Jump to latest unread guestbook message" onClick={() => openProfile(p.id, true)}>
                           <Pill title="Unread guestbook messages">
-                            <i className="fa-solid fa-envelope text-accent" aria-hidden="true" />
+                            <Mail size={12} className="text-accent" aria-hidden="true" />
                             <span className="tabular-nums text-text-normal">{unseenCount}</span>
                           </Pill>
                         </button>
@@ -251,11 +252,11 @@ export default function PlayersAdminPage() {
                       {isAdmin ? (
                         editing ? (
                           <Button variant="ghost" type="button" onClick={() => { setEditId(null); setEditName(""); }} title="Cancel">
-                            <i className="fa-solid fa-xmark" aria-hidden="true" />
+                            <X size={14} aria-hidden="true" />
                           </Button>
                         ) : (
                           <Button variant="ghost" type="button" onClick={() => { setEditId(p.id); setEditName(p.display_name); }} title="Rename">
-                            <i className="fa-solid fa-pen" aria-hidden="true" />
+                            <Pencil size={14} aria-hidden="true" />
                           </Button>
                         )
                       ) : null}

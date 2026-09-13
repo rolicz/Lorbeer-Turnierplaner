@@ -1,3 +1,4 @@
+import { ImageIcon, Save, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import Button from "../../ui/primitives/Button";
@@ -284,7 +285,7 @@ export default function PlayerAvatarEditor({
                   disabled={!canEdit || busy}
                   title="Choose photo"
                 >
-                  <i className="fa-solid fa-image md:hidden" aria-hidden="true" />
+                  <ImageIcon size={14} className="md:hidden" aria-hidden="true" />
                   <span className="hidden md:inline">Choose</span>
                 </Button>
               </div>
@@ -313,7 +314,7 @@ export default function PlayerAvatarEditor({
                   disabled={!canEdit || busy}
                   title="Delete avatar"
                 >
-                  <i className="fa-solid fa-trash md:hidden" aria-hidden="true" />
+                  <Trash2 size={14} className="md:hidden" aria-hidden="true" />
                   <span className="hidden md:inline">Delete</span>
                 </Button>
               ) : (
@@ -341,7 +342,7 @@ export default function PlayerAvatarEditor({
                 disabled={!canEdit || busy || !img}
                 title="Save"
               >
-                <i className="fa-solid fa-floppy-disk md:hidden" aria-hidden="true" />
+                <Save size={14} className="md:hidden" aria-hidden="true" />
                 <span className="hidden md:inline">Save</span>
               </Button>
             </div>

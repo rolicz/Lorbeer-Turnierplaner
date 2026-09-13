@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ShieldHalf, Star } from "lucide-react";
+import { Eraser, RotateCw, ShieldHalf, Star } from "lucide-react";
 
 import ClubBadge from "../ui/ClubBadge";
 import NationFlag from "../ui/NationFlag";
@@ -410,7 +410,7 @@ export default function ClubsPage() {
             type="button"
             title="Clear filters"
           >
-            <i className="fa-solid fa-eraser md:hidden" aria-hidden="true" />
+            <Eraser size={14} className="md:hidden" aria-hidden="true" />
             <span className="hidden md:inline">Clear</span>
           </Button>
         ) : null}
@@ -420,7 +420,7 @@ export default function ClubsPage() {
         <div className="flex items-center justify-between gap-2 text-xs text-text-muted">
           <span>{filteredClubs.length} of {clubs.length} clubs</span>
           <Button variant="ghost" onClick={() => void qc.invalidateQueries({ queryKey: qk.clubs(game) })} title="Refresh">
-            <i className="fa-solid fa-rotate-right md:hidden" aria-hidden="true" />
+            <RotateCw size={14} className="md:hidden" aria-hidden="true" />
             <span className="hidden md:inline">Refresh</span>
           </Button>
         </div>

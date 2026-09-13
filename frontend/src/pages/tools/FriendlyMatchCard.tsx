@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Ban, User, Users } from "lucide-react";
+import { Ban, Eraser, RotateCw, Save, User, Users } from "lucide-react";
 
 import CollapsibleCard from "../../ui/primitives/CollapsibleCard";
 import FormLabel from "../../ui/primitives/FormLabel";
@@ -345,7 +345,7 @@ export default function FriendlyMatchCard({
             title="Clear"
             className="h-10 w-10 p-0 inline-flex items-center justify-center md:w-auto md:px-4 md:py-2"
           >
-            <i className="fa-solid fa-eraser md:hidden" aria-hidden="true" />
+            <Eraser size={16} className="md:hidden" aria-hidden="true" />
             <span className="hidden md:inline">Clear</span>
           </Button>
 
@@ -360,7 +360,7 @@ export default function FriendlyMatchCard({
             title="Refresh"
             className="h-10 w-10 p-0 inline-flex items-center justify-center md:w-auto md:px-4 md:py-2"
           >
-            <i className="fa-solid fa-rotate-right md:hidden" aria-hidden="true" />
+            <RotateCw size={16} className="md:hidden" aria-hidden="true" />
             <span className="hidden md:inline">Refresh</span>
           </Button>
 
@@ -372,7 +372,7 @@ export default function FriendlyMatchCard({
             title={canStore && token ? "Save friendly match" : "Login as editor/admin to save"}
             className="h-10 w-10 p-0 inline-flex items-center justify-center md:w-auto md:px-4 md:py-2"
           >
-            <i className="fa-solid fa-floppy-disk md:hidden" aria-hidden="true" />
+            <Save size={16} className="md:hidden" aria-hidden="true" />
             <span className="hidden md:inline">{saveMut.isPending ? "Saving…" : "Save"}</span>
           </Button>
         </div>

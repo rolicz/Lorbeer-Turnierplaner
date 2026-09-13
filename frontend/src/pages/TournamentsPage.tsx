@@ -1,7 +1,7 @@
 import { useMemo, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { List as ListIcon, Plus } from "lucide-react";
+import { Crown, List as ListIcon, MessageSquare, Plus, Trophy } from "lucide-react";
 
 import { Pill } from "../ui/primitives/Pill";
 import { List, ListRow } from "../ui/primitives/List";
@@ -44,7 +44,7 @@ function CupStakePill({ stake }: { stake: NonNullable<TournamentSummary["cup_sta
       }}
       title={`${stake.name} at stake`}
     >
-      <i className="fa-solid fa-crown" aria-hidden="true" />
+      <Crown size={14} strokeWidth={2.25} aria-hidden="true" />
     </span>
   );
 }
@@ -163,7 +163,7 @@ export default function TournamentsPage() {
             if (winner)
               meta.push(
                 <span className="inline-flex items-center gap-1 text-text-normal">
-                  <i className="fa fa-trophy text-gradient-gold-from" aria-hidden="true" />
+                  <Trophy size={12} className="shrink-0 text-gradient-gold-from" aria-hidden="true" />
                   <span className="max-w-[150px] truncate sm:max-w-[260px]">{winner}</span>
                 </span>,
               );
@@ -193,7 +193,7 @@ export default function TournamentsPage() {
                           }
                         >
                           <Pill title="Unread comments">
-                            <i className="fa-solid fa-comment text-accent" aria-hidden="true" />
+                            <MessageSquare size={12} className="text-accent" aria-hidden="true" />
                             <span className="tabular-nums text-text-normal">{unseenCount}</span>
                           </Pill>
                         </button>

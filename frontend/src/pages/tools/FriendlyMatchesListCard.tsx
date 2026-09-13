@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { List, Shrink } from "lucide-react";
+import { List, Loader2, Pencil, Shrink, Trash2, X } from "lucide-react";
 
 import CollapsibleCard from "../../ui/primitives/CollapsibleCard";
 import SegmentedSwitch from "../../ui/primitives/SegmentedSwitch";
@@ -362,7 +362,7 @@ export default function FriendlyMatchesListCard({
                         title={isExpanded ? "Close editor" : `Edit friendly #${fid}`}
                         onClick={() => setExpandedFriendlyId(isExpanded ? null : fid)}
                       >
-                        <i className={"fa-solid " + (isExpanded ? "fa-xmark" : "fa-pen")} aria-hidden="true" />
+                        {isExpanded ? <X size={14} aria-hidden="true" /> : <Pencil size={14} aria-hidden="true" />}
                       </Button>
                     ) : null}
                     {canDelete ? (
@@ -377,7 +377,7 @@ export default function FriendlyMatchesListCard({
                           deleteMut.mutate(fid);
                         }}
                       >
-                        <i className={"fa-solid " + (pendingDelete ? "fa-spinner fa-spin" : "fa-trash-can")} aria-hidden="true" />
+                        {pendingDelete ? <Loader2 size={14} className="animate-spin" aria-hidden="true" /> : <Trash2 size={14} aria-hidden="true" />}
                       </Button>
                     ) : null}
                   </div>
@@ -414,7 +414,7 @@ export default function FriendlyMatchesListCard({
     <CollapsibleCard
       title={
         <span className="inline-flex items-center gap-2">
-          <i className="fa-solid fa-list text-text-muted" aria-hidden="true" />
+          <List size={14} className="text-text-muted" aria-hidden="true" />
           All Friendlies
         </span>
       }

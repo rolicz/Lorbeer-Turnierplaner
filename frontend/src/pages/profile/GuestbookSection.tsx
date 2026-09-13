@@ -1,3 +1,5 @@
+import { Mail, MailOpen, Send } from "lucide-react";
+
 import Button from "../../ui/primitives/Button";
 import EmptyState from "../../ui/primitives/EmptyState";
 import LoadingPlaceholder from "../../ui/primitives/LoadingPlaceholder";
@@ -59,7 +61,7 @@ export default function GuestbookSection({
         <div className="flex items-center justify-end gap-2">
           <button type="button" title="Jump to latest unread guestbook message" onClick={onJumpUnread}>
             <Pill title="Unread guestbook messages">
-              <i className="fa-solid fa-envelope text-accent" aria-hidden="true" />
+              <Mail size={12} className="text-accent" aria-hidden="true" />
               <span className="tabular-nums text-text-normal">{unreadCount}</span>
             </Pill>
           </button>
@@ -70,7 +72,7 @@ export default function GuestbookSection({
             title="Mark all unread guestbook messages as read"
             disabled={markAllPending}
           >
-            <i className="fa-solid fa-envelope-open md:hidden" aria-hidden="true" />
+            <MailOpen size={14} className="md:hidden" aria-hidden="true" />
             <span className="hidden md:inline">Read all</span>
           </Button>
         </div>
@@ -93,7 +95,7 @@ export default function GuestbookSection({
           />
           <div className="flex justify-end">
             <Button type="button" onClick={onPost} disabled={posting || !draft.trim()} title="Post message">
-              <i className="fa-solid fa-paper-plane md:hidden" aria-hidden="true" />
+              <Send size={14} className="md:hidden" aria-hidden="true" />
               <span className="hidden md:inline">{posting ? "Posting…" : "Post"}</span>
             </Button>
           </div>

@@ -1,3 +1,4 @@
+import { LogIn } from "lucide-react";
 import { useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import Card from "../ui/primitives/Card";
@@ -66,7 +67,7 @@ export default function LoginPage() {
           placeholder="profile password"
         />
         <Button disabled={busy || !pw.trim() || !username.trim()} className="w-full">
-          <i className="fa fa-sign-in md:hidden" aria-hidden="true" />
+          <LogIn size={14} className="md:hidden" aria-hidden="true" />
           <span className="hidden md:inline">{busy ? "Logging in..." : "Login"}</span>
         </Button>
         <div className="text-sm text-text-muted">

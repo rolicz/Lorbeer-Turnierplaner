@@ -1,3 +1,5 @@
+import { HeartCrack, Smile } from "lucide-react";
+import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
 
 import Button from "../../ui/primitives/Button";
@@ -13,8 +15,8 @@ import { type FavoriteTeammate } from "./favoriteTeammates";
  * Favorite / Nemesis chip. With a known opponent it links into the stats matchup
  * ("every match against this player"), which follows the Mode / Source filters there.
  */
-function RivalCard({ iconClass, label, row, playerId }: {
-  iconClass: string;
+function RivalCard({ icon, label, row, playerId }: {
+  icon: ReactNode;
   label: string;
   row: StatsH2HOpponentRow | null;
   playerId: number | null;
@@ -22,7 +24,7 @@ function RivalCard({ iconClass, label, row, playerId }: {
   const body = (
     <>
       <div className="inline-flex items-center gap-2 text-text-muted">
-        <i className={iconClass} aria-hidden="true" />
+        {icon}
         <span>{label}</span>
       </div>
       <div className="font-semibold mt-0.5">{row?.opponent.display_name ?? "—"}</div>
@@ -115,8 +117,8 @@ export default function ProfileOverviewTab({
         <div className="section-head"><span className="section-label">Rivals</span></div>
         <ErrorToastOnError error={statsH2HError} title="H2H loading failed" />
         <div className="grid grid-cols-2 gap-2 text-xs">
-          <RivalCard iconClass="fa-solid fa-face-smile" label="Favorite" row={favorite} playerId={targetPlayerId} />
-          <RivalCard iconClass="fa-solid fa-heart-crack" label="Nemesis" row={nemesis} playerId={targetPlayerId} />
+          <RivalCard icon={<Smile size={14} aria-hidden="true" />} label="Favorite" row={favorite} playerId={targetPlayerId} />
+          <RivalCard icon={<HeartCrack size={14} aria-hidden="true" />} label="Nemesis" row={nemesis} playerId={targetPlayerId} />
         </div>
       </div>
 
