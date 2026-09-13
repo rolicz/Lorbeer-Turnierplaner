@@ -1,6 +1,8 @@
 /** Tiny from-scratch SVG chart kit for the stats dashboard (mobile-first). */
 import { useId } from "react";
 
+import EmptyState from "../../ui/primitives/EmptyState";
+
 const GREEN = "rgb(34 197 94)";
 const AMBER = "rgb(234 179 8)";
 const RED = "rgb(239 68 68)";
@@ -254,7 +256,7 @@ export function TrendChart({
   const W = Math.max(240, Math.round(width || 320));
   const innerW = W - padL - padR;
   const n = events.length;
-  if (!n) return <div className="grid h-40 place-items-center text-sm text-text-muted">No data in range.</div>;
+  if (!n) return <EmptyState title="No data in range." className="grid h-40 place-items-center" />;
 
   const MONTH = 30.44 * 864e5;
   const span = Math.max(MONTH / 2, viewT1 - viewT0);

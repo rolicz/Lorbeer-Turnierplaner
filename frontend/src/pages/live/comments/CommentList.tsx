@@ -7,6 +7,7 @@
 import { ChevronDown, ChevronRight } from "lucide-react";
 
 import EmptyState from "../../../ui/primitives/EmptyState";
+import ScoreLine from "../../../ui/primitives/ScoreLine";
 import { Stars } from "../../../ui/primitives/Stars";
 import { CommentCard, type CommentCardContextValue } from "../TournamentCommentParts";
 import { type TournamentComment } from "../tournamentCommentTypes";
@@ -166,32 +167,28 @@ export default function CommentList(props: CommentListProps) {
     const isCollapsed = showMatchHeader && collapsedBlocks.has(blockKey);
     const unseenHere =
       !!token && comments.some((c) => rootScopeKey.get(c.id) === blockKey && !seen.has(c.id));
+    // The score is a `ScoreLine` like every other score in the app (DESIGN.md §8):
+    // no colon, no box, and the club/stars rows hug the centre gap under it the
+    // way `MatchSides` does elsewhere.
     const headerInner = h ? (
-          <div className="space-y-1">
-            <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3">
-              <div className="min-w-0 truncate text-sm text-text-normal">{h.aPlayers}</div>
-              <div className="flex items-center justify-center gap-2 justify-self-center">
-                {h.aGoals == null || h.bGoals == null ? (
-                  <span className="text-sm font-semibold tabular-nums text-text-muted">—</span>
-                ) : (
-                  <>
-                    <span className="text-sm font-semibold tabular-nums">{h.aGoals}</span>
-                    <span className="text-text-muted">:</span>
-                    <span className="text-sm font-semibold tabular-nums">{h.bGoals}</span>
-                  </>
-                )}
-              </div>
-              <div className="min-w-0 truncate text-right text-sm text-text-normal">{h.bPlayers}</div>
-            </div>
-            <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-start gap-3 text-xs text-text-muted">
-              <div className="min-w-0 whitespace-normal break-words leading-tight">{h.aClub.present ? h.aClub.name : "—"}</div>
+          <div>
+            <ScoreLine
+              size="sm"
+              state={h.aGoals == null || h.bGoals == null ? "scheduled" : "finished"}
+              leftNames={h.aPlayers}
+              rightNames={h.bPlayers}
+              leftGoals={h.aGoals}
+              rightGoals={h.bGoals}
+            />
+            <div className="mt-1 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-start gap-3 text-xs text-text-muted">
+              <div className="min-w-0 whitespace-normal break-words text-right leading-tight">{h.aClub.present ? h.aClub.name : "—"}</div>
               <div />
-              <div className="min-w-0 whitespace-normal break-words text-right leading-tight">{h.bClub.present ? h.bClub.name : "—"}</div>
+              <div className="min-w-0 whitespace-normal break-words leading-tight">{h.bClub.present ? h.bClub.name : "—"}</div>
             </div>
-            <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 text-xs text-text-muted">
-              <div className="min-w-0">{h.aClub.present ? <Stars rating={h.aClub.rating ?? 0} textClassName="text-text-muted" /> : <span>—</span>}</div>
+            <div className="mt-1 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 text-xs text-text-muted">
+              <div className="flex min-w-0 justify-end">{h.aClub.present ? <Stars rating={h.aClub.rating ?? 0} textClassName="text-text-muted" /> : <span>—</span>}</div>
               <div />
-              <div className="flex min-w-0 justify-end">{h.bClub.present ? <Stars rating={h.bClub.rating ?? 0} textClassName="text-text-muted" /> : <span>—</span>}</div>
+              <div className="flex min-w-0">{h.bClub.present ? <Stars rating={h.bClub.rating ?? 0} textClassName="text-text-muted" /> : <span>—</span>}</div>
             </div>
           </div>
     ) : null;

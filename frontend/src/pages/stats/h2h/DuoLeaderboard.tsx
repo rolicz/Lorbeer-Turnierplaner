@@ -1,4 +1,5 @@
 /** Best-duos leaderboard (2v2) — ranked list from `best_teammates_2v2`. */
+import EmptyState from "../../../ui/primitives/EmptyState";
 import type { StatsH2HDuo } from "../../../api/types";
 import { fmtInt } from "../../../utils/format";
 import { duoKey } from "../h2hHelpers";
@@ -12,7 +13,7 @@ export function DuoLeaderboard({
   selectedKey: string | null;
   onSelect: (d: StatsH2HDuo) => void;
 }) {
-  if (!duos.length) return <div className="text-sm text-text-muted">No 2v2 duos yet.</div>;
+  if (!duos.length) return <EmptyState title="No 2v2 duos yet." className="py-2" />;
   return (
     <div className="list-divided">
       {duos.map((d, i) => {

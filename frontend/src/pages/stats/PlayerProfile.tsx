@@ -5,6 +5,7 @@ import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { ChevronRight } from "lucide-react";
 
 import AvatarCircle from "../../ui/primitives/AvatarCircle";
+import EmptyState from "../../ui/primitives/EmptyState";
 import InlineLoading from "../../ui/primitives/InlineLoading";
 import StatTile from "../../ui/primitives/StatTile";
 import { getStatsPlayerMatches, getStatsStreaks } from "../../api/stats.api";
@@ -82,7 +83,7 @@ export default function PlayerProfile({ mode, scope, rows, selectedId, onSelect 
     <div className="space-y-4">
       <PlayerPicker players={rows.map((r) => ({ id: r.id, name: r.name }))} selectedId={selectedId} onSelect={onSelect} />
 
-      {!row ? <div className="card text-sm text-text-muted">Pick a player above.</div> : (
+      {!row ? <EmptyState title="Pick a player above." className="card py-6" /> : (
         <>
           <div className="card flex items-center gap-3">
             <button
@@ -172,7 +173,7 @@ export default function PlayerProfile({ mode, scope, rows, selectedId, onSelect 
             </div>
             {matchesQ.isLoading && !matchesQ.data ? <InlineLoading label="Loading…" /> :
               tournaments.length ? <MatchHistoryList tournaments={tournaments} clubs={clubsQ.data ?? []} focusId={row.id} showMeta={details} hideModePill matchHref={tournamentMatchHref} /> :
-                <div className="text-sm text-text-muted">No matches yet.</div>}
+                <EmptyState title="No matches yet." className="py-2" />}
           </div>
         </>
       )}

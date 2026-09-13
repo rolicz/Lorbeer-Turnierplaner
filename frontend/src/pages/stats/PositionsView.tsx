@@ -6,6 +6,7 @@ import { Clock, Crown, Flag } from "lucide-react";
 
 import AvatarCircle from "../../ui/primitives/AvatarCircle";
 import PlayerLink from "../../ui/primitives/PlayerLink";
+import EmptyState from "../../ui/primitives/EmptyState";
 import InlineLoading from "../../ui/primitives/InlineLoading";
 import { getStatsPlayers } from "../../api/stats.api";
 import { getCup, listCupDefs } from "../../api/cup.api";
@@ -13,6 +14,7 @@ import { cupColorVarForKey, rgbFromCssVar } from "../../cupColors";
 import { qk } from "../../api/queryKeys";
 import { usePlayerAvatarMap } from "../../hooks/usePlayerAvatarMap";
 import { fmtRank } from "../../utils/format";
+import StatsSection from "./StatsSection";
 import { InfoButton } from "./explainers";
 import type { StatsMode } from "./statsMode";
 
@@ -201,20 +203,17 @@ export default function PositionsView({ mode }: { mode: StatsMode }) {
   }, [cupDefs, ownerByCup, tournaments, colByPlayer, players.length]);
 
   if (q.isLoading && !q.data) return <InlineLoading label="Loading…" />;
-  if (!tournaments.length) return <div className="text-sm text-text-muted">No tournaments yet.</div>;
+  if (!tournaments.length) return <EmptyState title="No tournaments yet." className="py-6" />;
 
   return (
-    <div>
-      <div className="section-head">
-        <span className="section-label inline-flex items-center gap-1.5">
-          Tournament positions
-          <InfoButton on={legend} onClick={() => setLegend((v) => !v)} label="What the colours mean" />
-        </span>
-      </div>
+    <StatsSection
+      label="Tournament positions"
+      explainer="Drag a player's icon to reorder the columns."
+      action={<InfoButton on={legend} onClick={() => setLegend((v) => !v)} label="What the colours mean" />}
+    >
       {legend ? <InfoLegend /> : null}
-      <div className="mb-1.5 text-xs text-text-muted">Drag a player's icon to reorder the columns.</div>
       {modeCounts.total > 0 ? (
-        <div className="mb-1.5 text-xs text-text-muted">
+        <div className="text-xs text-text-muted">
           {modeCounts.total} tournament{modeCounts.total === 1 ? "" : "s"}
           {["1v1", "2v2", ...Array.from(modeCounts.byMode.keys()).filter((m) => m !== "1v1" && m !== "2v2")]
             .filter((m) => (modeCounts.byMode.get(m) ?? 0) > 0)
@@ -334,6 +333,6 @@ export default function PositionsView({ mode }: { mode: StatsMode }) {
           ) : null}
         </div>
       </div>
-    </div>
+    </StatsSection>
   );
 }

@@ -7,6 +7,7 @@ import { qk } from "../../api/queryKeys";
 import type { StatsPlayerMatchesTournament, StatsScope } from "../../api/types";
 import type { StatsMode } from "./statsMode";
 import AvatarCircle from "../../ui/primitives/AvatarCircle";
+import EmptyState from "../../ui/primitives/EmptyState";
 import PlayerLink from "../../ui/primitives/PlayerLink";
 import InlineLoading from "../../ui/primitives/InlineLoading";
 import { usePlayerAvatarMap } from "../../hooks/usePlayerAvatarMap";
@@ -121,8 +122,8 @@ export default function StatsTable({
             )}
           </div>
 
-          <div>
-            <div className="section-head"><span className="section-label">Columns</span></div>
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
+            <span className="section-label">Columns</span>
             <div className="flex flex-wrap gap-1.5">
               {COL_CHIPS.map((item) => {
                 const isElo = item.cols.includes("rating");
@@ -150,6 +151,7 @@ export default function StatsTable({
 
       {eloNote ? <EloNote /> : null}
 
+      {!sorted.length ? <EmptyState title="No players yet." className="py-6" /> : (
       <div className="overflow-x-auto" data-no-swipe-nav>
         <table className="w-full text-sm">
           <thead>
@@ -191,6 +193,7 @@ export default function StatsTable({
           </tbody>
         </table>
       </div>
+      )}
     </div>
   );
 }

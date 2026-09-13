@@ -7,6 +7,7 @@ import { type ReactNode, useMemo, useState } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 
 import Button from "../../ui/primitives/Button";
+import EmptyState from "../../ui/primitives/EmptyState";
 import InlineLoading from "../../ui/primitives/InlineLoading";
 import Modal from "../../ui/primitives/Modal";
 import PlayerLink from "../../ui/primitives/PlayerLink";
@@ -15,6 +16,7 @@ import { listClubs } from "../../api/clubs.api";
 import { qk } from "../../api/queryKeys";
 import { ChipGroup } from "../../ui/primitives/Chip";
 import { PlayerPicker } from "./PlayerPicker";
+import StatsSection from "./StatsSection";
 import { MatchHistoryList, tournamentMatchHref } from "./MatchHistoryList";
 import { DuoRow } from "./HeadToHeadRows";
 import { duoKey } from "./h2hHelpers";
@@ -269,7 +271,7 @@ export default function H2HView({ mode, scope, rows, subView, selectedId, onSele
           <div className="flex-1 min-h-0 overflow-y-auto pr-1">
             {historyQ.isLoading ? <InlineLoading label="Loading…" /> : null}
             {!historyQ.isLoading && !(historyQ.data?.tournaments?.length ?? 0) ? (
-              <div className="text-sm text-text-muted">No matches found for this matchup.</div>
+              <EmptyState title="No matches found for this matchup." className="py-2" />
             ) : null}
             {historyQ.data?.tournaments?.length ? (
               <MatchHistoryList
@@ -290,37 +292,28 @@ export default function H2HView({ mode, scope, rows, subView, selectedId, onSele
   if (effectiveSubView === "duos") {
     return (
       <div className="space-y-5">
-        <div className="space-y-2">
-          <div className="section-head"><span className="section-label">Pick a duo</span></div>
+        <StatsSection label="Pick a duo">
           <DuoPicker
             players={rows.map((r) => ({ id: r.id, name: r.name }))}
             selectedIds={selectedDuoIds}
             onToggle={toggleDuoPlayer}
             onClear={() => setSelectedDuoIds([])}
           />
-        </div>
+        </StatsSection>
 
-        <div className="space-y-2">
-          <div className="section-head"><span className="section-label">Best duos</span></div>
-          <p className="text-xs text-text-muted">Strongest pairings across 2v2 matches — tap a duo for detail.</p>
+        <StatsSection label="Best duos" explainer="Strongest pairings across 2v2 matches — tap a duo for detail.">
           <DuoLeaderboard duos={bestDuos} selectedKey={selectedDuoKey} onSelect={(d) => setSelectedDuoIds([d.p1.id, d.p2.id])} />
-        </div>
+        </StatsSection>
 
         {selectedDuo ? (
-          <div className="space-y-2">
-            <div className="section-head"><span className="section-label">Duo detail</span></div>
-            {selectedDuoUnplayed ? (
-              <p className="text-xs text-text-muted">No 2v2 matches together yet.</p>
-            ) : null}
+          <StatsSection label="Duo detail" explainer={selectedDuoUnplayed ? "No 2v2 matches together yet." : undefined}>
             <DuoDetail duo={selectedDuo} rivalries={teamRivalries} onOpenTeammates={openDuoTeammates} onOpenMatchup={openTeamRivalry} />
-          </div>
+          </StatsSection>
         ) : null}
 
-        <div className="space-y-2">
-          <div className="section-head"><span className="section-label">Duo rivalries</span></div>
-          <p className="text-xs text-text-muted">Closest duo-vs-duo matchups — more games and a tighter balance score higher.</p>
+        <StatsSection label="Duo rivalries" explainer="Closest duo-vs-duo matchups — more games and a tighter balance score higher.">
           <DuoRivalries rivalries={teamRivalries} onOpenMatches={openTeamRivalry} />
-        </div>
+        </StatsSection>
 
         {matches}
       </div>
@@ -331,10 +324,8 @@ export default function H2HView({ mode, scope, rows, subView, selectedId, onSele
   return (
     <div className="space-y-5">
       {/* Full-name square matrix */}
-      <div>
-        <div className="section-head"><span className="section-label">Matrix</span></div>
-        {mode === "2v2" ? <p className="mb-1 text-xs text-text-muted">Per player across 2v2 matches.</p> : null}
-        <div className="mb-2 flex flex-wrap items-center gap-2">
+      <StatsSection label="Matrix" explainer={mode === "2v2" ? "Per player across 2v2 matches." : undefined}>
+        <div className="flex flex-wrap items-center gap-2">
           <ChipGroup<"winrate" | "played" | "gd" | "wdl" | "ppm" | "rivalry">
             value={matrixMetric}
             onChange={setMatrixMetric}
@@ -345,7 +336,7 @@ export default function H2HView({ mode, scope, rows, subView, selectedId, onSele
         {/* The cells are buttons (they open the matchup) — say so, because on a
             phone there is no hover to discover it with. */}
         {matrixRanges.anyPlayed ? (
-          <p className="mb-2 text-xs text-text-muted">Tap a cell for every match between two players.</p>
+          <p className="text-xs text-text-muted">Tap a cell for every match between two players.</p>
         ) : null}
         <div className="overflow-x-auto" data-no-swipe-nav>
           <table className="border-separate" style={{ borderSpacing: 3 }}>
@@ -375,9 +366,9 @@ export default function H2HView({ mode, scope, rows, subView, selectedId, onSele
                     </button>
                   </th>
                   {rows.map((c) => {
-                    if (r.id === c.id) return <td key={c.id} className="h-11 w-11 rounded bg-bg-card-chip/30" />;
+                    if (r.id === c.id) return <td key={c.id} className="h-11 w-11 rounded-md bg-bg-card-chip/30" />;
                     const v = cell(r.id, c.id);
-                    if (!v) return <td key={c.id} className="h-11 w-11 rounded bg-bg-card-chip/15 text-center text-xs text-text-muted">–</td>;
+                    if (!v) return <td key={c.id} className="h-11 w-11 rounded-md bg-bg-card-chip/15 text-center text-xs text-text-muted">–</td>;
                     return (
                       <td key={c.id}>
                         <button
@@ -386,7 +377,7 @@ export default function H2HView({ mode, scope, rows, subView, selectedId, onSele
                           title={`${r.name} vs ${c.name} — open matches`}
                           aria-label={`${r.name} vs ${c.name}: ${v.w}-${v.d}-${v.l} — open matches`}
                           className={
-                            "focus-ring grid h-11 w-11 cursor-pointer place-items-center rounded text-xs font-semibold leading-none text-white transition hover:brightness-125 active:scale-[0.97] " +
+                            "focus-ring grid h-11 w-11 cursor-pointer place-items-center rounded-md text-xs font-semibold leading-none text-white transition hover:brightness-125 active:scale-[0.97] " +
                             (matrixMetric === "wdl" ? "tracking-tight" : "")
                           }
                           style={{ backgroundColor: cellColor(v) }}
@@ -401,14 +392,13 @@ export default function H2HView({ mode, scope, rows, subView, selectedId, onSele
             </tbody>
           </table>
         </div>
-      </div>
+      </StatsSection>
 
       {/* Per-player detail */}
-      <div className="space-y-2">
-        <div className="section-head"><span className="section-label">Head-to-head by player</span></div>
+      <StatsSection label="Head-to-head by player">
         <PlayerPicker players={rows.map((r) => ({ id: r.id, name: r.name }))} selectedId={selectedId} onSelect={onSelect} />
         {selectedId == null ? (
-          <div className="text-sm text-text-muted">Pick a player.</div>
+          <EmptyState title="Pick a player." className="py-2" />
         ) : (
           <>
             <div className="grid grid-cols-2 gap-2 text-xs">
@@ -445,23 +435,24 @@ export default function H2HView({ mode, scope, rows, subView, selectedId, onSele
                 ))}
               </div>
             ) : (
-              <div className="text-sm text-text-muted">No head-to-head matches for {selName}.</div>
+              <EmptyState title={`No head-to-head matches for ${selName}.`} className="py-2" />
             )}
           </>
         )}
-      </div>
+      </StatsSection>
 
       {/* Teammate synergy (2v2) — real duo stats from the backend. */}
       {mode === "2v2" ? (
-        <div className="space-y-2">
-          <div className="section-head"><span className="section-label">Teammate synergy</span></div>
+        <StatsSection
+          label="Teammate synergy"
+          explainer={selectedId != null
+            ? `How ${selName} performs with each partner (points per match as a duo).`
+            : "Strongest 2v2 pairings (points per match as a duo)."}
+        >
           {selectedId != null && detailQ.isLoading && !detailQ.data ? (
             <InlineLoading label="Loading…" />
           ) : synergyDuos.length ? (
             <>
-              <p className="text-xs text-text-muted">
-                {selectedId != null ? <>How {selName} performs with each partner (points per match as a duo).</> : <>Strongest 2v2 pairings (points per match as a duo).</>}
-              </p>
               <div className="space-y-2">
                 {synergyDuos.map((d) => (
                   <DuoRow
@@ -474,22 +465,21 @@ export default function H2HView({ mode, scope, rows, subView, selectedId, onSele
               </div>
             </>
           ) : (
-            <div className="text-sm text-text-muted">No 2v2 matches with a partner yet.</div>
+            <EmptyState title="No 2v2 matches with a partner yet." className="py-2" />
           )}
-        </div>
+        </StatsSection>
       ) : null}
 
       {/* Top rivalries (player-based in this sub-view) */}
-      <div className="space-y-2">
-        <div className="section-head">
-          <span className="section-label">Top rivalries</span>
-          {sortedRivalries.length > 8 ? (
-            <Button variant="ghost" size="sm" onClick={() => setRivalriesExpanded((v) => !v)}>
-              {rivalriesExpanded ? "Top 8" : "Show all"}
-            </Button>
-          ) : null}
-        </div>
-        <p className="text-xs text-text-muted">Most-played and closest matchups — a higher rivalry score means more games and a tighter win balance.</p>
+      <StatsSection
+        label="Top rivalries"
+        explainer="Most-played and closest matchups — a higher rivalry score means more games and a tighter win balance."
+        action={sortedRivalries.length > 8 ? (
+          <Button variant="ghost" size="sm" onClick={() => setRivalriesExpanded((v) => !v)}>
+            {rivalriesExpanded ? "Top 8" : "Show all"}
+          </Button>
+        ) : null}
+      >
         <ChipGroup<"rivalry" | "played">
           value={rivalryOrder}
           onChange={setRivalryOrder}
@@ -511,8 +501,8 @@ export default function H2HView({ mode, scope, rows, subView, selectedId, onSele
             </div>
           </button>
         ))}
-        {!topRivalries.length ? <div className="text-sm text-text-muted">No rivalries yet.</div> : null}
-      </div>
+        {!topRivalries.length ? <EmptyState title="No rivalries yet." className="py-2" /> : null}
+      </StatsSection>
 
       {matches}
     </div>

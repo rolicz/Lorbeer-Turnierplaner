@@ -1,6 +1,8 @@
 /** Detail for a selected 2v2 duo: overall record, matches action, and its duo-vs-duo matchups. */
 import { useMemo } from "react";
 
+import EmptyState from "../../../ui/primitives/EmptyState";
+import StatsSection from "../StatsSection";
 import type { StatsH2HDuo, StatsH2HTeamRivalry } from "../../../api/types";
 import { fmtInt } from "../../../utils/format";
 import { normalizeTeamRivalryForFocus } from "../h2hHelpers";
@@ -61,7 +63,7 @@ export function DuoDetail({
         </div>
       </div>
 
-      <div className="section-head"><span className="section-label">Matchups as a duo</span></div>
+      <StatsSection label="Matchups as a duo">
       {matchups.length ? (
         <div className="space-y-2">
           {matchups.map((r) => (
@@ -76,8 +78,9 @@ export function DuoDetail({
           ))}
         </div>
       ) : (
-        <div className="text-sm text-text-muted">No duo-vs-duo matchups recorded yet.</div>
+        <EmptyState title="No duo-vs-duo matchups recorded yet." className="py-2" />
       )}
+      </StatsSection>
     </div>
   );
 }

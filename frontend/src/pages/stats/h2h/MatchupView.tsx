@@ -14,6 +14,7 @@ import { ArrowLeft } from "lucide-react";
 
 import AvatarCircle from "../../../ui/primitives/AvatarCircle";
 import Button from "../../../ui/primitives/Button";
+import EmptyState from "../../../ui/primitives/EmptyState";
 import PlayerLink from "../../../ui/primitives/PlayerLink";
 import InlineLoading from "../../../ui/primitives/InlineLoading";
 import StatTile from "../../../ui/primitives/StatTile";
@@ -24,6 +25,7 @@ import { qk } from "../../../api/queryKeys";
 import { usePlayerAvatarMap } from "../../../hooks/usePlayerAvatarMap";
 import { ChipGroup } from "../../../ui/primitives/Chip";
 import { MatchHistoryList, tournamentMatchHref } from "../MatchHistoryList";
+import StatsSection from "../StatsSection";
 import { currentRun, resultsTimeline, summarizeMatches, type MatchResult } from "./matchupSummary";
 import { fmtAvg } from "../../../utils/format";
 import type { Row } from "../standings";
@@ -141,7 +143,7 @@ export default function MatchupView({ mode, scope, leftId, rightId, rows, onBack
       <div className="card">
         <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3">
           <PlayerSide id={leftId} name={leftName} updatedAt={avatarUpdatedAtById.get(leftId) ?? null} />
-          <span className="shrink-0 text-xs font-semibold uppercase tracking-[0.14em] text-text-muted">
+          <span className="shrink-0 text-sm font-medium text-text-muted">
             {together ? "and" : "vs"}
           </span>
           <PlayerSide id={rightId} name={rightName} updatedAt={avatarUpdatedAtById.get(rightId) ?? null} align="right" />
@@ -204,10 +206,7 @@ export default function MatchupView({ mode, scope, leftId, rightId, rows, onBack
       ) : null}
 
       {!loading ? (
-        <div className="space-y-2">
-          <div className="section-head">
-            <span className="section-label">Matches · {summary.played}</span>
-          </div>
+        <StatsSection label={`Matches · ${summary.played}`}>
           {summary.played ? (
             <>
               <ChipGroup<"compact" | "details">
@@ -226,14 +225,14 @@ export default function MatchupView({ mode, scope, leftId, rightId, rows, onBack
               />
             </>
           ) : (
-            <div className="text-sm text-text-muted">
-              {together
+            <EmptyState
+              className="py-2"
+              title={(together
                 ? `No matches with ${leftName} and ${rightName} on the same team yet`
-                : `No matches between ${leftName} and ${rightName} yet`}
-              {" "}({MODE_LABEL[mode]} · {SCOPE_LABEL[scope]}).
-            </div>
+                : `No matches between ${leftName} and ${rightName} yet`) + ` (${MODE_LABEL[mode]} · ${SCOPE_LABEL[scope]}).`}
+            />
           )}
-        </div>
+        </StatsSection>
       ) : null}
     </div>
   );

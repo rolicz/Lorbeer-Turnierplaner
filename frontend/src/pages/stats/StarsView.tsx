@@ -3,6 +3,7 @@
 import { useMemo } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 
+import EmptyState from "../../ui/primitives/EmptyState";
 import InlineLoading from "../../ui/primitives/InlineLoading";
 import { Stars } from "../../ui/primitives/Stars";
 import { getStatsPlayerMatches } from "../../api/stats.api";
@@ -57,7 +58,7 @@ export function StarsSection({ mode, scope, playerId }: { mode: StatsMode; scope
       {matchesQ.isLoading && !matchesQ.data ? (
         <InlineLoading label="Loading…" />
       ) : !active.length ? (
-        <div className="text-sm text-text-muted">No finished matches with rated clubs for this player.</div>
+        <EmptyState title="No finished matches with rated clubs for this player." className="py-2" />
       ) : (
         <div className="list-divided">
           {active.map((b) => (

@@ -9,6 +9,8 @@ import { useQuery } from "@tanstack/react-query";
 import { Trophy } from "lucide-react";
 
 import AvatarCircle from "../../ui/primitives/AvatarCircle";
+import Button from "../../ui/primitives/Button";
+import EmptyState from "../../ui/primitives/EmptyState";
 import PlayerLink from "../../ui/primitives/PlayerLink";
 import InlineLoading from "../../ui/primitives/InlineLoading";
 import StatTile from "../../ui/primitives/StatTile";
@@ -20,6 +22,7 @@ import { qk } from "../../api/queryKeys";
 import { fmtDate } from "../../utils/format";
 import { prefersReducedMotion } from "../../ui/scroll";
 import { usePlayerAvatarMap } from "../../hooks/usePlayerAvatarMap";
+import StatsSection from "./StatsSection";
 import { usePlayerColors } from "./usePlayerColors";
 import { buildReigns, cupRecords, perPlayer, type CupRecordEntry, type Reign } from "./cupReigns";
 
@@ -163,10 +166,7 @@ export default function CupDetail({ cupKey, cupName }: { cupKey: string; cupName
       {reigns.length ? (
         <>
           {/* 2 — records */}
-          <div>
-            <div className="section-head">
-              <span className="section-label">Records</span>
-            </div>
+          <StatsSection label="Records">
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
               <StatTile
                 className="col-span-2 sm:col-span-1"
@@ -192,13 +192,10 @@ export default function CupDetail({ cupKey, cupName }: { cupKey: string; cupName
                 hint={<span className="block truncate">{names(records.mostTournamentsHeld) || "—"}</span>}
               />
             </div>
-          </div>
+          </StatsSection>
 
           {/* 3 — timeline */}
-          <div>
-            <div className="section-head">
-              <span className="section-label">Reign timeline</span>
-            </div>
+          <StatsSection label="Reign timeline" explainer="Each block is one reign — tap it to jump to that row.">
             <div className="flex h-3 w-full overflow-hidden rounded-full bg-bg-card-chip/50">
               {reigns.map((r, i) => (
                 <button
@@ -216,7 +213,7 @@ export default function CupDetail({ cupKey, cupName }: { cupKey: string; cupName
                 </button>
               ))}
             </div>
-            <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1">
+            <div className="flex flex-wrap gap-x-3 gap-y-1">
               {legend.map((p) => (
                 <span key={p.id} className="inline-flex items-center gap-1.5 text-xs text-text-muted">
                   <span className="h-2 w-2 rounded-full" style={{ backgroundColor: colorOf(p.id).solid }} aria-hidden="true" />
@@ -224,13 +221,17 @@ export default function CupDetail({ cupKey, cupName }: { cupKey: string; cupName
                 </span>
               ))}
             </div>
-          </div>
+          </StatsSection>
 
           {/* 4 — reigns, newest first */}
-          <div>
-            <div className="section-head">
-              <span className="section-label">Reigns</span>
-            </div>
+          <StatsSection
+            label="Reigns"
+            action={newest.length > SHOWN_REIGNS ? (
+              <Button variant="ghost" size="sm" onClick={() => setShowAll((v) => !v)}>
+                {showAll ? "Show less" : `Show all ${newest.length}`}
+              </Button>
+            ) : null}
+          >
             <div className="list-divided">
               {shown.map((r) => {
                 const color = colorOf(r.holder.id).solid;
@@ -286,18 +287,10 @@ export default function CupDetail({ cupKey, cupName }: { cupKey: string; cupName
                 );
               })}
             </div>
-            {newest.length > SHOWN_REIGNS ? (
-              <button type="button" className="mt-1 text-xs font-medium text-accent" onClick={() => setShowAll((v) => !v)}>
-                {showAll ? "Show less" : `Show all ${newest.length}`}
-              </button>
-            ) : null}
-          </div>
+          </StatsSection>
 
           {/* 5 — per player */}
-          <div>
-            <div className="section-head">
-              <span className="section-label">Per player</span>
-            </div>
+          <StatsSection label="Per player" explainer="Held = tournaments the cup was held · Longest = best single reign">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border-card-chip/50 text-xs uppercase tracking-wide text-text-muted">
@@ -349,11 +342,10 @@ export default function CupDetail({ cupKey, cupName }: { cupKey: string; cupName
                 ))}
               </tbody>
             </table>
-            <div className="mt-1.5 text-xs text-text-muted">Held = tournaments the cup was held · Longest = best single reign</div>
-          </div>
+          </StatsSection>
         </>
       ) : (
-        <div className="text-sm text-text-muted">No title changes yet.</div>
+        <EmptyState title="No title changes yet." className="py-2" />
       )}
     </section>
   );
