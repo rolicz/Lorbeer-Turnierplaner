@@ -26,11 +26,11 @@ function RecordGroup({ icon, label, matches }: { icon: ReactNode; label: string;
   const shown = matches.slice(0, 6);
   return (
     <div className="inset px-3 py-2.5">
-      <div className="inline-flex items-center gap-2 text-xs uppercase tracking-wide text-text-muted">
+      <h3 className="inline-flex items-center gap-2 text-sm font-semibold text-text-normal">
         {icon}
         {label}
-        {matches.length > 1 ? <span className="text-text-muted/70">×{matches.length}</span> : null}
-      </div>
+        {matches.length > 1 ? <span className="font-normal text-text-muted">×{matches.length}</span> : null}
+      </h3>
       <div className="mt-1.5 space-y-2">
         {shown.map((m) => (
           <Link
@@ -57,11 +57,11 @@ function TitlesGroup({ leaders, onSelect }: { leaders: WinLeader[]; onSelect: (i
   const topTies = leaders.filter((l) => l.rank === 1).length;
   return (
     <div className="inset px-3 py-2.5">
-      <div className="inline-flex items-center gap-2 text-xs uppercase tracking-wide text-text-muted">
+      <h3 className="inline-flex items-center gap-2 text-sm font-semibold text-text-normal">
         <Trophy size={14} aria-hidden="true" />
         Most tournament wins
-        {topTies > 1 ? <span className="text-text-muted/70">×{topTies}</span> : null}
-      </div>
+        {topTies > 1 ? <span className="font-normal text-text-muted">×{topTies}</span> : null}
+      </h3>
       <div className="mt-1.5 space-y-1.5">
         {shown.map((l) => (
           /* The row opens this player in Stats (stretched button), the name their profile. */
@@ -235,10 +235,10 @@ export default function RecordsView({
             {streakCards.map((s) => (
               <div key={s.name} className="inset px-3 py-2.5">
                 <div className="flex items-center justify-between gap-2">
-                  <div className="inline-flex items-center gap-2 text-xs uppercase tracking-wide text-text-muted">
+                  <h3 className="inline-flex items-center gap-2 text-sm font-semibold text-text-normal">
                     {s.name}
-                    {s.runs.length > 1 ? <span className="text-text-muted/70">×{s.runs.length}</span> : null}
-                  </div>
+                    {s.runs.length > 1 ? <span className="font-normal text-text-muted">×{s.runs.length}</span> : null}
+                  </h3>
                   <div className="shrink-0 font-mono text-lg font-bold tabular-nums text-accent">{s.length}</div>
                 </div>
                 <div className="mt-1.5 space-y-1.5">

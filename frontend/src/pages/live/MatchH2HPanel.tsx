@@ -38,8 +38,8 @@ function SummaryCard({
 }) {
   return (
     <div className="inset px-3 py-2.5">
-      <div className="text-xs font-medium uppercase tracking-[0.14em] text-text-muted">{title}</div>
-      <div className="mt-1 text-sm font-semibold text-text-normal">{label}</div>
+      <h3 className="text-sm font-semibold text-text-normal">{title}</h3>
+      <div className="mt-0.5 text-xs text-text-muted">{label}</div>
       <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-text-muted">
         <span>{summary.played} matches</span>
         <span className="font-mono tabular-nums text-text-normal">

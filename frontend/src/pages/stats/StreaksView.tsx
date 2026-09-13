@@ -62,7 +62,7 @@ export default function StreaksView({ mode, scope }: { mode: StatsMode; scope: S
             ) : <div className="text-sm text-text-muted">None yet.</div>}
             {current.length ? (
               <div className="pt-1">
-                <div className="mb-1 text-xs uppercase tracking-wide text-text-muted">Current</div>
+                <div className="mb-1 text-xs font-medium text-text-muted">Current</div>
                 <div className="flex flex-wrap gap-1.5">
                   {current.map((r) => (
                     <PlayerLink

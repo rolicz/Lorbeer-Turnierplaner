@@ -77,10 +77,10 @@ export default function ProfileStatsSection({
       <ErrorToastOnError error={statsRatingsError} title="Ratings loading failed" />
 
       {/* The stats page's Player section has the same numbers per Mode/Source. */}
-      <div className="flex items-center justify-between gap-3">
+      <div className="section-head">
         <span className="section-label">Key numbers</span>
         {targetPlayerId > 0 ? (
-          <Link to={`/stats?view=player&player=${targetPlayerId}`} className="shrink-0 text-xs font-medium text-accent no-underline">
+          <Link to={`/stats?view=player&player=${targetPlayerId}`} className="order-1 shrink-0 text-xs font-medium text-accent no-underline">
             Full stats →
           </Link>
         ) : null}

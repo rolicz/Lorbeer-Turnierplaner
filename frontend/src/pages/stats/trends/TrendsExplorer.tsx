@@ -33,7 +33,7 @@ type RangeKey = "1y" | "2y" | "all";
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="space-y-1.5">
-      <span className="block text-xs font-semibold uppercase tracking-wide text-text-muted">{label}</span>
+      <span className="section-label block">{label}</span>
       {children}
     </div>
   );

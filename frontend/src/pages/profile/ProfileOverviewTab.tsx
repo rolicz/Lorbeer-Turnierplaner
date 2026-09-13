@@ -159,10 +159,10 @@ export default function ProfileOverviewTab({
 
       {/* Recent activity */}
       <div className="space-y-2">
-        <div className="mb-2 flex items-center justify-between gap-3">
+        <div className="section-head">
           <span className="section-label">Recent matches</span>
           {allMatchTournaments.length > 2 ? (
-            <button type="button" className="shrink-0 text-xs font-medium text-accent" onClick={onViewAllMatches}>
+            <button type="button" className="order-1 shrink-0 text-xs font-medium text-accent" onClick={onViewAllMatches}>
               View all →
             </button>
           ) : null}

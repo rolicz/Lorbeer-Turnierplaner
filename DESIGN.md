@@ -85,9 +85,18 @@ strings. Weights: `font-medium` default emphasis, `font-semibold` titles, `font-
 ## 6. Section headers
 
 - Page-level flat section: `section-label` (uppercase, tracked, `text-xs`, muted) inside
-  `section-head` (trailing hairline). Optional actions on the right.
-- Inside a card: `<h2 class="text-sm font-semibold">` in a `flex justify-between` row.
-Never both for the same block. No uppercase labels inside cards.
+  `section-head` (trailing hairline). An optional action (link, button, segmented switch) is
+  the second child and carries `order-1`, so the hairline runs *between* label and action
+  (`section-head::after` is a flex item at order 0).
+- Inside a card or an `inset`: `<h2>` / `<h3>` with `text-sm font-semibold text-text-normal`,
+  in a `flex items-center justify-between` row when it has an action or a trailing number.
+  A card that *is* one entity (a cup, a player) may title itself `text-lg font-semibold`
+  (§5 "card titles"); anything nested below that is `text-sm`.
+- A label that names one control or filter group ("Mode", "Range", "League", "Columns") is a
+  bare `section-label` next to its control — no `section-head`, no hairline.
+
+Never two of these for the same block. **No uppercase labels inside a card or an `inset`** —
+uppercase is reserved for `section-label` and for table column headers (`<thead>`).
 
 ## 7. Components canon (`frontend/src/ui/primitives/`)
 

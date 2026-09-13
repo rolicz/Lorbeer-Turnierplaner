@@ -112,7 +112,7 @@ export default function PlayerProfile({ mode, scope, rows, selectedId, onSelect 
             </button>
             <div className="flex shrink-0 flex-col items-center" title="Recent form — points per match in the last games">
               <Sparkline values={row.form} />
-              <span className="mt-0.5 text-xs uppercase tracking-wide text-text-muted">Form (last {row.form.length})</span>
+              <span className="mt-0.5 text-xs text-text-muted">Form (last {row.form.length})</span>
             </div>
           </div>
 
@@ -136,7 +136,7 @@ export default function PlayerProfile({ mode, scope, rows, selectedId, onSelect 
             </div>
             {/* Overlay other players, each in their consistent colour. */}
             <div className="mt-2">
-              <div className="mb-1.5 text-xs font-medium uppercase tracking-wide text-text-muted">Compare with</div>
+              <div className="mb-1.5 text-xs font-medium text-text-muted">Compare with</div>
               <div className="flex flex-wrap gap-1.5">
                 {rows.filter((r) => r.id !== row.id).map((r) => {
                   const on = overlayIds.has(r.id);

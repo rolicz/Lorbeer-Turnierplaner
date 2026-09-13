@@ -410,8 +410,9 @@ export default function FriendlyMatchCard({
         </div>
 
         <div className="space-y-3">
-          <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="section-head">
             <span className="section-label">Setup</span>
+            <div className="order-1 shrink-0">
             <SegmentedSwitch<"1v1" | "2v2">
               value={mode}
               onChange={(m) => {
@@ -429,6 +430,7 @@ export default function FriendlyMatchCard({
               ariaLabel="Match mode"
               title="Mode: 1v1 / 2v2"
             />
+            </div>
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2">
