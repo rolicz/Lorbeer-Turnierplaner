@@ -3062,6 +3062,34 @@ all it needs:
 
 Recorded so they are not forgotten. Do not implement without an explicit go.
 
+3. **EA FC 27 / multiple games** (researched 2026-09-13, Roli: "not today"). FC 27 releases
+   **25 Sept 2026**; EA reveals Club Star Ratings during Ratings Week. Decisions so far:
+   - **`game` goes on `Tournament` and `FriendlyMatch`** (nullable, additive via `_RUNTIME_COLUMNS`),
+     **not** on the match — a night is played on one game. Backfill every existing row to
+     `"EA FC 26"`, **including matches with no club** (Roli confirmed those were all FC 26).
+     `Club.game` already exists, is indexed and unique per `(name, game)`; `GET /clubs?game=`,
+     `listClubs(game)` and `qk.clubs(game)` already filter.
+   - **Stats gain a Game filter** (default Overall) in the filter pill, and the control **is not
+     rendered while only one game exists in the data**. Same for the clubs page and the pickers:
+     a tournament's picker offers only that game's clubs.
+   - **FC 27 clubs exist in the clubs editor immediately but are not selectable until their stars
+     are confirmed.** Needs a `stars_confirmed`-style additive flag (a star edit sets it; the
+     editor shows a "needs stars" badge + filter). Do **not** solve this by withholding the club.
+   - **Import path:** clone the FC 26 clubs (name + league), then set ratings from a published
+     list. A complete FC 26 list of 661 clubs (name + star rating) exists at
+     `fifagamenews.com/fc-26-team-star-ratings/`; `fcratings.com` is players only and `sofifa.com`
+     403s bots. Reuse the fuzzy matcher in `backend/app/tools/sync_club_crests.py` (NFKD
+     normalisation, FC/AFC stop tokens, alias map, difflib ≥ 0.85 — it matched 591/597 for crests).
+   - **Known gaps in that source:** it is club-only, so the `National (Men)`/`National (Women)`
+     teams are missing — carry their FC 26 ratings over instead. EA also adds and drops teams every
+     edition and clubs change league (promotion/relegation), so the import must report new,
+     missing and moved clubs rather than assume a 1:1 clone.
+   - **Already possible today:** star ratings are editable by editors/admins in two places — the
+     Clubs page edit panel and, since T2, the club picker's selected row (`ClubStarsEditor` →
+     `PATCH /clubs/{id}`). That is how Roli set them last time.
+   - **Still open:** whether ratings are imported automatically or typed in, and whether an import
+     may also correct existing FC 26 ratings (Roli set those by hand).
+
 1. **Per-destination "last page" memory.** → *enqueued as U6 (2026-09-12).* Tapping a top-level destination (bottom bar,
    sidebar, drawer) should return to the last page the user had open *inside* that
    destination, not its root — e.g. Tournaments → the live tournament that was open (with
