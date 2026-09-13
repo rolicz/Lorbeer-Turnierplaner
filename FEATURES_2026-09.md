@@ -4646,3 +4646,43 @@ against `15:14` shifts everything to its right, and the whole line is proportion
 eye); no wrapping at 390px; screenshots 390px + 1280px, blue + light; `npm run check` + build.
 
 **Deviations:**
+
+---
+
+## T15 — Done tournaments open on the Overview; ringed avatars; standings gets its own "show all"  ☐
+
+Three items from Roli after seeing T12, 2026-09-13.
+
+**A. A done tournament opens on the Overview.** `pages/live/LiveTournamentPage.tsx:115` still sends
+a finished tournament straight to Results (`chosenTab ?? (status === "done" ? "standings" :
+"overview")`) — a rule from before the Overview led with the winner. Drop the special case: every
+tournament opens on `overview` unless the URL says otherwise. Check the neighbours that assumed the
+old default: the tournaments list rows, the dashboard, U6's remembered page, and the `?tab=` deep
+links (all of which pass an explicit tab and are therefore unaffected — confirm rather than assume).
+
+**B. Ringed player avatars everywhere.** The Players page wraps its avatars in a 2.5px ring
+(`pages/PlayersAdminPage.tsx:226-229`, `cupRingBackground`), which reads better than the bare disc
+used elsewhere. Give every player avatar that treatment:
+- Put it in `ui/primitives/AvatarCircle.tsx` (a `ring` prop, or a small `PlayerAvatar` wrapper) so
+  there is one implementation, and adopt it at every call site: standings rows, the what-if table,
+  stats (Table, Records, Streaks, Cups, H2H, matchup header, Player), profile, dashboard cups
+  preview, pickers, comment authors, guestbook.
+- **The cup ring must keep meaning what it means.** Roli: "make sure to show who was cup owner
+  before this tournament in standings (as you do now)". The plain ring is decoration; a cup ring is
+  information. They must stay visually distinct — decide how (e.g. neutral hairline vs the cup's
+  colour at full strength, or keep the badge and make the plain ring quieter) and check both themes
+  at 390px, where the two sit side by side in the standings.
+- Keep every existing `title`/`aria-label` that explains a cup ring.
+
+**C. "Show all" for the final standings.** T12's played-matches block ends with a ghost
+`Show all 6 →` into the Matches tab, which Roli likes. Give the Overview's standings block the same
+affordance into the Results/Standings tab (same component, same wording pattern, same placement),
+so both blocks on that page behave alike. Say in Deviations what the label reads for a live
+tournament versus a done one.
+
+**DoD:** opening any done tournament lands on Overview; every player avatar carries the ring and a
+cup holder's ring is still unmistakable (screenshot the standings with a holder and a non-holder
+side by side, both themes); the standings block has its own "show all" that switches tabs;
+screenshots 390px + 1280px, blue + light; `npm run check` + build.
+
+**Deviations:**
