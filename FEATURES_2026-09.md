@@ -5016,3 +5016,280 @@ different decision than the one taken here. Flagged for Roli rather than fixed i
   guestbook,whatif,overview,comments}-{390,1280}-{blue,light}.png` (the call-site sweep),
   `t15b-commentauthors-t{11,9}-*`, `t15b-picker-*`, and `t15b-stake{,2,3}-*` (the two "defending"
   renderings that were compared, and the final one).
+
+---
+
+# Round 6 — Audit findings (2026-09-13)
+
+Three audits over `main` @ `cabda7c`: design-canon compliance, correctness/robustness, and a
+runtime sweep (176 page loads, 44 route+tab combinations × 2 widths × 2 themes). The severe
+backend claims were re-verified by the planner before being written down here. Baseline that
+already holds and must not regress: zero console errors, zero failed requests, zero horizontal
+overflow, zero nested anchors, no page hidden behind the bottom bar.
+
+## A1 — Permissions: two endpoints trust "editor" too far  ☐
+
+**A1a. A finished tournament's result can be rewritten by any editor — and that moves the cup.**
+`backend/app/routers/tournaments.py:745-751`: `PATCH /tournaments/{id}/decider` is guarded by
+`require_editor`, injects `role` and **never reads it**, and never calls
+`ensure_not_done_or_admin(...)` — while its own docstring (`:766-770`) says "Editors: can set
+decider while tournament is NOT done. Admin: can set/adjust anytime, even after done", and every
+sibling (`:462`, `:531`, `:558`) does exactly that. The decider decides a tied tournament's winner,
+which `services/cup.py` folds into cup ownership, so an editor can hand themselves a cup months
+later. `frontend/src/pages/live/AdminPanel.tsx:145` computes `canEditDecider` with no `done` check
+either, so the UI offers it. Fix both ends; mirror the sibling's exact status/detail string.
+**A1b. Any editor can replace or delete the image on anyone else's comment.**
+`backend/app/routers/comments.py:702` (`PUT .../image`) and `:744` (`DELETE .../image`) carry only
+`dependencies=[Depends(require_editor)]`. The text route `PATCH /comments/{id}` (`:598`) correctly
+enforces `comment_can_edit` (own comment inside the 1h window, or admin) and player media is
+owner-guarded (`routers/players.py:377,411`), so this is an omission, not a policy. Apply the same
+rule the text edit uses.
+Tests: extend `backend/tests/test_authorization.py` / `test_comments_current.py` — an editor gets
+403 on another author's comment image and on a done tournament's decider; an admin still succeeds.
+`backend/tests/test_stats_endpoints.py:119` has a comment claiming the editor case is covered but
+only ever calls with admin headers — fix that too.
+
+**DoD:** `make test` green with the new cases; a reader/editor/admin matrix in Deviations.
+
+**Deviations:**
+
+---
+
+## A2 — The match page can silently overwrite another editor's result  ☐
+
+`frontend/src/pages/live/MatchDetailPage.tsx` reads `qk.tournament(tid)` (`:63`) but subscribes to
+**no** tournament channel — it is a sibling route (`app/App.tsx:35`), not nested under
+`LiveTournamentPage`, and `applyTournamentsChanged` (`hooks/realtime/applyEvent.ts:105-116`) never
+invalidates `qk.tournament`. The form seeds once on `[match?.id]` (`:96-102`) and `saveMut` posts
+`state`, both clubs and both goals unconditionally (`:131-137`). Two editors on the same match: the
+second save reverts the first.
+- Subscribe the page to the tournament channel (`useTournamentWS`), the way `LiveTournamentPage`
+  does, so the cache stays fresh.
+- Re-seed the form when the server's match changes **and** the field is not dirty; never clobber
+  what the user is typing.
+- Decide and record what happens when the underlying match changed while the form was open —
+  the cheapest honest answer is to compare against the last-seen values and warn before saving.
+
+**DoD:** two browsers on one match; A saves 2:1 finished, B (stale) saves → B does not silently
+revert A; realtime updates land on the match page; `npm run check` + build.
+
+**Deviations:**
+
+---
+
+## A3 — A club edit never reaches stats, profiles or friendlies  ☐
+
+`frontend/src/pages/ClubsPage.tsx:188,221,231,422` invalidate `qk.clubs(game)` = `["clubs", game]`.
+TanStack prefix matching is one-directional, so the **unfiltered** `["clubs"]` key is never
+matched — and that is the key Stats, Profile and Friendlies use (`stats/H2HView.tsx:230`,
+`h2h/MatchupView.tsx:148`, `stats/PlayerProfile.tsx:65`, `stats/StarsView.tsx:47`,
+`ProfilePage.tsx:75`, `tools/FriendlyMatchesListCard.tsx:229`) with 60s–5min staleTimes.
+`ui/ClubStarsEditor.tsx:57` already does it right (`qk.clubs()`), which shows the intent.
+Fix the invalidations (and check every other key factory call site for the same one-way-prefix
+trap — report what you find, `qk` was swept once in A1 of the June refactor and may have others).
+
+**DoD:** rename a club / change its stars on the Clubs page → the new value is visible on Stats,
+a profile and the friendlies list without a reload; `npm run check`.
+
+**Deviations:**
+
+---
+
+## A4 — The Source filter is offered where the endpoint ignores it  ☐
+
+`GET /stats/players` takes no `scope` (`backend/app/routers/stats.py:59-65`) — it is
+tournaments-only. Yet `pages/stats/StatsInsights.tsx:44,47` declares `scope: true` for
+`overview:table` and `overview:records`, and `pages/stats/standings.ts:25-27` fetches
+`getStatsPlayers({mode, lastN: 12})` with no scope while the rest of the same row comes from the
+scope-aware ratings endpoint — so one row mixes friendlies-only W/D/L with tournaments-only form.
+Two honest options; pick one and say why:
+1. **Teach the endpoint the scope** (it already exists in `services/stats/scope.py` and every other
+   stats service uses it) — the filter then means what it says everywhere.
+2. **Stop offering it** on those sub-views, like Positions and Cups already do.
+Option 1 is the better product answer if the service layer makes it cheap; option 2 is honest and
+small. Whichever you choose, no surface may show a filter it ignores.
+
+**DoD:** every stats sub-view either honours Source or does not display it; a screenshot per
+sub-view with Source = Friendlies; `make test` if the backend changed; `npm run check`.
+
+**Deviations:**
+
+---
+
+## A5 — Deep links and freshness: four smaller realtime/navigation bugs  ☐
+
+1. **`?unread=1` never jumps.** `pages/live/LiveTournamentPage.tsx:199-210` deletes the param
+   *outside* the `if (latestUnreadCommentId)` guard, but that id comes from a comments query still
+   in flight on first render — so the flag is consumed before it can be used. Produced by
+   `TournamentsPage.tsx:190`.
+2. **Both comment deep links wipe their own `?tab=`.** The same effect and `:186-197` call
+   `setActiveTab("comments")` and then `setSearchParams` built from the **stale** render-time
+   `location.search`, so the tab param is dropped — a reload or a `lastLocation` replay lands on
+   Overview.
+3. **The guestbook has no realtime**, though `hooks/realtime/useRealtime.ts:108` names the channel
+   "pokes / guestbook": `resyncPlayer` (`:99-107`) invalidates only poke keys, and
+   `routers/players.py:607` broadcasts nothing on a new entry. Either wire it (broadcast + resync)
+   or fix the comment and the docs.
+4. **A new comment never updates the tournaments-list badge.** `applyEvent.ts:79-80` invalidates
+   only `qk.notificationsAll()`, while its siblings (`:102`, `:111`) also invalidate
+   `qk.commentsSummary()`; the backend sends no global event for a plain comment
+   (`routers/comments.py:523-525`).
+
+**DoD:** the unread pill jumps to the comment on a cold load; the tab survives a reload; a second
+viewer sees a new guestbook entry and a moved comment badge without remounting; `npm run check`.
+
+**Deviations:**
+
+---
+
+## A6 — Accessibility and contrast: the runtime sweep's blocking finds  ☐
+
+1. **The login submit button has no accessible name below 768px** —
+   `pages/LoginPage.tsx:70-71` hides the label and the icon is `aria-hidden`, leaving an unnamed
+   control as the only action on the page. It was the **only** unnamed control in the whole sweep.
+2. **Light theme contrast, three failures:** white on the teal primary button = **2.49:1**
+   (enabled "Save result", "Create tournament", "Back to dashboard"); accent `rgb(59,130,246)` on
+   the light page ground = **3.09:1** for every active tab label, selected chip, inline link and
+   the active bottom-bar label; the Lorbeerkranz holder's name (orange on the light ground) =
+   **1.9:1** on the dashboard. Fix in `themes/light.css` / the cup colour mapping, not per call
+   site, and re-check every theme afterwards — `blue`, `dark`, `red`, `green` must not regress.
+3. **H2H matrix cells: white on mid-tone tiles = 2.47–2.84:1**, theme-independent. Fold this into
+   the ramp fix (see A8's first item) rather than patching the text colour.
+4. **Match rows are `role="button"` wrapping real buttons** (48 on a live Matches tab): swap sides
+   and the reorder arrows sit inside the row's own click target, and the inner ones are 32×32.
+   Restructure so the row's primary action is a stretched link/overlay (the `ListRow` pattern) and
+   the buttons sit above it.
+5. **Table sort headers are 16px tall** (`P` = 8×16, `Elo` = 18×16) on the dashboard standings and
+   the stats Table — real controls, effectively untappable on a phone.
+
+**DoD:** every control has an accessible name; the three light-theme contrast ratios are ≥ 4.5:1
+for text (≥ 3:1 for large text), measured and listed; no interactive element nested inside another
+interactive element on the Matches tab; sort headers ≥ 44px tall on mobile; screenshots per theme.
+
+**Deviations:**
+
+---
+
+## A7 — Runtime polish: the rough edges the sweep photographed  ☐
+
+Each is small on its own; together they are what makes the app feel unfinished. Fix what is cheap,
+and say plainly which you left and why.
+1. **Trends x-axis labels overlap** — 46 overlapping pairs at 390px, 12 at 1280px, fully
+   overprinted in places (dashboard preview *and* `?view=trends`). Thin the labels by available
+   width, or rotate/stagger them, or label only the axis ends plus hovered points.
+2. **The filter pill covers data** on Positions, Streaks and the matchup at 390px — reserve a
+   gutter under the last row, or let the pill move out of the way on scroll.
+3. **`?view=h2h&sub=duos` silently renders the Players view** in overall/1v1 mode
+   (`H2HView.tsx:110`) with no control visible and the URL unchanged — a shared duos link lands
+   somewhere else with no hint. Either switch the mode to 2v2 when the link demands duos, or say
+   "Duos exist in 2v2" where the chips would be.
+4. **215 of 265 comments read as authored by "General"** (`TournamentCommentsCard.tsx:458`), a word
+   that also names the scope chip and the section header in the same feed. Pick a different label
+   for an unattributed author, or omit the author line entirely for those.
+5. **The comment composer uses the mobile sticky offset on desktop** — at 1280px it floats 16px
+   above the viewport bottom and slices the card behind it.
+6. **The profile header photo takes 62% of a 1280×900 viewport**, pushing the tab strip to y=756.
+7. **Positions grid lines strike through the digits** and run across rows the player did not play.
+8. **Player pickers show faces only** (new tournament, What-if, friendlies setup) — names are
+   `sr-only`, so you pick teammates by photograph even at 1280px.
+9. **"1 matches"** in friendlies group headers (no singular).
+10. **W-D-L renders with detached hyphens** ("14- 5- 8") — T14's fixed columns glue the dash to the
+    left number; give the separator its own track or right-align the whole token.
+11. **The match page title shows the raw DB id** ("Match #105") while the panel below says
+    "Match 1 · Leg 1".
+12. **Match H2H "Recent matches" looks duplicated** — leg 1 and leg 2 of the same fixture render
+    identically with nothing marking the leg.
+
+**DoD:** each item fixed or explicitly declined with a reason; before/after screenshots for the
+visual ones at the viewport/theme where the sweep caught them; `npm run check` + build.
+
+**Deviations:**
+
+---
+
+## A8 — Design-canon breaches, and the canon's own rot  ☐
+
+**Breaches** (each is `DESIGN.md` law, and each is one file):
+1. **The H2H matrix paints itself with hard-coded HSL ramps** (`pages/stats/H2HView.tsx:33-47`,
+   `text-white` at `:395`) with no light-theme override — while the positions grid does the same
+   job through `--pos-p` with a `[data-theme="light"]` rule (`styles.css:301-325`). Move the matrix
+   onto that mechanism; it also fixes A6.3.
+2. **The stats Player sub-view ignores the §6 skeleton** (`stats/PlayerProfile.tsx:90,114,126,156,
+   161,166`) while `profile/ProfileStatsSection.tsx:73,107,116` renders *the same three blocks* in
+   the other header language.
+3. **Hand-rolled box surfaces**: `dashboard/TrendsPreviewCard.tsx:340`,
+   `stats/trends/TrendsExplorer.tsx:147`, `ui/shell/NotificationBell.tsx:110`.
+4. **Uppercase group labels inside a card**: `ui/ClubPicker.tsx:107,384`;
+   **uppercase pseudo-thead inside an inset**: `live/OverviewSection.tsx:229`.
+5. **Five hand-rolled loading states** (`ClubsPage.tsx:428`, `live/MatchDetailPage.tsx:296`,
+   `tools/FriendlyMatchCard.tsx:422,497`, `tournaments/NewTournamentForm.tsx:90`) and **four empty
+   states** (`ui/ClubPicker.tsx:380`, `live/OverviewSection.tsx:173,197`,
+   `ui/shell/NotificationBell.tsx:123`) bypass `InlineLoading` / `EmptyState`.
+6. **A `·`-separated record line** in `stats/h2h/DuoDetail.tsx:46-48,58-62` where its sibling
+   `DuoLeaderboard.tsx:34` uses `RecordLine` — the two duo views do not align.
+7. **The guestbook composer is a second floating card** over a feed of cards
+   (`profile/GuestbookSection.tsx:107,121`), which §9b forbids and which
+   `TournamentCommentsCard.tsx:862` already does correctly.
+8. **Result tokens used for non-results**: `text-loss` for errors
+   (`live/MatchH2HPanel.tsx:189`, `ui/layout/PushNotificationsSettings.tsx:45,140`),
+   `text-draw`/`bg-draw` for the connection state (`ui/shell/ConnectionIndicator.tsx:43,48`), and
+   `ErrorToast.tsx:95` inventing a third answer (`--delta-down`). The canon has **no error token** —
+   add one (§2) and use it, rather than bending win/draw/loss.
+9. **Off-scale radius**: `ui/NationFlag.tsx:38` `rounded-[2px]`.
+
+**Canon rot** — fix `DESIGN.md`, not the code:
+- §2's `live` token has **zero** callers; every live marker uses `.live-dot`/`.live-ping` driven by
+  `--live-indicator`, which `light.css` never overrides. Either point `.live-dot` at the token or
+  delete the token (and then light-theme live dots are still red-500 — decide).
+- §4's "`space-y-5` between page sections" is false: `.page` is `space-y-3`, the dashboard uses
+  `space-y-4`, and only 5 sites use `space-y-5`.
+- §7's "Lists → `List`/`ListRow`" is ignored by 13 files that use `list-divided` with their own
+  rows; the primitive is too opinionated for rows carrying `ScoreLine`/`RecordLine`. Bless the
+  pattern that won.
+- §5's `font-mono` rule is far narrower than practice (ppm, ranks, positions legend, streak
+  patches, explainer constants). The working rule is "fixed-width numeric tokens".
+- Smaller: `CardSection` takes more than `padded`; the scale omits `text-xl` (the page `h1`) and
+  documents `text-3xl` for hero scores that are always `text-4xl`; the header's "no `text-[Npx]`"
+  claim is untrue (`NationFlag.tsx:17-18`); §7's avatar-ring list names H2H, which renders no
+  avatars; `.pos-good` (`styles.css:329`) has no users.
+
+**DoD:** every breach fixed or explicitly declined with a reason; `DESIGN.md` true again, with its
+"last checked" line updated; `npm run check` + build; screenshots for the matrix ramp in both
+themes.
+
+**Deviations:**
+
+---
+
+## A9 — Fragility worth hardening (lower priority)  ☐
+
+1. **Unguarded `localStorage` on the boot path**: `main.tsx:13,19` at module scope and seven bare
+   `getItem` calls in `auth/AuthContext.tsx:39-60`. Where storage access *throws* (Safari "block
+   all cookies", blocked site data, some webviews) this is a white screen, not a degraded feature —
+   everything in the nav/scroll layer is already wrapped, this is the one uncovered path.
+2. **`seq` gap detection is documented but not implemented** (`backend/app/ws.py:8-11`, `AGENTS.md`
+   §6): `connection.ts:52,205` parses `seq` and nothing reads it. And `ws.py:44-47` drops a failed
+   socket from `_conns` **without closing it**, while `main.py:106-109` keeps answering its pings —
+   so a half-dead client shows "live" forever and never resyncs. Note `_seq_counter` is one
+   process-wide counter across all three managers and resets on restart, so it needs per-channel
+   numbering before any gap check can use it.
+3. **Realtime writes race in-flight refetches** (`applyEvent.ts:36`, `:88`): a bare `setQueryData`
+   with no `cancelQueries` and no ordering guard, against ~12 mutation handlers that invalidate the
+   same key — an older GET can overwrite a newer push, or resurrect a deleted comment.
+4. **Form is divided by a fixed N** even when fewer matches exist (`services/stats/core.py`), and
+   the two surfaces showing it disagree: `stats/PlayerProfile.tsx:44` uses `lastN: 12`,
+   `profile/ProfileStatsSection.tsx:59` uses `lastN: 3`, while a comment at `:71` claims they
+   match. Decide one definition of "Form" and use it in both places.
+5. **Deleting a club ignores friendlies and orphans its crest**: `routers/clubs.py:293-297` checks
+   only `MatchSide`, not `FriendlyMatchSide` (12 clubs in the real DB are referenced *only* by
+   friendlies), there is no `PRAGMA foreign_keys=ON`, and the `ClubCrestFile` row and file survive
+   — and `Club.id` has no AUTOINCREMENT, so a later club can inherit the crest.
+6. **Three nav-stack seams**: the matchup's pop-vs-clear decision never checks the previous entry
+   is the H2H body (`ui/shell/backNavigation.ts:116-123`); `navStack.ts:64-72,82-97` treats an
+   initial load as POP so a cloned sessionStorage burns a swipe; `useTabParam.ts:31-33` never
+   rewrites an unknown or role-forbidden `?tab=` out of the URL, so `lastLocation` replays it.
+7. **`MatchDetailPage` "save and return" scrolls to the top** — its smooth `scrollIntoView`
+   (`LiveTournamentPage.tsx:214-222`) is aborted by `useScrollRestoration`'s instant
+   `restoreWindowScroll(0)` on the PUSH, so the `comment-attn` flash plays off-screen.
+
+**Deviations:**
