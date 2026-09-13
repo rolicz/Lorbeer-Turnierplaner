@@ -2,7 +2,9 @@ import { describe, it, expect } from "vitest";
 import {
   computeFinishedStandings,
   computeTopDraw,
+  resolveTournamentOutcome,
   type PlayerLite,
+  type StandRow,
 } from "../pages/live/tournamentStandings";
 import type { Match } from "../api/types";
 
@@ -82,5 +84,45 @@ describe("computeTopDraw", () => {
 
   it("handles empty standings", () => {
     expect(computeTopDraw([])).toEqual({ isTopDraw: false, candidates: [] });
+  });
+});
+
+describe("resolveTournamentOutcome", () => {
+  const tied: StandRow[] = [
+    { playerId: 1, name: "P1", pts: 3, gd: 1, gf: 2, played: 2 },
+    { playerId: 2, name: "P2", pts: 3, gd: 1, gf: 2, played: 2 },
+    { playerId: 3, name: "P3", pts: 0, gd: -2, gf: 0, played: 2 },
+  ];
+
+  it("takes the unique top of the table", () => {
+    const rows: StandRow[] = [
+      { playerId: 1, name: "P1", pts: 6, gd: 3, gf: 5, played: 2 },
+      { playerId: 2, name: "P2", pts: 3, gd: 0, gf: 2, played: 2 },
+    ];
+    expect(resolveTournamentOutcome(rows, { type: "none" })).toEqual({
+      kind: "winner",
+      row: rows[0],
+      viaDecider: false,
+    });
+  });
+
+  it("falls back to the decider when the top is tied (like services/cup.py)", () => {
+    const res = resolveTournamentOutcome(tied, { type: "penalties", winner_player_id: 2 });
+    expect(res).toEqual({ kind: "winner", row: tied[1], viaDecider: true });
+  });
+
+  it("reports a tie when there is no decider", () => {
+    const res = resolveTournamentOutcome(tied, { type: "none", winner_player_id: 2 });
+    expect(res.kind).toBe("tie");
+    expect(res.kind === "tie" && res.candidates.map((c) => c.id)).toEqual([1, 2]);
+  });
+
+  it("ignores a decider naming somebody who did not play", () => {
+    expect(resolveTournamentOutcome(tied, { type: "match", winner_player_id: 99 }).kind).toBe("tie");
+    expect(resolveTournamentOutcome(tied, { type: "match", winner_player_id: null }).kind).toBe("tie");
+  });
+
+  it("has nothing to say without players", () => {
+    expect(resolveTournamentOutcome([], { type: "none" })).toEqual({ kind: "empty" });
   });
 });

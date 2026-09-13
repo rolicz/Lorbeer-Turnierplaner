@@ -11,6 +11,7 @@ import EmptyState from "../../ui/primitives/EmptyState";
 import PlayerLink from "../../ui/primitives/PlayerLink";
 import InlineLoading from "../../ui/primitives/InlineLoading";
 import { usePlayerAvatarMap } from "../../hooks/usePlayerAvatarMap";
+import { useCupHolders } from "../../hooks/useCupHolders";
 import { Slider } from "./controls";
 import { Chip } from "../../ui/primitives/Chip";
 import { EloNote, InfoButton } from "./explainers";
@@ -37,6 +38,7 @@ export default function StatsTable({
 }) {
   const controlled = fixedColumns != null;
   const { avatarUpdatedAtById } = usePlayerAvatarMap();
+  const { cupsHeldByPlayerId } = useCupHolders();
   const [sortKey, setSortKey] = useState<string>("pts");
   const [dir, setDir] = useState<1 | -1>(-1);
   const [visible, setVisible] = useState<Set<string>>(() => new Set(DEFAULT_COLS));
@@ -178,7 +180,7 @@ export default function StatsTable({
                     <span className="w-4 text-right text-xs tabular-nums text-text-muted">{i + 1}</span>
                     {/* The row opens this player in Stats; the identity opens their profile. */}
                     <PlayerLink playerId={r.id} name={r.name} className="flex min-w-0 items-center gap-2">
-                      <AvatarCircle playerId={r.id} name={r.name} updatedAt={avatarUpdatedAtById.get(r.id) ?? null} sizeClass="h-7 w-7" />
+                      <AvatarCircle playerId={r.id} name={r.name} updatedAt={avatarUpdatedAtById.get(r.id) ?? null} sizeClass="h-7 w-7" cups={cupsHeldByPlayerId.get(r.id)} />
                       <span className="truncate font-medium text-text-normal">{r.name}</span>
                     </PlayerLink>
                   </div>

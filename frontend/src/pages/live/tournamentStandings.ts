@@ -87,3 +87,35 @@ export function computeTopDraw(rows: StandRow[]): {
   const candidates = tied.map((r) => ({ id: r.playerId, name: r.name }));
   return { isTopDraw: candidates.length >= 2, candidates };
 }
+
+/** The tournament's decider, as the detail response carries it. */
+export type DeciderLite = {
+  type: string;
+  winner_player_id?: number | null;
+};
+
+/**
+ * How a finished tournament ended: a unique winner, a tie nobody resolved, or
+ * nothing to say at all (no players).
+ */
+export type TournamentOutcome =
+  | { kind: "winner"; row: StandRow; viaDecider: boolean }
+  | { kind: "tie"; candidates: { id: number; name: string }[] }
+  | { kind: "empty" };
+
+/**
+ * Who won, resolved exactly like the backend does for cup ownership
+ * (`services/cup.py` → `stats/core.resolve_tournament_winner_player_id`):
+ * the unique top of the standings, else the tournament's decider winner, and
+ * a decider naming somebody who did not play counts as no winner at all.
+ */
+export function resolveTournamentOutcome(rows: StandRow[], decider?: DeciderLite | null): TournamentOutcome {
+  if (!rows.length) return { kind: "empty" };
+  const { isTopDraw, candidates } = computeTopDraw(rows);
+  if (!isTopDraw) return { kind: "winner", row: rows[0], viaDecider: false };
+
+  const pid = decider && decider.type !== "none" ? decider.winner_player_id ?? null : null;
+  const row = pid != null ? rows.find((r) => r.playerId === pid) : undefined;
+  if (row) return { kind: "winner", row, viaDecider: true };
+  return { kind: "tie", candidates };
+}

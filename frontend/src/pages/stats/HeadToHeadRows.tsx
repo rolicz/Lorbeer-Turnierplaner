@@ -1,7 +1,9 @@
+/* eslint-disable react-refresh/only-export-components -- `teamRivalryWidths` sizes a
+   whole list of these rows and belongs next to them. */
 import { type CSSProperties, type ReactNode, useMemo } from "react";
 
 import type { StatsH2HDuo, StatsH2HTeamRivalry } from "../../api/types";
-import { fmtInt } from "../../utils/format";
+import RecordLine, { recordWidths, type RecordWidths } from "../../ui/primitives/RecordLine";
 import { normalizeTeamRivalryForFocus, pct } from "./h2hHelpers";
 
 function RowShell({
@@ -34,12 +36,33 @@ function RowShell({
   );
 }
 
+/**
+ * Column widths for a list of duo-vs-duo rows. A row can be flipped to put the focus
+ * duo first, so both orientations are measured and the wider one wins — the widths must
+ * hold whichever way round the row ends up being drawn.
+ */
+export function teamRivalryWidths(rows: readonly StatsH2HTeamRivalry[]): RecordWidths {
+  return recordWidths(
+    rows.map((r) => ({
+      played: r.played,
+      wins: Math.max(r.team1_wins, r.team2_wins),
+      draws: r.draws,
+      losses: Math.max(r.team1_wins, r.team2_wins),
+      gf: Math.max(r.team1_gf, r.team2_gf),
+      ga: Math.max(r.team1_ga, r.team2_ga),
+    })),
+  );
+}
+
 export function DuoRow({
   r,
+  widths,
   focusPlayerId,
   onOpenMatches,
 }: {
   r: StatsH2HDuo;
+  /** Column widths for the whole list this row belongs to (T14). */
+  widths: RecordWidths;
   focusPlayerId?: number | null;
   onOpenMatches?: ((r: StatsH2HDuo) => void) | null;
 }) {
@@ -60,19 +83,25 @@ export function DuoRow({
         <div className="truncate text-sm font-semibold text-text-normal">
           {rr.p1.display_name} <span className="text-text-muted">/</span> {rr.p2.display_name}
         </div>
-        <div className="text-xs text-text-muted">
-          {fmtInt(rr.played)} games · {pct(rr.win_rate)} win · {fmtInt(rr.gf)}:{fmtInt(rr.ga)}
-        </div>
+        <RecordLine
+          played={rr.played}
+          gf={rr.gf}
+          ga={rr.ga}
+          widths={widths}
+          playedLabel="games"
+          extra={`${pct(rr.win_rate)} win`}
+          className="text-xs text-text-muted"
+        />
       </div>
       <div className="shrink-0 text-right">
         <div className="font-mono tabular-nums text-sm text-text-normal">{rr.pts_per_match.toFixed(2)} ppm</div>
-        <div className="font-mono tabular-nums text-xs text-text-muted">
-          <span className="text-win">{fmtInt(rr.wins)}</span>
-          <span className="text-text-muted">-</span>
-          <span className="text-draw">{fmtInt(rr.draws)}</span>
-          <span className="text-text-muted">-</span>
-          <span className="text-loss">{fmtInt(rr.losses)}</span>
-        </div>
+        <RecordLine
+          wins={rr.wins}
+          draws={rr.draws}
+          losses={rr.losses}
+          widths={widths}
+          className="font-mono text-xs text-text-muted"
+        />
       </div>
     </RowShell>
   );
@@ -81,10 +110,13 @@ export function DuoRow({
 
 export function TeamRivalryRow({
   r,
+  widths,
   focusPlayerId,
   onOpenMatches,
 }: {
   r: StatsH2HTeamRivalry;
+  /** Column widths for the whole list this row belongs to (T14). */
+  widths: RecordWidths;
   focusPlayerId?: number | null;
   onOpenMatches?: ((r: StatsH2HTeamRivalry) => void) | null;
 }) {
@@ -117,18 +149,22 @@ export function TeamRivalryRow({
       </div>
 
       <div className="mt-1 flex items-center justify-between gap-3 text-xs text-text-muted">
-        <span className="shrink-0">
-          {fmtInt(rr.played)} games · {closePct} close
-        </span>
-        <span className="shrink-0 font-mono tabular-nums">
-          <span className="text-win">{fmtInt(rr.team1_wins)}</span>
-          <span className="text-text-muted">-</span>
-          <span className="text-draw">{fmtInt(rr.draws)}</span>
-          <span className="text-text-muted">-</span>
-          <span className="text-loss">{fmtInt(rr.team2_wins)}</span>
-          <span className="text-text-muted"> · </span>
-          {fmtInt(rr.team1_gf)}:{fmtInt(rr.team1_ga)}
-        </span>
+        <RecordLine
+          played={rr.played}
+          widths={widths}
+          playedLabel="games"
+          extra={`${closePct} close`}
+          className="shrink-0"
+        />
+        <RecordLine
+          wins={rr.team1_wins}
+          draws={rr.draws}
+          losses={rr.team2_wins}
+          gf={rr.team1_gf}
+          ga={rr.team1_ga}
+          widths={widths}
+          className="shrink-0 font-mono"
+        />
       </div>
     </RowShell>
   );

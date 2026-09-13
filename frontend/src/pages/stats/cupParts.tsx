@@ -12,6 +12,7 @@ import AvatarCircle from "../../ui/primitives/AvatarCircle";
 import PlayerLink from "../../ui/primitives/PlayerLink";
 import { cn } from "../../ui/cn";
 import { usePlayerAvatarMap } from "../../hooks/usePlayerAvatarMap";
+import { useCupHolders } from "../../hooks/useCupHolders";
 import { fmtDate } from "../../utils/format";
 import { usePlayerColors } from "./usePlayerColors";
 import { reignSpan, type PlayerRef, type Reign } from "./cupReigns";
@@ -55,6 +56,7 @@ export function CupHolder({
   trailing?: ReactNode;
 }) {
   const { avatarUpdatedAtById } = usePlayerAvatarMap();
+  const { cupsHeldByPlayerId } = useCupHolders();
   const held = since ? `Holding since ${fmtDate(since)}` : "—";
   const meta = defended && defended > 0 ? `${held} · ${defended} defended` : held;
 
@@ -71,6 +73,7 @@ export function CupHolder({
             name={owner.display_name}
             updatedAt={avatarUpdatedAtById.get(owner.id) ?? null}
             sizeClass={avatarSizeClass}
+            cups={cupsHeldByPlayerId.get(owner.id)}
           />
           <span className="min-w-0 flex-1">
             <span className="block truncate text-base font-semibold" style={{ color }}>

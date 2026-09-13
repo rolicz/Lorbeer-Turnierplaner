@@ -4291,7 +4291,7 @@ Playwright with touch emulation at 390px plus a desktop check; `npm run check` +
 
 # Round 5 — Roli, 2026-09-13 (planned, not started)
 
-## T12 — The Overview earns its place on a finished tournament  ☐
+## T12 — The Overview earns its place on a finished tournament  ☑
 
 Roli: "when a tournament is done and i click on it, it does not make much sense to have the
 current match (=last match) in the overview. make the overview page also show done matches at the
@@ -4317,11 +4317,92 @@ tournament is simply the last match played — presented as if it were happening
 match"; a live one shows current → standings → next → played; rows open the match page;
 screenshots 390px + 1280px, blue + light, of both states; `npm run check` + build.
 
-**Deviations:**
+**Deviations:** (implemented 2026-09-13 on `feature/2026-09-round5`, one commit)
+
+Files: `pages/live/OverviewSection.tsx` (the tab), `pages/live/tournamentStandings.ts`
+(`resolveTournamentOutcome`), `pages/live/LiveTournamentPage.tsx` (three new props),
+`test/overviewSection.test.tsx` (new, 6 cases), `test/tournamentStandings.test.ts` (+5 cases).
+No backend change, no new dependency.
+
+**What leads a done tournament: the winner, resolved the way the cup is.**
+`resolveTournamentOutcome(rows, decider)` mirrors `services/cup.py` →
+`stats/core.resolve_tournament_winner_player_id` line for line: the unique top of the table
+(pts, then GD, then goals — `computeTopDraw` already encodes that key), and when the top is tied,
+the tournament's decider winner, *if* that player actually played. So the Overview, the tournaments
+list's trophy line and cup ownership can never disagree about who won. Three renderings:
+- **a winner** — trophy, avatar, name and points in one `inset`, with `6 matches · GD +3` under the
+  name, or `Tied at the top · won penalties` when the decider settled it (so the block explains
+  itself instead of leaving the reader to wonder why #1 in the table below is somebody else);
+- **a tie nobody resolved** — "No winner — it ended level at the top." plus the tied names. The
+  standings block below still emphasises row 1, exactly as the Results tab still draws its green
+  leader rail there; the sentence above it is what says the position is not a win;
+- **no players** — one muted line, so the block can never render empty.
+The name (and the avatar, `decorative`) is a `PlayerLink` — identity is a link (N4); nothing else
+in the block is clickable, so there is no nested `<a>` anywhere in the tab (asserted).
+
+**How many played matches: the last 5, then hand over to Matches.** Rows are newest first, each
+one a link to `/live/{tid}/match/{mid}`. Past five, the section head grows a ghost
+`Show all N →` that **switches to the Matches tab** rather than expanding in place. That is the
+"check the neighbours" call: the Matches tab already owns the full ordered list *with* its
+Compact/Details toggle, the reorder arrows and swap-sides, so an in-place expander would be a
+second, worse copy of it inside a summary tab. Five is the app's existing "Last 5" dose, it is
+~5 rows of air under the standings at 390px, and it is enough that a 6-match tournament shows all
+but one. The `#N` marker is kept on every row (like the Next-matches rows and the Matches tab),
+so the reader can see at a glance that they are looking at the tail of the list.
+
+**Newest first = reverse `order_index`**, not `finished_at`: the Matches tab lists the playing
+order, so this block is literally that list read upwards, and the `#N` markers count down. Sorting
+by `finished_at` could interleave them whenever an editor fills a result in late, and the two tabs
+would then disagree about "the last match".
+
+**One skeleton, one lead block.** Both states are the same component and the same block order —
+lead → standings → (next) → played — and the only branch is the lead: `Winner` on a done
+tournament, `Current match` otherwise. `Next matches` is live-only because a finished tournament
+has none (the block already hid itself when empty), and the standings block is shared, with its
+label switching to `Final standings` and its `aria-label` to "Open results". `pickPreviewMatch` is
+simply not asked on a done tournament — it and the dashboard's live card are untouched.
+
+**`MatchHistoryList`'s row was not reused, `ScoreLine sm` was.** `MatchRowWithClubs` (and
+`tournamentMatchHref` with it) is built on the *stats* wire types
+(`StatsMatch`/`StatsPlayerMatchesTournament`), which the live page does not have; it carries no
+`#N`, and it hardcodes `state={{ fromTab: "matches" }}`, while a row opened from here must carry
+`fromTab: "overview"` so the match page's back chevron returns to *this* tab (verified in the
+browser, and the pop path keeps the scroll). The rows are therefore the same
+`ScoreLine size="sm"` the block above them uses, in a `row-tap` link, and the href is the exact
+string `tournamentMatchHref` builds.
+
+**One change outside the strict diff, in the same file:** both match blocks now stack a 2v2 side's
+two names (`sideNames`) instead of joining them with `+`. `DESIGN.md` §8 says a 2v2 score stacks
+two names per side, the Matches tab and every stats history row do, and the Current-match panel
+directly above does — the old `teamName()` join in "Next matches" was the one place that did not,
+and leaving it would have put two differently-shaped match lists in one tab.
+
+**Small things.** The avatar metadata query is only enabled on a done tournament
+(`usePlayerAvatarMap({ enabled: isDone })`), so a live Overview fetches nothing new. The
+`isDone` branch in `LiveTournamentPage`'s `onOpenCurrentMatch` is now unreachable (the block it
+served is gone on a done tournament) and was left as-is rather than rewired.
+
+**Verification**
+
+- `cd frontend && npm run check` → typecheck + eslint clean, **45 files / 444 tests passed**
+  (~37 s; 44/433 before). `npm run build` green, same pre-existing 500 kB chunk hint.
+- Isolated stack: backend `:8003` on a copy of the dev DB (`backend/data/verify.db`), vite `:8020`.
+  States used: **done 1v1** t19 (6 played), **done 2v2** t17 (9 played), **live 1v1** t18 rewound
+  (3 finished · 1 playing · 2 scheduled), **live 2v2** t21 as it stands (2 · 1 · 2), plus t12
+  (a genuine three-way tie at the top) with and without a penalties decider, and t20 (draft).
+- Playwright, blue + light × 390px + 1280px on all six tournament states: the section labels are
+  exactly `Winner · Final standings · Played matches` when done and `Current match · Standings ·
+  Next matches · Played matches` when live, no `[data-match-panel]` on a done Overview, the played
+  rows' hrefs are the match pages in reverse order, `a a` = 0, no horizontal overflow, 0 console
+  errors. Interaction: `Show all 6` lands on the Matches tab with its 6 rows; a played row opens
+  `/live/19/match/107` and both browser-back and the in-app chevron return to
+  `/live/19?tab=overview`; a draft tournament shows no played block.
+- Screenshots (scratchpad `shots/`): `t12-{done1v1,done2v2,live1v1,live2v2,tie1v1,decider1v1}-{390,1280}-{blue,light}.png`
+  plus `t12-{draft,backfromMatch}-{390,1280}-blue.png`.
 
 ---
 
-## T13 — A "what if" tab: the best case, shown as the matches that produce it  ☐
+## T13 — A "what if" tab: the best case, shown as the matches that produce it  ☑
 
 Roli: "for standings, best-case positions: can you remove that from the current standings and add
 another tab right of comments that has the best-positions simulation/computation and also shows how
@@ -4391,9 +4472,148 @@ blue + light; `npm run check` + build.
 
 **Deviations:**
 
+Implemented 2026-09-13 on `feature/2026-09-round5`, three commits: the algorithm + proof, the tab,
+the move out of Standings. Files: `pages/live/bestCase.ts` (rewritten), `pages/live/WhatIfSection.tsx`
+(new), `pages/live/LiveTournamentPage.tsx`, `pages/live/StandingsTable.tsx`, `test/bestCase.test.ts`,
+`test/whatIfSection.test.tsx` (new).
+
+**The semantics, as written at the top of `bestCase.ts`**
+
+- A **finished** match is a fact — goals and points fixed, not editable.
+- A match **being played counts as it stands**: the goals are on the board and the side that is
+  ahead takes the three points (level = one each), exactly as the live Standings table counts it.
+  This is the judgement call the task left open, and it is the one that answers Roli's complaint:
+  a side 0:5 down is no longer assumed to win. Because the game is genuinely not over, the row is
+  still *editable* — the honest default, the reader's call — so nothing is lost, only assumed
+  sensibly. The row says "live" and its marker says "as it stands".
+- **Best case for F:** F's side wins every remaining match F plays (+3 to both players on the side
+  in 2v2); every other remaining match resolves to whatever minimises the number of players
+  finishing strictly above F; **ties go to F**, so `position = 1 + #{p : pts(p) > pts(F)}`.
+- **Goals:** an assumed result has no scoreline, so the projection does not invent goal difference.
+  Only points decide the position (the second option the task offered). The other players are
+  ordered among themselves by points, then by the goal difference actually played out, then goals
+  for, then name — purely for a stable list; that order can never move F. The tab says so in one
+  line under the table.
+- **Why "F wins everything they play" is optimal, 2v2 included** (spelled out in the file so nobody
+  second-guesses it): for one of F's matches and every other player p, look at `pts(p) − pts(F)`. A
+  partner moves exactly with F (+3/+1/0 both), so the difference to one's own partner is untouched;
+  an opponent gains 0/1/3 while F gains 3/1/0; anyone outside the match gains nothing while F gains
+  3/1/0. "F's side wins" minimises that difference simultaneously for every p, in every match, so
+  the search only has to explore the rival matches.
+
+**Exactness — and where the old code was actually wrong**
+
+The cap is gone. F's total is fixed, so every other player is measured by `slack = pts(F) − fixed(p)`
+and `reach = 3 × rival matches they play`: `slack < 0` = above whatever happens, `slack ≥ reach` =
+can never catch up, the rest are *contenders* and only they are searched over. Branch and bound over
+the rival matches containing a contender, ordered most dangerous first, pruned by (a) contenders
+already above — points only go up, so that count can never fall — and (b) a capacity bound: a match
+with a still-below contender on both sides must hand each of them at least a point (a draw is its
+cheapest outcome), so if the forced total no longer fits in the room those players have left, one
+more of them must go above; if it does not fit for any single player dropped either, two more must.
+The incumbent is seeded with one greedy run per "sacrifice set" of contenders, which is what finds
+the shape of the optimum ("one rival runs away with it, the rest stay level") that a plain
+cheapest-outcome greedy never sees. A rival match with no contender cannot change the position at
+all: it is shown as a draw and marked "any result". A `NODE_BUDGET` (2M nodes) exists only as a
+safety valve — it cannot trigger at this app's sizes; if it ever did, `exact: false` is surfaced in
+the verdict line rather than silently pretending.
+
+Two fixtures where the old implementation gave the **wrong answer**, measured by running
+`5b4af31:bestCase.ts` and the new one side by side:
+
+| Fixture | Old | New |
+|---|---|---|
+| Dev tournament 19 with match #3 in progress (Roli 3:4 Flo), focus **Roli** | **#1** — it treated the live match as unplayed and handed Roli the win he is currently losing | **#3** |
+| 5 players, focus on 6 points, 18 scheduled rival matches (triple round-robin, past `CAP = 13`) | **#5** — above the cap it drew every rival game | **#2**, and #2 is provably the ceiling (18 matches hand out ≥ 36 points, the four rivals can absorb 4 × 6 = 24 while staying level, so at least one must pass; three of them drawing everything among themselves reaches it) |
+
+The goal-difference flaw was display-only in the old code (the position itself was counted on points),
+but it was misleading: it sorted the projection by a goal difference that could never reflect an
+assumed result. It is now stated instead of implied, and the goals of a match in progress count as
+the facts they are.
+
+**The proof (`test/bestCase.test.ts`, 13 cases, ~0.3 s)**
+
+240 randomised fixtures — 120 1v1 (3–6 players, full round-robin draw) and 120 2v2 (4–6 players,
+randomly rotating duos, so a rival is regularly F's partner in another match) — each with up to 12
+matches of which up to 8 are still open, randomly finished / in progress / scheduled with random
+scores. Every fixture is brute-forced over all 3^k combinations by an evaluator written from the
+semantics rather than from the implementation, and three things are asserted: the reported position
+equals the true optimum, the scenario handed to the UI reproduces that position under the independent
+evaluator (so search and projection cannot drift apart), and no single edit of one open match can
+beat it. Half the fixtures focus the *trailing* player, which is where the race is contested: the
+optimum is worse than #1 in ~36% of them (positions #1–#6 all occur). A third case filters the 2v2
+generator down to fixtures where a rival really is F's partner elsewhere and proves 40 of those.
+Alongside: the two original 1v1 cases and the 2v2 partner case, a tie-goes-to-F case, the live-match
+cases, the 18-match cap case, and the hand-built partner trap (F wins with partner q, q then plays a
+rival match — letting q *draw* it already puts F's own partner above them, so the best case is the
+other side winning).
+
+One existing assertion was relaxed: `flo.pts + roli.pts >= 3` became `>= 2`. Its intent ("the rival
+game must distribute points, not leave both on 0") is unchanged; the 3 was incidental to the old
+brute force picking a home win, while the exact search now shows the cheapest of several equally
+optimal outcomes — a draw — because neither player can reach the focus player either way.
+
+**Judgement calls in the UI**
+
+- **Name: "What if"** (lucide `Signpost`). Roli's own words, and the only name that stays true once
+  the reader has edited the scenario — "Best case" would be a lie the moment they touch a control,
+  "Projection"/"Scenarios" is jargon this app does not speak. `DESIGN.md` has no tab-label rule
+  beyond the strip's rhythm (one short label + a 14px lucide icon), which this keeps; with seven tabs
+  the strip scrolls, which it already did at six.
+- **The three-way control: `1 · X · 2`, three `Chip`s under the score.** The app already prints
+  `1 2.10 · X 3.40 · 2 2.90` on exactly these matches (the odds line), so the vocabulary is on
+  screen already; team names would not fit three ways at 390px with two names per side. Each chip is
+  44px wide with a real `aria-label` ("Rumpi + Atzi win", "Draw"), the group is labelled
+  "Result: <side> versus <side>", and one muted line under the section head spells the notation out.
+  Not a `SegmentedSwitch`: that is the canon's *view mode* control (`DESIGN.md` §7), while this
+  writes a value, which is `Chip`'s job — and `Chip` is the only one of the two that takes a
+  per-option accessible name.
+- **Assumed vs played.** A played match shows real numerals and *no control at all* — the strongest
+  possible difference. An open one shows `vs` where the score would be (the canon's scheduled state,
+  §8), the control under it, and the side assumed to *lose* quietened: the row says who has to win
+  without inventing a scoreline. Every non-played row carries one `text-micro` marker naming where
+  its result comes from: "as it stands" (live), "assumed" (the computation), "any result" (no outcome
+  of this match can move the focus player) or "your call" in accent once edited. "any result" is the
+  honest half of exactness: it stops the tab claiming a match "must" be drawn when the draw is only
+  the cheapest of three equal choices.
+- **How much of the table: all of it.** A tournament here has 4–6 players, so the whole projected
+  table is 4–6 rows, and the question the tab answers *is* who finishes above you — cutting it to
+  "you ± 1" would hide exactly that. Each row carries the projected points and, muted, what the
+  scenario adds to today's total (`+6`); the focus row keeps the accent wash the old block used.
+- **Layout.** Phone: picker → verdict → table → matches, so the two numbers that change (position,
+  points) are above the fold while the long list scrolls. Desktop (`lg`): two columns, matches left,
+  verdict + table right, so nothing is ever off-screen while editing. No sticky summary — it would
+  need a hand-rolled opaque bar under the top bar, which `DESIGN.md` reserves for the floating pill,
+  toasts and the tab bar.
+- **The picker opens on the reader's own player** when they are in this tournament (`actorPlayerId`),
+  otherwise on the current leader (what the old block did). Edits are kept per focus player: picking
+  someone else asks a different question, so it starts from that player's best case.
+- The page is live, so an edit to a match that finishes in the meantime drops itself and the row
+  becomes a fact.
+
+**Not done / rejected**
+
+- No "this match decides your place" badge on the rows that *do* matter — the mirror image of
+  "any result" would mark most rows in a tight tournament and cost a second marker column at 390px.
+- The tab is shown on a **draft** tournament too (nothing played yet): the task's rule is "while the
+  tournament has unplayed matches", and "what do I need" is exactly the question before the first
+  kick-off. It disappears the moment the last match is finished (verified: tournament 18 shows
+  Overview · Results · Matches · Comments, and `?tab=whatif` falls back to Overview there).
+
+**Verification**
+
+- `cd frontend && npm run check` → typecheck + eslint clean, **44 files / 433 tests passed** (~35 s);
+  `npm run build` green.
+- Isolated stack: backend `:8003` on a copy of the dev DB (`backend/data/verify.db`, tournaments 19
+  and 17 rewound so each has finished + playing + scheduled matches), vite `:8020`. Playwright at
+  390×844 and 1280×900, blue and light, for the 1v1 (t19) and the 2v2 (t17): default best case, an
+  edited scenario, and reset — the verdict line, the position and the table follow every edit and
+  come back on reset (1v1 Roli #3 → #4 edited → #3 reset; 2v2 Mike #2 → #4 edited → #2 reset). No
+  console or page errors.
+
 ---
 
-## T14 — The standings meta line lines up across rows  ☐
+## T14 — The standings meta line lines up across rows  ☑
 
 Roli: "for standings/results table: make sure the data in the lower row (e.g. 3P · 3-0-0 · 15:4
 etc) is aligned so its in the same location in every row (the goals and played move it e.g. 9 vs
@@ -4425,4 +4645,374 @@ against `15:14` shifts everything to its right, and the whole line is proportion
 (assert it in Playwright by measuring the bounding boxes of the segment elements per row, not by
 eye); no wrapping at 390px; screenshots 390px + 1280px, blue + light; `npm run check` + build.
 
+**Deviations:** (implemented 2026-09-13 on `feature/2026-09-round5`, two commits: the
+shared component, then the call sites)
+
+New: `ui/primitives/RecordLine.tsx`, the `.record-num` utility in `styles.css`, and
+`test/recordLine.test.tsx` (8 cases). Call sites: `pages/live/StandingsTable.tsx`,
+`pages/live/WhatIfSection.tsx`, `pages/stats/H2HView.tsx` (four lists),
+`pages/stats/HeadToHeadRows.tsx` (both row components, plus `teamRivalryWidths`),
+`pages/stats/h2h/{DuoRivalries,DuoDetail,DuoLeaderboard}.tsx`, `pages/stats/StarsView.tsx`,
+`pages/profile/ProfileOverviewTab.tsx`, `pages/live/MatchH2HPanel.tsx`. Plus one canon row in
+`DESIGN.md` §7 and the primitives list in `AGENTS.md`. No backend change, no new dependency.
+
+**How a column is actually held — and why not `ch`.** The obvious spelling, `width: 2ch`,
+is wrong here: `ch` is the advance of the font's *proportional* `0` (**7.48px** in Inter at
+12px), while `tabular-nums` — which this line has always had — makes every digit **7.78px**.
+A two-digit value would overhang its own track by 0.6px and take the next segment with it.
+So `.record-num` sizes itself from an invisible pad of N zeros rendered as a zero-height
+block (`::before { content: var(--record-pad) }`), measured in the element's own font with
+its own variant settings. Being a pseudo element, the pad never reaches `textContent`, the
+accessibility tree, or a copy-paste. A signed value pads with `"+00"` rather than `"000"`,
+because `+` is 7.92px and a digit 7.78px — with a zero there, `+8` came out 0.14px wider
+than its track (measured, then fixed; the test pins it).
+
+**Track widths: per list, not per app (judgement 1).** `recordWidths(rows)` is called once
+per list and takes the widest value *in that list*; every row of the list then asks for the
+same tracks. A fixed app-wide "2 digits everywhere" would have stranded ~39px of whitespace
+in a typical 4-player tournament row (1 digit for played, 3 for W-D-L, 1 for goals) out of
+the 230.5px that row has — a sixth of the line, on the phone where it is tightest. Per-list
+widths strand nothing: the dev tournaments render at **144.8px of 230.5px** and the inflated
+worst case at **207px of 224.2px**. It also means the widths can never be *too small*: a
+three-digit goal total simply makes that list's track three digits wide. `widths` is a
+**required** prop (and on `DuoRow`/`TeamRivalryRow` too, which is why `DuoRivalries`,
+`DuoDetail` and `H2HView` now compute and pass it) — a row cannot see its siblings, so only
+the list can size the columns, and an optional prop would let a call site silently fall back
+to per-row widths, which is the bug itself.
+
+**The separators do not survive on screen — they survive for screen readers (judgement 2).**
+Each `·` costs 10.06px (against the 8px `gap-2` that replaces it) and, once the segments are
+columns, it is a separator drawn between two things that are already separated. Dropping all
+three buys 30px, which is most of what the `GD` segment needs. But the line is still read
+aloud and still copied, so every gap carries an `sr-only` `" · "`: `textContent` is character
+for character what it was before (`3P · 3-0-0 · 14:6 · GD +8`), which is also why all 444
+pre-existing tests passed untouched. The units stay glued to their numbers with a nbsp
+(`GD +8`, `12 matches`).
+
+**Nothing had to be dropped (judgement 3).** The task allowed losing the least useful segment
+rather than wrapping. It was not needed, and here is the budget. In the live standings row at
+390px the meta line has **230.5px** (measured; T10's 187px was a different row). The real
+worst case for a tournament — two-digit played, two-digit W-D-L, three-digit goals both ways,
+signed three-digit GD — measures **207px**: played 23.2 + W-D-L 57.8 + goals 50.0 + GD 52.2
++ three 8px gaps. It fits with 17px to spare, at one line, with no page overflow (asserted in
+the browser on an inflated tournament 19: `12P 8-0-4 180:110 GD +70` next to
+`12P 1-0-11 34:212 GD -178`, all four segments at x = 116 / 147.17 / 212.88 / 270.84 in every
+row). Had it not fitted, `GD` was the segment to go — it is the only one derivable from
+another (`GF:GA`) — but it is also the standings' first tie-break, so keeping it was worth
+the 52px.
+
+**W, D and L get one column each, not one for the group (judgement 4).** Where a list mixes
+one- and two-digit counts the numerals are right-aligned in their own tracks, so the reader
+gets `20- 7- 5` / `15- 4- 8` / ` 8- 6-11` — the wins line up under the wins. The alternative,
+one fixed track for the whole `W-D-L` token, keeps the token tight but only lines up its last
+digit. A tournament never notices the difference (three single digits either way, `3-0-0`);
+the H2H lists, where the counts reach 20, are exactly where a reader wants to compare wins
+down the list, so the columns earn the 7.8px of padding a shorter number leaves in front of
+itself. The `:` in `GF:GA` follows the same logic — GF right-aligned, GA left-aligned, so the
+colon is the fixed point (`14:6` over ` 5:8`).
+
+**The audit — every surface that shows this data, and what happened to it**
+
+| Surface | File | What was done |
+|---|---|---|
+| Live/done standings rows | `pages/live/StandingsTable.tsx` | **Converted.** The line Roli complained about: `played · W-D-L · GF:GA · GD`, one `recordWidths(liveRows)` for the table |
+| What-if projected table | `pages/live/WhatIfSection.tsx` | **Converted** (`RecordNum`, no full line — the columns there are `+gained` and `pts`). Also fixed the focus row, below |
+| H2H opponent rows ("Head-to-head by player") | `pages/stats/H2HView.tsx` | **Converted** (`played · W-D-L`), widths across the whole `vs` list |
+| Favorite / Nemesis cards | `pages/stats/H2HView.tsx` | **Converted** (`W-D-L · ppm`); both cards share one set of widths so the two halves of the grid line up with each other |
+| Teammate synergy rows | `pages/stats/HeadToHeadRows.tsx` `DuoRow` | **Converted**, both of its lines (`games · GF:GA · win%` on the left, `W-D-L` on the right) |
+| Duo-vs-duo rivalry rows | `pages/stats/HeadToHeadRows.tsx` `TeamRivalryRow` | **Converted**, both lines. Widths come from `teamRivalryWidths`, which measures *both* orientations because the row flips to put the focus duo first |
+| Top rivalries (players) | `pages/stats/H2HView.tsx` | **Converted** (`matches · W-D-L`). It gained the win/draw/loss colours it never had — the row is titled "A vs B", so green = A's wins is unambiguous, and every other W-D-L in the app is coloured |
+| Best-duos leaderboard | `pages/stats/h2h/DuoLeaderboard.tsx` | **Converted** (`played · W-D-L · GD`, `gdLabel=""` — the row has no room for the word and the column is obvious next to W-D-L) |
+| Club-stars buckets | `pages/stats/StarsView.tsx` | **Converted** (`played · W-D-L`) |
+| Profile rivals + favorite teammates | `pages/profile/ProfileOverviewTab.tsx` | **Converted** (`W-D-L · ppm`), one set of widths per grid |
+| Match detail → H2H summaries | `pages/live/MatchH2HPanel.tsx` | **Converted** (`matches · W-D-L · GF:GA · ppm`). In 2v2 two of the three cards sit side by side, so all three share widths. Same component in the friendlies row editor (editor-only, so checked through the match page) |
+| Overview's compact standings | `pages/live/OverviewSection.tsx` | **Left alone, confirmed aligned.** It is already a column layout (`w-4`/`w-5`/`w-7`/`w-6` right-aligned spans with a header row); measured 5 columns at x = 28 / 52 / 274 / 302 / 338 in every row, and the tracks hold two digits (`w-5` = 20px > 15.6px) and a signed two-digit GD (`w-7` = 28px > 23.5px) |
+| Dashboard standings preview | `pages/dashboard/StandingsPreviewCard.tsx` | **Left alone, confirmed aligned** — it *is* the stats table with `fixedColumns`; a real `<table>` with `text-right` cells, measured 6 columns identical across 6 rows |
+| Stats → Overview → Table | `pages/stats/StatsTable.tsx` | **Left alone, confirmed aligned** — real `<table>`, 6 columns identical across 6 rows |
+| H2H matrix | `pages/stats/H2HView.tsx` | **Left alone, confirmed aligned** — real `<table>`, 7 columns identical across 6 rows |
+| Matchup summary | `pages/stats/h2h/MatchupView.tsx` | **Left alone, confirmed aligned** — it is not a line but a `StatTile` grid; measured, the tiles hold two grid columns at x = 29 / 199 |
+| Duo detail summary | `pages/stats/h2h/DuoDetail.tsx` | **Left alone deliberately.** One summary at the top of its own view — it has no sibling row to line up with, and a lone line reads better with `·` separators than with gaps. (Its matchup rows below it *are* converted.) |
+| Player hero line | `pages/stats/PlayerProfile.tsx` | **Left alone**, same reason: one line, and its W-D-L sits inside prose (`4.2★ · 3-0-0 · 12 pts · view profile`) |
+| Profile "Record / Elo / Last 3" | `pages/profile/ProfileStatsSection.tsx` | **Left alone**, same reason: one wrapping line of three unlike facts, under a tile grid that already carries the numbers |
+| Winner block's `6 matches · GD +3` | `pages/live/OverviewSection.tsx` | **Left alone**, same reason: one line inside the T12 winner inset |
+
+The rule the last four follow: `RecordLine` is for a line that has siblings to line up with —
+rows of a list, cards of a grid. A line that is alone on its surface keeps the flowing text,
+because there is nothing to align and a separator carries more in isolation than a gap does.
+
+**One fix outside the record line, in the same spirit.** The What-if projected table's focus
+row was `-mx-2 rounded-xl bg-accent/10 px-2`. With `w-full` being border-box, the negative
+margin made the row 16px wider than its content box allowed, so the focus row's points column
+sat **16px left of every other row's** (measured: 283.75 vs 299.75). The wash now hugs the row
+box, exactly like `.row-tap`'s hover wash everywhere else in the app.
+
+**Verification**
+
+- `cd frontend && npm run check` → typecheck + eslint clean, **46 files / 452 tests passed**
+  (45/444 before). `npm run build` green, same pre-existing 500 kB chunk hint. No backend change.
+- Isolated stack: backend `:8003` on a copy of the dev DB (`backend/data/verify.db`), vite `:8020`.
+- Playwright, **16 surfaces × 2 widths (390 / 1280) × 2 themes (blue / light)**: for every list
+  the x offset of every segment element is compared across all its rows (and for the real
+  `<table>`s and the hand-built column rows, every cell's x). **480 column checks, 0 misaligned,
+  0 wrapped lines, no horizontal overflow, 0 console errors** (119 checks at 390, 121 at 1280,
+  per theme — 1280 adds a third tile column to the matchup summary). Grid surfaces (the rival
+  cards, the teammate cards, the two "together" cards) are compared by offset within the card,
+  with the card origins printed, since equal cards sit at different absolute x by design.
+- The worst case was forced in the browser (`extreme.js`: tournament 19's payload rewritten on
+  the wire, its 6 matches replayed 4× with big scores) — **two-digit played, two-digit losses
+  and three-digit goal totals** — at both widths and in both themes: segments identical,
+  no wrap, 207px of 224.2px.
+- Screenshots (scratchpad `shots/`): `t14-{standings,standings2v2,whatif,h2hplayers,h2hduos,
+  stars,profile,matchh2h,overview}-{390,1280}-{blue,light}.png` (clipped to the block that holds
+  the rows) plus `t14-extreme-{390,1280}-{blue,light}.png`.
+
+---
+
+## T15 — Done tournaments open on the Overview; ringed avatars; standings gets its own "show all"  ☑
+
+Three items from Roli after seeing T12, 2026-09-13.
+
+**A. A done tournament opens on the Overview.** `pages/live/LiveTournamentPage.tsx:115` still sends
+a finished tournament straight to Results (`chosenTab ?? (status === "done" ? "standings" :
+"overview")`) — a rule from before the Overview led with the winner. Drop the special case: every
+tournament opens on `overview` unless the URL says otherwise. Check the neighbours that assumed the
+old default: the tournaments list rows, the dashboard, U6's remembered page, and the `?tab=` deep
+links (all of which pass an explicit tab and are therefore unaffected — confirm rather than assume).
+
+**B. Ringed player avatars everywhere — and one tense for the ring.** The Players page wraps its
+avatars in a 2.5px ring (`pages/PlayersAdminPage.tsx:226-229`, `cupRingBackground`), which reads
+better than the bare disc used elsewhere.
+
+*Decisions (Roli, 2026-09-13 — settled, do not relitigate):*
+- **Shape is decoration, colour is information.** Every player avatar gets the same neutral
+  hairline ring; a cup's colour on a ring is reserved for meaning.
+- **An avatar always speaks in the present tense**: a cup-coloured ring means that player holds
+  that cup *today*. Never use the ring for historic ownership, anywhere.
+- **…and it therefore has no place inside a tournament** (Roli's correction, after seeing it: "no
+  i dont like that the ring is shown when i look at results of older tournaments"). A tournament
+  view is about a past or ongoing event, so a present-tense ring there reads as though that player
+  held the cup back then. Cup-coloured rings appear **only** on surfaces about now — Players,
+  profiles, the stats leaderboards, the dashboard cups preview. Inside a tournament (standings /
+  results, the What-if table, its match lists, the Overview blocks) avatars carry the neutral
+  hairline only, and the standings crown badge is the single carrier of cup information there.
+  One tense per screen, one carrier per fact.
+- **The standings keep the crown badge exactly as it is** — that is where "who owned the cup going
+  into this tournament" is shown, and Roli is happy with it. Do not restyle or move it.
+
+*Work:*
+- Put the ring in `ui/primitives/AvatarCircle.tsx` (a `ring` prop, or a small `PlayerAvatar`
+  wrapper) so there is one implementation, and adopt it at every call site: standings rows, the
+  what-if table, stats (Table, Records, Streaks, Cups, H2H, matchup header, Player), profile,
+  dashboard cups preview, pickers, comment authors, guestbook.
+- The neutral hairline and a cup ring must stay unmistakably different at 390px in both themes —
+  screenshot a holder and a non-holder side by side in the standings, where they sit together.
+- **No cup marking at all** on comment authors, guestbook entries or any picker: a crown beside
+  every comment is noise.
+- *From Roli's suggestion ("in match list it would be interesting to see the owner back then"),
+  separable — drop it if it crowds the block:* the match-history **tournament block header** already
+  carries the date pill and `TournamentLaurelMarkers`; add the stake owner there, e.g.
+  "Bauernkranz at stake · Rumpi defending", read from the `cup_stakes` the payload already
+  provides. Per block, never per row, and never as a ring — a cup cannot change hands mid
+  tournament, so the block is the right grain, and together with the laurel it says who went in
+  holding it and whether it changed hands.
+
+**C. "Show all" for the final standings.** T12's played-matches block ends with a ghost
+`Show all 6 →` into the Matches tab, which Roli likes. Give the Overview's standings block the same
+affordance into the Results/Standings tab (same component, same wording pattern, same placement),
+so both blocks on that page behave alike. Say in Deviations what the label reads for a live
+tournament versus a done one.
+
+**D. Played matches: all of them, in playing order** (Roli, after seeing T12). T12 shows the last
+five newest-first behind a `Show all 6 →`. Change both halves:
+- Render **every** played match, ordered by `order_index` ascending — the order they were played,
+  the same order the Matches tab uses. (T12 chose reverse order deliberately; this overrides it.)
+- The link then no longer reveals anything, so **relabel it** for what it does: it opens the
+  Matches tab, where the rows also carry Compact/Details, reorder and swap-sides. Keep it a ghost
+  link in the same slot.
+- Do the same for **C**'s standings link: the Overview already lists every player, so its label must
+  also say it opens the Results/Standings tab rather than promising more rows. Both blocks end up
+  with the same shape: complete content, plus a quiet link to the tab that can act on it.
+
+**DoD:** opening any done tournament lands on Overview; every player avatar carries the ring and a
+cup holder's ring is still unmistakable (screenshot the standings with a holder and a non-holder
+side by side, both themes); the standings block has its own link that switches tabs; the Overview lists every played match in playing order and neither link claims to reveal more;
+screenshots 390px + 1280px, blue + light; `npm run check` + build.
+
 **Deviations:**
+
+Implemented 2026-09-13 on `feature/2026-09-round5`, five commits — one per part, plus Roli's
+mid-task correction to B as its own commit: `253c9e6` (A), `9028dca` (B), `269451e` (D),
+`cd0fe96` (C), `b52643e` (B, corrected). No backend change, no new dependency, no generated types.
+
+Files: `pages/live/LiveTournamentPage.tsx`, `pages/live/OverviewSection.tsx`,
+`ui/primitives/AvatarCircle.tsx`, `hooks/useCupHolders.ts` (new), `pages/stats/MatchHistoryList.tsx`,
+plus the ring's call sites (`pages/PlayersAdminPage.tsx`, `pages/profile/ProfileHeader.tsx`,
+`pages/stats/{StatsTable,RecordsView,StreaksView,PlayerProfile,CupDetail,cupParts}.tsx`,
+`pages/stats/h2h/MatchupView.tsx`) and the four that were stripped again by the correction
+(`pages/live/{StandingsTable,WhatIfSection,OverviewSection}.tsx`, `pages/stats/PositionsView.tsx`).
+Tests: `test/avatarRing.test.tsx` (6, new), `test/cupStakeLine.test.tsx` (3, new),
+`test/overviewSection.test.tsx` (6 → 8). Docs: `DESIGN.md` §7 identity row, `AGENTS.md` §2 + §9.
+
+**A — every tournament opens on the Overview.** One line
+(`chosenTab ?? (status === "done" ? "standings" : "overview")` → `chosenTab ?? "overview"`). The
+neighbours were checked rather than assumed: the tournaments list rows, the dashboard's live card,
+the sidebar/drawer "Live now" links, `NewTournamentForm` and U6's `lastLocation` all navigate to
+`/live/{id}` with **no** `?tab=`, so they simply land on the Overview now; every caller that does
+set one still wins, verified in the browser — `?tab=matches` opens Matches, the match page's back
+chevron returns to the tab it came from, and the `?comment=` / `?unread=1` effects still force the
+Comments tab. A remembered `/live/19?tab=standings` from before this change also still opens
+Results, because U6 stores `pathname + search`.
+
+**B — one ring, and (after Roli's correction) one tense per screen**
+
+`AvatarCircle` is now the only avatar in the app and always wears a ring, drawn **inside** its own
+box as padding + a background behind an inner disc:
+
+- **neutral**, 1px, `rgb(var(--color-border-card-chip) / 0.55)` — decoration;
+- **cup**, 2.5px, the cup's colour, or an evenly split `conic-gradient` when a player holds both.
+
+*Judgement 1 — the hairline's treatment.* It had to read as deliberate in a dark theme *and* on the
+light theme's white surfaces, without a second look in either. Three things make it one:
+(a) it is the **same token the app already draws hairlines with** (`--color-border-card-chip`, at
+the same 0.55 alpha `.chip` uses), so it is the same grey as every chip edge and pill border on the
+screen rather than a new colour; (b) it is on **every** avatar, so a bare disc no longer exists to
+compare it against — an edge that is universal reads as the shape of the component, while an edge on
+half the avatars reads as a state; (c) it is drawn as an inset track rather than an outline, so the
+photo sits *inside* the ring and the two form one object. In light (`t15b2-players-390-light.png`)
+the hairline is plainly visible against the white row; in blue (`t15b-standings-390-blue.png`) it is
+quiet but present at the disc's edge. Note it also replaces something: in the light theme the avatar
+already carried `.inset`'s 1px `border-card-inner`, which no dark theme had — the ring is the first
+time the disc has the same edge in every theme.
+
+*Judgement 2 — a cup ring next to it at 390px.* Two signals, not one: **2.5× the width** and a
+saturated hue against a muted grey. The smallest avatar that can wear one is 24px (`h-6`, Records
+and Streaks) and at that size a 2.5px ring still leaves a 19px photo and reads as a coloured
+annulus, not a thick border — see `t15b-streaks-390-blue.png`, where Rumpi (green) and Berni (gold)
+sit three rows apart from three hairlined players. A proportional ring (`padding: 6%`) was rejected
+for exactly this: at 24px it would have been 1.4px against the hairline's 1px, which is the case the
+DoD warns about. One fixed width also keeps the rule sayable in a sentence.
+
+*Judgement 3 — where the tooltip lives.* On a `title` + `aria-hidden` overlay span, not on the
+avatar. A `title` on the avatar itself is pulled into the accessible name of the `PlayerLink` most
+avatars sit inside, so `getByRole("link", { name: "Roli" })` would have become
+"Holds Bauernkranz" — pinned by a test.
+
+*Judgement 4 — a shared hook, not per-page plumbing.* `hooks/useCupHolders` answers "who holds each
+cup right now" from the `qk.cupDefs` / `qk.cup` entries the dashboard, the Cups page and the Players
+page already fetch, so adopting it costs no request and never blocks a render — an avatar simply
+gains its ring when the answer arrives. The Players page's own `cupRingBackground` (the 2.5px
+wrapper that was the prototype for all this) is deleted, along with its local `useQueries` fold.
+
+**Roli's correction, mid-task: the ring has no place inside a tournament.** After seeing it —
+*"ok no i dont like that the ring is shown when i look at results of older tournaments"* — the
+present-tense rule kept its scope. A cup-coloured ring is now passed **only** on surfaces about now
+(Players, profiles, the stats leaderboards, the dashboard cups preview); inside a tournament
+(standings/results, What-if, match lists, the Overview's blocks) every avatar carries the hairline
+alone, and cup information there has the single carrier Roli asked to leave untouched: the standings
+crown badge. The rings were removed from those files, not hidden behind a flag — they pass no `cups`
+and no longer call the hook. **The Positions grid went with them** (it was never on the task's list;
+adding it was my own call, withdrawn): its body is a matrix of finished tournaments, which is the
+same complaint. The comparison shot the correction asked for is
+`t15b2-standings-{390,1280}-{blue,light}.png`: Rumpi holds the Bauernkranz today and wears the same
+hairline as Flo and Atzi, while Roli — who went into *that* tournament holding it — wears the crown.
+
+*The call-site audit (16 avatars, and what each says)*
+
+| Surface | File | Ring |
+|---|---|---|
+| Players page rows | `pages/PlayersAdminPage.tsx` | **cup** (its own wrapper replaced by the shared prop) |
+| Profile header | `pages/profile/ProfileHeader.tsx` | **cup**, from the `ownedCups` prop it already had |
+| Stats → Table | `pages/stats/StatsTable.tsx` | **cup** (also the dashboard's standings preview, same component) |
+| Stats → Records | `pages/stats/RecordsView.tsx` | **cup** |
+| Stats → Streaks | `pages/stats/StreaksView.tsx` | **cup** |
+| Stats → Cups: holder line | `pages/stats/cupParts.tsx` `CupHolder` | **cup** (also the dashboard cups preview, same component) |
+| Stats → Cups: reigns + per-player table | `pages/stats/CupDetail.tsx` | **cup** — a *past* holder therefore shows a hairline, which is the rule working |
+| Stats → H2H matchup header | `pages/stats/h2h/MatchupView.tsx` | **cup** |
+| Stats → Player hero | `pages/stats/PlayerProfile.tsx` | **cup** |
+| Live/done standings rows | `pages/live/StandingsTable.tsx` | **hairline** (correction) — the crown badge is untouched |
+| What-if projected table | `pages/live/WhatIfSection.tsx` | **hairline** (correction) |
+| Overview winner block | `pages/live/OverviewSection.tsx` | **hairline** (correction) |
+| Stats → Positions column heads | `pages/stats/PositionsView.tsx` | **hairline** (correction) |
+| Tournament comment authors | `pages/live/TournamentCommentParts.tsx` | **hairline**, by decision |
+| Guestbook entries | `pages/profile/GuestbookEntryCard.tsx` | **hairline**, by decision |
+| Pickers (`PlayerPicker`, `DuoPicker`, friendly + new-tournament forms) | `ui/primitives/AvatarButton.tsx` | **hairline**, by decision; the selection `ring-2 accent` still sits outside it |
+
+Stats → H2H itself (`H2HView`, `HeadToHeadRows`) has **no avatars at all** — its rows are names and
+records — so "H2H" in the task's list is the matchup header, which is done.
+
+**The separable "defending" line: built, and made truthful.** A match-history tournament block now
+says under its pills what the laurel on its date pill means:
+`Lorbeerkranz at stake · Berni defending`. It sits well: the pill row stays one line (a stake
+*pill* was tried first and pushed 5 of 12 blocks to a second pill line at 390px — `t15b-stake-*`
+versus `t15b-stake2-*`), the line costs 19px on the blocks that have a stake, and unlike a crown
+pill it cannot be misread as "Berni won this one".
+
+One correctness catch worth recording: `cup_stakes` does **not** always name a defender. For the
+single tournament that created each cup there was no holder, and `services/cup.py` fills the entry
+with the *winner* instead (dev data: t2 "1. Lorbeerkranzturnier" → Atzi, t7 "Wundleckturnier" →
+Berni). "Atzi defending" there is simply false, and no backend change was allowed, so
+`useCupFirstClaims` reads the cup's own lineage — `history[…].from.id === 0` marks the first claim —
+and those two blocks read `Bauernkranz at stake · nobody held it yet` instead. Verified in the
+browser on Atzi's player history, where both first claims and eight real defences appear in one
+list. The lineage query sits one component deeper than the line itself, so a list with no cup at
+stake (every friendly, most tournaments) asks the server nothing and still needs no `QueryClient`
+around it — which is why the five surfaces that render `MatchHistoryList`, and its existing tests,
+were untouched.
+
+**C + D — two blocks, one shape**
+
+The played block lists **every** match in `order_index` order (T12's "last five, newest first" is
+overridden, and the `#N` markers now count up, reading exactly like the Matches tab). The standings
+block already listed every player. So neither link reveals anything and both were labelled for what
+they do instead, naming the tab they land on so the word on the button is the word on the tab:
+
+| Block | Live tournament | Done tournament |
+|---|---|---|
+| Standings | `Open Standings →` | `Open Results →` |
+| Played matches | `Open Matches →` | `Open Matches →` |
+
+The standings link also **replaces** the block-wide tap target that used to sit there, which was not
+only redundant next to a labelled link but a real accessibility bug: a `<button
+aria-label="Open results">` wrapped around the table means the label *replaces* its contents in the
+accessibility tree, so the whole standings read as two words to a screen reader. The block is now
+plain content with one labelled action beside its section label, and the rows are byte-for-byte the
+ones T14 measured (columns still at x = 28 / 52 / 274 / 302 / 338 at 390px, identical in every row,
+re-asserted after the change).
+
+**Not done, deliberately.** The live-only **Next matches** block keeps its block-wide button and the
+same `aria-label` swallowing — it is T12's block, T15 names only the two, and unlike them it *does*
+truncate (3 of N), so relabelling it "Open Matches" without an in-place expander would be a
+different decision than the one taken here. Flagged for Roli rather than fixed in this task.
+
+**Verification**
+
+- `cd frontend && npm run check` → typecheck + eslint clean, **48 files / 463 tests passed**
+  (~39 s; 46/452 before). `npm run build` green, same pre-existing 500 kB chunk hint. No backend
+  change, so no `make test` / `make gen-types`.
+- Isolated stack: backend `:8003` on a copy of the dev DB (`backend/data/verify.db`), vite `:8020`.
+  Dev data holders: Berni = Lorbeerkranz (gold), Rumpi = Bauernkranz (green), which is what puts a
+  holder and a non-holder side by side in t19's standings.
+- Playwright at **390×844 and 1280×900 in blue and light** (4 combos, 0 console/page errors, no
+  horizontal overflow anywhere, `a a` = 0):
+  - **A**: `/live/{19,17,18}` (done), `/live/21` (live), `/live/20` (draft) all land on Overview;
+    `/live/19?tab=matches` still opens Matches.
+  - **D**: t19 lists 6 rows `#1…#6`, t17 nine `#1…#9`, t21 two — every finished match, ascending,
+    each href the match page.
+  - **C**: section heads are exactly `Winner · Final standings [Open Results] · Played matches
+    [Open Matches]` when done and `Current match · Standings [Open Standings] · Next matches ·
+    Played matches [Open Matches]` when live; clicking them lands on `?tab=standings` /
+    `?tab=matches` with the right tab selected.
+  - **B**: a 17-surface sweep counting `[data-avatar-ring]` per page — the nine "now" surfaces all
+    show cup rings (e.g. Streaks 8 of 20, Cups 9 of 19, dashboard 4 of 8) and the eight tournament /
+    past / no-marking surfaces show **0 cup rings out of 44 avatars** (standings 4, 2v2 standings 6,
+    What-if 10, Positions 6, comments 15, guestbook entries 1, Overview 1, plus the pickers). Comment
+    authors were checked on t11 and t9 *specifically because* Berni and Rumpi wrote comments there.
+    Every avatar's box measures exactly its call site's `sizeClass` (36×36 for `h-9` with and without
+    a ring), so nothing moved.
+- Screenshots (scratchpad `shots/`): `t15-final-t{19,17,21,20}-{390,1280}-{blue,light}.png` (the
+  finished tabs), `t15b2-standings-{390,1280}-{blue,light}.png` (holder + non-holder + crown, the
+  corrected treatment), `t15b2-players-{390,1280}-{blue,light}.png` (cup rings where they belong),
+  `t15b-{standings,streaks,records,cups,statstable,positions,player,matchup,dashboard,players,profile,
+  guestbook,whatif,overview,comments}-{390,1280}-{blue,light}.png` (the call-site sweep),
+  `t15b-commentauthors-t{11,9}-*`, `t15b-picker-*`, and `t15b-stake{,2,3}-*` (the two "defending"
+  renderings that were compared, and the final one).

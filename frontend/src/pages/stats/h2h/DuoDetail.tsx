@@ -6,7 +6,7 @@ import StatsSection from "../StatsSection";
 import type { StatsH2HDuo, StatsH2HTeamRivalry } from "../../../api/types";
 import { fmtInt } from "../../../utils/format";
 import { normalizeTeamRivalryForFocus } from "../h2hHelpers";
-import { TeamRivalryRow } from "../HeadToHeadRows";
+import { TeamRivalryRow, teamRivalryWidths } from "../HeadToHeadRows";
 
 /** True when the rivalry involves exactly the given duo (both members on one side). */
 function rivalryHasDuo(r: StatsH2HTeamRivalry, a: number, b: number): boolean {
@@ -33,6 +33,7 @@ export function DuoDetail({
     [rivalries, duo.p1.id, duo.p2.id],
   );
   const gd = duo.gd >= 0 ? `+${duo.gd}` : String(duo.gd);
+  const matchupWidths = useMemo(() => teamRivalryWidths(matchups), [matchups]);
 
   return (
     <div className="space-y-2">
@@ -70,6 +71,7 @@ export function DuoDetail({
             <TeamRivalryRow
               key={`${r.team1.map((p) => p.id).join("-")}-${r.team2.map((p) => p.id).join("-")}`}
               r={r}
+              widths={matchupWidths}
               focusPlayerId={duo.p1.id}
               // Pass the rivalry from the selected duo's perspective so the
               // matches modal title/focus match the row as displayed.

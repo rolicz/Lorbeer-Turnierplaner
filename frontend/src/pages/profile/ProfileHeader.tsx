@@ -159,6 +159,7 @@ export default function ProfileHeader({
                 name={displayName ?? String(targetPlayerId)}
                 updatedAt={avatarUpdatedAt}
                 sizeClass="h-14 w-14"
+                cups={ownedCups}
               />
             </button>
           ) : (
@@ -167,6 +168,7 @@ export default function ProfileHeader({
               name={displayName ?? String(targetPlayerId)}
               updatedAt={avatarUpdatedAt}
               sizeClass="h-14 w-14"
+              cups={ownedCups}
             />
           )}
           <div className="min-w-0">

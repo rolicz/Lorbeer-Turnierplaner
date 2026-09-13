@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { MailOpen, MessageSquare, Gamepad2, LayoutGrid, ListChecks, SlidersHorizontal, Trophy } from "lucide-react";
+import { MailOpen, MessageSquare, Gamepad2, LayoutGrid, ListChecks, Signpost, SlidersHorizontal, Trophy } from "lucide-react";
 
 import Button from "../../ui/primitives/Button";
 import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
@@ -34,10 +34,12 @@ import AdminPanel from "./AdminPanel";
 import MatchList from "./MatchList";
 import OverviewSection from "./OverviewSection";
 import StandingsTable from "./StandingsTable";
+import WhatIfSection from "./WhatIfSection";
 import { computeFinishedStandings, computeTopDraw } from "./tournamentStandings";
 import CurrentGameSection from "./CurrentGameSection";
 import TournamentCommentsCard from "./TournamentCommentsCard";
 import TournamentMetaPills from "./TournamentMetaPills";
+import { isEditableMatch } from "./bestCase";
 import { shuffle, sideBy } from "../../helpers";
 
 import { listTournamentComments, markAllTournamentCommentsRead } from "../../api/comments.api";
@@ -49,7 +51,7 @@ import { forgetLocation } from "../../ui/shell/lastLocation";
 import { useReturnScroll } from "../../ui/shell/useReturnScroll";
 
 type PlayerLite = { id: number; display_name: string };
-type LiveTab = "overview" | "current" | "standings" | "matches" | "comments" | "controls";
+type LiveTab = "overview" | "current" | "standings" | "matches" | "comments" | "whatif" | "controls";
 
 function errorMessage(err: unknown): string {
   if (err instanceof Error) return err.message;
@@ -75,7 +77,7 @@ export default function LiveTournamentPage() {
   const isAdmin = role === "admin";
   const isEditorOrAdmin = role === "editor" || role === "admin";
 
-  const TAB_KEYS: LiveTab[] = ["overview", "current", "standings", "matches", "comments", "controls"];
+  const TAB_KEYS: LiveTab[] = ["overview", "current", "standings", "matches", "comments", "whatif", "controls"];
   const initialTab = ((): LiveTab | null => {
     const t = searchParams.get("tab");
     return t && (TAB_KEYS as string[]).includes(t) ? (t as LiveTab) : null;
@@ -108,9 +110,11 @@ export default function LiveTournamentPage() {
     enabled: !!tid,
   });
 
-  // Done tournaments open on Results: their "current match" is just the last
-  // finished one. Explicit choices (URL deep link or a tab click) always win.
-  const activeTab: LiveTab = chosenTab ?? (tQ.data?.status === "done" ? "standings" : "overview");
+  // Every tournament opens on the Overview (T15). The old "done → Results" rule
+  // predates T12: a finished Overview now leads with the winner and the final
+  // standings and lists every match played, so there is nothing left to skip.
+  // Explicit choices (URL deep link or a tab click) always win.
+  const activeTab: LiveTab = chosenTab ?? "overview";
   useEffect(() => {
     activeTabRef.current = activeTab;
   }, [activeTab]);
@@ -473,6 +477,8 @@ export default function LiveTournamentPage() {
   const [panelError, setPanelError] = useState<string | null>(null);
 
   const showControls = isEditorOrAdmin;
+  // Nothing to project once every match has been played (T13).
+  const showWhatIf = useMemo(() => matchesSorted.some(isEditableMatch), [matchesSorted]);
   const cardTitle = tQ.data?.name || locationState?.tournamentName || "Tournament";
   usePageTitle(cardTitle);
   const showCurrentGameSection = (status === "draft" || status === "live") && !!currentMatch;
@@ -484,11 +490,12 @@ export default function LiveTournamentPage() {
     t.push({ key: "standings", label: status === "done" ? "Results" : "Standings", icon: <Trophy size={14} /> });
     t.push({ key: "matches", label: "Matches", icon: <ListChecks size={14} /> });
     t.push({ key: "comments", label: "Comments", icon: <MessageSquare size={14} />, badge: unreadCommentsCount || undefined });
+    if (showWhatIf) t.push({ key: "whatif", label: "What if", icon: <Signpost size={14} /> });
     if (showControls) {
       t.push({ key: "controls", label: role === "admin" ? "Admin" : "Controls", icon: <SlidersHorizontal size={14} /> });
     }
     return t;
-  }, [status, showCurrentGameSection, unreadCommentsCount, showControls, role]);
+  }, [status, showCurrentGameSection, unreadCommentsCount, showWhatIf, showControls, role]);
 
   // Fall back to the first available tab if the active one isn't shown (e.g.
   // "current" on a done tournament, or a legacy deep link).
@@ -537,8 +544,11 @@ export default function LiveTournamentPage() {
         <>
           {effectiveTab === "overview" ? (
             <OverviewSection
+              tournamentId={tid}
               mode={tQ.data.mode}
               date={tQ.data.date}
+              isDone={isDone}
+              decider={decider}
               matches={matchesSorted}
               players={tQ.data.players ?? []}
               clubs={clubs}
@@ -646,6 +656,10 @@ export default function LiveTournamentPage() {
               focusCommentRequest={focusCommentRequest}
               headerAction={markAllReadAction}
             />
+          ) : null}
+
+          {effectiveTab === "whatif" && showWhatIf ? (
+            <WhatIfSection matches={matchesSorted} players={tQ.data.players ?? []} />
           ) : null}
 
           {effectiveTab === "controls" && showControls ? (

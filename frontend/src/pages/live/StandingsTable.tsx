@@ -1,13 +1,12 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import type { Match, Player } from "../../api/types";
 import { sideBy } from "../../helpers";
 import Card from "../../ui/primitives/Card";
 import AvatarCircle from "../../ui/primitives/AvatarCircle";
-import { PlayerPicker } from "../stats/PlayerPicker";
-import { computeBestCase } from "./bestCase";
 import CupOwnerBadge from "../../ui/primitives/CupOwnerBadge";
+import RecordLine, { recordWidths } from "../../ui/primitives/RecordLine";
 import { getCup, listCupDefs } from "../../api/cup.api";
 import { qk } from "../../api/queryKeys";
 import { getStatsStreaks } from "../../api/stats.api";
@@ -142,24 +141,9 @@ export default function StandingsTable({
   const navigate = useNavigate();
   const baseRows = useMemo(() => computeStandings(matches, players, "finished"), [matches, players]);
   const liveRows = useMemo(() => computeStandings(matches, players, "live"), [matches, players]);
+  // One set of column widths for the whole table, so every meta line lines up (T14).
+  const metaWidths = useMemo(() => recordWidths(liveRows), [liveRows]);
   const basePos = useMemo(() => posMap(baseRows), [baseRows]);
-
-  // ---- best-case ("if everything works out") projection ----
-  const remaining = useMemo(
-    () => matches.filter((m) => m.state === "scheduled" || m.state === "playing"),
-    [matches],
-  );
-  const [focusId, setFocusId] = useState<number | null>(null);
-  const effFocusId = focusId != null && liveRows.some((r) => r.playerId === focusId) ? focusId : liveRows[0]?.playerId ?? null;
-  const livePos = effFocusId != null ? liveRows.findIndex((r) => r.playerId === effFocusId) + 1 : 0;
-
-  const bestCase = useMemo(
-    () => (effFocusId == null ? null : computeBestCase(matches, players, effFocusId)),
-    [matches, players, effFocusId],
-  );
-
-  const focusName = liveRows.find((r) => r.playerId === effFocusId)?.name ?? "";
-  const showBestCase = tournamentStatus !== "done" && remaining.length > 0 && bestCase != null;
 
   const { avatarUpdatedAtById: avatarUpdatedAtByPlayerId } = usePlayerAvatarMap();
 
@@ -363,7 +347,12 @@ export default function StandingsTable({
             {isLeader ? <span className="absolute inset-y-1 left-0 w-0.5 rounded bg-status-bar-green" aria-hidden="true" /> : null}
             <span className="w-4 shrink-0 text-right text-xs tabular-nums text-text-muted">{idx + 1}</span>
             <span className="w-3 shrink-0 text-center text-micro leading-none"><Arrow delta={delta} /></span>
-            <AvatarCircle playerId={r.playerId} name={r.name} updatedAt={avatarUpdatedAtByPlayerId.get(r.playerId) ?? null} sizeClass="h-9 w-9" />
+            <AvatarCircle
+              playerId={r.playerId}
+              name={r.name}
+              updatedAt={avatarUpdatedAtByPlayerId.get(r.playerId) ?? null}
+              sizeClass="h-9 w-9"
+            />
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-1.5">
                 <span className="min-w-0 truncate font-medium text-text-normal">{r.name}</span>
@@ -374,9 +363,11 @@ export default function StandingsTable({
                   <StreakPatch key={s.key + "-" + i} streak={s} className="streak-compact" />
                 ))}
               </div>
-              <div className="mt-0.5 text-xs tabular-nums text-text-muted">
-                {r.played}P · <span className="text-win">{r.wins}</span>-<span className="text-draw">{r.draws}</span>-<span className="text-loss">{r.losses}</span> · {r.gf}:{r.ga} · GD {r.gd >= 0 ? `+${r.gd}` : r.gd}
-              </div>
+              <RecordLine
+                {...r}
+                widths={metaWidths}
+                className="mt-0.5 text-xs text-text-muted"
+              />
             </div>
             <div className="shrink-0 text-right">
               <div className="text-base font-bold tabular-nums text-text-normal">{r.pts}</div>
@@ -386,49 +377,6 @@ export default function StandingsTable({
         );
       })}
       </div>
-
-      {showBestCase && bestCase ? (
-        <div className="mt-5">
-          <div className="section-head"><span className="section-label">Best-case positions</span></div>
-          <div className="mb-2">
-            <PlayerPicker
-              players={liveRows.map((r) => ({ id: r.playerId, name: r.name }))}
-              selectedId={effFocusId}
-              onSelect={(id) => setFocusId(id)}
-              size="h-9 w-9"
-            />
-          </div>
-          <p className="text-xs leading-relaxed text-text-muted">
-            {bestCase.focusWins > 0 ? (
-              <>
-                If <b className="text-text-normal">{focusName}</b> wins their {bestCase.focusWins} remaining{" "}
-                {bestCase.focusWins === 1 ? "match" : "matches"} and other results go their way, they could finish as high as{" "}
-                <b className="text-status-text-green">#{bestCase.pos}</b>
-                {livePos > 0 ? <> (currently #{livePos})</> : null}.
-              </>
-            ) : (
-              <>
-                <b className="text-text-normal">{focusName}</b> has no matches left — best case they finish{" "}
-                <b className="text-status-text-green">#{bestCase.pos}</b> if other results go their way.
-              </>
-            )}
-          </p>
-          <div className="mt-2 list-divided">
-            {bestCase.proj.map((r, idx) => (
-              <div key={r.playerId} className={"row " + (r.isFocus ? "rounded-xl bg-accent/10 px-2 -mx-2" : "")}>
-                <span className="w-4 shrink-0 text-right text-xs tabular-nums text-text-muted">{idx + 1}</span>
-                <AvatarCircle playerId={r.playerId} name={r.name} updatedAt={avatarUpdatedAtByPlayerId.get(r.playerId) ?? null} sizeClass="h-8 w-8" />
-                <span className={"min-w-0 flex-1 truncate " + (r.isFocus ? "font-semibold text-text-normal" : "text-text-normal")}>
-                  {r.name}
-                  {r.isFocus ? <span className="ml-1.5 text-micro uppercase tracking-wide text-accent">best case</span> : null}
-                </span>
-                <span className="shrink-0 text-sm font-bold tabular-nums text-text-normal">{r.pts}</span>
-                <span className="shrink-0 text-micro leading-none text-text-muted">pts</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      ) : null}
     </>
   );
 

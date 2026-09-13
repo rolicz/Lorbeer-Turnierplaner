@@ -25,6 +25,7 @@ import ScoreLine from "../../ui/primitives/ScoreLine";
 import { getStatsPlayerMatches, getStatsPlayers } from "../../api/stats.api";
 import { qk } from "../../api/queryKeys";
 import { usePlayerAvatarMap } from "../../hooks/usePlayerAvatarMap";
+import { useCupHolders } from "../../hooks/useCupHolders";
 import { teamName } from "../../utils/matchDisplay";
 import { fmtShortDate } from "../../utils/format";
 import { tournamentMatchHref } from "./MatchHistoryList";
@@ -93,6 +94,7 @@ type WinLeader = { id: number; name: string; count: number; rank: number; latest
 /** Most tournament wins — a ranked identity list, the same row shape as Streaks'. */
 function TitlesGroup({ leaders, onSelect }: { leaders: WinLeader[]; onSelect: (id: number) => void }) {
   const { avatarUpdatedAtById } = usePlayerAvatarMap();
+  const { cupsHeldByPlayerId } = useCupHolders();
   const shown = leaders.slice(0, SHOWN);
   // "×N" here means N players share the top count — the same meaning it had before.
   const topTies = leaders.filter((l) => l.rank === 1).length;
@@ -118,7 +120,7 @@ function TitlesGroup({ leaders, onSelect }: { leaders: WinLeader[]; onSelect: (i
               <div className="pointer-events-none relative z-10 flex min-w-0 flex-1 items-center gap-2">
                 {/* The link hugs the identity; the rest of the row opens the player in Stats. */}
                 <PlayerLink playerId={l.id} name={l.name} className="pointer-events-auto flex min-w-0 flex-1 items-center gap-2">
-                  <AvatarCircle playerId={l.id} name={l.name} updatedAt={avatarUpdatedAtById.get(l.id) ?? null} sizeClass="h-6 w-6" />
+                  <AvatarCircle playerId={l.id} name={l.name} updatedAt={avatarUpdatedAtById.get(l.id) ?? null} sizeClass="h-6 w-6" cups={cupsHeldByPlayerId.get(l.id)} />
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-sm text-text-normal">{l.name}</span>
                     {l.latest ? (

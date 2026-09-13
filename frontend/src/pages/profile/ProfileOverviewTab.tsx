@@ -5,6 +5,7 @@ import { Link } from "react-router-dom";
 import Button from "../../ui/primitives/Button";
 import Textarea from "../../ui/primitives/Textarea";
 import { Pill } from "../../ui/primitives/Pill";
+import RecordLine, { recordWidths, type RecordWidths } from "../../ui/primitives/RecordLine";
 import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
 import type { Club, StatsH2HOpponentRow, StatsPlayerMatchesTournament } from "../../api/types";
 import { fmtPct, fmtRank } from "../../utils/format";
@@ -16,10 +17,11 @@ import { type FavoriteTeammate } from "./favoriteTeammates";
  * Favorite / Nemesis chip. With a known opponent it links into the stats matchup
  * ("every match against this player"), which follows the Mode / Source filters there.
  */
-function RivalCard({ icon, label, row, playerId }: {
+function RivalCard({ icon, label, row, widths, playerId }: {
   icon: ReactNode;
   label: string;
   row: StatsH2HOpponentRow | null;
+  widths: RecordWidths;
   playerId: number | null;
 }) {
   const body = (
@@ -30,10 +32,14 @@ function RivalCard({ icon, label, row, playerId }: {
       </div>
       <div className="font-semibold mt-0.5">{row?.opponent.display_name ?? "—"}</div>
       {row ? (
-        <div className="text-text-muted mt-0.5">
-          <span className="text-win">{row.wins}</span>-<span className="text-draw">{row.draws}</span>-<span className="text-loss">{row.losses}</span> ·{" "}
-          {fmtPct(row.pts_per_match)} ppm
-        </div>
+        <RecordLine
+          wins={row.wins}
+          draws={row.draws}
+          losses={row.losses}
+          widths={widths}
+          extra={`${fmtPct(row.pts_per_match)} ppm`}
+          className="mt-0.5 text-text-muted"
+        />
       ) : null}
     </>
   );
@@ -85,6 +91,9 @@ export default function ProfileOverviewTab({
   statsMatchesError: unknown;
   onViewAllMatches: () => void;
 }) {
+  // One set of column widths per block, so the cards in a grid line up (T14).
+  const rivalWidths = recordWidths([favorite, nemesis]);
+  const teammateWidths = recordWidths(favoriteTeammates.map((tm) => ({ wins: tm.w, draws: tm.d, losses: tm.l })));
   return (
     <div className="space-y-5">
       <div className="space-y-2">
@@ -118,8 +127,8 @@ export default function ProfileOverviewTab({
         <div className="section-head"><span className="section-label">Rivals</span></div>
         <ErrorToastOnError error={statsH2HError} title="H2H loading failed" />
         <div className="grid grid-cols-2 gap-2 text-xs">
-          <RivalCard icon={<Smile size={14} aria-hidden="true" />} label="Favorite" row={favorite} playerId={targetPlayerId} />
-          <RivalCard icon={<HeartCrack size={14} aria-hidden="true" />} label="Nemesis" row={nemesis} playerId={targetPlayerId} />
+          <RivalCard icon={<Smile size={14} aria-hidden="true" />} label="Favorite" row={favorite} widths={rivalWidths} playerId={targetPlayerId} />
+          <RivalCard icon={<HeartCrack size={14} aria-hidden="true" />} label="Nemesis" row={nemesis} widths={rivalWidths} playerId={targetPlayerId} />
         </div>
       </div>
 
@@ -132,10 +141,14 @@ export default function ProfileOverviewTab({
               const body = (
                 <>
                   <div className="truncate font-semibold">{tm.name}</div>
-                  <div className="text-text-muted mt-0.5">
-                    <span className="text-win">{tm.w}</span>-<span className="text-draw">{tm.d}</span>-<span className="text-loss">{tm.l}</span> ·{" "}
-                    {fmtPct(tm.ppm)} ppm
-                  </div>
+                  <RecordLine
+                    wins={tm.w}
+                    draws={tm.d}
+                    losses={tm.l}
+                    widths={teammateWidths}
+                    extra={`${fmtPct(tm.ppm)} ppm`}
+                    className="mt-0.5 text-text-muted"
+                  />
                 </>
               );
               // Like the rival cards: the summary opens every match behind it — here the
