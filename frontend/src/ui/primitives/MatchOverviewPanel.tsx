@@ -11,9 +11,9 @@
  * No colon, no box around the score, no `border-y` rules, and stars only for a
  * side that actually has a club.
  *
- * On an editable surface (`onPickClub`, T2) the two club lines are the trigger of
- * the club picker — the scoreboard is the only place a club is named, never a
- * second row below it (`DESIGN.md` §9b).
+ * The panel is **read-only everywhere**, editable surfaces included (T9): clubs
+ * are picked in the club panel under it (`ui/SelectClubsPanel.tsx`), which holds
+ * both slots, the filters and the randomisers in one block (`DESIGN.md` §9b).
  *
  * The panel **is** an `inset`, on every surface that shows a score (T8): dashboard
  * preview, live Overview, live Current, the match-detail edit preview, the friendly
@@ -44,9 +44,6 @@ export default function MatchOverviewPanel({
   showMode = false,
   showOdds = true,
   showOddsWhenFinished = false,
-  aLabel,
-  bLabel,
-  onPickClub,
   className,
 }: {
   match: Match;
@@ -60,11 +57,6 @@ export default function MatchOverviewPanel({
   showMode?: boolean;
   showOdds?: boolean;
   showOddsWhenFinished?: boolean;
-  /** Side labels for the picker trigger; defaults to the side's players. */
-  aLabel?: string;
-  bLabel?: string;
-  /** Editable panels only: each club line opens the club picker for that side. */
-  onPickClub?: (side: "A" | "B") => void;
   className?: string;
 }) {
   const a = sideBy(match, "A");
@@ -106,9 +98,6 @@ export default function MatchOverviewPanel({
         clubs={clubs}
         aClubId={a?.club_id}
         bClubId={b?.club_id}
-        aLabel={aLabel ?? namesStack(a).join(" + ")}
-        bLabel={bLabel ?? namesStack(b).join(" + ")}
-        onPickClub={onPickClub}
       />
     </div>
   );

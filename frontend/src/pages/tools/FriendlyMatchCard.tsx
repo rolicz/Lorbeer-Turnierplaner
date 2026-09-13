@@ -260,7 +260,7 @@ export default function FriendlyMatchCard({ onInitialReady }: { onInitialReady?:
     };
   }, [aTeamIds, bTeamIds, players, aClub, bClub, aGoals, bGoals, odds]);
 
-  // Clubs: the preview scoreboard above is the trigger (T2 / DESIGN.md §9b).
+  // Clubs: one panel under the preview holds slots, filters and randomisers (T9).
   const clubSelection = useClubSelection({
     clubs,
     disabled: clubsQ.isFetching || !!clubsQ.error,
@@ -395,9 +395,6 @@ export default function FriendlyMatchCard({ onInitialReady }: { onInitialReady?:
             bGoals={bGoals}
             showMode={true}
             showOdds={true}
-            aLabel={aLabel}
-            bLabel={bLabel}
-            onPickClub={clubSelection.openPicker}
           />
 
           <div className="pt-2">
@@ -415,15 +412,13 @@ export default function FriendlyMatchCard({ onInitialReady }: { onInitialReady?:
           {oddsQ.isFetching ? <div className="text-xs text-text-muted">Computing odds…</div> : null}
         </div>
 
-        {/* The clubs are named in the preview above and picked by tapping them
-            there; these controls act on both sides (DESIGN.md §9b). */}
-        <div className="space-y-3">
-          <div className="section-head">
-            <span className="section-label">Clubs</span>
-          </div>
-          {clubsQ.isLoading ? <div className="text-sm text-text-muted">Loading clubs…</div> : null}
-          <SelectClubsPanel selection={clubSelection} />
-        </div>
+        {/* One panel for the whole club job; its header is the section heading (T9). */}
+        <SelectClubsPanel
+          selection={clubSelection}
+          extraTop={
+            clubsQ.isLoading ? <div className="text-sm text-text-muted">Loading clubs…</div> : null
+          }
+        />
 
         <div className="space-y-3">
           <div className="section-head">

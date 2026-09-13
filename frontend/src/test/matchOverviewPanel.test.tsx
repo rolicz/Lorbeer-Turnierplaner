@@ -1,5 +1,5 @@
-import { describe, expect, it, vi } from "vitest";
-import { fireEvent, render } from "@testing-library/react";
+import { describe, expect, it } from "vitest";
+import { render } from "@testing-library/react";
 
 import type { Club, Match } from "../api/types";
 import MatchOverviewPanel from "../ui/primitives/MatchOverviewPanel";
@@ -227,55 +227,27 @@ describe("MatchOverviewPanel layout (DESIGN.md §8)", () => {
   });
 });
 
-describe("MatchOverviewPanel club picker trigger (T2)", () => {
-  it("stays read-only text without `onPickClub`", () => {
+describe("MatchOverviewPanel is read-only (T9)", () => {
+  it("renders the clubs as text, with no control of its own", () => {
     const { container, getByText } = render(
+      <MatchOverviewPanel match={makeMatch(1, 2)} clubs={CLUBS} aGoals={1} bGoals={0} />,
+    );
+
+    // The club panel under the scoreboard owns the picking — the panel itself has
+    // no button on any surface, editable ones included (T2 had a trigger here).
+    expect(container.querySelectorAll("button")).toHaveLength(0);
+    expect(getByText("Bayern München")).toBeInTheDocument();
+    expect(getByText("Ajax")).toBeInTheDocument();
+  });
+
+  it("says 'No club' for a clubless side instead of inviting a pick", () => {
+    const { container, getByText, queryByText } = render(
       <MatchOverviewPanel match={makeMatch(1, null)} clubs={CLUBS} aGoals={0} bGoals={0} />,
     );
 
-    expect(container.querySelectorAll("button")).toHaveLength(0);
     expect(getByText("No club")).toBeInTheDocument();
-  });
-
-  it("turns each club line into the picker's trigger when the panel is editable", () => {
-    const onPickClub = vi.fn();
-    const { getByLabelText } = render(
-      <MatchOverviewPanel
-        match={makeMatch(1, 2)}
-        clubs={CLUBS}
-        aGoals={1}
-        bGoals={0}
-        onPickClub={onPickClub}
-      />,
-    );
-
-    // The label defaults to the side's players.
-    const left = getByLabelText("Alice — select club");
-    expect(left.textContent).toContain("Bayern München");
-    fireEvent.click(left);
-    expect(onPickClub).toHaveBeenCalledWith("A");
-
-    fireEvent.click(getByLabelText("Bob — select club"));
-    expect(onPickClub).toHaveBeenCalledWith("B");
-  });
-
-  it("invites a pick for a side without a club", () => {
-    const onPickClub = vi.fn();
-    const { getByLabelText, queryByText } = render(
-      <MatchOverviewPanel
-        match={makeMatch(1, null)}
-        clubs={CLUBS}
-        aGoals={0}
-        bGoals={0}
-        aLabel="Roli"
-        bLabel="Flo + Berni"
-        onPickClub={onPickClub}
-      />,
-    );
-
-    expect(queryByText("No club")).toBeNull();
-    const slot = getByLabelText("Flo + Berni — select club");
-    expect(slot.textContent).toContain("Select club");
-    expect(slot.className).toContain("border-dashed");
+    expect(queryByText("Select club")).toBeNull();
+    expect(container.querySelectorAll("button")).toHaveLength(0);
+    expect(container.querySelector("[class*='border-dashed']")).toBeNull();
   });
 });

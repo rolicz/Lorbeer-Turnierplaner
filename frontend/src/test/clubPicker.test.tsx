@@ -6,7 +6,6 @@ import type { Club } from "../api/types";
 import { AuthProvider } from "../auth/AuthContext";
 import ClubPicker from "../ui/ClubPicker";
 import SelectClubsPanel from "../ui/SelectClubsPanel";
-import MatchSides from "../ui/primitives/MatchSides";
 import { useClubFilters, useClubSelection } from "../ui/clubControls";
 
 const CLUBS: Club[] = [
@@ -77,10 +76,17 @@ function Harness({
 }
 
 /**
- * The T2 shape: the scoreboard's club line is the trigger, the panel under it
- * carries the filters and the two random actions, and the sheet is shared.
+ * The T9 shape: one self-contained panel. Collapsed it is a single "Clubs" row;
+ * open it holds both club slots, the filters and the two random actions, and the
+ * shared sheet is opened from a slot.
  */
-function PanelHarness({ initialA = null, initialB = null }: { initialA?: number | null; initialB?: number | null }) {
+function PanelHarness({
+  initialA = null,
+  initialB = null,
+}: {
+  initialA?: number | null;
+  initialB?: number | null;
+}) {
   const [aClub, setAClub] = useState<number | null>(initialA);
   const [bClub, setBClub] = useState<number | null>(initialB);
   const selection = useClubSelection({
@@ -98,14 +104,6 @@ function PanelHarness({ initialA = null, initialB = null }: { initialA?: number 
   });
   return (
     <AuthProvider>
-      <MatchSides
-        clubs={CLUBS}
-        aClubId={aClub}
-        bClubId={bClub}
-        aLabel="Roli"
-        bLabel="Flo"
-        onPickClub={selection.openPicker}
-      />
       <SelectClubsPanel selection={selection} />
     </AuthProvider>
   );
@@ -235,25 +233,77 @@ describe("ClubPicker", () => {
   });
 });
 
-describe("SelectClubsPanel (T2 controls row)", () => {
-  it("never repeats a club name outside the scoreboard", () => {
-    const { container } = render(<PanelHarness initialA={1} initialB={2} />);
+describe("SelectClubsPanel (T9 — one self-contained panel)", () => {
+  it("shows nothing but the trigger while it is collapsed", () => {
+    const { getByRole, queryByRole, queryByLabelText } = render(
+      <PanelHarness initialA={1} initialB={2} />,
+    );
 
-    expect(container.textContent?.match(/Bayern München/g)).toHaveLength(1);
-    expect(container.textContent?.match(/Ajax/g)).toHaveLength(1);
+    const trigger = getByRole("button", { name: /Clubs/ });
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+    // The summary names the two clubs the panel holds…
+    expect(trigger.textContent).toContain("Bayern München · Ajax");
+    // …and not one tool is on screen.
+    expect(queryByRole("button", { name: /Filter clubs/ })).toBeNull();
+    expect(queryByRole("button", { name: "Randomize the star filter" })).toBeNull();
+    expect(queryByRole("button", { name: /Random matchup/ })).toBeNull();
+    expect(queryByLabelText("Roli — Bayern München")).toBeNull();
   });
 
-  it("opens the picker on the side whose club was tapped in the scoreboard", () => {
-    const { getByRole, getByLabelText } = render(<PanelHarness initialA={1} initialB={2} />);
+  it("summarises an unset side as 'not set'", () => {
+    const both = render(<PanelHarness />);
+    expect(both.getByRole("button", { name: /Clubs/ }).textContent).toContain("Not set");
+    both.unmount();
 
-    fireEvent.click(getByLabelText("Flo — select club"));
+    const one = render(<PanelHarness initialA={1} />);
+    expect(one.getByRole("button", { name: /Clubs/ }).textContent).toContain("Bayern München · not set");
+  });
+
+  it("opens one block that holds the clubs, the filters and the randomisers", () => {
+    const { getByRole, getByLabelText, queryByRole } = render(
+      <PanelHarness initialA={1} initialB={2} />,
+    );
+
+    const trigger = getByRole("button", { name: /Clubs/ });
+    fireEvent.click(trigger);
+    expect(trigger).toHaveAttribute("aria-expanded", "true");
+
+    // Both values, inside the panel, with their league and stars.
+    expect(getByLabelText("Roli — Bayern München")).toBeInTheDocument();
+    expect(getByLabelText("Flo — Ajax")).toBeInTheDocument();
+    expect(getByRole("button", { name: /Filter clubs/ })).toBeInTheDocument();
+    expect(getByRole("button", { name: "Randomize the star filter" })).toBeInTheDocument();
+    expect(getByRole("button", { name: /Random matchup/ })).toBeInTheDocument();
+
+    // …and the body is one container, tied to the trigger.
+    const body = document.getElementById(trigger.getAttribute("aria-controls") ?? "");
+    expect(body).not.toBeNull();
+    expect(body?.contains(getByLabelText("Roli — Bayern München"))).toBe(true);
+    expect(body?.contains(getByRole("button", { name: /Random matchup/ }))).toBe(true);
+
+    fireEvent.click(trigger);
+    expect(queryByRole("button", { name: /Random matchup/ })).toBeNull();
+  });
+
+  it("picks a club inside the panel: slot → sheet → row", () => {
+    const { getByLabelText, getByRole } = render(<PanelHarness initialA={1} initialB={2} />);
+
+    fireEvent.click(getByRole("button", { name: /Clubs/ }));
+    fireEvent.click(getByLabelText("Flo — Ajax"));
     expect(getByRole("button", { name: "Flo" })).toHaveAttribute("aria-pressed", "true");
     // The sheet's subtitle names the side it is picking for.
     expect(document.body.textContent).toContain("Flo · 3 clubs");
+
+    const row = Array.from(document.querySelectorAll('[role="option"]')).find((el) =>
+      el.textContent?.includes("Austria"),
+    );
+    fireEvent.click(row as HTMLElement);
+    expect(getByLabelText("Flo — Austria")).toBeInTheDocument();
   });
 
   it("reaches the star/league filters without opening a club", () => {
     const { getByRole, queryByLabelText } = render(<PanelHarness />);
+    fireEvent.click(getByRole("button", { name: /Clubs/ }));
 
     expect(queryByLabelText("Filter by stars")).toBeNull();
     const trigger = getByRole("button", { name: /Filter clubs/ });
@@ -265,8 +315,9 @@ describe("SelectClubsPanel (T2 controls row)", () => {
     expect(queryByLabelText("Filter by league")).not.toBeNull();
   });
 
-  it("narrows the picker list through the filters set on the match card", () => {
+  it("narrows the picker list through the filters set on the panel", () => {
     const { getByLabelText, getByRole } = render(<PanelHarness />);
+    fireEvent.click(getByRole("button", { name: /Clubs/ }));
 
     fireEvent.click(getByRole("button", { name: /Filter clubs/ }));
     fireEvent.click(getByLabelText("Filter by stars"));
@@ -279,7 +330,7 @@ describe("SelectClubsPanel (T2 controls row)", () => {
     fireEvent.click(getByRole("button", { name: /Filter clubs/ }));
     expect(getByRole("button", { name: "Clear the star filter" })).toBeInTheDocument();
 
-    // …and the sheet, opened from the scoreboard, lists only what is left.
+    // …and the sheet, opened from a slot, lists only what is left.
     fireEvent.click(getByLabelText("Roli — select club"));
     const rows = Array.from(document.querySelectorAll('[role="option"]'));
     expect(rows).toHaveLength(1);
@@ -289,6 +340,7 @@ describe("SelectClubsPanel (T2 controls row)", () => {
 
   it("balances the two random actions in one row and fills both sides at once", () => {
     const { container, getByRole } = render(<PanelHarness />);
+    fireEvent.click(getByRole("button", { name: /Clubs/ }));
 
     const dice = getByRole("button", { name: "Randomize the star filter" });
     const random = getByRole("button", { name: /Random matchup/ });
@@ -297,7 +349,7 @@ describe("SelectClubsPanel (T2 controls row)", () => {
     expect(random.className).toContain("flex-1");
     expect(dice.parentElement).toBe(random.parentElement);
 
-    // One tap fills both sides, so neither club line is a placeholder any more.
+    // One tap fills both sides, so neither slot is a placeholder any more.
     expect(container.textContent?.match(/Select club/g)).toHaveLength(2);
     fireEvent.click(random);
     expect(container.textContent).not.toContain("Select club");

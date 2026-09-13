@@ -136,7 +136,7 @@ function FriendlyEditor({
   const aPlayers = teamName(aSide);
   const bPlayers = teamName(bSide);
 
-  // Clubs: the preview scoreboard above is the trigger (T2 / DESIGN.md §9b).
+  // Clubs: one panel under the preview holds slots, filters and randomisers (T9).
   const clubSelection = useClubSelection({
     clubs: editorClubsQ.data ?? clubs,
     disabled: saveMut.isPending,
@@ -174,9 +174,6 @@ function FriendlyEditor({
             aGoals={aGoalsNum}
             bGoals={bGoalsNum}
             showOdds={false}
-            aLabel={aPlayers}
-            bLabel={bPlayers}
-            onPickClub={clubSelection.openPicker}
           />
 
           <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3">

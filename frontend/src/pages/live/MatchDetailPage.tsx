@@ -148,8 +148,8 @@ export default function MatchDetailPage() {
   const aPlayers = teamName(aSide);
   const bPlayers = teamName(bSide);
 
-  // Clubs: the preview scoreboard is the trigger (T2 / DESIGN.md §9b); the panel
-  // below it only carries the filters and the two random actions.
+  // Clubs: one panel under the preview holds the whole job — both slots, the
+  // filters and the two random actions (T9 / DESIGN.md §9b).
   const clubSelection = useClubSelection({
     clubs: clubsQ.data ?? [],
     disabled: saveMut.isPending,
@@ -260,9 +260,6 @@ export default function MatchDetailPage() {
                     bGoals={bGoalsNum}
                     showOdds={true}
                     showOddsWhenFinished={true}
-                    aLabel={aPlayers}
-                    bLabel={bPlayers}
-                    onPickClub={clubSelection.openPicker}
                   />
                 ) : null}
 
@@ -292,26 +289,22 @@ export default function MatchDetailPage() {
                 </div>
               </section>
 
-              {/* Clubs — the names live in the scoreboard above; tapping one there
-                  opens the picker, so this card only holds what acts on both sides. */}
-              <section className="card space-y-3">
-                <h2 className="text-sm font-semibold text-text-normal">Clubs</h2>
-                <SelectClubsPanel
-                  selection={clubSelection}
-                  extraTop={
-                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                      <Input label="Game" value={clubGame} onChange={(e) => setClubGame(e.target.value)} />
-                      {clubsQ.isLoading && <div className="text-sm text-text-muted">Loading clubs…</div>}
-                    </div>
-                  }
-                  extraBottom={
-                    <div className="text-xs text-text-muted">
-                      Tip: tap a club in the scoreboard above to change it — nothing is saved until you
-                      press Save.
-                    </div>
-                  }
-                />
-              </section>
+              {/* Clubs — the panel *is* the card here: its header names the job and
+                  both clubs, and everything the job needs lives inside it (T9). */}
+              <SelectClubsPanel
+                selection={clubSelection}
+                extraTop={
+                  <div className="space-y-2">
+                    <Input label="Game" value={clubGame} onChange={(e) => setClubGame(e.target.value)} />
+                    {clubsQ.isLoading && <div className="text-sm text-text-muted">Loading clubs…</div>}
+                  </div>
+                }
+                extraBottom={
+                  <div className="text-xs text-text-muted">
+                    Tip: nothing is saved until you press Save.
+                  </div>
+                }
+              />
 
               {/* Swap sides (admin only) */}
               {isAdmin ? (

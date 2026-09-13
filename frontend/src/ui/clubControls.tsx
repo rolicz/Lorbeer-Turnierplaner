@@ -383,7 +383,7 @@ export type ClubSelection = {
   /** The side the picker sheet is currently showing. */
   activeKey: "A" | "B";
   setActiveKey: (key: "A" | "B") => void;
-  /** Opens the sheet on one side — this is what the scoreboard's club line calls. */
+  /** Opens the sheet on one side — this is what a club slot in the panel calls. */
   openPicker: (side: "A" | "B") => void;
   closePicker: () => void;
   /** Applies a pick, then advances to the empty side or closes. */
@@ -393,11 +393,11 @@ export type ClubSelection = {
 };
 
 /**
- * The whole club-selection state of one match: the shared star/league filters,
- * which side the picker sheet is on, and the random matchup. It is a hook rather
- * than component state because the *trigger* now lives in the scoreboard
- * (`MatchOverviewPanel`) while the controls row and the sheet live in
- * `SelectClubsPanel` (T2/`DESIGN.md` §9b).
+ * The whole club-selection state of one match: the two clubs, the shared
+ * star/league filters, which side the picker sheet is on, and the random
+ * matchup. `SelectClubsPanel` renders all of it inside one panel (T9); a call
+ * site owns the hook so it can write each change the way it saves (autosave on
+ * the live match, form state everywhere else).
  */
 export function useClubSelection({
   clubs,

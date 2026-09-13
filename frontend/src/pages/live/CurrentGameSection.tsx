@@ -69,8 +69,8 @@ export default function CurrentGameSection({
   const [aGoals, setAGoals] = useState<number>(Number(a?.goals ?? 0));
   const [bGoals, setBGoals] = useState<number>(Number(b?.goals ?? 0));
 
-  // Clubs: the scoreboard below is the trigger, `SelectClubsPanel` holds the
-  // filters, the dice and Random matchup (T2 / DESIGN.md §9b).
+  // Clubs: `SelectClubsPanel` below holds the whole job — both slots, the
+  // filters and the two random actions — behind one disclosure (T9).
   const clubSelection = useClubSelection({
     clubs,
     disabled: busy || !canControl,
@@ -318,9 +318,8 @@ export default function CurrentGameSection({
           </div>
         </div>
 
-        {/* The panel opens the match detail, its club lines open the club picker:
-            the "open" affordance is a stretched overlay *behind* them, never a
-            button wrapping a button. */}
+        {/* The panel is read-only and opens the match detail; the clubs are set
+            in the club panel below it (T9). */}
         <div className="relative">
           <MatchOverviewPanel
             match={activeMatch}
@@ -329,9 +328,6 @@ export default function CurrentGameSection({
             aGoals={aGoals}
             bGoals={bGoals}
             showOdds={true}
-            aLabel={aInline}
-            bLabel={bInline}
-            onPickClub={canControl ? clubSelection.openPicker : undefined}
           />
           {onOpenMatch ? (
             <button
@@ -376,8 +372,9 @@ export default function CurrentGameSection({
       </div>
 
       <div className="mt-2 space-y-2">
-        {/* Club filters + the two random actions (the clubs themselves are named
-            once, in the scoreboard above). */}
+        {/* One panel for the whole club job: collapsed it is a single "Clubs" row
+            naming both clubs, open it holds the slots, the filters and the
+            randomisers (T9). */}
         {canControl && <SelectClubsPanel selection={clubSelection} />}
 
         {Number.isFinite(Number(activeMatch.tournament_id)) && activeMatch.tournament_id > 0 ? (
