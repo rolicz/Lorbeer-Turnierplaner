@@ -4177,7 +4177,7 @@ the dashboard's dot, the shared rhythm)
 
 ---
 
-## T11 — Back out of the matchup returns where you came from (Roli, 2026-09-13)  ☐
+## T11 — Back out of the matchup returns where you came from (Roli, 2026-09-13)  ☑
 
 Roli: "if i get to h2h from stats page (eg clicking on matrix cell) i want swipe back to go back
 to stats h2h page. if i get there from eg match details, i want swipe back to go to match details
@@ -4208,4 +4208,81 @@ scroll offset (±8px), `vs` gone; from `/live/<t>/match/<m>` tap "All matches: A
 → back on the match page; the in-view back button does exactly what the gesture does in both cases;
 Playwright with touch emulation at 390px plus a desktop check; `npm run check` + build.
 
-**Deviations:**
+**Deviations:** (implemented 2026-09-13, two commits: the fix + tests, this note)
+
+- **One rule, three affordances.** `StatsPage.patchParams` gained an opts argument, so
+  `setVs(ids, withPlayer?, { push: true })` is the *only* stats write that pushes; everything
+  else still replaces. `StatsInsights.openMatchup` passes it, and that single change is what makes
+  the swipe gesture and the browser's back button correct — both already pop on a non-detail page
+  (`resolveBackAction`: no `backTo`, `canPop` → `pop`), they were just popping past a stats page
+  that had never recorded the drill-in. No change to `useSwipeNav`, `routeMeta` or the chevron.
+- **The in-view button is the only one that needs a decision**, and it is the new pure
+  `resolveDrillInBackAction({ pathname, param, canPop, previousPath })` in
+  `ui/shell/backNavigation.ts` (+ `drillInBackActionFor()`, the live-state wrapper), sitting next
+  to N1/N3's `resolveBackAction` and reading the same `previousEntryPath()`/`historyCanPop()`.
+  `{ kind: "pop" }` when the entry behind is this very page without `vs`, `{ kind: "clear" }`
+  otherwise — including the case where *another* matchup sits behind us.
+- **Reading of the DoD line "the in-view back button does exactly what the gesture does in both
+  cases":** it takes the same decision, not always the same destination. Drilled in from the
+  matrix both pop, identically. After a deep link the task text is explicit ("otherwise clear the
+  param in place, which is the right thing for a deep link with no stats page behind it") and the
+  button is labelled **"Head-to-head"** — it must open the H2H list it names, not the match page.
+  The gesture there returns to the match page, which is exactly what Roli asked for. Verified as
+  two separate checks (B4, B4d) rather than blurred into one.
+- **Scroll bookkeeping: `swap(currentKey, null)` → `save(currentKey)`.** `swap` also starts a
+  `restoreWindowScroll(0)`, and with a *push* that loop races N2's `useScrollRestoration`, which
+  saves the outgoing entry's offset from the last observed `scroll` event: if the rAF landed
+  first, the matrix's history entry would have been stamped with `0` and the way back would have
+  dropped the reader at the top. The push already means "open at the top" (N2's PUSH rule), so the
+  hook does the scrolling and `openMatchup` only *records* the H2H body's offset — which is still
+  needed for the other way back into H2H, through the section tabs. Measured 700 → 0 → 700 px on
+  all three affordances.
+- **Neighbouring drill-ins — what stays `replace`, and why.** The rule is "a drill-in that
+  *replaces the body* is a history step"; a lateral move between things that are all on screen is
+  not.
+  - `?cup=` (T5) — **replace**, correctly: it is a one-shot param that opens the Cups sub-view and
+    then *deletes itself*. A push would leave a URL in the stack that no longer exists after the
+    page has cleaned it up, and pressing back would re-trigger the jump.
+  - Section tabs `setView` and sub-view chips `setSub` — **replace**: the four sections and their
+    chips are visible at all times, so the way back is one obvious tap. Pushing them would make
+    browser back walk the reader's tab history instead of leaving `/stats`, which the Decisions
+    section explicitly chose against. (Tapping another section *from inside* the matchup still
+    replaces, i.e. it consumes the matchup's own entry — back then lands on the matrix, which is
+    the entry that was behind it all along.)
+  - `goPlayer` (Table / Records row tap) — **replace**: it switches to the Player section, one of
+    the four always-visible tabs, and pre-selects a player. It swaps the body, but the return trip
+    is the "Overview" tab, not "back"; a push would add an entry per row tap while browsing the
+    table. N2 restores the list's offset either way (verified there).
+  - `useTabParam` (profile and the other seven tabbed pages) — **replace**, same argument as the
+    section tabs; `LiveTournamentPage`'s own `?tab=` likewise.
+  - `H2HView`'s duo / teammates history `Modal` — not a URL at all, and a modal's Escape/backdrop
+    is its own back. Left alone.
+- **Consequence, deliberate:** a Mode/Source change made *inside* the matchup does not survive the
+  way back any more — the pop returns to the matrix entry as it was left (`mode=overall` after
+  switching the matchup to `1v1`; check F). That is what "back returns you where you came from"
+  means with a real history entry, and the filter pill is one tap away on the list. Before T11 the
+  filter leaked backwards because there was only ever one entry.
+- **T7 is intact:** the push carries `player`, `vs`, `rel`, `mode` and `source` unchanged
+  (`/live/17/match/93` → `?…&player=1,4&vs=2,5`), and clearing still collapses a team to its first
+  player (`?…&player=1`). The pop path needs no collapsing at all — the entry behind the matchup
+  is the list URL, which never held a team.
+- Tests: `frontend/src/test/matchupBack.test.tsx`, 9 cases — 5 over `resolveDrillInBackAction`
+  (pop / deep link / nothing to pop / another matchup behind / empty param + trailing slash), 2
+  over `drillInBackActionFor` against a live `navStack`, and 2 rendering `StatsPage` with
+  `StatsInsights` mocked, asserting that opening the matchup *pushes* (a probe's `nav(-1)` returns
+  to the H2H list) and that clearing it does not (`nav(-1)` leaves for `/dashboard`). Suite
+  **420 tests in 43 files** (was 411/42), `npm run check` green, `npm run build` green with the
+  pre-existing "chunks larger than 500 kB" hint (644 kB `index-*.js`).
+- Runtime verification (isolated stack: backend :8003 on a copy of `app.db`, vite :8020) with
+  touch emulation (`isMobile`/`hasTouch`, CDP `Input.dispatchTouchEvent`): **54/54 checks green**,
+  27 at 390×844 and 27 at 1280×900 — the matrix cell and an opponent row each pushing one entry
+  and opening at `y=0`; from a list left at **700 px**, swipe right / browser back / the in-view
+  button all returning to it at **700 px** (Δ0, tolerance ±8) with `history.state.idx` back to its
+  old value; `/live/19/match/104` → "All matches: Roli vs Flo" → swipe right *and* browser back
+  → `/live/19/match/104`, while the in-view button opens the matrix in place (idx unchanged) and a
+  swipe from *there* still returns to the match page; the same for `/profiles/1`'s rival link; the
+  2v2 `/live/17/match/93` exact-team matchup and its collapse back to one player; no horizontal
+  overflow and no console/page errors.
+- `AGENTS.md` §10 updated (rule 7): the stats-URL bullet now says the matchup is the one pushed
+  param and names `resolveDrillInBackAction`, and the N2 scroll bullet says the matchup rides on
+  its history entry instead of `useReturnScroll`.
