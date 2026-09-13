@@ -188,15 +188,12 @@ function FriendlyEditor({
           <SelectClubsPanel
             clubs={editorClubsQ.data ?? clubs}
             disabled={saveMut.isPending}
-            aLabel={`${aPlayers} — club`}
-            bLabel={`${bPlayers} — club`}
+            aLabel={aPlayers}
+            bLabel={bPlayers}
             aClub={aClub}
             bClub={bClub}
             onChangeAClub={setAClub}
             onChangeBClub={setBClub}
-            defaultOpen={false}
-            wrapClassName="inset p-0"
-            narrowLayout
             extraTop={
               <Input label="Game" value={clubGame} onChange={(e) => setClubGame(e.target.value)} />
             }

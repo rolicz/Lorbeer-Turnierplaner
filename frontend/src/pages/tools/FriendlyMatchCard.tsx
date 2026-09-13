@@ -486,23 +486,25 @@ export default function FriendlyMatchCard({
 
         {clubsQ.isLoading && <div className="text-sm text-text-muted">Loading clubs…</div>}
 
-        <SelectClubsPanel
-          clubs={clubs}
-          disabled={!open || clubsQ.isFetching || !!clubsQ.error}
-          showSelectedMeta={true}
-          aLabel={`${aLabel} — club`}
-          bLabel={`${bLabel} — club`}
-          aClub={aClub}
-          bClub={bClub}
-          onChangeClubs={(aId, bId) => {
-            setAClub(aId);
-            setBClub(bId);
-          }}
-          onChangeAClub={setAClub}
-          onChangeBClub={setBClub}
-          defaultOpen={true}
-          wrapClassName="inset p-0"
-        />
+        <div className="space-y-3">
+          <div className="section-head">
+            <span className="section-label">Clubs</span>
+          </div>
+          <SelectClubsPanel
+            clubs={clubs}
+            disabled={!open || clubsQ.isFetching || !!clubsQ.error}
+            aLabel={aLabel}
+            bLabel={bLabel}
+            aClub={aClub}
+            bClub={bClub}
+            onChangeClubs={(aId, bId) => {
+              setAClub(aId);
+              setBClub(bId);
+            }}
+            onChangeAClub={setAClub}
+            onChangeBClub={setBClub}
+          />
+        </div>
     </div>
   );
 

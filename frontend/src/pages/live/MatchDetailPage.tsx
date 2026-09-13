@@ -278,28 +278,28 @@ export default function MatchDetailPage() {
               </section>
 
               {/* Clubs */}
-              <SelectClubsPanel
-                clubs={clubsQ.data ?? []}
-                disabled={saveMut.isPending}
-                aLabel={`${aPlayers} — club`}
-                bLabel={`${bPlayers} — club`}
-                aClub={aClub}
-                bClub={bClub}
-                onChangeAClub={setAClub}
-                onChangeBClub={setBClub}
-                defaultOpen={false}
-                wrapClassName="card p-0"
-                narrowLayout
-                extraTop={
-                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                    <Input label="Game" value={clubGame} onChange={(e) => setClubGame(e.target.value)} />
-                    {clubsQ.isLoading && <div className="text-sm text-text-muted">Loading clubs…</div>}
-                  </div>
-                }
-                extraBottom={
-                  <div className="text-xs text-text-muted">Tip: change clubs anytime before saving.</div>
-                }
-              />
+              <section className="card space-y-3">
+                <h2 className="text-sm font-semibold text-text-normal">Clubs</h2>
+                <SelectClubsPanel
+                  clubs={clubsQ.data ?? []}
+                  disabled={saveMut.isPending}
+                  aLabel={aPlayers}
+                  bLabel={bPlayers}
+                  aClub={aClub}
+                  bClub={bClub}
+                  onChangeAClub={setAClub}
+                  onChangeBClub={setBClub}
+                  extraTop={
+                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                      <Input label="Game" value={clubGame} onChange={(e) => setClubGame(e.target.value)} />
+                      {clubsQ.isLoading && <div className="text-sm text-text-muted">Loading clubs…</div>}
+                    </div>
+                  }
+                  extraBottom={
+                    <div className="text-xs text-text-muted">Tip: change clubs anytime before saving.</div>
+                  }
+                />
+              </section>
 
               {/* Swap sides (admin only) */}
               {isAdmin ? (

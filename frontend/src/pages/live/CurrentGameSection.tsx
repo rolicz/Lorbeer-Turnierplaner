@@ -356,8 +356,8 @@ export default function CurrentGameSection({
           <SelectClubsPanel
             clubs={clubs}
             disabled={busy || !canControl}
-            aLabel={`${aInline} — club`}
-            bLabel={`${bInline} — club`}
+            aLabel={aInline}
+            bLabel={bInline}
             aClub={aClub}
             bClub={bClub}
             onChangeClubs={(aId, bId) => {
@@ -375,7 +375,6 @@ export default function CurrentGameSection({
               setBClub(v);
               queueAutosave({ bClub: v });
             }}
-            wrapClassName="inset p-0"
           />
         )}
 
