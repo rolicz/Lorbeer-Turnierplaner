@@ -90,6 +90,39 @@ function Names({
   );
 }
 
+/**
+ * The bare score numerals — big, tabular, hairline separator, no colon and no box.
+ * `ScoreLine` is built from it, and so is anything else that has to *speak* a score
+ * without being one (the goal entry's "which side scores" control, T3).
+ */
+export function ScoreNumerals({
+  size = "md",
+  left,
+  right,
+  leftClassName,
+  rightClassName,
+  className,
+}: {
+  size?: ScoreLineSize;
+  left: ReactNode;
+  right: ReactNode;
+  leftClassName?: string;
+  rightClassName?: string;
+  className?: string;
+}) {
+  return (
+    <div className={cn("flex items-center justify-center gap-2 font-bold tabular-nums", NUMERAL_CLASS[size], className)}>
+      <span data-score-numeral="left" className={leftClassName}>
+        {left}
+      </span>
+      <span aria-hidden="true" className="h-[0.75em] w-px bg-border-card-chip/70" />
+      <span data-score-numeral="right" className={rightClassName}>
+        {right}
+      </span>
+    </div>
+  );
+}
+
 function ResultBadge({ result }: { result: ScoreResult }) {
   return (
     <span
@@ -168,26 +201,25 @@ export default function ScoreLine({
           badge={badgeSide === "left" ? badge : null}
         />
 
-        <div
-          className={cn(
-            "flex items-center justify-center gap-2 justify-self-center font-bold tabular-nums",
-            NUMERAL_CLASS[size],
-          )}
-        >
-          {scheduled && size === "sm" ? (
+        {scheduled && size === "sm" ? (
+          <div
+            className={cn(
+              "flex items-center justify-center gap-2 justify-self-center font-bold tabular-nums",
+              NUMERAL_CLASS[size],
+            )}
+          >
             <span className="text-sm font-medium text-text-muted">vs</span>
-          ) : (
-            <>
-              <span data-score-numeral="left" className={scheduled ? "text-text-muted" : numeralColor("left")}>
-                {scheduled ? "–" : a}
-              </span>
-              <span aria-hidden="true" className="h-[0.75em] w-px bg-border-card-chip/70" />
-              <span data-score-numeral="right" className={scheduled ? "text-text-muted" : numeralColor("right")}>
-                {scheduled ? "–" : b}
-              </span>
-            </>
-          )}
-        </div>
+          </div>
+        ) : (
+          <ScoreNumerals
+            size={size}
+            className="justify-self-center"
+            left={scheduled ? "–" : a}
+            right={scheduled ? "–" : b}
+            leftClassName={scheduled ? "text-text-muted" : numeralColor("left")}
+            rightClassName={scheduled ? "text-text-muted" : numeralColor("right")}
+          />
+        )}
 
         <Names
           lines={toLines(rightNames)}

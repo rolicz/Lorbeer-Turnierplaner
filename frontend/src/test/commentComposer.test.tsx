@@ -5,8 +5,8 @@ import CommentComposer, { CommentSendRow } from "../pages/live/comments/CommentC
 import type { CommentCreateMode } from "../pages/live/tournamentCommentTypes";
 
 const GOAL_TEAMS = [
-  { side: "A" as const, label: "Rumpi", nextScoreline: "1-0" },
-  { side: "B" as const, label: "Roli", nextScoreline: "0-1" },
+  { side: "A" as const, label: "Rumpi", names: ["Rumpi"], nextA: 1, nextB: 0 },
+  { side: "B" as const, label: "Roli", names: ["Roli"], nextA: 0, nextB: 1 },
 ];
 
 function renderComposer(overrides: Partial<React.ComponentProps<typeof CommentComposer>> = {}) {
@@ -101,15 +101,22 @@ describe("CommentComposer", () => {
   it("turns into the goal entry in place, with both sides and the scoreline they make", () => {
     const onGoalSideChange = vi.fn();
     const onModeChange = vi.fn();
-    const { getByTitle, getByLabelText, getByText } = renderComposer({
+    const { getByTitle, getByLabelText, getAllByRole } = renderComposer({
       mode: "goal",
       goalSide: null,
       onGoalSideChange,
       onModeChange,
     });
 
-    expect(getByText("1-0")).toBeInTheDocument();
-    expect(getByText("0-1")).toBeInTheDocument();
+    // both options show the scoreline they would make, in score numerals
+    const options = getAllByRole("radio");
+    expect(options).toHaveLength(2);
+    expect(options[0].querySelector('[data-score-numeral="left"]')?.textContent).toBe("1");
+    expect(options[0].querySelector('[data-score-numeral="right"]')?.textContent).toBe("0");
+    expect(options[1].querySelector('[data-score-numeral="left"]')?.textContent).toBe("0");
+    expect(options[1].querySelector('[data-score-numeral="right"]')?.textContent).toBe("1");
+    expect(options[0]).toHaveAttribute("aria-checked", "false");
+
     fireEvent.click(getByTitle("Goal for Rumpi — makes it 1-0"));
     expect(onGoalSideChange).toHaveBeenCalledWith("A");
 
@@ -249,5 +256,28 @@ describe("CommentSendRow", () => {
     );
 
     expect(getByTitle("Post reply")).toBeDisabled();
+  });
+});
+
+describe("GoalSideChoice", () => {
+  it("names both players of a 2v2 side and marks the picked one", () => {
+    const { getAllByRole } = renderComposer({
+      mode: "goal",
+      goalSide: "B",
+      goalTeams: [
+        { side: "A", label: "Roli/Atzi", names: ["Roli", "Atzi"], nextA: 3, nextB: 2 },
+        { side: "B", label: "Flo/Rumpi", names: ["Flo", "Rumpi"], nextA: 2, nextB: 3 },
+      ],
+    });
+
+    const [a, b] = getAllByRole("radio");
+    expect(a.textContent).toContain("Roli");
+    expect(a.textContent).toContain("Atzi");
+    expect(a).toHaveAttribute("aria-checked", "false");
+    expect(b).toHaveAttribute("aria-checked", "true");
+    expect(b).toHaveAttribute("aria-label", "Goal for Flo/Rumpi — makes it 2-3");
+    // the numeral that goes up is the emphasised one
+    expect(b.querySelector('[data-score-numeral="left"]')?.className).toContain("text-text-muted");
+    expect(b.querySelector('[data-score-numeral="right"]')?.className ?? "").not.toContain("text-text-muted");
   });
 });

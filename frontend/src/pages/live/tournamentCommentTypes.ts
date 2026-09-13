@@ -10,8 +10,13 @@ export type CommentGoalSide = "A" | "B";
 /** One side of the match as a goal target, with the scoreline the goal would make. */
 export type CommentGoalTeamOption = {
   side: CommentGoalSide;
+  /** "Rumpi/Flo" — the side on one line, for labels and titles. */
   label: string;
-  nextScoreline: string;
+  /** One entry per player, so a 2v2 side stacks like a `ScoreLine`. */
+  names: string[];
+  /** The scoreline this side scoring would make. */
+  nextA: number;
+  nextB: number;
 };
 
 export type CommentScope = { kind: "tournament" } | { kind: "match"; matchId: number };

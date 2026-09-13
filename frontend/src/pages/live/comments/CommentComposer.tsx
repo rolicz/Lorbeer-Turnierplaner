@@ -14,6 +14,7 @@ import { useEffect, useRef } from "react";
 
 import Button from "../../../ui/primitives/Button";
 import { Chip } from "../../../ui/primitives/Chip";
+import { ScoreNumerals } from "../../../ui/primitives/ScoreLine";
 import { cn } from "../../../ui/cn";
 import type { CommentCreateMode, CommentGoalSide, CommentGoalTeamOption } from "../tournamentCommentTypes";
 
@@ -137,6 +138,67 @@ export function CommentSendRow({
       >
         <Send size={16} aria-hidden="true" />
       </Button>
+    </div>
+  );
+}
+
+/**
+ * "Who scored?" — the two sides as one two-option control (T3). Each option names
+ * its side (two stacked names in 2v2) and shows the scoreline the goal would make
+ * in the app's score vocabulary (`ScoreNumerals`, DESIGN.md §8), with the numeral
+ * that goes up emphasised. It replaces the old "Rumpi 1-0" text chips.
+ */
+function GoalSideChoice({
+  teams,
+  value,
+  onChange,
+  disabled,
+}: {
+  teams: CommentGoalTeamOption[];
+  value: CommentGoalSide | null;
+  onChange: (side: CommentGoalSide) => void;
+  disabled?: boolean;
+}) {
+  return (
+    <div role="radiogroup" aria-label="Which side scored" className="grid grid-cols-2 gap-1.5">
+      {teams.map((team) => {
+        const selected = value === team.side;
+        const scoresLeft = team.side === "A";
+        const scoreline = `${team.nextA}-${team.nextB}`;
+        return (
+          <button
+            key={team.side}
+            type="button"
+            role="radio"
+            aria-checked={selected}
+            aria-label={`Goal for ${team.label} — makes it ${scoreline}`}
+            title={`Goal for ${team.label} — makes it ${scoreline}`}
+            onClick={() => onChange(team.side)}
+            disabled={disabled}
+            className={cn(
+              "focus-ring flex min-w-0 flex-col items-center gap-0.5 rounded-xl border px-2 py-2 transition disabled:opacity-50",
+              selected
+                ? "border-accent/40 bg-accent/15 text-accent"
+                : "border-border-card-chip/40 bg-bg-card-chip/50 text-text-normal hover:bg-bg-card-chip/70",
+            )}
+          >
+            <span className={cn("w-full min-w-0 text-xs leading-tight", selected ? "" : "text-text-muted")}>
+              {team.names.map((name, i) => (
+                <span key={`${name}-${i}`} className="block truncate">
+                  {name}
+                </span>
+              ))}
+            </span>
+            <ScoreNumerals
+              size="sm"
+              left={team.nextA}
+              right={team.nextB}
+              leftClassName={scoresLeft ? undefined : "text-text-muted"}
+              rightClassName={scoresLeft ? "text-text-muted" : undefined}
+            />
+          </button>
+        );
+      })}
     </div>
   );
 }
@@ -331,21 +393,7 @@ export default function CommentComposer({
         {mode === "goal" && allowMatchEventModes ? (
           <div className="space-y-2">
             <ModeBadge label="Goal" onLeave={() => onModeChange("comment")} disabled={disabled} />
-            <div className="grid grid-cols-2 gap-1.5">
-              {goalTeams.map((team) => (
-                <Chip
-                  key={team.side}
-                  selected={goalSide === team.side}
-                  onClick={() => onGoalSideChange(team.side)}
-                  disabled={disabled}
-                  className="min-w-0 text-left"
-                  title={`Goal for ${team.label} — makes it ${team.nextScoreline}`}
-                >
-                  <span className="block truncate">{team.label}</span>
-                  <span className="block text-xs opacity-80">{team.nextScoreline}</span>
-                </Chip>
-              ))}
-            </div>
+            <GoalSideChoice teams={goalTeams} value={goalSide} onChange={onGoalSideChange} disabled={disabled} />
             <div className="grid grid-cols-[5rem_minmax(0,1fr)] gap-1.5">
               <input
                 ref={minuteRef}

@@ -562,12 +562,17 @@ export default function TournamentCommentsCard({
     return match.sides
       .slice()
       .sort((left, right) => left.side.localeCompare(right.side))
-      .map((side) => ({
-        side: side.side as CommentGoalSide,
-        label: sidePlayersLabel(match, side.side as CommentGoalSide),
-        nextScoreline:
-          side.side === "A" ? `${current.a + 1}-${current.b}` : `${current.a}-${current.b + 1}`,
-      }));
+      .map((side) => {
+        const s = side.side as CommentGoalSide;
+        const names = (sideBy(match, s)?.players ?? []).map((p) => p.display_name).filter(Boolean);
+        return {
+          side: s,
+          label: sidePlayersLabel(match, s),
+          names: names.length ? names : ["—"],
+          nextA: s === "A" ? current.a + 1 : current.a,
+          nextB: s === "B" ? current.b + 1 : current.b,
+        };
+      });
   }
 
   function normalizeGoalMinute(value: string): number | null {
