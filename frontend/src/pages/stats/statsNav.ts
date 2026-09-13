@@ -10,6 +10,24 @@
  *  - nav state `{ statsTab: … }` (dashboard deep links).
  */
 
+/**
+ * One-shot deep-link param of the Cups sub-view: which cup to open at
+ * (`?view=overview&sub=cups&cup=<key>`, the dashboard preview's links).
+ * `CupsView` scrolls to that section and drops the param again; it is listed in
+ * `ui/shell/lastLocation.ts`'s one-shot params, so it is never replayed.
+ */
+export const CUP_PARAM = "cup";
+
+/** Anchor id of one cup's section inside the Cups sub-view. */
+export function cupSectionId(cupKey: string): string {
+  return `cup-${cupKey}`;
+}
+
+/** Link into the Cups sub-view, opening at that cup. */
+export function cupSectionHref(cupKey: string): string {
+  return `/stats?view=overview&sub=cups&${CUP_PARAM}=${encodeURIComponent(cupKey)}`;
+}
+
 export type StatsView = "overview" | "trends" | "h2h" | "player";
 export type OverviewSub = "table" | "positions" | "streaks" | "records" | "cups";
 export type H2HSub = "players" | "duos";

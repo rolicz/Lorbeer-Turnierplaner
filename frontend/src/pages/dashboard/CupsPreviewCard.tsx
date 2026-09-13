@@ -17,12 +17,10 @@ import { qk } from "../../api/queryKeys";
 import { cupColorVarForKey, rgbFromCssVar } from "../../cupColors";
 import { buildReigns } from "../stats/cupReigns";
 import { CupHolder, CupReignTimeline, ReignChip } from "../stats/cupParts";
+import { cupSectionHref } from "../stats/statsNav";
 import InlineLoading from "../../ui/primitives/InlineLoading";
 import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
 import { Pill } from "../../ui/primitives/Pill";
-
-/** The full cup page — the destination of every link on this block. */
-const CUPS_STATS = "/stats?view=overview&sub=cups";
 
 export default function CupsPreviewCard() {
   const defsQ = useQuery({ queryKey: qk.cupDefs(), queryFn: listCupDefs });
@@ -49,6 +47,8 @@ function CupPreview({ cup }: { cup: CupDef }) {
   const color = rgbFromCssVar(cupColorVarForKey(cup.key));
   const reigns = useMemo(() => buildReigns(q.data), [q.data]);
 
+  // Both doors open the full Cups sub-view *at this cup* (`?cup=<key>`).
+  const href = cupSectionHref(cup.key);
   const current = reigns.find((r) => r.current) ?? null;
   const eraMode = currentEraMode(cup.eras);
   // `tournaments_participated` counts the winning tournament itself, so a fresh
@@ -63,7 +63,7 @@ function CupPreview({ cup }: { cup: CupDef }) {
           which tournaments currently count, as on the Cups page itself. */}
       <div className="section-head">
         <Link
-          to={CUPS_STATS}
+          to={href}
           title={`Open ${cup.name} in Stats — reigns, records and per-player totals`}
           className="section-label inline-flex min-w-0 items-center gap-2 no-underline transition hover:text-text-normal"
         >
@@ -89,7 +89,7 @@ function CupPreview({ cup }: { cup: CupDef }) {
            holder's identity above it as its own link (never a nested <a>). */
         <div className="row-tap relative -mx-2 px-2 py-2">
           <Link
-            to={CUPS_STATS}
+            to={href}
             aria-label={`${cup.name} — open reigns and records in Stats`}
             className="focus-ring absolute inset-0 z-0 rounded-xl"
           />
