@@ -76,7 +76,8 @@ export function CupHolder({
             <span className="block truncate text-base font-semibold" style={{ color }}>
               {owner.display_name}
             </span>
-            <span className="block truncate text-xs text-text-muted">{meta}</span>
+            {/* No `truncate`: a wrapped date still reads, a cut one does not. */}
+            <span className="block text-xs text-text-muted">{meta}</span>
           </span>
         </PlayerLink>
       ) : (
@@ -86,7 +87,7 @@ export function CupHolder({
           </span>
           <div className="min-w-0 flex-1">
             <div className="truncate text-base font-semibold">No owner yet</div>
-            <div className="truncate text-xs text-text-muted">{meta}</div>
+            <div className="text-xs text-text-muted">{meta}</div>
           </div>
         </>
       )}

@@ -3525,8 +3525,8 @@ strip; both cups visible with holders + timeline; every link lands correctly (a 
 *on that cup's section*, asserted by its bounding box, not just the URL); `?tab=cups` redirects;
 screenshots 390px + 1280px, blue + light; `npm run check` + build.
 
-**Deviations:** (implemented 2026-09-13, three commits: shared parts + preview card, tab removal +
-redirect + `?cup=`, tests + docs)
+**Deviations:** (implemented 2026-09-13, four commits: shared parts + preview card, tab removal +
+redirect + `?cup=`, tests + docs, one visual fix found in the screenshots)
 
 - **What is rendered where after the split.** `pages/dashboard/CupCard.tsx` is **deleted** — with
   the Cups tab gone it had no caller, and its two halves already existed elsewhere. The overlap
