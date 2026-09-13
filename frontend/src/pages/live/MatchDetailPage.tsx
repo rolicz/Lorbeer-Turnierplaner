@@ -9,6 +9,7 @@ import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
 import PageLoadingScreen from "../../ui/primitives/PageLoadingScreen";
 import MatchOverviewPanel from "../../ui/primitives/MatchOverviewPanel";
 import { SectionTabs, type SectionTab } from "../../ui/SectionTabs";
+import PageLayout from "../../ui/layout/PageLayout";
 import SelectClubsPanel from "../../ui/SelectClubsPanel";
 import { GoalStepper, useClubSelection } from "../../ui/clubControls";
 import InlineBack from "../../ui/shell/InlineBack";
@@ -190,29 +191,24 @@ export default function MatchDetailPage() {
   ];
 
   return (
-    <div className="page">
-      {/* Header */}
-      <div className="mb-4">
-        <div className="mb-1 hidden items-center gap-2 lg:flex">
-          <InlineBack />
-          <h1 className="text-xl font-bold tracking-tight text-text-normal">
-            Match #{matchId}
-          </h1>
-        </div>
-        {match ? (
-          <p className="mt-1 text-sm text-text-muted">
+    <PageLayout
+      title={`Match #${matchId}`}
+      back={<InlineBack />}
+      meta={
+        match ? (
+          <span className="truncate text-sm text-text-muted">
             {aPlayers} vs {bPlayers}
-          </p>
-        ) : null}
-      </div>
-
+          </span>
+        ) : null
+      }
+    >
       <ErrorToastOnError error={tQ.error} title="Tournament loading failed" />
       <ErrorToastOnError error={saveMut.error} title="Could not save match" />
       <ErrorToastOnError error={clubsQ.error} title="Could not load clubs" />
 
       {match ? (
         <>
-          <SectionTabs tabs={tabs} active={activeTab} onChange={setActiveTab} className="mb-4" />
+          <SectionTabs tabs={tabs} active={activeTab} onChange={setActiveTab} />
 
           {activeTab === "h2h" ? (
             <MatchH2HPanel match={match} clubs={clubsQ.data ?? []} />
@@ -342,6 +338,6 @@ export default function MatchDetailPage() {
           ) : null}
         </>
       ) : null}
-    </div>
+    </PageLayout>
   );
 }

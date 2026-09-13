@@ -91,7 +91,7 @@ export default function SettingsPage() {
 
   return (
     <PageLayout title="Settings">
-      <SectionTabs tabs={settingsTabs} active={tab} onChange={setTab} className="mb-4" />
+      <SectionTabs tabs={settingsTabs} active={tab} onChange={setTab} />
 
       <div className="mx-auto grid max-w-2xl gap-4">
         {tab === "account" ? (

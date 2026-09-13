@@ -21,6 +21,11 @@ describe("SectionTabs", () => {
     expect(getByRole("tab", { name: /Overview/ })).toHaveAttribute("aria-selected", "false");
   });
 
+  it("keeps every tab a 44px tap target (T10)", () => {
+    const { getAllByRole } = render(<SectionTabs tabs={TABS} active="overview" onChange={() => {}} />);
+    for (const tab of getAllByRole("tab")) expect(tab.className).toContain("h-11");
+  });
+
   it("renders the badge count", () => {
     const { getByText } = render(<SectionTabs tabs={TABS} active="overview" onChange={() => {}} />);
     expect(getByText("3")).toBeInTheDocument();

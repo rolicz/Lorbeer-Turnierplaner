@@ -324,6 +324,18 @@ Other helpers: `seed --file backend/data/seed.json` (players/leagues/clubs upser
   a chevron and a swipe can never land in different places; on a top-level page with nothing to
   pop the gesture does nothing at all. Any horizontally draggable element must carry
   `data-no-swipe-nav`, or a swipe past its scroll edge navigates.
+- **One rhythm above every tab strip** (T10): `ui/layout/PageLayout.tsx` owns the desktop title
+  row (back · `h1` · meta · actions) and renders it **outside** `.page` — a `hidden lg:flex`
+  element is still a `space-y-*` sibling, which is what used to push every phone page's first
+  block down for nothing. Every tabbed page puts `SectionTabs` first inside `.page` and no page
+  renders a header block above it; measured, the first tab sits 16px under the mobile top bar
+  and 72px from the top on desktop, on all of dashboard/tournaments/live/done/profile/settings/
+  friendlies/clubs/stats/match detail. The live tournament's mode+date pills live next to the
+  desktop `h1` and at the top of its Overview tab (`pages/live/TournamentMetaPills.tsx`).
+- **One live indicator** (T10): the pulsing dot in the bottom tab bar (mobile) / sidebar
+  "Live now" (desktop). `ui/shell/ConnectionIndicator.tsx` renders **nothing** while the socket
+  is up and only says "Reconnecting"/"Offline" after a 1.2s grace period; the tournament page has
+  no status chip, and the dashboard's "Live now" section label carries no dot.
 - **Tab state is `?tab=` on every tabbed page** (U1). Seven pages go through
   `ui/shell/useTabParam.ts` (unknown or role-forbidden values fall back to the page default, the
   default value is deleted from the URL, writes are `replace`); `LiveTournamentPage` keeps its own

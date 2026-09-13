@@ -120,7 +120,7 @@ export default function TournamentsPage() {
     <PageLayout title="Tournaments">
       <ErrorToastOnError error={tournamentsQ.error} title="Tournaments loading failed" />
 
-      <SectionTabs tabs={tabs} active={tab} onChange={setTab} className="mb-4" />
+      <SectionTabs tabs={tabs} active={tab} onChange={setTab} />
 
       {tab === "new" && canWrite ? (
         <NewTournamentForm onCancel={() => setTab("all")} />

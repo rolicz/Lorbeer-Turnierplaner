@@ -4022,7 +4022,7 @@ for all four surfaces; `npm run check` + build.
 
 ---
 
-## T10 — "Live" once, and a uniform page header rhythm (Roli, 2026-09-13)  ☐
+## T10 — "Live" once, and a uniform page header rhythm (Roli, 2026-09-13)  ☑
 
 Roli: "in live tournament (or done tournament view): i dont like the 'live' pill there. also not
 on top of screen (beside bell) -> it is visible in the bottom row now with the red blinking dot ->
@@ -4067,7 +4067,113 @@ identical on dashboard, tournaments, live tournament, profile, settings, friendl
 (assert the measured offsets); screenshots 390px + 1280px, blue + light, of those pages plus a
 done tournament; `npm run check` + build.
 
-**Deviations:**
+**Deviations:** (implemented 2026-09-13, four commits: the live indicator, the pills' new home,
+the dashboard's dot, the shared rhythm)
+
+- **A. What each surface says about "live" now.**
+  - *Live/done tournament page:* nothing. `StatusChip` is deleted, not moved — a live tournament
+    has the **Current** tab and the match panel's own `playing` pill (`DESIGN.md` §8), a done one
+    opens on **Results**, and both carry the nav's pulsing dot.
+  - *Top bar / sidebar footer:* `ConnectionIndicator` renders **nothing** while the socket is up.
+    It shows "Reconnecting" (draw/amber) or "Offline" (muted) only after a **1.2s grace period** —
+    every page load passes through `reconnecting` for a moment while the two sockets handshake,
+    and without the delay the one state that is supposed to mean trouble would flash on every
+    navigation. The component also lost its double life as the "open the live tournament" button
+    (and the `GET /tournaments/live` query behind it): that shortcut exists twice over in the
+    sidebar/drawer "Live now" entry and the bottom bar's Tournaments tab. Its unused `compact`
+    prop went with it.
+  - *Bottom tab bar (mobile) / sidebar "Live now" (desktop):* the pulsing dot — the one live
+    indicator, as Roli asked. The drawer's "Live now" entry keeps its dot too; it is only on
+    screen while the drawer covers everything else.
+  - *Dashboard:* the "Live now" section head **lost its pulsing dot** (the words stay, so does the
+    tournament-name link). Otherwise the dashboard showed two pulsing dots half a screen apart —
+    the section label and the bottom bar on a phone, the section label and the sidebar on desktop.
+  - *Tournaments list:* unchanged. The row keeps the word "Live" in its meta line and its green
+    rail — that is *that row's status* among draft/live/done, not a second global indicator, and
+    at most one row can have it.
+  - Asserted at runtime: the number of visible `.live-dot` elements is **≤ 1** on every one of the
+    ten pages, in both themes, at both widths.
+- **B. Where the pills went (the judgement the task left open).** `pages/live/TournamentMetaPills.tsx`
+  renders mode + date **next to the desktop `h1`** (through `PageLayout`'s new `meta` slot, where
+  the title row has room to spare) and, `lg:hidden`, as the **first row of the Overview tab** on a
+  phone. One visible copy per breakpoint, never two — the plan's recommendation, split by
+  breakpoint instead of duplicated. On a done tournament, which opens on Results, they are one tab
+  away; the Overview tab exists for done tournaments and both pills were verified there at 390px
+  and 1280px in both themes. Rejected alternatives: a trailing slot inside the tab strip (at 390px
+  the tournament page already scrolls six tabs — the pills would eat a third of the strip); a meta
+  row under the strip on every tab (always visible, but it puts a per-page block back exactly where
+  the rhythm has to be identical); desktop-only (a phone would lose the date entirely).
+  The header's other inhabitant, **"mark all unread comments as read"**, moved into the comments
+  feed's own header row (`TournamentCommentsCard`'s new `headerAction`, next to "Collapse all") —
+  the action now sits on the thing it acts on (`DESIGN.md` §9b) instead of in a page header.
+- **C. `PageLayout` owns the band, and what the "wasted space" actually was.** It was Tailwind's
+  `space-y-*`: the title row is `hidden lg:flex`, and a `display:none` child is **still** a
+  `space-y` sibling (the selector is `:not([hidden])` — the *attribute*, not the class), so on a
+  phone every page's first block carried a stray 12px (16px on the dashboard's `space-y-4`) on top
+  of `main`'s own 16px, for an element nobody could see. `PageLayout` now renders the title row
+  **outside** `.page` (back chevron · `h1` · `meta` · `actions`), which fixes it for every page at
+  once — `SectionTabs` was left to own only itself.
+  - **390px, measured (top bar ends at y=57).** Before: strip at **y=85** on tournaments, settings,
+    friendlies, clubs, stats (28px band); **y=113** on the live and the done tournament (56px —
+    title row + pills + `mb-3`); dashboard's first section label at **y=89** (32px) and the
+    profile's hero at y=89; match detail at y=113. After: **y=73 on all ten pages** — a 16px band
+    that is exactly `main`'s `py-4` and nothing else. That is 12px back on every page, 40px on a
+    tournament page, and T5's leftover 4px dashboard difference is gone.
+  - **1280px, measured.** Before: 68px on the `PageLayout` pages, **96px** on the tournament and
+    match pages (their `h1` was `sm:text-2xl` and the 32px `InlineBack` chevron made the row taller
+    than the plain 28px title rows). After: **72px everywhere** — the title row is a fixed
+    `min-h-8` (32px) whether or not it carries a back chevron, and every page's `h1` is `text-xl`
+    (the live page's and the profile's `sm:text-2xl` is gone).
+  - **Under the strip: 12px on every tabbed page.** The `className="mb-4"` that five pages passed
+    was already dead code — `space-y-3` sets `margin-bottom: 0` on the same element with higher
+    specificity — so the `className` prop is gone from `SectionTabs` altogether: a page can no
+    longer set the strip's rhythm at all.
+  - **Not cramped.** Tabs are now a full **44px** tap target (`h-11`; they were 40px), so the strip
+    grew 4px while the band above it shrank 12px. U1's edge fades are untouched and were
+    re-asserted (the six-tab strip still fades on the right at 390px).
+  - **Profile** is the one page whose strip is not the page's first block, and deliberately so: its
+    hero (avatar, cups, guestbook counters, poke) belongs to all four tabs, and Roli's own words
+    ("the pills … are the only thing that uses that area") never counted it as a header. Its *page*
+    starts at the same 73px/72px as every other page; its column went `space-y-4` → `space-y-3` so
+    the gap under its strip is the same 12px as everywhere else. Its strip sits 356px below the top
+    bar at 390px, under the hero.
+  - **Dashboard** keeps `space-y-4` *between* its four preview blocks (T5 tuned the cups grid's
+    `gap-4` to it); only the top offset was T10's business, and it now matches every tab strip to
+    the pixel, so the page reads as a sibling that simply has no strip.
+  - **Match detail** is not in the DoD list but had the same smell (a desktop `h1` plus an
+    always-visible "A vs B" line above its strip). It adopted `PageLayout` too: the names moved
+    next to the desktop `h1`; on a phone the H2H tab's first line already names both teams
+    ("Roli / Atzi vs Flo / Rumpi"), so nothing was lost.
+  - `#app-top-nav` was not touched (the header's markup is unchanged), so `scrollToSection`'s
+    offset still works — re-verified with the `?cup=` deep link and the profile's guestbook tab.
+- **Tests:** new `src/test/pageRhythm.test.tsx` (7 cases: the title row is outside `.page`,
+  `back`/`meta`/`actions` land in it, no title → no row; the indicator is silent while connected,
+  silent during the handshake, and speaks after the grace period in both trouble states) plus a
+  44px-tap-target case in `sectionTabs.test.tsx`. Suite **403 → 411** in 42 files.
+- `npm run build` still prints the pre-existing "chunks larger than 500 kB" hint (644 kB
+  `index-*.js`).
+
+**Verification**
+
+- `cd frontend && npm run check`: **42 files, 411 tests** green. `npm run build` green. No backend
+  change.
+- Runtime, isolated stack (backend :8003 on a **copy** of `app.db` + a scratch secrets file with an
+  admin account, vite :8020), Playwright, blue + light × 390px + 1280px: **292 checks** over ten
+  pages (dashboard, tournaments, live tournament 21, done tournament 19, profile, settings,
+  friendlies, clubs, stats, match detail) — ≤1 visible live dot, the connection indicator absent
+  while connected, nothing above the strip in the content column, 44px tabs, 12px under the strip,
+  one identical band per page, no nested `<a>`, no horizontal overflow, 0 console errors — **plus
+  48 checks** in a second pass: both pills on the live *and* the done tournament's Overview, the
+  `?cup=` deep link still landing below the sticky header with the one-shot param dropped, the
+  guestbook tab, the tab-strip fade, and the match page's teams still named.
+- **The socket drop was forced in the browser** (the page's `WebSocket` constructor is wrapped so
+  the test can close every `/ws/` socket and point reconnects at a dead port; Vite's HMR socket is
+  left alone, since closing it reloads the page): before the drop `[data-connection-status]` is
+  absent, ~2s after it exactly **one** visible indicator says "Reconnecting" — in the top bar at
+  390px, in the sidebar footer at 1280px.
+- Screenshots (scratchpad `shots/`): `t10-{dashboard,tournaments,live,done,profile,settings,
+  friendlies,clubs,stats,matchdetail}-{390,1280}-{blue,light}`, plus
+  `t10-{live-overview,done-overview,cupjump,guestbook,socketdrop}-{390,1280}-{blue,light}`.
 
 ---
 

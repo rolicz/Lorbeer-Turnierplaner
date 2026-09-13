@@ -26,6 +26,7 @@ import InlineBack from "../ui/shell/InlineBack";
 import { forgetLocation } from "../ui/shell/lastLocation";
 import { useContextualBack } from "../ui/shell/backNavigation";
 import { SectionTabs, type SectionTab } from "../ui/SectionTabs";
+import PageLayout from "../ui/layout/PageLayout";
 import { useTabParam } from "../ui/shell/useTabParam";
 import { User, BarChart3, ListChecks, BookOpen } from "lucide-react";
 import GuestbookSection from "./profile/GuestbookSection";
@@ -270,8 +271,8 @@ export default function ProfilePage() {
   }
 
   return (
-    <div className="page">
-      <div id="profile-section-main" className="space-y-4">
+    <PageLayout title={displayName ?? "Profile"} back={isDetailRoute ? <InlineBack /> : null}>
+      <div id="profile-section-main" className="space-y-3">
         <ErrorToastOnError error={playersQ.error} title="Players loading failed" />
         <ErrorToastOnError error={profileQ.error} title="Profile loading failed" />
         <ErrorToastOnError error={pokes.pokesError} title="Pokes loading failed" />
@@ -279,14 +280,6 @@ export default function ProfilePage() {
         <ErrorToastOnError error={saveProfileMut.error} title="Could not save profile text" />
         <ErrorToastOnError error={pokes.pokeMut.error} title="Could not anpöbeln" />
         <ErrorToastOnError error={pokes.markPokesReadAllMut.error} title="Could not mark notifications as read" />
-
-        {/* Desktop title row (mobile shows the name in the top bar), like the live page. */}
-        <div className="hidden items-center gap-2 lg:flex">
-          {isDetailRoute ? <InlineBack /> : null}
-          <h1 className="truncate text-xl font-bold tracking-tight text-text-normal sm:text-2xl">
-            {displayName ?? "Profile"}
-          </h1>
-        </div>
 
         <ProfileHeader
           targetPlayerId={targetPlayerId}
@@ -382,6 +375,6 @@ export default function ProfilePage() {
         queryFn={() => listPlayerGuestbookEntryVoters(guestbook.voteVotersEntryId as number)}
         onClose={() => guestbook.setVoteVotersEntryId(null)}
       />
-    </div>
+    </PageLayout>
   );
 }

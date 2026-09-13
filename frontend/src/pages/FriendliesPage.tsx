@@ -28,7 +28,7 @@ export default function FriendliesPage() {
 
   return (
     <PageLayout title="Friendlies">
-      <SectionTabs tabs={TABS} active={active} onChange={setActive} className="mb-4" />
+      <SectionTabs tabs={TABS} active={active} onChange={setActive} />
 
       {active === "all" && (
         <FriendlyMatchesListCard onInitialReady={handleListReady} />

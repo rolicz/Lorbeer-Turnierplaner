@@ -90,6 +90,13 @@ while `chip`, `.input-field` and `.select-field` stay white. Dark themes are una
   whole box an off-scale radius.
 - Spacing rhythm: `gap-2` inside rows, `gap-3` between elements, `space-y-3` inside cards,
   `space-y-5` between page sections. Page padding via `--page-pad-x`.
+- **Page rhythm (T10).** A page's title row — back chevron · `h1` · meta · actions, `hidden
+  lg:flex`, a fixed 2rem tall — belongs to `PageLayout` and sits *outside* the content column,
+  so a phone starts every page at `main`'s padding alone (16px under the top bar; 72px from the
+  top on desktop, title row included). A tabbed page's `SectionTabs` strip is therefore the
+  **first block in the column on every page**, 44px tall, 12px above the block under it, with no
+  header block of any kind above it; a page without a strip (dashboard) starts its first section
+  at exactly the same offset. Pages do not style the strip — `SectionTabs` takes no `className`.
 - Elevation: only `card` has a shadow. Floating elements (filter pill, toasts, bottom bar) use
   `shadow-pop` + `backdrop-blur-md`.
 
@@ -195,7 +202,8 @@ Sizes `hero` (match panel), `md` (match rows in lists), `sm` (compact rows, mini
   16px `W/D/L` letter chip on that side's outer edge, inside its names cell — so it stays
   next to the score on a wide row — for dense lists (Last 5, recent meetings).
 - **The mode is not part of a match.** A match row or panel does not repeat `1v1` / `2v2`:
-  the page around it says it (a tournament's header pill, a friendly's mode switch) and a
+  the page around it says it (the tournament's meta pills — next to the desktop `h1`, and at the
+  top of its Overview tab on a phone — or a friendly's mode switch) and a
   2v2 score stacks two names per side. `MatchOverviewPanel`'s `showMode` and
   `MatchHistoryList`'s `showModePill` are off by default and turned on only where one list
   genuinely mixes modes — the friendlies list and any history shown in Overall mode

@@ -286,7 +286,7 @@ export default function ClubsPage() {
       <ErrorToastOnError error={patchMut.error} title="Could not update club" />
       <ErrorToastOnError error={deleteMut.error} title="Could not delete club" />
 
-      <SectionTabs tabs={clubTabs} active={tab} onChange={setTab} className="mb-4" />
+      <SectionTabs tabs={clubTabs} active={tab} onChange={setTab} />
 
       {tab === "new" && canEdit ? (
       <section className="mx-auto w-full max-w-lg">

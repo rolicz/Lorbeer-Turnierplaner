@@ -1,6 +1,11 @@
 /**
  * In-page horizontal tab strip that shows one section at a time.
  * Replaces the scroll-spy SubNav machinery for pages with multiple sections.
+ *
+ * The strip's rhythm is the component's, not the page's (T10): every tabbed page
+ * puts it first inside `.page`, so the space above it is `main`'s padding and the
+ * space below it the page column's own gap — identical everywhere. Tabs are a
+ * full 44px tap target.
  */
 import { type ReactNode, useCallback, useEffect, useId, useRef, useState } from "react";
 import { cn } from "./cn";
@@ -17,7 +22,6 @@ type Props<K extends string> = {
   tabs: SectionTab<K>[];
   active: K;
   onChange: (key: K) => void;
-  className?: string;
 };
 
 /**
@@ -27,7 +31,7 @@ type Props<K extends string> = {
  */
 const EDGE_SLACK_PX = 24;
 
-export function SectionTabs<K extends string>({ tabs, active, onChange, className }: Props<K>) {
+export function SectionTabs<K extends string>({ tabs, active, onChange }: Props<K>) {
   const id = useId();
   const scrollerRef = useRef<HTMLDivElement | null>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
@@ -61,7 +65,7 @@ export function SectionTabs<K extends string>({ tabs, active, onChange, classNam
   }, [active, syncOverflow]);
 
   return (
-    <div className={cn("relative -mx-4 lg:-mx-6", className)}>
+    <div className="relative -mx-4 lg:-mx-6" data-section-tabs>
       <div
         ref={scrollerRef}
         role="tablist"
@@ -82,7 +86,7 @@ export function SectionTabs<K extends string>({ tabs, active, onChange, classNam
               type="button"
               onClick={() => onChange(tab.key)}
               className={cn(
-                "relative mr-1 flex shrink-0 items-center gap-1.5 whitespace-nowrap px-3 py-2.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40",
+                "relative mr-1 flex h-11 shrink-0 items-center gap-1.5 whitespace-nowrap px-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40",
                 isActive
                   ? "text-accent after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:rounded-full after:bg-accent after:content-['']"
                   : "text-text-muted hover:text-text-normal",
