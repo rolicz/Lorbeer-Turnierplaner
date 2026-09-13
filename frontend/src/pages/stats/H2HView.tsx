@@ -279,6 +279,7 @@ export default function H2HView({ mode, scope, rows, subView, selectedId, onSele
                 focusId={historyModal.focusPlayerId}
                 clubs={clubsQ.data ?? []}
                 showMeta={historyDetails}
+                showModePill={mode === "overall"}
                 matchHref={tournamentMatchHref}
               />
             ) : null}

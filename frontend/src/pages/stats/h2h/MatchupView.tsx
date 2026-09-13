@@ -220,7 +220,7 @@ export default function MatchupView({ mode, scope, leftId, rightId, rows, onBack
                 focusId={leftId}
                 clubs={clubsQ.data ?? []}
                 showMeta={details}
-                hideModePill={mode !== "overall"}
+                showModePill={mode === "overall"}
                 matchHref={tournamentMatchHref}
               />
             </>

@@ -42,7 +42,9 @@ export default function MatchOverviewPanel({
   mode?: TournamentMode | null;
   aGoals: number;
   bGoals: number;
-  /** Adds the `1v1` / `2v2` token to the meta line. */
+  /** Adds the `1v1` / `2v2` token to the meta line. Off by default (DS8): inside a
+   *  tournament the page header already says the mode, and a 2v2 score stacks two
+   *  names per side anyway. Only a mixed-mode context (friendlies) turns it on. */
   showMode?: boolean;
   showOdds?: boolean;
   showOddsWhenFinished?: boolean;

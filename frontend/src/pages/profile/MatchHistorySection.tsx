@@ -29,6 +29,7 @@ export default function MatchHistorySection({
         focusId={targetPlayerId}
         clubs={clubs}
         showMeta={false}
+        showModePill
         matchHref={tournamentMatchHref}
         renderTournamentPills={(t) => {
           const row = tournamentPlacementById.get(Number(t.id));

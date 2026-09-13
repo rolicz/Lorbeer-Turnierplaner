@@ -110,7 +110,7 @@ all read-only checks; editor/admin flows can be checked by code + tests.
 | 27 | N3 | Swipe back/forward always makes sense ☑ | frontend |
 | 28 | DS3 | Surface & radius migration, retire old classes ☑ | frontend |
 | 29 | DS4 | Typography & section headers on the scale ☑ | frontend |
-| 30 | DS8 | Stats sub-pages made of the same stone (+ drop redundant mode pill) | frontend |
+| 30 | DS8 | Stats sub-pages made of the same stone (+ drop redundant mode pill) ☑ | frontend |
 | 31 | S10 | Match comments & club selection reworked | frontend |
 | 32 | D1 | Documentation pass (README, frontend/README, AGENTS.md, DESIGN.md) | docs |
 
@@ -2463,7 +2463,7 @@ dot), popover open from the pill and from the sub-chip entry. `npm run check` + 
 
 ---
 
-## DS8 — Stats sub-pages made of the same stone  ☐
+## DS8 — Stats sub-pages made of the same stone  ☑
 
 **Why (Roli #4, #6).** "Records looks very different than Streaks even though it's very similar
 information (I prefer like in Streaks). Records also does not use the match result element used
@@ -2493,7 +2493,108 @@ a title, the explainer, then rows.
 skeleton; Records match rows visibly use the shared score element; a tournament match card shows
 no mode pill while a mixed-mode history list still does. `npm run check` + build.
 
-**Deviations:**
+**Deviations:** (implemented 2026-09-13, four commits: skeleton + canon + Streaks;
+RecordsView rebuild; audit pass + the comments header; mode pill + plan/canon)
+
+- **The skeleton is a component, not a convention.** `frontend/src/pages/stats/StatsSection.tsx`
+  (`label`, `icon`, `explainer`, `action`, children) renders `section-head` + `section-label`
+  (icon first) + the muted explainer + the rows, with the action at `order-1` so the hairline
+  runs between label and action (§6). Every stats sub-view uses it; `git grep -n "section-head"
+  frontend/src/pages/stats` returns **0**. `DESIGN.md` §6 gains "Stats sub-view skeleton".
+- **Category blocks are flat, not cards.** The task says "a `card` per category with an icon";
+  Streaks' four "cards" are in fact flat `section-head` blocks on the page surface, and the task
+  also says Streaks "stays the reference". Boxing them would have contradicted that *and* §1.2
+  ("flat and list-first") and §10 ("don't use a box for numbers"), so the canon records the
+  reference as it is: flat `StatsSection`s in a `grid gap-6 lg:grid-cols-2`. Records lost its
+  three `inset` boxes and now looks exactly like Streaks.
+- **Records' group headings are gone, the categories keep theirs.** "Titles", "Match
+  superlatives" and "Longest runs" were a second header level above the per-category headings;
+  §6 forbids two header patterns for one block. Each category now heads itself ("Most tournament
+  wins", "Biggest win", "Highest-scoring match", "Most goals by one side", "Biggest upset (by
+  Elo)", "Longest win streak", "Longest unbeaten streak") — more informative than the group word
+  it replaces. No information is lost: the "×N" tie counts moved to the header's action slot,
+  "+N more" stays, and the "Across N finished matches." footer is untouched.
+- **"Longest runs" stopped being `StatTile`s** (DS4 put them there) and became two category
+  blocks with the same row Streaks renders: rank, avatar, name → profile, the date range, the
+  "live" marker for an ongoing run and the record length in accent. The tile showed the holders
+  as a `hint`; the rows show them as identities, so they are clickable and legible.
+- **Records match rows: the `ScoreLine` was already there** (DS2 converted them), so this task's
+  work on them was the *link*: they linked to `/live/<t>?match=<id>`, which for a friendly means
+  a negative tournament id and a dead page. They use the shared `tournamentMatchHref` now (match
+  detail page, `null` for a friendly → an inert row), plus `row-tap focus-ring` like every other
+  match row. `RecMatch` drops `tId` for a precomputed `href`.
+- **"Show all" as a ghost `Button`** applies where a list has somewhere to go (Cups' "Show all N"
+  was bare accent text; H2H's already was a `Button` but sat *after* the hairline). Records'
+  ties are not expandable — there is no "all" to show — so they keep the canon's other
+  truncation marker, the muted `+N more` line, and Streaks gains that line too: it silently cut
+  its records and current runs at five.
+- **Empty and loading states.** 11 hand-rolled `<div className="text-sm text-text-muted">…` are
+  `EmptyState` (Positions, Table, Player ×2, Club stars, H2H ×5, duo leaderboard/rivalries/
+  detail, matchup, Records, Streaks ×2, the trend chart). Two are genuinely new: an empty
+  roster in the Table sub-view rendered a header-only table, and an empty Streaks payload
+  rendered nothing. Every sub-view already used `InlineLoading`, so loading needed no change.
+- **Three small canon fixes found by the audit**, each noted because they are visible:
+  `StatsTable`'s "Columns" drops its `section-head` (§6 names "Columns" as a *control* label, so
+  it is a bare `section-label` next to its chips, like the friendlies filters); the H2H matrix
+  cells go `rounded` → `rounded-md`, the radius §4 gives the positions grid's micro tiles (the
+  two grids are the same thing and sat at 4px vs 6px); and the matchup header's separator drops
+  `uppercase tracking-[0.14em]` (§6 bans uppercase inside a card) and reads like `ScoreLine`'s
+  own lowercase "vs"/"and".
+- **Two explainers are new**, not moved: the Cups reign timeline ("Each block is one reign — tap
+  it to jump to that row.") had no hint that its blocks are buttons, and Records' seven
+  categories needed one line each. Cups' "Held = … · Longest = …" moved from under the table to
+  the header, where every other explainer lives.
+- **Trends keeps its shape.** Its `Field` labels (Metric / View / Range) are already §6's
+  control-label idiom and the chart is the content, so inventing "Chart"/"Controls" headers
+  would have been noise; only its empty state changed. Recorded here so the next reader does not
+  read it as a miss.
+- **Mode pill.** `MatchHistoryList`/`MatchHistoryTournamentBlock`'s `hideModePill` became
+  **`showModePill`, default off**. On: profile Overview "Recent matches" and the profile Matches
+  tab (no mode filter there — always mixed), stats Player, the H2H matchup and the H2H history
+  modal **when the global mode is Overall**. `MatchOverviewPanel`'s `showMode` is dropped from
+  the live tournament's Current and Overview panels (the page header pill says the mode) and
+  from the dashboard's live-match card (Roli: "match card doesnt have to show 1v1 or 2v2").
+  `PositionsView`'s per-tournament mode marker already followed this rule (`mode === "overall"`)
+  and is unchanged.
+- **The friendlies list keeps the pill hidden** — a deliberate reading of "keep it where a list
+  mixes modes". It is hidden *today* (`hideModePill` was set), so nothing is removed, and
+  turning it on would print a lie: the list groups friendlies by **date**, and a group's mode is
+  computed as `every(r => r.mode === "2v2") ? "2v2" : "1v1"`, i.e. a mixed day would be labelled
+  `1v1`. The mode is stated by the list's own Mode filter above it and by the 1-vs-2 names in
+  each row. Making day groups honest (splitting them per mode) is new behaviour, not DS8's.
+  `showMode` therefore keeps exactly one caller, `FriendlyMatchCard`'s editor preview.
+- **`DESIGN.md` updated so the canon stays truthful:** §6 gains the skeleton, §8 loses the `1v1`
+  from the hero panel's meta-line example and gains "The mode is not part of a match" (which
+  props are off by default and the four places that turn them on), §10 gains the matching
+  Do/Don't.
+- **The DS3 hand-off is done:** the comments match-block header rendered `4 : 0` with a literal
+  colon and its own three-column grid. It is `ScoreLine sm` now (hairline separator, leader
+  emphasis, `vs` for a scheduled match instead of `—`), and its club and stars rows hug the
+  centre gap the way `MatchSides` does elsewhere. It does **not** adopt `MatchSides` itself:
+  that would add a league + flag row to every collapsed block in the feed, and `CommentList`
+  receives pre-computed club labels rather than club ids.
+- **Known cosmetic point.** At `lg` the category grid's rows are as tall as their tallest block,
+  so Records (a 5-row "Most tournament wins" next to a 1-row "Biggest win") leaves holes that
+  Streaks, whose four blocks are near-equal, does not. A CSS-columns/masonry layout would pack
+  them, but it needs an arbitrary-variant utility (`[&>*]:break-inside-avoid`) that the codebase
+  does not use anywhere; the grid is what the canon specifies and what Streaks uses. At 390px —
+  one column — it does not arise.
+- **Finding for D1 (not fixed here, out of scope):** `pages/stats/charts.tsx` exports four
+  components with **zero importers** — `Heatmap`, `WDLDonut`, `StatBar`, `MultiLine` (`Heatmap`
+  is where the last `rounded` micro tiles live). `ui/primitives/EmptyState.tsx` still takes an
+  `icon?: string` rendered as `<i className={icon}>`, a Font Awesome leftover with no callers.
+- Tests: 349 green, unchanged (no behaviour added; the suite asserts on `ScoreLine`, links and
+  tiles, none of which changed shape). `npm run check` green before every commit;
+  `npm run build` green with the pre-existing "chunks larger than 500 kB" hint (640 kB
+  `index-*.js`), as under every earlier task.
+- **Runtime verification** (isolated stack: backend :8003 on a copy of `app.db` with match 109
+  set to `playing` so the live pages show a real match, vite :8020): 18 routes × blue/light ×
+  390/1280 px — the five Overview sub-views, Trends, H2H players + duos, the matchup, stats
+  Player, the comments feed, the dashboard, `/live/20?tab=current|overview`, the match detail,
+  `/friendlies` and `/profiles/1?tab=matches` — **0 console/page errors, 0 horizontal overflow,
+  0 nested anchors** everywhere. Mode-pill assertions in the browser: stats Player in Overall
+  renders 17 block pills and in 1v1 renders none, `/friendlies` renders none, and the live
+  match card's meta line reads exactly `Match 2 · Leg 1`.
 
 ---
 

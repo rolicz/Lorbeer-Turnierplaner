@@ -64,7 +64,6 @@ export default function OverviewSection({
               match={previewMatch}
               clubs={clubs}
               mode={mode}
-              showMode={true}
               showOdds={true}
               aGoals={Number(pa?.goals ?? 0)}
               bGoals={Number(pb?.goals ?? 0)}

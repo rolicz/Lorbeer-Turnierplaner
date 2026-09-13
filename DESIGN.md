@@ -177,9 +177,15 @@ Sizes `hero` (match panel), `md` (match rows in lists), `sm` (compact rows, mini
   is coloured. Optional `resultBadge` prop renders a
   16px `W/D/L` letter chip on that side's outer edge, inside its names cell — so it stays
   next to the score on a wide row — for dense lists (Last 5, recent meetings).
+- **The mode is not part of a match.** A match row or panel does not repeat `1v1` / `2v2`:
+  the page around it says it (a tournament's header pill, a friendly's mode switch) and a
+  2v2 score stacks two names per side. `MatchOverviewPanel`'s `showMode` and
+  `MatchHistoryList`'s `showModePill` are off by default and turned on only where one list
+  genuinely mixes modes — the friendlies list and any history shown in Overall mode
+  (profile matches, the H2H matchup, the H2H history modal, the positions grid).
 - Names: hero `text-lg`, md `text-base`, sm `text-sm`; 2v2 stacks two lines.
 - Never wrap a `ScoreLine` in `card-chip`/borders. The hero panel (`MatchOverviewPanel`) is:
-  meta line (`Match 1 · Leg 1 · 1v1` + status `Pill`) → `ScoreLine hero` → odds line
+  meta line (`Match 1 · Leg 1` + status `Pill`) → `ScoreLine hero` → odds line
   (`text-xs text-text-muted font-mono`, only scheduled/playing) → two side columns with
   club badge + name (`text-sm`), flag + league (`text-xs muted`), stars **only when a club is
   set** (otherwise a muted "No club" line and nothing else). No `border-y` rules. Those two
@@ -202,4 +208,6 @@ closes. Hidden where no filter applies.
 - Do keep names next to scores; don't push them to the panel edges.
 - Do use `section-label` for flat page sections; don't invent new header styles.
 - Do prefer `ListRow`; don't hand-roll `flex justify-between` rows with ad-hoc paddings.
+- Do let the page say the mode; don't print `1v1`/`2v2` on a match card that sits in a
+  single-mode context.
 - Do check `light` and `blue` themes for every visual change.

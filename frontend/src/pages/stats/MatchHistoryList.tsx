@@ -118,7 +118,7 @@ export function MatchHistoryTournamentBlock({
   showMeta,
   actions,
   extraPills,
-  hideModePill = false,
+  showModePill = false,
   renderMatchAction,
   matchHref,
 }: {
@@ -128,7 +128,9 @@ export function MatchHistoryTournamentBlock({
   showMeta: boolean;
   actions?: ReactNode;
   extraPills?: ReactNode;
-  hideModePill?: boolean;
+  /** Show the tournament's `1v1`/`2v2` pill. Off by default: the mode is only
+   *  worth a pill where the surrounding list actually mixes modes (DS8). */
+  showModePill?: boolean;
   renderMatchAction?: (t: StatsPlayerMatchesTournament, m: StatsMatch) => ReactNode;
   matchHref?: (t: StatsPlayerMatchesTournament, m: StatsMatch) => string | null;
 }) {
@@ -142,7 +144,7 @@ export function MatchHistoryTournamentBlock({
               <TournamentLaurelMarkers stakes={t.cup_stakes} />
               {fmtDate(t.date)}
             </Pill>
-            {!hideModePill ? <Pill className="pill-default">{t.mode}</Pill> : null}
+            {showModePill ? <Pill className="pill-default">{t.mode}</Pill> : null}
             {extraPills}
           </div>
         </div>
@@ -177,7 +179,7 @@ export function MatchHistoryList({
   renderTournamentActions,
   renderTournamentPills,
   renderMatchActions,
-  hideModePill = false,
+  showModePill = false,
   matchHref,
 }: {
   tournaments: StatsPlayerMatchesTournament[];
@@ -187,7 +189,8 @@ export function MatchHistoryList({
   renderTournamentActions?: (t: StatsPlayerMatchesTournament) => ReactNode;
   renderTournamentPills?: (t: StatsPlayerMatchesTournament) => ReactNode;
   renderMatchActions?: (t: StatsPlayerMatchesTournament, m: StatsMatch) => ReactNode;
-  hideModePill?: boolean;
+  /** See `MatchHistoryTournamentBlock` — only a mixed-mode list shows it. */
+  showModePill?: boolean;
   matchHref?: (t: StatsPlayerMatchesTournament, m: StatsMatch) => string | null;
 }) {
   return (
@@ -201,7 +204,7 @@ export function MatchHistoryList({
           showMeta={showMeta}
           actions={renderTournamentActions ? renderTournamentActions(t) : undefined}
           extraPills={renderTournamentPills ? renderTournamentPills(t) : undefined}
-          hideModePill={hideModePill}
+          showModePill={showModePill}
           renderMatchAction={renderMatchActions}
           matchHref={matchHref}
         />

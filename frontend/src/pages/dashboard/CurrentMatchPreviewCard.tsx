@@ -79,7 +79,6 @@ export default function CurrentMatchPreviewCard() {
             match={match}
             clubs={clubs}
             mode={tQ.data?.mode}
-            showMode={true}
             showOdds={true}
             aGoals={Number(a?.goals ?? 0)}
             bGoals={Number(b?.goals ?? 0)}

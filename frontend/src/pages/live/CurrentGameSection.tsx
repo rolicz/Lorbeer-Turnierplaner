@@ -305,7 +305,6 @@ export default function CurrentGameSection({
               mode={tournamentMode}
               aGoals={aGoals}
               bGoals={bGoals}
-              showMode={true}
               showOdds={true}
             />
           </button>
@@ -316,7 +315,6 @@ export default function CurrentGameSection({
             mode={tournamentMode}
             aGoals={aGoals}
             bGoals={bGoals}
-            showMode={true}
             showOdds={true}
           />
         )}

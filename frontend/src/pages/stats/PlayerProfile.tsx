@@ -172,7 +172,7 @@ export default function PlayerProfile({ mode, scope, rows, selectedId, onSelect 
               />
             </div>
             {matchesQ.isLoading && !matchesQ.data ? <InlineLoading label="Loading…" /> :
-              tournaments.length ? <MatchHistoryList tournaments={tournaments} clubs={clubsQ.data ?? []} focusId={row.id} showMeta={details} hideModePill matchHref={tournamentMatchHref} /> :
+              tournaments.length ? <MatchHistoryList tournaments={tournaments} clubs={clubsQ.data ?? []} focusId={row.id} showMeta={details} showModePill={mode === "overall"} matchHref={tournamentMatchHref} /> :
                 <EmptyState title="No matches yet." className="py-2" />}
           </div>
         </>
