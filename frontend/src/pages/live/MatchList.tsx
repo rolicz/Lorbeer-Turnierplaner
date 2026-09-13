@@ -1,4 +1,4 @@
-import { List, Shrink } from "lucide-react";
+import { ArrowDown, ArrowRightLeft, ArrowUp, Layers, List, Shrink } from "lucide-react";
 
 import Button from "../../ui/primitives/Button";
 import type { Club, Match } from "../../api/types";
@@ -65,7 +65,7 @@ export default function MatchList({
     <div className="space-y-2">
       <div className="flex items-center justify-between gap-2 px-1">
         <div className="section-label inline-flex items-center gap-1.5">
-          <i className="fa-solid fa-layer-group" aria-hidden="true" />
+          <Layers size={14} aria-hidden="true" />
           <span>{matches.length} matches</span>
         </div>
         <SegmentedSwitch<MatchListView>
@@ -187,7 +187,7 @@ export default function MatchList({
                             className="h-8 w-8 p-0 inline-flex items-center justify-center"
                             title="Move up"
                           >
-                            <i className="fa fa-arrow-up text-text-normal" aria-hidden="true" />
+                            <ArrowUp size={14} className="text-text-normal" aria-hidden="true" />
                           </Button>
                           <Button
                             variant="ghost"
@@ -200,7 +200,7 @@ export default function MatchList({
                             className="h-8 w-8 p-0 inline-flex items-center justify-center"
                             title="Move down"
                           >
-                            <i className="fa fa-arrow-down text-text-normal" aria-hidden="true" />
+                            <ArrowDown size={14} className="text-text-normal" aria-hidden="true" />
                           </Button>
                         </>
                       ) : null}
@@ -216,7 +216,7 @@ export default function MatchList({
                           className="h-8 w-8 p-0 inline-flex items-center justify-center"
                           title="Swap sides"
                         >
-                          <i className="fa fa-arrow-right-arrow-left text-text-normal" aria-hidden="true" />
+                          <ArrowRightLeft size={14} className="text-text-normal" aria-hidden="true" />
                         </Button>
                       ) : null}
                     </div>

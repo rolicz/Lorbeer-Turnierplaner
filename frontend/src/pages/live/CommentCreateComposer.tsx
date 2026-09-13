@@ -1,3 +1,4 @@
+import { ImageIcon, MessageSquare, Goal, Send, Target, X } from "lucide-react";
 import { useId } from "react";
 
 import Button from "../../ui/primitives/Button";
@@ -115,7 +116,7 @@ export default function CommentCreateComposer({
               disabled={disabled}
               className="h-9 px-2 inline-flex items-center justify-center gap-1.5"
             >
-              <i className="fa-solid fa-comment" aria-hidden="true" />
+              <MessageSquare size={14} aria-hidden="true" />
               <span className="truncate">Comment</span>
             </Button>
             <Button
@@ -125,7 +126,7 @@ export default function CommentCreateComposer({
               disabled={disabled}
               className="h-9 px-2 inline-flex items-center justify-center gap-1.5"
             >
-              <i className="fa-solid fa-futbol" aria-hidden="true" />
+              <Goal size={14} aria-hidden="true" />
               <span className="truncate">Goal</span>
             </Button>
             <Button
@@ -135,7 +136,7 @@ export default function CommentCreateComposer({
               disabled={disabled}
               className="h-9 px-2 inline-flex items-center justify-center gap-1.5"
             >
-              <i className="fa-solid fa-bullseye" aria-hidden="true" />
+              <Target size={14} aria-hidden="true" />
               <span className="truncate">Shots</span>
             </Button>
           </div>
@@ -263,7 +264,7 @@ export default function CommentCreateComposer({
                     className="h-9 px-3 inline-flex items-center justify-center gap-2"
                     title={imagePreviewUrl ? "Replace image" : "Attach image"}
                   >
-                    <i className="fa-solid fa-image md:hidden" aria-hidden="true" />
+                    <ImageIcon size={14} className="md:hidden" aria-hidden="true" />
                     <span className="hidden md:inline">{imagePreviewUrl ? "Replace" : "Attach"}</span>
                   </Button>
                   {imagePreviewUrl ? (
@@ -275,7 +276,7 @@ export default function CommentCreateComposer({
                       className="h-9 w-9 p-0 inline-flex items-center justify-center"
                       title="Remove image"
                     >
-                      <i className="fa-solid fa-xmark" aria-hidden="true" />
+                      <X size={14} aria-hidden="true" />
                     </Button>
                   ) : null}
                 </div>
@@ -303,7 +304,7 @@ export default function CommentCreateComposer({
           title={mode === "goal" ? "Post goal entry" : mode === "shots" ? "Post shots entry" : "Post comment"}
           className="inline-flex items-center justify-center gap-2 px-4"
         >
-          <i className="fa-solid fa-paper-plane" aria-hidden="true" />
+          <Send size={14} aria-hidden="true" />
           <span>{mode === "goal" ? "Post goal" : mode === "shots" ? "Post shots" : "Post"}</span>
         </Button>
       </div>

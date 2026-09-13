@@ -4,6 +4,8 @@
  * interactive state lives in the coordinator (TournamentCommentsCard) and is handed down as
  * one bundle so this stays a presentational view over the already-grouped comment data.
  */
+import { ChevronDown, ChevronRight } from "lucide-react";
+
 import EmptyState from "../../../ui/primitives/EmptyState";
 import { Stars } from "../../../ui/primitives/Stars";
 import { CommentCard, type CommentCardContextValue } from "../TournamentCommentParts";
@@ -203,7 +205,7 @@ export default function CommentList(props: CommentListProps) {
             className="flex w-full items-start gap-2 text-left"
             aria-expanded={!isCollapsed}
           >
-            <i className={`fa-solid ${isCollapsed ? "fa-chevron-right" : "fa-chevron-down"} mt-1 text-[11px] text-text-muted`} aria-hidden="true" />
+            {isCollapsed ? <ChevronRight size={12} className="mt-1 shrink-0 text-text-muted" aria-hidden="true" /> : <ChevronDown size={12} className="mt-1 shrink-0 text-text-muted" aria-hidden="true" />}
             <span className="min-w-0 flex-1">{headerInner}</span>
             <span className="mt-0.5 inline-flex items-center gap-1.5 text-[11px] text-text-muted">
               {unseenHere ? <span className="h-1.5 w-1.5 rounded-full bg-accent" aria-hidden="true" /> : null}

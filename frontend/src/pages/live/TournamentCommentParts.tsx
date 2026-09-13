@@ -1,3 +1,5 @@
+import { ChevronDown, ChevronRight, ChevronUp, Mail, Pencil, Pin, PinOff, Plus, Reply, Save, Trash2, Users } from "lucide-react";
+
 import Button from "../../ui/primitives/Button";
 import FormLabel from "../../ui/primitives/FormLabel";
 import Textarea from "../../ui/primitives/Textarea";
@@ -79,7 +81,7 @@ export function ScopeActionButton({
       title={open ? titleOpen : titleClosed}
       className="h-9 w-9 p-0 inline-flex items-center justify-center"
     >
-      <i className={`fa-solid ${open ? "fa-chevron-up" : "fa-plus"}`} aria-hidden="true" />
+      {open ? <ChevronUp size={14} aria-hidden="true" /> : <Plus size={14} aria-hidden="true" />}
     </Button>
   );
 }
@@ -310,7 +312,7 @@ export function CommentCard({
                 title={collapsed ? `Show ${childCount} repl${childCount === 1 ? "y" : "ies"}` : "Hide replies"}
                 className="h-9 px-2 p-0 inline-flex items-center justify-center gap-1"
               >
-                <i className={`fa-solid ${collapsed ? "fa-chevron-right" : "fa-chevron-down"}`} aria-hidden="true" />
+                {collapsed ? <ChevronRight size={14} aria-hidden="true" /> : <ChevronDown size={14} aria-hidden="true" />}
                 <span className="text-[11px] tabular-nums">{childCount}</span>
               </Button>
             ) : null}
@@ -326,7 +328,7 @@ export function CommentCard({
                 title="Mark as read"
                 className="h-9 w-9 p-0 inline-flex items-center justify-center"
               >
-                <i className="fa-solid fa-envelope text-accent motion-safe:animate-pulse" aria-hidden="true" />
+                <Mail size={14} className="text-accent motion-safe:animate-pulse" aria-hidden="true" />
               </Button>
             ) : null}
             {canReply ? (
@@ -341,7 +343,7 @@ export function CommentCard({
                 title="Reply"
                 className="h-9 w-9 p-0 inline-flex items-center justify-center"
               >
-                <i className="fa-solid fa-reply" aria-hidden="true" />
+                <Reply size={14} aria-hidden="true" />
               </Button>
             ) : null}
             {canPin && onTogglePin ? (
@@ -352,10 +354,7 @@ export function CommentCard({
                 title={isPinned ? "Unpin" : "Pin"}
                 className="h-9 w-9 p-0 inline-flex items-center justify-center"
               >
-                <i
-                  className={`fa-solid ${isPinned ? "fa-thumbtack-slash" : "fa-thumbtack"}`}
-                  aria-hidden="true"
-                />
+                {isPinned ? <PinOff size={14} aria-hidden="true" /> : <Pin size={14} aria-hidden="true" />}
               </Button>
             ) : null}
             {canEdit ? (
@@ -366,7 +365,7 @@ export function CommentCard({
                 title={isEditing ? "Cancel edit" : "Edit comment"}
                 className="h-9 w-9 p-0 inline-flex items-center justify-center md:w-auto md:px-3 md:py-1.5"
               >
-                <i className={`fa-solid ${isEditing ? "fa-chevron-up" : "fa-pen"} md:hidden`} aria-hidden="true" />
+                {isEditing ? <ChevronUp size={14} className="md:hidden" aria-hidden="true" /> : <Pencil size={14} className="md:hidden" aria-hidden="true" />}
                 <span className="hidden md:inline">{isEditing ? "Close" : "Edit"}</span>
               </Button>
             ) : null}
@@ -378,7 +377,7 @@ export function CommentCard({
                 title="Delete comment"
                 className="h-9 w-9 p-0 inline-flex items-center justify-center md:w-auto md:px-3 md:py-1.5"
               >
-                <i className="fa-solid fa-trash md:hidden" aria-hidden="true" />
+                <Trash2 size={14} className="md:hidden" aria-hidden="true" />
                 <span className="hidden md:inline">Delete</span>
               </Button>
             ) : null}
@@ -422,7 +421,7 @@ export function CommentCard({
               title="Save"
               className="h-10 w-10 p-0 inline-flex items-center justify-center md:w-auto md:px-4 md:py-2"
             >
-              <i className="fa-solid fa-floppy-disk md:hidden" aria-hidden="true" />
+              <Save size={16} className="md:hidden" aria-hidden="true" />
               <span className="hidden md:inline">Save</span>
             </Button>
           </div>
@@ -474,7 +473,7 @@ export function CommentCard({
               title="Show voters"
               className="h-8 w-8 p-0 inline-flex items-center justify-center"
             >
-              <i className="fa-solid fa-users text-text-muted" aria-hidden="true" />
+              <Users size={14} className="text-text-muted" aria-hidden="true" />
             </Button>
           </div>
         </div>

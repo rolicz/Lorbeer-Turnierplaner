@@ -1,3 +1,4 @@
+import { ChevronDown, ChevronUp, MessageSquare, MessagesSquare, Goal, Plus, Target } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { sideBy } from "../../helpers";
@@ -870,21 +871,21 @@ export default function TournamentCommentsCard({
             ) : entryAllowsEvents ? (
               <div className="grid grid-cols-3 gap-2">
                 <Button type="button" variant="ghost" className="h-10 px-2 inline-flex items-center justify-center gap-1.5" onClick={() => openComposer(entryScope, "comment")} title="Add comment">
-                  <i className="fa-solid fa-comment" aria-hidden="true" />
+                  <MessageSquare size={14} aria-hidden="true" />
                   <span className="truncate">Add comment</span>
                 </Button>
                 <Button type="button" variant="ghost" className="h-10 px-2 inline-flex items-center justify-center gap-1.5" onClick={() => openComposer(entryScope, "goal")} title="Enter goal">
-                  <i className="fa-solid fa-futbol" aria-hidden="true" />
+                  <Goal size={14} aria-hidden="true" />
                   <span className="truncate">Enter goal</span>
                 </Button>
                 <Button type="button" variant="ghost" className="h-10 px-2 inline-flex items-center justify-center gap-1.5" onClick={() => openComposer(entryScope, "shots")} title="Enter shots">
-                  <i className="fa-solid fa-bullseye" aria-hidden="true" />
+                  <Target size={14} aria-hidden="true" />
                   <span className="truncate">Enter Shots</span>
                 </Button>
               </div>
             ) : (
               <Button type="button" variant="ghost" onClick={() => openComposer(entryScope, "comment")}>
-                <i className="fa-solid fa-plus mr-1.5" aria-hidden="true" />
+                <Plus size={14} className="mr-1.5 inline-block align-[-2px]" aria-hidden="true" />
                 Add comment
               </Button>
             )
@@ -923,11 +924,11 @@ export default function TournamentCommentsCard({
       aria-expanded={!collapsed}
     >
       <span className="inline-flex items-center gap-2 text-sm font-semibold text-text-normal">
-        <i className="fa-solid fa-comments text-text-muted" aria-hidden="true" />
+        <MessagesSquare size={14} className="text-text-muted" aria-hidden="true" />
         {collapsibleHeader}
         <span className="rounded-full bg-bg-card-chip/70 px-1.5 text-xs font-normal tabular-nums text-text-muted">{comments.length}</span>
       </span>
-      <i className={`fa-solid ${collapsed ? "fa-chevron-down" : "fa-chevron-up"} text-text-muted`} aria-hidden="true" />
+      {collapsed ? <ChevronDown size={14} className="text-text-muted" aria-hidden="true" /> : <ChevronUp size={14} className="text-text-muted" aria-hidden="true" />}
     </button>
   ) : null;
 

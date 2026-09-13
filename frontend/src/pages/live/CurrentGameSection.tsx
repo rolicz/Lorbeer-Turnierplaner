@@ -1,4 +1,6 @@
+import { ArrowRightLeft, Flag, MessagesSquare, Play, RotateCcw } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
+
 import Button from "../../ui/primitives/Button";
 import type { Club, Match, MatchSide, Player, TournamentMode } from "../../api/types";
 import { teamName } from "../../utils/matchDisplay";
@@ -222,7 +224,7 @@ export default function CurrentGameSection({
               }}
               title="Open comments for this match"
             >
-              <i className="fa fa-comments md:hidden" aria-hidden="true" />
+              <MessagesSquare size={14} className="md:hidden" aria-hidden="true" />
               <span className="hidden md:inline">Comments</span>
             </Button>
 
@@ -235,7 +237,7 @@ export default function CurrentGameSection({
                 disabled={busy}
                 title="Swap home/away (A↔B)"
               >
-                <i className="fa fa-arrow-right-arrow-left md:hidden" aria-hidden="true" />
+                <ArrowRightLeft size={14} className="md:hidden" aria-hidden="true" />
                 <span className="hidden md:inline">Swap Home/Away</span>
               </Button>
             )}
@@ -249,7 +251,7 @@ export default function CurrentGameSection({
                 disabled={busy}
                 title="Start"
               >
-                <i className="fa fa-play md:hidden" aria-hidden="true" />
+                <Play size={14} className="md:hidden" aria-hidden="true" />
                 <span className="hidden md:inline">Start</span>
               </Button>
             )}
@@ -265,7 +267,7 @@ export default function CurrentGameSection({
                 disabled={busy}
                 title="Reset"
               >
-                <i className="fa fa-rotate-left md:hidden" aria-hidden="true" />
+                <RotateCcw size={14} className="md:hidden" aria-hidden="true" />
                 <span className="hidden md:inline">Reset</span>
               </Button>
             )}
@@ -283,7 +285,7 @@ export default function CurrentGameSection({
                 }}
                 title="Finish match"
               >
-                <i className="fa fa-flag-checkered md:hidden" aria-hidden="true" />
+                <Flag size={14} className="md:hidden" aria-hidden="true" />
                 <span className="hidden md:inline">Finish</span>
               </Button>
             )}
