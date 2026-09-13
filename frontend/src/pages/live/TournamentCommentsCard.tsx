@@ -22,6 +22,13 @@ import { type CommentCardContextValue } from "./TournamentCommentParts";
 import CommentComposer from "./comments/CommentComposer";
 import { useCommentMutations } from "./comments/useCommentMutations";
 import { readRecentScorers, rememberScorer } from "./comments/recentScorers";
+
+/**
+ * Who scores when nobody is named. The scorer is the footballer in the game, and
+ * the backend requires one, so an unnamed goal goes to the house legend rather
+ * than to a club or to one of the humans at the console.
+ */
+const DEFAULT_SCORER = "Krankl";
 import CommentFilterBar from "./comments/CommentFilterBar";
 import CommentList from "./comments/CommentList";
 import {
@@ -612,18 +619,6 @@ export default function TournamentCommentsCard({
    * the scorer is a footballer in the game and the club is the only in-game name
    * the app knows (T3). Never a human player's name.
    */
-  function goalClubNameForScope(
-    scope: CommentScope | null | undefined,
-    side: CommentGoalSide | null | undefined,
-  ): string | null {
-    if (!scope || scope.kind !== "match" || side == null) return null;
-    const match = matchById.get(scope.matchId);
-    if (!match) return null;
-    const clubId = sideBy(match, side)?.club_id ?? null;
-    if (!clubId) return null;
-    return clubLabelPartsById(clubs, clubId).name || null;
-  }
-
   function goalScoreForScope(
     scope: CommentScope | null | undefined,
     side: CommentGoalSide | null | undefined,
@@ -661,7 +656,7 @@ export default function TournamentCommentsCard({
     setScopeOverride(null);
   }
 
-  const goalFallbackScorer = goalClubNameForScope(composerScope, goalSide);
+  const goalFallbackScorer = DEFAULT_SCORER;
   const goalScorerForPost = goalPlayerName.trim() || goalFallbackScorer || "";
 
   const canSubmit =

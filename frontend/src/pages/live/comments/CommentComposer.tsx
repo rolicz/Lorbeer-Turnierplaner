@@ -414,7 +414,7 @@ export default function CommentComposer({
               <input
                 className="input-field"
                 type="text"
-                placeholder="Scorer, e.g. Haaland"
+                placeholder={`Scorer (default: ${goalFallbackScorer ?? "—"})`}
                 value={goalPlayerName}
                 onChange={(e) => onGoalPlayerNameChange(e.target.value)}
                 disabled={disabled}

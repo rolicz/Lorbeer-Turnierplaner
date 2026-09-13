@@ -131,14 +131,14 @@ describe("CommentComposer", () => {
     const { getByLabelText, container } = renderComposer({
       mode: "goal",
       goalSide: "A",
-      goalFallbackScorer: "Man City",
+      goalFallbackScorer: "Krankl",
     });
 
     const scorer = getByLabelText("Goal scorer") as HTMLInputElement;
     // free text, always editable, and nothing is prefilled or suggested from the app's players
     expect(scorer).not.toBeDisabled();
     expect(scorer.value).toBe("");
-    expect(scorer.getAttribute("placeholder")).toBe("Scorer, e.g. Haaland");
+    expect(scorer.getAttribute("placeholder")).toBe("Scorer (default: Krankl)");
     expect(scorer.getAttribute("list")).toBeNull();
     expect(container.querySelector("datalist")).toBeNull();
     // the side buttons name the two teams, but nothing offers a human as the scorer
@@ -150,12 +150,12 @@ describe("CommentComposer", () => {
     const { getByText, getByTitle, queryByText, rerender } = renderComposer({
       mode: "goal",
       goalSide: "A",
-      goalFallbackScorer: "Man City",
+      goalFallbackScorer: "Krankl",
       scorerSuggestions: ["Mbeumo", "Fernandes"],
       onGoalPlayerNameChange,
     });
 
-    expect(getByText("No name: the goal goes to Man City.")).toBeInTheDocument();
+    expect(getByText("No name: the goal goes to Krankl.")).toBeInTheDocument();
     fireEvent.click(getByTitle("Scorer: Mbeumo"));
     expect(onGoalPlayerNameChange).toHaveBeenCalledWith("Mbeumo");
 
@@ -166,11 +166,11 @@ describe("CommentComposer", () => {
         mode="goal"
         goalSide="A"
         goalPlayerName="Mbeumo"
-        goalFallbackScorer="Man City"
+        goalFallbackScorer="Krankl"
         scorerSuggestions={["Mbeumo", "Fernandes"]}
       />,
     );
-    expect(queryByText("No name: the goal goes to Man City.")).toBeNull();
+    expect(queryByText("No name: the goal goes to Krankl.")).toBeNull();
   });
 
   it("says a scorer is needed when the scoring side has no club to credit", () => {
