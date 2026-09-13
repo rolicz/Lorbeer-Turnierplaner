@@ -3927,8 +3927,8 @@ surfaces; opening it reveals a single bounded block where a club can be picked; 
 start open; the choice is remembered; screenshots 390px + 1280px, blue + light, collapsed and open,
 for all four surfaces; `npm run check` + build.
 
-**Deviations:** (implemented 2026-09-13, three commits: panel + trigger, defaults/persistence,
-tests + docs/plan)
+**Deviations:** (implemented 2026-09-13, three commits: `2a3330f` panel + trigger + tests,
+`83c6903` defaults/persistence, and this docs/plan pass)
 
 - **The scoreboard's club line is not a second way in — it is read-only again, everywhere.**
   The task left this open ("allowed, not required"); Roli's words were "i want to be able to

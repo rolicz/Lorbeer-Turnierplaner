@@ -162,7 +162,7 @@ Matchup, Player) is built from the same block, so the sections read as one page:
 | Filters (stats) | `StatsFilterPill` | floating capsule, see §9 |
 | Any score | `ScoreLine` | see §8 — the only way to render a score; `ScoreNumerals` is the bare numeral pair for a control that has to *speak* a score (the goal entry's side choice) |
 | Clubs under a score | `MatchSides` | badge + club, flag + league, stars; nothing but "No club" for a clubless side |
-| Picking a club | the `MatchSides` club line + `ClubPicker` (`ui/`) | the club in the scoreboard *is* the tap target (`MatchOverviewPanel`/`MatchSides` `onPickClub`, §9b — `ClubSlot` is gone, T2); the picker is the sheet: search focused on open, the club this side already has pinned on top with its `ClubStarsEditor`, then recents, then league groups, crest + stars per row, one tap selects. The star/league **filters** are not in the sheet — they sit with the two random actions on the match card (`SelectClubsPanel`), because they narrow the list for both sides and drive *Random matchup* |
+| Picking a club | `SelectClubsPanel` + `ClubPicker` (`ui/`) | one panel per match, a `card` behind a single "Clubs" disclosure that summarises both clubs (§9b, T9). Open, it holds the whole job in one bounded block: the two `ClubSlot`s (side players + crest, league, stars), then the star/league filters, then the dice + *Random matchup* row. A slot opens the `ClubPicker` sheet: search focused on open, the club this side already has pinned on top with its `ClubStarsEditor`, then recents, then league groups, crest + stars per row, one tap selects. The scoreboard above (`MatchOverviewPanel`/`MatchSides`) stays **read-only on every surface** |
 | Writing a comment | `CommentComposer` (`pages/live/comments/`) | one chat row *inside* the feed's card, attached to its bottom edge behind a hairline and sticky, so it floats over the feed while reading and settles flush at the end (T3); scope + author are chips above the field, goal/shots swap the row in place. The guestbook's composer is the same row (`CommentSendRow`) at the end of its feed |
 | Key number | `StatTile` | `inset` + `text-2xl font-bold tabular-nums` value + `text-xs` muted label |
 | Lists | `List` / `ListRow` | hairline rows, stretched link |
@@ -258,9 +258,10 @@ scrolled to the end (20px of air at 390px and at 1280px).
 
 An editor is not a section you unfold; it is the thing itself becoming editable.
 
-- **The trigger names or shows what it edits.** Tapping the club in the scoreboard opens the
-  club editor; tapping a score opens the score control. Never a bare "edit" affordance next to a
-  value it does not describe.
+- **The trigger names or shows what it edits.** Tapping a club slot opens that side's club
+  picker; tapping a score opens the score control; a disclosure that hides a whole job names it
+  and shows its current values ("Clubs · Bayern München · FC Barcelona"). Never a bare "edit"
+  affordance next to a value it does not describe.
 - **Don't scatter one job across two places.** Whatever a value needs to be edited — the value
   itself, its tools, its filters — belongs to one surface.
 - **No disclosure around a feed or a single input.** A comment feed and its composer are the
@@ -273,6 +274,14 @@ An editor is not a section you unfold; it is the thing itself becoming editable.
   including the values being edited. A panel that hides the tools but sends you elsewhere to pick
   the value is worse than no panel — that is the one case where repeating a value on screen (the
   read-only scoreboard and the open editor) is correct.
+  The worked example is `SelectClubsPanel` (T9): a `card` whose header row is the only trigger
+  (icon + "Clubs" + both club names, or "Not set"), and whose body is slots → filters →
+  randomisers, in that order, in one `sm:max-w-md` column. The container is a `card` precisely
+  because its contents are level-2 (`ClubSlot`, `FilterSelect`): card → inset is the canon,
+  inset → inset is not. It starts open where setting the value *is* the form's purpose (the two
+  friendly forms) and closed where the value usually already exists (live match, match detail),
+  and each surface remembers the reader's last choice in `localStorage`
+  (`club_panel_open:<surface>`, the `match_list_view` idiom).
 - **A feed and its composer are one card.** The composer is the card's last row, separated by a
   hairline and sticky, so it floats over the feed while you read and settles flush on the card's
   bottom edge at the end — never a second card floating next to the feed. Groups *inside* the

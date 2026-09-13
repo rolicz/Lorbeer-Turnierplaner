@@ -75,9 +75,10 @@ Size (2026-09-13): backend ≈ 13.3k LOC Python (`app/` + `manage.py` + `run.py`
   routeMeta + backNavigation [contextual back, shared with the swipe gesture], navStack,
   useScrollRestoration + useReturnScroll for scroll memory, useTabParam [`?tab=` for every
   tabbed page], NotificationBell),
-  `ClubBadge`, `NationFlag`, `SectionTabs`, and the club pickers `ClubPicker` (opened from the
-  scoreboard's club line, T2) and `SelectClubsPanel` (the club filters + the two random
-  actions). Every icon in these (and everywhere else) is a lucide-react component — see §9.
+  `ClubBadge`, `NationFlag`, `SectionTabs`, and the club selection: `SelectClubsPanel` (T9 — one
+  "Clubs" disclosure per match holding both club slots, the filters and the two random actions)
+  with the `ClubPicker` sheet a slot opens. Every icon in these (and everywhere else) is a
+  lucide-react component — see §9.
 - `src/themes/*.css` — CSS-variable themes (blue default, dark, red, light, green) consumed by
   Tailwind via `rgb(var(--color-*))`. `src/styles.css` holds shared component classes.
 - `src/push/` — service-worker registration + subscription; `public/sw.js` handles push/click.
