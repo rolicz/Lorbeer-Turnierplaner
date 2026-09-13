@@ -1,5 +1,22 @@
 /** Shared comment view types + scope helper for the tournament comments UI. */
 
+/** What the composer is currently writing: a comment, a goal or a shots entry. */
+export type CommentCreateMode = "comment" | "goal" | "shots";
+
+export type CommentDraftAuthorValue = "general" | number;
+
+export type CommentGoalSide = "A" | "B";
+
+/** One side of the match as a goal target, with the scoreline the goal would make. */
+export type CommentGoalTeamOption = {
+  side: CommentGoalSide;
+  label: string;
+  nextScoreline: string;
+};
+
+/** A suggested scorer name (the side's players) for the free-text scorer field. */
+export type CommentGoalPlayerOption = { label: string };
+
 export type CommentScope = { kind: "tournament" } | { kind: "match"; matchId: number };
 
 export type CommentAuthor = { kind: "general" } | { kind: "player"; playerId: number };

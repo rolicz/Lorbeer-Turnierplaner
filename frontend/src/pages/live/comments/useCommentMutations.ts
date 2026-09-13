@@ -5,6 +5,7 @@ import {
   deleteComment as apiDeleteComment,
   markCommentRead,
   patchComment as apiPatchComment,
+  putCommentImage,
   setPinnedTournamentComment,
   voteComment,
 } from "../../../api/comments.api";
@@ -53,6 +54,22 @@ export function useCommentMutations(tournamentId: number) {
       await qc.invalidateQueries({ queryKey: qk.commentsTournament(tournamentId) });
       await qc.invalidateQueries({ queryKey: qk.commentsReadIds(tournamentId, token) });
       await qc.invalidateQueries({ queryKey: qk.commentsReadMap(token) });
+    },
+  });
+
+  /**
+   * The image is a second call after the comment exists, and `has_image` in the
+   * response is derived from the stored file — so the feed only shows the picture
+   * once the list is refetched *after* the upload (the create call's own
+   * invalidation races ahead of it).
+   */
+  const putImageMut = useMutation({
+    mutationFn: async (payload: { commentId: number; blob: Blob }) => {
+      if (!token) throw new Error("Not logged in");
+      return putCommentImage(token, payload.commentId, payload.blob, "comment.webp");
+    },
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: qk.commentsTournament(tournamentId) });
     },
   });
 
@@ -115,5 +132,5 @@ export function useCommentMutations(tournamentId: number) {
   const actionError: unknown =
     createMut.error ?? patchMut.error ?? deleteMut.error ?? pinMut.error ?? markReadMut.error ?? voteMut.error;
 
-  return { createMut, patchMut, deleteMut, pinMut, markReadMut, voteMut, actionError };
+  return { createMut, putImageMut, patchMut, deleteMut, pinMut, markReadMut, voteMut, actionError };
 }

@@ -34,6 +34,9 @@ export type CommentMatchHeader = {
 
 type CommentBlock = { matchId: number; comments: TournamentComment[] };
 
+/** A reply is flat and tighter than the `inset` box of the comment it answers. */
+const REPLY_SURFACE = "px-3 py-2";
+
 export type CommentListProps = {
   // --- feed shape / scope ---
   onlyMatchId: number | null;
@@ -87,10 +90,9 @@ export default function CommentList(props: CommentListProps) {
     canWrite,
     pinnedTournamentCommentId,
     editingId,
-    editingDirty,
+    canSaveEdit,
     flashId,
     avatarUpdatedAtByPlayerId,
-    canSubmit,
     replyToId,
     onMarkSeen,
     onTogglePin,
@@ -100,7 +102,7 @@ export default function CommentList(props: CommentListProps) {
     submitReply,
     toggleEdit,
     deleteComment,
-    upsertComment,
+    saveEdit,
   } = ctx;
 
   function renderCommentCard(c: TournamentComment, surface: string, opts: { childCount: number; collapsed: boolean }) {
@@ -134,25 +136,30 @@ export default function CommentList(props: CommentListProps) {
         }}
         onVote={(value) => onVote(c.id, value)}
         onOpenVoters={() => onOpenVoters(c.id)}
-        onSave={() => {
-          void upsertComment(c.scope);
-        }}
-        canSubmit={canSubmit && (editingId !== c.id || editingDirty)}
+        onSave={saveEdit}
+        canSubmit={canSaveEdit}
         ctx={ctx}
       />
     );
   }
 
-  /** Render a comment and its (collapsible) reply subtree, recursively. */
+  /**
+   * Render a comment and its (collapsible) reply subtree, recursively.
+   *
+   * Depth cue (S10, closing the DS3 finding): a root comment is a boxed `inset`,
+   * a reply is a flat, tighter row on the block's own surface, hanging off an
+   * accent-tinted left rule. Fill, padding, indent and rule all say "reply", and
+   * nothing needs a fourth surface to do it.
+   */
   function renderCommentTree(c: TournamentComment, surface: string, depth: number) {
     const children = childrenByParent.get(c.id) ?? [];
     const collapsed = collapsedThreads.has(c.id);
     return (
-      <div key={c.id} className="space-y-2">
+      <div key={c.id} className={depth === 0 ? "space-y-2" : "space-y-1"}>
         {renderCommentCard(c, surface, { childCount: children.length, collapsed })}
         {children.length && !collapsed ? (
-          <div className="ml-1 space-y-2 border-l border-border-card-inner/40 pl-2 sm:pl-3">
-            {children.map((ch) => renderCommentTree(ch, "inset", depth + 1))}
+          <div className="ml-2 space-y-1 border-l-2 border-accent/25 pl-2 sm:pl-3">
+            {children.map((ch) => renderCommentTree(ch, REPLY_SURFACE, depth + 1))}
           </div>
         ) : null}
       </div>

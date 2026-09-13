@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronRight, ChevronUp, Mail, Pencil, Pin, PinOff, Plus, Reply, Save, Trash2, Users } from "lucide-react";
+import { ChevronDown, ChevronRight, ChevronUp, Mail, Pencil, Pin, PinOff, Reply, Save, Trash2, Users } from "lucide-react";
 
 import Button from "../../ui/primitives/Button";
 import FormLabel from "../../ui/primitives/FormLabel";
@@ -7,9 +7,9 @@ import AvatarCircle from "../../ui/primitives/AvatarCircle";
 import VoteButton from "../../ui/primitives/VoteButton";
 import type { Player } from "../../api/types";
 import { commentImageUrl } from "../../api/comments.api";
-import CommentCreateComposer, { type CommentGoalSide, type CommentGoalTeamOption } from "./CommentCreateComposer";
+import { CommentSendRow } from "./comments/CommentComposer";
 import { fmtTs } from "../../utils/format";
-import type { CommentAuthor, CommentScope, TournamentComment } from "./tournamentCommentTypes";
+import type { CommentAuthor, TournamentComment } from "./tournamentCommentTypes";
 
 /**
  * Shared/stable card-level values for rendering a comment: the viewer's
@@ -33,13 +33,13 @@ export type CommentCardContextValue = {
   authorLabel: (a: CommentAuthor) => string;
 
   // --- card state ---
+  /** The comment being edited inline in its card (independent of the composer draft). */
   editingId: number | null;
-  editingDirty: boolean;
+  editAuthor: "general" | number;
+  editBody: string;
+  canSaveEdit: boolean;
   pinnedTournamentCommentId: number | null;
   flashId: number | null;
-  draftAuthor: "general" | number;
-  draftBody: string;
-  canSubmit: boolean;
   replyToId: number | null;
   replyDraft: string;
   replySubmitting: boolean;
@@ -56,131 +56,11 @@ export type CommentCardContextValue = {
   setReplyDraft: (v: string) => void;
   toggleEdit: (c: TournamentComment) => void;
   deleteComment: (id: number) => void;
-  setDraftAuthor: (v: "general" | number) => void;
-  setDraftBody: (v: string) => void;
-  upsertComment: (scope: CommentScope) => void;
+  setEditAuthor: (v: "general" | number) => void;
+  setEditBody: (v: string) => void;
+  saveEdit: () => void;
 };
 
-
-export function ScopeActionButton({
-  open,
-  onClick,
-  titleOpen,
-  titleClosed,
-}: {
-  open: boolean;
-  onClick: () => void;
-  titleOpen: string;
-  titleClosed: string;
-}) {
-  return (
-    <Button
-      variant="ghost"
-      type="button"
-      onClick={onClick}
-      title={open ? titleOpen : titleClosed}
-      className="h-9 w-9 p-0 inline-flex items-center justify-center"
-    >
-      {open ? <ChevronUp size={14} aria-hidden="true" /> : <Plus size={14} aria-hidden="true" />}
-    </Button>
-  );
-}
-
-export function AddCommentDropdown({
-  open,
-  authorOptions,
-  draftAuthor,
-  onChangeDraftAuthor,
-  draftMode,
-  onChangeDraftMode,
-  allowMatchEventModes,
-  goalTeams,
-  goalSide,
-  onChangeGoalSide,
-  goalPlayers,
-  goalMinute,
-  onChangeGoalMinute,
-  goalPlayerName,
-  onChangeGoalPlayerName,
-  shotsA,
-  onChangeShotsA,
-  shotsB,
-  onChangeShotsB,
-  draftBody,
-  onChangeDraftBody,
-  canAttachImage = false,
-  imagePreviewUrl = null,
-  onOpenImageCropper,
-  onClearImage,
-  onSubmit,
-  onCancel,
-  canSubmit,
-  surfaceClassName = "inset",
-}: {
-  open: boolean;
-  authorOptions: { value: "general" | number; label: string }[];
-  draftAuthor: "general" | number;
-  onChangeDraftAuthor: (v: "general" | number) => void;
-  draftMode: "comment" | "goal" | "shots";
-  onChangeDraftMode: (mode: "comment" | "goal" | "shots") => void;
-  allowMatchEventModes: boolean;
-  goalTeams: CommentGoalTeamOption[];
-  goalSide: CommentGoalSide | null;
-  onChangeGoalSide: (side: CommentGoalSide) => void;
-  goalPlayers: { label: string }[];
-  goalMinute: string;
-  onChangeGoalMinute: (value: string) => void;
-  goalPlayerName: string;
-  onChangeGoalPlayerName: (value: string) => void;
-  shotsA: string;
-  onChangeShotsA: (value: string) => void;
-  shotsB: string;
-  onChangeShotsB: (value: string) => void;
-  draftBody: string;
-  onChangeDraftBody: (v: string) => void;
-  canAttachImage?: boolean;
-  imagePreviewUrl?: string | null;
-  onOpenImageCropper?: () => void;
-  onClearImage?: () => void;
-  onSubmit: () => void;
-  onCancel?: () => void;
-  canSubmit: boolean;
-  surfaceClassName?: string;
-}) {
-  if (!open) return null;
-  return (
-    <CommentCreateComposer
-      authorOptions={authorOptions}
-      authorValue={draftAuthor}
-      onAuthorChange={onChangeDraftAuthor}
-      mode={draftMode}
-      onModeChange={onChangeDraftMode}
-      allowMatchEventModes={allowMatchEventModes}
-      goalTeams={goalTeams}
-      goalSide={goalSide}
-      onGoalSideChange={onChangeGoalSide}
-      goalPlayers={goalPlayers}
-      goalMinute={goalMinute}
-      onGoalMinuteChange={onChangeGoalMinute}
-      goalPlayerName={goalPlayerName}
-      onGoalPlayerNameChange={onChangeGoalPlayerName}
-      shotsA={shotsA}
-      onShotsAChange={onChangeShotsA}
-      shotsB={shotsB}
-      onShotsBChange={onChangeShotsB}
-      draftBody={draftBody}
-      onChangeDraftBody={onChangeDraftBody}
-      canAttachImage={canAttachImage}
-      imagePreviewUrl={imagePreviewUrl}
-      onOpenImageCropper={onOpenImageCropper}
-      onClearImage={onClearImage}
-      onSubmit={onSubmit}
-      onCancel={onCancel}
-      canSubmit={canSubmit}
-      surfaceClassName={surfaceClassName}
-    />
-  );
-}
 
 export function CommentCard({
   c,
@@ -240,10 +120,10 @@ export function CommentCard({
     currentPlayerId,
     currentPlayerName,
     authorLabel,
-    draftAuthor,
-    setDraftAuthor: onChangeDraftAuthor,
-    draftBody,
-    setDraftBody: onChangeDraftBody,
+    editAuthor,
+    setEditAuthor,
+    editBody,
+    setEditBody,
     replyDraft,
     setReplyDraft: onChangeReplyDraft,
     cancelReply: onCancelReply,
@@ -254,17 +134,13 @@ export function CommentCard({
     canEdit || canDelete || (canPin && !!onTogglePin) || canReply || isUnseen || childCount > 0;
   const edited = c.updatedAt > c.createdAt;
   const foreignAuthorId =
-    draftAuthor !== "general" && currentPlayerId != null && draftAuthor !== currentPlayerId ? draftAuthor : null;
+    editAuthor !== "general" && currentPlayerId != null && editAuthor !== currentPlayerId ? editAuthor : null;
   const foreignAuthorName = foreignAuthorId != null ? players.find((p) => p.id === foreignAuthorId)?.display_name : null;
 
   return (
     <div
       id={`comment-${c.id}`}
-      className={
-        surfaceClassName +
-        " p-3 scroll-mt-28 sm:scroll-mt-32 " +
-        (flash ? "comment-attn" : "")
-      }
+      className={surfaceClassName + " scroll-mt-28 sm:scroll-mt-32 " + (flash ? "comment-attn" : "")}
       style={
         isEditing || isPinned
           ? {
@@ -391,8 +267,8 @@ export function CommentCard({
             <FormLabel>Posted as</FormLabel>
             <select
               className="select-field"
-              value={draftAuthor === "general" ? "general" : String(draftAuthor)}
-              onChange={(e) => onChangeDraftAuthor(e.target.value === "general" ? "general" : Number(e.target.value))}
+              value={editAuthor === "general" ? "general" : String(editAuthor)}
+              onChange={(e) => setEditAuthor(e.target.value === "general" ? "general" : Number(e.target.value))}
             >
               {currentPlayerId != null ? (
                 <option value={String(currentPlayerId)}>{currentPlayerName || "Me"}</option>
@@ -408,8 +284,9 @@ export function CommentCard({
 
           <Textarea
             label="Edit"
-            value={draftBody}
-            onChange={(e) => onChangeDraftBody(e.target.value)}
+            aria-label="Edit comment body"
+            value={editBody}
+            onChange={(e) => setEditBody(e.target.value)}
             className="min-h-[88px]"
           />
 
@@ -480,26 +357,30 @@ export function CommentCard({
       )}
 
       {replyOpen ? (
-        <div className="mt-2 inset p-2 space-y-2" onClick={(e) => e.stopPropagation()}>
-          <Textarea
-            label={`Reply to ${authorLabel(c.author)}`}
+        <div className="mt-2 space-y-1.5" onClick={(e) => e.stopPropagation()}>
+          <CommentSendRow
             value={replyDraft}
-            onChange={(e) => onChangeReplyDraft(e.target.value)}
-            placeholder="Write a reply…"
+            onChange={onChangeReplyDraft}
+            onSubmit={onSubmitReply}
+            canSubmit={!!replyDraft.trim()}
+            submitting={replySubmitting}
+            autoFocus
+            ariaLabel={`Reply to ${authorLabel(c.author)}`}
+            placeholder={`Reply to ${authorLabel(c.author)}…`}
+            sendLabel="Post reply"
+            trailing={
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={onCancelReply}
+                title="Cancel reply"
+                aria-label="Cancel reply"
+                className="inline-flex h-10 w-10 shrink-0 items-center justify-center p-0"
+              >
+                <ChevronUp size={16} aria-hidden="true" />
+              </Button>
+            }
           />
-          <div className="flex items-center justify-end gap-2">
-            <Button type="button" variant="ghost" onClick={onCancelReply} title="Cancel">
-              Cancel
-            </Button>
-            <Button
-              type="button"
-              onClick={onSubmitReply}
-              disabled={replySubmitting || !replyDraft.trim()}
-              title="Post reply"
-            >
-              {replySubmitting ? "Posting…" : "Reply"}
-            </Button>
-          </div>
         </div>
       ) : null}
     </div>

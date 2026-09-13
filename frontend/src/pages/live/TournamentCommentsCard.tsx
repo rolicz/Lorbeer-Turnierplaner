@@ -1,11 +1,10 @@
-import { ChevronDown, ChevronUp, MessageSquare, MessagesSquare, Goal, Plus, Target } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { ChevronDown, ChevronUp, CornerDownRight, MessagesSquare } from "lucide-react";
+import { useEffect, useId, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { sideBy } from "../../helpers";
 
-import Button from "../../ui/primitives/Button";
-import FormLabel from "../../ui/primitives/FormLabel";
 import FilterSelect from "../../ui/FilterSelect";
+import { Chip } from "../../ui/primitives/Chip";
 import LoadingPlaceholder from "../../ui/primitives/LoadingPlaceholder";
 import CollapsibleCard from "../../ui/primitives/CollapsibleCard";
 import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
@@ -15,18 +14,21 @@ import ImageLightbox from "../../ui/primitives/ImageLightbox";
 import VoteVotersModal from "../../ui/primitives/VoteVotersModal";
 import type { Club, Match, Player } from "../../api/types";
 import { clubLabelPartsById } from "../../ui/clubControls";
-import { type CommentGoalSide, type CommentGoalTeamOption } from "./CommentCreateComposer";
-import { putCommentImage, listTournamentComments, listCommentVoters } from "../../api/comments.api";
+import { listTournamentComments, listCommentVoters } from "../../api/comments.api";
 import { qk } from "../../api/queryKeys";
 import { useAuth } from "../../auth/AuthContext";
 import { useSeenSet } from "../../hooks/useSeenComments";
 import { usePlayerAvatarMap } from "../../hooks/usePlayerAvatarMap";
-import { AddCommentDropdown, type CommentCardContextValue } from "./TournamentCommentParts";
+import { type CommentCardContextValue } from "./TournamentCommentParts";
+import CommentComposer from "./comments/CommentComposer";
 import { useCommentMutations } from "./comments/useCommentMutations";
 import CommentFilterBar from "./comments/CommentFilterBar";
 import CommentList from "./comments/CommentList";
 import {
   type CommentAuthor,
+  type CommentCreateMode,
+  type CommentGoalSide,
+  type CommentGoalTeamOption,
   type CommentScope,
   type TournamentComment,
 } from "./tournamentCommentTypes";
@@ -64,6 +66,7 @@ export default function TournamentCommentsCard({
   const { token, role, actorPlayerId: currentPlayerId, actorPlayerName: currentPlayerName } = useAuth();
   const canAttachImage = role === "admin" || role === "editor";
   const seen = useSeenSet(tournamentId);
+  const goalPlayersListId = useId();
 
   const { avatarUpdatedAtById: avatarUpdatedAtByPlayerId } = usePlayerAvatarMap();
 
@@ -78,9 +81,9 @@ export default function TournamentCommentsCard({
     return names.join("/");
   }
 
-  // --- create/edit form state ---
+  // --- composer state (the chat row at the bottom of the feed) ---
   const [draftAuthor, setDraftAuthor] = useState<"general" | number>(currentPlayerId ?? "general");
-  const [draftMode, setDraftMode] = useState<"comment" | "goal" | "shots">("comment");
+  const [draftMode, setDraftMode] = useState<CommentCreateMode>("comment");
   const [goalSide, setGoalSide] = useState<CommentGoalSide | null>(null);
   const [goalMinute, setGoalMinute] = useState("");
   const [goalPlayerName, setGoalPlayerName] = useState("");
@@ -91,8 +94,13 @@ export default function TournamentCommentsCard({
   const [draftImagePreviewUrl, setDraftImagePreviewUrl] = useState<string | null>(null);
   const [imageCropOpen, setImageCropOpen] = useState(false);
 
+  // --- inline edit state (a comment card, independent of the composer) ---
   const [editingId, setEditingId] = useState<number | null>(null);
-  const [addTarget, setAddTarget] = useState<CommentScope | null>(null);
+  const [editAuthor, setEditAuthor] = useState<"general" | number>("general");
+  const [editBody, setEditBody] = useState("");
+
+  /** Set only when the user picks a different scope than the feed's own filter. */
+  const [scopeOverride, setScopeOverride] = useState<CommentScope | null>(null);
   const [pendingFocusId, setPendingFocusId] = useState<number | null>(null);
   // Active scope filter for the feed: "all" | "general" | matchId.
   const [filter, setFilter] = useState<"all" | "general" | number>(
@@ -170,14 +178,17 @@ export default function TournamentCommentsCard({
     return comments.find((c) => c.id === editingId) ?? null;
   }, [comments, editingId]);
 
-  const editingDirty = useMemo(() => {
+  const editDirty = useMemo(() => {
     if (!editingOriginal) return false;
     const origAuthor = editingOriginal.author.kind === "player" ? editingOriginal.author.playerId : "general";
-    const nextAuthor = draftAuthor;
     const origBody = (editingOriginal.body ?? "").trim();
-    const nextBody = (draftBody ?? "").trim();
-    return origAuthor !== nextAuthor || origBody !== nextBody;
-  }, [draftAuthor, draftBody, editingOriginal]);
+    return origAuthor !== editAuthor || origBody !== (editBody ?? "").trim();
+  }, [editAuthor, editBody, editingOriginal]);
+
+  const canSaveEdit =
+    editingId != null &&
+    editDirty &&
+    (!!editBody.trim() || !!(editingOriginal?.hasImage ?? false));
 
   useEffect(() => {
     // Reset UI state when switching tournaments.
@@ -197,7 +208,9 @@ export default function TournamentCommentsCard({
     });
     setImageCropOpen(false);
     setEditingId(null);
-    setAddTarget(null);
+    setEditAuthor("general");
+    setEditBody("");
+    setScopeOverride(null);
     setPendingFocusId(null);
     setFlashId(null);
     /* eslint-enable react-hooks/set-state-in-effect */
@@ -253,6 +266,7 @@ export default function TournamentCommentsCard({
     };
   }, [comments, pendingFocusId]);
 
+  /** Clear the composer after a successful post (the scope stays where it was). */
   function resetDraft() {
     setDraftAuthor(currentPlayerId ?? "general");
     setDraftMode("comment");
@@ -268,38 +282,25 @@ export default function TournamentCommentsCard({
       return null;
     });
     setImageCropOpen(false);
-    setEditingId(null);
-    setAddTarget(null);
   }
 
-  function startEdit(c: TournamentComment) {
-    setEditingId(c.id);
-    setDraftAuthor(c.author.kind === "player" ? c.author.playerId : "general");
-    setDraftMode("comment");
-    setGoalSide(null);
-    setGoalMinute("");
-    setGoalPlayerName("");
-    setShotsA("");
-    setShotsB("");
-    setDraftBody(c.body);
-    setDraftImageBlob(null);
-    setDraftImagePreviewUrl((prev) => {
-      if (prev) URL.revokeObjectURL(prev);
-      return null;
-    });
-    setImageCropOpen(false);
-    setAddTarget(null);
+  function cancelEdit() {
+    setEditingId(null);
+    setEditAuthor("general");
+    setEditBody("");
   }
 
   function toggleEdit(c: TournamentComment) {
     if (editingId === c.id) {
-      resetDraft();
+      cancelEdit();
       return;
     }
-    startEdit(c);
+    setEditingId(c.id);
+    setEditAuthor(c.author.kind === "player" ? c.author.playerId : "general");
+    setEditBody(c.body);
   }
 
-  const { createMut, patchMut, deleteMut, pinMut, markReadMut, voteMut, actionError } =
+  const { createMut, putImageMut, patchMut, deleteMut, pinMut, markReadMut, voteMut, actionError } =
     useCommentMutations(tournamentId);
 
   async function deleteComment(commentId: number) {
@@ -307,7 +308,7 @@ export default function TournamentCommentsCard({
     if (!ok) return;
     try {
       await deleteMut.mutateAsync(commentId);
-      if (editingId === commentId) resetDraft();
+      if (editingId === commentId) cancelEdit();
     } catch {
       // handled by deleteMut.error (shown in UI)
     }
@@ -348,12 +349,13 @@ export default function TournamentCommentsCard({
     }
   }
 
-  async function upsertComment(scope: CommentScope) {
+  /** Post whatever the composer currently holds (comment, goal or shots entry). */
+  async function postComment() {
+    const scope = composerScope;
     const body = draftBody.trim();
     const hasImage = !!draftImageBlob;
-    if (editingId != null) {
-      if (!body && !(editingOriginal?.hasImage ?? false)) return;
-    } else if (draftMode === "goal") {
+
+    if (draftMode === "goal") {
       if (
         goalSide == null ||
         !goalPlayerName.trim() ||
@@ -371,38 +373,20 @@ export default function TournamentCommentsCard({
     const author_player_id = draftAuthor === "general" ? null : draftAuthor;
 
     try {
-      if (editingId != null) {
-        if (!editingDirty) return;
-        const patchPayload: { commentId: number; author_player_id?: number | null; body: string } = {
-          commentId: editingId,
-          body,
-        };
-        if (editingOriginal) {
-          const originalAuthorId =
-            editingOriginal.author.kind === "player" ? editingOriginal.author.playerId : null;
-          if (originalAuthorId !== author_player_id) {
-            patchPayload.author_player_id = author_player_id;
-          }
-        } else {
-          patchPayload.author_player_id = author_player_id;
-        }
-        await patchMut.mutateAsync(patchPayload);
-        setPendingFocusId(editingId);
-      } else {
-        const created = await createMut.mutateAsync(
-          draftMode === "goal"
-            ? {
-                scope,
-                author_player_id,
-                body,
-                has_image: false,
-                event_type: "goal",
-                goal_minute: normalizeGoalMinute(goalMinute) ?? undefined,
-                goal_player_name: goalPlayerName.trim(),
-                result_score_a: goalScoreForScope(scope, goalSide)?.a,
-                result_score_b: goalScoreForScope(scope, goalSide)?.b,
-              }
-            : draftMode === "shots"
+      const created = await createMut.mutateAsync(
+        draftMode === "goal"
+          ? {
+              scope,
+              author_player_id,
+              body,
+              has_image: false,
+              event_type: "goal",
+              goal_minute: normalizeGoalMinute(goalMinute) ?? undefined,
+              goal_player_name: goalPlayerName.trim(),
+              result_score_a: goalScoreForScope(scope, goalSide)?.a,
+              result_score_b: goalScoreForScope(scope, goalSide)?.b,
+            }
+          : draftMode === "shots"
             ? {
                 scope,
                 author_player_id,
@@ -413,18 +397,44 @@ export default function TournamentCommentsCard({
                 result_score_b: normalizeShots(shotsB) ?? undefined,
               }
             : { scope, author_player_id, body, has_image: hasImage },
-        );
-        const imageBlob = draftImageBlob;
-        if (draftMode === "comment" && hasImage && token && imageBlob) {
-          try {
-            await putCommentImage(token, created.id, imageBlob, "comment.webp");
-          } catch (e: unknown) {
-            showErrorToast(e instanceof Error ? e.message : "Image upload failed", "Comment image upload failed");
-          }
+      );
+      const imageBlob = draftImageBlob;
+      if (draftMode === "comment" && hasImage && token && imageBlob) {
+        try {
+          await putImageMut.mutateAsync({ commentId: created.id, blob: imageBlob });
+        } catch (e: unknown) {
+          showErrorToast(e instanceof Error ? e.message : "Image upload failed", "Comment image upload failed");
         }
-        setPendingFocusId(created.id);
       }
+      setPendingFocusId(created.id);
       resetDraft();
+    } catch {
+      // handled by mutation errors (shown in UI)
+    }
+  }
+
+  /** Save the comment being edited inline in its card. */
+  async function saveEdit() {
+    if (editingId == null || !canSaveEdit) return;
+    const body = editBody.trim();
+    const author_player_id = editAuthor === "general" ? null : editAuthor;
+
+    const patchPayload: { commentId: number; author_player_id?: number | null; body: string } = {
+      commentId: editingId,
+      body,
+    };
+    if (editingOriginal) {
+      const originalAuthorId =
+        editingOriginal.author.kind === "player" ? editingOriginal.author.playerId : null;
+      if (originalAuthorId !== author_player_id) patchPayload.author_player_id = author_player_id;
+    } else {
+      patchPayload.author_player_id = author_player_id;
+    }
+
+    try {
+      await patchMut.mutateAsync(patchPayload);
+      setPendingFocusId(editingId);
+      cancelEdit();
     } catch {
       // handled by mutation errors (shown in UI)
     }
@@ -619,12 +629,37 @@ export default function TournamentCommentsCard({
     return side === "A" ? { a: current.a + 1, b: current.b } : { a: current.a, b: current.b + 1 };
   }
 
+  // The composer posts where you are looking: the match detail page pins it to its
+  // match, the feed's scope filter decides otherwise, and the "Post to" selector
+  // overrides both until the filter changes again.
+  function defaultAddScope(): CommentScope {
+    if (onlyMatchId != null) return { kind: "match", matchId: onlyMatchId };
+    if (typeof filter === "number") return { kind: "match", matchId: filter };
+    return { kind: "tournament" };
+  }
+  const composerScope: CommentScope = scopeOverride ?? defaultAddScope();
+  const composerScopeValue =
+    composerScope.kind === "tournament" ? "general" : `m-${composerScope.matchId}`;
+
+  function changeComposerScope(value: string) {
+    const scope: CommentScope =
+      value === "general" ? { kind: "tournament" } : { kind: "match", matchId: Number(value.slice(2)) };
+    setScopeOverride(scope);
+    if (scope.kind === "tournament" && draftMode !== "comment") handleDraftModeChange("comment");
+  }
+
+  function changeFilter(next: "all" | "general" | number) {
+    setFilter(next);
+    // The composer follows the feed again once the reader changes what they look at.
+    setScopeOverride(null);
+  }
+
   const canSubmit =
     draftMode === "goal"
       ? !!goalPlayerName.trim() &&
         goalSide != null &&
         normalizeGoalMinute(goalMinute) != null &&
-        goalScoreForScope(addTarget, goalSide) != null
+        goalScoreForScope(composerScope, goalSide) != null
       : draftMode === "shots"
         ? normalizeShots(shotsA) != null && normalizeShots(shotsB) != null
         : !!draftBody.trim() || !!draftImageBlob;
@@ -637,7 +672,7 @@ export default function TournamentCommentsCard({
     });
   }
 
-  function handleDraftModeChange(nextMode: "comment" | "goal" | "shots") {
+  function handleDraftModeChange(nextMode: CommentCreateMode) {
     setDraftMode(nextMode);
     if (nextMode === "comment") {
       if (currentPlayerId != null) setDraftAuthor(currentPlayerId);
@@ -665,61 +700,16 @@ export default function TournamentCommentsCard({
 
   function handleGoalSideChange(nextSide: CommentGoalSide) {
     setGoalSide(nextSide);
-    setGoalPlayerName("");
+    // A 1v1 side has exactly one player — prefill the scorer instead of asking for it.
+    const players = goalPlayersForScope(composerScope, nextSide);
+    setGoalPlayerName(players.length === 1 ? (players[0]?.label ?? "") : "");
   }
-
-  const addAuthorOptions = useMemo(() => {
-    const options: { value: "general" | number; label: string }[] = [];
-    if (currentPlayerId != null) {
-      options.push({ value: currentPlayerId, label: currentPlayerName || "Me" });
-    }
-    options.push({ value: "general", label: "General" });
-    if (draftAuthor !== "general" && currentPlayerId != null && draftAuthor !== currentPlayerId) {
-      options.push({
-        value: draftAuthor,
-        label: `${playerById.get(draftAuthor) ?? `Player #${draftAuthor}`} (original)`,
-      });
-    }
-    return options;
-  }, [currentPlayerId, currentPlayerName, draftAuthor, playerById]);
 
   const matchIndexById = useMemo(() => {
     const m = new Map<number, number>();
     matchesOrdered.forEach((mt, i) => m.set(mt.id, i + 1));
     return m;
   }, [matchesOrdered]);
-
-  // Open the composer for a scope (resetting draft fields), optionally pre-set to a
-  // match-event mode (goal/shots). Match events are only valid on a match scope.
-  function openComposer(scope: CommentScope, initialMode: "comment" | "goal" | "shots" = "comment") {
-    setEditingId(null);
-    setGoalSide(null);
-    setGoalMinute("");
-    setGoalPlayerName("");
-    setShotsA("");
-    setShotsB("");
-    setDraftBody("");
-    setDraftImage(null);
-    const mode = scope.kind === "match" ? initialMode : "comment";
-    setDraftMode(mode);
-    setDraftAuthor(mode === "comment" ? currentPlayerId ?? "general" : "general");
-    setAddTarget(scope);
-  }
-  function changeComposerScope(value: string) {
-    const scope: CommentScope =
-      value === "general" ? { kind: "tournament" } : { kind: "match", matchId: Number(value.slice(2)) };
-    setAddTarget(scope);
-    if (scope.kind === "tournament" && draftMode !== "comment") handleDraftModeChange("comment");
-  }
-  const composerScopeValue =
-    addTarget == null ? "general" : addTarget.kind === "tournament" ? "general" : `m-${addTarget.matchId}`;
-
-  // Default scope used when opening the composer from the current filter.
-  function defaultAddScope(): CommentScope {
-    if (onlyMatchId != null) return { kind: "match", matchId: onlyMatchId };
-    if (typeof filter === "number") return { kind: "match", matchId: filter };
-    return { kind: "tournament" };
-  }
 
   // --- chips / filtered feed ---
   const generalComments = grouped.tournament;
@@ -728,15 +718,19 @@ export default function TournamentCommentsCard({
   const matchBlocksWithComments = grouped.blocks.filter((b) => b.comments.length > 0);
   const totalComments = comments.length;
 
-  const composer = canWrite && addTarget ? (
-    <div className="card space-y-3">
-      {onlyMatchId == null ? (
-        <div className="block">
-          <FormLabel>Add to</FormLabel>
+  const composer = canWrite ? (
+    <CommentComposer
+      mode={draftMode}
+      onModeChange={handleDraftModeChange}
+      allowMatchEventModes={composerScope.kind === "match"}
+      scopeControl={
+        onlyMatchId == null ? (
           <FilterSelect
             value={composerScopeValue}
             onChange={changeComposerScope}
-            ariaLabel="Add comment to"
+            ariaLabel="Post to"
+            className="py-1.5"
+            leading={<CornerDownRight size={14} aria-hidden="true" />}
             options={[
               { value: "general", label: "General (tournament)" },
               ...matchesOrdered.map((m) => ({
@@ -745,54 +739,51 @@ export default function TournamentCommentsCard({
               })),
             ]}
           />
-        </div>
-      ) : null}
-      <AddCommentDropdown
-        open
-        authorOptions={addAuthorOptions}
-        draftAuthor={draftAuthor}
-        onChangeDraftAuthor={setDraftAuthor}
-        draftMode={draftMode}
-        onChangeDraftMode={handleDraftModeChange}
-        allowMatchEventModes={addTarget.kind === "match"}
-        goalTeams={addTarget.kind === "match" ? goalTeamsForScope(addTarget) : []}
-        goalSide={goalSide}
-        onChangeGoalSide={handleGoalSideChange}
-        goalPlayers={addTarget.kind === "match" ? goalPlayersForScope(addTarget, goalSide) : []}
-        goalMinute={goalMinute}
-        onChangeGoalMinute={setGoalMinute}
-        goalPlayerName={goalPlayerName}
-        onChangeGoalPlayerName={setGoalPlayerName}
-        shotsA={shotsA}
-        onChangeShotsA={setShotsA}
-        shotsB={shotsB}
-        onChangeShotsB={setShotsB}
-        draftBody={draftBody}
-        onChangeDraftBody={setDraftBody}
-        canAttachImage={canAttachImage}
-        imagePreviewUrl={draftImagePreviewUrl}
-        onOpenImageCropper={() => setImageCropOpen(true)}
-        onClearImage={() => setDraftImage(null)}
-        onSubmit={() => {
-          if (addTarget) void upsertComment(addTarget);
-        }}
-        onCancel={() => setAddTarget(null)}
-        canSubmit={canSubmit}
-        surfaceClassName=""
-      />
-    </div>
+        ) : null
+      }
+      authorControl={
+        currentPlayerId != null ? (
+          <Chip
+            selected={draftAuthor !== "general"}
+            onClick={() => setDraftAuthor(draftAuthor === "general" ? currentPlayerId : "general")}
+            className="shrink-0"
+            title="Post as yourself or as General"
+            ariaLabel={`Posted as ${draftAuthor === "general" ? "General" : currentPlayerName || "me"}`}
+          >
+            {draftAuthor === "general" ? "General" : currentPlayerName || "Me"}
+          </Chip>
+        ) : null
+      }
+      goalTeams={composerScope.kind === "match" ? goalTeamsForScope(composerScope) : []}
+      goalSide={goalSide}
+      onGoalSideChange={handleGoalSideChange}
+      goalPlayers={composerScope.kind === "match" ? goalPlayersForScope(composerScope, goalSide) : []}
+      goalMinute={goalMinute}
+      onGoalMinuteChange={setGoalMinute}
+      goalPlayerName={goalPlayerName}
+      onGoalPlayerNameChange={setGoalPlayerName}
+      shotsA={shotsA}
+      onShotsAChange={setShotsA}
+      shotsB={shotsB}
+      onShotsBChange={setShotsB}
+      draftBody={draftBody}
+      onChangeDraftBody={setDraftBody}
+      canAttachImage={canAttachImage}
+      imagePreviewUrl={draftImagePreviewUrl}
+      onOpenImageCropper={() => setImageCropOpen(true)}
+      onClearImage={() => setDraftImage(null)}
+      onSubmit={() => void postComment()}
+      canSubmit={canSubmit}
+      submitting={createMut.isPending}
+      playersListId={goalPlayersListId}
+    />
   ) : null;
-
-  // Entry point for adding to the feed: on a match scope we surface three equal
-  // options (comment / goal / shots); the general thread only takes a comment.
-  const entryScope = defaultAddScope();
-  const entryAllowsEvents = entryScope.kind === "match";
 
   // Shared/stable card-level values (viewer permissions, draft/reply/edit state, callbacks)
   // handed to CommentList/CommentCard as one bundle instead of ~30 individual props —
   // mirrors GuestbookCardContextValue in profile/useProfileGuestbook.ts. Built fresh each
   // render (not useMemo'd): several of its callbacks close over plain function declarations
-  // above (openReply, submitReply, toggleEdit, deleteComment, upsertComment, authorLabel)
+  // above (openReply, submitReply, toggleEdit, deleteComment, saveEdit, authorLabel)
   // that are recreated every render, so memoizing here would either recompute every render
   // anyway or — if under-declared as deps — reintroduce the stale-closure trap fixed in F1.
   const commentCardCtx: CommentCardContextValue = {
@@ -806,12 +797,11 @@ export default function TournamentCommentsCard({
     avatarUpdatedAtByPlayerId,
     authorLabel,
     editingId,
-    editingDirty,
+    editAuthor,
+    editBody,
+    canSaveEdit,
     pinnedTournamentCommentId,
     flashId,
-    draftAuthor,
-    draftBody,
-    canSubmit,
     replyToId,
     replyDraft,
     replySubmitting: createMut.isPending,
@@ -835,9 +825,9 @@ export default function TournamentCommentsCard({
     setReplyDraft,
     toggleEdit,
     deleteComment: (id) => void deleteComment(id),
-    setDraftAuthor,
-    setDraftBody,
-    upsertComment: (scope) => void upsertComment(scope),
+    setEditAuthor,
+    setEditBody,
+    saveEdit: () => void saveEdit(),
   };
 
   const commentsContent = (
@@ -851,7 +841,7 @@ export default function TournamentCommentsCard({
           {onlyMatchId == null ? (
             <CommentFilterBar
               filter={filter}
-              onChange={setFilter}
+              onChange={changeFilter}
               totalCount={totalComments}
               generalCount={generalComments.length}
               generalUnseen={generalUnseen}
@@ -862,33 +852,6 @@ export default function TournamentCommentsCard({
                 unseen: !!token && b.comments.some((c) => !seen.has(c.id)),
               }))}
             />
-          ) : null}
-
-          {/* Add entry: comment / goal / shots (matches) or just a comment (general). */}
-          {canWrite ? (
-            addTarget ? (
-              composer
-            ) : entryAllowsEvents ? (
-              <div className="grid grid-cols-3 gap-2">
-                <Button type="button" variant="ghost" className="h-10 px-2 inline-flex items-center justify-center gap-1.5" onClick={() => openComposer(entryScope, "comment")} title="Add comment">
-                  <MessageSquare size={14} aria-hidden="true" />
-                  <span className="truncate">Add comment</span>
-                </Button>
-                <Button type="button" variant="ghost" className="h-10 px-2 inline-flex items-center justify-center gap-1.5" onClick={() => openComposer(entryScope, "goal")} title="Enter goal">
-                  <Goal size={14} aria-hidden="true" />
-                  <span className="truncate">Enter goal</span>
-                </Button>
-                <Button type="button" variant="ghost" className="h-10 px-2 inline-flex items-center justify-center gap-1.5" onClick={() => openComposer(entryScope, "shots")} title="Enter shots">
-                  <Target size={14} aria-hidden="true" />
-                  <span className="truncate">Enter Shots</span>
-                </Button>
-              </div>
-            ) : (
-              <Button type="button" variant="ghost" onClick={() => openComposer(entryScope, "comment")}>
-                <Plus size={14} className="mr-1.5 inline-block align-[-2px]" aria-hidden="true" />
-                Add comment
-              </Button>
-            )
           ) : null}
 
           {/* Feed */}
@@ -912,6 +875,9 @@ export default function TournamentCommentsCard({
             toggleThread={toggleThread}
             ctx={commentCardCtx}
           />
+
+          {/* The composer lives at the bottom of the feed, chat-style. */}
+          {composer}
         </div>
     </>
   );
