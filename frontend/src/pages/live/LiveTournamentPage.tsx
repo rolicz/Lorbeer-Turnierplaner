@@ -542,8 +542,11 @@ export default function LiveTournamentPage() {
         <>
           {effectiveTab === "overview" ? (
             <OverviewSection
+              tournamentId={tid}
               mode={tQ.data.mode}
               date={tQ.data.date}
+              isDone={isDone}
+              decider={decider}
               matches={matchesSorted}
               players={tQ.data.players ?? []}
               clubs={clubs}

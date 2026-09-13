@@ -4291,7 +4291,7 @@ Playwright with touch emulation at 390px plus a desktop check; `npm run check` +
 
 # Round 5 — Roli, 2026-09-13 (planned, not started)
 
-## T12 — The Overview earns its place on a finished tournament  ☐
+## T12 — The Overview earns its place on a finished tournament  ☑
 
 Roli: "when a tournament is done and i click on it, it does not make much sense to have the
 current match (=last match) in the overview. make the overview page also show done matches at the
@@ -4317,7 +4317,88 @@ tournament is simply the last match played — presented as if it were happening
 match"; a live one shows current → standings → next → played; rows open the match page;
 screenshots 390px + 1280px, blue + light, of both states; `npm run check` + build.
 
-**Deviations:**
+**Deviations:** (implemented 2026-09-13 on `feature/2026-09-round5`, one commit)
+
+Files: `pages/live/OverviewSection.tsx` (the tab), `pages/live/tournamentStandings.ts`
+(`resolveTournamentOutcome`), `pages/live/LiveTournamentPage.tsx` (three new props),
+`test/overviewSection.test.tsx` (new, 6 cases), `test/tournamentStandings.test.ts` (+5 cases).
+No backend change, no new dependency.
+
+**What leads a done tournament: the winner, resolved the way the cup is.**
+`resolveTournamentOutcome(rows, decider)` mirrors `services/cup.py` →
+`stats/core.resolve_tournament_winner_player_id` line for line: the unique top of the table
+(pts, then GD, then goals — `computeTopDraw` already encodes that key), and when the top is tied,
+the tournament's decider winner, *if* that player actually played. So the Overview, the tournaments
+list's trophy line and cup ownership can never disagree about who won. Three renderings:
+- **a winner** — trophy, avatar, name and points in one `inset`, with `6 matches · GD +3` under the
+  name, or `Tied at the top · won penalties` when the decider settled it (so the block explains
+  itself instead of leaving the reader to wonder why #1 in the table below is somebody else);
+- **a tie nobody resolved** — "No winner — it ended level at the top." plus the tied names. The
+  standings block below still emphasises row 1, exactly as the Results tab still draws its green
+  leader rail there; the sentence above it is what says the position is not a win;
+- **no players** — one muted line, so the block can never render empty.
+The name (and the avatar, `decorative`) is a `PlayerLink` — identity is a link (N4); nothing else
+in the block is clickable, so there is no nested `<a>` anywhere in the tab (asserted).
+
+**How many played matches: the last 5, then hand over to Matches.** Rows are newest first, each
+one a link to `/live/{tid}/match/{mid}`. Past five, the section head grows a ghost
+`Show all N →` that **switches to the Matches tab** rather than expanding in place. That is the
+"check the neighbours" call: the Matches tab already owns the full ordered list *with* its
+Compact/Details toggle, the reorder arrows and swap-sides, so an in-place expander would be a
+second, worse copy of it inside a summary tab. Five is the app's existing "Last 5" dose, it is
+~5 rows of air under the standings at 390px, and it is enough that a 6-match tournament shows all
+but one. The `#N` marker is kept on every row (like the Next-matches rows and the Matches tab),
+so the reader can see at a glance that they are looking at the tail of the list.
+
+**Newest first = reverse `order_index`**, not `finished_at`: the Matches tab lists the playing
+order, so this block is literally that list read upwards, and the `#N` markers count down. Sorting
+by `finished_at` could interleave them whenever an editor fills a result in late, and the two tabs
+would then disagree about "the last match".
+
+**One skeleton, one lead block.** Both states are the same component and the same block order —
+lead → standings → (next) → played — and the only branch is the lead: `Winner` on a done
+tournament, `Current match` otherwise. `Next matches` is live-only because a finished tournament
+has none (the block already hid itself when empty), and the standings block is shared, with its
+label switching to `Final standings` and its `aria-label` to "Open results". `pickPreviewMatch` is
+simply not asked on a done tournament — it and the dashboard's live card are untouched.
+
+**`MatchHistoryList`'s row was not reused, `ScoreLine sm` was.** `MatchRowWithClubs` (and
+`tournamentMatchHref` with it) is built on the *stats* wire types
+(`StatsMatch`/`StatsPlayerMatchesTournament`), which the live page does not have; it carries no
+`#N`, and it hardcodes `state={{ fromTab: "matches" }}`, while a row opened from here must carry
+`fromTab: "overview"` so the match page's back chevron returns to *this* tab (verified in the
+browser, and the pop path keeps the scroll). The rows are therefore the same
+`ScoreLine size="sm"` the block above them uses, in a `row-tap` link, and the href is the exact
+string `tournamentMatchHref` builds.
+
+**One change outside the strict diff, in the same file:** both match blocks now stack a 2v2 side's
+two names (`sideNames`) instead of joining them with `+`. `DESIGN.md` §8 says a 2v2 score stacks
+two names per side, the Matches tab and every stats history row do, and the Current-match panel
+directly above does — the old `teamName()` join in "Next matches" was the one place that did not,
+and leaving it would have put two differently-shaped match lists in one tab.
+
+**Small things.** The avatar metadata query is only enabled on a done tournament
+(`usePlayerAvatarMap({ enabled: isDone })`), so a live Overview fetches nothing new. The
+`isDone` branch in `LiveTournamentPage`'s `onOpenCurrentMatch` is now unreachable (the block it
+served is gone on a done tournament) and was left as-is rather than rewired.
+
+**Verification**
+
+- `cd frontend && npm run check` → typecheck + eslint clean, **45 files / 444 tests passed**
+  (~37 s; 44/433 before). `npm run build` green, same pre-existing 500 kB chunk hint.
+- Isolated stack: backend `:8003` on a copy of the dev DB (`backend/data/verify.db`), vite `:8020`.
+  States used: **done 1v1** t19 (6 played), **done 2v2** t17 (9 played), **live 1v1** t18 rewound
+  (3 finished · 1 playing · 2 scheduled), **live 2v2** t21 as it stands (2 · 1 · 2), plus t12
+  (a genuine three-way tie at the top) with and without a penalties decider, and t20 (draft).
+- Playwright, blue + light × 390px + 1280px on all six tournament states: the section labels are
+  exactly `Winner · Final standings · Played matches` when done and `Current match · Standings ·
+  Next matches · Played matches` when live, no `[data-match-panel]` on a done Overview, the played
+  rows' hrefs are the match pages in reverse order, `a a` = 0, no horizontal overflow, 0 console
+  errors. Interaction: `Show all 6` lands on the Matches tab with its 6 rows; a played row opens
+  `/live/19/match/107` and both browser-back and the in-app chevron return to
+  `/live/19?tab=overview`; a draft tournament shows no played block.
+- Screenshots (scratchpad `shots/`): `t12-{done1v1,done2v2,live1v1,live2v2,tie1v1,decider1v1}-{390,1280}-{blue,light}.png`
+  plus `t12-{draft,backfromMatch}-{390,1280}-blue.png`.
 
 ---
 
