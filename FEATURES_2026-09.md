@@ -4660,19 +4660,34 @@ tournament opens on `overview` unless the URL says otherwise. Check the neighbou
 old default: the tournaments list rows, the dashboard, U6's remembered page, and the `?tab=` deep
 links (all of which pass an explicit tab and are therefore unaffected — confirm rather than assume).
 
-**B. Ringed player avatars everywhere.** The Players page wraps its avatars in a 2.5px ring
-(`pages/PlayersAdminPage.tsx:226-229`, `cupRingBackground`), which reads better than the bare disc
-used elsewhere. Give every player avatar that treatment:
-- Put it in `ui/primitives/AvatarCircle.tsx` (a `ring` prop, or a small `PlayerAvatar` wrapper) so
-  there is one implementation, and adopt it at every call site: standings rows, the what-if table,
-  stats (Table, Records, Streaks, Cups, H2H, matchup header, Player), profile, dashboard cups
-  preview, pickers, comment authors, guestbook.
-- **The cup ring must keep meaning what it means.** Roli: "make sure to show who was cup owner
-  before this tournament in standings (as you do now)". The plain ring is decoration; a cup ring is
-  information. They must stay visually distinct — decide how (e.g. neutral hairline vs the cup's
-  colour at full strength, or keep the badge and make the plain ring quieter) and check both themes
-  at 390px, where the two sit side by side in the standings.
-- Keep every existing `title`/`aria-label` that explains a cup ring.
+**B. Ringed player avatars everywhere — and one tense for the ring.** The Players page wraps its
+avatars in a 2.5px ring (`pages/PlayersAdminPage.tsx:226-229`, `cupRingBackground`), which reads
+better than the bare disc used elsewhere.
+
+*Decisions (Roli, 2026-09-13 — settled, do not relitigate):*
+- **Shape is decoration, colour is information.** Every player avatar gets the same neutral
+  hairline ring; a cup's colour on a ring is reserved for meaning.
+- **An avatar always speaks in the present tense**: a cup-coloured ring means that player holds
+  that cup *today*. Never use the ring for historic ownership, anywhere.
+- **The standings keep the crown badge exactly as it is** — that is where "who owned the cup going
+  into this tournament" is shown, and Roli is happy with it. Do not restyle or move it.
+
+*Work:*
+- Put the ring in `ui/primitives/AvatarCircle.tsx` (a `ring` prop, or a small `PlayerAvatar`
+  wrapper) so there is one implementation, and adopt it at every call site: standings rows, the
+  what-if table, stats (Table, Records, Streaks, Cups, H2H, matchup header, Player), profile,
+  dashboard cups preview, pickers, comment authors, guestbook.
+- The neutral hairline and a cup ring must stay unmistakably different at 390px in both themes —
+  screenshot a holder and a non-holder side by side in the standings, where they sit together.
+- **No cup marking at all** on comment authors, guestbook entries or any picker: a crown beside
+  every comment is noise.
+- *From Roli's suggestion ("in match list it would be interesting to see the owner back then"),
+  separable — drop it if it crowds the block:* the match-history **tournament block header** already
+  carries the date pill and `TournamentLaurelMarkers`; add the stake owner there, e.g.
+  "Bauernkranz at stake · Rumpi defending", read from the `cup_stakes` the payload already
+  provides. Per block, never per row, and never as a ring — a cup cannot change hands mid
+  tournament, so the block is the right grain, and together with the laurel it says who went in
+  holding it and whether it changed hands.
 
 **C. "Show all" for the final standings.** T12's played-matches block ends with a ghost
 `Show all 6 →` into the Matches tab, which Roli likes. Give the Overview's standings block the same
