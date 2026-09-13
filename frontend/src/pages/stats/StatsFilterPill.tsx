@@ -8,6 +8,12 @@
  * the bottom-right corner — above the mobile bottom tab bar, using the same
  * offset as the error toast — so the filters stay reachable while scrolled down.
  *
+ * Being small, it was easy to miss (S9), so it now announces itself three ways
+ * without growing: a solid surface with an accent hairline, an accent border +
+ * halo + dot whenever a filter is off its default, one short attention pulse on
+ * the first visit to Stats in a session, and a second trigger (`inlineSlot`) that
+ * the section renders inline with its sub-view chips on mobile.
+ *
  * Sections that use only one (or neither) filter hide the parts they don't
  * need; with neither, nothing is rendered at all.
  */
@@ -16,7 +22,7 @@ import { createPortal } from "react-dom";
 import { motion, type Variants } from "framer-motion";
 import { Handshake, Layers, SlidersHorizontal, Trophy, type LucideIcon } from "lucide-react";
 
-import { ChipGroup } from "../../ui/primitives/Chip";
+import { ChipGroup, chipClass } from "../../ui/primitives/Chip";
 import { ease } from "../../ui/motion/motion";
 import type { StatsMode } from "./statsMode";
 import type { StatsScope } from "../../api/types";
@@ -40,41 +46,70 @@ const SCOPE_ICON: Record<StatsScope, LucideIcon> = {
   friendlies: Handshake,
 };
 
+/** Defaults — anything else means the numbers on screen are filtered. */
+const DEFAULT_MODE: StatsMode = "overall";
+const DEFAULT_SCOPE: StatsScope = "tournaments";
+
+/** One attention pulse per browser session, not per visit to the page. */
+const PULSE_KEY = "lk:stats-filter-pulsed";
+
 function labelOf<T extends string>(options: { key: T; label: string }[], value: T) {
   return options.find((o) => o.key === value)?.label ?? String(value);
 }
 
-/** Grows out of the pill: fade + scale from just below its resting spot. */
-const popUp: Variants = {
-  hidden: { opacity: 0, y: 6, scale: 0.96 },
+/** Grows out of its trigger: fade + scale from just outside its resting spot. */
+const popUp = (placement: "above" | "below"): Variants => ({
+  hidden: { opacity: 0, y: placement === "above" ? 6 : -6, scale: 0.96 },
   show: { opacity: 1, y: 0, scale: 1, transition: { duration: 0.16, ease: ease.out } },
-};
+});
+
+/** Two short pulses; `MotionConfig reducedMotion="user"` drops the scale entirely. */
+const PULSE = { scale: [1, 1.12, 1, 1.12, 1] };
+const PULSE_TRANSITION = { duration: 1.1, times: [0, 0.18, 0.42, 0.6, 0.9], ease: ease.out, delay: 0.45 };
+
+type Anchor = { top: number; bottom: number; right: number; placement: "above" | "below" };
 
 export default function StatsFilterPill({
-  mode, scope, onModeChange, onScopeChange, showMode, showScope,
+  mode, scope, onModeChange, onScopeChange, showMode, showScope, inlineSlot,
 }: {
   mode: StatsMode; scope: StatsScope;
   onModeChange: (m: StatsMode) => void; onScopeChange: (s: StatsScope) => void;
   showMode: boolean; showScope: boolean;
+  /** Optional second trigger: the element the section reserves in its chip row (mobile). */
+  inlineSlot?: HTMLElement | null;
 }) {
   const [open, setOpen] = useState(false);
-  const [rect, setRect] = useState<DOMRect | null>(null);
+  const [anchor, setAnchor] = useState<Anchor | null>(null);
+  // First arrival at Stats in this session: one short pulse so the pill is seen
+  // once. Reading the flag is pure (safe to re-run); the effect below marks the
+  // session as pulsed.
+  const [pulse, setPulse] = useState(() => {
+    try {
+      return !sessionStorage.getItem(PULSE_KEY);
+    } catch {
+      return true; /* no sessionStorage (private mode): pulse this mount, that is harmless */
+    }
+  });
 
-  const rootRef = useRef<HTMLDivElement>(null);
   const pillRef = useRef<HTMLButtonElement>(null);
+  const chipRef = useRef<HTMLButtonElement>(null);
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
 
-  const place = useCallback(() => {
-    const el = pillRef.current;
+  const place = useCallback((placement?: "above" | "below") => {
+    const el = triggerRef.current;
     if (!el) return;
-    const next = el.getBoundingClientRect();
+    const r = el.getBoundingClientRect();
     // Keep the same object while nothing moved, so repositioning on scroll /
     // resize doesn't re-render the popover for free.
-    setRect((prev) => (prev && prev.top === next.top && prev.right === next.right ? prev : next));
+    setAnchor((prev) => {
+      const next: Anchor = { top: r.top, bottom: r.bottom, right: r.right, placement: placement ?? prev?.placement ?? "above" };
+      return prev && prev.top === next.top && prev.right === next.right && prev.placement === next.placement ? prev : next;
+    });
   }, []);
 
-  // Anchor to the pill (same portal pattern as ui/FilterSelect.tsx) and keep the
-  // anchor honest when the viewport changes (mobile browser chrome, rotation).
+  // Anchor to the trigger that was used (same portal pattern as ui/FilterSelect.tsx)
+  // and keep the anchor honest when the viewport changes (browser chrome, rotation).
   useLayoutEffect(() => {
     if (!open) return;
     place();
@@ -100,14 +135,14 @@ export default function StatsFilterPill({
     if (!open) return;
     const onDown = (e: MouseEvent) => {
       const t = e.target as Node;
-      // The pill toggles itself on click; ignoring it here keeps re-tap = close.
-      if (rootRef.current?.contains(t) || panelRef.current?.contains(t)) return;
+      // Both triggers toggle themselves on click; ignoring them here keeps re-tap = close.
+      if (pillRef.current?.contains(t) || chipRef.current?.contains(t) || panelRef.current?.contains(t)) return;
       setOpen(false);
     };
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
       setOpen(false);
-      pillRef.current?.focus();
+      triggerRef.current?.focus();
     };
     document.addEventListener("mousedown", onDown);
     document.addEventListener("keydown", onKey);
@@ -117,59 +152,116 @@ export default function StatsFilterPill({
     };
   }, [open]);
 
+  useEffect(() => {
+    if (!pulse) return;
+    try {
+      sessionStorage.setItem(PULSE_KEY, "1");
+    } catch {
+      /* ignore */
+    }
+  }, [pulse]);
+
   // Nothing to filter (e.g. Cups): no floating clutter over the content.
   if (!showMode && !showScope) return null;
 
   const ScopeIcon = SCOPE_ICON[scope];
+  // Only the filters this section actually uses count as "filtered".
+  const filtered = (showMode && mode !== DEFAULT_MODE) || (showScope && scope !== DEFAULT_SCOPE);
   // The capsule is one control, so its values live in one label: sr-only spans
   // inside a button are concatenated without separators by the name computation.
-  const pillLabel = [
+  const values = [
     ...(showMode ? [`Mode: ${labelOf(MODE_OPTIONS, mode)}`] : []),
     ...(showScope ? [`Source: ${labelOf(SCOPE_OPTIONS, scope)}`] : []),
   ].join(", ");
 
-  return (
-    <div
-      ref={rootRef}
-      className="fixed bottom-[calc(4.5rem+env(safe-area-inset-bottom,0px))] right-4 z-40 lg:bottom-6 lg:right-6"
-    >
-      {/* place() before opening: the popover then mounts in the same commit, so
-          the focus effect finds it in the DOM. */}
-      <button
-        ref={pillRef}
-        type="button"
-        onClick={() => { place(); setOpen((v) => !v); }}
-        aria-haspopup="dialog"
-        aria-expanded={open}
-        aria-label={pillLabel}
-        className="focus-ring flex h-9 items-center gap-2 rounded-full border border-border-card-chip/60 bg-bg-card-outer/85 pl-2.5 pr-3 text-text-normal shadow-pop backdrop-blur-md transition-colors hover:bg-bg-card-outer"
-      >
-        <SlidersHorizontal size={14} aria-hidden="true" className="shrink-0 text-text-muted" />
-        {showMode ? (
-          <span className="text-xs font-semibold leading-none">{labelOf(MODE_OPTIONS, mode)}</span>
-        ) : null}
-        {showMode && showScope ? (
-          <span aria-hidden="true" className="h-1 w-1 shrink-0 rounded-full bg-border-card-chip" />
-        ) : null}
-        {showScope ? (
-          <ScopeIcon size={14} aria-hidden="true" className="shrink-0 text-text-muted" />
-        ) : null}
-      </button>
+  const toggleFrom = (ref: { current: HTMLButtonElement | null }, placement: "above" | "below") => {
+    // place() before opening: the portal then mounts in the same commit, so the
+    // focus effect finds it in the DOM.
+    triggerRef.current = ref.current;
+    place(placement);
+    setPulse(false);
+    setOpen((v) => !v);
+  };
 
-      {open && rect
+  /** The accent dot that marks a non-default filter, on both triggers. */
+  const dot = filtered ? (
+    <span aria-hidden="true" className="absolute -right-0.5 -top-0.5 h-1.5 w-1.5 rounded-full bg-accent ring-2 ring-bg-card-outer" />
+  ) : null;
+
+  return (
+    <>
+      {/* Second entry point: inline with the section's sub-view chips, where the
+          eye already is while scrolling the top of the page (mobile only). */}
+      {inlineSlot
+        ? createPortal(
+            <button
+              ref={chipRef}
+              type="button"
+              onClick={() => toggleFrom(chipRef, "below")}
+              aria-haspopup="dialog"
+              aria-expanded={open}
+              aria-label={`Filters — ${values}`}
+              className={chipClass(open || filtered, "inline-flex items-center gap-1.5")}
+            >
+              <span className="relative inline-flex">
+                <SlidersHorizontal size={14} aria-hidden="true" className="shrink-0" />
+                {dot}
+              </span>
+              Filters
+            </button>,
+            inlineSlot,
+          )
+        : null}
+
+      <div className="fixed bottom-[calc(4.5rem+env(safe-area-inset-bottom,0px))] right-4 z-40 lg:bottom-6 lg:right-6">
+        <motion.button
+          ref={pillRef}
+          type="button"
+          onClick={() => toggleFrom(pillRef, "above")}
+          animate={pulse ? PULSE : { scale: 1 }}
+          transition={pulse ? PULSE_TRANSITION : { duration: 0.2 }}
+          aria-haspopup="dialog"
+          aria-expanded={open}
+          aria-label={values}
+          data-filtered={filtered ? "true" : "false"}
+          data-pulse={pulse ? "true" : "false"}
+          className={
+            "focus-ring flex h-9 items-center gap-2 rounded-full border bg-bg-card-outer pl-2.5 pr-3 text-text-normal shadow-pop backdrop-blur-md transition-colors " +
+            (filtered ? "border-accent/60 ring-2 ring-accent/20" : "border-accent/30 hover:border-accent/60")
+          }
+        >
+          <span className="relative inline-flex">
+            <SlidersHorizontal size={14} aria-hidden="true" className={"shrink-0 " + (filtered ? "text-accent" : "text-text-muted")} />
+            {dot}
+          </span>
+          {showMode ? (
+            <span className={"text-xs font-semibold leading-none " + (showMode && mode !== DEFAULT_MODE ? "text-accent" : "")}>
+              {labelOf(MODE_OPTIONS, mode)}
+            </span>
+          ) : null}
+          {showMode && showScope ? (
+            <span aria-hidden="true" className="h-1 w-1 shrink-0 rounded-full bg-border-card-chip" />
+          ) : null}
+          {showScope ? (
+            <ScopeIcon size={14} aria-hidden="true" className={"shrink-0 " + (scope !== DEFAULT_SCOPE ? "text-accent" : "text-text-muted")} />
+          ) : null}
+        </motion.button>
+      </div>
+
+      {open && anchor
         ? createPortal(
             <motion.div
               ref={panelRef}
               role="dialog"
               aria-label="Stats filters"
-              variants={popUp}
+              variants={popUp(anchor.placement)}
               initial="hidden"
               animate="show"
-              style={{
-                bottom: window.innerHeight - rect.top + 8,
-                right: window.innerWidth - rect.right,
-                transformOrigin: "bottom right",
-              }}
+              style={
+                anchor.placement === "above"
+                  ? { bottom: window.innerHeight - anchor.top + 8, right: window.innerWidth - anchor.right, transformOrigin: "bottom right" }
+                  : { top: anchor.bottom + 8, right: window.innerWidth - anchor.right, transformOrigin: "top right" }
+              }
               className="card-outer fixed z-40 w-64 space-y-3 shadow-pop backdrop-blur-md"
             >
               {showMode ? (
@@ -188,6 +280,6 @@ export default function StatsFilterPill({
             document.body,
           )
         : null}
-    </div>
+    </>
   );
 }

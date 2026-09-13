@@ -5,6 +5,8 @@
  * Moved here from `pages/stats/charts.tsx` (DS1); DS6 repointed every stats call site
  * and removed both the re-export and the older `ToggleChip` copy in `stats/controls.tsx`.
  */
+/* eslint-disable react-refresh/only-export-components -- `chipClass` ships with the
+   component it styles, like `buttonClass` in Button.tsx (DS6). */
 import type { ReactNode } from "react";
 
 import { cn } from "../cn";
@@ -18,6 +20,15 @@ const CHIP_BASE = "rounded-full border px-3 py-1.5 text-sm transition focus-ring
 const CHIP_ON = "border-accent/40 bg-accent/15 font-medium text-accent";
 const CHIP_OFF =
   "border-border-card-chip/40 bg-bg-card-chip/50 text-text-muted hover:text-text-normal";
+
+/**
+ * The chip surface as a class string, for a button that must not be a `Chip`:
+ * a popover trigger carries `aria-haspopup`/`aria-expanded`, never the
+ * `aria-pressed` toggle semantics `Chip` gives every button (S9).
+ */
+export function chipClass(selected = false, className?: string): string {
+  return cn(CHIP_BASE, selected ? CHIP_ON : CHIP_OFF, className);
+}
 
 export function Chip({
   selected = false,

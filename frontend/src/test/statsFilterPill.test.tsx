@@ -1,6 +1,6 @@
 import type { ComponentProps } from "react";
-import { describe, expect, it, vi } from "vitest";
-import { fireEvent, render, within } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 
 import StatsFilterPill from "../pages/stats/StatsFilterPill";
 
@@ -18,9 +18,22 @@ function setup(props: Partial<ComponentProps<typeof StatsFilterPill>> = {}) {
       {...props}
     />,
   );
-  const pill = utils.queryAllByRole("button")[0];
+  // The floating capsule; with an `inlineSlot` a second trigger lives outside the container.
+  const pill = utils.container.querySelector<HTMLButtonElement>("[data-filtered]") as HTMLButtonElement;
   return { ...utils, pill, onModeChange, onScopeChange };
 }
+
+/** The section's chip row hands the pill a slot; the second trigger is portalled into it. */
+function setupWithSlot(props: Partial<ComponentProps<typeof StatsFilterPill>> = {}) {
+  const slot = document.createElement("span");
+  document.body.appendChild(slot);
+  const utils = setup({ ...props, inlineSlot: slot });
+  return { ...utils, slot, chip: within(slot).getByRole("button") };
+}
+
+beforeEach(() => {
+  sessionStorage.clear();
+});
 
 function openPopover(props: Partial<ComponentProps<typeof StatsFilterPill>> = {}) {
   const utils = setup(props);
@@ -122,5 +135,63 @@ describe("StatsFilterPill", () => {
     const { container, queryByRole } = setup({ showMode: false, showScope: false });
     expect(container).toBeEmptyDOMElement();
     expect(queryByRole("button")).toBeNull();
+  });
+
+  // ── S9: a filtered view must be obvious, and the pill must be findable ──────
+
+  it("flags a non-default filter so the pill can mark itself", () => {
+    expect(setup().pill).toHaveAttribute("data-filtered", "false");
+    expect(setup({ mode: "1v1" }).pill).toHaveAttribute("data-filtered", "true");
+    expect(setup({ scope: "friendlies" }).pill).toHaveAttribute("data-filtered", "true");
+  });
+
+  it("ignores a filter the section does not use", () => {
+    // Positions filters by mode only: a left-over `source` must not mark it filtered.
+    const { pill } = setup({ showScope: false, scope: "friendlies" });
+    expect(pill).toHaveAttribute("data-filtered", "false");
+  });
+
+  it("pulses on the first visit of a browser session only", () => {
+    expect(setup().pill).toHaveAttribute("data-pulse", "true");
+    expect(sessionStorage.getItem("lk:stats-filter-pulsed")).toBe("1");
+    expect(setup().pill).toHaveAttribute("data-pulse", "false");
+  });
+
+  it("puts a second trigger in the slot the section provides", () => {
+    const { chip, pill } = setupWithSlot({ mode: "2v2" });
+    expect(chip).toHaveAccessibleName("Filters — Mode: 2v2, Source: Tournaments");
+    expect(chip).toHaveAttribute("aria-haspopup", "dialog");
+    expect(chip).toHaveTextContent("Filters");
+    expect(pill).toBeInTheDocument();
+  });
+
+  it("opens and closes the same popover from the inline chip", () => {
+    const { chip, onModeChange } = setupWithSlot();
+    fireEvent.mouseDown(chip);
+    fireEvent.click(chip);
+    const panel = screen.getByRole("dialog", { name: "Stats filters" });
+    expect(chip).toHaveAttribute("aria-expanded", "true");
+
+    fireEvent.click(within(panel).getByRole("button", { name: "2v2" }));
+    expect(onModeChange).toHaveBeenCalledWith("2v2");
+    expect(screen.getByRole("dialog", { name: "Stats filters" })).toBeInTheDocument();
+
+    // Re-tapping the chip closes it (the outside-click guard ignores both triggers).
+    fireEvent.mouseDown(chip);
+    fireEvent.click(chip);
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("returns focus to the trigger that opened it", () => {
+    const { chip } = setupWithSlot();
+    fireEvent.click(chip);
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(chip).toHaveFocus();
+  });
+
+  it("renders no inline trigger without a slot", () => {
+    const { baseElement } = setup();
+    expect(within(baseElement).queryByRole("button", { name: /^Filters — / })).toBeNull();
   });
 });

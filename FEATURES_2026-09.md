@@ -2127,7 +2127,7 @@ visible in a desktop screenshot; a tap opens the matchup. `npm run check` + buil
 
 ---
 
-## S9 — The stats filter pill must not be overlookable  ☐
+## S9 — The stats filter pill must not be overlookable  ☑
 
 **Why (Roli #11):** "the pill in stats is easy to overlook." Keep S7's size and shape — increase
 its presence:
@@ -2146,7 +2146,61 @@ its presence:
 **DoD:** screenshots at 390px in blue + light of: default state, filtered state (accent border +
 dot), popover open from the pill and from the sub-chip entry. `npm run check` + build.
 
-**Deviations:**
+**Deviations:** (implemented 2026-09-13)
+
+- **"Filtered" counts only the filters the section uses.** On Positions (mode only) a left-over
+  `source=friendlies` in the URL changes nothing on screen, so it must not light the pill up:
+  `filtered = (showMode && mode !== "overall") || (showScope && scope !== "tournaments")`. The
+  state is also exposed as `data-filtered` (and the pulse as `data-pulse`) — test hooks for
+  vitest and Playwright, in the house style of `data-score-line`.
+- **The "stronger shadow" when filtered is an accent halo**, `ring-2 ring-accent/20` on top of the
+  unchanged `shadow-pop`: a bigger black shadow does not read as "filtered" on the dark themes,
+  while a soft accent ring around the accent border does, in all five. Alongside it the border
+  goes `border-accent/30` → `border-accent/60` and the *changed* token itself turns accent (the
+  mode text, the source icon), so the pill says **which** filter is off default, not just that one
+  is. At rest the border is `border-accent/30` with `hover:border-accent/60`.
+- **Second entry point via a portal, not a second component.** `StatsFilterPill` takes an optional
+  `inlineSlot` element and portals its "Filters" chip into it; `StatsInsights` only renders the
+  slot (`<span ref={setFilterSlot} className="ml-auto flex shrink-0 lg:hidden" />`). One popover,
+  one piece of state, one outside-click guard — the alternative (a second trigger component) would
+  have duplicated all three. The popover now anchors to *whichever* trigger opened it: above the
+  pill (as before), below the chip; Escape returns focus to that trigger.
+- **The chip row became a flex row** (`flex items-start gap-1.5`) with the sub-view `ChipGroup` as
+  `min-w-0 flex-1` and the slot trailing it. Right-aligned, the chip lands at the end of the
+  *first* line (next to Table · Positions · Streaks) instead of orphaned on a new one, and the
+  Overview row is one line shorter than before. Sections **without** sub-views (Trends, Player,
+  H2H in 1v1/overall, and the open matchup) render the row too — otherwise exactly the sections
+  Roli scrolls most would have had no inline trigger; there the whole row is `lg:hidden` so
+  desktop gains no empty row. Cups (no filters) renders neither row nor pill.
+- **`chipClass()` is a new named export of `ui/primitives/Chip.tsx`** (the pattern DS6 established
+  with `buttonClass()`, same `eslint-disable react-refresh/only-export-components`): the inline
+  trigger must carry `aria-haspopup="dialog"`/`aria-expanded`, not the `aria-pressed` every `Chip`
+  emits, but it must look exactly like the sub-view chips next to it. It shows the accent style
+  while the popover is open *or* a filter is non-default.
+- The pulse is `scale: [1, 1.12, 1, 1.12, 1]` over 1.1 s after a 0.45 s delay, gated by
+  `sessionStorage["lk:stats-filter-pulsed"]`; the flag is read in the `useState` initialiser (pure)
+  and written in an effect, because the repo's `react-hooks/set-state-in-effect` rule forbids the
+  obvious `setPulse(true)` in an effect. `MotionConfig reducedMotion="user"` (App root) drops the
+  transform entirely under `prefers-reduced-motion`, so no extra guard is needed. Tapping either
+  trigger cancels the pulse.
+- The accessible name of the floating pill is unchanged (`"Mode: All, Source: Tournaments"`); the
+  inline chip is `"Filters — <the same values>"`.
+- Tests: `test/statsFilterPill.test.tsx` 12 → 19 cases (filtered flag incl. the
+  section-doesn't-use-it case, pulse once per session, the slot trigger's name/haspopup, opening
+  and closing from the chip with the popover staying open on a chip tap, focus returning to the
+  trigger that opened it, no inline trigger without a slot). Suite 328 → 335.
+- Runtime DoD on the isolated stack (backend :8003 on a copy of `app.db`, vite :8020):
+  **106 checks green** over blue/light × 390/1280 px — pulse on the first visit and *not* after a
+  reload in the same session, solid `bg-bg-card-outer` with the accent hairline, still 95×36 px
+  (S7's size) fixed at z-40 with a 16/24 px gutter, popover 8 px above the pill and 8 px below the
+  chip with right edges flush and on screen, chip hidden at `lg`, filtering from the chip's
+  popover writing `?source=friendlies`, re-tap closing, Escape closing and restoring focus,
+  Positions showing mode only, Cups showing nothing, Trends offering the chip without sub-views,
+  plus no nested `<a>`, no horizontal overflow and 0 console errors. The resting contrast was
+  checked in all five themes (dark/red/green crops too): solid surface, accent hairline visible
+  against each page background.
+- `npm run build` still prints the pre-existing "chunks larger than 500 kB" hint, as under every
+  earlier task.
 
 ---
 
