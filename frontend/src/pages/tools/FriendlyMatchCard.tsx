@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Ban, Eraser, RotateCw, Save, User, Users } from "lucide-react";
 
-import CollapsibleCard from "../../ui/primitives/CollapsibleCard";
 import FormLabel from "../../ui/primitives/FormLabel";
 import Input from "../../ui/primitives/Input";
 import Button from "../../ui/primitives/Button";
@@ -154,20 +153,12 @@ function AvatarPlayerSelect({
   );
 }
 
-export default function FriendlyMatchCard({
-  embedded = false,
-  onInitialReady,
-}: {
-  embedded?: boolean;
-  onInitialReady?: () => void;
-}) {
+export default function FriendlyMatchCard({ onInitialReady }: { onInitialReady?: () => void }) {
   const qc = useQueryClient();
   const { role, token } = useAuth();
   const canStore = role === "editor" || role === "admin";
   const [initialState] = useState<FriendlyMatchPersistedState>(() => loadFriendlyState());
 
-  const [collapsibleOpen, setCollapsibleOpen] = useState(false);
-  const open = embedded || collapsibleOpen;
   const [clubGame, setClubGame] = useState(initialState.clubGame);
 
   const [mode, setMode] = useState<"1v1" | "2v2">(initialState.mode);
@@ -188,17 +179,15 @@ export default function FriendlyMatchCard({
   const clubsQ = useQuery({
     queryKey: qk.clubs(clubGame),
     queryFn: () => listClubs(clubGame),
-    enabled: open,
   });
   const clubs = useMemo(() => clubsQ.data ?? [], [clubsQ.data]);
 
   const playersQ = useQuery({
     queryKey: qk.players(),
     queryFn: listPlayers,
-    enabled: open,
     staleTime: 60_000,
   });
-  const { avatarUpdatedAtById } = usePlayerAvatarMap({ enabled: open });
+  const { avatarUpdatedAtById } = usePlayerAvatarMap();
   const players = useMemo(() => playersQ.data ?? [], [playersQ.data]);
 
   const usedIds = useMemo(() => {
@@ -237,7 +226,7 @@ export default function FriendlyMatchCard({
   const oddsQ = useQuery({
     queryKey: qk.stats.odds(oddsReq),
     queryFn: () => getStatsOdds(oddsReq as StatsOddsRequest),
-    enabled: open && oddsReq != null,
+    enabled: oddsReq != null,
     staleTime: 2_000,
     refetchOnWindowFocus: false,
   });
@@ -274,7 +263,7 @@ export default function FriendlyMatchCard({
   // Clubs: the preview scoreboard above is the trigger (T2 / DESIGN.md §9b).
   const clubSelection = useClubSelection({
     clubs,
-    disabled: !open || clubsQ.isFetching || !!clubsQ.error,
+    disabled: clubsQ.isFetching || !!clubsQ.error,
     aLabel,
     bLabel,
     aClub,
@@ -325,11 +314,10 @@ export default function FriendlyMatchCard({
 
   useEffect(() => {
     if (initialReadyFiredRef.current) return;
-    if (!open) return;
     if (playersQ.isLoading || clubsQ.isLoading) return;
     initialReadyFiredRef.current = true;
     onInitialReady?.();
-  }, [open, playersQ.isLoading, clubsQ.isLoading, onInitialReady]);
+  }, [playersQ.isLoading, clubsQ.isLoading, onInitialReady]);
 
   function clearAll() {
     setA1(null);
@@ -357,7 +345,6 @@ export default function FriendlyMatchCard({
             variant="ghost"
             onClick={clearAll}
             type="button"
-            disabled={!open}
             title="Clear"
             className="h-10 w-10 p-0 inline-flex items-center justify-center md:w-auto md:px-4 md:py-2"
           >
@@ -372,7 +359,7 @@ export default function FriendlyMatchCard({
               void playersQ.refetch();
             }}
             type="button"
-            disabled={!open || clubsQ.isFetching}
+            disabled={clubsQ.isFetching}
             title="Refresh"
             className="h-10 w-10 p-0 inline-flex items-center justify-center md:w-auto md:px-4 md:py-2"
           >
@@ -384,7 +371,7 @@ export default function FriendlyMatchCard({
             variant="solid"
             onClick={() => saveMut.mutate()}
             type="button"
-            disabled={!open || !canStore || !token || !canSave || saveMut.isPending}
+            disabled={!canStore || !token || !canSave || saveMut.isPending}
             title={canStore && token ? "Save friendly match" : "Login as editor/admin to save"}
             className="h-10 w-10 p-0 inline-flex items-center justify-center md:w-auto md:px-4 md:py-2"
           >
@@ -416,11 +403,11 @@ export default function FriendlyMatchCard({
           <div className="pt-2">
             <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 md:gap-4">
               <div className="flex justify-start">
-                <GoalStepper value={aGoals} onChange={setAGoals} disabled={!open} ariaLabel="Goals left" />
+                <GoalStepper value={aGoals} onChange={setAGoals} disabled={false} ariaLabel="Goals left" />
               </div>
               <div />
               <div className="flex justify-end">
-                <GoalStepper value={bGoals} onChange={setBGoals} disabled={!open} ariaLabel="Goals right" />
+                <GoalStepper value={bGoals} onChange={setBGoals} disabled={false} ariaLabel="Goals right" />
               </div>
             </div>
           </div>
@@ -468,7 +455,7 @@ export default function FriendlyMatchCard({
                 label={mode === "2v2" ? "Team A (1)" : "Team A"}
                 value={a1}
                 onChange={setA1}
-                disabled={!open || playersQ.isLoading || !!playersQ.error}
+                disabled={playersQ.isLoading || !!playersQ.error}
                 players={players}
                 usedIds={usedIds}
                 avatarUpdatedAtById={avatarUpdatedAtById}
@@ -478,7 +465,7 @@ export default function FriendlyMatchCard({
                   label="Team A (2)"
                   value={a2}
                   onChange={setA2}
-                  disabled={!open || playersQ.isLoading || !!playersQ.error}
+                  disabled={playersQ.isLoading || !!playersQ.error}
                   players={players}
                   usedIds={usedIds}
                   avatarUpdatedAtById={avatarUpdatedAtById}
@@ -491,7 +478,7 @@ export default function FriendlyMatchCard({
                 label={mode === "2v2" ? "Team B (1)" : "Team B"}
                 value={b1}
                 onChange={setB1}
-                disabled={!open || playersQ.isLoading || !!playersQ.error}
+                disabled={playersQ.isLoading || !!playersQ.error}
                 players={players}
                 usedIds={usedIds}
                 avatarUpdatedAtById={avatarUpdatedAtById}
@@ -501,7 +488,7 @@ export default function FriendlyMatchCard({
                   label="Team B (2)"
                   value={b2}
                   onChange={setB2}
-                  disabled={!open || playersQ.isLoading || !!playersQ.error}
+                  disabled={playersQ.isLoading || !!playersQ.error}
                   players={players}
                   usedIds={usedIds}
                   avatarUpdatedAtById={avatarUpdatedAtById}
@@ -517,17 +504,5 @@ export default function FriendlyMatchCard({
     </div>
   );
 
-  if (embedded) return content;
-
-  return (
-    <CollapsibleCard
-      title="New Friendly"
-      defaultOpen={false}
-      variant="card"
-      onOpenChange={setCollapsibleOpen}
-      bodyVariant="none"
-    >
-      {content}
-    </CollapsibleCard>
-  );
+  return content;
 }

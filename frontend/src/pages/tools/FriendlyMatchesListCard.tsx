@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { List, Loader2, Pencil, Shrink, Trash2, X } from "lucide-react";
 
-import CollapsibleCard from "../../ui/primitives/CollapsibleCard";
 import SegmentedSwitch from "../../ui/primitives/SegmentedSwitch";
 import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
 import InlineLoading from "../../ui/primitives/InlineLoading";
@@ -217,13 +216,7 @@ function FriendlyEditor({
   );
 }
 
-export default function FriendlyMatchesListCard({
-  embedded = false,
-  onInitialReady,
-}: {
-  embedded?: boolean;
-  onInitialReady?: () => void;
-}) {
+export default function FriendlyMatchesListCard({ onInitialReady }: { onInitialReady?: () => void }) {
   const qc = useQueryClient();
   const { role, token } = useAuth();
   const canDelete = role === "admin" && !!token;
@@ -408,24 +401,5 @@ export default function FriendlyMatchesListCard({
     </>
   );
 
-  if (embedded) {
-    return <div className="space-y-3">{content}</div>;
-  }
-
-  return (
-    <CollapsibleCard
-      title={
-        <span className="inline-flex items-center gap-2">
-          <List size={14} className="text-text-muted" aria-hidden="true" />
-          All Friendlies
-        </span>
-      }
-      defaultOpen={true}
-      variant="card"
-      bodyVariant="none"
-      bodyClassName="space-y-3"
-    >
-      {content}
-    </CollapsibleCard>
-  );
+  return <div className="space-y-3">{content}</div>;
 }

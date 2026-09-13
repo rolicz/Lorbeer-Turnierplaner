@@ -31,10 +31,10 @@ export default function FriendliesPage() {
       <SectionTabs tabs={TABS} active={active} onChange={setActive} className="mb-4" />
 
       {active === "all" && (
-        <FriendlyMatchesListCard embedded onInitialReady={handleListReady} />
+        <FriendlyMatchesListCard onInitialReady={handleListReady} />
       )}
       {active === "create" && (
-        <FriendlyMatchCard embedded onInitialReady={handleCreateReady} />
+        <FriendlyMatchCard onInitialReady={handleCreateReady} />
       )}
     </PageLayout>
   );
