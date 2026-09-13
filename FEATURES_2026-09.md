@@ -4788,6 +4788,14 @@ better than the bare disc used elsewhere.
   hairline ring; a cup's colour on a ring is reserved for meaning.
 - **An avatar always speaks in the present tense**: a cup-coloured ring means that player holds
   that cup *today*. Never use the ring for historic ownership, anywhere.
+- **…and it therefore has no place inside a tournament** (Roli's correction, after seeing it: "no
+  i dont like that the ring is shown when i look at results of older tournaments"). A tournament
+  view is about a past or ongoing event, so a present-tense ring there reads as though that player
+  held the cup back then. Cup-coloured rings appear **only** on surfaces about now — Players,
+  profiles, the stats leaderboards, the dashboard cups preview. Inside a tournament (standings /
+  results, the What-if table, its match lists, the Overview blocks) avatars carry the neutral
+  hairline only, and the standings crown badge is the single carrier of cup information there.
+  One tense per screen, one carrier per fact.
 - **The standings keep the crown badge exactly as it is** — that is where "who owned the cup going
   into this tournament" is shown, and Roli is happy with it. Do not restyle or move it.
 
