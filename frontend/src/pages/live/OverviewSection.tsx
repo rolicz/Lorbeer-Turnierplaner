@@ -205,13 +205,30 @@ export default function OverviewSection({
       <div>
         <div className="section-head">
           <span className="section-label">{isDone ? "Final standings" : "Standings"}</span>
+          {/* Every player is already listed, so this link — like the played
+              block's — names the tab it opens rather than promising more rows.
+              It replaces the block-wide tap target that used to sit here: an
+              `aria-label` on a button swallows its own contents, so the whole
+              table was one unread word to a screen reader. */}
+          <div className="order-1 shrink-0">
+            <Button
+              variant="ghost"
+              size="sm"
+              type="button"
+              onClick={onGoToStandings}
+              title={
+                isDone
+                  ? "Open the Results tab, with each player's full record"
+                  : "Open the Standings tab, with each player's full record"
+              }
+              className="gap-1.5"
+            >
+              <span>{isDone ? "Open Results" : "Open Standings"}</span>
+              <ArrowRight size={14} aria-hidden="true" />
+            </Button>
+          </div>
         </div>
-        <button
-          type="button"
-          onClick={onGoToStandings}
-          className="inset block w-full p-1.5 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/35"
-          aria-label={isDone ? "Open results" : "Open standings"}
-        >
+        <div className="inset p-1.5">
           <div className="flex items-center gap-2 px-1.5 py-0.5 text-xs uppercase tracking-wide text-text-muted">
             <span className="w-4 text-right">#</span>
             <span className="min-w-0 flex-1">Player</span>
@@ -234,7 +251,7 @@ export default function OverviewSection({
               <span className="w-6 text-right">{r.pts}</span>
             </div>
           ))}
-        </button>
+        </div>
       </div>
 
       {!isDone && nextMatches.length ? (

@@ -139,6 +139,25 @@ describe("Overview tab", () => {
     expect(onGoToMatches).toHaveBeenCalled();
   });
 
+  it("gives both list blocks the same shape: everything, plus a link that names its tab", () => {
+    const { onGoToStandings, onGoToMatches } = renderTab({ isDone: true, matches: DONE });
+
+    // The standings list every player, so neither link may promise extra rows.
+    expect(screen.queryByText(/Show all/)).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Open Results/ }));
+    expect(onGoToStandings).toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: /Open Matches/ }));
+    expect(onGoToMatches).toHaveBeenCalled();
+  });
+
+  it("names the live tab it opens instead of the done one", () => {
+    const { onGoToStandings } = renderTab();
+
+    expect(screen.queryByRole("button", { name: /Open Results/ })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Open Standings/ }));
+    expect(onGoToStandings).toHaveBeenCalled();
+  });
+
   it("shows no played block before the first result", () => {
     const draft = [match(0, "scheduled", [1], [2]), match(1, "scheduled", [2], [3])];
     renderTab({ matches: draft });
