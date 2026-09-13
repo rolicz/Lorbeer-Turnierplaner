@@ -2631,6 +2631,115 @@ friendly tests still pass.
 
 **Deviations:**
 
+### Feature inventory (written 2026-09-13 *before* any code change — the equivalence checklist)
+
+Every control, path, permission rule and realtime/optimistic behaviour that exists today. The
+rework must keep all of it; the checklist at the end of this section is ticked item by item.
+
+#### A. Comments — where the card renders
+
+| # | Site | Props | Notes |
+|---|---|---|---|
+| A1 | `LiveTournamentPage` Comments tab | all matches, `collapsible={false}`, `focusCommentRequest` | full feed: General + every match |
+| A2 | `CurrentGameSection` (live Current tab) | `onlyMatchId={activeMatch.id}`, `showMatchHeader={false}`, `collapsibleHeader="Match comments"`, `collapsible={false}` | collapse state persisted in `localStorage["cmt-collapsed:<tid>:<mid|all>"]` |
+| A3 | `MatchDetailPage` Comments tab | `onlyMatchId={matchId}`, all matches, `collapsible={false}` | tab state via `useTabParam` |
+
+#### A. Comments — permissions
+
+- `canWrite` = editor+ (live page `isEditorOrAdmin`, match detail `canEdit`) → composer, reply, pin.
+- `canDelete` = **admin only** → the Delete button on every comment.
+- `canAttachImage` = `role === "admin" || role === "editor"` (separate from `canWrite`).
+- `c.can_edit` comes from the API (author inside the 1 h window, or admin) → Edit button.
+- Pin: only a **tournament-scope root** comment, only with `canWrite`, and only when nothing is
+  pinned yet or this comment *is* the pinned one (so unpinning stays possible).
+- Vote / mark-as-read: any logged-in viewer (`token`), reader sees counts but no buttons.
+
+#### A. Comments — controls (exhaustive)
+
+1. **Scope filter bar** (`CommentFilterBar`, hidden when `onlyMatchId` is set): `All` (total
+   count) · `General` (count + unseen dot) · one chip per match **that has comments**
+   (`Match N`, count, unseen dot). Horizontally scrollable, `data-no-swipe-nav`.
+2. **Entry points**: on a match scope three equal ghost buttons *Add comment · Enter goal ·
+   Enter Shots*; on the general scope a single *Add comment*. They open the composer with that
+   mode preset. Default scope = `onlyMatchId` → that match, else the active filter if it is a
+   match, else General.
+3. **Composer** (`CommentCreateComposer`, via `AddCommentDropdown`):
+   - *Add to* `FilterSelect` — `General (tournament)` + `Match N — A vs B` for every match
+     (only when `onlyMatchId` is null).
+   - *Posted as* `FilterSelect` — self (`Me`/actor name) · `General` · `<name> (original)` when
+     editing someone else's comment.
+   - *Entry type* three buttons (Comment/Goal/Shots) — only when the scope is a match.
+   - **Goal**: scoring-side buttons labelled `Goal for <side players>` + `Makes it <next
+     scoreline>`; `Minute` number input (1–999, trimmed, truncated); `Player` free text with a
+     `datalist` of that side's players, disabled until a side is chosen; optional note textarea.
+   - **Shots**: two native `<select>`s 0–50 (plus an empty `–`), labelled with the team names.
+   - **Comment**: textarea + (editors) image attach/replace/remove with a 4:3 preview.
+   - *Cancel* and *Post* (label/`title` per mode: Post · Post goal · Post shots).
+4. **Mode side effects**: switching to `comment` sets the author back to self; `goal`/`shots`
+   force author `general`; leaving a mode clears its fields; leaving `comment` clears the image;
+   changing the scope to General while in goal/shots falls back to `comment`; changing the goal
+   side clears the scorer name.
+5. **Validation** (`canSubmit` + a second guard in `upsertComment`): comment needs a non-empty
+   body **or** an image; goal needs side + minute + scorer + a resolvable scoreline; shots needs
+   both numbers (0–999 accepted, 0–50 offered); an edit needs a body (or a kept image) and must
+   be *dirty* (author or body changed).
+6. **Feed** (`CommentList`): General block (a `card`) and one `card` per match with a header
+   (`ScoreLine sm` + both club names + both star rows), collapsible per block with an unseen dot
+   and a count; *Collapse all / Expand all*; recursive reply trees with per-thread collapse and a
+   child count; the pinned comment sorts first inside the General list; `EmptyState` per block
+   and for the whole feed.
+7. **Comment card** (`CommentCard`): avatar + author label · `pinned` / `editing` chips ·
+   timestamp + `edited <ts>` · reply-count collapse toggle · mark-as-read (pulsing `Mail`) ·
+   Reply · Pin/Unpin · Edit · Delete (with `window.confirm`) · body (`whitespace-pre-wrap`) ·
+   image (tap → `ImageLightbox`) · up/down `VoteButton` with counts · voters modal
+   (`VoteVotersModal`). Editing renders *Posted as* + a textarea + Save; replying renders a
+   textarea + Cancel + Reply.
+8. **Focus / flash**: `focusCommentRequest` (notification deep link) resets the filter to `all`,
+   polls up to 240 animation frames for `#comment-<id>`, scrolls it to centre and flashes
+   `comment-attn` for 1800 ms. The same path runs after create / edit / reply so the new comment
+   is scrolled to. `scroll-mt-28 sm:scroll-mt-32` on every card and block.
+9. **Realtime**: `comment.upsert` / `comment.delete` / `comment.meta` merge into every
+   `qk.commentsTournament(tid)` cache (`applyEvent.ts`) and **preserve the viewer's own
+   `upvotes`/`downvotes`/`my_vote`**; every mutation invalidates tournament + comments + read-ids
+   + read-map. Read state comes from `useSeenSet(tournamentId)`.
+10. **Image upload is two calls**: `POST …/comments` with `has_image: true`, then
+    `putCommentImage`; a failed upload shows an error toast and leaves the comment.
+11. **Reset**: all draft/edit/focus state resets when the tournament or the acting player changes;
+    object URLs are revoked on replace and unmount.
+
+#### B. Club selection — where the panel renders
+
+| # | Site | Wrapper | Extras |
+|---|---|---|---|
+| B1 | `CurrentGameSection` (live current match, editor) | `inset p-0`, auto-open when a side has no club | autosaves each change (`queueAutosave`), uses `onChangeClubs` for the random pair |
+| B2 | `MatchDetailPage` Edit-result tab | `card p-0`, `defaultOpen={false}`, `narrowLayout` | `extraTop` = Game input + "Loading clubs…", `extraBottom` = tip line; saved with the rest of the form |
+| B3 | `FriendlyMatchCard` (new friendly) | `inset p-0`, `defaultOpen`, `showSelectedMeta` | labels are the team names, state persisted in `localStorage["friendly_match_state_v1"]` |
+| B4 | `FriendlyMatchesListCard` editor (admin, stored friendly) | `inset p-0`, `defaultOpen={false}`, `narrowLayout` | `extraTop` = Game input |
+
+#### B. Club selection — controls
+
+1. Collapse header *Select clubs* (`ShieldHalf`), open by default only when a side is clubless.
+2. Per side a `ClubCombobox`: trigger = crest badge + name + `4.5★`; portal panel with a search
+   field (focused ~30 ms after open, searches name **and** league), a *Clear selection* row when
+   a club is set, `ArrowUp`/`ArrowDown`/`Enter` keyboard control, mouse-enter highlight, rows with
+   crest/flag badge + name + flag + league + `Stars` + a check on the selected one, "No clubs
+   found" empty state, flip-above placement, outside-click/Escape close.
+3. `ClubStarsEditor` per side (editor/admin only, renders `null` for readers): a ghost button with
+   an overlaid native `<select>` that `PATCH /clubs/{id}` the club's `star_rating` (0.5–5 in half
+   steps), optimistic local value, error toast, invalidates `qk.clubs()`.
+4. *Random matchup* (`Shuffle`): crypto-random, **respects both filters**, never the same club and
+   never a national team against a club team (`randomClubAssignmentOk`); prefers `onChangeClubs`
+   so a call site can save both sides in one write.
+5. Filters (narrow the comboboxes **and** the random pool): *Stars* (All + 0.5…5) with a dice
+   button that animates ~700 ms and lands on a star step that actually exists in the current
+   league selection; *League* (All + every league present in the club list).
+6. `ensureSelectedClubVisible` keeps the selected club in the list even when the filters exclude it.
+7. `showSelectedMeta` renders flag + league name + stars under each side.
+8. Club list sorting: stars desc, then name (`sortClubsForDropdown`).
+9. `disabled` propagates from the call site (saving, loading, no permission) to every control.
+10. National teams render their nation flag instead of a crest (`nationalTeamNation`), crest
+    precedence crest → flag → monogram (`ClubBadge`).
+
 ---
 
 ## D1 — Documentation pass (runs LAST, after every other task)  ☐
