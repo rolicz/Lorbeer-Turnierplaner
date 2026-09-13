@@ -52,13 +52,10 @@ export default function CurrentMatchPreviewCard() {
       {/* The header names the tournament and is the second door into it, the way
           Trends/Standings head their blocks; the scoreboard below is the first. */}
       <div className="section-head">
-        <span className="section-label inline-flex items-center gap-2">
-          <span className="relative flex h-2 w-2">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full live-ping opacity-75" />
-            <span className="relative inline-flex h-2 w-2 rounded-full live-dot" />
-          </span>
-          Live now
-        </span>
+        {/* The words carry it: the one pulsing "a tournament is running" dot on
+            screen belongs to the nav (bottom bar / sidebar), not to a section
+            label repeating it half a screen away (T10). */}
+        <span className="section-label">Live now</span>
         <Link
           to={`/live/${tid}`}
           title="Open live tournament"
