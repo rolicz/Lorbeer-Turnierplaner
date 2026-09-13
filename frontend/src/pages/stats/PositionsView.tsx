@@ -2,7 +2,7 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { keepPreviousData, useQueries, useQuery } from "@tanstack/react-query";
-import { Clock, Flag } from "lucide-react";
+import { Clock, Crown, Flag } from "lucide-react";
 
 import AvatarCircle from "../../ui/primitives/AvatarCircle";
 import InlineLoading from "../../ui/primitives/InlineLoading";
@@ -291,7 +291,7 @@ export default function PositionsView({ mode }: { mode: StatsMode }) {
                       {isWinner && stakes.length ? (
                         <span className="absolute right-0.5 top-0.5 inline-flex gap-px">
                           {stakes.map((s) => (
-                            <i key={s.key} className="fa-solid fa-crown text-[8px]" style={{ color: cupColor(s.key) }} aria-hidden="true" />
+                            <Crown key={s.key} size={9} fill="currentColor" style={{ color: cupColor(s.key) }} aria-hidden="true" />
                           ))}
                         </span>
                       ) : null}

@@ -1,3 +1,5 @@
+import { Crown } from "lucide-react";
+
 import type { TournamentCupStake } from "../../api/types";
 import { cupColorVarForKey } from "../../cupColors";
 import { cn } from "../../ui/cn";
@@ -19,7 +21,7 @@ export default function TournamentLaurelMarkers({
         return (
           <span
             key={stake.key}
-            className="inline-flex h-3.5 w-3.5 items-center justify-center rounded-full border text-[7px] shadow-sm"
+            className="inline-flex h-3.5 w-3.5 items-center justify-center rounded-full border shadow-sm"
             style={{
               borderColor: `rgb(var(${varName}) / 0.7)`,
               backgroundColor: `rgb(var(${varName}) / 0.22)`,
@@ -27,7 +29,7 @@ export default function TournamentLaurelMarkers({
             }}
             title={`${stake.name} at stake`}
           >
-            <i className="fa-solid fa-crown" aria-hidden="true" />
+            <Crown size={8} fill="currentColor" aria-hidden="true" />
           </span>
         );
       })}

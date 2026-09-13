@@ -2,7 +2,8 @@
  *  In 2v2 mode the Players | Duos sub-view chips (owned by StatsInsights) expose the
  *  backend's real duo stats (best_teammates_2v2 / team_rivalries_2v2) instead of a
  *  client-side recompute. The selected player is shared with the other sections. */
-import { useMemo, useState } from "react";
+import { HeartCrack, Smile } from "lucide-react";
+import { type ReactNode, useMemo, useState } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 
 import Button from "../../ui/primitives/Button";
@@ -44,12 +45,12 @@ function h2hDiverging(gd: number, maxAbs: number): string {
 type HistoryModalState = { title: string; req: StatsH2HMatchesRequest; focusPlayerId: number | null };
 
 /** Favorite / Nemesis chip — taps into the matchup when the opponent is known. */
-function RivalCard({ iconClass, label, row, onOpen }: {
-  iconClass: string; label: string; row: StatsH2HOpponentRow | null; onOpen: (opponentId: number) => void;
+function RivalCard({ icon, label, row, onOpen }: {
+  icon: ReactNode; label: string; row: StatsH2HOpponentRow | null; onOpen: (opponentId: number) => void;
 }) {
   const body = (
     <>
-      <div className="inline-flex items-center gap-2 text-text-muted"><i className={iconClass} aria-hidden="true" /><span>{label}</span></div>
+      <div className="inline-flex items-center gap-2 text-text-muted">{icon}<span>{label}</span></div>
       <div className="mt-0.5 font-semibold">{row?.opponent.display_name ?? "—"}</div>
       {row ? (
         <div className="mt-0.5 text-text-muted">
@@ -396,8 +397,8 @@ export default function H2HView({ mode, scope, rows, subView, selectedId, onSele
         ) : (
           <>
             <div className="grid grid-cols-2 gap-2 text-xs">
-              <RivalCard iconClass="fa-solid fa-face-smile" label="Favorite" row={favorite ?? null} onOpen={(id) => onOpenMatchup(selectedId, id)} />
-              <RivalCard iconClass="fa-solid fa-heart-crack" label="Nemesis" row={nemesis ?? null} onOpen={(id) => onOpenMatchup(selectedId, id)} />
+              <RivalCard icon={<Smile size={14} aria-hidden="true" />} label="Favorite" row={favorite ?? null} onOpen={(id) => onOpenMatchup(selectedId, id)} />
+              <RivalCard icon={<HeartCrack size={14} aria-hidden="true" />} label="Nemesis" row={nemesis ?? null} onOpen={(id) => onOpenMatchup(selectedId, id)} />
             </div>
             {detailQ.isLoading && !detailQ.data ? (
               <InlineLoading label="Loading…" />

@@ -1,6 +1,8 @@
 /** Explicit 2v2 duo picker: an avatar row where tapping toggles a player into the
  *  duo (max 2, replace-oldest on a third), with a hint and a clear affordance.
  *  Compact avatars keep the leaderboard above the fold on a 375px viewport. */
+import { X } from "lucide-react";
+
 import AvatarButton from "../../../ui/primitives/AvatarButton";
 import { usePlayerAvatarMap } from "../../../hooks/usePlayerAvatarMap";
 
@@ -42,7 +44,7 @@ export function DuoPicker({
             aria-label="Clear duo selection"
             className="shrink-0 rounded-full bg-bg-card-chip/50 p-2 text-text-muted transition hover:text-accent"
           >
-            <i className="fa-solid fa-xmark" aria-hidden="true" />
+            <X size={16} aria-hidden="true" />
           </button>
         ) : null}
       </div>

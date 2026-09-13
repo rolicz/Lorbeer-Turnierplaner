@@ -1,5 +1,6 @@
 /** Records tab — match superlatives and longest streak runs. */
-import { useMemo } from "react";
+import { Flame, Goal, TrendingUp, Trophy, Zap } from "lucide-react";
+import { type ReactNode, useMemo } from "react";
 import { Link } from "react-router-dom";
 import { keepPreviousData, useQueries, useQuery } from "@tanstack/react-query";
 
@@ -19,13 +20,13 @@ function teamNames(m: StatsMatch, side: "A" | "B"): string {
 }
 type RecMatch = { id: number; tId: number; tName: string; date: string; a: string; b: string; ag: number; bg: number; aIds: number[]; bIds: number[] };
 
-function RecordGroup({ icon, label, matches }: { icon: string; label: string; matches: RecMatch[] }) {
+function RecordGroup({ icon, label, matches }: { icon: ReactNode; label: string; matches: RecMatch[] }) {
   if (!matches.length) return null;
   const shown = matches.slice(0, 6);
   return (
     <div className="surface rounded-xl px-3 py-2.5">
       <div className="inline-flex items-center gap-2 text-[11px] uppercase tracking-wide text-text-muted">
-        <i className={"fa-solid " + icon} aria-hidden="true" />
+        {icon}
         {label}
         {matches.length > 1 ? <span className="text-text-muted/70">×{matches.length}</span> : null}
       </div>
@@ -56,7 +57,7 @@ function TitlesGroup({ leaders, onSelect }: { leaders: WinLeader[]; onSelect: (i
   return (
     <div className="surface rounded-xl px-3 py-2.5">
       <div className="inline-flex items-center gap-2 text-[11px] uppercase tracking-wide text-text-muted">
-        <i className="fa-solid fa-trophy" aria-hidden="true" />
+        <Trophy size={14} aria-hidden="true" />
         Most tournament wins
         {topTies > 1 ? <span className="text-text-muted/70">×{topTies}</span> : null}
       </div>
@@ -215,10 +216,10 @@ export default function RecordsView({
       <div>
         <div className="section-head"><span className="section-label">Match superlatives</span></div>
         <div className="space-y-2">
-          <RecordGroup icon="fa-bolt" label="Biggest win" matches={records.biggestWin} />
-          <RecordGroup icon="fa-futbol" label="Highest-scoring match" matches={records.highestScoring} />
-          <RecordGroup icon="fa-fire" label="Most goals by one side" matches={records.mostSide} />
-          <RecordGroup icon="fa-arrow-trend-up" label="Biggest upset (by Elo)" matches={records.upset} />
+          <RecordGroup icon={<Zap size={14} aria-hidden="true" />} label="Biggest win" matches={records.biggestWin} />
+          <RecordGroup icon={<Goal size={14} aria-hidden="true" />} label="Highest-scoring match" matches={records.highestScoring} />
+          <RecordGroup icon={<Flame size={14} aria-hidden="true" />} label="Most goals by one side" matches={records.mostSide} />
+          <RecordGroup icon={<TrendingUp size={14} aria-hidden="true" />} label="Biggest upset (by Elo)" matches={records.upset} />
         </div>
       </div>
       {streakCards.length ? (
