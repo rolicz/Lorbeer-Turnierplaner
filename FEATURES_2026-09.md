@@ -102,9 +102,17 @@ all read-only checks; editor/admin flows can be checked by code + tests.
 | 19 | DS5 | Semantic colours replace raw palette classes | frontend |
 | 20 | DS7 | Lucide only: migrate 35 Font Awesome files, drop the dependency | frontend |
 | 21 | DS6 | Selection controls & buttons on the canon | frontend |
-| 22 | DS3 | Surface & radius migration, retire old classes | frontend |
-| 23 | DS4 | Typography & section headers on the scale | frontend |
-| 24 | D1 | Documentation pass (README, frontend/README, AGENTS.md, DESIGN.md) | docs |
+| 24 | N1 | Back from a detail page goes up (U6 regression) ☑ | frontend |
+| 25 | N2 | Return to exactly where you were (scroll restoration) | frontend |
+| 26 | N4 | Useful links everywhere (cross-navigation sweep) | frontend |
+| 27 | S8 | H2H matrix: W-D-L default, obviously clickable | frontend |
+| 28 | S9 | Filter pill must not be overlookable | frontend |
+| 29 | N3 | Swipe back/forward always makes sense | frontend |
+| 30 | DS3 | Surface & radius migration, retire old classes | frontend |
+| 31 | DS4 | Typography & section headers on the scale | frontend |
+| 32 | DS8 | Stats sub-pages made of the same stone (+ drop redundant mode pill) | frontend |
+| 33 | S10 | Match comments & club selection reworked | frontend |
+| 34 | D1 | Documentation pass (README, frontend/README, AGENTS.md, DESIGN.md) | docs |
 
 ---
 
@@ -1733,7 +1741,233 @@ Route coverage (plan heuristic, re-measured): **8 of 95 uncovered → 0 of 95**.
 
 ---
 
-## D1 — Documentation pass (runs LAST, after DS4)  ☐
+## Round-3 feedback (Roli, 2026-09-13, while testing the WIP)
+
+Verbatim asks → tasks: (1) back from match details is broken → **N1, done** · (2) match-detail
+H2H needs a shortcut into the stats matchup → **N4** · (3) dashboard cup links → **N4** ·
+(4) stats sub-pages must look "made from the same stone" (Records vs Streaks; Records should
+use the shared match element) → **DS8** · (5) match comments + club selection are cumbersome,
+rework with fewer clicks, feature-equivalent, friendlies included → **S10** · (6) match card
+need not show 1v1/2v2 → **DS8** · (7) player icons link to profiles; sweep for useful links →
+**N4** · (8) H2H matrix: W-D-L default, make cells look clickable → **S8** · (9) back from a
+drill-in must return to the exact scroll position → **N2** · (10) swipe back/forward must always
+make sense → **N3** · (11) the stats filter pill is easy to overlook → **S9**.
+
+---
+
+## N1 — Back from a detail page goes up, not "wherever you came from"  ☑
+
+*Done 2026-09-13 by the planner (commit `9e2b20d`) — a regression introduced by U6.*
+U6 made the nav bar open a destination's remembered page, so a match page is often entered
+straight from Stats; the chevron popped history and landed there. New behaviour: back navigates
+**up** (match → its tournament, keeping `?tab=` from `location.state.fromTab`; tournament →
+list; profile → players), and pops only when the entry behind really is that parent (so the
+parent keeps its scroll and open tab). `ui/shell/navStack.ts` mirrors `history idx → url` in
+sessionStorage to tell the two cases apart; `resolveBackTarget()` is exported for reuse.
+Tests: `test/contextualBack.test.tsx`.
+
+---
+
+## N2 — Return to exactly where you were (scroll + in-view state)  ☐
+
+**Why (Roli #9):** "when I go back from detailed h2h, I get to top of h2h page and I want to go
+back to exactly where I was — check everywhere for similar stuff."
+
+Two distinct cases, both in scope:
+1. **Route-level back** (`nav(-1)` and the contextual chevron). React Router does not restore
+   scroll. Add `ui/shell/useScrollRestoration.ts`, mounted once in `AppShell`: on every location
+   change, save `window.scrollY` for the *outgoing* entry keyed by its history index (reuse
+   `navStack.ts`, add `saveScroll(idx, y)` / `scrollFor(idx)`); on a POP navigation
+   (`useNavigationType() === "POP"`) restore it after paint (`requestAnimationFrame`, retry once
+   after 120ms for late content), otherwise scroll to top. Respect `prefers-reduced-motion` by
+   using `behavior: "auto"` throughout.
+2. **In-view drill-ins that only change query params** (all `replace: true`, so there is no
+   history entry to pop): the stats **matchup** (`?vs=`), and any other place where a sub-view
+   swaps the page body. Save the scroll position when opening the drill-in, restore it when the
+   in-view back button clears it. Implement as `useReturnScroll(key: string)` in
+   `pages/stats/useReturnScroll.ts` (sessionStorage, keyed by the URL being left) and use it in
+   `StatsInsights` (matchup open/close), `H2HView` (players ↔ duos), `CupDetail` (timeline
+   segment → reign row already scrolls, leave it) and the profile tabs.
+
+**Sweep:** grep for `setSearchParams(..., { replace: true })` and for components that swap a
+body without a route change; list every hit in Deviations with "restored / not applicable".
+
+**DoD:** on the isolated stack at 390px: scroll the H2H players view half-way, open a matchup,
+press the in-view back → same scroll offset (±8px); same for a matchup opened from Top rivalries
+after scrolling; `/live/19?tab=matches` scrolled → open a match → chevron back → same offset;
+profile Matches scrolled → open a match → back → same offset; a fresh deep link still lands at
+the top. `npm run check` + build.
+
+**Deviations:**
+
+---
+
+## N3 — Swipe back/forward always makes sense  ☐
+
+**Why (Roli #10).** `ui/shell/useSwipeNav.ts` fires raw `nav(-1)` / `nav(1)`.
+- Swipe right (back) must use the **same resolution as the chevron** on detail pages: call the
+  shared helper from N1 (`resolveBackTarget` + the pop-vs-up decision, extracted into
+  `ui/shell/backNavigation.ts` so the hook and `useContextualBack` share one implementation).
+  On a non-detail page keep the plain history pop, and do nothing when there is nothing to pop
+  (never navigate to `/dashboard` from a gesture — a silent no-op is better than a surprise).
+- Swipe left (forward) only when `history.state.idx` is below the highest index seen this session
+  (`navStack` knows it) — today it fires into nothing.
+- Keep every existing guard (horizontal scrollers, `data-no-swipe-nav`, range inputs, the 700ms
+  debounce). Add `data-no-swipe-nav` to the stats matrix and the trends chart if missing.
+- Tests: extend a hook test or add `test/swipeNav.test.ts` for the decision function only.
+
+**DoD:** on the isolated stack (touch emulation): swipe right on `/live/19/match/<id>` entered
+from Stats lands on `/live/19?tab=matches`; swipe right on `/stats` with no history does nothing;
+swipe left after a back returns forward; swiping a horizontally scrolled matrix never navigates.
+
+**Deviations:**
+
+---
+
+## N4 — Useful links everywhere (cross-navigation sweep)  ☐
+
+**Why (Roli #2, #3, #7).** Make every identity and every summary a door to its detail page.
+
+Required:
+- **Match detail → stats matchup** (`pages/live/MatchH2HPanel.tsx`): the "All meetings →" link
+  exists for 1v1 only. Extend: 2v2 → `/stats?view=h2h&mode=2v2&source=both&player=<a1>&vs=<b1>`
+  for the opposed matchup, and give each "Team A/B together" card a link to that duo's matches
+  (`?view=h2h&sub=duos` with the duo preselected if S2's URL supports it, else the teammates
+  modal equivalent). Label them clearly ("All meetings", "All games together").
+- **Dashboard cup card → cups** (`pages/dashboard/CupCard.tsx`): the card's header links to
+  `/stats?view=overview&sub=cups`; the holder row links to `/profiles/<owner>`.
+- **Player identity → profile, everywhere**: avatar+name in `CupDetail` (holder, reign rows,
+  per-player table), `CupCard` history rows (the player names inside the row — nest carefully,
+  the row itself links to the tournament: use a non-nested layout with two separate links),
+  `StatsTable` rows (currently → Player tab; add a chevron/secondary link to `/profiles/<id>`),
+  `RecordsView` names, `StreaksView` names, `H2HView` opponent rows, `PositionsView` column
+  headers, standings rows (already link), `MatchupView` header avatars.
+- **Summary → stats**: profile "Full stats →" exists (S3); add profile Rivals → matchup (S2 did),
+  and from a tournament's standings row → `/stats?view=player&player=<id>`.
+- Rule to apply and record: a row already carrying a primary link must not nest a second one —
+  either split the row into two adjacent links or make the secondary target a small icon button.
+
+**DoD:** a table in Deviations listing every element made clickable and its target; Playwright
+clicks through: dashboard cup → cups, cup holder → profile, reign row player → profile,
+match H2H (1v1 and 2v2) → matchup, records row name → profile. No nested anchors
+(`document.querySelectorAll("a a").length === 0` on every stats page). `npm run check` + build.
+
+**Deviations:**
+
+---
+
+## S8 — H2H matrix: W-D-L by default, obviously clickable  ☐
+
+**Why (Roli #8).** `pages/stats/H2HView.tsx` defaults `matrixMetric` to `"winrate"`, and the
+cells give no hint that they open the matchup (S2 made them do so).
+- Default metric `"wdl"`; keep the chip order but put W-D-L first.
+- Affordance: cells get `cursor-pointer`, a hover/active lift (`hover:brightness-110`,
+  `active:scale-[0.97]`, `transition`), a focus ring, and `title="<A> vs <B> — open matches"`.
+  Add one muted hint line under the metric chips: "Tap a cell for every match between two
+  players." Cells with no matches stay inert (no pointer, no hint).
+- The row/column header names keep selecting a player (unchanged), and get their own
+  `cursor-pointer`.
+
+**DoD:** 390px + 1280px screenshots (blue + light) with W-D-L showing by default; hover state
+visible in a desktop screenshot; a tap opens the matchup. `npm run check` + build.
+
+**Deviations:**
+
+---
+
+## S9 — The stats filter pill must not be overlookable  ☐
+
+**Why (Roli #11):** "the pill in stats is easy to overlook." Keep S7's size and shape — increase
+its presence:
+- Give it an accent-tinted border and a stronger shadow when the filters are **non-default**
+  (mode ≠ overall or source ≠ tournaments), plus a small accent dot on the icon — a filtered view
+  should be obvious at a glance.
+- On first arrival at `/stats` in a session (sessionStorage flag), animate it in with a short
+  attention pulse (`framer-motion`, 2 pulses, respects `prefers-reduced-motion`).
+- Raise the resting contrast: solid `bg-bg-card-outer` (not `/85`) with a `border-accent/30`
+  hairline, and label the mode token even at rest (already) — verify against the page background
+  in all five themes.
+- Add a matching entry point that cannot be missed: the section's sub-chip row gets a trailing
+  compact "Filters" chip on **mobile only** (`lg:hidden`) that opens the same popover; it sits
+  inline with the sub-views so it is discoverable while scrolling the top of the page.
+
+**DoD:** screenshots at 390px in blue + light of: default state, filtered state (accent border +
+dot), popover open from the pill and from the sub-chip entry. `npm run check` + build.
+
+**Deviations:**
+
+---
+
+## DS8 — Stats sub-pages made of the same stone  ☐
+
+**Why (Roli #4, #6).** "Records looks very different than Streaks even though it's very similar
+information (I prefer like in Streaks). Records also does not use the match result element used
+elsewhere. Check all subpages."
+
+Canon for a stats sub-view (add to `DESIGN.md` §6 as "Stats sub-view skeleton"):
+`section-head` + `section-label` per block → an optional one-line muted explainer → content
+(`List`/`ListRow` rows, `StatTile` grids, or `ScoreLine` rows) → "Show all" as a ghost `Button`.
+Category blocks (Streaks' four cards) are the reference look: a `card` per category with an icon,
+a title, the explainer, then rows.
+
+- **RecordsView** → rebuilt on that skeleton: "Titles", "Match superlatives" and "Longest runs"
+  become category cards like Streaks'; every match row uses `ScoreLine sm` with the tournament +
+  date as the row meta (it currently hand-rolls "A vs B  4:6"); ties keep the "+N more" line.
+- **StreaksView** stays the reference; align only what differs from the canon (heading sizes,
+  "Show all" button style).
+- Audit and align **every** stats sub-view: Table, Positions, Streaks, Records, Cups, Trends,
+  H2H (players + duos + matchup), Player. Same heading pattern, same explainer style, same row
+  primitive, same empty state (`EmptyState`), same loading state (`InlineLoading`).
+- **Mode pill (#6):** drop the redundant `1v1`/`2v2` token from the match meta line where the
+  context already says it — `MatchOverviewPanel` inside a tournament (the header pill already
+  shows the mode) and match rows inside a tournament block. Keep it where a list mixes modes
+  (profile/player match history in Overall, matchup in Overall, friendlies list) — i.e. keep
+  `hideModePill` logic but invert the default: show only when the surrounding list is mixed.
+
+**DoD:** side-by-side 390px screenshots of Records and Streaks in blue + light showing the same
+skeleton; Records match rows visibly use the shared score element; a tournament match card shows
+no mode pill while a mixed-mode history list still does. `npm run check` + build.
+
+**Deviations:**
+
+---
+
+## S10 — Match comments & club selection reworked (fewer clicks)  ☐
+
+**Why (Roli #5):** "match comments and select clubs need a rework, they are very cumbersome and
+require many clicks. Make sure it's feature equivalent, you can be creative. Find good design
+patterns for these (don't forget about friendlies!)."
+
+Read first: `pages/live/TournamentCommentsCard.tsx`, `comments/CommentFilterBar.tsx`,
+`comments/CommentList.tsx`, `CommentCreateComposer.tsx`, `TournamentCommentParts.tsx` (goal /
+shots entry), `ui/SelectClubsPanel.tsx`, `ui/ClubCombobox.tsx`, `ui/clubControls.tsx`,
+`pages/tools/FriendlyMatchCard.tsx`. **Feature inventory first** (write it into Deviations),
+then rework. Nothing may be lost: comment/goal/shots entry, author "General" vs self, add-to
+match selector, image attach + crop, reply, edit, delete, vote + voters, pin, read/unread jump,
+realtime merge; club side A/B pick, per-side game, stars display, national teams, crests.
+
+Direction (approved to be creative, keep it on the canon):
+- **Comments composer:** one always-visible input row at the bottom of the feed (like a chat),
+  with a single text field and inline icon actions (send, attach image, goal, shots). Choosing
+  "goal"/"shots" swaps the row into the compact entry inline instead of opening a separate
+  composer; the match/author selectors collapse into two small chips above the field, defaulted
+  (current match, self) so the common path is: type → send (1 tap).
+- **Club selection:** replace the two-step panel with one `ClubPicker` sheet per side, opened by
+  tapping the club slot on the match card: search field focused on open, recent/most-used clubs
+  first, league grouping, crest + stars in the row, single tap selects and closes. Same component
+  in the live match, the match detail edit tab and the friendly form.
+- Keep every write path on the existing API calls; no backend change.
+
+**DoD:** a click-count table (before → after) for: post a comment, post a goal, attach an image,
+set both clubs on a live match, set both clubs on a friendly. Playwright walkthroughs of each at
+390px (editor stubbed as in DS2/DS7) with screenshots. `npm run check` + build; the comment and
+friendly tests still pass.
+
+**Deviations:**
+
+---
+
+## D1 — Documentation pass (runs LAST, after every other task)  ☐
 
 - `README.md`: remove the "Tournament status" section with `PATCH /tournaments/{id}/status`
   (no such endpoint; status is derived from match states — say so in one sentence); make
