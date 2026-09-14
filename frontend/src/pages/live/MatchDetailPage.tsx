@@ -103,7 +103,7 @@ export default function MatchDetailPage() {
 
   const tQ = useQuery({
     queryKey: qk.tournament(tid!),
-    queryFn: () => getTournament(tid!),
+    queryFn: () => getTournament(tid!, token),
     enabled: !!tid,
   });
 
@@ -122,9 +122,11 @@ export default function MatchDetailPage() {
     return tQ.data.matches.find((m) => Number(m.id) === matchId) ?? null;
   }, [tQ.data, matchId]);
 
-  const isDone = (tQ.data?.status ?? "draft") === "done";
-  // Match the live page: admins can edit even finished tournaments; editors only while not done.
-  const canEditResult = role === "admin" || (role === "editor" && !isDone);
+  // The server answers "may this caller change this result?" and ships the answer in the
+  // payload (A10) — this page renders it instead of keeping its own copy of the rule. The
+  // role check stays as the coarse gate, so an admin previewing as reader still sees a
+  // reader's page.
+  const canEditResult = canEdit && !!tQ.data?.can_edit;
   // `?tab=edit` only sticks while the result is actually editable.
   const activeTab: Tab = rawTab === "edit" && !canEditResult ? "h2h" : rawTab;
 
@@ -190,7 +192,7 @@ export default function MatchDetailPage() {
       // server state this editor was never shown.
       const fresh = await qc.fetchQuery({
         queryKey: qk.tournament(tid),
-        queryFn: () => getTournament(tid),
+        queryFn: () => getTournament(tid, token),
         staleTime: 0,
       });
       const freshMatch = fresh.matches.find((m) => Number(m.id) === matchId) ?? null;

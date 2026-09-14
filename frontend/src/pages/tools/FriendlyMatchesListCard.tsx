@@ -8,6 +8,7 @@ import InlineLoading from "../../ui/primitives/InlineLoading";
 import Input from "../../ui/primitives/Input";
 import Button from "../../ui/primitives/Button";
 import EmptyState from "../../ui/primitives/EmptyState";
+import ConfirmDialog from "../../ui/primitives/ConfirmDialog";
 import MatchOverviewPanel from "../../ui/primitives/MatchOverviewPanel";
 import SelectClubsPanel from "../../ui/SelectClubsPanel";
 import { GoalStepper, useClubSelection } from "../../ui/clubControls";
@@ -218,8 +219,11 @@ function FriendlyEditor({
 export default function FriendlyMatchesListCard({ onInitialReady }: { onInitialReady?: () => void }) {
   const qc = useQueryClient();
   const { role, token } = useAuth();
-  const canDelete = role === "admin" && !!token;
-  const canEdit = role === "admin" && !!token;
+  // Coarse gate only. Whether *this* friendly may be edited or deleted is the server's
+  // answer, carried per row as `can_edit` / `can_delete` (A10) — an editor keeps their own
+  // entry for an hour, an admin always.
+  const isEditorOrAdmin = (role === "editor" || role === "admin") && !!token;
+  const [pendingDeleteId, setPendingDeleteId] = useState<number | null>(null);
   const [mode, setMode] = useState<ModeFilter>("all");
   const [showMeta, setShowMeta] = useState(false);
   const [expandedFriendlyId, setExpandedFriendlyId] = useState<number | null>(null);
@@ -232,8 +236,9 @@ export default function FriendlyMatchesListCard({ onInitialReady }: { onInitialR
   });
 
   const friendliesQ = useQuery({
-    queryKey: qk.friendlies(mode),
-    queryFn: () => listFriendlies({ mode: mode === "all" ? undefined : mode, limit: 500 }),
+    // The rows carry per-caller flags, so the viewer is part of the key.
+    queryKey: qk.friendliesList(mode, token),
+    queryFn: () => listFriendlies({ mode: mode === "all" ? undefined : mode, limit: 500, token }),
     staleTime: 10_000,
   });
 
@@ -340,9 +345,13 @@ export default function FriendlyMatchesListCard({ onInitialReady }: { onInitialR
             clubs={clubsQ.data ?? []}
             showMeta={showMeta}
             renderMatchActions={(_t, m) => {
-              if (!canDelete && !canEdit) return null;
+              if (!isEditorOrAdmin) return null;
               const fid = Number(m.id);
               if (!fid) return null;
+              const row = findFriendlyById(fid);
+              const canEdit = !!row?.can_edit;
+              const canDelete = !!row?.can_delete;
+              if (!canEdit && !canDelete) return null;
               const isExpanded = expandedFriendlyId === fid;
               const pendingDelete = deleteMut.isPending && deleteMut.variables === fid;
 
@@ -364,11 +373,7 @@ export default function FriendlyMatchesListCard({ onInitialReady }: { onInitialR
                       variant="ghost" size="sm" iconOnly
                       title={`Delete friendly #${fid}`}
                       disabled={pendingDelete}
-                      onClick={() => {
-                        if (!window.confirm(`Delete friendly #${fid}?`)) return;
-                        if (isExpanded) setExpandedFriendlyId(null);
-                        deleteMut.mutate(fid);
-                      }}
+                      onClick={() => setPendingDeleteId(fid)}
                     >
                       {pendingDelete ? <Loader2 size={14} className="animate-spin" aria-hidden="true" /> : <Trash2 size={14} aria-hidden="true" />}
                     </Button>
@@ -379,11 +384,10 @@ export default function FriendlyMatchesListCard({ onInitialReady }: { onInitialR
             /* The editor is a panel, not a row action: full width under its row, so
                nothing is clipped by the action slot's `shrink-0` (T2's finding). */
             renderMatchExpanded={(_t, m) => {
-              if (!canEdit) return null;
               const fid = Number(m.id);
               if (!fid || expandedFriendlyId !== fid) return null;
               const row = findFriendlyById(fid);
-              if (!row) return null;
+              if (!row || !isEditorOrAdmin || !row.can_edit) return null;
               return (
                 <FriendlyEditor
                   friendlyId={fid}
@@ -401,5 +405,37 @@ export default function FriendlyMatchesListCard({ onInitialReady }: { onInitialR
     </>
   );
 
-  return <div className="space-y-3">{content}</div>;
+  const doomedFriendly = pendingDeleteId ? findFriendlyById(pendingDeleteId) : null;
+  const doomedMatch = doomedFriendly ? friendlyToMatch(doomedFriendly) : null;
+  const doomedSideA = doomedMatch?.sides.find((x) => x.side === "A");
+  const doomedSideB = doomedMatch?.sides.find((x) => x.side === "B");
+
+  return (
+    <div className="space-y-3">
+      {content}
+
+      <ConfirmDialog
+        open={!!doomedFriendly}
+        title="Delete this friendly?"
+        subtitle="It disappears from the friendlies list and from every stat built on it."
+        confirmLabel="Delete friendly"
+        busy={deleteMut.isPending}
+        onCancel={() => setPendingDeleteId(null)}
+        onConfirm={() => {
+          if (!pendingDeleteId) return;
+          if (expandedFriendlyId === pendingDeleteId) setExpandedFriendlyId(null);
+          const fid = pendingDeleteId;
+          setPendingDeleteId(null);
+          deleteMut.mutate(fid);
+        }}
+      >
+        <div>
+          {teamName(doomedSideA)} {doomedSideA?.goals ?? 0}–{doomedSideB?.goals ?? 0}{" "}
+          {teamName(doomedSideB)}
+        </div>
+        <div>Played on {doomedFriendly?.date ?? "—"}.</div>
+        <div>This cannot be undone.</div>
+      </ConfirmDialog>
+    </div>
+  );
 }

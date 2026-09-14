@@ -5,12 +5,14 @@ import { MailOpen, MessageSquare, Gamepad2, LayoutGrid, ListChecks, Signpost, Sl
 
 import Button from "../../ui/primitives/Button";
 import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
+import ConfirmDialog from "../../ui/primitives/ConfirmDialog";
 import PageLoadingScreen from "../../ui/primitives/PageLoadingScreen";
 import { SectionTabs, type SectionTab } from "../../ui/SectionTabs";
 import PageLayout from "../../ui/layout/PageLayout";
 
 import {
   getTournament,
+  listTournaments,
   enableSecondLegAll,
   disableSecondLegAll,
   reorderTournamentMatches,
@@ -106,7 +108,7 @@ export default function LiveTournamentPage() {
 
   const tQ = useQuery({
     queryKey: qk.tournament(tid!),
-    queryFn: () => getTournament(tid!),
+    queryFn: () => getTournament(tid!, token),
     enabled: !!tid,
   });
 
@@ -322,6 +324,20 @@ export default function LiveTournamentPage() {
     },
   });
 
+  // The delete confirmation names what is lost, so it needs the cup stakes — which live on
+  // the list row, not the detail payload (computing them per detail request would walk every
+  // tournament × every cup on the realtime path). Fetched only once the dialog opens.
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const listForStakesQ = useQuery({
+    queryKey: qk.tournaments(),
+    queryFn: () => listTournaments(token),
+    enabled: confirmDelete,
+  });
+  const cupStakes = useMemo(() => {
+    const row = (listForStakesQ.data ?? []).find((t) => Number(t.id) === Number(tid));
+    return row?.cup_stakes ?? [];
+  }, [listForStakesQ.data, tid]);
+
   const deleteMut = useMutation({
     mutationFn: async () => {
       if (!token) throw new Error("Not logged in");
@@ -329,10 +345,13 @@ export default function LiveTournamentPage() {
       return deleteTournament(token, tid);
     },
     onSuccess: async () => {
+      setConfirmDelete(false);
       forgetLocation(location.pathname + location.search);
       nav("/tournaments");
       await qc.invalidateQueries({ queryKey: qk.tournaments() });
+      // A deleted tournament is a hole in the cup fold and in every stat derived from it.
       await qc.invalidateQueries({ queryKey: qk.cupAll() }).catch(() => {});
+      await qc.invalidateQueries({ queryKey: qk.stats.all() }).catch(() => {});
     },
   });
 
@@ -449,8 +468,14 @@ export default function LiveTournamentPage() {
     nav(`/live/${tid}/match/${m.id}`, { state: { fromTab: activeTab } });
   }
 
-  const canEditMatch = role === "admin" || (role === "editor" && !isDone);
-  const canReorder = isAdmin || (role === "editor" && !isDone);
+  // A10: the server answers "what may this caller do to this tournament right now" and
+  // ships the answer with the payload. The role check stays as the coarse gate only, so
+  // an admin previewing as editor/reader still gets that role's page.
+  const canEditTournament = isEditorOrAdmin && !!tQ.data?.can_edit;
+  const canDeleteTournament = isEditorOrAdmin && !!tQ.data?.can_delete;
+  const canSetDecider = isEditorOrAdmin && !!tQ.data?.can_set_decider;
+  const canEditMatch = canEditTournament;
+  const canReorder = canEditTournament;
   const canDisableSecondLeg = useMemo(() => {
     return !matchesSorted.some((m) => m.leg === 2 && m.state !== "scheduled");
   }, [matchesSorted]);
@@ -571,7 +596,7 @@ export default function LiveTournamentPage() {
               match={currentMatch}
               clubs={clubs}
               players={tQ.data?.players ?? []}
-              canControl={isEditorOrAdmin && !isDone}
+              canControl={canEditTournament}
               canDeleteComments={isAdmin}
               busy={currentGameMut.isPending}
               onPatch={(matchId, body) => currentGameMut.mutateAsync({ matchId, body })}
@@ -708,12 +733,12 @@ export default function LiveTournamentPage() {
                   setPanelError(null);
                   reassignMut.mutate(undefined, { onError: (e) => setPanelError(errorMessage(e)) });
                 }}
+                canEdit={canEditTournament}
+                canDelete={canDeleteTournament}
+                canSetDecider={canSetDecider}
                 onDeleteTournament={() => {
-                  if (!isAdmin) return;
-                  const ok = window.confirm("Delete tournament permanently?");
-                  if (!ok) return;
-                  setPanelError(null);
-                  deleteMut.mutate(undefined, { onError: (e) => setPanelError(errorMessage(e)) });
+                  if (!canDeleteTournament) return;
+                  setConfirmDelete(true);
                 }}
                 dateValue={isAdmin ? editDate : undefined}
                 onDateChange={isAdmin ? setEditDate : undefined}
@@ -727,7 +752,7 @@ export default function LiveTournamentPage() {
                 deciderCandidates={topDrawInfo.candidates}
                 currentDecider={decider}
                 onSaveDecider={
-                  isEditorOrAdmin
+                  canSetDecider
                     ? (body) => {
                         setPanelError(null);
                         deciderMut.mutate(body, { onError: (e) => setPanelError(errorMessage(e)) });
@@ -736,6 +761,33 @@ export default function LiveTournamentPage() {
                 }
                 deciderBusy={deciderMut.isPending}
               />
+
+              <ConfirmDialog
+                open={confirmDelete}
+                title={`Delete "${tQ.data.name}"?`}
+                subtitle="The tournament and everything recorded in it are removed for good."
+                confirmLabel="Delete tournament"
+                busy={deleteMut.isPending}
+                onCancel={() => setConfirmDelete(false)}
+                onConfirm={() => {
+                  setPanelError(null);
+                  deleteMut.mutate(undefined, { onError: (e) => setPanelError(errorMessage(e)) });
+                }}
+              >
+                <div>
+                  {matchesSorted.length === 0
+                    ? "No matches were played yet."
+                    : `${matchesSorted.length} ${matchesSorted.length === 1 ? "match" : "matches"} and every result in ${matchesSorted.length === 1 ? "it" : "them"} are deleted.`}
+                </div>
+                {cupStakes.length > 0 ? (
+                  <div>
+                    {cupStakes.map((c) => c.name).join(" and ")}{" "}
+                    {cupStakes.length === 1 ? "was" : "were"} at stake here — deleting this
+                    recalculates who holds {cupStakes.length === 1 ? "it" : "them"}.
+                  </div>
+                ) : null}
+                <div>This cannot be undone.</div>
+              </ConfirmDialog>
             </div>
           ) : null}
         </>

@@ -5487,7 +5487,7 @@ themes.
 
 ---
 
-## A10 — Editors can finish what they started: a one-hour grace window  ☐
+## A10 — Editors can finish what they started: a one-hour grace window  ☑
 
 Roli, after A1 made the decider admin-only in practice: "make sure an editor can also set a decider
 -> admin does not always participate in tournament. editors should be able to edit/set live
@@ -5560,4 +5560,120 @@ friendly delete; flags present and correct in the three payloads; every delete c
 tournament; `make test`, `make lint`, `make gen-types` (schema committed), `npm run check`, build;
 screenshots of the confirmation dialog and of the decider editor as an editor, 390px + 1280px.
 
-**Deviations:**
+**Deviations:** (implemented 2026-09-14 on `feature/2026-09-audit`)
+
+**Shape.** One module answers "may this caller change this row right now?", the payloads carry
+the answer, the UI renders it. `services/authorization.py` holds `GRACE_WINDOW`
+(`= COMMENT_EDIT_WINDOW`, imported — the comments' 1h constant, not a second one), the `can_*`
+predicates and the `ensure_can_*` guards; `tournament_capabilities()` / `friendly_capabilities()`
+call the *same* predicates the guards call, so a flag and a 403 can never disagree.
+`ensure_not_done_or_admin` had no callers left afterwards and was deleted with them.
+
+**Judgement 1 — when the hour starts on a done tournament.** `tournament_grace_anchor()` =
+the latest `Match.finished_at` of its matches, because that is when the tournament actually
+ended (not when the row was last touched, which a rename would move). A tournament can be
+"done" with no timestamp at all — matches finished before `finished_at` was recorded, or
+backfilled history — and then `Tournament.updated_at` is the only evidence of when it last
+changed, so it is the fallback rather than "no window at all". The alternative, treating a
+missing timestamp as "window closed", would lock an editor out of exactly the old rows an
+admin is least likely to be sitting next to. Covered by
+`test_a_done_tournament_without_finish_timestamps_falls_back_to_updated_at`.
+
+**Judgement 2 — what each dialog says.** All three name what is lost, in the `text-loss`
+idiom, and end on "This cannot be undone.":
+- *tournament, cup at stake* — `Delete "A10 grace check"?` / "The tournament and everything
+  recorded in it are removed for good." / "3 matches and every result in them are deleted." /
+  "Bauernkranz was at stake here — deleting this recalculates who holds it."
+- *tournament, no cup* — the same, without the cup line. A tournament with no matches reads
+  "No matches were played yet." instead of the match count (the accidental-creation case).
+- *friendly* — "Delete this friendly?" / "It disappears from the friendlies list and from every
+  stat built on it." / "Flo 3–1 Rumpi" / "Played on 2026-09-14."
+
+**Judgement 3 — wording where a control is withheld.** Muted, in the panel's own idiom, and
+true for *both* reasons a control can be missing (hour passed, or no creator recorded):
+- actions, edit closed: *"Tournament is done — the hour an editor has to fix it has passed."*
+- delete withheld: *"Only an admin can delete this tournament — an editor can delete one they
+  created, within its first hour."* (covers the pre-A10 rows, which have no creator — the plan's
+  "say so rather than showing a button that 403s")
+- decider withheld: *"The hour to set a decider has passed — only an admin can change it now."*
+
+**Scope calls.**
+- `can_edit` had to cover **every** tournament edit, not just `PATCH /tournaments/{id}`:
+  `canEditMatch` and `canReorder` render from it, so `generate`, `reorder`, `PATCH /matches/{id}`
+  and `/swap-sides` went through the same policy. Otherwise A10's own complaint — a flag that
+  does not match the guard — would be back on day one. The 403 string changed accordingly, from
+  `Tournament is done (admin required to …)` to
+  `Tournament finished more than an hour ago (admin required to …)`.
+- `matches.py`'s "editor may still patch the *last* match" escape hatch is preserved and is now
+  strictly wider: inside the hour any match, past it the last one, as before.
+- **`MatchDetailPage.tsx:127` was a fourth copy of the rule** (`role === "editor" && !isDone`),
+  not listed in the task. It reads the same payload, so it now reads the flag too; leaving it
+  would have been immediate drift.
+- `FriendlyOut` carries two flags, not three — `can_set_decider` is meaningless for a friendly.
+- **`/second-leg` still revives a done tournament** for any editor (`tournaments.py:635`), the
+  documented back door A1 already reported. Left alone, as the task says; it is now the only
+  tournament write that does not ask this module.
+
+**Frontend mechanics.**
+- The role check stays as a *coarse* gate (`isEditorOrAdmin && caps.can_x`), so the admin-only
+  "view as a lower role" preview still shows a reader a reader's page. Consequence worth knowing:
+  an admin previewing *as editor* still has admin capabilities, because the flags come from the
+  token's real role. That override is a frontend convenience and was never a real demotion.
+- `applyTournamentSync` keeps the viewer's three flags instead of taking the broadcast's
+  all-False ones — the `applyCommentUpsert` precedent for viewer-specific fields (unit-tested
+  both ways). Accepted consequence: a page left open past the hour still shows the control until
+  something refetches, and the save then 403s into the existing error toast. Polling the window
+  down to the second was not worth a timer.
+- `qk.tournament(tid)` deliberately keeps **no** token in the key — the websocket reducer writes
+  that key and has no token — so instead every fetcher of it now passes the token
+  (`LiveTournamentPage`, `MatchDetailPage`, `CurrentMatchPreviewCard`), and they agree.
+  `qk.friendliesList(mode, token)` *is* keyed by viewer (no WS writer); the bare `qk.friendlies()`
+  prefix still reaches it, which a test pins.
+- The delete dialog's cup stakes come from the tournaments **list** query, fetched only when the
+  dialog opens. `cup_stakes` is a fold over every tournament × every cup; putting it in
+  `TournamentDetailOut` would run that on every realtime `tournament.sync`.
+- `qk.stats.all()` joined `qk.tournaments()` / `qk.cupAll()` in the delete invalidation (Care).
+- New primitive `ui/primitives/ConfirmDialog.tsx` (Modal + a "what is lost" block + Cancel/verb),
+  because the two delete sites needed the same thing and `DESIGN.md` §7 blesses `Modal`, not
+  `window.confirm`. §7 gained a row for it; `AGENTS.md` §5 (the two new tables) and §6 (the
+  window, the flags, the "render from the flags" rule) were updated in the same pass. The five
+  *non-destructive* `window.confirm` calls elsewhere (mark-as-read, swap sides, …) were left
+  alone — out of scope.
+
+**Permission matrix** (from `tests/test_grace_window.py`; "creator" = the editor who created the
+row, "in window" = within `GRACE_WINDOW` of the anchor):
+
+| Endpoint | reader | editor, not creator | editor, creator, in window | editor, past window | admin |
+|---|---|---|---|---|---|
+| `PATCH /tournaments/{id}` | 401 | 200 live · 200 done <1h · 403 after | 200 | 403 `Tournament finished more than an hour ago (admin required to edit)` | 200 |
+| `POST /tournaments/{id}/generate` | 401 | same as edit | 200 | 403 (`…to regenerate`) | 200 |
+| `PATCH /tournaments/{id}/reorder` | 401 | same as edit | 200 | 403 (`…to reorder`) | 200 |
+| `PATCH /tournaments/{id}/decider` | 401 | 200 while ≤1h after the last match | 200 | 403 (`…to set the decider`) | 200 |
+| `PATCH /matches/{id}` | 401 | same as edit | 200 | 403 (`…to edit`), **except** the last match, still 200 | 200 |
+| `PATCH /matches/{id}/swap-sides` | 401 | same as edit | 200 | 403 (`…to swap sides`) | 200 |
+| `DELETE /tournaments/{id}` | 401 | 403 `Only an admin, or the editor who created it within the last hour, can delete a tournament` | 204 (even with results) | 403 (same string) | 204 |
+| `PATCH /friendlies/{id}` | 401 | 403 `…can edit a friendly` | 200 | 403 (same string) | 200 |
+| `DELETE /friendlies/{id}` | 401 | 403 `…can delete a friendly` | 200 | 403 (same string) | 200 |
+
+Reader = no `Authorization` header → 401 `Missing token` from `require_auth_claims`; there is no
+account below `editor`. A tournament with **no creator row** (everything created before A10)
+behaves as the "editor, not creator" column for delete, and is unaffected for edit.
+Payload flags match the table exactly, including `(False, False, False)` for a reader and for the
+websocket payload.
+
+**Verification.** `make test` → **144 passed** (132 before: +12 A10 cases, 5 pre-existing tests
+rewritten onto the window), `make lint` → *All checks passed!*, `make gen-types` → `schema.d.ts`
+regenerated and committed with the payload change, `cd frontend && npm run check` → typecheck +
+eslint clean, **49 files / 475 tests passed** (+6), `npm run build` → clean.
+**Rollback safety:** `main` @ `356ada6` (the previous build) was checked out into a worktree and
+run on :8004 against a *copy of the migrated DB* — booted with zero errors, served `/tournaments`,
+`/tournaments/{id}`, `/friendlies`, `/stats/overview`, `/cup`, and still created *and* deleted a
+tournament (200/204 throughout); its `create_all` left both new tables and their rows intact, and
+its payloads simply carry no `can_*` fields.
+**Runtime:** isolated stack (backend :8003 on `data/verify.db`, vite :8020, scratch secrets).
+Editor = Flo, admin = Roli. Screenshots at 390px and 1280px, blue and light: the decider editor
+rendering **for an editor** on a done, tied tournament (with the delete button next to it); the
+three confirmation dialogs; and the same page once the hour is backdated away — delete button and
+decider chips gone, the three muted lines in their place. Zero console errors on every run. Also
+checked live: a reader gets no Controls tab and no row actions on `/friendlies`, and an editor
+sees edit/delete on **only** the friendly they entered (1 of 7 rows).

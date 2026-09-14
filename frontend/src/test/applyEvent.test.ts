@@ -48,6 +48,41 @@ describe("applyTournamentSync", () => {
     applyTournamentSync(qc, { tournament_id: TID });
     expect((qc.getQueryData(qk.tournament(TID)) as { name: string }).name).toBe("keep");
   });
+
+  // A10: the broadcast has no single viewer, so its capability flags are all false —
+  // taking them would hide this editor's controls until the next refetch.
+  it("keeps the viewer's capability flags, which the broadcast cannot know", () => {
+    const qc = new QueryClient();
+    qc.setQueryData(qk.tournament(TID), {
+      id: TID,
+      name: "old",
+      can_edit: true,
+      can_delete: true,
+      can_set_decider: true,
+    } as unknown as TournamentDetail);
+
+    applyTournamentSync(qc, {
+      tournament_id: TID,
+      tournament: { id: TID, name: "new", can_edit: false, can_delete: false, can_set_decider: false },
+    });
+
+    expect(qc.getQueryData(qk.tournament(TID))).toEqual({
+      id: TID,
+      name: "new",
+      can_edit: true,
+      can_delete: true,
+      can_set_decider: true,
+    });
+  });
+
+  it("takes the payload's flags when there is nothing cached to keep", () => {
+    const qc = new QueryClient();
+    applyTournamentSync(qc, {
+      tournament_id: TID,
+      tournament: { id: TID, name: "new", can_edit: false, can_delete: false, can_set_decider: false },
+    });
+    expect((qc.getQueryData(qk.tournament(TID)) as { can_edit: boolean }).can_edit).toBe(false);
+  });
 });
 
 describe("applyCommentUpsert", () => {

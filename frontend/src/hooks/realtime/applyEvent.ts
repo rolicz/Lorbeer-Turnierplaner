@@ -5,7 +5,7 @@
  */
 import type { QueryClient } from "@tanstack/react-query";
 import { qk } from "../../api/queryKeys";
-import type { TournamentCommentsResponse } from "../../api/types";
+import type { TournamentCommentsResponse, TournamentDetail } from "../../api/types";
 import type { RealtimeMessage } from "./connection";
 import {
   WS_COMMENT_DELETE,
@@ -27,13 +27,29 @@ import {
 const asObj = <T = Record<string, unknown>>(v: unknown): Partial<T> =>
   v && typeof v === "object" ? (v as Partial<T>) : {};
 
-/** Replace the whole tournament cache with the pushed full state (no merge). */
+/**
+ * Replace the whole tournament cache with the pushed full state.
+ * The broadcast has no single viewer, so it cannot know this viewer's capability flags
+ * (A10) — they arrive all-false and are kept from what the viewer already fetched, the
+ * same way `applyCommentUpsert` keeps a comment's votes and `can_edit`.
+ */
 export function applyTournamentSync(qc: QueryClient, payload: unknown) {
   const p = asObj<TournamentSyncPayload>(payload);
   const tid = Number(p.tournament_id);
   const tournament = p.tournament;
   if (!tournament || !Number.isFinite(tid)) return;
-  qc.setQueryData(qk.tournament(tid), tournament);
+  const existing = qc.getQueryData<TournamentDetail>(qk.tournament(tid));
+  qc.setQueryData(
+    qk.tournament(tid),
+    existing
+      ? {
+          ...tournament,
+          can_edit: existing.can_edit,
+          can_delete: existing.can_delete,
+          can_set_decider: existing.can_set_decider,
+        }
+      : tournament,
+  );
 }
 
 export function applyTournamentDeleted(qc: QueryClient, payload: unknown) {

@@ -7,6 +7,7 @@ import { getTournament } from "../../api/tournaments.api";
 import { listClubs } from "../../api/clubs.api";
 import { qk } from "../../api/queryKeys";
 
+import { useAuth } from "../../auth/AuthContext";
 import { useLiveTournament } from "../../hooks/useLiveTournament";
 import { useTournamentWS } from "../../hooks/useTournamentWS";
 import { sideBy } from "../../helpers";
@@ -16,6 +17,9 @@ import InlineLoading from "../../ui/primitives/InlineLoading";
 
 export default function CurrentMatchPreviewCard() {
   const nav = useNavigate();
+  // Shares `qk.tournament(tid)` with the live page, so it fetches with the same token —
+  // otherwise the two would overwrite each other's capability flags (A10).
+  const { token } = useAuth();
 
   // 1) which tournament is currently LIVE?
   const liveQ = useLiveTournament();
@@ -25,7 +29,7 @@ export default function CurrentMatchPreviewCard() {
   // 2) fetch full tournament details so we can show match + players
   const tQ = useQuery({
     queryKey: qk.tournament(tid ?? "none"),
-    queryFn: () => getTournament(tid!),
+    queryFn: () => getTournament(tid!, token),
     enabled: !!tid,
   });
 

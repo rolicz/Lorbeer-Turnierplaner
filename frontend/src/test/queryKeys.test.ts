@@ -36,6 +36,18 @@ describe("queryKeys factory", () => {
     expect(qk.cupAll()).toEqual(["cup"]);
   });
 
+  // A10: the friendlies rows carry per-caller capability flags, so the viewer is part of
+  // the key — while the bare prefix must still reach every one of them.
+  it("friendlies list key includes the viewer, and the prefix still matches it", async () => {
+    expect(qk.friendliesList("all", "tok")).toEqual(["friendlies", "all", "tok"]);
+    expect(qk.friendliesList("1v1", null)).toEqual(["friendlies", "1v1", "none"]);
+
+    const qc = new QueryClient();
+    qc.setQueryData(qk.friendliesList("all", "tok"), []);
+    await qc.invalidateQueries({ queryKey: qk.friendlies() });
+    expect(qc.getQueryState(qk.friendliesList("all", "tok"))?.isInvalidated).toBe(true);
+  });
+
   it("clubs key is optional-game", () => {
     expect(qk.clubs()).toEqual(["clubs"]);
     expect(qk.clubs("fc25")).toEqual(["clubs", "fc25"]);

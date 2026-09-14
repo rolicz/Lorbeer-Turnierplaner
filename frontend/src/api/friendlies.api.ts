@@ -19,6 +19,9 @@ export type FriendlyMatchPatchBody = {
 
 export type FriendlyMatchResponse = {
   id: number;
+  /** Per-caller capability flags computed by the backend (A10) — never re-derive them here. */
+  can_edit: boolean;
+  can_delete: boolean;
   mode: "1v1" | "2v2";
   state: string;
   date: string;
@@ -33,12 +36,15 @@ export type FriendlyMatchResponse = {
   }>;
 };
 
-export function listFriendlies(opts?: { mode?: "1v1" | "2v2"; limit?: number }): Promise<FriendlyMatchResponse[]> {
+/** Public read; `token` only decides the `can_edit` / `can_delete` flags per row (A10). */
+export function listFriendlies(
+  opts?: { mode?: "1v1" | "2v2"; limit?: number; token?: string | null }
+): Promise<FriendlyMatchResponse[]> {
   const qs = new URLSearchParams();
   if (opts?.mode) qs.set("mode", String(opts.mode));
   if (opts?.limit != null) qs.set("limit", String(opts.limit));
   const suffix = qs.toString() ? `?${qs.toString()}` : "";
-  return apiFetch(`/friendlies${suffix}`, { method: "GET" });
+  return apiFetch(`/friendlies${suffix}`, { method: "GET", token: opts?.token });
 }
 
 export function createFriendlyMatch(token: string, body: FriendlyMatchCreateBody): Promise<FriendlyMatchResponse> {

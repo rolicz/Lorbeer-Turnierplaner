@@ -162,7 +162,8 @@ Current prod config (mirrored in `backend/app/cups.json` and `backend/data/cups.
   star_rating 0.5–5 in 0.5 steps, league_id), `ClubCrestFile`, `PlayerProfile`,
   `PlayerAvatarFile`, `PlayerHeaderImageFile`, `PlayerGuestbookEntry` (+ThreadLink, Vote, Read),
   `PlayerPoke` (+Read), `Comment` (+Read, Vote, ImageFile, ThreadLink, AuthorLink),
-  `TournamentPinnedComment`, `PushSubscription`, `PushSubscriptionPreference`.
+  `TournamentPinnedComment`, `TournamentCreatorLink`, `FriendlyCreatorLink`,
+  `PushSubscription`, `PushSubscriptionPreference`.
 - **Tournament "live/done/draft" is derived from match states** (`tournament_status.py`): all
   scheduled → draft, all finished → done, otherwise live. The `Tournament.status` column still
   exists but is not authoritative and there is **no status endpoint** (the README's old
@@ -191,6 +192,16 @@ subscriptions/me,test}`, `/comments/…`, `/health`.
 Roles: `reader` (no token) < `editor` < `admin`; deps `require_editor` / `require_admin`;
 owner-only checks in `services/authorization.py`. Error helpers in `app/api_utils.py`
 (400/403/404/409).
+**The editor's grace window (A10)** lives in `services/authorization.py` and nowhere else:
+an editor may edit / set the decider on a tournament while it is not done **and for one hour
+after its last match finished**, and may delete a tournament or a friendly only if they are its
+recorded creator (`TournamentCreatorLink` / `FriendlyCreatorLink`) and within one hour of
+creating it — admins always. The window is `GRACE_WINDOW`, the same 1h constant comments use
+(`COMMENT_EDIT_WINDOW`). `TournamentDetailOut`, `TournamentListItemOut` and `FriendlyOut` carry
+the per-caller answer as `can_edit` / `can_delete` / `can_set_decider`; **the frontend renders
+its controls from those flags and never re-derives the rule**. Rows created before A10 have no
+creator link and stay admin-only to delete. `PATCH /tournaments/{id}/second-leg` is the one
+documented back door left: it can still revive a done tournament for any editor.
 
 WebSocket channels (`app/main.py`, `app/ws.py`, `services/events.py`):
 - `/ws/tournaments/{id}` → `tournament.sync` (full tournament payload), `tournament.deleted`,

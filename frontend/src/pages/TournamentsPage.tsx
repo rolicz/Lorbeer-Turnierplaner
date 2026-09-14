@@ -66,7 +66,7 @@ export default function TournamentsPage() {
     ...(canWrite ? [{ key: "new" as TTab, label: "New tournament", icon: <Plus size={14} /> }] : []),
   ];
 
-  const tournamentsQ = useQuery({ queryKey: qk.tournaments(), queryFn: listTournaments });
+  const tournamentsQ = useQuery({ queryKey: qk.tournaments(), queryFn: () => listTournaments(token) });
   const summaryQ = useQuery({ queryKey: qk.commentsSummary(), queryFn: listTournamentCommentsSummary });
 
   const tournamentsSorted = useMemo(() => {

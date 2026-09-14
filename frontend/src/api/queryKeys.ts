@@ -66,7 +66,11 @@ export const qk = {
   cupAll: () => ["cup"] as const,
 
   // ---- friendlies ---------------------------------------------------------
+  /** Prefix key — invalidates every friendlies query regardless of mode/viewer. */
   friendlies: (mode?: string) => (mode ? (["friendlies", mode] as const) : (["friendlies"] as const)),
+  /** Full key including the viewer token: the rows carry per-caller capability flags (A10). */
+  friendliesList: (mode: string, token: string | null) =>
+    ["friendlies", mode, token ?? "none"] as const,
 
   // ---- push notifications -------------------------------------------------
   push: {
