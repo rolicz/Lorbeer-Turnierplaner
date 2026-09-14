@@ -215,3 +215,92 @@ describe("message routers", () => {
     expect(keys).toContain(JSON.stringify(qk.cupAll()));
   });
 });
+
+// ---- A9: pushes must not lose to the requests they raced ---------------------
+
+/** A fetch that is still on the wire, and the handle to let its answer land. */
+function inFlightFetch(qc: QueryClient, key: readonly unknown[], answers: string[]) {
+  let calls = 0;
+  let release = () => {};
+  const gate = new Promise<void>((r) => {
+    release = r;
+  });
+  const done = qc
+    .fetchQuery({
+      queryKey: key as unknown[],
+      queryFn: async () => {
+        const mine = answers[calls] ?? "later";
+        calls++;
+        if (calls === 1) await gate;
+        return { id: TID, name: mine } as unknown as TournamentDetail;
+      },
+    })
+    .catch(() => undefined);
+  return { release, done, calls: () => calls };
+}
+
+describe("a push and the requests it raced", () => {
+  it("an answer already on the wire cannot overwrite a tournament push", async () => {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const f = inFlightFetch(qc, qk.tournament(TID), ["from-before-the-push", "after-the-push"]);
+    await Promise.resolve();
+
+    applyTournamentSync(qc, { tournament_id: TID, tournament: { id: TID, name: "pushed" } });
+    f.release();
+    await f.done;
+    await new Promise((r) => setTimeout(r, 60));
+
+    // The older request's answer was discarded; what stands is newer than the push.
+    expect((qc.getQueryData(qk.tournament(TID)) as { name: string }).name).toBe("after-the-push");
+  });
+
+  it("with nothing in flight the push is still a zero-refetch update", async () => {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const f = inFlightFetch(qc, qk.tournament(TID), ["first"]);
+    f.release();
+    await f.done;
+
+    applyTournamentSync(qc, { tournament_id: TID, tournament: { id: TID, name: "pushed" } });
+    await new Promise((r) => setTimeout(r, 60));
+
+    expect(f.calls()).toBe(1);
+    expect((qc.getQueryData(qk.tournament(TID)) as { name: string }).name).toBe("pushed");
+  });
+
+  it("a delete cannot be undone by a comments answer that was already on the wire", async () => {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const key = qk.commentsTournamentFull(TID, null);
+    // What the viewer already has on screen.
+    qc.setQueryData(key, commentsCache([comment(1), comment(2)]));
+
+    let calls = 0;
+    let release = () => {};
+    const gate = new Promise<void>((r) => {
+      release = r;
+    });
+    const done = qc
+      .fetchQuery({
+        queryKey: key as unknown as unknown[],
+        staleTime: 0,
+        queryFn: async () => {
+          calls++;
+          // The answer to a request sent before the delete: it still has comment 2.
+          if (calls === 1) {
+            await gate;
+            return commentsCache([comment(1), comment(2)]);
+          }
+          return commentsCache([comment(1)]);
+        },
+      })
+      .catch(() => undefined);
+    await Promise.resolve();
+
+    applyCommentDelete(qc, { tournament_id: TID, comment_id: 2 });
+    release();
+    await done;
+    await new Promise((r) => setTimeout(r, 60));
+
+    const rows = (qc.getQueryData(key) as TournamentCommentsResponse).comments;
+    expect(rows.map((c) => c.id)).toEqual([1]);
+  });
+});

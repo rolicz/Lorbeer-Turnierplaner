@@ -28,6 +28,33 @@ const asObj = <T = Record<string, unknown>>(v: unknown): Partial<T> =>
   v && typeof v === "object" ? (v as Partial<T>) : {};
 
 /**
+ * Put a push in front of the requests it raced (A9).
+ *
+ * `setQueryData` has no ordering guard: a GET that was already on the wire when
+ * this event arrived answers with state from *before* it, and lands after it —
+ * overwriting a score, or resurrecting a comment somebody just deleted. There are
+ * ~12 mutation handlers invalidating these very keys, so an in-flight request is
+ * the normal case right after somebody edits something.
+ *
+ * Invalidating immediately after the write is the fix: it cancels the older
+ * request (so its answer is discarded, never applied) and puts a fresh one behind
+ * the push, which cannot be older than it.
+ *
+ * The predicate is what keeps this honest: it matches only the requests actually
+ * on the wire, so with nothing in flight nothing is invalidated and the push stays
+ * the zero-refetch DOM update this layer exists for. `refetchType: "all"` because
+ * the default ("active") leaves an unobserved query's stale answer to land.
+ */
+function overtakeInFlight(qc: QueryClient, queryKey: readonly unknown[], exact: boolean) {
+  void qc.invalidateQueries({
+    queryKey,
+    exact,
+    refetchType: "all",
+    predicate: (q) => q.state.fetchStatus === "fetching",
+  });
+}
+
+/**
  * Replace the whole tournament cache with the pushed full state.
  * The broadcast has no single viewer, so it cannot know this viewer's capability flags
  * (A10) — they arrive all-false and are kept from what the viewer already fetched, the
@@ -50,6 +77,7 @@ export function applyTournamentSync(qc: QueryClient, payload: unknown) {
         }
       : tournament,
   );
+  overtakeInFlight(qc, qk.tournament(tid), true);
 }
 
 export function applyTournamentDeleted(qc: QueryClient, payload: unknown) {
@@ -92,6 +120,7 @@ export function applyCommentUpsert(qc: QueryClient, payload: unknown) {
     return { ...prev, comments: next };
   });
 
+  overtakeInFlight(qc, qk.commentsTournament(tid), false);
   // A new comment may be a reply to the viewer's comment → refresh the bell.
   void qc.invalidateQueries({ queryKey: qk.notificationsAll() });
   // …and it changes the unread count the tournaments list shows for this
@@ -111,6 +140,7 @@ export function applyCommentDelete(qc: QueryClient, payload: unknown) {
       comments: (prev.comments ?? []).filter((c) => c.id !== cid),
     };
   });
+  overtakeInFlight(qc, qk.commentsTournament(tid), false);
   // A deleted comment must not keep counting towards the list's unread badge (A5).
   void qc.invalidateQueries({ queryKey: qk.commentsSummary() });
 }
