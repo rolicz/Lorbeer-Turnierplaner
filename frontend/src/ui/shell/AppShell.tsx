@@ -18,6 +18,7 @@ import BottomTabBar from "./BottomTabBar";
 import { ErrorToastViewport } from "../primitives/ErrorToast";
 import RouteErrorBoundary from "./RouteErrorBoundary";
 import { useSwipeNav } from "./useSwipeNav";
+import { readStored, writeStored } from "../../utils/safeStorage";
 import { useLocationRestore } from "./useLocationRestore";
 import { useRememberLocation } from "./useRememberLocation";
 import { useScrollRestoration } from "./useScrollRestoration";
@@ -41,12 +42,12 @@ function ShellInner({ children }: { children: React.ReactNode }) {
   // Back lands where you left off: every history entry keeps its own scroll offset.
   useScrollRestoration();
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [collapsed, setCollapsed] = useState<boolean>(() => localStorage.getItem(COLLAPSE_KEY) === "1");
+  const [collapsed, setCollapsed] = useState<boolean>(() => readStored(COLLAPSE_KEY) === "1");
 
   const toggleCollapse = () => {
     setCollapsed((v) => {
       const next = !v;
-      localStorage.setItem(COLLAPSE_KEY, next ? "1" : "0");
+      writeStored(COLLAPSE_KEY, next ? "1" : "0");
       return next;
     });
   };
