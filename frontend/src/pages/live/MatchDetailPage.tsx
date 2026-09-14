@@ -225,7 +225,10 @@ export default function MatchDetailPage() {
         await qc.invalidateQueries({ queryKey: qk.tournament(tid!) });
         await qc.invalidateQueries({ queryKey: qk.cupAll() }).catch(() => {});
       }
-      nav(backTo, { state: { focusMatchId: matchId } });
+      // `ownsScroll`: the Matches tab scrolls to (and flashes) this row itself, so
+      // the shell must not restore the scroll over it (A9). Only there — returning
+      // to any other tab nothing claims the scroll, and a push belongs at the top.
+      nav(backTo, { state: { focusMatchId: matchId, ownsScroll: fromTab === "matches" } });
     },
   });
 

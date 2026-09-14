@@ -8,6 +8,22 @@ import { currentHistoryIndex, saveScroll, scrollFor } from "./navStack";
 const GIVE_UP_MS = 1700;
 
 /**
+ * Does this navigation's destination place the scroll itself? (A9)
+ *
+ * Same contract as `location.hash`: whoever owns the target owns the scroll.
+ * `MatchDetailPage`'s "save and return" pushes back to the tournament asking it
+ * to scroll to (and flash) the row that was just edited — and this hook's instant
+ * `restoreWindowScroll(0)` landed on the next frame and aborted that smooth
+ * `scrollIntoView`, so the `comment-attn` flash played off-screen.
+ *
+ * Only honoured on a PUSH. Coming *back* to such an entry later is an ordinary
+ * pop with a remembered offset, and that offset is where the row already is.
+ */
+export function ownsScroll(state: unknown): boolean {
+  return (state as { ownsScroll?: unknown } | null)?.ownsScroll === true;
+}
+
+/**
  * Browser-grade scroll restoration for the SPA.
  *
  * React Router never touches the scroll position: going back from a match page
@@ -21,6 +37,9 @@ const GIVE_UP_MS = 1700;
  * - **REPLACE** → top only when the page itself changed; a replace that merely
  *   rewrites query params (every stats filter, every `?tab=`) must leave the
  *   scroll exactly where it is.
+ *
+ * A destination that scrolls to a target of its own opts out with
+ * `state.ownsScroll` — see `ownsScroll` above.
  *
  * Offsets are captured from `scroll` events rather than read at navigation time:
  * by the time an effect runs, the new (often shorter) page is laid out and the
@@ -104,7 +123,7 @@ export function useScrollRestoration(): void {
 
     let target: number | null = null;
     if (navType === NavigationType.Pop) target = scrollFor(idx, path) ?? 0;
-    else if (navType === NavigationType.Push) target = 0;
+    else if (navType === NavigationType.Push) target = ownsScroll(location.state) ? null : 0;
     else if (path !== prevPath) target = 0; // replace that swaps the page (login redirect, /→/dashboard)
     else if (restoring) target = pendingRef.current; // keep chasing the offset
 
@@ -126,5 +145,5 @@ export function useScrollRestoration(): void {
       cancel();
       window.clearTimeout(giveUp);
     };
-  }, [location.key, location.pathname, location.search, location.hash, navType]);
+  }, [location.key, location.pathname, location.search, location.hash, location.state, navType]);
 }

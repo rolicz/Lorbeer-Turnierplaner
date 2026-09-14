@@ -5614,7 +5614,7 @@ themes.
 
 ---
 
-## A9 — Fragility worth hardening (lower priority)  ☐
+## A9 — Fragility worth hardening (lower priority)  ☑
 
 1. **Unguarded `localStorage` on the boot path**: `main.tsx:13,19` at module scope and seven bare
    `getItem` calls in `auth/AuthContext.tsx:39-60`. Where storage access *throws* (Safari "block
@@ -5645,7 +5645,104 @@ themes.
    (`LiveTournamentPage.tsx:214-222`) is aborted by `useScrollRestoration`'s instant
    `restoreWindowScroll(0)` on the PUSH, so the `comment-attn` flash plays off-screen.
 
-**Deviations:**
+**Deviations:** (implemented 2026-09-14 on `feature/2026-09-audit`)
+
+All seven items done. Every fix was reproduced before it was written, and the two that can only be
+judged by watching the app (1 and 7) were A/B'd in a real browser against an isolated stack
+(backend :8004 on a copy of the DB, vite :8021).
+
+**1 — blocked storage, and a session that ended over nothing.** `utils/safeStorage.ts`
+(read/write/remove that cannot throw) now covers `main.tsx`'s module-scope theme read and all seven
+`AuthContext` keys. **Extended past the two files named:** `AppShell.tsx:44,49` (the sidebar-collapse
+flag, in a `useState` initialiser) and `useThemeManager.ts:12,22` sit on the same boot path and
+white-screen the same way — the item's "this is the one uncovered path" was not quite true.
+**Plus the bug the previous worker left.** `AuthContext` called `clearAuth()` on *any* rejection of
+`GET /me`. Reproduced on HEAD in Chromium with a **valid** admin token and a single aborted `/me`
+(`route.abort('failed')`): the page finished loading with `ea_fc_token` and `ea_fc_role` gone — an
+admin silently demoted to reader. (A first attempt with a *fake* token was a false positive: with a
+bad token every other authenticated request legitimately 401s, so the isolated backend was restarted
+with `--jwt-secret` and a real token minted.) After the fix the same run keeps `token: present,
+role: admin`. Only an `ApiError` of 401/403 clears now — the server saying no, as opposed to us not
+being able to ask. Five tests in `src/test/authSession.test.tsx` pin network failure, abort, 5xx,
+401 and 403, plus a boot with `Storage.prototype.getItem` throwing.
+
+**2 — all three parts, none left.**
+- *Per-channel `seq`*, the prerequisite: `_seq_counter` is gone; `_Channels` holds the sockets **and**
+  a counter per channel key, so `/ws/tournaments/17`, `/ws/tournaments/21`, `/ws/players/4` and the
+  global channel each count 1, 2, 3… on their own. Verified live: two comments on tournament 21 and
+  one on 20 gave `21 → [1, 2]`, `20 → [1]`, global `→ [1, 2, 3]`. Under the old shared counter those
+  same five broadcasts would have handed tournament 21 the numbers 1 and 3.
+- *The half-dead socket*: one that raises on `send_json` is now **closed** (1011) as well as dropped,
+  so the endpoint's `receive_text` loop ends and the client reconnects — instead of being answered
+  "pong" forever by a channel that no longer holds it.
+- *The gap check*: `connection.ts` keeps `lastSeq` per pooled socket (re-baselined on every `onopen`,
+  so a restarted server counting from 1 again is not a gap) and fires a new `onGap` handler when a
+  number is skipped; `useRealtime.ts` wires it to the same resync the reconnect path uses. The
+  per-player channel needs nothing — every message on it already resyncs.
+
+**3 — the realtime/refetch race.** Not `cancelQueries`: its default `revert: true` restores the
+pre-fetch data in a microtask *after* a synchronous `setQueryData`, so the reducers would have had to
+become async for no gain. `overtakeInFlight()` invalidates immediately after the write with
+`refetchType: "all"` and `predicate: q => q.state.fetchStatus === "fetching"`. That cancels the older
+request (its answer is discarded, never applied) and puts a fresh one behind the push — and matches
+nothing at all when no request is on the wire, so the zero-refetch path this layer exists for is
+intact. `refetchType: "all"` because the default, `"active"`, leaves an unobserved query's stale
+answer to land. Two new tests fail without it: a stale tournament answer overwriting a push, and a
+deleted comment coming back.
+
+**4 — one definition of Form.** Decided: **Form = points per match over the last 12 finished
+matches, of the matches that surface is describing.** 12 because it is the sparkline Roli actually
+reads on a player, and in this group's round-robins it is roughly the dashboard's "last 3
+tournaments" counted in matches instead of nights. `FORM_LAST_N` in `pages/stats/standings.ts` is the
+one definition; `ProfilePage` asks for it instead of 3. The divisor is fixed in
+`compute_overall_and_lastN` (`sum / len(window)`), so two wins reads 3.00 rather than 6/12 = 0.50.
+The odds model *wants* that shrinkage ("one played match is not a favourite"), so it now applies it
+itself in `_player_aggs_from_overall(per, lastN)` — the numbers fed to the model are unchanged, and a
+test pins both halves against each other. The comment that claimed the two surfaces matched is gone;
+the profile's label is `Form (last N)` with N the matches that exist, the same idiom the stats page
+already used. Verified in the browser: both surfaces now fetch `/stats/players?lastN=12` and both read
+`Form (last 12)`.
+
+**5 — club delete.** As specified, plus one decline: **`PRAGMA foreign_keys=ON` was not added.** It
+is the right long-term answer to this whole class, but switching it on changes every delete in the
+app at once (tournaments, players, comments and their link rows), which is not a change to make
+inside this item without its own permission matrix and tests.
+
+**6 — three nav seams.**
+- The drill-in back decision takes `sameParams` now, and `StatsInsights` passes `["view"]`, so a
+  matchup pushed from a *different* `/stats` body clears in place instead of popping onto a page the
+  "Head-to-head" button never named. **Honest caveat:** every in-app way into the matchup today is
+  the H2H matrix itself (same body) or a deep link from another path, so I could not trigger this
+  live — a latent seam, closed, with a unit test.
+- `navStack` truncates on the **first record of a page load** as well as on a push. A duplicated tab
+  copies sessionStorage without the forward history it describes; believing it made `canGoForward()`
+  promise a step the browser cannot take, and the swipe that asked for it did nothing at all. The
+  cost is that swipe-forward is not offered after a reload — the browser's own forward button still
+  works.
+- `useTabParam` rewrites any value it did not honour out of the URL, and takes an `allowed` list so
+  the same rewrite covers a role-forbidden tab. Wired on the three pages whose gate is a synchronous
+  `role` (Tournaments, Clubs, Players Admin); their local narrowing was then provably dead and is
+  gone. **Not wired on `MatchDetailPage`**: its `edit` tab depends on `tQ.data?.can_edit`, which is
+  false while the tournament is still loading, so rewriting there would throw away a legitimate
+  `?tab=edit` deep link a moment before it becomes valid. Verified in the browser: a reader's
+  `/tournaments?tab=new` and any `?tab=nonsense` become the clean URL, while an admin keeps
+  `?tab=new` and `?tab=add`.
+
+**7 — save and return.** Real, but **only when the match page was scrolled**, which took finding: the
+Edit tab does not scroll on its own (measured 0 at both 390px and 1280px), so `restoreWindowScroll(0)`
+from `scrollY === 0` issues no `scrollTo` at all and the smooth scroll wins — the first traces showed
+the flash playing perfectly in view on unfixed code. Open the Clubs disclosure, which is the normal
+editing flow, and the page scrolls 282px; then it is exactly as the finding says. Without the fix the
+return snaps to 0 and **stays** there, the row at `top: 1463` in an 844px viewport, flashing
+off-screen for the full 1.6s; with it the page runs 282 → 865 and the row settles at `top: 598`,
+flashing in view. The mechanism is a `state.ownsScroll` opt-out honoured only on a PUSH — the same
+contract `location.hash` already had in this hook. `MatchDetailPage` claims it **only when it returns
+to the Matches tab**: returning to any other tab nothing scrolls to anything, and a push belongs at
+the top.
+
+**Docs.** `AGENTS.md` §6 described the `seq` gap check as if it already existed. It now describes
+what item 2 actually built: per-channel numbering, the client's per-connect baseline, and the
+close-on-failure rule.
 
 ---
 
