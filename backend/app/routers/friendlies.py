@@ -6,11 +6,19 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import selectinload
 from sqlmodel import Session, delete, select
 
-from ..auth import require_admin, require_editor
+from ..auth import require_editor_claims
 from ..db import get_session
-from ..models import Club, FriendlyMatch, FriendlyMatchSide, FriendlyMatchSidePlayer, Player
+from ..models import (
+    Club,
+    FriendlyCreatorLink,
+    FriendlyMatch,
+    FriendlyMatchSide,
+    FriendlyMatchSidePlayer,
+    Player,
+)
 from ..schemas import FriendlyMatchCreateBody, MatchPatchBody, MatchSidePatchBody
 from ..schemas.responses import FriendlyOut, OkResponse
+from ..services.authorization import ensure_can_touch_friendly
 from ..services.notifications import (
     push_friendly_created,
     push_friendly_finished,
@@ -101,11 +109,12 @@ def list_friendlies(
     return [_friendly_dict(fm) for fm in rows]
 
 
-@router.post("", response_model=FriendlyOut, dependencies=[Depends(require_editor)])
+@router.post("", response_model=FriendlyOut)
 def create_friendly_match(
     body: FriendlyMatchCreateBody,
     request: Request,
     s: Session = Depends(get_session),
+    claims: dict = Depends(require_editor_claims),
 ):
     mode = str(body.mode or "").strip().lower()
     if mode not in ("1v1", "2v2"):
@@ -168,6 +177,12 @@ def create_friendly_match(
 
     s.add(side_a)
     s.add(side_b)
+    # Record who entered it, so the grace window knows whose row this is (A10).
+    s.add(
+        FriendlyCreatorLink(
+            friendly_match_id=int(fm.id), creator_player_id=int(claims["player_id"])
+        )
+    )
     s.commit()
     s.refresh(fm)
     s.refresh(side_a)
@@ -179,31 +194,37 @@ def create_friendly_match(
     return _friendly_dict(fm)
 
 
-@router.delete("/{friendly_id}", response_model=OkResponse, dependencies=[Depends(require_admin)])
+@router.delete("/{friendly_id}", response_model=OkResponse)
 def delete_friendly(
     friendly_id: int,
     s: Session = Depends(get_session),
+    claims: dict = Depends(require_editor_claims),
 ):
+    """Admin always; the editor who created it may delete it within their first hour (A10)."""
     fm = s.get(FriendlyMatch, friendly_id)
     if not fm:
         raise HTTPException(status_code=404, detail="Friendly match not found")
+    ensure_can_touch_friendly(s, fm, claims=claims, action="delete")
 
     side_ids = [int(row) for row in s.exec(select(FriendlyMatchSide.id).where(FriendlyMatchSide.friendly_match_id == friendly_id)).all()]
     if side_ids:
         s.exec(delete(FriendlyMatchSidePlayer).where(FriendlyMatchSidePlayer.friendly_match_side_id.in_(side_ids)))
         s.exec(delete(FriendlyMatchSide).where(FriendlyMatchSide.id.in_(side_ids)))
+    s.exec(delete(FriendlyCreatorLink).where(FriendlyCreatorLink.friendly_match_id == friendly_id))
     s.exec(delete(FriendlyMatch).where(FriendlyMatch.id == friendly_id))
     s.commit()
     return {"ok": True}
 
 
-@router.patch("/{friendly_id}", response_model=FriendlyOut, dependencies=[Depends(require_admin)])
+@router.patch("/{friendly_id}", response_model=FriendlyOut)
 def patch_friendly(
     friendly_id: int,
     body: MatchPatchBody,
     request: Request,
     s: Session = Depends(get_session),
+    claims: dict = Depends(require_editor_claims),
 ):
+    """Admin always; the editor who created it may fix it within their first hour (A10)."""
     fm = s.exec(
         select(FriendlyMatch)
         .options(selectinload(FriendlyMatch.sides))
@@ -211,6 +232,7 @@ def patch_friendly(
     ).first()
     if not fm:
         raise HTTPException(status_code=404, detail="Friendly match not found")
+    ensure_can_touch_friendly(s, fm, claims=claims, action="edit")
 
     fields = body.model_fields_set
     old_state = fm.state

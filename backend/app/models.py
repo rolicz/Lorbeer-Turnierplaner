@@ -309,6 +309,26 @@ class CommentThreadLink(SQLModel, table=True):
     parent_comment_id: int = Field(foreign_key="comment.id", index=True)
 
 
+class TournamentCreatorLink(SQLModel, table=True):
+    """
+    The logged-in player who created a tournament (mirrors CommentAuthorLink).
+    Used by the grace window: only the creator may delete their own tournament,
+    and only within `services/authorization.GRACE_WINDOW` of creating it.
+    Additive: tournaments created before this table shipped have no row and stay admin-only.
+    """
+    tournament_id: int = Field(foreign_key="tournament.id", primary_key=True)
+    creator_player_id: int = Field(foreign_key="player.id", index=True)
+
+
+class FriendlyCreatorLink(SQLModel, table=True):
+    """
+    The logged-in player who created a friendly match (same rule as TournamentCreatorLink).
+    Additive: friendlies created before this table shipped have no row and stay admin-only.
+    """
+    friendly_match_id: int = Field(foreign_key="friendlymatch.id", primary_key=True)
+    creator_player_id: int = Field(foreign_key="player.id", index=True)
+
+
 class CommentAuthorLink(SQLModel, table=True):
     """
     The real author of a comment (the logged-in player who created it), recorded even

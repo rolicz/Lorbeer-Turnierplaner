@@ -1,4 +1,5 @@
 from tests.conftest import create_player, create_tournament, generate
+from tests.util import backdate_tournament_finish
 
 
 def _first_match(client, tournament_id: int) -> dict:
@@ -49,7 +50,7 @@ def test_swap_sides_requires_editor(client, editor_headers, admin_headers):
     assert r_reader.status_code in (401, 403), r_reader.text
 
 
-def test_swap_sides_on_done_tournament_needs_admin(client, editor_headers, admin_headers):
+def test_swap_sides_on_a_done_tournament_needs_admin_after_the_grace_hour(client, editor_headers, admin_headers):
     ids = [create_player(client, admin_headers, n) for n in ["SW7", "SW8", "SW9"]]
     tid = create_tournament(client, editor_headers, "swap-done", "1v1", ids)
     generate(client, editor_headers, tid, randomize=False)
@@ -61,6 +62,10 @@ def test_swap_sides_on_done_tournament_needs_admin(client, editor_headers, admin
     assert client.get(f"/tournaments/{tid}").json()["status"] == "done"
 
     mid = t["matches"][0]["id"]
+    r_editor_inside = client.patch(f"/matches/{mid}/swap-sides", headers=editor_headers)
+    assert r_editor_inside.status_code == 200, r_editor_inside.text
+
+    backdate_tournament_finish(tid)
     r_editor = client.patch(f"/matches/{mid}/swap-sides", headers=editor_headers)
     assert r_editor.status_code == 403, r_editor.text
 

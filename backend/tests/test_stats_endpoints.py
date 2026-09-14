@@ -1,4 +1,5 @@
 from tests.conftest import create_league, create_player, create_tournament, generate
+from tests.util import backdate_tournament_finish
 
 
 def test_stats_overview(client):
@@ -116,8 +117,8 @@ def test_stats_players_mode_and_winner_player_id(client, editor_headers, admin_h
     assert by_id[tid]["mode"] == "1v1"
     assert by_id[tid]["winner_player_id"] is None
 
-    # Tournament is now "done" (all matches finished) -> editor may not set a decider,
-    # but admin can, at any time.
+    # Tournament is now "done" (all matches finished). An editor may still set the decider
+    # for one hour (A10); past that hour only an admin can, and an admin can at any time.
     p1, p2 = ids[0], ids[1]
     decider_body = {
         "type": "penalties",
@@ -126,6 +127,10 @@ def test_stats_players_mode_and_winner_player_id(client, editor_headers, admin_h
         "winner_goals": 5,
         "loser_goals": 3,
     }
+    inside_window = client.patch(f"/tournaments/{tid}/decider", json=decider_body, headers=editor_headers)
+    assert inside_window.status_code == 200, inside_window.text
+
+    backdate_tournament_finish(tid)
     blocked = client.patch(f"/tournaments/{tid}/decider", json=decider_body, headers=editor_headers)
     assert blocked.status_code == 403, blocked.text
 

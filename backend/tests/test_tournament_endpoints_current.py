@@ -1,6 +1,7 @@
 import json
 
 from tests.conftest import create_player, create_tournament, generate
+from tests.util import backdate_tournament_finish
 
 # ---- GET /tournaments/live ---------------------------------------------
 
@@ -144,7 +145,7 @@ def test_reassign_rejects_1v1_missing_schedule_and_touched_matches(client, edito
 # ---- PATCH /tournaments/{id}/decider -----------------------------------
 
 
-def test_decider_is_open_to_editors_only_until_the_tournament_is_done(client, editor_headers, admin_headers):
+def test_decider_is_open_to_editors_until_an_hour_after_the_tournament_is_done(client, editor_headers, admin_headers):
     ids = [create_player(client, admin_headers, n) for n in ["DC1", "DC2", "DC3"]]
     tid = create_tournament(client, editor_headers, "decider-auth", "1v1", ids)
     generate(client, editor_headers, tid, randomize=False)
@@ -176,7 +177,8 @@ def test_decider_is_open_to_editors_only_until_the_tournament_is_done(client, ed
     assert r_editor.status_code == 200, r_editor.text
     assert r_editor.json()["decider_winner_player_id"] == left
 
-    # Finish the rest -> done -> the decider now moves a cup, so it is admin-only.
+    # Finish the rest -> done. The decider moves a cup, but the editor who ran the night
+    # keeps an hour to set it (A10) — only after that is it admin-only.
     for m in matches[1:]:
         rd = client.patch(
             f"/matches/{m['id']}",
@@ -186,8 +188,16 @@ def test_decider_is_open_to_editors_only_until_the_tournament_is_done(client, ed
         assert rd.status_code == 200, rd.text
 
     r_editor_done = client.patch(f"/tournaments/{tid}/decider", json=body, headers=editor_headers)
-    assert r_editor_done.status_code == 403, r_editor_done.text
-    assert r_editor_done.json()["detail"] == "Tournament is done (admin required to set the decider)"
+    assert r_editor_done.status_code == 200, r_editor_done.text
+
+    backdate_tournament_finish(tid)
+
+    r_editor_late = client.patch(f"/tournaments/{tid}/decider", json=body, headers=editor_headers)
+    assert r_editor_late.status_code == 403, r_editor_late.text
+    assert (
+        r_editor_late.json()["detail"]
+        == "Tournament finished more than an hour ago (admin required to set the decider)"
+    )
 
     flipped = {**body, "winner_player_id": right, "loser_player_id": left}
     r_admin_done = client.patch(f"/tournaments/{tid}/decider", json=flipped, headers=admin_headers)

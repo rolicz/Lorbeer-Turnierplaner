@@ -1,3 +1,6 @@
+from tests.util import backdate_friendly
+
+
 def test_create_friendly_and_stats_scope_filters(client, editor_headers, admin_headers):
     p1 = client.post("/players", json={"display_name": "F-A"}, headers=admin_headers).json()["id"]
     p2 = client.post("/players", json={"display_name": "F-B"}, headers=admin_headers).json()["id"]
@@ -66,7 +69,7 @@ def test_create_friendly_requires_editor_or_admin(client, admin_headers):
     assert r.status_code in (401, 403), r.text
 
 
-def test_delete_friendly_admin_only(client, editor_headers, admin_headers):
+def test_delete_friendly_is_the_creators_hour_then_admin_only(client, editor_headers, admin_headers):
     p1 = client.post("/players", json={"display_name": "F-E"}, headers=admin_headers).json()["id"]
     p2 = client.post("/players", json={"display_name": "F-F"}, headers=admin_headers).json()["id"]
 
@@ -86,6 +89,8 @@ def test_delete_friendly_admin_only(client, editor_headers, admin_headers):
     assert r.status_code == 200, r.text
     fid = r.json()["id"]
 
+    # The editor who entered it may take it back for an hour (A10) — after that, admin only.
+    backdate_friendly(fid)
     r_forbidden = client.delete(f"/friendlies/{fid}", headers=editor_headers)
     assert r_forbidden.status_code == 403, r_forbidden.text
 
@@ -97,7 +102,7 @@ def test_delete_friendly_admin_only(client, editor_headers, admin_headers):
     assert all(int(x["id"]) != fid for x in rows)
 
 
-def test_patch_friendly_admin_only(client, editor_headers, admin_headers):
+def test_patch_friendly_is_the_creators_hour_then_admin_only(client, editor_headers, admin_headers):
     p1 = client.post("/players", json={"display_name": "F-G"}, headers=admin_headers).json()["id"]
     p2 = client.post("/players", json={"display_name": "F-H"}, headers=admin_headers).json()["id"]
 
@@ -117,6 +122,7 @@ def test_patch_friendly_admin_only(client, editor_headers, admin_headers):
     assert created.status_code == 200, created.text
     fid = int(created.json()["id"])
 
+    backdate_friendly(fid)
     forbidden = client.patch(
         f"/friendlies/{fid}",
         json={"state": "scheduled", "sideA": {"goals": 2}, "sideB": {"goals": 2}},

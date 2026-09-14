@@ -9,9 +9,17 @@ from sqlalchemy.orm import selectinload
 from sqlmodel import Session, delete, select
 
 from ..api_utils import bad_request, conflict, forbidden, get_or_404
-from ..auth import require_admin, require_editor
+from ..auth import require_admin, require_editor, require_editor_claims
 from ..db import get_session
-from ..models import Match, MatchSide, MatchSidePlayer, Player, Tournament, TournamentPlayer
+from ..models import (
+    Match,
+    MatchSide,
+    MatchSidePlayer,
+    Player,
+    Tournament,
+    TournamentCreatorLink,
+    TournamentPlayer,
+)
 from ..scheduling import assign_labels, schedule_1v1_labels, schedule_2v2_labels
 from ..schemas import (
     TournamentCreateBody,
@@ -36,7 +44,10 @@ from ..schemas.responses import (
     TournamentStatsOut,
     TournamentSummaryOut,
 )
-from ..services.authorization import ensure_not_done_or_admin
+from ..services.authorization import (
+    ensure_can_delete_tournament,
+    ensure_can_edit_tournament,
+)
 from ..services.comments_summary import tournament_comments_summary
 from ..services.events import (
     broadcast_tournament,
@@ -165,6 +176,11 @@ def _delete_tournament_graph(s: Session, tournament_id: int) -> bool:
     s.exec(
         delete(TournamentPlayer)
         .where(TournamentPlayer.tournament_id == tournament_id)
+        .execution_options(synchronize_session=False)
+    )
+    s.exec(
+        delete(TournamentCreatorLink)
+        .where(TournamentCreatorLink.tournament_id == tournament_id)
         .execution_options(synchronize_session=False)
     )
     s.exec(
@@ -380,8 +396,13 @@ def get_tournament(tournament_id: int, s: Session = Depends(get_session)):
     return serialize_tournament(s, t)
 
 
-@router.post("", response_model=TournamentSummaryOut, dependencies=[Depends(require_editor)])
-async def create_tournament(body: TournamentCreateBody, request: Request, s: Session = Depends(get_session)):
+@router.post("", response_model=TournamentSummaryOut)
+async def create_tournament(
+    body: TournamentCreateBody,
+    request: Request,
+    s: Session = Depends(get_session),
+    claims: dict = Depends(require_editor_claims),
+):
     name = (body.name or "").strip()
     mode = body.mode
     settings = body.settings or {}
@@ -420,6 +441,11 @@ async def create_tournament(body: TournamentCreateBody, request: Request, s: Ses
                 created_matches,
             )
 
+        # Record who created it (additive link table, the CommentAuthorLink pattern) so the
+        # grace window knows whose accidental tournament this is. Part of the same transaction:
+        # a tournament without its creator row would silently be admin-only to delete.
+        s.add(TournamentCreatorLink(tournament_id=int(t.id), creator_player_id=int(claims["player_id"])))
+
         s.commit()
         s.refresh(t)
     except HTTPException:
@@ -442,13 +468,13 @@ async def create_tournament(body: TournamentCreateBody, request: Request, s: Ses
 
 
 
-@router.patch("/{tournament_id}", response_model=TournamentSummaryOut, dependencies=[Depends(require_editor)])
+@router.patch("/{tournament_id}", response_model=TournamentSummaryOut)
 async def patch_tournament(
     tournament_id: int,
     body: TournamentPatchBody,
     request: Request,
     s: Session = Depends(get_session),
-    role: str = Depends(require_editor),
+    claims: dict = Depends(require_editor_claims),
 ):
     """
     Patch tournament metadata (NO manual status).
@@ -459,7 +485,7 @@ async def patch_tournament(
     t = get_or_404(s, Tournament, tournament_id, name="Tournament")
 
     status_now = compute_status_for_tournament(s, tournament_id)
-    ensure_not_done_or_admin(status_now, role, action="edit")
+    ensure_can_edit_tournament(s, t, claims=claims, action="edit", status=status_now)
 
     fields = body.model_fields_set
 
@@ -514,13 +540,13 @@ async def patch_date(
     return {"ok": True, "date": t.date}
 
 
-@router.post("/{tournament_id}/generate", response_model=ScheduleGeneratedOut, dependencies=[Depends(require_editor)])
+@router.post("/{tournament_id}/generate", response_model=ScheduleGeneratedOut)
 async def generate_schedule(
     tournament_id: int,
     body: TournamentGenerateBody,
     request: Request,
     s: Session = Depends(get_session),
-    role: str = Depends(require_editor),
+    claims: dict = Depends(require_editor_claims),
 ):
     """
     body: { "randomize": true }
@@ -528,7 +554,7 @@ async def generate_schedule(
     t = get_or_404(s, Tournament, tournament_id, name="Tournament")
 
     status_now = compute_status_for_tournament(s, tournament_id)
-    ensure_not_done_or_admin(status_now, role, action="regenerate")
+    ensure_can_edit_tournament(s, t, claims=claims, action="regenerate", status=status_now)
 
     randomize = bool(body.randomize)
     created_matches, label_to_name = _generate_schedule_for_tournament(s, t, randomize=randomize)
@@ -545,17 +571,17 @@ async def generate_schedule(
     return {"ok": True, "matches": created_matches, "labels": label_to_name}
 
 
-@router.patch("/{tournament_id}/reorder", response_model=OkResponse, dependencies=[Depends(require_editor)])
+@router.patch("/{tournament_id}/reorder", response_model=OkResponse)
 async def reorder(
     tournament_id: int,
     body: TournamentReorderBody,
     s: Session = Depends(get_session),
-    role: str = Depends(require_editor),
+    claims: dict = Depends(require_editor_claims),
 ):
-    get_or_404(s, Tournament, tournament_id, name="Tournament")
+    t = get_or_404(s, Tournament, tournament_id, name="Tournament")
 
     status_now = compute_status_for_tournament(s, tournament_id)
-    ensure_not_done_or_admin(status_now, role, action="reorder")
+    ensure_can_edit_tournament(s, t, claims=claims, action="reorder", status=status_now)
 
     match_ids = list(body.match_ids or [])
     if not match_ids:
@@ -721,14 +747,20 @@ def stats(tournament_id: int, s: Session = Depends(get_session)):
     return compute_tournament_stats(s, tournament_id)
 
 
-@router.delete("/{tournament_id}", dependencies=[Depends(require_admin)])
+@router.delete("/{tournament_id}")
 async def delete_tournament(
     tournament_id: int,
     request: Request,
     s: Session = Depends(get_session),
-    role: str = Depends(require_admin),
+    claims: dict = Depends(require_editor_claims),
 ):
+    """Admin always; the editor who created it may delete it within their first hour (A10).
+
+    Allowed even when results exist — which is why every client confirms first.
+    """
     tournament = get_or_404(s, Tournament, tournament_id, name="Tournament")
+    ensure_can_delete_tournament(s, tournament, claims=claims)
+    role = str(claims.get("role") or "")
     tournament_name = tournament.name  # capture before the row is deleted/expired
     _delete_tournament_graph(s, tournament_id)
 
@@ -742,12 +774,12 @@ async def delete_tournament(
 ALLOWED_DECIDERS = ("none", "penalties", "match", "scheresteinpapier")
 
 
-@router.patch("/{tournament_id}/decider", response_model=DeciderResultOut, dependencies=[Depends(require_editor)])
+@router.patch("/{tournament_id}/decider", response_model=DeciderResultOut)
 async def patch_decider(
     tournament_id: int,
     body: TournamentDeciderPatchBody,
     s: Session = Depends(get_session),
-    role: str = Depends(require_editor),
+    claims: dict = Depends(require_editor_claims),
 ):
     """
     body:
@@ -760,7 +792,9 @@ async def patch_decider(
       }
 
     Editors:
-      - can set decider while tournament is NOT done
+      - can set the decider while the tournament is NOT done, and for one hour after it
+        finished (A10 — a decider only resolves a tie that is known once every match is
+        played, so the window has to start when the tournament ends)
     Admin:
       - can set/adjust anytime, even after done
 
@@ -772,7 +806,7 @@ async def patch_decider(
     t = get_or_404(s, Tournament, tournament_id, name="Tournament")
 
     status_now = compute_status_for_tournament(s, tournament_id)
-    ensure_not_done_or_admin(status_now, role, action="set the decider")
+    ensure_can_edit_tournament(s, t, claims=claims, action="set the decider", status=status_now)
 
     dec_type = (body.type or "none").strip()
     if dec_type not in ALLOWED_DECIDERS:
