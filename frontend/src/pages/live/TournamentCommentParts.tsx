@@ -163,7 +163,11 @@ export function CommentCard({
                 fallbackClassName="text-xs font-semibold text-text-muted"
               />
             ) : null}
-            <div className="text-xs font-semibold text-text-normal">{authorLabel(c.author)}</div>
+            {/* An unattributed author is a real category here, but it is not a name:
+                it stays quiet so the bylines that *are* names still read as names. */}
+            <div className={"text-xs " + (c.author.kind === "player" ? "font-semibold text-text-normal" : "text-text-muted")}>
+              {authorLabel(c.author)}
+            </div>
             {isPinned ? <span className="chip">pinned</span> : null}
             {isEditing ? <span className="chip">editing</span> : null}
           </div>
@@ -273,7 +277,7 @@ export function CommentCard({
               {currentPlayerId != null ? (
                 <option value={String(currentPlayerId)}>{currentPlayerName || "Me"}</option>
               ) : null}
-              <option value="general">General</option>
+              <option value="general">Anonymous</option>
               {foreignAuthorId != null ? (
                 <option value={String(foreignAuthorId)}>
                   {(foreignAuthorName ?? `Player #${foreignAuthorId}`) + " (original)"}

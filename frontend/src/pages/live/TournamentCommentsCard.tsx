@@ -454,8 +454,14 @@ export default function TournamentCommentsCard({
     return idx ? `Match #${idx}` : `Match #${scope.matchId}`;
   }
 
+  /**
+   * A comment with no author. The word used to be "General" — which in this very
+   * feed also names the tournament-wide *scope*: its filter chip, its group header
+   * and the composer's "General (tournament)" target (A7). 215 of 265 comments then
+   * read as written by the scope they sit in. "Anonymous" can only mean the author.
+   */
   function authorLabel(author: CommentAuthor) {
-    if (author.kind === "general") return "General";
+    if (author.kind === "general") return "Anonymous";
     return playerById.get(author.playerId) ?? `Player #${author.playerId}`;
   }
 
@@ -759,10 +765,10 @@ export default function TournamentCommentsCard({
             selected={draftAuthor !== "general"}
             onClick={() => setDraftAuthor(draftAuthor === "general" ? currentPlayerId : "general")}
             className="shrink-0"
-            title="Post as yourself or as General"
-            ariaLabel={`Posted as ${draftAuthor === "general" ? "General" : currentPlayerName || "me"}`}
+            title="Post as yourself or anonymously"
+            ariaLabel={`Posted as ${draftAuthor === "general" ? "Anonymous" : currentPlayerName || "me"}`}
           >
-            {draftAuthor === "general" ? "General" : currentPlayerName || "Me"}
+            {draftAuthor === "general" ? "Anonymous" : currentPlayerName || "Me"}
           </Chip>
         ) : null
       }
