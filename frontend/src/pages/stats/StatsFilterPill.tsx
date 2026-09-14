@@ -159,6 +159,35 @@ export default function StatsFilterPill({
     }
   }, [pulse]);
 
+  // Scrolling forward tucks it away (A7). A floating capsule in the bottom-right
+  // corner sits on top of exactly the column a stats page right-aligns its numbers
+  // in — Positions' last player, a streak's value, the matchup's records — and on
+  // a phone there is nowhere else for it to go. So it rides the scroll the way a
+  // hiding app bar does: gone while you scroll *down* into content, back on any
+  // upward scroll, at the top of the page, at the very bottom (where the page
+  // already reserves its gutter, DESIGN.md §9) and whenever it is focused or open.
+  const [scrolledAway, setScrolledAway] = useState(false);
+  const tucked = scrolledAway && !open;
+  useEffect(() => {
+    let last = window.scrollY;
+    const onScroll = () => {
+      // Open, the popover is anchored to the pill and follows it: never tuck.
+      if (open) return;
+      const y = window.scrollY;
+      const dy = y - last;
+      if (Math.abs(dy) < 6) return;
+      last = y;
+      if (pillRef.current?.contains(document.activeElement)) {
+        setScrolledAway(false);
+        return;
+      }
+      const atBottom = y + window.innerHeight >= document.documentElement.scrollHeight - 4;
+      setScrolledAway(dy > 0 && y > 120 && !atBottom);
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, [open]);
+
   // Nothing to filter (e.g. Cups): no floating clutter over the content.
   if (!showMode && !showScope) return null;
 
@@ -187,11 +216,18 @@ export default function StatsFilterPill({
 
   return (
     <>
-      <div className="fixed bottom-[calc(4.5rem+env(safe-area-inset-bottom,0px))] right-4 z-40 lg:bottom-6 lg:right-6">
+      <div
+        data-tucked={tucked ? "true" : "false"}
+        className={
+          "fixed bottom-[calc(4.5rem+env(safe-area-inset-bottom,0px))] right-4 z-40 transition duration-200 motion-reduce:transition-none lg:bottom-6 lg:right-6 " +
+          (tucked ? "translate-y-32 opacity-0" : "translate-y-0 opacity-100")
+        }
+      >
         <motion.button
           ref={pillRef}
           type="button"
           onClick={toggle}
+          onFocus={() => setScrolledAway(false)}
           animate={pulse ? PULSE : { scale: 1 }}
           transition={pulse ? PULSE_TRANSITION : { duration: 0.2 }}
           aria-haspopup="dialog"

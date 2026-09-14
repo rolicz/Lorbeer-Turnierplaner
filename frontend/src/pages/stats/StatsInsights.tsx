@@ -5,6 +5,7 @@ import { LayoutGrid, LineChart, Swords, UserRound } from "lucide-react";
 import { useAuth } from "../../auth/AuthContext";
 import { SectionTabs, type SectionTab } from "../../ui/SectionTabs";
 import { ChipGroup } from "../../ui/primitives/Chip";
+import Button from "../../ui/primitives/Button";
 import StatsFilterPill from "./StatsFilterPill";
 import { drillInBackActionFor } from "../../ui/shell/backNavigation";
 import { useReturnScroll } from "../../ui/shell/useReturnScroll";
@@ -121,6 +122,12 @@ export default function StatsInsights({
       ? { leftIds, rightIds: vsIds }
       : null;
   const showSubs = subs.length > 0 && (view !== "h2h" || mode === "2v2") && matchup == null;
+  // A URL that asks for Duos outside 2v2 used to render the Players view with the
+  // sub chips hidden and the URL untouched — a shared duos link landed somewhere
+  // else and said nothing (A7). Say it where the chips would be, and offer the one
+  // tap that honours what the link asked for, rather than overruling the reader's
+  // own Mode behind their back.
+  const duosNeeds2v2 = view === "h2h" && mode !== "2v2" && sub === "duos" && matchup == null;
   const filters = FILTERS[view === "overview" ? `overview:${activeSub}` : view] ?? { mode: true, scope: true };
 
   // Sections and sub-views swap the body without navigating (their params are
@@ -209,6 +216,15 @@ export default function StatsInsights({
           ariaLabel={`${view === "h2h" ? "Head-to-head" : "Overview"} sub-view`}
           options={subs.map((s) => ({ key: s, label: SUB_LABELS[s] }))}
         />
+      ) : null}
+
+      {duosNeeds2v2 ? (
+        <div className="flex flex-wrap items-center gap-2 text-xs text-text-muted">
+          <span>Duos only exist in 2v2 — showing Players.</span>
+          <Button variant="ghost" size="sm" type="button" onClick={() => onModeChange("2v2")}>
+            Switch to 2v2
+          </Button>
+        </div>
       ) : null}
 
       {view === "overview" && activeSub === "table" && <StatsTable rows={rows} loading={loading} onSelect={goPlayer} mode={mode} scope={scope} />}

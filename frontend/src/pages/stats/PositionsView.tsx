@@ -182,23 +182,40 @@ export default function PositionsView({ mode }: { mode: StatsMode }) {
   const gridH = headerH + gap + tournaments.length * (cellH + gap);
   const colX = (j: number) => nameW + gap + j * (cellW + gap) + cellW / 2;
   const rowY = (i: number) => headerH + gap + i * (cellH + gap) + cellH / 2;
+  /**
+   * The cup's lineage runs in the grid's **gutters**, never over a tile (A7): it
+   * used to join cell centres, so it struck through the position digits and drew
+   * itself across cells of tournaments the holder never played. Now it is a rail
+   * in the 4px gutter left of the holder's column, stepping sideways in the gutter
+   * above the row where the cup changed hands — it says the same thing without
+   * painting on any data. Two cups can sit in the same gutter (one player holding
+   * both), so each takes its own lane inside it.
+   */
+  const railW = 2;
+  const laneX = (ci: number) => (cupDefs.length < 2 ? 0 : (ci - (cupDefs.length - 1) / 2) * railW);
+  const railX = (j: number, ci: number) => colX(j) - cellW / 2 - gap / 2 + laneX(ci);
+  const stepY = (i: number) => rowY(i) - cellH / 2 - gap / 2;
 
-  const laurelPolylines = useMemo(() => {
+  const laurelPaths = useMemo(() => {
     return cupDefs
-      .map((def) => {
+      .map((def, ci) => {
         const at = ownerByCup.get(def.key);
-        const pts: string[] = [];
+        const d: string[] = [];
+        let prevCol: number | null = null;
         tournaments.forEach((t, i) => {
           if (!at || !(t.cup_stakes ?? []).some((s) => s.key === def.key)) return;
           const owner = at.get(t.id);
           if (owner == null) return;
           const j = colByPlayer.get(owner);
           if (j == null) return;
-          pts.push(`${colX(j)},${rowY(i)}`);
+          if (prevCol == null) d.push(`M${railX(j, ci)},${rowY(i)}`);
+          else if (prevCol === j) d.push(`L${railX(j, ci)},${rowY(i)}`);
+          else d.push(`L${railX(prevCol, ci)},${stepY(i)}`, `L${railX(j, ci)},${stepY(i)}`, `L${railX(j, ci)},${rowY(i)}`);
+          prevCol = j;
         });
-        return { key: def.key, color: cupColor(def.key), pts: pts.join(" ") };
+        return { key: def.key, color: cupColor(def.key), d: d.join(" ") };
       })
-      .filter((l) => l.pts.includes(" "));
+      .filter((l) => l.d.includes("L"));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cupDefs, ownerByCup, tournaments, colByPlayer, players.length]);
 
@@ -324,10 +341,10 @@ export default function PositionsView({ mode }: { mode: StatsMode }) {
               );
             })}
           </div>
-          {laurelPolylines.length ? (
+          {laurelPaths.length ? (
             <svg className="pointer-events-none absolute left-0 top-0" width={gridW} height={gridH} aria-hidden="true">
-              {laurelPolylines.map((l) => (
-                <polyline key={l.key} points={l.pts} fill="none" stroke={l.color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" opacity="0.8" />
+              {laurelPaths.map((l) => (
+                <path key={l.key} d={l.d} fill="none" stroke={l.color} strokeWidth={railW} strokeLinecap="round" strokeLinejoin="round" opacity="0.8" />
               ))}
             </svg>
           ) : null}
