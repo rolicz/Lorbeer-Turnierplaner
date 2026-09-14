@@ -6301,3 +6301,55 @@ three confirmation dialogs; and the same page once the hour is backdated away �
 decider chips gone, the three muted lines in their place. Zero console errors on every run. Also
 checked live: a reader gets no Controls tab and no row actions on `/friendlies`, and an editor
 sees edit/delete on **only** the friendly they entered (1 of 7 rows).
+
+---
+
+# Round 6 — closed. What it found and deliberately did not fix (2026-09-14)
+
+All ten items (A1–A10) are implemented on `feature/2026-09-audit` and the branch head is green:
+`make test` → **154 passed** (3:38), `make lint` → *All checks passed!*, `make gen-types` → no
+diff, `cd frontend && npm run check` → **52 files / 503 tests**, `npm run build` → clean (the
+pre-existing ">500 kB chunk" hint only). Not pushed; `main` is untouched.
+
+The list below is everything the four workers found and left. It is not a queue — nothing here is
+agreed work — but none of it should have to be discovered twice.
+
+**Needs a decision from Roli (design, not bugs):**
+- **The primary button fails contrast in the four dark themes**, the same failure A6 fixed in
+  light: white on the teal is **2.49:1** in `dark`, **3.68:1** in `blue`, **4.32:1** in `red`.
+  `green` passes (6.54:1) because it already pairs a bright button with dark ink. One shared
+  token, four themes, and it changes the app's main button everywhere — Roli's call, not an
+  agent's. The same choice exists in light, where A6 took the ink route: the alternative there is
+  `--color-btn-bg: 15 118 110` + hover `17 94 89` (5.47:1 / 7.58:1), a visibly darker teal that
+  keeps white lettering.
+- **Smaller light-theme contrast misses, all below 4.5:1 and all deliberate palette choices:**
+  `text-win` / `text-draw` at **4.21:1** on the light page ground, the `text-text-muted/40`
+  separators at **1.97:1** and the `/60` participant line at **2.96:1** on `/tournaments`, and
+  `red`'s selected chip at **4.10:1**.
+
+**A real breach the audit missed** (found by A8's worker while fixing §7):
+- **`window.confirm` for three destructive actions** — `ClubsPage.tsx:512`,
+  `GuestbookEntryCard.tsx:201`, `TournamentCommentsCard.tsx:308`. `DESIGN.md` §7 says never, and
+  A10 built `ui/primitives/ConfirmDialog.tsx` for exactly this. It is three files of plumbing, not
+  a one-liner, which is why it was not folded into A8. The five *non-destructive* `window.confirm`
+  calls (mark-as-read, swap sides, …) are fine as they are.
+
+**Declined inside a task, with the reason that stands:**
+- **`PRAGMA foreign_keys=ON`** (A9.5) — the right answer, the wrong scope: it changes every delete
+  in the app at once and deserves its own task with its own test pass.
+- **`MatchDetailPage` keeps its permissive `?tab=`** (A9.6) — its `edit` tab depends on loaded
+  data, so an `allowed` list would reject a valid deep link before the data arrives.
+- **The matchup nav seam** (A9.6) — no path the app offers today can trigger it; closed as latent,
+  pinned by a unit test.
+- **"1 games" in the duo rivalries** (A7.9) — `RecordLine`'s `playedLabel` sits *outside* the
+  fixed track, so shortening it for n=1 shifts every following segment and undoes T14's alignment.
+- **`OverviewSection:229`'s uppercase pseudo-`<thead>`** (A8.4) — reclassified as canon rot, not a
+  breach: it is a row of column headers doing the same job as the app's two real `<thead>`s, in the
+  same style. §6 now covers it.
+- **`VoteVotersModal:68` paints a thumbs-down `text-loss`** (A8.8 family) — a vote genuinely is a
+  two-sided verdict, so the result token is the right one.
+- **`.pos-good`** — one of five stops on a ramp whose legend shows four; `styles.css` now says so
+  instead of the canon pretending it is dead.
+
+**Known and accepted, unchanged:** `npm run build`'s ">500 kB chunk" hint (≈669 kB `index-*.js`),
+and `PATCH /tournaments/{id}/second-leg` still reviving a done tournament for any editor (A10).
