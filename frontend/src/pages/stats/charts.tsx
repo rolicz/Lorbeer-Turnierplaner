@@ -147,6 +147,33 @@ export function TrendChart({
   const ticks = [...new Set(yTicks ?? [yMin, Math.round((yMin + yMax) / 2), yMax])];
   const inX = (x: number) => x >= padL - 0.5 && x <= W - padR + 0.5;
 
+  // Which tournaments get a name label. They are rotated -45° and anchored at their
+  // own tick, so any two of them are parallel strips whose distance apart is
+  // `dx · sin45°`; below one line height they print into each other, which is what
+  // the whole axis did on a phone. Keep the newest label and walk left, dropping
+  // every tick that cannot clear the one already kept — so the axis thins itself by
+  // the width it actually has (narrow phone: a handful, desktop: most of them) and
+  // the most recent tournament is always named.
+  const EVENT_LABEL_PX = 8;
+  const MIN_LABEL_DX = (EVENT_LABEL_PX * 1.35) / Math.SQRT1_2;
+  // A label runs down-LEFT from its tick, so near the y-axis it runs out of the
+  // SVG and prints as a fragment ("…zturnier"). The run is estimated from the
+  // string — close enough at this size, and only ever consulted within ~60px of
+  // the left edge.
+  const labelRunX = (label: string) => label.length * EVENT_LABEL_PX * 0.52 * Math.SQRT1_2;
+  const labelledEvents = new Set<number>();
+  if (showLabels) {
+    let keptX = Infinity;
+    for (let i = n - 1; i >= 0; i--) {
+      const x = xAt(events[i].ts);
+      if (!inX(x)) continue;
+      if (keptX - x < MIN_LABEL_DX) continue;
+      if (x - labelRunX(events[i].label) < 2) continue;
+      labelledEvents.add(i);
+      keptX = x;
+    }
+  }
+
   // Month marks within the window; thin out labels so they never crowd.
   const monthsInView = span / MONTH;
   const everyMonths = Math.max(1, Math.ceil(monthsInView / 7));
@@ -197,14 +224,14 @@ export function TrendChart({
       {events.map((e, i) => (inX(xAt(e.ts)) ? <line key={`e${i}`} x1={xAt(e.ts)} x2={xAt(e.ts)} y1={padT + innerH - 4} y2={padT + innerH} stroke="rgb(var(--color-border-card-chip) / 0.6)" strokeWidth="1" /> : null))}
       {showLabels
         ? events.map((e, i) => {
+            if (!labelledEvents.has(i)) return null;
             const x = xAt(e.ts);
-            if (!inX(x)) return null;
             const y = padT + innerH + 22;
             // Uniform rotation: text reads bottom-left → top-right and tucks
             // down-LEFT from its tick (end-anchored), so labels never cross/overlap
             // in two directions and the most recent is never clipped on the right.
             return (
-              <text key={`tl${i}`} x={x} y={y} textAnchor="end" transform={`rotate(-45 ${x} ${y})`} className="fill-text-muted" style={{ fontSize: 8 }}>
+              <text key={`tl${i}`} x={x} y={y} textAnchor="end" transform={`rotate(-45 ${x} ${y})`} className="fill-text-muted" style={{ fontSize: EVENT_LABEL_PX }}>
                 {e.label}
               </text>
             );
