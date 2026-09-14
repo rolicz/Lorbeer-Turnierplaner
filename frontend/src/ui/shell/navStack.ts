@@ -52,21 +52,37 @@ function write(stack: Stack): void {
 export type NavKind = "PUSH" | "POP" | "REPLACE";
 
 /**
+ * Has this page load recorded anything yet? Module scope, so it is false again
+ * on every load — which is exactly the question the first record has to ask.
+ */
+let recordedThisLoad = false;
+
+/**
  * Record the current location at its history index.
  *
  * Only a **push** truncates: it drops whatever the browser dropped in front of
  * the new entry. A pop or a replace leaves the forward entries in place, which
  * is what makes "is there anything to go forward to?" answerable at all
  * (`canGoForward`) — the swipe-left gesture needs that answer before it fires.
+ *
+ * The **first** record of a page load truncates too (A9). React Router reports
+ * an initial load as a POP, and this mirror lives in sessionStorage, which a
+ * browser copies into a duplicated tab without the forward history it described.
+ * Trusting those entries makes `canGoForward()` promise a forward step the
+ * browser cannot take, and the swipe that asks for it does nothing at all —
+ * a burnt gesture. Forgetting them costs nothing but a swipe-forward that the
+ * browser's own forward button still performs.
  */
 export function recordNavigation(pathname: string, search = "", kind: NavKind = "PUSH"): void {
   const idx = currentHistoryIndex();
+  const truncate = kind === "PUSH" || !recordedThisLoad;
+  recordedThisLoad = true;
   const stack = read();
   stack[String(idx)] = `${pathname}${search || ""}`;
   for (const key of Object.keys(stack)) {
     const n = Number(key);
     const stale = !Number.isFinite(n) || n < idx - MAX_ENTRIES || n > idx + MAX_ENTRIES;
-    if (stale || (kind === "PUSH" && n > idx)) delete stack[key];
+    if (stale || (truncate && n > idx)) delete stack[key];
   }
   write(stack);
 }
@@ -152,6 +168,7 @@ export function scrollFor(idx: number, pathname: string): number | null {
 
 /** Test seam. */
 export function resetNavStack(): void {
+  recordedThisLoad = false;
   try {
     sessionStorage.removeItem(KEY);
     sessionStorage.removeItem(SCROLL_KEY);

@@ -46,6 +46,32 @@ describe("resolveDrillInBackAction", () => {
     ).toEqual({ kind: "clear" });
   });
 
+  // A9: `/stats` is four bodies under one path. Popping onto another one lands
+  // somewhere the "Head-to-head" button never named.
+  it("clears in place when the entry behind is a different stats body", () => {
+    expect(
+      resolveDrillInBackAction({
+        ...here,
+        search: "?view=h2h&player=1&vs=4",
+        sameParams: ["view"],
+        canPop: true,
+        previousPath: "/stats?view=player&player=1",
+      }),
+    ).toEqual({ kind: "clear" });
+  });
+
+  it("still pops when the entry behind is the same body", () => {
+    expect(
+      resolveDrillInBackAction({
+        ...here,
+        search: "?view=h2h&player=1&vs=4",
+        sameParams: ["view"],
+        canPop: true,
+        previousPath: "/stats?view=h2h&player=1",
+      }),
+    ).toEqual({ kind: "pop" });
+  });
+
   it("ignores an empty param and a trailing slash on the entry behind", () => {
     expect(
       resolveDrillInBackAction({ ...here, canPop: true, previousPath: "/stats/?view=h2h&vs=" }),

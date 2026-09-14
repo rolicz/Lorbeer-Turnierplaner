@@ -58,9 +58,11 @@ export default function TournamentsPage() {
   const canWrite = role === "editor" || role === "admin";
   const pageEntered = useRouteEntryLoading();
 
-  const [rawTab, setTab] = useTabParam<TTab>(T_TAB_KEYS, "all");
-  // The "new" tab needs editor rights; a stale/hand-typed deep link falls back.
-  const tab: TTab = rawTab === "new" && !canWrite ? "all" : rawTab;
+  // The "new" tab needs editor rights; a stale/hand-typed deep link falls back to
+  // "all" *and* loses the param, so nothing remembers it (A9).
+  const [tab, setTab] = useTabParam<TTab>(T_TAB_KEYS, "all", "tab", {
+    allowed: canWrite ? T_TAB_KEYS : (["all"] as const),
+  });
   const tabs: SectionTab<TTab>[] = [
     { key: "all", label: "All tournaments", icon: <ListIcon size={14} /> },
     ...(canWrite ? [{ key: "new" as TTab, label: "New tournament", icon: <Plus size={14} /> }] : []),

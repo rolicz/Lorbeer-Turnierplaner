@@ -113,9 +113,11 @@ export default function ClubsPage() {
   const isEditorOrAdmin = role === "editor" || role === "admin";
   const canEdit = isEditorOrAdmin;
 
-  const [rawTab, setTab] = useTabParam<ClubTab>(CLUB_TAB_KEYS, "browse");
-  // The "new" tab needs editor rights; a stale/hand-typed deep link falls back.
-  const tab: ClubTab = rawTab === "new" && !canEdit ? "browse" : rawTab;
+  // The "new" tab needs editor rights; a stale/hand-typed deep link falls back to
+  // "browse" *and* loses the param, so nothing remembers it (A9).
+  const [tab, setTab] = useTabParam<ClubTab>(CLUB_TAB_KEYS, "browse", "tab", {
+    allowed: canEdit ? CLUB_TAB_KEYS : (["browse"] as const),
+  });
   const clubTabs: SectionTab<ClubTab>[] = [
     { key: "browse", label: "Clubs", icon: <List size={14} /> },
     ...(canEdit ? [{ key: "new" as ClubTab, label: "New club", icon: <Plus size={14} /> }] : []),

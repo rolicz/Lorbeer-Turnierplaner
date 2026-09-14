@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
 import { resolveBackAction, swipeAction } from "../ui/shell/backNavigation";
 import { canGoForward, highestHistoryIndex, recordNavigation, resetNavStack } from "../ui/shell/navStack";
@@ -160,5 +160,66 @@ describe("canGoForward", () => {
     recordNavigation("/tournaments", "", "POP");
     recordNavigation("/tournaments", "?tab=new", "REPLACE");
     expect(canGoForward()).toBe(true);
+  });
+});
+
+/**
+ * A9 — a mirrored stack can outlive the history it describes: sessionStorage is
+ * copied into a duplicated tab, the forward entries are not. Believing them makes
+ * `canGoForward()` promise a step the browser cannot take, and the swipe that
+ * asks for it does nothing at all.
+ *
+ * A page load is simulated the only honest way: reset the modules (so the
+ * "have we recorded anything yet" flag starts false again) while sessionStorage,
+ * which a real load also keeps, stays exactly as it was.
+ */
+describe("a nav stack that outlived its history", () => {
+  const original = window.history.state as unknown;
+
+  beforeEach(() => {
+    resetNavStack();
+  });
+
+  afterEach(() => {
+    vi.resetModules();
+    window.history.replaceState(original, "");
+    resetNavStack();
+  });
+
+  /** Re-enter the module graph the way a reload does. */
+  async function reload() {
+    vi.resetModules();
+    return await import("../ui/shell/navStack");
+  }
+
+  it("drops forward entries on the first record of a load", async () => {
+    // What the previous session left behind: three entries, currently back at 0.
+    atIndex(0);
+    recordNavigation("/dashboard");
+    atIndex(1);
+    recordNavigation("/stats");
+    atIndex(2);
+    recordNavigation("/players");
+    atIndex(0);
+    expect(canGoForward()).toBe(true);
+
+    const fresh = await reload();
+    atIndex(0);
+    fresh.recordNavigation("/dashboard", "", "POP"); // react-router calls a load a POP
+
+    expect(fresh.highestHistoryIndex()).toBe(0);
+    expect(fresh.canGoForward()).toBe(false);
+  });
+
+  it("a later pop still keeps what is in front of it", async () => {
+    const fresh = await reload();
+    atIndex(0);
+    fresh.recordNavigation("/dashboard", "", "POP"); // the load
+    atIndex(1);
+    fresh.recordNavigation("/stats");
+    atIndex(0);
+    fresh.recordNavigation("/dashboard", "", "POP");
+
+    expect(fresh.canGoForward()).toBe(true);
   });
 });

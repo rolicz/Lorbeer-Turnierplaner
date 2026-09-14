@@ -182,10 +182,13 @@ export default function StatsInsights({
    * without it — the matrix comes back exactly as it was left. Behind a deep
    * link (from a match page or a profile) sits something else entirely, and
    * popping would leave the page this button names, so there the param is
-   * cleared in place and the H2H list opens at its own remembered offset.
+   * cleared in place and the H2H list opens at its own remembered offset. The
+   * entry behind has to be the *H2H* body as well (A9) — `/stats` is four bodies
+   * under one path, and a matchup opened from the Player section must not pop
+   * back onto a page this button does not name.
    */
   const closeMatchup = () => {
-    if (drillInBackActionFor(location.pathname, "vs").kind === "pop") {
+    if (drillInBackActionFor(location.pathname, "vs", { search: location.search, sameParams: ["view"] }).kind === "pop") {
       nav(-1);
       return;
     }

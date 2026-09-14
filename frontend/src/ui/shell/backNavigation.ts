@@ -99,32 +99,70 @@ export function backActionFor(pathname: string, state: unknown, fallback: string
  * also restores the list's scroll offset, N2). Arriving by deep link a match
  * page or a profile sits behind the drill-in instead: popping would leave the
  * page the button points at, so it clears the param in place.
+ *
+ * Same pathname is not enough on a page that is several bodies under one URL
+ * (A9): `/stats` is Overview, Trends, H2H and Player, told apart by `?view=`.
+ * A matchup opened from the Player section has `/stats?view=player` behind it —
+ * popping there lands on a page the "Head-to-head" button never named. So the
+ * caller lists the params that must agree (`sameParams`) alongside the search
+ * they must agree *with*, and a body that does not match is cleared in place.
  */
 export type DrillInBackAction = { kind: "pop" } | { kind: "clear" };
 
 export type DrillInBackInput = {
   /** The page the drill-in lives on. */
   pathname: string;
+  /** The page's own query string — what `sameParams` is compared against. */
+  search?: string;
   /** The query param that *is* the drill-in (`"vs"`). */
   param: string;
+  /** Params that pick the *body* under this URL; the entry behind us must agree on all of them. */
+  sameParams?: readonly string[];
   /** Does the history stack have anything behind this entry? */
   canPop: boolean;
   /** The URL of the entry a pop would land on, when we know it. */
   previousPath: string | null;
 };
 
-export function resolveDrillInBackAction({ pathname, param, canPop, previousPath }: DrillInBackInput): DrillInBackAction {
+function paramsOf(url: string): URLSearchParams {
+  const q = url.indexOf("?");
+  return new URLSearchParams(q < 0 ? "" : url.slice(q + 1));
+}
+
+export function resolveDrillInBackAction({
+  pathname,
+  search = "",
+  param,
+  sameParams = [],
+  canPop,
+  previousPath,
+}: DrillInBackInput): DrillInBackAction {
   if (!canPop || !previousPath) return { kind: "clear" };
   if (pathnameOf(previousPath) !== pathnameOf(pathname)) return { kind: "clear" };
-  const q = previousPath.indexOf("?");
-  const previousParams = new URLSearchParams(q < 0 ? "" : previousPath.slice(q + 1));
+  const previousParams = paramsOf(previousPath);
   // Another drill-in behind us is not the page this button promises either.
-  return previousParams.get(param) ? { kind: "clear" } : { kind: "pop" };
+  if (previousParams.get(param)) return { kind: "clear" };
+  const here = paramsOf(search);
+  for (const key of sameParams) {
+    if ((previousParams.get(key) ?? "") !== (here.get(key) ?? "")) return { kind: "clear" };
+  }
+  return { kind: "pop" };
 }
 
 /** `resolveDrillInBackAction` against the live browser/session state. */
-export function drillInBackActionFor(pathname: string, param: string): DrillInBackAction {
-  return resolveDrillInBackAction({ pathname, param, canPop: historyCanPop(), previousPath: previousEntryPath() });
+export function drillInBackActionFor(
+  pathname: string,
+  param: string,
+  opts?: { search?: string; sameParams?: readonly string[] },
+): DrillInBackAction {
+  return resolveDrillInBackAction({
+    pathname,
+    search: opts?.search,
+    param,
+    sameParams: opts?.sameParams,
+    canPop: historyCanPop(),
+    previousPath: previousEntryPath(),
+  });
 }
 
 /**
