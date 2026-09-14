@@ -208,8 +208,13 @@ documented back door left: it can still revive a done tournament for any editor.
 WebSocket channels (`app/main.py`, `app/ws.py`, `services/events.py`):
 - `/ws/tournaments/{id}` → `tournament.sync` (full tournament payload), `tournament.deleted`,
   `comment.upsert|delete|meta`.
-- `/ws/tournaments` → coarse `tournaments.changed {action, tournament_id?, status?}`.
-- `/ws/players/{id}` → profile-channel events.
+- `/ws/tournaments` → coarse `tournaments.changed {action, tournament_id?, status?}`. Writing or
+  deleting a comment sends `action="comment"` — the only action that does **not** refetch the
+  list, because it exists solely to move the unread badge (A5).
+- `/ws/players/{id}` → profile-channel events, broadcast from `routers/players.py`:
+  `player:pokes:update` and `player:guestbook:update` (created/updated/voted/deleted). Both are
+  handled by one narrow resync (`resyncPlayer`), which invalidates the poke **and** guestbook
+  keys — a profile's guestbook is realtime, its read state included.
 Every envelope carries `ts` + monotonic `seq`; the frontend resyncs on gaps/reconnect.
 Behind Caddy the `/ws` prefix is **not** stripped (`handle /ws/*`), `/api` **is** (`handle_path`).
 

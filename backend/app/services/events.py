@@ -10,6 +10,12 @@ Tournament channel (/ws/tournaments/{tid}):
 
 Global channel (/ws/tournaments):
   - tournaments.changed {action, tournament_id?, status?}  list/live/stats/cup (low frequency)
+    `action="comment"` is the one that does NOT touch the list: it exists so the
+    tournaments list can move its unread badge when a comment is written or removed.
+
+Profile channel (/ws/players/{player_id}), broadcast from routers/players.py:
+  - player:pokes:update     {player_id, action, ...}
+  - player:guestbook:update {player_id, action, entry_id}  created/updated/voted/deleted
 
 Pushing the full tournament on the per-tournament channel lets clients replace
 the `tournament(tid)` cache wholesale (identical to the GET shape), avoiding

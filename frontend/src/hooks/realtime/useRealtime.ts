@@ -96,13 +96,22 @@ export function useAnyTournamentWS() {
 
 // ---- per-player profile channel (pokes / guestbook) ------------------------
 
+/**
+ * Everything the profile channel can change: pokes **and** the guestbook. The
+ * guestbook half was missing (A5) — the channel's own comment named it, but a
+ * new entry only ever reached the viewer who wrote it.
+ */
 function resyncPlayer(qc: QueryClient, playerId: number, token?: string | null) {
   void qc.invalidateQueries({ queryKey: qk.playerPokesSummary() });
   void qc.invalidateQueries({ queryKey: qk.playerPokes(playerId) });
   void qc.invalidateQueries({ queryKey: qk.playerPokesReadIds(playerId, token ?? null) });
+  void qc.invalidateQueries({ queryKey: qk.playerGuestbookSummary() });
+  void qc.invalidateQueries({ queryKey: qk.playerGuestbook(playerId) });
+  void qc.invalidateQueries({ queryKey: qk.playerGuestbookReadIds(playerId, token ?? null) });
   if (token) {
     void qc.invalidateQueries({ queryKey: qk.playerPokesReadMap(token) });
     void qc.invalidateQueries({ queryKey: qk.playerPokesAuthoredUnread(token) });
+    void qc.invalidateQueries({ queryKey: qk.playerGuestbookReadMap(token) });
   }
 }
 

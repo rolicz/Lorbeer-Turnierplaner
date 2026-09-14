@@ -75,7 +75,7 @@ export default function TournamentCommentsCard({
 }) {
   const { token, role, actorPlayerId: currentPlayerId, actorPlayerName: currentPlayerName } = useAuth();
   const canAttachImage = role === "admin" || role === "editor";
-  const seen = useSeenSet(tournamentId);
+  const { ids: seen } = useSeenSet(tournamentId);
 
   const { avatarUpdatedAtById: avatarUpdatedAtByPlayerId } = usePlayerAvatarMap();
 

@@ -123,7 +123,7 @@ export default function LiveTournamentPage() {
 
   useTournamentWS(tid);
 
-  const seenCommentIds = useSeenSet(tid ?? 0);
+  const { ids: seenCommentIds, loaded: seenCommentIdsLoaded } = useSeenSet(tid ?? 0);
   const commentsQ = useQuery({
     queryKey: qk.commentsTournamentFull(tid!, token),
     queryFn: () => listTournamentComments(tid!, token),
@@ -185,31 +185,55 @@ export default function LiveTournamentPage() {
     forgetLocation(location.pathname + location.search);
   }, [tQ.error, location.pathname, location.search]);
 
+  /**
+   * The single writer for both comment deep links (A5).
+   *
+   * A deep link changes two things at once: it opens the Comments tab and it
+   * spends the param that asked for it. Done as two writes — `setActiveTab`
+   * first, then `setSearchParams` built from this render's `location.search` —
+   * the second one starts from the URL as it was *before* the first and
+   * silently reverts it, so `?tab=comments` was dropped and a reload (or a
+   * `lastLocation` replay) landed back on Overview. One write, built from the
+   * live URL, cannot lose a half of itself.
+   *
+   * No `swapTabScroll` here on purpose: a deep link is not a tab switch away
+   * from something — it scrolls to the entry it named.
+   */
+  const openCommentsForDeepLink = useCallback(
+    (consumedParam: "comment" | "unread", focusCommentId: number | null) => {
+      setChosenTabState("comments");
+      if (focusCommentId != null) {
+        setFocusCommentRequest((prev) => ({ id: focusCommentId, nonce: (prev?.nonce ?? 0) + 1 }));
+      }
+      const next = new URLSearchParams(window.location.search);
+      next.set("tab", "comments");
+      next.delete(consumedParam);
+      setSearchParams(next, { replace: true });
+    },
+    [setSearchParams],
+  );
+
   useEffect(() => {
     const raw = new URLSearchParams(location.search).get("comment");
     if (!raw) return;
     const cid = Number(raw);
     if (!Number.isFinite(cid) || cid <= 0) return;
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    setActiveTab("comments");
-    setFocusCommentRequest((prev) => ({ id: Math.trunc(cid), nonce: (prev?.nonce ?? 0) + 1 }));
-    const next = new URLSearchParams(location.search);
-    next.delete("comment");
-    setSearchParams(next, { replace: true });
-  }, [location.search, setSearchParams, setActiveTab]);
+    openCommentsForDeepLink("comment", Math.trunc(cid));
+  }, [location.search, openCommentsForDeepLink]);
 
+  // `?unread=1` (the unread pill on the tournaments list) can only be answered
+  // once the comments *and* this viewer's read ids are in — on a cold load both
+  // are still in flight while this first runs. Spending the flag then threw it
+  // away before it could be used, which is why the pill never jumped (A5). When
+  // nothing is unread any more the link still opens the feed it pointed at.
+  const unreadDeepLinkReady = commentsQ.isSuccess && seenCommentIdsLoaded;
   useEffect(() => {
-    const sp = new URLSearchParams(location.search);
-    const jumpUnread = sp.get("unread") === "1";
-    if (!jumpUnread) return;
-    if (latestUnreadCommentId) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setActiveTab("comments");
-      setFocusCommentRequest((prev) => ({ id: latestUnreadCommentId, nonce: (prev?.nonce ?? 0) + 1 }));
-    }
-    sp.delete("unread");
-    setSearchParams(sp, { replace: true });
-  }, [latestUnreadCommentId, location.search, setSearchParams, setActiveTab]);
+    if (new URLSearchParams(location.search).get("unread") !== "1") return;
+    if (!unreadDeepLinkReady) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    openCommentsForDeepLink("unread", latestUnreadCommentId);
+  }, [latestUnreadCommentId, location.search, openCommentsForDeepLink, unreadDeepLinkReady]);
 
   // When returning from a match detail page, scroll to (and flash) that match row.
   const focusMatchId = (location.state as { focusMatchId?: number } | null)?.focusMatchId ?? null;

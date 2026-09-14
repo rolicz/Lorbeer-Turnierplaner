@@ -41,6 +41,7 @@ from ..services.authorization import require_self_or_admin
 from ..services.comments_view import comment_can_edit, comment_dict, list_comments_for_tournament, parent_comment_map
 from ..services.events import (
     broadcast_tournament,
+    notify_tournaments_changed,
     push_comment_deleted,
     push_comment_meta,
     push_comment_upsert,
@@ -533,6 +534,10 @@ async def create_comment(
             s.commit()
 
     await push_comment_upsert(tournament_id, comment_dict(c, None, parent_comment_id=parent_comment_id))
+    # The tournaments list is only on the coarse channel, and its unread badge counts
+    # comments — so a new one has to be announced there too, or the badge never moves
+    # for anyone who is not already inside this tournament (A5).
+    await notify_tournaments_changed(action="comment", tournament_id=tournament_id)
     if match_for_event is not None and match_score_changed:
         await broadcast_tournament(s, tournament_id, reason="comment-score")
 
@@ -681,6 +686,8 @@ async def delete_comment(
 
     for cid in ids:
         await push_comment_deleted(tournament_id, cid)
+    # Same badge, the other direction: a deleted comment must stop being counted (A5).
+    await notify_tournaments_changed(action="comment", tournament_id=tournament_id)
 
     return {"ok": True}
 

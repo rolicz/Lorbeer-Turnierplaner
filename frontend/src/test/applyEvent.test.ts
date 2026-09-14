@@ -116,6 +116,19 @@ describe("applyCommentUpsert", () => {
     expect(c.downvotes).toBe(1);
     expect(c.my_vote).toBe(1);
   });
+
+  // A5: the tournaments list counts comments for its unread badge, so a new one
+  // has to invalidate the summary the way the meta/global reducers already do.
+  it("refreshes the comments summary the list badge is built from", () => {
+    const qc = new QueryClient();
+    const spy = vi.spyOn(qc, "invalidateQueries");
+    qc.setQueryData(qk.commentsTournament(TID), commentsCache([comment(1)]));
+
+    applyCommentUpsert(qc, { tournament_id: TID, comment: comment(2) });
+
+    const keys = spy.mock.calls.map((c) => JSON.stringify((c[0] as { queryKey: unknown }).queryKey));
+    expect(keys).toContain(JSON.stringify(qk.commentsSummary()));
+  });
 });
 
 describe("applyCommentDelete", () => {
@@ -136,6 +149,18 @@ describe("applyCommentDelete", () => {
     applyCommentDelete(qc, { tournament_id: TID, comment_id: 2 });
     const data = qc.getQueryData(qk.commentsTournament(TID)) as TournamentCommentsResponse;
     expect(data.pinned_comment_id).toBe(1);
+  });
+
+  // A5: the other direction of the same badge — a deleted comment must stop counting.
+  it("refreshes the comments summary the list badge is built from", () => {
+    const qc = new QueryClient();
+    const spy = vi.spyOn(qc, "invalidateQueries");
+    qc.setQueryData(qk.commentsTournament(TID), commentsCache([comment(1), comment(2)]));
+
+    applyCommentDelete(qc, { tournament_id: TID, comment_id: 2 });
+
+    const keys = spy.mock.calls.map((c) => JSON.stringify((c[0] as { queryKey: unknown }).queryKey));
+    expect(keys).toContain(JSON.stringify(qk.commentsSummary()));
   });
 });
 
@@ -164,6 +189,21 @@ describe("message routers", () => {
     // a plain "updated" must NOT touch stats/cup
     expect(keys).not.toContain(JSON.stringify(qk.stats.all()));
     expect(keys).not.toContain(JSON.stringify(qk.cupAll()));
+  });
+
+  // A5: `action="comment"` exists only to move the unread badge, so it refreshes the
+  // summary and deliberately leaves the tournament list alone.
+  it("applyGlobalMessage moves the badge on a comment without refetching the list", () => {
+    const qc = new QueryClient();
+    const spy = vi.spyOn(qc, "invalidateQueries");
+
+    applyGlobalMessage(qc, { event: WS_TOURNAMENTS_CHANGED, payload: { action: "comment", tournament_id: TID }, seq: 4 });
+
+    const keys = spy.mock.calls.map((c) => JSON.stringify((c[0] as { queryKey: unknown }).queryKey));
+    expect(keys).toContain(JSON.stringify(qk.commentsSummary()));
+    expect(keys).not.toContain(JSON.stringify(qk.tournaments()));
+    expect(keys).not.toContain(JSON.stringify(qk.tournamentsLive()));
+    expect(keys).not.toContain(JSON.stringify(qk.stats.all()));
   });
 
   it("applyGlobalMessage refreshes stats + cup on a status change", () => {

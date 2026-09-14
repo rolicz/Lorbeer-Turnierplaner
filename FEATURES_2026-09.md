@@ -5379,7 +5379,7 @@ surface, out of A4's scope.
 
 ---
 
-## A5 — Deep links and freshness: four smaller realtime/navigation bugs  ☐
+## A5 — Deep links and freshness: four smaller realtime/navigation bugs  ☑
 
 1. **`?unread=1` never jumps.** `pages/live/LiveTournamentPage.tsx:199-210` deletes the param
    *outside* the `if (latestUnreadCommentId)` guard, but that id comes from a comments query still
@@ -5401,7 +5401,97 @@ surface, out of A4's scope.
 **DoD:** the unread pill jumps to the comment on a cold load; the tab survives a reload; a second
 viewer sees a new guestbook entry and a moved comment badge without remounting; `npm run check`.
 
-**Deviations:**
+**Deviations:** (implemented 2026-09-14 on `feature/2026-09-audit`)
+
+All four reproduced first, on this branch, before anything was changed (the "before" column
+below is measured, not inferred).
+
+**Items 1 + 2 — one cause, one fix.** Both deep links wrote the URL **twice in one render
+pass**: `setActiveTab("comments")` first, then `setSearchParams(new URLSearchParams(
+location.search) minus their own param)`. The second write starts from the render's snapshot of
+the URL, which predates the first, so it reverted it. (Worth knowing: react-router 6.30's
+functional `setSearchParams(prev => …)` is **not** a fix — `prev` is the same render-time
+`searchParams` memo, `react-router-dom/dist/index.js:1031`.) Both effects now call one writer,
+`openCommentsForDeepLink(consumedParam, focusCommentId)`, which builds a single
+`URLSearchParams` from `window.location.search` — the live URL, the source `setActiveTab` in
+this file already trusted — sets `tab=comments`, drops the spent param and writes **once**. It
+deliberately does not `swapTabScroll`: a deep link is not a tab switch away from something, it
+scrolls to the entry it named (`useTabParam`'s own docstring already says deep links are left
+alone).
+
+Item 1 needed one more thing: the flag was spent before the data that answers it existed. The
+effect now waits for `commentsQ.isSuccess && seenCommentIdsLoaded`. **Both** queries matter —
+until the read ids arrive the seen-set is empty and *every* comment looks unread, so acting on
+`commentsQ` alone would have jumped to whatever is newest, read or not. `useSeenSet` therefore
+returns `{ ids, loaded }` instead of a bare `Set` (two call sites); a query that never runs (a
+reader has no read state) and a failed one both count as loaded, because their empty set is the
+honest answer. When nothing is unread any more the link still opens the feed it pointed at
+rather than silently doing nothing — checked as a reader: lands on Comments, param consumed,
+`history.length` unchanged (no replace loop).
+
+**Item 3 — wired, not documented away.** The evidence said wire it: the channel exists, the
+profile page is already subscribed to it, `resyncPlayer` was already the right shape, and the
+DoD asks for a second viewer to see the entry. Only two halves were missing, so it is 12 lines,
+not a feature. Backend: `_broadcast_player_pokes_event` is now
+`_broadcast_player_profile_event` (it was never poke-specific) plus a thin
+`_broadcast_guestbook_event`, called on **create, patch, vote and delete** — every write that
+changes what other viewers see. Frontend: `resyncPlayer` invalidates the guestbook keys next to
+the poke ones (`playerGuestbook`, `playerGuestbookSummary`, `playerGuestbookReadIds`,
+`playerGuestbookReadMap`), which is exactly the set `useProfileGuestbook` invalidates after its
+own writes. **Read-marking is deliberately not broadcast**: unlike pokes (which show the author
+an "unread" marker, `playerPokesAuthoredUnread`), the guestbook has no author-side read
+indicator, so a broadcast would make every other viewer refetch their own private read state
+for nothing.
+
+**Item 4 — both halves, both directions.** The reducer half: `applyCommentUpsert` now
+invalidates `qk.commentsSummary()` like its siblings. But that only helps a viewer already
+inside the tournament — the tournaments **list** is subscribed to the coarse channel alone, and
+the backend sent nothing there, so the backend half was required: `POST
+/tournaments/{id}/comments` now also sends `tournaments.changed {action: "comment"}`. That
+action is new and is the one action `applyTournamentsChanged` does **not** let refetch the
+tournament list (a comment changes nothing about the tournament), so the coarse channel stays
+coarse and cheap. **Deliberately beyond the literal finding:** the delete path got the same
+treatment (`applyCommentDelete` + `notify_tournaments_changed` in `delete_comment`), because a
+deleted comment otherwise leaves a phantom unread badge for every other viewer — the identical
+bug in the other direction, two lines.
+
+**Two-browser proof** (isolated stack: backend :8003 on a copy of the dev DB, vite :8020,
+scratch secrets. A = Flo/editor, desktop 1280; B = Roli/admin, phone 390; separate browser
+contexts, so separate storage and separate sockets. "before" = the same script against the
+branch's previous commit, backend restarted on the old code):
+
+| # | Measured | before | after |
+|---|---|---|---|
+| 1 | cold load of `/live/8?unread=1` (brand-new page, nothing cached) | URL `/live/8`, `scrollY 0`, nothing flashed, Overview | URL `/live/8?tab=comments`, **scrolled to y 854/6219 and flashed exactly `comment-269`**, the new unread one |
+| 2 | then F5 | `/live/8`, tab **Overview** | `/live/8?tab=comments`, tab **Comments** |
+| 2b | `/live/8?comment=<id>`, then F5 | `/live/8`, Overview | `/live/8?tab=comments`, Comments |
+| 3 | A writes a guestbook entry on profile 3 through the UI; B sits on `/profiles/3?tab=guestbook` | **not seen after 12 s** | **seen in ~0.5 s**, B never navigated |
+| 4 | A writes a comment on tournament 8; B sits on `/tournaments` | badge **7 → 7** after 12 s | badge **8 → 9** in ~0.5 s, B never navigated |
+
+Items 1/2/2b re-run at 1280 with the same result. Zero console errors and zero failed requests
+in every run.
+
+**Noticed, reported, not fixed:**
+- **A dev-only trap that cost an hour and will cost the next worker one too:** on a *cold full
+  page load* of a route the Vite dev server has not optimised yet, Vite force-reloads the page,
+  which aborts the in-flight `GET /me`; `AuthContext`'s validator treats any rejection as a bad
+  token and calls `clearAuth()`, so the browser silently drops to **reader** and every
+  token-gated query disappears. It reproduces identically on `HEAD` without any A5 change, and
+  only with `vite dev` — but it means "log in, then open a deep link in a fresh page" measures
+  a logged-out session unless the dev server is warmed first (the verification scripts now do).
+  Worth a thought for production too: `clearAuth()` cannot tell "the token is invalid" (401)
+  from "the request never finished" (abort/offline), and a PWA on a flaky phone connection hits
+  the second case.
+- `applyCommentMeta` invalidates `qk.commentsTournament(tid)` for *every* vote/pin/read event,
+  which is a full comments refetch for a read-marking that only concerns one viewer.
+- `qk.playerGuestbook(playerId)` and `qk.playerGuestbookSummary()` are `["players","guestbook",
+  <id>]` and `["players","guestbook","summary"]` — a guestbook keyed by the literal player id
+  `"summary"` would collide. Impossible today (ids are numbers); noted because A3 swept exactly
+  this class of key hazard.
+- `resyncPlayer` is not directly unit-testable (module-private, and the WS hook mounts a real
+  socket); the guestbook broadcast is covered backend-side instead
+  (`test_guestbook_writes_reach_the_profile_channel`), and the reducer half by the three new
+  `applyEvent` cases.
 
 ---
 

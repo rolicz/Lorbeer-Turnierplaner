@@ -94,6 +94,9 @@ export function applyCommentUpsert(qc: QueryClient, payload: unknown) {
 
   // A new comment may be a reply to the viewer's comment → refresh the bell.
   void qc.invalidateQueries({ queryKey: qk.notificationsAll() });
+  // …and it changes the unread count the tournaments list shows for this
+  // tournament, exactly like the meta/global reducers below (A5).
+  void qc.invalidateQueries({ queryKey: qk.commentsSummary() });
 }
 
 export function applyCommentDelete(qc: QueryClient, payload: unknown) {
@@ -108,6 +111,8 @@ export function applyCommentDelete(qc: QueryClient, payload: unknown) {
       comments: (prev.comments ?? []).filter((c) => c.id !== cid),
     };
   });
+  // A deleted comment must not keep counting towards the list's unread badge (A5).
+  void qc.invalidateQueries({ queryKey: qk.commentsSummary() });
 }
 
 /** Vote / pin / read metadata changed -> narrow refetch (accurate counts + my_vote). */
@@ -122,9 +127,13 @@ export function applyCommentMeta(qc: QueryClient, payload: unknown) {
 export function applyTournamentsChanged(qc: QueryClient, payload: unknown) {
   const p = asObj<TournamentsChangedPayload>(payload);
   const action = typeof p.action === "string" ? p.action : "";
-  void qc.invalidateQueries({ queryKey: qk.tournaments() });
-  void qc.invalidateQueries({ queryKey: qk.tournamentsLive() });
   void qc.invalidateQueries({ queryKey: qk.commentsSummary() });
+  // A comment changes nothing about the tournament itself — only its unread
+  // badge — so it is the one action that does not refetch the list (A5).
+  if (action !== "comment") {
+    void qc.invalidateQueries({ queryKey: qk.tournaments() });
+    void qc.invalidateQueries({ queryKey: qk.tournamentsLive() });
+  }
   if (action === "deleted" || action === "status") {
     void qc.invalidateQueries({ queryKey: qk.stats.all() });
     void qc.invalidateQueries({ queryKey: qk.cupAll() });

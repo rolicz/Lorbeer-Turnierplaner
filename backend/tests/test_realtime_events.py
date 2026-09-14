@@ -116,3 +116,55 @@ def test_comment_vote_pushes_meta_not_full(client, editor_headers, admin_headers
     metas = [p for (chan, ev, p) in rec.tournament_channel if ev == "comment.meta" and chan == tid]
     assert any(p.get("action") == "voted" for p in metas)
     assert not any(ev == "comment.upsert" for (_, ev, _) in rec.tournament_channel)
+
+
+def test_comment_create_and_delete_move_the_global_badge(client, editor_headers, admin_headers, monkeypatch):
+    """A5: the tournaments list is only on the coarse channel, and its unread badge counts comments."""
+    tid, _ = _live_match(client, editor_headers, admin_headers)
+    rec = _patch_ws(monkeypatch)
+
+    cid = client.post(f"/tournaments/{tid}/comments", json={"body": "badge me"}, headers=editor_headers).json()["id"]
+    created = [p for (ev, p) in rec.global_channel if ev == "tournaments.changed" and p.get("action") == "comment"]
+    assert created, "a new comment must reach the global channel"
+    assert created[-1]["tournament_id"] == tid
+
+    rec.global_channel.clear()
+    r = client.delete(f"/comments/{cid}", headers=admin_headers)
+    assert r.status_code == 200, r.text
+    deleted = [p for (ev, p) in rec.global_channel if ev == "tournaments.changed" and p.get("action") == "comment"]
+    assert deleted, "a deleted comment must stop being counted"
+    assert deleted[-1]["tournament_id"] == tid
+
+
+class _ProfileRecorder:
+    def __init__(self):
+        self.sent: list[tuple[int, str, dict]] = []
+
+    async def broadcast(self, player_id, event, payload):
+        self.sent.append((int(player_id), event, payload))
+
+
+def test_guestbook_writes_reach_the_profile_channel(client, admin_headers, monkeypatch):
+    """A5: `/ws/players/{id}` is named "pokes / guestbook" — the guestbook half sent nothing."""
+    pid = create_player(client, admin_headers, "GbProfile")
+    rec = _ProfileRecorder()
+    monkeypatch.setattr(ws_pkg.ws_manager_player_profiles, "broadcast", rec.broadcast)
+
+    created = client.post(f"/players/{pid}/guestbook", json={"body": "hi there"}, headers=admin_headers)
+    assert created.status_code == 200, created.text
+    entry_id = int(created.json()["id"])
+
+    def actions() -> list[str]:
+        return [p["action"] for (chan, ev, p) in rec.sent if ev == "player:guestbook:update" and chan == pid]
+
+    assert actions() == ["created"]
+    assert rec.sent[-1][2]["entry_id"] == entry_id
+
+    edited = client.patch(f"/players/guestbook/{entry_id}", json={"body": "edited"}, headers=admin_headers)
+    assert edited.status_code == 200, edited.text
+    voted = client.put(f"/players/guestbook/{entry_id}/vote", json={"value": 1}, headers=admin_headers)
+    assert voted.status_code == 200, voted.text
+    removed = client.delete(f"/players/guestbook/{entry_id}", headers=admin_headers)
+    assert removed.status_code == 204, removed.text
+
+    assert actions() == ["created", "updated", "voted", "deleted"]
