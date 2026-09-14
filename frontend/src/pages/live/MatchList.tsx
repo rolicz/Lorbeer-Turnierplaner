@@ -149,21 +149,26 @@ export default function MatchList({
             ];
           };
 
+          // The row is one target and the actions are another, so the label says which
+          // match the row opens — screen readers get the fixture, not "button".
+          const rowLabel = `${canEdit ? "Open or edit" : "Open"} match ${m.order_index + 1}: ${aPlayers.join(" + ")} vs ${bPlayers.join(" + ")}`;
+
           return (
             <div key={m.id} id={`match-row-${m.id}`} className="scroll-mt-28 sm:scroll-mt-24">
-              <div
-                className="row-tap -mx-2 cursor-pointer px-2 py-2"
-                onClick={() => onEditMatch(m)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === " ") {
-                    e.preventDefault();
-                    onEditMatch(m);
-                  }
-                }}
-                role="button"
-                tabIndex={0}
-                title={canEdit ? "Open H2H or edit match" : "Open H2H"}
-              >
+              <div className="row-tap relative -mx-2 px-2 py-2">
+                {/* The row's own action is a stretched button (the `ListRow` pattern,
+                    DESIGN.md §7) instead of a `role="button"` wrapper: the reorder and
+                    swap buttons then sit *above* it rather than inside its hit area, and
+                    the row keeps real button semantics — Enter/Space, no hand-rolled
+                    key handling (A6). */}
+                <button
+                  type="button"
+                  onClick={() => onEditMatch(m)}
+                  aria-label={rowLabel}
+                  title={canEdit ? "Open H2H or edit match" : "Open H2H"}
+                  className="focus-ring absolute inset-0 z-0 rounded-xl"
+                />
+                <div className="pointer-events-none relative z-10">
                 {/* Meta line: status + order + leg, with reorder/swap actions */}
                 <div className="mb-1 flex items-center justify-between gap-2">
                   <div className="inline-flex min-w-0 items-center gap-1.5 text-xs font-medium">
@@ -175,31 +180,23 @@ export default function MatchList({
                   </div>
 
                   {showMove || canEdit ? (
-                    <div className="flex shrink-0 items-center gap-1">
+                    <div className="pointer-events-auto flex shrink-0 items-center gap-1.5">
                       {showMove ? (
                         <>
                           <Button
                             variant="ghost"
-                            onClick={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              onMoveUp(m.id);
-                            }}
+                            onClick={() => onMoveUp(m.id)}
                             disabled={busyReorder}
-                            className="h-8 w-8 p-0 inline-flex items-center justify-center"
+                            className="h-9 w-9 p-0 inline-flex items-center justify-center"
                             title="Move up"
                           >
                             <ArrowUp size={14} className="text-text-normal" aria-hidden="true" />
                           </Button>
                           <Button
                             variant="ghost"
-                            onClick={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              onMoveDown(m.id);
-                            }}
+                            onClick={() => onMoveDown(m.id)}
                             disabled={busyReorder}
-                            className="h-8 w-8 p-0 inline-flex items-center justify-center"
+                            className="h-9 w-9 p-0 inline-flex items-center justify-center"
                             title="Move down"
                           >
                             <ArrowDown size={14} className="text-text-normal" aria-hidden="true" />
@@ -209,13 +206,11 @@ export default function MatchList({
                       {canEdit ? (
                         <Button
                           variant="ghost"
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
+                          onClick={() => {
                             void onSwapSides(m.id);
                           }}
                           disabled={busyReorder}
-                          className="h-8 w-8 p-0 inline-flex items-center justify-center"
+                          className="h-9 w-9 p-0 inline-flex items-center justify-center"
                           title="Swap sides"
                         >
                           <ArrowRightLeft size={14} className="text-text-normal" aria-hidden="true" />
@@ -246,6 +241,7 @@ export default function MatchList({
                 {!compact ? (
                   <MatchSides className="mt-1.5" clubs={clubs} aClubId={a?.club_id} bClubId={b?.club_id} />
                 ) : null}
+                </div>
               </div>
             </div>
           );
