@@ -5495,7 +5495,7 @@ in every run.
 
 ---
 
-## A6 — Accessibility and contrast: the runtime sweep's blocking finds  ☐
+## A6 — Accessibility and contrast: the runtime sweep's blocking finds  ☑
 
 1. **The login submit button has no accessible name below 768px** —
    `pages/LoginPage.tsx:70-71` hides the label and the icon is `aria-hidden`, leaving an unnamed
@@ -5520,6 +5520,90 @@ for text (≥ 3:1 for large text), measured and listed; no interactive element n
 interactive element on the Matches tab; sort headers ≥ 44px tall on mobile; screenshots per theme.
 
 **Deviations:**
+
+Everything was measured in the browser against the isolated stack (backend :8003 on a copy of the
+dev DB, vite :8020, scratch secrets), *and* against the task's baseline `98d2690` served from a
+second vite on :8022 — so every "before" below is a number the old code really produced, in that
+theme, on that surface, not a recomputation.
+
+- **Item 1 — the label came back, it did not become an `aria-label`.** A hidden name would have
+  satisfied a scanner while the page's only action stayed a wordless icon on a phone. It is a
+  full-width button on an otherwise empty card, so icon *and* label now show at every width.
+
+- **Item 2 — exactly what moved (light theme only).** `blue`, `dark`, `red` and `green` resolve
+  every one of these to the value they had before — checked token by token in the browser, and
+  the cup gold in particular resolves to `251 191 36` (green: `245 208 90`), i.e. the same colour
+  those themes already painted through `--color-gradient-gold-from`.
+
+  | Token | from | to | on the light page ground |
+  |---|---|---|---|
+  | `--color-btn-text` | `255 255 255` | `12 10 9` | 2.49:1 → **7.94:1** |
+  | `--color-accent` | `59 130 246` (blue-500) | `29 76 214` | 3.09:1 → **5.77:1**, and 2.64:1 → **4.60:1** under a selected chip's own `bg-accent/15` |
+  | `--color-cup-gold` (new token) | `251 146 60` in light (`251 191 36` elsewhere) | `166 74 12` | 1.90:1 → **4.89:1** |
+  | `--color-cup-green-dark` | `21 128 61` | `22 116 55` | 4.21:1 → **4.91:1** |
+
+  - **The button keeps Roli's teal byte-for-byte.** White cannot reach 4.5:1 on `20 184 166`
+    without replacing the colour (teal-700 *and* a darker hover, since the hover has to pass too);
+    the page ink on the same teal is 7.94:1, and the green theme already pairs a bright button
+    colour with dark ink, so this is the palette's own idiom rather than a new one. If Roli would
+    rather keep white lettering, the alternative is `--color-btn-bg: 15 118 110` with
+    `--color-hover-btn-bg: 17 94 89` (5.47:1 / 7.58:1) — a visibly darker button.
+  - **The accent had to go two steps down, not one.** blue-600 is 4.34:1 on the ground and 3.57:1
+    under a selected chip's tint; even blue-700 stops at 4.49:1 there. `29 76 214` is the first
+    blue of the same family that clears 4.5:1 everywhere the accent is used *as text* — tab
+    labels, chips, links, the bottom bar, the active sort header — and it lifts white-on-accent
+    (the notification badge) from 3.68:1 to 6.87:1 on the way.
+  - **Cups got their own tokens** instead of borrowing a medal gradient that light deliberately
+    tints orange. `cupColors.ts` maps a cup key to `--color-cup-gold` / `--color-cup-green-dark`;
+    `DESIGN.md` §2 now lists both, and says a cup's colour may never borrow a gradient again.
+  - **The Bauernkranz's green was failing too** — 4.21:1 as the holder's name, same block, same
+    cause. Fixed in the same breath; the plan names only the Lorbeerkranz because it is the worse
+    of the two.
+
+- **Item 3 — done here, and it is A8's breach 1.** A6.3 asked to fold the matrix into "A8's first
+  item"; A8 has not started, so it was done here in full: the cells are off their hard-coded HSL
+  and on `.h2h-cell`, the positions grid's mechanism (a hue + a 0..1 strength from the component,
+  the tint and the ink from the stylesheet, one light-theme override). **A8's worker should tick
+  breach 1 rather than redo it.** Measured cell by cell at 390px, every theme: the worst cell
+  anywhere was **1.90:1** (light, Goal diff) and is now **5.01:1** (blue, Goal diff); in light
+  alone 2.23:1 → **7.26:1**. The finding called the matrix "theme-independent" — it is not: the
+  default W-D-L ramp was 3.31–3.35:1 in the dark themes too, while Played/Goal diff passed there.
+  Hover changed from `brightness-125` to an edge in the cell's own ink, because a filter lifts the
+  text with the tile and gives back the contrast the ramp just bought.
+
+- **Item 4 — the whole row is the target, the buttons are above it.** `role="button"` + a
+  hand-rolled keydown handler is gone: the row's action is a stretched `<button>` overlay
+  (`ListRow`'s pattern), so Enter/Space are the platform's, and the aria-label names the fixture
+  ("Open or edit match 1: Roli + Atzi vs Flo + Rumpi"). The reorder/swap buttons moved to
+  32→**36px** — not 44: at 44 they own the meta line, and 36×36 is comfortably past WCAG 2.5.8's
+  24×24 minimum. Re-measured on `/live/21?tab=matches` as admin: `a a`, `button button`,
+  `a button`, `button a` and `[role="button"] *` are **all 0**, and no `role="button"` is left on
+  the page (it was 5 rows with 9 buttons inside them).
+
+- **Item 5 — 44px at every width, not only on mobile.** A sort header is now a button that fills
+  its column and a 44px header row (the cell's padding moved into the button, so no column got
+  wider). `P` went from 8×16 to **27×44** at 390px and 90×44 at 1280px; the dashboard preview and
+  the stats Table share the component, so both are fixed at once. Desktop keeps the same 44px
+  header — a second breakpoint for a header row nobody has complained about is complexity for its
+  own sake.
+
+- **Found while measuring, deliberately left (not A6, not a regression):**
+  - **The primary button fails in the *dark* themes for the same reason.** The label colour is
+    one shared token, so the sweep's light-theme finding is really a palette-wide one: white on
+    `dark`'s teal is **2.49:1**, on `blue`'s blue-500 **3.68:1**, on `red`'s rose **4.32:1** —
+    and `green`, the only theme that already uses dark ink on its bright button, is **6.54:1**.
+    The fix is the same move this task made in light (ink instead of white, per theme, since ink
+    on blue-500 is only 3.81:1 and that theme would need a darker button colour), but it changes
+    four themes' primary buttons, which is Roli's call and not a contrast patch. Worth its own
+    line in A8 or a follow-up.
+  - `text-win` / `text-draw` as a bare number on the **light page ground** are 4.21:1 (they pass
+    at 5.0:1 on a white card, which is where most of them sit). The cup green is likewise
+    3.76–3.97:1 as the holder's name in the **dark** themes (it is the same green-700 there);
+    only light was in scope here. Same family as A6.2, but not on its list.
+  - `text-text-muted/40` separators (1.97:1) and the `/60` participant line on `/tournaments`
+    (2.96:1) — an alpha applied to a token that is already the muted one. A7 territory.
+  - The `red` theme's selected chip is 4.10:1 (its accent on its own 15% tint) — the same shape
+    as the light-theme chip finding, in a theme the sweep did not cover.
 
 ---
 
