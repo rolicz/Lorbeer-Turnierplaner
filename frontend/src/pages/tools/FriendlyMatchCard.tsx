@@ -6,6 +6,7 @@ import FormLabel from "../../ui/primitives/FormLabel";
 import Input from "../../ui/primitives/Input";
 import Button from "../../ui/primitives/Button";
 import AvatarButton from "../../ui/primitives/AvatarButton";
+import InlineLoading from "../../ui/primitives/InlineLoading";
 import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
 import SelectClubsPanel from "../../ui/SelectClubsPanel";
 import { GoalStepper, useClubSelection } from "../../ui/clubControls";
@@ -421,7 +422,7 @@ export default function FriendlyMatchCard({ onInitialReady }: { onInitialReady?:
           storageKey="friendly-new"
           defaultOpen
           extraTop={
-            clubsQ.isLoading ? <div className="text-sm text-text-muted">Loading clubs…</div> : null
+            clubsQ.isLoading ? <InlineLoading label="Loading clubs…" /> : null
           }
         />
 
@@ -496,7 +497,7 @@ export default function FriendlyMatchCard({ onInitialReady }: { onInitialReady?:
               ) : null}
             </div>
 
-            {playersQ.isLoading && <div className="col-span-full text-sm text-text-muted">Loading players…</div>}
+            {playersQ.isLoading && <InlineLoading label="Loading players…" className="col-span-full" />}
           </div>
         </div>
 

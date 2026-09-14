@@ -10,6 +10,7 @@ import MatchOverviewPanel from "../../ui/primitives/MatchOverviewPanel";
 import TournamentMetaPills from "./TournamentMetaPills";
 import AvatarCircle from "../../ui/primitives/AvatarCircle";
 import Button from "../../ui/primitives/Button";
+import EmptyState from "../../ui/primitives/EmptyState";
 import PlayerLink from "../../ui/primitives/PlayerLink";
 import ScoreLine from "../../ui/primitives/ScoreLine";
 import { usePlayerAvatarMap } from "../../hooks/usePlayerAvatarMap";
@@ -171,7 +172,7 @@ export default function OverviewSection({
               </div>
             </div>
           ) : (
-            <div className="inset text-sm text-text-muted">No players in this tournament.</div>
+            <EmptyState title="No players in this tournament." className="inset" />
           )}
         </div>
       ) : (
@@ -195,7 +196,7 @@ export default function OverviewSection({
               />
             </button>
           ) : (
-            <div className="inset text-sm text-text-muted">No matches yet.</div>
+            <EmptyState title="No matches yet." className="inset" />
           )}
         </div>
       )}

@@ -337,7 +337,7 @@ export default function TrendsPreviewCard() {
             }
             aria-label="Open full trends"
           >
-            <div className="rounded-2xl border border-border-card-chip/40 bg-bg-card-inner/40 p-2">
+            <div className="inset p-2">
               <div ref={setPreviewNode} data-no-swipe-nav>
                 <TrendChart
                   events={chart.tournamentTs.map((ts, i) => ({ ts, label: chart.tournamentTitles[i] ?? "" }))}

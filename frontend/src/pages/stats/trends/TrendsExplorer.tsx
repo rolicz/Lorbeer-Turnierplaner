@@ -144,7 +144,7 @@ export default function TrendsExplorer({ mode, scope, rows, initialMetric, initi
     <div className="space-y-3">
       {/* fixed-size plot — pinch zooms the x-axis, drag pans */}
       <div>
-        <div ref={plotRef} className="rounded-2xl border border-border-card-chip/40 bg-bg-card-inner/40 p-2" data-no-swipe-nav>
+        <div ref={plotRef} className="inset p-2" data-no-swipe-nav>
           {loading ? (
             <InlineLoading label="Loading…" />
           ) : (

@@ -13,6 +13,8 @@ import {
 import { fmtDate } from "../../utils/format";
 import { useClickOutside } from "../layout/useClickOutside";
 import Button from "../primitives/Button";
+import EmptyState from "../primitives/EmptyState";
+import InlineLoading from "../primitives/InlineLoading";
 
 function timeAgo(iso: string): string {
   const t = new Date(iso).getTime();
@@ -107,7 +109,9 @@ export default function NotificationBell({
       {open ? (
         <div
           className={
-            "absolute z-50 w-[min(22rem,calc(100vw-1.5rem))] overflow-hidden rounded-2xl border border-border-card-chip/40 bg-bg-card-outer shadow-pop " +
+            // A floating panel is a `card` with `shadow-pop` (DESIGN.md §3/§4), like the
+            // stats filter popover — the rows bring their own padding, so `p-0`.
+            "card absolute z-50 w-[min(22rem,calc(100vw-1.5rem))] overflow-hidden p-0 shadow-pop backdrop-blur-md " +
             (align === "right" ? "right-0 " : "left-0 ") +
             (placement === "top" ? "bottom-full mb-2" : "top-full mt-2")
           }
@@ -119,9 +123,11 @@ export default function NotificationBell({
 
           <div className="max-h-[min(70vh,26rem)] overflow-y-auto">
             {items.length === 0 ? (
-              <div className="px-3 py-6 text-center text-sm text-text-muted">
-                {q.isLoading ? "Loading…" : "Nothing new right now."}
-              </div>
+              q.isLoading ? (
+                <div className="px-3 py-6 text-center"><InlineLoading /></div>
+              ) : (
+                <EmptyState title="Nothing new right now." className="px-3 py-6" />
+              )
             ) : (
               <ul className="divide-y divide-border-card-chip/30">
                 {items.map((n) => (

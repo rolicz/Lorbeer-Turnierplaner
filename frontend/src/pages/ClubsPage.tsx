@@ -13,6 +13,8 @@ import CollapsibleCard from "../ui/primitives/CollapsibleCard";
 import SegmentedSwitch from "../ui/primitives/SegmentedSwitch";
 import { ErrorToastOnError } from "../ui/primitives/ErrorToast";
 import PageLoadingScreen from "../ui/primitives/PageLoadingScreen";
+import InlineLoading from "../ui/primitives/InlineLoading";
+import EmptyState from "../ui/primitives/EmptyState";
 import { useRouteEntryLoading } from "../ui/layout/useRouteEntryLoading";
 import PageLayout from "../ui/layout/PageLayout";
 import { SectionTabs, type SectionTab } from "../ui/SectionTabs";
@@ -430,10 +432,10 @@ export default function ClubsPage() {
           </Button>
         </div>
 
-        {clubsQ.isLoading ? <div className="text-text-muted">Loading…</div> : null}
+        {clubsQ.isLoading ? <InlineLoading /> : null}
 
         {!clubsQ.isLoading && grouped.length === 0 ? (
-          <div className="px-1 py-6 text-sm text-text-muted">No clubs match the current filters.</div>
+          <EmptyState title="No clubs match the current filters." className="px-1 py-6" />
         ) : null}
 
         <div className="divide-y divide-border-card-chip/30">

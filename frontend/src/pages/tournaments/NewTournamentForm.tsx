@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Button from "../../ui/primitives/Button";
 import SegmentedSwitch from "../../ui/primitives/SegmentedSwitch";
 import AvatarButton from "../../ui/primitives/AvatarButton";
+import InlineLoading from "../../ui/primitives/InlineLoading";
 import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
 
 import { listPlayers } from "../../api/players.api";
@@ -87,7 +88,7 @@ export default function NewTournamentForm({ onCancel }: { onCancel?: () => void 
           </span>
         </div>
         {playersQ.isLoading ? (
-          <div className="text-sm text-text-muted">Loading…</div>
+          <InlineLoading />
         ) : (
           <div className="flex flex-wrap gap-3">
             {(playersQ.data ?? []).map((p) => (
