@@ -18,6 +18,7 @@ import { getCup, listCupDefs } from "../api/cup.api";
 import { getStatsH2H, getStatsPlayerMatches, getStatsPlayers, getStatsRatings, getStatsStreaks } from "../api/stats.api";
 import { listClubs } from "../api/clubs.api";
 import { groupFriendlyTournamentsByDate } from "./stats/matchHistory";
+import { FORM_LAST_N } from "./stats/standings";
 import { usePlayerAvatarMap } from "../hooks/usePlayerAvatarMap";
 import { usePlayerProfileWS } from "../hooks/useTournamentWS";
 import { useRouteEntryLoading } from "../ui/layout/useRouteEntryLoading";
@@ -75,7 +76,8 @@ export default function ProfilePage() {
   const clubsQ = useQuery({ queryKey: qk.clubs(), queryFn: () => listClubs() });
   const statsPlayersQ = useQuery({
     queryKey: qk.stats.players("profile", targetPlayerId ?? "none"),
-    queryFn: () => getStatsPlayers({ lastN: 3, mode: "overall" }),
+    // Same Form window as the stats Player tab — one definition, two surfaces (A9).
+    queryFn: () => getStatsPlayers({ lastN: FORM_LAST_N, mode: "overall" }),
     enabled: Number.isFinite(targetPlayerId) && (targetPlayerId ?? 0) > 0,
   });
   const statsStreaksQ = useQuery({

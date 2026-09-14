@@ -68,7 +68,8 @@ export default function ProfileStatsSection({
       <ErrorToastOnError error={statsStreaksGlobalError} title="Streaks loading failed" />
       <ErrorToastOnError error={statsRatingsError} title="Ratings loading failed" />
 
-      {/* The stats page's Player section has the same numbers per Mode/Source. */}
+      {/* Overall, tournaments only — the stats page's Player section shows exactly
+          these numbers at its default Mode/Source, and breaks them down at any other. */}
       <div className="section-head">
         <span className="section-label">Key numbers</span>
         {targetPlayerId > 0 ? (
@@ -81,6 +82,9 @@ export default function ProfileStatsSection({
       {(() => {
         const r = playerStatsRow;
         const played = r?.played ?? 0;
+        // The Form window is however many of the last FORM_LAST_N matches exist —
+        // say which, rather than naming a number of matches the player never played.
+        const formWindow = (r?.lastN_pts ?? []).length;
         return (
           <>
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
@@ -96,7 +100,7 @@ export default function ProfileStatsSection({
                 Record <span className="tabular-nums text-win">{fmtInt(r?.wins ?? 0)}</span>-<span className="tabular-nums text-draw">{fmtInt(r?.draws ?? 0)}</span>-<span className="tabular-nums text-loss">{fmtInt(r?.losses ?? 0)}</span>
               </span>
               <span>Elo <b className="tabular-nums text-text-normal">{eloRow ? fmtRating(eloRow.rating) : "—"}</b>{eloRank != null ? ` · #${eloRank}` : ""}</span>
-              <span>Last 3 <b className="tabular-nums text-text-normal">{fmtPct(r?.lastN_avg_pts ?? 0)}</b></span>
+              <span>Form{formWindow ? ` (last ${formWindow})` : ""} <b className="tabular-nums text-text-normal">{formWindow ? fmtPct(r?.lastN_avg_pts ?? 0) : "—"}</b></span>
             </div>
           </>
         );

@@ -8,6 +8,19 @@ import type { StatsMatch, StatsScope } from "../../api/types";
 import type { StatsMode } from "./statsMode";
 import { fmtAvg, fmtRating } from "../../utils/format";
 
+/**
+ * **Form** = points per match over a player's last `FORM_LAST_N` finished matches,
+ * of the same matches the surface is describing (its Mode and Source).
+ *
+ * One number, one window, everywhere it is shown (A9): the stats Player tab reads
+ * 12 and the profile's Stats tab read 3, while a comment on the profile claimed
+ * the two matched. 12 is the sparkline Roli actually reads on a player, and in
+ * this group's round-robins it is roughly the dashboard's "last 3 tournaments"
+ * measured in matches instead of nights. Fewer than 12 played is not a penalty —
+ * the backend divides by the matches that exist (`compute_overall_and_lastN`).
+ */
+export const FORM_LAST_N = 12;
+
 export type Row = {
   id: number; name: string; pts: number; rating: number;
   played: number; wins: number; draws: number; losses: number;
@@ -24,8 +37,8 @@ export function useStandings(mode: StatsMode, scope: StatsScope) {
   // Form comes from the same Source the rest of the row does (A4): the two halves
   // of a table row must never describe different sets of matches.
   const playersQ = useQuery({
-    queryKey: qk.stats.players(mode, 12, scope),
-    queryFn: () => getStatsPlayers({ mode, lastN: 12, scope }),
+    queryKey: qk.stats.players(mode, FORM_LAST_N, scope),
+    queryFn: () => getStatsPlayers({ mode, lastN: FORM_LAST_N, scope }),
     placeholderData: keepPreviousData, staleTime: 30_000,
   });
   const formById = useMemo(() => {

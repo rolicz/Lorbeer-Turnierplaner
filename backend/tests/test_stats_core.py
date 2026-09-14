@@ -3,10 +3,12 @@ import datetime as dt
 
 from app.models import Match, MatchSide, Player
 from app.services.stats.core import (
+    compute_overall_and_lastN,
     compute_player_standings,
     positions_from_standings,
     unique_winner_player_id,
 )
+from app.services.stats.odds import _player_aggs_from_overall
 from app.services.stats.registry import stats_overview
 from app.services.stats.streaks import Event, _best_and_current_run
 
@@ -120,3 +122,38 @@ def test_current_run_zero_when_last_fails_pred():
 def test_runs_empty_events():
     best, current = _best_and_current_run([], lambda e: True)
     assert best.length == 0 and current.length == 0
+
+
+# ---- Form window (A9) --------------------------------------------------
+def test_form_averages_the_matches_that_exist_not_the_window_size():
+    """Fewer than N played is not a penalty: Form is points *per match played*."""
+    p1, p2 = _player(1, "P1"), _player(2, "P2")
+    matches = [_match(([p1], 3), ([p2], 0)), _match(([p1], 2), ([p2], 1))]
+
+    per = compute_overall_and_lastN(matches, [p1, p2], lastN=12)
+
+    assert per[1]["lastN_pts"] == [3, 3]
+    assert per[1]["lastN_avg_pts"] == 3.0  # two wins is 3.0 form, not 6/12 = 0.5
+    assert per[2]["lastN_avg_pts"] == 0.0
+
+
+def test_form_window_is_capped_at_lastN():
+    p1, p2 = _player(1, "P1"), _player(2, "P2")
+    matches = [_match(([p1], 1), ([p2], 0)) for _ in range(5)]
+
+    per = compute_overall_and_lastN(matches, [p1, p2], lastN=3)
+
+    assert per[1]["lastN_pts"] == [3, 3, 3]
+    assert per[1]["lastN_avg_pts"] == 3.0
+
+
+def test_odds_keeps_its_own_shrinkage_towards_the_window_size():
+    """The model's prior ("one match is not a favourite") is unchanged by the above."""
+    p1, p2 = _player(1, "P1"), _player(2, "P2")
+    matches = [_match(([p1], 3), ([p2], 0))]
+
+    per = compute_overall_and_lastN(matches, [p1, p2], lastN=10)
+    aggs = _player_aggs_from_overall(per, 10)
+
+    assert per[1]["lastN_avg_pts"] == 3.0          # what a person is shown
+    assert aggs[1].lastN_avg_pts == 3 / 10         # what the odds model uses
