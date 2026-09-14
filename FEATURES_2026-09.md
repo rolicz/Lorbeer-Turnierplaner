@@ -5767,7 +5767,7 @@ tests passed**; `npm run build` green. No backend change, so no `make test` / `m
 
 ---
 
-## A8 — Design-canon breaches, and the canon's own rot  ☐
+## A8 — Design-canon breaches, and the canon's own rot  ☑
 
 **Breaches** (each is `DESIGN.md` law, and each is one file):
 1. **The H2H matrix paints itself with hard-coded HSL ramps** (`pages/stats/H2HView.tsx:33-47`,
@@ -5817,7 +5817,165 @@ tests passed**; `npm run build` green. No backend change, so no `make test` / `m
 "last checked" line updated; `npm run check` + build; screenshots for the matrix ramp in both
 themes.
 
-**Deviations:**
+**Deviations:** (implemented 2026-09-14 on `feature/2026-09-audit`)
+
+Every breach was reproduced in a real browser before it was touched and re-shot after, against
+an isolated stack (backend :8003 on a **copy** of the dev DB, vite :8020, scratch secrets), at
+390px and 1280px in `blue` and `light`; the two token items were measured in **all five** themes.
+One item changed sides — half of breach 4 is rot, not a breach — and it is argued below rather than
+quietly converted; nothing else moved between the two halves in either direction.
+
+**Breach 1 — verified, ticked, not touched.** A6 moved the matrix onto `.h2h-cell` exactly as the
+item asks: the component passes a hue (`--h2h-h`) and a 0..1 strength (`--h2h-t`), the tint and the
+ink that reads on it live in `styles.css` with one `[data-theme="light"]` override, and `text-white`
+is gone. Re-shot at 390px in both themes (`h2h-blue-390.png`, `h2h-light-390.png`): light tiles take
+dark ink, dark tiles light ink, and the ramp still reads red→green across the grid.
+
+**Breach 2 — the Player view joins the page it lives on.** Five `card`s with their own `<h2>`
+became five `StatsSection`s (Key numbers · Profile net · Club stars · Streaks · Match history), the
+density switch became the section's `action`, and the identity block stays a `card` — the one card
+§6 allows a sub-view, the same one the matchup header is. The profile's Stats tab was the *other*
+half of the finding: its "Strengths relative to the field." moved from under the radar into the
+explainer slot, so the two renderings of those three blocks are now identical rather than merely
+similar, which is what the item was really complaining about.
+
+**Breach 3 — three hand-rolled boxes.** The two trend plots are `inset p-2`; the notification
+popover is `card p-0 shadow-pop backdrop-blur-md`, which is what §3/§4 already say a floating panel
+is and what the stats filter popover already did.
+
+**Breach 4 — one half fixed, one half reclassified as rot (argued).** `ClubPicker`'s two group
+labels really were uppercase headings inside a card competing with nothing; they are sentence-case
+`text-sm font-semibold text-text-normal` now, and the sheet gained the hierarchy it was missing.
+`live/OverviewSection`'s `# PLAYER P GD PTS` line is **not** a breach: it is a row of *column
+headers*, the same job the app's two real `<thead>`s (stats Table, a cup's per-player table) do in
+exactly this style, and the only thing separating it from them is that its rows are `<div>`s rather
+than `<td>`s. Lower-casing it would have made one job look two ways in two places — the defect
+breach 2 exists to remove — so the code stands and §6's wording is what changed: uppercase is for
+`section-label` and for a row of column headers, real `<thead>` or pseudo-`<thead>`, while a
+*group* heading inside a card (a league, "Recent") is sentence case. Verified on the screen: the
+`STANDINGS` label and the column line read as label + legend, not as two headings.
+
+**Breach 5 — ten states, not nine.** The five loading states and four empty states the item lists
+now go through `InlineLoading` / `EmptyState`, plus one the audit missed in a file already being
+touched (`ClubsPage`'s "No clubs match the current filters."). The bell's single string switching
+on `isLoading` became the two different components it always was.
+
+**Breach 6 — one `RecordLine`, and "1 games together" with it.** `DuoDetail`'s two hand-rolled `·`
+lines are one `RecordLine` (played · W-D-L · goals · GD · ppm) sized by `recordWidths([duo])` — the
+primitive its sibling `DuoLeaderboard` uses six pixels above it. The wrong singular goes away
+because a record line's unit is `P`, which has no plural to get wrong; A7 left the string here for
+exactly this reason. Measured at 390px: 80px wide in a 334px column, no wrap, no overflow.
+
+**Breach 7 — the guestbook became a feed.** One `card p-0`: header row (name + count + the unread
+pill and "Read all", which used to float above the feed in a row of their own), messages as level-2
+`inset` rows, `CommentSendRow` on the card's bottom edge behind a hairline, sticky. Measured at the
+end of the feed: composer bottom to card bottom = **1px** (the border) at 390px *and* at 1280px —
+A7's "settles flush" for the comments composer, now true here too. With the root message an `inset`,
+a reply inside it would have been inset → inset, so a reply is flat and tighter on the card's own
+surface behind a `border-l-2 border-accent/25` rule, the depth cue S10 gave comments; the inline
+reply editor lost its own `inset` for the same reason. `guestbook-entry-<id>` anchors and their
+`scroll-mt` are untouched, so U3's deep link and "jump to unread" still land.
+
+**Breach 8 — the canon gets *two* state tokens, not one (judgement call).** `--color-error` and
+`--color-warn`, in `defaults.css` + `light.css`, mapped in `tailwind.config.cjs`. One token could
+not carry the item's own list honestly: painting "Reconnecting" red makes a transient state louder
+than "Offline" (which is deliberately muted, T10) and puts a second red dot in the chrome that
+already carries the live one. A reconnecting socket is not an error, it is a warning — and the
+audit's own sibling task added a second caller for that meaning while A8 was unstarted: A2's
+"someone else changed this match" banner, `border-draw/40 bg-draw/10 text-draw`, the identical bend
+one file over. So: error = something failed or is about to be destroyed (the H2H panel's load
+failure, the denied push permission, the push error box, the toast icon — which had invented a
+third answer out of `--delta-down` — and `ConfirmDialog`'s danger block); warn = attention, nothing
+failed (the connection indicator, the conflict banner).
+
+`ConfirmDialog` was not on the item's list and is moved anyway: its own comment already called that
+box "the app's danger idiom", it is pixel-identical to the push error box beside it, and leaving the
+same red box written two ways is the drift this task exists to end. A deleted tournament is not a
+defeat. Said plainly here because it is scope the plan did not name.
+
+Contrast, measured in the browser per theme (text on the surface it actually sits on):
+
+| theme | `--color-error` | on `card` | on `inset` | on `bg-error/10` | `--color-warn` | on `card` | on `inset` | on `bg-warn/10` |
+|---|---|---|---|---|---|---|---|---|
+| blue | `248 113 113` | 6.02:1 | 4.85:1 | 5.27:1 | `251 191 36` | 9.98:1 | 8.04:1 | 8.17:1 |
+| dark | `248 113 113` | 6.70:1 | 5.86:1 | 5.91:1 | `251 191 36` | 11.10:1 | 9.71:1 | 9.22:1 |
+| red | `248 113 113` | 6.74:1 | 6.10:1 | 5.90:1 | `251 191 36` | 11.18:1 | 10.11:1 | 9.21:1 |
+| green | `248 113 113` | 6.06:1 | 4.89:1 | 5.30:1 | `251 191 36` | 10.04:1 | 8.10:1 | 8.14:1 |
+| light | `185 28 28` | 6.47:1 | 5.99:1 | 5.45:1 | `146 64 14` | 7.09:1 | 6.57:1 | 6.08:1 |
+
+(light also on the page ground: error 5.43:1, warn 5.95:1.) Light's warn is amber-**800**, one step
+past `--color-draw`: draw's amber-700 is 4.21:1 on the ground and 4.39:1 on its own tint — enough
+under a single numeral in a W-D-L run, not enough under the two-line paragraph a warning is. The
+dark themes resolve error/warn to the same red and amber as loss/draw today, so **nothing moved
+visually in four themes**; that is the point — the code now says what it means, and a theme can move
+one family without the other. Shot in all five themes with the toast open and the socket stubbed
+dead: the indicator reads `rgb(251,191,36)` in blue/dark/red/green and `rgb(146,64,14)` in light.
+
+**Breach 9 — a flag is a rectangle.** `rounded-[2px]` is gone; the scale's smallest step (6px)
+would round a 14×10.5px flag into a lozenge, so it takes no radius rather than a wrong one. It was
+the last arbitrary radius in `src/` (`grep -r "rounded-\["` → 0).
+
+**Canon rot — the `live` token: pointed, not deleted.** `.live-dot` / `.live-ping` read
+`--color-live`, and `--live-indicator` is deleted. Deleting the token instead would have kept a
+private variable that `light.css` was never going to learn about; pointing the class at the token
+answers the light-theme question in the same move — **a light-theme live dot is now red-600
+(`220 38 38`), not red-500** — because light already overrides `--color-live` for exactly this
+reason (A6 set it to clear 4.5:1 as text on white). Verified per theme: `rgb(239,68,68)` in
+blue/dark/red/green, `rgb(220,38,38)` in light.
+
+**Canon rot — §7's `List`/`ListRow` rule: the pattern that won is blessed, with a line between
+them.** The primitive is not wrong, its scope was: `ListRow` is leading · title · subtitle ·
+trailing, and 13 files whose rows carry a `ScoreLine`, a `MatchSides` block or a `RecordLine` under
+a name are right to build their own. §7 now has two rows instead of one, and the second one is
+explicit that only the *shape* is free — the mechanic is not: `list-divided` container, `relative`
+row, one stretched `<button>`/`<Link>` (`absolute inset-0 z-0 rounded-xl focus-ring`) with an
+`aria-label` naming what it opens, content `pointer-events-none relative z-10`, real controls
+`pointer-events-auto` above it; never `role="button"` on a `<div>`, never a button inside the row's
+own hit area. That is A6's restructured match row described as it now stands, and `MatchList.tsx`
+is named as the worked example. §10's "Do prefer `ListRow`" line was rewritten to match.
+
+**The rest of the canon rot** — `DESIGN.md` changed, the code did not:
+- §4 spacing: the "`space-y-5` between page sections" claim is replaced by what is actually there
+  (`space-y-3` inside cards *and* between a page column's blocks — that is what `.page` is;
+  `space-y-4` between the sections of a view that stacks several; `space-y-5` only in the five
+  places whose sections are themselves long lists).
+- §5 `font-mono`: "date pills, odds and compact W-D-L" → **fixed-width numeric tokens**, with the
+  practice enumerated (ppm, ranks, the positions grid and its legend, streak patches, the constants
+  inside an explainer) and the limit named (never a sentence, a name, or a value alone in prose).
+- §5 scale: `text-xl` added as the page `h1` and only there; `text-3xl` removed — it has no callers
+  and a hero score is `text-4xl` at every width.
+- §3 `CardSection`: it takes `title`, `actions`, `padded` and `className`, not only `padded`.
+- The header's "no `text-[Npx]`" line: corrected to name §5's own geometry exception
+  (`NationFlag`'s two flag-glyph sizes), which is the only one left.
+- §7's avatar-ring list: H2H dropped (its Players/Duos views render no avatars at all); the matchup
+  header, which does, is named instead.
+- §2: `--live-indicator` removed from the "existing families" line, with the reason; `--color-live`'s
+  row now names `.live-dot` / `.live-ping` as its callers.
+- §6: the uppercase rule (above), plus a line saying the identity `card` at the top of a sub-view is
+  the one card allowed, so nobody "fixes" it away.
+- §9b: the guestbook feed named alongside the comments feed, with the reply surface spelled out.
+- §1.4 and `AGENTS.md`'s DESIGN.md line now say result-vs-state in one breath.
+- `.pos-good`: **no change to either**, and nothing in `DESIGN.md` ever claimed otherwise. It is one
+  of five discrete stops on a ramp whose legend happens to show four; a vocabulary that skips "good"
+  between "best" and "mid" is worse than an unused class. `styles.css` now says so in a comment.
+
+**Found while working, reported, not fixed** (none of them A8's list):
+- **`window.confirm` for three destructive actions** — `ClubsPage:512` (delete club),
+  `GuestbookEntryCard:201` (delete message and its replies), `TournamentCommentsCard:308` (delete
+  comment) — plus six non-destructive ones. §7 says "**Never** `window.confirm` for a destructive
+  action", so this is a real breach the audit missed, not rot: the rule is right and A10 reaffirmed
+  it. It needs `ConfirmDialog` plumbing in three files (which row is pending) and is bigger than
+  anything in A8; it wants its own task.
+- `VoteVotersModal:68` paints a thumbs-**down** icon `text-loss`. Same family as breach 8, but a
+  vote's up/down really is a two-sided verdict, so it is the least wrong of the borrowings; left.
+- `MatchupView.tsx:51-52` keeps `bg-draw/15 … ring-draw/30` — those *are* results (W/D/L badges).
+
+**Verification.** `cd frontend && npm run check` → typecheck + eslint clean, **52 files / 503 tests
+passed**; `npm run build` green (the pre-existing >500 kB chunk hint unchanged). No backend change,
+so no `make test` / `make lint` / `make gen-types`. Closing sweep of 21 routes × 2 widths × 2 themes
+plus the five-theme token runs: zero console errors, zero page errors, zero failed requests, zero
+horizontal overflow, zero nested anchors/buttons. Screenshots (matrix ramp in both themes, and
+before/after for every visual item) live in the session scratchpad.
 
 ---
 

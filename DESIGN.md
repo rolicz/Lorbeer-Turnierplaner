@@ -5,10 +5,13 @@
 > (project knowledge). Created 2026-09-12 after a full audit of the frontend (see
 > `FEATURES_2026-09.md` § "Design audit findings").
 >
-> Last checked against the code: **2026-09-13** (D1, after DS1–DS8/S6–S10). Every claim below
-> was re-verified by grep at that point: no retired surface class is defined or used, no
-> `text-[Npx]`, no raw Tailwind palette class outside `src/themes/`, `rounded-lg` only inside
-> `SegmentedSwitch`, and no hand-rolled `section-head` in `pages/stats`.
+> Last checked against the code: **2026-09-14** (A8, the Round 6 audit's canon pass — every
+> claim below was re-read against the code it describes, and the ones that had drifted are
+> corrected here rather than enforced against a practice that won on merit). Verified at that
+> point: no retired surface class is defined or used, no raw Tailwind palette class outside
+> `src/themes/`, `rounded-lg` only inside `SegmentedSwitch`, no arbitrary `rounded-[Npx]` and no
+> arbitrary `text-[Npx]` except `NationFlag`'s two flag-glyph sizes (§5's own exception), and no
+> hand-rolled `section-head` in `pages/stats`.
 
 ## 1. Principles
 
@@ -18,8 +21,9 @@
    grouping, not decoration. Whitespace separates, borders only where a surface needs an edge.
 3. **Numbers are the hero.** Scores, points and records are big, tabular, unboxed. Everything
    around them is quiet.
-4. **Semantic colour only through tokens.** Win/draw/loss, live, positive/negative, status and
-   accent come from theme variables so every theme (blue, dark, red, light, green) reads right.
+4. **Semantic colour only through tokens.** Win/draw/loss, live, error/warn, positive/negative,
+   status and accent come from theme variables so every theme (blue, dark, red, light, green)
+   reads right — and each token means one thing, so nothing borrows a neighbour's (§2).
    Raw Tailwind palette classes (`text-amber-300`, `bg-red-500/15`, …) are forbidden in
    components.
 5. **One icon set:** lucide-react. No Font Awesome.
@@ -33,7 +37,10 @@
 Existing families stay: `bg-default / bg-card-outer / bg-card-inner / bg-card-chip`,
 `text-normal / text-chip / text-muted`, `border-card-outer / -inner / -chip`, `accent`,
 `btn-*`, `hover-*`, `status-*` (green = live/playing, blue = draft/scheduled, default = neutral),
-`delta-up / delta-down`, `live-indicator`, gradients.
+`delta-up / delta-down`, gradients. (`--live-indicator` is gone: it was a private copy of
+`--color-live` that `light.css` never overrode, so a light-theme live dot stayed red-500 on a
+near-white page while the token beside it already knew better. `.live-dot` / `.live-ping` read the
+token — A8.)
 
 **New semantic tokens (defined in `defaults.css`, overridden in `light.css`):**
 
@@ -42,12 +49,24 @@ Existing families stay: `bg-default / bg-card-outer / bg-card-inner / bg-card-ch
 | `--color-win` | `text-win`, `bg-win/…` | a win for the focused side | `74 222 128` (green-400) | `21 128 61` (green-700) |
 | `--color-draw` | `text-draw`, `bg-draw/…` | a draw | `251 191 36` (amber-400) | `180 83 9` (amber-700) |
 | `--color-loss` | `text-loss`, `bg-loss/…` | a loss | `248 113 113` (red-400) | `185 28 28` (red-700) |
-| `--color-live` | `text-live`, `bg-live/…` | live/playing marker (= `--live-indicator`) | `239 68 68` | `220 38 38` (red-600, ≥4.5:1 as text on white) |
+| `--color-live` | `text-live`, `bg-live/…`, and `.live-dot` / `.live-ping` | live/playing marker | `239 68 68` (red-500) | `220 38 38` (red-600, ≥4.5:1 as text on white) |
 | `--color-cup-gold` | (inline, via `cupColors.ts`) | the Lorbeerkranz's colour | `251 191 36` (amber-400; green theme `245 208 90`) | `166 74 12` (dark amber) |
 | `--color-cup-green-dark` | (inline, via `cupColors.ts`) | the Bauernkranz's colour | `21 128 61` (green-700) | `22 116 55` |
+| `--color-error` | `text-error`, `bg-error/10`, `border-error/40` | something failed, or is about to be destroyed | `248 113 113` (red-400) | `185 28 28` (red-700) |
+| `--color-warn` | `text-warn`, `bg-warn/10`, `border-warn/40` | attention, but nothing failed | `251 191 36` (amber-400) | `146 64 14` (amber-800) |
 
 Soft backgrounds are always the token at low alpha (`bg-win/15`, `bg-loss/15`), never a second
 token. `delta-up`/`delta-down` stay for numeric deltas (ratings, form).
+**A message is not a result** (A8). `win`/`draw`/`loss` answer "how did this match go", and each
+has to stay readable *next to the other two* in a `W-D-L` run; `error`/`warn` answer "is anything
+wrong", and each has to stay readable as a **sentence** on a card, on an `inset` and on its own
+10% tint. Two jobs, two families: an error message, a denied permission, a failed load and the
+body of a delete confirmation are `error`; a reconnecting socket and the "someone else changed
+this" banner are `warn`. Nothing that is not a match result may reach for a result token, and
+nothing that is not broken may reach for `error` — the connection indicator spent a release
+painted `draw`, which is how this rule came to be written down. In the dark themes `error`/`warn`
+resolve to the same red and amber as `loss`/`draw`; that is a coincidence a theme is free to
+break, which is the point of their being separate variables.
 **A cup's colour is a token of its own** (`src/cupColors.ts` maps cup key → token): it is worn as
 text (the holder's name), as a ring and as a dot, so it may never borrow a medal gradient or a
 status colour, which move for other reasons.
@@ -64,6 +83,12 @@ part of that background:
 | `--color-btn-text` | `255 255 255` on the teal `--color-btn-bg` | `12 10 9` | 2.49:1 → 7.94:1 (the teal itself is unchanged) |
 | `--color-cup-gold` | `251 191 36` | `166 74 12` | 1.90:1 → 4.89:1 |
 | `--color-cup-green-dark` | `21 128 61` | `22 116 55` | 4.21:1 → 4.91:1 |
+| `--color-error` | `248 113 113` (red-400) | `185 28 28` | 2.19:1 → 5.43:1 (5.45:1 on `bg-error/10`) |
+| `--color-warn` | `251 191 36` (amber-400) | `146 64 14` | 1.84:1 → 5.95:1 (6.08:1 on `bg-warn/10`) |
+
+The state tokens go one step further than `draw` does: `180 83 9` is 4.21:1 on the ground and
+4.39:1 on a 10% tint, which is enough under a single numeral in a `W-D-L` run and not enough
+under the two-line paragraph a warning is — so light's `warn` is amber-800 (A8).
 
 ## 3. Surfaces (three levels, `styles.css`)
 
@@ -80,9 +105,11 @@ Retired and **deleted** (DS1 + DS3, 2026-09-13): `card-outer`, `card-inner`, `ca
 `sheet-shell`, `nav-link*`, `main-nav-*`, `subnav-*`, `page-slide-*`, `symbol-margin-to-text`,
 `accent-text`, `text-subtle`, `page-x-bleed`, `pill-green`, `accent`, `icon-button`.
 `Card` and `CollapsibleCard` take `variant="card" | "inset" | "none"` (plus
-`bodyVariant` on the collapsible); `CardSection` **is** an `inset` and only takes `padded`;
-`Modal` is always a `card` on a scrim. `card` and `inset` bring their own `p-3` — write
-`inset p-0` (or `card p-0`) where the box's children already carry the padding (avatars,
+`bodyVariant` on the collapsible); `CardSection` **is** an `inset` — it takes an optional `title`
+and `actions` (rendered as one `text-sm font-semibold` row, §6), `padded` (off ⇒ `p-0`, for a box
+whose children bring their own padding) and `className`, and nothing that would let it be a
+different surface; `Modal` is always a `card` on a scrim. `card` and `inset` bring their own
+`p-3` — write `inset p-0` (or `card p-0`) where the box's children already carry the padding (avatars,
 collapsible headers, tight rows).
 
 **Light theme, level 2 vs level 3.** In `light.css` `--color-bg-card-chip` is pure *white*:
@@ -102,12 +129,20 @@ while `chip`, `.input-field` and `.select-field` stay white. Dark themes are una
   `SegmentedSwitch` gives its segments and its sliding indicator `rounded-lg` (8px) inside
   the `rounded-xl` track, because a control nested in a 12px box with 4px of padding cannot
   repeat that radius without cutting the track's corners. Nothing else may use `rounded-lg`.
+  An image that *is* a rectangle takes no radius rather than an off-scale one: `NationFlag`'s
+  14×10.5px flag glyph used to carry `rounded-[2px]`, and the scale's smallest step (6px) would
+  round it into a lozenge, so it is simply square (A8).
 - Directional radii are for partial edges only and follow the scale of the box they belong to
   (`rounded-b-2xl` on a collapsible card's body, `rounded-t` on the positions grid's sticky
   header, `rounded`/`rounded-r` on 2px accent bars and progress fills). Never use one to give a
   whole box an off-scale radius.
-- Spacing rhythm: `gap-2` inside rows, `gap-3` between elements, `space-y-3` inside cards,
-  `space-y-5` between page sections. Page padding via `--page-pad-x`.
+- Spacing rhythm: `gap-2` inside rows, `gap-3` between elements, `space-y-3` inside cards **and
+  between the blocks of a page column** (that is what `.page` is), `space-y-4` between the
+  sections of a view that stacks several of them (the dashboard, a stats sub-view, a form),
+  `space-y-5` only where those sections are themselves long lists and need the air (H2H's two
+  sub-views, the match-history groups, the profile overview, a tournament's admin panel). Page
+  padding via `--page-pad-x`. (The canon used to claim `space-y-5` "between page sections"; it
+  was never that — A8.)
 - **Page rhythm (T10).** A page's title row — back chevron · `h1` · meta · actions, `hidden
   lg:flex`, a fixed 2rem tall — belongs to `PageLayout` and sits *outside* the content column,
   so a phone starts every page at `main`'s padding alone (16px under the top bar; 72px from the
@@ -121,15 +156,21 @@ while `chip`, `.input-field` and `.select-field` stay white. Dark themes are una
 ## 5. Typography
 
 Tailwind scale only: `text-xs` (12) meta/labels · `text-sm` (14) body/rows · `text-base` (16)
-emphasised body · `text-lg` (18) card titles, names next to scores · `text-2xl` (24) stat values
-· `text-3xl`/`text-4xl` (30/36) hero scores. One extra utility `.text-micro` (10px, semibold) for
-text that is a *marker* rather than prose: badges, superscript counters, unit captions
-(`pts`, `ppm`), fixed-width indicators (▲/▼, W/D/L letters) and the bottom tab bar's labels,
+emphasised body · `text-lg` (18) card titles, names next to scores · `text-xl` (20) the page
+`h1`, and only there (`PageLayout`'s desktop title row) · `text-2xl` (24) stat values ·
+`text-4xl` (36) hero scores. (`text-3xl` has no callers: a hero score is `text-4xl` at every
+width — A8.)
+One extra utility `.text-micro` (10px, semibold) for text that is a *marker* rather than prose:
+badges, superscript counters, unit captions (`pts`, `ppm`), fixed-width indicators (▲/▼, W/D/L letters) and the bottom tab bar's labels,
 which do not fit at 12px. Never for a sentence or a value the reader must read carefully.
 **No other arbitrary `text-[Npx]`** — except where the size *is* geometry rather than type
 (`NationFlag` sizes the flag glyph itself in em).
-Numbers: `tabular-nums` always. `font-mono` only for date pills, odds and compact `W-D-L`
-strings. Weights: `font-medium` default emphasis, `font-semibold` titles, `font-bold` numerals.
+Numbers: `tabular-nums` always. `font-mono` is for **fixed-width numeric tokens** — a number or
+short code the reader scans down a column or reads as one token rather than as prose: date pills,
+odds, `W-D-L` strings, `ppm`, ranks, the positions grid's tiles and legend, streak patches, and
+the constants quoted inside an explainer (`K=24`, `1000`). Never for a sentence, a name or a
+value that stands alone in running text. (The canon used to list only the first three — A8.)
+Weights: `font-medium` default emphasis, `font-semibold` titles, `font-bold` numerals.
 
 ## 6. Section headers
 
@@ -145,7 +186,13 @@ strings. Weights: `font-medium` default emphasis, `font-semibold` titles, `font-
   bare `section-label` next to its control — no `section-head`, no hairline.
 
 Never two of these for the same block. **No uppercase labels inside a card or an `inset`** —
-uppercase is reserved for `section-label` and for table column headers (`<thead>`).
+uppercase is reserved for `section-label` and for a row of **column headers**: a real `<thead>`
+(the stats table, a cup's per-player table) or the pseudo-`<thead>` line above a column-aligned
+list built from rows rather than `<td>`s (the live Overview's mini standings). Those are a legend
+for the columns under them, not a heading, and writing the same job two ways in two places is
+worse than the rule they bend. A **group** heading inside a card — a league group in the club
+picker, "Selected" / "Recent" — is not that: it is sentence case, `text-sm font-semibold
+text-text-normal` (A8).
 
 ### Stats sub-view skeleton
 
@@ -168,7 +215,12 @@ Matchup, Player) is built from the same block, so the sections read as one page:
   are *not* cards: on the page's own surface the hairline and the grid gap separate them
   (§1.2), and a card per group would box every number on the page.
 - Rows are the shared primitives, never a local copy: a match row is `ScoreLine` (§8) with its
-  meta line under it, a key number is `StatTile`, an identity is `AvatarCircle` + `PlayerLink`.
+  meta line under it, a key number is `StatTile`, an identity is `AvatarCircle` + `PlayerLink`,
+  and a played/W-D-L/goals/GD line is `RecordLine` — the duo detail spelled its own with `·`
+  separators for a while and told you "1 games together" for its trouble (A8).
+- The one `card` allowed inside a sub-view is the block that **names whose numbers these are** —
+  the matchup's two-player header, the Player view's identity row. Everything under it is a
+  `StatsSection` on the page's own surface, not a stack of cards (A8).
 - One empty state (`EmptyState`) and one loading state (`InlineLoading label="Loading…"`) per
   sub-view; a block that is empty inside a filled sub-view renders a compact `EmptyState` in
   place of its rows.
@@ -191,11 +243,12 @@ Matchup, Player) is built from the same block, so the sections read as one page:
 | Writing a comment | `CommentComposer` (`pages/live/comments/`) | one chat row *inside* the feed's card, attached to its bottom edge behind a hairline and sticky, so it floats over the feed while reading and settles flush at the end (T3); scope + author are chips above the field, goal/shots swap the row in place. The guestbook's composer is the same row (`CommentSendRow`) at the end of its feed |
 | Key number | `StatTile` | `inset` + `text-2xl font-bold tabular-nums` value + `text-xs` muted label |
 | A row's record (`3P 3-0-0 14:6 GD +8`) | `RecordLine` | the only way to print played / W-D-L / goals / GD under a name. Fixed columns, not `·` separators: `recordWidths(rows)` once per list sizes every track to that list's widest value, so segment *k* starts at the same x in every row (T14). The separators survive as `sr-only` text; the on-screen gap is `gap-2`. `RecordNum` is the bare fixed-width numeral for a column outside the line. A real `<table>` (the stats table, the dashboard preview) already aligns its columns and does not use it |
-| Lists | `List` / `ListRow` | hairline rows, stretched link |
+| A list of one-line rows | `List` / `ListRow` | leading · title · subtitle · trailing, hairline separators, and the row's action as a **stretched overlay** (`absolute inset-0 z-0`) so `trailing` can hold its own buttons without nesting one control in another. Reach for it whenever the row fits that shape (players admin, tournaments, nav-ish lists) |
+| A list of rows that carry a primitive | `list-divided` + the row the page writes itself | A `ScoreLine`, a `MatchSides` block, a `RecordLine` under a name, a two-line standings row: these are not "title + subtitle + trailing", and squeezing them through `ListRow`'s slots costs more than it saves — 13 files build their own rows and that is **correct** (A8). What is *not* optional is the mechanic: the container is `list-divided`, and an interactive row copies `ListRow`'s pattern exactly — `relative` row, one stretched `<button>`/`<Link>` (`absolute inset-0 z-0 rounded-xl focus-ring`) carrying an `aria-label` that names what it opens, the content `pointer-events-none relative z-10`, and any real control inside it `pointer-events-auto` above the overlay (`pages/live/MatchList.tsx` is the worked example, A6). Never `role="button"` on a `<div>`, never a hand-rolled keydown handler, never a button inside the row's own hit area |
 | Empty / loading | `EmptyState`, `InlineLoading` (lucide `Loader2` spinner), `LoadingPlaceholder` |
 | Overlay | `Modal` (card on scrim, full-screen sheet on mobile) |
-| Confirming a delete | `ConfirmDialog` | a `Modal` whose body *names what is lost* (match count, the cups that move, a friendly's two sides and date) in the `border-loss/40 bg-loss/10 text-loss` idiom, then Cancel + the verb. **Every** delete confirms, an admin's too (A10) — deleting is allowed even when real results hang off the row. Never `window.confirm` for a destructive action |
-| Identity | `AvatarCircle`, `ClubBadge`, `NationFlag`, `CupOwnerBadge` (lucide `Crown`) | `AvatarCircle` is the only avatar, and it always wears a ring: a 1px neutral hairline by default (decoration — it gives the disc an edge on a white card as well as a dark page), or, given `cups`, a 2.5px ring in the cup's colour (a conic split for two). **Colour is the information and its tense is always "today"** (T15): a cup ring means this player holds that cup *right now* — `useCupHolders` is where that answer comes from. Historic ownership is never a ring. **One tense per screen:** the ring is worn only where the surface is about now — the Players page, a profile, the stats leaderboards (Table, Records, Streaks, Cups, H2H, matchup header, Player) and the dashboard cups preview. **Inside a tournament** — its standings/results, the What-if table, its match lists, the Overview's blocks, and the Positions grid of past tournaments — every avatar keeps the neutral hairline, because that screen is about a past or ongoing event and a present-tense ring would read as "held it back then"; cup information there has exactly one carrier, the standings' `CupOwnerBadge` crown ("owned it going into this tournament"). Comment authors, guestbook entries and pickers get no cup marking at all. The ring is drawn inside the avatar's own box, so adopting it never moves the layout |
+| Confirming a delete | `ConfirmDialog` | a `Modal` whose body *names what is lost* (match count, the cups that move, a friendly's two sides and date) in the danger idiom — `border-error/40 bg-error/10 text-error`, the `error` token and never `loss`, because a deleted tournament is not a defeat (§2, A8) — then Cancel + the verb. **Every** delete confirms, an admin's too (A10) — deleting is allowed even when real results hang off the row. Never `window.confirm` for a destructive action |
+| Identity | `AvatarCircle`, `ClubBadge`, `NationFlag`, `CupOwnerBadge` (lucide `Crown`) | `AvatarCircle` is the only avatar, and it always wears a ring: a 1px neutral hairline by default (decoration — it gives the disc an edge on a white card as well as a dark page), or, given `cups`, a 2.5px ring in the cup's colour (a conic split for two). **Colour is the information and its tense is always "today"** (T15): a cup ring means this player holds that cup *right now* — `useCupHolders` is where that answer comes from. Historic ownership is never a ring. **One tense per screen:** the ring is worn only where the surface is about now — the Players page, a profile, the stats leaderboards (Table, Records, Streaks, Cups, the H2H matchup's header, Player) and the dashboard cups preview — H2H's own Players/Duos views render no avatars at all, though the canon used to list them (A8). **Inside a tournament** — its standings/results, the What-if table, its match lists, the Overview's blocks, and the Positions grid of past tournaments — every avatar keeps the neutral hairline, because that screen is about a past or ongoing event and a present-tense ring would read as "held it back then"; cup information there has exactly one carrier, the standings' `CupOwnerBadge` crown ("owned it going into this tournament"). Comment authors, guestbook entries and pickers get no cup marking at all. The ring is drawn inside the avatar's own box, so adopting it never moves the layout |
 | Identity → profile | `PlayerLink` | the only way an avatar/name becomes a link; hugs its text, stops click/Enter from bubbling so a row keeps its own action, `decorative` for an avatar that duplicates the name link. Never nest it in another `<a>` |
 | Stars | `Stars` (lucide `Star`/`StarHalf`, replaces `StarsFA`) |
 
@@ -314,7 +367,12 @@ An editor is not a section you unfold; it is the thing itself becoming editable.
   hairline and sticky, so it floats over the feed while you read and settles flush on the card's
   bottom edge at the end — never a second card floating next to the feed. Groups *inside* the
   feed (match blocks, day separators) are hairline-separated sections of that one card, not
-  cards of their own, so the rows inside them stay level-2 `inset` (§1).
+  cards of their own, so the rows inside them stay level-2 `inset` (§1). The app has **two**
+  feeds and they are built the same way: the tournament's comments and a profile's guestbook
+  (`pages/profile/GuestbookSection.tsx`, A8) — one `card p-0`, a header row naming the feed and
+  its count, the messages as `inset` rows, a reply flat and tighter on the card's own surface
+  behind a `border-l-2 border-accent/25` rule (a reply inside an `inset` would be inset → inset,
+  which §3 forbids), then the chat row on the bottom edge.
 - **Only the value a control writes may be prefilled.** A field means what it says: the goal
   entry's scorer is the footballer in the game, so it is never prefilled with a human player
   from this app. When a field is optional, say in one quiet line what happens if it stays
@@ -344,7 +402,12 @@ An editor is not a section you unfold; it is the thing itself becoming editable.
 - Do use `section-label` for flat page sections; don't invent new header styles.
 - Do open an editor from the value it edits; don't scatter one job across two places.
 - Do hide a *toolbox* behind one named disclosure; don't leave secondary tools on screen forever.
-- Do prefer `ListRow`; don't hand-roll `flex justify-between` rows with ad-hoc paddings.
+- Do use `ListRow` where a row is leading · title · subtitle · trailing, and `list-divided` +
+  your own row where it carries a `ScoreLine` or a `RecordLine`; either way the row's action is a
+  stretched overlay. Don't hand-roll `flex justify-between` rows with ad-hoc paddings, and never
+  make a `<div>` a `role="button"`.
+- Do say `text-error` / `text-warn` when something is wrong; don't borrow `text-loss` or
+  `text-draw`, which mean a match went a certain way.
 - Do let the page say the mode; don't print `1v1`/`2v2` on a match card that sits in a
   single-mode context.
 - Do check `light` and `blue` themes for every visual change.

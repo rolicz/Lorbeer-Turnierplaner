@@ -306,10 +306,13 @@ Other helpers: `seed --file backend/data/seed.json` (players/leagues/clubs upser
   ≥1024px; verify in a real browser (Playwright against an isolated stack on spare ports + DB
   copy) in both the `blue` and the `light` theme.
 - **Follow `DESIGN.md`** for anything visual: it is the canon for surfaces (`card`/`inset`/
-  `chip`), semantic colour tokens (`text-win/draw/loss`, `text-live` — never raw palette
-  classes), the radius/spacing/type scale, section headers and which primitive to use
-  (`ScoreLine` for every score, `StatTile`, `Chip`/`ChipGroup`, `Button`, `Pill`, `List`).
-  When the code and `DESIGN.md` disagree, the code is wrong.
+  `chip`), semantic colour tokens (`text-win/draw/loss` for a *result*, `text-live`,
+  `text-error`/`text-warn` for a *state* — never raw palette classes, and never a result token
+  for a message), the radius/spacing/type scale, section headers and which primitive to use
+  (`ScoreLine` for every score, `StatTile`, `Chip`/`ChipGroup`, `Button`, `Pill`,
+  `List`/`ListRow` for a one-line row, `list-divided` + your own row where it carries a
+  `ScoreLine`/`RecordLine`). When the code and `DESIGN.md` disagree, the code is wrong — unless
+  the canon is what drifted, in which case fix the canon and say so (A8).
 - **Identity is a link** (N4, 2026-09-13): a player's avatar/name opens `/profiles/<id>` through
   `ui/primitives/PlayerLink`, and a summary opens the detail it summarises (stats matchup, cup
   page, player stats). A row that already has an action keeps it — the identity link hugs its text
