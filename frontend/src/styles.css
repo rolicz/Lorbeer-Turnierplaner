@@ -337,6 +337,29 @@
   .pos-none { @apply border-border-card-inner/70 bg-bg-card-outer/30 text-text-muted; }
   [data-theme="light"] .pos-none { @apply border-border-card-inner bg-bg-card-inner text-text-muted; }
 
+  /* H2H matrix cells — the other micro-tile grid (DESIGN.md §4: the same thing at the
+     same size), on the same ramp as the positions grid above. The caller sets the hue
+     (`--h2h-h`: 0 = red … 120 = green for a verdict, 210 = blue where the number is a
+     magnitude) and the strength (`--h2h-t`, 0..1); the tint and the ink that reads on
+     it are written down here, once per theme. The cells used to paint themselves with
+     hard-coded HSL at 0.85 alpha and `text-white`, which is 2.2–4.0:1 in every theme
+     (A6/A8): a mid-tone tile can never carry white text. */
+  .h2h-cell {
+    --h2h-h: 210deg;
+    --h2h-t: 0.5;
+    background-color: hsl(var(--h2h-h) 70% 45% / calc(0.22 + var(--h2h-t) * 0.35));
+    color: hsl(var(--h2h-h) 85% 90% / 1);
+  }
+  [data-theme="light"] .h2h-cell {
+    background-color: hsl(var(--h2h-h) 75% 60% / calc(0.25 + var(--h2h-t) * 0.30));
+    color: hsl(var(--h2h-h) 85% 14% / 1);
+  }
+  /* Hover is an edge in the cell's own ink, not a brightness filter: a filter lifts the
+     text with the tile and eats the contrast the ramp just bought. */
+  @media (hover: hover) and (pointer: fine) {
+    .h2h-cell:hover { outline: 2px solid currentColor; outline-offset: -2px; }
+  }
+
   /* Page Layout */
   .page { @apply space-y-3; }
   .page-x { padding-left: var(--page-pad-x); padding-right: var(--page-pad-x); }

@@ -3,7 +3,7 @@
  *  backend's real duo stats (best_teammates_2v2 / team_rivalries_2v2) instead of a
  *  client-side recompute. The selected player is shared with the other sections. */
 import { HeartCrack, Smile } from "lucide-react";
-import { type ReactNode, useMemo, useState } from "react";
+import { type CSSProperties, type ReactNode, useMemo, useState } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 
 import Button from "../../ui/primitives/Button";
@@ -30,20 +30,20 @@ import type { H2HSub } from "./statsNav";
 import type { StatsMode } from "./statsMode";
 import type { StatsScope, StatsH2HPair, StatsH2HOpponentRow, StatsH2HDuo, StatsH2HTeamRivalry } from "../../api/types";
 
-function h2hTone(pct: number): string {
-  const t = Math.max(0, Math.min(1, pct / 100));
-  return `hsl(${t * 130} 60% 42% / 0.85)`;
-}
+/** A matrix cell's colour, as the two inputs the shared micro-tile ramp takes
+ *  (`.h2h-cell` in `styles.css`, the positions grid's mechanism — DESIGN.md §4):
+ *  a hue that carries the meaning and a 0..1 strength. The ramp itself, and the ink
+ *  that reads on it in each theme, belong to the stylesheet — a component that mixes
+ *  its own HSL has no way to know it is being painted on a light page. */
+const H2H_HUE_LOSS = 0; // red
+const H2H_HUE_WIN = 120; // green
+const H2H_HUE_NEUTRAL = 210; // blue: a magnitude, not a verdict
+/** Win-rate paints with the hue alone, so those cells all carry the same weight. */
+const H2H_VERDICT_STRENGTH = 0.7;
 
-function h2hSequential(t: number): string {
-  return `hsl(210 60% ${48 - t * 22}% / ${0.55 + t * 0.3})`;
-}
-
-function h2hDiverging(gd: number, maxAbs: number): string {
-  if (maxAbs === 0) return `hsl(0 0% 40% / 0.55)`;
-  const t = Math.max(-1, Math.min(1, gd / maxAbs));
-  if (t >= 0) return `hsl(130 55% ${46 - t * 18}% / ${0.55 + t * 0.3})`;
-  return `hsl(0 55% ${46 + t * 18}% / ${0.55 - t * 0.3})`;
+function rampStyle(hue: number, strength: number): CSSProperties {
+  const t = Math.max(0, Math.min(1, Number.isFinite(strength) ? strength : 0));
+  return { "--h2h-h": `${Math.round(hue)}deg`, "--h2h-t": t.toFixed(2) } as CSSProperties;
 }
 
 type HistoryModalState = { title: string; req: StatsH2HMatchesRequest; focusPlayerId: number | null };
@@ -162,13 +162,18 @@ export default function H2HView({ mode, scope, rows, subView, selectedId, onSele
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pairs, rows]);
 
-  const cellColor = (v: ReturnType<typeof cell>): string => {
-    if (!v) return "";
+  const cellRamp = (v: ReturnType<typeof cell>): CSSProperties => {
+    if (!v) return {};
     switch (matrixMetric) {
-      case "played": return h2hSequential(v.played / matrixRanges.maxPlayed);
-      case "rivalry": return h2hSequential(v.rivalry / matrixRanges.maxRivalry);
-      case "gd": return h2hDiverging(v.gd, matrixRanges.maxAbsGd);
-      default: return h2hTone(v.pct);
+      case "played": return rampStyle(H2H_HUE_NEUTRAL, v.played / matrixRanges.maxPlayed);
+      case "rivalry": return rampStyle(H2H_HUE_NEUTRAL, v.rivalry / matrixRanges.maxRivalry);
+      case "gd": {
+        if (matrixRanges.maxAbsGd === 0) return rampStyle(H2H_HUE_NEUTRAL, 0);
+        const t = Math.max(-1, Math.min(1, v.gd / matrixRanges.maxAbsGd));
+        return rampStyle(t >= 0 ? H2H_HUE_WIN : H2H_HUE_LOSS, Math.abs(t));
+      }
+      // Win %, W-D-L and PPM all read the same tone: red at 0%, green at 100%.
+      default: return rampStyle((Math.max(0, Math.min(100, v.pct)) / 100) * H2H_HUE_WIN, H2H_VERDICT_STRENGTH);
     }
   };
 
@@ -392,10 +397,10 @@ export default function H2HView({ mode, scope, rows, subView, selectedId, onSele
                           title={`${r.name} vs ${c.name} — open matches`}
                           aria-label={`${r.name} vs ${c.name}: ${v.w}-${v.d}-${v.l} — open matches`}
                           className={
-                            "focus-ring grid h-11 w-11 cursor-pointer place-items-center rounded-md text-xs font-semibold leading-none text-white transition hover:brightness-125 active:scale-[0.97] " +
+                            "h2h-cell focus-ring grid h-11 w-11 cursor-pointer place-items-center rounded-md text-xs font-semibold leading-none transition active:scale-[0.97] " +
                             (matrixMetric === "wdl" ? "tracking-tight" : "")
                           }
-                          style={{ backgroundColor: cellColor(v) }}
+                          style={cellRamp(v)}
                         >
                           {cellText(v)}
                         </button>
