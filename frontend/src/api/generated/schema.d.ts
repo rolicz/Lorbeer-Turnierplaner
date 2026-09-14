@@ -420,7 +420,8 @@ export interface paths {
          * Delete Club
          * @description Admin only:
          *       - deletes a club (team)
-         *       - refuses if club is referenced by any match side (to protect history)
+         *       - refuses if the club is used by any match, tournament or friendly (protects history)
+         *       - deletes its crest (row + file) with it
          */
         delete: operations["delete_club_clubs__club_id__delete"];
         options?: never;

@@ -285,19 +285,18 @@ def delete_club(
     """
     Admin only:
       - deletes a club (team)
-      - refuses if the club is referenced by any recorded match — tournament **or
-        friendly** (to protect history)
-      - takes its crest with it (row + file)
-
-    Friendlies count: they are matches with a club just as much as tournament
-    matches are, and in the real data there are clubs referenced *only* by a
-    friendly. Deleting such a club used to succeed and leave the friendly pointing
-    at a club id that no longer exists (SQLite does not enforce the foreign key).
-
-    The crest has to go too: `club.id` is not AUTOINCREMENT, so SQLite hands the
-    freed id to the next club created — which would then inherit the deleted
-    club's crest row and its file on disk.
+      - refuses if the club is used by any match, tournament or friendly (protects history)
+      - deletes its crest (row + file) with it
     """
+    # Friendlies count: they are matches with a club just as much as tournament
+    # matches are, and in the real data there are clubs referenced *only* by a
+    # friendly. Deleting one of those used to succeed and leave the friendly
+    # pointing at a club id that no longer exists (SQLite does not enforce the
+    # foreign key, and turning that on app-wide is its own task).
+    #
+    # The crest has to go too: `club.id` is not AUTOINCREMENT, so SQLite hands a
+    # freed id to the next club created — which would then inherit the deleted
+    # club's crest row and its file on disk.
     c = s.get(Club, club_id)
     if not c:
         raise HTTPException(status_code=404, detail="Club not found")
