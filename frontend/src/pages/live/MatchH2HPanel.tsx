@@ -256,9 +256,15 @@ export default function MatchH2HPanel({
           {recentMatches.map((item) => {
             return (
               <div key={item.key} className="space-y-1">
+                {/* Two legs of the same fixture are the same two sides and often the
+                    same scoreline, so without the leg the list read as duplicated rows
+                    (A7). It is named the way the rest of the app names it — the meta
+                    line of `MatchOverviewPanel`: `Match 4 · Leg 2`. */}
                 <div className="flex items-center justify-between gap-2 px-1 text-xs text-text-muted">
                   <span className="truncate">{item.tournamentLabel}</span>
-                  <span className="shrink-0">{fmtDate(item.tournamentDate) || "—"}</span>
+                  <span className="shrink-0 whitespace-nowrap">
+                    Match {item.match.order_index + 1} · Leg {item.match.leg} · {fmtDate(item.tournamentDate) || "—"}
+                  </span>
                 </div>
                 <MatchRowWithClubs
                   m={item.match}

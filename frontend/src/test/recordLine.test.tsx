@@ -20,12 +20,13 @@ describe("recordWidths", () => {
       { played: 9, wins: 3, draws: 0, losses: 6, gf: 15, ga: 4, gd: 11 },
       { played: 10, wins: 1, draws: 0, losses: 9, gf: 115, ga: 104, gd: -100 },
     ]);
-    expect(w).toEqual({ played: 2, wdl: 1, gf: 3, ga: 3, gd: 3 });
+    // `wdl` is the widest whole `W-D-L` token, in digits: "3-0-6" and "1-0-9" are 3.
+    expect(w).toEqual({ played: 2, wdl: 3, gf: 3, ga: 3, gd: 3 });
   });
 
   it("ignores missing rows and counts a sign as no digit", () => {
     const w = recordWidths([null, undefined, { gd: -7 }]);
-    expect(w).toEqual({ played: 1, wdl: 1, gf: 1, ga: 1, gd: 1 });
+    expect(w).toEqual({ played: 1, wdl: 3, gf: 1, ga: 1, gd: 1 });
   });
 });
 
@@ -38,8 +39,8 @@ describe("RecordLine", () => {
   it("asks for the same tracks whatever the row's own digits are", () => {
     const a = render(<RecordLine played={9} wins={3} draws={0} losses={6} gf={15} ga={4} gd={11} widths={widths} />);
     const b = render(<RecordLine played={10} wins={1} draws={0} losses={9} gf={5} ga={8} gd={-3} widths={widths} />);
-    // played(2) · W-D-L(1 each) · GF(2) : GA(1) · GD(+2)
-    expect(pads(a.container)).toEqual(['"00"', '"0"', '"0"', '"0"', '"00"', '"0"', '"+00"']);
+    // played(2) · W-D-L as ONE track (3 digits + its two hyphens) · GF(2) : GA(1) · GD(+2)
+    expect(pads(a.container)).toEqual(['"00"', '"000--"', '"00"', '"0"', '"+00"']);
     expect(pads(b.container)).toEqual(pads(a.container));
   });
 
@@ -67,12 +68,14 @@ describe("RecordLine", () => {
     expect(container.textContent).toBe("12\u00a0matches");
   });
 
-  it("keeps the win / draw / loss colours", () => {
+  it("keeps the win / draw / loss colours, and the token in one track", () => {
     const { container } = render(<RecordLine wins={2} draws={1} losses={0} widths={widths} />);
-    const nums = Array.from(container.querySelectorAll(".record-num")).map((n) => n.className);
-    expect(nums[0]).toContain("text-win");
-    expect(nums[1]).toContain("text-draw");
-    expect(nums[2]).toContain("text-loss");
+    const token = container.querySelector<HTMLElement>('[data-record-seg="wdl"] .record-num');
+    // One track for the whole word, so the hyphens stay glued to their numbers (A7).
+    expect(container.querySelectorAll('[data-record-seg="wdl"] .record-num')).toHaveLength(1);
+    expect(token?.textContent).toBe("2-1-0");
+    const tones = Array.from(token?.querySelectorAll("span") ?? []).map((n) => n.className);
+    expect(tones).toEqual(["text-win", "text-draw", "text-loss"]);
   });
 
   it("pads a signed number with a sign, not another digit", () => {

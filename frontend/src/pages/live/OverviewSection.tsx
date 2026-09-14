@@ -4,6 +4,7 @@ import { ArrowRight, Trophy } from "lucide-react";
 
 import type { Club, Match, MatchSide, TournamentMode } from "../../api/types";
 import { sideBy } from "../../helpers";
+import { fmtCount } from "../../utils/format";
 import { pickPreviewMatch } from "../../utils/matchDisplay";
 import MatchOverviewPanel from "../../ui/primitives/MatchOverviewPanel";
 import TournamentMetaPills from "./TournamentMetaPills";
@@ -153,7 +154,7 @@ export default function OverviewSection({
                 <div className="text-xs text-text-muted">
                   {outcome.viaDecider
                     ? `Tied at the top · won ${deciderLabel(decider?.type ?? "none")}`
-                    : `${outcome.row.played} matches · GD ${signed(outcome.row.gd)}`}
+                    : `${fmtCount(outcome.row.played, "match", "matches")} · GD ${signed(outcome.row.gd)}`}
                 </div>
               </div>
               <div className="shrink-0 text-right">

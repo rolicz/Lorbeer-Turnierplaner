@@ -96,7 +96,6 @@ export default function MatchDetailPage() {
   // Where "back" returns to: the tab we came from (default Matches), at this match.
   const fromTab = (location.state as { fromTab?: string } | null)?.fromTab ?? "matches";
   const backTo = `/live/${tid}?tab=${fromTab}`;
-  usePageTitle(matchId ? `Match #${matchId}` : "Match");
 
   const [rawTab, setActiveTab] = useTabParam<Tab>(TAB_KEYS, "h2h");
   const [clubGame, setClubGame] = useState("EA FC 26");
@@ -121,6 +120,16 @@ export default function MatchDetailPage() {
     if (!tQ.data || !matchId) return null;
     return tQ.data.matches.find((m) => Number(m.id) === matchId) ?? null;
   }, [tQ.data, matchId]);
+
+  /**
+   * The page names the match the way the whole app does — "Match 4", its position in
+   * the tournament — not `Match #105`, the database row id the URL happens to carry
+   * (A7). The panel right below it says `Match 4 · Leg 2`; the title used to disagree
+   * with it on the same screen. Until the tournament has loaded there is no number to
+   * show, so the title is just "Match".
+   */
+  const matchTitle = match ? `Match ${match.order_index + 1}` : "Match";
+  usePageTitle(matchTitle);
 
   // The server answers "may this caller change this result?" and ships the answer in the
   // payload (A10) — this page renders it instead of keeping its own copy of the rule. The
@@ -301,7 +310,7 @@ export default function MatchDetailPage() {
 
   return (
     <PageLayout
-      title={`Match #${matchId}`}
+      title={matchTitle}
       back={<InlineBack />}
       meta={
         match ? (

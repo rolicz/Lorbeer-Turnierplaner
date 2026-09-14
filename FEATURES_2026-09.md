@@ -5607,7 +5607,7 @@ theme, on that surface, not a recomputation.
 
 ---
 
-## A7 — Runtime polish: the rough edges the sweep photographed  ☐
+## A7 — Runtime polish: the rough edges the sweep photographed  ☑
 
 Each is small on its own; together they are what makes the app feel unfinished. Fix what is cheap,
 and say plainly which you left and why.
@@ -5640,7 +5640,130 @@ and say plainly which you left and why.
 **DoD:** each item fixed or explicitly declined with a reason; before/after screenshots for the
 visual ones at the viewport/theme where the sweep caught them; `npm run check` + build.
 
-**Deviations:**
+**Deviations:** (implemented 2026-09-14 on `feature/2026-09-audit`)
+
+All twelve fixed, nothing declined. Every item was reproduced in a real browser against an
+isolated stack (backend :8003 on a **copy** of the DB, vite :8020) before it was written and
+re-shot after, at 390px and 1280px in the `blue` and the `light` theme. A closing sweep of 23
+routes × 2 widths × 2 themes kept Round 6's baseline: zero console errors, zero failed
+requests, zero horizontal overflow, zero nested anchors/buttons.
+
+**1 — thinned by width, and the picture is the argument.** Of the three approaches offered,
+"label only the ends plus hovered points" is not available (a touch device has no hover, and
+the chart has no tooltip — building one is a feature, not polish) and would drop 16 of 18
+names; rotating/staggering is what the axis already does. So: the axis keeps the **newest**
+label and walks left, dropping every tick that cannot clear the one already kept. Two labels
+at the same angle are parallel strips whose distance apart is `dx · sin45°`, so the rule is one
+number in px — `1.35 × line height ÷ sin45°` ≈ 15px — and it scales itself: 10 of 18 names at
+390px, 15 of 18 at 1280px, on a 6-month dashboard window 7 of 11 and 8 of 11.
+
+The plan's numbers come from a **bounding-box** metric, which for a -45° label measures a big
+square that touches its neighbour's long before the glyphs do; measured both ways (blue theme,
+before → after):
+
+| surface | width | overlapping pairs, true strip geometry | the sweep's AABB metric |
+|---|---|---|---|
+| dashboard preview | 390 | 4 → **0** | 16 → 5 |
+| dashboard preview | 1280 | 1 → **0** | 5 → 2 |
+| `?view=trends` | 390 | 8 → **0** | 52 → 13 |
+| `?view=trends` | 1280 | 1 → **0** | 12 → 10 |
+
+Zero real overlaps everywhere, light theme included (the AABB residue is entirely the rotated
+-box artefact — at 1280px the labels already had air between them and the metric still counted
+12). **Fixed in the same breath:** a label runs down-**left** from its tick, so the oldest one
+in view ran out of the SVG and printed as a fragment ("…zturnier") — it is now dropped rather
+than half-printed.
+
+**2 — the pill rides the scroll; the bottom gutter was already right.** Measured first: at the
+end of Positions, Streaks and the matchup the last row clears the capsule by exactly the 20px
+DESIGN.md §9 promises, so "reserve a gutter under the last row" was already done. What the
+sweep photographed is mid-scroll, and it is not a coincidence: the capsule is bottom-**right**,
+which is exactly the column those three sub-views right-align their values in. So the pill
+hides the way a hiding app bar does — gone while you scroll *down* into content, back on any
+upward scroll, at the top, at the very bottom (its own gutter), and whenever it is focused or
+open. `data-tucked` is exposed for tests. S9's job is untouched: the pill is there on arrival,
+still pulses once per session, and any flick up brings it back.
+
+**3 — say it, and offer the switch; do not overrule the reader's Mode.** Both answers the item
+offers are right for *half* the cases. A shared `?sub=duos` link means "show me duos", but the
+same silent fallback happens when the reader switches Mode away from 2v2 while on Duos, and
+there an automatic switch back would fight them. So the place the chips would be now says
+*"Duos only exist in 2v2 — showing Players"* next to one **Switch to 2v2** button: the
+explanation for the second case, the sender's intent one tap away in the first.
+
+**4 — "Anonymous", and quietly.** "General" names the scope in the same feed three times over
+(the filter chip, the group header, the composer's "General (tournament)" target), so it cannot
+also be an author. The author is now **Anonymous** — including on the two controls that *write*
+it (the composer's author chip, the "Posted as" select), so the reader can connect what they
+posted with what they see; the scope keeps the word everywhere it means the scope. The byline
+is muted instead of `font-semibold text-text-normal`: an unattributed author is a category, not
+a name, and it should not compete with the bylines that are names.
+
+**5 — flush, not floating.** `lg:bottom-4` left a 16px strip of the feed's own card under the
+composer. At 1280×900: 16px → 0 while scrolling, 1px (the card's border) once the feed ends —
+DESIGN.md §9b's "settles flush on the card's bottom edge". **Left deliberately:** the guestbook
+composer (`profile/GuestbookSection.tsx:107`) carries the identical `lg:bottom-4`, but it is
+still a second floating *card* over a feed of cards, which is A8's breach 7; flush against the
+viewport with that shape would look worse, and A8 is about to fold it into the feed.
+
+**6 — capped, not narrowed.** 557px → **256px** on a 1280×900 viewport (62% → 28% of it), tab
+strip y=765 → **455**. `max-h-64` with `object-center` rather than a narrower column, because a
+phone must not change and does not (16:9 of 390px is 200px, under the cap) and because a
+full-bleed banner is the shape this header has; the uncropped image is one tap away in the
+lightbox.
+
+**7 — the lineage moved into the gutters.** It joined cell *centres*, which is why it struck
+the digits and why it painted across cells of tournaments the holder never played. It is now a
+2px rail in the 4px gutter left of the holder's column, stepping sideways in the gutter above
+the row where the cup changed hands: same information, over no data at all. Each cup takes its
+own lane inside that gutter, because one player can hold both at once and the two rails used to
+paint over each other.
+
+**8 — the name goes under the face, everywhere a player is assigned.** `AvatarButton` takes
+`showName`; the label is one truncating `text-xs` line (`max-w-16`) and the `sr-only` span goes
+away with it, so nothing is announced twice. **Turned on past the three the item names:** the
+What-if picker *is* `stats/PlayerPicker`, so the stats Player and H2H pickers come with it, and
+`h2h/DuoPicker` is the same defect one file over — a picker whose names are invisible is not
+better for being in Stats. The layout cost is one line of text and it fits: at 390px the
+friendly setup's row is seven slots (None + six players) **with** names in 314px of the 358px
+available — one row, no scroll, no overflow.
+
+**9 — and two more of the same.** `{n} matches` is `stats/MatchHistoryList`, which is also what
+the H2H matchup renders, so the friendlies group headers and the matchup blocks are fixed
+together. The identical string in `live/MatchList` and `live/OverviewSection` went with them,
+through one new `fmtCount(n, singular, plural)` in `utils/format.ts`. **Left, with a reason:**
+`HeadToHeadRows`'s duo rivalries say "1 games" through `RecordLine`'s `playedLabel="games"` —
+that unit sits *outside* the fixed track, so shortening it for n=1 would move every segment
+after it and undo exactly the alignment item 10 is told not to break. `stats/h2h/DuoDetail:47`
+("1 games together") is A8's breach 6, which replaces that hand-rolled line with `RecordLine`.
+
+**10 — one track for the whole word, and T14 still holds.** The hyphens were detached because
+each of W, D and L held its *own* padded column, so every number sat at the right edge of its
+track and the slack landed between a hyphen and the number after it. `W-D-L` is one word: it
+now gets one track, sized to the widest whole token in the list (`recordWidths().wdl` changed
+meaning from "digits in the widest of the three numbers" to "digits in the widest token", the
+two hyphens added by the pad). The slack moves out of the middle of the word into the `gap-2`
+that already separates the segments, so **every segment still starts at the same x in every row
+of a list** — measured on the profile's rivals (two lines, both 42px wide) and teammates (three
+lines, all 34px) — and no list is padded wider than its own data. `recordLine.test.tsx` updated
+to the new pads; the `textContent` contract ("3P · 3-0-0 · 14:6 · GD +8") is unchanged.
+
+**11 — "Match 4", the number the app uses.** `order_index + 1`, the same number the panel below
+says, and the title was moved after the match loads so it is "Match" and never a stale id.
+`usePageTitle` feeds the phone's top bar as well as the document title, so this was wrong at
+both widths, not only on desktop. `order_index` runs across both legs of a tournament, so the
+number is still unique on a two-leg tournament.
+
+**12 — `Match 4 · Leg 2`, the app's own words.** Added to each row's meta line in Match H2H's
+"Recent matches", the same phrasing `MatchOverviewPanel` uses. Shown on every row rather than
+only on the ambiguous ones: a marker that appears and disappears with the data is harder to
+read than one that is always there, and the panel above it prints the leg unconditionally too.
+Verified on `/live/18/match/100`, where leg 1 and leg 2 of Flo vs Rumpi used to be two rows a
+reader could only tell apart by the scoreline.
+
+**Verification:** `cd frontend && npm run check` → typecheck + eslint clean, **52 files / 503
+tests passed**; `npm run build` green. No backend change, so no `make test` / `make lint` /
+`make gen-types`. Before/after screenshots for every visual item live in the session scratchpad.
 
 ---
 

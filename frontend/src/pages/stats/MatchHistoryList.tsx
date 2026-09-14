@@ -7,7 +7,7 @@ import MatchSides from "../../ui/primitives/MatchSides";
 import { Pill, pillDate } from "../../ui/primitives/Pill";
 import ScoreLine, { type ScoreResult, type ScoreSide } from "../../ui/primitives/ScoreLine";
 import TournamentLaurelMarkers from "./TournamentLaurelMarkers";
-import { fmtDate } from "../../utils/format";
+import { fmtCount, fmtDate } from "../../utils/format";
 import { useCupFirstClaims } from "../../hooks/useCupHolders";
 
 
@@ -198,7 +198,7 @@ export function MatchHistoryTournamentBlock({
           <CupStakeLine tournamentId={t.id} stakes={t.cup_stakes} />
         </div>
         <div className="shrink-0 flex items-center gap-2">
-          <div className="text-xs text-text-muted">{t.matches.length} matches</div>
+          <div className="text-xs text-text-muted">{fmtCount(t.matches.length, "match", "matches")}</div>
           {actions ?? null}
         </div>
       </div>

@@ -44,6 +44,15 @@ export function fmtInt(n: number): string {
   return String(Math.trunc(n));
 }
 
+/**
+ * A count with a unit that agrees with it — "1 match", "6 matches" (A7). Both forms
+ * are spelled out: English does not derive one from the other reliably ("match" →
+ * "matches", "game" → "games"), and a caller reading the call site should see both.
+ */
+export function fmtCount(n: number, singular: string, plural: string): string {
+  return `${n} ${n === 1 ? singular : plural}`;
+}
+
 export function fmtAvg(n: number): string {
   if (!Number.isFinite(n)) return "0.00";
   return n.toFixed(2);

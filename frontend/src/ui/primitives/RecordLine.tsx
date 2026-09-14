@@ -14,6 +14,11 @@
  * no list is padded wider than its own data needs. `tabular-nums` makes every digit the
  * same advance, which is what makes the pad exact.
  *
+ * The one segment that is **not** three tracks is `W-D-L`: it is one word, so it gets one
+ * track wide enough for the widest token in the list (A7). Padding W, D and L separately
+ * put each of them at the right edge of its own column and tore the hyphens off the
+ * numbers to their right — "14- 5- 8".
+ *
  * The `·` separators are gone from the screen — a gap between fixed columns says the same
  * thing in 8px instead of 10px per separator, and a column layout does not need them —
  * but they survive as `sr-only` text, so the line still reads as
@@ -36,7 +41,13 @@ export type RecordValues = {
   gd?: number | null;
 };
 
-/** Column widths, in digits (the sign of `gd` is added on top). */
+/**
+ * Column widths, in digits (the sign of `gd` is added on top).
+ *
+ * `wdl` is the digit count of the widest **whole `W-D-L` token** in the list, not of
+ * one of its three numbers: the token holds a single track, because padding the three
+ * numbers separately is what tore the hyphens off them ("14- 5- 8", A7).
+ */
 export type RecordWidths = {
   played: number;
   wdl: number;
@@ -50,16 +61,43 @@ const digitsOf = (v: number | null | undefined): number =>
 
 /** Widest value per column across a list — call it once per list, pass it to every row. */
 export function recordWidths(rows: readonly (RecordValues | null | undefined)[]): RecordWidths {
-  const w: RecordWidths = { played: 1, wdl: 1, gf: 1, ga: 1, gd: 1 };
+  // `wdl` starts at 3 — one digit per number is the narrowest a `W-D-L` token can be.
+  const w: RecordWidths = { played: 1, wdl: 3, gf: 1, ga: 1, gd: 1 };
   for (const r of rows) {
     if (!r) continue;
     w.played = Math.max(w.played, digitsOf(r.played));
-    w.wdl = Math.max(w.wdl, digitsOf(r.wins), digitsOf(r.draws), digitsOf(r.losses));
+    w.wdl = Math.max(w.wdl, digitsOf(r.wins) + digitsOf(r.draws) + digitsOf(r.losses));
     w.gf = Math.max(w.gf, digitsOf(r.gf));
     w.ga = Math.max(w.ga, digitsOf(r.ga));
     w.gd = Math.max(w.gd, digitsOf(r.gd));
   }
   return w;
+}
+
+/**
+ * A fixed-width track: an invisible `pad` string decides how wide it is, the value
+ * sits in it. Every character of the pad is a tabular digit or a literal the value
+ * also uses, so the pad measures exactly what the widest value in the list measures.
+ */
+function PadTrack({
+  pad,
+  align = "end",
+  className,
+  children,
+}: {
+  pad: string;
+  align?: "end" | "start";
+  className?: string;
+  children: ReactNode;
+}) {
+  return (
+    <span
+      className={"record-num" + (align === "start" ? " record-num-start" : "") + (className ? " " + className : "")}
+      style={{ ["--record-pad" as string]: `"${pad}"` }}
+    >
+      {children}
+    </span>
+  );
 }
 
 /**
@@ -86,14 +124,10 @@ export function RecordNum({
   className?: string;
   children: ReactNode;
 }) {
-  const pad = (sign ? "+" : "") + "0".repeat(Math.max(1, digits));
   return (
-    <span
-      className={"record-num" + (align === "start" ? " record-num-start" : "") + (className ? " " + className : "")}
-      style={{ ["--record-pad" as string]: `"${pad}"` }}
-    >
+    <PadTrack pad={(sign ? "+" : "") + "0".repeat(Math.max(1, digits))} align={align} className={className}>
       {children}
-    </span>
+    </PadTrack>
   );
 }
 
@@ -142,13 +176,21 @@ export default function RecordLine({
     );
   }
   if (hasWdl) {
+    // One track for the whole token, not one per number (A7). Padding W, D and L
+    // separately put each number at the right edge of its own column, which left the
+    // hyphens glued to the number on their left and floating a gap away from the one
+    // on their right — "14- 5- 8". `W-D-L` is one word; the slack belongs outside it,
+    // in the gap that already separates the segments, and the fixed track means the
+    // segments after it still start at the same x in every row (T14).
     segs.push(
       <span key="wdl" data-record-seg="wdl">
-        <RecordNum digits={widths.wdl} className="text-win">{int(wins ?? 0)}</RecordNum>
-        -
-        <RecordNum digits={widths.wdl} className="text-draw">{int(draws ?? 0)}</RecordNum>
-        -
-        <RecordNum digits={widths.wdl} className="text-loss">{int(losses ?? 0)}</RecordNum>
+        <PadTrack pad={"0".repeat(Math.max(3, widths.wdl)) + "--"}>
+          <span className="text-win">{int(wins ?? 0)}</span>
+          -
+          <span className="text-draw">{int(draws ?? 0)}</span>
+          -
+          <span className="text-loss">{int(losses ?? 0)}</span>
+        </PadTrack>
       </span>,
     );
   }

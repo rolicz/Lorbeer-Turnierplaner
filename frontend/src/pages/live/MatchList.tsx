@@ -10,7 +10,7 @@ import { clubLabelPartsById } from "../../ui/clubControls";
 import ClubBadge from "../../ui/ClubBadge";
 import { useEffect, useState } from "react";
 import SegmentedSwitch from "../../ui/primitives/SegmentedSwitch";
-import { fmtOdd } from "../../utils/format";
+import { fmtCount, fmtOdd } from "../../utils/format";
 
 function splitPlayers(names: string): string[] {
   return names.split(" + ").map((s) => s.trim()).filter(Boolean);
@@ -66,7 +66,7 @@ export default function MatchList({
       <div className="section-head px-1">
         <div className="section-label inline-flex items-center gap-1.5">
           <Layers size={14} aria-hidden="true" />
-          <span>{matches.length} matches</span>
+          <span>{fmtCount(matches.length, "match", "matches")}</span>
         </div>
         <div className="order-1 shrink-0">
         <SegmentedSwitch<MatchListView>
