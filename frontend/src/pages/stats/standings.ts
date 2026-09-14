@@ -21,9 +21,11 @@ export function useStandings(mode: StatsMode, scope: StatsScope) {
     queryFn: () => getStatsRatings({ mode, scope }),
     placeholderData: keepPreviousData, staleTime: 30_000,
   });
+  // Form comes from the same Source the rest of the row does (A4): the two halves
+  // of a table row must never describe different sets of matches.
   const playersQ = useQuery({
-    queryKey: qk.stats.players(mode, 12),
-    queryFn: () => getStatsPlayers({ mode, lastN: 12 }),
+    queryKey: qk.stats.players(mode, 12, scope),
+    queryFn: () => getStatsPlayers({ mode, lastN: 12, scope }),
     placeholderData: keepPreviousData, staleTime: 30_000,
   });
   const formById = useMemo(() => {

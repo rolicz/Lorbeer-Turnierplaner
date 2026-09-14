@@ -157,9 +157,11 @@ export default function RecordsView({
     })),
   });
   // Titles: wins per player, from the same tournament-winner data PositionsView uses.
+  // Scoped like every other record here (A4) — with Source = Friendlies the endpoint
+  // reports no tournaments, so there are no titles to show, which is the truth.
   const playersQ = useQuery({
-    queryKey: qk.stats.players(mode, "records"),
-    queryFn: () => getStatsPlayers({ mode }),
+    queryKey: qk.stats.players(mode, "records", scope),
+    queryFn: () => getStatsPlayers({ mode, scope }),
     placeholderData: keepPreviousData, staleTime: 30_000,
   });
   const loading = matchesQs.some((q) => q.isLoading && !q.data) || (playersQ.isLoading && !playersQ.data);

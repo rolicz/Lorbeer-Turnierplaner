@@ -2618,6 +2618,8 @@ export interface components {
             generated_at: string;
             /** Mode */
             mode: string;
+            /** Scope */
+            scope: string;
             /** Cup Owner Player Id */
             cup_owner_player_id: number | null;
             /** Tournaments */
@@ -4959,6 +4961,8 @@ export interface operations {
                 mode?: string;
                 /** @description How many recent matches to average (0 disables) */
                 lastN?: number;
+                /** @description Data source scope: "tournaments" (default), "both", or "friendlies" */
+                scope?: "tournaments" | "both" | "friendlies";
             };
             header?: never;
             path?: never;

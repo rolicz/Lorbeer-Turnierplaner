@@ -702,6 +702,7 @@ class StatsPlayerRowOut(BaseModel):
 class StatsPlayersOut(BaseModel):
     generated_at: datetime
     mode: str
+    scope: str
     cup_owner_player_id: int | None
     tournaments: list[StatsPlayersTournamentOut]
     players: list[StatsPlayerRowOut]

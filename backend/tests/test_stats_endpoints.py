@@ -437,3 +437,74 @@ def test_stats_ratings_empty(client):
     assert data.get("mode") in ("overall", "1v1", "2v2")
     assert "rows" in data
     assert isinstance(data["rows"], list)
+
+
+def test_stats_players_honours_the_source_scope(client, editor_headers, admin_headers):
+    """A4: `/stats/players` reads `scope`, so the Source filter means the same thing here as everywhere else."""
+    ids = [create_player(client, admin_headers, n) for n in ["SC1", "SC2", "SC3"]]
+    tid = create_tournament(client, editor_headers, "scope-tournament", "1v1", ids)
+    generate(client, editor_headers, tid, randomize=False)
+
+    detail = client.get(f"/tournaments/{tid}")
+    assert detail.status_code == 200, detail.text
+    first = detail.json()["matches"][0]
+    t_left = int(first["sides"][0]["players"][0]["id"])
+    t_right = int(first["sides"][1]["players"][0]["id"])
+    rf = client.patch(
+        f"/matches/{first['id']}",
+        json={"state": "finished", "sideA": {"goals": 2}, "sideB": {"goals": 0}},
+        headers=editor_headers,
+    )
+    assert rf.status_code == 200, rf.text
+
+    # One friendly, deliberately with the sides swapped: 4:1 for the tournament loser.
+    fr = client.post(
+        "/friendlies",
+        json={
+            "mode": "1v1",
+            "teamA_player_ids": [t_right],
+            "teamB_player_ids": [t_left],
+            "clubA_id": None,
+            "clubB_id": None,
+            "a_goals": 4,
+            "b_goals": 1,
+        },
+        headers=editor_headers,
+    )
+    assert fr.status_code == 200, fr.text
+
+    def row(scope: str | None, player_id: int) -> dict:
+        suffix = f"?lastN=5&scope={scope}" if scope else "?lastN=5"
+        r = client.get(f"/stats/players{suffix}")
+        assert r.status_code == 200, r.text
+        data = r.json()
+        assert data["scope"] == (scope or "tournaments")
+        return {int(p["player_id"]): p for p in data["players"]}[player_id], data
+
+    # Default is unchanged: tournaments only.
+    winner, payload = row(None, t_left)
+    assert (winner["played"], winner["wins"], winner["gf"], winner["ga"]) == (1, 1, 2, 0)
+    assert winner["lastN_pts"] == [3]
+    assert {int(t["id"]) for t in payload["tournaments"]} == {tid}
+
+    # Friendlies only: the tournament match is gone, the friendly is the whole sample,
+    # and there is no tournament left to take a position in.
+    winner, payload = row("friendlies", t_left)
+    assert (winner["played"], winner["wins"], winner["losses"], winner["gf"], winner["ga"]) == (1, 0, 1, 1, 4)
+    assert winner["lastN_pts"] == [0]
+    assert payload["tournaments"] == []
+    assert winner["positions_by_tournament"] == {}
+
+    # Both: the two matches add up, and the tournament block is still built from the
+    # tournament half alone.
+    winner, payload = row("both", t_left)
+    assert (winner["played"], winner["wins"], winner["losses"], winner["gf"], winner["ga"]) == (2, 1, 1, 3, 4)
+    assert sorted(winner["lastN_pts"]) == [0, 3]
+    assert {int(t["id"]) for t in payload["tournaments"]} == {tid}
+    assert winner["positions_by_tournament"] == {str(tid): 1}
+
+    # The mode filter still applies to both halves.
+    r2v2 = client.get("/stats/players?mode=2v2&scope=both")
+    assert r2v2.status_code == 200, r2v2.text
+    rows_2v2 = {int(p["player_id"]): p for p in r2v2.json()["players"]}
+    assert rows_2v2[t_left]["played"] == 0

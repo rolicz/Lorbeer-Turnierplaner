@@ -14,10 +14,11 @@ import {
 export type RatingSnapshot = components["schemas"]["RatingHistorySnapshotOut"];
 export type StatsRatingsHistoryResponse = components["schemas"]["StatsRatingsHistoryOut"];
 
-export function getStatsPlayers(opts?: { lastN?: number; mode?: "overall" | "1v1" | "2v2" }): Promise<StatsPlayersResponse> {
+export function getStatsPlayers(opts?: { lastN?: number; mode?: "overall" | "1v1" | "2v2"; scope?: StatsScope }): Promise<StatsPlayersResponse> {
     const qs = new URLSearchParams();
     if (opts?.lastN != null) qs.set("lastN", String(opts.lastN));
     if (opts?.mode && opts.mode !== "overall") qs.set("mode", String(opts.mode));
+    if (opts?.scope && opts.scope !== "tournaments") qs.set("scope", String(opts.scope));
     const suffix = qs.toString() ? `?${qs.toString()}` : "";
     return apiFetch(`/stats/players${suffix}`, { method: "GET" });
 }

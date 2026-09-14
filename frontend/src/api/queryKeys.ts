@@ -83,9 +83,11 @@ export const qk = {
   // ---- stats --------------------------------------------------------------
   stats: {
     all: () => ["stats"] as const,
-    players: (mode?: string, lastN?: number | string) =>
+    players: (mode?: string, lastN?: number | string, scope?: string) =>
       mode !== undefined && lastN !== undefined
-        ? (["stats", "players", mode, lastN] as const)
+        ? scope !== undefined
+          ? (["stats", "players", mode, lastN, scope] as const)
+          : (["stats", "players", mode, lastN] as const)
         : (["stats", "players"] as const),
     h2h: (playerId?: number | string, limit?: number, order?: string, scope?: string) =>
       playerId !== undefined && limit !== undefined && order !== undefined

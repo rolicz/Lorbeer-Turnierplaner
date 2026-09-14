@@ -175,7 +175,9 @@ Current prod config (mirrored in `backend/app/cups.json` and `backend/data/cups.
 - **Media** are files on disk, metadata rows in DB: `uploads/avatars/{player_id}.{ext}`,
   `profile_headers/{player_id}.{ext}`, `comments/{comment_id}.{ext}`, `club_crests/{club_id}.{ext}`.
   Served by the backend with cache-busting `?v=<updated_at>` (`mediaUrl()`).
-- Stats scopes: `tournaments | both | friendlies`. Ratings are Elo-like per mode.
+- Stats scopes: `tournaments | both | friendlies`, taken as a `scope` query param by **every**
+  `/stats/*` endpoint that reads matches — `/stats/players` learned it last (A4), so no stats
+  surface can show the Source filter and ignore it. Ratings are Elo-like per mode.
 - Push: languages `steirisch` (default) | `deutsch` | `english`; modes `finished_only` (default)
   | `all` | `off`; personal events (pokes, guestbook) go only to the addressed player.
   Dispatcher is started in the FastAPI lifespan.

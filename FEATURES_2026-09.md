@@ -5286,7 +5286,7 @@ token)`, `notificationsAll()` ⊂ `notifications(token)`, `cupAll()` ⊂ `cup(ke
 
 ---
 
-## A4 — The Source filter is offered where the endpoint ignores it  ☐
+## A4 — The Source filter is offered where the endpoint ignores it  ☑
 
 `GET /stats/players` takes no `scope` (`backend/app/routers/stats.py:59-65`) — it is
 tournaments-only. Yet `pages/stats/StatsInsights.tsx:44,47` declares `scope: true` for
@@ -5303,7 +5303,79 @@ small. Whichever you choose, no surface may show a filter it ignores.
 **DoD:** every stats sub-view either honours Source or does not display it; a screenshot per
 sub-view with Source = Friendlies; `make test` if the backend changed; `npm run check`.
 
-**Deviations:**
+**Deviations:** (implemented 2026-09-14 on `feature/2026-09-audit`)
+
+**Option 1 — the endpoint learned `scope`.** Option 2 was checked first and is the wrong answer
+here, because *neither* sub-view actually ignores Source; each one mixes.
+
+- `overview:table`: everything except one column comes from the **scope-aware** ratings endpoint
+  (`standings.ts:19-23` — pts, P, W-D-L, Win%, GF/GA/GD, Elo). Only **Form** came from
+  `/stats/players`. Hiding the filter would have hidden a control that thirteen of the fourteen
+  columns obey — and the URL keeps `?source=` regardless, so the table would still have changed
+  silently when the filter was set from another sub-view. A hidden filter that is honoured is a
+  worse lie than a shown filter that is half honoured.
+- `overview:records`: the four match superlatives already come from the scope-aware
+  `/stats/player-matches`; only the "Most tournament wins" group came from `/stats/players`.
+
+**What the service layer cost** (the thing the task said to look at): the two halves it needed
+already existed. `services/stats/ratings.py` and `streaks.py` each load "finished tournament
+matches + finished friendlies wrapped to look like matches" with `scope.py`'s
+`include_tournaments` / `include_friendlies` / `friendlies_schema_ready` / `safe_exec_all`, and
+`services/stats/core.py` — which does all of `/stats/players`' counting — is duck-typed
+throughout (`getattr(m, "tournament", …)`, `m.state`, `m.sides`). So the change is one loader
+(+25 lines in `players.py`), one query param, one echoed field. That is cheaper than the
+frontend surgery option 2 would have needed, and it makes the filter mean one thing everywhere.
+
+**The one judgement call: what a friendly does to the tournament half of the payload.** A
+*position* only exists inside a tournament, so friendlies contribute none:
+`finished_tournament_ids` is derived from `m.tournament_id`, which the wrapper sets to `None`, so
+with `scope=friendlies` `tournaments` is `[]`, every `positions_by_tournament` is `{}` and the
+Records "Most tournament wins" group therefore disappears — which is the truth ("no titles are
+won in friendlies"), not a regression. With `scope=both` the totals and form span both sources
+while the tournament block is still built from the tournament half alone. `cup_owner_player_id`
+is cup state and stays scope-independent.
+
+**One small consolidation, deliberate.** `_friendly_as_match_like` existed **twice**, byte for
+byte, in `ratings.py` and `streaks.py`; `players.py` would have made three. It moved to
+`services/stats/scope.py` as `friendly_as_match_like` (the module those three already import for
+every other scope helper) and gained the two attributes `core.py` reads on whatever it is handed
+— `state="finished"` (the loaders only ever wrap finished friendlies) and `tournament_id=None`
+(a friendly belongs to no tournament). No behaviour change for ratings/streaks: both filter
+`state == "finished"` in SQL already and never read either attribute. This removes duplication
+rather than adding a fourth copy; nothing else in those two files was touched.
+
+**Frontend.** `getStatsPlayers` takes `scope` (omitted when `tournaments`, like every sibling
+fetcher); `qk.stats.players(mode, lastN, scope)` gained the optional third segment in the same
+shape `qk.stats.streaks` already uses, so the cache splits per source. Two call sites pass it —
+`standings.ts` (Form) and `RecordsView` (titles). The call sites that do **not** offer the filter
+were deliberately left on the default: `PositionsView` (Positions declares `scope: false`),
+`ProfilePage`, `TrendsPreviewCard` and `StandingsPreviewCard` (dashboard, always
+`"tournaments"`). The `FILTERS` map in `StatsInsights.tsx` is unchanged — it was already telling
+the truth about which sub-views *should* use Source; the endpoint was the part that lied.
+
+**Runtime proof** (isolated stack: backend :8003 on a copy of the dev DB, vite :8020, scratch
+secrets; 20 friendlies and 18 tournaments in the data). Every sub-view loaded at 390px and
+1280px with `?source=friendlies`, **zero console errors and zero failed requests** in every run:
+
+| Sub-view | Offers Source? | With Source = Friendlies |
+|---|---|---|
+| Overview · Table | yes | Roli P 16 (was 65), Form (last 12) redrawn from friendlies |
+| Overview · Positions | **no** (pill shows Mode only) | unchanged, as before |
+| Overview · Streaks | yes | friendly-only runs |
+| Overview · Records | yes | the four superlatives are friendlies; "Most tournament wins" is **gone** |
+| Overview · Cups | **no** (no pill at all) | unchanged, as before |
+| Trends | yes | x-axis is Friendly #1…#21 |
+| H2H | yes | matrix shows only friendly meetings |
+| Player | yes | Played 16, Form sparkline redrawn |
+
+The Form sparkline was read out of the DOM per source to prove it moves and is not a cache echo:
+`tournaments` → `2,20,2,14,2,2,20,20,2,2,2`…, `friendlies` → `14,14,14,20,14,2,14,2,2,2,2`…,
+`both` → a third series. `/stats/players?scope=…` at the API: Roli played 65 / 16 / 81.
+
+**Noticed, reported, not fixed:** `/stats/players` still returns `cup_owner_player_id`, marked
+"legacy" in its own comment since the frontend moved to `/cup`; nothing reads it
+(`grep cup_owner_player_id frontend/src` → 0 hits outside the generated schema). Dead response
+surface, out of A4's scope.
 
 ---
 

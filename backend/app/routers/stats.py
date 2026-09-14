@@ -60,8 +60,9 @@ def stats_overview_endpoint() -> dict[str, Any]:
 def stats_players(
     mode: str = Query("overall", description='Match mode filter: "overall" (default), "1v1", or "2v2"'),
     lastN: int = Query(10, ge=0, le=100, description="How many recent matches to average (0 disables)"),
+    scope: Literal["tournaments", "both", "friendlies"] = Query("tournaments", description='Data source scope: "tournaments" (default), "both", or "friendlies"'),
     s: Session = Depends(get_session)) -> dict[str, Any]:
-    return compute_stats_players(s, mode=mode, lastN=lastN)
+    return compute_stats_players(s, mode=mode, lastN=lastN, scope=scope)
 
 
 @router.get("/h2h", response_model=StatsH2HOut)

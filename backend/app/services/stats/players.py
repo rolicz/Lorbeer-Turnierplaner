@@ -7,7 +7,7 @@ from sqlalchemy.orm import selectinload
 from sqlmodel import Session, select
 
 from ...cup_defs import get_cup_def
-from ...models import Match, MatchSide, Player, Tournament
+from ...models import FriendlyMatch, FriendlyMatchSide, Match, MatchSide, Player, Tournament
 from ...services.cup import compute_all_cup_tournament_stakes_by_tournament, compute_cup
 from .core import (
     compute_overall_and_lastN,
@@ -15,18 +15,43 @@ from .core import (
     positions_from_standings,
     resolve_tournament_winner_player_id,
 )
+from .scope import (
+    StatsScope,
+    friendlies_schema_ready,
+    friendly_as_match_like,
+    include_friendlies,
+    include_tournaments,
+    normalize_scope,
+    safe_exec_all,
+)
 
 
-def _finished_matches_with_players(s: Session, *, mode: str) -> list[Match]:
-    stmt = select(Match).where(Match.state == "finished")
-    if mode != "overall":
-        stmt = stmt.join(Tournament).where(Tournament.mode == mode)
+def _finished_matches_with_players(s: Session, *, mode: str, scope: StatsScope) -> list[Any]:
+    """Finished matches the Source filter asks for — the same two halves every other stats service loads."""
+    matches: list[Any] = []
 
-    stmt = stmt.options(
-        selectinload(Match.tournament),
-        selectinload(Match.sides).selectinload(MatchSide.players),
-    )
-    return list(s.exec(stmt).all())
+    if include_tournaments(scope):
+        stmt = select(Match).where(Match.state == "finished")
+        if mode != "overall":
+            stmt = stmt.join(Tournament).where(Tournament.mode == mode)
+
+        stmt = stmt.options(
+            selectinload(Match.tournament),
+            selectinload(Match.sides).selectinload(MatchSide.players),
+        )
+        matches.extend(safe_exec_all(s, stmt))
+
+    if include_friendlies(scope) and friendlies_schema_ready(s):
+        fstmt = select(FriendlyMatch).where(FriendlyMatch.state == "finished")
+        if mode != "overall":
+            fstmt = fstmt.where(FriendlyMatch.mode == mode)
+
+        fstmt = fstmt.options(
+            selectinload(FriendlyMatch.sides).selectinload(FriendlyMatchSide.players),
+        )
+        matches.extend(friendly_as_match_like(fm) for fm in safe_exec_all(s, fstmt))
+
+    return matches
 
 
 def _tournament_matches_with_players(s: Session, tournament_id: int) -> list[Match]:
@@ -39,21 +64,27 @@ def _tournament_matches_with_players(s: Session, tournament_id: int) -> list[Mat
     return list(s.exec(stmt).all())
 
 
-def compute_stats_players(s: Session, *, mode: str, lastN: int) -> dict[str, Any]:
+def compute_stats_players(s: Session, *, mode: str, lastN: int, scope: str = "tournaments") -> dict[str, Any]:
     mode_norm = str(mode or "overall").strip().lower()
     if mode_norm not in ("overall", "1v1", "2v2"):
         mode_norm = "overall"
+    scope_norm = normalize_scope(scope)
 
     # All players (for global sorting + showing even inactive ones)
     players = list(s.exec(select(Player).order_by(Player.display_name)).all())
 
-    # Finished matches for overall + lastN
-    finished_matches = _finished_matches_with_players(s, mode=mode_norm)
+    # Finished matches for overall + lastN — friendlies included when the scope says so.
+    finished_matches = _finished_matches_with_players(s, mode=mode_norm, scope=scope_norm)
     overall = compute_overall_and_lastN(finished_matches, players, lastN=lastN)
 
     # Per-tournament positions should include any tournament that already has
     # finished matches (including currently live tournaments), not only "done".
-    finished_tournament_ids = sorted({int(m.tournament_id) for m in finished_matches if m.tournament_id is not None})
+    # A position only exists inside a tournament, so friendlies never contribute
+    # one: with scope="friendlies" this list is empty, and so are the per-player
+    # position maps and the tournament titles built from them.
+    finished_tournament_ids = sorted(
+        {int(m.tournament_id) for m in finished_matches if getattr(m, "tournament_id", None) is not None}
+    )
     if finished_tournament_ids:
         tournaments_stmt = (
             select(Tournament)
@@ -167,6 +198,7 @@ def compute_stats_players(s: Session, *, mode: str, lastN: int) -> dict[str, Any
     return {
         "generated_at": datetime.utcnow().isoformat(),
         "mode": mode_norm,
+        "scope": scope_norm,
         "cup_owner_player_id": cup_owner_player_id,
         "tournaments": tournaments_out,
         "players": player_rows,
