@@ -7,7 +7,7 @@ from sqlmodel import Session, select
 
 from ..auth import require_admin, require_editor
 from ..db import get_engine, get_session
-from ..models import Club, ClubCrestFile, League, MatchSide
+from ..models import Club, ClubCrestFile, FriendlyMatchSide, League, MatchSide
 from ..schemas import ClubCreateBody, ClubPatchBody, LeagueCreateBody
 from ..schemas.responses import ClubColumnsOut, ClubCrestMetaOut, ClubOut, LeagueOut
 from ..services.file_storage import (
@@ -285,7 +285,18 @@ def delete_club(
     """
     Admin only:
       - deletes a club (team)
-      - refuses if club is referenced by any match side (to protect history)
+      - refuses if the club is referenced by any recorded match — tournament **or
+        friendly** (to protect history)
+      - takes its crest with it (row + file)
+
+    Friendlies count: they are matches with a club just as much as tournament
+    matches are, and in the real data there are clubs referenced *only* by a
+    friendly. Deleting such a club used to succeed and leave the friendly pointing
+    at a club id that no longer exists (SQLite does not enforce the foreign key).
+
+    The crest has to go too: `club.id` is not AUTOINCREMENT, so SQLite hands the
+    freed id to the next club created — which would then inherit the deleted
+    club's crest row and its file on disk.
     """
     c = s.get(Club, club_id)
     if not c:
@@ -294,6 +305,15 @@ def delete_club(
     used = s.exec(select(MatchSide.id).where(MatchSide.club_id == club_id)).first()
     if used is not None:
         raise HTTPException(status_code=409, detail="Club is used in matches; cannot delete")
+
+    used_friendly = s.exec(select(FriendlyMatchSide.id).where(FriendlyMatchSide.club_id == club_id)).first()
+    if used_friendly is not None:
+        raise HTTPException(status_code=409, detail="Club is used in friendlies; cannot delete")
+
+    crest = s.get(ClubCrestFile, club_id)
+    if crest is not None:
+        delete_media(crest.file_path)
+        s.delete(crest)
 
     s.delete(c)
     s.commit()
