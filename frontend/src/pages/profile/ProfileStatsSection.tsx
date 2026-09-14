@@ -108,10 +108,13 @@ export default function ProfileStatsSection({
 
       {radarAxes.length >= 3 ? (
         <div>
+          {/* Header, then the one-line explainer, then the block — the shape every stats
+              section has (DESIGN.md §6); the stats page's Player view renders this exact
+              block and must not word it differently (A8). */}
           <div className="section-head"><span className="section-label">Profile net</span></div>
-          <div className="flex flex-col items-center">
+          <p className="-mt-1 text-xs text-text-muted">Strengths relative to the field.</p>
+          <div className="mt-2 flex flex-col items-center">
             <Radar axes={radarAxes} />
-            <div className="text-xs text-text-muted">Strengths relative to the field.</div>
           </div>
         </div>
       ) : null}
