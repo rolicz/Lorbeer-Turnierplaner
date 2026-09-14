@@ -130,6 +130,7 @@ function AvatarPlayerSelect({
             className="h-8 w-8"
             fallbackIcon={<Ban size={12} className="text-text-muted" aria-hidden="true" />}
             noOverflowAnchor={true}
+            showName
           />
           {players.map((p) => {
             const takenElsewhere = usedIds.has(p.id) && value !== p.id;
@@ -144,6 +145,7 @@ function AvatarPlayerSelect({
                 onClick={() => onChange(p.id)}
                 className="h-8 w-8"
                 noOverflowAnchor={true}
+                showName
               />
             );
           })}

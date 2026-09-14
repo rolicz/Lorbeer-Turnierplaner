@@ -99,6 +99,7 @@ export default function NewTournamentForm({ onCancel }: { onCancel?: () => void 
                 selected={!!selected[p.id]}
                 onClick={() => setSelected((prev) => ({ ...prev, [p.id]: !prev[p.id] }))}
                 className="h-12 w-12"
+                showName
               />
             ))}
           </div>

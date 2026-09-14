@@ -134,13 +134,17 @@ export default function ProfileHeader({
               <img
                 src={headerImageSrc}
                 alt=""
-                className="w-full object-cover aspect-[16/9] cursor-zoom-in"
+                /* 16:9 is the crop the editor produces; `max-h-64` only bites on a wide
+                   viewport, where a full-width 16:9 banner ate 62% of the window and
+                   pushed the tab strip off the fold (A7). A phone is unchanged (16:9 of
+                   390px is 219px), and the whole image is one tap away in the lightbox. */
+                className="w-full max-h-64 object-cover object-center aspect-[16/9] cursor-zoom-in"
                 loading="lazy"
                 decoding="async"
               />
             </button>
           ) : (
-            <div className="aspect-[16/9] grid place-items-center text-sm text-text-muted bg-bg-card-chip/25">
+            <div className="aspect-[16/9] max-h-64 grid place-items-center text-sm text-text-muted bg-bg-card-chip/25">
               No header image
             </div>
           )}
