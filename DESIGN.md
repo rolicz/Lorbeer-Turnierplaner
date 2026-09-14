@@ -43,9 +43,27 @@ Existing families stay: `bg-default / bg-card-outer / bg-card-inner / bg-card-ch
 | `--color-draw` | `text-draw`, `bg-draw/…` | a draw | `251 191 36` (amber-400) | `180 83 9` (amber-700) |
 | `--color-loss` | `text-loss`, `bg-loss/…` | a loss | `248 113 113` (red-400) | `185 28 28` (red-700) |
 | `--color-live` | `text-live`, `bg-live/…` | live/playing marker (= `--live-indicator`) | `239 68 68` | `220 38 38` (red-600, ≥4.5:1 as text on white) |
+| `--color-cup-gold` | (inline, via `cupColors.ts`) | the Lorbeerkranz's colour | `251 191 36` (amber-400; green theme `245 208 90`) | `166 74 12` (dark amber) |
+| `--color-cup-green-dark` | (inline, via `cupColors.ts`) | the Bauernkranz's colour | `21 128 61` (green-700) | `22 116 55` |
 
 Soft backgrounds are always the token at low alpha (`bg-win/15`, `bg-loss/15`), never a second
 token. `delta-up`/`delta-down` stay for numeric deltas (ratings, form).
+**A cup's colour is a token of its own** (`src/cupColors.ts` maps cup key → token): it is worn as
+text (the holder's name), as a ring and as a dot, so it may never borrow a medal gradient or a
+status colour, which move for other reasons.
+
+**Light theme, contrast (A6).** Light is not a tint of the dark palette: a colour picked to glow
+on a near-black page is unreadable on a near-white one. So `light.css` restates every token that
+carries *text* until it clears 4.5:1 **on the page ground** (`236 235 233` — the worst case, and
+the surface most of these labels sit on), and a selected chip's own `bg-accent/15` tint counts as
+part of that background:
+
+| Token | Dark | Light | on the page ground |
+|---|---|---|---|
+| `--color-accent` | `59 130 246` (blue-500) | `29 76 214` | 3.09:1 → 5.77:1 (4.60:1 under `bg-accent/15`) |
+| `--color-btn-text` | `255 255 255` on the teal `--color-btn-bg` | `12 10 9` | 2.49:1 → 7.94:1 (the teal itself is unchanged) |
+| `--color-cup-gold` | `251 191 36` | `166 74 12` | 1.90:1 → 4.89:1 |
+| `--color-cup-green-dark` | `21 128 61` | `22 116 55` | 4.21:1 → 4.91:1 |
 
 ## 3. Surfaces (three levels, `styles.css`)
 

@@ -40,8 +40,11 @@
   --color-loss: 248 113 113; /* red-400 */
   --color-live: 239 68 68; /* red-500 (= --live-indicator) */
 
-  /* Cup palette (invariant across themes). */
-  --color-cup-green-dark: 21 128 61; /* green-700 */
+  /* Cup palette. A cup's colour is its identity (the ring on an avatar, the dot on a
+     block, the holder's name), so it has its own tokens instead of borrowing the medal
+     gradients; `light.css` darkens both so the holder's name stays readable (A6). */
+  --color-cup-gold: 251 191 36; /* amber-400 — the Lorbeerkranz */
+  --color-cup-green-dark: 21 128 61; /* green-700 — the Bauernkranz */
 
   /* Backgrounds */
   --color-bg-default: 12 12 15; /* Shifted darker for more usable dark shades */
