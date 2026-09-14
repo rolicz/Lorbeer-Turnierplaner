@@ -197,6 +197,11 @@ class FriendlyOut(BaseModel):
     created_at: datetime
     updated_at: datetime
     sides: list[FriendlySideOut]
+    # Per-caller capability flags (A10). Computed server-side against server time, so the
+    # client renders its controls from these instead of re-deriving the rule. Viewer-less
+    # paths (a reader, the websocket broadcast) get False.
+    can_edit: bool = False
+    can_delete: bool = False
 
 
 # ---- matches -----------------------------------------------------------
@@ -326,6 +331,12 @@ class TournamentDetailOut(BaseModel):
     decider_loser_player_id: int | None
     decider_winner_goals: int | None
     decider_loser_goals: int | None
+    # Per-caller capability flags (A10). Computed server-side against server time, so the
+    # client renders its controls from these instead of re-deriving the rule. Viewer-less
+    # paths (a reader, the websocket broadcast) get False.
+    can_edit: bool = False
+    can_delete: bool = False
+    can_set_decider: bool = False
 
 
 class TournamentListItemOut(TournamentSummaryOut):
@@ -333,6 +344,12 @@ class TournamentListItemOut(TournamentSummaryOut):
     winner_string: str | None
     winner_decider_string: str | None
     participants: list[PlayerRef]
+    # Per-caller capability flags (A10). Computed server-side against server time, so the
+    # client renders its controls from these instead of re-deriving the rule. Viewer-less
+    # paths (a reader, the websocket broadcast) get False.
+    can_edit: bool = False
+    can_delete: bool = False
+    can_set_decider: bool = False
 
 
 class TournamentLiveOut(BaseModel):

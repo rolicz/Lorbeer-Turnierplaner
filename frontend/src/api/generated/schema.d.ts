@@ -126,7 +126,12 @@ export interface paths {
         get: operations["get_tournament_tournaments__tournament_id__get"];
         put?: never;
         post?: never;
-        /** Delete Tournament */
+        /**
+         * Delete Tournament
+         * @description Admin always; the editor who created it may delete it within their first hour (A10).
+         *
+         *     Allowed even when results exist — which is why every client confirms first.
+         */
         delete: operations["delete_tournament_tournaments__tournament_id__delete"];
         options?: never;
         head?: never;
@@ -261,7 +266,9 @@ export interface paths {
          *       }
          *
          *     Editors:
-         *       - can set decider while tournament is NOT done
+         *       - can set the decider while the tournament is NOT done, and for one hour after it
+         *         finished (A10 — a decider only resolves a tie that is known once every match is
+         *         played, so the window has to start when the tournament ends)
          *     Admin:
          *       - can set/adjust anytime, even after done
          *
@@ -337,7 +344,7 @@ export interface paths {
          * @description Swap home/away (Side A <-> Side B) by swapping the side labels.
          *
          *     Editor/admin:
-         *       - allowed while tournament not done
+         *       - allowed while the tournament is not done, and for one hour after it finished (A10)
          *     Admin:
          *       - allowed even after tournament done
          */
@@ -1228,11 +1235,17 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        /** Delete Friendly */
+        /**
+         * Delete Friendly
+         * @description Admin always; the editor who created it may delete it within their first hour (A10).
+         */
         delete: operations["delete_friendly_friendlies__friendly_id__delete"];
         options?: never;
         head?: never;
-        /** Patch Friendly */
+        /**
+         * Patch Friendly
+         * @description Admin always; the editor who created it may fix it within their first hour (A10).
+         */
         patch: operations["patch_friendly_friendlies__friendly_id__patch"];
         trace?: never;
     };
@@ -1698,6 +1711,16 @@ export interface components {
             updated_at: string;
             /** Sides */
             sides: components["schemas"]["FriendlySideOut"][];
+            /**
+             * Can Edit
+             * @default false
+             */
+            can_edit: boolean;
+            /**
+             * Can Delete
+             * @default false
+             */
+            can_delete: boolean;
         };
         /** FriendlySideOut */
         FriendlySideOut: {
@@ -2827,6 +2850,21 @@ export interface components {
             decider_winner_goals: number | null;
             /** Decider Loser Goals */
             decider_loser_goals: number | null;
+            /**
+             * Can Edit
+             * @default false
+             */
+            can_edit: boolean;
+            /**
+             * Can Delete
+             * @default false
+             */
+            can_delete: boolean;
+            /**
+             * Can Set Decider
+             * @default false
+             */
+            can_set_decider: boolean;
         };
         /** TournamentGenerateBody */
         TournamentGenerateBody: {
@@ -2881,6 +2919,21 @@ export interface components {
             winner_decider_string: string | null;
             /** Participants */
             participants: components["schemas"]["PlayerRef"][];
+            /**
+             * Can Edit
+             * @default false
+             */
+            can_edit: boolean;
+            /**
+             * Can Delete
+             * @default false
+             */
+            can_delete: boolean;
+            /**
+             * Can Set Decider
+             * @default false
+             */
+            can_set_decider: boolean;
         };
         /** TournamentLiveOut */
         TournamentLiveOut: {

@@ -5,11 +5,13 @@ from sqlmodel import Session, select
 
 from ..models import Match, MatchSide, Player, Tournament
 from ..tournament_status import compute_status_map
+from .authorization import tournament_capabilities, tournament_creator_map
 from .cup import compute_all_cup_tournament_stakes_by_tournament
 from .stats.core import compute_player_standings, compute_points_table_finished, positions_from_standings, top_group
 
 
-def build_tournament_list(s: Session) -> list[dict]:
+def build_tournament_list(s: Session, *, claims: dict | None = None) -> list[dict]:
+    """``claims`` = the caller, for the per-row capability flags (A10)."""
     ts = s.exec(select(Tournament).order_by(Tournament.created_at.desc())).all()
     status_by_tid = compute_status_map(s)
 
@@ -67,6 +69,10 @@ def build_tournament_list(s: Session) -> list[dict]:
             }
         )
 
+    # One query for every creator link, like the names below — not one per row, and not at
+    # all for the public (token-less) read, where nobody can be a creator.
+    creator_by_tid = tournament_creator_map(s, [int(t.id) for t in ts]) if claims else {}
+
     # One query for all winner/decider names instead of up to two name lookups per tournament.
     named = s.exec(select(Player).where(Player.id.in_(sorted(name_pids)))).all() if name_pids else []
     name_by_pid = {int(p.id): p.display_name for p in named}
@@ -82,6 +88,16 @@ def build_tournament_list(s: Session) -> list[dict]:
         d["winner_decider_string"] = name_by_pid.get(int(decider_pid)) if decider_pid is not None else None
         d["cup_stakes"] = cup_stakes_by_tid.get(int(t.id), [])
         d["participants"] = r["participants"]
+        d.update(
+            tournament_capabilities(
+                s,
+                t,
+                claims=claims,
+                creator_player_id=creator_by_tid.get(int(t.id)),
+                status=r["status"],
+                matches=matches_by_tid.get(int(t.id), []),
+            )
+        )
         out.append(d)
 
     return out

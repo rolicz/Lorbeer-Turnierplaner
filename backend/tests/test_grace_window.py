@@ -218,7 +218,7 @@ def test_tournament_delete_matrix(client, editor_headers, editor2_headers, admin
 
 
 def test_a_tournament_created_before_this_shipped_stays_admin_only(client, editor_headers, admin_headers):
-    """No creator row (legacy tournaments) → deleting is admin-only; editing is not affected."""
+    """No creator row (legacy tournaments) → the editor never sees a delete button that 403s."""
     ids = [create_player(client, admin_headers, n) for n in ["GL1", "GL2", "GL3"]]
     tid = create_tournament(client, editor_headers, "grace-legacy", "1v1", ids)
 
@@ -229,7 +229,9 @@ def test_a_tournament_created_before_this_shipped_stays_admin_only(client, edito
         s.commit()
 
     assert client.delete(f"/tournaments/{tid}", headers=editor_headers).status_code == 403
-    assert client.patch(f"/tournaments/{tid}", json={"name": "still editable"}, headers=editor_headers).status_code == 200
+    row = next(t for t in client.get("/tournaments", headers=editor_headers).json() if t["id"] == tid)
+    assert row["can_delete"] is False
+    assert row["can_edit"] is True
     assert client.delete(f"/tournaments/{tid}", headers=admin_headers).status_code == 204
 
 
@@ -299,3 +301,79 @@ def test_friendly_delete_matrix(client, editor_headers, editor2_headers, admin_h
         == "Only an admin, or the editor who created it within the last hour, can delete a friendly"
     )
     assert client.delete(f"/friendlies/{fid2}", headers=admin_headers).status_code == 200
+
+
+# ---- the flags in the payloads -----------------------------------------
+
+
+def test_capability_flags_match_the_guards(client, editor_headers, editor2_headers, admin_headers):
+    ids = [create_player(client, admin_headers, n) for n in ["GC1", "GC2", "GC3"]]
+    tid = create_tournament(client, editor_headers, "grace-flags", "1v1", ids)
+    generate(client, editor_headers, tid, randomize=False)
+
+    def detail(headers=None):
+        r = client.get(f"/tournaments/{tid}", headers=headers or {})
+        assert r.status_code == 200, r.text
+        return r.json()
+
+    def item(headers=None):
+        rows = client.get("/tournaments", headers=headers or {}).json()
+        return next(t for t in rows if t["id"] == tid)
+
+    # Reader: no token, nothing offered.
+    for row in (detail(), item()):
+        assert (row["can_edit"], row["can_delete"], row["can_set_decider"]) == (False, False, False)
+
+    for row in (detail(editor_headers), item(editor_headers)):
+        assert (row["can_edit"], row["can_delete"], row["can_set_decider"]) == (True, True, True)
+
+    # Another editor may edit a live tournament but never delete someone else's.
+    for row in (detail(editor2_headers), item(editor2_headers)):
+        assert (row["can_edit"], row["can_delete"], row["can_set_decider"]) == (True, False, True)
+
+    for row in (detail(admin_headers), item(admin_headers)):
+        assert (row["can_edit"], row["can_delete"], row["can_set_decider"]) == (True, True, True)
+
+    _finish_all(client, editor_headers, tid)
+    inside = detail(editor_headers)
+    assert (inside["can_edit"], inside["can_set_decider"]) == (True, True)
+
+    backdate_tournament_finish(tid)
+    backdate_tournament_creation(tid)
+    outside = detail(editor_headers)
+    assert (outside["can_edit"], outside["can_delete"], outside["can_set_decider"]) == (False, False, False)
+    assert item(editor_headers)["can_edit"] is False
+    assert detail(admin_headers)["can_edit"] is True
+
+
+def test_friendly_flags_match_the_guards(client, editor_headers, editor2_headers, admin_headers):
+    ids = [create_player(client, admin_headers, n) for n in ["GV1", "GV2"]]
+    fid = _create_friendly(client, editor_headers, ids)
+
+    def row(headers=None):
+        rows = client.get("/friendlies", headers=headers or {}).json()
+        return next(f for f in rows if int(f["id"]) == fid)
+
+    assert (row()["can_edit"], row()["can_delete"]) == (False, False)
+    assert (row(editor_headers)["can_edit"], row(editor_headers)["can_delete"]) == (True, True)
+    assert (row(editor2_headers)["can_edit"], row(editor2_headers)["can_delete"]) == (False, False)
+    assert (row(admin_headers)["can_edit"], row(admin_headers)["can_delete"]) == (True, True)
+
+    backdate_friendly(fid)
+    assert (row(editor_headers)["can_edit"], row(editor_headers)["can_delete"]) == (False, False)
+    assert (row(admin_headers)["can_edit"], row(admin_headers)["can_delete"]) == (True, True)
+
+
+def test_the_websocket_payload_carries_no_capabilities(client, editor_headers, admin_headers):
+    """`tournament.sync` has no single viewer, so it serializes viewer-less (all-False)."""
+    ids = [create_player(client, admin_headers, n) for n in ["GS1", "GS2", "GS3"]]
+    tid = create_tournament(client, editor_headers, "grace-ws", "1v1", ids)
+    generate(client, editor_headers, tid, randomize=False)
+
+    with client.websocket_connect(f"/ws/tournaments/{tid}") as ws:
+        assert ws.receive_json()["event"] == "connected"
+        assert client.patch(f"/tournaments/{tid}", json={"name": "ws rename"}, headers=editor_headers).status_code == 200
+        msg = ws.receive_json()
+        assert msg["event"] == "tournament.sync"
+        t = msg["payload"]["tournament"]
+        assert (t["can_edit"], t["can_delete"], t["can_set_decider"]) == (False, False, False)
