@@ -31,7 +31,8 @@ export default function ConfirmDialog({
   busy?: boolean;
   onCancel: () => void;
   onConfirm: () => void;
-  /** What is lost. Rendered in the app's danger idiom; keep it to a few short lines. */
+  /** What is lost. Rendered in the app's danger idiom (the `error` token, never
+   *  `loss` — a deleted tournament is not a defeat); keep it to a few short lines. */
   children?: React.ReactNode;
 }) {
   return (
@@ -45,7 +46,7 @@ export default function ConfirmDialog({
     >
       <div className="space-y-4">
         {children ? (
-          <div className="space-y-1 rounded-xl border border-loss/40 bg-loss/10 p-3 text-xs text-loss">
+          <div className="space-y-1 rounded-xl border border-error/40 bg-error/10 p-3 text-xs text-error">
             {children}
           </div>
         ) : null}

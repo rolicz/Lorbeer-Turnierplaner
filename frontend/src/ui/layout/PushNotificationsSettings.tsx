@@ -42,7 +42,7 @@ export default function PushNotificationsSettings({ token }: { token: string | n
   const statusTone = push.deviceEnabled
     ? "text-accent"
     : push.permission === "denied"
-      ? "text-loss"
+      ? "text-error"
       : "text-text-muted";
 
   if (!token) {
@@ -137,7 +137,7 @@ export default function PushNotificationsSettings({ token }: { token: string | n
         </div>
       ) : null}
       {push.error ? (
-        <div className="rounded-xl border border-loss/40 bg-loss/10 p-3 text-xs text-loss">
+        <div className="rounded-xl border border-error/40 bg-error/10 p-3 text-xs text-error">
           <div>{push.error}</div>
           <button type="button" className="mt-2 text-xs font-medium underline underline-offset-2" onClick={push.clearError}>
             Dismiss

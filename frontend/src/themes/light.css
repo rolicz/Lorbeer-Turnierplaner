@@ -8,6 +8,15 @@
   /* red-600: as text on white the defaults' red-500 is only 3.7:1 (DESIGN.md §2). */
   --color-live: 220 38 38; /* red-600 */
 
+  /* State tokens (DESIGN.md §2): same story as win/draw/loss above — the dark reds and
+     ambers are light-on-light here. These carry whole sentences (an error box, a
+     conflict banner, the connection state) rather than a numeral in a W-D-L run, so
+     they are darkened until they clear 4.5:1 on the page ground *and* on their own 10%
+     tint: the amber goes one step past `--color-draw`, which only manages 4.21:1 on the
+     ground and 4.39:1 on that tint (A8). */
+  --color-error: 185 28 28; /* red-700 — 5.43:1 on the ground, 5.45:1 on bg-error/10 */
+  --color-warn: 146 64 14; /* amber-800 — 5.95:1 on the ground, 6.08:1 on bg-warn/10 */
+
   /* Cup colours (DESIGN.md §2). The dark themes' amber and green-700 are 1.90:1 and
      4.21:1 as the holder's name on the light page ground, so light darkens both —
      4.89:1 and 4.91:1 — exactly as it darkens win/draw/loss above (A6). */

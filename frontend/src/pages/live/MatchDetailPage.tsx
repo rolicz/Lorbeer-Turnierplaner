@@ -7,6 +7,7 @@ import Input from "../../ui/primitives/Input";
 import SegmentedSwitch from "../../ui/primitives/SegmentedSwitch";
 import { ErrorToastOnError, showErrorToast } from "../../ui/primitives/ErrorToast";
 import PageLoadingScreen from "../../ui/primitives/PageLoadingScreen";
+import InlineLoading from "../../ui/primitives/InlineLoading";
 import MatchOverviewPanel from "../../ui/primitives/MatchOverviewPanel";
 import { SectionTabs, type SectionTab } from "../../ui/SectionTabs";
 import PageLayout from "../../ui/layout/PageLayout";
@@ -351,7 +352,7 @@ export default function MatchDetailPage() {
               {conflicts.length > 0 && serverDraft ? (
                 <div
                   data-testid="match-conflict"
-                  className="space-y-2 rounded-xl border border-draw/40 bg-draw/10 p-3 text-xs text-draw"
+                  className="space-y-2 rounded-xl border border-warn/40 bg-warn/10 p-3 text-xs text-warn"
                 >
                   <div className="text-sm font-semibold">Someone else changed this match</div>
                   <ul className="space-y-1">
@@ -440,7 +441,7 @@ export default function MatchDetailPage() {
                 extraTop={
                   <div className="space-y-2">
                     <Input label="Game" value={clubGame} onChange={(e) => setClubGame(e.target.value)} />
-                    {clubsQ.isLoading && <div className="text-sm text-text-muted">Loading clubs…</div>}
+                    {clubsQ.isLoading && <InlineLoading label="Loading clubs…" />}
                   </div>
                 }
                 extraBottom={

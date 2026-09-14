@@ -186,7 +186,7 @@ export default function MatchH2HPanel({
         </div>
 
         {loading ? <InlineLoading label="Loading H2H…" /> : null}
-        {error ? <div className="inset px-3 py-2 text-sm text-loss">{error}</div> : null}
+        {error ? <div className="inset px-3 py-2 text-sm text-error">{error}</div> : null}
 
         {!loading && !error ? (
           <>

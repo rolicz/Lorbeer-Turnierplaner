@@ -92,7 +92,7 @@ export function ErrorToastViewport() {
         <div key={t.id} className="pointer-events-auto card p-2 shadow-xl">
           {/* not CardSection: custom py-2 padding and a flex layout. */}
           <div className="inset flex items-start gap-2 py-2">
-            <CircleAlert size={14} className="mt-0.5 shrink-0 text-[color:rgb(var(--delta-down)/1)]" aria-hidden="true" />
+            <CircleAlert size={14} className="mt-0.5 shrink-0 text-error" aria-hidden="true" />
             <div className="min-w-0 flex-1">
               <div className="text-xs font-semibold text-text-normal">{t.title}</div>
               <div className="mt-0.5 break-anywhere text-xs text-text-muted">{t.message}</div>

@@ -324,7 +324,9 @@
     color: hsl(var(--pos-h) 85% 14% / 1);
   }
 
-  /* Discrete buckets (used in legend + fallback): fixed points on the ramp above. */
+  /* Discrete buckets (used in legend + fallback): fixed points on the ramp above. The set is
+     deliberately complete — the legend shows four of the five, but a ramp whose vocabulary
+     skips "good" between "best" and "mid" is worse than one unused class (A8). */
   .pos-best { --pos-p: 0; }
   .pos-good { --pos-p: 0.25; }
   .pos-mid { --pos-p: 0.5; }
@@ -412,8 +414,11 @@
 
   .delta-up { color: rgb(var(--delta-up)); }
   .delta-down { color: rgb(var(--delta-down)); }
-  .live-dot { background-color: rgb(var(--live-indicator)); }
-  .live-ping { background-color: rgb(var(--live-indicator)); }
+  /* The live marker paints with the `live` token itself — it used to have a private
+     `--live-indicator` variable that light.css never overrode, which left a red-500
+     dot on a near-white page while the token next to it already knew better (A8). */
+  .live-dot { background-color: rgb(var(--color-live)); }
+  .live-ping { background-color: rgb(var(--color-live)); }
 }
 
 

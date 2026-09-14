@@ -82,6 +82,11 @@ module.exports = {
         loss: cssVar("color-loss"),
         live: cssVar("color-live"),
 
+        // Semantic state colors (DESIGN.md §2): `text-error`, `bg-warn/10`, …
+        // A message never borrows a result colour.
+        error: cssVar("color-error"),
+        warn: cssVar("color-warn"),
+
         // Hover
         "hover-btn-bg": cssVar("color-hover-btn-bg"),
         "hover-nav": cssVar("color-hover-nav"),

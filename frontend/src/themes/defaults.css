@@ -25,20 +25,30 @@
   /* Shared UI accents (fixed across themes) */
   --delta-up: 20 184 166; /* teal-500 */
   --delta-down: 225 56 74; /* softened red (less intense than rose-500) */
-  --live-indicator: 239 68 68; /* red-500 */
 
   /*
    * Semantic result tokens (DESIGN.md §2). Every win/draw/loss colour in the app
    * goes through these — never a raw Tailwind palette class. The dark values are
    * the baseline for every dark theme (dark/blue/red/green inherit them);
    * themes/light.css darkens win/draw/loss for white surfaces.
-   * --color-live mirrors --live-indicator in the dark themes; light.css darkens it
-   * to red-600 so it is legible as text on white.
+   * --color-live is the live marker: `.live-dot` / `.live-ping` paint with it, and
+   * light.css darkens it to red-600 so it is legible as text on white too.
    */
   --color-win: 74 222 128; /* green-400 */
   --color-draw: 251 191 36; /* amber-400 */
   --color-loss: 248 113 113; /* red-400 */
-  --color-live: 239 68 68; /* red-500 (= --live-indicator) */
+  --color-live: 239 68 68; /* red-500 */
+
+  /*
+   * Semantic *state* tokens (DESIGN.md §2). A result colour answers "how did this
+   * match go" and has to stay readable next to the other two in a `W-D-L` run; these
+   * answer "is anything wrong" and have to stay readable as a message on a card, an
+   * inset and their own 10% tint. Two jobs, two variables — a message must never
+   * borrow win/draw/loss (A8). They resolve to the same red and amber the result
+   * tokens use today; that is a coincidence a theme is free to break.
+   */
+  --color-error: 248 113 113; /* red-400 — something failed */
+  --color-warn: 251 191 36; /* amber-400 — attention, but nothing failed */
 
   /* Cup palette. A cup's colour is its identity (the ring on an avatar, the dot on a
      block, the holder's name), so it has its own tokens instead of borrowing the medal

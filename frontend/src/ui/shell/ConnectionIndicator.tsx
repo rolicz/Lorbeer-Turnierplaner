@@ -37,15 +37,18 @@ export default function ConnectionIndicator() {
   const offline = status === "offline";
   const label = offline ? "Offline" : "Reconnecting";
 
+  // A dropped socket is not a drawn match: the amber here is the `warn` state token,
+  // never `draw` (A8). Offline stays the quieter of the two on purpose — red would put
+  // a second red dot in the chrome that already carries the live one.
   return (
     <span
       data-connection-status={status}
-      className={`inline-flex items-center gap-1.5 text-xs ${offline ? "text-text-muted" : "text-draw"}`}
+      className={`inline-flex items-center gap-1.5 text-xs ${offline ? "text-text-muted" : "text-warn"}`}
       title={`Realtime: ${label}`}
       aria-label={`Realtime status: ${label}`}
     >
       <span
-        className={`inline-flex h-2 w-2 shrink-0 rounded-full ${offline ? "bg-status-bar-default" : "bg-draw"}`}
+        className={`inline-flex h-2 w-2 shrink-0 rounded-full ${offline ? "bg-status-bar-default" : "bg-warn"}`}
         aria-hidden="true"
       />
       <span className="truncate">{label}</span>
