@@ -66,9 +66,14 @@ export default function LoginPage() {
           onChange={(e) => setPw(e.target.value)}
           placeholder="profile password"
         />
-        <Button disabled={busy || !pw.trim() || !username.trim()} className="w-full">
-          <LogIn size={14} className="md:hidden" aria-hidden="true" />
-          <span className="hidden md:inline">{busy ? "Logging in..." : "Login"}</span>
+        {/* The page's only action, so it says what it does at every width — the
+            compact-mobile idiom (icon below md) would leave it unnamed (A6). */}
+        <Button
+          disabled={busy || !pw.trim() || !username.trim()}
+          className="inline-flex w-full items-center justify-center gap-2"
+        >
+          <LogIn size={14} aria-hidden="true" />
+          <span>{busy ? "Logging in..." : "Login"}</span>
         </Button>
         <div className="text-sm text-text-muted">
           No login is needed for read-only viewing.
