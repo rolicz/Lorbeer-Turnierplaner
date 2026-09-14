@@ -215,7 +215,13 @@ WebSocket channels (`app/main.py`, `app/ws.py`, `services/events.py`):
   `player:pokes:update` and `player:guestbook:update` (created/updated/voted/deleted). Both are
   handled by one narrow resync (`resyncPlayer`), which invalidates the poke **and** guestbook
   keys — a profile's guestbook is realtime, its read state included.
-Every envelope carries `ts` + monotonic `seq`; the frontend resyncs on gaps/reconnect.
+Every envelope carries `ts` + a `seq` that is **monotonic per channel** (`app/ws.py` counts
+1, 2, 3… separately for each tournament id, each player id, and the global channel — A9 split
+the old process-wide counter, which no client could read as "you missed one"). The frontend
+baselines `seq` on every connect and resyncs on a gap as well as on reconnect/visibility
+(`connection.ts` `onGap` → the channel's resync in `useRealtime.ts`). A socket that fails a
+broadcast is **closed**, not merely dropped from the channel: the endpoint's receive loop would
+otherwise keep answering its pings and the client would show "live" forever without resyncing.
 Behind Caddy the `/ws` prefix is **not** stripped (`handle /ws/*`), `/api` **is** (`handle_path`).
 
 ## 7. Deployment (production)

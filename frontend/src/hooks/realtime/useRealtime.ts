@@ -5,7 +5,9 @@
  * tournament.sync replaces the tournament cache wholesale, so a goal is a zero-
  * refetch DOM update. We additionally RESYNC (a narrow refetch of the active
  * data) whenever a socket (re)connects after a gap or the tab becomes visible
- * again, to catch anything missed while disconnected/backgrounded.
+ * again, to catch anything missed while disconnected/backgrounded — and when the
+ * channel's `seq` skips a number, which is the only signal that something was
+ * missed while the socket stayed up (A9).
  */
 import { useEffect, useRef } from "react";
 import { useQueryClient, type QueryClient } from "@tanstack/react-query";
@@ -64,6 +66,7 @@ export function useTournamentWS(tid: number | null) {
       onOpen: (first) => {
         if (!first) resyncTournament(qc, tid);
       },
+      onGap: () => resyncTournament(qc, tid),
     });
   }, [qc, tid, url]);
 }
@@ -90,6 +93,7 @@ export function useAnyTournamentWS() {
       onOpen: (first) => {
         if (!first) resyncGlobal(qc);
       },
+      onGap: () => resyncGlobal(qc),
     });
   }, [qc, url]);
 }
@@ -132,6 +136,7 @@ export function usePlayerProfileWS(playerId: number | null, token?: string | nul
       onOpen: (first) => {
         if (!first) resyncPlayer(qc, playerId, token);
       },
+      // Every message on this channel already resyncs, so a gap needs nothing extra.
     });
   }, [playerId, qc, token, url]);
 }
