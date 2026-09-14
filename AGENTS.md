@@ -5,7 +5,7 @@
 > non-obvious about the project (deploy quirks, data semantics, decisions), **update this file**
 > so the knowledge survives model/tool switches. Keep the "Current state" section dated.
 >
-> Last full review: 2026-09-13 (branch `feature/2026-09-batch`; `main` still at `b56b1fb`).
+> Last full review: 2026-09-14 (branch `feature/2026-09-audit`; `main` at `cabda7c`, deployed).
 
 ---
 
@@ -413,41 +413,46 @@ Other helpers: `seed --file backend/data/seed.json` (players/leagues/clubs upser
 - `backend/app.db*`, `backend/data/app.db` are real (synced) data — never commit, never run
   destructive experiments on them; copy first.
 
-## 11. Current state (2026-09-13)
+## 11. Current state (2026-09-14)
 
-- **Branch `feature/2026-09-batch` holds the whole 2026-09 batch** (32 tasks, tracker
-  `FEATURES_2026-09.md`, baseline `b56b1fb`): the H2H **Matchup** view, the four-section stats IA
-  with its `?view=`/`?sub=` URL scheme, the mobile bottom tab bar with per-destination last-page
-  memory, hierarchical back + swipe + scroll restoration, `?tab=` everywhere, `DESIGN.md` and the
-  DS migration onto it (surfaces `card`/`inset`/`chip`, semantic win/draw/loss tokens, one
-  `ScoreLine`, lucide-only icons, the `ClubPicker` sheet and the chat-style `CommentComposer`),
-  plus the test-suite audit and this documentation pass.
-- **Not merged, not deployed.** `main` is still `b56b1fb` (2026-08-08, G8) and production still
-  runs that. Roli tests the branch locally first; merging to `main` is his call.
-- Checks on the branch head (2026-09-13): `make test` **130 passed** (~3.7 min),
-  `make lint` clean, `cd frontend && npm run check` **369 tests in 40 files**, `npm run build`
-  green, `make gen-types` no diff.
-- **Deploy notes for when it goes out** — the standard `git pull && docker compose up -d --build`
-  (§7) is enough:
-  - The **frontend image must be rebuilt** (it changed a lot: node:20 → node:22 base, Vite 5 → 7,
-    Font Awesome added by F1 and removed again by DS7, new routes and chunks). This batch also
-    touches the backend, so build **both** services — the plain `docker compose up -d --build`,
-    not the frontend-only shortcut.
-  - Backend changes are small: the duplicate `GET /comments/tournaments-summary` route is gone
-    (the frontend never used it; the live path is `GET /tournaments/comments-summary`), the
-    guestbook notification `path` now deep-links to `?tab=guestbook&entry=<id>`, and
-    `app/stats.py` moved into `app/services/stats/tournament_stats.py`.
-  - **No DB change** — no new table, no new column, no backfill. **No manual server step**: no
-    `/data/cups.json` edit, no crest sync, nothing to run in the container.
-  - Old clients keep working: every legacy stats URL (`?view=table`, `?section=h2h`, `#trends`) is
-    mapped, `/tournaments/new` and `/tools` still redirect. A stale
-    `localStorage["stats-experience"]` is ignored (the Classic layout is gone).
+- **`main` is `cabda7c`** — the 2026-09 batch (32 tasks) plus Round 4 and Round 5, merged and
+  **deployed**. Local `main` is one docs-only commit ahead (`356ada6`, the Round 6 plan) and that
+  commit is not pushed. The batch branches `feature/2026-09-batch` and `feature/2026-09-round5`
+  are merged and can be deleted whenever Roli wants.
+- **Branch `feature/2026-09-audit` holds Round 6**, the ten audit items A1–A10 (tracker
+  `FEATURES_2026-09.md`, baseline `356ada6`), all done 2026-09-14 and **not pushed, not merged**:
+  two permission holes closed and an editor grace window built in their place (A1, A10), the match
+  page made safe against a concurrent editor (A2), four realtime/deep-link bugs (A3, A5), one
+  meaning for the Source filter (A4), the accessibility and light-theme contrast pass (A6), twelve
+  runtime-polish items (A7), the design-canon reconciliation (A8) and seven hardening items (A9).
+- Checks on the audit branch head, run together after every worker finished: `make test`
+  **154 passed** (3:38), `make lint` clean, `make gen-types` no diff,
+  `cd frontend && npm run check` **503 tests in 52 files**, `npm run build` green.
+- **Deploy notes for Round 6** — the standard `git pull && docker compose up -d --build` (§7) is
+  enough, and **both** services must be rebuilt (the backend changed):
+  - **Two new tables** (`TournamentCreatorLink`, `FriendlyCreatorLink`, A10) — `create_all` makes
+    them, no column was added or altered, no backfill, **no manual server step**. Rows created
+    before the deploy simply have no creator link and stay admin-only to delete.
+  - Backend behaviour that changed: `GET /stats/players` takes `scope` (A4); the websocket `seq`
+    is now numbered **per channel** and a failed socket is closed (A9), so clients resync on a gap;
+    `DELETE /clubs/{id}` now also refuses a club referenced only by friendlies and cleans up its
+    crest row and file (A9); the tournament/friendly payloads carry `can_edit` / `can_delete` /
+    `can_set_decider` (A10).
+  - Rollback stays safe: `main` @ `cabda7c` was booted against a copy of the migrated DB and
+    served every route, created and deleted a tournament, and ignored the new tables.
 - Open follow-ups / known and accepted:
-  - `npm run build` prints the pre-existing "chunks larger than 500 kB" hint (≈640 kB
+  - **Two decisions waiting for Roli**, both written up at the end of `FEATURES_2026-09.md`: the
+    primary button fails the same contrast check in the four dark themes that A6 fixed in light
+    (white on the teal = 2.49:1 in `dark`), which is one shared token and a look decision; and
+    three destructive actions still call `window.confirm`, which `DESIGN.md` §7 forbids and A10
+    already built `ui/primitives/ConfirmDialog.tsx` for.
+  - `npm run build` prints the pre-existing "chunks larger than 500 kB" hint (≈669 kB
     `index-*.js`). Nobody has split it yet; it is not a regression.
   - `frontend/src/utils/format.ts` keeps three exports with no app caller
     (`fmtMonthDate`, `parseDateSafe`, `wrapTwoLinesWords`) — generic formatters covered by
     `src/test/format.test.ts`, deliberately left (D1).
+  - `PATCH /tournaments/{id}/second-leg` can still revive a done tournament for any editor — the
+    one documented back door left by A10.
   - The manual smoke checklist in `REFACTORING_PLAN.md` is a reference list, not a TODO.
 
 ## 12. Where knowledge lives
