@@ -124,7 +124,9 @@ while `chip`, `.input-field` and `.select-field` stay white. Dark themes are una
 - Radius scale: `rounded-2xl` (16px) cards and modals · `rounded-xl` (12px) insets, buttons,
   inputs, segmented controls · `rounded-full` chips, pills, avatars, dots. `rounded-md` (6px)
   only for the two micro-tile grids — the positions grid (tiles, legend swatches and legend
-  examples) and the H2H matrix cells, which are the same thing at the same size.
+  examples) and the H2H matrix cells, which are the same thing at the same size: the
+  positions tile is a fixed 40×42, the matrix cell a square that fills the width its box
+  has left over (`matrixCellSize`, 44 at its tightest and 56 at its widest — R1b).
   Never `rounded-lg`/`rounded-sm` — with **one exception**:
   `SegmentedSwitch` gives its segments and its sliding indicator `rounded-lg` (8px) inside
   the `rounded-xl` track, because a control nested in a 12px box with 4px of padding cannot

@@ -3,7 +3,7 @@
  *  backend's real duo stats (best_teammates_2v2 / team_rivalries_2v2) instead of a
  *  client-side recompute. The selected player is shared with the other sections. */
 import { HeartCrack, Smile } from "lucide-react";
-import { type CSSProperties, type ReactNode, useMemo, useState } from "react";
+import { type CSSProperties, type ReactNode, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 
 import Button from "../../ui/primitives/Button";
@@ -20,7 +20,7 @@ import { PlayerPicker } from "./PlayerPicker";
 import StatsSection from "./StatsSection";
 import { MatchHistoryList, tournamentMatchHref } from "./MatchHistoryList";
 import { DuoRow } from "./HeadToHeadRows";
-import { duoKey } from "./h2hHelpers";
+import { MATRIX_GAP, duoKey, matrixCellSize } from "./h2hHelpers";
 import { DuoLeaderboard } from "./h2h/DuoLeaderboard";
 import { DuoPicker } from "./h2h/DuoPicker";
 import { DuoRivalries } from "./h2h/DuoRivalries";
@@ -161,6 +161,49 @@ export default function H2HView({ mode, scope, rows, subView, selectedId, onSele
     return { maxPlayed, maxRivalry, maxAbsGd, anyPlayed };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pairs, rows]);
+
+  /**
+   * Matrix geometry (R1b). The cell edge is computed, never fixed: it is what the scroll
+   * box has left once the sticky name column is paid for, clamped by `matrixCellSize`.
+   *
+   * Both inputs are **measured**. The name column is content-sized (a `truncate` capped at
+   * 120px), so this player set's five short names hand the tiles the ~60px a hard-coded
+   * 120 would have thrown away — and a long name still gets its room instead of eating
+   * into the cells. Nothing in that column depends on the cell size, so measuring one to
+   * size the other cannot oscillate; only the box is observed for resizes, and the name
+   * column is re-read with it.
+   */
+  const matrixBoxRef = useRef<HTMLDivElement | null>(null);
+  const nameColRef = useRef<HTMLTableCellElement | null>(null);
+  const matrixRoRef = useRef<ResizeObserver | null>(null);
+  const [matrixBox, setMatrixBox] = useState({ boxW: 0, nameW: 0 });
+  const measureMatrix = useCallback(() => {
+    const boxW = matrixBoxRef.current?.clientWidth ?? 0;
+    const nameW = nameColRef.current?.getBoundingClientRect().width ?? 0;
+    setMatrixBox((prev) => (prev.boxW === boxW && prev.nameW === nameW ? prev : { boxW, nameW }));
+  }, []);
+  /* A callback ref, not a dependency array: the matrix leaves the DOM entirely whenever
+     the Duos sub-view is up, and `rows` does not change when it comes back — an effect
+     keyed on the data would hand the returning table a stale zero and leave it at the
+     floor until the next window resize. Tying the measurement to the element's life
+     cannot go stale. */
+  const attachMatrixBox = useCallback((el: HTMLDivElement | null) => {
+    matrixBoxRef.current = el;
+    matrixRoRef.current?.disconnect();
+    matrixRoRef.current = null;
+    if (!el) return;
+    measureMatrix();
+    // jsdom has no ResizeObserver; the measurement above is enough there.
+    if (typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(measureMatrix);
+    ro.observe(el);
+    matrixRoRef.current = ro;
+  }, [measureMatrix]);
+  useEffect(() => () => matrixRoRef.current?.disconnect(), []);
+  // The name column is content-sized, so a different player set can resize it without the
+  // box ever changing: re-read both whenever the rows change.
+  useLayoutEffect(measureMatrix, [measureMatrix, rows]);
+  const matrixCell = matrixCellSize(matrixBox.boxW, matrixBox.nameW, rows.length);
 
   const cellRamp = (v: ReturnType<typeof cell>): CSSProperties => {
     if (!v) return {};
@@ -358,14 +401,23 @@ export default function H2HView({ mode, scope, rows, subView, selectedId, onSele
         {matrixRanges.anyPlayed ? (
           <p className="text-xs text-text-muted">Tap a cell for every match between two players.</p>
         ) : null}
-        <div className="overflow-x-auto" data-no-swipe-nav>
-          <table className="border-separate" style={{ borderSpacing: 3 }}>
+        <div ref={attachMatrixBox} className="overflow-x-auto" data-no-swipe-nav>
+          {/* `mx-auto` centres the table once the ceiling caps it — every realistic count
+              on desktop. It is not a second layout: when the floor makes the table wider
+              than the box, the over-constrained auto margins resolve to 0, so the matrix
+              goes back to starting at x=0 and the box scrolls from its first column. */}
+          <table className="mx-auto border-separate" style={{ borderSpacing: MATRIX_GAP }}>
             <thead>
               <tr>
                 <th className="sticky left-0 z-10 bg-bg-default" />
                 {rows.map((c) => (
                   <th key={c.id} className="p-0 align-bottom">
-                    <div className="mx-auto flex h-24 w-11 items-center justify-center overflow-visible">
+                    {/* The block's *width* follows the cell; its height does not. A rotated
+                        label's vertical extent is the length of the name, which the cell
+                        width has nothing to say about — and an elastic height would make
+                        the whole matrix jump up and down as the Mode filter changes the
+                        player set. 96px is the budget for the longest name. */}
+                    <div className="mx-auto flex h-24 items-center justify-center overflow-visible" style={{ width: matrixCell }}>
                       <span className="-rotate-90 whitespace-nowrap text-xs font-medium text-text-muted">{c.name}</span>
                     </div>
                   </th>
@@ -373,9 +425,9 @@ export default function H2HView({ mode, scope, rows, subView, selectedId, onSele
               </tr>
             </thead>
             <tbody>
-              {rows.map((r) => (
+              {rows.map((r, i) => (
                 <tr key={r.id}>
-                  <th className="sticky left-0 z-10 bg-bg-default pr-2 text-right">
+                  <th ref={i === 0 ? nameColRef : undefined} className="sticky left-0 z-10 bg-bg-default pr-2 text-right">
                     <button
                       type="button"
                       onClick={() => onSelect(r.id)}
@@ -386,21 +438,26 @@ export default function H2HView({ mode, scope, rows, subView, selectedId, onSele
                     </button>
                   </th>
                   {rows.map((c) => {
-                    if (r.id === c.id) return <td key={c.id} className="h-11 w-11 rounded-md bg-bg-card-chip/30" />;
+                    const box = { width: matrixCell, height: matrixCell };
+                    // `p-0`: a `<td>` carries 1px of user-agent padding, which made every
+                    // column two pixels wider than it asked to be — invisible while the
+                    // cell was a fixed 44, fatal to arithmetic that has to add up to the
+                    // box's width. The gutter is now `border-spacing` and nothing else.
+                    if (r.id === c.id) return <td key={c.id} style={box} className="p-0 rounded-md bg-bg-card-chip/30" />;
                     const v = cell(r.id, c.id);
-                    if (!v) return <td key={c.id} className="h-11 w-11 rounded-md bg-bg-card-chip/15 text-center text-xs text-text-muted">–</td>;
+                    if (!v) return <td key={c.id} style={box} className="p-0 rounded-md bg-bg-card-chip/15 text-center text-xs text-text-muted">–</td>;
                     return (
-                      <td key={c.id}>
+                      <td key={c.id} style={box} className="p-0">
                         <button
                           type="button"
                           onClick={() => onOpenMatchup(r.id, c.id)}
                           title={`${r.name} vs ${c.name} — open matches`}
                           aria-label={`${r.name} vs ${c.name}: ${v.w}-${v.d}-${v.l} — open matches`}
                           className={
-                            "h2h-cell focus-ring grid h-11 w-11 cursor-pointer place-items-center rounded-md text-xs font-semibold leading-none transition active:scale-[0.97] " +
+                            "h2h-cell focus-ring grid cursor-pointer place-items-center rounded-md text-xs font-semibold leading-none transition active:scale-[0.97] " +
                             (matrixMetric === "wdl" ? "tracking-tight" : "")
                           }
-                          style={cellRamp(v)}
+                          style={{ ...cellRamp(v), ...box }}
                         >
                           {cellText(v)}
                         </button>
