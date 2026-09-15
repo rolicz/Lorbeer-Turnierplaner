@@ -10,6 +10,7 @@ import FormLabel from "../ui/primitives/FormLabel";
 import Input from "../ui/primitives/Input";
 import Button from "../ui/primitives/Button";
 import CollapsibleCard from "../ui/primitives/CollapsibleCard";
+import ConfirmDialog from "../ui/primitives/ConfirmDialog";
 import SegmentedSwitch from "../ui/primitives/SegmentedSwitch";
 import { ErrorToastOnError } from "../ui/primitives/ErrorToast";
 import PageLoadingScreen from "../ui/primitives/PageLoadingScreen";
@@ -197,6 +198,7 @@ export default function ClubsPage() {
   });
 
   // Edit per club
+  const [pendingDeleteClubId, setPendingDeleteClubId] = useState<number | null>(null);
   const [editId, setEditId] = useState<number | null>(null);
   const [editStars, setEditStars] = useState("4.0");
   const [editLeagueId, setEditLeagueId] = useState<number | "">("");
@@ -272,6 +274,11 @@ export default function ClubsPage() {
     if (groupMode === "league") return groupByLeague(filteredClubs, leaguesById);
     return groupByStars(filteredClubs, leaguesById);
   }, [filteredClubs, leaguesById, groupMode]);
+
+  const doomedClub = useMemo(
+    () => (pendingDeleteClubId == null ? null : clubs.find((c) => c.id === pendingDeleteClubId) ?? null),
+    [clubs, pendingDeleteClubId],
+  );
 
   const initialLoading =
     !pageEntered ||
@@ -508,11 +515,7 @@ export default function ClubsPage() {
                               {isAdmin ? (
                                 <Button
                                   variant="ghost"
-                                  onClick={() => {
-                                    const ok = window.confirm(`Delete club "${c.name}"? (Will fail if used in matches)`);
-                                    if (!ok) return;
-                                    deleteMut.mutate(c.id);
-                                  }}
+                                  onClick={() => setPendingDeleteClubId(c.id)}
                                   disabled={deleteMut.isPending}
                                   type="button"
                                 >
@@ -589,6 +592,33 @@ export default function ClubsPage() {
       </section>
       </div>
       ) : null}
+
+      {/* A club only goes when nothing played with it — the dialog says so before you
+          press, instead of the 409 telling you afterwards (DESIGN.md §7). */}
+      <ConfirmDialog
+        open={!!doomedClub}
+        title="Delete this club?"
+        subtitle="Only a club that no match and no friendly uses can be removed."
+        confirmLabel="Delete club"
+        busy={deleteMut.isPending}
+        onCancel={() => setPendingDeleteClubId(null)}
+        onConfirm={() => {
+          if (pendingDeleteClubId == null) return;
+          const clubId = pendingDeleteClubId;
+          setPendingDeleteClubId(null);
+          deleteMut.mutate(clubId);
+        }}
+      >
+        <div>
+          {doomedClub?.name} · {doomedClub ? leagueNameForClub(doomedClub, leaguesById) : "—"} ·{" "}
+          {starsLabel(doomedClub?.star_rating)}★
+        </div>
+        <div>Its crest and its star rating go with it.</div>
+        <div>
+          Used in a tournament match or a friendly, it stays: the delete is refused and nothing
+          changes.
+        </div>
+      </ConfirmDialog>
     </PageLayout>
   );
 }
