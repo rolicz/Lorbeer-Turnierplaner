@@ -85,13 +85,21 @@ Size (2026-09-13): backend ≈ 13.3k LOC Python (`app/` + `manage.py` + `run.py`
   navConfig, useDestinationLinks + lastLocation [per-destination last-page memory],
   routeMeta + backNavigation [contextual back, shared with the swipe gesture], navStack,
   useScrollRestoration + useReturnScroll for scroll memory, useTabParam [`?tab=` for every
-  tabbed page], NotificationBell),
+  tabbed page], NotificationBell, RouteErrorBoundary [the *page* failed] and AppCrashBoundary
+  [the app failed — mounted in `main.tsx` outside every provider, see `src/diagnostics/`]),
   `ClubBadge`, `NationFlag`, `SectionTabs`, and the club selection: `SelectClubsPanel` (T9 — one
   "Clubs" disclosure per match holding both club slots, the filters and the two random actions)
   with the `ClubPicker` sheet a slot opens. Every icon in these (and everywhere else) is a
   lucide-react component — see §9.
 - `src/themes/*.css` — CSS-variable themes (blue default, dark, red, light, green) consumed by
   Tailwind via `rgb(var(--color-*))`. `src/styles.css` holds shared component classes.
+- `src/diagnostics/` — the crash recorder (Round 7, 2026-09-15). `crashLog.ts` is a 10-entry ring
+  buffer in `safeStorage` fed by both error boundaries, `window.onerror` and `unhandledrejection`;
+  `breadcrumbs.ts` keeps the last 20 navigations (URL + PUSH/POP/REPLACE) **in memory** and attaches
+  them to whatever is recorded; `lifecycle.ts` leaves a liveness marker so a death that throws
+  nothing (iOS jettisoning the web view) is still visible on the next boot; `install.ts` wires the
+  three from `main.tsx` before React renders. Read on the phone at Settings →
+  Diagnostics (`ui/layout/DiagnosticsSettings.tsx`, `?tab=diagnostics`).
 - `src/push/` — service-worker registration + subscription; `public/sw.js` handles push/click.
 - `src/auth/AuthContext.tsx` — token/role in localStorage; "view as lower role" and admin
   "act as player" overrides are frontend-only conveniences.
@@ -461,6 +469,24 @@ every past match simply keeps counting today's rating.
   icon without `size` renders at 24px. House sizes: 14 in `text-xs`/`text-sm` context, 16 at
   `text-base`, 12 inside 10–11px runs and pills, plus `strokeWidth={2.25}` where a stroked icon
   looks too thin next to bold text.
+- **A crash blanks to the *themed* page background, not to white** — that is the signature to look
+  for in a video: white means the bundle never ran, the theme colour means it ran and the tree went
+  away. Since Round 7 the app catches that case (`AppCrashBoundary`) and writes it down, so the
+  first question after any report is **Settings → Diagnostics → Copy all**. Two boundaries, two
+  jobs: `RouteErrorBoundary` (the page failed, the shell survives, resets on navigation) and
+  `AppCrashBoundary` (the shell/provider/router failed, nothing survives, only a reload gets out).
+- **In a dev build one throw reaches the recorder two or three times** — React re-renders a failed
+  tree to build the component stack and re-throws it to `window` — as *different* Error objects, so
+  object identity cannot dedupe them. `crashLog` samples `count` at 400 ms for exactly this; do not
+  "fix" that into an exact counter without re-reading why. Roli's phone runs the **dev** server, so
+  its stacks name real files and lines; a production stack would be minified.
+- **Backgrounding a PWA is not a crash.** `lifecycle.ts` only reports a session whose last marker
+  said `visible`; a `pagehide`/`visibilitychange` write (`hidden`) is an ordinary end and is
+  silently dropped. Anything that makes the app write a `visible` marker on its way out would turn
+  every app switch into a false "Ended unexpectedly".
+- **A `card` inside a CSS grid needs `min-w-0`.** A grid item defaults to `min-width: auto`, so one
+  unbreakable line inside it (a stack frame, a long URL) widens the whole page instead of
+  scrolling/truncating. `SettingsSection` learned this the hard way in Round 7.
 - iOS PWA: push needs Home-Screen install; back navigation uses the router history index
   (`routeMeta.ts` classifies the route, `backNavigation.ts` decides pop-vs-up), don't replace
   with `history.back()` blindly. The swipe gesture (`useSwipeNav`) asks the *same* decision, so

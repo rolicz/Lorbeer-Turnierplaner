@@ -7174,3 +7174,89 @@ plus new ones per row; 390px and 1280px, blue and light; and an explicit list of
 **cannot** be verified off-device, for Roli to check on the phone.
 
 **Deviations:**
+
+---
+
+# Round 7 — diagnostics: making the next crash legible (2026-09-15)
+
+> Out of band. It came out of the same phone-testing session as R1–R5, so it is a Round 7 item,
+> but it was implemented after Round 8 was already written down, which is why it sits at the end
+> of this file. Commits: `feat(diag): …` on `feature/2026-09-audit`.
+> **Nothing here tries to fix the crash.** The job was to make the next occurrence say what threw.
+
+## The evidence (established frame by frame from Roli's recording — do not re-derive it)
+
+- The app blanks to the **themed page background** with an empty body. Measured RGB **13,18,27**
+  against the blue theme's `--color-bg-default` of **11,17,30**. So the bundle had loaded,
+  `useThemeManager` had applied `data-theme`, and *then* the tree went empty. It is **not** a white
+  screen, **not** the install splash, **not** a reload.
+- The header **and** the bottom tab bar are gone too. `ui/shell/RouteErrorBoundary.tsx` exists, but
+  `AppShell.tsx:105` wrapped only `{children}` with it, so a throw in the shell or in a provider was
+  **above** the boundary and nothing caught it.
+- Roli: *"when i swiped back, it was unresponsive and then i got the blue screen only."* Unresponsive
+  first, then blank, roughly **2.6 s** after the gesture, with no further interaction. That signature
+  fits a render/update loop hitting React's maximum-update-depth, which React throws and which
+  unmounts the tree — **a hypothesis, not a finding.**
+- It does **not** reproduce in Chromium. WebKit is not installed (Roli asked not to install it yet).
+- **It no longer reproduces at all.** It is intermittent, so the recorder is the only route to it.
+
+## What was built
+
+| Piece | Where | What it does |
+|---|---|---|
+| Top-level boundary | `ui/shell/AppCrashBoundary.tsx`, mounted in `main.tsx` **outside every provider** | Catches a throw in the shell, a provider or the router. Names the failure, shows the message and the stack, offers Reload and a real navigation to `/dashboard`, and points at Settings → Diagnostics. No context, no query, no router hook — it is the last thing standing. `RouteErrorBoundary` keeps its own job (the *page* failed, the app is fine) and its own reset key. |
+| Recorder | `diagnostics/crashLog.ts` | Ring buffer of the last **10** events through `utils/safeStorage.ts` (never bare `localStorage`). Fed by both boundaries, `window.onerror` and `unhandledrejection`. Each entry: timestamp, source, message, stack, component stack, URL, Vite mode, repeat count, trail. |
+| Breadcrumbs | `diagnostics/breadcrumbs.ts`, fed from `ui/shell/useRememberLocation.ts` | Last **20** navigations in memory — timestamp, `pathname+search`, and the router's `PUSH`/`POP`/`REPLACE`. Attached to an error when one is recorded; never persisted on its own. |
+| Liveness marker | `diagnostics/lifecycle.ts` | Answers the death that throws nothing (iOS jettisoning the web view). See below. |
+| Install | `diagnostics/install.ts`, called from `main.tsx` before render | Boot check → global handlers → heartbeat, in that order. |
+| The phone-readable view | `ui/layout/DiagnosticsSettings.tsx`, Settings tab `?tab=diagnostics` | Newest first, each expandable to stack + component stack + trail; Copy all (clipboard, with a select-and-copy fallback); Clear behind `ConfirmDialog`. |
+
+## Decisions worth not re-litigating
+
+- **The loop guard is three things.** (1) A repeat with the same signature (message + first stack
+  frame) merges into the newest entry instead of appending. (2) A burst of *different* errors folds
+  into the newest once **5** new entries have been appended in 10 s, counted in `suppressed`.
+  (3) Storage is written at most **once a second** (leading write + trailing flush, plus a flush on
+  `pagehide`). A 100/s loop therefore costs **one entry and one write per second**.
+- **`count` is sampled at 400 ms**, and that is deliberate. One throw reaches the recorder two or
+  three times — React re-renders a failed tree to build the component stack, and a **dev build**
+  re-throws it to `window` as well — as *different* Error objects, which object identity cannot
+  catch. Sampling makes a single crash read `1`. A loop still climbs, and `lastTs - ts` is the real
+  measure of how long it ran. `suppressed` stays exact.
+- **Backgrounding is not a death.** The marker's `phase` is the whole rule: `hidden` (a
+  `pagehide`/`visibilitychange` ran, so the page *left* — backgrounded, reloaded or closed) is never
+  reported; only `visible` (the last thing we saw was the heartbeat, in the foreground, and then the
+  session stopped) becomes a synthetic entry. A real renderer kill was used to verify it, and an
+  ordinary backgrounding was verified to record nothing.
+- **The `pagehide` write is trail-free**, because iOS gives that handler very little time and a
+  hidden marker is never reported anyway. The trail rides on the foreground heartbeat (15 s) and on
+  every navigation (throttled to 1/s) — without the navigation refresh, a death in the first seconds
+  of a document would carry an empty trail, which is precisely the case being hunted.
+- **A synthetic entry is `warn`, not `error`** (`DESIGN.md` §2): nothing failed that we know of. The
+  four real sources are `error`. The UI says "No error was thrown." above the message.
+- **Known false positive, accepted:** two tabs of the app open at once on a desktop share the marker,
+  so the second one's boot can read the first one's live `visible` marker and report a death that
+  did not happen. On a one-window installed PWA this cannot happen, and the entry is labelled for
+  what it is.
+
+## Stack quality
+
+Roli's phone loads the PWA from the **Pi's Vite dev server** over the LAN, so the stacks in his log
+point at real source files and line numbers (`at ShellInner (…/src/ui/shell/AppShell.tsx:37:34)`),
+and `Build: development` on each entry says so. Production stacks would be minified and far less
+useful — if the crash ever has to be chased on `lorbeerkranz.xyz`, source maps are the follow-up.
+
+## Verified (isolated stack: backend :8003 on a DB copy, vite :8020)
+
+Four forced crashes, each producing exactly one correctly-labelled entry with its trail: a throw in
+`ShellInner` (**App boundary**, with component stack), a throw in `DashboardPage` (**Page boundary**),
+a bare `setTimeout` throw (**window.onerror**), a rejected promise (**Unhandled rejection**). Plus a
+real renderer kill (`chrome://crash`) → **Ended unexpectedly** on the next boot carrying the trail,
+and a plain `pagehide` → nothing recorded. 390px and 1280px, blue and light. `a a` count stayed 0.
+
+## Deviations
+
+- The brief asked for the Diagnostics section "on the Settings page"; it is a fourth **tab**
+  (`?tab=diagnostics`, the U1 scheme) rather than a block appended to an existing tab.
+- `SettingsSection` gained `min-w-0` — a grid item is `min-width: auto`, so the first unbreakable
+  stack frame made the entire page scroll sideways. Latent for every tab, found by this one.
