@@ -7407,7 +7407,7 @@ and a plain `pagehide` → nothing recorded. 390px and 1280px, blue and light. `
 
 ---
 
-## Q7 — The friendlies list has no layout of its own  ☐
+## Q7 — The friendlies list has no layout of its own  ☑
 
 Roli, on the Details and Compact views (2026-09-15): *"this does not look nice"*.
 
@@ -7457,6 +7457,80 @@ filter pill on friendlies and stats from one shared component; `npm run check` +
 1280px in blue and light; before/after screenshots of both views.
 
 **Deviations:**
+- **The fake tournament is gone and friendlies got a list of their own**
+  (`pages/tools/FriendlyList.tsx`), rather than `MatchHistoryList` growing a mode. That component
+  has **five** callers, not one — the profile overview, the profile's Matches tab, the H2H matchup,
+  the Player view, plus the H2H panel's row — and four of them are *right* to show a group called
+  "Friendlies": those lists genuinely mix tournaments and friendlies, and the **backend** sends
+  `status: "friendly"` groups of its own (`services/stats/player_matches.py`, `h2h_matches.py`,
+  merged by `pages/stats/matchHistory.ts`). The repeated title was never a bug in that component;
+  it was a bug in borrowing it for a page where every group is a friendly. So the component keeps
+  its shape and its callers are untouched.
+- **The borrow's residue went with it.** `MatchRowWithClubs`'s `action` / `expanded` and
+  `MatchHistoryList`'s `renderMatchActions` / `renderMatchExpanded` existed only for this page —
+  their own doc comments say so — and had no caller left once it moved out. Removed, and the T8
+  test that guarded "the editor is not in the action slot" was re-pointed at the row that now owns
+  the rule (`src/test/friendlyList.test.tsx`, 8 new tests). `renderTournamentActions` is callerless
+  too but predates this task and was left alone.
+- **No card around the rows** — item 3 of the diagnosis, answered differently and on purpose. The
+  editor a row opens contains `SelectClubsPanel`, which **is** a `card` by canon (§9b, T9): a card
+  per day group would nest card-in-card the moment a row is tapped, which §1.1 and §10 forbid
+  outright, and a surface that cannot survive its own expanded state is the wrong surface. The
+  canon argues the same way unprompted — §1.2 is flat-and-list-first and §6 says in as many words
+  that "a card per group would box every number on the page" — and every other match list in the
+  app is flat, so boxing this one would make friendlies the odd page out. What item 3 was really
+  about, rows with no structure around them, is answered by the group's header band and a real
+  `row-tap` press state. Item 3 is a diagnosis, not one of the three settled decisions, and the DoD
+  does not ask for a card.
+- **The column rhythm is T14's mechanism moved into `ScoreLine`**, not a second one:
+  `scoreDigits(goals)` once for the whole page → `digits` on every row → each numeral holds a
+  `RecordNum` pad track. Both numerals hug the hairline and the slack goes outward, so the
+  *separator* is the part that cannot move. Measured with 1v1 and 2v2, single- and double-digit
+  rows mixed in one list: **before** 3 distinct separator x per view — spread **12.27px** compact,
+  **16.36px** details, at both widths; **after** exactly one — **spread 0.00px**, x=**195.00** at
+  390px and x=**760.00** at 1280px in both views, with every numeral track's own left and right
+  edge identical across all 24 rows.
+- **The pill is `ui/primitives/FilterPill`.** A page declares groups (`filterGroup`: label,
+  options, value, the value that counts as unfiltered, and whether the capsule shows it as text or
+  as an icon) and keeps the state where it already lived — stats in the URL, friendlies in
+  component state plus `localStorage`. The pill owns the capsule, the popover, the placement, the
+  outside/Escape close, the scroll tuck, the accent state and the pulse (`pulseKey` per surface, so
+  friendlies pulses once even if Stats pulsed first). `pages/stats/StatsFilterPill.tsx` survives as
+  the stats page's two groups and nothing else; its 17 tests pass unchanged.
+- **Compact/Details is in the pill but declared `display`**, so it never turns the pill accent. It
+  belongs in the control — it is part of "what this list shows", both rows above the list had to
+  disappear, and a second floating control would be one too many — but it filters nothing, and the
+  accent state means "the rows you are looking at are filtered". Verified at runtime: choosing
+  Details leaves `data-filtered="false"`; Mode 2v2 sets it `"true"`.
+- **The stars became a token** (`StarsToken` — one filled 12px glyph and the number) folded into
+  the league line instead of owning a third line, so a details row is 2 lines per side instead of 3
+  and the two ratings meet either side of the centre gap where they can be compared. It is
+  `tabular-nums` but **not** `font-mono`: it follows a league name of any length rather than sitting
+  in a column, and a mono `.` sets "3.5" a third wider than it needs to be. Long club names still
+  wrap at 390px; what actually reduced the wrapping was deleting the two 44px buttons, which gave
+  each side ~38px back. The Details page is **21% shorter** (7590 → 5986 device px at 390px,
+  6668 → 5336 at 1280px).
+- **Two small things the brief did not ask for**, both caused by the filter moving into the pill:
+  the view choice is remembered (`friendly_list_view`, the `match_list_view` idiom of §9b) because a
+  preference two taps away that resets every visit is worse than one on screen; and the empty state
+  now distinguishes "No friendlies yet." from "No 2v2 friendlies." — with the filter hidden, the old
+  wording is simply untrue.
+- **Left for later:** the four `MatchHistoryList` surfaces could pass `digits` now and get the same
+  aligned column for one line each. Out of scope here — five surfaces to re-verify.
+- **Canon touched** (targeted edits; Q4 was in `Modal` / `ImageLightbox` / `MobileChrome` /
+  `tailwind.config.cjs` and had not touched `DESIGN.md`): §7's `Filters`, `Clubs under a score` and
+  `Stars` rows; §8 gained the fixed-numeral-column bullet; §9 was retitled "Floating filter pill"
+  and rewritten as the *app's* control with the display-vs-filter rule. `AGENTS.md` §2's module map
+  names `FriendlyList.tsx` and `FilterPill`.
+- **Verified** on an isolated stack — backend :8004 on a copy of `backend/app.db` with a scratch
+  secrets file, vite :8022. Four friendlies were added to the copy (two 2v2, a 12–3, a 2–10, a
+  clubless row, the two longest club names in the DB) so the alignment claim is made against a list
+  that really mixes modes and digit counts. Playwright at 390×844 and 1280×800, blue and light, both
+  views, as admin and as a reader: zero console errors, `a a` = 0, `button button` = 0, `button a`
+  = 0, one button per row (the stretched overlay) and none at all for a reader; the row opens the
+  editor, Delete sits inside it behind `ConfirmDialog`. The stats pill was re-checked on all eight
+  sub-views — right labels, absent on Cups, mode-only on Positions, URL and `data-filtered` both
+  following a change. The DB copy and both servers are gone.
 
 
 ---
