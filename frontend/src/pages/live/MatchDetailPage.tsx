@@ -3,6 +3,7 @@ import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import Button from "../../ui/primitives/Button";
+import ConfirmDialog from "../../ui/primitives/ConfirmDialog";
 import Input from "../../ui/primitives/Input";
 import SegmentedSwitch from "../../ui/primitives/SegmentedSwitch";
 import { ErrorToastOnError, showErrorToast } from "../../ui/primitives/ErrorToast";
@@ -149,6 +150,8 @@ export default function MatchDetailPage() {
   });
   /** The conflicting server state this editor was last shown when a save was refused. */
   const [ack, setAck] = useState<MatchDraft | null>(null);
+  /** Admin's "Swap sides" asks in the app's own dialog (R2). */
+  const [swapAsked, setSwapAsked] = useState(false);
 
   const serverDraft = useMemo(() => (match ? draftFromMatch(match) : null), [match]);
   const activeEdits: MatchEdits = edits.matchId === matchId ? edits.byField : NO_EDITS;
@@ -459,13 +462,25 @@ export default function MatchDetailPage() {
                     variant="ghost"
                     type="button"
                     disabled={swapMut.isPending}
-                    onClick={() => {
-                      if (!window.confirm("Swap sides A and B? This cannot be undone.")) return;
-                      swapMut.mutate();
-                    }}
+                    onClick={() => setSwapAsked(true)}
                   >
                     {swapMut.isPending ? "Swapping…" : "Swap sides"}
                   </Button>
+
+                  {/* Reversible — swapping again puts them back — so no red block (R2). */}
+                  <ConfirmDialog
+                    open={swapAsked}
+                    title="Swap sides A and B?"
+                    subtitle="Home and away change places; players, clubs and goals move with them. Swap again to put them back."
+                    confirmLabel="Swap sides"
+                    busyLabel="Swapping…"
+                    busy={swapMut.isPending}
+                    onCancel={() => setSwapAsked(false)}
+                    onConfirm={() => {
+                      setSwapAsked(false);
+                      swapMut.mutate();
+                    }}
+                  />
                 </section>
               ) : null}
 
