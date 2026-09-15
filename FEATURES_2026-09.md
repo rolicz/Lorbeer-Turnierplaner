@@ -7260,3 +7260,57 @@ and a plain `pagehide` → nothing recorded. 390px and 1280px, blue and light. `
   (`?tab=diagnostics`, the U1 scheme) rather than a block appended to an existing tab.
 - `SettingsSection` gained `min-w-0` — a grid item is `min-width: auto`, so the first unbreakable
   stack frame made the entire page scroll sideways. Latent for every tab, found by this one.
+
+---
+
+## Q7 — The friendlies list has no layout of its own  ☐
+
+Roli, on the Details and Compact views (2026-09-15): *"this does not look nice"*.
+
+**Cause, and it is structural.** The page has no list of its own: `pages/tools/FriendlyMatchesListCard.tsx:273`
+builds a **fake tournament per date** — `{ name: "Friendlies", date: dateKey, status: "friendly" }` —
+and hands it to `pages/stats/MatchHistoryList.tsx`, the component written for *matches grouped by
+tournament*. So the group title is the word "Friendlies", three times down one phone screen, while
+the thing that actually names each group (its date) is demoted to a chip underneath it, and the
+layout is one designed for a context this page does not have.
+
+**What is wrong, itemised:**
+1. **Two stacked filter rows on top of the content** (`:305-333`), each `section-label`
+   (`text-xs font-semibold uppercase tracking-wider`) + a `SegmentedSwitch`. This is the pattern
+   Roli rejected on stats in round 4; friendlies is the last page still using it.
+2. **Nothing forms a column.** The score is centred in the row, the two action buttons are
+   right-aligned, the club blocks float between them. T14 gave standings fixed columns for exactly
+   this complaint; this list never got it, so no two rows line up.
+3. **The rows sit on the bare page ground** with a hairline between them — no `card` (DESIGN.md §3).
+4. **Two 44px buttons on every row** for actions used rarely, making them the loudest thing in the list.
+5. **Details view is unbalanced**: long club names wrap to two lines ("Heart of Midlothian F.C.",
+   "Inter Mailand (Lombardia FC)"), and five outlined stars per side spend a lot of pixels on one number.
+
+**Decided with Roli (selected from rendered options — do not relitigate):**
+- **Keep entry order, align the columns.** Whoever was entered first stays on the left, because the
+  club is attached to a side and the row should stay honest about who was home. Fixed-width columns
+  so every score sits at the same x down the page, the way T14 did it for standings. Winner-first
+  ordering was offered and rejected.
+- **The row is the only control: tapping it opens edit *and* delete.** Roli: *"tap to both
+  edit+delete"*. **Interpretation to confirm with him if anything about it is unclear:** the row has
+  no buttons at all; tapping it opens the friendly's existing editor, and the delete lives inside
+  that editor (through `ConfirmDialog`, per Q5's house style). If he meant instead that a tap should
+  *reveal* the two buttons inline, that is a one-line correction — ask, do not guess twice.
+- **The filters move into the floating pill**, the control he approved for stats (S5/S7/T4). Both
+  Mode and the Compact/Details choice go in it, and the two rows above the list disappear.
+  **Note:** `pages/stats/StatsFilterPill.tsx` is stats-shaped today. Promoting it to a shared
+  primitive is part of this task, not a side effect — and once it is shared, DESIGN.md §9 should
+  describe it as the app's filter control rather than the stats page's.
+
+**Also fix while in there:** the group header should be the date and the count
+("28 August 2026 · 1 match"), not a repeated page name with the date demoted beneath it.
+
+**Open, worth Roli's opinion when it is built rather than before:** whether the stars stay as five
+glyphs per side or collapse to a compact token ("3.5★"), which is what the clubs page already does
+and what would let a details row fit one line per club.
+
+**DoD:** every row's score at the same x, measured; no control on a row but the row itself; the
+filter pill on friendlies and stats from one shared component; `npm run check` + build; 390px and
+1280px in blue and light; before/after screenshots of both views.
+
+**Deviations:**
