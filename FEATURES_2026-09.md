@@ -6367,7 +6367,7 @@ Rules for implementing agents are the ones at the top of this file. In addition:
 (commit with `git commit -o -m "…" -- <paths>`), never bind 8000/8001/8010/5173, never a broad
 `pkill`, never read `backend/secrets.json`.
 
-## R1 — The two micro-tile grids  ☐
+## R1 — The two micro-tile grids  ☑
 
 `DESIGN.md` §4 calls the positions grid and the H2H matrix "the same thing at the same size", so
 they are one job.
@@ -6407,9 +6407,46 @@ players; zero console errors; `npm run check` + build.
 
 **Deviations:**
 
+- **R1a was kept as written**, with three corrections: the doc comment still said the two
+  cups get "a half-pixel lane each" where the code gives each a 3px lane; `InfoLegend`'s
+  header comment still said "cup rails"; and the removed `<svg>` left a blank line behind.
+  The plan also says `InfoLegend` "gained a line per cup" — it already had one, from the
+  rails work, but as a **vertical** bar, which promises the thing the lineage stopped
+  being. It is now a diagonal at the grid's own stroke and cap.
+- **The floor is 44px, not the 40 the plan proposed.** The plan's own reason for a floor is
+  that the default metric renders three numbers and two hyphens; measured in the browser,
+  40 is not enough — a real record (`11-10-5`, seven glyphs at `text-xs`) wraps onto a
+  second line at 40 and fits on one at 44. 44 is also exactly the cell's old fixed size, so
+  the change can only ever grow a tile, never shrink one.
+- **A `<td>` carries 1px of user-agent padding**, which made every column two pixels wider
+  than it asked to be — invisible at a fixed 44, fatal to arithmetic that must add up to
+  the box's width (the first attempt overflowed a 358px phone by 11px). The body cells got
+  `p-0`; the gutter is now `border-spacing` and nothing else, so it reads 3px instead of 5.
+- **The measurement hangs off a callback ref, not a dependency array.** The matrix leaves
+  the DOM whenever the Duos sub-view is up, and `rows` does not change when it comes back,
+  so an effect keyed on the data handed the returning table a stale zero and left it at the
+  floor until the next resize. Only the scroll box is observed, never the name column:
+  nothing in that column depends on the cell size, so there is no loop to get into.
+- `DESIGN.md` §4 said the two micro-tile grids are "the same thing at the same size", which
+  stops being literally true once one of them is elastic. One clause added naming both
+  sizes. No other canon change.
+- **Not changed, and worth a look:** the header block above the matrix is `h-24` (96px) with
+  the rotated names centred in it, so a short name like "Rumpi" floats with ~30px of dead
+  space under it before the first tile — most visible with two or three players, where the
+  matrix is now small and centred. It is pre-existing, it is not what Roli reported, and the
+  plan asks only that the header follow the cell **width**, so it was left alone. If it
+  should go: `writing-mode: vertical-rl` + `rotate-180` on the label makes its layout box
+  the real rotated box, and `items-end` then parks short names on top of the tiles while
+  long ones grow upward.
+- Verified at 2 / 3 / 6 / 7 / 12 players by trimming and padding the live `/stats/ratings`
+  payload in the browser — the component, the layout and the browser are real, only the data
+  is resized. The dev data has exactly six players under every Mode/Source combination, so
+  the small and large counts are unreachable through the filters. The arithmetic is also
+  pinned in `src/test/h2hHelpers.test.ts` (6 unit tests).
+
 ---
 
-## R2 — One dialog, one tab order, one banner  ☐
+## R2 — One dialog, one tab order, one banner  ☑
 
 **R2a — the app's own dialog, everywhere.** Roli: *"use the own dialogs everywhere"*. `DESIGN.md`
 §7 already says never `window.confirm`; A10 built `ui/primitives/ConfirmDialog.tsx` for it and A8
@@ -6447,6 +6484,47 @@ Roli and waved through: at 1280×900 the banner is ~557px and the tab strip sits
 live and a done tournament; `npm run check` + build.
 
 **Deviations:**
+
+- **All eight replaced.** `grep -rn "window.confirm" frontend/src` → one hit, the sentence inside
+  `ConfirmDialog.tsx` itself. Two of my own comments were reworded so they do not answer that grep.
+- **`CurrentGameSection` classified, as asked.** **:290 Reset is destructive** — it throws a played
+  result away — so it carries the red block and names the score: *"Flo 2–1 Atzi is wiped"*, plus
+  "the clubs stay; the standings drop this match until it is played again". **:309 Finish is not**:
+  it records a result that Reset undoes, so it is title + sentence + verb. Its title now states the
+  score that would really be written (`Finish this match at 1:0?`) instead of the old hard-coded
+  "(0:0)" — the dev DB has scheduled matches carrying goals, and Finish would have recorded them.
+  Finishing a match that *is* being played still asks nothing, exactly as before.
+- **The hook returns intent, the page renders the dialog.** `useProfileGuestbook` exposes
+  `onRequestMarkAllRead` + `markAllAsked`/`markAllCount`/`onConfirm|onCancelMarkAllRead`, and
+  `pendingDelete`/`pendingDeleteReplyCount`/`deletePending`/`onConfirm|onCancelDelete`;
+  `GuestbookSection` renders both `ConfirmDialog`s. The recursive card's context callback
+  `deleteEntry(id)` became `requestDelete(entry)` for the same reason — one dialog for the feed,
+  not one Modal per card. Nothing in the hook's API now claims to act when it only asks.
+- **Reply counts are the whole subtree**, because both deletes cascade transitively
+  (`routers/players.py`, `routers/comments.py`): new tested helper `countGuestbookDescendants`
+  in `guestbookTree.ts`, and a local walk over `childrenByParent` in `TournamentCommentsCard`.
+  The native texts said "and all replies" / nothing at all.
+- **What the three destructive dialogs name.** Club: `name · league · stars`, "its crest and its
+  star rating go with it", then the rule A9 widened — used in a tournament match **or a friendly**,
+  the delete is refused and nothing changes. (`ClubOut` carries no usage count and the plan forbids
+  a round trip, so the dialog states the rule, not the answer.) Guestbook message: author + time as
+  the subtitle, the N replies, its votes, "cannot be undone". Comment: author + time as the
+  subtitle, *"Flo's comment is deleted, the attached image with it"*, the N replies, "cannot be
+  undone" — every word of it from the comment the client already holds.
+- **Two wordings were wrong and are fixed.** "Swap sides A and B? This cannot be undone" — the
+  endpoint swaps the two side labels and is its own inverse, so it now says what moves and that
+  swapping again puts it back. And both "mark N as read" dialogs now say the read marks are the
+  viewer's own and nothing is deleted (singular sentence when N is 1).
+- **Title style:** the club dialog is "Delete this club?" with the name in the red block, not
+  `Delete "<name>"?` like the tournament one — `Modal` truncates a string title and club names run
+  long on a phone.
+- **Verification:** isolated stack (backend :8004 on a copy of `app.db` with a scratch secrets
+  file, vite :8021), Playwright signed in as admin. 14 surfaces × blue/light × 390/1280 px = **56
+  runs, 0 console/page errors, 0 horizontal overflow**, plus 8 more for the singular "Mark 1 as
+  read" case; backend log clean (no 5xx). Tab order checked on draft (21), live (20) and done (19):
+  Overview · Current · Standings · Matches · **What if** · Comments · Admin, and the done one has
+  neither Current nor What if. `npm run check` green (52 files, 509 tests), `npm run build` green
+  (only the pre-existing >500 kB chunk hint).
 
 ---
 
