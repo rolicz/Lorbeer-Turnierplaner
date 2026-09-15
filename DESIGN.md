@@ -434,6 +434,15 @@ An editor is not a section you unfold; it is the thing itself becoming editable.
   mobile), opened from the value, closing on pick.
 - **Light input → always-visible row.** A text field with its send button sits at the bottom of
   the feed like a chat, never behind a button that reveals a form.
+- **A send button belongs to whatever it posts.** The chat row welds it to the field because in a
+  comment feed the field *is* the message. Where the field is one optional part of a form — the
+  Ideas composer's `Details`, whose Post is enabled while it sits empty — the send is the form's
+  own last row instead: the secondary action as an icon button, the primary filling the rest
+  (the paired-actions rule below). The field above it is then a real field, not a one-line row
+  that grows: `IdeaBodyField` (`pages/ideas/IdeaFields.tsx`) opens three lines high and grows
+  with the text to eight, `resize-none`, because the placeholder asks for a paragraph and because
+  a drag handle does not exist under a thumb (Q1). Anchored to the bottom edge, growing pushes
+  the form up and never the send row down.
 - **Controls that act on more than one side live with the container, not inside a per-side
   sheet.** Club filters, "random matchup" and the dice belong to the match card that owns both
   clubs; a sheet for side A must not be the only way to reach them.

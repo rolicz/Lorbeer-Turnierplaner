@@ -29,7 +29,7 @@ import {
   areaLabel,
   ideaStatusPillClass,
 } from "./ideaMeta";
-import { IdeaAreasField, IdeaKindField, IdeaTitleInput } from "./IdeaFields";
+import { IdeaAreasField, IdeaBodyField, IdeaKindField, IdeaTitleInput } from "./IdeaFields";
 
 export type IdeaCardHandlers = {
   token: string | null;
@@ -163,14 +163,7 @@ export default function IdeaCard({
       {editing ? (
         <div className="mt-2 space-y-2">
           <IdeaTitleInput value={title} onChange={setTitle} disabled={busy} />
-          <textarea
-            className="input-field min-h-[72px] resize-y leading-snug"
-            value={body}
-            onChange={(e) => setBody(e.target.value)}
-            disabled={busy}
-            aria-label="Idea details"
-            placeholder="Details (optional)"
-          />
+          <IdeaBodyField value={body} onChange={setBody} disabled={busy} />
           <IdeaKindField value={kind} onChange={setKind} disabled={busy} />
           <IdeaAreasField catalog={areaCatalog} value={areas} onChange={setAreas} disabled={busy} />
           <div className="flex flex-wrap items-center justify-end gap-2">

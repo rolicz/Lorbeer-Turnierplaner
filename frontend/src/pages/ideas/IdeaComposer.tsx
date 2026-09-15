@@ -9,16 +9,16 @@
  * for it — the same move the comment composer makes when it swaps into goal entry.
  * Focusing the field opens the block above it (title · kind · where · screenshot)
  * and hands the caret to the title, exactly the way picking a scoring side hands it
- * to the minute; the field on the bottom edge stays what it always was, the place
- * you type, and `Details` is what it becomes.
+ * to the minute; the bottom edge stays the place you type, and `Details` — a real
+ * three-line field, `IdeaFields`' `IdeaBodyField`, not a chat row (Q1) — is what it
+ * becomes, over the form's own send row.
  */
 import { ImageIcon, Lightbulb, Send, X } from "lucide-react";
 import { useEffect, useRef } from "react";
 
 import Button from "../../ui/primitives/Button";
-import { CommentSendRow } from "../live/comments/CommentComposer";
 import type { IdeaArea, IdeaKind } from "../../api/types";
-import { IdeaAreasField, IdeaKindField, IdeaTitleInput } from "./IdeaFields";
+import { IdeaAreasField, IdeaBodyField, IdeaKindField, IdeaTitleInput } from "./IdeaFields";
 
 export type IdeaDraft = {
   title: string;
@@ -58,9 +58,14 @@ export default function IdeaComposer({
   const titleRef = useRef<HTMLInputElement>(null);
 
   // Opening hands the caret to the title: that is the field you came to fill in.
+  // `preventScroll`, because the composer is pinned to the bottom of the viewport
+  // and needs no scrolling to reach: left to itself the browser scrolls the newly
+  // focused title to the top of a short viewport, which drags the send row below
+  // the fold — measured at 390x400, where the taller details field made the drop
+  // long enough to hide it completely (Q1).
   useEffect(() => {
     if (!open) return;
-    titleRef.current?.focus();
+    titleRef.current?.focus({ preventScroll: true });
   }, [open]);
 
   const canSubmit = !!draft.title.trim() && draft.areas.length > 0;
@@ -143,18 +148,25 @@ export default function IdeaComposer({
         ) : null}
 
         {open ? (
-          <CommentSendRow
-            value={draft.body}
-            onChange={(body) => onChange({ body })}
-            onSubmit={onSubmit}
-            canSubmit={canSubmit}
-            submitting={submitting}
-            ariaLabel="Idea details"
-            placeholder="Details (optional) — what should happen, and why?"
-            sendLabel="Post idea"
-            focusNonce={focusNonce}
-            leading={
-              imagePreviewUrl ? null : (
+          <>
+            {/* Details stays the last field, not second the way the edit form has it:
+                it is the one you are still typing when the keyboard is up, so it
+                belongs nearest the keyboard, with only its own send row below it. */}
+            <IdeaBodyField
+              value={draft.body}
+              onChange={(body) => onChange({ body })}
+              onSubmit={() => {
+                if (canSubmit && !submitting) onSubmit();
+              }}
+              disabled={submitting}
+              focusNonce={focusNonce}
+            />
+            {/* Send posts the *idea*, not the details — it is enabled while this field
+                is empty — so it is the form's own row rather than a button welded to
+                the field's edge, and the screenshot next to it is the secondary of the
+                pair: one icon, one that fills (`DESIGN.md` §9b). */}
+            <div className="flex items-center gap-1.5">
+              {imagePreviewUrl ? null : (
                 <Button
                   type="button"
                   variant="ghost"
@@ -166,9 +178,19 @@ export default function IdeaComposer({
                 >
                   <ImageIcon size={16} aria-hidden="true" />
                 </Button>
-              )
-            }
-          />
+              )}
+              <Button
+                type="button"
+                onClick={onSubmit}
+                disabled={!canSubmit || submitting}
+                title="Post idea"
+                className="inline-flex h-10 flex-1 items-center justify-center gap-1.5"
+              >
+                <Send size={16} aria-hidden="true" />
+                {submitting ? "Posting…" : "Post idea"}
+              </Button>
+            </div>
+          </>
         ) : (
           /* Closed: one field and its send button, the shape every feed in this app
              ends with. Focusing it *is* starting an idea — nothing hides behind a
