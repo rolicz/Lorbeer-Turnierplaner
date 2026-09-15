@@ -7210,11 +7210,12 @@ its current 12px regardless, because a bottom-most row reads as glued to the edg
   now clamped to `max-h-sheet` (`100dvh` minus both insets and the wrapper's gutters) and scrolls
   itself; `scrollBody` consumers are untouched, they bring their own max-height. After: that row is
   at 328px of 390 and reachable. Portrait never hit the clamp.
-- **Surfaces checked** (all seven `Modal` consumers): `ConfirmDialog`, `VoteVotersModal`,
-  `ClubPicker`, `CommentImageCropper`, `PlayerAvatarEditor` and `ImageLightbox` were driven and
-  measured; `H2HView`'s "Match history" modal is the concurrent worker's file — `fullScreenOnMobile
-  scrollBody max-h-[88vh]`, structurally the same as `VoteVotersModal`/`ClubPicker`, so it inherits
-  the container fix, but it could not be driven in the build that worker is mid-edit on.
+- **Surfaces checked: all seven `Modal` consumers, driven and measured** — `ConfirmDialog`,
+  `VoteVotersModal`, `ClubPicker`, `CommentImageCropper`, `PlayerAvatarEditor`, `ImageLightbox`, and
+  `H2HView`'s "Match history" sheet (H2H → Duos → 2v2 → a team-rivalry row; its file belongs to Q3
+  this wave, so it was opened through the UI and never edited). The last one moves like the rest:
+  card 12 → 46px off the bottom in portrait, 24 → 83px off the left in landscape, and identical
+  before/after with no inset.
 - **Not touched, reported instead:** `BottomTabBar` (Q2's file next wave), `ErrorToast` and
   `StatsFilterPill` are `fixed` as well and take no left/right inset, so in landscape their content
   can sit under a notch. One token each when their owners get to them.
