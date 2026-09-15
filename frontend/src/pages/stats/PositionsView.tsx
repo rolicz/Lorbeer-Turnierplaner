@@ -18,8 +18,8 @@ import StatsSection from "./StatsSection";
 import { InfoButton } from "./explainers";
 import type { StatsMode } from "./statsMode";
 
-/** What the cell colours, the "—" tile and the column shading mean. */
-function InfoLegend() {
+/** What the cell colours, the "—" tile, the cup rails and the column shading mean. */
+function InfoLegend({ cups }: { cups: { key: string; name: string; color: string }[] }) {
   return (
     <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
       <div className="flex flex-wrap items-center gap-2 text-xs text-text-muted">
@@ -49,6 +49,12 @@ function InfoLegend() {
           </span>
           <span>winner</span>
         </span>
+        {cups.map((c) => (
+          <span key={c.key} className="inline-flex items-center gap-2">
+            <span className="h-4 w-0.5 rounded" style={{ background: c.color }} aria-hidden="true" />
+            <span>held the {c.name}</span>
+          </span>
+        ))}
       </div>
 
       <div className="flex items-center gap-2 text-xs text-text-muted">
@@ -183,39 +189,66 @@ export default function PositionsView({ mode }: { mode: StatsMode }) {
   const colX = (j: number) => nameW + gap + j * (cellW + gap) + cellW / 2;
   const rowY = (i: number) => headerH + gap + i * (cellH + gap) + cellH / 2;
   /**
-   * The cup's lineage runs in the grid's **gutters**, never over a tile (A7): it
-   * used to join cell centres, so it struck through the position digits and drew
-   * itself across cells of tournaments the holder never played. Now it is a rail
-   * in the 4px gutter left of the holder's column, stepping sideways in the gutter
-   * above the row where the cup changed hands — it says the same thing without
-   * painting on any data. Two cups can sit in the same gutter (one player holding
-   * both), so each takes its own lane inside it.
+   * The cup's lineage runs in the grid's **gutters**, never over a tile (A7) — and
+   * as *straight rails*, never as a connected path.
+   *
+   * The path version joined the holder's cells and stepped sideways in the row
+   * gutter wherever the cup changed hands. With two cups over seventeen mixed-mode
+   * tournaments that is a dozen jogs, and each one reads as a bracket drawn around
+   * a random block of cells rather than as a line: Roli, on the desktop grid,
+   * "super ugly in some cases". So a run of rows with the same holder is now one
+   * vertical rail beside that column and nothing else. Where the cup moves, one
+   * rail simply ends and another begins — the crown on the winning tile already
+   * says *that* tournament is where it changed hands, so the jog was drawing a
+   * second time what the grid had already said once.
+   *
+   * A rail spans the whole stake window (first row the cup was at stake to the
+   * last), not only the rows where it was on the line: the holder still held it
+   * during the other mode's tournaments, and skipping those rows broke every rail
+   * into fragments. Two cups can share a gutter (one player holding both), so each
+   * takes its own 2px lane inside it.
    */
   const railW = 2;
   const laneX = (ci: number) => (cupDefs.length < 2 ? 0 : (ci - (cupDefs.length - 1) / 2) * railW);
   const railX = (j: number, ci: number) => colX(j) - cellW / 2 - gap / 2 + laneX(ci);
-  const stepY = (i: number) => rowY(i) - cellH / 2 - gap / 2;
 
-  const laurelPaths = useMemo(() => {
-    return cupDefs
-      .map((def, ci) => {
-        const at = ownerByCup.get(def.key);
-        const d: string[] = [];
-        let prevCol: number | null = null;
-        tournaments.forEach((t, i) => {
-          if (!at || !(t.cup_stakes ?? []).some((s) => s.key === def.key)) return;
-          const owner = at.get(t.id);
-          if (owner == null) return;
-          const j = colByPlayer.get(owner);
-          if (j == null) return;
-          if (prevCol == null) d.push(`M${railX(j, ci)},${rowY(i)}`);
-          else if (prevCol === j) d.push(`L${railX(j, ci)},${rowY(i)}`);
-          else d.push(`L${railX(prevCol, ci)},${stepY(i)}`, `L${railX(j, ci)},${stepY(i)}`, `L${railX(j, ci)},${rowY(i)}`);
-          prevCol = j;
-        });
-        return { key: def.key, color: cupColor(def.key), d: d.join(" ") };
-      })
-      .filter((l) => l.d.includes("L"));
+  const laurelRails = useMemo(() => {
+    const out: { key: string; color: string; x: number; y1: number; y2: number }[] = [];
+    cupDefs.forEach((def, ci) => {
+      const at = ownerByCup.get(def.key);
+      if (!at) return;
+      // The window is bounded by *date*, not by row index, so it does not depend on
+      // which way the grid is sorted: it opens at the first tournament this cup was
+      // ever at stake in and never closes, because the holder still holds it. Bound
+      // it by the last at-stake row instead and the newest run collapses to a 42px
+      // stub next to the current holder — a fleck, not a rail.
+      const stakeDates = tournaments.filter((t) => (t.cup_stakes ?? []).some((s) => s.key === def.key)).map((t) => t.date);
+      if (!stakeDates.length) return;
+      const since = stakeDates.reduce((a, b) => (a < b ? a : b));
+      const rows = tournaments.map((t, i) => (t.date >= since ? i : -1)).filter((i) => i >= 0);
+      if (!rows.length) return;
+      const color = cupColor(def.key);
+
+      let col: number | null = null;
+      let start = rows[0];
+      let prev = -2;
+      const flush = (endRow: number) => {
+        if (col == null || endRow < start) return;
+        out.push({ key: `${def.key}-${start}`, color, x: railX(col, ci), y1: rowY(start) - cellH / 2, y2: rowY(endRow) + cellH / 2 });
+        col = null;
+      };
+
+      for (const i of rows) {
+        const owner = at.get(tournaments[i].id);
+        const j = owner == null ? null : colByPlayer.get(owner) ?? null;
+        if (j == null) flush(prev);
+        else if (col == null) { col = j; start = i; }
+        else if (col !== j || i !== prev + 1) { flush(prev); col = j; start = i; }
+        prev = i;
+      }
+      flush(prev);
+    });
+    return out;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cupDefs, ownerByCup, tournaments, colByPlayer, players.length]);
 
@@ -228,7 +261,7 @@ export default function PositionsView({ mode }: { mode: StatsMode }) {
       explainer="Drag a player's icon to reorder the columns."
       action={<InfoButton on={legend} onClick={() => setLegend((v) => !v)} label="What the colours mean" />}
     >
-      {legend ? <InfoLegend /> : null}
+      {legend ? <InfoLegend cups={cupDefs.map((d) => ({ key: d.key, name: d.name, color: cupColor(d.key) }))} /> : null}
       {modeCounts.total > 0 ? (
         <div className="text-xs text-text-muted">
           {modeCounts.total} tournament{modeCounts.total === 1 ? "" : "s"}
@@ -341,10 +374,10 @@ export default function PositionsView({ mode }: { mode: StatsMode }) {
               );
             })}
           </div>
-          {laurelPaths.length ? (
+          {laurelRails.length ? (
             <svg className="pointer-events-none absolute left-0 top-0" width={gridW} height={gridH} aria-hidden="true">
-              {laurelPaths.map((l) => (
-                <path key={l.key} d={l.d} fill="none" stroke={l.color} strokeWidth={railW} strokeLinecap="round" strokeLinejoin="round" opacity="0.8" />
+              {laurelRails.map((r) => (
+                <line key={r.key} x1={r.x} y1={r.y1} x2={r.x} y2={r.y2} stroke={r.color} strokeWidth={railW} strokeLinecap="round" opacity="0.85" />
               ))}
             </svg>
           ) : null}

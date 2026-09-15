@@ -128,23 +128,26 @@ export default function ProfileHeader({
 
       {/* Identity / title page (always visible) */}
       <div className="space-y-3">
-        <div className="relative overflow-hidden rounded-xl border border-border-card-inner/60 bg-bg-card-inner">
+        {/* The banner is the 16:9 crop the editor produced, and it is never cropped a
+            second time. A7 capped its height so a full-width banner would stop eating
+            the desktop fold, but `max-h` on a `object-cover` image cuts the picture
+            Roli framed — "gets cut off on desktop, mobile is fine". Capping the
+            *width* instead buys the same fold back without touching the image: a
+            phone still gets the full-bleed banner, a wide viewport gets the whole
+            picture at 576×324 instead of 990×557. */}
+        <div className="relative w-full overflow-hidden rounded-xl border border-border-card-inner/60 bg-bg-card-inner md:max-w-xl">
           {headerImageSrc ? (
             <button type="button" className="block w-full" onClick={() => setHeaderLightboxSrc(headerImageSrc)} title="Open header image">
               <img
                 src={headerImageSrc}
                 alt=""
-                /* 16:9 is the crop the editor produces; `max-h-64` only bites on a wide
-                   viewport, where a full-width 16:9 banner ate 62% of the window and
-                   pushed the tab strip off the fold (A7). A phone is unchanged (16:9 of
-                   390px is 219px), and the whole image is one tap away in the lightbox. */
-                className="w-full max-h-64 object-cover object-center aspect-[16/9] cursor-zoom-in"
+                className="w-full object-cover aspect-[16/9] cursor-zoom-in"
                 loading="lazy"
                 decoding="async"
               />
             </button>
           ) : (
-            <div className="aspect-[16/9] max-h-64 grid place-items-center text-sm text-text-muted bg-bg-card-chip/25">
+            <div className="aspect-[16/9] grid place-items-center text-sm text-text-muted bg-bg-card-chip/25">
               No header image
             </div>
           )}
