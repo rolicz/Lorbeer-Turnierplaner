@@ -7,6 +7,18 @@ export function fmtDate(d?: string | null): string {
   return dt.toLocaleDateString();
 }
 
+/**
+ * The spelled-out date — "15 September 2026" — for a heading that *is* a date
+ * (the friendlies list's day groups, Q7). The numeric `fmtDate` stays the form
+ * for a date pill, where it is a fixed-width token next to other tokens.
+ */
+export function fmtDateLong(d?: string | null): string {
+  if (!d) return "";
+  const dt = new Date(d + (d.includes("T") ? "" : "T00:00:00"));
+  if (Number.isNaN(dt.getTime())) return "";
+  return dt.toLocaleDateString(undefined, { day: "numeric", month: "long", year: "numeric" });
+}
+
 export function fmtDateTime(iso?: string | null): string {
   if (!iso) return "";
   const d = new Date(iso);

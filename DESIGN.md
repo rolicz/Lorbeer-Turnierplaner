@@ -301,9 +301,9 @@ Matchup, Player) is built from the same block, so the sections read as one page:
 | Single/multi choice | `Chip` / `ChipGroup` (`ui/primitives/Chip.tsx`) | `rounded-full border px-3 py-1.5 text-sm`; selected = `bg-accent/15 text-accent border-accent/40`, unselected = `bg-bg-card-chip/50` + a `border-border-card-chip/40` hairline (both states are the same height, and the hairline keeps an unselected chip visible on the light theme's white card). `chipClass()` is exported for the few triggers that cannot be a `Chip`. Replaces `ToggleChip` |
 | 2–3 view modes | `SegmentedSwitch` | `rounded-xl` track, `h-8` `rounded-lg` segments (§4 exception), sliding indicator in `Chip`'s selected style, lucide icon nodes |
 | Page sections | `SectionTabs` | underline tabs with edge fades |
-| Filters (stats) | `StatsFilterPill` | floating capsule, see §9 |
+| Filters | `FilterPill` (`ui/primitives/`) | the app's floating capsule, see §9. A page declares its groups (`filterGroup`) and owns their state; the pill owns everything else. `pages/stats/StatsFilterPill.tsx` is the stats page's two groups and nothing more (Q7) |
 | Any score | `ScoreLine` | see §8 — the only way to render a score; `ScoreNumerals` is the bare numeral pair for a control that has to *speak* a score (the goal entry's side choice) |
-| Clubs under a score | `MatchSides` | badge + club, flag + league, stars; nothing but "No club" for a clubless side |
+| Clubs under a score | `MatchSides` | badge + club, flag + league, stars; nothing but "No club" for a clubless side. `stars="token"` folds the rating into the league line as `★ 3.5` instead of giving five glyphs a line of their own — one line less per row, and the two numbers then meet either side of the centre gap (the friendlies list, Q7) |
 | Picking a club | `SelectClubsPanel` + `ClubPicker` (`ui/`) | one panel per match, a `card` behind a single "Clubs" disclosure that summarises both clubs (§9b, T9). Open, it holds the whole job in one bounded block: the two `ClubSlot`s (side players + crest, league, stars), then the star/league filters, then the dice + *Random matchup* row. A slot opens the `ClubPicker` sheet: search focused on open, the club this side already has pinned on top with its `ClubStarsEditor`, then recents, then league groups, crest + stars per row, one tap selects. The scoreboard above (`MatchOverviewPanel`/`MatchSides`) stays **read-only on every surface** |
 | Writing a comment | `CommentComposer` (`pages/live/comments/`) | one chat row *inside* the feed's card, attached to its bottom edge behind a hairline and sticky, so it floats over the feed while reading and settles flush at the end (T3); scope + author are chips above the field, goal/shots swap the row in place. The guestbook's composer is the same row (`CommentSendRow`) at the end of its feed |
 | Key number | `StatTile` | `inset` + `text-2xl font-bold tabular-nums` value + `text-xs` muted label |
@@ -315,7 +315,7 @@ Matchup, Player) is built from the same block, so the sections read as one page:
 | Confirming a delete | `ConfirmDialog` | a `Modal` whose body *names what is lost* (match count, the cups that move, a friendly's two sides and date) in the danger idiom — `border-error/40 bg-error/10 text-error`, the `error` token and never `loss`, because a deleted tournament is not a defeat (§2, A8) — then Cancel + the verb. **Every** delete confirms, an admin's too (A10) — deleting is allowed even when real results hang off the row. Never `window.confirm` for a destructive action |
 | Identity | `AvatarCircle`, `ClubBadge`, `NationFlag`, `CupOwnerBadge` (lucide `Crown`) | `AvatarCircle` is the only avatar, and it always wears a ring: a 1px neutral hairline by default (decoration — it gives the disc an edge on a white card as well as a dark page), or, given `cups`, a 2.5px ring in the cup's colour (a conic split for two). **Colour is the information and its tense is always "today"** (T15): a cup ring means this player holds that cup *right now* — `useCupHolders` is where that answer comes from. Historic ownership is never a ring. **One tense per screen:** the ring is worn only where the surface is about now — the Players page, a profile, the stats leaderboards (Table, Records, Streaks, Cups, the H2H matchup's header, Player) and the dashboard cups preview — H2H's own Players/Duos views render no avatars at all, though the canon used to list them (A8). **Inside a tournament** — its standings/results, the What-if table, its match lists, the Overview's blocks, and the Positions grid of past tournaments — every avatar keeps the neutral hairline, because that screen is about a past or ongoing event and a present-tense ring would read as "held it back then"; cup information there has exactly one carrier, the standings' `CupOwnerBadge` crown ("owned it going into this tournament"). Comment authors, guestbook entries and pickers get no cup marking at all. The ring is drawn inside the avatar's own box, so adopting it never moves the layout |
 | Identity → profile | `PlayerLink` | the only way an avatar/name becomes a link; hugs its text, stops click/Enter from bubbling so a row keeps its own action, `decorative` for an avatar that duplicates the name link. Never nest it in another `<a>` |
-| Stars | `Stars` (lucide `Star`/`StarHalf`, replaces `StarsFA`) |
+| Stars | `Stars` (lucide `Star`/`StarHalf`, replaces `StarsFA`); `StarsToken` is the same rating as one glyph plus the number, for a row too dense to spend 80px per side on a picture |
 
 ## 8. Score display (`ScoreLine`)
 
@@ -347,6 +347,13 @@ Sizes `hero` (match panel), `md` (match rows in lists), `sm` (compact rows, mini
   genuinely mixes modes — the friendlies list and any history shown in Overall mode
   (profile matches, the H2H matchup, the H2H history modal, the positions grid).
 - Names: hero `text-lg`, md `text-base`, sm `text-sm`; 2v2 stacks two lines.
+- **In a list, the numerals hold a fixed column** (Q7). The trio is centred, so a `10`
+  on one row and a `2` on the next widen the middle cell differently and the hairline
+  walks down the page — 12px of drift in the friendlies list, measured, before it was
+  fixed. `scoreDigits(goals)` once per list, its answer to every row's `digits`, and
+  every score then sits at the same x: the same mechanism `recordWidths` gives
+  `RecordLine` (T14), sized to that list's widest score and never wider. A single
+  score — a hero panel, a preview — passes nothing; there is no column to keep.
 - A control that previews a score (the goal entry's "which side scores") uses the exported
   `ScoreNumerals`, never a hand-written `1-0` string: same weight, same tabular figures, same
   hairline separator. The numeral that changes is emphasised, the other muted.
@@ -368,22 +375,35 @@ Sizes `hero` (match panel), `md` (match rows in lists), `sm` (compact rows, mini
   columns are `MatchSides` — the same block sits under the score in the live match list and
   the stats match history, and it hugs the centre gap exactly like the names do.
 
-## 9. Floating filter pill (stats)
+## 9. Floating filter pill
 
-Capsule `h-11 rounded-full` (≈118×44px with both filters) with `SlidersHorizontal` (16px) and the
-current values as two compact tokens: mode as text (`All` / `1v1` / `2v2`, `text-sm font-semibold`),
-source as a lucide icon (`Trophy` tournaments, `Layers` both, `Handshake` friendlies). The glyphs
-are `aria-hidden` and the whole button carries one `aria-label`
-(`"Mode: All, Source: Tournaments"`) — inside a single button, per-token `sr-only` text
-concatenates into an unreadable name. It is a full 44px tap target because it is the **only** way
-into the filters (T4): no inline "Filters" chip in the sub-view row, no second trigger anywhere.
+**The app's filter control, not the stats page's** (Q7). It is `ui/primitives/FilterPill`: a page
+declares its groups — label, options, current value, the value that counts as unfiltered, and
+whether the capsule shows that group as text or as an icon — and owns their state; the pill owns
+the capsule, the popover, the placement, the accent state and the pulse. Two pages use it today:
+Stats (Mode · Source) and the friendlies list (Mode · View). Anything that filters a list goes
+here; nothing grows a filter row of its own.
+
+**A display preference may share the control, but it is not a filter.** The friendlies list's
+Compact/Details choice lives in the same popover — it belongs to "what this list shows", both
+rows above the list had to disappear, and a second floating control would be one too many — but it
+is declared `display`, so it never turns the pill accent and never claims the numbers on screen are
+filtered.
+
+Capsule `h-11 rounded-full` (≈118×44px with two groups) with `SlidersHorizontal` (16px) and the
+current values as compact tokens, a 4px dot between them: text (`All` / `1v1` / `2v2`, `text-sm
+font-semibold`) or a lucide icon (`Trophy` tournaments, `Layers` both, `Handshake` friendlies;
+`Shrink` compact, `List` details). The glyphs are `aria-hidden` and the whole button carries one
+`aria-label` (`"Mode: All, Source: Tournaments"`) — inside a single button, per-token `sr-only`
+text concatenates into an unreadable name. It is a full 44px tap target because it is the **only**
+way into the filters (T4): no inline "Filters" chip in the sub-view row, no second trigger anywhere.
 
 It floats bottom-right (`right-4 bottom-[calc(4.5rem+safe-area)]`, `lg:right-6 lg:bottom-6`) at
 `z-40`, above the mobile bottom tab bar and below modals. Tapping it opens an anchored popover
-(`card` surface, portalled to `body`, 8px from the trigger, right edges flush) with two
-`ChipGroup`s (Mode, Source); tap outside, Escape or a re-tap closes and focus returns to the
-trigger. Only the groups the current section uses are shown; where neither applies (Cups) nothing
-is rendered at all.
+(`card` surface, portalled to `body`, 8px from the trigger, right edges flush) with one
+`ChipGroup` per group; tap outside, Escape or a re-tap closes and focus returns to the trigger.
+Only the groups the current section uses are shown; where none applies (Cups) nothing is rendered
+at all.
 
 Carrying the job alone, it states itself in three ways (S9, resized by T4):
 
@@ -397,8 +417,9 @@ Carrying the job alone, it states itself in three ways (S9, resized by T4):
   gated by `sessionStorage`), cancelled by the first tap and dropped under
   `prefers-reduced-motion`.
 
-The stats root keeps `pb-16` so the last content row still clears the capsule when the page is
-scrolled to the end (20px of air at 390px and at 1280px).
+A page that carries the pill keeps `pb-16` so its last content row still clears the capsule when
+the page is scrolled to the end (20px of air at 390px and at 1280px; 26px on the friendlies list,
+whose last row is a score rather than a full-width block).
 
 ## 9b. Editing in place (pickers, composers, toolboxes)
 

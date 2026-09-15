@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { List, Loader2, Pencil, Shrink, Trash2, X } from "lucide-react";
+import { List, Shrink, Trash2 } from "lucide-react";
 
 import SegmentedSwitch from "../../ui/primitives/SegmentedSwitch";
 import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
@@ -9,6 +9,7 @@ import Input from "../../ui/primitives/Input";
 import Button from "../../ui/primitives/Button";
 import EmptyState from "../../ui/primitives/EmptyState";
 import ConfirmDialog from "../../ui/primitives/ConfirmDialog";
+import FilterPill, { filterGroup, type FilterPillGroup } from "../../ui/primitives/FilterPill";
 import MatchOverviewPanel from "../../ui/primitives/MatchOverviewPanel";
 import SelectClubsPanel from "../../ui/SelectClubsPanel";
 import { GoalStepper, useClubSelection } from "../../ui/clubControls";
@@ -21,19 +22,18 @@ import {
   patchFriendlyMatch,
   type FriendlyMatchResponse,
 } from "../../api/friendlies.api";
-import type { Club, Match, MatchSide, StatsPlayerMatchesTournament } from "../../api/types";
-import { MatchHistoryList } from "../stats/MatchHistoryList";
+import type { Club, Match, MatchSide } from "../../api/types";
+import FriendlyList, { groupFriendliesByDate, normalizeFriendlyState } from "./FriendlyList";
 import MatchH2HPanel from "../live/MatchH2HPanel";
 import { teamName } from "../../utils/matchDisplay";
 import { useAuth } from "../../auth/AuthContext";
+import { readStored, writeStored } from "../../utils/safeStorage";
 
 type ModeFilter = "all" | "1v1" | "2v2";
+type ViewFilter = "compact" | "details";
 
-function normalizeState(state: string): "scheduled" | "playing" | "finished" {
-  const s = String(state || "").trim().toLowerCase();
-  if (s === "scheduled" || s === "playing" || s === "finished") return s;
-  return "finished";
-}
+/** The reader's last choice sticks, the `match_list_view` idiom (DESIGN.md §9b). */
+const VIEW_KEY = "friendly_list_view";
 
 function parseGoal(v: string): number {
   const x = Number.parseInt(String(v ?? "").trim(), 10);
@@ -56,7 +56,7 @@ function friendlyToMatch(f: FriendlyMatchResponse, orderIndex = 0): Match {
     tournament_id: 0,
     order_index: orderIndex,
     leg: 1,
-    state: normalizeState(f.state),
+    state: normalizeFriendlyState(f.state),
     started_at: f.created_at,
     finished_at: f.updated_at,
     sides,
@@ -64,12 +64,18 @@ function friendlyToMatch(f: FriendlyMatchResponse, orderIndex = 0): Match {
   };
 }
 
-/** Inline match editor — shown below a friendly row when its edit button is tapped. */
+/**
+ * The friendly's editor — the one thing a row opens, so everything that can be done
+ * to a friendly lives in here (Q7): the result, the clubs, the H2H, and **delete**.
+ * It renders under its row at full width, behind an accent rail (`DESIGN.md` §9b).
+ */
 function FriendlyEditor({
   friendlyId,
   match,
   clubs,
   clubsById,
+  canDelete,
+  onRequestDelete,
   onSaved,
   onCancel,
 }: {
@@ -77,6 +83,8 @@ function FriendlyEditor({
   match: Match;
   clubs: Club[];
   clubsById: Map<number, { game: string }>;
+  canDelete: boolean;
+  onRequestDelete: () => void;
   onSaved: () => void;
   onCancel: () => void;
 }) {
@@ -204,11 +212,30 @@ function FriendlyEditor({
             extraTop={<Input label="Game" value={clubGame} onChange={(e) => setClubGame(e.target.value)} />}
           />
 
-          <div className="flex items-center justify-end gap-2">
-            <Button variant="ghost" type="button" onClick={onCancel}>Cancel</Button>
-            <Button type="button" onClick={() => saveMut.mutate()} disabled={saveMut.isPending}>
-              {saveMut.isPending ? "Saving…" : "Save result"}
-            </Button>
+          {/* Delete is here and nowhere else: the row carries no controls, so the
+              one place that can destroy a friendly is the editor that row opens. */}
+          <div className="flex items-center justify-between gap-2">
+            {canDelete ? (
+              <Button
+                variant="ghost"
+                type="button"
+                onClick={onRequestDelete}
+                disabled={saveMut.isPending}
+                title="Delete this friendly"
+                className="inline-flex items-center gap-1.5"
+              >
+                <Trash2 size={14} aria-hidden="true" />
+                Delete
+              </Button>
+            ) : (
+              <span />
+            )}
+            <div className="flex items-center gap-2">
+              <Button variant="ghost" type="button" onClick={onCancel}>Cancel</Button>
+              <Button type="button" onClick={() => saveMut.mutate()} disabled={saveMut.isPending}>
+                {saveMut.isPending ? "Saving…" : "Save result"}
+              </Button>
+            </div>
           </div>
         </>
       )}
@@ -225,9 +252,14 @@ export default function FriendlyMatchesListCard({ onInitialReady }: { onInitialR
   const isEditorOrAdmin = (role === "editor" || role === "admin") && !!token;
   const [pendingDeleteId, setPendingDeleteId] = useState<number | null>(null);
   const [mode, setMode] = useState<ModeFilter>("all");
-  const [showMeta, setShowMeta] = useState(false);
+  const [view, setView] = useState<ViewFilter>(() => (readStored(VIEW_KEY) === "details" ? "details" : "compact"));
   const [expandedFriendlyId, setExpandedFriendlyId] = useState<number | null>(null);
   const initialReadyFiredRef = useRef(false);
+  const showMeta = view === "details";
+
+  useEffect(() => {
+    writeStored(VIEW_KEY, view);
+  }, [view]);
 
   const clubsQ = useQuery({
     queryKey: qk.clubs(),
@@ -248,31 +280,7 @@ export default function FriendlyMatchesListCard({ onInitialReady }: { onInitialR
     return out;
   }, [clubsQ.data]);
 
-  const tournaments = useMemo<StatsPlayerMatchesTournament[]>(() => {
-    const rows = friendliesQ.data ?? [];
-    const byDate = new Map<string, typeof rows>();
-    for (const f of rows) {
-      const key = String(f.date || "");
-      const arr = byDate.get(key) ?? [];
-      arr.push(f);
-      byDate.set(key, arr);
-    }
-    const dates = [...byDate.keys()].sort((a, b) => b.localeCompare(a));
-    return dates.map((dateKey) => {
-      const groupRows = [...(byDate.get(dateKey) ?? [])].sort((a, b) => {
-        const at = Date.parse(a.created_at);
-        const bt = Date.parse(b.created_at);
-        if (Number.isFinite(at) && Number.isFinite(bt) && bt !== at) return bt - at;
-        return b.id - a.id;
-      });
-      const matches: Match[] = groupRows.map((f, idx) => friendlyToMatch(f, idx));
-      const numericDate = Number.parseInt(dateKey.replace(/-/g, ""), 10);
-      const fallbackId = groupRows[0]?.id ?? 0;
-      const groupId = Number.isFinite(numericDate) && numericDate > 0 ? -(3_000_000 + numericDate) : -(3_000_000 + fallbackId);
-      const groupMode: "1v1" | "2v2" = groupRows.every((r) => r.mode === "2v2") ? "2v2" : "1v1";
-      return { id: groupId, name: "Friendlies", date: dateKey, mode: groupMode, status: "friendly", matches };
-    });
-  }, [friendliesQ.data]);
+  const groups = useMemo(() => groupFriendliesByDate(friendliesQ.data ?? []), [friendliesQ.data]);
 
   const deleteMut = useMutation({
     mutationFn: (friendlyId: number) => {
@@ -296,114 +304,34 @@ export default function FriendlyMatchesListCard({ onInitialReady }: { onInitialR
     return (friendliesQ.data ?? []).find((f) => Number(f.id) === Number(fid)) ?? null;
   }
 
-  const content = (
-    <>
-      <ErrorToastOnError error={friendliesQ.error} title="Friendly matches loading failed" />
-      <ErrorToastOnError error={clubsQ.error} title="Clubs loading failed" />
-      <ErrorToastOnError error={deleteMut.error} title="Could not delete friendly" />
-
-      <div className="mb-3 flex flex-wrap items-center gap-x-5 gap-y-2">
-        <div className="flex items-center gap-2">
-          <span className="section-label">Mode</span>
-          <SegmentedSwitch<ModeFilter>
-            value={mode}
-            onChange={setMode}
-            options={[
-              { key: "all", label: "All" },
-              { key: "1v1", label: "1v1" },
-              { key: "2v2", label: "2v2" },
-            ]}
-            ariaLabel="Friendly mode filter"
-            title="Filter mode"
-          />
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="section-label">View</span>
-          <SegmentedSwitch<boolean>
-            value={showMeta}
-            onChange={setShowMeta}
-            options={[
-              { key: false, label: "Compact", icon: <Shrink size={14} aria-hidden="true" /> },
-              { key: true, label: "Details", icon: <List size={14} aria-hidden="true" /> },
-            ]}
-            ariaLabel="Friendly details toggle"
-            title="View details"
-          />
-        </div>
-      </div>
-
-      {friendliesQ.isLoading && !friendliesQ.data ? <InlineLoading label="Loading…" /> : null}
-
-      {!friendliesQ.isLoading && tournaments.length === 0 ? (
-        <EmptyState title="No friendlies yet." className="py-8" />
-      ) : null}
-
-      {tournaments.length ? (
-        <div style={{ overflowAnchor: "none" }}>
-          <MatchHistoryList
-            tournaments={tournaments}
-            clubs={clubsQ.data ?? []}
-            showMeta={showMeta}
-            renderMatchActions={(_t, m) => {
-              if (!isEditorOrAdmin) return null;
-              const fid = Number(m.id);
-              if (!fid) return null;
-              const row = findFriendlyById(fid);
-              const canEdit = !!row?.can_edit;
-              const canDelete = !!row?.can_delete;
-              if (!canEdit && !canDelete) return null;
-              const isExpanded = expandedFriendlyId === fid;
-              const pendingDelete = deleteMut.isPending && deleteMut.variables === fid;
-
-              return (
-                <div className="inline-flex items-center gap-1">
-                  {canEdit ? (
-                    <Button
-                      type="button"
-                      variant="ghost" size="sm" iconOnly
-                      title={isExpanded ? "Close editor" : `Edit friendly #${fid}`}
-                      onClick={() => setExpandedFriendlyId(isExpanded ? null : fid)}
-                    >
-                      {isExpanded ? <X size={14} aria-hidden="true" /> : <Pencil size={14} aria-hidden="true" />}
-                    </Button>
-                  ) : null}
-                  {canDelete ? (
-                    <Button
-                      type="button"
-                      variant="ghost" size="sm" iconOnly
-                      title={`Delete friendly #${fid}`}
-                      disabled={pendingDelete}
-                      onClick={() => setPendingDeleteId(fid)}
-                    >
-                      {pendingDelete ? <Loader2 size={14} className="animate-spin" aria-hidden="true" /> : <Trash2 size={14} aria-hidden="true" />}
-                    </Button>
-                  ) : null}
-                </div>
-              );
-            }}
-            /* The editor is a panel, not a row action: full width under its row, so
-               nothing is clipped by the action slot's `shrink-0` (T2's finding). */
-            renderMatchExpanded={(_t, m) => {
-              const fid = Number(m.id);
-              if (!fid || expandedFriendlyId !== fid) return null;
-              const row = findFriendlyById(fid);
-              if (!row || !isEditorOrAdmin || !row.can_edit) return null;
-              return (
-                <FriendlyEditor
-                  friendlyId={fid}
-                  match={friendlyToMatch(row, 0)}
-                  clubs={clubsQ.data ?? []}
-                  clubsById={clubsById}
-                  onSaved={() => setExpandedFriendlyId(null)}
-                  onCancel={() => setExpandedFriendlyId(null)}
-                />
-              );
-            }}
-          />
-        </div>
-      ) : null}
-    </>
-  );
+  // Mode filters what the list shows; the view only says how densely (so it never
+  // marks the pill "filtered" — DESIGN.md §9).
+  const filters: FilterPillGroup[] = [
+    filterGroup<ModeFilter>({
+      label: "Mode",
+      value: mode,
+      options: [
+        { key: "all", label: "All" },
+        { key: "1v1", label: "1v1" },
+        { key: "2v2", label: "2v2" },
+      ],
+      onChange: setMode,
+      defaultValue: "all",
+      token: "text",
+    }),
+    filterGroup<ViewFilter>({
+      label: "View",
+      value: view,
+      options: [
+        { key: "compact", label: "Compact", icon: Shrink },
+        { key: "details", label: "Details", icon: List },
+      ],
+      onChange: setView,
+      defaultValue: "compact",
+      token: "icon",
+      display: true,
+    }),
+  ];
 
   const doomedFriendly = pendingDeleteId ? findFriendlyById(pendingDeleteId) : null;
   const doomedMatch = doomedFriendly ? friendlyToMatch(doomedFriendly) : null;
@@ -411,8 +339,50 @@ export default function FriendlyMatchesListCard({ onInitialReady }: { onInitialR
   const doomedSideB = doomedMatch?.sides.find((x) => x.side === "B");
 
   return (
-    <div className="space-y-3">
-      {content}
+    // The last row still clears the floating pill (DESIGN.md §9).
+    <div className="space-y-3 pb-16">
+      <ErrorToastOnError error={friendliesQ.error} title="Friendly matches loading failed" />
+      <ErrorToastOnError error={clubsQ.error} title="Clubs loading failed" />
+      <ErrorToastOnError error={deleteMut.error} title="Could not delete friendly" />
+
+      {friendliesQ.isLoading && !friendliesQ.data ? <InlineLoading label="Loading…" /> : null}
+
+      {!friendliesQ.isLoading && groups.length === 0 ? (
+        // The filter lives in the pill now, so an empty list has to say whether it is
+        // empty or filtered — otherwise "no friendlies yet" is simply untrue.
+        mode === "all" ? (
+          <EmptyState title="No friendlies yet." className="py-8" />
+        ) : (
+          <EmptyState title={`No ${mode} friendlies.`} hint="Change Mode in the filter." className="py-8" />
+        )
+      ) : null}
+
+      {groups.length ? (
+        <div style={{ overflowAnchor: "none" }}>
+          <FriendlyList
+            groups={groups}
+            clubs={clubsQ.data ?? []}
+            showMeta={showMeta}
+            expandedId={expandedFriendlyId}
+            canEditRow={(f) => isEditorOrAdmin && !!f.can_edit}
+            onToggleRow={(id) => setExpandedFriendlyId((cur) => (cur === id ? null : id))}
+            renderEditor={(f) => (
+              <FriendlyEditor
+                friendlyId={f.id}
+                match={friendlyToMatch(f, 0)}
+                clubs={clubsQ.data ?? []}
+                clubsById={clubsById}
+                canDelete={!!f.can_delete}
+                onRequestDelete={() => setPendingDeleteId(f.id)}
+                onSaved={() => setExpandedFriendlyId(null)}
+                onCancel={() => setExpandedFriendlyId(null)}
+              />
+            )}
+          />
+        </div>
+      ) : null}
+
+      <FilterPill groups={filters} ariaLabel="Friendlies filters" pulseKey="lk:friendlies-filter-pulsed" />
 
       <ConfirmDialog
         open={!!doomedFriendly}

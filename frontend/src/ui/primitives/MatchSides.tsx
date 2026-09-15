@@ -23,7 +23,7 @@ import { cn } from "../cn";
 import ClubBadge from "../ClubBadge";
 import NationFlag from "../NationFlag";
 import { clubLabelPartsById } from "../clubControls";
-import { Stars } from "./Stars";
+import { Stars, StarsToken } from "./Stars";
 
 /** One row of the block: left side right-aligned, right side left-aligned. */
 function SideRow({ left, right, className }: { left: ReactNode; right: ReactNode; className?: string }) {
@@ -47,6 +47,7 @@ export default function MatchSides({
   aStars,
   bStars,
   size = "row",
+  stars = "glyphs",
   className,
 }: {
   clubs: Club[];
@@ -61,6 +62,13 @@ export default function MatchSides({
   bStars?: number | null;
   /** `hero` gives the club symbols their larger footprint and a normal-weight name. */
   size?: "hero" | "row";
+  /**
+   * How the rating is drawn (Q7). `glyphs` is the five-star picture on a line of its
+   * own — right where the block has room. `token` folds it into the league line as
+   * `★ 3.5`, which is one line less per row and puts the two numbers either side of
+   * the centre gap, where they can be compared. The friendlies list uses `token`.
+   */
+  stars?: "glyphs" | "token";
   className?: string;
 }) {
   const a = clubLabelPartsById(clubs, aClubId);
@@ -124,12 +132,15 @@ export default function MatchSides({
             <>
               <Wrapped>{a.league_name}</Wrapped>
               <NationFlag nation={a.league_nation} />
+              {/* The token sits on the inner edge, so the two ratings meet at the gap. */}
+              {stars === "token" ? <StarsToken rating={aStars ?? a.rating ?? 0} /> : null}
             </>
           ) : null
         }
         right={
           bHasClub ? (
             <>
+              {stars === "token" ? <StarsToken rating={bStars ?? b.rating ?? 0} mirror /> : null}
               <NationFlag nation={b.league_nation} />
               <Wrapped>{b.league_name}</Wrapped>
             </>
@@ -137,11 +148,13 @@ export default function MatchSides({
         }
       />
 
-      <SideRow
-        className="mt-1 text-xs text-text-muted"
-        left={aHasClub ? <Stars rating={aStars ?? a.rating ?? 0} textClassName="text-text-muted" /> : null}
-        right={bHasClub ? <Stars rating={bStars ?? b.rating ?? 0} textClassName="text-text-muted" /> : null}
-      />
+      {stars === "glyphs" ? (
+        <SideRow
+          className="mt-1 text-xs text-text-muted"
+          left={aHasClub ? <Stars rating={aStars ?? a.rating ?? 0} textClassName="text-text-muted" /> : null}
+          right={bHasClub ? <Stars rating={bStars ?? b.rating ?? 0} textClassName="text-text-muted" /> : null}
+        />
+      ) : null}
     </div>
   );
 }

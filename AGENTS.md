@@ -68,18 +68,22 @@ Size (2026-09-13): backend ≈ 13.3k LOC Python (`app/` + `manage.py` + `run.py`
   (cache merge), `RealtimeProvider.tsx`.
 - `src/pages/` — dashboard, tournaments (+ `live/` tournament page, match detail, `live/comments/`
   feed + `CommentComposer`, admin panel), stats, profile, players admin, clubs,
-  friendlies (`tools/`), `ideas/` (the Ideas board: `IdeasPage`, `IdeaCard`, `IdeaComposer`,
+  friendlies (`tools/` — `FriendlyMatchesListCard` holds the queries, the filter pill and the
+  editor, `FriendlyList.tsx` the day-grouped list itself, Q7), `ideas/` (the Ideas board:
+  `IdeasPage`, `IdeaCard`, `IdeaComposer`,
   `IdeaFields`, `ideaMeta.ts`, `useIdeaMutations.ts`), settings, login,
   `NotFoundPage` (the `*` route).
   `stats/` is one layout driven by `StatsInsights.tsx`: `statsNav.ts` resolves `?view=`/`?sub=`
   (and maps every legacy URL shape onto them, §10), `StatsSection.tsx` is the shared sub-view
-  skeleton, `StatsFilterPill.tsx` the floating Mode/Source filter, `h2h/MatchupView.tsx` +
+  skeleton, `StatsFilterPill.tsx` the stats page's two groups for the shared
+  `ui/primitives/FilterPill` (Q7), `h2h/MatchupView.tsx` +
   `h2h/matchupSummary.ts` the "A vs B, every match" drill-in.
 - `src/ui/` — `primitives/` (Button, Card, CardSection, Modal, Input, Pill, EmptyState,
   InlineLoading, LoadingPlaceholder, MatchOverviewPanel, ScoreLine, MatchSides, StatTile, Chip,
   Stars, List/ListRow, PlayerLink, AvatarCircle [one ringed avatar, T15], RecordLine [the
   `3P 3-0-0 14:6 GD +8` line under a standings/results row — fixed columns sized per list by
-  `recordWidths(rows)`], …),
+  `recordWidths(rows)`], FilterPill [the app's floating filter capsule, used by stats and the
+  friendlies list], …),
   `shell/` (AppShell, Sidebar desktop, MobileChrome drawer, BottomTabBar [mobile, 5 destinations
   — `navConfig` has seven, and the bar excludes Clubs and Ideas],
   navConfig, useDestinationLinks + lastLocation [per-destination last-page memory],
