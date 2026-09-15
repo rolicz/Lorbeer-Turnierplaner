@@ -6993,3 +6993,105 @@ a push actually delivered to the admin on create; `npm run check` + build.
   from another process on this shared tree. Nothing was deleted or rewritten: the fix is the
   additive `_RUNTIME_COLUMNS` entry for `featurerequest.edited_at`, which is a no-op on any
   database that does not have the table yet (production included) and repairs the ones that do.
+
+---
+
+# Round 8 — queued, NOT started (Roli, 2026-09-15)
+
+Five items Roli found while testing Round 7 on his phone. **Do not start any of these without an
+explicit go** — he asked to be the one who says when ("only start when i tell you to"). The
+decisions below were settled with him in conversation and must not be relitigated; what is left is
+implementation. A sixth strand, the crash diagnostics, is already being built separately.
+
+## Q1 — The Ideas composer's details field is a chat row  ☐
+
+The composer reuses `CommentSendRow` (`pages/live/comments/CommentComposer.tsx`), which starts at
+one line and grows to a cap. Right for a comment, wrong for a field that asks *what should happen,
+and why*. The in-place edit form on an existing idea already uses a real textarea
+(`pages/ideas/IdeaCard.tsx:167`, `min-h-[72px] resize-y`) — the composer, where the first draft is
+actually written, got the chat row. Use the taller field in both, from one shared component in
+`pages/ideas/IdeaFields.tsx` (which already exists for exactly this reason: "what an idea is,
+written once").
+
+## Q2 — The bottom tab bar rides up with the keyboard  ☐
+
+App-wide, not an Ideas bug: **nothing in the app listens to the visual viewport**
+(`grep -rn "visualViewport" frontend/src` → nothing). `BottomTabBar.tsx:27` is
+`fixed inset-x-0 bottom-0`, and on iOS a fixed bottom element follows the shrinking viewport, so it
+lands on top of the keyboard. Every composer is affected — comments, guestbook, Ideas.
+
+**Decided with Roli:** the bar hides **whenever the keyboard is open, anywhere in the app** — one
+rule, not a list of pages. The fix belongs in the shell, driven by the VisualViewport API (the only
+mechanism iOS Safari supports: `interactive-widget` and `env(keyboard-inset-height)` are Chromium-
+only). The composers' `bottom-[calc(4.5rem+env(safe-area-inset-bottom,0px))] lg:bottom-0` offset
+exists *only* to clear that bar, so it must collapse in the same moment.
+
+**Verification warning:** an emulated 390px viewport does **not** reproduce the iOS keyboard. Build
+it correctly, then say plainly in the report that only Roli's phone can confirm it.
+
+## Q3 — The positions and H2H headers do not stay on top  ☐
+
+Roli: *"scrolling stats/positions is weird. i want the player icons header to stay on top. it
+somehow depends on where i scroll what it does"*.
+
+**Cause:** `PositionsView.tsx:268,281` mark the header cells `sticky top-0`, but a sticky element
+sticks inside its nearest *scrolling* ancestor, and that is the `overflow-x-auto` box at `:253`.
+Setting overflow on one axis makes the box a scroll container in **both**, and it has no height
+limit, so vertically it never scrolls: the header is pinned to the top of a box exactly as tall as
+the grid, which is the same as not being pinned. The horizontal stickiness works, which is why one
+axis behaves and the other silently does not.
+
+**Decided with Roli (he was shown three options):** *fit the grid to the width* — scale the cells so
+there is no horizontal scroll box at all, the same clamp R1 built for the matrix, and then the
+header sticks to the **page** with no nested scrolling and no JS. **Write down the boundary rather
+than leaving it a surprise:** cells keep a readable floor, so past a player count that no longer
+fits at 390px the grid scrolls sideways again and the header stops pinning. Six players is nowhere
+near it. **Both grids in the same pass** — the matrix's column headers are not sticky at all today,
+and `DESIGN.md` §4 calls the two the same thing at the same size.
+
+## Q4 — Full-height surfaces ignore the bottom safe area  ☐
+
+Roli, on the drawer: *"not super happy with how settings sits in the rounded bottom area on iphone.
+make sure this looks nice on all devices"*.
+
+`MobileChrome.tsx:114` gives the drawer `pt-[env(safe-area-inset-top,0px)]` and **no bottom inset**,
+so its `mt-auto` footer (`:175`, `py-3`) puts Settings inside the home-indicator strip. Seven files
+in the app account for the bottom inset and every one of them is pinned to the bottom of the *page*;
+none of the full-height overlays do. So the same defect sits in **`Modal.tsx`'s `fullScreenOnMobile`
+path** (which `ConfirmDialog`, `VoteVotersModal`, the `ClubPicker` sheet and both image croppers are
+built on) and in **`ImageLightbox.tsx`**. Fix the containers, not ten call sites. Landscape deserves
+the same treatment — the drawer hugs the left edge, which is where the notch goes. Where `env()`
+resolves to 0 nothing moves, so this costs nothing on Android or desktop; give that footer more than
+its current 12px regardless, because a bottom-most row reads as glued to the edge even with no inset.
+
+## Q5 — Re-assign is permanently blocked by leftover goals and clubs  ☐
+
+Roli: *"all games are scheduled but i cant re-assigne the 2v2 schedule as some results were stored
+before"*. Measured on his dev DB: tournament 21 "test 2v2", 5 matches, **all scheduled, no
+timestamps**, but **4 sides carry goals and 4 carry a club**.
+
+`routers/tournaments.py:933-945` requires four things, not one: scheduled, no timestamps, every side
+on 0 goals, every side with no club. Resetting a match puts it back to scheduled but leaves the
+goals and the club behind, so the schedule is frozen for good and the only way out is deleting the
+tournament. The refusal message says results were stored, which is true and useless: it names
+neither how many matches nor that a club counts as "touched" exactly as much as a goal.
+
+**Decided with Roli:**
+- **Reset** (one match): keeps its single confirmation, clears the score **and the timestamps**,
+  **keeps the club** (a club is a setup choice, not a result, and a replay is usually the same
+  fixture with the same teams), and **keeps its comments** — same match row, same two teams, so they
+  still describe the fixture they are filed under.
+- **Re-assign** (whole tournament): **one confirmation**, then clears score, timestamps **and
+  clubs** on every match, and **never refuses**. Today it refuses, and escaping the dead end by hand
+  means five reset confirmations that still leave you blocked by the clubs.
+- **Comments on re-assign: delete the match-tied ones, keep the tournament-wide ones.** Not a
+  preference — **`_delete_schedule` destroys the match rows and builds new ones**, so every match id
+  changes, `Comment.match_id` is left pointing at a dead id, there is no FK enforcement (A9.5) and
+  `match.id` has **no AUTOINCREMENT**, so a stale comment can silently reattach itself to an
+  unrelated future match. Same shape as the orphaned club crest A9 found. (Checked: the dev DB has
+  **0** dangling comments today.)
+- The confirmation **names the count** — "this deletes 7 comments" before you agree, not after.
+
+**DoD for all five:** the usual gates (`npm run check` + build; `make test`/`lint`/`gen-types` if
+the backend moves), 390px and 1280px in blue and light, zero console errors — plus, for Q2, an
+explicit statement that the keyboard behaviour could not be proven off-device.
