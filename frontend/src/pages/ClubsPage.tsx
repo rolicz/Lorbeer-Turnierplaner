@@ -489,7 +489,9 @@ export default function ClubsPage() {
                               <div className="mt-0.5 flex flex-wrap items-center text-xs text-text-muted">
                                 {metaParts.map((part, i) => (
                                   <span key={i} className="inline-flex items-center">
-                                    {i > 0 ? <span className="mx-1.5 text-text-muted/40">·</span> : null}
+                                    {/* Spacing, not a third tone — it inherits the meta
+                                        line's `text-text-muted` (R3). */}
+                                    {i > 0 ? <span className="mx-1.5">·</span> : null}
                                     {part}
                                   </span>
                                 ))}

@@ -106,7 +106,7 @@ export default function CollapsibleCard({
 
           <div className="flex items-center gap-2">
             {right}
-            <span className="text-text-muted/80">{open ? "▾" : "▸"}</span>
+            <span className="text-text-muted">{open ? "▾" : "▸"}</span>
           </div>
         </button>
       ) : null}

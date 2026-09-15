@@ -80,15 +80,60 @@ part of that background:
 | Token | Dark | Light | on the page ground |
 |---|---|---|---|
 | `--color-accent` | `59 130 246` (blue-500) | `29 76 214` | 3.09:1 → 5.77:1 (4.60:1 under `bg-accent/15`) |
-| `--color-btn-text` | `255 255 255` on the teal `--color-btn-bg` | `12 10 9` | 2.49:1 → 7.94:1 (the teal itself is unchanged) |
+| `--color-btn-text` | `255 255 255` on the teal `--color-btn-bg` | `12 10 9` | 2.49:1 → 7.94:1 (the 2.49 is what the dark teal *was* when A6 measured it; R3 below repaired it to 5.47:1. Light's own teal fill never moved) |
 | `--color-cup-gold` | `251 191 36` | `166 74 12` | 1.90:1 → 4.89:1 |
 | `--color-cup-green-dark` | `21 128 61` | `22 116 55` | 4.21:1 → 4.91:1 |
 | `--color-error` | `248 113 113` (red-400) | `185 28 28` | 2.19:1 → 5.43:1 (5.45:1 on `bg-error/10`) |
 | `--color-warn` | `251 191 36` (amber-400) | `146 64 14` | 1.84:1 → 5.95:1 (6.08:1 on `bg-warn/10`) |
 
-The state tokens go one step further than `draw` does: `180 83 9` is 4.21:1 on the ground and
-4.39:1 on a 10% tint, which is enough under a single numeral in a `W-D-L` run and not enough
-under the two-line paragraph a warning is — so light's `warn` is amber-800 (A8).
+The state tokens went one step further than `draw` did: `180 83 9` is 4.21:1 on the ground and
+4.39:1 on a 10% tint, which A8 judged enough under a single numeral in a `W-D-L` run and not
+enough under the two-line paragraph a warning is — so light's `warn` became amber-800. R3 found
+the first half of that judgement wrong too and took `draw` to the same amber-800 (below), which
+leaves the rule with one half: **whatever the token carries, measure it on the surface it is
+carried on**, the page ground and its own tint included.
+
+**Dark themes, the solid button (R3).** A6 fixed light's button by darkening its *label*, and
+nobody re-ran the same test on the dark themes' own `--color-btn-bg`: white sat on teal-500 at
+2.49:1, on blue-500 at 3.68:1 and on the red theme's softened red at 4.32:1 — the solid
+button's label was the least readable text in the app. Shown both repairs rendered as real
+buttons, Roli kept the white label and darkened the fill, so `defaults.css` is teal-700
+(5.47:1), `blue.css` is blue-600 (5.17:1) and `red.css` is `200 35 50` (5.61:1).
+`--color-hover-btn-bg` moves with each one **one step further down** (teal-800, blue-700,
+`170 25 40`), because every old hover stepped *up* into a brighter shade and made the label
+worse the moment a pointer touched it — measured, hovering used to drop the label to 1.86:1
+(teal), 2.54:1 (blue) and 3.67:1 (red), i.e. *below* the resting fill it was already failing at.
+So the rule the three now follow: **a hover moves away from the label's own luminance, never
+toward it.** `light` has obeyed it all along in the other direction (dark ink, hover one step
+lighter: 7.94 → 10.61), which is why its unchanged teal is right where it is.
+`green` is untouched: its dark label on green-500 is already 6.54:1, and neither repair helps it
+— keeping that label on a green-700 fill collapses to 2.97:1, and switching to white on green-700
+gives 5.02:1, a downgrade bought with the loss of the theme's own colour. `--color-accent` is a
+different token and did not move with the button, so in the red theme the two are no longer the
+same red.
+
+**Light theme, the result run (R3).** A6 stopped `win` and `draw` at "clears 4.5:1", and both
+landed at exactly 4.21:1 — which the table above already records, and A8 already treated as not
+enough for a sentence. It is not enough for a `W-D-L` run either: the three numerals are read as
+one word, so the weakest of them sets the reading, and on their own `bg-*/15` badge (`ScoreLine`)
+they measured 3.49:1, 3.48:1 and 4.25:1. All three go one step down — `win` `22 101 52`
+(5.98:1 plain, 4.81:1 on its badge), `draw` `146 64 14` (5.95 / 4.76), `loss` `153 27 27`
+(6.98 / 5.41). `loss` moved although it passed plain at 5.43:1: left where it was it became the
+lightest of the three to the eye and the only one still failing on its badge. Two values
+coincide differently now — `draw` shares amber-800 with `--color-warn`, and `loss` no longer
+shares red-700 with `--color-error`, which is tuned for sentences and stays. Both are
+coincidences, not couplings: the families answer different questions (see above) and a theme may
+split or join them freely.
+
+**Opacity is not a tone.** A token drawn at alpha (`text-text-muted/40`, `/60`, `/80`) is asking
+the palette for a shade it does not have, and on the light theme's paper-white ground it buys
+1.97:1, 2.96:1 and 4.72:1 — hierarchy paid for with legibility. Hierarchy is the type scale (§5),
+the weight, and the three text tokens; **never a fraction of one of them.** So: no
+`text-text-muted/<n>` anywhere (R3 removed the last seven), and a `·` between meta parts is
+spacing, not a third tone — it inherits the muted line it sits in, or names the token where its
+line is not muted. The alpha *backgrounds* are untouched and stay legal: `bg-win/15` and friends
+are a tint of a surface, `bg-text-muted/60` is a dot whose word is next to it, and both are
+measured against the surface behind them, not read as text.
 
 ## 3. Surfaces (three levels, `styles.css`)
 
@@ -410,6 +455,8 @@ An editor is not a section you unfold; it is the thing itself becoming editable.
   make a `<div>` a `role="button"`.
 - Do say `text-error` / `text-warn` when something is wrong; don't borrow `text-loss` or
   `text-draw`, which mean a match went a certain way.
+- Do build hierarchy from size, weight and the three text tokens; don't draw text at a fraction
+  of a token (`text-text-muted/40`) to make it quieter.
 - Do let the page say the mode; don't print `1v1`/`2v2` on a match card that sits in a
   single-mode context.
 - Do check `light` and `blue` themes for every visual change.

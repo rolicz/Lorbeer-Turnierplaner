@@ -6528,7 +6528,7 @@ live and a done tournament; `npm run check` + build.
 
 ---
 
-## R3 — The themes read  ☐
+## R3 — The themes read  ☑
 
 **R3a — the primary button, dark themes.** Roli, shown the rendered options: *"use darker color with
 a white label for all dark themes"*. So **option B**: keep the white label, darken the colour.
@@ -6558,6 +6558,77 @@ option B would take it to 4.12; light keeps A6's dark label at 7.94. Decided wit
 table; no non-light value moves except the three button colours; `npm run check` + build.
 
 **Deviations:**
+
+- **R3a was written by a worker that died on an infrastructure timeout before it could verify
+  or commit anything.** Its edit to the three theme files and its `DESIGN.md` paragraph were
+  sitting uncommitted in the tree; both were re-measured here from scratch and kept.
+- **The inherited hover reasoning is right, and now has numbers.** It noticed what the plan did
+  not: every old `--color-hover-btn-bg` stepped *up* into a brighter shade, so the white label
+  got worse the instant a pointer touched it — measured in the browser, hovering dropped the
+  label to **1.86:1** (teal), **2.54:1** (blue) and **3.67:1** (red), each *below* the resting
+  fill it was already failing at. The three new hovers step down instead (7.58 / 6.70 / 7.29).
+  The general rule is now in `DESIGN.md`: a hover moves *away* from the label's luminance, never
+  toward it — which is also why `light`, whose label is dark ink and whose hover steps lighter
+  (7.94 → 10.61), was right all along and is untouched.
+- **The plan's "option B would take green to 4.12:1" is not reproducible.** Measured: green's
+  dark label on green-500 is 6.54:1; keeping that label on a green-700 fill gives **2.97:1**;
+  white on green-700 gives **5.02:1**. Every candidate is worse than 6.54, so the decision
+  (leave green alone) stands — only its stated reason was wrong, and `DESIGN.md` now carries the
+  measured one.
+- **`--color-loss` moved after all**, to `153 27 27` — the plan allowed it "only if the three look
+  mismatched, and say so". They did, and there is a harder reason than the eye: once `win` and
+  `draw` were deepened, red-700 was the lightest of the three to look at, and on its own
+  `bg-loss/15` badge (`ScoreLine`) it measured **4.25:1**, the only one of the three still under
+  4.5:1 there. The badge is the case A6 and A8 never measured: before this change the light
+  theme's W/D/L badges were **3.49 / 3.48 / 4.25**, and they are now **4.81 / 4.76 / 5.41**.
+  Consequence recorded in `DESIGN.md`: `--color-draw` now shares amber-800 with `--color-warn`,
+  and `--color-loss` no longer shares red-700 with `--color-error`.
+- **The muted-alpha half: one answer, "opacity is not a tone".** No `text-text-muted/<n>` remains
+  anywhere in `src/` (the seven were the only ones). Three were decorative `·` separators inside
+  a line that is *already* `text-text-muted` (`TournamentsPage` meta, `ClubsPage` club meta) — the
+  span now carries only its `mx-1.5` and inherits, because a separator is spacing, not a third
+  tone; a fourth (`MatchList` meta) names the token because its line is not muted as a whole.
+  One was real content — the participants line under a tournament name, at 2.96:1 on light — and
+  simply goes full strength. The last three were affordances: the `ListRow` chevron and the two
+  disclosure glyphs (`CollapsibleCard`, `ClubStarsEditor`). The hierarchy those alphas were
+  faking is carried by the type scale and weight, which is what `DESIGN.md` §5 already says.
+  A **border** was considered for the separators and rejected: a vertical rule between inline,
+  wrapping meta parts is a layout change, and the codebase already writes the full-strength `·`
+  in plain strings elsewhere (`MatchOverviewPanel`, `ClubPicker`, `SelectClubsPanel`) — the seven
+  were the outliers, not the pattern.
+- **Alpha *backgrounds* were deliberately left alone**, and `DESIGN.md` now says why they are a
+  different thing: `bg-win/15` is a tint of a surface, and `MatchList`'s finished-state dot at
+  `bg-text-muted/60` is a dot whose word ("finished") sits beside it. Taking that dot to full
+  strength would make *finished* the loudest marker in a list where live and scheduled carry
+  status colours. `WhatIfSection.tsx` has the same dot and is outside this task's file set.
+- **"No non-light value moves except the three button colours" is read as being about theme
+  *tokens*,** and holds: the only token values changed are light's `win`/`draw`/`loss` and the
+  three dark `--color-btn-bg`/`--color-hover-btn-bg` pairs; every other measured ratio in
+  blue/dark/red/green is identical before and after. The alpha repair is a *component* change to
+  seven class attributes, so it necessarily lands in all five themes — where it also fixed a
+  near-invisible separator (2.63–2.74:1 in the dark themes). Applying it to light alone would
+  have meant keeping alpha-as-hierarchy in four themes and dropping it in one, i.e. two answers
+  where the plan asked for one.
+- **The `ListRow` chevron has no live call site today**: both callers (`TournamentsPage`, which
+  passes `chevron={false}`, and `PlayersAdminPage`, which always passes `trailing`) suppress it,
+  so it could not be measured on a real surface. It was measured by injecting a span with the
+  same class into a real tournament row in the running app, so the theme variable and the
+  compositing are the browser's own. Left in place and fixed like the rest — it is live code in
+  the primitive.
+- **`DESIGN.md` §2 had two claims that R3 falsified and that are now corrected**: the
+  `--color-btn-text` table row still printed the dark teal's 2.49:1 as if current, and A8's
+  paragraph said 4.21:1 "is enough under a single numeral in a `W-D-L` run" — the sentence this
+  task exists to disprove.
+- **Verification:** baseline `27b1078` extracted with `git archive` into a scratch tree and served
+  by a second vite (`:8025`) against the same backend, so before/after are the same app, same
+  data, same browser, differing only in the diff. Backend `:8003` on a copy of `app.db` with a
+  throwaway `JWT_SECRET` env var and a self-minted admin token — `secrets.json` was never read.
+  Five themes × two widths (390 / 1280) × six surfaces, contrast computed in-page from
+  `getComputedStyle` with every translucent ancestor composited. Zero console errors in the after
+  run. Stack and DB copy removed afterwards.
+- Committed in two commits: the three dark theme files (R3a), then light's tokens, the seven
+  class attributes, the `DESIGN.md` canon for both halves and this tracker (R3b). `DESIGN.md` is
+  one file and documents both, so it rides with the second.
 
 ---
 

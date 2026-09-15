@@ -208,13 +208,15 @@ export default function TournamentsPage() {
                 <span className="mt-0.5 flex flex-wrap items-center text-xs text-text-muted">
                   {meta.map((node, i) => (
                     <span key={i} className="inline-flex items-center">
-                      {i > 0 ? <span className="mx-1.5 text-text-muted/40">·</span> : null}
+                      {/* A separator is spacing, not a third tone: it inherits the meta
+                          line's own `text-text-muted` (R3). */}
+                      {i > 0 ? <span className="mx-1.5">·</span> : null}
                       {node}
                     </span>
                   ))}
                 </span>
                 {participants.length > 0 ? (
-                  <span className="mt-0.5 block truncate text-xs text-text-muted/60">
+                  <span className="mt-0.5 block truncate text-xs text-text-muted">
                     {participants.map((p) => p.display_name).join(", ")}
                   </span>
                 ) : null}

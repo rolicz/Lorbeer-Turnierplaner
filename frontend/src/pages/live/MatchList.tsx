@@ -175,7 +175,9 @@ export default function MatchList({
                     <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${dotCls}`} aria-hidden="true" />
                     <span className="text-text-muted">#{m.order_index + 1}</span>
                     <span className={statusTextCls}>{m.state}</span>
-                    <span className="text-text-muted/50">·</span>
+                    {/* This line is not muted as a whole (the status word carries its own
+                        colour), so the separator names the token (R3). */}
+                    <span className="text-text-muted">·</span>
                     <span className="text-text-muted">leg {m.leg}</span>
                   </div>
 
