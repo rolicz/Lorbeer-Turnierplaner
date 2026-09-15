@@ -12,10 +12,11 @@ import {
   votePlayerGuestbookEntry,
 } from "../../api/players.api";
 import { qk } from "../../api/queryKeys";
-import type { Role } from "../../api/types";
+import type { PlayerGuestbookEntry, Role } from "../../api/types";
 import { scrollToSectionById } from "../../ui/scrollToSection";
 import {
   buildGuestbookTree,
+  countGuestbookDescendants,
   countUnreadGuestbookAuthors,
   countUnreadRepliesByEntry,
   latestUnreadGuestbookId,
@@ -77,6 +78,11 @@ export function useProfileGuestbook({
   const [editOpenEntryByProfileId, setEditOpenEntryByProfileId] = useState<Record<number, number | null>>({});
   const [collapsedEntryByProfileId, setCollapsedEntryByProfileId] = useState<Record<number, Set<number>>>({});
   const [voteVotersEntryId, setVoteVotersEntryId] = useState<number | null>(null);
+  // Both confirmations live here as intent, not as a native browser dialog (R2): this
+  // is a hook, so it cannot render a `ConfirmDialog` — it says *what was asked for*,
+  // and <GuestbookSection/> renders it.
+  const [pendingDeleteEntry, setPendingDeleteEntry] = useState<PlayerGuestbookEntry | null>(null);
+  const [markAllReadAsked, setMarkAllReadAsked] = useState(false);
 
   const guestbookDraft = targetPlayerId != null ? (guestbookDraftByPlayerId[targetPlayerId] ?? "") : "";
   const replyDraftByEntryId = useMemo(
@@ -310,9 +316,7 @@ export function useProfileGuestbook({
           [targetPlayerId]: prev[targetPlayerId] === entryId ? null : prev[targetPlayerId] ?? null,
         }));
       },
-      deleteEntry: (entryId) => {
-        void deleteGuestbookMut.mutateAsync(entryId);
-      },
+      requestDelete: (entry) => setPendingDeleteEntry(entry),
       vote: (entryId, value) => {
         if (!token || voteGuestbookMut.isPending) return;
         voteGuestbookMut.mutate({ entryId, value });
@@ -390,7 +394,6 @@ export function useProfileGuestbook({
       markGuestbookReadMut,
       voteGuestbookMut,
       createGuestbookMut,
-      deleteGuestbookMut,
       editGuestbookMut,
       setReplyOpenEntryByProfileId,
       setReplyDraftByProfileAndEntry,
@@ -422,13 +425,32 @@ export function useProfileGuestbook({
       if (!latestUnreadGuestbookEntryId) return;
       focusGuestbookEntry(latestUnreadGuestbookEntryId, { blink: false });
     },
-    onMarkAllRead: () => {
+    onRequestMarkAllRead: () => {
       if (!targetPlayerId || unreadGuestbookIds.length === 0 || markGuestbookReadAllMut.isPending) return;
-      const ok = window.confirm(`Mark ${unreadGuestbookIds.length} unread guestbook message(s) as read?`);
-      if (!ok) return;
+      setMarkAllReadAsked(true);
+    },
+    markAllAsked: markAllReadAsked,
+    markAllCount: unreadGuestbookIds.length,
+    onCancelMarkAllRead: () => setMarkAllReadAsked(false),
+    onConfirmMarkAllRead: () => {
+      setMarkAllReadAsked(false);
+      if (!targetPlayerId || unreadGuestbookIds.length === 0) return;
       markGuestbookReadAllMut.mutate();
     },
     markAllPending: markGuestbookReadAllMut.isPending,
+    pendingDelete: pendingDeleteEntry,
+    pendingDeleteReplyCount: pendingDeleteEntry
+      ? countGuestbookDescendants(guestbookRootsAndChildren.childrenByParent, pendingDeleteEntry.id)
+      : 0,
+    deletePending: deleteGuestbookMut.isPending,
+    onCancelDelete: () => setPendingDeleteEntry(null),
+    onConfirmDelete: () => {
+      const entry = pendingDeleteEntry;
+      setPendingDeleteEntry(null);
+      if (!entry) return;
+      // `mutate`, not `mutateAsync`: failures are surfaced through errors.remove.
+      deleteGuestbookMut.mutate(entry.id);
+    },
     canPost: canPostGuestbook,
     draft: guestbookDraft,
     onDraftChange: (text) => {

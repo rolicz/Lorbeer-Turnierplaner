@@ -1,11 +1,13 @@
 import { Mail, MailOpen, MessageSquare } from "lucide-react";
 
 import Button from "../../ui/primitives/Button";
+import ConfirmDialog from "../../ui/primitives/ConfirmDialog";
 import EmptyState from "../../ui/primitives/EmptyState";
 import LoadingPlaceholder from "../../ui/primitives/LoadingPlaceholder";
 import { Pill } from "../../ui/primitives/Pill";
 import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
 import { CommentSendRow } from "../live/comments/CommentComposer";
+import { fmtDateTime } from "../../utils/format";
 import type { PlayerGuestbookEntry } from "../../api/types";
 import GuestbookEntryCard, {
   GuestbookCardProvider,
@@ -28,8 +30,19 @@ export type GuestbookSectionProps = {
   };
   unreadCount: number;
   onJumpUnread: () => void;
-  onMarkAllRead: () => void;
+  /** Ask; the dialog below decides. `useProfileGuestbook` is a hook and cannot render it. */
+  onRequestMarkAllRead: () => void;
+  markAllAsked: boolean;
+  markAllCount: number;
+  onCancelMarkAllRead: () => void;
+  onConfirmMarkAllRead: () => void;
   markAllPending: boolean;
+  /** The message whose delete was asked for, with the replies that would go with it. */
+  pendingDelete: PlayerGuestbookEntry | null;
+  pendingDeleteReplyCount: number;
+  deletePending: boolean;
+  onCancelDelete: () => void;
+  onConfirmDelete: () => void;
   canPost: boolean;
   draft: string;
   onDraftChange: (text: string) => void;
@@ -48,8 +61,17 @@ export default function GuestbookSection({
   errors,
   unreadCount,
   onJumpUnread,
-  onMarkAllRead,
+  onRequestMarkAllRead,
+  markAllAsked,
+  markAllCount,
+  onCancelMarkAllRead,
+  onConfirmMarkAllRead,
   markAllPending,
+  pendingDelete,
+  pendingDeleteReplyCount,
+  deletePending,
+  onCancelDelete,
+  onConfirmDelete,
   canPost,
   draft,
   onDraftChange,
@@ -61,12 +83,15 @@ export default function GuestbookSection({
   // Total messages, replies included — the number the header states.
   const total = roots.length + Array.from(cardContext.childrenByParent.values()).reduce((n, list) => n + list.length, 0);
 
+  const doomedReplies = pendingDeleteReplyCount;
+
+  /* The feed and its composer are one card (DESIGN.md §9b), exactly like the
+     tournament comments feed: a header row, the messages as hairline-separated
+     level-2 rows, and the chat row attached to the card's bottom edge. It used to be
+     a second, floating card over a feed of cards — a card inside a card's worth of
+     surfaces, and a composer that belonged to none of them (A8). */
   return (
-    /* The feed and its composer are one card (DESIGN.md §9b), exactly like the
-       tournament comments feed: a header row, the messages as hairline-separated
-       level-2 rows, and the chat row attached to the card's bottom edge. It used to be
-       a second, floating card over a feed of cards — a card inside a card's worth of
-       surfaces, and a composer that belonged to none of them (A8). */
+    <>
     <section className="card min-w-0 p-0" data-guestbook-feed>
       <div className="flex items-center justify-between gap-2 border-b border-border-card-outer/55 px-3 py-2.5">
         <h2 className="inline-flex min-w-0 items-center gap-2 text-sm font-semibold text-text-normal">
@@ -85,7 +110,7 @@ export default function GuestbookSection({
             <Button
               type="button"
               variant="ghost"
-              onClick={onMarkAllRead}
+              onClick={onRequestMarkAllRead}
               title="Mark all unread guestbook messages as read"
               disabled={markAllPending}
             >
@@ -139,5 +164,42 @@ export default function GuestbookSection({
         </div>
       )}
     </section>
+
+    {/* Both confirmations the guestbook needs (R2). The hook asks; this renders. */}
+    <ConfirmDialog
+      open={!!pendingDelete}
+      title="Delete this message?"
+      subtitle={
+        pendingDelete
+          ? `From ${pendingDelete.author_display_name} · ${fmtDateTime(pendingDelete.created_at)}`
+          : undefined
+      }
+      confirmLabel="Delete message"
+      busy={deletePending}
+      onCancel={onCancelDelete}
+      onConfirm={onConfirmDelete}
+    >
+      {doomedReplies > 0 ? (
+        <div>
+          {doomedReplies === 1
+            ? "The one reply below it is deleted too."
+            : `All ${doomedReplies} replies below it are deleted too.`}
+        </div>
+      ) : null}
+      <div>Its votes go with it.</div>
+      <div>This cannot be undone.</div>
+    </ConfirmDialog>
+
+    <ConfirmDialog
+      open={markAllAsked}
+      title="Mark the guestbook as read?"
+      subtitle={`The ${markAllCount} unread message${markAllCount === 1 ? "" : "s"} count as read — for you only, and nothing is deleted.`}
+      confirmLabel={`Mark ${markAllCount} as read`}
+      busyLabel="Marking…"
+      busy={markAllPending}
+      onCancel={onCancelMarkAllRead}
+      onConfirm={onConfirmMarkAllRead}
+    />
+    </>
   );
 }

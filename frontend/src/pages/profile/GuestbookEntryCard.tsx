@@ -39,7 +39,9 @@ export type GuestbookCardContextValue = {
   setEditDraft: (entryId: number, text: string) => void;
   submitEdit: (entryId: number, text: string) => void;
   toggleCollapse: (entryId: number) => void;
-  deleteEntry: (entryId: number) => void;
+  /** Ask to delete: the dialog that names the cost belongs to the section, not to
+   *  each of the recursive cards (R2). */
+  requestDelete: (entry: PlayerGuestbookEntry) => void;
   vote: (entryId: number, value: -1 | 0 | 1) => void;
   showVoters: (entryId: number) => void;
   setReplyDraft: (entryId: number, text: string) => void;
@@ -199,10 +201,7 @@ export default function GuestbookEntryCard({
                 onClick={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
-                  const hasReplies = children.length > 0;
-                  const ok = window.confirm(hasReplies ? "Delete this message and all replies?" : "Delete this message?");
-                  if (!ok) return;
-                  ctx.deleteEntry(entry.id);
+                  ctx.requestDelete(entry);
                 }}
                 title="Delete message"
                 className="h-8 w-8 p-0 inline-flex items-center justify-center"
