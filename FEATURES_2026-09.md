@@ -7095,3 +7095,82 @@ neither how many matches nor that a club counts as "touched" exactly as much as 
 **DoD for all five:** the usual gates (`npm run check` + build; `make test`/`lint`/`gen-types` if
 the backend moves), 390px and 1280px in blue and light, zero console errors — plus, for Q2, an
 explicit statement that the keyboard behaviour could not be proven off-device.
+
+---
+
+## Q6 — Back, forward and the gestures: one model, applied everywhere  ☐
+
+Roli (2026-09-15): *"a worker that reevaluates the back/forth sweeps and back buttons and where or
+if they are shown on screen (consistency!). it should feel more natural. think hard about what a
+user expects in each scenario. it's super important that it feels natural and makes sense
+everywhere."*
+
+**Sequencing.** Do **not** start this before the crash diagnostics have produced a breadcrumb trail
+from Roli's phone. The open crash — unresponsive, then the whole tree unmounted above the error
+boundary — has this layer as its prime suspect, and the trail will say whether a burst of POPs was
+involved. If it was, that finding belongs *in* this task. If it was not, this task stays what it is:
+a consistency pass. Refactoring first would destroy the evidence and risk fixing the wrong thing.
+
+### What is there today (surveyed 2026-09-15, not guesses)
+
+Seven files, 857 lines, all of it running on every navigation: `useSwipeNav.ts` (129),
+`backNavigation.ts` (195), `navStack.ts` (178), `routeMeta.ts` (26), `useScrollRestoration.ts`
+(149), `lastLocation.ts` (128), `useDestinationLinks.ts` (52). It mirrors the browser's history into
+`sessionStorage`, keyed by the `history.state.idx` counter the browser owns, and decides pop-vs-up by
+comparing the two. It has already needed four rounds of repair: N1 (back went to the last page
+instead of up), T11 (leaving the matchup), A9.6 (three seams, one of which could not be triggered
+from any path the app offers and was closed as latent), A9.7 (a restore fighting a save-and-return).
+
+**There are two different sources of truth for "is this a detail page", and they agree only by
+coincidence:**
+- **Mobile** (`MobileChrome.tsx:70`): the top bar shows a back chevron **iff**
+  `routeMeta(pathname).isDetail`, and `routeMeta.ts` is a hard-coded list of exactly three patterns —
+  `/live/:id/match/:mid`, `/live/:id`, `/profiles/:id`. Everything else gets the hamburger.
+- **Desktop** (`ui/layout/PageLayout.tsx`, prop `back`): **each page decides for itself**. Three
+  pass `<InlineBack />`: `ProfilePage.tsx:276` (conditionally, on `isDetailRoute`),
+  `LiveTournamentPage.tsx:586` and `MatchDetailPage.tsx:318` (both unconditionally).
+
+### The inconsistencies that follow (each verified in the code)
+
+1. **A pushed view with no back affordance.** The stats matchup (`?vs=`) is a deliberate history
+   **push** (T11), and the swipe does return from it (`resolveDrillInBackAction`). But it lives at
+   `/stats`, so `routeMeta` says `isDetail: false` and **the mobile top bar shows a hamburger**. The
+   only visible way back is an in-view "Head-to-head" button inside the content. A gesture and a
+   button that do the same thing, one of which is invisible in the chrome.
+2. **The chevron *replaces* the hamburger.** On any detail page a phone user cannot reach the menu
+   at all without going back first. That is a decision nobody wrote down; re-examine it.
+3. **A forward gesture with no visible counterpart.** Swipe-left calls `nav(1)` whenever
+   `canGoForward()` (`backNavigation.ts:175`, `useSwipeNav.ts:110`). Nothing anywhere indicates that
+   forward exists, or that it is available right now.
+4. **Where a button falls back, the gesture does nothing** (documented at `useSwipeNav.ts:13`). The
+   reasoning is sound in isolation, but it means the same intent produces two different outcomes
+   depending on how it was expressed.
+5. **Ideas, Clubs and Settings** are destinations reachable only from the drawer/sidebar. Decide
+   what back means on them — today it is the hamburger and a history pop that may leave the app.
+
+### What the worker must produce, in this order
+
+1. **A table of every scenario before touching code**: for each route and each entry path into it
+   (nav bar, deep link, notification, in-page drill-in, browser reload), what the chevron shows,
+   what the swipe does, what the browser's own back does, and **what a user would expect**. Roli's
+   instruction is to think hard about the expectation, so the expectation column is the deliverable,
+   not an afterthought.
+2. **One model, written down in `DESIGN.md`**, that the chevron, the swipe, the desktop button and
+   the browser button all read from. **One source of truth** — `routeMeta`'s three hard-coded
+   patterns and the per-page `back` prop cannot both survive. A pushed in-page view (the matchup) is
+   a first-class case, not an exception bolted on.
+3. **Then** the implementation, with the seam count going **down**. If the answer is that the
+   history mirror should go away entirely, say so and argue it: a mirror that can disagree with the
+   real history is what has produced four rounds of bugs and is the standing crash suspect.
+
+**Constraints.** Native feel on iOS matters more than cleverness: the system edge-swipe exists and
+must not be fought. `data-no-swipe-nav` opt-outs and the horizontal-scroller guards must keep
+working (the positions grid, the matrix, chip rows, sliders). Scroll restoration is coupled to this
+layer and must not regress — N2's per-entry offsets and A9.7's save-and-return both live here.
+
+**DoD:** the scenario table in the plan; the model in `DESIGN.md`; chevron, swipe, desktop button
+and browser back provably agreeing on every row of that table; the existing nav tests still green
+plus new ones per row; 390px and 1280px, blue and light; and an explicit list of anything that
+**cannot** be verified off-device, for Roli to check on the phone.
+
+**Deviations:**
