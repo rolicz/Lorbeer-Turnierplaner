@@ -9,10 +9,12 @@ import LoadingPlaceholder from "../../ui/primitives/LoadingPlaceholder";
 import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
 import { showErrorToast } from "../../ui/primitives/ErrorToast";
 import CommentImageCropper from "../../ui/primitives/CommentImageCropper";
+import ConfirmDialog from "../../ui/primitives/ConfirmDialog";
 import ImageLightbox from "../../ui/primitives/ImageLightbox";
 import VoteVotersModal from "../../ui/primitives/VoteVotersModal";
 import type { Club, Match, Player } from "../../api/types";
 import { clubLabelPartsById } from "../../ui/clubControls";
+import { fmtTs } from "../../utils/format";
 import { listTournamentComments, listCommentVoters } from "../../api/comments.api";
 import { qk } from "../../api/queryKeys";
 import { useAuth } from "../../auth/AuthContext";
@@ -123,6 +125,8 @@ export default function TournamentCommentsCard({
   const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
 
   const [voteVotersCommentId, setVoteVotersCommentId] = useState<number | null>(null);
+  /** The comment a delete was asked for; the dialog names what goes with it (R2). */
+  const [pendingDeleteComment, setPendingDeleteComment] = useState<TournamentComment | null>(null);
 
   // Reply composer (per parent comment) + collapsed reply subtrees.
   const [replyToId, setReplyToId] = useState<number | null>(null);
@@ -305,8 +309,6 @@ export default function TournamentCommentsCard({
     useCommentMutations(tournamentId);
 
   async function deleteComment(commentId: number) {
-    const ok = window.confirm("Delete comment?");
-    if (!ok) return;
     try {
       await deleteMut.mutateAsync(commentId);
       if (editingId === commentId) cancelEdit();
@@ -540,6 +542,24 @@ export default function TournamentCommentsCard({
     return { tournament, blocks, childrenByParent, rootScopeKey };
   }, [comments, matchesOrdered]);
   const childrenByParent = grouped.childrenByParent;
+  // Deleting cascades down the reply subtree (routers/comments.py), so the dialog
+  // counts grandchildren too, not just direct replies.
+  const doomedReplyCount = useMemo(() => {
+    if (!pendingDeleteComment) return 0;
+    let total = 0;
+    const stack = [pendingDeleteComment.id];
+    const seen = new Set<number>(stack);
+    while (stack.length) {
+      const current = stack.pop() as number;
+      for (const child of childrenByParent.get(current) ?? []) {
+        if (seen.has(child.id)) continue;
+        seen.add(child.id);
+        total += 1;
+        stack.push(child.id);
+      }
+    }
+    return total;
+  }, [childrenByParent, pendingDeleteComment]);
 
   const pinnedTournamentComment = useMemo(() => {
     if (!pinnedTournamentCommentId) return null;
@@ -844,7 +864,7 @@ export default function TournamentCommentsCard({
     submitReply: (c) => void submitReply(c),
     setReplyDraft,
     toggleEdit,
-    deleteComment: (id) => void deleteComment(id),
+    deleteComment: (c) => setPendingDeleteComment(c),
     setEditAuthor,
     setEditBody,
     saveEdit: () => void saveEdit(),
@@ -950,6 +970,41 @@ export default function TournamentCommentsCard({
       onClose={() => setVoteVotersCommentId(null)}
     />
     <ImageLightbox open={!!lightboxSrc} src={lightboxSrc} onClose={() => setLightboxSrc(null)} />
+
+    {/* Deleting takes the whole reply subtree and the image with it — the dialog says
+        so, and whose comment it is (DESIGN.md §7, R2). */}
+    <ConfirmDialog
+      open={!!pendingDeleteComment}
+      title="Delete this comment?"
+      subtitle={
+        pendingDeleteComment
+          ? `${authorLabel(pendingDeleteComment.author)} · ${fmtTs(pendingDeleteComment.createdAt)}`
+          : undefined
+      }
+      confirmLabel="Delete comment"
+      busy={deleteMut.isPending}
+      onCancel={() => setPendingDeleteComment(null)}
+      onConfirm={() => {
+        const doomed = pendingDeleteComment;
+        setPendingDeleteComment(null);
+        if (!doomed) return;
+        void deleteComment(doomed.id);
+      }}
+    >
+      <div>
+        {pendingDeleteComment ? authorLabel(pendingDeleteComment.author) : ""}
+        {"'s comment is deleted"}
+        {pendingDeleteComment?.hasImage ? ", the attached image with it" : ""}.
+      </div>
+      {doomedReplyCount > 0 ? (
+        <div>
+          {doomedReplyCount === 1
+            ? "The one reply below it goes too."
+            : `All ${doomedReplyCount} replies below it go too.`}
+        </div>
+      ) : null}
+      <div>This cannot be undone.</div>
+    </ConfirmDialog>
     </>
   );
 }

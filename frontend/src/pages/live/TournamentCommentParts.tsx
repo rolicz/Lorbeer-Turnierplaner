@@ -55,7 +55,8 @@ export type CommentCardContextValue = {
   submitReply: (c: TournamentComment) => void;
   setReplyDraft: (v: string) => void;
   toggleEdit: (c: TournamentComment) => void;
-  deleteComment: (id: number) => void;
+  /** Ask to delete: the dialog naming what goes with it lives on the card (R2). */
+  deleteComment: (c: TournamentComment) => void;
   setEditAuthor: (v: "general" | number) => void;
   setEditBody: (v: string) => void;
   saveEdit: () => void;

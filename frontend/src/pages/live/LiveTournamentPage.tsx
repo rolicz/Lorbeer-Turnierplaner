@@ -524,6 +524,8 @@ export default function LiveTournamentPage() {
   });
 
   const [panelError, setPanelError] = useState<string | null>(null);
+  /** "Read all" asks first — in the app's own dialog, never the browser's (R2). */
+  const [markAllReadAsked, setMarkAllReadAsked] = useState(false);
 
   const showControls = isEditorOrAdmin;
   // Nothing to project once every match has been played (T13).
@@ -538,8 +540,9 @@ export default function LiveTournamentPage() {
     if (showCurrentGameSection) t.push({ key: "current", label: "Current", icon: <Gamepad2 size={14} /> });
     t.push({ key: "standings", label: status === "done" ? "Results" : "Standings", icon: <Trophy size={14} /> });
     t.push({ key: "matches", label: "Matches", icon: <ListChecks size={14} /> });
-    t.push({ key: "comments", label: "Comments", icon: <MessageSquare size={14} />, badge: unreadCommentsCount || undefined });
+    // What if sits with the matches it projects, left of the comments (R2b).
     if (showWhatIf) t.push({ key: "whatif", label: "What if", icon: <Signpost size={14} /> });
+    t.push({ key: "comments", label: "Comments", icon: <MessageSquare size={14} />, badge: unreadCommentsCount || undefined });
     if (showControls) {
       t.push({ key: "controls", label: role === "admin" ? "Admin" : "Controls", icon: <SlidersHorizontal size={14} /> });
     }
@@ -569,9 +572,7 @@ export default function LiveTournamentPage() {
         title="Mark all unread comments as read"
         onClick={() => {
           if (!token || !tid || unreadCommentIds.length === 0 || markAllReadMut.isPending) return;
-          const ok = window.confirm(`Mark ${unreadCommentIds.length} unread comment(s) as read?`);
-          if (!ok) return;
-          markAllReadMut.mutate();
+          setMarkAllReadAsked(true);
         }}
         disabled={!token || markAllReadMut.isPending}
       >
@@ -816,6 +817,22 @@ export default function LiveTournamentPage() {
           ) : null}
         </>
       ) : null}
+
+      {/* Nothing is lost here, so no red block — a title, a sentence, Cancel and the verb. */}
+      <ConfirmDialog
+        open={markAllReadAsked}
+        title="Mark all comments as read?"
+        subtitle={`The ${unreadCommentIds.length} unread comment${unreadCommentIds.length === 1 ? "" : "s"} in this tournament count as read — for you only, and nothing is deleted.`}
+        confirmLabel={`Mark ${unreadCommentIds.length} as read`}
+        busyLabel="Marking…"
+        busy={markAllReadMut.isPending}
+        onCancel={() => setMarkAllReadAsked(false)}
+        onConfirm={() => {
+          setMarkAllReadAsked(false);
+          if (!token || !tid || unreadCommentIds.length === 0) return;
+          markAllReadMut.mutate();
+        }}
+      />
     </PageLayout>
   );
 }

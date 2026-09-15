@@ -129,9 +129,7 @@ export default function CommentList(props: CommentListProps) {
         collapsed={opts.collapsed}
         onToggleCollapse={() => toggleThread(c.id)}
         onToggleEdit={() => toggleEdit(c)}
-        onDelete={() => {
-          void deleteComment(c.id);
-        }}
+        onDelete={() => deleteComment(c)}
         onVote={(value) => onVote(c.id, value)}
         onOpenVoters={() => onOpenVoters(c.id)}
         onSave={saveEdit}
