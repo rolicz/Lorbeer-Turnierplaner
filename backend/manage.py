@@ -4,6 +4,7 @@ import logging
 import os
 import shlex
 import shutil
+import sqlite3
 import subprocess
 import sys
 from datetime import datetime
@@ -134,6 +135,16 @@ def _sqlite_path_from_settings(db_url: str) -> Path | None:
     if candidate.is_absolute():
         return candidate
     return (BACKEND_ROOT / candidate).resolve()
+
+
+def _read_target_club_ids(db_path: Path) -> list[tuple[int, str]]:
+    """Club ids in the database the recovery writes to — read-only, no engine needed."""
+    con = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
+    try:
+        rows = con.execute("SELECT id, name FROM club").fetchall()
+    finally:
+        con.close()
+    return [(int(cid), str(name or "")) for cid, name in rows if cid is not None]
 
 
 def _first_existing(paths: list[Path]) -> Path | None:
@@ -392,6 +403,21 @@ def parse_args() -> argparse.Namespace:
         help="Remote repo root, e.g. hetzner:/home/rczerny/projects/Lorbeer-Turnierplaner",
     )
 
+    recover_stars = sub.add_parser(
+        "recover-club-star-history",
+        help="Reconstruct club star-rating history by diffing the production backup snapshots",
+    )
+    recover_stars.add_argument(
+        "--path",
+        default=str(_default_backup_root("deploy")),
+        help="Deploy snapshot base directory (default: repo-root/backup/deploy). Deploy snapshots only.",
+    )
+    recover_stars.add_argument(
+        "--apply",
+        action="store_true",
+        help="Write the recovered rows. Without it the command only reports (read-only).",
+    )
+
     sync_local = sub.add_parser(
         "sync-local-from-deploy",
         help="Back up local data, pull the latest deploy data, and mirror it into local runtime paths",
@@ -428,6 +454,10 @@ def main() -> None:
     log = logging.getLogger(__name__)
 
     db_commands = {"seed", "add-match", "vacuum-db"}
+    # The recovery command reads the target DB through a read-only sqlite connection for
+    # its report; only --apply needs a configured engine (and `init_db`'s seeding).
+    if args.cmd == "recover-club-star-history" and args.apply:
+        db_commands = db_commands | {args.cmd}
     if args.cmd in db_commands:
         configure_db(settings.db_url)
         init_db()
@@ -448,6 +478,42 @@ def main() -> None:
         with Session(get_engine()) as s:
             res = insert_match(s, data)
         log.info("Add match complete: %s", res)
+
+    if args.cmd == "recover-club-star-history":
+        from app.tools.recover_club_star_history import (
+            apply_recovery,
+            build_recovery,
+            check_target,
+            measure_impact,
+            render_report,
+        )
+
+        root = _abs_path(args.path)
+        target_db = _sqlite_path_from_settings(settings.db_url)
+        if target_db is None or not target_db.is_file():
+            raise RuntimeError(f"Target SQLite database not found for db_url={settings.db_url!r}")
+
+        rec = build_recovery(root)
+        missing, mismatched = check_target(target_db, rec)
+        impacts, sides_total = measure_impact(target_db, rec.changes)
+
+        applied = None
+        if args.apply:
+            known = {cid for cid, _name in _read_target_club_ids(target_db)}
+            with Session(get_engine()) as s:
+                applied = apply_recovery(s, rec, known_club_ids=known)
+
+        print(
+            render_report(
+                rec,
+                root=root,
+                impacts=impacts,
+                sides_total=sides_total,
+                missing=missing,
+                mismatched=mismatched,
+                applied=applied,
+            )
+        )
 
     if args.cmd == "vacuum-db":
         engine = get_engine()
