@@ -313,7 +313,28 @@ Behind Caddy the `/ws` prefix is **not** stripped (`handle /ws/*`), `/api` **is*
   5. After changes that need new media (e.g. club crests): run the tool inside the container,
      e.g. `docker compose exec backend python -m app.tools.sync_club_crests` (done on prod
      already; 591/597 crests present as of the 2026-08-20 snapshot).
-  6. Smoke: `curl -I https://lorbeerkranz.xyz`, `curl https://lorbeerkranz.xyz/api/health`,
+  6. **Once, on the deploy that ships R4: load the club star history by hand.** Roli asked for
+     this to be written down rather than remembered (2026-09-15). `ClubStarRating` is created
+     empty and `init_db()` seeds one row per club dated **that day**, so until the recovery runs,
+     production believes every club has always had the rating it has now — which is the bug R4
+     exists to fix, still live. The reconstruction reads the deploy snapshots, and those live on
+     the dev machine, not on the server, so they have to travel:
+     ```bash
+     # on the dev machine, after the server's `git pull` + `up -d --build` succeeded.
+     # Check the filter with --dry-run first; only app.db and snapshot.json are needed (~10 MB).
+     rsync -av --prune-empty-dirs --include='*/' --include='app.db' --include='snapshot.json' \
+       --exclude='*' backup/deploy/ hetzner:~/projects/Lorbeer-Turnierplaner/backend/data/star-snapshots/
+     # on the server — ./backend/data is bind-mounted at /data, so the container sees them:
+     docker compose exec backend python manage.py recover-club-star-history --path /data/star-snapshots
+     docker compose exec backend python manage.py recover-club-star-history --path /data/star-snapshots --apply
+     rm -rf ~/projects/Lorbeer-Turnierplaner/backend/data/star-snapshots   # copies, not runtime data
+     ```
+     **Run it without `--apply` first and read the report.** On the 2026-09-15 dev data it found
+     626 opening ratings and 31 changes across 31 clubs, and moved 3 of 218 finished match sides;
+     prod numbers should be close. If they are not, stop — step 2's backup is the way back.
+     `snapshot.json`'s `"kind"` is what selects a snapshot, never the directory name, which is why
+     that file has to be copied alongside each `app.db`.
+  7. Smoke: `curl -I https://lorbeerkranz.xyz`, `curl https://lorbeerkranz.xyz/api/health`,
      open the PWA on a phone, check cup owners on the dashboard and one live/done tournament.
 - **Rollback:** `git checkout <previous-sha> && docker compose up -d --build`. Schema changes are
   additive, so old code boots on the new DB. If data must be restored, rsync the desired
@@ -536,9 +557,11 @@ every past match simply keeps counting today's rating.
   - **A startup seed runs once**: expect `Club star history seeded: 626` in the backend log on the
     first boot, and nothing on every boot after. It writes one row per club at its current rating,
     so **nothing about the app changes** until a star is edited or the recovery is run.
-  - **No manual server step.** The history recovery (§8) is optional and manual — run it read-only
-    first from this dev machine; skipping it leaves every past match counting today's rating,
-    exactly as production does now.
+  - **There IS a manual server step, and Roli asked not to be allowed to forget it: §7 step 6.**
+    The recovery is what gives the table its real contents; without it the seed leaves every past
+    match counting today's rating, which is the bug R4 exists to fix, still live. It cannot run
+    from the dev machine against production — `manage.py` writes to its own configured database —
+    so the snapshots travel to the server and the command runs in the container. Read-only first.
   - Rollback stays safe: the old code ignores the table, and `Club.star_rating` is still the
     current value that every old code path reads.
 - Open follow-ups / known and accepted:
