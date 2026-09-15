@@ -90,6 +90,9 @@ function ImageLightboxOpen({
   return (
     <div
       className="fixed inset-0 z-50 bg-black/85"
+      /* No flow spacing: rendered inside a `.page` column, this `fixed inset-0` box would
+         inherit that column's 12px top margin and stop 12px short of the screen. */
+      style={{ margin: 0 }}
       onClickCapture={(e) => {
         if (movedRef.current) {
           movedRef.current = false;
@@ -101,7 +104,11 @@ function ImageLightboxOpen({
     >
       <div
         ref={viewportRef}
-        className="absolute inset-0 overflow-hidden touch-none"
+        /* The scrim stays full-bleed black; the pan/zoom box is the safe area, so the
+           photo never sits under a notch or the home indicator (Q4). Insets, not padding:
+           `clientWidth`/`clientHeight` below must stay the content box or the fit and the
+           pan limits drift. `env()` is 0px where there is no inset. */
+        className="absolute bottom-safe-b left-safe-l right-safe-r top-safe-t overflow-hidden touch-none"
         onWheel={(e) => {
           e.preventDefault();
           const factor = e.deltaY < 0 ? 1.12 : 1 / 1.12;

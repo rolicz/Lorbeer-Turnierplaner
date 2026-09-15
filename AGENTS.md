@@ -508,6 +508,14 @@ every past match simply keeps counting today's rating.
 - **A `card` inside a CSS grid needs `min-w-0`.** A grid item defaults to `min-width: auto`, so one
   unbreakable line inside it (a stack frame, a long URL) widens the whole page instead of
   scrolling/truncating. `SettingsSection` learned this the hard way in Round 7.
+- **Safe areas belong to the container** (Q4): `body` carries the left/right inset padding, but a
+  `fixed` overlay escapes it, so the drawer, `Modal`'s sheet and `ImageLightbox` name the insets
+  themselves through the `safe-t/r/b/l` spacing tokens in `frontend/tailwind.config.cjs`
+  (`pb-safe-b`, `left-safe-l`, `bottom-safe-b`, …, plus `max-h-sheet`, which clamps a sheet to the
+  safe box so a tall dialog's buttons stay reachable). `env()` is 0px without insets, so none of it
+  shows on Android, desktop or an older iPhone. Never hand-spell `env(safe-area-inset-*)` in a class.
+  An overlay root also carries `style={{ margin: 0 }}`: a page column's `> * ~ *` rule hands every
+  non-first child a 12px top margin, and a `fixed inset-0` box honours it (scrim 12px short).
 - iOS PWA: push needs Home-Screen install; back navigation uses the router history index
   (`routeMeta.ts` classifies the route, `backNavigation.ts` decides pop-vs-up), don't replace
   with `history.back()` blindly. The swipe gesture (`useSwipeNav`) asks the *same* decision, so

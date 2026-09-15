@@ -61,7 +61,7 @@ export default function MobileChrome({
       <header
         id="app-top-nav"
         className={
-          "sticky top-0 z-30 nav-shell backdrop-blur-md pt-[env(safe-area-inset-top,0px)] transition-transform duration-300 ease-out-expo lg:hidden " +
+          "sticky top-0 z-30 nav-shell backdrop-blur-md pt-safe-t transition-transform duration-300 ease-out-expo lg:hidden " +
           (hidden && !open ? "-translate-y-full" : "translate-y-0") +
           (atTop ? "" : " shadow-pop")
         }
@@ -111,7 +111,7 @@ export default function MobileChrome({
               initial="hidden"
               animate="show"
               exit="exit"
-              className="absolute inset-y-0 left-0 flex w-[82%] max-w-[320px] flex-col border-r border-border-card-chip/40 bg-bg-card-outer pt-[env(safe-area-inset-top,0px)] shadow-pop"
+              className="absolute inset-y-0 left-0 flex w-[82%] max-w-[320px] flex-col border-r border-border-card-chip/40 bg-bg-card-outer pb-safe-b pl-safe-l pt-safe-t shadow-pop"
             >
               <div className="flex h-14 items-center justify-between gap-2 px-4">
                 <span className="inline-flex items-center gap-2.5">
@@ -172,7 +172,7 @@ export default function MobileChrome({
                 })}
               </nav>
 
-              <div className="mt-auto border-t border-border-card-chip/40 px-3 py-3">
+              <div className="mt-auto border-t border-border-card-chip/40 px-3 pb-4 pt-3">
                 <Link
                   to="/settings"
                   onClick={() => setOpen(false)}

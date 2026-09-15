@@ -4,6 +4,27 @@ module.exports = {
   content: ["./index.html", "./src/**/*.{ts,tsx}"],
   theme: {
     extend: {
+      // Safe-area insets as named spacing (DESIGN.md §7, Q4). Every *fixed* overlay
+      // escapes the `body` padding that handles the left/right notch, so the container
+      // that touches a viewport edge names the inset itself — `pt-safe-t`, `pb-safe-b`,
+      // `left-safe-l`, `bottom-safe-b`, … On a device without insets `env()` is 0px, so
+      // these resolve to 0 and change nothing. Never hand-spell `env(safe-area-inset-*)`
+      // in a class again; the token composes into arbitrary values too
+      // (`bottom-[calc(4.5rem+theme(spacing.safe-b))]`).
+      spacing: {
+        "safe-t": "env(safe-area-inset-top, 0px)",
+        "safe-r": "env(safe-area-inset-right, 0px)",
+        "safe-b": "env(safe-area-inset-bottom, 0px)",
+        "safe-l": "env(safe-area-inset-left, 0px)",
+      },
+      maxHeight: {
+        // A full-screen-on-mobile sheet must fit the safe box, gutters included: without
+        // this a tall dialog (the croppers) grows past the screen and its buttons cannot be
+        // reached — worst in landscape, where a phone is ~390px tall. 1.5rem/3rem are the
+        // wrapper's own `p-3`/`sm:p-6` gutters, top and bottom.
+        sheet: "calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 1.5rem)",
+        "sheet-sm": "calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 3rem)",
+      },
       fontFamily: {
         sans: [
           "Inter var",

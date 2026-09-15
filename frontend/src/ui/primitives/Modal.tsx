@@ -1,11 +1,27 @@
 /**
  * Overlay dialog: the level-1 `card` surface on a scrim (`DESIGN.md` §3/§7),
  * full-screen sheet on mobile when `fullScreenOnMobile` is set.
+ *
+ * Safe area (Q4): the sheet is `fixed`, so it escapes the `body` padding that keeps the
+ * page clear of a landscape notch, and its bottom edge would otherwise land in the home
+ * indicator strip. The *positioning* box takes the insets (`bottom-safe-b left-safe-l
+ * right-safe-r`, plus `sm:top-safe-t` once it centres) and the card keeps its own `p-3`
+ * on top — the container owns the inset, the surface owns its padding. `env()` is 0px
+ * where there is no inset, so nothing moves on Android, desktop or an older iPhone.
  */
 import { X } from "lucide-react";
 import React, { useEffect } from "react";
 
 import Button from "./Button";
+
+/**
+ * An overlay root takes no flow spacing: a page column is `.page`/`space-y-*`, whose
+ * `> * ~ *` rule would hand this `fixed inset-0` box a 12px top margin and shrink it to
+ * 832px on a 844px screen — the scrim then misses the top 12px of the screen. A class
+ * cannot say this (`.page > :not([hidden]) ~ :not([hidden])` outranks `mt-0`), so it is
+ * an inline style. Measured before the fix: root 12..844; after: 0..844.
+ */
+const OVERLAY_ROOT_STYLE: React.CSSProperties = { margin: 0 };
 
 export default function Modal({
   open,
@@ -77,13 +93,20 @@ export default function Modal({
   );
 
   if (fullScreenOnMobile) {
-    const parts = ["card", "w-full p-3 sm:p-4", maxWidth ?? "max-w-lg", scrollBody && "flex flex-col", className]
-      .filter(Boolean)
-      .join(" ");
+    // A sheet never grows past the safe box: `scrollBody` cards bring their own max-height
+    // and scroll a child, the rest are clamped here and scroll themselves — otherwise a tall
+    // dialog's buttons end up off-screen (measured in landscape, 844x390: the avatar editor's
+    // row sat 99px below the viewport).
+    const parts = [
+      "card w-full p-3 sm:p-4",
+      maxWidth ?? "max-w-lg",
+      scrollBody ? "flex flex-col" : "max-h-sheet sm:max-h-sheet-sm overflow-y-auto",
+      className,
+    ].filter(Boolean).join(" ");
     return (
-      <div className="fixed inset-0 z-50">
+      <div className="fixed inset-0 z-50" style={OVERLAY_ROOT_STYLE}>
         <div className="overlay-scrim" onClick={onClose} />
-        <div className="absolute inset-x-0 bottom-0 sm:inset-0 sm:flex sm:items-center sm:justify-center p-3 sm:p-6">
+        <div className="absolute bottom-safe-b left-safe-l right-safe-r sm:top-safe-t sm:flex sm:items-center sm:justify-center p-3 sm:p-6">
           <div className={parts}>
             {header}
             {children}
@@ -94,7 +117,7 @@ export default function Modal({
   }
 
   return (
-    <div className="fixed inset-0 z-50">
+    <div className="fixed inset-0 z-50" style={OVERLAY_ROOT_STYLE}>
       <div className="overlay-scrim" onClick={onClose} />
       <div className={["card p-4 absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2", scrollBody && "flex flex-col", maxWidth ?? "w-[min(92vw,520px)]"].filter(Boolean).join(" ")}>
         {header}
