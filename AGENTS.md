@@ -42,7 +42,8 @@ Size (2026-09-13): backend ≈ 13.3k LOC Python (`app/` + `manage.py` + `run.py`
   `cup.py` (cup ownership fold), `file_storage.py` (media on disk), `authorization.py`
   (owner/admin guards), `comments_view.py`, `guestbook*.py`, `ideas_view.py`, `poke_summary.py`,
   `stats/` (players, h2h, h2h_matches, streaks, ratings, odds, player_matches, tournament_stats,
-  core, scope, registry), `comments_summary.py`, `guestbook_summary.py`.
+  core, scope, registry), `comments_summary.py`, `guestbook_summary.py`,
+  `club_stars.py` (the star-rating timeline: every write appends, every match resolves by date).
 - `app/models.py` — all SQLModel tables. `app/schemas/requests.py` + `responses.py` — pydantic
   bodies/response models (**response models drive the generated frontend types**).
 - `app/db.py` — engine + `init_db()` (create_all + additive runtime columns + backfills).
@@ -52,8 +53,10 @@ Size (2026-09-13): backend ≈ 13.3k LOC Python (`app/` + `manage.py` + `run.py`
   `retired=True`**, so a destination the app drops still labels the old ideas that name it.
 - `app/scheduling.py` — fixture generation (1v1 all pairs; 2v2 circle-method partnerships).
 - `app/tournament_status.py` — **status is derived from match states** (see §5).
-- `app/seed.py`, `app/league_nations.py`, `app/validation.py`, `app/tools/sync_club_crests.py`.
-- `manage.py` — CLI: seed, add-match, vacuum-db, generate-vapid, backups/sync (§8).
+- `app/seed.py`, `app/league_nations.py`, `app/validation.py`, `app/tools/sync_club_crests.py`,
+  `app/tools/recover_club_star_history.py` (diffs the deploy snapshots, §8).
+- `manage.py` — CLI: seed, add-match, vacuum-db, generate-vapid, recover-club-star-history,
+  backups/sync (§8).
 
 ### Frontend modules
 - `src/api/` — `client.ts` (`apiFetch`, `apiUpload`, `mediaUrl`, central 401 → `api:unauthorized`
@@ -165,7 +168,8 @@ Current prod config (mirrored in `backend/app/cups.json` and `backend/data/cups.
   `Player`, `TournamentPlayer`, `Match` (leg 1|2, order_index, state scheduled|playing|finished),
   `MatchSide` (side A|B, club_id, goals) + `MatchSidePlayer`, `FriendlyMatch`/`FriendlyMatchSide`/
   `FriendlyMatchSidePlayer`, `League` (name unique, `nation` flag code), `Club` (name+game unique,
-  star_rating 0.5–5 in 0.5 steps, league_id), `ClubCrestFile`, `PlayerProfile`,
+  star_rating 0.5–5 in 0.5 steps = the **current** value, league_id), `ClubStarRating`,
+  `ClubCrestFile`, `PlayerProfile`,
   `PlayerAvatarFile`, `PlayerHeaderImageFile`, `PlayerGuestbookEntry` (+ThreadLink, Vote, Read),
   `PlayerPoke` (+Read), `Comment` (+Read, Vote, ImageFile, ThreadLink, AuthorLink),
   `TournamentPinnedComment`, `TournamentCreatorLink`, `FriendlyCreatorLink`,
@@ -190,6 +194,27 @@ Current prod config (mirrored in `backend/app/cups.json` and `backend/data/cups.
 - **Cup ownership** is a fold over qualifying finished tournaments (`services/cup.py`): winner =
   unique top of standings, else the decider winner (`decider_type` none|penalties|match|
   scheresteinpapier). Ties without decider → no winner, holder keeps the cup.
+- **A club's stars are a timeline** (R4). `Club.star_rating` stays the club's *current* rating —
+  the pickers, the clubs page and `services/stats/odds.py` all ask "how good is this club today"
+  and keep reading it. `ClubStarRating` (`club_id`, `stars`, `valid_from` **date**, `changed_at`,
+  `source`) answers the other question, "what was it worth the day that match was played":
+  - **Every star write appends** through `services/club_stars.record_star_rating()` — `POST
+    /clubs`, `PATCH /clubs/{id}` (the Clubs page panel *and* the picker's inline `ClubStarsEditor`
+    both use it) and `app/seed.py::upsert_clubs`. **One row per club per day**: a second edit the
+    same day is that day's value, and re-saving a rating already in force writes nothing.
+  - **`init_db()` seeds** one row per club at its current rating, dated today, for any club with no
+    history at all — idempotent, and with only that row every past match resolves to the current
+    rating, i.e. exactly the behaviour before the table existed. Log line on first boot:
+    `Club star history seeded: <n>`.
+  - **The as-of rule** (`StarRatingResolver.as_of`, the only place it is written): the last row
+    whose `valid_from` is on or before the match's own date — a tournament's `date`, a friendly's
+    own `date`, **never** `started_at`/`finished_at`, which record data entry. Earlier than the
+    first row → that first row (the oldest value on record). No date → the current rating. No club
+    → nothing. `/stats/player-matches` and `/stats/h2h-matches` carry the answer per side as
+    `club_stars`; **the frontend renders it and never re-derives the rule.**
+  - `source` is `live` | `seed` | `recovered`. A **recovered** row's `valid_from` is an upper bound
+    (the day a backup first showed the new value), which is why the UI says "by <date>" for it and
+    "since <date>" for the rest. See §8 for the recovery command.
 - **Media** are files on disk, metadata rows in DB: `uploads/avatars/{player_id}.{ext}`,
   `profile_headers/{player_id}.{ext}`, `comments/{comment_id}.{ext}`, `club_crests/{club_id}.{ext}`,
   `ideas/{request_id}.{ext}`.
@@ -206,7 +231,8 @@ Current prod config (mirrored in `backend/app/cups.json` and `backend/data/cups.
 Prefixes: `/auth/login`, `/me`, `/me/notifications`, `/tournaments…` (list, `/live`, detail,
 create, patch, `/date`, `/generate`, `/reorder`, `/second-leg`, `/stats`, `/decider`,
 `/reassign`, delete, comments), `/matches/{id}` (patch score/state/clubs, `/swap-sides`),
-`/clubs` (+`/leagues`, `/{id}/crest`), `/players…` (profiles, avatars, headers, guestbook, pokes,
+`/clubs` (+`/leagues`, `/{id}/crest`, `/{id}/star-history` — public read, oldest first),
+`/players…` (profiles, avatars, headers, guestbook, pokes,
 read-maps), `/cup?key=`, `/cup/defs`, `/stats/{overview,players,h2h,h2h-matches,streaks,
 player-matches,ratings,ratings/history,odds}`, `/friendlies`, `/ideas` (+`/areas`, `/{id}`,
 `/{id}/status`, `/{id}/vote`, `/{id}/voters`, `/{id}/image`), `/push/{config,subscription,
@@ -311,6 +337,28 @@ python3 backend/manage.py sync-local-from-deploy     # backup local, pull prod, 
 git-ignored; the latest deploy snapshot is the best offline picture of production.
 Other helpers: `seed --file backend/data/seed.json` (players/leagues/clubs upsert),
 `add-match --file`, `vacuum-db [--analyze]`, `generate-vapid`.
+
+```bash
+python3 backend/manage.py recover-club-star-history            # read-only report
+python3 backend/manage.py recover-club-star-history --apply    # write the rows
+```
+`recover-club-star-history` (R4) reconstructs `ClubStarRating` by diffing the `club` table across
+the deploy snapshots, because the app only ever stored one float per club. Rules it follows and
+that must not be relaxed:
+- **Deploy snapshots only.** `backup/local/*` are pre-sync copies of the *dev* database, so
+  interleaving the two kinds by timestamp invents changes that immediately revert. Selection is by
+  `snapshot.json`'s `"kind": "deploy"`, **never** by the directory name — two real deploy
+  snapshots (`20260328-022654`, `20260913-150024`) are named without the `-deploy` suffix.
+- **`backup/` is never written to**: every snapshot, and the target DB during a dry run, is opened
+  `mode=ro`. A dry run configures no engine at all.
+- A change is dated at the snapshot where the new value is **first seen** — an upper bound, marked
+  `source="recovered"`. The report prints the window per change, the gaps longer than a week, and
+  how many finished match sides change value.
+Measured 2026-09-15 against the 12 usable snapshots (2026-03-28 → 2026-09-13): **31 changes across
+31 clubs**, of which **3 of 218** finished match sides move (2 tournament sides — San Jose
+Earthquakes, Carrarese Calcio — and 1 friendly side, Grazer AK). Nothing before 2026-03-28 is
+recoverable; those matches keep the oldest value on record. The command is optional: skip it and
+every past match simply keeps counting today's rating.
 
 ## 9. How work is done here (conventions)
 
@@ -477,6 +525,20 @@ Other helpers: `seed --file backend/data/seed.json` (players/leagues/clubs upser
     `can_set_decider` (A10).
   - Rollback stays safe: `main` @ `cabda7c` was booted against a copy of the migrated DB and
     served every route, created and deleted a tournament, and ignored the new tables.
+- **The same branch also holds Round 7** (R1–R5, tracker `FEATURES_2026-09.md` § "Round 7",
+  baseline `a1a2acc`), still **not pushed, not merged**: the two micro-tile grids (R1), one dialog
+  and one tab order (R2), the theme readability pass (R3), **club star-rating history (R4)** and
+  the Ideas board (R5).
+- **Deploy notes for R4** (the only schema change in Round 7 so far):
+  - **One new table**, `ClubStarRating` — `create_all` makes it, no column added or altered.
+  - **A startup seed runs once**: expect `Club star history seeded: 626` in the backend log on the
+    first boot, and nothing on every boot after. It writes one row per club at its current rating,
+    so **nothing about the app changes** until a star is edited or the recovery is run.
+  - **No manual server step.** The history recovery (§8) is optional and manual — run it read-only
+    first from this dev machine; skipping it leaves every past match counting today's rating,
+    exactly as production does now.
+  - Rollback stays safe: the old code ignores the table, and `Club.star_rating` is still the
+    current value that every old code path reads.
 - Open follow-ups / known and accepted:
   - **Two decisions waiting for Roli**, both written up at the end of `FEATURES_2026-09.md`: the
     primary button fails the same contrast check in the four dark themes that A6 fixed in light

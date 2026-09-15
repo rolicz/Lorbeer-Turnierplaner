@@ -3090,9 +3090,44 @@ Recorded so they are not forgotten. Do not implement without an explicit go.
    - **An import must never touch existing FC 26 ratings** (Roli, 2026-09-13) — those are his, set
      by hand. A star import writes only the clubs of the game being imported.
    - **Still open:** whether FC 27 ratings are imported automatically or typed in.
+   - **The season/year view ships here, not before** (R4b, Roli 2026-09-15: *"fold the 'season or
+     year view' into the ea fc 27 changes -> i dont want them now, but when the game arrives i
+     want the plan to be ready"*). The two filters answer different questions and must both
+     exist, side by side in the filter pill:
+     - **Game** ("which edition was this played on") is a property of the *night* — it comes off
+       `Tournament.game` / `FriendlyMatch.game`, is exact, and is the filter that makes a club
+       comparison honest, because a club is a different thing in FC 26 and FC 27 (different
+       squad, often a different star rating).
+     - **Season** ("which run of nights was this") is a property of the *calendar*, derived from
+       the same `date` the cups and the as-of star ratings already use — nothing new is stored.
+       Roli's nights run with the game's year, so the season is a **1 Aug → 31 Jul** window
+       labelled by its release (`FC 26` = 2026-08-01 … 2027-07-31), not a calendar year: a
+       January night belongs to the season it was played in, not to a new one. A tournament
+       before the first release window (everything up to 2026-07-31) falls into one open-ended
+       "Before FC 27" bucket rather than inventing seasons backwards.
+     - **In practice the two coincide** the day FC 27 arrives, and they will drift apart the
+       moment one night is played on the old game after the new one is out — which is exactly
+       why Season is derived from the date and Game is stored on the row. Never compute one from
+       the other.
+     - **Where it applies:** the same surfaces `scope` already reaches — every `/stats/*`
+       endpoint that reads matches takes a `season` (or `game`) query param the same way, plus
+       the tournaments list and the friendlies list. It does **not** apply to the clubs page or
+       the pickers (those are a catalogue of what exists now, and Game alone narrows them), nor
+       to a single tournament's own pages.
+     - **Cups are already date-scoped and stay that way.** A cup era (`cups.json`, `since`/`mode`)
+       is its own timeline and must not be re-cut by a season filter: the Cups sub-view keeps
+       showing the full lineage, and a season filter never hides a reign or splits one in two.
+       Where a season and an era boundary disagree, the era wins — it is the rule the cup was
+       actually played under. The one place they meet is the Overview's per-season summary, where
+       "who held what at the end of this season" is a legitimate read of the same fold.
+     - **Same rule as the Game control:** the control is **not rendered while the data holds only
+       one season**, so nothing changes visually until the second season exists.
+     - Default is **All seasons** (like Mode's Overall), and the param is written with `replace`
+       like every other stats param (`&season=`, §10's URL scheme).
 
-4. **Star-rating history (Roli, 2026-09-13):** "when it has 2 stars and then 3, it should still
-   count as 2 stars for stats if played before the change."
+4. **Star-rating history (Roli, 2026-09-13):** → *implemented as R4 (2026-09-15); the research
+   below is what it was built from and the numbers it predicted held.* "when it has 2 stars and
+   then 3, it should still count as 2 stars for stats if played before the change."
    - **Today there is no history.** `Club.star_rating` is a single float (`models.py:168`), a
      `PATCH /clubs/{id}` overwrites it, and `MatchSide` stores only `club_id`. The stats "Club
      stars" view joins *today's* rating onto every historical match, so re-rating a club silently
@@ -6632,7 +6667,7 @@ table; no non-light value moves except the three button colours; `npm run check`
 
 ---
 
-## R4 — A club's stars remember when they changed  ☐
+## R4 — A club's stars remember when they changed  ☑
 
 Roli: *"i want club star-rating history. recover history as well."* Parked idea 4 of this file is the
 research; read it before starting. The short version: `Club.star_rating` is one float, a
@@ -6667,6 +6702,166 @@ and for the appending write; the recovery command run against the real snapshots
 its report pasted into Deviations; `npm run check` + build.
 
 **Deviations:**
+
+- **The as-of rule, stated once** (`services/club_stars.StarRatingResolver.as_of`): the last row
+  whose `valid_from` is on or before the match's **own date**; before the first row, that first
+  row; with no date at all, the current rating; with no club, nothing. The "before the first row"
+  edge is the important one — tournaments start 2025-10-18 and the record starts 2026-03-28, so
+  falling back to *today's* rating there would have re-introduced the bug for every match of the
+  first five months. A **friendly** resolves on `FriendlyMatch.date`, not on the tournament it is
+  grouped under in the stats payload (it has none). `started_at`/`finished_at` are never used:
+  they record when a score was typed in (the warning already on `services/stats/streaks.py`).
+  `services/stats/odds.py` was left alone and a test pins that it stays on the current rating.
+- **Every write path found** — three, not one: `POST /clubs` (opens a club's history),
+  `PATCH /clubs/{id}` (the Clubs page panel **and** T2's inline `ClubStarsEditor` in the picker
+  both go through this one endpoint, so one call site covers both editors) and
+  `app/seed.py::upsert_clubs`, which silently changes `existing.star_rating` when a seed file
+  disagrees. `app/tools/sync_club_crests.py` touches crests only. All three go through
+  `record_star_rating()`, which writes **one row per club per day**: a second edit on the same day
+  is that day's value, and re-saving a rating that is already in force writes nothing.
+- **An extra column beyond the spec: `source`** (`live` | `seed` | `recovered`). Without it the UI
+  cannot tell an exact day from a reconstructed one, and R4 explicitly requires the limits to be
+  stated — the frontend says "since 12/09/2026" for a measured day and "by 31/05/2026" for a
+  recovered one.
+- **`init_db()` seeds at today's date**, not at a sentinel in the past. With only that one row
+  every historical match resolves to the club's current rating — i.e. *exactly* today's behaviour,
+  so a database that never runs the recovery is unchanged rather than subtly different. The
+  recovery then inserts rows *before* it and prunes the seed row when it says nothing new (626
+  pruned here).
+- **A latent bug found and fixed on the way** (`fix(R4)` commit): `db.py` imports no model, so
+  `SQLModel.metadata` is only populated once something pulls in `app.models`. Any entry point that
+  called `configure_db()` + `init_db()` directly got a `create_all` over empty metadata. The
+  service import now sits *above* `create_all`, where importing it is what registers the tables.
+- **Response models changed**, so `make gen-types` ran and `schema.d.ts` is in the same commit:
+  new `ClubStarHistoryOut`/`ClubStarHistoryEntryOut`, and a new `StatsMatchSideOut` (=
+  `MatchSideOut` + optional `club_stars`) used by `StatsMatchOut` alone. `MatchOut` — the live
+  tournament payload — is deliberately untouched: a live match asks "how good is this club now",
+  the same question the picker and the odds ask.
+- **Frontend reach, slightly wider than "show the history"**: `StarsView` buckets by `club_stars`,
+  and the *detailed* match rows pass it to `MatchSides` as an override. Without the second half
+  the same page would print "2.5★" under a score whose bucket counts it as 3★. Live surfaces pass
+  nothing and still show today's rating. `ui/primitives/MatchOverviewPanel` (a single match's hero
+  panel) was **not** changed — one screen, one tense, and that one is "this match, now".
+- **Where the history is shown**: the Clubs page edit panel (full width, under the fields) and the
+  club picker's "Selected" row. In the picker it is a block *under* the row rather than inside
+  `ClubStarsEditor`, because that editor lives in the row's `trailing` slot — a list of dates does
+  not fit in a right-aligned cell. `ClubStarHistory` brings no surface of its own; the caller owns
+  the box (an `inset` in the picker's modal, plain rows inside the page's existing `inset`).
+- **No `text-text-muted/<n>`** anywhere in the new component (R3's rule), no uppercase label inside
+  the `inset` (the "now" marker is lowercase `.text-micro`, DESIGN.md §6), `rounded` only through
+  `inset`/`list-divided`.
+- **The recovery command is `python3 backend/manage.py recover-club-star-history [--path …]
+  [--apply]`**, read-only by default. It never writes to `backup/` (every snapshot is opened
+  `mode=ro`) and in a dry run it does not configure an engine at all — even the target database is
+  read through a read-only connection, so the report costs nothing. Deploy snapshots are selected
+  by `snapshot.json`'s `kind`, **not** by the directory name: two of the twelve real deploy
+  snapshots (`20260328-022654`, `20260913-150024`) are named without the `-deploy` suffix and a
+  name-based filter would have silently dropped them.
+- **The research's numbers held.** 31 changes across 31 clubs, exactly as measured on 2026-09-13.
+  The impact reads **3 of 218** finished match sides rather than "2 of 178": the 178 *tournament*
+  sides and their 2 misattributions are confirmed to the row (San Jose Earthquakes and Carrarese
+  Calcio, both dated 2026-05-31); the third is a **friendly** side (Grazer AK, 2026-07-24), which
+  the original research did not count because it only looked at `matchside`. There are 12 usable
+  snapshots now, not 11 — one more was taken on 2026-09-13 after the research was written.
+- **Read-only run against the real snapshots** (target: the dev `backend/app.db`, which mirrors
+  production):
+
+```
+Club star-rating recovery — deploy snapshots under /home/roli/projects/turnierplaner-reloaded/backup/deploy
+
+Snapshots used (12):
+  2026-03-28  20260328-022654  (626 clubs)
+  2026-03-28  20260328-012722-deploy  (626 clubs)
+  2026-04-03  20260403-150029-deploy  (626 clubs)
+  2026-05-31  20260531-123205-deploy  (626 clubs)
+  2026-06-08  20260608-072542-deploy  (626 clubs)
+  2026-06-09  20260609-211825-deploy  (626 clubs)
+  2026-07-12  20260712-010531-deploy  (626 clubs)
+  2026-08-08  20260808-092732-deploy  (626 clubs)
+  2026-08-20  20260820-182445-deploy  (626 clubs)
+  2026-09-12  20260912-162149-deploy  (626 clubs)
+  2026-09-12  20260912-162230-deploy  (626 clubs)
+  2026-09-13  20260913-150024  (626 clubs)
+
+Skipped (1):
+  20260403-145834-deploy: no data/app.db
+
+Recovered: 626 clubs get an opening rating, 31 rating changes across 31 clubs.
+
+Changes (dated at the snapshot where the new value first appears):
+  2026-04-03  FC Porto (#49)  4★ → 4.5★   [after 2026-03-28]
+  2026-05-31  Huracán (#115)  3.5★ → 3★   [after 2026-04-03]
+  2026-05-31  Blau-Weiss Linz (#267)  2★ → 2.5★   [after 2026-04-03]
+  2026-05-31  San Jose Earthquakes (#295)  2★ → 2.5★   [after 2026-04-03]
+  2026-05-31  Bryne FK (#307)  1.5★ → 1★   [after 2026-04-03]
+  2026-05-31  FC Thun (#311)  1.5★ → 2★   [after 2026-04-03]
+  2026-05-31  SCR Altach (#323)  1.5★ → 2★   [after 2026-04-03]
+  2026-05-31  Yunnan Yukun (#355)  1.5★ → 1★   [after 2026-04-03]
+  2026-05-31  AFC Wimbledon (#360)  1.5★ → 1★   [after 2026-04-03]
+  2026-05-31  Derby County (#371)  3★ → 3.5★   [after 2026-04-03]
+  2026-05-31  Huddersfield (#372)  2★ → 2.5★   [after 2026-04-03]
+  2026-05-31  Lincoln City (#375)  1.5★ → 2★   [after 2026-04-03]
+  2026-05-31  Port Vale (#382)  1.5★ → 2★   [after 2026-04-03]
+  2026-05-31  Stockport (#387)  1.5★ → 2★   [after 2026-04-03]
+  2026-05-31  Barrow (#397)  1.5★ → 1★   [after 2026-04-03]
+  2026-05-31  Bristol Rovers (#399)  1.5★ → 1★   [after 2026-04-03]
+  2026-05-31  Alemania Aachen (#449)  1.5★ → 2★   [after 2026-04-03]
+  2026-05-31  FC Ingolstadt 04 (#453)  1.5★ → 2★   [after 2026-04-03]
+  2026-05-31  MSV Duisburg (#456)  1.5★ → 2★   [after 2026-04-03]
+  2026-05-31  Quatar (#485)  3★ → 2.5★   [after 2026-04-03]
+  2026-05-31  Carrarese Calcio (#497)  3★ → 2.5★   [after 2026-04-03]
+  2026-05-31  Daegu FC (#504)  2★ → 1.5★   [after 2026-04-03]
+  2026-05-31  Jeju SK (#521)  2★ → 1.5★   [after 2026-04-03]
+  2026-05-31  Suwon FC (#524)  2★ → 1.5★   [after 2026-04-03]
+  2026-05-31  FC Annecy (#552)  1.5★ → 2.5★   [after 2026-04-03]
+  2026-05-31  Macarthur FC (#618)  1.5★ → 2★   [after 2026-04-03]
+  2026-07-12  Tigre (#259)  2.5★ → 3★   [after 2026-06-09]
+  2026-08-08  Grazer AK (#314)  1.5★ → 2★   [after 2026-07-12]
+  2026-09-12  Gimnasia y Esgrima La Plata (#169)  3★ → 2.5★   [after 2026-08-20]
+  2026-09-12  San Diego FC (#206)  3★ → 2.5★   [after 2026-08-20]
+  2026-09-12  Swansea City (#417)  3★ → 3.5★   [after 2026-08-20]
+
+Impact on the target database: 3 of 218 finished match sides change value.
+  2025-11-30  San Jose Earthquakes (#295)  tournament side 27: counted 2.5★ → 2★
+  2026-04-17  Carrarese Calcio (#497)  tournament side 147: counted 2.5★ → 3★
+  2026-07-24  Grazer AK (#314)  friendly side 25: counted 2★ → 1.5★
+
+Limits of this recovery — read them before trusting a date:
+  * Nothing is recoverable before 2026-03-28, the oldest snapshot. A match played
+    earlier is counted at the oldest value on record, which is the best answer available,
+    not a measured one.
+  * Inside a gap between two snapshots the exact day is unknown. Each change is dated at the
+    snapshot where the new value was first seen, so it is an upper bound: the rating changed
+    somewhere in the window printed next to it.
+    Gaps longer than a week:
+      2026-04-03 → 2026-05-31 (58 days, 25 changes)
+      2026-05-31 → 2026-06-08 (8 days, 0 changes)
+      2026-06-09 → 2026-07-12 (33 days, 1 changes)
+      2026-07-12 → 2026-08-08 (27 days, 1 changes)
+      2026-08-08 → 2026-08-20 (12 days, 0 changes)
+      2026-08-20 → 2026-09-12 (23 days, 3 changes)
+  * Nothing after 2026-09-13 comes from a snapshot; from there on the history is
+    written live by every star edit.
+  * Rows written here are marked source=recovered, so the app can say the day is approximate.
+
+Read-only run: nothing was written. Re-run with --apply to write these rows.
+```
+
+- **Verified in a real browser** against an isolated stack (backend :8003 on a copy of the DB with
+  the recovery applied, vite :8020) at **390px and 1280px** in **blue and light**: the Clubs page
+  edit panel, the club picker's Selected block, Stats → Player → Club stars, and the H2H matchup's
+  detailed rows. **Zero console errors** in all of them, and `document.querySelectorAll("a a")`
+  stayed 0. Checked end to end in the DOM: Carrarese Calcio renders **3★** under its 2026-04-17
+  match while the club reads 2.5★ today.
+- **Roli's own dev server picked the change up while this was being built.** His `backend/app.db`
+  now carries the `clubstarrating` table with 626 seed rows, written by his own running backend's
+  `init_db()` at 20:11 — additive, idempotent and exactly what a deploy does. Nothing else in that
+  database changed, and the recovery was **not** applied to it.
+- **Deploy note:** this adds a table and a startup seed. The expected one-time log line is
+  `Club star history seeded: <n>` (626 against the current production data). The recovery is
+  optional and manual — run it read-only first, then with `--apply`, from this dev machine against
+  the server's database, or simply skip it: without it every past match keeps counting today's
+  rating, exactly as it does now.
 
 ---
 
