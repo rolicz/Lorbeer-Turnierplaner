@@ -6353,3 +6353,203 @@ agreed work — but none of it should have to be discovered twice.
 
 **Known and accepted, unchanged:** `npm run build`'s ">500 kB chunk" hint (≈669 kB `index-*.js`),
 and `PATCH /tournaments/{id}/second-leg` still reviving a done tournament for any editor (A10).
+
+---
+
+# Round 7 — Roli, 2026-09-15 (testing the audit branch)
+
+Baseline `a1a2acc` on `feature/2026-09-audit`. Nine items collapsed into **five jobs**, run in three
+waves. Wave 1 = R1 ‖ R2, wave 2 = R3 ‖ R4, wave 3 = R5. The pairing is by *file set*, not by
+subject: R2 carries the What-if tab order because the tournament page holds one of the browser
+confirms in the same file, and R3 waits for R2 because both touch `ClubsPage.tsx` and `MatchList.tsx`.
+
+Rules for implementing agents are the ones at the top of this file. In addition: never `git add`
+(commit with `git commit -o -m "…" -- <paths>`), never bind 8000/8001/8010/5173, never a broad
+`pkill`, never read `backend/secrets.json`.
+
+## R1 — The two micro-tile grids  ☐
+
+`DESIGN.md` §4 calls the positions grid and the H2H matrix "the same thing at the same size", so
+they are one job.
+
+**R1a — the cup lineage is diagonals again, and they stop crossing the digits.**
+Roli, on A7's replacement: *"huh, i expected it to be like before, with diagonal lines from cell to
+cell??"* and *"yeah i want the diagonals back, fix the digit-crossing as well"*.
+History: the original joined the holder's cell centres. A7.7 moved it into the gutters as a path
+that stepped sideways at each handover — *"super ugly in some cases"*, because a jog reads as a
+bracket drawn around a random block of cells. A follow-up (`a1a2acc`) removed the jogs, which left
+straight rails and no movement at all.
+The answer is the original polyline, painted **under** the tiles: `.pos-tile` is
+`hsl(… / 0.22)`, so the line still reads through the tile while the digit and the crown sit on top
+untouched. That also answers A7's second complaint — crossing a cell of a tournament the holder
+never played is fine when the line passes behind it.
+**This is already written into the working tree, uncommitted** (`pages/stats/PositionsView.tsx`):
+the `<svg>` moved *before* the grid (both are positioned with `z-index:auto`, so DOM order decides),
+`laurelPolylines` restored with the `cup_stakes` guard, a 3px lane per cup so one cannot hide the
+other, and `InfoLegend` gained a line per cup. Verify it, keep it, commit it with the rest.
+
+**R1b — the matrix uses the width it has.**
+Roli: *"in h2h matrix, on mobile its a bit weird: it does not use the width fully (which it probably
+should not if there are only 2-3 players), but in my case there are 6 and it should either be
+centered or additionally use the full width. make sure this scales accordingly and also looks nice
+on desktop"*.
+Cause: `pages/stats/H2HView.tsx:361-412` draws fixed `h-11 w-11` cells with `borderSpacing: 3` in an
+`overflow-x-auto` box. Six short names come to ~330px inside a 358px viewport, left-aligned, with a
+dead strip on the right.
+Do: cell size responsive, roughly `clamp(40px, (100% − name column) / n, 56px)`, square. Floor 40
+(not 38 — the `wdl` metric renders three numbers and two hyphens in that cell). Ceiling so two or
+three players do not become giant tiles. Centre the table once the ceiling caps it, which is every
+realistic count on desktop. Below the floor it keeps scrolling sideways. The rotated column labels
+and the `h-24` header must follow the cell width; the sticky first column keeps working.
+
+**DoD:** both grids at 390px and 1280px in blue and light; the matrix additionally with 2, 3 and 6
+players; zero console errors; `npm run check` + build.
+
+**Deviations:**
+
+---
+
+## R2 — One dialog, one tab order, one banner  ☐
+
+**R2a — the app's own dialog, everywhere.** Roli: *"use the own dialogs everywhere"*. `DESIGN.md`
+§7 already says never `window.confirm`; A10 built `ui/primitives/ConfirmDialog.tsx` for it and A8
+flagged three destructive sites it never reached. Roli's "everywhere" is all eight:
+
+| File | Line | What it asks | Destroys? |
+|---|---|---|---|
+| `pages/ClubsPage.tsx` | 512 | delete a club | yes |
+| `pages/profile/GuestbookEntryCard.tsx` | 203 | delete a message **and its replies** | yes |
+| `pages/live/TournamentCommentsCard.tsx` | 308 | delete a comment | yes |
+| `pages/profile/useProfileGuestbook.ts` | 427 | mark N unread as read | no |
+| `pages/live/LiveTournamentPage.tsx` | 572 | mark N unread as read | no |
+| `pages/live/MatchDetailPage.tsx` | 463 | swap sides A and B | no |
+| `pages/live/CurrentGameSection.tsx` | 290, 309 | (read them) | read them |
+
+The three destructive ones name **what is lost** in the dialog's red block — the club's name and
+that it is used in matches, the reply count, the comment's author and whether it carries an image.
+The rest get the same dialog without that block: a title, a sentence, Cancel and a verb. Never a
+bare "OK". `useProfileGuestbook.ts` is a hook, not a component — the dialog belongs to its caller,
+so the hook returns the intent and the page renders the dialog.
+
+**R2b — What if moves.** Roli: *"move the 'what if' to the right of matches (left of comments)"*.
+`pages/live/LiveTournamentPage.tsx:537-542` pushes overview · standings · matches · comments ·
+whatif. It becomes overview · standings · matches · **whatif** · comments. `showWhatIf` stays
+conditional; `?tab=` values do not change.
+
+**R2c — the banner fills the width again.** Roli: *"its left aligned and does not uflly fill the
+width"*. `a1a2acc` capped the banner's width so A7.6's height cap would stop cropping the 16:9 crop
+the editor produces. Wrong trade. `pages/profile/ProfileHeader.tsx`: drop `md:max-w-xl`, keep
+`w-full aspect-[16/9] object-cover`, no `max-h`, no `object-center`. Accepted consequence, stated to
+Roli and waved through: at 1280×900 the banner is ~557px and the tab strip sits near the fold.
+
+**DoD:** `grep -rn "window.confirm" frontend/src` returns nothing but the comment in
+`ConfirmDialog.tsx`; every dialog tried at 390px and 1280px; the tab order checked on a draft, a
+live and a done tournament; `npm run check` + build.
+
+**Deviations:**
+
+---
+
+## R3 — The themes read  ☐
+
+**R3a — the primary button, dark themes.** Roli, shown the rendered options: *"use darker color with
+a white label for all dark themes"*. So **option B**: keep the white label, darken the colour.
+
+| Theme | File | Now | Becomes | White label |
+|---|---|---|---|---|
+| dark (baseline) | `themes/defaults.css` | `20 184 166` | `15 118 110` | 2.49 → **5.47** |
+| blue | `themes/blue.css` | `59 130 246` | `37 99 235` | 3.68 → **5.17** |
+| red | `themes/red.css` | `225 56 74` | `200 35 50` | 4.32 → **5.61** |
+
+`--color-hover-btn-bg` moves with each one (one further step down; teal's is `17 94 89`).
+**`green` and `light` are not touched** — green already passes at 6.54 with its dark label and
+option B would take it to 4.12; light keeps A6's dark label at 7.94. Decided with Roli.
+
+**R3b — light theme, the rest.** Roli: *"also do the white theme fixes"*.
+- `--color-win` `21 128 61` → `22 101 52` (4.21 → **5.98**), `--color-draw` `180 83 9` → `146 64 14`
+  (4.21 → **5.95**), both on the light page ground `236 235 233`. `--color-loss` already passes at
+  5.43; move it to `153 27 27` (6.98) **only** if the three look mismatched side by side, and say so.
+- **Muted text drawn at alpha**: `text-text-muted/40` = 1.97:1 and `/60` = 2.96:1 on paper-white.
+  Seven occurrences in six files (`TournamentsPage.tsx` ×2, `ui/primitives/List.tsx`,
+  `ui/primitives/CollapsibleCard.tsx`, `ui/ClubStarsEditor.tsx`, `pages/live/MatchList.tsx`,
+  `ClubsPage.tsx`). Alpha is being used as a hierarchy tool where the light theme has no room for
+  it. Decide one answer and apply it to all seven: full-strength muted for text, and a real
+  separator treatment (a border or a full-strength `·`) where the alpha was decorative.
+
+**DoD:** every changed ratio measured in the browser in **all five** themes, before and after, in a
+table; no non-light value moves except the three button colours; `npm run check` + build.
+
+**Deviations:**
+
+---
+
+## R4 — A club's stars remember when they changed  ☐
+
+Roli: *"i want club star-rating history. recover history as well."* Parked idea 4 of this file is the
+research; read it before starting. The short version: `Club.star_rating` is one float, a
+`PATCH /clubs/{id}` overwrites it, and the stats "Club stars" view joins **today's** rating onto
+every historical match — so re-rating a club silently rewrites the past.
+
+- **New table** `ClubStarRating` (`club_id`, `stars`, `valid_from` date, `changed_at`) — a new
+  table, never a column, per §5. `init_db()` seeds one row per club at its current rating,
+  idempotently.
+- Every star write appends a row instead of only overwriting. Keep `Club.star_rating` as the
+  current value so nothing else breaks.
+- Stats resolve the rating **as of the match's date**; anything earlier than the first row uses that
+  first row. `services/stats/odds.py` keeps reading the *current* rating — odds are a prematch
+  estimate and that is correct.
+- **Recovery**: a `backend/manage.py` command that diffs the production snapshots in
+  `backup/deploy/*/data/app.db` (**deploy only** — `backup/local/*` are pre-sync dev copies and
+  interleaving them fakes changes that revert), dating each change at the snapshot where it first
+  appears, and reports what it found. Expect ~31 changes across 31 clubs; only 2 of 178 finished
+  match sides are misattributed today, so the value is protecting the future, not fixing the past.
+  State the limits in the output: nothing before 2026-03-28, and inside a gap the exact day is
+  unknown.
+- **Frontend**: where a rating is edited (`ClubsPage` panel and `ui/ClubStarsEditor.tsx`), show the
+  history for that club. Small and read-only.
+
+**R4b — a plan note, not code.** Roli: *"fold the 'season or year view' into the ea fc 27 changes ->
+i dont want them now, but when the game arrives i want the plan to be ready"*. Write it into parked
+idea 3 (EA FC 27 / multiple games) of this file: what a season/year filter means next to the Game
+filter, which surfaces it applies to, and that it ships with FC 27, not before.
+
+**DoD:** `make test` + `make lint` + `make gen-types`; new backend tests for the as-of resolution
+and for the appending write; the recovery command run against the real snapshots **read-only** with
+its report pasted into Deviations; `npm run check` + build.
+
+**Deviations:**
+
+---
+
+## R5 — Ideas and feature requests  ☐
+
+Roli: *"add a page with ideas/feature requests (below clubs, no tab in bottom bar). make sure to
+follow design of rest of page. the feature requests are recorded and admin can see them. make sure
+to have relevant input fields, like text input, but also checkmarks which page they want to change
+(or if its more general or affects multiple pages) etc. think about this hard."*
+
+**Settled with Roli — do not relitigate:** a new nav entry **visually below Clubs** in the sidebar
+and the drawer, **no bottom-bar tab**. **Posting requires login.** **Everyone can read every request
+and vote on it.** **An editor may edit their own**; **an admin may do anything.** **Image upload**,
+reusing what comments already do. **A push to the admin when a new one arrives.**
+
+- **Tables** (all new): `FeatureRequest` (author player id, title, body, kind, status, timestamps),
+  `FeatureRequestArea` (request id + area — a child table, so a request can name several),
+  `FeatureRequestVote` (request id + player id, unique), `FeatureRequestImageFile` mirroring
+  `CommentImageFile`.
+- **Areas** are the app's own destinations — Dashboard, Tournaments, Friendlies, Stats, Players,
+  Clubs, Profile, Settings, Match page — plus **General** and **Several pages**. Multi-select,
+  because a complaint like Roli's about the banner spans a page *and* a viewport.
+- **Kind**: feature · change · bug. **Status** (admin only): new · planned · doing · done · declined.
+- **Endpoints** under `/ideas`: list (public read), create (editor+), patch (own, or admin), delete
+  (own, or admin — through `ConfirmDialog`), vote/unvote, image upload, status (admin only).
+- **Frontend**: the composer is **attached to the feed**, not a second floating card (§9b, the
+  mistake A8 had to undo in the guestbook). `Chip`/`ChipGroup` for areas and kind, `EmptyState`,
+  `InlineLoading`, the existing image lightbox, votes the way comments do them. Filter by status and
+  area. Every icon lucide.
+
+**DoD:** the full permission matrix tested backend-side (reader, editor, author-editor, admin);
+`make test` + `make lint` + `make gen-types`; the page at 390px and 1280px in blue and light;
+a push actually delivered to the admin on create; `npm run check` + build.
+
+**Deviations:**
