@@ -1,4 +1,4 @@
-import { BarChart3, Handshake, LayoutDashboard, ShieldHalf, Trophy, Users } from "lucide-react";
+import { BarChart3, Handshake, LayoutDashboard, Lightbulb, ShieldHalf, Trophy, Users } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 export type Role = "reader" | "editor" | "admin";
@@ -65,6 +65,18 @@ export const NAV_DESTS: NavDest[] = [
     icon: ShieldHalf,
     min: "editor",
     match: (p) => p === "/clubs" || p.startsWith("/clubs/"),
+  },
+  // Below Clubs in the sidebar and the drawer, and **not** in the bottom tab bar
+  // (R5, Roli's call): five items are what fits a phone row, and asking for a
+  // feature is not something you do on the way somewhere else. Everyone may read
+  // the board, so unlike Clubs this one is visible to a reader too.
+  {
+    key: "ideas",
+    to: "/ideas",
+    label: "Ideas",
+    icon: Lightbulb,
+    min: "reader",
+    match: (p) => p === "/ideas" || p.startsWith("/ideas/"),
   },
 ];
 

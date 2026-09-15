@@ -17,6 +17,7 @@ const StatsPage = lazy(() => import("../pages/StatsPage"));
 const ProfilePage = lazy(() => import("../pages/ProfilePage"));
 const ClubsPage = lazy(() => import("../pages/ClubsPage"));
 const PlayersAdminPage = lazy(() => import("../pages/PlayersAdminPage"));
+const IdeasPage = lazy(() => import("../pages/ideas/IdeasPage"));
 
 const pageFallback = <div className="page"><PageLoadingScreen /></div>;
 
@@ -96,6 +97,18 @@ export default function App() {
           element={
             <RequireRole minRole="reader">
               <FriendliesPage />
+            </RequireRole>
+          }
+        />
+
+        {/* Reading the board is public; posting and voting need a login (R5). */}
+        <Route
+          path="/ideas"
+          element={
+            <RequireRole minRole="reader">
+              <Suspense fallback={pageFallback}>
+                <IdeasPage />
+              </Suspense>
             </RequireRole>
           }
         />

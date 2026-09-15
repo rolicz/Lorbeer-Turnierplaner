@@ -7,15 +7,15 @@ import { useDestinationLinks } from "./useDestinationLinks";
 /**
  * Mobile (and tablet < lg) fixed bottom tab bar with the primary destinations.
  *
- * Clubs (editor+) and Settings stay in the drawer — five items are what fits a
- * phone row, and the drawer keeps every entry. Unlike the top bar this never
- * hides on scroll: it is the app's main navigation on a phone.
+ * Clubs (editor+), Ideas and Settings stay in the drawer — five items are what
+ * fits a phone row, and the drawer keeps every entry. Unlike the top bar this
+ * never hides on scroll: it is the app's main navigation on a phone.
  */
 export default function BottomTabBar() {
   const loc = useLocation();
   // Each item points at the page you last had open in that destination (U6);
   // Tournaments falls back to the running tournament, as U2 introduced it.
-  const links = useDestinationLinks({ exclude: ["clubs"] });
+  const links = useDestinationLinks({ exclude: ["clubs", "ideas"] });
 
   // While a tournament is running, the Tournaments tab carries the live dot.
   const liveT = useLiveTournament().data ?? null;

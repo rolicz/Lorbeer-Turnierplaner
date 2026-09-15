@@ -83,6 +83,20 @@ export type TournamentCommentsSummary = S["CommentSummaryOut"];
 export type TournamentCommentReadIds = S["CommentIdsOut"];
 export type TournamentCommentReadMapRow = S["CommentReadMapOut"];
 
+// Ideas / feature requests
+export type IdeaKind = "feature" | "change" | "bug";
+export type IdeaStatus = "new" | "planned" | "doing" | "done" | "declined";
+// kind/status are typed as string in the generated schema; the backend validates them
+// against exactly these values (`services/ideas_view.py`), so narrow them here.
+export type Idea = Omit<S["IdeaOut"], "kind" | "status" | "my_vote"> & {
+  kind: IdeaKind;
+  status: IdeaStatus;
+  my_vote: 0 | 1;
+};
+export type IdeaListResponse = Omit<S["IdeaListOut"], "ideas"> & { ideas: Idea[] };
+export type IdeaArea = S["IdeaAreaOut"];
+export type IdeaAreasResponse = S["IdeaAreasOut"];
+
 // Auth
 // Login endpoint never returns "reader" (that is the unauthenticated default, not a credential).
 export type LoginResponse = Omit<S["LoginOut"], "role"> & { role: Exclude<Role, "reader"> };

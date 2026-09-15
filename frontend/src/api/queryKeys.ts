@@ -27,6 +27,14 @@ export const qk = {
     ["comments", "read", tournamentId, token ?? "none"] as const,
   commentsReadMap: (token: string | null) => ["comments", "read-map", token ?? "none"] as const,
 
+  // ---- ideas / feature requests -------------------------------------------
+  /** Prefix key — invalidates every ideas query regardless of viewer. */
+  ideasAll: () => ["ideas"] as const,
+  /** Full key including the viewer token: rows carry per-caller capability flags and my_vote. */
+  ideas: (token: string | null) => ["ideas", "list", token ?? "none"] as const,
+  ideaAreas: () => ["ideas", "areas"] as const,
+  ideaVoters: (ideaId: number | string) => ["ideas", "voters", ideaId] as const,
+
   // ---- players ------------------------------------------------------------
   players: () => ["players"] as const,
   playerProfiles: () => ["players", "profiles"] as const,

@@ -4,12 +4,27 @@ import { NAV_DESTS, activeDest, visibleDests } from "../ui/shell/navConfig";
 const keys = (role: "reader" | "editor" | "admin") => visibleDests(role).map((d) => d.key);
 
 describe("visibleDests", () => {
-  it("hides Clubs from a reader and keeps the bottom-bar five", () => {
-    expect(keys("reader")).toEqual(["dashboard", "tournaments", "friendlies", "stats", "players"]);
+  it("hides Clubs from a reader but keeps Ideas, which everyone may read", () => {
+    expect(keys("reader")).toEqual([
+      "dashboard",
+      "tournaments",
+      "friendlies",
+      "stats",
+      "players",
+      "ideas",
+    ]);
   });
 
-  it("adds Clubs for editors and admins", () => {
-    expect(keys("editor")).toEqual(["dashboard", "tournaments", "friendlies", "stats", "players", "clubs"]);
+  it("adds Clubs for editors and admins, above Ideas", () => {
+    expect(keys("editor")).toEqual([
+      "dashboard",
+      "tournaments",
+      "friendlies",
+      "stats",
+      "players",
+      "clubs",
+      "ideas",
+    ]);
     expect(keys("admin")).toEqual(keys("editor"));
   });
 
@@ -26,6 +41,7 @@ describe("activeDest", () => {
     expect(activeDest("/stats")?.key).toBe("stats");
     expect(activeDest("/players")?.key).toBe("players");
     expect(activeDest("/clubs")?.key).toBe("clubs");
+    expect(activeDest("/ideas")?.key).toBe("ideas");
   });
 
   it("maps live tournament pages to Tournaments", () => {
