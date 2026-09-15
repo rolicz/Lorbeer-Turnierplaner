@@ -128,14 +128,12 @@ export default function ProfileHeader({
 
       {/* Identity / title page (always visible) */}
       <div className="space-y-3">
-        {/* The banner is the 16:9 crop the editor produced, and it is never cropped a
-            second time. A7 capped its height so a full-width banner would stop eating
-            the desktop fold, but `max-h` on a `object-cover` image cuts the picture
-            Roli framed — "gets cut off on desktop, mobile is fine". Capping the
-            *width* instead buys the same fold back without touching the image: a
-            phone still gets the full-bleed banner, a wide viewport gets the whole
-            picture at 576×324 instead of 990×557. */}
-        <div className="relative w-full overflow-hidden rounded-xl border border-border-card-inner/60 bg-bg-card-inner md:max-w-xl">
+        {/* The banner is the 16:9 crop the editor produced, shown whole and at the full
+            width of the page — no `max-h` (that cropped the picture Roli framed) and no
+            width cap either: "its left aligned and does not fully fill the width" (R2c).
+            The accepted cost, stated and waved through: at 1280×900 the banner is ~557px
+            tall and the tab strip below it sits near the fold. */}
+        <div className="relative w-full overflow-hidden rounded-xl border border-border-card-inner/60 bg-bg-card-inner">
           {headerImageSrc ? (
             <button type="button" className="block w-full" onClick={() => setHeaderLightboxSrc(headerImageSrc)} title="Open header image">
               <img
