@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Eraser, RotateCw, ShieldHalf, Star } from "lucide-react";
 
 import ClubBadge from "../ui/ClubBadge";
+import ClubStarHistory from "../ui/ClubStarHistory";
 import NationFlag from "../ui/NationFlag";
 import { nationalTeamNation } from "../ui/nationalTeams";
 import FormLabel from "../ui/primitives/FormLabel";
@@ -572,7 +573,11 @@ export default function ClubsPage() {
                                 </label>
                               </div>
 
-                              <div className="mt-2 flex items-center gap-2">
+                              {/* A star change appends to the record; the record is
+                                  right here so that is visible (R4). */}
+                              <ClubStarHistory clubId={c.id} className="mt-3" />
+
+                              <div className="mt-3 flex items-center gap-2">
                                 <Button onClick={() => patchMut.mutate()} disabled={patchMut.isPending}>
                                   {patchMut.isPending ? "Saving…" : "Save"}
                                 </Button>

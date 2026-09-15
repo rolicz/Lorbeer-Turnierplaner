@@ -93,7 +93,15 @@ export function MatchRowWithClubs({
       </div>
 
       {showMeta ? (
-        <MatchSides className="mt-1" clubs={clubs} aClubId={a?.club_id} bClubId={b?.club_id} />
+        <MatchSides
+          className="mt-1"
+          clubs={clubs}
+          aClubId={a?.club_id}
+          bClubId={b?.club_id}
+          // The stars this match was played at, not the club's rating today (R4).
+          aStars={a?.club_stars}
+          bStars={b?.club_stars}
+        />
       ) : null}
     </>
   );

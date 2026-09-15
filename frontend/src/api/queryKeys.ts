@@ -66,6 +66,8 @@ export const qk = {
 
   // ---- clubs / leagues ----------------------------------------------------
   clubs: (game?: string) => (game ? (["clubs", game] as const) : (["clubs"] as const)),
+  /** One club's star-rating history (R4) — read-only, shown next to the editors. */
+  clubStarHistory: (clubId: number) => ["clubs", "star-history", clubId] as const,
   leagues: () => ["leagues"] as const,
 
   // ---- cup ----------------------------------------------------------------

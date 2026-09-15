@@ -45,9 +45,13 @@ export type PlayerPokeReadMapRow = S["PokeReadMapOut"];
 // Clubs / Leagues
 export type League = S["LeagueOut"];
 export type Club = S["ClubOut"];
+export type ClubStarHistory = S["ClubStarHistoryOut"];
+export type ClubStarHistoryEntry = S["ClubStarHistoryEntryOut"];
 
 // Matches / Tournaments
 export type MatchSide = S["MatchSideOut"];
+/** A match side inside a stats response: `MatchSide` plus the as-of `club_stars` (R4). */
+export type StatsMatchSide = S["StatsMatchSideOut"];
 export type MatchOdds = S["OddsOut"];
 // state/leg are typed as string/int in generated schema; backend only returns these exact values.
 // started_at/finished_at are nullable strings (generated schema may say string | null already, but we make it explicit).

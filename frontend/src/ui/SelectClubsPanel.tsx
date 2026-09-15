@@ -29,6 +29,7 @@ import type { Club } from "../api/types";
 import Button from "./primitives/Button";
 import { chipClass } from "./primitives/Chip";
 import ClubBadge from "./ClubBadge";
+import ClubStarHistory from "./ClubStarHistory";
 import ClubStarsEditor from "./ClubStarsEditor";
 import ClubPicker from "./ClubPicker";
 import NationFlag from "./NationFlag";
@@ -359,6 +360,7 @@ export default function SelectClubsPanel({
             <ClubStarsEditor clubId={activeClubId} clubs={clubs} disabled={disabled} />
           ) : null
         }
+        starsHistory={canEditStars && activeClubId != null ? <ClubStarHistory clubId={activeClubId} /> : null}
       />
     </section>
   );

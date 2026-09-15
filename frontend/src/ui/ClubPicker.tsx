@@ -124,6 +124,7 @@ export default function ClubPicker({
   filters,
   disabled = false,
   starsEditor,
+  starsHistory,
 }: {
   open: boolean;
   onClose: () => void;
@@ -138,6 +139,8 @@ export default function ClubPicker({
   disabled?: boolean;
   /** `ClubStarsEditor` for the selected club (editors/admins); readers pass nothing. */
   starsEditor?: ReactNode;
+  /** The selected club's star history (R4) — a block under its row, not in it. */
+  starsHistory?: ReactNode;
 }) {
   const [query, setQuery] = useState("");
   const [recentIds, setRecentIds] = useState<number[]>([]);
@@ -348,6 +351,7 @@ export default function ClubPicker({
                 onPick={() => pick(pinned.id)}
                 trailing={starsEditor ?? undefined}
               />
+              {starsHistory ? <div className="inset mx-1 mb-1 mt-1">{starsHistory}</div> : null}
             </>
           ) : null}
 

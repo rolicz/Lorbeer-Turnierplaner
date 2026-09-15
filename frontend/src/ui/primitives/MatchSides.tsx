@@ -44,12 +44,21 @@ export default function MatchSides({
   clubs,
   aClubId,
   bClubId,
+  aStars,
+  bStars,
   size = "row",
   className,
 }: {
   clubs: Club[];
   aClubId?: number | null;
   bClubId?: number | null;
+  /**
+   * The rating each club carried **on the day of this match** (R4). Stats pass the
+   * value the backend resolved; a live surface passes nothing and gets today's, which
+   * is the right answer for a match that is being played now.
+   */
+  aStars?: number | null;
+  bStars?: number | null;
   /** `hero` gives the club symbols their larger footprint and a normal-weight name. */
   size?: "hero" | "row";
   className?: string;
@@ -130,8 +139,8 @@ export default function MatchSides({
 
       <SideRow
         className="mt-1 text-xs text-text-muted"
-        left={aHasClub ? <Stars rating={a.rating ?? 0} textClassName="text-text-muted" /> : null}
-        right={bHasClub ? <Stars rating={b.rating ?? 0} textClassName="text-text-muted" /> : null}
+        left={aHasClub ? <Stars rating={aStars ?? a.rating ?? 0} textClassName="text-text-muted" /> : null}
+        right={bHasClub ? <Stars rating={bStars ?? b.rating ?? 0} textClassName="text-text-muted" /> : null}
       />
     </div>
   );
