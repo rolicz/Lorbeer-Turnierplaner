@@ -7160,7 +7160,7 @@ and `DESIGN.md` §4 calls the two the same thing at the same size.
   column — it does not on the pre-change code either (checked), so it is the harness, not the
   app; CDP touch events do.
 
-## Q4 — Full-height surfaces ignore the bottom safe area  ☐
+## Q4 — Full-height surfaces ignore the bottom safe area  ☑
 
 Roli, on the drawer: *"not super happy with how settings sits in the rounded bottom area on iphone.
 make sure this looks nice on all devices"*.
@@ -7174,6 +7174,56 @@ built on) and in **`ImageLightbox.tsx`**. Fix the containers, not ten call sites
 the same treatment — the drawer hugs the left edge, which is where the notch goes. Where `env()`
 resolves to 0 nothing moves, so this costs nothing on Android or desktop; give that footer more than
 its current 12px regardless, because a bottom-most row reads as glued to the edge even with no inset.
+
+**Deviations:**
+- **The rule became vocabulary, not a spelling.** Four spacing tokens in
+  `frontend/tailwind.config.cjs` — `safe-t/r/b/l` = `env(safe-area-inset-*, 0px)` — so every side has
+  a name on every property Tailwind derives from `spacing`: `pt-safe-t`, `pb-safe-b`, `left-safe-l`,
+  `bottom-safe-b`, and `theme(spacing.safe-b)` inside a `calc()`. The config is where `DESIGN.md` §2
+  already says the vocabulary lives, and `styles.css` belonged to Q3 this wave, so no new CSS file
+  was created. `MobileChrome`'s two hand-spelled `pt-[env(safe-area-inset-top,0px)]` are converted;
+  the six `bottom-[calc(4.5rem+env(...))]` offsets are **not** — the 4.5rem is the bottom tab bar's
+  height and Q2 is about to make that collapse with the keyboard, so rewriting them now is churn in
+  the file Q2 will rewrite anyway.
+- **The container owns the inset, the surface keeps its padding.** The insets are applied as
+  `left/right/bottom/top` on the *positioning* box (Modal's sheet wrapper, the lightbox's pan box),
+  never as padding on a box that already has some: a `padding-bottom` utility would have overridden
+  the wrapper's `p-3` and made the no-inset gap **0** on Android. It also keeps the lightbox honest —
+  its fit and pan limits read `clientWidth`/`clientHeight`, which padding would have inflated.
+- **Landscape.** The drawer takes `pl-safe-l` (its background still reaches the screen edge — only
+  the content clears the notch) and `Modal` takes `left-safe-l right-safe-r` (+ `sm:top-safe-t`).
+  Verified with an **asymmetric** inset (left 59, right 0) so left and right are proven separately.
+- **Footer air: `py-3` → `pt-3 pb-4`.** 16px is the next step on the scale and the asymmetry is the
+  point — the hairline above still reads at 12px, a bottom-most row needs more under it than over it.
+  With no inset at all this is the *only* pixel that changes anywhere: Settings 12px → 16px.
+- **The lightbox takes the inset, not its chrome** — it has no chrome (a tap anywhere closes it), so
+  "move only the controls" was not an option. The scrim stays full-bleed black; the pan/zoom box *is*
+  the safe area, so the photo never sits under the notch or the home indicator.
+- **Found while measuring, fixed here (1): an overlay inside a page column is 12px short.**
+  `.page > :not([hidden]) ~ :not([hidden])` gives every non-first child a 12px top margin, and a
+  `fixed inset-0` box honours it — both overlay roots measured 12..844 on an 844px screen, so the
+  scrim missed the top 12px. `mt-0` cannot beat that selector and the codebase has no `!`-utility
+  idiom, so `Modal` and `ImageLightbox` carry `style={{ margin: 0 }}`. Now 0..844.
+- **Found while measuring, fixed here (2): a sheet taller than the screen hid its own buttons.**
+  At 844x390 the avatar editor's Save/Delete row sat **99px below the viewport** with no way to
+  scroll to it (pre-existing, and the insets make the box shorter still). A non-`scrollBody` card is
+  now clamped to `max-h-sheet` (`100dvh` minus both insets and the wrapper's gutters) and scrolls
+  itself; `scrollBody` consumers are untouched, they bring their own max-height. After: that row is
+  at 328px of 390 and reachable. Portrait never hit the clamp.
+- **Surfaces checked** (all seven `Modal` consumers): `ConfirmDialog`, `VoteVotersModal`,
+  `ClubPicker`, `CommentImageCropper`, `PlayerAvatarEditor` and `ImageLightbox` were driven and
+  measured; `H2HView`'s "Match history" modal is the concurrent worker's file — `fullScreenOnMobile
+  scrollBody max-h-[88vh]`, structurally the same as `VoteVotersModal`/`ClubPicker`, so it inherits
+  the container fix, but it could not be driven in the build that worker is mid-edit on.
+- **Not touched, reported instead:** `BottomTabBar` (Q2's file next wave), `ErrorToast` and
+  `StatsFilterPill` are `fixed` as well and take no left/right inset, so in landscape their content
+  can sit under a notch. One token each when their owners get to them.
+- **Verification:** an isolated stack (backend :8003 on a copy of `backend/app.db` **and** a copy of
+  `uploads/`, vite :8020) driven by Playwright with **real `env()` values** — Chromium 151's CDP
+  `Emulation.setSafeAreaInsetsOverride`, portrait 59/0/34/0, landscape 0/0/21/59 and 0/0/0/0 — at
+  390x844, 844x390 and 1280x800 in blue and light, before/after per surface. Zero console errors.
+  **Simulated, not real:** no iPhone was involved. The engine resolves `env()` for real, but it draws
+  no notch and no home indicator, so how the strip *looks* is still Roli's to confirm on his phone.
 
 ## Q5 — Re-assign is permanently blocked by leftover goals and clubs  ☑
 
