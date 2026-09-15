@@ -36,17 +36,20 @@ Size (2026-09-13): backend ≈ 13.3k LOC Python (`app/` + `manage.py` + `run.py`
 
 ### Backend modules
 - `app/routers/*.py` — HTTP endpoints (auth, me, tournaments, matches, clubs, players, cup, stats,
-  comments, friendlies, push). Routers should stay thin; bodies live in `app/services/`.
+  comments, friendlies, ideas, push). Routers should stay thin; bodies live in `app/services/`.
 - `app/services/` — `tournament_view.py` (serialization), `tournament_list.py`, `events.py`
   (WS broadcasts), `notifications.py` + `webpush.py` + `notification_texts.py` (push pipeline),
   `cup.py` (cup ownership fold), `file_storage.py` (media on disk), `authorization.py`
-  (owner/admin guards), `comments_view.py`, `guestbook*.py`, `poke_summary.py`,
+  (owner/admin guards), `comments_view.py`, `guestbook*.py`, `ideas_view.py`, `poke_summary.py`,
   `stats/` (players, h2h, h2h_matches, streaks, ratings, odds, player_matches, tournament_stats,
   core, scope, registry), `comments_summary.py`, `guestbook_summary.py`.
 - `app/models.py` — all SQLModel tables. `app/schemas/requests.py` + `responses.py` — pydantic
   bodies/response models (**response models drive the generated frontend types**).
 - `app/db.py` — engine + `init_db()` (create_all + additive runtime columns + backfills).
 - `app/auth.py` — JWT + role deps. `app/cup_defs.py` — cups.json loader/validator.
+- `app/feature_areas.py` — the Ideas board's area catalog (R5). Areas are stored as plain
+  strings, never a foreign key: **a key is never deleted from `AREA_DEFS`, only marked
+  `retired=True`**, so a destination the app drops still labels the old ideas that name it.
 - `app/scheduling.py` — fixture generation (1v1 all pairs; 2v2 circle-method partnerships).
 - `app/tournament_status.py` — **status is derived from match states** (see §5).
 - `app/seed.py`, `app/league_nations.py`, `app/validation.py`, `app/tools/sync_club_crests.py`.
@@ -62,7 +65,9 @@ Size (2026-09-13): backend ≈ 13.3k LOC Python (`app/` + `manage.py` + `run.py`
   (cache merge), `RealtimeProvider.tsx`.
 - `src/pages/` — dashboard, tournaments (+ `live/` tournament page, match detail, `live/comments/`
   feed + `CommentComposer`, admin panel), stats, profile, players admin, clubs,
-  friendlies (`tools/`), settings, login, `NotFoundPage` (the `*` route).
+  friendlies (`tools/`), `ideas/` (the Ideas board: `IdeasPage`, `IdeaCard`, `IdeaComposer`,
+  `IdeaFields`, `ideaMeta.ts`, `useIdeaMutations.ts`), settings, login,
+  `NotFoundPage` (the `*` route).
   `stats/` is one layout driven by `StatsInsights.tsx`: `statsNav.ts` resolves `?view=`/`?sub=`
   (and maps every legacy URL shape onto them, §10), `StatsSection.tsx` is the shared sub-view
   skeleton, `StatsFilterPill.tsx` the floating Mode/Source filter, `h2h/MatchupView.tsx` +
@@ -72,7 +77,8 @@ Size (2026-09-13): backend ≈ 13.3k LOC Python (`app/` + `manage.py` + `run.py`
   Stars, List/ListRow, PlayerLink, AvatarCircle [one ringed avatar, T15], RecordLine [the
   `3P 3-0-0 14:6 GD +8` line under a standings/results row — fixed columns sized per list by
   `recordWidths(rows)`], …),
-  `shell/` (AppShell, Sidebar desktop, MobileChrome drawer, BottomTabBar [mobile, 5 destinations],
+  `shell/` (AppShell, Sidebar desktop, MobileChrome drawer, BottomTabBar [mobile, 5 destinations
+  — `navConfig` has seven, and the bar excludes Clubs and Ideas],
   navConfig, useDestinationLinks + lastLocation [per-destination last-page memory],
   routeMeta + backNavigation [contextual back, shared with the swipe gesture], navStack,
   useScrollRestoration + useReturnScroll for scroll memory, useTabParam [`?tab=` for every
@@ -163,7 +169,19 @@ Current prod config (mirrored in `backend/app/cups.json` and `backend/data/cups.
   `PlayerAvatarFile`, `PlayerHeaderImageFile`, `PlayerGuestbookEntry` (+ThreadLink, Vote, Read),
   `PlayerPoke` (+Read), `Comment` (+Read, Vote, ImageFile, ThreadLink, AuthorLink),
   `TournamentPinnedComment`, `TournamentCreatorLink`, `FriendlyCreatorLink`,
+  `FeatureRequest` (+`FeatureRequestArea`, `FeatureRequestVote`, `FeatureRequestImageFile`),
   `PushSubscription`, `PushSubscriptionPreference`.
+- **The Ideas board** (R5, four new tables): `FeatureRequest` is one idea — author (never NULL,
+  posting needs a login), `title`, `body`, `kind` (feature|change|bug), `status`
+  (new|planned|doing|done|declined) + `status_note`, both admin-only, and `edited_at`, which is
+  **only** stamped by a PATCH — `updated_at` moves for a status change or an image too, so a
+  byline that reads `updated_at > created_at` would call an idea "edited" because someone triaged
+  it. `FeatureRequestArea` is a child table (one row per area, so an idea names several) holding
+  a **plain string** from `app/feature_areas.py`, never a foreign key. `FeatureRequestVote` is a
+  "+1": the row's existence is the vote, and there is no `value` column, because a feature board
+  asks "who else wants this". `FeatureRequestImageFile` mirrors `CommentImageFile`.
+  Area rules, enforced server-side *and* mirrored in the composer: at least one, and the two
+  scope answers (`general` "Not about one page", `several` "Several pages") stand alone.
 - **Tournament "live/done/draft" is derived from match states** (`tournament_status.py`): all
   scheduled → draft, all finished → done, otherwise live. The `Tournament.status` column still
   exists but is not authoritative and there is **no status endpoint** (the README's old
@@ -173,14 +191,15 @@ Current prod config (mirrored in `backend/app/cups.json` and `backend/data/cups.
   unique top of standings, else the decider winner (`decider_type` none|penalties|match|
   scheresteinpapier). Ties without decider → no winner, holder keeps the cup.
 - **Media** are files on disk, metadata rows in DB: `uploads/avatars/{player_id}.{ext}`,
-  `profile_headers/{player_id}.{ext}`, `comments/{comment_id}.{ext}`, `club_crests/{club_id}.{ext}`.
+  `profile_headers/{player_id}.{ext}`, `comments/{comment_id}.{ext}`, `club_crests/{club_id}.{ext}`,
+  `ideas/{request_id}.{ext}`.
   Served by the backend with cache-busting `?v=<updated_at>` (`mediaUrl()`).
 - Stats scopes: `tournaments | both | friendlies`, taken as a `scope` query param by **every**
   `/stats/*` endpoint that reads matches — `/stats/players` learned it last (A4), so no stats
   surface can show the Source filter and ignore it. Ratings are Elo-like per mode.
 - Push: languages `steirisch` (default) | `deutsch` | `english`; modes `finished_only` (default)
-  | `all` | `off`; personal events (pokes, guestbook) go only to the addressed player.
-  Dispatcher is started in the FastAPI lifespan.
+  | `all` | `off`; personal events (pokes, guestbook, a new idea) go only to the addressed
+  player. Dispatcher is started in the FastAPI lifespan.
 
 ## 6. API & realtime contract (short map)
 
@@ -189,7 +208,8 @@ create, patch, `/date`, `/generate`, `/reorder`, `/second-leg`, `/stats`, `/deci
 `/reassign`, delete, comments), `/matches/{id}` (patch score/state/clubs, `/swap-sides`),
 `/clubs` (+`/leagues`, `/{id}/crest`), `/players…` (profiles, avatars, headers, guestbook, pokes,
 read-maps), `/cup?key=`, `/cup/defs`, `/stats/{overview,players,h2h,h2h-matches,streaks,
-player-matches,ratings,ratings/history,odds}`, `/friendlies`, `/push/{config,subscription,
+player-matches,ratings,ratings/history,odds}`, `/friendlies`, `/ideas` (+`/areas`, `/{id}`,
+`/{id}/status`, `/{id}/vote`, `/{id}/voters`, `/{id}/image`), `/push/{config,subscription,
 subscriptions/me,test}`, `/comments/…`, `/health`.
 Roles: `reader` (no token) < `editor` < `admin`; deps `require_editor` / `require_admin`;
 owner-only checks in `services/authorization.py`. Error helpers in `app/api_utils.py`
@@ -204,6 +224,17 @@ the per-caller answer as `can_edit` / `can_delete` / `can_set_decider`; **the fr
 its controls from those flags and never re-derives the rule**. Rows created before A10 have no
 creator link and stay admin-only to delete. `PATCH /tournaments/{id}/second-leg` is the one
 documented back door left: it can still revive a done tournament for any editor.
+**The Ideas board's rule (R5)** lives in the same module and answers a different question: an
+idea is a document, not a result, so there is **no time window** — an idea is the author's for as
+long as it exists (`can_edit_feature_request` / `can_delete_feature_request`), the status is the
+admin's alone (`can_set_feature_request_status`), and `IdeaOut` carries all three as `can_edit` /
+`can_delete` / `can_set_status`. Reading `/ideas` needs no token; every write needs one.
+**The push on a new idea** goes to the admin accounts *only* (resolved by
+`notifications.admin_player_ids` from `player_accounts[].admin`, matched to `Player.display_name`
+case-insensitively, exactly as login does), never to its own author, and never to anyone else.
+It is a personal event (`idea_created` is in `PERSONAL_DEFAULT_EVENT_TYPES`), so it reaches a
+default "Results & personal" subscription; a device set to "Off" still gets nothing. It deep-links
+to `/ideas?idea=<id>`, a one-shot param the page consumes and drops.
 
 WebSocket channels (`app/main.py`, `app/ws.py`, `services/events.py`):
 - `/ws/tournaments/{id}` → `tournament.sync` (full tournament payload), `tournament.deleted`,
@@ -348,8 +379,12 @@ Other helpers: `seed --file backend/data/seed.json` (players/leagues/clubs upser
   keep it. `Primera División` = Argentina. DB club name typos exist (`Quatar`, `United Tigewrs SC`).
 - Cup era boundary is **2026-07-11** (not 07-12): the deciding "4. Lorbeerkranzturnier" is dated
   11.07. Expected owners after that date: Lorbeerkranz → Berni, Bauernkranz → Roli.
-- `/clubs` page and pickers require editor login; stats, live pages, friendlies, profiles are
-  public reads.
+- `/clubs` page and pickers require editor login; stats, live pages, friendlies, profiles and
+  `/ideas` are public reads.
+- **Ideas sits below Clubs in the sidebar and the drawer and has no bottom-bar tab** (R5, Roli's
+  call): five items are what fits a phone row. It is the only nav destination a reader can see
+  that an editor also sees in the same place, because reading the board is public and only
+  writing needs a login.
 - Six clubs have no crest (free TheSportsDB key limits): Nottingham Forest, San Lorenzo,
   St. Louis CITY SC, Wisła Płock, Al Shabab, United Tigewrs SC → monogram fallback; admin can
   `PUT /clubs/{id}/crest` manually. Crest precedence in UI: crest → nation flag → monogram.
@@ -375,12 +410,14 @@ Other helpers: `seed --file backend/data/seed.json` (players/leagues/clubs upser
   "Live now" (desktop). `ui/shell/ConnectionIndicator.tsx` renders **nothing** while the socket
   is up and only says "Reconnecting"/"Offline" after a 1.2s grace period; the tournament page has
   no status chip, and the dashboard's "Live now" section label carries no dot.
-- **Tab state is `?tab=` on every tabbed page** (U1). Seven pages go through
+- **Tab state is `?tab=` on every tabbed page** (U1). Eight pages go through
   `ui/shell/useTabParam.ts` (unknown or role-forbidden values fall back to the page default, the
   default value is deleted from the URL, writes are `replace`); `LiveTournamentPage` keeps its own
   `?tab=` state because its default depends on the tournament's status. Profile tabs used to be
   `?pt=` — that param is gone. **The dashboard has no tabs at all** since T5 (the Cups tab became
   the cups preview); its old `?tab=cups` redirects to `/stats?view=overview&sub=cups`.
+  The Ideas board's own tabs are status groups: `open` (new · planned · doing, the default),
+  `closed` (done · declined) and `all`; its area filter and sort are component state, not URL.
 - **Stats URL scheme** (S1/S2/N4/T7): `/stats?view=overview|trends|h2h|player`, `&sub=` = the
   section's sub-view (`table|positions|streaks|records|cups` for Overview,
   `players|duos` for H2H), `&mode=overall|1v1|2v2`, `&source=tournaments|both|friendlies`,

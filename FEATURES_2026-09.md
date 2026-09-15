@@ -6599,7 +6599,7 @@ its report pasted into Deviations; `npm run check` + build.
 
 ---
 
-## R5 — Ideas and feature requests  ☐
+## R5 — Ideas and feature requests  ☑
 
 Roli: *"add a page with ideas/feature requests (below clubs, no tab in bottom bar). make sure to
 follow design of rest of page. the feature requests are recorded and admin can see them. make sure
@@ -6631,3 +6631,99 @@ reusing what comments already do. **A push to the admin when a new one arrives.*
 a push actually delivered to the admin on create; `npm run check` + build.
 
 **Deviations:**
+
+- **The area catalog is code, the stored area is a string** (`backend/app/feature_areas.py`).
+  `FeatureRequestArea.area` is a plain column, never a foreign key, and the rule that goes with
+  it is written at the top of that file: **a key is never deleted from `AREA_DEFS`, only marked
+  `retired=True`**. A retired area is not offered when writing (`selectable: false` from
+  `GET /ideas/areas`, and the server rejects it with a 400), still labels the old ideas that
+  carry it, and still appears in the page's filter for as long as one idea names it. A key the
+  catalog does not know at all — a hand-written row, or a deletion made against the rule — is
+  rendered as the raw key rather than dropped: losing "which page was this about" is worse than
+  an unpolished label. That is the answer to "the app grows a destination and an old request
+  still names one that no longer exists", and it is covered by a backend test that retires
+  `stats` at runtime and by three frontend ones.
+- **Areas are required, and the two scope answers stand alone.** The plan lists General and
+  Several pages *beside* the destinations, which would let an idea claim to be about the Stats
+  page and about no page at the same time. So `general` / `several` are mutually exclusive with
+  each other and with every page, the server enforces it (400 "cannot be combined"), and
+  `toggleArea` in the composer mirrors it so the Post button never dies on an invisible 400.
+  At least one area is required — the filter is the point of the checkmarks Roli asked for, and
+  an unlabelled idea rots it. "General" is relabelled **"Not about one page"**, because next to
+  ten page names "General" reads like an eleventh page.
+- **A vote is a "+1", not a ±1.** `FeatureRequestVote` has no `value` column: the row's
+  existence is the vote, `PUT /ideas/{id}/vote` takes `{"value": 0|1}` and answers a -1 with a
+  400. A board of five friends asking "who else wants this" does not need a way to downvote a
+  friend's idea. The shape stays `VoteResultOut` / `VotersOut` (with an always-empty
+  `downvoters`) so the vote button and the voters modal are the ones comments already use.
+- **`edited_at` is a column of its own, and only a PATCH stamps it.** Found in the browser: an
+  idea said "edited" because the *admin* had set its status. `updated_at` moves for a status, an
+  image and a vote, so it cannot answer "did the author rewrite this?" — `edited_at` can, and
+  the byline reads that. It is a column on a **new** table, which §5 rule 1 allows; it also got
+  a `_RUNTIME_COLUMNS` line, because a dev database that ran an in-progress build of R5 already
+  has a `featurerequest` table without it and `create_all` never alters one (see the last note
+  below).
+- **An idea has no edit window.** A10's hour exists so an editor cannot quietly rewrite a
+  *result*; an idea is a document the group answers, and its author owns it for as long as it
+  exists. The rule lives beside A10's in `services/authorization.py`
+  (`can_edit_feature_request` / `can_delete_feature_request` / `can_set_feature_request_status`,
+  `feature_request_capabilities`, two `ensure_*` guards), and `IdeaOut` carries `can_edit` /
+  `can_delete` / `can_set_status` so the page renders from the flags. Verified in the browser:
+  a reader sees no Edit/Delete/status control on any row, an editor sees Edit and Delete on
+  their own three rows and none on the other two, an admin sees all three on all five.
+- **Status carries a note.** A status with no reason is what makes a feature board feel like a
+  void, so `PUT /ideas/{id}/status` takes an optional `note` and the card prints
+  *"Declined — works as designed since N3"* under the pill. Five statuses over the app's three
+  status tokens (§2: blue = not started, green = happening, neutral = finished with), with a
+  lucide icon inside each pill doing the rest; `declined` is **neutral, not `error`** — a
+  decision is not a failure.
+- **Two editors, two triggers, each naming what it edits** (§9b). Edit rewrites the author's
+  text; tapping the **status pill** opens triage. They are different values with different
+  owners, so folding the status into the edit form would have put the admin's answer inside the
+  asker's paragraph.
+- **The composer is the feed's last row and grows in place.** An idea needs a title, a kind,
+  areas and optionally a screenshot, which is more than a chat row — so the row *becomes* the
+  form when you reach for it, exactly as the comment composer swaps into goal entry (§9b, T3).
+  Closed it is one field, `Share an idea…`, on the card's bottom edge. Focusing it opens the
+  block above and hands the caret to the title, the way picking a scoring side hands it to the
+  minute; the bottom field then becomes `Details (optional)`. Nothing hides behind a button that
+  reveals a form, and there is no second card.
+- **The push goes to the admins and to nobody else.** `notifications.admin_player_ids` resolves
+  `player_accounts[].admin` against `Player.display_name` case-insensitively — the same match
+  `auth.resolve_player_login` makes, so there is no second definition of "who is an admin" — and
+  the author is skipped (an admin posting their own idea already knows). Delivery needed a new
+  dispatcher method: `enqueue_for_player` narrows the audience but not the mode filter, and
+  `enqueue_personal` lifts the filter but broadcasts, so `enqueue_personal_for_player` does both
+  and `idea_created` joined `PERSONAL_DEFAULT_EVENT_TYPES`. A device set to "Off" still gets
+  nothing. The message deep-links to `/ideas?idea=<id>` (a new one-shot param in
+  `lastLocation.ts`; the page scrolls to the idea, flashes it and drops the param). Texts, all
+  three languages: title + `{title}` / `Kind · Areas` / a closing line — English *"New idea from
+  Flo"*, Deutsch *"Neue Idee von Flo"* (umlaut-free, like every other German text in that file),
+  Steirisch *"A neiche Idee vo Flo"* / *"Schau eini und sog, wos draus wird."* The kind and the
+  area names stay untranslated because they are the app's own English page names.
+- **The push could not be delivered over the wire on this machine.** `cryptography` is in
+  `backend/requirements.txt` but is **not installed in Roli's venv**, so
+  `web_push_runtime_ready()` is False and the dispatcher is disabled for *every* notification
+  locally. Installing it would have mutated his environment, so instead the chain is proven in
+  two tests that stop only at the encryption: one asserts the router addresses exactly the admin
+  ids (never the author) with the right path, tag and context and that all three languages
+  render; the other runs the **real** `NotificationDispatcher._deliver` against four real
+  subscription rows (three admin devices, one per language, plus an editor device) with only the
+  HTTPS POST faked, and asserts the three admin endpoints receive it in their own language and
+  the editor endpoint receives nothing.
+- **No realtime, no unread badge.** The board has no WebSocket channel and no read table: it is
+  a low-traffic list that the page refetches, and an unread count would have meant a fifth table
+  and a fourth badge in the shell for something nobody reads twice a day. The in-app
+  notification bell (`/me/notifications`) is likewise untouched — it is built from read tables.
+- **Verification.** Isolated stack: backend :8004 on a copy of `app.db`
+  (`backend/data/verify_r5.db`, deleted afterwards) with a scratch secrets file and its own
+  `UPLOADS_DIR`, vite :8022. Playwright over 3 roles × 2 themes (blue, light) × 2 widths (390,
+  1280) = 12 page runs plus the composer, the Closed tab, the image lightbox, the delete dialog,
+  the edit form and the status editor in each: **0 console errors, 0 page errors, 0 horizontal
+  overflow, 0 nested `<a>` and 0 nested interactive elements** in every state. The live
+  permission matrix was also probed over HTTP against :8004 and matches the tests exactly.
+- **A note on the dev database.** `backend/app.db` was found to already contain the four new
+  tables (empty) before this task ever started a server — an in-progress build of R5 reached it
+  from another process on this shared tree. Nothing was deleted or rewritten: the fix is the
+  additive `_RUNTIME_COLUMNS` entry for `featurerequest.edited_at`, which is a no-op on any
+  database that does not have the table yet (production included) and repairs the ones that do.
