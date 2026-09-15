@@ -31,6 +31,12 @@ def configure_db(db_url: str) -> None:
 def init_db() -> None:
     if _engine is None:
         raise RuntimeError("DB not configured. Call configure_db(db_url) first.")
+
+    # Imported here, not at module level: `db` is imported long before the models are
+    # wanted. It must happen *before* create_all, though — pulling in the service pulls
+    # in `app.models`, which is what puts every table into `SQLModel.metadata`.
+    from .services.club_stars import backfill_club_star_history
+
     SQLModel.metadata.create_all(_engine)
     _ensure_runtime_columns()
 
@@ -38,11 +44,7 @@ def init_db() -> None:
     if changed > 0:
         log.info("League nations backfilled: %s", changed)
 
-    # Every club starts its history at its current rating (R4). Imported here rather
-    # than at module level: `services.club_stars` imports the models, and `db` is
-    # imported by `settings`/`main` long before those are wanted.
-    from .services.club_stars import backfill_club_star_history
-
+    # Every club starts its history at its current rating (R4).
     seeded = backfill_club_star_history(_engine)
     if seeded > 0:
         log.info("Club star history seeded: %s", seeded)
