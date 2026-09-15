@@ -7003,7 +7003,7 @@ explicit go** — he asked to be the one who says when ("only start when i tell 
 decisions below were settled with him in conversation and must not be relitigated; what is left is
 implementation. A sixth strand, the crash diagnostics, is already being built separately.
 
-## Q1 — The Ideas composer's details field is a chat row  ☐
+## Q1 — The Ideas composer's details field is a chat row  ☑
 
 The composer reuses `CommentSendRow` (`pages/live/comments/CommentComposer.tsx`), which starts at
 one line and grows to a cap. Right for a comment, wrong for a field that asks *what should happen,
@@ -7012,6 +7012,42 @@ and why*. The in-place edit form on an existing idea already uses a real textare
 actually written, got the chat row. Use the taller field in both, from one shared component in
 `pages/ideas/IdeaFields.tsx` (which already exists for exactly this reason: "what an idea is,
 written once").
+
+**Deviations:**
+- **The composer stopped reusing the chat row entirely**, rather than getting a taller variant of
+  it. Two reasons. Mechanical: `CommentSendRow` hard-codes `min-h-[2.5rem] max-h-32` on its
+  textarea and takes no prop for either, so a taller field is not reachable without editing
+  `CommentComposer.tsx` — another worker's file this wave. Substantive: that row's send posts the
+  *idea*, not the details, and `canSubmit` is title + areas, so the button was enabled while the
+  field it was welded to sat empty. It is now the form's own last row — the screenshot button as
+  the icon, "Post idea" filling the rest (`DESIGN.md` §9b, paired actions). The **closed** row is
+  untouched: still one field and one button on the card's bottom edge.
+- **Growth: a three-line minimum that auto-grows to eight, `resize-none`** — not the edit form's
+  `min-h-[72px] resize-y`, and not a chat row's one-line start. The two cannot be combined:
+  auto-grow writes `style.height` on every keystroke and would throw away whatever the reader had
+  dragged to, and a drag handle does not exist under a thumb, which is where ideas get written.
+  Measured at 390px, the old field was 56px empty (the two-line placeholder) and **shrank to 40px
+  on the first keystroke**; it is 78px now at every length, up to a 178px cap.
+- **`preventScroll` on the opening focus** (`IdeaComposer.tsx`). Not in the brief, but the taller
+  field caused it: the composer grew past the point where the newly focused title is already in
+  view, so the browser scrolled it to the top of the screen and left the send row 193px below the
+  fold at 390x400 (measured: send visible 0px). The composer is pinned to the bottom of the
+  viewport and needs no scrolling to reach. With it, opening leaves the page exactly where the
+  pre-change build left it.
+- **`DESIGN.md` §9b gained one bullet** — "a send button belongs to whatever it posts" — because
+  the canon otherwise reads as "a field with its send button is always a chat row", which this
+  composer now deliberately is not.
+- **Not done, left for later:** `AutoTextarea` in `CommentComposer.tsx` has the same "shrinks when
+  you start typing over a wrapped placeholder" behaviour; it is harmless for the comment and
+  guestbook rows (one-line placeholders) and that file belongs to Q5 this wave. And
+  `IdeaComposer`'s `focusNonce` is dead: it reaches the details field, but posting closes the
+  composer and unmounts it, so the effect never runs. Pre-existing, left alone — focusing the
+  closed title input instead would re-open the composer through its `onFocus`.
+- **Verification:** an isolated stack (backend :8004 on a copy of `backend/app.db`, vite :8021),
+  Playwright at 390x844, 390x400 and 1280x800 in blue and light; ideas composed, posted and
+  edited end to end, including one long enough to hit the cap. **The 390x400 viewport is a
+  stand-in for "the keyboard is up", not a real keyboard** — on iOS the layout viewport does not
+  shrink, which is Q2's subject. Zero console errors.
 
 ## Q2 — The bottom tab bar rides up with the keyboard  ☐
 
