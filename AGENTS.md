@@ -5,7 +5,7 @@
 > non-obvious about the project (deploy quirks, data semantics, decisions), **update this file**
 > so the knowledge survives model/tool switches. Keep the "Current state" section dated.
 >
-> Last full review: 2026-09-14 (branch `feature/2026-09-audit`; `main` at `cabda7c`, deployed).
+> Last full review: 2026-09-15 (branch `feature/2026-09-audit`, Rounds 6 + 7; `main` at `cabda7c`, deployed).
 
 ---
 
@@ -498,7 +498,7 @@ every past match simply keeps counting today's rating.
 - `backend/app.db*`, `backend/data/app.db` are real (synced) data — never commit, never run
   destructive experiments on them; copy first.
 
-## 11. Current state (2026-09-14)
+## 11. Current state (2026-09-15)
 
 - **`main` is `cabda7c`** — the 2026-09 batch (32 tasks) plus Round 4 and Round 5, merged and
   **deployed**. Local `main` is one docs-only commit ahead (`356ada6`, the Round 6 plan) and that
@@ -510,9 +510,11 @@ every past match simply keeps counting today's rating.
   page made safe against a concurrent editor (A2), four realtime/deep-link bugs (A3, A5), one
   meaning for the Source filter (A4), the accessibility and light-theme contrast pass (A6), twelve
   runtime-polish items (A7), the design-canon reconciliation (A8) and seven hardening items (A9).
-- Checks on the audit branch head, run together after every worker finished: `make test`
-  **154 passed** (3:38), `make lint` clean, `make gen-types` no diff,
-  `cd frontend && npm run check` **503 tests in 52 files**, `npm run build` green.
+- Checks on the audit branch head, re-run together after the last Round 7 worker finished
+  (2026-09-15, `6ef4a50`): `make test` **196 passed** (5:49), `make lint` clean,
+  `make gen-types` no diff, `cd frontend && npm run check` **523 tests in 54 files**,
+  `npm run build` green. `grep -rn "window.confirm" frontend/src` finds only the comment in
+  `ConfirmDialog.tsx`, and `grep -rn "text-text-muted/" frontend/src` finds nothing (R2, R3).
 - **Deploy notes for Round 6** — the standard `git pull && docker compose up -d --build` (§7) is
   enough, and **both** services must be rebuilt (the backend changed):
   - **Two new tables** (`TournamentCreatorLink`, `FriendlyCreatorLink`, A10) — `create_all` makes
