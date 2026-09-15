@@ -7,10 +7,11 @@ import { useAuth } from "../auth/AuthContext";
 import { useTheme } from "../ui/layout/ThemeContext";
 import { usePageTitle } from "../ui/layout/PageTitleContext";
 import { SectionTabs, type SectionTab } from "../ui/SectionTabs";
-import { UserCircle2, Bell, Palette } from "lucide-react";
+import { UserCircle2, Bell, Palette, Bug } from "lucide-react";
 import { qk } from "../api/queryKeys";
 import { listPlayers } from "../api/players.api";
 import PushNotificationsSettings from "../ui/layout/PushNotificationsSettings";
+import DiagnosticsSettings from "../ui/layout/DiagnosticsSettings";
 import { THEMES } from "../themes";
 import { useRouteEntryLoading } from "../ui/layout/useRouteEntryLoading";
 import { useTabParam } from "../ui/shell/useTabParam";
@@ -27,13 +28,15 @@ const THEME_SWATCHES: Record<string, string[]> = {
 };
 const FALLBACK_SWATCH = ["#334155", "#475569", "#fe6100"];
 
-type SettingsTab = "account" | "appearance" | "notifications";
-const SETTINGS_TAB_KEYS = ["account", "appearance", "notifications"] as const satisfies readonly SettingsTab[];
+type SettingsTab = "account" | "appearance" | "notifications" | "diagnostics";
+const SETTINGS_TAB_KEYS = ["account", "appearance", "notifications", "diagnostics"] as const satisfies readonly SettingsTab[];
 
 /** Card wrapper for a settings group. */
 function SettingsSection({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section className="card">
+    // `min-w-0`: a grid item defaults to `min-width: auto`, so one unbreakable
+    // line inside (a crash message, a stack frame) would widen the whole page.
+    <section className="card min-w-0">
       <h2 className="mb-3 text-sm font-semibold text-text-normal">{title}</h2>
       {children}
     </section>
@@ -83,6 +86,7 @@ export default function SettingsPage() {
     { key: "account", label: "Account", icon: <UserCircle2 size={14} /> },
     { key: "appearance", label: "Appearance", icon: <Palette size={14} /> },
     { key: "notifications", label: "Notifications", icon: <Bell size={14} /> },
+    { key: "diagnostics", label: "Diagnostics", icon: <Bug size={14} /> },
   ];
 
   if (!pageEntered) {
@@ -194,6 +198,14 @@ export default function SettingsPage() {
         /* Notifications */
         <SettingsSection title="Notifications">
           <PushNotificationsSettings token={token} />
+        </SettingsSection>
+        ) : null}
+
+        {tab === "diagnostics" ? (
+        /* Crash log (see `diagnostics/`): the only way a crash on Roli's phone
+           gets off the device -- there is no console there. */
+        <SettingsSection title="Crash log">
+          <DiagnosticsSettings />
         </SettingsSection>
         ) : null}
 
