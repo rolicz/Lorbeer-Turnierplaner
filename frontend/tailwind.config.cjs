@@ -1,5 +1,9 @@
 const cssVar = (name) => `rgb(var(--${name}) / <alpha-value>)`;
 
+// The mobile bottom tab bar's own height: `min-h-[56px]` of tabs + its `py-1.5`, plus
+// the home-indicator strip it pads itself with. Written once, read as two tokens below.
+const bottomNavHeight = "calc(4.5rem + env(safe-area-inset-bottom, 0px))";
+
 module.exports = {
   content: ["./index.html", "./src/**/*.{ts,tsx}"],
   theme: {
@@ -16,6 +20,21 @@ module.exports = {
         "safe-r": "env(safe-area-inset-right, 0px)",
         "safe-b": "env(safe-area-inset-bottom, 0px)",
         "safe-l": "env(safe-area-inset-left, 0px)",
+
+        // The bottom tab bar, as two different questions (Q2):
+        //   `nav-h`     — how tall the bar is. A constant. Use it to reserve room at the
+        //                 end of a scrolling page, where the reservation must not move.
+        //   `nav-clear` — how much room you must leave above the screen's bottom edge
+        //                 *right now*. It is `nav-h` normally and **0px while the
+        //                 on-screen keyboard is up**, because the bar is hidden then
+        //                 (`html[data-keyboard-open]`, `ui/shell/keyboardOpen.ts`) and
+        //                 the offset would otherwise be a gap over the keyboard. Every
+        //                 surface that floats above the bar (`ErrorToast`, `FilterPill`,
+        //                 all three composers) uses this one, so they collapse together.
+        // The fallback in the var is the fail-safe: with no flag, no stylesheet and no
+        // VisualViewport API, `nav-clear` is simply the bar's height, as before.
+        "nav-h": bottomNavHeight,
+        "nav-clear": `var(--bottom-nav-clearance, ${bottomNavHeight})`,
       },
       maxHeight: {
         // A full-screen-on-mobile sheet must fit the safe box, gutters included: without

@@ -22,6 +22,7 @@ import { readStored, writeStored } from "../../utils/safeStorage";
 import { useLocationRestore } from "./useLocationRestore";
 import { useRememberLocation } from "./useRememberLocation";
 import { useScrollRestoration } from "./useScrollRestoration";
+import { useKeyboardWatcher } from "./keyboardOpen";
 
 const COLLAPSE_KEY = "sidebar-collapsed";
 
@@ -41,6 +42,9 @@ function ShellInner({ children }: { children: React.ReactNode }) {
   useRememberLocation();
   // Back lands where you left off: every history entry keeps its own scroll offset.
   useScrollRestoration();
+  // The on-screen keyboard: hides the bottom tab bar and collapses the clearance every
+  // bottom-pinned surface leaves for it (Q2). One watcher for the whole app.
+  useKeyboardWatcher();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [collapsed, setCollapsed] = useState<boolean>(() => readStored(COLLAPSE_KEY) === "1");
 
@@ -98,8 +102,14 @@ function ShellInner({ children }: { children: React.ReactNode }) {
           </div>
         ) : null}
 
+        {/* `pb-nav-h`, not `pb-nav-clear`: this reserves the end of the page for the
+            bottom tab bar, and unlike the floating surfaces it must NOT collapse when the
+            keyboard hides that bar. Removing 72px of document height mid-sentence shortens
+            the scroll range, and a page scrolled to its end — which is where a composer
+            puts you — would slide the caret down by exactly that much (Q2). The strip it
+            reserves sits behind the keyboard anyway. */}
         <main
-          className="mx-auto w-full max-w-6xl flex-1 page-x py-4 pb-[calc(4.5rem+env(safe-area-inset-bottom,0px))] lg:py-6 lg:pb-6"
+          className="mx-auto w-full max-w-6xl flex-1 page-x py-4 pb-nav-h lg:py-6 lg:pb-6"
           style={pull.distance > 0 && !pull.refreshing ? { transform: `translateY(${Math.min(pull.distance, 64)}px)` } : undefined}
         >
           <RouteErrorBoundary resetKey={location.pathname}>{children}</RouteErrorBoundary>

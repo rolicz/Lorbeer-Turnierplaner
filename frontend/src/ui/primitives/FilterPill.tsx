@@ -10,6 +10,10 @@
  * filters read like the app and not like a form. It is the **only** entry point a
  * page's filters have (T4): no inline chip row, no second trigger.
  *
+ * It gets out of the way of the on-screen keyboard (`hide-on-keyboard`, Q2): it sits
+ * in the same bottom-right corner as a composer's send button, and a filter is not
+ * what you came for mid-sentence. The error toast, in the same corner, stays.
+ *
  * It was the stats page's pill until Q7. Nothing in here knows what a "mode" or a
  * "source" is any more: a page declares its groups (`filterGroup`), owns their
  * state, and this component owns the capsule, the popover, the placement, the
@@ -264,7 +268,7 @@ export default function FilterPill({
       <div
         data-tucked={tucked ? "true" : "false"}
         className={
-          "fixed bottom-[calc(4.5rem+env(safe-area-inset-bottom,0px))] right-4 z-40 transition duration-200 motion-reduce:transition-none lg:bottom-6 lg:right-6 " +
+          "hide-on-keyboard fixed bottom-nav-clear right-4 z-40 pr-safe-r transition duration-200 motion-reduce:transition-none lg:bottom-6 lg:right-6 " +
           (tucked ? "translate-y-32 opacity-0" : "translate-y-0 opacity-100")
         }
       >

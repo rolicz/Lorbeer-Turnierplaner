@@ -72,7 +72,7 @@ export default function IdeaComposer({
 
   return (
     <div
-      className="sticky bottom-[calc(4.5rem+env(safe-area-inset-bottom,0px))] z-10 rounded-b-2xl border-t border-border-card-outer/55 bg-bg-card-outer p-2 lg:bottom-0"
+      className="sticky bottom-nav-clear z-10 rounded-b-2xl border-t border-border-card-outer/55 bg-bg-card-outer p-2 lg:bottom-0"
       data-idea-composer
     >
       <div className="space-y-2">

@@ -89,7 +89,8 @@ Size (2026-09-13): backend ≈ 13.3k LOC Python (`app/` + `manage.py` + `run.py`
   navConfig, useDestinationLinks + lastLocation [per-destination last-page memory],
   routeMeta + backNavigation [contextual back, shared with the swipe gesture], navStack,
   useScrollRestoration + useReturnScroll for scroll memory, useTabParam [`?tab=` for every
-  tabbed page], NotificationBell, RouteErrorBoundary [the *page* failed] and AppCrashBoundary
+  tabbed page], keyboardOpen [the on-screen keyboard's one answer: `<html data-keyboard-open>`,
+  Q2], NotificationBell, RouteErrorBoundary [the *page* failed] and AppCrashBoundary
   [the app failed — mounted in `main.tsx` outside every provider, see `src/diagnostics/`]),
   `ClubBadge`, `NationFlag`, `SectionTabs`, and the club selection: `SelectClubsPanel` (T9 — one
   "Clubs" disclosure per match holding both club slots, the filters and the two random actions)
@@ -530,6 +531,19 @@ every past match simply keeps counting today's rating.
   and 72px from the top on desktop, on all of dashboard/tournaments/live/done/profile/settings/
   friendlies/clubs/stats/match detail. The live tournament's mode+date pills live next to the
   desktop `h1` and at the top of its Overview tab (`pages/live/TournamentMetaPills.tsx`).
+- **The on-screen keyboard hides the bottom tab bar, app-wide** (Q2). iOS does not resize the
+  layout viewport for the keyboard — it shrinks the *visual* viewport and re-anchors fixed
+  elements to it, so `BottomTabBar` used to land on top of the keyboard, over the composer.
+  `ui/shell/keyboardOpen.ts` is the only thing in the app that listens to `visualViewport`, and it
+  publishes one answer as `<html data-keyboard-open>`: a field has the caret, the scale is ~1, and
+  the covered strip is ≥20% of the layout viewport and ≥120px (a toolbar or an iPad accessory bar
+  is not a keyboard). `styles.css` does the rest — `.hide-on-keyboard` (the tab bar, the filter
+  pill) and `--bottom-nav-clearance: 0`. Two spacing tokens, never a hand-written `4.5rem`:
+  **`nav-clear`** is the clearance right now (collapses with the bar: the three composers, the
+  error toast, the pill) and **`nav-h`** is the bar's height (constant: the page's end padding in
+  `AppShell`, which must not move the caret). The error toast deliberately never hides.
+  VisualViewport is the only mechanism iOS supports — `interactive-widget=resizes-content` and
+  `env(keyboard-inset-height)` are Chromium-only, so don't reach for them.
 - **One live indicator** (T10): the pulsing dot in the bottom tab bar (mobile) / sidebar
   "Live now" (desktop). `ui/shell/ConnectionIndicator.tsx` renders **nothing** while the socket
   is up and only says "Reconnecting"/"Offline" after a 1.2s grace period; the tournament page has

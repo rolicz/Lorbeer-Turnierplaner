@@ -96,6 +96,14 @@ describe("BottomTabBar", () => {
     expect(tournaments).toHaveAttribute("href", "/tournaments");
   });
 
+  it("gets out of the keyboard's way (the CSS rule that hides it keys off this class)", () => {
+    const { getByRole } = renderAt("/dashboard");
+
+    // `html[data-keyboard-open] .hide-on-keyboard { display: none }` (styles.css, Q2);
+    // the flag itself is `ui/shell/keyboardOpen.ts`, tested in keyboardOpen.test.ts.
+    expect(getByRole("navigation", { name: "Primary" })).toHaveClass("hide-on-keyboard");
+  });
+
   it("prefers the remembered page over the live shortcut", () => {
     live.current = { id: 19, name: "4. Lorbeerkranzturnier", mode: "2v2", status: "live" };
     rememberLocation("/tournaments", "?tab=new");

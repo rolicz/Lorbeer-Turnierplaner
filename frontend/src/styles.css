@@ -99,6 +99,25 @@
     }
   }
 
+  /* The on-screen keyboard, in two rules (Q2). `ui/shell/keyboardOpen.ts` sets
+     `<html data-keyboard-open>` while a text field has the caret and the visual
+     viewport is keyboard-shaped; iOS re-anchors fixed elements to that shrunken
+     viewport, which is how the bottom tab bar ends up sitting on the keyboard.
+
+     1. Anything bottom-pinned that is *not* worth reaching mid-sentence gets out of
+        the way — the tab bar and the floating filter pill. The error toast does not:
+        an error you cannot see is worse than a filter you cannot reach.
+     2. The clearance those surfaces leave *for the bar* collapses with it, in the same
+        style recalculation, so no composer floats 72px above the keyboard. `nav-h`
+        (the bar's height) is deliberately unaffected: the page's end padding must not
+        change while the caret is in it. */
+  html[data-keyboard-open] .hide-on-keyboard {
+    display: none;
+  }
+  html[data-keyboard-open] {
+    --bottom-nav-clearance: 0px;
+  }
+
   /* Shimmer skeleton for loading states. */
   .skeleton {
     @apply rounded-xl;

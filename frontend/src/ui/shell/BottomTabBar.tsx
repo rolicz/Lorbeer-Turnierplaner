@@ -10,6 +10,13 @@ import { useDestinationLinks } from "./useDestinationLinks";
  * Clubs (editor+), Ideas and Settings stay in the drawer — five items are what
  * fits a phone row, and the drawer keeps every entry. Unlike the top bar this
  * never hides on scroll: it is the app's main navigation on a phone.
+ *
+ * It hides for exactly one thing: the on-screen keyboard (`hide-on-keyboard`,
+ * `keyboardOpen.ts`, Q2). iOS re-anchors a fixed bottom element to the shrunken
+ * visual viewport, so while you type the bar would sit on top of the keyboard,
+ * above the composer — which is what Roli filmed. `pl-safe-l pr-safe-r` keep the
+ * five tabs out of a landscape notch; the bar's background still reaches the
+ * screen edge, the way the drawer's does (Q4).
  */
 export default function BottomTabBar() {
   const loc = useLocation();
@@ -24,7 +31,7 @@ export default function BottomTabBar() {
     <nav
       role="navigation"
       aria-label="Primary"
-      className="fixed inset-x-0 bottom-0 z-30 nav-shell border-b-0 border-t backdrop-blur-md pb-[env(safe-area-inset-bottom,0px)] lg:hidden"
+      className="hide-on-keyboard fixed inset-x-0 bottom-0 z-30 nav-shell border-b-0 border-t backdrop-blur-md pb-safe-b pl-safe-l pr-safe-r lg:hidden"
     >
       <div className="flex items-stretch">
         {links.map(({ dest: d, to, isActive }) => {
