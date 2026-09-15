@@ -7065,7 +7065,7 @@ exists *only* to clear that bar, so it must collapse in the same moment.
 **Verification warning:** an emulated 390px viewport does **not** reproduce the iOS keyboard. Build
 it correctly, then say plainly in the report that only Roli's phone can confirm it.
 
-## Q3 — The positions and H2H headers do not stay on top  ☐
+## Q3 — The positions and H2H headers do not stay on top  ☑
 
 Roli: *"scrolling stats/positions is weird. i want the player icons header to stay on top. it
 somehow depends on where i scroll what it does"*.
@@ -7084,6 +7084,81 @@ than leaving it a surprise:** cells keep a readable floor, so past a player coun
 fits at 390px the grid scrolls sideways again and the header stops pinning. Six players is nowhere
 near it. **Both grids in the same pass** — the matrix's column headers are not sticky at all today,
 and `DESIGN.md` §4 calls the two the same thing at the same size.
+
+**Deviations:**
+
+- **The tiles alone could not be scaled — the name column had to become elastic too.** The plan
+  says "scale the cells"; measured, that is not enough. At 390px the box is 358 and the grid was
+  **392** (a 128px name column plus six 40px tiles), so even tiles at a 32px floor next to a fixed
+  128px column leave the grid 4px too wide at seven players. Width is now surrendered in a fixed
+  order, cheapest first: the **name column** gives back everything above **104px** (a truncated
+  tournament name still names its row — it keeps its `title` and is a link, and these names carry
+  their number in the first characters), then the **tile** shrinks from 40 to **32** wide (never
+  in height — rows are what you scroll past), then the box scrolls. At six players a phone gets
+  `104 + 6×38` = **356px, no scroll box**; a desktop gets `176 + 6×40` = 440px **centred**, where
+  176 untruncates every tournament name in the DB. That last part fixes a second thing nobody
+  reported: the positions grid was a 392px ribbon in a 992px desktop column — the exact dead strip
+  R1b removed from the matrix.
+- **The boundary, written down.** Positions: **8 players at 390px** (`104 + 8×36 = 392 > 358`).
+  Seven still fit (`104 + 7×36 = 356`), six are comfortable. The matrix's floor is 44, so its
+  boundary is **7 players at 390px**. Past it the `overflow-x-auto` box comes back, the grid
+  scrolls sideways from its first column, and **the header stops pinning** — measured: at eight
+  players the header sits at **-6px** at the bottom of the grid instead of 0. To keep that state
+  legible the tournament-name column is now `sticky left-0`, which it never was: it is inert while
+  the grid fits (nothing scrolls it) and is what keeps the rows identifiable once it does not.
+  Desktop is far from any of this: 20 players fit at full size in a 992px column.
+- **The header does not pin at `top: 0`, and that is the whole judgement call.** The mobile top
+  bar is `sticky top-0 z-30` **and auto-hides on scroll-down**. Pinning at 0 parks the header
+  under the bar the moment you scroll back up; pinning at a fixed bar height leaves a 57px strip
+  of moving rows above it for as long as the bar is away, which is most of the time you spend
+  scrolling a long grid. So the header **follows the bar**: `ui/shell/useStickyTop.ts` returns the
+  bar's **measured** `offsetHeight` while it is shown and 0 while it is hidden, from the same
+  `useHideOnScroll` state the bar itself uses, and the sticky element carries the bar's own
+  `transition-[top] duration-300 ease-out-expo` so the two move as one piece. Measured at the
+  bottom of the grid: **0px** with the bar away, **57px** with it back — never behind it, never
+  floating over a gap. The height is measured and not a `3.5rem` token because the bar is `h-14`
+  **plus a 1px hairline plus `env(safe-area-inset-top)`** — 57 on this phone, more under a notch,
+  and 0 on desktop, where `lg:hidden` makes `offsetHeight` 0 by itself. A `ResizeObserver` and a
+  `resize` listener keep it true if that chrome ever changes height. The one thing it duplicates
+  is `MobileChrome`'s `useHideOnScroll(72)` threshold; a drift there would only matter inside the
+  first 72px of scroll, where nothing is pinned yet.
+- **A pinned band has to be opaque, which cost two more fixes than the plan expected.** (1) The
+  header's **`rounded-t`** left 4px notches at every top corner, and the cup-lineage SVG and the
+  tiles showed through them as the rows passed behind — visible in the first render at both
+  widths. The resting cell is now a rectangle and the radius moved onto the drag-over state,
+  which is a surface of its own; `DESIGN.md` §4's directional-radii example moved with it.
+  (2) The grid's **4px gutters** are holes in the same sense: every header cell now carries
+  `marginLeft: -gap; paddingLeft: gap`, so the cells tile one unbroken band (measured: cells at
+  121/163/205, width 42 — no gaps) while their content boxes stay exactly on their tracks. The
+  name column got the same treatment one axis over (`height: cellH + gap`, `marginTop: -gap`,
+  `paddingTop: gap`) for the scrolled-sideways case, where the lineage was visible through its
+  row gaps. The tiles themselves never bleed: a grid item stays inside its track.
+- **`data-no-swipe-nav` is conditional on the matrix and unconditional on the positions grid.**
+  The matrix's only reason for it is the scroller, so it comes and goes with the box; the
+  positions grid needs it whether or not anything scrolls, because a column **drag** is a
+  horizontal pointer travel that would otherwise read as a swipe-back.
+- **One helper, two grids.** `matrixCellSize` moved out of `h2hHelpers.ts` into a new
+  `pages/stats/microGrid.ts` that owns the geometry of both grids over one shared `fitCell`, plus
+  the `fits` predicates the two views switch their scroll box on. Its tests moved with it into
+  `src/test/microGrid.test.ts` (**15 tests**, up from 6): the matrix's arithmetic unchanged, the
+  positions widths, and the 8-player boundary pinned so it cannot move silently.
+- **The matrix header has nothing to stick through at today's data.** Six players make a table
+  ~405px tall, shorter than a 390×844 phone screen, so its new stickiness only shows when the
+  player set grows or the window is short. Proven at **390×360** (six real players, pinned at 0
+  and docked at 57) and at **12 / 16 players** on desktop (pinned at 0 at the bottom of a 759px
+  and a 979px table). The positions grid, at 19 rows, pins on every screen.
+- **Verification.** Isolated stack (backend :8004 on a copy of `backend/app.db`, vite :8022 —
+  :8021 was taken by the parallel worker), Playwright at 390×844, 390×360/500, 1280×800 in blue
+  and light; before/after header positions at the bottom of each grid; player counts of 2–16
+  produced by rewriting the live `/stats/players` and `/stats/ratings` payloads in the browser
+  (R1b's method — the component, the layout and the browser stay real). Zero console errors,
+  `document.querySelectorAll("a a").length` 0, no horizontal document scroll at either width.
+  **The column drag and the cup-lineage overlay were re-verified against the elastic geometry**:
+  the drag reorders correctly at 390 and 1280 *including while the header is pinned*, and the
+  polyline's points follow the computed `nameW`/`cellW` (they are in the `useMemo`'s deps now).
+  Note for whoever tests this next: Playwright's synthetic **mouse** drag does not reorder a
+  column — it does not on the pre-change code either (checked), so it is the harness, not the
+  app; CDP touch events do.
 
 ## Q4 — Full-height surfaces ignore the bottom safe area  ☐
 
