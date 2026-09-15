@@ -38,6 +38,15 @@ def init_db() -> None:
     if changed > 0:
         log.info("League nations backfilled: %s", changed)
 
+    # Every club starts its history at its current rating (R4). Imported here rather
+    # than at module level: `services.club_stars` imports the models, and `db` is
+    # imported by `settings`/`main` long before those are wanted.
+    from .services.club_stars import backfill_club_star_history
+
+    seeded = backfill_club_star_history(_engine)
+    if seeded > 0:
+        log.info("Club star history seeded: %s", seeded)
+
 
 # Columns added to existing deployments after the fact: (table, column, DDL type/default).
 # Additive only — old code keeps working against a migrated DB.

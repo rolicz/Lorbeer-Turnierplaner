@@ -437,6 +437,29 @@ export interface paths {
         patch: operations["patch_club_clubs__club_id__patch"];
         trace?: never;
     };
+    "/clubs/{club_id}/star-history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Club Star History
+         * @description Every recorded rating of one club, oldest first — a public read like `GET /clubs`.
+         *
+         *     `current_stars` is `Club.star_rating`, so a caller never has to guess whether the
+         *     last row is still in force.
+         */
+        get: operations["get_club_star_history_clubs__club_id__star_history_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/players": {
         parameters: {
             query?: never;
@@ -1581,6 +1604,35 @@ export interface components {
             star_rating?: number | string | null;
             /** League Id */
             league_id?: number | string | null;
+        };
+        /**
+         * ClubStarHistoryEntryOut
+         * @description One recorded rating. Valid from `valid_from` until the next entry.
+         */
+        ClubStarHistoryEntryOut: {
+            /** Stars */
+            stars: number;
+            /**
+             * Valid From
+             * Format: date
+             */
+            valid_from: string;
+            /**
+             * Changed At
+             * Format: date-time
+             */
+            changed_at: string;
+            /** Source */
+            source: string;
+        };
+        /** ClubStarHistoryOut */
+        ClubStarHistoryOut: {
+            /** Club Id */
+            club_id: number;
+            /** Current Stars */
+            current_stars: number;
+            /** Entries */
+            entries: components["schemas"]["ClubStarHistoryEntryOut"][];
         };
         /** CommentCreateBody */
         CommentCreateBody: {
@@ -2774,7 +2826,30 @@ export interface components {
             /** Finished At */
             finished_at: string | null;
             /** Sides */
-            sides: components["schemas"]["MatchSideOut"][];
+            sides: components["schemas"]["StatsMatchSideOut"][];
+        };
+        /**
+         * StatsMatchSideOut
+         * @description A match side as stats sees it: the club's rating **on the day the match was
+         *     played** (R4), not today's. `None` when the side had no club — or, for a very
+         *     old database, when the club has no recorded history at all.
+         *
+         *     Deliberately not on `MatchSideOut` itself: a live tournament shows the rating a
+         *     club has *now*, which is the same question the picker and the odds ask.
+         */
+        StatsMatchSideOut: {
+            /** Id */
+            id: number;
+            /** Side */
+            side: string;
+            /** Club Id */
+            club_id: number | null;
+            /** Goals */
+            goals: number;
+            /** Players */
+            players: components["schemas"]["PlayerRef"][];
+            /** Club Stars */
+            club_stars?: number | null;
         };
         /** StatsOddsRequest */
         StatsOddsRequest: {
@@ -4206,6 +4281,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ClubColumnsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_club_star_history_clubs__club_id__star_history_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                club_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClubStarHistoryOut"];
                 };
             };
             /** @description Validation Error */

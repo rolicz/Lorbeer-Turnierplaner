@@ -8,6 +8,7 @@ from sqlalchemy.orm import selectinload
 from sqlmodel import Session, select
 
 from ...models import FriendlyMatch, FriendlyMatchSide, Match, MatchSide, Player, Tournament
+from ...services.club_stars import StarRatingResolver
 from ...services.cup import compute_all_cup_tournament_stakes_by_tournament
 from .scope import (
     friendlies_schema_ready,
@@ -29,7 +30,10 @@ def _player_dict(p: Player) -> dict[str, Any]:
     return {"id": int(p.id), "display_name": p.display_name}
 
 
-def _match_dict(m: Any) -> dict[str, Any]:
+def _match_dict(m: Any, stars: StarRatingResolver) -> dict[str, Any]:
+    # The date a match was played on — a friendly wears its own, and it is the
+    # tournament's date for the rest (R4). `started_at` is data entry, not play time.
+    played_on = getattr(getattr(m, "tournament", None), "date", None)
     sides: list[dict[str, Any]] = []
     for side in sorted(m.sides, key=lambda x: x.side):
         sides.append(
@@ -37,6 +41,7 @@ def _match_dict(m: Any) -> dict[str, Any]:
                 "id": int(side.id),
                 "side": side.side,
                 "club_id": side.club_id,
+                "club_stars": stars.as_of(side.club_id, played_on),
                 "goals": int(side.goals or 0),
                 "players": [_player_dict(pp) for pp in side.players],
             }
@@ -209,6 +214,7 @@ def compute_stats_h2h_matches(
     )
 
     cup_stakes_by_tid = compute_all_cup_tournament_stakes_by_tournament(s) if include_tournaments(scope_norm) else {}
+    stars = StarRatingResolver.load(s)
     grouped: dict[int, dict[str, Any]] = {}
     for m in filtered:
         t = getattr(m, "tournament", None)
@@ -226,7 +232,7 @@ def compute_stats_h2h_matches(
                 "cup_stakes": cup_stakes_by_tid.get(tid, []),
                 "matches": [],
             }
-        g["matches"].append(_match_dict(m))
+        g["matches"].append(_match_dict(m, stars))
 
     tournaments_out = list(grouped.values())
     tournaments_out.sort(key=lambda x: (x.get("date"), int(x.get("id") or 0)), reverse=True)

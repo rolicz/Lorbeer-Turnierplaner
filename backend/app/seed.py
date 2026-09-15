@@ -9,6 +9,7 @@ from sqlalchemy import func
 from sqlmodel import Session, select
 
 from .models import Club, League, Match, MatchSide, Player, Tournament
+from .services.club_stars import record_star_rating
 from .validation import validate_nation_code, validate_star_rating
 
 log = logging.getLogger(__name__)
@@ -81,6 +82,7 @@ def _league_name_to_id(s: Session) -> dict[str, int]:
 def upsert_clubs(s: Session, clubs: list[dict[str, Any]]) -> dict[str, int]:
     created = 0
     updated = 0
+    new_clubs: list[Club] = []
 
     name_to_id = _league_name_to_id(s)
 
@@ -116,6 +118,8 @@ def upsert_clubs(s: Session, clubs: list[dict[str, Any]]) -> dict[str, int]:
             changed = False
             if float(existing.star_rating) != float(stars):
                 existing.star_rating = float(stars)
+                # The seeder is a star write path too, so it appends like the API (R4).
+                record_star_rating(s, int(existing.id), float(stars))
                 changed = True
             # allow updating league assignment via seed
             if getattr(existing, "league_id", None) != league_id:
@@ -126,10 +130,19 @@ def upsert_clubs(s: Session, clubs: list[dict[str, Any]]) -> dict[str, int]:
             updated += 1
             continue
 
-        s.add(Club(name=name, game=game, star_rating=float(stars), league_id=league_id))
+        fresh = Club(name=name, game=game, star_rating=float(stars), league_id=league_id)
+        s.add(fresh)
+        new_clubs.append(fresh)
         created += 1
 
     s.commit()
+
+    # New clubs only get an id at the commit above; their opening history row follows.
+    for club in new_clubs:
+        if club.id is not None:
+            record_star_rating(s, int(club.id), float(club.star_rating))
+    s.commit()
+
     return {"created": created, "updated": updated}
 
 

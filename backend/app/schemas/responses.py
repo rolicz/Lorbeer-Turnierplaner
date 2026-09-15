@@ -175,6 +175,22 @@ class ClubOut(BaseModel):
     crest_updated_at: datetime | None
 
 
+class ClubStarHistoryEntryOut(BaseModel):
+    """One recorded rating. Valid from `valid_from` until the next entry."""
+    stars: float
+    valid_from: date
+    changed_at: datetime
+    # "live" (a star edit), "seed" (the club's opening row) or "recovered"
+    # (reconstructed from a backup snapshot — the day is an upper bound, not exact).
+    source: str
+
+
+class ClubStarHistoryOut(BaseModel):
+    club_id: int
+    current_stars: float
+    entries: list[ClubStarHistoryEntryOut]
+
+
 class ClubCrestMetaOut(BaseModel):
     club_id: int
     updated_at: datetime
@@ -567,6 +583,18 @@ class OddsResponseOut(BaseModel):
 
 
 # ---- stats: H2H and match history -------------------------------------
+class StatsMatchSideOut(MatchSideOut):
+    """
+    A match side as stats sees it: the club's rating **on the day the match was
+    played** (R4), not today's. `None` when the side had no club — or, for a very
+    old database, when the club has no recorded history at all.
+
+    Deliberately not on `MatchSideOut` itself: a live tournament shows the rating a
+    club has *now*, which is the same question the picker and the odds ask.
+    """
+    club_stars: float | None = None
+
+
 class StatsMatchOut(BaseModel):
     """Match inside a stats response — no tournament_id or odds."""
     id: int
@@ -575,7 +603,7 @@ class StatsMatchOut(BaseModel):
     state: str
     started_at: datetime | None
     finished_at: datetime | None
-    sides: list[MatchSideOut]
+    sides: list[StatsMatchSideOut]
 
 
 class StatsTournamentMatchesOut(BaseModel):

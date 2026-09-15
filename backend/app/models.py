@@ -171,6 +171,38 @@ class Club(SQLModel, table=True):
     league_id: int = Field(foreign_key="league.id", index=True)
     league: League = Relationship(back_populates="clubs")
 
+class ClubStarRating(SQLModel, table=True):
+    """
+    What a club was worth, and since when.
+
+    `Club.star_rating` stays the *current* value — everything that asks "how good is
+    this club today" (the pickers, the clubs page, the prematch odds) keeps reading it.
+    This table answers the other question: "what was it worth on the day that match was
+    played". One row per club per day; a row is valid from `valid_from` until the next
+    row for the same club, and the earliest row also answers every date before it (the
+    history starts where the record starts, it does not claim the club did not exist).
+
+    A new table rather than a column on `MatchSide`, because the question Roli asked is
+    about the *club* moving, not about one match's stake.
+    """
+
+    __table_args__ = (UniqueConstraint("club_id", "valid_from", name="uq_clubstar_club_day"),)
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    club_id: int = Field(foreign_key="club.id", index=True)
+    stars: float = Field(ge=0.5, le=5.0)
+    #: The day the rating started to apply. A date, not a timestamp: a match carries a
+    #: date, and "which rating did this Saturday's match use" is a question about days.
+    valid_from: dt.date = Field(index=True)
+    #: When the row was written. Differs from `valid_from` for a recovered row.
+    changed_at: dt.datetime = Field(default_factory=dt.datetime.utcnow, index=True)
+    #: Where the row came from — "live" (a star edit through the API or the seeder),
+    #: "seed" (the first row `init_db` writes for a club that has no history yet) or
+    #: "recovered" (reconstructed from a backup snapshot, so `valid_from` is an upper
+    #: bound, not the exact day). The UI has to be able to say which.
+    source: str = Field(default="live", index=True)
+
+
 class ClubCrestFile(SQLModel, table=True):
     """
     Club crest storage (metadata in DB, bytes on disk) — same pattern as
