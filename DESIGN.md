@@ -169,9 +169,11 @@ while `chip`, `.input-field` and `.select-field` stay white. Dark themes are una
 - Radius scale: `rounded-2xl` (16px) cards and modals · `rounded-xl` (12px) insets, buttons,
   inputs, segmented controls · `rounded-full` chips, pills, avatars, dots. `rounded-md` (6px)
   only for the two micro-tile grids — the positions grid (tiles, legend swatches and legend
-  examples) and the H2H matrix cells, which are the same thing at the same size: the
-  positions tile is a fixed 40×42, the matrix cell a square that fills the width its box
-  has left over (`matrixCellSize`, 44 at its tightest and 56 at its widest — R1b).
+  examples) and the H2H matrix cells, which are the same thing at nearly the same size, both
+  sized by `pages/stats/microGrid.ts`: the matrix cell is a square that fills the width its
+  box has left over (`matrixCellSize`, 44 at its tightest and 56 at its widest — R1b), the
+  positions tile is 40×42 and gives up width — never height — only when the column count
+  forces it, down to 32 (Q3).
   Never `rounded-lg`/`rounded-sm` — with **one exception**:
   `SegmentedSwitch` gives its segments and its sliding indicator `rounded-lg` (8px) inside
   the `rounded-xl` track, because a control nested in a 12px box with 4px of padding cannot
@@ -180,9 +182,12 @@ while `chip`, `.input-field` and `.select-field` stay white. Dark themes are una
   14×10.5px flag glyph used to carry `rounded-[2px]`, and the scale's smallest step (6px) would
   round it into a lozenge, so it is simply square (A8).
 - Directional radii are for partial edges only and follow the scale of the box they belong to
-  (`rounded-b-2xl` on a collapsible card's body, `rounded-t` on the positions grid's sticky
-  header, `rounded`/`rounded-r` on 2px accent bars and progress fills). Never use one to give a
-  whole box an off-scale radius.
+  (`rounded-b-2xl` on a collapsible card's body, `rounded-t` on the positions grid's drag-over
+  column, `rounded`/`rounded-r` on 2px accent bars and progress fills). Never use one to give a
+  whole box an off-scale radius. A radius on a **pinned** surface is a hole in it: the positions
+  header carried `rounded-t` at rest until Q3, and once it really stuck, the grid showed through
+  its corner notches. A sticky band is a rectangle; the radius belongs to the state that draws a
+  surface of its own (there, the drop ring).
 - Spacing rhythm: `gap-2` inside rows, `gap-3` between elements, `space-y-3` inside cards **and
   between the blocks of a page column** (that is what `.page` is), `space-y-4` between the
   sections of a view that stacks several of them (the dashboard, a stats sub-view, a form),
@@ -197,6 +202,19 @@ while `chip`, `.input-field` and `.select-field` stay white. Dark themes are una
   **first block in the column on every page**, 44px tall, 12px above the block under it, with no
   header block of any kind above it; a page without a strip (dashboard) starts its first section
   at exactly the same offset. Pages do not style the strip — `SectionTabs` takes no `className`.
+- **Sticky to the page, under the chrome (Q3).** A grid's column header pins to the *page*, not
+  to a wrapper: a box with `overflow-x` set is a scroll container in **both** axes, so a header
+  inside one is pinned to a box that never scrolls vertically — which looks exactly like not
+  being sticky. Both micro-tile grids therefore fit their width (above) and mount their
+  `overflow-x-auto` box **only** past the floor, where sideways scrolling is the honest answer
+  and the header stops pinning with it. What it pins *to* is `ui/shell/useStickyTop.ts`: the
+  measured height of `#app-top-nav` (57px on a plain phone, more under a notch, 0 on desktop
+  where the bar is `lg:hidden`), and 0 while that bar is away — it auto-hides on scroll-down, so
+  the header docks under it and rides to the top with it, sharing its `duration-300 ease-out-expo`.
+  A pinned band must also be opaque across its whole width: grid gutters and corner radii are
+  holes, and anything painted across the grid (the positions grid's cup lineage) shows through
+  them — close them with a negative margin and matching padding, not with a lower z-index. The
+  app's top bar is `z-30`; nothing that scrolls under it may go above `z-20`.
 - Elevation: only `card` has a shadow. Floating elements (filter pill, toasts, bottom bar) use
   `shadow-pop` + `backdrop-blur-md`.
 

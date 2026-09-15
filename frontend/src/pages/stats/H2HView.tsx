@@ -20,7 +20,9 @@ import { PlayerPicker } from "./PlayerPicker";
 import StatsSection from "./StatsSection";
 import { MatchHistoryList, tournamentMatchHref } from "./MatchHistoryList";
 import { DuoRow } from "./HeadToHeadRows";
-import { MATRIX_GAP, duoKey, matrixCellSize } from "./h2hHelpers";
+import { duoKey } from "./h2hHelpers";
+import { MATRIX_GAP, matrixCellSize, matrixFits } from "./microGrid";
+import { useStickyTop } from "../../ui/shell/useStickyTop";
 import { DuoLeaderboard } from "./h2h/DuoLeaderboard";
 import { DuoPicker } from "./h2h/DuoPicker";
 import { DuoRivalries } from "./h2h/DuoRivalries";
@@ -204,6 +206,16 @@ export default function H2HView({ mode, scope, rows, subView, selectedId, onSele
   // box ever changing: re-read both whenever the rows change.
   useLayoutEffect(measureMatrix, [measureMatrix, rows]);
   const matrixCell = matrixCellSize(matrixBox.boxW, matrixBox.nameW, rows.length);
+  /* Below the floor the table is wider than its box and needs a scroll box again — and a
+     box with `overflow-x` set is a scroll container in *both* axes, which is exactly what
+     stops the column headers below from sticking to the page (Q3). So the box exists only
+     when it is earning its keep, and `data-no-swipe-nav` with it: without a scroller there
+     is no scroll edge to protect, and a swipe over the matrix should navigate like a swipe
+     anywhere else. */
+  const matrixScrolls = !matrixFits(matrixBox.boxW, matrixBox.nameW, rows.length);
+  /* The header docks under the mobile top bar and rides to the top when it auto-hides;
+     0 on desktop, where there is no bar. */
+  const stickyTop = useStickyTop();
 
   const cellRamp = (v: ReturnType<typeof cell>): CSSProperties => {
     if (!v) return {};
@@ -401,7 +413,7 @@ export default function H2HView({ mode, scope, rows, subView, selectedId, onSele
         {matrixRanges.anyPlayed ? (
           <p className="text-xs text-text-muted">Tap a cell for every match between two players.</p>
         ) : null}
-        <div ref={attachMatrixBox} className="overflow-x-auto" data-no-swipe-nav>
+        <div ref={attachMatrixBox} className={matrixScrolls ? "overflow-x-auto" : undefined} data-no-swipe-nav={matrixScrolls ? true : undefined}>
           {/* `mx-auto` centres the table once the ceiling caps it — every realistic count
               on desktop. It is not a second layout: when the floor makes the table wider
               than the box, the over-constrained auto margins resolve to 0, so the matrix
@@ -409,9 +421,12 @@ export default function H2HView({ mode, scope, rows, subView, selectedId, onSele
           <table className="mx-auto border-separate" style={{ borderSpacing: MATRIX_GAP }}>
             <thead>
               <tr>
-                <th className="sticky left-0 z-10 bg-bg-default" />
+                {/* The corner is sticky in both axes: `left` for the (rare) sideways
+                    scroll, `top` so the rotated names stay on screen while the rows
+                    below them scroll past. z stays under the app's top bar (z-30). */}
+                <th style={{ top: stickyTop }} className="sticky left-0 z-20 bg-bg-default transition-[top] duration-300 ease-out-expo" />
                 {rows.map((c) => (
-                  <th key={c.id} className="p-0 align-bottom">
+                  <th key={c.id} style={{ top: stickyTop }} className="sticky z-10 bg-bg-default p-0 align-bottom transition-[top] duration-300 ease-out-expo">
                     {/* The block's *width* follows the cell; its height does not. A rotated
                         label's vertical extent is the length of the name, which the cell
                         width has nothing to say about — and an elastic height would make
