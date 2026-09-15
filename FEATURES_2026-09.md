@@ -7141,7 +7141,9 @@ coincidence:**
    at all without going back first. That is a decision nobody wrote down; re-examine it.
 3. **A forward gesture with no visible counterpart.** Swipe-left calls `nav(1)` whenever
    `canGoForward()` (`backNavigation.ts:175`, `useSwipeNav.ts:110`). Nothing anywhere indicates that
-   forward exists, or that it is available right now.
+   forward exists, or that it is available right now. **Roli has explicitly delegated this one**
+   (asked directly, 2026-09-15): keep it and make it visible, or drop it so back is the only gesture
+   the way iOS itself works — argue it in the scenario table and let him rule on the proposal.
 4. **Where a button falls back, the gesture does nothing** (documented at `useSwipeNav.ts:13`). The
    reasoning is sound in isolation, but it means the same intent produces two different outcomes
    depending on how it was expressed.
@@ -7291,11 +7293,10 @@ layout is one designed for a context this page does not have.
   club is attached to a side and the row should stay honest about who was home. Fixed-width columns
   so every score sits at the same x down the page, the way T14 did it for standings. Winner-first
   ordering was offered and rejected.
-- **The row is the only control: tapping it opens edit *and* delete.** Roli: *"tap to both
-  edit+delete"*. **Interpretation to confirm with him if anything about it is unclear:** the row has
-  no buttons at all; tapping it opens the friendly's existing editor, and the delete lives inside
-  that editor (through `ConfirmDialog`, per Q5's house style). If he meant instead that a tap should
-  *reveal* the two buttons inline, that is a one-line correction — ask, do not guess twice.
+- **The row is the only control: tapping it opens the editor, and delete lives inside it.**
+  Confirmed with Roli from rendered options. The row carries **no buttons at all**; a tap opens the
+  friendly's existing editor, and the delete sits in there behind `ConfirmDialog` (Q5's house
+  style). Revealing the two buttons on the row instead was offered and rejected.
 - **The filters move into the floating pill**, the control he approved for stats (S5/S7/T4). Both
   Mode and the Compact/Details choice go in it, and the two rows above the list disappear.
   **Note:** `pages/stats/StatsFilterPill.tsx` is stats-shaped today. Promoting it to a shared
@@ -7314,3 +7315,21 @@ filter pill on friendlies and stats from one shared component; `npm run check` +
 1280px in blue and light; before/after screenshots of both views.
 
 **Deviations:**
+
+
+---
+
+## Round 8 — running order
+
+Seven tasks, five waves, paired by **file set** so two workers never share a file. Reasons, not
+preferences:
+
+| Wave | Runs | Why here |
+|---|---|---|
+| 1 | **Q5** ‖ **Q1** | Q5 is backend + the live-tournament pages, Q1 is `pages/ideas/`. Disjoint. |
+| 2 | **Q3** ‖ **Q4** | Q3 is the two stats grids, Q4 is the drawer, `Modal` and the lightbox. Disjoint. |
+| 3 | **Q2** alone | It edits the shell **and** all three composers **and** the filter pill. It has to follow Q1 (both touch `IdeaComposer.tsx`) and precede Q7 (both touch `StatsFilterPill.tsx`). |
+| 4 | **Q7** alone | Promotes the filter pill to a shared control, so it must come after Q2 has finished moving offsets around inside it. Also rewrites `MatchHistoryList` usage, which Q3 reads. |
+| 5 | **Q6** alone | **Gated on the crash trail from Roli's phone** (see Q6's Sequencing note). It touches every file the other six avoid. |
+
+**Nothing in Round 8 starts without Roli saying so**, wave 1 included.
