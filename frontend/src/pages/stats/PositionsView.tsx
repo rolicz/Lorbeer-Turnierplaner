@@ -18,7 +18,7 @@ import StatsSection from "./StatsSection";
 import { InfoButton } from "./explainers";
 import type { StatsMode } from "./statsMode";
 
-/** What the cell colours, the "—" tile, the cup rails and the column shading mean. */
+/** What the cell colours, the "—" tile, the cup lineage and the column shading mean. */
 function InfoLegend({ cups }: { cups: { key: string; name: string; color: string }[] }) {
   return (
     <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
@@ -51,7 +51,12 @@ function InfoLegend({ cups }: { cups: { key: string; name: string; color: string
         </span>
         {cups.map((c) => (
           <span key={c.key} className="inline-flex items-center gap-2">
-            <span className="h-4 w-0.5 rounded" style={{ background: c.color }} aria-hidden="true" />
+            {/* The swatch is the line itself — a diagonal hop, drawn with the stroke and
+                the cap the grid uses, because a vertical bar would promise the rails the
+                lineage stopped being. */}
+            <svg width="16" height="12" viewBox="0 0 16 12" aria-hidden="true">
+              <line x1="1.5" y1="10.5" x2="14.5" y2="1.5" stroke={c.color} strokeWidth="2.5" strokeLinecap="round" opacity="0.9" />
+            </svg>
             <span>held the {c.name}</span>
           </span>
         ))}
@@ -189,66 +194,40 @@ export default function PositionsView({ mode }: { mode: StatsMode }) {
   const colX = (j: number) => nameW + gap + j * (cellW + gap) + cellW / 2;
   const rowY = (i: number) => headerH + gap + i * (cellH + gap) + cellH / 2;
   /**
-   * The cup's lineage runs in the grid's **gutters**, never over a tile (A7) — and
-   * as *straight rails*, never as a connected path.
+   * The cup's lineage is a line from the holder's cell to the holder's cell — the
+   * diagonal hop *is* the handover, which is why Roli wanted it back after A7
+   * replaced it (first with a gutter path that jogged sideways and read as brackets
+   * drawn around random blocks of cells, then with straight rails that said nothing
+   * about movement at all).
    *
-   * The path version joined the holder's cells and stepped sideways in the row
-   * gutter wherever the cup changed hands. With two cups over seventeen mixed-mode
-   * tournaments that is a dozen jogs, and each one reads as a bracket drawn around
-   * a random block of cells rather than as a line: Roli, on the desktop grid,
-   * "super ugly in some cases". So a run of rows with the same holder is now one
-   * vertical rail beside that column and nothing else. Where the cup moves, one
-   * rail simply ends and another begins — the crown on the winning tile already
-   * says *that* tournament is where it changed hands, so the jog was drawing a
-   * second time what the grid had already said once.
+   * It no longer strikes through the numbers, because it is painted **under** the
+   * tiles rather than over them: a tile is `hsl(... / 0.22)`, so the line still
+   * reads through it, while the digit and the crown sit on top untouched. That also
+   * settles the second half of A7's complaint — crossing a cell of a tournament the
+   * holder never played is fine when the line passes behind it.
    *
-   * A rail spans the whole stake window (first row the cup was at stake to the
-   * last), not only the rows where it was on the line: the holder still held it
-   * during the other mode's tournaments, and skipping those rows broke every rail
-   * into fragments. Two cups can share a gutter (one player holding both), so each
-   * takes its own 2px lane inside it.
+   * Rows where the cup was not at stake are skipped, so one segment can span several
+   * rows; each cup gets its own 3px-wide lane through the cell centres, so the two
+   * lines run parallel instead of one hiding the other while a single player holds both.
    */
-  const railW = 2;
-  const laneX = (ci: number) => (cupDefs.length < 2 ? 0 : (ci - (cupDefs.length - 1) / 2) * railW);
-  const railX = (j: number, ci: number) => colX(j) - cellW / 2 - gap / 2 + laneX(ci);
+  const laneX = (ci: number) => (cupDefs.length < 2 ? 0 : (ci - (cupDefs.length - 1) / 2) * 3);
 
-  const laurelRails = useMemo(() => {
-    const out: { key: string; color: string; x: number; y1: number; y2: number }[] = [];
-    cupDefs.forEach((def, ci) => {
-      const at = ownerByCup.get(def.key);
-      if (!at) return;
-      // The window is bounded by *date*, not by row index, so it does not depend on
-      // which way the grid is sorted: it opens at the first tournament this cup was
-      // ever at stake in and never closes, because the holder still holds it. Bound
-      // it by the last at-stake row instead and the newest run collapses to a 42px
-      // stub next to the current holder — a fleck, not a rail.
-      const stakeDates = tournaments.filter((t) => (t.cup_stakes ?? []).some((s) => s.key === def.key)).map((t) => t.date);
-      if (!stakeDates.length) return;
-      const since = stakeDates.reduce((a, b) => (a < b ? a : b));
-      const rows = tournaments.map((t, i) => (t.date >= since ? i : -1)).filter((i) => i >= 0);
-      if (!rows.length) return;
-      const color = cupColor(def.key);
-
-      let col: number | null = null;
-      let start = rows[0];
-      let prev = -2;
-      const flush = (endRow: number) => {
-        if (col == null || endRow < start) return;
-        out.push({ key: `${def.key}-${start}`, color, x: railX(col, ci), y1: rowY(start) - cellH / 2, y2: rowY(endRow) + cellH / 2 });
-        col = null;
-      };
-
-      for (const i of rows) {
-        const owner = at.get(tournaments[i].id);
-        const j = owner == null ? null : colByPlayer.get(owner) ?? null;
-        if (j == null) flush(prev);
-        else if (col == null) { col = j; start = i; }
-        else if (col !== j || i !== prev + 1) { flush(prev); col = j; start = i; }
-        prev = i;
-      }
-      flush(prev);
-    });
-    return out;
+  const laurelPolylines = useMemo(() => {
+    return cupDefs
+      .map((def, ci) => {
+        const at = ownerByCup.get(def.key);
+        const pts: string[] = [];
+        tournaments.forEach((t, i) => {
+          if (!at || !(t.cup_stakes ?? []).some((s) => s.key === def.key)) return;
+          const owner = at.get(t.id);
+          if (owner == null) return;
+          const j = colByPlayer.get(owner);
+          if (j == null) return;
+          pts.push(`${colX(j) + laneX(ci)},${rowY(i)}`);
+        });
+        return { key: def.key, color: cupColor(def.key), pts: pts.join(" ") };
+      })
+      .filter((l) => l.pts.includes(" "));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cupDefs, ownerByCup, tournaments, colByPlayer, players.length]);
 
@@ -273,6 +252,15 @@ export default function PositionsView({ mode }: { mode: StatsMode }) {
       ) : null}
       <div className="overflow-x-auto" data-no-swipe-nav>
         <div className="relative" style={{ width: gridW }}>
+          {/* Before the grid on purpose: both are positioned with `z-index: auto`, so DOM
+              order decides which paints on top, and the lineage has to go underneath. */}
+          {laurelPolylines.length ? (
+            <svg className="pointer-events-none absolute left-0 top-0" width={gridW} height={gridH} aria-hidden="true">
+              {laurelPolylines.map((l) => (
+                <polyline key={l.key} points={l.pts} fill="none" stroke={l.color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" opacity="0.9" />
+              ))}
+            </svg>
+          ) : null}
           <div
             className="relative"
             style={{ display: "grid", gridTemplateColumns: `${nameW}px repeat(${orderedPlayers.length}, ${cellW}px)`, columnGap: gap, rowGap: gap }}
@@ -374,13 +362,6 @@ export default function PositionsView({ mode }: { mode: StatsMode }) {
               );
             })}
           </div>
-          {laurelRails.length ? (
-            <svg className="pointer-events-none absolute left-0 top-0" width={gridW} height={gridH} aria-hidden="true">
-              {laurelRails.map((r) => (
-                <line key={r.key} x1={r.x} y1={r.y1} x2={r.x} y2={r.y2} stroke={r.color} strokeWidth={railW} strokeLinecap="round" opacity="0.85" />
-              ))}
-            </svg>
-          ) : null}
         </div>
       </div>
     </StatsSection>
