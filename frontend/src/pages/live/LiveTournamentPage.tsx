@@ -822,7 +822,11 @@ export default function LiveTournamentPage() {
       <ConfirmDialog
         open={markAllReadAsked}
         title="Mark all comments as read?"
-        subtitle={`The ${unreadCommentIds.length} unread comment${unreadCommentIds.length === 1 ? "" : "s"} in this tournament count as read — for you only, and nothing is deleted.`}
+        subtitle={
+          unreadCommentIds.length === 1
+            ? "The one unread comment in this tournament counts as read — for you only, and nothing is deleted."
+            : `All ${unreadCommentIds.length} unread comments in this tournament count as read — for you only, and nothing is deleted.`
+        }
         confirmLabel={`Mark ${unreadCommentIds.length} as read`}
         busyLabel="Marking…"
         busy={markAllReadMut.isPending}

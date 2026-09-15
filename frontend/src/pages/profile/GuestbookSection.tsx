@@ -193,7 +193,11 @@ export default function GuestbookSection({
     <ConfirmDialog
       open={markAllAsked}
       title="Mark the guestbook as read?"
-      subtitle={`The ${markAllCount} unread message${markAllCount === 1 ? "" : "s"} count as read — for you only, and nothing is deleted.`}
+      subtitle={
+        markAllCount === 1
+          ? "The one unread message counts as read — for you only, and nothing is deleted."
+          : `All ${markAllCount} unread messages count as read — for you only, and nothing is deleted.`
+      }
       confirmLabel={`Mark ${markAllCount} as read`}
       busyLabel="Marking…"
       busy={markAllPending}
