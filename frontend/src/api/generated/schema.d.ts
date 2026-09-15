@@ -280,6 +280,30 @@ export interface paths {
         patch: operations["patch_decider_tournaments__tournament_id__decider_patch"];
         trace?: never;
     };
+    "/tournaments/{tournament_id}/reassign-preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Reassign 2V2 Preview
+         * @description Counts for the re-assign confirmation: what it clears and how many comments go.
+         *
+         *     The frontend renders the dialog from these numbers instead of re-deriving which
+         *     comments a rebuild takes with it — the same split of responsibility as A10's
+         *     `can_edit` flags.
+         */
+        get: operations["reassign_2v2_preview_tournaments__tournament_id__reassign_preview_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/tournaments/{tournament_id}/reassign": {
         parameters: {
             query?: never;
@@ -295,7 +319,14 @@ export interface paths {
          *
          *     Only allowed for 2v2 (pairings/opponents are not uniquely determined).
          *     Safety:
-         *       - only when ALL matches are still scheduled (and "clean": no goals/clubs/timestamps)
+         *       - only when ALL matches are still scheduled. A playing or finished match is a real
+         *         result, and re-assigning would throw a played evening away.
+         *       - leftovers are NOT a refusal (Q5): goals, clubs and timestamps left on scheduled
+         *         matches are cleared, because the schedule is rebuilt from scratch anyway. Refusing
+         *         on them used to freeze a tournament for good — reset put a match back to scheduled
+         *         but left its score behind, and nothing could remove a club.
+         *       - the comments filed under the old matches go with them (see `comment_cleanup`);
+         *         the tournament-wide ones stay.
          *       - editor/admin only
          *       - preserves "second leg enabled" flag: if leg2 existed before, it is recreated to match new leg1
          *
@@ -2577,6 +2608,20 @@ export interface components {
             /** Rating */
             rating: number;
         };
+        /**
+         * ReassignPreviewOut
+         * @description What a 2v2 re-assign would clear, counted before it is asked for (Q5).
+         */
+        ReassignPreviewOut: {
+            /** Matches */
+            matches: number;
+            /** Matches With Score */
+            matches_with_score: number;
+            /** Matches With Club */
+            matches_with_club: number;
+            /** Comments */
+            comments: number;
+        };
         /** ReassignResultOut */
         ReassignResultOut: {
             /** Ok */
@@ -3900,6 +3945,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DeciderResultOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reassign_2v2_preview_tournaments__tournament_id__reassign_preview_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tournament_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReassignPreviewOut"];
                 };
             };
             /** @description Validation Error */

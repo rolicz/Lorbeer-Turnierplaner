@@ -38,6 +38,7 @@ from ..schemas.responses import (
     VotersOut,
 )
 from ..services.authorization import require_self_or_admin
+from ..services.comment_cleanup import delete_comment_rows, with_reply_subtree
 from ..services.comments_view import comment_can_edit, comment_dict, list_comments_for_tournament, parent_comment_map
 from ..services.events import (
     broadcast_tournament,
@@ -644,45 +645,14 @@ async def delete_comment(
     c = get_or_404(s, Comment, comment_id, name="Comment")
     tournament_id = int(c.tournament_id)
 
-    # Cascade: delete this comment and the whole reply subtree beneath it.
-    links = s.exec(
-        select(CommentThreadLink.comment_id, CommentThreadLink.parent_comment_id)
-        .join(Comment, Comment.id == CommentThreadLink.comment_id)
-        .where(Comment.tournament_id == tournament_id)
-    ).all()
-    children_by_parent: dict[int, list[int]] = {}
-    for child_id, parent_id in links:
-        children_by_parent.setdefault(int(parent_id), []).append(int(child_id))
-
-    to_delete: set[int] = set()
-    stack = [int(comment_id)]
-    while stack:
-        current = stack.pop()
-        if current in to_delete:
-            continue
-        to_delete.add(current)
-        stack.extend(children_by_parent.get(current, []))
-
-    ids = list(to_delete)
-
-    pin = s.get(TournamentPinnedComment, tournament_id)
-    if pin and pin.comment_id in to_delete:
-        s.delete(pin)
-
-    for img_row in s.exec(select(CommentImageFile).where(CommentImageFile.comment_id.in_(ids))).all():
-        delete_media(img_row.file_path)
-        s.delete(img_row)
-    for rr in s.exec(select(CommentRead).where(CommentRead.comment_id.in_(ids))).all():
-        s.delete(rr)
-    for vr in s.exec(select(CommentVote).where(CommentVote.comment_id.in_(ids))).all():
-        s.delete(vr)
-    for lk in s.exec(select(CommentThreadLink).where(CommentThreadLink.comment_id.in_(ids))).all():
-        s.delete(lk)
-    for al in s.exec(select(CommentAuthorLink).where(CommentAuthorLink.comment_id.in_(ids))).all():
-        s.delete(al)
-    for cm in s.exec(select(Comment).where(Comment.id.in_(ids))).all():
-        s.delete(cm)
+    # Cascade: this comment, the whole reply subtree beneath it, and everything that
+    # hangs off them — one shared cascade with the 2v2 re-assign (`comment_cleanup`).
+    ids = with_reply_subtree(s, tournament_id, [int(comment_id)])
+    image_paths = delete_comment_rows(s, tournament_id, ids)
     s.commit()
+    # Files only after the rows are safely gone, so a failed commit leaves no hole.
+    for path in image_paths:
+        delete_media(path)
 
     for cid in ids:
         await push_comment_deleted(tournament_id, cid)

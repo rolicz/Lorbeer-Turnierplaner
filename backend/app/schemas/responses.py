@@ -445,6 +445,15 @@ class DeciderResultOut(BaseModel):
     decider_loser_goals: int | None
 
 
+class ReassignPreviewOut(BaseModel):
+    """What a 2v2 re-assign would clear, counted before it is asked for (Q5)."""
+
+    matches: int
+    matches_with_score: int
+    matches_with_club: int
+    comments: int
+
+
 class ReassignResultOut(BaseModel):
     ok: bool
     matches: int

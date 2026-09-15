@@ -173,6 +173,16 @@ async def patch_match(
         if "goals" in b_fields:
             sides["B"].goals = int(b.goals)
 
+    # A patch that puts a match back to "scheduled" is a reset, wherever it comes from —
+    # the current-game section, the match page's status switch, a bare PATCH — and a reset
+    # takes the score with it. A reset that left the goals behind is what froze a 2v2
+    # schedule for good: re-assign refused on those leftovers and nothing could clear them
+    # again (Q5). The clubs stay: a club is a setup choice, not a result, and a replay is
+    # usually the same fixture with the same teams.
+    if "state" in fields and body.state == "scheduled":
+        for side in m.sides:
+            side.goals = 0
+
     # Compute status AFTER modifications (autoflush happens before queries)
     status_after = compute_status_for_tournament(s, m.tournament_id)
 
