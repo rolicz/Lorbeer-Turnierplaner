@@ -368,3 +368,68 @@ class PushSubscriptionPreference(SQLModel, table=True):
     notification_language: str = Field(default="steirisch", index=True)
     notification_mode: str = Field(default="finished_only", index=True)
     updated_at: dt.datetime = Field(default_factory=dt.datetime.utcnow, index=True)
+
+
+class FeatureRequest(SQLModel, table=True):
+    """
+    An idea / change request / bug report posted from the Ideas page (R5).
+
+    Posting requires a login, so the author is never NULL (unlike a Comment, which
+    may be shown as "General"): a request is something the group answers, and an
+    unattributed one cannot be asked about. `status`/`status_note` are the admin's
+    answer; everything else belongs to the author.
+    """
+    id: Optional[int] = Field(default=None, primary_key=True)
+
+    author_player_id: int = Field(foreign_key="player.id", index=True)
+
+    title: str
+    body: str = Field(default="")
+
+    kind: str = Field(default="feature", index=True)  # "feature" | "change" | "bug"
+    status: str = Field(default="new", index=True)  # "new" | "planned" | "doing" | "done" | "declined"
+    # Why the status is what it is ("already in Stats", "after FC 27"). Admin-written.
+    status_note: str = Field(default="")
+
+    created_at: dt.datetime = Field(default_factory=dt.datetime.utcnow, index=True)
+    updated_at: dt.datetime = Field(default_factory=dt.datetime.utcnow, index=True)
+    #: When the *author's own* text last changed. `updated_at` moves for a status
+    #: change and an image too, so it cannot answer "was this rewritten?" — and a
+    #: byline that says "edited" because someone triaged the idea is a lie.
+    edited_at: dt.datetime | None = Field(default=None)
+
+
+class FeatureRequestArea(SQLModel, table=True):
+    """
+    Which part of the app a request is about. A child table, not a column, because a
+    request names several areas — and because the catalog of areas is code
+    (`app/feature_areas.py`), never a foreign key: a destination the app later drops
+    still has to label the old requests that name it.
+    """
+    request_id: int = Field(foreign_key="featurerequest.id", primary_key=True)
+    area: str = Field(primary_key=True)
+
+
+class FeatureRequestVote(SQLModel, table=True):
+    """
+    One "+1" per player per request — the row's existence *is* the vote.
+
+    Deliberately not the (-1|+1) value column that CommentVote carries: a feature
+    board asks "who else wants this", and a downvote on a friend's idea answers a
+    different question nobody asked.
+    """
+    request_id: int = Field(foreign_key="featurerequest.id", primary_key=True)
+    player_id: int = Field(foreign_key="player.id", primary_key=True)
+    created_at: dt.datetime = Field(default_factory=dt.datetime.utcnow, index=True)
+
+
+class FeatureRequestImageFile(SQLModel, table=True):
+    """
+    Screenshot attached to a request (metadata in DB, bytes on disk) —
+    the same pattern as CommentImageFile, stored under `uploads/ideas/`.
+    """
+    request_id: int = Field(foreign_key="featurerequest.id", primary_key=True)
+    content_type: str
+    file_path: str = Field(index=True)
+    file_size: int
+    updated_at: dt.datetime = Field(default_factory=dt.datetime.utcnow, index=True)

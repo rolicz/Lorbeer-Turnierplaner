@@ -44,6 +44,12 @@ def init_db() -> None:
 _RUNTIME_COLUMNS: tuple[tuple[str, str, str], ...] = (
     ("pushsubscriptionpreference", "notification_mode", "VARCHAR NOT NULL DEFAULT 'finished_only'"),
     ("league", "nation", "VARCHAR"),
+    # `featurerequest` is a table R5 introduces, so a deployed DB creates it whole and
+    # this line is a no-op there (the loop skips a table that does not exist yet). It
+    # is here for the dev databases that ran an in-progress build of R5 before
+    # `edited_at` existed: `create_all` never alters an existing table, so without it
+    # those copies would keep a `featurerequest` the shipped code cannot read.
+    ("featurerequest", "edited_at", "DATETIME"),
 )
 
 

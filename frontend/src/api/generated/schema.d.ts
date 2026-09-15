@@ -1250,6 +1250,138 @@ export interface paths {
         patch: operations["patch_friendly_friendlies__friendly_id__patch"];
         trace?: never;
     };
+    "/ideas/areas": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Idea Areas
+         * @description The area catalog, so the page never keeps a hand-written copy of it.
+         */
+        get: operations["list_idea_areas_ideas_areas_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ideas": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List All Ideas */
+        get: operations["list_all_ideas_ideas_get"];
+        put?: never;
+        /** Create Idea */
+        post: operations["create_idea_ideas_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ideas/{idea_id}/voters": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Idea Voters */
+        get: operations["list_idea_voters_ideas__idea_id__voters_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ideas/{idea_id}/image": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Idea Image */
+        get: operations["get_idea_image_ideas__idea_id__image_get"];
+        /** Put Idea Image */
+        put: operations["put_idea_image_ideas__idea_id__image_put"];
+        post?: never;
+        /** Delete Idea Image */
+        delete: operations["delete_idea_image_ideas__idea_id__image_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ideas/{idea_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Idea */
+        delete: operations["delete_idea_ideas__idea_id__delete"];
+        options?: never;
+        head?: never;
+        /** Patch Idea */
+        patch: operations["patch_idea_ideas__idea_id__patch"];
+        trace?: never;
+    };
+    "/ideas/{idea_id}/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Set Idea Status
+         * @description Triage. Admin only — the status is the group's answer, not the asker's.
+         */
+        put: operations["set_idea_status_ideas__idea_id__status_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ideas/{idea_id}/vote": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Vote Idea
+         * @description A "+1", toggled. `value` is 1 or 0; -1 is not a thing an idea can take.
+         */
+        put: operations["vote_idea_ideas__idea_id__vote_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/push/config": {
         parameters: {
             query?: never;
@@ -1350,6 +1482,14 @@ export interface components {
         };
         /** Body_put_comment_image_comments__comment_id__image_put */
         Body_put_comment_image_comments__comment_id__image_put: {
+            /**
+             * File
+             * Format: binary
+             */
+            file: string;
+        };
+        /** Body_put_idea_image_ideas__idea_id__image_put */
+        Body_put_idea_image_ideas__idea_id__image_put: {
             /**
              * File
              * Format: binary
@@ -1796,6 +1936,130 @@ export interface components {
         HTTPValidationError: {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
+        };
+        /** IdeaAreaOut */
+        IdeaAreaOut: {
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            /** Selectable */
+            selectable: boolean;
+        };
+        /** IdeaAreasOut */
+        IdeaAreasOut: {
+            /** Areas */
+            areas: components["schemas"]["IdeaAreaOut"][];
+        };
+        /** IdeaCreateBody */
+        IdeaCreateBody: {
+            /**
+             * Title
+             * @default
+             */
+            title: string;
+            /**
+             * Body
+             * @default
+             */
+            body: string;
+            /**
+             * Kind
+             * @default feature
+             */
+            kind: string;
+            /** Areas */
+            areas?: string[];
+        };
+        /** IdeaListOut */
+        IdeaListOut: {
+            /** Ideas */
+            ideas: components["schemas"]["IdeaOut"][];
+        };
+        /** IdeaOut */
+        IdeaOut: {
+            /** Id */
+            id: number;
+            /** Author Player Id */
+            author_player_id: number;
+            /** Author Display Name */
+            author_display_name: string;
+            /** Title */
+            title: string;
+            /** Body */
+            body: string;
+            /** Kind */
+            kind: string;
+            /** Status */
+            status: string;
+            /** Status Note */
+            status_note: string;
+            /** Areas */
+            areas: string[];
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /** Edited At */
+            edited_at: string | null;
+            /** Has Image */
+            has_image: boolean;
+            /** Image Updated At */
+            image_updated_at: string | null;
+            /** Votes */
+            votes: number;
+            /** My Vote */
+            my_vote: number;
+            /**
+             * Can Edit
+             * @default false
+             */
+            can_edit: boolean;
+            /**
+             * Can Delete
+             * @default false
+             */
+            can_delete: boolean;
+            /**
+             * Can Set Status
+             * @default false
+             */
+            can_set_status: boolean;
+        };
+        /** IdeaPatchBody */
+        IdeaPatchBody: {
+            /** Title */
+            title?: string | null;
+            /** Body */
+            body?: string | null;
+            /** Kind */
+            kind?: string | null;
+            /** Areas */
+            areas?: string[] | null;
+        };
+        /** IdeaStatusBody */
+        IdeaStatusBody: {
+            /**
+             * Status
+             * @default
+             */
+            status: string;
+            /** Note */
+            note?: string | null;
+        };
+        /** IdeaVoteBody */
+        IdeaVoteBody: {
+            /**
+             * Value
+             * @default 0
+             */
+            value: number | string | null;
         };
         /** KeyLabelOut */
         KeyLabelOut: {
@@ -5798,6 +6062,343 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["FriendlyOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_idea_areas_ideas_areas_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IdeaAreasOut"];
+                };
+            };
+        };
+    };
+    list_all_ideas_ideas_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IdeaListOut"];
+                };
+            };
+        };
+    };
+    create_idea_ideas_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["IdeaCreateBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IdeaOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_idea_voters_ideas__idea_id__voters_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                idea_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VotersOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_idea_image_ideas__idea_id__image_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                idea_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    put_idea_image_ideas__idea_id__image_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                idea_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_put_idea_image_ideas__idea_id__image_put"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IdeaOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_idea_image_ideas__idea_id__image_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                idea_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OkResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_idea_ideas__idea_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                idea_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OkResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    patch_idea_ideas__idea_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                idea_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["IdeaPatchBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IdeaOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    set_idea_status_ideas__idea_id__status_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                idea_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["IdeaStatusBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IdeaOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    vote_idea_ideas__idea_id__vote_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                idea_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["IdeaVoteBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VoteResultOut"];
                 };
             };
             /** @description Validation Error */

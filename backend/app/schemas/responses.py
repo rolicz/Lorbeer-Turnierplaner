@@ -259,6 +259,53 @@ class PinnedCommentOut(BaseModel):
     pinned_comment_id: int | None
 
 
+# ---- ideas / feature requests ------------------------------------------
+class IdeaAreaOut(BaseModel):
+    key: str
+    label: str
+    #: False for a retired area: it still labels the old requests that name it,
+    #: but it is not offered when writing a new one (`app/feature_areas.py`).
+    selectable: bool
+
+
+class IdeaAreasOut(BaseModel):
+    areas: list[IdeaAreaOut]
+
+
+class IdeaOut(BaseModel):
+    id: int
+    author_player_id: int
+    author_display_name: str
+    title: str
+    body: str
+    kind: str
+    status: str
+    status_note: str
+    #: Raw area keys, in catalog order. A key this build no longer knows is still
+    #: returned — the client labels it with the key itself rather than dropping it.
+    areas: list[str]
+    created_at: datetime
+    updated_at: datetime
+    #: When the author's own text last changed — `updated_at` also moves for a
+    #: status change or an image, so only this one may say "edited".
+    edited_at: datetime | None
+    has_image: bool
+    image_updated_at: datetime | None
+    votes: int
+    #: 0 or 1 — an idea takes a "+1", never a downvote.
+    my_vote: int
+    # Per-caller capability flags (R5, the A10 pattern). Computed server-side, so the
+    # page renders its controls from these and never re-derives the rule. A reader
+    # (and every viewer-less path) gets False.
+    can_edit: bool = False
+    can_delete: bool = False
+    can_set_status: bool = False
+
+
+class IdeaListOut(BaseModel):
+    ideas: list[IdeaOut]
+
+
 # ---- tournaments -------------------------------------------------------
 class OddsOut(BaseModel):
     home: float

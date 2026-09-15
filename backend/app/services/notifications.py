@@ -11,7 +11,7 @@ import httpx
 from fastapi import Request
 from sqlmodel import Session, select
 
-from ..models import PushSubscription, PushSubscriptionPreference
+from ..models import Player, PushSubscription, PushSubscriptionPreference
 from ..settings import Settings
 from .notification_texts import (
     default_notification_language,
@@ -33,7 +33,7 @@ SUPPORTED_NOTIFICATION_MODES = ("finished_only", "all", "off")
 FINISHED_ONLY_EVENT_TYPES = {"tournament_finished", "push_test"}
 # Events directed at a specific player. In the "results & personal" mode these
 # are delivered only to that player (carried via default_mode_player_id).
-PERSONAL_DEFAULT_EVENT_TYPES = {"poke_created", "poke_summary", "guestbook_created"}
+PERSONAL_DEFAULT_EVENT_TYPES = {"poke_created", "poke_summary", "guestbook_created", "idea_created"}
 
 
 def hash_push_endpoint(endpoint: str) -> str:
@@ -398,6 +398,67 @@ def push_guestbook_created(
     )
 
 
+def admin_player_ids(request: Request, s: Session) -> list[int]:
+    """The player ids behind the admin accounts in `secrets.json`.
+
+    Admin is a property of the *account* (`player_accounts[].admin`), not of a row in
+    the database, and accounts are matched to players by display name exactly the way
+    `auth.resolve_player_login` does it — case-insensitively. Anything else here would
+    be a second definition of "who is an admin".
+    """
+    settings = getattr(request.app.state, "settings", None)
+    wanted = {
+        str(acc.name or "").strip().casefold()
+        for acc in getattr(settings, "player_accounts", ()) or ()
+        if getattr(acc, "admin", False)
+    }
+    if not wanted:
+        return []
+    rows = s.exec(select(Player.id, Player.display_name)).all()
+    return [int(pid) for pid, name in rows if str(name or "").strip().casefold() in wanted]
+
+
+def push_idea_created(
+    request: Request,
+    s: Session,
+    *,
+    idea_id: int,
+    title: str,
+    author_name: str,
+    author_player_id: int,
+    meta_line: str,
+) -> int:
+    """Tell the admins a new idea arrived. Returns how many players were addressed.
+
+    Only admins: they are the ones who can do anything about it, and a board of five
+    friends does not need four "someone had an idea" buzzes. The author is skipped —
+    an admin posting their own idea already knows. Delivery still respects each
+    device's own notification mode (an admin who set "Off" gets nothing).
+    """
+    targets = [pid for pid in admin_player_ids(request, s) if pid != int(author_player_id)]
+    if not targets:
+        return 0
+    dispatcher = push_dispatcher_from_request(request)
+    if dispatcher is None:
+        return 0
+    message = localized_push_message(
+        "idea_created",
+        path=f"/ideas?idea={int(idea_id)}",
+        tag=f"idea-{int(idea_id)}",
+        event_type="idea_created",
+        data={"idea_id": int(idea_id)},
+        author_name=author_name,
+        title=title,
+        meta_line=meta_line,
+    )
+    for pid in targets:
+        if hasattr(dispatcher, "enqueue_personal_for_player"):
+            dispatcher.enqueue_personal_for_player(pid, message)
+        else:
+            dispatcher.enqueue_for_player(pid, message)
+    return len(targets)
+
+
 def push_friendly_created(request: Request, *, friendly_id: int, mode: str, scoreline: str) -> None:
     enqueue_global_push(
         request,
@@ -663,6 +724,20 @@ class NotificationDispatcher:
 
     def enqueue_personal(self, player_id: int, message: PushMessage) -> None:
         self._enqueue(_QueuedPushMessage(message=message, player_id=None, default_mode_player_id=int(player_id)))
+
+    def enqueue_personal_for_player(self, player_id: int, message: PushMessage) -> None:
+        """Only this player's devices, and reaching them in the default mode too.
+
+        ``enqueue_for_player`` narrows the audience but not the mode filter, so a
+        default ("Results & personal") subscription would drop the message; and
+        ``enqueue_personal`` lifts the mode filter but broadcasts. An idea landing
+        on the admin's phone needs both halves (R5).
+        """
+        self._enqueue(
+            _QueuedPushMessage(
+                message=message, player_id=int(player_id), default_mode_player_id=int(player_id)
+            )
+        )
 
     def enqueue_poke(
         self,

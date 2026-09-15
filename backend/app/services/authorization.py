@@ -18,6 +18,7 @@ from sqlmodel import Session, select
 
 from ..api_utils import forbidden
 from ..models import (
+    FeatureRequest,
     FriendlyCreatorLink,
     FriendlyMatch,
     Match,
@@ -263,6 +264,54 @@ def friendly_capabilities(
     return {"can_edit": allowed, "can_delete": allowed}
 
 
+# ---------------------------------------------------------------------------
+# R5 — the Ideas board.
+# A different question from A10's: a feature request is a document, not a result.
+# Nothing about it goes stale an hour after it was written, so there is **no time
+# window here** — the author owns their own text for as long as it exists, and the
+# admin owns the status. The shape is the same though: one predicate per verb, one
+# ``*_capabilities`` that the payload carries, one ``ensure_*`` that raises the 403.
+# ---------------------------------------------------------------------------
+
+
+def _is_idea_author(fr: FeatureRequest, claims: dict | None) -> bool:
+    viewer = _viewer_id(claims)
+    return viewer is not None and int(fr.author_player_id) == viewer
+
+
+def can_edit_feature_request(fr: FeatureRequest, *, claims: dict | None) -> bool:
+    """Admin always; otherwise the author of this request, with no deadline."""
+    if _is_admin(claims):
+        return True
+    if not _is_editor_or_admin(claims):
+        return False
+    return _is_idea_author(fr, claims)
+
+
+def can_delete_feature_request(fr: FeatureRequest, *, claims: dict | None) -> bool:
+    """Same answer as editing: it is the author's request, or the admin's board."""
+    return can_edit_feature_request(fr, claims=claims)
+
+
+def can_set_feature_request_status(*, claims: dict | None) -> bool:
+    """Only an admin triages: the status is the group's answer, not the asker's."""
+    return _is_admin(claims)
+
+
+def feature_request_capabilities(fr: FeatureRequest, *, claims: dict | None) -> dict[str, bool]:
+    """What this caller may do with this request right now — the payload's flags.
+
+    A reader (no claims) gets all-False, so the Ideas page renders its controls from
+    the server's answer and never re-derives the rule.
+    """
+    editable = can_edit_feature_request(fr, claims=claims)
+    return {
+        "can_edit": editable,
+        "can_delete": can_delete_feature_request(fr, claims=claims),
+        "can_set_status": can_set_feature_request_status(claims=claims),
+    }
+
+
 # ---- guards: the same answers, raised as 403s -----------------------------
 
 
@@ -297,3 +346,13 @@ def ensure_can_touch_friendly(
         forbidden(
             f"Only an admin, or the editor who created it within the last hour, can {action} a friendly"
         )
+
+
+def ensure_can_edit_feature_request(fr: FeatureRequest, *, claims: dict | None, action: str) -> None:
+    if not can_edit_feature_request(fr, claims=claims):
+        forbidden(f"Only the author of this idea, or an admin, can {action} it")
+
+
+def ensure_can_set_feature_request_status(claims: dict | None) -> None:
+    if not can_set_feature_request_status(claims=claims):
+        forbidden("Only an admin can set the status of an idea")
