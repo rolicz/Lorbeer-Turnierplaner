@@ -7100,7 +7100,7 @@ the same treatment — the drawer hugs the left edge, which is where the notch g
 resolves to 0 nothing moves, so this costs nothing on Android or desktop; give that footer more than
 its current 12px regardless, because a bottom-most row reads as glued to the edge even with no inset.
 
-## Q5 — Re-assign is permanently blocked by leftover goals and clubs  ☐
+## Q5 — Re-assign is permanently blocked by leftover goals and clubs  ☑
 
 Roli: *"all games are scheduled but i cant re-assigne the 2v2 schedule as some results were stored
 before"*. Measured on his dev DB: tournament 21 "test 2v2", 5 matches, **all scheduled, no
@@ -7131,6 +7131,37 @@ neither how many matches nor that a club counts as "touched" exactly as much as 
 **DoD for all five:** the usual gates (`npm run check` + build; `make test`/`lint`/`gen-types` if
 the backend moves), 390px and 1280px in blue and light, zero console errors — plus, for Q2, an
 explicit statement that the keyboard behaviour could not be proven off-device.
+
+**Deviations:**
+- **Re-assign still refuses one thing: a match that is not `scheduled`.** "Never refuses" was
+  settled about *leftovers*; a playing or finished match is a real result, and rebuilding the
+  schedule would throw a played evening away. Everything the plan names as a leftover — goals,
+  clubs, timestamps — is cleared instead of refused. **Roli should say if he wants that last
+  refusal gone too**; it is one `conflict()` call in `reassign_2v2`.
+- **The comment cleanup went into the chokepoint, not into re-assign.** `_bulk_delete_matches`
+  (`routers/tournaments.py`) is the only place that deletes `Match` rows, so it now also deletes
+  the comments filed under them. Re-`POST /generate` and disabling the second leg destroy match
+  ids exactly the same way and were leaving the same dangling rows behind; they are fixed by
+  construction rather than one-by-one. Only re-assign asks first — the other two already destroy
+  the matches those comments describe without a dialog. Proven on the verify DB: after a rebuild
+  SQLite handed the **same ids (114–118) back out**, which is the hazard, not a theory.
+- **Deleting a tournament now deletes its comments too** (all of them, plus the pin row). They
+  were orphaned before, with `tournament.id` reusable in the same way — and the delete dialog
+  already promised "everything recorded in it".
+- **New endpoint `GET /tournaments/{id}/reassign-preview`** (editor+, `ReassignPreviewOut`:
+  `matches`, `matches_with_score`, `matches_with_club`, `comments`). The confirmation names counts
+  the backend computed; the frontend does not re-derive which comments a rebuild takes, the same
+  split as A10's `can_edit` flags. `make gen-types` ran in the same commit.
+- **The reset invariant is "a patch that says `scheduled` clears the score", not "a scheduled
+  match can never carry goals".** The wider rule broke two existing tests that rely on
+  goals-on-a-scheduled-match as "touched" (`_leg2_started` blocks removing a second leg on it),
+  and that concept is deliberate. The narrow rule still covers every reset path, including the
+  match page's status switch, which sends the state alone.
+- The match page's `Scheduled` segment therefore clears the score on save with no dialog of its
+  own. Its goal steppers are already disabled at `Scheduled`, so the state says as much.
+- `DELETE /comments/{id}` now unlinks image files **after** its commit (rows first), so a failed
+  transaction cannot leave a hole where a file was. Same cascade, shared in
+  `services/comment_cleanup.py`.
 
 ---
 

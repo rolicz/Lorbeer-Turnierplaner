@@ -15,6 +15,8 @@ export const qk = {
   tournaments: () => ["tournaments"] as const,
   tournamentsLive: () => ["tournaments", "live"] as const,
   tournament: (id: number | string) => ["tournament", id] as const,
+  /** Counts for the re-assign confirmation (Q5) — fetched when the dialog opens. */
+  tournamentReassignPreview: (id: number | string) => ["tournament", id, "reassign-preview"] as const,
 
   // ---- comments -----------------------------------------------------------
   commentsSummary: () => ["comments", "summary"] as const,

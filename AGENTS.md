@@ -238,7 +238,8 @@ Current prod config (mirrored in `backend/app/cups.json` and `backend/data/cups.
 
 Prefixes: `/auth/login`, `/me`, `/me/notifications`, `/tournaments…` (list, `/live`, detail,
 create, patch, `/date`, `/generate`, `/reorder`, `/second-leg`, `/stats`, `/decider`,
-`/reassign`, delete, comments), `/matches/{id}` (patch score/state/clubs, `/swap-sides`),
+`/reassign` (+`/reassign-preview`), delete, comments), `/matches/{id}` (patch score/state/clubs,
+`/swap-sides`),
 `/clubs` (+`/leagues`, `/{id}/crest`, `/{id}/star-history` — public read, oldest first),
 `/players…` (profiles, avatars, headers, guestbook, pokes,
 read-maps), `/cup?key=`, `/cup/defs`, `/stats/{overview,players,h2h,h2h-matches,streaks,
@@ -258,6 +259,22 @@ the per-caller answer as `can_edit` / `can_delete` / `can_set_decider`; **the fr
 its controls from those flags and never re-derives the rule**. Rows created before A10 have no
 creator link and stay admin-only to delete. `PATCH /tournaments/{id}/second-leg` is the one
 documented back door left: it can still revive a done tournament for any editor.
+**Destroying matches destroys their comments (Q5).** `POST /tournaments/{id}/reassign` refuses
+for exactly one reason — a match that is not `scheduled`, i.e. a real result — and its message
+names which. Leftover goals, clubs and timestamps on scheduled matches are **not** a refusal:
+they are cleared, because the schedule is rebuilt anyway (refusing on them used to freeze a
+tournament for good). `GET /tournaments/{id}/reassign-preview` (editor+) returns
+`{matches, matches_with_score, matches_with_club, comments}` so the confirmation can name what
+goes **before** it is agreed to; the frontend never re-derives those counts. Every path that
+deletes match rows — re-assign, re-`/generate`, disabling the second leg — goes through
+`_bulk_delete_matches`, which also deletes the comments filed under those matches (and their
+reply subtrees, image files, votes, reads, thread/author links) via
+`services/comment_cleanup.py`; tournament-wide comments survive, and deleting a tournament now
+takes **all** of its comments with it. The reason is not taste: `match.id` (and `tournament.id`)
+have no AUTOINCREMENT and no FK enforcement (A9), so a comment left pointing at a dead id
+silently reattaches itself to whatever gets that id next. In the same spirit, **a `PATCH
+/matches/{id}` that sets `state: "scheduled"` clears both sides' goals** — every reset path
+agrees, and the clubs stay.
 **The Ideas board's rule (R5)** lives in the same module and answers a different question: an
 idea is a document, not a result, so there is **no time window** — an idea is the author's for as
 long as it exists (`can_edit_feature_request` / `can_delete_feature_request`), the status is the

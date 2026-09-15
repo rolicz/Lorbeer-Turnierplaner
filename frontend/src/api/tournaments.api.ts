@@ -1,5 +1,5 @@
 import { apiFetch } from "./client";
-import type { TournamentSummary, TournamentDetail } from "./types";
+import type { ReassignPreview, TournamentSummary, TournamentDetail } from "./types";
 
 /** `token` is optional (the list is a public read) but decides the per-caller
  * `can_edit` / `can_delete` / `can_set_decider` flags each row carries (A10). */
@@ -112,6 +112,11 @@ export function patchTournamentDecider(
     token,
     body: JSON.stringify(body),
   });
+}
+
+/** What a re-assign would clear — asked for when the confirmation opens, never guessed. */
+export function getReassignPreview(token: string, tournamentId: number) {
+  return apiFetch<ReassignPreview>(`/tournaments/${tournamentId}/reassign-preview`, { token });
 }
 
 export function reassign2v2Schedule(

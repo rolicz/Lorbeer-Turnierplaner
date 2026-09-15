@@ -74,6 +74,8 @@ export type TournamentDetail = Omit<S["TournamentDetailOut"], "mode" | "status" 
   status: TournamentStatus;
   matches: Match[];
 };
+// What a 2v2 re-assign would clear — the numbers its confirmation names (Q5).
+export type ReassignPreview = S["ReassignPreviewOut"];
 // mode/status same as TournamentSummary — backend guarantees these values.
 export type TournamentLive = Omit<S["TournamentLiveOut"], "mode" | "status"> & {
   mode: TournamentMode;

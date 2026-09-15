@@ -21,6 +21,7 @@ import {
   patchTournamentName,
   patchTournamentDecider,
   reassign2v2Schedule,
+  getReassignPreview,
 } from "../../api/tournaments.api";
 
 import { ApiError } from "../../api/client";
@@ -379,6 +380,47 @@ export default function LiveTournamentPage() {
     },
   });
 
+  // Re-assign throws the whole schedule away and draws a new one, so it asks first and
+  // names what goes with it — the counts come from the backend, which is the only place
+  // that knows which comments a rebuild takes (Q5).
+  const [confirmReassign, setConfirmReassign] = useState(false);
+  const reassignPreviewQ = useQuery({
+    queryKey: qk.tournamentReassignPreview(tid ?? 0),
+    queryFn: () => getReassignPreview(token!, tid!),
+    enabled: confirmReassign && !!tid && !!token,
+    staleTime: 0,
+  });
+  const reassignPreview = reassignPreviewQ.data ?? null;
+
+  const reassignLosses = useMemo(() => {
+    const p = reassignPreview;
+    if (!p) return [];
+    const lines: string[] = [];
+    if (p.matches_with_score > 0) {
+      lines.push(
+        p.matches_with_score === 1
+          ? "1 match loses the score it still carries."
+          : `${p.matches_with_score} matches lose the scores they still carry.`,
+      );
+    }
+    if (p.matches_with_club > 0) {
+      lines.push(
+        p.matches_with_club === 1
+          ? "1 match loses its clubs — they are picked again for the new fixture."
+          : `${p.matches_with_club} matches lose their clubs — they are picked again for the new fixtures.`,
+      );
+    }
+    if (p.comments > 0) {
+      lines.push(
+        p.comments === 1
+          ? "1 comment filed under a match is deleted. Comments on the tournament itself stay."
+          : `${p.comments} comments filed under these matches are deleted. Comments on the tournament itself stay.`,
+      );
+    }
+    if (lines.length > 0) lines.push("This cannot be undone.");
+    return lines;
+  }, [reassignPreview]);
+
   const reassignMut = useMutation({
     mutationFn: async () => {
       if (!token) throw new Error("Not logged in");
@@ -386,7 +428,12 @@ export default function LiveTournamentPage() {
       return reassign2v2Schedule(token, tid, true);
     },
     onSuccess: async () => {
-      if (tid) await qc.invalidateQueries({ queryKey: qk.tournament(tid) });
+      setConfirmReassign(false);
+      if (tid) {
+        await qc.invalidateQueries({ queryKey: qk.tournament(tid) });
+        // The match-tied comments went with the old match ids.
+        await qc.invalidateQueries({ queryKey: qk.commentsTournament(tid) }).catch(() => {});
+      }
     },
   });
 
@@ -756,7 +803,7 @@ export default function LiveTournamentPage() {
                 mode={tQ.data.mode}
                 onReassign2v2={() => {
                   setPanelError(null);
-                  reassignMut.mutate(undefined, { onError: (e) => setPanelError(errorMessage(e)) });
+                  setConfirmReassign(true);
                 }}
                 canEdit={canEditTournament}
                 canDelete={canDeleteTournament}
@@ -812,6 +859,32 @@ export default function LiveTournamentPage() {
                   </div>
                 ) : null}
                 <div>This cannot be undone.</div>
+              </ConfirmDialog>
+
+              {/* Re-assign never refuses over leftovers any more (Q5) — it clears them.
+                  So the dialog, not a 409, is where the cost is named. */}
+              <ConfirmDialog
+                open={confirmReassign}
+                title="Re-assign the 2v2 schedule?"
+                subtitle={
+                  reassignPreview
+                    ? `New partners and new opponents: all ${reassignPreview.matches} ${
+                        reassignPreview.matches === 1 ? "match is" : "matches are"
+                      } drawn again from scratch.`
+                    : "New partners and new opponents: every match is drawn again from scratch."
+                }
+                confirmLabel="Re-assign schedule"
+                busyLabel={reassignMut.isPending ? "Re-assigning…" : "Checking…"}
+                busy={reassignMut.isPending || reassignPreviewQ.isFetching}
+                onCancel={() => setConfirmReassign(false)}
+                onConfirm={() => {
+                  setPanelError(null);
+                  reassignMut.mutate(undefined, { onError: (e) => setPanelError(errorMessage(e)) });
+                }}
+              >
+                {reassignLosses.length > 0
+                  ? reassignLosses.map((line) => <div key={line}>{line}</div>)
+                  : null}
               </ConfirmDialog>
             </div>
           ) : null}
