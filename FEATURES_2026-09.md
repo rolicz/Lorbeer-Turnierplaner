@@ -7049,7 +7049,7 @@ written once").
   stand-in for "the keyboard is up", not a real keyboard** — on iOS the layout viewport does not
   shrink, which is Q2's subject. Zero console errors.
 
-## Q2 — The bottom tab bar rides up with the keyboard  ☐
+## Q2 — The bottom tab bar rides up with the keyboard  ☑
 
 App-wide, not an Ideas bug: **nothing in the app listens to the visual viewport**
 (`grep -rn "visualViewport" frontend/src` → nothing). `BottomTabBar.tsx:27` is
@@ -7064,6 +7064,71 @@ exists *only* to clear that bar, so it must collapse in the same moment.
 
 **Verification warning:** an emulated 390px viewport does **not** reproduce the iOS keyboard. Build
 it correctly, then say plainly in the report that only Roli's phone can confirm it.
+
+**Deviations:**
+- **One DOM flag drives everything, not a React context.** `ui/shell/keyboardOpen.ts` publishes a
+  single answer as `<html data-keyboard-open>`; `styles.css` turns that into `.hide-on-keyboard`
+  (the bar, the filter pill) and `--bottom-nav-clearance: 0px`. The six offsets became **two
+  spacing tokens** in `tailwind.config.cjs`, which is where Q4 put this vocabulary: **`nav-clear`**
+  = the clearance to leave above the bottom edge *right now* (the three composers, the error toast,
+  the pill) and **`nav-h`** = the bar's height, a constant. A context would have re-rendered five
+  components and let an offset trail the bar by a frame — which is the gap over the keyboard this
+  task is about. The var carries the bar's full height as its own fallback, so a missing
+  stylesheet, a missing flag or a missing API all land on today's behaviour.
+- **"The keyboard is open" = a focused text field + scale ≈ 1 + a covered strip ≥ max(120px, 20% of
+  the layout viewport).** The focus condition is the one that rules out scrolling, rotating and
+  reading — a keyboard needs a caret — and it doubles as the fail-safe, because focus always ends.
+  The ratio is what makes the threshold device- and orientation-independent: iOS Safari's own
+  toolbars are ~115px in portrait and ~50px in landscape, an iPad's hardware-keyboard accessory bar
+  ~55px, while a keyboard is 40–60% of the screen. **Measured, all four stay quiet:** a 115px
+  toolbar collapse, a 200px viewport pan, a real 400px scroll and a portrait→landscape rotation all
+  leave the flag unset with the caret in a field. **What it costs:** a pinch while typing brings the
+  bar back (the harmless direction); an iPad's accessory bar alone never hides it; and a wheel
+  picker (`date`, `time`) is not treated as a keyboard, so the bar stays under it.
+- **The page's end padding deliberately does *not* collapse** (`AppShell` keeps `pb-nav-h`). It is
+  the one offset of the six that is document height rather than a floating overlay, and it lives
+  behind the keyboard anyway. **Measured on the guestbook at 390×844, scrolled to the end:** as
+  shipped, `scrollY` 205 → 205, caret top 596 → 596, `scrollHeight` 1049 → 1049 when the keyboard
+  opens; collapsing that padding too would have moved the caret **down 72px** and the scroll
+  position by −72 in the same instant. That is why the tokens are a pair.
+- **The filter pill hides, the error toast does not.** The pill sits in the same bottom-right corner
+  as a composer's send button and filters nothing you are typing; the toast drops with the bar and
+  ends up on the keyboard's top edge, where it is still readable — an error you cannot see is worse
+  than a filter you cannot reach. Proven on the friendlies list, whose row editor has a real text
+  field ("Game"): with it focused, pill and bar both `display: none`, the field itself does not move
+  (top 597 → 597), and the page does not scroll.
+- **The bar is `display: none`, not a slide-out.** It is `fixed`, so hiding it reflows nothing, and
+  the keyboard's own animation already covers the moment; a transform would have left a focusable
+  strip over the keys. Nothing else changed about the bar's behaviour — it still never hides on
+  scroll.
+- **Q4's landscape leftovers, folded in as promised:** `BottomTabBar` gained `pl-safe-l pr-safe-r`
+  (background still full-bleed, the five tabs clear of the notch) and `pb-safe-b` in place of its
+  hand-spelled `env()`; `ErrorToast` and `FilterPill` gained `pr-safe-r`. Measured at 844×390 with
+  an asymmetric inset: notch left → the bar's box is still 0–844 while its first tab starts at 59;
+  notch right → the last tab ends at 785, the toast card at 769 and the pill button at 769, all
+  clear of the 59px inset.
+- **Verified on an isolated stack** — backend :8003 on a copy of `backend/app.db` with a copy of
+  `uploads/` and a scratch secrets file, vite :8020 — driven by Playwright at 390×844, 844×390
+  (both notch sides) and 1280×800, in **blue and light**, as admin: all three composers (a live
+  tournament's comments, a profile's guestbook, Ideas), the friendlies row editor, the stats and
+  friendlies pills, and the error toast. Zero console errors in every run. At 1280 the flag changes
+  nothing (every consumer has its own `lg:` offset and the bar is `lg:hidden`), which was measured
+  with the flag forced on.
+- **Proven here vs. left for the phone.** Proven: the whole chain against a **real, engine-level
+  shrunken visual viewport** — Chromium's `Emulation.setPageScaleFactor` takes the visual viewport
+  to 508px of an unchanged 844px layout viewport, a keyboard's exact geometry, and with the real
+  scale (1.66) the code **keeps** the bar (the pinch guard) while with the scale read as 1 it hides
+  it, the caret staying at 138px and the scroll at 0 throughout. Also proven: the flag→CSS→layout
+  consequences on every surface, the four non-keyboard viewport changes, and the no-API fail-safe
+  (bar visible, offsets at 72px). **Not proven, and only Roli's phone can:** that iOS reports the
+  numbers this test expects (a shrunken `visualViewport.height` at scale 1 with `window.innerHeight`
+  unchanged), and that hiding the bar actually clears the composer on a real iPhone PWA — the
+  desktop engine never re-anchors fixed elements to the visual viewport, which is the symptom
+  itself. Note for that test: iOS Safari ignores our `user-scalable=no`, so the pinch case is
+  reachable there even though Chromium forbids it.
+- **Not touched:** the app's `viewport` meta (no `interactive-widget`: Chromium-only, and the plan
+  rules it out), `MobileChrome`'s top bar (iOS pins it to the visual viewport's top, where it is
+  harmless), and `FilterSelect`'s anchored dropdown (it follows its trigger, not the screen edge).
 
 ## Q3 — The positions and H2H headers do not stay on top  ☑
 
