@@ -22,7 +22,10 @@
   --color-table-row-b: 35 46 66; /* Slightly bluer zinc-800 */
 
   /* Button */
-  --color-btn-bg: 59 130 246; /* bright blue */
+  /* blue-500 carried the white label at 3.68:1; blue-600 carries it at 5.17:1 (R3, the
+     same trade as the teal in themes/defaults.css). The accent below is a different
+     token and keeps its own colour. */
+  --color-btn-bg: 37 99 235; /* blue-600 — 5.17:1 under the white label */
   --color-btn-text: 255 255 255; /* white for contrast */
 
   /* Accent */
@@ -30,7 +33,7 @@
   --color-accent-text: 15 23 42; /* Original zinc-900 */
 
   /* Hover */
-  --color-hover-btn-bg: 96 165 250; /* lighter bright blue */
+  --color-hover-btn-bg: 29 78 216; /* blue-700 — 6.70:1, one step below the resting fill */
   --color-hover-nav: 51 65 85; /* Original zinc-700 */
   --color-hover-default: 51 65 85; /* Original zinc-700 */
 

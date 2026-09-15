@@ -78,7 +78,12 @@
   --color-table-row-b: 22 22 24;
 
   /* Button */
-  --color-btn-bg: 20 184 166;
+  /* White on teal-500 was 2.49:1 — the solid button's label was the least readable text
+     in the app. Shown both fixes rendered, Roli chose the darker fill over a dark label
+     (R3), so the teal drops two steps and the white label stays: 5.47:1. The hover moves
+     with it, one step further *down* (teal-800) instead of the old step up into teal-400,
+     which used to make the button less readable the moment a pointer touched it. */
+  --color-btn-bg: 15 118 110; /* teal-700 — 5.47:1 under the white label */
   --color-btn-text: 255 255 255;
 
   /* Accent */
@@ -86,7 +91,7 @@
   --color-accent-text: 255 255 255;
 
   /* Hover */
-  --color-hover-btn-bg: 45 212 191; /* teal-400 */
+  --color-hover-btn-bg: 17 94 89; /* teal-800 — 7.58:1, one step below the resting fill */
   --color-hover-nav: 39 39 42; /* zinc-800 */
   --color-hover-default: 39 39 42; /* zinc-800 */
 

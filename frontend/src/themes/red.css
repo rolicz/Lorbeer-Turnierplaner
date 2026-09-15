@@ -22,7 +22,11 @@
   --color-table-row-b: 26 16 20;
 
   /* Button */
-  --color-btn-bg: 225 56 74;
+  /* The softened red carried the white label at 4.32:1 — the closest of the three dark
+     themes, still under 4.5:1. Deepened to 5.61:1 (R3). The accent below deliberately
+     keeps the brighter red: R3 moves button colours and nothing else, and the accent
+     never has white sitting on it at this size. */
+  --color-btn-bg: 200 35 50; /* 5.61:1 under the white label */
   --color-btn-text: 255 255 255;
 
   /* Accent */
@@ -30,7 +34,7 @@
   --color-accent-text: 255 255 255;
 
   /* Hover */
-  --color-hover-btn-bg: 244 63 94;
+  --color-hover-btn-bg: 170 25 40; /* 7.29:1, one step below the resting fill */
   --color-hover-nav: 53 32 39;
   --color-hover-default: 53 32 39;
 
