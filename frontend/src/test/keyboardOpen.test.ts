@@ -33,9 +33,28 @@ describe("keyboardOpenFrom", () => {
     expect(keyboardOpenFrom(covered({ ...PHONE, layoutHeight: 1112, viewportHeight: 1112 }, 55))).toBe(false);
   });
 
-  it("does not fire on a scroll: a panned visual viewport is not a covered one", () => {
-    // The visual viewport moved down 200px; nothing is covering it.
-    expect(keyboardOpenFrom({ ...PHONE, viewportHeight: 644, offsetTop: 200 })).toBe(false);
+  it("ignores how far Safari scrolled the page — offsetTop is not coverage", () => {
+    // The two readings Roli took on his iPhone (iOS 18.7, 440x956, standalone PWA) with
+    // the keyboard visibly up. The keyboard is the same size in both — 568px of page left
+    // — and only the scroll differs, which is why subtracting `offsetTop` made the second
+    // one fail (104 >= 179) while the first passed by luck (257 >= 191). Both are open.
+    expect(keyboardOpenFrom({ layoutHeight: 956, viewportHeight: 568, offsetTop: 131, scale: 1, editableFocus: true })).toBe(true);
+    expect(keyboardOpenFrom({ layoutHeight: 894, viewportHeight: 568, offsetTop: 222, scale: 1, editableFocus: true })).toBe(true);
+
+    // …and it is not two lucky numbers: nothing Safari can do with the scroll changes the
+    // answer, in either direction, for either reading.
+    for (const layoutHeight of [956, 894]) {
+      for (let offsetTop = 0; offsetTop <= layoutHeight - 568; offsetTop += 1) {
+        expect(keyboardOpenFrom({ layoutHeight, viewportHeight: 568, offsetTop, scale: 1, editableFocus: true })).toBe(true);
+        expect(keyboardConditions({ layoutHeight, viewportHeight: 568, offsetTop, scale: 1, editableFocus: true }).covered).toBe(
+          layoutHeight - 568,
+        );
+      }
+    }
+  });
+
+  it("does not fire on a pan that covers nothing: the viewport moved, it did not shrink", () => {
+    expect(keyboardOpenFrom({ ...PHONE, offsetTop: 200 })).toBe(false);
   });
 
   it("does not fire on a pinch, which shrinks the visual viewport the same way", () => {
@@ -80,8 +99,11 @@ describe("keyboardConditions", () => {
       scaleOk: true,
       coveredOk: true,
     });
-    // The hypothesis this readout exists to test: a layout viewport that shrinks with the
-    // keyboard leaves nothing covered, and condition 3 can never pass.
+    // A layout viewport that shrinks *all the way* with the keyboard covers nothing, and
+    // condition 3 can never pass — which is the right answer, not a miss: a bar pinned to
+    // a resized layout viewport already sits above the keyboard. (The readout was built to
+    // test whether this was Roli's case. It was not: his `innerHeight` moved 956 -> 894,
+    // and `offsetTop` was the bug.)
     expect(keyboardConditions({ ...PHONE, layoutHeight: 508, viewportHeight: 508 })).toMatchObject({
       coveredOk: false,
     });

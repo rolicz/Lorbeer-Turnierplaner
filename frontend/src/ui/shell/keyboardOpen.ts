@@ -37,6 +37,37 @@
  *    under the floor, so none of them hides the bar. The *ratio* is what makes this
  *    device- and orientation-independent instead of a table of keyboard heights.
  *
+ * **What `covered` is — and why `offsetTop` is not part of it.** This is the line Q2 got
+ * wrong twice, so it is written down. `covered = innerHeight − visualViewport.height`:
+ * how far the bottom edge of the *layout* viewport — which is where `position: fixed;
+ * bottom: 0` puts the tab bar — sits below the visible area. That overlap **is** the bug,
+ * not a proxy for one, which is why it is the thing measured. `offsetTop` says something
+ * else entirely: *where* the visual viewport sits inside the layout viewport, because
+ * Safari scrolls the page up to reveal the focused field. Subtracting it counted a scroll
+ * as if it were coverage. Two readings off Roli's iPhone (iOS 18.7, 440×956, standalone
+ * PWA), keyboard visibly up in both:
+ *
+ * | innerHeight | vv.height | vv.offsetTop | old `covered` | new `covered` |
+ * |---|---|---|---|---|
+ * | 956 | 568 | 131 | 257 ≥ 191 — passed by luck | 388 ≥ 191 |
+ * | 894 | 568 | 222 | **104 ≥ 179 — failed, bar stayed up** | 326 ≥ 179 |
+ *
+ * The same keyboard in both (568px of page left either way); only how far Safari had
+ * scrolled differed, and that was the whole difference between the flag firing and not.
+ *
+ * **`innerHeight` moves too, and the threshold is still right.** The second reading also
+ * says the layout viewport is not constant on iOS: 956 at rest, 894 with the keyboard up.
+ * That is not a reason to measure against a remembered "at rest" height. A layout viewport
+ * that shrinks *is* a tab bar that has moved up with it, so the shrink belongs in the
+ * subtraction: 326 is exactly how far the bar hangs below the visible area in that reading,
+ * where a remembered 956 would claim 388 and describe no element on the screen. The ratio
+ * term follows the same number down (179 instead of 191) — the requirement eases exactly
+ * when the evidence does, always in the safe direction — and the 120px floor, which is what
+ * actually keeps toolbars out, does not move at all. The end of that road is a browser that
+ * resizes the layout viewport *fully* (Chromium's `resizes-content` behaviour): `covered`
+ * is then 0 and the flag never fires — which is correct, because a bar pinned to a resized
+ * layout viewport already sits above the keyboard and has nothing to get out of the way of.
+ *
  * **Every misfire fails visible.** No `visualViewport` (or no DOM at all) → the flag is
  * never set and the bar stays exactly where it is today; the `nav-clear` token carries
  * the bar's full height as its own fallback, so even a missing stylesheet lands on the
@@ -57,7 +88,8 @@ const FLAG = "keyboardOpen";
 const CLOSE_DELAY_MS = 250;
 /** Floor, so a browser toolbar or an iPad accessory bar never reads as a keyboard. */
 const MIN_COVERED_PX = 120;
-/** …and the same in relative terms, so the floor scales with the screen. */
+/** …and the same in relative terms, so the floor scales with the screen. Measured against
+ *  the *live* layout viewport on purpose — see the "innerHeight moves too" note above. */
 const MIN_COVERED_RATIO = 0.2;
 /** Above this the visual viewport is small because of a pinch, not a keyboard. */
 const MAX_SCALE = 1.05;
@@ -87,7 +119,15 @@ export type KeyboardProbe = {
   layoutHeight: number;
   /** `visualViewport.height` — what is actually visible. */
   viewportHeight: number;
-  /** `visualViewport.offsetTop` — a panned visual viewport is not a covered one. */
+  /**
+   * `visualViewport.offsetTop` — *reported, never subtracted*.
+   *
+   * Where the visible strip sits inside the layout viewport, which is how far Safari
+   * scrolled the page to reveal the field, not how much the keyboard covers. It stays in
+   * the probe because the diagnostics readout shows it (it is the number that identified
+   * this bug) and because a test pins it to *no* influence on the answer. Putting it back
+   * into the subtraction is Q2's original bug.
+   */
   offsetTop: number;
   /** `visualViewport.scale`. */
   scale: number;
@@ -110,7 +150,8 @@ export type KeyboardConditions = {
   scaleOk: boolean;
   /** 3. Something keyboard-sized covers the bottom of the layout viewport. */
   coveredOk: boolean;
-  /** `layoutHeight − viewportHeight − offsetTop` — the strip that is covered right now. */
+  /** `layoutHeight − viewportHeight` — how far the layout viewport's bottom edge, and the
+   *  bar pinned to it, hangs below the visible area right now. */
   covered: number;
   /** What condition 3 demands: `max(120px, 20% of the layout viewport)`. */
   requiredCovered: number;
@@ -120,7 +161,8 @@ export type KeyboardConditions = {
 
 /** The test itself, condition by condition (see this module's doc comment). */
 export function keyboardConditions(p: KeyboardProbe): KeyboardConditions {
-  const covered = p.layoutHeight - p.viewportHeight - p.offsetTop;
+  // Not `− p.offsetTop`: a page Safari scrolled is not a page something covers (Q2).
+  const covered = p.layoutHeight - p.viewportHeight;
   const requiredCovered = Math.max(MIN_COVERED_PX, p.layoutHeight * MIN_COVERED_RATIO);
   return {
     editableFocus: p.editableFocus,

@@ -681,8 +681,15 @@ every past match simply keeps counting today's rating.
   `ui/shell/keyboardOpen.ts` is the only thing in the app that listens to `visualViewport`, and it
   publishes one answer as `<html data-keyboard-open>`: a field has the caret, the scale is ~1, and
   the covered strip is ≥20% of the layout viewport and ≥120px (a toolbar or an iPad accessory bar
-  is not a keyboard). `styles.css` does the rest — `.hide-on-keyboard` (the tab bar, the filter
-  pill) and `--bottom-nav-clearance: 0`. Two spacing tokens, never a hand-written `4.5rem`:
+  is not a keyboard). **Covered is `innerHeight − visualViewport.height`** — how far the bar's
+  `bottom: 0` hangs below the visible area — and `visualViewport.offsetTop` is **never** subtracted
+  from it: that is how far Safari scrolled the page to reveal the field, and subtracting it is
+  exactly why Q2 shipped twice and did nothing on Roli's phone (`894 − 568 − 222 = 104`, under the
+  threshold, with the keyboard visibly up). `innerHeight` is not constant on iOS either (956 at
+  rest, 894 with the keyboard up) and is still the right denominator: a layout viewport that shrank
+  is a bar that moved up with it. Settings → Diagnostics carries the live readout that settled it.
+  `styles.css` does the rest — `.hide-on-keyboard` (the tab bar, the filter pill) and
+  `--bottom-nav-clearance: 0`. Two spacing tokens, never a hand-written `4.5rem`:
   **`nav-clear`** is the clearance right now (collapses with the bar: the three composers, the
   error toast, the pill) and **`nav-h`** is the bar's height (constant: the page's end padding in
   `AppShell`, which must not move the caret). The error toast deliberately never hides.
