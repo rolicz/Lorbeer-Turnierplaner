@@ -21,19 +21,21 @@ module.exports = {
         "safe-b": "env(safe-area-inset-bottom, 0px)",
         "safe-l": "env(safe-area-inset-left, 0px)",
 
-        // The bottom tab bar, as two different questions (Q2):
-        //   `nav-h`     — how tall the bar is. A constant. Use it to reserve room at the
-        //                 end of a scrolling page, where the reservation must not move.
-        //   `nav-clear` — how much room you must leave above the screen's bottom edge
-        //                 *right now*. It is `nav-h` normally and **0px while the
+        // The bottom tab bar, as the one question anything above it ever asks (Q2, Q14):
+        //   `nav-clear` — how much room to leave above the screen's bottom edge *right
+        //                 now*. It is the bar's height normally and **0px while the
         //                 on-screen keyboard is up**, because the bar is hidden then
         //                 (`html[data-keyboard-open]`, `ui/shell/keyboardOpen.ts`) and
-        //                 the offset would otherwise be a gap over the keyboard. Every
-        //                 surface that floats above the bar (`ErrorToast`, `FilterPill`,
-        //                 all three composers) uses this one, so they collapse together.
+        //                 the room would otherwise be a gap over the keyboard. Every
+        //                 surface that clears the bar uses it — `ErrorToast`,
+        //                 `FilterPill`, all three composers, and the end of the page
+        //                 itself (`AppShell`) — so they collapse and return together.
+        // Q2 also kept `nav-h`, the bar's height as a constant, for the page's end
+        // padding; Q14 removed it, because a reservation that outlives the bar is 72px
+        // of dead space under a composer. The page's end is different only in that it is
+        // document height, which `ui/shell/bottomReservation.ts` compensates for.
         // The fallback in the var is the fail-safe: with no flag, no stylesheet and no
         // VisualViewport API, `nav-clear` is simply the bar's height, as before.
-        "nav-h": bottomNavHeight,
         "nav-clear": `var(--bottom-nav-clearance, ${bottomNavHeight})`,
 
         // The mobile **top** bar's side boxes (Q13). The bar is a fixed frame: two

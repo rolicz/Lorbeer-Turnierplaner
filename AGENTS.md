@@ -710,10 +710,17 @@ every past match simply keeps counting today's rating.
   between two fields of the same composer keeps the episode (that hop is exactly what failed on
   the device). `styles.css` does the rest — `.hide-on-keyboard` (the tab bar, the filter pill) and
   `--bottom-nav-clearance: 0`, both only below `lg` or on a coarse pointer, so a desktop browser
-  typing in a form keeps its filter pill. Two spacing tokens, never a hand-written `4.5rem`:
-  **`nav-clear`** is the clearance right now (collapses with the bar: the three composers, the
-  error toast, the pill) and **`nav-h`** is the bar's height (constant: the page's end padding in
-  `AppShell`, which must not move the caret). The error toast deliberately never hides.
+  typing in a form keeps its filter pill. One spacing token, never a hand-written `4.5rem`:
+  **`nav-clear`**, the room to leave above the bottom edge right now — it collapses with the bar
+  for the three composers, the error toast, the pill **and the page's own end padding in
+  `AppShell`** (Q14: `nav-h`, Q2's constant for that padding, is gone — holding 72px for a hidden
+  bar is the dead space under a composer Roli reported). The page's end is the only one that is
+  document height, so its flip goes through `ui/shell/bottomReservation.ts`: at the very end of a
+  page the browser clamps the scroll when the document shortens, and that module records what the
+  clamp took, pays it back when the room returns, voids it the moment the reader scrolls, and
+  hands it to `useScrollRestoration` so N2 never stores a clamp as the reader's own offset.
+  Mid-page and on a page shorter than the screen nothing moves at all. The error toast
+  deliberately never hides.
   VisualViewport is the only mechanism iOS supports — `interactive-widget=resizes-content` and
   `env(keyboard-inset-height)` are Chromium-only, so don't reach for them.
 - **One live indicator** (T10): the pulsing dot in the bottom tab bar (mobile) / sidebar

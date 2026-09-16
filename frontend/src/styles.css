@@ -121,10 +121,12 @@
      1. Anything bottom-pinned that is *not* worth reaching mid-sentence gets out of
         the way — the tab bar and the floating filter pill. The error toast does not:
         an error you cannot see is worse than a filter you cannot reach.
-     2. The clearance those surfaces leave *for the bar* collapses with it, in the same
-        style recalculation, so no composer floats 72px above the keyboard. `nav-h`
-        (the bar's height) is deliberately unaffected: the page's end padding must not
-        change while the caret is in it.
+     2. The room everything else leaves *for the bar* collapses with it, in the same
+        style recalculation, so no composer floats 72px above the keyboard — the three
+        composers, the error toast, the filter pill, and (Q14) the end of the page
+        itself, which would otherwise hold 72px of dead space under a composer for a bar
+        that is not there. The page's end is the only one of them that is document
+        height; `ui/shell/bottomReservation.ts` settles the scroll around its flip.
 
      Both only where a keyboard can cover the page: a mobile-sized layout (below `lg`,
      where the bar exists at all and every consumer's `lg:` offset takes over), plus any

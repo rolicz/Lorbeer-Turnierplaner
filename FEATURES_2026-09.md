@@ -9113,7 +9113,7 @@ Screenshot each, top and bottom, before and after.
 
 ---
 
-## Q14 — With the keyboard up, the page keeps 72px of room for a bar that is hidden  ☐
+## Q14 — With the keyboard up, the page keeps 72px of room for a bar that is hidden  ☑
 
 Roli, 2026-09-16, testing Q2's simplified rule: *"keyboard is mostly fine, but in guestbook and idea
 details the page scrolls up by a lot and leaves empty space below"*.
@@ -9142,7 +9142,129 @@ chases one on a save-and-return), so a compensating scroll must not be recorded 
 position. And the composers' own `bottom-nav-clear` already collapses — this is the *page's* bottom
 padding, a different thing that happens to be the same 72px.
 
-**Deviations:**
+**Deviations:** (implemented 2026-09-16 on `feature/2026-09-audit`.)
+
+1. **`nav-h` is gone, not merely unused.** `AppShell`'s `main` is `pb-nav-clear` now, and that left
+   Q2's second token with no consumer and a doc comment saying the opposite of what the app does
+   ("use it to reserve room at the end of a scrolling page, where the reservation must not move").
+   It is deleted from `tailwind.config.cjs`, and `DESIGN.md` §4/§9b/the Do-and-don't list and
+   `AGENTS.md` §10 now describe **one** token: `nav-clear`, the room to leave above the bottom edge
+   *right now*, asked by the three composers, the error toast, the filter pill and the page's end
+   alike.
+
+2. **The compensation is real but it is not what the brief assumed, and the difference is physics.**
+   The reservation is padding at the **end** of the document, so taking it away moves no element —
+   it only shortens the scroll range. Measured at 390×844 on the guestbook (22 entries), in both
+   themes, at the three positions the brief names:
+   - **Mid-page** (`scrollY` 1759 of max 3518): `scrollHeight` 4362 → 4290 and **`scrollY` 1759 →
+     1759, caret 724 → 796** — and that 72px is the *composer's own* `bottom-nav-clear` collapsing,
+     identical before and after this task (the pre-change run gives the same two numbers). The
+     page's reservation moves nothing here. Nothing to compensate, and nothing is.
+   - **Parked at the very end** (`scrollY` 3518 = max): the browser clamps to 3446 and the content
+     slides down 72px — **caret 723.25 → 795.25, composer bottom 771.25 → 843.25, flush**. This is
+     not avoidable by scrolling: the scroll that would hold the content still is exactly the scroll
+     that stopped existing. It is also the fix — the strip it closes is Roli's dead space, and the
+     composer already makes this move at every other scroll position.
+   - **A page shorter than the screen** (profile 6's guestbook at 390×1400): `scrollHeight` 1424 →
+     1400, `maxScroll` 24 → 0, **`scrollY` 0 → 0 and caret 631.25 → 631.25 — nothing moves at all**.
+     `main` is `flex-1` in a `min-h-screen` column, so a short page absorbs the reservation; its
+     only scroll *was* the reservation, and it goes with it.
+
+   So what is compensated is the **asymmetry**, and that is the whole of `ui/shell/bottomReservation.ts`:
+   the clamp takes 72px of scroll from the reader and the browser never gives it back, so without
+   this every keyboard visit at the end of a page would walk them 72px up it for good. The collapse
+   records what the clamp took; the expansion pays it back in the same turn the room returns. Round
+   trip at the end of the guestbook: 3518 → 3446 → **3518**, caret 723.25 → 795.25 → **723.25**,
+   composer 771.25 → 843.25 → **771.25**. Every number back to itself.
+
+3. **The closing transition, and what it does and does not move.** Without the repayment the close
+   is motionless — but only because the composer is sticky: it returns to 772 either way, while the
+   *feed behind it* would stay 72px low and the page would keep 72px of scroll below its own end.
+   With the repayment the close is the exact inverse of the open, so the screen the reader gets back
+   is the screen they tapped. Measured, the repay's 72px is spent on the feed and not on the
+   composer, it is instant (an animated 72px under a departing keyboard is the glitch `ui/scroll.ts`
+   already refuses for back navigation), and it lands in the same 250ms beat in which the keyboard
+   finishes leaving and the tab bar comes back — the busiest moment of the transition, deliberately,
+   rather than a movement of its own on a settled screen.
+
+4. **The debt is only ours while the reader has not moved.** `reservationScrollDebt()` voids itself
+   whenever `window.scrollY` is not where the clamp left it — derived on every read, so there is no
+   listener to order and nothing to go stale, and Safari's own scroll-to-reveal, a posted message
+   growing the feed and the reader scrolling up to re-read all end it the same way. Proven: parked
+   3518 → clamped 3446 → reader scrolls to 3146 → **close leaves it at 3146**, no repayment.
+
+5. **How the compensation is kept out of N2's record** (the failure this task was most likely to
+   introduce). The clamp fires a `scroll` event like any other, so `useScrollRestoration` would have
+   stored it as the offset the reader chose. It now records `window.scrollY + reservationScrollDebt()`
+   — the offset in the page's *full* coordinates, the ones it has again the moment the keyboard goes.
+   Proven both ways, by leaving the guestbook **with the keyboard still up** and coming back:
+   `lk:nav-scroll` holds `{"0":{"p":"/profiles/1","y":3518}}` and back restores **3518**; with the
+   one `+ reservationScrollDebt()` removed as a negative control, the same run stores **3446** and
+   restores 3446 — a scroll nobody chose, with the reservation showing under the composer. A
+   navigation also drops the debt unpaid (`forgetReservationScrollDebt()` in the watcher's pathname
+   effect, and on teardown): it was taken from a page that is no longer on screen.
+
+6. **The flip is bracketed, not watched.** `setFlag` now returns early unless the attribute actually
+   changes, and hands the write to `applyBottomReservation(collapse, flip)`, which measures, flips,
+   forces the layout by reading `scrollHeight`, and settles the scroll — one synchronous block, no
+   frame in between for the browser to paint an intermediate state. The clamp is computed
+   arithmetically (`min(before, scrollHeight − innerHeight)`) rather than read back from `scrollY`,
+   so it does not depend on when the engine gets round to clamping; the two agreed exactly in every
+   run.
+
+7. **What could not be produced here, and is the same gap Q2 has.** Chromium never re-anchors fixed
+   elements to the visual viewport and never scrolls a field into view the way Safari does, so the
+   half of Roli's report about *"scrolls up by a lot"* is inferred rather than demonstrated: a
+   document 72px shorter is 72px less for Safari's scroll-to-reveal to take. The *"empty space
+   below"* half is demonstrated exactly — see the before/after pair.
+
+**Verification** (isolated stack: backend :8003 on a **copy** of `backend/app.db` with a copy of
+`uploads/` and a scratch secrets file, vite :8020; none of 8000/8001/8002/8010/5173 touched, both
+stopped by PID and every copy deleted afterwards. The keyboard is the engine's real visual viewport
+shrunk with `Emulation.setPageScaleFactor` (508 of an unchanged 844 layout viewport) in a context
+created **without** `isMobile`, with `visualViewport.scale` read as 1 — Q2's rig.)
+
+- **The caret's on-screen y and `window.scrollY` immediately before and after the flag flips, both
+  directions**, at 390×844 in `blue` and `light`, as admin, with 22 guestbook entries and 14 ideas
+  seeded into the DB copy so every feed is longer than the screen:
+
+  | surface, position | open: scrollY · caret y | close: scrollY · caret y |
+  |---|---|---|
+  | guestbook @end | 3518 → **3446** · 723.25 → **795.25** | 3446 → **3518** · 795.25 → **723.25** |
+  | guestbook @half | 1759 → **1759** · 724 → 796 (sticky only) | 1759 → **1759** · 796 → 724 |
+  | guestbook @top | 0 → **0** · 724 → 796 (sticky only) | 0 → **0** · 796 → 724 |
+  | ideas @end | 2536 → **2464** · 725 → **797** | paid back to 2536 |
+  | tournament comments @end | 5247 → **5175** · 723 → **795** | 5175 → **5247** · 795 → **723** |
+  | tournament comments @half | 2624 → **2624** · 724 → 796 (sticky only) | 2624 → **2624** |
+  | short page (390×1400) | 0 → **0** · 631.25 → **631.25** | 0 → 0 · 631.25 → 631.25 |
+
+  In every row `main`'s computed `padding-bottom` goes 72px → **0px** and back, the bar goes
+  `display: block` → **none** and back, and the composer's bottom edge goes 771 → **843** (flush
+  with the bottom of the layout viewport) and back.
+- **Roli's two surfaces first, then the third**: a profile's guestbook, Ideas (both the collapsed
+  row's title field *and* the details `<textarea>` under it — his Q2 regression case), then a
+  tournament's comments. All three behave identically because all three sit at the end of the same
+  `main`.
+- **Screenshots** of the strip a keyboard leaves (the bottom 508px of the 844px layout viewport),
+  before and after, in both themes, for all three composers: before, the composer sits with a 72px
+  band of empty page under it; after, it is flush and one more message is on screen.
+- **1280×844, `blue` and `light`, flag forced on**: `main`'s padding stays `24px` (`lg:pb-6`),
+  `scrollHeight`, `scrollY`, caret and composer identical to the digit, and with animation frozen
+  the screenshots are **pixel-identical** with the flag on and off. (Unfrozen they differ by the
+  sidebar's `animate-ping` live dot, which flips between two frames on its own — measured as a
+  control.)
+- **Zero console errors** in every run above.
+- `cd frontend && npm run check`: typecheck, eslint and **665 tests in 65 files** green (657 in 64
+  before — `src/test/bottomReservation.test.ts` is new, 8 tests). `npm run build` green (only the
+  pre-existing >500 kB chunk hint). No backend change.
+
+**What Roli should re-test on the phone** (this is the last piece of Q2 he reported, so Q2 stays ☐):
+open a profile's **guestbook** scrolled to the bottom and tap the composer — the field should sit
+**on** the keyboard with **no empty band under it**, and the page should not scroll further than it
+needs to. Then **Ideas**: open the composer, tap the **details** field, and check the same. Then a
+tournament's comments. Dismiss the keyboard each time and check the feed comes back to the message
+you were looking at rather than one screen's worth away, and that the tab bar returns cleanly. In
+the standalone PWA *and* in Safari.
 
 ---
 

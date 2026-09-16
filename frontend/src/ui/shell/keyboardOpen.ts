@@ -12,10 +12,13 @@
  * **One flag, one repaint.** The answer is published as a single DOM attribute —
  * `<html data-keyboard-open>` — and everything else is CSS (`styles.css`): the bar and
  * the floating filter pill carry `.hide-on-keyboard`, and the `nav-clear` spacing token
- * (the clearance the bottom-pinned surfaces leave *for that bar*) collapses to 0 in the
- * same style recalculation. Five surfaces, one mechanism. A React context would
- * re-render five components instead, and the offsets could trail the bar by a frame —
- * exactly the gap over the keyboard this task is about.
+ * (the room left for that bar) collapses to 0 in the same style recalculation — for the
+ * three composers, the error toast and the page's own end padding (Q14). Six surfaces,
+ * one mechanism. A React context would re-render six components instead, and the offsets
+ * could trail the bar by a frame — exactly the gap over the keyboard this task is about.
+ * The page's end is the one of them that is *document height* rather than a floating
+ * overlay, so its flip is bracketed by `bottomReservation.ts`, which settles the scroll
+ * the shortened document takes from the reader and gives it back when the room returns.
  *
  * ## What counts as "open": the caret, not the geometry
  *
@@ -69,6 +72,8 @@
  */
 import { useEffect } from "react";
 import { useLocation } from "react-router-dom";
+
+import { applyBottomReservation, forgetReservationScrollDebt } from "./bottomReservation";
 
 /** `<html data-keyboard-open="true">` — the flag `styles.css` keys off. */
 const FLAG = "keyboardOpen";
@@ -206,8 +211,14 @@ export function isKeyboardOpen(): boolean {
 function setFlag(open: boolean): void {
   if (typeof document === "undefined") return;
   const root = document.documentElement;
-  if (open) root.dataset[FLAG] = "true";
-  else delete root.dataset[FLAG];
+  // Only on a real transition: the flag is re-derived on every viewport event, and the
+  // page's end reservation settles the scroll around each flip (Q14) — which must happen
+  // once per change, not once per event.
+  if ((root.dataset[FLAG] === "true") === open) return;
+  applyBottomReservation(open, () => {
+    if (open) root.dataset[FLAG] = "true";
+    else delete root.dataset[FLAG];
+  });
 }
 
 /**
@@ -370,6 +381,8 @@ export function installKeyboardWatcher(): () => void {
     endEpisode();
     // A fresh watcher must not trust a baseline it never took.
     sawCaret = undefined;
+    // Nor a scroll debt: there is no page left to pay it back into (Q14).
+    forgetReservationScrollDebt();
     setFlag(false);
   };
 }
@@ -380,8 +393,10 @@ export function useKeyboardWatcher(): void {
   useEffect(() => installKeyboardWatcher(), []);
   // Leaving a page unmounts whatever held the caret, and a removed element does not
   // reliably fire `focusout`: re-derive on every navigation so the flag can never
-  // outlive the field that set it.
+  // outlive the field that set it. The scroll the end reservation owes back belongs to
+  // the page that is leaving, so it is dropped rather than paid into the new one (Q14).
   useEffect(() => {
+    forgetReservationScrollDebt();
     refreshKeyboardFlag(true);
   }, [pathname]);
 }

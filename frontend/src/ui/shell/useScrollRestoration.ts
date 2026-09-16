@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { NavigationType, useLocation, useNavigationType } from "react-router-dom";
 
 import { restoreWindowScroll } from "../scroll";
+import { reservationScrollDebt } from "./bottomReservation";
 import { currentHistoryIndex, saveScroll, scrollFor } from "./navStack";
 
 /** How long an unreachable offset stays "pending" before we stop chasing it. */
@@ -78,7 +79,14 @@ export function useScrollRestoration(): void {
     }
 
     const onScroll = () => {
-      yRef.current = window.scrollY;
+      // The keyboard collapses the page's end reservation, and the browser clamps the
+      // scroll when the document gets shorter under a reader parked at the end (Q14).
+      // That clamp fires a `scroll` event like any other, but it is the document moving,
+      // not the reader — recorded raw it would be saved as the offset they chose, and
+      // coming back to this entry later would restore a scroll nobody picked. The debt
+      // puts the reading back into the page's full coordinates, and voids itself the
+      // moment they do scroll for themselves.
+      yRef.current = window.scrollY + reservationScrollDebt();
       yKnownRef.current = true;
     };
     const persist = () => {
