@@ -8502,3 +8502,18 @@ afterwards).
 5. **Whether "Save and return" then back should go up** (row 19) or back into the editor. It goes up,
    which is what Q6 verified and what the button's wording promises; the mark on that one call is a
    one-line change either way.
+
+
+### Q6b — the two flagged calls, ruled by Roli (2026-09-16)
+
+The worker built both one way and flagged each as a one-line flip. Roli was shown both, chose the
+built behaviour in both cases, and they are now **settled — do not flip them back**:
+
+- **A top-level page does not consult the arrival.** `/players` → Stats tab → back goes to
+  `/players`, not home. The jump rule exists to stop a pop *out of a page you were dropped into*;
+  at a root there is nothing deeper to leave, popping *is* "the page you came from", and it is the
+  only answer that agrees with the browser button and the iOS edge on the busiest pages in the app.
+  The literal reading of Q6b's exception would send it home; rejected.
+- **"Save and return" continues outwards.** Back from the matches list goes up to `/tournaments`,
+  not into the editor just dismissed. The editor was deliberately finished with; re-opening it is
+  the literal reading and reads as undoing the save. Rejected.
