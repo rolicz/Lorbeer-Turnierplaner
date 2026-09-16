@@ -7363,7 +7363,15 @@ if they are shown on screen (consistency!). it should feel more natural. think h
 user expects in each scenario. it's super important that it feels natural and makes sense
 everywhere."*
 
-**Sequencing.** Do **not** start this before the crash diagnostics have produced a breadcrumb trail
+**Sequencing — RESOLVED 2026-09-16, and the answer was "no".** The trail arrived (see Q10): the
+crash is a React Fast Refresh artifact in `AuthContext.tsx`, development-only, with an **empty**
+navigation trail — it fires during the first render after a hot update, before any navigation
+happens. **The loop hypothesis is dead for that incident, and Q6 is no longer gated.** It now stands
+entirely on the consistency findings below, which is where its value always was. The original
+gating note follows, kept because the reasoning was right even though the answer was not the one
+expected.
+
+**Sequencing (historical).** Do not start this before the crash diagnostics have produced a trail
 from Roli's phone. The open crash — unresponsive, then the whole tree unmounted above the error
 boundary — has this layer as its prime suspect, and the trail will say whether a burst of POPs was
 involved. If it was, that finding belongs *in* this task. If it was not, this task stays what it is:
@@ -7861,5 +7869,56 @@ the stats queries) should do once the numbers change.
 **DoD:** the channel-coverage map written into `AGENTS.md` §6; navigating away for ten minutes and
 back renders instantly on every realtime-covered screen; a screen with no channel still refreshes;
 `npm run check` + build.
+
+**Deviations:**
+
+
+---
+
+## Q10 — The blue screen is a Fast Refresh artifact, not an app bug  ☐
+
+**Solved 2026-09-16 from the first captured trail.** Roli's Diagnostics report, iOS 18.7, Safari
+26.6.1, development build, at `/live/21/match/118`:
+
+```
+App boundary — useAuth must be used within AuthProvider
+  useAuth@/src/auth/AuthContext.tsx
+  ShellInner@/src/ui/shell/AppShell.tsx:30
+Navigation trail (0): (none recorded)
+```
+
+**The component stack contains `AuthProvider` as an ancestor of `ShellInner`** — the provider is
+right there, and `useContext` still returned null. That can only mean **two different context
+objects**: the mounted `<AuthProvider>` element is the *old* module's component, providing the old
+`createContext` object, while `useAuth` — an ES live binding, updated by the hot update — reads the
+*new* one. `AuthContext.tsx` exports a **component** (`AuthProvider`) alongside the context and the
+hook, which is exactly the shape React Fast Refresh cannot update safely, and
+**`AuthContext.tsx:1` is `/* eslint-disable react-refresh/only-export-components */`** — the lint
+rule that exists to prevent this was switched off in the one file where it mattered most.
+
+**Everything fits.** Development build. Only on Roli's phone, which loads from the Pi's dev server
+while workers edit files. Never reproducible in a fresh browser — there is no hot update to
+mis-apply. Intermittent and not tied to any user action, because the trigger is *us saving a file*,
+not him tapping. The empty trail says it happened during the first render of a document, not after
+navigating. And it lands above `RouteErrorBoundary` because the shell itself calls `useAuth`, which
+is why it blanked the whole app rather than one page.
+
+**Production is unaffected**: no HMR, no Fast Refresh, one module instance. This has never been a
+user-facing bug and cannot become one on `lorbeerkranz.xyz`.
+
+**Still worth fixing**, because it costs Roli real testing time and it re-teaches "the app crashes"
+every time we touch a context file. Four files have the hazardous shape — `auth/AuthContext.tsx`,
+`ui/RealtimeStatusContext.tsx`, `ui/layout/ThemeContext.tsx`, `ui/layout/PageTitleContext.tsx` — and
+all four silence the rule. The fix is the one the rule asks for: the context object and its hook in a
+module that exports **no** component, the provider in its own file. Then Fast Refresh updates each
+correctly and the four `eslint-disable` lines come out. `pages/profile/GuestbookEntryCard.tsx` has
+the same shape for a local context; judge it on its own.
+
+**Do not "fix" `useAuth` by making it return a default instead of throwing.** The throw is correct
+and is what made this findable; softening it would have hidden a broken provider tree instead.
+
+**DoD:** the four context files split; no `react-refresh/only-export-components` disable left in any
+of them; editing a context file with the app open no longer blanks it (test it by actually saving one
+while a phone or a second browser has the app open); `npm run check` + build.
 
 **Deviations:**
