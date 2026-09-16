@@ -5,7 +5,7 @@
 > non-obvious about the project (deploy quirks, data semantics, decisions), **update this file**
 > so the knowledge survives model/tool switches. Keep the "Current state" section dated.
 >
-> Last full review: 2026-09-15 (branch `feature/2026-09-audit`, Rounds 6 + 7; `main` at `cabda7c`, deployed).
+> Last full review: 2026-09-16 (`main` at `f1ea22b`; `f425961` deployed, Q15–Q17 pushed and pending a frontend-only deploy).
 
 ---
 
@@ -772,73 +772,55 @@ every past match simply keeps counting today's rating.
 - `backend/app.db*`, `backend/data/app.db` are real (synced) data — never commit, never run
   destructive experiments on them; copy first.
 
-## 11. Current state (2026-09-15)
+## 11. Current state (2026-09-16)
 
-- **`main` is `cabda7c`** — the 2026-09 batch (32 tasks) plus Round 4 and Round 5, merged and
-  **deployed**. Local `main` is one docs-only commit ahead (`356ada6`, the Round 6 plan) and that
-  commit is not pushed. The batch branches `feature/2026-09-batch` and `feature/2026-09-round5`
-  are merged and can be deleted whenever Roli wants.
-- **Branch `feature/2026-09-audit` holds Round 6**, the ten audit items A1–A10 (tracker
-  `FEATURES_2026-09.md`, baseline `356ada6`), all done 2026-09-14 and **not pushed, not merged**:
-  two permission holes closed and an editor grace window built in their place (A1, A10), the match
-  page made safe against a concurrent editor (A2), four realtime/deep-link bugs (A3, A5), one
-  meaning for the Source filter (A4), the accessibility and light-theme contrast pass (A6), twelve
-  runtime-polish items (A7), the design-canon reconciliation (A8) and seven hardening items (A9).
-- Checks on the audit branch head, re-run together after the last Round 7 worker finished
-  (2026-09-15, `6ef4a50`): `make test` **196 passed** (5:49), `make lint` clean,
-  `make gen-types` no diff, `cd frontend && npm run check` **523 tests in 54 files**,
-  `npm run build` green. `grep -rn "window.confirm" frontend/src` finds only the comment in
-  `ConfirmDialog.tsx`, and `grep -rn "text-text-muted/" frontend/src` finds nothing (R2, R3).
-- **Deploy notes for Round 6** — the standard `git pull && docker compose up -d --build` (§7) is
-  enough, and **both** services must be rebuilt (the backend changed):
-  - **Two new tables** (`TournamentCreatorLink`, `FriendlyCreatorLink`, A10) — `create_all` makes
-    them, no column was added or altered, no backfill, **no manual server step**. Rows created
-    before the deploy simply have no creator link and stay admin-only to delete.
-  - Backend behaviour that changed: `GET /stats/players` takes `scope` (A4); the websocket `seq`
-    is now numbered **per channel** and a failed socket is closed (A9), so clients resync on a gap;
-    `DELETE /clubs/{id}` now also refuses a club referenced only by friendlies and cleans up its
-    crest row and file (A9); the tournament/friendly payloads carry `can_edit` / `can_delete` /
-    `can_set_decider` (A10).
-  - Rollback stays safe: `main` @ `cabda7c` was booted against a copy of the migrated DB and
-    served every route, created and deleted a tournament, and ignored the new tables.
-- **The same branch also holds Round 7** (R1–R5, tracker `FEATURES_2026-09.md` § "Round 7",
-  baseline `a1a2acc`), still **not pushed, not merged**: the two micro-tile grids (R1), one dialog
-  and one tab order (R2), the theme readability pass (R3), **club star-rating history (R4)** and
-  the Ideas board (R5).
-- **Deploy notes for R4** (the only schema change in Round 7 so far):
-  - **One new table**, `ClubStarRating` — `create_all` makes it, no column added or altered.
-  - **A startup seed runs once**: expect `Club star history seeded: 626` in the backend log on the
-    first boot, and nothing on every boot after. It writes one row per club at its current rating,
-    so **nothing about the app changes** until a star is edited or the recovery is run.
-  - **There IS a manual server step, and Roli asked not to be allowed to forget it: §7 step 6.**
-    The recovery is what gives the table its real contents; without it the seed leaves every past
-    match counting today's rating, which is the bug R4 exists to fix, still live. It cannot run
-    from the dev machine against production — `manage.py` writes to its own configured database —
-    so the snapshots travel to the server and the command runs in the container. Read-only first.
-  - Rollback stays safe: the old code ignores the table, and `Club.star_rating` is still the
-    current value that every old code path reads.
-- **Round 8 / Q9 (2026-09-16), on the same branch** — the cache timers and the channel-coverage
-  map in §6. One backend behaviour change worth knowing at deploy: `PATCH /matches/{id}` and
-  `PATCH /matches/{id}/swap-sides` now also send `tournaments.changed {action:"result"}` when the
-  tournament is **already done**, so a corrected result reaches other devices' list, cup and
-  stats. No schema change, no manual step, and an old client degrades gracefully — it does not
-  know `result`, so it refetches the list like any other non-comment action and misses only the
-  stats/cup half. Frontend: `gcTime` 30 min, per-domain `staleTime`, `refetchOnWindowFocus` on.
+- **`main` is `f1ea22b`, pushed.** `feature/2026-09-audit` was merged (`f425961`) and **deployed**
+  on 2026-09-16, carrying Rounds 6, 7 and 8 and everything that came out of Roli testing on his
+  phone — 110 commits, 234 files, seven new tables. **§7 step 6 was run on that deploy and is
+  done**: the club star history is recovered in production and that step is now history, not a
+  pending chore. Every batch branch is merged; they can be deleted whenever Roli wants.
+- **`f1ea22b` is pushed but not yet deployed** — Q15/Q16/Q17, **frontend and docs only**, so it is
+  the short deploy (`git pull && docker compose up -d --build frontend`), no backup, no schema
+  change, no manual step. Q15: the clubs list's row is the edit trigger, no buttons, delete inside
+  the editor (which also un-truncated 3 of 16 club names on a phone and dropped 12 wrapped league
+  lines). Q16: the club-stars ladder shows all ten rungs, and an unplayed rung prints **no digits**
+  — "no matches" plus an em dash — because rows genuinely played for zero points already exist and
+  would otherwise be indistinguishable. Q17: `ClubMark` moved into `ui/primitives/` and every
+  score-only match row wears one, across all seven surfaces, not just the friendlies list.
+- Checks at `f1ea22b`: `make test` **204 passed**, `make lint` clean, `make gen-types` no diff,
+  `cd frontend && npm run check` **681 tests in 67 files**, `npm run build` green.
 
-- Open follow-ups / known and accepted:
-  - **Two decisions waiting for Roli**, both written up at the end of `FEATURES_2026-09.md`: the
-    primary button fails the same contrast check in the four dark themes that A6 fixed in light
-    (white on the teal = 2.49:1 in `dark`), which is one shared token and a look decision; and
-    three destructive actions still call `window.confirm`, which `DESIGN.md` §7 forbids and A10
-    already built `ui/primitives/ConfirmDialog.tsx` for.
-  - `npm run build` prints the pre-existing "chunks larger than 500 kB" hint (≈669 kB
-    `index-*.js`). Nobody has split it yet; it is not a regression.
-  - `frontend/src/utils/format.ts` keeps three exports with no app caller
-    (`fmtMonthDate`, `parseDateSafe`, `wrapTwoLinesWords`) — generic formatters covered by
-    `src/test/format.test.ts`, deliberately left (D1).
-  - `PATCH /tournaments/{id}/second-leg` can still revive a done tournament for any editor — the
-    one documented back door left by A10.
-  - The manual smoke checklist in `REFACTORING_PLAN.md` is a reference list, not a TODO.
+### Open, and each one is waiting on something specific
+
+- **Q2, the keyboard, is unticked and only Roli's phone can close it.** The rule is now the caret
+  (§10); it shipped green twice on a threshold that measured geometry and did nothing on the
+  device both times. What he should re-test: a tournament's comments, the Ideas composer
+  **including the hop from the title into the details textarea** (the case that failed), and a
+  profile's guestbook — in the standalone PWA *and* in Safari. If it fails again: Settings →
+  Diagnostics → Copy.
+- **The iOS 27 blur band over the top of installed PWAs is not ours and Roli is waiting for
+  Apple.** `black-translucent` + `viewport-fit=cover` (`index.html`) put page pixels under the
+  status bar, and iOS 27 fills that inset with its own glass. Making the bars opaque (Q12) did
+  **not** stop it — verified on his phone after a reinstall, in the PWA only, never in Safari. The
+  one lever left is `apple-mobile-web-app-status-bar-style: default`, which costs the edge-to-edge
+  look and needs a delete-and-re-add because the tag is read at install time. **He has decided
+  against it for now.** Do not re-propose it as a fix; the opaque bars stay on their own merits
+  (one less compositing layer).
+- **Club crests are 200px PNGs averaging 31 KB, 19.5 MB in total, and Q17 made the compact lists
+  fetch them** (cold, at 390px: Stats → Player 47 crests ≈ 1.6 MB, profile Matches ≈ 2.4 MB;
+  lazy, and cached a month behind `?v=`). Re-encoding them as **palette PNGs** — same format, same
+  200px, same filenames — measures **6 KB average, 4.0 MB total** on 40 real crests; WebP is worse
+  for this content (lossless 18 KB, lossy-90 9 KB) because flat badges are exactly what a 256-colour
+  palette describes. **Do not shrink the dimensions**: 200px is barely enough for a 22px badge at
+  dpr 3 and leaves room for a larger crest later. Offered and **declined** (2026-09-16) — raise it
+  again only if crest weight becomes a real complaint.
+- `npm run build` prints the pre-existing ">500 kB chunk" hint (≈705 kB `index-*.js`). Not a
+  regression; nobody has split it.
+- `frontend/src/utils/format.ts` keeps three exports with no app caller (`fmtMonthDate`,
+  `parseDateSafe`, `wrapTwoLinesWords`) — generic formatters covered by tests, deliberately left (D1).
+- `PATCH /tournaments/{id}/second-leg` can still revive a done tournament for any editor — the one
+  documented back door left by A10.
+- The manual smoke checklist in `REFACTORING_PLAN.md` is a reference list, not a TODO.
 
 ## 12. Where knowledge lives
 
