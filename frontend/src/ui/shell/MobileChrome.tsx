@@ -9,7 +9,7 @@ import { activeDest } from "./navConfig";
 import { useDestinationLinks } from "./useDestinationLinks";
 import { usePageTitleValue } from "../layout/PageTitleContext";
 import { useHideOnScroll } from "../layout/useHideOnScroll";
-import { useBack } from "./backNavigation";
+import { NAV_JUMP_STATE, useBack } from "./backNavigation";
 import Button from "../primitives/Button";
 import ConnectionIndicator from "./ConnectionIndicator";
 import NotificationBell from "./NotificationBell";
@@ -138,6 +138,7 @@ export default function MobileChrome({
                 {liveT ? (
                   <Link
                     to={`/live/${liveT.id}`}
+                    state={NAV_JUMP_STATE}
                     onClick={() => setOpen(false)}
                     aria-current={onLivePage ? "page" : undefined}
                     className={
@@ -155,12 +156,13 @@ export default function MobileChrome({
                     <span className="max-w-[45%] truncate text-xs text-text-muted">{liveT.name}</span>
                   </Link>
                 ) : null}
-                {links.map(({ dest: d, to, isActive }) => {
+                {links.map(({ dest: d, to, isActive, state }) => {
                   const Icon = d.icon;
                   return (
                     <Link
                       key={d.key}
                       to={to}
+                      state={state}
                       onClick={() => setOpen(false)}
                       aria-current={isActive ? "page" : undefined}
                       className={
@@ -180,6 +182,7 @@ export default function MobileChrome({
               <div className="mt-auto border-t border-border-card-chip/40 px-3 pb-4 pt-3">
                 <Link
                   to="/settings"
+                  state={NAV_JUMP_STATE}
                   onClick={() => setOpen(false)}
                   aria-current={settingsActive ? "page" : undefined}
                   className={

@@ -371,7 +371,11 @@ export default function LiveTournamentPage() {
     onSuccess: async () => {
       setConfirmDelete(false);
       forgetLocation(location.pathname + location.search);
-      nav("/tournaments");
+      // `replace`: the page the reader came from no longer exists. Back pops more
+      // often under Q6b, so a deleted tournament left standing in the history
+      // would be a page you could walk back into; consuming its entry is the one
+      // case where the app *knows* in advance that popping there is wrong.
+      nav("/tournaments", { replace: true });
       await qc.invalidateQueries({ queryKey: qk.tournaments() });
       // A deleted tournament is a hole in the cup fold and in every stat derived from it.
       await qc.invalidateQueries({ queryKey: qk.cupAll() }).catch(() => {});

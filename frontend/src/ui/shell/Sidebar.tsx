@@ -3,6 +3,7 @@ import { motion } from "framer-motion";
 import { ChevronLeft, ChevronRight, Settings } from "lucide-react";
 
 import { useLiveTournament } from "../../hooks/useLiveTournament";
+import { NAV_JUMP_STATE } from "./backNavigation";
 import { useDestinationLinks } from "./useDestinationLinks";
 import ConnectionIndicator from "./ConnectionIndicator";
 import NotificationBell from "./NotificationBell";
@@ -44,6 +45,7 @@ export default function Sidebar({
         {liveT ? (
           <Link
             to={`/live/${liveT.id}`}
+            state={NAV_JUMP_STATE}
             title={liveT.name}
             aria-current={onLivePage ? "page" : undefined}
             className={
@@ -68,12 +70,13 @@ export default function Sidebar({
             {!collapsed ? <span className="truncate">Live now</span> : null}
           </Link>
         ) : null}
-        {links.map(({ dest: d, to, isActive }) => {
+        {links.map(({ dest: d, to, isActive, state }) => {
           const Icon = d.icon;
           return (
             <Link
               key={d.key}
               to={to}
+              state={state}
               title={d.label}
               aria-current={isActive ? "page" : undefined}
               className={
@@ -110,6 +113,7 @@ export default function Sidebar({
 
         <Link
           to="/settings"
+          state={NAV_JUMP_STATE}
           title="Settings"
           aria-current={settingsActive ? "page" : undefined}
           className={

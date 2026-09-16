@@ -34,13 +34,14 @@ export default function BottomTabBar() {
       className="hide-on-keyboard fixed inset-x-0 bottom-0 z-30 nav-shell border-b-0 border-t backdrop-blur-md pb-safe-b pl-safe-l pr-safe-r lg:hidden"
     >
       <div className="flex items-stretch">
-        {links.map(({ dest: d, to, isActive }) => {
+        {links.map(({ dest: d, to, isActive, state }) => {
           const Icon = d.icon;
           const live = d.key === "tournaments" ? liveT : null;
           return (
             <Link
               key={d.key}
               to={to}
+              state={state}
               aria-current={isActive ? "page" : undefined}
               onClick={() => {
                 // Tapping the destination you are already in returns to its root;

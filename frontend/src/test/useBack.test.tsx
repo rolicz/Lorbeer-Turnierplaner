@@ -6,12 +6,13 @@ import { useBack } from "../ui/shell/backNavigation";
 import { recordNavigation, resetNavStack } from "../ui/shell/navStack";
 
 /**
- * Q6 — the hook the chevrons and the gesture share, against a real router.
+ * Q6/Q6b — the hook the chevrons and the gesture share, against a real router.
  *
- * Two things are asserted that the pure decision cannot show: that `hasBack` is
- * the only thing deciding whether an affordance exists, and that going **up** is
- * a `replace` — it consumes the page being left, so walking up a deep link never
- * grows history and the ladder cannot ping-pong.
+ * Three things are asserted that the pure decision cannot show: that `hasBack` is
+ * the only thing deciding whether an affordance exists, that going **up** is a
+ * `replace` — it consumes the page being left, so walking up a deep link never
+ * grows history and the ladder cannot ping-pong — and that the arrival kind the
+ * hook reads is the one `navStack` recorded, not anything derived from the URLs.
  */
 function BackProbe() {
   const { hasBack, goBack } = useBack();
@@ -88,11 +89,11 @@ describe("useBack — what it does", () => {
     resetNavStack();
   });
 
-  it("navigates up when the entry behind is not the parent — and replaces, not pushes", () => {
+  it("navigates up after a jump — and replaces, not pushes", () => {
     window.history.replaceState({ idx: 0 }, "");
-    recordNavigation("/stats", "?view=h2h");
+    recordNavigation("/stats", "?view=h2h", "drill");
     window.history.replaceState({ idx: 1 }, "");
-    recordNavigation("/live/19/match/108");
+    recordNavigation("/live/19/match/108", "", "jump"); // the Tournaments tab's remembered page
 
     renderAt("/live/19/match/108", { fromTab: "matches" });
     fireEvent.click(screen.getByRole("button", { name: "back" }));
@@ -101,9 +102,24 @@ describe("useBack — what it does", () => {
     expect(navType()).toBe("REPLACE");
   });
 
+  it("pops instead when the very same pair of URLs was a drill-in (Q6b)", () => {
+    window.history.replaceState({ idx: 0 }, "");
+    recordNavigation("/stats", "?view=h2h", "drill");
+    window.history.replaceState({ idx: 1 }, "");
+    recordNavigation("/live/19/match/108", "", "drill"); // a Records row in Stats
+
+    renderAt("/live/19/match/108", { fromTab: "matches" });
+    fireEvent.click(screen.getByRole("button", { name: "back" }));
+
+    // Identical URLs, opposite answers — the only difference is what was recorded
+    // when the navigation was made. MemoryRouter starts its own stack, so the pop
+    // has nowhere to land: what this pins is that back did *not* navigate up.
+    expect(here()).toBe("/live/19/match/108");
+  });
+
   it("navigates up from a deep link with no history at all", () => {
     window.history.replaceState({ idx: 0 }, "");
-    recordNavigation("/live/19/match/108");
+    recordNavigation("/live/19/match/108", "", "drill");
 
     renderAt("/live/19/match/108");
     fireEvent.click(screen.getByRole("button", { name: "back" }));
@@ -112,9 +128,9 @@ describe("useBack — what it does", () => {
 
   it("pops (not pushes the parent URL) when the entry behind is the parent", () => {
     window.history.replaceState({ idx: 0 }, "");
-    recordNavigation("/live/19", "?tab=matches");
+    recordNavigation("/live/19", "?tab=matches", "drill");
     window.history.replaceState({ idx: 1 }, "");
-    recordNavigation("/live/19/match/108");
+    recordNavigation("/live/19/match/108", "", "drill");
 
     renderAt("/live/19/match/108", { fromTab: "matches" });
     fireEvent.click(screen.getByRole("button", { name: "back" }));
@@ -125,10 +141,11 @@ describe("useBack — what it does", () => {
   });
 
   it("leaves the matchup for its H2H list, keeping the filters and collapsing the team", () => {
+    // The in-place exit: a deep link or a jump, where there is nothing to pop to.
     window.history.replaceState({ idx: 0 }, "");
-    recordNavigation("/live/17/match/93");
+    recordNavigation("/live/17/match/93", "", "drill");
     window.history.replaceState({ idx: 1 }, "");
-    recordNavigation("/stats", "?view=h2h&mode=2v2&source=tournaments&player=1,4&vs=2,5");
+    recordNavigation("/stats", "?view=h2h&mode=2v2&source=tournaments&player=1,4&vs=2,5", "jump");
 
     renderAt("/stats?view=h2h&mode=2v2&source=tournaments&player=1,4&vs=2,5");
     fireEvent.click(screen.getByRole("button", { name: "back" }));
@@ -138,14 +155,14 @@ describe("useBack — what it does", () => {
 
   it("goes home from a destination with nothing behind it, and does nothing at home", () => {
     window.history.replaceState({ idx: 0 }, "");
-    recordNavigation("/settings");
+    recordNavigation("/settings", "", "jump");
     renderAt("/settings");
     fireEvent.click(screen.getByRole("button", { name: "force" }));
     expect(here()).toBe("/dashboard");
 
     resetNavStack();
     window.history.replaceState({ idx: 0 }, "");
-    recordNavigation("/dashboard");
+    recordNavigation("/dashboard", "", "jump");
     renderAt("/dashboard");
     fireEvent.click(screen.getAllByRole("button", { name: "force" })[1]);
     expect(screen.getAllByTestId("here")[1].textContent).toBe("/dashboard");

@@ -26,6 +26,7 @@ import { sideBy } from "../../helpers";
 import { teamName } from "../../utils/matchDisplay";
 import { useAuth } from "../../auth/AuthContext";
 import { useRouteEntryLoading } from "../../ui/layout/useRouteEntryLoading";
+import { NAV_JUMP_STATE } from "../../ui/shell/backNavigation";
 import { useTournamentWS } from "../../hooks/useTournamentWS";
 
 import MatchH2HPanel from "./MatchH2HPanel";
@@ -240,7 +241,11 @@ export default function MatchDetailPage() {
       // `ownsScroll`: the Matches tab scrolls to (and flashes) this row itself, so
       // the shell must not restore the scroll over it (A9). Only there — returning
       // to any other tab nothing claims the scroll, and a push belongs at the top.
-      nav(backTo, { state: { focusMatchId: matchId, ownsScroll: fromTab === "matches" } });
+      // `navJump`: "Save and return" *leaves* this page (Q6b). Without the mark,
+      // back from the list would pop straight into the editor the reader just
+      // returned from — the opposite of what the button promised. The other two
+      // keys are A9.7's and are untouched.
+      nav(backTo, { state: { ...NAV_JUMP_STATE, focusMatchId: matchId, ownsScroll: fromTab === "matches" } });
     },
   });
 
@@ -297,7 +302,11 @@ export default function MatchDetailPage() {
       <PageLayout>
         <div className="inset px-3 py-2 text-sm text-text-muted">
           Match not found in tournament.
-          <button type="button" className="ml-2 text-accent" onClick={() => nav(`/live/${tid}`)}>
+          <button
+            type="button"
+            className="ml-2 text-accent"
+            onClick={() => nav(`/live/${tid}`, { state: NAV_JUMP_STATE })}
+          >
             Back
           </button>
         </div>
@@ -484,7 +493,7 @@ export default function MatchDetailPage() {
 
               {/* Actions */}
               <div className="flex items-center justify-end gap-3">
-                <Button variant="ghost" type="button" onClick={() => nav(`/live/${tid}`)}>
+                <Button variant="ghost" type="button" onClick={() => nav(`/live/${tid}`, { state: NAV_JUMP_STATE })}>
                   Cancel
                 </Button>
                 <Button
