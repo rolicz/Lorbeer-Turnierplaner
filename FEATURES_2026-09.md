@@ -7922,3 +7922,33 @@ of them; editing a context file with the app open no longer blanks it (test it b
 while a phone or a second browser has the app open); `npm run check` + build.
 
 **Deviations:**
+
+---
+
+## What is left, and in what order (Roli, 2026-09-16)
+
+Chosen by Roli from rendered options. **Biggest value first**, not easiest first:
+
+| # | Task | Note |
+|---|---|---|
+| 1 | **Q6** — one model for back, forward and the gestures | Ungated by Q10. Runs on the consistency findings alone. |
+| 2 | **Q10** — split the four context files | Stops the app appearing to crash whenever a worker saves one. |
+| 3 | **Q2 (reopened)** — the keyboard does not hide the bar | Needs the readout below before the fix can be written. |
+| 4 | **Q8** — club crests beside a friendly's result | |
+| 5 | **Q9** — the cache is discarded faster than he navigates | Deliverable is the channel-coverage map. |
+
+**Before Q2 can start**, build a live viewport readout into the Diagnostics section
+(`ui/layout/DiagnosticsSettings.tsx`): `window.innerHeight`, `visualViewport.height`,
+`visualViewport.offsetTop`, `visualViewport.scale`, the focused element's tag, and the current value
+of the `data-keyboard-open` flag — updating live, with **its own text field** so the keyboard can be
+raised while the numbers stay on screen. Roli screenshots it with the keyboard up; the fix is then
+written against measured values instead of against documentation, which is how Q2 failed the first
+time.
+
+**Deploy: after the queue, not before.** Rounds 6, 7 and 8 stay on `feature/2026-09-audit`,
+unpushed, and go out in one deploy when these five are done. Roli keeps testing the working tree via
+the Pi's dev server until then — which means the Q10 crash keeps appearing until item 2 lands, and
+that is understood.
+
+**Remember at deploy time:** §7 step 6, the manual `recover-club-star-history` run. Roli asked twice
+to be reminded.
