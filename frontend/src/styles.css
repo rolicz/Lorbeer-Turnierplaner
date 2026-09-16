@@ -114,9 +114,9 @@
   }
 
   /* The on-screen keyboard, in two rules (Q2). `ui/shell/keyboardOpen.ts` sets
-     `<html data-keyboard-open>` while a text field has the caret and the visual
-     viewport is keyboard-shaped; iOS re-anchors fixed elements to that shrunken
-     viewport, which is how the bottom tab bar ends up sitting on the keyboard.
+     `<html data-keyboard-open>` while a text field has the caret; iOS re-anchors fixed
+     elements to the shrunken visual viewport, which is how the bottom tab bar ends up
+     sitting on the keyboard.
 
      1. Anything bottom-pinned that is *not* worth reaching mid-sentence gets out of
         the way — the tab bar and the floating filter pill. The error toast does not:
@@ -124,12 +124,20 @@
      2. The clearance those surfaces leave *for the bar* collapses with it, in the same
         style recalculation, so no composer floats 72px above the keyboard. `nav-h`
         (the bar's height) is deliberately unaffected: the page's end padding must not
-        change while the caret is in it. */
-  html[data-keyboard-open] .hide-on-keyboard {
-    display: none;
-  }
-  html[data-keyboard-open] {
-    --bottom-nav-clearance: 0px;
+        change while the caret is in it.
+
+     Both only where a keyboard can cover the page: a mobile-sized layout (below `lg`,
+     where the bar exists at all and every consumer's `lg:` offset takes over), plus any
+     coarse-pointer device at any width — an iPad in landscape is 1366px wide and still
+     puts a keyboard over the bottom of it. A desktop browser typing into a form is
+     neither, and must keep its filter pill. */
+  @media (max-width: 1023.98px), (pointer: coarse) {
+    html[data-keyboard-open] .hide-on-keyboard {
+      display: none;
+    }
+    html[data-keyboard-open] {
+      --bottom-nav-clearance: 0px;
+    }
   }
 
   /* Shimmer skeleton for loading states. */

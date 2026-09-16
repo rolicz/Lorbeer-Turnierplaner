@@ -16,11 +16,13 @@ import {
 /**
  * Settings → Diagnostics: what the viewport is doing, right now, on the device.
  *
- * Q2 hides the bottom tab bar while the keyboard is up, shipped green against what the
- * VisualViewport API is documented to do, and did nothing at all on Roli's iPhone. Nothing
- * else gets written until the numbers are read off *that* phone, and this is how they are
- * read: the three conditions the decision is made of, each with its own inputs and its own
- * pass/fail, updating live, with a field right here to raise the keyboard with.
+ * Q2 hides the bottom tab bar while the keyboard is up. It shipped twice against a rule
+ * that measured how much of the screen was covered, and failed on Roli's iPhone twice, so
+ * the rule is now the caret itself (`ui/shell/keyboardOpen.ts`). This block is how a third
+ * failure would get reported: the conditions the decision is actually made of, each with
+ * its own inputs and its own pass/fail, updating live, with a field right here to raise the
+ * keyboard with — plus the raw viewport numbers, which are evidence now rather than
+ * thresholds.
  *
  * **Everything is above the field**, because the keyboard takes the bottom half of the
  * screen the moment he taps it: the numbers, the conditions and the verdict all sit above
@@ -36,14 +38,13 @@ import {
  * user agent as text, so a readout he can only half see is still a readout he can send.
  *
  * **Three columns, not one.** "Now" is the reading; "at rest" is the last reading taken with
- * no caret anywhere, which is what makes the interesting question answerable at a glance —
- * *did `innerHeight` shrink when the keyboard opened?* (if it did, `covered` collapses to ~0
- * and condition 3 can never pass, which is the leading hypothesis). "Deepest" is the reading
- * with the largest covered strip seen since this page was opened, so the evidence survives
- * the keyboard closing and a copied report is worth something even without a screenshot.
+ * no caret anywhere, which is what the third condition compares against in spirit — *did the
+ * viewport move when the caret arrived?*; "deepest" is the reading with the *smallest* visual
+ * viewport seen since this page was opened, so the evidence survives the keyboard closing and
+ * a copied report is worth something even without a screenshot.
  *
  * The conditions are not recomputed here: `keyboardConditions()` is the shipped decision,
- * imported. A readout with its own copy of the thresholds could agree with a bug.
+ * imported. A readout with its own copy of the rule could agree with a bug.
  */
 
 /** How often to re-read when no event fires (the flag's own close is debounced by 250ms). */
@@ -90,14 +91,28 @@ function read(): Reading {
 function sigOf(r: Reading | null): string {
   if (!r) return "-";
   const p = r.probe;
-  return [r.layoutHeight, p?.viewportHeight ?? "-", p?.offsetTop ?? "-", p?.scale ?? "-", r.focus, r.open, r.flag].join("|");
+  const c = r.conditions;
+  // Deliberately without the caret's live age: it changes every poll and nothing on screen
+  // shows it. `settled` is the part of it that can change an answer.
+  return [
+    r.layoutHeight,
+    p?.viewportHeight ?? "-",
+    p?.offsetTop ?? "-",
+    p?.scale ?? "-",
+    r.focus,
+    c?.arrivalHeight ?? "-",
+    c?.settled ?? "-",
+    r.open,
+    r.flag,
+  ].join("|");
 }
 
 function nextState(prev: State): State {
   const now = read();
   const rest = now.probe && !now.probe.editableFocus ? now : prev.rest;
+  // "Deepest" = the most the visible viewport has ever been squeezed on this page.
   const deepest =
-    now.conditions && (!prev.deepest?.conditions || now.conditions.covered > prev.deepest.conditions.covered)
+    now.probe && (!prev.deepest?.probe || now.probe.viewportHeight < prev.deepest.probe.viewportHeight)
       ? now
       : prev.deepest;
   const sig = `${sigOf(now)}//${sigOf(rest)}//${sigOf(deepest)}`;
@@ -144,7 +159,8 @@ function formatReading(label: string, r: Reading | null): string {
     `vv.offsetTop=${p ? Math.round(p.offsetTop) : "n/a"}`,
     `vv.scale=${p ? p.scale.toFixed(2) : "n/a"}`,
     `focus=${r.focus}`,
-    c ? `covered=${Math.round(c.covered)}/${Math.round(c.requiredCovered)}` : "covered=n/a",
+    `caretArrival=${p?.caretArrival ? `${Math.round(p.caretArrival.viewportHeight)}@${Math.round(p.caretArrival.ageMs)}ms${p.caretArrival.fromRest ? "" : " (no baseline)"}` : "none"}`,
+    c ? `onscreenKeyboard=${c.onscreenKeyboard}${c.settled ? "" : " (settling)"}` : "onscreenKeyboard=n/a",
     `test=${r.open ? "open" : "closed"}`,
     `flag=${r.flag ? "set" : "unset"}`,
   ];
@@ -161,7 +177,7 @@ function reportText(s: State): string {
     formatReading("at rest", s.rest),
     formatReading("deepest", s.deepest),
     c
-      ? `conditions: focus=${c.editableFocus} scale=${c.scaleOk} covered=${c.coveredOk}`
+      ? `conditions: focus=${c.editableFocus} scale=${c.scaleOk} onscreenKeyboard=${c.onscreenKeyboard}`
       : "conditions: no visualViewport API",
     `userAgent: ${typeof navigator === "undefined" ? "?" : navigator.userAgent}`,
   ].join("\n");
@@ -220,8 +236,9 @@ export default function ViewportReadout() {
 
   return (
     <div className="space-y-2">
-      {/* The numbers. "At rest" is the comparison that answers the open question.
-          Kept to five short rows: every line here has to fit above a keyboard. */}
+      {/* The numbers — evidence for the next bug report, not inputs to the rule any more.
+          "At rest" is the last reading with no caret; "deepest" the smallest the visible
+          viewport got. Kept to five short rows: every line here has to fit above a keyboard. */}
       <dl className="inset grid grid-cols-[1fr,auto,auto,auto] gap-x-3 gap-y-0.5 py-2 text-xs">
         <dt className="text-micro uppercase tracking-wide text-text-muted">measure</dt>
         <dd className="text-right text-micro uppercase tracking-wide text-text-muted">now</dd>
@@ -262,15 +279,31 @@ export default function ViewportReadout() {
             <span className="tabular-nums">{now.probe ? now.probe.scale.toFixed(2) : "—"}</span> ≤{" "}
             <span className="tabular-nums">{c.maxScale}</span>
           </Condition>
-          <Condition ok={c.coveredOk}>
-            3 · covered <span className="tabular-nums">{Math.round(c.covered)}</span> ≥{" "}
-            <span className="tabular-nums">{Math.round(c.requiredCovered)}</span>{" "}
-            {/* The arithmetic in place: this subtraction is the whole question. `offsetTop`
-                is deliberately not in it — it says where the visible strip sits, not what
-                covers it, and subtracting it is the bug Q2 shipped twice. */}
-            <span className="text-text-muted">
-              ({px(now.layoutHeight)} − {px(now.probe?.viewportHeight)})
-            </span>
+          {/* No arithmetic and no threshold: the question is whether the viewport moved at
+              all when the caret arrived, and the only thing that can answer "no" is a
+              hardware keyboard. Until the settle window is over, the caret has the say. */}
+          <Condition ok={c.onscreenKeyboard}>
+            3 · a keyboard came with the caret —{" "}
+            {c.arrivalHeight == null ? (
+              <span className="text-text-muted">
+                {now.probe?.editableFocus ? "no reading from before the caret, so assumed" : "no caret"}
+              </span>
+            ) : (
+              <>
+                <span className="tabular-nums">vv.height {px(now.probe?.viewportHeight)}</span>{" "}
+                <span className="text-text-muted">
+                  {c.viewportMoved ? (
+                    <>
+                      (moved from <span className="tabular-nums">{px(c.arrivalHeight)}</span> at the caret)
+                    </>
+                  ) : c.settled ? (
+                    <>(unchanged since the caret — no on-screen keyboard)</>
+                  ) : (
+                    <>(unchanged, giving a keyboard {c.settleMs}ms to show up)</>
+                  )}
+                </span>
+              </>
+            )}
           </Condition>
         </div>
       ) : (
@@ -331,9 +364,11 @@ export default function ViewportReadout() {
       <p className="text-xs text-text-muted">
         The bottom tab bar hides while the keyboard is open, and open means all three conditions above at once,
         published as <code>data-keyboard-open</code> on <code>&lt;html&gt;</code> — that is what "flag" says. If one of
-        the three is false on the phone while the keyboard is visibly up, that one is the bug.{" "}
-        <code>vv.offsetTop</code> is listed because it is how far the page was scrolled to reveal the field — reported
-        here, never subtracted.
+        the three is false on the phone while the keyboard is visibly up, that one is the bug. Nothing here is a
+        threshold any more: a caret in a text field <em>is</em> the keyboard, and condition 3 only takes it back when
+        the viewport did not move at all, which is a hardware keyboard. <code>innerHeight</code> and{" "}
+        <code>vv.offsetTop</code> are reported as evidence and decide nothing — subtracting them is what Q2 got wrong
+        twice.
       </p>
       <p className="text-micro text-text-muted">{environmentLine()}</p>
     </div>

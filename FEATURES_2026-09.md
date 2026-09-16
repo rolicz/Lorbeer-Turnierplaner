@@ -8231,6 +8231,82 @@ should re-test is at the end.)
   differ by 62px of `innerHeight` and are probably one of each. If any of it still fails, the readout
   is still there and Copy now reaches him with the caret alive.
 
+**Third round (2026-09-16): the rule is the caret, and there is no threshold left.**
+(Roli's call after the fix above shipped and failed on the phone a second time: his video shows the
+bar hiding with the Ideas composer's title `<input>` focused and **staying** with the `<textarea>`
+directly under it focused — same keyboard, one tap apart. The focus test handles a textarea fine, so
+it was the geometry again. He rejected another measuring round as *"something that would fail on a
+different device"*. **Q2 still stays open**: only his phone can close it.)
+
+- **The covered strip is gone** — `covered`, `MIN_COVERED_PX`, `MIN_COVERED_RATIO`, `requiredCovered`,
+  `coveredOk`, the subtraction in the readout and the tests that pinned the two iPhone readings to it.
+  They encoded a rule that no longer exists. `keyboardOpenFrom()` is now **a text field has the caret,
+  and the scale is ≤ 1.05** — the caret because it has been right every time it was read (a keyboard
+  needs a caret, and focus always ends, so it is the fail-safe too), the scale because a pinch is the
+  one other thing that shrinks the visual viewport and it costs nothing to keep. On a phone, a caret
+  in a text field means the keyboard is up, near enough always.
+- **What replaced the threshold is a *negative* question, and it is the "would be cool" case.**
+  An iPad with a hardware keyboard shows no on-screen keyboard, so hiding the bar there is wrong.
+  The module now remembers `visualViewport.height` in the instant the caret arrives and asks whether
+  it moved **at all** 600ms later: unchanged ⇒ no on-screen keyboard ⇒ the bar comes back. There is
+  no magnitude in it — one pixel in either direction is a keyboard — so it cannot be wrong "by
+  device" the way `≥ max(120px, 20%)` was, and it can only ever *show* the bar, never hide it. Two
+  guards keep it from becoming the third failed heuristic: (1) the remembered height only counts if
+  it was measured with **no caret anywhere** (`fromRest`) — a caret that was already there when the
+  watcher started looking says nothing about the viewport before it, and condition 3 abstains; (2)
+  the "caret episode" ends 250ms after the caret leaves, not at every blur, so the title→textarea hop
+  (a blur and a focus in the same instant) keeps the height it started from instead of re-baselining
+  against the keyboard-open one — which would have reproduced Roli's video exactly. It is also
+  self-correcting in both directions: the comparison is re-derived on every event, so a keyboard that
+  arrives late still hides the bar, and one dismissed while the caret stays still brings it back.
+  **Known limitation, accepted:** a hardware keyboard whose accessory bar *does* shrink the viewport
+  (iPadOS' shortcuts bar) still reads as a keyboard. Telling those apart needs a size threshold,
+  which is the thing being deleted; it lands on today's behaviour, which is the safe direction.
+- **`innerHeight` and `offsetTop` are still read, and now only reported.** Both are in the probe and
+  in the readout (they are the numbers that identified the first bug), and a test asserts the
+  conditions are *identical* for a 956px and a 508px layout viewport, so neither can creep back into
+  the decision.
+- **One new CSS guard.** `.hide-on-keyboard` / `--bottom-nav-clearance: 0px` now live in
+  `@media (max-width: 1023.98px), (pointer: coarse)`. With the rule reduced to the caret, a desktop
+  browser sets the flag while you type in any form — and the filter pill is the one consumer without
+  an `lg:` escape, so it would have vanished mid-typing at 1280px. The pointer half keeps an iPad in
+  landscape (1366px, on-screen keyboard) covered. Measured both ways below.
+- **The readout says what the code does.** Condition 3 is now "a keyboard came with the caret —
+  vv.height 508 (moved from 844 at the caret)", or "(unchanged since the caret — no on-screen
+  keyboard)", or "(unchanged, giving a keyboard 600ms to show up)" while the window is still open;
+  the `(844 − 508)` subtraction is gone with the rule, "deepest" now means the *smallest* visual
+  viewport seen (it used to mean the largest covered strip), and `Copy` carries `caretArrival=…` and
+  `onscreenKeyboard=…` instead of `covered=…`. The block's shape, its position above the field and
+  the Copy button's reachability are unchanged — re-measured: Copy at y 365–397 of the 390×844 page
+  with the keyboard up, nothing overflows (`scrollWidth` 390) in either theme.
+- **Verification** — isolated stack (backend :8003 on a copy of `backend/app.db` with a copy of
+  `uploads/` and a scratch secrets file, vite :8020), Playwright at 390×844 and 1280×844, `blue` and
+  `light`, as admin, with the keyboard simulated as a **real** engine-level shrink of the visual
+  viewport (`Emulation.setPageScaleFactor` to 508 of an unchanged 844 layout viewport; the single
+  override is `visualViewport.scale → 1`, because on iOS that shrink is a keyboard and in Chromium a
+  pinch). For **each of the three composers** — a tournament's comments, a profile's guestbook and
+  Ideas — the caret alone hides the bar *before* any viewport event (flag set, bar `display: none`),
+  the keyboard arriving keeps it hidden with the composer's computed `bottom` at **0px** (from 72px)
+  and `--bottom-nav-clearance: 0px`, **and focusing the second field — Ideas' `<textarea>` under its
+  title `<input>`, and a blur+refocus of the textarea in the other two — keeps every one of those**
+  (this is Roli's regression case). Away from the field: bar back, composer back to 72px. The
+  hardware-keyboard case, driven the honest way (Chromium has no on-screen keyboard): flag set at
+  focus, **flag gone 900ms later with the bar back**, and hidden again the instant the viewport does
+  shrink. Filter pill `display: block → none` and the error toast **stays** `flex` and drops 72px →
+  0px. At 1280px the flag changes nothing — forced on, the bar stays `none` (it is `lg:hidden`), the
+  pill stays `block` and the toast stays at `bottom: 16px`; typing into a real field there settles
+  the flag back off on its own. Zero console errors in every run; the DB copy and both servers are gone.
+  `cd frontend && npm run check` green (63 files, **650 tests** — 5 net new in
+  `src/test/keyboardOpen.test.ts`), `npm run build` green. No backend change.
+- **What Roli should re-test on the phone** (this is what closes Q2): open a tournament's comments,
+  tap the composer — **the tab bar must be gone and the composer must sit on the keyboard**, not 72px
+  above it. Then the one from the video: on Ideas, open the composer (it focuses the title itself),
+  then **tap the details textarea underneath and check the bar is still gone** — that hop is the case
+  that failed. Same in a profile's guestbook. In the standalone PWA *and* in Safari. If it still
+  fails, Settings → Diagnostics is unchanged in shape: tap its field, **Copy**, and send the text —
+  condition 1 and 2 now say everything, and "3 · a keyboard came with the caret" says whether the
+  viewport moved at all.
+
 ---
 
 ## Q8 — A friendly's result should show which clubs played it  ☑

@@ -10,70 +10,100 @@ import {
   type KeyboardProbe,
 } from "../ui/shell/keyboardOpen";
 
-/** A phone in portrait, nothing covering it. */
-const PHONE: KeyboardProbe = { layoutHeight: 844, viewportHeight: 844, offsetTop: 0, scale: 1, editableFocus: true };
-/** The same phone on its side. */
-const LANDSCAPE: KeyboardProbe = { layoutHeight: 390, viewportHeight: 390, offsetTop: 0, scale: 1, editableFocus: true };
+/** How long condition 3 waits before it believes "nothing moved" (`SETTLE_MS`). */
+const SETTLE_MS = 600;
 
-const covered = (base: KeyboardProbe, px: number): KeyboardProbe => ({ ...base, viewportHeight: base.layoutHeight - px });
+/** A caret in a field on a phone, the instant it landed: nothing known about the viewport yet. */
+const CARET: KeyboardProbe = {
+  editableFocus: true,
+  viewportHeight: 844,
+  scale: 1,
+  caretArrival: null,
+  layoutHeight: 844,
+  offsetTop: 0,
+};
+
+/** The same caret, with the viewport remembered from before it arrived. */
+const arrived = (p: KeyboardProbe, viewportHeight: number, ageMs = SETTLE_MS, fromRest = true): KeyboardProbe => ({
+  ...p,
+  caretArrival: { viewportHeight, ageMs, fromRest },
+});
 
 describe("keyboardOpenFrom", () => {
-  it("says open when a keyboard-sized strip is covered and a field has the caret", () => {
-    // iPhone portrait keyboard ≈ 336px of 844.
-    expect(keyboardOpenFrom(covered(PHONE, 336))).toBe(true);
-    // Landscape ≈ 200px of 390.
-    expect(keyboardOpenFrom(covered(LANDSCAPE, 200))).toBe(true);
+  it("says open because a text field has the caret — that is the rule", () => {
+    expect(keyboardOpenFrom(CARET)).toBe(true);
+    // …and stays open once the viewport has moved under it, whatever it moved to.
+    expect(keyboardOpenFrom(arrived({ ...CARET, viewportHeight: 508 }, 844))).toBe(true);
   });
 
-  it("does not fire for a browser toolbar or an accessory bar", () => {
-    // iOS Safari's own chrome: ~115px in portrait, ~50px in landscape.
-    expect(keyboardOpenFrom(covered(PHONE, 115))).toBe(false);
-    expect(keyboardOpenFrom(covered(LANDSCAPE, 50))).toBe(false);
-    // An iPad hardware keyboard leaves only its ~55px accessory bar.
-    expect(keyboardOpenFrom(covered({ ...PHONE, layoutHeight: 1112, viewportHeight: 1112 }, 55))).toBe(false);
+  it("needs the caret: no editable focus, no keyboard", () => {
+    expect(keyboardOpenFrom({ ...CARET, editableFocus: false })).toBe(false);
+    expect(keyboardOpenFrom({ ...arrived({ ...CARET, viewportHeight: 508 }, 844), editableFocus: false })).toBe(false);
   });
 
-  it("ignores how far Safari scrolled the page — offsetTop is not coverage", () => {
-    // The two readings Roli took on his iPhone (iOS 18.7, 440x956, standalone PWA) with
-    // the keyboard visibly up. The keyboard is the same size in both — 568px of page left
-    // — and only the scroll differs, which is why subtracting `offsetTop` made the second
-    // one fail (104 >= 179) while the first passed by luck (257 >= 191). Both are open.
-    expect(keyboardOpenFrom({ layoutHeight: 956, viewportHeight: 568, offsetTop: 131, scale: 1, editableFocus: true })).toBe(true);
-    expect(keyboardOpenFrom({ layoutHeight: 894, viewportHeight: 568, offsetTop: 222, scale: 1, editableFocus: true })).toBe(true);
+  it("does not measure the screen any more — no geometry can hold the flag down", () => {
+    // Q2 shipped twice on "how much of the layout viewport is covered" and failed on the
+    // device twice; the readings below are Roli's own (iOS 18.7, standalone PWA), plus the
+    // case that used to be a deliberate miss. The keyboard was up in all of them.
+    const readings: KeyboardProbe[] = [
+      { ...CARET, layoutHeight: 956, viewportHeight: 568, offsetTop: 131 },
+      { ...CARET, layoutHeight: 894, viewportHeight: 568, offsetTop: 222 },
+      // A browser that resizes the layout viewport all the way with the keyboard: the old
+      // rule computed "covered = 0" here and said closed.
+      { ...CARET, layoutHeight: 508, viewportHeight: 508 },
+      // What used to be "just a browser toolbar" (115px) and "an accessory bar" (55px).
+      { ...CARET, viewportHeight: 729 },
+      { ...CARET, viewportHeight: 789 },
+    ];
+    for (const r of readings) expect(keyboardOpenFrom(r)).toBe(true);
 
-    // …and it is not two lucky numbers: nothing Safari can do with the scroll changes the
-    // answer, in either direction, for either reading.
+    // …and it is not five lucky numbers: over every height and every scroll position the
+    // two readings can take, the answer is the caret's and nothing else.
     for (const layoutHeight of [956, 894]) {
-      for (let offsetTop = 0; offsetTop <= layoutHeight - 568; offsetTop += 1) {
-        expect(keyboardOpenFrom({ layoutHeight, viewportHeight: 568, offsetTop, scale: 1, editableFocus: true })).toBe(true);
-        expect(keyboardConditions({ layoutHeight, viewportHeight: 568, offsetTop, scale: 1, editableFocus: true }).covered).toBe(
-          layoutHeight - 568,
-        );
+      for (let viewportHeight = 100; viewportHeight <= layoutHeight; viewportHeight += 7) {
+        for (let offsetTop = 0; offsetTop <= layoutHeight - viewportHeight; offsetTop += 11) {
+          expect(keyboardOpenFrom({ ...CARET, layoutHeight, viewportHeight, offsetTop })).toBe(true);
+        }
       }
     }
   });
 
-  it("does not fire on a pan that covers nothing: the viewport moved, it did not shrink", () => {
-    expect(keyboardOpenFrom({ ...PHONE, offsetTop: 200 })).toBe(false);
-  });
-
   it("does not fire on a pinch, which shrinks the visual viewport the same way", () => {
-    expect(keyboardOpenFrom({ ...PHONE, viewportHeight: 422, scale: 2 })).toBe(false);
+    expect(keyboardOpenFrom({ ...CARET, viewportHeight: 422, scale: 2 })).toBe(false);
     // …and the keyboard is still detected at the scale rounding a zoom-disabled page shows.
-    expect(keyboardOpenFrom({ ...covered(PHONE, 336), scale: 1.02 })).toBe(true);
+    expect(keyboardOpenFrom({ ...CARET, scale: 1.02 })).toBe(true);
   });
 
-  it("does not fire on a rotation, where both heights change together", () => {
-    expect(keyboardOpenFrom(LANDSCAPE)).toBe(false);
-    expect(keyboardOpenFrom(PHONE)).toBe(false);
-  });
+  describe("the hardware-keyboard check (condition 3)", () => {
+    it("puts the bar back when the viewport did not move at all", () => {
+      // An iPad with a hardware keyboard: the caret is in a field, nothing came up.
+      expect(keyboardOpenFrom(arrived(CARET, 844))).toBe(false);
+    });
 
-  it("needs the caret: no editable focus, no keyboard", () => {
-    expect(keyboardOpenFrom({ ...covered(PHONE, 336), editableFocus: false })).toBe(false);
-  });
+    it("asks whether anything happened, not how much — one pixel is enough", () => {
+      expect(keyboardOpenFrom(arrived({ ...CARET, viewportHeight: 843 }, 844))).toBe(true);
+      expect(keyboardOpenFrom(arrived({ ...CARET, viewportHeight: 845 }, 844))).toBe(true);
+      // Sub-pixel jitter is not "something happened".
+      expect(keyboardOpenFrom(arrived({ ...CARET, viewportHeight: 844.2 }, 843.9))).toBe(false);
+    });
 
-  it("survives a zero-height viewport (a hidden tab) without hiding anything", () => {
-    expect(keyboardOpenFrom({ ...PHONE, layoutHeight: 0, viewportHeight: 0 })).toBe(false);
+    it("gives the keyboard time to arrive before believing it", () => {
+      expect(keyboardOpenFrom(arrived(CARET, 844, 0))).toBe(true);
+      expect(keyboardOpenFrom(arrived(CARET, 844, SETTLE_MS - 1))).toBe(true);
+      expect(keyboardOpenFrom(arrived(CARET, 844, SETTLE_MS))).toBe(false);
+    });
+
+    it("abstains when the height it would compare against was never measured at rest", () => {
+      // A caret that was already in a field when the watcher started looking says nothing
+      // about what the viewport looked like before it — so the caret has the last word.
+      expect(keyboardOpenFrom(arrived(CARET, 844, SETTLE_MS, false))).toBe(true);
+    });
+
+    it("comes back the moment the viewport does move", () => {
+      const settled = arrived(CARET, 844, 5_000);
+      expect(keyboardOpenFrom(settled)).toBe(false);
+      expect(keyboardOpenFrom({ ...settled, viewportHeight: 508 })).toBe(true);
+    });
   });
 });
 
@@ -81,38 +111,59 @@ describe("keyboardConditions", () => {
   // The diagnostics readout (`ui/layout/ViewportReadout.tsx`) shows these three answers on
   // the device, so they have to be the decision itself rather than a second copy of it.
   it("reports each condition and the numbers it was decided on", () => {
-    const c = keyboardConditions(covered(PHONE, 336));
-    expect(c).toMatchObject({ editableFocus: true, scaleOk: true, coveredOk: true });
-    expect(c.covered).toBe(336);
-    expect(c.requiredCovered).toBeCloseTo(168.8);
+    const c = keyboardConditions(arrived({ ...CARET, viewportHeight: 508 }, 844));
+    expect(c).toMatchObject({ editableFocus: true, scaleOk: true, onscreenKeyboard: true });
+    expect(c.arrivalHeight).toBe(844);
+    expect(c.viewportMoved).toBe(true);
+    expect(c.settled).toBe(true);
     expect(c.maxScale).toBe(1.05);
+    expect(c.settleMs).toBe(SETTLE_MS);
   });
 
   it("names the one condition that fails", () => {
-    expect(keyboardConditions({ ...covered(PHONE, 336), scale: 2 })).toMatchObject({
+    expect(keyboardConditions({ ...CARET, scale: 2 })).toMatchObject({
       editableFocus: true,
       scaleOk: false,
-      coveredOk: true,
+      onscreenKeyboard: true,
     });
-    expect(keyboardConditions({ ...covered(PHONE, 336), editableFocus: false })).toMatchObject({
+    expect(keyboardConditions({ ...CARET, editableFocus: false })).toMatchObject({
       editableFocus: false,
       scaleOk: true,
-      coveredOk: true,
+      onscreenKeyboard: true,
     });
-    // A layout viewport that shrinks *all the way* with the keyboard covers nothing, and
-    // condition 3 can never pass — which is the right answer, not a miss: a bar pinned to
-    // a resized layout viewport already sits above the keyboard. (The readout was built to
-    // test whether this was Roli's case. It was not: his `innerHeight` moved 956 -> 894,
-    // and `offsetTop` was the bug.)
-    expect(keyboardConditions({ ...PHONE, layoutHeight: 508, viewportHeight: 508 })).toMatchObject({
-      coveredOk: false,
+    expect(keyboardConditions(arrived(CARET, 844))).toMatchObject({
+      editableFocus: true,
+      scaleOk: true,
+      onscreenKeyboard: false,
+      viewportMoved: false,
+      settled: true,
+    });
+    // Same numbers, still inside the settle window: the caret still has it.
+    expect(keyboardConditions(arrived(CARET, 844, 10))).toMatchObject({
+      onscreenKeyboard: true,
+      viewportMoved: false,
+      settled: false,
     });
   });
 
+  it("has nothing to say about the layout viewport — that is evidence, not a condition", () => {
+    const tall = keyboardConditions({ ...CARET, layoutHeight: 956, offsetTop: 222 });
+    const short = keyboardConditions({ ...CARET, layoutHeight: 508, offsetTop: 0 });
+    expect(tall).toEqual(short);
+  });
+
   it("agrees with the flag's own test", () => {
-    for (const p of [PHONE, covered(PHONE, 336), { ...covered(PHONE, 336), scale: 2 }, LANDSCAPE]) {
+    const probes = [
+      CARET,
+      { ...CARET, editableFocus: false },
+      { ...CARET, scale: 2 },
+      arrived(CARET, 844),
+      arrived({ ...CARET, viewportHeight: 508 }, 844),
+      arrived(CARET, 844, 10),
+    ];
+    for (const p of probes) {
       const c = keyboardConditions(p);
-      expect(c.editableFocus && c.scaleOk && c.coveredOk).toBe(keyboardOpenFrom(p));
+      expect(c.editableFocus && c.scaleOk && c.onscreenKeyboard).toBe(keyboardOpenFrom(p));
     }
   });
 });
@@ -162,6 +213,7 @@ describe("the watcher", () => {
   let vv: FakeVisualViewport | undefined;
   let stop: (() => void) | null = null;
   let field: HTMLInputElement;
+  let details: HTMLTextAreaElement;
 
   const setViewport = (v: FakeVisualViewport | undefined) => {
     vv = v;
@@ -173,50 +225,82 @@ describe("the watcher", () => {
     window.innerHeight = 844;
     setViewport(new FakeVisualViewport());
     field = document.createElement("input");
-    document.body.appendChild(field);
+    details = document.createElement("textarea");
+    document.body.append(field, details);
   });
 
   afterEach(() => {
     stop?.();
     stop = null;
     field.remove();
+    details.remove();
     delete document.documentElement.dataset.keyboardOpen;
     vi.useRealTimers();
   });
 
-  it("raises the flag when a focused field loses the bottom of the viewport, and drops it after", () => {
+  it("raises the flag the moment a field takes the caret, before any viewport event", () => {
     stop = installKeyboardWatcher();
     expect(isKeyboardOpen()).toBe(false);
 
     field.focus();
-    vv!.resizeTo(508); // 336px of keyboard
     expect(isKeyboardOpen()).toBe(true);
 
-    // Closing waits out the keyboard's slide-away before the bar comes back…
-    vv!.resizeTo(844);
+    // The keyboard arrives and the flag simply stays up.
+    vv!.resizeTo(508);
+    vi.advanceTimersByTime(SETTLE_MS + 100);
     expect(isKeyboardOpen()).toBe(true);
-    vi.advanceTimersByTime(250);
-    expect(isKeyboardOpen()).toBe(false);
   });
 
-  it("drops the flag when the caret leaves, even if the viewport says nothing", () => {
+  it("drops the flag when the caret leaves, after the keyboard's slide-away", () => {
     stop = installKeyboardWatcher();
     field.focus();
     vv!.resizeTo(508);
     expect(isKeyboardOpen()).toBe(true);
 
     field.blur();
-    refreshKeyboardFlag();
+    expect(isKeyboardOpen()).toBe(true);
     vi.advanceTimersByTime(250);
     expect(isKeyboardOpen()).toBe(false);
   });
 
-  it("re-measures before dropping it, so a flapping event does not flash the bar", () => {
+  it("keeps the bar hidden when the caret moves from the title field to the textarea under it", () => {
+    // Roli's video, 2026-09-16: the title `<input>` hid the bar, the `<textarea>` directly
+    // below it did not — same composer, same keyboard, one tap apart. The episode (and the
+    // viewport height it started from) has to survive a blur and a focus in the same instant.
+    stop = installKeyboardWatcher();
+    field.focus();
+    vv!.resizeTo(508); // the keyboard
+    vi.advanceTimersByTime(SETTLE_MS + 100);
+    expect(isKeyboardOpen()).toBe(true);
+
+    details.focus(); // blur + focus, the keyboard never leaves
+    expect(isKeyboardOpen()).toBe(true);
+    // …and it is still up once the second field's own settle window has passed: the height
+    // it compares against is the one from before the keyboard, not the keyboard's own.
+    vi.advanceTimersByTime(SETTLE_MS + 100);
+    expect(isKeyboardOpen()).toBe(true);
+  });
+
+  it("puts the bar back when nothing came up — a hardware keyboard — and hides it again if one does", () => {
+    stop = installKeyboardWatcher();
+    field.focus();
+    expect(isKeyboardOpen()).toBe(true);
+
+    // Nothing resizes. The bar comes back on its own, without any event.
+    vi.advanceTimersByTime(SETTLE_MS + 100);
+    expect(isKeyboardOpen()).toBe(false);
+
+    // The iPad's on-screen keyboard, called up by hand: the viewport moves, the flag returns.
+    vv!.resizeTo(508);
+    expect(isKeyboardOpen()).toBe(true);
+  });
+
+  it("re-measures before dropping it, so a flapping focus does not flash the bar", () => {
     stop = installKeyboardWatcher();
     field.focus();
     vv!.resizeTo(508);
-    vv!.resizeTo(844); // schedules the close…
-    vv!.resizeTo(508); // …and the keyboard is back before it fires
+    field.blur(); // schedules the close…
+    field.focus(); // …and the caret is back before it fires
     vi.advanceTimersByTime(250);
     expect(isKeyboardOpen()).toBe(true);
   });
@@ -232,10 +316,19 @@ describe("the watcher", () => {
   it("clears the flag when it is torn down: a hidden tab bar must never outlive it", () => {
     const off = installKeyboardWatcher();
     field.focus();
-    vv!.resizeTo(508);
     expect(isKeyboardOpen()).toBe(true);
 
     off();
+    expect(isKeyboardOpen()).toBe(false);
+  });
+
+  it("clears the flag on a navigation, where a removed field may never fire focusout", () => {
+    stop = installKeyboardWatcher();
+    field.focus();
+    expect(isKeyboardOpen()).toBe(true);
+
+    field.remove();
+    refreshKeyboardFlag(true);
     expect(isKeyboardOpen()).toBe(false);
   });
 });
