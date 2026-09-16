@@ -67,7 +67,9 @@ Size (2026-09-13): backend ≈ 13.3k LOC Python (`app/` + `manage.py` + `run.py`
   backoff), `wsEvents.ts` (event contract mirror of `services/events.py`), `applyEvent.ts`
   (cache merge), `RealtimeProvider.tsx`.
 - `src/pages/` — dashboard, tournaments (+ `live/` tournament page, match detail, `live/comments/`
-  feed + `CommentComposer`, admin panel), stats, profile, players admin, clubs,
+  feed + `CommentComposer`, admin panel), stats, profile, players admin,
+  clubs (`ClubsPage.tsx` holds the queries, filters, create form and delete dialog,
+  `clubs/ClubList.tsx` the grouped list whose row *is* the edit trigger, Q15),
   friendlies (`tools/` — `FriendlyMatchesListCard` holds the queries, the filter pill and the
   editor, `FriendlyList.tsx` the day-grouped list itself, Q7), `ideas/` (the Ideas board:
   `IdeasPage`, `IdeaCard`, `IdeaComposer`,

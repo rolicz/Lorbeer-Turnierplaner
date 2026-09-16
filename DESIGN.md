@@ -499,12 +499,20 @@ An editor is not a section you unfold; it is the thing itself becoming editable.
   entry's scorer is the footballer in the game, so it is never prefilled with a human player
   from this app. When a field is optional, say in one quiet line what happens if it stays
   empty.
-- **An editor a row opens belongs under the row, full width.** A list row's action slot is
-  `shrink-0` and sized for icon buttons; a panel rendered into it is wider than the row and gets
-  clipped. `MatchRowWithClubs` takes `expanded` for exactly this (the friendlies list's inline
-  editor): it renders after the row, at the row's full width, behind an accent rail
-  (`border-l-2 border-accent/30`) instead of a surface of its own — so the score panel inside it
-  is still the one `inset` (§8).
+- **An editor a row opens belongs under the row, full width — and that row carries no controls
+  of its own.** A list row's action slot is `shrink-0` and sized for icon buttons, so a panel
+  rendered into it is wider than the row and gets clipped; and a pair of buttons per row makes the
+  rarest thing in a list its loudest (on the clubs page they took 141px of a 358px row, which is
+  what truncated the club names). So the **row itself is the control** — §7's stretched overlay,
+  with an `aria-label` that names what it opens and `aria-expanded` for its state — the editor
+  renders *after* the row at the row's full width behind an accent rail
+  (`border-l-2 border-accent/30`) instead of a surface of its own (so a panel inside it is still
+  the one `inset`, §8), and **delete lives inside that editor**, behind `ConfirmDialog`. Two lists
+  open an editor this way and they are built the same: the friendlies list
+  (`pages/tools/FriendlyList.tsx`, Q7/Q8) and the clubs list (`pages/clubs/ClubList.tsx`, Q15).
+  No chevron on such a row: that glyph promises navigation, and these rows expand. A viewer who
+  may not edit gets **no** overlay, no `row-tap` and no `aria-expanded` — a row that is only text,
+  never an affordance that does nothing.
 - **Heavy choice → sheet.** Many options, search, filters: a `Modal` sheet (full screen on
   mobile), opened from the value, closing on pick.
 - **Light input → always-visible row.** A text field with its send button sits at the bottom of

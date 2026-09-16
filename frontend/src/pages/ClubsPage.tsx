@@ -1,16 +1,12 @@
 import { useMemo, useState } from "react";
-import type { ReactNode } from "react";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Eraser, RotateCw, ShieldHalf, Star } from "lucide-react";
+import { Eraser, RotateCw, ShieldHalf, Star, Trash2 } from "lucide-react";
 
-import ClubBadge from "../ui/ClubBadge";
 import ClubStarHistory from "../ui/ClubStarHistory";
-import NationFlag from "../ui/NationFlag";
-import { nationalTeamNation } from "../ui/nationalTeams";
+import { starsLabel } from "../ui/clubControls";
 import FormLabel from "../ui/primitives/FormLabel";
 import Input from "../ui/primitives/Input";
 import Button from "../ui/primitives/Button";
-import CollapsibleCard from "../ui/primitives/CollapsibleCard";
 import ConfirmDialog from "../ui/primitives/ConfirmDialog";
 import SegmentedSwitch from "../ui/primitives/SegmentedSwitch";
 import { ErrorToastOnError } from "../ui/primitives/ErrorToast";
@@ -22,19 +18,12 @@ import PageLayout from "../ui/layout/PageLayout";
 import { SectionTabs, type SectionTab } from "../ui/SectionTabs";
 import { useTabParam } from "../ui/shell/useTabParam";
 import { List, Plus } from "lucide-react";
+import ClubList, { type ClubGroup } from "./clubs/ClubList";
 
 import { useAuth } from "../auth/AuthContext";
 import { createClub, deleteClub, listClubs, listLeagues, patchClub } from "../api/clubs.api";
 import { qk } from "../api/queryKeys";
 import type { Club, League } from "../api/types";
-
-function starsLabel(v: unknown): string {
-  if (typeof v === "number") return v.toFixed(1).replace(/\.0$/, "");
-  if (typeof v === "string") return v;
-  const n = Number(v);
-  if (Number.isFinite(n)) return n.toFixed(1).replace(/\.0$/, "");
-  return "";
-}
 
 function starValues(): number[] {
   const out: number[] = [];
@@ -279,6 +268,37 @@ export default function ClubsPage() {
     return groupByStars(filteredClubs, leaguesById);
   }, [filteredClubs, leaguesById, groupMode]);
 
+  const clubGroups: ClubGroup[] = useMemo(
+    () =>
+      grouped.map(([label, clubsInGroup]) => ({
+        // The filter state rides in the key so a group remounts — and therefore
+        // auto-opens — when the filters change (never on every keystroke).
+        key: `${label}|${filterKey}`,
+        label,
+        nation: groupMode === "league" ? leagueNations.byName.get(label) ?? null : null,
+        suffix: groupMode === "league" ? "league" : undefined,
+        rows: clubsInGroup.map((c) => ({
+          club: c,
+          leagueName: leagueNameForClub(c, leaguesById),
+          leagueNation: leagueNationForClub(c, leagueNations.byId),
+        })),
+      })),
+    [grouped, filterKey, groupMode, leagueNations, leaguesById],
+  );
+
+  // Tapping a row is the only way into the editor (Q15): it opens this club and
+  // seeds the form from it, or closes it again if it was already the open one.
+  const toggleEditor = (c: Club) => {
+    if (editId === c.id) {
+      setEditId(null);
+      return;
+    }
+    setEditId(c.id);
+    setEditStars(String(c.star_rating ?? 3.0));
+    setEditLeagueId(typeof c.league_id === "number" ? c.league_id : leagues[0]?.id ?? "");
+    setEditName(c.name);
+  };
+
   const doomedClub = useMemo(
     () => (pendingDeleteClubId == null ? null : clubs.find((c) => c.id === pendingDeleteClubId) ?? null),
     [clubs, pendingDeleteClubId],
@@ -449,156 +469,83 @@ export default function ClubsPage() {
           <EmptyState title="No clubs match the current filters." className="px-1 py-6" />
         ) : null}
 
-        <div className="divide-y divide-border-card-chip/30">
-          {grouped.map(([label, clubsInGroup]) => {
-            const suffix = groupMode === "league" ? "league" : "";
-            return (
-              <CollapsibleCard
-                key={`${label}|${filterKey}`}
-                title={
-                  <span className="section-label inline-flex items-center gap-2">
-                    {groupMode === "league" ? <NationFlag nation={leagueNations.byName.get(label)} /> : null}
-                    <span>{label}</span>
-                    {suffix ? <span className="font-normal normal-case text-text-muted">{suffix}</span> : null}
-                  </span>
-                }
-                right={<span className="text-xs text-text-muted">{clubsInGroup.length}</span>}
-                defaultOpen={hasActiveFilters}
-                variant="none"
-                className="px-0"
-              >
-                {() => (
-                  <div className="list-divided">
-                    {clubsInGroup.map((c) => {
-                      const ln = leagueNameForClub(c, leaguesById);
-                      const isEditing = editId === c.id;
-                      const cid = c.league_id;
-                      const metaParts: ReactNode[] = [
-                        c.game,
-                        <span key="league" className="inline-flex items-center gap-1">
-                          <NationFlag nation={leagueNationForClub(c, leagueNations.byId)} />
-                          {ln}
-                        </span>,
-                        `${starsLabel(c.star_rating)}★`,
-                      ];
-
-                      return (
-                        <div key={c.id}>
-                          <div className="row">
-                            <div className="min-w-0 flex-1">
-                              <div className="flex min-w-0 items-center gap-1.5">
-                                <ClubBadge name={c.name} nation={nationalTeamNation(c.name, ln)} clubId={c.id} crestVersion={c.crest_updated_at} />
-                                <span className="min-w-0 truncate font-medium text-text-normal">{c.name}</span>
-                              </div>
-                              <div className="mt-0.5 flex flex-wrap items-center text-xs text-text-muted">
-                                {metaParts.map((part, i) => (
-                                  <span key={i} className="inline-flex items-center">
-                                    {/* Spacing, not a third tone — it inherits the meta
-                                        line's `text-text-muted` (R3). */}
-                                    {i > 0 ? <span className="mx-1.5">·</span> : null}
-                                    {part}
-                                  </span>
-                                ))}
-                              </div>
-                            </div>
-
-                            <div className="flex shrink-0 items-center gap-2">
-                              {canEdit ? (
-                                <Button
-                                  variant="ghost"
-                                  onClick={() => {
-                                    setEditId(c.id);
-                                    setEditStars(String(c.star_rating ?? 3.0));
-                                    setEditLeagueId(typeof cid === "number" ? cid : leagues[0]?.id ?? "");
-                                    setEditName(c.name);
-                                  }}
-                                  type="button"
-                                >
-                                  Edit
-                                </Button>
-                              ) : null}
-
-                              {isAdmin ? (
-                                <Button
-                                  variant="ghost"
-                                  onClick={() => setPendingDeleteClubId(c.id)}
-                                  disabled={deleteMut.isPending}
-                                  type="button"
-                                >
-                                  Delete
-                                </Button>
-                              ) : null}
-                            </div>
-                          </div>
-
-                          {isEditing ? (
-                            <div className="inset mt-2 p-2">
-                              <div className="grid gap-2 md:grid-cols-3">
-                                {isAdmin ? (
-                                  <Input
-                                    label="Name (admin)"
-                                    value={editName}
-                                    onChange={(e) => setEditName(e.target.value)}
-                                  />
-                                ) : (
-                                  <div className="text-sm text-text-muted self-end">Name can only be changed by admin.</div>
-                                )}
-
-                                <label className="block">
-                                  <FormLabel>Stars</FormLabel>
-                                  <select
-                                    className="input-field"
-                                    value={editStars}
-                                    onChange={(e) => setEditStars(e.target.value)}
-                                  >
-                                    {starValues().map((v) => (
-                                      <option key={v} value={String(v)}>
-                                        {starsLabel(v)}★
-                                      </option>
-                                    ))}
-                                  </select>
-                                </label>
-
-                                <label className="block">
-                                  <FormLabel>League</FormLabel>
-                                  <select
-                                    className="input-field"
-                                    value={editLeagueId === "" ? "" : String(editLeagueId)}
-                                    onChange={(e) => setEditLeagueId(e.target.value ? Number(e.target.value) : "")}
-                                  >
-                                    {!leagues.length ? <option value="">(no leagues loaded)</option> : null}
-                                    {leagues.map((l) => (
-                                      <option key={l.id} value={String(l.id)}>
-                                        {l.name}
-                                      </option>
-                                    ))}
-                                  </select>
-                                </label>
-                              </div>
-
-                              {/* A star change appends to the record; the record is
-                                  right here so that is visible (R4). */}
-                              <ClubStarHistory clubId={c.id} className="mt-3" />
-
-                              <div className="mt-3 flex items-center gap-2">
-                                <Button onClick={() => patchMut.mutate()} disabled={patchMut.isPending}>
-                                  {patchMut.isPending ? "Saving…" : "Save"}
-                                </Button>
-                                <Button variant="ghost" onClick={() => setEditId(null)} type="button">
-                                  Cancel
-                                </Button>
-                              </div>
-                            </div>
-                          ) : null}
-                        </div>
-                      );
-                    })}
-                  </div>
+        <ClubList
+          groups={clubGroups}
+          defaultOpen={hasActiveFilters}
+          canEdit={canEdit}
+          expandedId={editId}
+          onToggleRow={toggleEditor}
+          renderEditor={(c) => (
+            <div className="space-y-3">
+              <div className="grid gap-2 md:grid-cols-3">
+                {isAdmin ? (
+                  <Input label="Name (admin)" value={editName} onChange={(e) => setEditName(e.target.value)} />
+                ) : (
+                  <div className="self-end text-sm text-text-muted">Name can only be changed by admin.</div>
                 )}
-              </CollapsibleCard>
-            );
-          })}
-        </div>
+
+                <label className="block">
+                  <FormLabel>Stars</FormLabel>
+                  <select className="input-field" value={editStars} onChange={(e) => setEditStars(e.target.value)}>
+                    {starValues().map((v) => (
+                      <option key={v} value={String(v)}>
+                        {starsLabel(v)}★
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className="block">
+                  <FormLabel>League</FormLabel>
+                  <select
+                    className="input-field"
+                    value={editLeagueId === "" ? "" : String(editLeagueId)}
+                    onChange={(e) => setEditLeagueId(e.target.value ? Number(e.target.value) : "")}
+                  >
+                    {!leagues.length ? <option value="">(no leagues loaded)</option> : null}
+                    {leagues.map((l) => (
+                      <option key={l.id} value={String(l.id)}>
+                        {l.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+
+              {/* A star change appends to the record; the record is
+                  right here so that is visible (R4). */}
+              <ClubStarHistory clubId={c.id} />
+
+              {/* Delete is here and nowhere else: the row carries no controls, so the
+                  one place that can destroy a club is the editor that row opens (Q15). */}
+              <div className="flex items-center justify-between gap-2">
+                {isAdmin ? (
+                  <Button
+                    variant="ghost"
+                    type="button"
+                    onClick={() => setPendingDeleteClubId(c.id)}
+                    disabled={deleteMut.isPending || patchMut.isPending}
+                    title="Delete this club"
+                    className="inline-flex items-center gap-1.5"
+                  >
+                    <Trash2 size={14} aria-hidden="true" />
+                    Delete
+                  </Button>
+                ) : (
+                  <span />
+                )}
+                <div className="flex items-center gap-2">
+                  <Button variant="ghost" onClick={() => setEditId(null)} type="button">
+                    Cancel
+                  </Button>
+                  <Button type="button" onClick={() => patchMut.mutate()} disabled={patchMut.isPending}>
+                    {patchMut.isPending ? "Saving…" : "Save"}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
+        />
       </section>
       </div>
       ) : null}
@@ -615,6 +562,8 @@ export default function ClubsPage() {
         onConfirm={() => {
           if (pendingDeleteClubId == null) return;
           const clubId = pendingDeleteClubId;
+          // The row that carried the editor is about to go; close it first.
+          if (editId === clubId) setEditId(null);
           setPendingDeleteClubId(null);
           deleteMut.mutate(clubId);
         }}

@@ -9711,3 +9711,178 @@ touched, both stopped and the copies deleted afterwards).
 - `cd frontend && npm run check`: typecheck, eslint and **670 tests in 66 files** green (665 in 65
   before — `starsView.test.tsx` is new). `npm run build` green (the pre-existing >500 kB chunk
   hint only).
+
+**Deviations, and what the measurements said:** (implemented 2026-09-16 on `main`.)
+
+- **The row rendering moved into `pages/clubs/ClubList.tsx`**, which the brief did not ask for.
+  Reason: the rule this task is about ("no control on a row but the row itself") is a property of
+  the *list*, and `FriendlyList.tsx` is where the friendlies list keeps it — a presentational
+  component with no providers, which is why `friendlyList.test.tsx` can assert the rule in eight
+  cheap tests. Doing it in `ClubsPage.tsx`, a 634-line page with three queries, two mutations and
+  an auth context, would have meant either no test or a much heavier one. `ClubsPage` keeps
+  everything else: queries, filters, grouping, the create form, both mutations, the dialog.
+- **`onToggleRow` takes the `Club`, not its id** — the one place the prop shape diverges from
+  `FriendlyList`. Opening a row seeds three form fields from the club, so handing the row's own
+  object back saves a lookup through 626 clubs on every tap and removes the "what if it is not in
+  the list any more" branch.
+- **`ClubsPage`'s private `starsLabel` is gone**, replaced by the identical one already exported
+  from `ui/clubControls.tsx` (character-for-character the same function; `ClubStarHistory` has
+  always used that one). The row that needed it moved out, and adding a *third* copy to the new
+  file to avoid touching six lines would have been the worse trade.
+- **The editor's container changed from `inset` to the accent rail.** Judgement call 2 above; the
+  visible effect is that the form fields sit on the page ground with the `border-l-2
+  border-accent/30` rule beside them, exactly like the friendly editor, instead of inside a
+  rounded box that fought the row hairlines above and below it.
+- **Deleting the club whose editor is open closes the editor first** (`if (editId === clubId)
+  setEditId(null)` in the dialog's `onConfirm`) — the friendlies list does the same for the same
+  reason, and without it the rail would outlive its row for one render.
+- **Nothing was added to the row.** No chevron (judgement 3), no data attribute for tests (the
+  runtime checks target the overlay's `aria-label`), no star control. The row is what it always
+  was, minus 141px of buttons.
+
+**Measured — the buttons *were* the layout problem** (Playwright, admin, `blue`, the first stars
+group, 16 rows; "before" is `HEAD` (`f425961`) served from a `git archive` copy on :8023 so the two
+numbers come from the same browser, same data, same minute):
+
+| | buttons/row | trailing slot | names truncated | meta lines wrapped | row heights | page height |
+|---|---|---|---|---|---|---|
+| before, 390px | 2 | **141.3px** | **3 / 16** | **12 / 16** | 66px **and** 82px | 2174px |
+| after, 390px | 1 (the overlay) | 0 | **0 / 16** | **0 / 16** | 66px, one value | **1982px** (−8.8%) |
+| before, 1280px | 2 | 141.3px | 0 / 16 | 0 / 16 | 66px | 1797px |
+| after, 1280px | 1 (the overlay) | 0 | 0 / 16 | 0 / 16 | 66px | 1797px (identical) |
+
+The name cell's widest measurement goes from 158.70px to 225.81px at 390px — the same value it has
+at 1280px, i.e. **no club name in the DB is clipped on a phone any more**. No horizontal overflow
+at either width, before or after.
+
+**Verified** on an isolated stack — backend :8003 on a **copy** of `backend/app.db` with a scratch
+secrets file and its own copy of `uploads/` (so a delete could never reach a real crest), vite
+:8020, plus the `HEAD` reference on :8023; none of 8000/8001/8002/8004/8010/8021/5173 touched.
+At 390×844 and 1280×900, in `blue` and `light`:
+
+- **Reader**: `/clubs` redirects to `/login` — there is no list to tap, before or after.
+- **Admin, all four width×theme combinations**: exactly one button per row and it is the stretched
+  overlay; tapping opens the editor under the row; **Delete, Cancel and Save are inside it**;
+  Delete opens the unchanged `ConfirmDialog` ("Delete this club?", what is lost, the refusal
+  note); Cancel returns to the open editor; a **second tap on the row closes it**.
+- **A real non-admin editor (Flo)**: the row opens, the editor has **no Delete**, no name field and
+  keeps the "Name can only be changed by admin." line.
+- **The tap target swallows nothing**: with a row open, the group header still collapses its group
+  (rows → 0), and the search field still filters (`Bayern` → 1 row) — both in all four
+  combinations.
+- **`a a` / `button button` / `a button` / `button a` = 0** in every state measured, including
+  with a group open, a row open and the confirm dialog up. **Zero console errors** in every run.
+- **The write path is unchanged**: FC Barcelona 5★ → 4.5★ → 5★ through the row's editor, the row
+  and `GET /clubs` agreeing after each save (and the club correctly re-grouping under `Stars`).
+  Only the DB copy was written; `backend/app.db` was read once, to copy it.
+- `cd frontend && npm run check`: typecheck, eslint and **676 tests in 67 files** green (670 in 66
+  before — `clubList.test.tsx` is new with 6). `npm run build` green with the pre-existing >500 kB
+  chunk hint. No backend change, no schema change, no new dependency.
+
+**Screenshots** (scratchpad `q15/shots/`): `{before,after}-{390,1280}-{blue,light}-{admin,editor}-
+{list,editing}`, `after-{390,1280}-{blue,light}-{editor-bottom,confirm}`,
+`after-390-blue-editor-open` (the non-admin editor) and `{before,after}-390-blue-reader`.
+
+**Canon touched:** `DESIGN.md` §9b's "an editor a row opens" bullet now describes the pattern —
+row as the only control, delete inside the editor, no chevron, nothing for a viewer who cannot
+edit — and names both lists that implement it; it also drops the stale reference to
+`MatchRowWithClubs`'s `expanded` prop, which Q7 deleted. `AGENTS.md` §2's module map names
+`clubs/ClubList.tsx`. Nothing else in either file stopped being true.
+
+---
+
+## Q17 — The other match list still does not say which clubs played  ☐
+
+Roli, 2026-09-16: *"in stats/player: the compact match list does not show the club crest like e.g.
+in friendlies. why? consistency!"*
+
+Q8 put a crest on each side of a friendly's compact row. The app's **other** match list —
+`pages/stats/MatchHistoryList.tsx` — shows the same thing (two sides, a score, no club line) and
+says nothing about the clubs. One question, two answers. That is the whole complaint.
+
+### What is there today (read on `main` at `f425961`, and measured, not guessed)
+
+`MatchRowWithClubs` already carries everything the answer needs and uses none of it:
+
+- It takes `clubs: Club[]` **on every call site** — the prop exists because the row's *Details*
+  half (`showMeta`) renders `MatchSides`, which resolves crest → nation flag → monogram from it.
+- Each side's `club_id` is already in the payload: `StatsMatchSideOut` carries `club_id` **and**
+  `club_stars` (R4's rating-on-the-day), so no stats surface is missing the club for its own rows.
+- `showMeta` is exactly the friendlies list's Compact/Details switch under another name:
+  `false` → `ScoreLine` and nothing else; `true` → `ScoreLine` + `MatchSides`.
+
+So the crest is not a data problem on these surfaces. It is a slot that was never filled.
+
+**The six surfaces that render this row**, with the `showMeta` each passes:
+
+| # | Surface | File | `showMeta` |
+|---|---|---|---|
+| 1 | Stats → Player | `pages/stats/PlayerProfile.tsx:182` | `details` (**Compact by default**) |
+| 2 | Profile → Overview, "Recent matches" | `pages/profile/ProfileOverviewTab.tsx:185` | `false` always |
+| 3 | Profile → Matches tab | `pages/profile/MatchHistorySection.tsx:27` | `false` always |
+| 4 | H2H → Matchup drill-in | `pages/stats/h2h/MatchupView.tsx:250` | `details` (Compact by default) |
+| 5 | H2H → history modal | `pages/stats/H2HView.tsx:351` | `historyDetails` (Compact by default) |
+| 6 | Match page → H2H panel | `pages/live/MatchH2HPanel.tsx:269` | `false` always |
+
+**Records is a seventh surface and a different component.** `pages/stats/RecordsView.tsx` does not
+use `MatchHistoryList` at all — it imports `tournamentMatchHref` from it and builds its own
+`ScoreLine` rows from a flattened `RecMatch`. It has **no clubs query**.
+
+### Decided, with the reasoning, before any code
+
+1. **The rule is `showMeta`, not a new prop.** A compact row gets the mark; a Details row does not,
+   because `MatchSides` already spells the club out in words with its own crest and `DESIGN.md` §8
+   forbids one club wearing two symbols on one row. That answer is derivable from state the
+   component already holds, so **no call site changes and no surface can forget it** — which is the
+   failure mode that produced this ticket. A `showClubMark` prop would leave the seventh caller
+   free to be inconsistent again.
+2. **All six get it.** The bar for excluding one is high and none of them clears it. The densest,
+   the match page's H2H panel, is the one where it earns the most: you are looking at "our last
+   five meetings" *while choosing a club for the match in front of you*. Records shows
+   superlatives, and "which clubs played the 12–0" is the obvious next question about a
+   superlative. The matchup drill-in and the modal are the same list as Stats → Player.
+3. **Records is in, and it costs exactly one request.** Its rows already have the sides in hand
+   (`const A = m.sides.find(...)`), so only the `Club[]` is missing. Said plainly: **one
+   `GET /clubs` is added, to one component, on the `qk.clubs()` key four other stats views
+   (`PlayerProfile`, `H2HView`, `MatchupView`, `StarsView`) already use** — so it is a cache hit
+   for anyone who has touched another stats view inside the `staleTime`, and one shared request
+   otherwise. Not one per row, not one per page: **zero** new requests on surfaces 1–6.
+4. **`ClubMark` becomes a shared primitive.** It exists today as a private function inside
+   `pages/tools/FriendlyList.tsx`. Copying it into two more files to fix an inconsistency would be
+   the same mistake in miniature, so it moves to `ui/primitives/ClubMark.tsx` and the friendlies
+   list imports it back — the `FilterPill` promotion Q7 made for the same reason.
+5. **`digits` does not ride along.** Q8's worker left it as a possible follow-up; it stays out, and
+   the measurements are why. This task's acceptance test is *the crest must not move a score*, and
+   `digits` moves scores **by design** — it is the mechanism that pulls a drifting separator onto
+   one x. Shipping both would make the one thing that must be proved unprovable. The drift is real
+   but small and only appears once a list mixes digit widths, which production data never has
+   (the highest score ever recorded is 8): **measured on a seeded copy** the page-wide separator
+   spread on surfaces 1, 3 and 7 is 12.27px at both widths, and 0.00px on 2, 4, 5, 6 — and *within*
+   a tournament block, which is the unit the eye actually compares, it is 0.00px everywhere except
+   the one block holding a seeded two-digit score. Reported with numbers so Roli can call it; not
+   decided inside a crest task.
+6. **Scheduled rows get the mark too.** A fixture with clubs already picked is exactly a row where
+   "which clubs" is the live question, and the mark sits outside the numeral cell, so the `vs`
+   branch is untouched.
+
+### The work
+
+1. **New `ui/primitives/ClubMark.tsx`** — `ClubMark` moved out of `FriendlyList` verbatim, plus a
+   `side` prop that only writes a `data-club-mark` attribute (for tests and measurement; it paints
+   nothing). Keeps the reserved 16px slot for a clubless side and the `sr-only` club name.
+2. **`pages/tools/FriendlyList.tsx`** — deletes its private copy and imports the primitive. No
+   visual change; re-measured to prove it.
+3. **`pages/stats/MatchHistoryList.tsx`** — `MatchRowWithClubs` passes
+   `leftMark`/`rightMark` when `!showMeta`. No prop added, no call site touched.
+4. **`pages/stats/RecordsView.tsx`** — a `qk.clubs()` query, `aClubId`/`bClubId` on `RecMatch`,
+   the marks on its `ScoreLine`.
+5. **`test/matchHistoryList.test.tsx`** — the symbol on its own side, the screen-reader name, the
+   reserved slot, and no second symbol in Details.
+6. **`DESIGN.md`** §7 (the canon table names `ClubMark`) and §8 (the club bullet stops being about
+   one page); **`AGENTS.md`** §2's module map.
+
+**DoD:** every compact match row on all seven surfaces carries one 16px club symbol per side on the
+inner edge of its names; no Details row gains a second one; **every score sits exactly where it did
+before, measured row by row on all seven surfaces at 390px and 1280px**; the friendlies list is
+unchanged to the pixel; `npm run check` + `npm run build`; blue and light at both widths; zero
+console errors, zero nested interactive elements.
