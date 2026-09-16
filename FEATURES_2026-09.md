@@ -8517,3 +8517,52 @@ built behaviour in both cases, and they are now **settled — do not flip them b
 - **"Save and return" continues outwards.** Back from the matches list goes up to `/tournaments`,
   not into the editor just dismissed. The editor was deliberately finished with; re-opening it is
   the literal reading and reads as undoing the save. Rejected.
+
+---
+
+## Q11 — The sticky grid header pins under the status bar  ☐
+
+Roli, 2026-09-16, with a screenshot of the positions grid scrolled down on his iPhone: *"the player
+icons scroll all the way to the top where they are not really visible anymore"*.
+
+**Cause, and it is Q3's.** `ui/shell/useStickyTop.ts` returns the mobile top bar's **measured**
+height while it is shown and **0** while it is hidden, and the grid header sticks to that. The bar
+auto-hides on scroll-down, so the header's offset becomes 0 — which is correct on a desktop, where 0
+is the top of the window, and wrong on a notched iPhone, where the app declares
+`apple-mobile-web-app-status-bar-style: black-translucent` and `viewport-fit=cover` (`index.html`)
+and therefore **draws underneath the status bar**. The header pins into the strip the clock and the
+battery occupy, which is exactly what his screenshot shows: avatars and names present, unreadable.
+
+**The fix is a floor, not an offset.** The sticky top must never go below `env(safe-area-inset-top)`.
+Q4 already added the vocabulary for this (`safe-t`/`safe-b`/`safe-l`/`safe-r` in
+`tailwind.config.cjs`, documented in `DESIGN.md` §7's Overlay row and §10), so this is that rule
+applied to one more surface. Check **every** sticky surface that follows the auto-hiding bar, not
+just this one — the same zero is used wherever `useStickyTop` is consumed.
+
+**Verification note:** a desktop browser reports `env(safe-area-inset-top)` as 0, so this bug is
+invisible there. Q4's worker drove real inset values through Chromium's CDP
+(`Emulation.setSafeAreaInsetsOverride`); read its deviations before claiming a measurement.
+
+**Deviations:**
+
+---
+
+## Q12 — The translucent top bar: does Roli want it?  ☐ (a question, not a defect)
+
+Roli, 2026-09-16: *"is this blurry area because of the ios 27 update or because of something you
+did?"*
+
+**Neither.** `.nav-shell` (`styles.css`) paints `rgb(var(--color-bg-default) / 0.8)`, dropping to
+**0.55** where `backdrop-filter` is supported, and `MobileChrome`'s header adds `backdrop-blur-md`
+(12px). So the bar is deliberately translucent and the page shows through it, blurred. Verified by
+reproducing the same wash in Chromium at 390px on his own data, and it predates this session by many
+commits (`3af70d3`, the shell rehaul; the `.nav-shell` values come from `f96b893`).
+
+Three dials if he wants it calmer, in increasing order of change: raise the `@supports` opacity from
+**0.55** toward the 0.8 non-blur value; increase the blur past 12px so the content behind becomes an
+even wash instead of a recognisable shape; or drop translucency entirely and make the bar opaque,
+which also removes a compositing layer on a phone. **Do not change it without his word** — it is a
+look he has lived with since the shell was built, and the same treatment is on the bottom bar
+(`nav-shell` again), so any change should be made to both or deliberately not.
+
+**Deviations:**
