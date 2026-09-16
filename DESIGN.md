@@ -215,8 +215,15 @@ while `chip`, `.input-field` and `.select-field` stay white. Dark themes are una
   holes, and anything painted across the grid (the positions grid's cup lineage) shows through
   them — close them with a negative margin and matching padding, not with a lower z-index. The
   app's top bar is `z-30`; nothing that scrolls under it may go above `z-20`.
-- Elevation: only `card` has a shadow. Floating elements (filter pill, toasts, bottom bar) use
-  `shadow-pop` + `backdrop-blur-md`.
+- Elevation: only `card` has a shadow. Floating elements that sit **over** the page — the filter
+  pill, toasts, the notification popover — use `shadow-pop` + `backdrop-blur-md`.
+- **The two nav bars are not floating elements: they are opaque (Q12).** `.nav-shell` paints
+  `--color-bg-default` at full strength, with no `backdrop-filter` and no shadow at rest; the top
+  bar is separated by its `border-b` and gains `shadow-pop` only once the page has scrolled, the
+  bottom bar by its `border-t` alone. They were translucent until 2026-09-16, when an iOS update
+  changed how Safari composites a blurred bar and made the page visible through them — measured on
+  Roli's phone either side of the update, same CSS, different result. A bar the page slides under
+  must not offer a view of what is under it.
 
 ## 5. Typography
 
