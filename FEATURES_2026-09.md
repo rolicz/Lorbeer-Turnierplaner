@@ -7718,3 +7718,46 @@ names per side), a row with no club at all (they exist in the data), and the lon
 the DB. Details view already shows crest + name + league + rating and should not gain a second one.
 
 **Deviations:**
+
+---
+
+## Q9 — The cache is discarded faster than Roli moves around  ☐
+
+Roli, 2026-09-16: *"i see that some screens are loading again after i move away from them and back ->
+i thought we already have the data and only load it if something changed? is there a regression? or
+was it always like this/is this ok?"*
+
+**Not a regression.** `frontend/src/main.tsx:35-43` has held `retry: 1`,
+`refetchOnWindowFocus: false`, `staleTime: 5000` since **the initial commit** (`d7101c9`), and
+`gcTime`/`cacheTime` is set **nowhere**, so it is TanStack's default of **5 minutes**. Nothing in
+rounds 6–8 touched either.
+
+**What he is actually seeing.** Two different timers, only one of which is visible:
+- `staleTime: 5000` — almost every return refetches, but the cached data renders immediately while
+  it happens, so there is no loading state. Invisible; costs traffic.
+- **`gcTime` 5 min** — once the last component using a key unmounts, the entry is dropped after five
+  minutes. Return after that and there is nothing to render, so the loader is real and correct.
+  This is the one he sees, and it fires exactly on the "went away and came back later" pattern.
+
+The loaders themselves are **not** the bug: v5's `isLoading` is `isPending && isFetching`, true only
+when there is no cached data, and the seven call sites using it are right. (`FriendlyMatchCard`'s
+three `isFetching` uses are disabled-states on controls, not loaders — leave them.)
+
+**Why the expectation is reachable.** The app pushes changes over the websocket and invalidates the
+affected keys (`hooks/realtime/applyEvent.ts`, and A9 made the `seq` gap check real). Where realtime
+covers a screen, a 5-second staleness window buys nothing: the data cannot go quietly stale, because
+a change announces itself. Where it does not — **clubs, ideas, and anything else with no channel** —
+the short window is doing real work and must stay.
+
+**What to do, and the judgement it needs:** raise `gcTime` substantially so returning to a screen is
+instant rather than a fresh load, and set `staleTime` **per domain** rather than globally — long
+where a channel covers it, short where none does. Write down which keys are covered by which
+channel; that map does not exist anywhere today and is the actual deliverable. Watch the memory cost
+of a long `gcTime` on a phone, and check what `placeholderData: keepPreviousData` (already used on
+the stats queries) should do once the numbers change.
+
+**DoD:** the channel-coverage map written into `AGENTS.md` §6; navigating away for ten minutes and
+back renders instantly on every realtime-covered screen; a screen with no channel still refreshes;
+`npm run check` + build.
+
+**Deviations:**
