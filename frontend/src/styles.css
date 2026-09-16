@@ -87,16 +87,30 @@
     font-weight: 600;
   }
 
-  /* Main navigation / header */
+  /* Main navigation / header — the phone's top bar and bottom tab bar, and
+     nothing else (`MobileChrome`, `BottomTabBar`; the desktop `Sidebar` and the
+     drawer paint their own surface).
+
+     Opaque, on purpose (Q12). It used to paint `bg-default / 0.8`, dropping to
+     `/ 0.55` in an `@supports (backdrop-filter)` block so that the 12px
+     `backdrop-blur-md` on both bars had something to work through. Because the
+     page's own background *is* `bg-default`, a band with nothing behind it
+     composited back to exactly the theme colour — which is what Roli's phone
+     showed until iOS 27 (screenshot band: every pixel `11,17,30` to the digit).
+     After the update the same instruction composites brighter (same floor,
+     ceiling `24,29,42`) with our CSS unchanged, so the effect is no longer ours
+     to predict. Roli's call: drop it — the bar is a surface the page passes
+     under, not a window onto it, and the border plus the top bar's scrolled
+     `shadow-pop` already say so.
+
+     There is therefore no `@supports` block and no 0.8: that block existed only
+     to serve the blur, and 0.8 was the degraded fallback for browsers that could
+     not blur (unblurred content sliding under a half-transparent bar), never a
+     value anyone chose to look at. One rule, every engine, every theme. */
   .nav-shell {
     @apply border-b;
     border-color: rgb(var(--color-border-card-outer) / 0.8);
-    background-color: rgb(var(--color-bg-default) / 0.8);
-  }
-  @supports ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
-    .nav-shell {
-      background-color: rgb(var(--color-bg-default) / 0.55);
-    }
+    background-color: rgb(var(--color-bg-default));
   }
 
   /* The on-screen keyboard, in two rules (Q2). `ui/shell/keyboardOpen.ts` sets

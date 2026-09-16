@@ -57,11 +57,16 @@ export default function MobileChrome({
 
   return (
     <>
-      {/* Auto-hiding top bar — slides up on scroll-down, back down on scroll-up. */}
+      {/* Auto-hiding top bar — slides up on scroll-down, back down on scroll-up.
+          Opaque since Q12: `nav-shell` no longer thins itself for a blur, so the
+          `backdrop-blur-md` that used to sit here is gone with it — a blur behind
+          an opaque surface is a compositing layer that costs a phone something and
+          shows nothing. What tells you the page continues under the bar is the
+          hairline plus `shadow-pop`, which appears the moment you leave the top. */}
       <header
         id="app-top-nav"
         className={
-          "sticky top-0 z-30 nav-shell backdrop-blur-md pt-safe-t transition-transform duration-300 ease-out-expo lg:hidden " +
+          "sticky top-0 z-30 nav-shell pt-safe-t transition-transform duration-300 ease-out-expo lg:hidden " +
           (hidden && !open ? "-translate-y-full" : "translate-y-0") +
           (atTop ? "" : " shadow-pop")
         }

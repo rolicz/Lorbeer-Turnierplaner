@@ -17,6 +17,11 @@ import { useDestinationLinks } from "./useDestinationLinks";
  * above the composer — which is what Roli filmed. `pl-safe-l pr-safe-r` keep the
  * five tabs out of a landscape notch; the bar's background still reaches the
  * screen edge, the way the drawer's does (Q4).
+ *
+ * Its surface is `nav-shell`, opaque since Q12 — the same class the top bar wears,
+ * changed together so the two bars on one screen can never disagree. The blur that
+ * went with the old translucency is gone here too; the `border-t` is what marks the
+ * edge the list runs under.
  */
 export default function BottomTabBar() {
   const loc = useLocation();
@@ -31,7 +36,7 @@ export default function BottomTabBar() {
     <nav
       role="navigation"
       aria-label="Primary"
-      className="hide-on-keyboard fixed inset-x-0 bottom-0 z-30 nav-shell border-b-0 border-t backdrop-blur-md pb-safe-b pl-safe-l pr-safe-r lg:hidden"
+      className="hide-on-keyboard fixed inset-x-0 bottom-0 z-30 nav-shell border-b-0 border-t pb-safe-b pl-safe-l pr-safe-r lg:hidden"
     >
       <div className="flex items-stretch">
         {links.map(({ dest: d, to, isActive, state }) => {

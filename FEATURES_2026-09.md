@@ -8922,7 +8922,7 @@ invisible there. Q4's worker drove real inset values through Chromium's CDP
 
 ---
 
-## Q12 — The nav bars stop being translucent  ☐
+## Q12 — The nav bars stop being translucent  ☑
 
 Roli, 2026-09-16: *"is this blurry area because of the ios 27 update or because of something you
 did?"*
@@ -8940,7 +8940,8 @@ which also removes a compositing layer on a phone. **Do not change it without hi
 look he has lived with since the shell was built, and the same treatment is on the bottom bar
 (`nav-shell` again), so any change should be made to both or deliberately not.
 
-**Deviations:**
+**Deviations:** the paragraph above is the *first* answer and it was wrong — see the block below,
+which is what was asked for and what was built. Implementation notes live under its Deviations line.
 
 
 ### Q12 — decided, and my first answer was wrong (2026-09-16)
@@ -8977,4 +8978,59 @@ Screenshot each, top and bottom, before and after.
 
 **Blocked on Q2's worker**, which owns `styles.css`, `BottomTabBar.tsx` and `tailwind.config.cjs`.
 
-**Deviations:**
+**Deviations:** (implemented 2026-09-16 on `feature/2026-09-audit`, after Q2 released those files.)
+
+- **The `@supports` block is gone, not softened, and so is the 0.8.** The block existed for one
+  reason — to thin the bar to 0.55 *because* a blur was going to run behind it — so deleting the blur
+  deletes the block. The 0.8 underneath it was never a value anyone chose to look at either: it was
+  the fallback for an engine that cannot blur, i.e. unblurred page content sliding under a
+  half-transparent bar, the worse half of the same idea. `.nav-shell` is now **one rule**,
+  `rgb(var(--color-bg-default))`, for every engine and every theme.
+- **Nothing visible changes where nothing is behind the bar.** The page background *is*
+  `--color-bg-default`, so 0.55 of it over itself composited back to exactly the theme colour —
+  which is why Roli's pre-update screenshot was flat to the digit. The change is visible only where
+  content passes under, which is the state every screenshot below was taken in.
+- **`nav-shell` has exactly two users**, both changed together: `MobileChrome`'s top bar and
+  `BottomTabBar`. Checked and deliberately left alone: the **drawer** panel (`MobileChrome`) is
+  already opaque `bg-bg-card-outer` and sits on a 55%-black scrim — a surface over a scrim is a
+  different argument, the blur there (`backdrop-blur-[2px]`) is a real effect on the page it is
+  dismissing, not a window onto a page you are still reading; the desktop **`Sidebar`** is
+  `bg-bg-card-outer/60` with **no** `backdrop-filter`, a flat tint beside the content rather than
+  over it, so it cannot be hit by the compositing change at all.
+- **What is lost, and what replaces it: nothing new.** Translucency said “the page continues under
+  here”. The top bar already says it better — `shadow-pop` appears the moment you leave the top
+  (`atTop`) and goes away at rest, so the signal is *there when it is true*, which a constant haze
+  never was. The bottom bar keeps its `border-t`, and a list visibly running to the screen edge
+  behind it. No shadow was added to the bottom bar: it sits on the device edge where an upward
+  shadow reads as grime, and it would have been a new visual decision beyond what was asked.
+- **All five themes were judged, not just shipped.** blue / dark / red / green go from a measurable
+  wash to the flat theme colour; `light` is the interesting one and it is *better* opaque — the old
+  bar picked up whatever was under it and read as a slightly dirty grey (measured mean
+  `233.1, 231.8, 229.8` against a theme colour of `236, 235, 233`), where white cards pass under a
+  clean page-grey bar with the hairline doing the separating. None of the five looks wrong opaque.
+- **Proof the blur is gone from the shipped CSS** (`dist/assets/index-61ZmDIMv.css`, not the source):
+  the built rule is
+  `.nav-shell{border-bottom-width:1px;border-color:rgb(var(--color-border-card-outer) / .8);background-color:rgb(var(--color-bg-default))}`
+  and the stylesheet contains **`@supports` zero times**. Two `backdrop-filter` utilities survive:
+  `.backdrop-blur-[2px]`, used only by the drawer scrim (a real effect), and `.backdrop-blur-md`,
+  now used only by the `FilterPill` trigger + popover and the `NotificationBell` dropdown — all
+  three on fully **opaque** `card` / `bg-bg-card-outer` surfaces (measured live:
+  `backdrop-filter: blur(12px)` over `background-color: rgb(21, 30, 48)`), so they are the same
+  “cost with no effect” this task deleted from the bars. Left in place: they are not nav bars and
+  were not part of the decision. **Worth a follow-up.**
+- **`DESIGN.md` §4 now has one stale line** and I could not fix it — another worker owns that file
+  this session. Line 219 reads “Floating elements (filter pill, toasts, bottom bar) use `shadow-pop`
+  + `backdrop-blur-md`.” The bottom bar has neither now (and never had `shadow-pop`). It should say
+  the bottom bar is `nav-shell`, opaque, marked by its `border-t`.
+- **Verification** (isolated stack: backend :8003 on a copy of `app.db` with its own uploads copy,
+  vite :8020; none of 8000/8001/8002/8004/8010/8021/5173 touched, both stopped and the copies
+  deleted afterwards). Playwright at **390×844** on `/tournaments` scrolled to y=760 — far enough
+  that a month header passes under the top bar and a tournament row under the bottom one — in all
+  **five themes, before and after, both bars**. Masked pixel measurement (take the pixels the
+  *after* run paints flat, read the same pixels *before*): blue bottom bar mean
+  `(14.4, 20.3, 33.0)` → `(11.0, 17.0, 30.0)`, max `(72, 75, 85)` → `(12, 18, 31)`; same shape in
+  dark, red and green; `light` as above. After the change every bar is its theme colour to the
+  digit. **1280×800**: both bars are `display: none` (`lg:hidden`), the desktop sidebar unchanged.
+  **Zero console/page errors** in all runs (5 themes × before/after, plus desktop and drawer probes).
+  `cd frontend && npm run check` green (63 files, **645 tests**); `npm run build` green (the
+  pre-existing >500 kB chunk hint only).
