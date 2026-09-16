@@ -9480,3 +9480,234 @@ copies deleted afterwards).
 **For Roli to check on the phone** (cannot be produced off-device): the bar under a notch, where
 `pt-safe-t` grows the header but must not move the title sideways; and the real `Offline` marker,
 which needs the app to lose every channel rather than merely the network.
+
+---
+
+## Q15 — The clubs list: the row is the control, not a pair of buttons  ☑
+
+Roli, 2026-09-16: *"in clubs page, dont show edit and delete buttons next to club, but make it
+similar to friendlies where clicking on an item opens this menu. make sure to follow design of
+other pages."*
+
+### What is there today (read on `main` at `f425961`, and measured, not guessed)
+
+`pages/ClubsPage.tsx` builds every club as a `.row` inside a league/stars group
+(`CollapsibleCard variant="none"`, so the rows sit flat on the page ground like the friendlies
+list does): crest + name, a meta line (`EA FC 26 · 🇩🇪 Bundesliga · 5★`), then a trailing
+`flex shrink-0` slot holding a ghost **Edit** (editor+) and a ghost **Delete** (admin).
+
+- The two buttons take **141.3px of a 358px row** at 390px (measured, not eyeballed). That is why
+  `Paris Saint-Germai…` truncates and why the meta line wraps onto a second line on most rows —
+  the list's worst layout problem is the controls, not the content.
+- **Edit** sets `editId` and renders an `inset` form under the row (name for admins, stars,
+  league, `ClubStarHistory` from R4, Save/Cancel). So "an editor under the row" already exists;
+  what changes is how it is reached.
+- **Delete** opens the page's single `ConfirmDialog`, which already names what is lost and says
+  the delete is refused while a match or a friendly uses the club. None of that changes.
+
+### Two premises in the brief the code does not support (established, so nobody re-derives them)
+
+1. **A reader never sees this page.** `app/App.tsx:54` guards `/clubs` with
+   `RequireRole minRole="editor"`, so a viewer without editor rights is sent to `/login`
+   (verified at runtime: a tokenless context asking for `/clubs` lands on `/login`). `AGENTS.md`
+   §10 says the same. "What does a tap do for someone who cannot edit" therefore has a real
+   subject here only in the **non-admin editor**, who may change a rating and a league but not
+   the name and not delete. The reader case still gets an answer and a test, because the page
+   keeps its `canEdit` branches and a route guard is not a component contract.
+2. **`ClubStarsEditor` is not on this page and never has been** (`git log -S ClubStarsEditor --
+   frontend/src/pages/ClubsPage.tsx` is empty). T2 moved it into `ui/ClubPicker.tsx`'s pinned
+   SELECTED block — the picker *sheet's* row, a different surface this task does not touch. On
+   the clubs page a rating is read-only text in the meta line (`5★`) and is changed in the form
+   the row opens. So there is no in-row rating shortcut to lose, and T2's is untouched — Roli
+   confirmed mid-task that the one in the live tournament's current-match view is to stay
+   (*"i definitively want to keep it!"*); neither `ui/ClubStarsEditor.tsx` nor
+   `ui/SelectClubsPanel.tsx` is touched by this task.
+
+### Decided — the shape Q7 built and Q8 kept, copied, not reinvented
+
+- **The row carries no controls at all.** A tap anywhere on it opens that club's editor; a second
+  tap closes it. `DESIGN.md` §7's stretched-overlay mechanic: one `<button className="absolute
+  inset-0 z-0 rounded-xl focus-ring">` with an `aria-label` naming what it opens, the row content
+  `pointer-events-none relative z-10`. Never `role="button"` on a `<div>`.
+- **Delete lives inside that editor**, admin only, behind the `ConfirmDialog` that is already
+  wired. The action row is the friendly editor's, character for character: ghost `Trash2`
+  "Delete" on the left, `Cancel` + `Save` on the right, `justify-between`.
+
+### The judgement calls, and the reasons
+
+1. **The editor opens in place, under the row — not over the page.** `DESIGN.md` §9b states it
+   outright ("An editor a row opens belongs under the row, full width"), and every argument
+   behind it holds here: a modal is §7's answer to a *heavy choice* (many options, search), and
+   this editor is three fields and a four-line history; the clubs list is a feed you scan while
+   filtering and searching, and a floating card over a feed is the thing §9b names as the
+   failure mode; and the editor must sit next to the row so `ClubStarHistory` (R4) reads as
+   *this* club's record. It is also what the page already does — the change is the trigger, not
+   the destination.
+2. **An accent rail, not a surface.** Today the form is an `inset` box. It becomes the friendlies
+   idiom — `border-l-2 border-accent/30 pl-2 sm:pl-3`, no surface of its own. One reason is the
+   canon's ("so the panel inside it is still the one `inset`"), which applies here too the moment
+   the editor holds anything level-2; the better one is that the app should have **one** cue for
+   "this block belongs to the row above", and a reader who learned it on friendlies should not
+   have to learn a second one on clubs. A rounded box hanging under a flat hairline-separated row
+   also fights the list's own edges.
+3. **No chevron on the row.** `ListRow` would add a `ChevronRight` to an interactive row with an
+   empty trailing slot, but that glyph promises navigation, and this row expands. The group
+   headers on this page already own the ▾/▸ disclosure vocabulary; repeating it per row would
+   make a list of clubs look like a tree of collapsibles. The affordance is `row-tap`'s
+   hover/press state, `aria-expanded` and a `title` — exactly what the friendlies list carries.
+4. **Someone who cannot edit gets no tap and no affordance.** `canEdit` false ⇒ no overlay
+   button, no `row-tap`, no cursor change, no `aria-expanded` — a row that is only text, and
+   pixel-identical to an editor's row (the overlay is `absolute` and paints nothing at rest).
+   Nothing "useful but read-only" hides behind the tap: everything the editor holds is either a
+   control or the star history, and a history no one can act on is not worth teaching a reader
+   that rows open. The non-admin editor is the case that actually occurs: the row opens, the
+   name field stays the admin-only note it already is, and **no Delete appears**.
+5. **The tap target is the row and nothing above it.** The overlay is `absolute inset-0` inside a
+   `relative` row, so it cannot reach the group header's own `<button>` (a sibling of the body,
+   not a parent), the Group/Stars/League selects, the search field, Clear or Refresh. That is
+   also why `button button` must stay 0 and be measured on a page whose rows live *inside* a
+   collapsible.
+6. **The row keeps `ClubBadge` and `NationFlag` and gains nothing.** Both are inert spans/images,
+   so the row has no interactive content to nest; the 150px the buttons gave back goes to the
+   club name, which is the only thing on the row that was being truncated.
+
+### The work
+
+1. **New `pages/clubs/ClubList.tsx`** — the group headers, the rows, the overlay and the slot the
+   editor renders into, with `pages/tools/FriendlyList.tsx`'s prop shape (`expandedId`,
+   `onToggleRow`, `renderEditor`, `canEdit`). The rule then lives in one presentational
+   component a test can render without providers, exactly as `FriendlyList` does.
+2. **`pages/ClubsPage.tsx`** keeps the queries, filters, mutations, the create form and the
+   dialog; loses the two row buttons; its existing edit form becomes the `renderEditor` body and
+   gains the Delete in its action row.
+3. **`test/clubList.test.tsx`** — no control on a row but the row itself; the row opens the
+   editor and toggles shut; `canEdit={false}` renders no button at all; the group header is not
+   inside the row's hit area.
+4. **`DESIGN.md` §9b** — the "editor a row opens" bullet now describes the pattern rather than
+   one component, and drops the stale `MatchRowWithClubs` `expanded` reference (Q7 deleted that
+   prop). Nothing else in the canon stops being true.
+
+**DoD:** zero buttons on a club row at every role; a tap opens the editor under the row and a
+second tap closes it; Delete only inside the editor and only for an admin, behind `ConfirmDialog`;
+`a a` / `button button` / `a button` / `button a` all 0 with a group open and a row open; no
+console errors; 390px and 1280px in `blue` and `light`, as a reader (redirected), a non-admin
+editor and an admin; before/after screenshots; `npm run check` and `npm run build` green.
+
+---
+
+## Q16 — The club-stars ladder is a scale, so it shows all ten rungs  ☑
+
+Roli, 2026-09-16: *"in stats/player: always show all stars, even if someone hasnt played with a
+certain star rating."*
+
+### What is there today (measured on `main`, not guessed)
+
+`pages/stats/StarsView.tsx` builds ten buckets from `STAR_LEVELS` (5 → 0.5 in half steps) and then
+throws the empty ones away — `const active = buckets.filter((b) => b.played > 0)`. The list is
+therefore as long as the player's history happens to be, and on the dev DB (which is a copy of
+prod) that is a different picture per player, per mode and per source:
+
+| Player · mode · source | Rungs shown today |
+|---|---|
+| Roli · Overall · Tournaments | 10 of 10 |
+| Flo · 1v1 · Tournaments | 8 |
+| Rumpi · 1v1 · Tournaments | 6 |
+| Berni · 1v1 · Tournaments | **3** (5★, 3★, 1★ — 5 rated matches) |
+| Mike · 1v1 · Tournaments | **0** — the `EmptyState` |
+
+Two things follow, and both are the complaint. The y-axis is not a scale: 5★ and 3★ end up
+adjacent rows for Berni and four rows apart for Roli, so no two players' ladders can be compared
+by eye, and one player's 1v1 ladder cannot be compared with his own 2v2 one. And the question the
+view is most often asked — *has he ever taken a 1.5★ club out?* — has no answer on screen: a
+missing row could mean "never" or "there is no such rating".
+
+Since R4 the bucket is the rating the club carried **on the day of the match**, so a rung can also
+be non-empty for a rating its club no longer has; that makes the full ladder more useful, not less.
+
+### Settled — do not relitigate
+
+1. **Ten rungs, always, in order**, whenever the player has at least one rated match.
+2. **An unplayed rung prints no numeral at all.** Not `0P 0-0-0`, not `0:0`, not `0.00`. `0` is a
+   result — *played, scored nothing* — and Flo's 1v1 ladder has three such rows (`1P 0-0-1`,
+   `0.00 ppm`). A rung nobody played must not be able to be read as one of them, and the only
+   guarantee that survives a hurried glance is that it contains no digits.
+3. **It says the state in words where the record line goes** ("no matches", `text-xs`
+   `text-text-muted`), and an **em dash in the ppm column** — the same dash `TABLE_COLS`' PPM
+   already prints for a rate with no matches behind it (`pages/stats/standings.ts`). Words for the
+   state, the app's existing mark for the missing value.
+4. **No bar.** The bar is `Math.max(2, …)` wide so that a rung played for zero points still draws
+   a 2px stub; that stub is a *result*, and an unplayed rung must not paint one.
+5. **One tone quieter, and the tone is a token.** The rung's stars drop from `text-text-normal` to
+   `text-text-muted` (blue: `#f8fafc` → `#bac6d8`; light: `#0c0a09` → `#4a4642`). Never an alpha
+   fraction of a token — `DESIGN.md` §2, "Opacity is not a tone".
+6. **Nothing rated at all stays one sentence.** Mike's 1v1 view keeps its `EmptyState`; ten rows
+   saying "no matches" would be a worse way to say "no matches at all".
+7. **The columns may not move.** `recordWidths` keeps measuring the rated rungs only (they are the
+   only rows that print a record line, and a `0` could not widen a track anyway), and the unplayed
+   rung *holds* the ppm column instead of collapsing it: `RecordNum digits={4}` around the dash —
+   a bare dash is three mono characters narrower than `0.00` and would walk the centred record
+   lines sideways, which is the drift T14 exists to stop — plus the `ppm` caption kept as a
+   `visibility: hidden` spacer (the same trick `.record-num`'s pad plays, and invisible to a
+   screen reader).
+8. **The sentence above the list counts both numbers**: `N rated match(es) across K of 10
+   ratings.` — it is what explains the empty rows, and `1 rated matches` (A8's "1 games together"
+   bug, present here too) is fixed on the way past.
+
+### The work
+
+1. `pages/stats/StarsView.tsx` — render `buckets`, not `active`; the unplayed row treatment above;
+   widths and the count from the rated rungs (`rated`); the header sentence.
+2. `test/starsView.test.tsx` (new) — ten rows from two played ratings; **no digit** on an unplayed
+   row and no bar; one `--record-pad` per column across the played rows; the singular sentence;
+   the `EmptyState` when nothing is rated.
+3. No backend change, no API change, no new dependency. `DESIGN.md` is unchanged: every part of
+   this is an existing rule applied (§2 tones, §5 `text-micro`/mono, §7 `RecordLine`/`RecordNum`,
+   the table's own em dash).
+
+**DoD:** ten rows for every player who has one rated match; zero digits on an unplayed row; no bar
+on an unplayed row; the `EmptyState` still there for a player with none; the middle and right
+columns measured identical on all ten rows at 390 and 1280; checked against the real players,
+including the sparsest (Berni, 1v1) and one with none (Mike, 1v1); 390 and 1280 in `blue` and
+`light`; zero console errors; `npm run check` and `npm run build` green.
+
+**Deviations, and the judgement calls:**
+
+1. **Two marks per unplayed row, not one.** "no matches" alone left the ppm column empty and the
+   row looking unfinished; the dash alone (the table's idiom) is quiet enough to be skimmed past
+   in a list where every other row is loud. They answer different columns — the record column says
+   there were no matches, the rate column says there is no rate — which is exactly what the stats
+   table does with `P = 0` and `PPM = —`. Rendered both ways at 390 before choosing.
+2. **The dash is `aria-hidden`.** The row already reads "4.5 out of 5 stars · no matches" to a
+   screen reader; an em dash after that is noise, and the hidden `ppm` caption is out of the
+   accessibility tree anyway because `visibility: hidden` takes it there.
+3. **The sentence keeps its shape when every rung is filled** ("59 rated matches across 10 of 10
+   ratings"). It is mildly redundant for Roli and it is *information* — he has played every rating
+   — and one sentence shape is easier to trust than one that changes with the data.
+4. **Row height and order are untouched.** An unplayed rung is the same 45px as a played one and
+   sits in its place in the ladder; a shorter row or a collapsed group would take the even spacing
+   away, and the even spacing *is* the feature. On a phone the section grows from 3 rows (135px)
+   to 10 (449px) for a player like Berni, which is a section below the fold either way.
+
+**Verification** (isolated stack: backend :8004 on a copy of `backend/app.db` with a scratch
+secrets file and its own uploads copy, vite :8021; none of 8000/8001/8002/8003/8010/8020/5173
+touched, both stopped and the copies deleted afterwards).
+
+- **Columns, measured on all ten rows** (`getBoundingClientRect` per grid cell), for Roli/Berni/
+  Flo/Rumpi/Atzi × {390, 1280}: at 390 the middle cell is `[96 … 299.33]` and the ppm cell starts
+  at `307.33` with width `62.67`, the numeral's right edge at `340.94` and the caption's left edge
+  at `344.94` — **one value each, identical on played and unplayed rows**; at 1280, `[344 …
+  1181.33]`, `1189.33`, `62.67`, `1222.94`, `1226.94`. The `P` and `W-D-L` segments keep one x per
+  list (e.g. 733.45 / 755.86 at 1280, and 729.84 / 759.45 for Roli's two-digit `10P` list), which
+  is T14 holding. Row height 45px (44 for the first, which has no divider above it).
+- **The sparsest real player**, Berni · 1v1 · Tournaments: 5 rated matches on three rungs
+  (`3P 1-0-2 · 1.00 ppm` at 5★, `1P 0-1-0 · 1.00 ppm` at 3★, `1P 1-0-0 · 3.00 ppm` at 1★), seven
+  rungs saying "no matches", header "5 rated matches across 3 of 10 ratings."
+- **The player with none**, Mike · 1v1 · Tournaments: unchanged `EmptyState`, no rows.
+- **The row that proves the distinction**, Flo · 1v1 · Tournaments: `1P 0-0-1 / 0.00 ppm` with a
+  2px bar at 2.5★ and `2P 0-0-2 / 0.00 ppm` at 2★ sit directly above `no matches / —` with no bar
+  at 1.5★ and 1★ — four rows, two kinds of nothing, told apart at a glance.
+- 390×844 and 1280×900 in `blue` and `light`, before/after per case; **zero console or page
+  errors**; horizontal overflow 0px at both widths.
+- `cd frontend && npm run check`: typecheck, eslint and **670 tests in 66 files** green (665 in 65
+  before — `starsView.test.tsx` is new). `npm run build` green (the pre-existing >500 kB chunk
+  hint only).
