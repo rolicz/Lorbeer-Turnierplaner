@@ -13,7 +13,9 @@
  * page has a list of its own, and the fake tournament is gone.
  *
  *   15 SEPTEMBER 2026 ──────────────────────────────  4 matches
- *              Roli   9 │ 1   Flo
+ *            🛡 Roli   9 │ 1   Flo 🛡                      ← Compact (Q8)
+ *
+ *              Roli   9 │ 1   Flo                          ← Details
  *      Rangers F.C. 🛡   │   🛡 Heart of Midlothian F.C.
  *   Scottish Premiership 🏴 ★3.5 │ 3.5★ 🏴 Scottish Premiership
  *
@@ -22,7 +24,8 @@
  * - **Every score sits at the same x**, down the whole page and across both views —
  *   `scoreDigits` sizes the numeral columns once for the entire list, so a `12`
  *   cannot push the hairline off the column a `2` set (`ScoreLine`, the mechanism
- *   T14 gave `RecordLine`).
+ *   T14 gave `RecordLine`). The club symbols Q8 added sit *outside* that track,
+ *   on the far side of the names, so they cannot touch it.
  * - **The row is the only control.** Tapping it opens the friendly's editor
  *   underneath it; the edit and delete buttons that used to sit on every row are
  *   gone, and delete lives inside the editor (`DESIGN.md` §7 stretched overlay,
@@ -30,8 +33,10 @@
  */
 import type { ReactNode } from "react";
 
+import ClubBadge from "../../ui/ClubBadge";
 import MatchSides from "../../ui/primitives/MatchSides";
 import ScoreLine, { scoreDigits } from "../../ui/primitives/ScoreLine";
+import { clubLabelPartsById } from "../../ui/clubControls";
 import type { Club, MatchState } from "../../api/types";
 import type { FriendlyMatchResponse } from "../../api/friendlies.api";
 import { fmtCount, fmtDateLong } from "../../utils/format";
@@ -68,6 +73,42 @@ export function groupFriendliesByDate(rows: readonly FriendlyMatchResponse[]): F
         return b.id - a.id;
       }),
     }));
+}
+
+/**
+ * The club of one side, as a 16px symbol next to that side's names (Q8).
+ *
+ * Compact shows a score and nothing else, so the crest is the only way this view
+ * can say which clubs played. It hangs off the **outer** edge of the names, never
+ * inside the numeral track: the names hug the score, so a symbol added outside
+ * them grows into empty space and the fixed score column (Q7) cannot move — with
+ * a crest, with a flag, with a monogram or with nothing at all.
+ *
+ * A side with no club keeps the slot as an inert 16px box. Nothing on screen
+ * depends on it (the names are pinned to the score either way); it keeps every
+ * row's geometry literally identical, which is what the alignment is made of.
+ *
+ * `ClubBadge` resolves the symbol: real crest → national team's flag → monogram
+ * (`AGENTS.md` §10). The club's name goes to screen readers, because here the
+ * symbol is the whole statement — Details spells it out in words instead.
+ */
+function ClubMark({ clubs, clubId }: { clubs: Club[]; clubId?: number | null }) {
+  const has = clubs.some((c) => c.id === clubId);
+  if (!has) return <span aria-hidden="true" className="h-4 w-4 shrink-0" />;
+
+  const parts = clubLabelPartsById(clubs, clubId);
+  return (
+    <span className="inline-flex shrink-0 items-center">
+      <ClubBadge
+        name={parts.name}
+        nation={parts.national_nation}
+        clubId={parts.id}
+        crestVersion={parts.crest_updated_at}
+        size="sm"
+      />
+      <span className="sr-only">{parts.name}</span>
+    </span>
+  );
 }
 
 function sideOf(f: FriendlyMatchResponse, side: "A" | "B") {
@@ -117,6 +158,10 @@ function FriendlyRow({
         rightNames={bNames}
         leftGoals={ag}
         rightGoals={bg}
+        // Compact only: Details prints crest, club, league and rating under the
+        // score already, and one club never wears two symbols on one row.
+        leftMark={showMeta ? null : <ClubMark clubs={clubs} clubId={a?.club_id} />}
+        rightMark={showMeta ? null : <ClubMark clubs={clubs} clubId={b?.club_id} />}
       />
       {showMeta ? (
         <MatchSides

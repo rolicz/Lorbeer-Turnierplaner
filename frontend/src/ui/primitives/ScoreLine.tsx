@@ -81,6 +81,7 @@ function Names({
   align,
   emphasis,
   badge,
+  mark,
 }: {
   lines: ReactNode[];
   size: ScoreLineSize;
@@ -88,6 +89,8 @@ function Names({
   emphasis: string;
   /** Result badge for this side — it sits on the side's outer edge, next to the names. */
   badge?: ReactNode;
+  /** This side's own symbol (the club crest), between the badge and the names. */
+  mark?: ReactNode;
 }) {
   const block = (
     <div className={cn("min-w-0", align === "right" ? "text-right" : "text-left")}>
@@ -106,11 +109,16 @@ function Names({
     </div>
   );
 
-  if (!badge) return block;
+  if (!badge && !mark) return block;
+  // The names stay pinned to the numeral track (`justify-end` on the left side,
+  // `justify-start` on the right), so whatever hangs off their outer edge grows
+  // outward into empty space and can move neither the names nor the score.
   return (
     <div className={cn("flex min-w-0 items-center gap-2", align === "right" ? "justify-end" : "justify-start")}>
       {align === "right" ? badge : null}
+      {align === "right" ? mark : null}
       {block}
+      {align === "left" ? mark : null}
       {align === "left" ? badge : null}
     </div>
   );
@@ -190,6 +198,8 @@ export default function ScoreLine({
   focus = null,
   result = null,
   resultBadge = false,
+  leftMark,
+  rightMark,
   status,
   digits,
   className,
@@ -207,6 +217,14 @@ export default function ScoreLine({
   result?: ScoreResult | null;
   /** Renders a 16px W/D/L chip at the row's outer edge (dense lists). */
   resultBadge?: boolean;
+  /**
+   * A small symbol that belongs to one side and travels with its names on their
+   * outer edge — the club crest in the friendlies list (Q8). It sits **outside**
+   * the numeral track, which is the whole point: the fixed score column (`digits`)
+   * stays exactly where it is, and so do the names, because they hug the score.
+   */
+  leftMark?: ReactNode;
+  rightMark?: ReactNode;
   /** Hero only: a short status line under the score (`Live · 34'`). */
   status?: ReactNode;
   /** Fixed numeral columns for a list — `scoreDigits(list)`. See the file header. */
@@ -242,6 +260,7 @@ export default function ScoreLine({
           align="right"
           emphasis={emphasis("left")}
           badge={badgeSide === "left" ? badge : null}
+          mark={leftMark}
         />
 
         {scheduled && size === "sm" ? (
@@ -271,6 +290,7 @@ export default function ScoreLine({
           align="left"
           emphasis={emphasis("right")}
           badge={badgeSide === "right" ? badge : null}
+          mark={rightMark}
         />
       </div>
 

@@ -8124,7 +8124,7 @@ Only after that, fix the condition.
 
 ---
 
-## Q8 — A friendly's result should show which clubs played it  ☐
+## Q8 — A friendly's result should show which clubs played it  ☑
 
 Roli, on the new list (2026-09-16): *"i like the new list, but can you show the club crest beside the
 result?"* — which also settles Q7's open question: **the flat rows are right, no card.**
@@ -8142,6 +8142,59 @@ names per side), a row with no club at all (they exist in the data), and the lon
 the DB. Details view already shows crest + name + league + rating and should not gain a second one.
 
 **Deviations:**
+- **The crest is a side *mark* on `ScoreLine`, not a new row shape.** `leftMark` / `rightMark` hang
+  one small node off the outer edge of a side's names — the slot mechanism the result badge (§8)
+  already used, so a side reads `badge → mark → names` and the trio stays one grid. The friendlies
+  list passes a 16px `ClubBadge` (`ClubMark` in `pages/tools/FriendlyList.tsx`); nothing else in the
+  app passes anything yet.
+- **Nothing moved, and the reason is structural, not lucky.** The names *hug* the score
+  (`justify-end` on the left side, `justify-start` on the right), so a symbol added on their far
+  side grows outward into space that was empty anyway: it can move neither the numeral track nor the
+  names. Measured on the same 24-row list Q7 used (20 real friendlies + four seeded: two 2v2, a
+  12–3, a 2–10, a clubless row, the two longest club names in the DB), **before and after are
+  identical to the pixel** — one distinct separator x per view, spread **0.00px**, x=**195.00** at
+  390px and **760.00** at 1280px, every numeral track's own edges one value across all 24 rows
+  (compact 161.95/186.50 · 203.50/228.05; details 153.77/186.50 · 203.50/236.23 at 390px), and the
+  **names** likewise: left-names right edge 149.95, right-names left edge 240.05 at 390px, 714.95 /
+  805.05 at 1280px, one value each, before **and** after.
+- **Compact only, and Details is provably untouched.** Details already spells the club out in words
+  with its own crest; a second symbol on the same row is the thing the brief forbade, and there is
+  no arrangement where a row needs two. Proved rather than asserted: the full-page screenshots of
+  Details at both widths in both themes are the same height before and after and differ in **zero**
+  pixels (light/1280) or in exactly one 16px square — the bottom bar's *pulsing live dot*, which
+  animates between captures.
+- **A clubless side keeps an inert 16px slot.** Honest note: nothing on screen depends on it, since
+  the names are pinned to the score either way — it exists so every row's geometry is literally
+  identical rather than merely equivalent. It says nothing else: Compact is the dense view, and a
+  visible "no club" marker would spend a symbol on the absence of one (Details has the words).
+- **The symbol carries the club's name to screen readers** (`sr-only` next to the badge, which is
+  `aria-hidden` by design): in Compact the symbol is the entire statement about the clubs, so
+  leaving it silent would make the view worse for AT than the one it replaces. A `title` tooltip was
+  rejected — the row content is `pointer-events-none` under the stretched edit button (A6/§7), so a
+  tooltip would work for a reader and not for an editor.
+- **Size: `ClubBadge size="sm"` (16px), the app's smallest, under the 18px `sm` numerals and beside
+  14px names** — the same footprint the club line already uses in Details, so the crest never
+  outweighs the score. No opacity fudge and no special case for the crestless clubs: checked live
+  across all 48 sides of the list — 33 real crests, **8 national-team flags**, **4 monograms**
+  (`AS` Al Shabab, `NF` Nottingham Forest ×3 — two of the six crestless clubs) and 3 empty slots.
+- **No new request, and not one per row.** The page already loads `/clubs` once
+  (`qk.clubs()` in `FriendlyMatchesListCard`) and hands the array down; `ClubMark` resolves through
+  the same `clubLabelPartsById` Details uses. Counted at runtime: **1** `/clubs` call, **1**
+  `/friendlies?limit=500`, and **25 crest images for 25 distinct URLs** — byte for byte what the
+  Details view already fetched, because repeats come from the browser cache (`?v=<updated_at>`,
+  `loading="lazy"`).
+- **Canon touched** (targeted): `DESIGN.md` §7's `Any score` and `Clubs under a score` rows, and a
+  new §8 bullet stating the rule — the club stands beside the name, never inside the score; one
+  club, one symbol per row; the clubless slot; the 2v2 centring. `AGENTS.md` needed no change (crest
+  precedence and the module map are still true as written).
+- **Tests:** 5 new (`friendlyList.test.tsx` ×4 — the symbol beside its own side, the screen-reader
+  name, the kept slot, Details getting no second symbol; `scoreLine.test.tsx` ×1 — a mark rides the
+  outer edge, never the numeral cell, and a 2v2 side spends no extra line on it).
+- **Verified** on an isolated stack — backend :8003 on a copy of `backend/app.db` with a scratch
+  secrets file, vite :8020 — at 390×844 and 1280×800, in `blue` and `light`, both views, as admin
+  and as a reader: **zero console errors** everywhere, `a a` / `button button` / `a button` /
+  `button a` all **0**, 24 rows, one row button each as admin and none at all as a reader, and the
+  row still opens its editor with Delete inside it. The DB copy and both servers are gone.
 
 ---
 
@@ -8248,7 +8301,7 @@ Chosen by Roli from rendered options. **Biggest value first**, not easiest first
 | 1 | **Q6** — one model for back, forward and the gestures | Ungated by Q10. Runs on the consistency findings alone. |
 | 2 | **Q10** — split the four context files | Stops the app appearing to crash whenever a worker saves one. |
 | 3 | **Q2 (reopened)** — the keyboard does not hide the bar | Needs the readout below before the fix can be written. |
-| 4 | **Q8** — club crests beside a friendly's result | |
+| 4 | **Q8** — club crests beside a friendly's result | ☑ Done 2026-09-16. |
 | 5 | **Q9** — the cache is discarded faster than he navigates | Deliverable is the channel-coverage map. |
 
 **Before Q2 can start**, build a live viewport readout into the Diagnostics section

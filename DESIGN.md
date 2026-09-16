@@ -302,8 +302,8 @@ Matchup, Player) is built from the same block, so the sections read as one page:
 | 2–3 view modes | `SegmentedSwitch` | `rounded-xl` track, `h-8` `rounded-lg` segments (§4 exception), sliding indicator in `Chip`'s selected style, lucide icon nodes |
 | Page sections | `SectionTabs` | underline tabs with edge fades |
 | Filters | `FilterPill` (`ui/primitives/`) | the app's floating capsule, see §9. A page declares its groups (`filterGroup`) and owns their state; the pill owns everything else. `pages/stats/StatsFilterPill.tsx` is the stats page's two groups and nothing more (Q7) |
-| Any score | `ScoreLine` | see §8 — the only way to render a score; `ScoreNumerals` is the bare numeral pair for a control that has to *speak* a score (the goal entry's side choice) |
-| Clubs under a score | `MatchSides` | badge + club, flag + league, stars; nothing but "No club" for a clubless side. `stars="token"` folds the rating into the league line as `★ 3.5` instead of giving five glyphs a line of their own — one line less per row, and the two numbers then meet either side of the centre gap (the friendlies list, Q7) |
+| Any score | `ScoreLine` | see §8 — the only way to render a score; `ScoreNumerals` is the bare numeral pair for a control that has to *speak* a score (the goal entry's side choice); `leftMark`/`rightMark` hang one small symbol off a side's outer edge (the club crest in a score-only list, Q8) |
+| Clubs under a score | `MatchSides` | badge + club, flag + league, stars; nothing but "No club" for a clubless side. A row with **no** club line — a score-only list — says it with `ScoreLine`'s side mark instead (§8, Q8), never with both. `stars="token"` folds the rating into the league line as `★ 3.5` instead of giving five glyphs a line of their own — one line less per row, and the two numbers then meet either side of the centre gap (the friendlies list, Q7) |
 | Picking a club | `SelectClubsPanel` + `ClubPicker` (`ui/`) | one panel per match, a `card` behind a single "Clubs" disclosure that summarises both clubs (§9b, T9). Open, it holds the whole job in one bounded block: the two `ClubSlot`s (side players + crest, league, stars), then the star/league filters, then the dice + *Random matchup* row. A slot opens the `ClubPicker` sheet: search focused on open, the club this side already has pinned on top with its `ClubStarsEditor`, then recents, then league groups, crest + stars per row, one tap selects. The scoreboard above (`MatchOverviewPanel`/`MatchSides`) stays **read-only on every surface** |
 | Writing a comment | `CommentComposer` (`pages/live/comments/`) | one chat row *inside* the feed's card, attached to its bottom edge behind a hairline and sticky, so it floats over the feed while reading and settles flush at the end (T3); scope + author are chips above the field, goal/shots swap the row in place. The guestbook's composer is the same row (`CommentSendRow`) at the end of its feed |
 | Key number | `StatTile` | `inset` + `text-2xl font-bold tabular-nums` value + `text-xs` muted label |
@@ -354,6 +354,14 @@ Sizes `hero` (match panel), `md` (match rows in lists), `sm` (compact rows, mini
   every score then sits at the same x: the same mechanism `recordWidths` gives
   `RecordLine` (T14), sized to that list's widest score and never wider. A single
   score — a hero panel, a preview — passes nothing; there is no column to keep.
+- **The club stands beside the name, never inside the score** (Q8). A list that shows a score
+  and nothing else — the friendlies list in Compact — names the clubs with one 16px `ClubBadge`
+  per side, passed as `leftMark` / `rightMark`. It rides the **outer** edge of that side's names,
+  so it grows outward into empty space: the names hug the score, which means neither the names
+  nor the fixed numeral column move (measured identical to the pixel across 24 mixed rows at both
+  widths). A 2v2 side spends no extra line — the mark is centred against both names. A side with
+  no club keeps the slot as an inert 16px box and says nothing more. A row that already carries a
+  club line (Details, `MatchSides`) gets **no** mark: one club never wears two symbols on one row.
 - A control that previews a score (the goal entry's "which side scores") uses the exported
   `ScoreNumerals`, never a hand-written `1-0` string: same weight, same tabular figures, same
   hairline separator. The numeral that changes is emphasised, the other muted.

@@ -33,8 +33,9 @@ function makeFriendly(
   date: string,
   goals: [number, number],
   names: [string[], string[]] = [["Roli"], ["Flo"]],
-  opts: { canEdit?: boolean; createdAt?: string } = {},
+  opts: { canEdit?: boolean; createdAt?: string; clubs?: [number | null, number | null] } = {},
 ): FriendlyMatchResponse {
+  const [aClub, bClub] = opts.clubs ?? [1, 2];
   return {
     id,
     mode: names[0].length > 1 ? "2v2" : "1v1",
@@ -46,14 +47,14 @@ function makeFriendly(
       {
         id: id * 10,
         side: "A",
-        club_id: 1,
+        club_id: aClub,
         goals: goals[0],
         players: names[0].map((n, i) => ({ id: i + 1, display_name: n })),
       },
       {
         id: id * 10 + 1,
         side: "B",
-        club_id: 2,
+        club_id: bClub,
         goals: goals[1],
         players: names[1].map((n, i) => ({ id: i + 11, display_name: n })),
       },
@@ -156,6 +157,63 @@ describe("FriendlyList (Q7)", () => {
     const row = container.querySelector(".list-divided")!.firstElementChild!;
     expect(row.firstElementChild?.contains(editor)).toBe(false);
     expect(row.lastElementChild?.contains(editor)).toBe(true);
+  });
+
+  // --- Q8: the club beside the result ----------------------------------------
+
+  /** The three grid cells of a row's score line: left names, numerals, right names. */
+  function scoreCells(container: HTMLElement) {
+    const grid = container.querySelector("[data-score-line]")!.firstElementChild!;
+    const [left, numerals, right] = [...grid.children] as HTMLElement[];
+    return { left, numerals, right };
+  }
+
+  it("puts each side's club symbol beside its own names in Compact", () => {
+    const { container } = renderList([makeFriendly(1, "2026-08-28", [9, 1])], { showMeta: false });
+    const { left, numerals, right } = scoreCells(container);
+
+    // Left side: symbol first, then the names — which still hug the score.
+    expect(left.firstElementChild).toHaveTextContent("BM");
+    expect(left.lastElementChild).toHaveTextContent("Roli");
+    // Right side mirrors it: names, then the symbol on the outer edge.
+    expect(right.firstElementChild).toHaveTextContent("Flo");
+    expect(right.lastElementChild).toHaveTextContent("HO");
+    // And nothing entered the numeral track — that column may not move (Q7).
+    expect(numerals.textContent?.replace(/\s/g, "")).toBe("91");
+    expect(numerals.querySelectorAll("img")).toHaveLength(0);
+  });
+
+  it("names the club for screen readers, because in Compact the symbol is the whole statement", () => {
+    const { container, getByText } = renderList([makeFriendly(1, "2026-08-28", [9, 1])], { showMeta: false });
+    expect(getByText("Bayern München").className).toContain("sr-only");
+    expect(getByText("Heart of Midlothian F.C.").className).toContain("sr-only");
+    expect(scoreCells(container).left.firstElementChild).toContainElement(getByText("Bayern München"));
+  });
+
+  it("keeps the slot when a side has no club, so every row keeps the same shape", () => {
+    const { container } = renderList(
+      [makeFriendly(1, "2026-08-28", [0, 0], [["Roli"], ["Flo"]], { clubs: [null, 2] })],
+      { showMeta: false },
+    );
+    const { left, right } = scoreCells(container);
+    // An inert box of the badge's own size, no symbol and no words.
+    expect(left.firstElementChild).toHaveTextContent("");
+    expect(left.firstElementChild?.className).toContain("h-4 w-4");
+    expect(left.firstElementChild?.getAttribute("aria-hidden")).toBe("true");
+    expect(left.children).toHaveLength(2);
+    expect(right.children).toHaveLength(2);
+    expect(right.lastElementChild).toHaveTextContent("HO");
+  });
+
+  it("gives Details no second symbol — its club line already carries one", () => {
+    const { container } = renderList([makeFriendly(1, "2026-08-28", [9, 1])]);
+    const { left, right } = scoreCells(container);
+    // The score line's name cells are the bare name blocks again.
+    expect(left.textContent).toBe("Roli");
+    expect(right.textContent).toBe("Flo");
+    // Exactly one symbol per side on the row, and it belongs to `MatchSides`.
+    const monograms = [...container.querySelectorAll("span")].filter((el) => /^(BM|HO)$/.test(el.textContent ?? ""));
+    expect(monograms).toHaveLength(2);
   });
 
   it("prints the club rating as one token instead of five glyphs", () => {
