@@ -9143,3 +9143,121 @@ position. And the composers' own `bottom-nav-clear` already collapses — this i
 padding, a different thing that happens to be the same 72px.
 
 **Deviations:**
+
+---
+
+## Q13 — The mobile top bar: a fixed frame around a centred title  ☐
+
+Roli, 2026-09-16: *"not a big fan of the top bar: the back button moves the hamburger icon and the
+title label sits too close to the hamburger."*
+
+### What is there today (measured on this branch, not guessed)
+
+`MobileChrome`'s row is `flex h-14 items-center gap-1 px-3` with five children in source order —
+back (only on an `inside` page, Q6), menu, the title (`ml-1 min-w-0 flex-1 truncate`),
+`ConnectionIndicator`, `NotificationBell`. Nothing in it has a place of its own; every element is
+put where the element before it happened to end:
+
+- **The hamburger moves**: x=12 on a destination, x=56 on a page you went into — back took the
+  screen edge (Q6 decision 5) and pushed it.
+- **The title moves with it.** Over the app's 15 top-bar routes at 390px its ink starts at x=60 or
+  x=104, and its box changes width again with every state of the right-hand side.
+- **The title is 4px from a button** (`ml-1` against a 40px box whose glyph ends 10px in) — Roli's
+  second complaint, and the reason the first one is so visible: the label is glued to whatever is
+  to its left.
+- **The connection chip is variable-width text** appended to a `flex-1` title with no `shrink-0`:
+  "Reconnecting" ≈ 96px, "Offline" ≈ 56px, nothing ≈ 0px. It takes its width out of the title when
+  it appears, and on a long-title page it is itself crushed to the screen edge.
+- **The bell only exists when logged in**, so the right-hand side has three widths (none · bell ·
+  chip+bell) and the title's box has three too.
+
+### Settled with Roli, from rendered options (2026-09-16) — do not relitigate
+
+1. **The title is centred** and must not move between pages or states.
+2. **The hamburger is fixed at the left screen edge** and never moves.
+3. **Back appears inboard of the hamburger** — `[≡] [‹] · Title · [bell]` — in space that is
+   reserved whether or not it is there. Back at the outer edge, back on the right beside the bell,
+   and back in its own row below the bar were all shown to him and rejected.
+
+(3) supersedes the *ordering* half of Q6 decision 5 — "back takes the screen edge (that is where
+the thumb starts the same gesture)". Everything else Q6 and Q6b decided stands untouched: the
+chevron still appears exactly on `inside` pages, it still does not replace the hamburger, and it is
+still the same `useBack()` call as the swipe. `DESIGN.md` §10 rule 5 and the test that asserts the
+button order are Q6 artefacts and must be updated, not worked around.
+
+### The frame (this is the whole idea)
+
+One row, three boxes, and **the side boxes are the same fixed width**, because a centred title only
+stays centred if both sides reserve the same space:
+
+```
+  px-3 │ w-20 (80px) │ gap-2 │  flex-1 min-w-0  │ gap-2 │ w-20 (80px) │ px-3
+       │  [≡] [‹]    │       │   centred title  │       │      [bell] │
+```
+
+- **80px is exactly two 40px controls** — the most the left box ever holds (menu + back, flush, the
+  way a toolbar pairs two icon buttons). It is `w-20` on the spacing scale, not an arbitrary value.
+- The centre box's x is `12 + 80 + 8` and its width is `W − 200`, so **its centre is `W/2` for every
+  screen width**, with back and without it, with the bell and without it. The title is
+  `truncate text-center`, so the ink is centred in the box: one number per width, provable.
+- Title width: **190px at 390** · 120px at 320 · 230px at 430. Air around the text: 8px of gap plus
+  the 10px inside each button's box, so ≥18px from the chevron's glyph even when the text truncates.
+- `h-14` and the `border-b` stay exactly as they are: `useStickyTop` measures this bar (57px) and
+  every sticky grid header in the app is docked to that number (Q3/Q11).
+
+### The right box holds exactly one control (Roli, after the first draft)
+
+The right side must be fixed width or it shoves the title, and the chip was the thing that could not
+be: it is text. **The connection marker replaces the bell** rather than sitting beside it, so the
+right box always holds one 40px control — the bell normally, the marker while the socket is in
+trouble. Fixed width by construction, no arithmetic to get wrong, and the stronger signal: the
+control you would reach for is itself saying the connection is down, instead of a count you cannot
+trust sitting next to a warning that you can.
+
+What must survive from T10 and A8, which built this indicator deliberately quiet:
+
+- **The happy path still says nothing** — no "connected" state, ever. The bell is the resting state.
+- **The 1.2s grace stays**, and gets a mirror: once the marker is up it holds for the same 1.2s
+  before handing the slot back. A socket that wobbles must not blink the corner of the screen
+  between two icons. One constant, one idea: this slot changes at most every 1.2 seconds.
+- **The tone stays.** `reconnecting` is the `warn` token (amber, never `draw`); `offline` is
+  `text-text-muted`, deliberately the quieter of the two, because red there would be the second red
+  dot in a chrome that already carries the live one. No badge, no fill, no alarm.
+- **The words stay** — "Reconnecting" / "Offline" — as the marker's accessible name and its
+  `title`, and unchanged in the desktop sidebar, which has room for a labelled chip and no centred
+  title to protect. The mobile bar renders the same state in the space it has; that is responsive
+  design, not a second opinion.
+- **The popover is not yanked away.** If the bell's list is open when the socket drops, the bell
+  keeps the slot until it is closed. Losing the bell for the duration is acceptable — losing it
+  mid-read is not.
+
+### Truncation (report it, do not quietly ship it)
+
+Every real title the bar can show, measured at `text-base font-semibold` in Chromium on the Pi
+(system-ui here is wider than iOS's SF Pro, so these are pessimistic):
+the nav labels (Dashboard 83px, Tournaments 99px, Friendlies 72px, Stats 39px, Players 55px, Ideas
+41px, Clubs, Settings 62px), the fallbacks (Lorbeerkranz 100px, Not found 73px, Tournament, Match,
+Profile), `Match N` (61px), a player's name (Roli 27px — the longest in the DB is 5 characters), and
+the tournament names, which are the only long ones: **1. Lorbeerkranzturnier 163px**,
+7. Bauernkranzturnier 159px, Florianiturnier 🚒 127px.
+
+At 390px nothing truncates (190px box, 27px of headroom on the worst real title). The worker
+**measures this, does not assume it**, and reports every title that truncates at 390 and at 320.
+
+### The work
+
+1. `ui/shell/MobileChrome.tsx` — the three-box row; menu first, back second, both 40px, flush.
+2. The connection marker: lift T10's grace into a hook so the mobile marker and the sidebar's
+   labelled chip cannot disagree about *when*, add the settle period, and put the swap (marker or
+   bell, plus the popover guard) in one place the bar just renders.
+3. `test/mobileChrome.test.tsx` — the button order flips; add the frame's invariants (both side
+   boxes present and equal, back inboard, one control on the right).
+4. `DESIGN.md` §10 rule 5 (the order) and §4's page-rhythm block (the bar's geometry);
+   `AGENTS.md` §10 where it describes the bar.
+5. Desktop is out of scope and must be **unchanged**: `PageLayout`'s title row, the sidebar, its
+   `ConnectionIndicator`.
+
+**DoD:** the title's centre x measured on every top-level and every drilled-in route at 320 / 390 /
+430, with and without the connection state, **one value per width**; the hamburger's x identical on
+every route; the truncation list; 390 and 1280 in blue and light, plus the bar's auto-hidden and
+returned states and the drawer open; zero console errors; `npm run check` and `npm run build` green.
