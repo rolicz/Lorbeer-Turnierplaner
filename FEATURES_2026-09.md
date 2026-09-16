@@ -8266,3 +8266,68 @@ that is understood.
 
 **Remember at deploy time:** §7 step 6, the manual `recover-club-star-history` run. Roli asked twice
 to be reminded.
+
+
+---
+
+## Q6b — Back means "where you came from", except after a jump  ☐
+
+**This supersedes decision 3 of Q6** (`back always means one level up`), tested on Roli's phone and
+changed by him on 2026-09-16 after seeing it. Q6's code, table and canon are otherwise correct and
+stay; this changes the rule they implement, so the table is **re-verified**, not patched.
+
+### What the device showed
+
+Roli's recording, plus two follow-ups from him:
+- **The app's swipe works on iOS** — a swipe from the *middle* of the screen goes up, as Q6 built it.
+- **The left edge belongs to iOS.** An edge swipe is the system's own back gesture (with its own
+  slide animation, which the app never draws), doing a plain history pop. So one flick landed in two
+  different places depending on where his thumb started, and Q6's chevron and gesture — which agree
+  with each other — both disagreed with the edge.
+- **He reversed the rule itself:** *"although im not sure if im happy with h2h details going to
+  matrix if i come from match details…"* — which is T11, his own round-4 request, by name.
+
+### The rule, and the collision that shapes it
+
+**Back returns you to the page you came from. If you arrived by tapping a nav destination, or you
+did not arrive from anywhere (cold link, push, reload), back goes one level up instead.**
+
+The second clause is not a nicety: without it this **re-breaks N1**, which Roli reported as a
+regression in round 3. Tapping Tournaments, landing on the live tournament U6 remembered, then
+pressing back must go **up to the tournaments list**, not pop to whatever destination he was in
+before. That case and the matchup case are structurally identical — the previous entry is in another
+part of the app — and he wants **opposite** outcomes in them. The thing that separates them is not
+where he came from but **how he got there**: a nav-destination tap is a *jump* and must not be popped
+back out of; an in-content link is a *drill-in* and must be.
+
+So the history entry has to carry that distinction. Q6 already records navigations
+(`useRememberLocation`, and the breadcrumb trail); marking a jump at the one place nav links are
+built (`useDestinationLinks` / `navConfig`) is the natural seam. **Do not infer it** from comparing
+destinations — that is exactly the test that gets these two cases wrong.
+
+### Verified expectations (every one already argued with Roli)
+
+| From | Arrived by | Back goes to |
+|---|---|---|
+| matchup | "All matches" on a match page | **the match page** (T11, restored) |
+| matchup | a cell in the H2H matrix | the matrix |
+| matchup | cold link / push | the H2H list (up) |
+| live tournament | Tournaments tab, U6-remembered | **the tournaments list** (up) — N1 stays fixed |
+| match page | a row in the Matches tab | that tab, at its offset |
+| match page | a Records row in Stats | **the Records row** — was "up to the tournament" under Q6 |
+| profile | a link inside a tournament | **the tournament** — was "up to Players" under Q6 |
+| anything | reload | as if walked in |
+
+### The edge stops mattering
+
+Under this rule the system's edge gesture and the app's own do the **same thing** everywhere except
+a nav-bar jump, so there is no case left worth suppressing a platform gesture for. Keep every
+listener passive; do not fight iOS. State in the report what the two still do differently after a
+jump, and whether that residue is worth anything further.
+
+**DoD:** Q6's scenario table re-verified end to end against the new rule (not patched — re-run, with
+the "arrived by" column made explicit), the N1 and T11 rows both passing in the same build, `DESIGN.md`
+and `AGENTS.md` §10 updated to the new rule, `npm run check` + build, 390px and 1280px in blue and
+light, and an explicit note of what still needs Roli's phone.
+
+**Deviations:**
