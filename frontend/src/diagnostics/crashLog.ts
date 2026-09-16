@@ -7,8 +7,10 @@
  * and then went away. There is no console on that phone, and it does not
  * reproduce in Chromium, so the only way to learn what threw is to have the app
  * write it down itself. Four sources feed this log (the top-level boundary, the
- * route boundary, `window.onerror`, `unhandledrejection`) plus a fifth synthetic
- * one for a death with no error at all (`lifecycle`).
+ * route boundary, `window.onerror`, `unhandledrejection`) plus two synthetic
+ * ones, from `lifecycle`, for the deaths where nothing throws at all: a session
+ * that was taken away (`lifecycle`) and a screen that went blank while the page
+ * stayed open (`blank-screen`).
  *
  * Three rules hold this file together:
  *
@@ -64,7 +66,20 @@ export type CrashSource =
   | "window-error"
   | "unhandled-rejection"
   /** Synthetic: the app ended without anything throwing (`lifecycle`). */
-  | "lifecycle";
+  | "lifecycle"
+  /** Synthetic: the app stopped drawing while the page stayed open (`lifecycle`). */
+  | "blank-screen";
+
+/** The two sources nobody threw for: they are reported as `warn`, not `error`. */
+export function isSyntheticSource(source: CrashSource): boolean {
+  return source === "lifecycle" || source === "blank-screen";
+}
+
+/** What a blank-screen entry says it is. */
+export const BLANK_SCREEN_MESSAGE =
+  "The screen went blank: the page was still open, but the app had stopped drawing anything.";
+/** A blank screen recorded when it happened, and the marker's copy of it, are one incident. */
+const BLANK_DEDUPE_MS = 5000;
 
 export type CrashEntry = {
   id: string;
@@ -95,11 +110,19 @@ export type RecordInput = {
   url?: string;
   ts?: number;
   trail?: Crumb[];
+  /**
+   * Always its own entry: never merged into the newest, never folded away by a
+   * spent burst budget. Only the once-per-document blank-screen entry uses it —
+   * a render loop that ends in a blank screen is exactly the case where the
+   * burst guard would otherwise swallow the one line that says what was on screen.
+   */
+  force?: boolean;
 };
 
 /** Which source carries the most detail; a richer arrival upgrades an entry. */
 const RICHNESS: Record<CrashSource, number> = {
   lifecycle: 0,
+  "blank-screen": 0,
   "window-error": 1,
   "unhandled-rejection": 1,
   "route-boundary": 2,
@@ -349,7 +372,7 @@ export function recordCrash(input: RecordInput): string | null {
     const burstExhausted = burstCount >= BURST_MAX_NEW_ENTRIES;
 
     const newest = buffer[0];
-    if (newest && now - (newest.lastTs ?? newest.ts) <= MERGE_WINDOW_MS) {
+    if (!input.force && newest && now - (newest.lastTs ?? newest.ts) <= MERGE_WINDOW_MS) {
       const same = signature(newest) === signature({ message, stack });
       if (same || burstExhausted) {
         if (now - lastCountedTs > SAME_THROW_MS) {
@@ -364,7 +387,7 @@ export function recordCrash(input: RecordInput): string | null {
         if (!newest.componentStack && componentStack) newest.componentStack = componentStack;
         if (key) seen.set(key, newest.id);
         scheduleFlush();
-        if (input.source !== "lifecycle") noteErrorRecorded(now);
+        if (!isSyntheticSource(input.source)) noteErrorRecorded(now);
         return newest.id;
       }
     }
@@ -387,7 +410,7 @@ export function recordCrash(input: RecordInput): string | null {
     burstCount += 1;
     if (key) seen.set(key, entry.id);
     scheduleFlush();
-    if (input.source !== "lifecycle") noteErrorRecorded(now);
+    if (!isSyntheticSource(input.source)) noteErrorRecorded(now);
     return entry.id;
   } catch {
     // The recorder is never the reason something breaks.
@@ -404,6 +427,34 @@ export function recordUnexpectedEnd(end: { ts: number; url: string; trail: Crumb
     url: end.url,
     trail: end.trail,
   });
+}
+
+/**
+ * The synthetic entry for a screen that went blank while the page stayed open.
+ *
+ * Written the moment the detector sees it, and again — from the liveness
+ * marker — on the next boot if that first write never made it (a full quota, or
+ * ten louder entries after it). Those are one incident, so a blank already in the
+ * log within `BLANK_DEDUPE_MS` of this one is left alone.
+ */
+export function recordBlankScreen(end: { ts: number; url: string; trail: Crumb[] }): string | null {
+  try {
+    ensureLoaded();
+    const ts = typeof end.ts === "number" && Number.isFinite(end.ts) ? end.ts : Date.now();
+    for (const entry of buffer) {
+      if (entry.source === "blank-screen" && Math.abs(entry.ts - ts) <= BLANK_DEDUPE_MS) return null;
+    }
+    return recordCrash({
+      source: "blank-screen",
+      value: BLANK_SCREEN_MESSAGE,
+      ts,
+      url: end.url,
+      trail: end.trail,
+      force: true,
+    });
+  } catch {
+    return null;
+  }
 }
 
 /* -- reading -------------------------------------------------------------- */
@@ -455,6 +506,7 @@ export const SOURCE_LABEL: Record<CrashSource, string> = {
   "window-error": "window.onerror",
   "unhandled-rejection": "Unhandled rejection",
   lifecycle: "Ended unexpectedly",
+  "blank-screen": "Screen went blank",
 };
 
 export function formatTimestamp(ts: number): string {

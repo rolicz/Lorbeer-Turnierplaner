@@ -7,6 +7,7 @@ import {
   describeThrown,
   formatCrashLog,
   readCrashLog,
+  recordBlankScreen,
   recordCrash,
   resetCrashLog,
 } from "../diagnostics/crashLog";
@@ -257,4 +258,41 @@ describe("crash recorder", () => {
       expect(formatCrashLog([])).toContain("(nothing recorded)");
     });
   });
+
+  describe("the blank-screen entry", () => {
+    it("is its own entry even when a burst has already spent its budget", () => {
+      // A render loop that ends in a blank screen: without `force` the one line
+      // saying what was actually on screen would fold into the newest error.
+      for (let i = 0; i < 12; i++) {
+        recordCrash({ source: "window-error", value: new Error(`loop ${i}`) });
+        vi.advanceTimersByTime(10);
+      }
+
+      recordBlankScreen({ ts: Date.now(), url: "/live/4", trail: [] });
+
+      const log = readCrashLog();
+      expect(log[0].source).toBe("blank-screen");
+      expect(log[0].url).toBe("/live/4");
+      expect(log[0].count).toBe(1);
+    });
+
+    it("is one incident however many times it is reported", () => {
+      // Recorded when it happened, and again from the liveness marker on the next
+      // boot — the backup write for the case where the first one never landed.
+      const ts = Date.now();
+      recordBlankScreen({ ts, url: "/live/4", trail: [] });
+      recordBlankScreen({ ts: ts + 1200, url: "/live/4", trail: [] });
+
+      expect(readCrashLog().filter((e) => e.source === "blank-screen")).toHaveLength(1);
+    });
+
+    it("does not tell the liveness marker that an error explained the app going away", () => {
+      // `noteErrorRecorded` is for real errors only: a synthetic entry must not
+      // suppress the next boot's report of an unclean end.
+      const setItem = vi.spyOn(Storage.prototype, "setItem");
+      recordBlankScreen({ ts: Date.now(), url: "/live/4", trail: [] });
+      expect(setItem.mock.calls.filter((c) => c[0] === "lk:diag:alive")).toHaveLength(0);
+    });
+  });
+
 });

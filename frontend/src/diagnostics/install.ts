@@ -5,11 +5,42 @@
  * Order matters: the previous session's liveness marker is read (and cleared)
  * *before* this session starts writing its own, otherwise the new heartbeat
  * would overwrite the evidence it is supposed to report.
+ *
+ * This is also where the blank-screen detector is joined to the recorder. It is
+ * a callback rather than an import so `lifecycle` never has to depend on
+ * `crashLog` (which already depends on it), and so the one policy question --
+ * *what happens the moment the app stops drawing* -- is answered in one place.
  */
-import { flushCrashLog, recordCrash, recordUnexpectedEnd } from "./crashLog";
-import { startLifecycleMonitor, takePreviousMarker, unexpectedEnd } from "./lifecycle";
+import { paintBlankNotice } from "./blankNotice";
+import { flushCrashLog, recordBlankScreen, recordCrash, recordUnexpectedEnd } from "./crashLog";
+import { setBlankScreenHandler, startLifecycleMonitor, takePreviousMarker, unexpectedEnd } from "./lifecycle";
+import type { Crumb } from "./breadcrumbs";
 
 let installed = false;
+
+/**
+ * The app has stopped drawing and the page is still here. Write it down, get it
+ * to storage now (this document may not get another chance), and then say so on
+ * the screen that is otherwise empty. Each step is on its own so a failure in
+ * one cannot cost the others.
+ */
+export function reportBlankScreen(end: { ts: number; url: string; trail: Crumb[] }): void {
+  try {
+    recordBlankScreen(end);
+  } catch {
+    // ignore
+  }
+  try {
+    flushCrashLog();
+  } catch {
+    // ignore
+  }
+  try {
+    paintBlankNotice();
+  } catch {
+    // ignore
+  }
+}
 
 function installGlobalHandlers(): void {
   window.addEventListener("error", (event: Event) => {
@@ -45,13 +76,20 @@ export function initDiagnostics(): void {
 
   try {
     const end = unexpectedEnd(takePreviousMarker());
-    if (end) recordUnexpectedEnd(end);
+    if (end?.kind === "blank") recordBlankScreen(end);
+    else if (end) recordUnexpectedEnd(end);
   } catch {
     // ignore
   }
 
   try {
     installGlobalHandlers();
+  } catch {
+    // ignore
+  }
+
+  try {
+    setBlankScreenHandler(reportBlankScreen);
   } catch {
     // ignore
   }

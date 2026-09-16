@@ -10,6 +10,7 @@ import {
   clearCrashLog,
   formatCrashLog,
   formatTimestamp,
+  isSyntheticSource,
   readCrashLog,
   type CrashEntry,
 } from "../../diagnostics/crashLog";
@@ -25,7 +26,7 @@ import {
 
 /** The danger idiom (`DESIGN.md` §2): a real error is `error`; a death nobody threw is `warn`. */
 function toneFor(entry: CrashEntry): string {
-  return entry.source === "lifecycle"
+  return isSyntheticSource(entry.source)
     ? "border-warn/40 bg-warn/10 text-warn"
     : "border-error/40 bg-error/10 text-error";
 }
@@ -76,7 +77,7 @@ function EntryRow({ entry }: { entry: CrashEntry }) {
       {open ? (
         <div className="mt-2 space-y-2">
           <div className={cn("rounded-xl border p-3 text-xs", tone)}>
-            {entry.source === "lifecycle" ? (
+            {isSyntheticSource(entry.source) ? (
               <p className="mb-1 font-semibold">No error was thrown.</p>
             ) : null}
             <p className="whitespace-pre-wrap break-words">{entry.message}</p>
@@ -204,8 +205,8 @@ export default function DiagnosticsSettings() {
   return (
     <div className="space-y-3">
       <p className="text-xs text-text-muted">
-        The last 10 times the app crashed or ended unexpectedly, kept on this device only. Open one for its stack and
-        the navigation that led to it, or copy the lot into a message.
+        The last 10 times the app crashed, went blank or ended unexpectedly, kept on this device only. Open one for
+        its stack and the navigation that led to it, or copy the lot into a message.
       </p>
 
       <div className="flex flex-wrap gap-2">
@@ -255,7 +256,7 @@ export default function DiagnosticsSettings() {
       ) : (
         <EmptyState
           title="Nothing recorded"
-          hint="Crashes, unhandled errors and an app that ends without one show up here."
+          hint="Crashes, unhandled errors, a screen that goes blank and an app that ends without one show up here."
         />
       )}
 
