@@ -7049,7 +7049,7 @@ written once").
   stand-in for "the keyboard is up", not a real keyboard** — on iOS the layout viewport does not
   shrink, which is Q2's subject. Zero console errors.
 
-## Q2 — The bottom tab bar rides up with the keyboard  ☑
+## Q2 — The bottom tab bar rides up with the keyboard  ☐ REOPENED
 
 App-wide, not an Ideas bug: **nothing in the app listens to the visual viewport**
 (`grep -rn "visualViewport" frontend/src` → nothing). `BottomTabBar.tsx:27` is
@@ -7665,3 +7665,56 @@ preferences:
 | 5 | **Q6** alone | **Gated on the crash trail from Roli's phone** (see Q6's Sequencing note). It touches every file the other six avoid. |
 
 **Nothing in Round 8 starts without Roli saying so**, wave 1 included.
+
+
+---
+
+## Q2 (reopened) — the keyboard fix does not fire on the device  ☐
+
+Roli tested `ec5165f` on his iPhone, 2026-09-16: *"it happens in both safari and standalone pwa
+after re-opening (tabs group moves with keyboard)"*. Screenshot: keyboard up, **the bottom tab bar
+still visible** between the composer and the keyboard, and **the composer still 72px above the bar**.
+
+**What that rules out.** Not a stale bundle — he force-quit and reopened, and Q1's taller details
+field (shipped hours earlier) is visible in the same screenshot while Q2's effect is not. Not
+standalone-mode-specific — mobile Safari behaves identically. And **both halves failed together**
+(bar not hidden *and* `--bottom-nav-clearance` not collapsed), so `html[data-keyboard-open]` is
+never being set: this is the detection, not the CSS that hangs off it.
+
+**Where to look, in order.** The three conditions in `ui/shell/keyboardOpen.ts` are focus on a text
+field, `scale ≤ 1.05`, and `covered ≥ max(120px, 20% of innerHeight)` where
+`covered = innerHeight − visualViewport.height − visualViewport.offsetTop`. On paper all three hold
+on an iPhone. So one of the *inputs* is not what the code assumes — most likely `innerHeight`
+shrinking with the keyboard (making `covered ≈ 0`), or `offsetTop` absorbing the difference. Roli's
+words "tabs group moves with keyboard" say Safari **re-anchors the fixed bar to the visual
+viewport**, which is consistent with a non-zero `offsetTop`.
+
+**Do not guess a second time.** The next step is to *measure on his phone*: put a live readout of
+`window.innerHeight`, `visualViewport.height`, `visualViewport.offsetTop`, `visualViewport.scale`,
+the active element's tag and the current value of the flag into the Diagnostics section that already
+exists (R7 diagnostics, `ui/layout/DiagnosticsSettings.tsx`), with its own text field to focus so the
+keyboard can be raised while the numbers stay on screen. One screenshot from him then settles it.
+Only after that, fix the condition.
+
+**Deviations:**
+
+---
+
+## Q8 — A friendly's result should show which clubs played it  ☐
+
+Roli, on the new list (2026-09-16): *"i like the new list, but can you show the club crest beside the
+result?"* — which also settles Q7's open question: **the flat rows are right, no card.**
+
+Compact view shows the score and nothing else, so the clubs are only visible by switching to Details
+or opening the row. The crest is the compact way to say it: `ui/ClubBadge.tsx` already resolves
+crest → nation flag → monogram (AGENTS.md §10), and the friendlies list already loads the clubs it
+would need.
+
+Judgement, for whoever builds it: where the crest sits without breaking what Q7 just fixed. Every
+score now sits at exactly the same x (measured spread 0.00px across 24 mixed rows) because the two
+numerals hug a fixed centre; a crest placed inside that track would move it. It belongs beside the
+**player name** on each side, on the outside of the numeral track. Check it against a 2v2 row (two
+names per side), a row with no club at all (they exist in the data), and the longest club names in
+the DB. Details view already shows crest + name + league + rating and should not gain a second one.
+
+**Deviations:**
