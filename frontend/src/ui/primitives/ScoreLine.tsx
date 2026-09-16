@@ -89,9 +89,10 @@ function Names({
   emphasis: string;
   /** Result badge for this side — it sits on the side's outer edge, next to the names. */
   badge?: ReactNode;
-  /** This side's own symbol (the club crest), between the badge and the names. */
+  /** This side's own symbol (the club crest), between its names and the score. */
   mark?: ReactNode;
 }) {
+  const justify = align === "right" ? "justify-end" : "justify-start";
   const block = (
     <div className={cn("min-w-0", align === "right" ? "text-right" : "text-left")}>
       {lines.map((n, i) => (
@@ -110,15 +111,26 @@ function Names({
   );
 
   if (!badge && !mark) return block;
-  // The names stay pinned to the numeral track (`justify-end` on the left side,
-  // `justify-start` on the right), so whatever hangs off their outer edge grows
-  // outward into empty space and can move neither the names nor the score.
-  return (
-    <div className={cn("flex min-w-0 items-center gap-2", align === "right" ? "justify-end" : "justify-start")}>
-      {align === "right" ? badge : null}
-      {align === "right" ? mark : null}
-      {block}
+
+  // The mark belongs to the names, not to the numerals: 6px to its own side's
+  // names against the grid's 12px to the score — the same 6px a club symbol
+  // already keeps beside its club name in `MatchSides`, so it reads as part of
+  // the team and not as decoration on the score.
+  const named = mark ? (
+    <div className={cn("flex min-w-0 items-center gap-1.5", justify)}>
       {align === "left" ? mark : null}
+      {block}
+      {align === "right" ? mark : null}
+    </div>
+  ) : (
+    block
+  );
+
+  if (!badge) return named;
+  return (
+    <div className={cn("flex min-w-0 items-center gap-2", justify)}>
+      {align === "right" ? badge : null}
+      {named}
       {align === "left" ? badge : null}
     </div>
   );
@@ -218,10 +230,11 @@ export default function ScoreLine({
   /** Renders a 16px W/D/L chip at the row's outer edge (dense lists). */
   resultBadge?: boolean;
   /**
-   * A small symbol that belongs to one side and travels with its names on their
-   * outer edge — the club crest in the friendlies list (Q8). It sits **outside**
-   * the numeral track, which is the whole point: the fixed score column (`digits`)
-   * stays exactly where it is, and so do the names, because they hug the score.
+   * A small symbol that belongs to one side and travels with its names — the club
+   * crest in the friendlies list (Q8). It sits **between that side's names and the
+   * score**, still outside the numeral track: the fixed score column (`digits`) is
+   * centred in the grid and cannot move, so the mark grows into the names' cell and
+   * pushes the *names* outward instead.
    */
   leftMark?: ReactNode;
   rightMark?: ReactNode;

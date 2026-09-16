@@ -168,16 +168,16 @@ describe("FriendlyList (Q7)", () => {
     return { left, numerals, right };
   }
 
-  it("puts each side's club symbol beside its own names in Compact", () => {
+  it("puts each side's club symbol between its own names and the score in Compact", () => {
     const { container } = renderList([makeFriendly(1, "2026-08-28", [9, 1])], { showMeta: false });
     const { left, numerals, right } = scoreCells(container);
 
-    // Left side: symbol first, then the names — which still hug the score.
-    expect(left.firstElementChild).toHaveTextContent("BM");
-    expect(left.lastElementChild).toHaveTextContent("Roli");
-    // Right side mirrors it: names, then the symbol on the outer edge.
-    expect(right.firstElementChild).toHaveTextContent("Flo");
-    expect(right.lastElementChild).toHaveTextContent("HO");
+    // Left side: the names, then the symbol on their inner edge, against the score.
+    expect(left.firstElementChild).toHaveTextContent("Roli");
+    expect(left.lastElementChild).toHaveTextContent("BM");
+    // Right side mirrors it: symbol first, then the names.
+    expect(right.firstElementChild).toHaveTextContent("HO");
+    expect(right.lastElementChild).toHaveTextContent("Flo");
     // And nothing entered the numeral track — that column may not move (Q7).
     expect(numerals.textContent?.replace(/\s/g, "")).toBe("91");
     expect(numerals.querySelectorAll("img")).toHaveLength(0);
@@ -187,7 +187,7 @@ describe("FriendlyList (Q7)", () => {
     const { container, getByText } = renderList([makeFriendly(1, "2026-08-28", [9, 1])], { showMeta: false });
     expect(getByText("Bayern München").className).toContain("sr-only");
     expect(getByText("Heart of Midlothian F.C.").className).toContain("sr-only");
-    expect(scoreCells(container).left.firstElementChild).toContainElement(getByText("Bayern München"));
+    expect(scoreCells(container).left.lastElementChild).toContainElement(getByText("Bayern München"));
   });
 
   it("keeps the slot when a side has no club, so every row keeps the same shape", () => {
@@ -196,13 +196,15 @@ describe("FriendlyList (Q7)", () => {
       { showMeta: false },
     );
     const { left, right } = scoreCells(container);
-    // An inert box of the badge's own size, no symbol and no words.
-    expect(left.firstElementChild).toHaveTextContent("");
-    expect(left.firstElementChild?.className).toContain("h-4 w-4");
-    expect(left.firstElementChild?.getAttribute("aria-hidden")).toBe("true");
+    // An inert box of the badge's own size, no symbol and no words. With the symbol
+    // inside the names now, dropping it would pull this row's names 22px in towards
+    // the score while every other row's stayed put.
+    expect(left.lastElementChild).toHaveTextContent("");
+    expect(left.lastElementChild?.className).toContain("h-4 w-4");
+    expect(left.lastElementChild?.getAttribute("aria-hidden")).toBe("true");
     expect(left.children).toHaveLength(2);
     expect(right.children).toHaveLength(2);
-    expect(right.lastElementChild).toHaveTextContent("HO");
+    expect(right.firstElementChild).toHaveTextContent("HO");
   });
 
   it("gives Details no second symbol — its club line already carries one", () => {

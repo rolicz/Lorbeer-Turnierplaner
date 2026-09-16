@@ -13,7 +13,7 @@
  * page has a list of its own, and the fake tournament is gone.
  *
  *   15 SEPTEMBER 2026 ──────────────────────────────  4 matches
- *            🛡 Roli   9 │ 1   Flo 🛡                      ← Compact (Q8)
+ *            Roli 🛡   9 │ 1   🛡 Flo                      ← Compact (Q8)
  *
  *              Roli   9 │ 1   Flo                          ← Details
  *      Rangers F.C. 🛡   │   🛡 Heart of Midlothian F.C.
@@ -24,8 +24,9 @@
  * - **Every score sits at the same x**, down the whole page and across both views —
  *   `scoreDigits` sizes the numeral columns once for the entire list, so a `12`
  *   cannot push the hairline off the column a `2` set (`ScoreLine`, the mechanism
- *   T14 gave `RecordLine`). The club symbols Q8 added sit *outside* that track,
- *   on the far side of the names, so they cannot touch it.
+ *   T14 gave `RecordLine`). The club symbols Q8 added sit between the names and
+ *   that track, never inside it: the track is centred in the grid, so the symbol
+ *   pushes the *names* outward and the score does not move.
  * - **The row is the only control.** Tapping it opens the friendly's editor
  *   underneath it; the edit and delete buttons that used to sit on every row are
  *   gone, and delete lives inside the editor (`DESIGN.md` §7 stretched overlay,
@@ -76,17 +77,18 @@ export function groupFriendliesByDate(rows: readonly FriendlyMatchResponse[]): F
 }
 
 /**
- * The club of one side, as a 16px symbol next to that side's names (Q8).
+ * The club of one side, as a 16px symbol between that side's names and the
+ * score (Q8, moved there on Roli's call — see the note in `FEATURES_2026-09.md`).
  *
  * Compact shows a score and nothing else, so the crest is the only way this view
- * can say which clubs played. It hangs off the **outer** edge of the names, never
- * inside the numeral track: the names hug the score, so a symbol added outside
- * them grows into empty space and the fixed score column (Q7) cannot move — with
- * a crest, with a flag, with a monogram or with nothing at all.
+ * can say which clubs played. It sits inside the names' cell, never inside the
+ * numeral track: the track is centred in the grid and the same width on every
+ * row, so the symbol pushes the *names* outward and the score column (Q7) cannot
+ * move — with a crest, with a flag, with a monogram or with nothing at all.
  *
- * A side with no club keeps the slot as an inert 16px box. Nothing on screen
- * depends on it (the names are pinned to the score either way); it keeps every
- * row's geometry literally identical, which is what the alignment is made of.
+ * A side with no club keeps the slot as an inert 16px box, and here that box is
+ * **load-bearing**: without it, a clubless row's names would sit 22px closer to
+ * the score than every other row's and the name column would break.
  *
  * `ClubBadge` resolves the symbol: real crest → national team's flag → monogram
  * (`AGENTS.md` §10). The club's name goes to screen readers, because here the
