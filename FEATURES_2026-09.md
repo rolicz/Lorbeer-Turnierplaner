@@ -8683,7 +8683,7 @@ built behaviour in both cases, and they are now **settled — do not flip them b
 
 ---
 
-## Q11 — The sticky grid header pins under the status bar  ☐
+## Q11 — The sticky grid header pins under the status bar  ☑
 
 Roli, 2026-09-16, with a screenshot of the positions grid scrolled down on his iPhone: *"the player
 icons scroll all the way to the top where they are not really visible anymore"*.
@@ -8707,6 +8707,51 @@ invisible there. Q4's worker drove real inset values through Chromium's CDP
 (`Emulation.setSafeAreaInsetsOverride`); read its deviations before claiming a measurement.
 
 **Deviations:**
+
+- **The floor is inside the hook, not at the call sites**, and that is the whole judgement. A call
+  site can only get this wrong in one direction — forget the floor and the Q11 bug is back, silently
+  and only on a notched phone, because every desktop and every Android reports the inset as 0. The
+  hook already answers exactly this question ("where must page-level sticky content pin so it does
+  not slide under chrome") and the status bar is chrome too; it is simply chrome we do not own and
+  cannot measure, because the app asked to draw underneath it. Two consumers today would have
+  become two spellings of one rule, and `useStickyTop`'s only purpose is that there be one.
+- **So the hook returns a CSS length, not a number**: `max(<bar>px, env(safe-area-inset-top, 0px))`.
+  `env()` is the *live* source for that inset — it changes with rotation, with an in-call banner,
+  with the device — and CSS re-resolves it with no listener, no measurement and no re-render, where
+  a JS probe element would need a `resize`/`orientationchange` path of its own and would still lag a
+  rotation by a frame. The two call sites already spread the answer straight into `style={{ top }}`,
+  which takes a string, so **neither file changed**. Measured, the value still interpolates: with
+  the bar coming back the header's computed `top` walks 59 → 76.6 → 103.9 → 112.3 → 116px over the
+  shared 300ms `ease-out-expo`, so the header and the bar still move as one piece.
+- **Consumers found: exactly two files, four sticky elements** — `pages/stats/PositionsView.tsx`
+  (the corner cell and every column header) and `pages/stats/H2HView.tsx` (the matrix's corner `th`
+  and its rotated name `th`s). `grep -rn "useStickyTop" src` is the whole list; the app's other two
+  readers of `#app-top-nav` are **not** consumers of the zero and were checked rather than changed:
+  `ui/scrollToSection.ts` and `pages/profile/useProfileGuestbook.ts` both use the bar's *measured
+  height* as a scroll offset, and that height contains `pt-safe-t` already, so what they scroll to
+  can never land in the strip. `ClubPicker`'s `sticky top-0` sticks inside a modal sheet and
+  `Sidebar`'s is desktop-only; neither follows the auto-hiding bar.
+- **Measured with a real inset (CDP `Emulation.setSafeAreaInsetsOverride`, top 59 / bottom 34),
+  both grids, blue and light, at 390px**, at the pinned position with the bar away and then with it
+  back: **before** 0px → 116px, **after** 59px → 116px. The bug is exactly the first number: 0 is
+  the top of the window, and 0..59 is the clock-and-battery strip, so the avatars and names were
+  drawn *under* the status bar — reproduced as a screenshot that matches Roli's photo. With **no**
+  inset nothing moves at all (0 → 57 before and after), which is why this was invisible on a desktop.
+- **The top bar itself is right, and needed no change.** It is `sticky top-0` with `pt-safe-t`, so
+  shown it occupies 0..116 with its 57px content row starting at **59** — its background deliberately
+  fills the status-bar strip, which is the point of `black-translucent`. Hidden, `-translate-y-full`
+  moves it by its *own* height, inset included: measured bottom edge at **0**, content row at −57,
+  i.e. fully off-screen with nothing of it left in the strip. Coming back it lands on 0..116 again.
+  A floor would be wrong here — the bar is the one element that *should* paint into the safe area.
+- **Desktop is unchanged in practice and correct in principle.** At 1280px the bar is `lg:hidden`,
+  so the offset is 0 and, with a real desktop's inset of 0, `max(0px, 0px)` is what it always was.
+  Driven with a *forced* 59px inset at 1280 the header pins at 59 instead of 0 — the right answer if
+  a wide device ever has a top inset, and unreachable on the ones that do not.
+- **Verification:** isolated stack (backend :8003 on a copy of `backend/app.db` with a copy of
+  `uploads/` and a scratch secrets file, vite :8020), Playwright at 390×844 (positions) and 390×500
+  (the matrix, which only pins on a short screen at six players — Q3's note), plus 1280×800/1280×500,
+  in **blue and light**, with insets 59/0/34/0 and 0/0/0/0. Zero console errors in every run.
+  `cd frontend && npm run check` green (63 files, 641 tests).
 
 ---
 
