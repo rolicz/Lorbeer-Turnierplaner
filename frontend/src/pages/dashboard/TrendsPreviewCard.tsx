@@ -63,12 +63,14 @@ export default function TrendsPreviewCard() {
   }, []);
   useEffect(() => () => roRef.current?.disconnect(), []);
 
+  // No per-call overrides: the dashboard preview reads the same numbers as /stats, so it
+  // follows the same policy (`api/cachePolicy.ts`, 30 s + a global-channel invalidation on
+  // any result change). It used to force `staleTime: 0`, which re-downloaded every player's
+  // whole match history on every visit to the dashboard — ~180 KB, several times a session,
+  // for a chart that the channel refreshes anyway (Q9).
   const statsQ = useQuery<StatsPlayersResponse>({
     queryKey: qk.stats.players("overall", 0),
     queryFn: () => getStatsPlayers({ mode: "overall", lastN: 0 }),
-    refetchOnReconnect: true,
-    refetchOnWindowFocus: true,
-    staleTime: 0,
   });
 
   const players = useMemo(() => statsQ.data?.players ?? [], [statsQ.data?.players]);
@@ -78,9 +80,6 @@ export default function TrendsPreviewCard() {
       queryKey: qk.stats.playerMatches(p.player_id),
       queryFn: () => getStatsPlayerMatches({ playerId: p.player_id }),
       enabled: players.length > 0,
-      staleTime: 0,
-      refetchOnReconnect: true,
-      refetchOnWindowFocus: true,
     })),
   });
 

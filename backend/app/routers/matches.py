@@ -11,7 +11,7 @@ from ..models import Club, Match, MatchSide, Tournament
 from ..schemas import MatchPatchBody, MatchSidePatchBody
 from ..schemas.responses import MatchPatchResultOut, OkResponse
 from ..services.authorization import can_edit_tournament
-from ..services.events import broadcast_tournament
+from ..services.events import broadcast_tournament, global_action_for_match_change
 from ..services.notifications import (
     push_match_finished,
     push_match_score_changed,
@@ -215,7 +215,7 @@ async def patch_match(
         s,
         m.tournament_id,
         reason="match",
-        global_action="status" if status_before != status_after else None,
+        global_action=global_action_for_match_change(status_before, status_after),
         status=status_after,
     )
 
@@ -315,5 +315,12 @@ async def swap_sides(
 
     s.commit()
 
-    await broadcast_tournament(s, m.tournament_id, reason="match")
+    # Swapping sides never changes the status, but on a done tournament it swaps who won.
+    await broadcast_tournament(
+        s,
+        m.tournament_id,
+        reason="match",
+        global_action=global_action_for_match_change(status_now, status_now),
+        status=status_now,
+    )
     return {"ok": True}

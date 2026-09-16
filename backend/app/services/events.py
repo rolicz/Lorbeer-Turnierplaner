@@ -12,6 +12,9 @@ Global channel (/ws/tournaments):
   - tournaments.changed {action, tournament_id?, status?}  list/live/stats/cup (low frequency)
     `action="comment"` is the one that does NOT touch the list: it exists so the
     tournaments list can move its unread badge when a comment is written or removed.
+    `action="result"` is the opposite: a score/side correction on a tournament that is
+    already done. It changes no status, so nothing used to announce it, and the list's
+    winner, the cup owner and every stat could stay wrong on every other device (Q9).
 
 Profile channel (/ws/players/{player_id}), broadcast from routers/players.py:
   - player:pokes:update     {player_id, action, ...}
@@ -46,6 +49,24 @@ async def push_tournament(s: Session, t: Tournament, *, reason: str) -> None:
         TOURNAMENT_SYNC,
         {"tournament_id": int(t.id), "reason": reason, "tournament": data},
     )
+
+
+def global_action_for_match_change(status_before: str, status_after: str) -> str | None:
+    """
+    What a match edit owes the global channel.
+
+    A state transition moved the tournament between draft/live/done -> "status".
+    A goals/clubs/side edit on a tournament that is *already done* is a correction to a
+    real result: it moves the list's winner, the cup owner and every stat, and nothing
+    else would ever announce it -> "result".
+
+    Everything else -- a goal in a live match, a club picked in a draft -- stays off the
+    global channel, which is deliberately coarse and low-frequency so a goal never
+    triggers a stats/cup refetch storm across all clients.
+    """
+    if status_before != status_after:
+        return "status"
+    return "result" if status_after == "done" else None
 
 
 async def notify_tournaments_changed(

@@ -164,7 +164,10 @@ export function applyTournamentsChanged(qc: QueryClient, payload: unknown) {
     void qc.invalidateQueries({ queryKey: qk.tournaments() });
     void qc.invalidateQueries({ queryKey: qk.tournamentsLive() });
   }
-  if (action === "deleted" || action === "status") {
+  // `result` is a score/side correction on an already-done tournament: no status moved,
+  // but the winner, the cup owner and every stat did. Without it those three could stay
+  // wrong on every other device until something happened to remount them (Q9).
+  if (action === "deleted" || action === "status" || action === "result") {
     void qc.invalidateQueries({ queryKey: qk.stats.all() });
     void qc.invalidateQueries({ queryKey: qk.cupAll() });
   }

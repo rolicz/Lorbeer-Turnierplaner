@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { List, Shrink, Trash2 } from "lucide-react";
 
 import SegmentedSwitch from "../../ui/primitives/SegmentedSwitch";
@@ -272,6 +272,9 @@ export default function FriendlyMatchesListCard({ onInitialReady }: { onInitialR
     queryKey: qk.friendliesList(mode, token),
     queryFn: () => listFriendlies({ mode: mode === "all" ? undefined : mode, limit: 500, token }),
     staleTime: 10_000,
+    // The mode tabs filter one list; they do not change the subject. Keep the rows on
+    // screen across the switch, the way the stats filters do (Q9).
+    placeholderData: keepPreviousData,
   });
 
   const clubsById = useMemo(() => {

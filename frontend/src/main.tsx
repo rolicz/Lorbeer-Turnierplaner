@@ -1,12 +1,13 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClientProvider } from "@tanstack/react-query";
 import { AuthProvider } from "./auth/AuthContext";
 import App from "./app/App";
 import { registerNotificationServiceWorker } from "./push/push";
 import { readStored, writeStored } from "./utils/safeStorage";
 import { initDiagnostics } from "./diagnostics/install";
+import { createAppQueryClient } from "./api/cachePolicy";
 import AppCrashBoundary from "./ui/shell/AppCrashBoundary";
 // Bundled locally by Vite (CSS + SVGs) — no runtime CDN request for any flag.
 import "flag-icons/css/flag-icons.min.css";
@@ -32,15 +33,9 @@ void registerNotificationServiceWorker().catch(() => {
   // notification setup is optional
 });
 
-const qc = new QueryClient({
-  defaultOptions: {
-    queries: {
-      retry: 1,
-      refetchOnWindowFocus: false,
-      staleTime: 5000
-    }
-  }
-});
+// The client, its `gcTime` and the per-domain `staleTime` table all live in
+// `api/cachePolicy.ts`, next to the `qk` factory whose key prefixes they are keyed by.
+const qc = createAppQueryClient();
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>

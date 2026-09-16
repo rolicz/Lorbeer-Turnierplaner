@@ -8198,7 +8198,7 @@ the DB. Details view already shows crest + name + league + rating and should not
 
 ---
 
-## Q9 — The cache is discarded faster than Roli moves around  ☐
+## Q9 — The cache is discarded faster than Roli moves around  ☑
 
 Roli, 2026-09-16: *"i see that some screens are loading again after i move away from them and back ->
 i thought we already have the data and only load it if something changed? is there a regression? or
@@ -8238,6 +8238,60 @@ back renders instantly on every realtime-covered screen; a screen with no channe
 `npm run check` + build.
 
 **Deviations:**
+
+- **The map is code, not prose, and prose second.** The table lives in
+  `frontend/src/api/cachePolicy.ts` — one row per `qk` key prefix carrying coverage, number and
+  reason together — and is applied with `queryClient.setQueryDefaults`, so a query inherits its
+  domain's policy **without any call site opting in**. That was the deciding argument between the
+  three options in the brief: declaring at each `useQuery` cannot be enforced, and a table the
+  queries *read* still needs every query to remember to read it. `AGENTS.md` §6 carries the same
+  rows as the human-readable map, and `src/test/cachePolicy.test.tsx` fails if a `qk` namespace
+  has no row — so the two cannot drift.
+- **One backend change, not expected by the brief.** Writing the map exposed a hole it would
+  otherwise have had to document as a known wrongness: a score correction (or a side swap) on an
+  **already-done** tournament changes no status, so `PATCH /matches/{id}` broadcast it on the
+  tournament's own channel and to the global channel **not at all** — the tournaments list's
+  winner, the cup owner and every stat could stay wrong on every other device indefinitely. With
+  that hole open, "covered by the always-on channel" could not honestly justify a long staleness
+  window. Closed with `services/events.py:global_action_for_match_change`, a new coarse action
+  `result` (only ever fired when the tournament is already done, so the "no refetch storm from a
+  goal" design decision is untouched), and `applyTournamentsChanged` treating it like `status`.
+  Three backend tests + two frontend ones. `make test` 204 passed, `make lint` clean,
+  `make gen-types` no diff (no response model changed).
+- **`gcTime` is 30 minutes and uniform**, not per domain. Measured cost on a realistic
+  22-screen session: **1.58 MB of JS heap** (76 entries, 782 KB of JSON; heap 18.80 MB with the
+  cache, 17.22 MB after clearing it, reproducible to ±3 KB). Nothing is retained that could
+  render *wrong*: every key whose data can change unannounced keeps a 5 s staleness window, so a
+  cached screen is repainted from a refetch within one round trip. The only long windows sit on
+  data the always-open global channel announces.
+- **`refetchOnWindowFocus` turned on globally** (it was off). It does not double up with the
+  websocket resync: `useVisibilityResync` *invalidates* the channel-covered keys regardless of
+  staleness, while a focus refetch only touches queries that are stale **and** active — which,
+  after the table, are exactly the keys no channel watches.
+- **`placeholderData: keepPreviousData` added to two queries, removed from none**: the Clubs
+  page's game selector and the friendlies mode tabs, both filters over one list, the same shape
+  as the stats filters. The rule written into §6 is "filters, not subjects"; the pre-existing
+  player-keyed uses in the stats Player/H2H sections sit on that line and were left alone (S3's
+  call, and one round trip long).
+- **One call-site override removed** (`pages/dashboard/TrendsPreviewCard.tsx`): it forced
+  `staleTime: 0` on `stats.players` **and** on one `stats.playerMatches` per player, so every
+  visit to the dashboard re-downloaded all six players' full match histories (~180 KB). It now
+  follows the table like the rest of `["stats"]`. In the measured session walk this is most of
+  the traffic saving: **152 → 129 API requests** for the same 21 screens, with
+  `/stats/player-matches` going 30 → 18 calls (≈365 KB). The overrides that stand are listed in
+  §6 with the claim each of them makes.
+- **Proof (isolated stack, backend :8003 on a copy of the DB, vite :8020, 300 ms simulated
+  mobile latency, Playwright fake clock):** going to a tournament, leaving for ten simulated
+  minutes and coming back with the history gesture — **before**, the cache fell from 33 entries /
+  300 KB to 6 / 1.1 KB and the first frame read `7. Bauernkranzturnier | Loading` (the profile
+  read `Player #4 · Angepöbelt: 0`); **after**, the cache holds at 36 entries / 301 KB,
+  `["tournament",19]` survives with `observers=0`, and the first frame is the finished page
+  (`WINNER · Rumpi · 9 pts · FINAL STANDINGS`), identical to the settled frame. A screen with no
+  channel still refreshes: /ideas, six seconds away, returns with **no loader** and shows an idea
+  a second client posted **2 ms** later, after exactly one refetch. And a change made in a second
+  browser still arrives on a channel-covered screen with no navigation at all: a corrected result
+  moved the tournaments list's winner in **216 ms** and the Cups page's holder in **925 ms**.
+  Zero console errors on ten screens at 390 px and 1280 px, no horizontal overflow, `a a` = 0.
 
 
 ---
@@ -8302,7 +8356,7 @@ Chosen by Roli from rendered options. **Biggest value first**, not easiest first
 | 2 | **Q10** — split the four context files | Stops the app appearing to crash whenever a worker saves one. |
 | 3 | **Q2 (reopened)** — the keyboard does not hide the bar | Needs the readout below before the fix can be written. |
 | 4 | **Q8** — club crests beside a friendly's result | ☑ Done 2026-09-16. |
-| 5 | **Q9** — the cache is discarded faster than he navigates | Deliverable is the channel-coverage map. |
+| 5 | **Q9** — the cache is discarded faster than he navigates | ☑ Done 2026-09-16. Map in `AGENTS.md` §6. |
 
 **Before Q2 can start**, build a live viewport readout into the Diagnostics section
 (`ui/layout/DiagnosticsSettings.tsx`): `window.innerHeight`, `visualViewport.height`,

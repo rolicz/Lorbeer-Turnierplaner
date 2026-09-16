@@ -157,6 +157,61 @@ def test_goal_does_not_emit_global_notification(client, editor_headers, admin_he
     assert rec.global_channel == []
 
 
+def _finish_all(client, editor_headers, tid: int) -> list[int]:
+    """Play every match out so the tournament's derived status is `done`."""
+    detail = client.get(f"/tournaments/{tid}").json()
+    mids = [int(m["id"]) for m in detail["matches"]]
+    for mid in mids:
+        client.patch(
+            f"/matches/{mid}",
+            json={"state": "finished", "sideA": {"goals": 2}, "sideB": {"goals": 1}},
+            headers=editor_headers,
+        )
+    assert client.get(f"/tournaments/{tid}").json()["status"] == "done"
+    return mids
+
+
+def test_correcting_a_done_result_reaches_the_global_channel(client, editor_headers, admin_headers, monkeypatch):
+    """
+    Q9: a score fixed after the fact moves no status, so nothing used to announce it —
+    and the tournaments list's winner, the cup owner and every stat could stay wrong on
+    every other device. It now sends `action="result"`.
+    """
+    tid, _ = _live_match(client, editor_headers, admin_headers)
+    mids = _finish_all(client, editor_headers, tid)
+
+    rec = _patch_ws(monkeypatch)
+    r = client.patch(f"/matches/{mids[0]}", json={"sideA": {"goals": 5}}, headers=editor_headers)
+    assert r.status_code == 200, r.text
+
+    results = [p for (ev, p) in rec.global_channel if ev == "tournaments.changed" and p.get("action") == "result"]
+    assert results, "a corrected result on a done tournament must reach the global channel"
+    assert results[-1]["tournament_id"] == tid and results[-1]["status"] == "done"
+
+
+def test_swapping_sides_on_a_done_tournament_reaches_the_global_channel(client, editor_headers, admin_headers, monkeypatch):
+    """Q9: swapping A and B on a finished match swaps who won it — same grade of change."""
+    tid, _ = _live_match(client, editor_headers, admin_headers)
+    mids = _finish_all(client, editor_headers, tid)
+
+    rec = _patch_ws(monkeypatch)
+    r = client.patch(f"/matches/{mids[0]}/swap-sides", headers=editor_headers)
+    assert r.status_code == 200, r.text
+    assert any(ev == "tournaments.changed" and p.get("action") == "result" for (ev, p) in rec.global_channel)
+
+
+def test_swapping_sides_mid_tournament_stays_off_the_global_channel(client, editor_headers, admin_headers, monkeypatch):
+    """…but while the tournament is still running it changes no result that anything reads."""
+    tid, mid = _live_match(client, editor_headers, admin_headers)
+    client.patch(f"/matches/{mid}", json={"state": "playing", "sideA": {"goals": 1}}, headers=editor_headers)
+
+    rec = _patch_ws(monkeypatch)
+    r = client.patch(f"/matches/{mid}/swap-sides", headers=editor_headers)
+    assert r.status_code == 200, r.text
+    assert any(ev == "tournament.sync" for (_, ev, _) in rec.tournament_channel)
+    assert rec.global_channel == []
+
+
 def test_comment_create_pushes_upsert(client, editor_headers, admin_headers, monkeypatch):
     tid, _ = _live_match(client, editor_headers, admin_headers)
     rec = _patch_ws(monkeypatch)

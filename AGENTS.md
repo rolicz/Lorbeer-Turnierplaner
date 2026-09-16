@@ -301,9 +301,16 @@ to `/ideas?idea=<id>`, a one-shot param the page consumes and drops.
 WebSocket channels (`app/main.py`, `app/ws.py`, `services/events.py`):
 - `/ws/tournaments/{id}` → `tournament.sync` (full tournament payload), `tournament.deleted`,
   `comment.upsert|delete|meta`.
-- `/ws/tournaments` → coarse `tournaments.changed {action, tournament_id?, status?}`. Writing or
-  deleting a comment sends `action="comment"` — the only action that does **not** refetch the
-  list, because it exists solely to move the unread badge (A5).
+- `/ws/tournaments` → coarse `tournaments.changed {action, tournament_id?, status?}`. Actions:
+  `created` · `updated` · `status` · `result` · `deleted` · `comment`. Writing or deleting a
+  comment sends `action="comment"` — the only action that does **not** refetch the list, because
+  it exists solely to move the unread badge (A5). `action="result"` is its opposite (Q9): a
+  score or side correction on a tournament that is **already done**. It moves no status, so it
+  used to be broadcast to nobody, and the list's winner, the cup owner and every stat could stay
+  wrong on every other device. `services/events.py:global_action_for_match_change` is the only
+  place that decides this, for both `PATCH /matches/{id}` and `/swap-sides`; a goal in a *live*
+  match still sends nothing globally, so the channel stays as coarse as it was designed to be.
+  `result`, `status` and `deleted` are the three actions that invalidate stats and cup.
 - `/ws/players/{id}` → profile-channel events, broadcast from `routers/players.py`:
   `player:pokes:update` and `player:guestbook:update` (created/updated/voted/deleted). Both are
   handled by one narrow resync (`resyncPlayer`), which invalidates the poke **and** guestbook
@@ -316,6 +323,75 @@ baselines `seq` on every connect and resyncs on a gap as well as on reconnect/vi
 broadcast is **closed**, not merely dropped from the channel: the endpoint's receive loop would
 otherwise keep answering its pings and the client would show "live" forever without resyncing.
 Behind Caddy the `/ws` prefix is **not** stripped (`handle /ws/*`), `/api` **is** (`handle_path`).
+
+### Channel coverage, and the cache timers that follow from it (Q9)
+
+Two timers decide what a screen does when you come back to it, and only one of them shows:
+
+- **`gcTime`** — how long data is *kept* after the last component using it unmounts. When it
+  expires there is genuinely nothing to render, so the return is a fresh load with a loader.
+  It is **30 minutes**, uniform, set once in `frontend/src/api/cachePolicy.ts`. (It was
+  TanStack's default of 5 minutes since the initial commit — shorter than Roli's trip to the
+  kitchen, which is the whole of "why is this screen loading again?".) Measured cost of keeping
+  it: **1.58 MB of JS heap** for a 22-screen session (76 cached entries, 782 KB of JSON).
+- **`staleTime`** — how long data may be *believed*. Inside the window a return renders from
+  cache and asks nothing; outside it, the cache still renders instantly and a refetch lands
+  behind it. Invisible; costs traffic. It is set **per domain**, by one question only:
+
+> **How does a change reach a client that is already looking at this data?**
+
+The table lives in `frontend/src/api/cachePolicy.ts` — one row per `qk` key prefix, carrying the
+coverage, the number and the reason together, applied with `setQueryDefaults` so **a new query
+inherits its domain's policy without opting in**. Keep this map and that table in step; the
+guard in `src/test/cachePolicy.test.tsx` fails if a `qk` namespace has no row.
+
+Coverage is not "is there a channel" but "is the channel open *while you are away*":
+
+| Key prefix (`qk`) | Coverage | `staleTime` | Why |
+|---|---|---|---|
+| `["tournaments"]` (list + `/live`) | **global channel** — `/ws/tournaments` is mounted in `AppShell`, open all session | 5 min | Created / edited / finished / corrected / deleted all send `tournaments.changed`; reconnect and foreground resync it. It cannot change quietly. |
+| `["tournament", id]` | **page channel** — `/ws/tournaments/{id}` | 5 s | The socket is closed when the page unmounts (`connection.ts` deletes the conn at refCount 0), and its *first* connect deliberately does not resync — the mount GET is the resync. So a return must revalidate. |
+| `["comments", …]` | **page channel** (same socket) | 5 s | Same lifetime as the tournament it belongs to. |
+| `["comments","summary"]` | **global channel** | 5 min | Every comment write sends `action="comment"` purely to move this badge (A5). |
+| `["cup", …]` | **global channel** | 5 min | Ownership moves only when a tournament finishes (`status`), is deleted, or a done result is corrected (`result`) — all three announce themselves. |
+| `["cup","defs"]` | none (static) | 30 min | `cups.json`, read once at backend startup. Only a deploy changes it. |
+| `["stats", …]` | **partial** | 30 s | Tournament results announce themselves; **friendly results are broadcast by nothing at all**, and every `/stats/*` endpoint takes `scope=friendlies\|both`. |
+| `["match-h2h", …]` | **partial** | 30 s | The same numbers as `/stats`, but the key sits *outside* `["stats"]`, so no reducer ever invalidates it — only the window does. |
+| `["me","notifications"]` | **partial** | 30 s | A reply to your comment invalidates it from the tournament channel; a poke, a guestbook entry or a new idea does not. `NotificationBell`'s own 60 s poll covers the rest. |
+| `["players"]` (roster, profiles, avatars, headers) | **none** | 5 s | No channel: a rename or a new avatar reaches another device only by refetching. |
+| `["players","pokes"]`, `["players","guestbook"]` | **page channel** — `/ws/players/{id}` | 5 s | Open only while that profile is on screen. |
+| `["clubs", …]`, `["leagues"]` | **none** | 5 s | Nothing announces an added club or an edited star rating; the window is the only thing that finds it. The catalogue is also the biggest payload in the app (113 KB), which is why six call sites raise it to 60 s where the data is a lookup table rather than the subject. |
+| `["friendlies", …]` | **none** | 5 s | Friendlies broadcast nothing — a result typed into another phone in the same session is invisible until this one asks again. |
+| `["ideas", …]` | **none** | 5 s | R5 gave the board no channel on purpose. `["ideas","areas"]` is a static list (1 h at its call site). |
+| `["push", …]` | **none** | 30 s | This device's own subscriptions; nothing but this device changes them. |
+
+**Call-site overrides that stand** (a `useQuery` option still beats the table, so each one is a
+claim the table cannot make): `useLiveTournament` polls `["tournaments","live"]` at `staleTime: 0`
+with `refetchOnMount: "always"` + a 60 s interval — "is something live right now" is the one
+thing that must never be wrong; `StandingsTable`'s `stats.streaks` at 0 while a tournament is not
+done, because the tournament channel pushes the tournament but never invalidates stats, so the
+streak chips would lag the goals; `MatchDetailPage`'s `fetchQuery(…, staleTime: 0)` inside the
+save mutation, a deliberate read-before-write; `tournamentReassignPreview` at 0, because the
+dialog names what it is about to destroy; the odds query at 2 s, recomputed from the form; and the
+club catalogue at 60 s in the pickers. Anything else that sets `staleTime` is fighting the table.
+
+**`refetchOnWindowFocus` is on** (it was globally off). A PWA backgrounded for hours heard
+nothing, and a long staleness window would have made that worse. It does not duplicate the
+websocket's own resync: `useVisibilityResync` *invalidates* the channel-covered keys (ignoring
+`staleTime`), while a focus refetch only touches queries that are **stale and active** — which,
+after the table above, are exactly the keys no channel watches. The two cover disjoint sets.
+
+**`placeholderData: keepPreviousData` belongs on a filter, not on a subject.** Changing Mode,
+Source, Last-N, the Clubs page's game or the friendlies mode tabs re-asks the same question, so
+the current rows stay on screen while the new ones load — Q9 added the last two for exactly that
+reason. Changing *which* player or tournament is being shown is a different question, and holding
+the previous subject's numbers under the new subject's name is wrong, not stale: never put it on
+a query whose key names an entity the page is titled after (a tournament, a profile, a match).
+The stats Player and H2H drill-ins sit on the line — their key carries `selectedId` — and keep it
+deliberately (S3): their picker is a filter over one page and the mismatch lasts one round trip.
+A 30 minute `gcTime` also makes it matter less than it did: a filter or a player you have already
+looked at now comes back from cache with no placeholder at all, so `keepPreviousData` is left
+doing only what it is for — the combination nobody has asked for yet.
 
 ## 7. Deployment (production)
 
@@ -688,6 +764,14 @@ every past match simply keeps counting today's rating.
     so the snapshots travel to the server and the command runs in the container. Read-only first.
   - Rollback stays safe: the old code ignores the table, and `Club.star_rating` is still the
     current value that every old code path reads.
+- **Round 8 / Q9 (2026-09-16), on the same branch** — the cache timers and the channel-coverage
+  map in §6. One backend behaviour change worth knowing at deploy: `PATCH /matches/{id}` and
+  `PATCH /matches/{id}/swap-sides` now also send `tournaments.changed {action:"result"}` when the
+  tournament is **already done**, so a corrected result reaches other devices' list, cup and
+  stats. No schema change, no manual step, and an old client degrades gracefully — it does not
+  know `result`, so it refetches the list like any other non-comment action and misses only the
+  stats/cup half. Frontend: `gcTime` 30 min, per-domain `staleTime`, `refetchOnWindowFocus` on.
+
 - Open follow-ups / known and accepted:
   - **Two decisions waiting for Roli**, both written up at the end of `FEATURES_2026-09.md`: the
     primary button fails the same contrast check in the four dark themes that A6 fixed in light

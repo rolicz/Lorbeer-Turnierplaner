@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import type { ReactNode } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Eraser, RotateCw, ShieldHalf, Star } from "lucide-react";
 
 import ClubBadge from "../ui/ClubBadge";
@@ -143,6 +143,9 @@ export default function ClubsPage() {
   const clubsQ = useQuery({
     queryKey: qk.clubs(game),
     queryFn: () => listClubs(game),
+    // Switching game is a filter, not a different subject: keep the list on screen
+    // while the other game loads instead of emptying the page under the picker (Q9).
+    placeholderData: keepPreviousData,
   });
 
   const leaguesQ = useQuery({
