@@ -7416,6 +7416,31 @@ coincidence:**
 5. **Ideas, Clubs and Settings** are destinations reachable only from the drawer/sidebar. Decide
    what back means on them — today it is the hamburger and a history pop that may leave the app.
 
+### Decided with Roli, from rendered options (2026-09-16) — do not relitigate
+
+1. **A back affordance appears whenever you moved to get here** — not on a list of route patterns.
+   A matchup, a match, a profile and a tournament all show it, because to the reader they are the
+   same thing: somewhere you went into. This kills `routeMeta`'s three hard-coded patterns *and* the
+   per-page `back` prop as sources of truth; the question becomes "did you go somewhere", asked once.
+2. **The menu stays reachable.** Back and menu are both present on a page you drilled into; back
+   stops replacing the hamburger. Two controls, always the same two.
+3. **Back always means one level up**, identically whether you walked in, followed a deep link or
+   opened a push notification. Match → tournament → list → dashboard. It never ejects you from the
+   app, and it never depends on how you arrived.
+4. **The bottom bar's second tap resets.** First tap returns to the remembered page inside that
+   destination (U6), a second tap while already there goes to its root — the only escape from a
+   remembered page you no longer want.
+
+**What (3) means for the machinery, and the thing to think hardest about.** The nav-stack mirror
+(`navStack.ts`) exists to answer one question: *is the entry behind me the parent, so I can pop
+instead of navigating up?* Roli has now fixed the **destination** in every case — it is always the
+parent — so the mirror is no longer needed to decide *where* back goes, only whether the cheaper
+mechanism is available. Popping restores that page's scroll and state; navigating up pushes a new
+entry and grows history forever. So: does the mirror still earn its keep as a pure optimisation, or
+can scroll restoration key off the location instead and let the mirror go? Answer it explicitly —
+that mirror is the thing that has produced four rounds of bugs, and (3) is the first constraint that
+makes removing it conceivable.
+
 ### What the worker must produce, in this order
 
 1. **A table of every scenario before touching code**: for each route and each entry path into it
