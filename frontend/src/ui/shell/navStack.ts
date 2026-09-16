@@ -128,7 +128,9 @@ export function recordNavigation(pathname: string, search = "", arrival: Arrival
   const idx = currentHistoryIndex();
   const stack = read();
   const previous = stack[String(idx)];
-  const kept = previous && pathOf(previous.u) === pathname ? previous.a : undefined;
+  // Both sides normalised: `/live/19/` and `/live/19` are the same page, and a
+  // mismatch here silently drops the entry's arrival kind (degrading to "up").
+  const kept = previous && pathOf(previous.u) === pathOf(pathname) ? previous.a : undefined;
   const a = arrival ?? kept;
   const url = `${pathname}${search || ""}`;
   stack[String(idx)] = a ? { u: url, a } : { u: url };
