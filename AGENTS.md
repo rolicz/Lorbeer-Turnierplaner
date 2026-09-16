@@ -662,12 +662,13 @@ every past match simply keeps counting today's rating.
   Don't call `history.back()` blindly, and don't give a page a back button of its own.
 - **The mobile top bar is a fixed frame around a centred title** (Q13, 2026-09-16). One row, three
   boxes: two side boxes of the same fixed width (`w-top-bar-side` = 84px, the left cluster: menu 40
-  + gap 4 + back 40; the token lives in `tailwind.config.cjs`) with the title between them, so the title's centre is the **screen's** centre on every page and in every state —
-  measured 160 / 195 / 215 at 320 / 390 / 430 px on all 15 top-bar routes, with back and without it.
+  + gap 4 + back 40; the token lives in `tailwind.config.cjs`) with the title between them, so the
+  title's centre is the **screen's** centre on every page and in every state — measured
+  160 / 195 / 215 at 320 / 390 / 430 px on all 15 top-bar routes, with back and without it.
   The **menu owns the left screen edge** and never moves; **back appears inboard of it**
   (`[≡] [‹] · Title · [bell]`) in space reserved whether or not it is there. Back took the edge
   until this task and pushed the menu *and* the title a different distance on every page — that was
-  Roli's complaint. The right box holds **one** 40px control: `NotificationBell`, or the connection
+  Roli's complaint. The right box holds **one** 36px control: `NotificationBell`, or the connection
   marker while the socket is in trouble (`ui/shell/TopBarStatus.tsx`) — the marker **replaces** the
   bell, because the labelled chip that used to sit beside it was variable-width text and moved the
   title with it. *When* the app admits to trouble is `ui/shell/useConnectionTrouble.ts` alone
