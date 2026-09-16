@@ -7466,6 +7466,153 @@ and browser back provably agreeing on every row of that table; the existing nav 
 plus new ones per row; 390px and 1280px, blue and light; and an explicit list of anything that
 **cannot** be verified off-device, for Roli to check on the phone.
 
+### The model (written 2026-09-16, before any code change)
+
+Roli's four answers fix the *rules*; the table below is where they meet every route the app has.
+Two things fall out of it that the answers did not spell out, and both are argued in the rows they
+come from: **what back means between two top-level destinations** (there is no "up" between
+siblings, so it is the history step you took) and **what a page with no hierarchy above it does**
+(the 404, `/login`: the same).
+
+**One hierarchy, asked once.** Every location answers two questions, in `ui/shell/routeHierarchy.ts`:
+
+```
+placeOf(pathname, search, state) → { parent: string | null, inside: boolean }
+```
+
+| Place | `parent` | `inside` |
+|---|---|---|
+| `/dashboard` | `null` — the app's home | false |
+| `/tournaments` `/friendlies` `/stats` `/players` `/clubs` `/ideas` `/settings` | `/dashboard` | false |
+| `/login`, any unknown URL (404) | `/dashboard` | false |
+| `/live/:id` | `/tournaments` | **true** |
+| `/live/:id/match/:mid` | `/live/:id` + `?tab=` from `state.fromTab` | **true** |
+| `/profiles/:id`, `/profile` | `/players` | **true** |
+| `/stats?view=h2h…&vs=…` (the matchup) | the same URL without `vs`/`rel`, team collapsed | **true** |
+
+- **`inside: true` means "you went into this".** It is the *only* thing that decides whether a back
+  affordance is drawn — `routeMeta`'s three hard-coded patterns and `PageLayout`'s per-page `back`
+  prop are both gone, and the matchup joins the set for free because it is declared here like
+  everything else.
+- **`parent` is where back goes**, and it never depends on how you arrived.
+
+**One back, four affordances.** The mobile chevron, the desktop chevron in the title row, the
+swipe and (wherever the history allows it) the browser's own button all read one function:
+
+```
+back = inside ? (previous entry IS the parent ? pop : go to parent)
+              : (something behind ? pop : parent ? go to parent : nothing)
+```
+
+- **Pop when the entry behind us already is the parent.** It is free and it is better: the parent
+  comes back with its scroll offset (N2), its open tab and its data.
+- **Otherwise go to the parent, with `replace`.** Going up *consumes* the page you are leaving, the
+  way popping a native stack does. Three consequences, all wanted: walking up a deep link never
+  grows history, the ladder terminates instead of ping-ponging (`/settings` → home → `/settings`),
+  and nothing can be "swiped forward" back into a page you deliberately left.
+- **Between destinations there is no up**, so back is the history step you took to get here — what
+  the browser, iOS and Android all do with siblings. With nothing behind it (a cold deep link) it
+  goes home, which is Roli's "list → dashboard" rung and his "it never ejects you from the app".
+- **No chevron on a destination.** A chevron there would read "the screen before" and mean "the
+  dashboard"; the bar that is always on screen already holds every sibling, and no phone app puts
+  back on a tab root. The gesture still works there, because a gesture promises nothing.
+- **The menu stays.** On an `inside` page the top bar is `‹` · `☰` · title. Back takes the edge
+  (that is where the thumb starts the same gesture); the menu keeps its icon and its drawer.
+
+**The forward gesture is gone** (Roli delegated this one). Argued at row 31.
+
+**The history mirror stays, halved.** Argued after the table.
+
+### The scenario table — every route × every way in
+
+Verified in a real browser on the isolated stack (backend :8003 on a copy of `app.db`, vite :8020),
+390×844 with touch emulation and 1280×900, blue and light. "Swipe →" is a right swipe (back);
+"Browser ←" is the browser's own back button. A **deep link** means the URL was loaded cold.
+
+| # | Where you are · how you got there | What the reader expects, and why | Chevron | Swipe → | Browser ← |
+|---|---|---|---|---|---|
+| 1 | `/dashboard` · cold load | Home. Nothing above it, and back must not leave the app on its own. | – | nothing | leaves the app (the browser's history, not ours) |
+| 2 | `/dashboard` · Dashboard tab from `/stats` | The screen I came from. | – | `/stats` (pop) | `/stats` |
+| 3 | `/tournaments` · Tournaments tab from `/dashboard` | The dashboard — it is both what I came from and what is above. | – | `/dashboard` (pop) | `/dashboard` |
+| 4 | `/tournaments` · second tap on Tournaments while on `/live/21` | The list itself: the second tap is the only escape from a remembered page (U6, decision 4). | – | `/live/21` (pop) | `/live/21` |
+| 5 | `/tournaments` · cold deep link | Home. Not out of the app. | – | `/dashboard` (up, replace) | leaves the app |
+| 6 | `/stats` · Stats tab from `/players` | Players. Between siblings there is no up. | – | `/players` (pop) | `/players` |
+| 7 | `/stats?view=h2h&sub=duos` · section + sub chips | Nothing: chips are `replace`, they are not history steps (T11). Back leaves `/stats` for the page before it. | – | the page before `/stats` | same |
+| 8 | `/friendlies` · drawer | The page I came from. | – | pop | pop |
+| 9 | `/clubs` · drawer (editor) | The page I came from. Clubs is a destination, not a detail page — the drawer is how you leave it. | – | pop | pop |
+| 10 | `/ideas` · push notification `?idea=<id>`, cold | Home; the one-shot param is never replayed (`lastLocation`). | – | `/dashboard` (up) | leaves the app |
+| 11 | `/settings` · drawer footer | The page I came from. | – | pop | pop |
+| 12 | `/live/:id` · tapped in the `/tournaments` list | The list, at the row I tapped. | `‹` + `☰` | `/tournaments` at its offset (pop) | same |
+| 13 | `/live/:id` · Tournaments tab's live shortcut, from `/stats` | The tournaments list — I asked for Tournaments, not for Stats (N1). | `‹` + `☰` | `/tournaments` (up) | `/stats` (the browser's trail) |
+| 14 | `/live/:id` · push notification / cold deep link | The tournaments list. Never out of the app. | `‹` + `☰` | `/tournaments` (up) | leaves the app |
+| 15 | `/live/:id` · reload while there | Exactly what it did before the reload — sessionStorage keeps the mirror. | `‹` + `☰` | as its row above | as its row above |
+| 16 | `/live/:id/match/:mid` · row in the tournament's Matches tab | The matches list, where I left it, on the tab I opened it from. | `‹` + `☰` | `/live/:id?tab=matches` at its offset (pop) | same |
+| 17 | `/live/:id/match/:mid` · Stats → Records row | Its tournament. Not the stats page I came from (N1's rule, now for every arrival). | `‹` + `☰` | `/live/:id?tab=matches` (up) | `/stats…` |
+| 18 | `/live/:id/match/:mid` · cold deep link | Its tournament. | `‹` + `☰` | `/live/:id` (up) | leaves the app |
+| 19 | `/live/:id/match/:mid` · Save and return (A9.7) | The Matches tab scrolled to the row I just edited, flashing. Not back, not the top. | – (page action) | n/a | n/a |
+| 20 | `/profiles/:id` · row on `/players` | The players list. | `‹` + `☰` | `/players` (pop) | same |
+| 21 | `/profiles/:id` · a `PlayerLink` inside a tournament's standings | The players page. One meaning per control, however I arrived. | `‹` + `☰` | `/players` (up) | the tournament |
+| 22 | `/profiles/:id` · guestbook push, cold (`?tab=guestbook&entry=`) | The players page. | `‹` + `☰` | `/players` (up) | leaves the app |
+| 23 | `/profile` (own) · Settings → My profile | The players page — the same page as row 20, so the same chrome. Today it shows a hamburger and no back, which is the two-sources-of-truth bug in one screenshot. | `‹` + `☰` | `/players` (up) | `/settings` |
+| 24 | matchup · H2H matrix cell | The matrix, exactly as I left it. | `‹` + `☰` | the H2H list at its offset (pop) | same |
+| 25 | matchup · "All matches: A vs B" on a match page | The H2H list it drills into. **Changed from T11** — see the note below the table. | `‹` + `☰` | the H2H list (up, in place) | the match page |
+| 26 | matchup · rival link on a profile | The H2H list. | `‹` + `☰` | the H2H list (up) | the profile |
+| 27 | matchup · cold deep link `?view=h2h&player=1&vs=2` | The H2H list — the thing it is a drill-in of. | `‹` + `☰` | the H2H list (up) | leaves the app |
+| 28 | matchup · another section tab tapped from inside it | Nothing to undo: leaving the section consumes the drill-in's entry (`replace`, T11). | – | the entry behind the matchup | same |
+| 29 | 404 (`/nope`) · a stale in-app link | Where I was. There is no hierarchy above an unknown URL, and the body already offers "Back to dashboard". | – | pop | pop |
+| 30 | 404 · cold | Home. | – | `/dashboard` (up) | leaves the app |
+| 31 | any page · swipe **left** | **Nothing, anywhere.** Argued below. | – | – | – |
+| 32 | any page · swipe → starting on a horizontal scroller or a slider | Nothing: the element scrolls. Positions grid, H2H matrix, chip rows, `SectionTabs`, trends chart, range inputs, `data-no-swipe-nav`. | – | – | – |
+| 33 | iOS standalone PWA · system edge swipe | The OS gesture, untouched. Our listener is passive and never calls `preventDefault`. | – | – | – |
+
+**Row 25, the one decision that overrules an earlier one.** T11 (2026-09-13) asked for the opposite:
+"if i get there from eg match details, i want swipe back to go to match details again." Q6's answer
+3 — back is one level up, identically however you arrived — cannot hold *and* keep that exception,
+and Q6's own DoD says the matchup must be "a first-class case, not an exception bolted on". So the
+matchup now behaves like every other page you went into. What T11 wanted is still one tap away and
+is now the *browser's* job on desktop (its back button pops to the match page, row 25) and the
+**Tournaments tab's** job on a phone: `lastLocation` remembers the match page as that destination's
+last page, so tapping Tournaments returns to it. Flagged here because it is a visible change to a
+screen Roli asked about by name.
+
+**Row 31 — the forward gesture is removed, not made visible.**
+- Nothing in the OS this app imitates has one. iOS has no forward gesture inside an app; Android has
+  none; a standalone PWA has no browser chrome to borrow one from. The gesture exists today only
+  because `nav(1)` was easy to write next to `nav(-1)`.
+- Making it visible would mean a forward chevron in the top bar — browser chrome inside an app,
+  permanently occupying a slot to offer a step that is available a minority of the time.
+- Under this model it is nearly always dead anyway: going up *replaces*, so there is no forward
+  entry to take.
+- It costs what an invisible gesture always costs. Every left-drag in the app is a candidate
+  navigation, guarded only by opt-outs someone has to remember (`data-no-swipe-nav`); dropping it
+  halves that surface at a stroke.
+- And it is the only reason the history mirror ever had to reason about the future. Deleting it
+  deletes `canGoForward`, `highestHistoryIndex`, the PUSH-truncation rule, the first-record-of-a-load
+  rule (A9.6's duplicated-tab seam) and the `NavKind` plumbing through `useRememberLocation` — the
+  single largest seam reduction available in this layer.
+
+**The history mirror (`navStack.ts`): kept, halved — and here is the argument.**
+Roli's answer 3 demotes it from decision-maker to optimisation, and that is exactly the right level
+for it, so it does not all go. Split it in two and the two halves have opposite risk profiles.
+
+- **The half that claims to know the future** — `canGoForward()`, `highestHistoryIndex()`, truncate-on-PUSH,
+  truncate-on-first-record — can be *wrong in a way that is visible*: it promised a forward step the
+  browser could not take, and a gesture that asks for it burns silently (A9.6). Every line of it
+  exists for swipe-left. **Deleted with the gesture.**
+- **The half that remembers the past** — `previousEntryPath()`, one string at `idx-1` — is the one
+  question the browser refuses to answer and sessionStorage answers truthfully for the tab that wrote
+  it. And it is *fail-degraded by construction*: if it is missing or stale, back does not misroute —
+  it navigates up to the same page it would have popped to, and the only loss is the parent's scroll
+  offset and open tab. **That property is what makes it safe to keep**, and it is the reason removing
+  it entirely is the wrong trade: the alternative is to always navigate up, which throws away N2's
+  restoration on the single most common back in the app (a match row 700 px down its list).
+- The scroll half (`saveScroll`/`scrollFor`, N2) is not a mirror of the URL stack at all — it is
+  `idx → offset` — and has to stay whatever happens to the rest.
+
+Net: 178 lines → ~110, and the module no longer has an opinion about anything but the entry behind
+the current one.
+
+
 **Deviations:**
 
 ---
