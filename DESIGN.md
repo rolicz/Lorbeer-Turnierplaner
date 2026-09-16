@@ -499,7 +499,64 @@ An editor is not a section you unfold; it is the thing itself becoming editable.
 - Paired actions get equal weight: two buttons in one row are the same height and share the
   width, unless one is genuinely secondary (then it is an icon button, and the other fills).
 
-## 10. Do / Don't
+## 10. Navigation: back, the menu, and the one gesture
+
+Everything that moves the reader backwards reads **one** model (`ui/shell/routeHierarchy.ts` →
+`ui/shell/backNavigation.ts`, Q6). There is no second opinion: no per-page `back` prop, no list of
+"detail" route patterns, no separate rule for the drill-in that lives in a query param.
+
+**Every location is one of two things.**
+
+- A **destination** — anything the bottom bar, the sidebar or the drawer points at (Dashboard,
+  Tournaments, Friendlies, Stats, Players, Clubs, Ideas, Settings), plus `/login` and any URL that
+  matched nothing. Destinations are siblings laid out in a bar, not rungs of a ladder.
+- Somewhere you went **into** — a tournament, a match, a profile, the stats matchup. Each has a
+  **parent**, and the parent never depends on how you arrived:
+
+  | Inside | Parent |
+  |---|---|
+  | `/live/:id/match/:mid` | `/live/:id`, on the tab it was opened from |
+  | `/live/:id` | `/tournaments` |
+  | `/profiles/:id` and `/profile` | `/players` |
+  | `/stats…&vs=…` (the matchup) | the same URL without `vs`/`rel` |
+
+**The rules.**
+
+1. **A back affordance appears on a page you went into, and nowhere else.** One question,
+   `useBack().hasBack`, asked by the mobile top bar and by `PageLayout`'s desktop title row. A
+   chevron on a tab destination would read "the screen before" and mean "the dashboard"; the bar
+   holding every sibling is already on screen.
+2. **Back means one level up** — identically whether you walked in, followed a deep link or opened
+   a push notification. It **pops** when the entry behind already is the parent (free, and better:
+   that page returns with its scroll offset, its open tab and its data) and otherwise **navigates
+   to the parent with `replace`**, consuming the page being left the way a native stack pops. So
+   walking up a deep link never grows history and a ladder can never ping-pong.
+3. **On a destination there is no up**, so back is the history step you took to get here. With
+   nothing behind it, it goes home; at home with nothing behind it, it does nothing. Back never
+   ejects the reader from the app.
+4. **Back and the menu coexist.** On a page you went into the phone's top bar is `‹` · `☰` · title:
+   back takes the screen edge (that is where the thumb starts the same gesture), the menu keeps its
+   drawer. The chevron never *replaces* the hamburger — Clubs, Ideas and Settings stay reachable
+   without leaving the page first.
+5. **One gesture: swipe right.** It does not imitate back, it *is* back — the same call, so a tap
+   and a swipe can never land in different places. **There is no forward gesture**: nothing in the
+   OS this app imitates has one, and an invisible gesture available a minority of the time only
+   turns ordinary left drags into surprise navigation. The listeners are passive, so the iOS system
+   edge-swipe is never fought.
+6. **Anything horizontally draggable opts out** with `data-no-swipe-nav` — tables, matrices, chip
+   rows, tab strips, charts, carousels — or a swipe past its scroll edge navigates. Range inputs and
+   live horizontal scrollers are excluded automatically. This is not optional politeness: it is the
+   price of having a global gesture at all.
+7. **The browser's own back button is the browser's.** Inside the app it lands where the chevron
+   lands whenever you walked in the front door. Where the two differ — you entered a page from
+   somewhere other than its parent — the chevron is the *hierarchy* and the browser button is the
+   *trail*, and that is the correct division. On a cold deep link the browser button leaves the app,
+   because there is nothing else behind it; the app's own back still goes up.
+8. **A drill-in that swaps the whole body is a history step** (the matchup: a push). A lateral move
+   between things that are all on screen is not (section tabs, sub-view chips, `?tab=`, filters —
+   all `replace`). If it deserves a back affordance, it deserves an entry.
+
+## 11. Do / Don't
 
 - Do put one idea per card; don't stack a card inside a card.
 - Do use `chip` for tags; don't use it as a container for numbers.
@@ -524,3 +581,7 @@ An editor is not a section you unfold; it is the thing itself becoming editable.
   and don't leave the job to the ten call sites of an overlay.
 - Do clear the mobile tab bar with `bottom-nav-clear` (and reserve room for it with `pb-nav-h`);
   don't write its height into a class, and don't leave anything floating over the keyboard.
+- Do let `useBack()` decide whether a page has a back affordance and where it goes; don't hand a
+  page its own back button, and don't add a second way out of one screen.
+- Do give any horizontally draggable element `data-no-swipe-nav`; don't assume the guard will
+  notice it on its own.

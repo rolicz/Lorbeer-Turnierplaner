@@ -87,7 +87,8 @@ Size (2026-09-13): backend ≈ 13.3k LOC Python (`app/` + `manage.py` + `run.py`
   `shell/` (AppShell, Sidebar desktop, MobileChrome drawer, BottomTabBar [mobile, 5 destinations
   — `navConfig` has seven, and the bar excludes Clubs and Ideas],
   navConfig, useDestinationLinks + lastLocation [per-destination last-page memory],
-  routeMeta + backNavigation [contextual back, shared with the swipe gesture], navStack,
+  routeHierarchy [the app's one hierarchy] + backNavigation [the one back decision, shared by both
+  chevrons and the swipe], navStack [the entry behind us, and each entry's scroll offset],
   useScrollRestoration + useReturnScroll for scroll memory, useTabParam [`?tab=` for every
   tabbed page], keyboardOpen [the on-screen keyboard's one answer: `<html data-keyboard-open>`,
   Q2], NotificationBell, RouteErrorBoundary [the *page* failed] and AppCrashBoundary
@@ -539,12 +540,29 @@ every past match simply keeps counting today's rating.
   shows on Android, desktop or an older iPhone. Never hand-spell `env(safe-area-inset-*)` in a class.
   An overlay root also carries `style={{ margin: 0 }}`: a page column's `> * ~ *` rule hands every
   non-first child a 12px top margin, and a `fixed inset-0` box honours it (scrim 12px short).
-- iOS PWA: push needs Home-Screen install; back navigation uses the router history index
-  (`routeMeta.ts` classifies the route, `backNavigation.ts` decides pop-vs-up), don't replace
-  with `history.back()` blindly. The swipe gesture (`useSwipeNav`) asks the *same* decision, so
-  a chevron and a swipe can never land in different places; on a top-level page with nothing to
-  pop the gesture does nothing at all. Any horizontally draggable element must carry
-  `data-no-swipe-nav`, or a swipe past its scroll edge navigates.
+- iOS PWA: push notifications need a Home-Screen install.
+- **One navigation model, and `DESIGN.md` §10 is where it is written down** (Q6, 2026-09-16).
+  `ui/shell/routeHierarchy.ts` answers two questions about any location — is this somewhere you
+  went *into* (`inside`), and what is one level up (`parent`) — and `backNavigation.ts` turns that
+  into the app's single back action. The mobile top-bar chevron, `PageLayout`'s desktop chevron,
+  the swipe gesture and the desktop title row all call `useBack()`; there is no per-page `back`
+  prop, no route-pattern list, and no screen with a back control of its own (the stats matchup's
+  in-view "← Head-to-head" button is gone — the chevron is its way out). Back **pops** when the
+  entry behind already is the parent (that page returns with its scroll and its open tab) and
+  otherwise navigates to the parent
+  with **`replace`**, so walking up a deep link never grows history. A destination has no "up": back
+  there is the history step behind you, or home when there is none — it never leaves the app. The
+  chevron appears only on `inside` pages and **no longer replaces the hamburger**. The desktop has
+  no top bar, so its chevron lives in `PageLayout`'s title row — which is why every loading and
+  empty state of an `inside` page goes through `PageLayout` and not a bare `<div className="page">`.
+  Don't call `history.back()` blindly, and don't give a page a back button of its own.
+- **Swipe right is the only gesture** (Q6). It is not a copy of the chevron, it is the same call,
+  so a tap and a swipe cannot land in different places. The forward gesture is **gone** — with it
+  went `canGoForward`/`highestHistoryIndex` and every truncation rule in `navStack`, which now only
+  ever answers "what URL was at `idx - 1`" (a wrong or missing answer degrades back to "navigate
+  up", never to a wrong page). Any horizontally draggable element must carry `data-no-swipe-nav`,
+  or a swipe past its scroll edge navigates. The listeners are `passive`, so the iOS system
+  edge-swipe is never fought.
 - **One rhythm above every tab strip** (T10): `ui/layout/PageLayout.tsx` owns the desktop title
   row (back · `h1` · meta · actions) and renders it **outside** `.page` — a `hidden lg:flex`
   element is still a `space-y-*` sibling, which is what used to push every phone page's first
@@ -591,11 +609,13 @@ every past match simply keeps counting today's rating.
   Every shortcut into a matchup is built by `statsMatchupHref()` (`pages/stats/statsNav.ts`) and
   defaults to **Source = Tournaments**. Every stats param is written with `replace` — except
   **opening the matchup, which is a push** (T11): the drill-in swaps the whole body, so it owns a
-  history entry and swipe/browser back return to the list it was opened from (N2 restores that
-  list's offset). Its in-view "Head-to-head" button asks the same question the gesture does
-  (`resolveDrillInBackAction` in `ui/shell/backNavigation.ts`): pop when the entry behind is this
-  stats page without `vs`, otherwise — a deep link from a match page or a profile — clear the
-  param in place.
+  history entry — which is what makes it a page you went *into*, with a back chevron of its own
+  (Q6). `routeHierarchy` declares its parent as the same URL without `vs`/`rel` (a team collapsed
+  to its first player), so the chevron, the swipe, the in-view "Head-to-head" button and the
+  browser's own button all pop back onto the H2H list when that is the entry behind, and otherwise
+  clear the param in place. **Changed from T11:** arriving from a match page, back now opens the
+  H2H list rather than returning to the match — back means one level up however you arrived. The
+  match page is still one tap away on the Tournaments tab, which remembers it (U6).
   All older shapes (`?view=table|stars`, `?section=…`, `#trends`, nav `state.statsTab`) are
   mapped once by `pages/stats/statsNav.ts` and rewritten — **never re-introduce `?section=`**.
 - Scroll position is app-managed (N2): `history.scrollRestoration` is `"manual"`, each history

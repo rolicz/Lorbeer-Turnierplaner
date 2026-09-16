@@ -7356,7 +7356,7 @@ explicit statement that the keyboard behaviour could not be proven off-device.
 
 ---
 
-## Q6 — Back, forward and the gestures: one model, applied everywhere  ☐
+## Q6 — Back, forward and the gestures: one model, applied everywhere  ☑
 
 Roli (2026-09-15): *"a worker that reevaluates the back/forth sweeps and back buttons and where or
 if they are shown on screen (consistency!). it should feel more natural. think hard about what a
@@ -7529,41 +7529,41 @@ Verified in a real browser on the isolated stack (backend :8003 on a copy of `ap
 390×844 with touch emulation and 1280×900, blue and light. "Swipe →" is a right swipe (back);
 "Browser ←" is the browser's own back button. A **deep link** means the URL was loaded cold.
 
-| # | Where you are · how you got there | What the reader expects, and why | Chevron | Swipe → | Browser ← |
-|---|---|---|---|---|---|
-| 1 | `/dashboard` · cold load | Home. Nothing above it, and back must not leave the app on its own. | – | nothing | leaves the app (the browser's history, not ours) |
-| 2 | `/dashboard` · Dashboard tab from `/stats` | The screen I came from. | – | `/stats` (pop) | `/stats` |
-| 3 | `/tournaments` · Tournaments tab from `/dashboard` | The dashboard — it is both what I came from and what is above. | – | `/dashboard` (pop) | `/dashboard` |
-| 4 | `/tournaments` · second tap on Tournaments while on `/live/21` | The list itself: the second tap is the only escape from a remembered page (U6, decision 4). | – | `/live/21` (pop) | `/live/21` |
-| 5 | `/tournaments` · cold deep link | Home. Not out of the app. | – | `/dashboard` (up, replace) | leaves the app |
-| 6 | `/stats` · Stats tab from `/players` | Players. Between siblings there is no up. | – | `/players` (pop) | `/players` |
-| 7 | `/stats?view=h2h&sub=duos` · section + sub chips | Nothing: chips are `replace`, they are not history steps (T11). Back leaves `/stats` for the page before it. | – | the page before `/stats` | same |
-| 8 | `/friendlies` · drawer | The page I came from. | – | pop | pop |
-| 9 | `/clubs` · drawer (editor) | The page I came from. Clubs is a destination, not a detail page — the drawer is how you leave it. | – | pop | pop |
-| 10 | `/ideas` · push notification `?idea=<id>`, cold | Home; the one-shot param is never replayed (`lastLocation`). | – | `/dashboard` (up) | leaves the app |
-| 11 | `/settings` · drawer footer | The page I came from. | – | pop | pop |
-| 12 | `/live/:id` · tapped in the `/tournaments` list | The list, at the row I tapped. | `‹` + `☰` | `/tournaments` at its offset (pop) | same |
-| 13 | `/live/:id` · Tournaments tab's live shortcut, from `/stats` | The tournaments list — I asked for Tournaments, not for Stats (N1). | `‹` + `☰` | `/tournaments` (up) | `/stats` (the browser's trail) |
-| 14 | `/live/:id` · push notification / cold deep link | The tournaments list. Never out of the app. | `‹` + `☰` | `/tournaments` (up) | leaves the app |
-| 15 | `/live/:id` · reload while there | Exactly what it did before the reload — sessionStorage keeps the mirror. | `‹` + `☰` | as its row above | as its row above |
-| 16 | `/live/:id/match/:mid` · row in the tournament's Matches tab | The matches list, where I left it, on the tab I opened it from. | `‹` + `☰` | `/live/:id?tab=matches` at its offset (pop) | same |
-| 17 | `/live/:id/match/:mid` · Stats → Records row | Its tournament. Not the stats page I came from (N1's rule, now for every arrival). | `‹` + `☰` | `/live/:id?tab=matches` (up) | `/stats…` |
-| 18 | `/live/:id/match/:mid` · cold deep link | Its tournament. | `‹` + `☰` | `/live/:id` (up) | leaves the app |
-| 19 | `/live/:id/match/:mid` · Save and return (A9.7) | The Matches tab scrolled to the row I just edited, flashing. Not back, not the top. | – (page action) | n/a | n/a |
-| 20 | `/profiles/:id` · row on `/players` | The players list. | `‹` + `☰` | `/players` (pop) | same |
-| 21 | `/profiles/:id` · a `PlayerLink` inside a tournament's standings | The players page. One meaning per control, however I arrived. | `‹` + `☰` | `/players` (up) | the tournament |
-| 22 | `/profiles/:id` · guestbook push, cold (`?tab=guestbook&entry=`) | The players page. | `‹` + `☰` | `/players` (up) | leaves the app |
-| 23 | `/profile` (own) · Settings → My profile | The players page — the same page as row 20, so the same chrome. Today it shows a hamburger and no back, which is the two-sources-of-truth bug in one screenshot. | `‹` + `☰` | `/players` (up) | `/settings` |
-| 24 | matchup · H2H matrix cell | The matrix, exactly as I left it. | `‹` + `☰` | the H2H list at its offset (pop) | same |
-| 25 | matchup · "All matches: A vs B" on a match page | The H2H list it drills into. **Changed from T11** — see the note below the table. | `‹` + `☰` | the H2H list (up, in place) | the match page |
-| 26 | matchup · rival link on a profile | The H2H list. | `‹` + `☰` | the H2H list (up) | the profile |
-| 27 | matchup · cold deep link `?view=h2h&player=1&vs=2` | The H2H list — the thing it is a drill-in of. | `‹` + `☰` | the H2H list (up) | leaves the app |
-| 28 | matchup · another section tab tapped from inside it | Nothing to undo: leaving the section consumes the drill-in's entry (`replace`, T11). | – | the entry behind the matchup | same |
-| 29 | 404 (`/nope`) · a stale in-app link | Where I was. There is no hierarchy above an unknown URL, and the body already offers "Back to dashboard". | – | pop | pop |
-| 30 | 404 · cold | Home. | – | `/dashboard` (up) | leaves the app |
-| 31 | any page · swipe **left** | **Nothing, anywhere.** Argued below. | – | – | – |
-| 32 | any page · swipe → starting on a horizontal scroller or a slider | Nothing: the element scrolls. Positions grid, H2H matrix, chip rows, `SectionTabs`, trends chart, range inputs, `data-no-swipe-nav`. | – | – | – |
-| 33 | iOS standalone PWA · system edge swipe | The OS gesture, untouched. Our listener is passive and never calls `preventDefault`. | – | – | – |
+| # | Where you are · how you got there | What the reader expects, and why | Chevron | Swipe → | Browser ← | ✓ |
+|---|---|---|---|---|---|---|
+| 1 | `/dashboard` · cold load | Home. Nothing above it, and back must not leave the app on its own. | – | nothing | leaves the app (the browser's history, not ours) | ✓ |
+| 2 | `/dashboard` · Dashboard tab from `/stats` | The screen I came from. | – | `/stats` (pop) | `/stats` | ✓ |
+| 3 | `/tournaments` · Tournaments tab from `/dashboard` | The dashboard — it is both what I came from and what is above. | – | `/dashboard` (pop) | `/dashboard` | ✓ |
+| 4 | `/tournaments` · second tap on Tournaments while on `/live/21` | The list itself: the second tap is the only escape from a remembered page (U6, decision 4). | – | `/live/21` (pop) | `/live/21` | ✓ |
+| 5 | `/tournaments` · cold deep link | Home. Not out of the app. | – | `/dashboard` (up, replace) | leaves the app | ✓ |
+| 6 | `/stats` · Stats tab from `/players` | Players. Between siblings there is no up. | – | `/players` (pop) | `/players` | ✓ |
+| 7 | `/stats?view=h2h&sub=duos` · section + sub chips | Nothing: chips are `replace`, they are not history steps (T11). Back leaves `/stats` for the page before it. | – | the page before `/stats` | same | ✓ |
+| 8 | `/friendlies` · drawer | The page I came from. | – | pop | pop | ✓ |
+| 9 | `/clubs` · drawer (editor) | The page I came from. Clubs is a destination, not a detail page — the drawer is how you leave it. | – | pop | pop | ✓ |
+| 10 | `/ideas` · push notification `?idea=<id>`, cold | Home; the one-shot param is never replayed (`lastLocation`). | – | `/dashboard` (up) | leaves the app | ✓ |
+| 11 | `/settings` · drawer footer | The page I came from. | – | pop | pop | ✓ |
+| 12 | `/live/:id` · tapped in the `/tournaments` list | The list, at the row I tapped. | `‹` + `☰` | `/tournaments` at its offset (pop) | same | ✓ |
+| 13 | `/live/:id` · Tournaments tab's live shortcut, from `/stats` | The tournaments list — I asked for Tournaments, not for Stats (N1). | `‹` + `☰` | `/tournaments` (up) | `/stats` (the browser's trail) | ✓ |
+| 14 | `/live/:id` · push notification / cold deep link | The tournaments list. Never out of the app. | `‹` + `☰` | `/tournaments` (up) | leaves the app | ✓ |
+| 15 | `/live/:id` · reload while there | Exactly what it did before the reload — sessionStorage keeps the mirror. | `‹` + `☰` | as its row above | as its row above | ✓ |
+| 16 | `/live/:id/match/:mid` · row in the tournament's Matches tab | The matches list, where I left it, on the tab I opened it from. | `‹` + `☰` | `/live/:id?tab=matches` at its offset (pop) | same | ✓ |
+| 17 | `/live/:id/match/:mid` · Stats → Records row | Its tournament. Not the stats page I came from (N1's rule, now for every arrival). | `‹` + `☰` | `/live/:id?tab=matches` (up) | `/stats…` | ✓ |
+| 18 | `/live/:id/match/:mid` · cold deep link | Its tournament. | `‹` + `☰` | `/live/:id` (up) | leaves the app | ✓ |
+| 19 | `/live/:id/match/:mid` · Save and return (A9.7) | The Matches tab scrolled to the row I just edited, flashing. Not back, not the top. | – (page action) | n/a | n/a | ✓ |
+| 20 | `/profiles/:id` · row on `/players` | The players list. | `‹` + `☰` | `/players` (pop) | same | ✓ |
+| 21 | `/profiles/:id` · a `PlayerLink` inside a tournament's standings | The players page. One meaning per control, however I arrived. | `‹` + `☰` | `/players` (up) | the tournament | ✓ |
+| 22 | `/profiles/:id` · guestbook push, cold (`?tab=guestbook&entry=`) | The players page. | `‹` + `☰` | `/players` (up) | leaves the app | ✓ |
+| 23 | `/profile` (own) · Settings → My profile | The players page — the same page as row 20, so the same chrome. Today it shows a hamburger and no back, which is the two-sources-of-truth bug in one screenshot. | `‹` + `☰` | `/players` (up) | `/settings` | ✓ |
+| 24 | matchup · H2H matrix cell | The matrix, exactly as I left it. | `‹` + `☰` | the H2H list at its offset (pop) | same | ✓ |
+| 25 | matchup · "All matches: A vs B" on a match page | The H2H list it drills into. **Changed from T11** — see the note below the table. | `‹` + `☰` | the H2H list (up, in place) | the match page | ✓ |
+| 26 | matchup · rival link on a profile | The H2H list. | `‹` + `☰` | the H2H list (up) | the profile | ✓ |
+| 27 | matchup · cold deep link `?view=h2h&player=1&vs=2` | The H2H list — the thing it is a drill-in of. | `‹` + `☰` | the H2H list (up) | leaves the app | ✓ |
+| 28 | matchup · another section tab tapped from inside it | Nothing to undo: leaving the section consumes the drill-in's entry (`replace`, T11). | – | the entry behind the matchup | same | ✓ |
+| 29 | 404 (`/nope`) · a stale in-app link | Where I was. There is no hierarchy above an unknown URL, and the body already offers "Back to dashboard". | – | pop | pop | ✓ |
+| 30 | 404 · cold | Home. | – | `/dashboard` (up) | leaves the app | ✓ |
+| 31 | any page · swipe **left** | **Nothing, anywhere.** Argued below. | – | – | – | ✓ |
+| 32 | any page · swipe → starting on a horizontal scroller or a slider | Nothing: the element scrolls. Positions grid, H2H matrix, chip rows, `SectionTabs`, trends chart, range inputs, `data-no-swipe-nav`. | – | – | – | ✓ |
+| 33 | iOS standalone PWA · system edge swipe | The OS gesture, untouched. Our listener is passive and never calls `preventDefault`. | – | – | – | code |
 
 **Row 25, the one decision that overrules an earlier one.** T11 (2026-09-13) asked for the opposite:
 "if i get there from eg match details, i want swipe back to go to match details again." Q6's answer
@@ -7609,11 +7609,153 @@ for it, so it does not all go. Split it in two and the two halves have opposite 
 - The scroll half (`saveScroll`/`scrollFor`, N2) is not a mirror of the URL stack at all — it is
   `idx → offset` — and has to stay whatever happens to the rest.
 
-Net: 178 lines → ~110, and the module no longer has an opinion about anything but the entry behind
-the current one.
+Net (measured after implementing): `navStack.ts` 178 → 156 lines, 104 → 90 excluding comments, and
+the module no longer has an opinion about anything but the entry behind the current one.
 
 
-**Deviations:**
+**Deviations:** (implemented 2026-09-16 on `feature/2026-09-audit`; the scenario table above was
+written first and every row of it was then verified in a browser)
+
+**What the four answers did not settle, and what I decided.**
+
+1. **Back on a top-level destination.** Answer 3's ladder ends "list → dashboard", and answer 1 says
+   the affordance appears "whenever you moved to get here" — read literally together, every page but
+   the dashboard would carry a chevron meaning "go to the dashboard". That is wrong for the reader:
+   a chevron is read as *the screen before*, and on `/stats` reached from `/players` it would point
+   somewhere else entirely; no phone app puts back on a tab root. So: **the ladder is implemented in
+   full, the chevron is not drawn on a destination.** Back there is the history step you took, and
+   only when there is nothing behind it does it go home — which is precisely the rung answer 3 was
+   protecting, "it never ejects you from the app", now reachable by the gesture and the browser
+   button rather than by a chevron that would lie the rest of the time.
+2. **Going up is a `replace`, not a push.** Not in the answers at all, and it matters: with a push,
+   walking up out of a deep link grows history forever and "home" could be swiped straight back into
+   the page you just left (`/settings` → home → `/settings` → …). Replacing consumes the page being
+   left, the way popping a native stack does. Verified: a cold `/live/19/match/104` walks
+   match → tournament → list → home and stays at `history.state.idx === 0` the whole way, and a
+   further swipe at home does nothing.
+3. **Row 25 overrules T11.** Coming out of the matchup now opens the H2H list even when a match page
+   is behind it. Argued under the table; it is the price of answer 3, and it is flagged because Roli
+   asked for the opposite by name three days earlier. The match page is one tap away on the
+   Tournaments tab, and on the desktop the browser's own back button still returns to it (verified).
+4. **The matchup lost its in-view "← Head-to-head" button.** With the chevron finally in the chrome
+   (inconsistency 1), that button was a second back arrow 100px under the first. One back per screen,
+   in the same place on every page. The label it carried is the only thing lost; the section tabs
+   above still say H2H.
+5. **The desktop chevron needed a home of its own.** It lives in `PageLayout`'s title row, and a page
+   that returns early — still loading, "Login to open your profile", "Match not found" — used to
+   render a bare `<div className="page">` with no row at all. On the desktop there is no top bar, so
+   those screens had *no way back*. Found by the desktop verification run (row 23 failed on
+   `/profile` as a reader). Fixed once, generally: the row now renders for the chevron alone when
+   there is no title, and the five bare `.page` early returns plus `App`'s lazy-route fallback go
+   through `PageLayout`.
+
+**What was built.**
+
+- **`ui/shell/routeHierarchy.ts` (new) replaces `routeMeta.ts`.** `placeOf(pathname, search, state)`
+  → `{ parent, inside, drillParam?, sameParams? }`. It is the *only* place that knows the shape of
+  the app. `parentOf()` is the convenience wrapper. `historyCanPop()` moved to `navStack.canPop()`,
+  where the history index already lived.
+- **`backNavigation.ts`: three decision functions became one.** `resolveBackAction` is all that is
+  left — `resolveDrillInBackAction`/`drillInBackActionFor` are gone (the matchup is an ordinary
+  parent relationship now), `swipeAction` is gone (the gesture calls `backActionFor` directly), and
+  the `fallback` argument that made the button and the gesture differ is gone with them: there is no
+  argument left for them to differ on. `useContextualBack()` → `useBack()`, returning `{ hasBack,
+  goBack }`.
+- **`navStack.ts` lost its future half.** `canGoForward`, `highestHistoryIndex`, `NavKind`, the
+  truncate-on-PUSH rule and A9.6's truncate-on-first-record rule are all deleted with the forward
+  gesture. `recordNavigation(pathname, search)` no longer takes a kind. What remains answers
+  `idx - 1` and keeps the per-entry scroll offsets. `NavKind` moved to `diagnostics/breadcrumbs.ts`,
+  which is the only thing that still cares how a navigation arrived.
+- **`useSwipeNav.ts`**: right only. A left drag deactivates the gesture without spending the
+  debounce. `consumesSwipe` lost its direction parameter with it. Every guard is untouched.
+- **`MobileChrome.tsx`**: `‹` then `☰`, both present on an `inside` page, `☰` alone otherwise.
+- **`PageLayout.tsx`**: no `back` prop; the row asks `useBack()` and renders for the chevron alone
+  when a page has no title. `LiveTournamentPage`, `MatchDetailPage` and `ProfilePage` stopped
+  passing `<InlineBack />` (and `ProfilePage` stopped computing its own "is this a detail route").
+- **`statsNav.ts` gained `statsMatchupParent(search)`** — the matchup's parent URL, built by the
+  module that owns the stats URL scheme, so the hierarchy does not learn a second copy of it. The
+  shell imports it; nothing imports the shell from `pages`, so there is no cycle.
+- **`StatsInsights.tsx`** no longer decides anything about back. It keeps one effect: when the
+  matchup closes *in place* (a REPLACE on the same entry), the H2H list is restored to the offset it
+  was left at. A pop deliberately does not reach it — `useScrollRestoration` owns that entry's own
+  offset, and two restores racing each other is what T11 and A9.7 had to untangle.
+
+**Seams.** The seven files go 857 → 834 lines, and **518 → 482** once comments and blanks are taken
+out — 36 fewer lines of code and rather more explanation of the lines that are left. The numbers that
+matter are not lines: **decision functions 3 → 1** (`resolveBackAction`; `resolveDrillInBackAction`
+and `swipeAction` are gone), **sources of truth for "is this a page you went into" 2 → 1**
+(`routeMeta`'s pattern list and `PageLayout`'s per-page prop both replaced by one question),
+**exported entry points into the decision 10 → 7**, and the entire class of "the mirror disagrees
+with the real history about what is *in front* of us" — four rounds of bugs' worth — deleted rather
+than fixed again.
+
+**Tests — three files replaced, four written, and why.** The old nav tests pinned the *old* model, so
+they could not simply stay: `routeMeta.test.ts` tested the three hard-coded patterns that no longer
+exist, and `contextualBack.test.tsx` tested `useContextualBack`/`resolveBackTarget`, both renamed and
+re-shaped. `swipeAction`'s and `resolveDrillInBackAction`'s cases went with their functions. Every
+behaviour they pinned is still pinned, by a test that names the table row it belongs to:
+
+- `test/routeHierarchy.test.ts` (new, 10 cases) — `placeOf` for every route, both `inside` pages and
+  destinations, including `/profile` vs `/profiles/:id` (the bug), the team collapse, and `?vs=`
+  outside the H2H section.
+- `test/backNavigation.test.ts` (new, 14 cases) — `resolveBackAction` per table row, and
+  `backActionFor` against a live `navStack`, including "a mirror that lost its entry degrades to
+  'up', never to a wrong page".
+- `test/useBack.test.tsx` (new, 7 cases, replaces `contextualBack.test.tsx`) — where the affordance
+  is drawn (five `inside` pages, six destinations) and what it does against a real router, pinning
+  that up is a **REPLACE**.
+- `test/mobileChrome.test.tsx` (new, 3 cases) — back and menu together on an `inside` page, menu
+  alone on a destination, and back before the menu in the DOM order.
+- `test/swipeNav.test.ts` (rewritten) — the gesture's rows, plus "the module exports nothing that
+  claims to know what is in front of us" and the mirror's past-only behaviour.
+- `test/matchupBack.test.tsx` (rewritten) — kept only what is still true: opening the matchup pushes,
+  clearing it does not.
+- `test/pageRhythm.test.tsx` — the `back` prop cases became "the row renders the chevron from the
+  hierarchy" and "the row survives for the chevron alone while a page is still loading".
+- `test/matchupView.test.tsx` — the "offers the way back" case became "carries no back control of
+  its own".
+
+**Verification** (isolated stack: backend :8003 on a copy of `app.db` with a scratch secrets file,
+vite :8020; neither of Roli's ports touched; both stopped and the copies deleted afterwards).
+
+- **Mobile 390×844, real touch events via CDP `Input.dispatchTouchEvent`: 53/53 checks green.**
+  Every row of the table, one browser context per scenario so no per-destination memory leaks
+  between them.
+- **Desktop 1280×900 (the chevron instead of the gesture): 37/37 checks green.**
+- **Extra entry paths (rows 13, 22, 26): 6/6 green on each width** — the Tournaments tab's
+  live shortcut on the phone and the sidebar's own "Live now" entry on the desktop, a cold guestbook
+  push link (`/profiles/4?tab=guestbook&entry=1`), and the matchup opened from a profile's rival card.
+- **Row 19 (A9.7 save and return): 3/3 green**, logged in as an admin against the DB copy — the
+  edit page was at y=277, "Save and return" landed on `/live/19?tab=matches` **at y=331**, not at the
+  top, and back from there still goes up to the list.
+- Chrome sweep at 390 and 1280 in **blue and light**: back + menu on `/live/19`,
+  `/live/19/match/104`, the matchup and `/profiles/2`; menu alone on `/stats`; no horizontal
+  overflow, no nested `<a>` (`document.querySelectorAll("a a").length === 0`), zero console or page
+  errors on any of the twenty page loads.
+- `cd frontend && npm run check`: typecheck, eslint and **608 tests in 61 files** green (59 files
+  before: two deleted, four written). `npm run build` green in 8.4s, with the pre-existing
+  "chunks larger than 500 kB" hint (705 kB `index-*.js`; the Round-6 close recorded ≈669 kB and
+  Rounds 7–8 have added since). The one new eager import is `statsNav.ts`, whose only imports are
+  erased types — `StatsPage` is still its own 77 kB lazy chunk.
+
+**Could not be verified off-device — for Roli to check on the phone:**
+
+1. **The iOS system edge-swipe.** Chromium on the Pi has no OS-level edge gesture, so "our listener
+   does not fight it" is argued from the code (all four listeners are `{ passive: true }` and nothing
+   calls `preventDefault`) and not measured. Worth one deliberate edge-swipe from the very left edge
+   on a match page: it should do the *system* thing, and our own swipe from further in should go up.
+2. **The installed PWA's cold launch.** `useLocationRestore` only runs in `display-mode: standalone`;
+   a launch that resumes at, say, a match page should show the chevron and back should go to the
+   tournament (it is row 18 by construction, but the restore path itself is device-only).
+3. **A real push notification tap** while the app is backgrounded. The service worker calls
+   `client.navigate()`, which starts a *new document* — so `history.state.idx` is 0 and back goes up,
+   the same as row 14/18. Verified by simulating the URL cold; the actual notification tap is not
+   reproducible headless.
+4. **Thumb ergonomics of two buttons in the top-left.** The chevron sits at the edge and the
+   hamburger beside it; on a 390px screenshot they read clearly, but whether the menu's new position
+   (40px to the right, on detail pages only) feels right is a hand thing.
+5. **Whether row 25 is the right call.** See deviation 3. It is a one-line change to restore T11's
+   behaviour if he wants the matchup to be an exception.
 
 ---
 
