@@ -95,13 +95,49 @@ export type KeyboardProbe = {
   editableFocus: boolean;
 };
 
-/** The test itself (see the three conditions in this module's doc comment). */
-export function keyboardOpenFrom(p: KeyboardProbe): boolean {
-  if (!p.editableFocus) return false;
-  if (p.scale > MAX_SCALE) return false;
-  if (!(p.layoutHeight > 0)) return false;
+/**
+ * Each condition's own answer, next to the numbers it was computed from.
+ *
+ * It exists so the live readout in Settings → Diagnostics can show *the* decision rather
+ * than a second implementation of it: Q2 shipped once against what the API is documented
+ * to do and changed nothing on Roli's phone, so the next move is to read the inputs off
+ * the device, and a readout that recomputed the thresholds itself could agree with a bug.
+ */
+export type KeyboardConditions = {
+  /** 1. The caret is in something that opens a keyboard. */
+  editableFocus: boolean;
+  /** 2. The visual viewport is small because of a keyboard, not a pinch. */
+  scaleOk: boolean;
+  /** 3. Something keyboard-sized covers the bottom of the layout viewport. */
+  coveredOk: boolean;
+  /** `layoutHeight − viewportHeight − offsetTop` — the strip that is covered right now. */
+  covered: number;
+  /** What condition 3 demands: `max(120px, 20% of the layout viewport)`. */
+  requiredCovered: number;
+  /** What condition 2 allows. */
+  maxScale: number;
+};
+
+/** The test itself, condition by condition (see this module's doc comment). */
+export function keyboardConditions(p: KeyboardProbe): KeyboardConditions {
   const covered = p.layoutHeight - p.viewportHeight - p.offsetTop;
-  return covered >= Math.max(MIN_COVERED_PX, p.layoutHeight * MIN_COVERED_RATIO);
+  const requiredCovered = Math.max(MIN_COVERED_PX, p.layoutHeight * MIN_COVERED_RATIO);
+  return {
+    editableFocus: p.editableFocus,
+    scaleOk: p.scale <= MAX_SCALE,
+    // A layout viewport of 0 is not a measurement (a hidden tab, a torn-down document),
+    // so nothing can be "covered" in it.
+    coveredOk: p.layoutHeight > 0 && covered >= requiredCovered,
+    covered,
+    requiredCovered,
+    maxScale: MAX_SCALE,
+  };
+}
+
+/** All three at once — the one answer the flag is set from. */
+export function keyboardOpenFrom(p: KeyboardProbe): boolean {
+  const c = keyboardConditions(p);
+  return c.editableFocus && c.scaleOk && c.coveredOk;
 }
 
 /** Is the flag currently set? (The DOM is the single source of truth, not a module variable.) */
@@ -117,8 +153,9 @@ function setFlag(open: boolean): void {
   else delete root.dataset[FLAG];
 }
 
-/** Reads the live viewport. `null` where the API is missing — then nothing ever hides. */
-function probe(): KeyboardProbe | null {
+/** Reads the live viewport. `null` where the API is missing — then nothing ever hides.
+ *  Exported so the diagnostics readout measures with the same ruler, not a copy of it. */
+export function readKeyboardProbe(): KeyboardProbe | null {
   if (typeof window === "undefined" || typeof document === "undefined") return null;
   const vv = window.visualViewport;
   if (!vv) return null;
@@ -148,7 +185,7 @@ function clearCloseTimer(): void {
  * for the cases where the field is provably gone — navigation, teardown.
  */
 export function refreshKeyboardFlag(immediate = false): void {
-  const p = probe();
+  const p = readKeyboardProbe();
   const open = p ? keyboardOpenFrom(p) : false;
   if (open) {
     clearCloseTimer();
@@ -167,7 +204,7 @@ export function refreshKeyboardFlag(immediate = false): void {
   if (closeTimer !== undefined) return;
   closeTimer = window.setTimeout(() => {
     closeTimer = undefined;
-    const again = probe();
+    const again = readKeyboardProbe();
     if (!again || !keyboardOpenFrom(again)) setFlag(false);
   }, CLOSE_DELAY_MS);
 }

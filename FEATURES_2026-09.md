@@ -8120,6 +8120,28 @@ exists (R7 diagnostics, `ui/layout/DiagnosticsSettings.tsx`), with its own text 
 keyboard can be raised while the numbers stay on screen. One screenshot from him then settles it.
 Only after that, fix the condition.
 
+**The instrument is in (2026-09-16) — Q2 itself is still untouched and still open.** Settings →
+Diagnostics now opens on **"Keyboard and viewport"**, above the crash log: a live readout that shows
+the verdict (*Keyboard open/closed*) and whether `<html data-keyboard-open>` is actually set, then
+`innerHeight`, `visualViewport.height`, `visualViewport.offsetTop` and `visualViewport.scale` in
+**three columns — now / at rest / deepest** — and then the three conditions one per line, each with
+its own ✓/✗ and the numbers it was decided on, including the subtraction itself
+(`covered 336 ≥ 169 (844 − 508 − 0)`). The focused element is named in condition 1. Its own text
+field sits at the bottom of the block, so everything worth reading is **above** it and stays on
+screen with a keyboard over the lower half (measured: the field's bottom edge is at 463px of 844 at
+390px wide, and nothing in the block scrolls). "At rest" is the last reading taken with no caret
+anywhere — that is the column that answers the actual question, *did `innerHeight` shrink when the
+keyboard opened?* — and "deepest" keeps the largest covered strip seen, so the evidence survives the
+keyboard closing. A **Copy** button puts all of it, plus the user agent and whether the app is
+standalone, on the clipboard; it keeps the caret (`mousedown` default prevented) so copying does not
+close the keyboard it is describing. The conditions are not recomputed in the readout:
+`keyboardConditions()` in `ui/shell/keyboardOpen.ts` *is* the shipped decision, and
+`keyboardOpenFrom()` is now its three answers ANDed.
+
+**What Roli should do:** Settings → Diagnostics, tap the field, screenshot with the keyboard up.
+That one image says which of the three conditions is false and what the phone reported. **No fix
+until then.**
+
 **Deviations:**
 
 ---

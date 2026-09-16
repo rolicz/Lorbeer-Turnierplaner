@@ -12,6 +12,7 @@ import { qk } from "../api/queryKeys";
 import { listPlayers } from "../api/players.api";
 import PushNotificationsSettings from "../ui/layout/PushNotificationsSettings";
 import DiagnosticsSettings from "../ui/layout/DiagnosticsSettings";
+import ViewportReadout from "../ui/layout/ViewportReadout";
 import { THEMES } from "../themes";
 import { useRouteEntryLoading } from "../ui/layout/useRouteEntryLoading";
 import { useTabParam } from "../ui/shell/useTabParam";
@@ -202,11 +203,18 @@ export default function SettingsPage() {
         ) : null}
 
         {tab === "diagnostics" ? (
-        /* Crash log (see `diagnostics/`): the only way a crash on Roli's phone
-           gets off the device -- there is no console there. */
+        <>
+        {/* First in the tab on purpose: its whole job is to stay visible while the
+            keyboard covers the bottom half of the screen (Q2's measurement). */}
+        <SettingsSection title="Keyboard and viewport">
+          <ViewportReadout />
+        </SettingsSection>
+        {/* Crash log (see `diagnostics/`): the only way a crash on Roli's phone
+           gets off the device -- there is no console there. */}
         <SettingsSection title="Crash log">
           <DiagnosticsSettings />
         </SettingsSection>
+        </>
         ) : null}
 
         {tab === "appearance" ? (

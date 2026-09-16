@@ -4,6 +4,7 @@ import {
   installKeyboardWatcher,
   isEditableElement,
   isKeyboardOpen,
+  keyboardConditions,
   keyboardOpenFrom,
   refreshKeyboardFlag,
   type KeyboardProbe,
@@ -54,6 +55,43 @@ describe("keyboardOpenFrom", () => {
 
   it("survives a zero-height viewport (a hidden tab) without hiding anything", () => {
     expect(keyboardOpenFrom({ ...PHONE, layoutHeight: 0, viewportHeight: 0 })).toBe(false);
+  });
+});
+
+describe("keyboardConditions", () => {
+  // The diagnostics readout (`ui/layout/ViewportReadout.tsx`) shows these three answers on
+  // the device, so they have to be the decision itself rather than a second copy of it.
+  it("reports each condition and the numbers it was decided on", () => {
+    const c = keyboardConditions(covered(PHONE, 336));
+    expect(c).toMatchObject({ editableFocus: true, scaleOk: true, coveredOk: true });
+    expect(c.covered).toBe(336);
+    expect(c.requiredCovered).toBeCloseTo(168.8);
+    expect(c.maxScale).toBe(1.05);
+  });
+
+  it("names the one condition that fails", () => {
+    expect(keyboardConditions({ ...covered(PHONE, 336), scale: 2 })).toMatchObject({
+      editableFocus: true,
+      scaleOk: false,
+      coveredOk: true,
+    });
+    expect(keyboardConditions({ ...covered(PHONE, 336), editableFocus: false })).toMatchObject({
+      editableFocus: false,
+      scaleOk: true,
+      coveredOk: true,
+    });
+    // The hypothesis this readout exists to test: a layout viewport that shrinks with the
+    // keyboard leaves nothing covered, and condition 3 can never pass.
+    expect(keyboardConditions({ ...PHONE, layoutHeight: 508, viewportHeight: 508 })).toMatchObject({
+      coveredOk: false,
+    });
+  });
+
+  it("agrees with the flag's own test", () => {
+    for (const p of [PHONE, covered(PHONE, 336), { ...covered(PHONE, 336), scale: 2 }, LANDSCAPE]) {
+      const c = keyboardConditions(p);
+      expect(c.editableFocus && c.scaleOk && c.coveredOk).toBe(keyboardOpenFrom(p));
+    }
   });
 });
 
