@@ -9791,7 +9791,7 @@ edit — and names both lists that implement it; it also drops the stale referen
 
 ---
 
-## Q17 — The other match list still does not say which clubs played  ☐
+## Q17 — The other match list still does not say which clubs played  ☑
 
 Roli, 2026-09-16: *"in stats/player: the compact match list does not show the club crest like e.g.
 in friendlies. why? consistency!"*
@@ -9886,3 +9886,84 @@ inner edge of its names; no Details row gains a second one; **every score sits e
 before, measured row by row on all seven surfaces at 390px and 1280px**; the friendlies list is
 unchanged to the pixel; `npm run check` + `npm run build`; blue and light at both widths; zero
 console errors, zero nested interactive elements.
+
+**Deviations, and what the measurements said** (implemented 2026-09-16 on `main`):
+
+- **No call site changed, and that was the point.** `MatchRowWithClubs` decides from its own
+  `showMeta`, so all six of its surfaces got the crest in one three-line edit and a seventh caller
+  cannot reintroduce the inconsistency. The only props added anywhere are `clubs` on `RecordGroup`
+  (a private component in `RecordsView`) and an optional `side` on `ClubMark` that writes a
+  `data-club-mark` attribute and paints nothing.
+- **The club data cost nothing on six of the seven surfaces.** Every `MatchHistoryList` caller
+  already passed `clubs: Club[]` for its Details half, and `club_id` is already on
+  `StatsMatchSideOut`. Counted at runtime: **`/clubs` is called exactly once** on Stats → Player,
+  the match page and Records, which is what each of them called before. Records' one is new; the
+  other two are not.
+- **What it *did* cost is crest images, and that is worth stating.** Compact used to fetch none.
+  Counted on a cold load at 390px: Stats → Player **47 distinct crests / 1663 KB**, the profile's
+  Matches tab **67 / 2363 KB**, the match page **7 / 195 KB**, Records **4 / 143 KB** (friendlies,
+  for scale, already fetched 23 / 836 KB before this task). It is the same set the Details view of
+  the same page already fetched, the images are `loading="lazy"` and the backend serves them
+  `Cache-Control: public, max-age=2592000` behind a `?v=<updated_at>` buster, so it is paid once a
+  month per device and never again — but on the longest list in the app it is ~2 MB the first time.
+  **The real waste is upstream and is a follow-up, not this task:** the stored crests are 30–46 KB
+  PNGs at full resolution being drawn at 16px. A downscale pass in
+  `app/tools/sync_club_crests.py` would take a zero off every one of these numbers.
+- **`digits` stayed out**, as the plan decided — and the run confirms the reason. The page-wide
+  separator spread on the seeded copy is **12.27px before and 12.27px after** on Stats → Player,
+  the Matches tab and Records, and **0.00px before and after** on the profile overview, the
+  matchup, the history modal, the match page and both friendlies views. Adding `digits` would have
+  taken those three to 0.00 by *moving scores*, which is exactly what this task had to prove it
+  did not do. Note what the 12.27 is: production has never recorded a score above 8, so on real
+  data every one of these lists already sits at 0.00 — the drift only exists because this run
+  seeded a 12–0 and a 2–10 on purpose. Within a tournament block, the unit the eye actually
+  compares, the spread is 0.00 everywhere except the single block holding a seeded two-digit score.
+  Recommended as its own task with those numbers in hand.
+- **Scheduled rows carry the mark too.** They are the rows where "which clubs" is the *live*
+  question, and `ScoreLine`'s `vs` branch is in the middle cell, so nothing about it changed. Seen
+  at runtime on the profile overview, whose two newest tournaments are drafts: 6 scheduled rows,
+  12 marks, every name edge still on the column the scored rows set.
+- **`ClubMark` moved to `ui/primitives/` verbatim** and `FriendlyList` imports it back. Proved
+  inert rather than asserted: the friendlies page at 1280px is **pixel-identical** in both themes
+  and both views, and at 390px differs in exactly one 16×16 box at (121,791) — the bottom tab
+  bar's pulsing dot, which a **same-code self-diff reproduces at the same bbox** (176/172/169/167
+  pixels against 178/163/158/163 for the real diff). Its 8 tests pass unchanged.
+- **Records is not blocked on its clubs query.** `clubsQ` is deliberately *not* in the sub-view's
+  `loading` gate: the marks reserve their 16px slot whether or not the clubs have arrived, so the
+  crests fade in without moving a single row, and a slow `/clubs` cannot hold up a record.
+
+**Measured — before and after, every surface, row by row** (isolated stack: backend :8005 on a
+copy of `backend/app.db` with a scratch secrets file, vite :8022; the copy was seeded with a 12–0,
+a 2–10 and a clubless side so the hard cases are real). Playwright at 390×844 and 1280×900, in
+`blue` and `light`, as a reader and as an admin — 7 surfaces × 2 widths × 2 themes:
+
+| Surface | rows | score separator x (390 / 1280) | before → after |
+|---|---|---|---|
+| Stats → Player | 70 (64 scored) | 188.86 · 195 · 201.13 / 753.86 · 760 · 766.13 | identical |
+| Profile → Overview | 7 (1 scored) | 195 / 760 | identical |
+| Profile → Matches | 86 (80 scored) | 188.86 · 195 · 201.13 / 753.86 · 760 · 766.13 | identical |
+| H2H → Matchup | 31 | 195 / 760 | identical |
+| H2H → history modal | 20 | 195 / 760 | identical |
+| Match page → H2H panel | 5 | 195 / 760 | identical |
+| Records | 5 | 188.86 · 195 · 201.13 / 499.86 · 506 · 512.13 · 1020.13 (two columns) | identical |
+| Friendlies Compact / Details | 20 each | 195 / 760 | identical |
+
+- **6336 values compared** — every row's separator x, both numeral left **and** right edges, and
+  row height, on every surface at both widths in both themes — and **0 moved**. The name *cells*
+  (the grid's `1fr` columns) are identical too; the names inside them move outward, which is the
+  change.
+- **The mark's own geometry, on every row:** width **16px**, **6px** to its own names and **12px**
+  to the numerals (the 2:1 ratio §8 sets), at both widths, on all four surfaces probed. On the 36
+  2v2 rows of Stats → Player the mark's vertical centre equals the numerals' to **0.00px** — one
+  symbol beside a stacked pair, no extra line.
+- **Details is untouched:** toggling Compact → Details on Stats → Player and on the Matchup leaves
+  **0** marks in the DOM at both widths, with the same 70 / 31 score lines.
+- **Zero console errors** in every configuration; `a a` / `button button` / `a button` / `button a`
+  all **0** everywhere, as a reader and logged in as admin; no horizontal overflow at 390px.
+- `cd frontend && npm run check`: typecheck, eslint and **681 tests in 67 files** green (the count
+  includes the parallel Q15/Q16 work in the same tree). This task adds **5** tests to
+  `matchHistoryList.test.tsx` and **rewrites one**: "renders no club meta at all in the compact
+  view" asserted the very behaviour Roli is objecting to, and now asserts what Compact still
+  withholds — the league name, the league flag and the stars. `npm run build` green (the
+  pre-existing >500 kB chunk hint only). No backend change, so no `make test` / `gen-types`.
+- The DB copy, the scratch secrets file and both servers are gone.

@@ -34,10 +34,9 @@
  */
 import type { ReactNode } from "react";
 
-import ClubBadge from "../../ui/ClubBadge";
+import ClubMark from "../../ui/primitives/ClubMark";
 import MatchSides from "../../ui/primitives/MatchSides";
 import ScoreLine, { scoreDigits } from "../../ui/primitives/ScoreLine";
-import { clubLabelPartsById } from "../../ui/clubControls";
 import type { Club, MatchState } from "../../api/types";
 import type { FriendlyMatchResponse } from "../../api/friendlies.api";
 import { fmtCount, fmtDateLong } from "../../utils/format";
@@ -74,43 +73,6 @@ export function groupFriendliesByDate(rows: readonly FriendlyMatchResponse[]): F
         return b.id - a.id;
       }),
     }));
-}
-
-/**
- * The club of one side, as a 16px symbol between that side's names and the
- * score (Q8, moved there on Roli's call — see the note in `FEATURES_2026-09.md`).
- *
- * Compact shows a score and nothing else, so the crest is the only way this view
- * can say which clubs played. It sits inside the names' cell, never inside the
- * numeral track: the track is centred in the grid and the same width on every
- * row, so the symbol pushes the *names* outward and the score column (Q7) cannot
- * move — with a crest, with a flag, with a monogram or with nothing at all.
- *
- * A side with no club keeps the slot as an inert 16px box, and here that box is
- * **load-bearing**: without it, a clubless row's names would sit 22px closer to
- * the score than every other row's and the name column would break.
- *
- * `ClubBadge` resolves the symbol: real crest → national team's flag → monogram
- * (`AGENTS.md` §10). The club's name goes to screen readers, because here the
- * symbol is the whole statement — Details spells it out in words instead.
- */
-function ClubMark({ clubs, clubId }: { clubs: Club[]; clubId?: number | null }) {
-  const has = clubs.some((c) => c.id === clubId);
-  if (!has) return <span aria-hidden="true" className="h-4 w-4 shrink-0" />;
-
-  const parts = clubLabelPartsById(clubs, clubId);
-  return (
-    <span className="inline-flex shrink-0 items-center">
-      <ClubBadge
-        name={parts.name}
-        nation={parts.national_nation}
-        clubId={parts.id}
-        crestVersion={parts.crest_updated_at}
-        size="sm"
-      />
-      <span className="sr-only">{parts.name}</span>
-    </span>
-  );
 }
 
 function sideOf(f: FriendlyMatchResponse, side: "A" | "B") {
@@ -162,8 +124,8 @@ function FriendlyRow({
         rightGoals={bg}
         // Compact only: Details prints crest, club, league and rating under the
         // score already, and one club never wears two symbols on one row.
-        leftMark={showMeta ? null : <ClubMark clubs={clubs} clubId={a?.club_id} />}
-        rightMark={showMeta ? null : <ClubMark clubs={clubs} clubId={b?.club_id} />}
+        leftMark={showMeta ? null : <ClubMark clubs={clubs} clubId={a?.club_id} side="left" />}
+        rightMark={showMeta ? null : <ClubMark clubs={clubs} clubId={b?.club_id} side="right" />}
       />
       {showMeta ? (
         <MatchSides

@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
 import type { Club, MatchState, StatsMatch, StatsPlayerMatchesTournament, TournamentCupStake } from "../../api/types";
 import { sideBy, winnerSide } from "../../helpers";
+import ClubMark from "../../ui/primitives/ClubMark";
 import MatchSides from "../../ui/primitives/MatchSides";
 import { Pill, pillDate } from "../../ui/primitives/Pill";
 import ScoreLine, { type ScoreResult, type ScoreSide } from "../../ui/primitives/ScoreLine";
@@ -82,6 +83,13 @@ export function MatchRowWithClubs({
           focus={focus}
           result={res}
           resultBadge={!showMeta}
+          // The clubs, in the one view that has no room to name them (Q17). This is the
+          // same answer the friendlies list gives (Q8) to the same question, and it is
+          // decided by `showMeta` rather than by a prop so that no caller can forget it:
+          // a Details row already spells the club out in `MatchSides` below, and
+          // `DESIGN.md` §8 lets one club wear only one symbol per row.
+          leftMark={showMeta ? null : <ClubMark clubs={clubs} clubId={a?.club_id} side="left" />}
+          rightMark={showMeta ? null : <ClubMark clubs={clubs} clubId={b?.club_id} side="right" />}
         />
       </div>
 

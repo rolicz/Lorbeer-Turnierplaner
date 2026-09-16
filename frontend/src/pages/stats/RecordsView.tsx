@@ -18,10 +18,12 @@ import { keepPreviousData, useQueries, useQuery } from "@tanstack/react-query";
 
 import AvatarCircle from "../../ui/primitives/AvatarCircle";
 import Button from "../../ui/primitives/Button";
+import ClubMark from "../../ui/primitives/ClubMark";
 import EmptyState from "../../ui/primitives/EmptyState";
 import InlineLoading from "../../ui/primitives/InlineLoading";
 import PlayerLink from "../../ui/primitives/PlayerLink";
 import ScoreLine from "../../ui/primitives/ScoreLine";
+import { listClubs } from "../../api/clubs.api";
 import { getStatsPlayerMatches, getStatsPlayers } from "../../api/stats.api";
 import { qk } from "../../api/queryKeys";
 import { usePlayerAvatarMap } from "../../hooks/usePlayerAvatarMap";
@@ -32,7 +34,7 @@ import { tournamentMatchHref } from "./MatchHistoryList";
 import StatsSection from "./StatsSection";
 import type { Row } from "./standings";
 import type { StatsMode } from "./statsMode";
-import type { StatsScope, StatsMatch, StatsPlayerMatchesTournament, StatsTournamentLite } from "../../api/types";
+import type { Club, StatsScope, StatsMatch, StatsPlayerMatchesTournament, StatsTournamentLite } from "../../api/types";
 
 /** How many rows a category shows before the "+N more" line (`DESIGN.md` §6). */
 const SHOWN = 6;
@@ -44,6 +46,8 @@ type RecMatch = {
   id: number; tName: string; date: string;
   a: string; b: string; ag: number; bg: number;
   aIds: number[]; bIds: number[];
+  /** The clubs that played it — a record row shows a score and nothing else (Q17). */
+  aClubId: number | null; bClubId: number | null;
   /** Match detail page, or null for a friendly (no detail page). */
   href: string | null;
 };
@@ -61,7 +65,7 @@ function MoreLine({ total, shown }: { total: number; shown: number }) {
 }
 
 /** A match superlative: every match tied at the record, each as a `ScoreLine` row. */
-function RecordGroup({ icon, label, explainer, matches }: { icon: ReactNode; label: string; explainer: string; matches: RecMatch[] }) {
+function RecordGroup({ icon, label, explainer, matches, clubs }: { icon: ReactNode; label: string; explainer: string; matches: RecMatch[]; clubs: Club[] }) {
   const shown = matches.slice(0, SHOWN);
   return (
     <StatsSection label={label} icon={icon} explainer={explainer} action={<TieCount n={matches.length} />}>
@@ -70,7 +74,17 @@ function RecordGroup({ icon, label, explainer, matches }: { icon: ReactNode; lab
           {shown.map((m) => {
             const body = (
               <>
-                <ScoreLine size="sm" leftNames={m.a} rightNames={m.b} leftGoals={m.ag} rightGoals={m.bg} />
+                <ScoreLine
+                  size="sm"
+                  leftNames={m.a}
+                  rightNames={m.b}
+                  leftGoals={m.ag}
+                  rightGoals={m.bg}
+                  // A record row is a score and nothing else, so the clubs are the
+                  // side marks — the same answer the compact match lists give (Q17).
+                  leftMark={<ClubMark clubs={clubs} clubId={m.aClubId} side="left" />}
+                  rightMark={<ClubMark clubs={clubs} clubId={m.bClubId} side="right" />}
+                />
                 <div className="mt-0.5 truncate text-center text-xs text-text-muted">{m.tName} · {fmtShortDate(m.date)}</div>
               </>
             );
@@ -159,6 +173,11 @@ export default function RecordsView({
   // Titles: wins per player, from the same tournament-winner data PositionsView uses.
   // Scoped like every other record here (A4) — with Source = Friendlies the endpoint
   // reports no tournaments, so there are no titles to show, which is the truth.
+  // The only new request this sub-view makes (Q17), and it is on the `qk.clubs()` key
+  // four other stats views already use — so it is a cache hit for anyone arriving from
+  // one of them, and one shared request otherwise. The club *ids* are already in the
+  // match payload; this resolves them to a crest.
+  const clubsQ = useQuery({ queryKey: qk.clubs(), queryFn: () => listClubs(), staleTime: 60_000 });
   const playersQ = useQuery({
     queryKey: qk.stats.players(mode, "records", scope),
     queryFn: () => getStatsPlayers({ mode, scope }),
@@ -183,6 +202,7 @@ export default function RecordsView({
             a: teamNames(m, "A"), b: teamNames(m, "B"),
             ag: Number(A?.goals ?? 0), bg: Number(B?.goals ?? 0),
             aIds: (A?.players ?? []).map((p) => p.id), bIds: (B?.players ?? []).map((p) => p.id),
+            aClubId: A?.club_id ?? null, bClubId: B?.club_id ?? null,
             // The shared match link: a friendly has no detail page, so the row stays inert.
             href: tournamentMatchHref(t, m),
           });
@@ -256,24 +276,28 @@ export default function RecordsView({
           label="Biggest win"
           explainer="Largest goal difference in a finished match."
           matches={records.biggestWin}
+          clubs={clubsQ.data ?? []}
         />
         <RecordGroup
           icon={<Goal size={12} aria-hidden="true" />}
           label="Highest-scoring match"
           explainer="Most goals in one match, both sides together."
           matches={records.highestScoring}
+          clubs={clubsQ.data ?? []}
         />
         <RecordGroup
           icon={<Flame size={12} aria-hidden="true" />}
           label="Most goals by one side"
           explainer="The biggest single-side tally in a match."
           matches={records.mostSide}
+          clubs={clubsQ.data ?? []}
         />
         <RecordGroup
           icon={<TrendingUp size={12} aria-hidden="true" />}
           label="Biggest upset (by Elo)"
           explainer="Win against the largest Elo gap between the two sides."
           matches={records.upset}
+          clubs={clubsQ.data ?? []}
         />
       </div>
       {/* Streak records are not repeated here — Streaks owns every run (T6). */}

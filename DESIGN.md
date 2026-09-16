@@ -309,8 +309,9 @@ Matchup, Player) is built from the same block, so the sections read as one page:
 | 2–3 view modes | `SegmentedSwitch` | `rounded-xl` track, `h-8` `rounded-lg` segments (§4 exception), sliding indicator in `Chip`'s selected style, lucide icon nodes |
 | Page sections | `SectionTabs` | underline tabs with edge fades |
 | Filters | `FilterPill` (`ui/primitives/`) | the app's floating capsule, see §9. A page declares its groups (`filterGroup`) and owns their state; the pill owns everything else. `pages/stats/StatsFilterPill.tsx` is the stats page's two groups and nothing more (Q7) |
-| Any score | `ScoreLine` | see §8 — the only way to render a score; `ScoreNumerals` is the bare numeral pair for a control that has to *speak* a score (the goal entry's side choice); `leftMark`/`rightMark` put one small symbol between a side's names and the score (the club crest in a score-only list, Q8) |
-| Clubs under a score | `MatchSides` | badge + club, flag + league, stars; nothing but "No club" for a clubless side. A row with **no** club line — a score-only list — says it with `ScoreLine`'s side mark instead (§8, Q8), never with both. `stars="token"` folds the rating into the league line as `★ 3.5` instead of giving five glyphs a line of their own — one line less per row, and the two numbers then meet either side of the centre gap (the friendlies list, Q7) |
+| Any score | `ScoreLine` | see §8 — the only way to render a score; `ScoreNumerals` is the bare numeral pair for a control that has to *speak* a score (the goal entry's side choice); `leftMark`/`rightMark` put one small symbol between a side's names and the score — the club crest in a score-only row (`ClubMark`, Q8/Q17) |
+| Clubs under a score | `MatchSides` | badge + club, flag + league, stars; nothing but "No club" for a clubless side. A row with **no** club line — a score-only row — says it with `ClubMark` instead (§8), never with both. `stars="token"` folds the rating into the league line as `★ 3.5` instead of giving five glyphs a line of their own — one line less per row, and the two numbers then meet either side of the centre gap (the friendlies list, Q7) |
+| A club beside a score | `ClubMark` (`ui/primitives/`) | one 16px `ClubBadge` for a side, plus the club's name `sr-only` and — for a side with no club — an inert 16px box that keeps the row's geometry. The **only** way a score-only match row names its clubs, and the same component on every one of them: the friendlies list in Compact, `MatchRowWithClubs` in Compact (Stats → Player, both profile lists, the H2H matchup, the H2H history modal, the match page's H2H panel) and `RecordsView`'s superlatives (Q17). It is passed to `ScoreLine` as `leftMark`/`rightMark` and never rendered on its own |
 | Picking a club | `SelectClubsPanel` + `ClubPicker` (`ui/`) | one panel per match, a `card` behind a single "Clubs" disclosure that summarises both clubs (§9b, T9). Open, it holds the whole job in one bounded block: the two `ClubSlot`s (side players + crest, league, stars), then the star/league filters, then the dice + *Random matchup* row. A slot opens the `ClubPicker` sheet: search focused on open, the club this side already has pinned on top with its `ClubStarsEditor`, then recents, then league groups, crest + stars per row, one tap selects. The scoreboard above (`MatchOverviewPanel`/`MatchSides`) stays **read-only on every surface** |
 | Writing a comment | `CommentComposer` (`pages/live/comments/`) | one chat row *inside* the feed's card, attached to its bottom edge behind a hairline and sticky, so it floats over the feed while reading and settles flush at the end (T3); scope + author are chips above the field, goal/shots swap the row in place. The guestbook's composer is the same row (`CommentSendRow`) at the end of its feed |
 | Key number | `StatTile` | `inset` + `text-2xl font-bold tabular-nums` value + `text-xs` muted label |
@@ -361,9 +362,14 @@ Sizes `hero` (match panel), `md` (match rows in lists), `sm` (compact rows, mini
   every score then sits at the same x: the same mechanism `recordWidths` gives
   `RecordLine` (T14), sized to that list's widest score and never wider. A single
   score — a hero panel, a preview — passes nothing; there is no column to keep.
-- **The club stands between its names and the score, never inside the score** (Q8). A list that
-  shows a score and nothing else — the friendlies list in Compact — names the clubs with one 16px
-  `ClubBadge` per side, passed as `leftMark` / `rightMark`. It rides the **inner** edge of that
+- **The club stands between its names and the score, never inside the score** (Q8). A row that
+  shows a score and nothing else names its clubs with one 16px `ClubMark` per side, passed as
+  `leftMark` / `rightMark`. **Every** such row does, from the same component and by the same rule
+  (Q17): the friendlies list in Compact, every Compact `MatchRowWithClubs` (Stats → Player, the
+  profile's overview and Matches tab, the H2H matchup, the H2H history modal, the match page's
+  H2H panel) and the Records superlatives. The switch is the row's own Compact/Details state, not
+  a prop a caller can forget — a Details row has `MatchSides` and needs no mark. It rides the
+  **inner** edge of that
   side's names, `gap-1.5` from them against the grid's `gap-3` to the numerals, so a 2:1 ratio
   says it belongs to the team and not to the score. (Q8 shipped it on the outer edge, reasoning
   that a scoreboard reads crest-team-score; Roli overruled that — *"i want the crests to sit
@@ -375,7 +381,12 @@ Sizes `hero` (match panel), `md` (match rows in lists), `sm` (compact rows, mini
   both names. A side with no club keeps the slot as an inert 16px box, and on the inner edge that
   box is **load-bearing**: without it the row's names would sit 22px closer to the score than every
   other row's. A row that already carries a club line (Details, `MatchSides`) gets **no** mark: one
-  club never wears two symbols on one row.
+  club never wears two symbols on one row. Re-measured on all seven surfaces when the rule went
+  app-wide (Q17): the mark is 16px, 6px from its own names and 12px from the numerals on every
+  row at both widths, its vertical centre equals the numerals' to 0.00px on every 2v2 row, and
+  **6336 score and row-height values compared before/after moved 0**. The mark takes its x from
+  the numeral track, so on a list that also passes `digits` (friendlies) the crests hold one
+  column per side, and on one that does not they drift with the score they hug.
 - A control that previews a score (the goal entry's "which side scores") uses the exported
   `ScoreNumerals`, never a hand-written `1-0` string: same weight, same tabular figures, same
   hairline separator. The numeral that changes is emphasised, the other muted.

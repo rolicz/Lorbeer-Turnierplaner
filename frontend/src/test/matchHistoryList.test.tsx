@@ -88,13 +88,89 @@ describe("MatchRowWithClubs club symbols", () => {
     expect(getByText("AJ")).toBeInTheDocument(); // no crest → monogram stays
   });
 
-  it("renders no club meta at all in the compact view", () => {
+  it("renders no club *line* in the compact view — the league, the flag and the stars stay out", () => {
     const { container, queryByText } = render(
       <MatchRowWithClubs m={makeMatch(1, 2)} clubs={CLUBS} showMeta={false} />,
     );
 
-    expect(queryByText("BM")).toBeNull();
+    // No `MatchSides` block: no league name, no league flag, no star rating.
+    expect(queryByText("Bundesliga")).toBeNull();
     expect(container.querySelectorAll(".fi")).toHaveLength(0);
+    expect(container.querySelectorAll('[role="img"]')).toHaveLength(0);
+  });
+});
+
+// --- Q17: the club beside the score, on the app's other match list -----------
+
+/** The three grid cells of a row's score line: left names, numerals, right names. */
+function scoreCells(container: HTMLElement) {
+  const grid = container.querySelector("[data-score-line]")!.firstElementChild!;
+  const [left, numerals, right] = [...grid.children] as HTMLElement[];
+  return { left, numerals, right };
+}
+
+describe("MatchRowWithClubs club mark (Q17)", () => {
+  it("puts each side's club symbol between its own names and the score in Compact", () => {
+    const { container } = render(<MatchRowWithClubs m={makeMatch(1, 2)} clubs={CLUBS} showMeta={false} />);
+    const { left, numerals, right } = scoreCells(container);
+
+    // Left side: the names, then the symbol on their inner edge, against the score.
+    expect(left.firstElementChild).toHaveTextContent("Alice");
+    expect(left.lastElementChild).toHaveTextContent("BM");
+    // Right side mirrors it: symbol first, then the names.
+    expect(right.firstElementChild).toHaveTextContent("AJ");
+    expect(right.lastElementChild).toHaveTextContent("Bob");
+    // And nothing entered the numeral track — that column may not move (Q7/Q8).
+    expect(numerals.textContent?.replace(/\s/g, "")).toBe("21");
+    expect(numerals.querySelectorAll("img")).toHaveLength(0);
+  });
+
+  it("names the club for screen readers, because in Compact the symbol is the whole statement", () => {
+    const { container, getByText } = render(
+      <MatchRowWithClubs m={makeMatch(1, 2)} clubs={CLUBS} showMeta={false} />,
+    );
+    expect(getByText("Bayern München").className).toContain("sr-only");
+    expect(getByText("Ajax").className).toContain("sr-only");
+    expect(scoreCells(container).left.lastElementChild).toContainElement(getByText("Bayern München"));
+  });
+
+  it("keeps the slot when a side has no club, so every row keeps the same shape", () => {
+    const { container } = render(<MatchRowWithClubs m={makeMatch(null, 2)} clubs={CLUBS} showMeta={false} />);
+    const { left, right } = scoreCells(container);
+
+    // An inert box of the badge's own size, no symbol and no words: without it this
+    // row's names would sit 22px closer to the score than every crested row's.
+    expect(left.lastElementChild).toHaveTextContent("");
+    expect(left.lastElementChild?.className).toContain("h-4 w-4");
+    expect(left.lastElementChild?.getAttribute("aria-hidden")).toBe("true");
+    expect(left.children).toHaveLength(2);
+    expect(right.children).toHaveLength(2);
+    expect(right.firstElementChild).toHaveTextContent("AJ");
+  });
+
+  it("gives Details no second symbol — its club line already carries one", () => {
+    const { container } = render(<MatchRowWithClubs m={makeMatch(1, 2)} clubs={CLUBS} showMeta />);
+    const { left, right } = scoreCells(container);
+
+    // The score line's name cells are the bare name blocks again.
+    expect(left.textContent).toBe("Alice");
+    expect(right.textContent).toBe("Bob");
+    // Exactly one symbol per side on the row, and it belongs to `MatchSides`.
+    const monograms = [...container.querySelectorAll("span")].filter((el) => /^(BM|AJ)$/.test(el.textContent ?? ""));
+    expect(monograms).toHaveLength(2);
+  });
+
+  it("centres one symbol against a 2v2 side's stacked names instead of spending a line", () => {
+    const m = makeMatch(1, 2);
+    m.sides[0].players = [{ id: 1, display_name: "Alice" }, { id: 3, display_name: "Cara" }];
+    m.sides[1].players = [{ id: 2, display_name: "Bob" }, { id: 4, display_name: "Dan" }];
+    const { container } = render(<MatchRowWithClubs m={m} clubs={CLUBS} showMeta={false} />);
+    const { left } = scoreCells(container);
+
+    expect(left.children).toHaveLength(2);
+    expect(left.firstElementChild?.children).toHaveLength(2); // two name lines
+    expect(left.lastElementChild).toHaveTextContent("BM"); // one symbol beside both
+    expect(left.className).toContain("items-center");
   });
 });
 
