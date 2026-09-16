@@ -1,14 +1,21 @@
 /**
- * A thin mirror of the browser history stack: which in-app URL sits at each
- * history index.
+ * What URL sits at each history index — and what offset that entry was left at.
  *
  * React Router exposes the current location but not the one behind it, and
  * `history.state.idx` is the same counter `navigate(-1)` moves along. Recording
- * `idx → path` lets "back" ask the one question that matters: *is the entry I
- * would pop to actually this page's parent?* If it is, popping restores that
- * page's own scroll/tab state; if it is not (you jumped in from a bookmark, a
- * notification, or the nav bar's remembered page), back has to navigate up
- * instead — otherwise it throws you somewhere unrelated.
+ * `idx → url` lets back ask the one question that matters: *is the entry I would
+ * pop to already this page's parent?* If it is, popping restores that page's own
+ * scroll and open tab; if it is not (you jumped in from a bookmark, a
+ * notification, or the nav bar's remembered page), back navigates up instead.
+ *
+ * **The mirror only remembers the past** (Q6). It used to describe the future as
+ * well — how far forward the stack went, truncated on every push — and that half
+ * was the one that could be *wrong in a way you could see*: it promised the
+ * swipe-left gesture a step the browser could not take. The forward gesture is
+ * gone and so is all of that. What is left answers one question about `idx - 1`,
+ * and it is fail-degraded by construction: a missing or stale answer does not
+ * misroute back, it only makes it navigate up to the same page it would have
+ * popped to, losing that page's scroll offset and nothing else.
  *
  * sessionStorage, so a reload keeps the mapping for the entries it reloads into;
  * every accessor is failure-tolerant (private mode / quota) and never throws.
@@ -22,6 +29,16 @@ type Stack = Record<string, string>;
 export function currentHistoryIndex(): number {
   const idx = Number((window.history.state as { idx?: number } | null)?.idx ?? 0);
   return Number.isFinite(idx) && idx >= 0 ? idx : 0;
+}
+
+/**
+ * Does the history stack have anything behind the current entry?
+ * `window.history.state.idx` is the index React Router's HTML5 history stack
+ * maintains; a fresh/replaced location can still get a non-"default" router key
+ * while `idx` stays 0, so this is the reliable signal to pop vs. navigate.
+ */
+export function canPop(): boolean {
+  return currentHistoryIndex() > 0;
 }
 
 function read(): Stack {
@@ -48,41 +65,22 @@ function write(stack: Stack): void {
   }
 }
 
-/** How a location became current — the browser's own three kinds. */
-export type NavKind = "PUSH" | "POP" | "REPLACE";
-
-/**
- * Has this page load recorded anything yet? Module scope, so it is false again
- * on every load — which is exactly the question the first record has to ask.
- */
-let recordedThisLoad = false;
-
 /**
  * Record the current location at its history index.
  *
- * Only a **push** truncates: it drops whatever the browser dropped in front of
- * the new entry. A pop or a replace leaves the forward entries in place, which
- * is what makes "is there anything to go forward to?" answerable at all
- * (`canGoForward`) — the swipe-left gesture needs that answer before it fires.
- *
- * The **first** record of a page load truncates too (A9). React Router reports
- * an initial load as a POP, and this mirror lives in sessionStorage, which a
- * browser copies into a duplicated tab without the forward history it described.
- * Trusting those entries makes `canGoForward()` promise a forward step the
- * browser cannot take, and the swipe that asks for it does nothing at all —
- * a burnt gesture. Forgetting them costs nothing but a swipe-forward that the
- * browser's own forward button still performs.
+ * No truncation: only `idx - 1` is ever read, and that entry is rewritten by the
+ * very navigation that lands on it, so a stale entry in front of us can never be
+ * consulted. (It used to truncate on a push, and on the first record of a page
+ * load, purely so `canGoForward()` could be honest — both went with the forward
+ * gesture, Q6.)
  */
-export function recordNavigation(pathname: string, search = "", kind: NavKind = "PUSH"): void {
+export function recordNavigation(pathname: string, search = ""): void {
   const idx = currentHistoryIndex();
-  const truncate = kind === "PUSH" || !recordedThisLoad;
-  recordedThisLoad = true;
   const stack = read();
   stack[String(idx)] = `${pathname}${search || ""}`;
   for (const key of Object.keys(stack)) {
     const n = Number(key);
-    const stale = !Number.isFinite(n) || n < idx - MAX_ENTRIES || n > idx + MAX_ENTRIES;
-    if (stale || (truncate && n > idx)) delete stack[key];
+    if (!Number.isFinite(n) || n < idx - MAX_ENTRIES || n > idx + MAX_ENTRIES) delete stack[key];
   }
   write(stack);
 }
@@ -92,25 +90,6 @@ export function previousEntryPath(): string | null {
   const idx = currentHistoryIndex();
   if (idx <= 0) return null;
   return read()[String(idx - 1)] ?? null;
-}
-
-/** The front of the mirrored stack: the highest index still recorded. */
-export function highestHistoryIndex(): number {
-  let max = 0;
-  for (const key of Object.keys(read())) {
-    const n = Number(key);
-    if (Number.isFinite(n) && n > max) max = n;
-  }
-  return max;
-}
-
-/**
- * Is there an entry in front of the current one — i.e. would `navigate(1)`
- * actually move? `history.length` cannot answer this (it counts the whole
- * session), but the mirrored stack can.
- */
-export function canGoForward(): boolean {
-  return currentHistoryIndex() < highestHistoryIndex();
 }
 
 /* ── Scroll offsets per history entry ───────────────────────────────────────
@@ -168,7 +147,6 @@ export function scrollFor(idx: number, pathname: string): number | null {
 
 /** Test seam. */
 export function resetNavStack(): void {
-  recordedThisLoad = false;
   try {
     sessionStorage.removeItem(KEY);
     sessionStorage.removeItem(SCROLL_KEY);

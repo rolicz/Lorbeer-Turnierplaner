@@ -1,45 +1,49 @@
 import { useEffect, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 
-import { swipeAction } from "./backNavigation";
+import { backActionFor } from "./backNavigation";
 
 /**
- * Global edge-agnostic swipe navigation:
- *   swipe right → back, swipe left → forward.
+ * Global swipe navigation: **swipe right → back. That is the whole gesture.**
  *
- * The gesture makes the *same* decision as the back chevron (`swipeAction` →
- * `resolveBackAction`): on a detail page it goes up to the parent, popping only
- * when the entry behind really is that parent; on a top-level page it is a plain
- * history pop. Where a button would fall back to `/dashboard`, the gesture does
- * nothing at all — a swipe that teleports you somewhere you never asked for is
- * worse than a swipe that is ignored. A swipe left only fires while there is an
- * entry in front of us.
+ * It is not "like" the back chevron, it *is* the back chevron: both call
+ * `backActionFor`, so a swipe and a tap can never land in different places. On a
+ * page you went into it goes one level up (popping when the entry behind already
+ * is that parent); on a destination it is the history step behind you, or home
+ * when there is none.
+ *
+ * **There is no forward gesture** (Q6). Nothing in the OS this app imitates has
+ * one — iOS has none inside an app, Android has none, and a standalone PWA has no
+ * browser chrome to borrow one from — and an invisible gesture that is available
+ * a minority of the time is not a feature, it is a way for an ordinary left drag
+ * to navigate by surprise. A left swipe now does nothing at all.
  *
  * Guards against hijacking horizontal scrollers (tables, charts, chip rows,
  * carousels) and range sliders, and respects a `data-no-swipe-nav` opt-out.
+ * The listeners are `passive`, so the iOS system edge-swipe is never fought.
  */
 const THRESHOLD = 64; // min horizontal travel (px) to trigger
 const RATIO = 1.7; // horizontal must dominate vertical by this factor
 const MAX_OFF_AXIS = 70; // max vertical drift (px) to still count as horizontal
 const MAX_DURATION = 1000; // ms — ignore very slow drags
 
-/** Can `el` still scroll horizontally in the gesture direction? */
-function consumesSwipe(el: Element, dir: number): boolean {
+/**
+ * Can `el` still scroll right-wards under the gesture? A swipe right reveals the
+ * content to its left, so the element consumes it while it is not at its left edge.
+ */
+function consumesSwipe(el: Element): boolean {
   if (el.scrollWidth <= el.clientWidth + 1) return false;
   const ox = getComputedStyle(el).overflowX;
   if (ox !== "auto" && ox !== "scroll") return false;
-  // dir > 0 (swipe right → content scrolls to reveal its left): consumable if not at left edge.
-  if (dir > 0) return el.scrollLeft > 0;
-  // dir < 0 (swipe left → reveal right): consumable if not at right edge.
-  return el.scrollLeft < el.scrollWidth - el.clientWidth - 1;
+  return el.scrollLeft > 0;
 }
 
-function isBlocked(target: EventTarget | null, dir: number): boolean {
+function isBlocked(target: EventTarget | null): boolean {
   let el: Element | null = target instanceof Element ? target : null;
   while (el && el !== document.body) {
     if (el instanceof HTMLInputElement && el.type === "range") return true;
     if (el.hasAttribute("data-no-swipe-nav")) return true;
-    if (consumesSwipe(el, dir)) return true;
+    if (consumesSwipe(el)) return true;
     el = el.parentElement;
   }
   return false;
@@ -94,21 +98,25 @@ export function useSwipeNav(enabled = true) {
         active = false;
         return;
       }
-      const dir = dx > 0 ? 1 : -1;
-      if (isBlocked(target, dir)) {
+      // Left is not a gesture any more; let the drag end without navigating.
+      if (dx < 0) {
+        active = false;
+        return;
+      }
+      if (isBlocked(target)) {
         active = false;
         return;
       }
       fired = true;
-      const action = swipeAction(dir, locRef.current.pathname, locRef.current.state);
+      const loc = locRef.current;
+      const action = backActionFor(loc.pathname, loc.search, loc.state as unknown);
       // Nothing to do — and nothing was spent: the next swipe is not debounced.
       if (action.kind === "none") return;
       const nowTs = Date.now();
       if (nowTs - lastNavAt < 700) return; // ignore a second nav within the debounce window
       lastNavAt = nowTs;
       if (action.kind === "pop") nav(-1);
-      else if (action.kind === "forward") nav(1);
-      else nav(action.to);
+      else nav(action.to, { replace: true });
     };
 
     const onEnd = () => {

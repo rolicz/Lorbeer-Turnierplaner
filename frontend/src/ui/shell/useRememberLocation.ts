@@ -11,8 +11,7 @@ import { recordNavigation } from "./navStack";
  * top-level destination on every navigation, so the nav shells can return you
  * there instead of dropping you on the destination's root. Also mirrors the
  * history stack (`navStack`) so contextual back knows what popping would land on
- * — and, because the mirror is told *how* each location arrived, whether there
- * is anything in front of it to swipe forward to.
+ * (the mirror only ever looks one entry back — Q6).
  *
  * It is also where the diagnostics breadcrumb trail is fed (`recordCrumb`):
  * this hook already receives the one thing a crash report cannot reconstruct --
@@ -25,7 +24,7 @@ export function useRememberLocation() {
   const navType = useNavigationType();
 
   useEffect(() => {
-    recordNavigation(location.pathname, location.search, navType);
+    recordNavigation(location.pathname, location.search);
     rememberLocation(location.pathname, location.search);
     recordCrumb(`${location.pathname}${location.search}`, navType);
     // Keep the liveness marker's copy of the trail current (throttled), so a

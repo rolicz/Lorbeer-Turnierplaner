@@ -105,6 +105,33 @@ export function statsMatchupHref({
   return `/stats?${parts.join("&")}`;
 }
 
+/**
+ * The page the matchup drills into: this same stats URL with the drill-in taken
+ * off — `vs` and `rel` gone, a 2v2 team collapsed to its first player, every
+ * filter kept. Exactly what clearing the matchup in place produces, which is why
+ * the shell's hierarchy (`ui/shell/routeHierarchy.ts`) asks for it here: the
+ * stats URL scheme lives in this file, and back must not learn a second copy of
+ * it (Q6).
+ *
+ * `null` when this URL is not a matchup at all — `?vs=` only means something in
+ * the H2H section, and `/stats?view=player&vs=2` shows no drill-in to leave.
+ */
+export function statsMatchupParent(search: string): string | null {
+  let params: URLSearchParams;
+  try {
+    params = new URLSearchParams(search);
+  } catch {
+    return null;
+  }
+  if (!parseMatchupSide(params.get("vs")).length) return null;
+  if (params.get("view") !== "h2h") return null;
+  params.delete("vs");
+  params.delete("rel");
+  collapseMatchupSide(params, "player");
+  const rest = params.toString();
+  return rest ? `/stats?${rest}` : "/stats";
+}
+
 export type StatsView = "overview" | "trends" | "h2h" | "player";
 export type OverviewSub = "table" | "positions" | "streaks" | "records" | "cups";
 export type H2HSub = "players" | "duos";

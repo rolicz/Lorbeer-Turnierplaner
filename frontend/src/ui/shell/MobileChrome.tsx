@@ -9,7 +9,7 @@ import { activeDest } from "./navConfig";
 import { useDestinationLinks } from "./useDestinationLinks";
 import { usePageTitleValue } from "../layout/PageTitleContext";
 import { useHideOnScroll } from "../layout/useHideOnScroll";
-import { useContextualBack } from "./backNavigation";
+import { useBack } from "./backNavigation";
 import Button from "../primitives/Button";
 import ConnectionIndicator from "./ConnectionIndicator";
 import NotificationBell from "./NotificationBell";
@@ -29,7 +29,7 @@ export default function MobileChrome({
   const settingsActive = loc.pathname.startsWith("/settings");
   const pageTitle = usePageTitleValue();
   const { hidden, atTop } = useHideOnScroll(72);
-  const { isDetail, goBack } = useContextualBack();
+  const { hasBack, goBack } = useBack();
 
   // Shortcut to the live tournament, shown only while one is running. When on
   // its page, this entry owns the active state (not "Tournaments").
@@ -66,8 +66,14 @@ export default function MobileChrome({
           (atTop ? "" : " shadow-pop")
         }
       >
-        <div className="flex h-14 items-center gap-2 px-3">
-          {isDetail ? (
+        {/* Back takes the screen edge — that is where the thumb starts the same
+            gesture — and the menu keeps its place beside it. The chevron no longer
+            *replaces* the hamburger (Q6): on a page you went into, both are there,
+            so a phone can still reach Clubs, Ideas and Settings without leaving
+            first. It is drawn from one question, `useBack().hasBack`, asked for
+            every route including the stats matchup. */}
+        <div className="flex h-14 items-center gap-1 px-3">
+          {hasBack ? (
             <Button
               type="button"
               variant="ghost"
@@ -77,18 +83,17 @@ export default function MobileChrome({
             >
               <ChevronLeft className="h-5 w-5" aria-hidden="true" />
             </Button>
-          ) : (
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={() => setOpen(true)}
-              aria-label="Open menu"
-              className="inline-flex h-10 w-10 shrink-0 items-center justify-center p-0"
-            >
-              <Menu className="h-5 w-5" aria-hidden="true" />
-            </Button>
-          )}
-          <span className="min-w-0 flex-1 truncate text-base font-semibold tracking-tight">{title}</span>
+          ) : null}
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={() => setOpen(true)}
+            aria-label="Open menu"
+            className="inline-flex h-10 w-10 shrink-0 items-center justify-center p-0"
+          >
+            <Menu className="h-5 w-5" aria-hidden="true" />
+          </Button>
+          <span className="ml-1 min-w-0 flex-1 truncate text-base font-semibold tracking-tight">{title}</span>
           <ConnectionIndicator />
           <NotificationBell align="right" placement="bottom" />
         </div>

@@ -14,7 +14,6 @@ import { SectionTabs, type SectionTab } from "../../ui/SectionTabs";
 import PageLayout from "../../ui/layout/PageLayout";
 import SelectClubsPanel from "../../ui/SelectClubsPanel";
 import { GoalStepper, useClubSelection } from "../../ui/clubControls";
-import InlineBack from "../../ui/shell/InlineBack";
 import { useTabParam } from "../../ui/shell/useTabParam";
 import { usePageTitle } from "../../ui/layout/PageTitleContext";
 
@@ -290,19 +289,19 @@ export default function MatchDetailPage() {
 
   const initialLoading = !pageEntered || (!tQ.error && !tQ.data && tQ.isLoading);
   if (initialLoading) {
-    return <div className="page"><PageLoadingScreen sectionCount={3} /></div>;
+    return <PageLayout><PageLoadingScreen sectionCount={3} /></PageLayout>;
   }
 
   if (!match && tQ.data) {
     return (
-      <div className="page">
+      <PageLayout>
         <div className="inset px-3 py-2 text-sm text-text-muted">
           Match not found in tournament.
           <button type="button" className="ml-2 text-accent" onClick={() => nav(`/live/${tid}`)}>
             Back
           </button>
         </div>
-      </div>
+      </PageLayout>
     );
   }
 
@@ -315,7 +314,6 @@ export default function MatchDetailPage() {
   return (
     <PageLayout
       title={matchTitle}
-      back={<InlineBack />}
       meta={
         match ? (
           <span className="truncate text-sm text-text-muted">

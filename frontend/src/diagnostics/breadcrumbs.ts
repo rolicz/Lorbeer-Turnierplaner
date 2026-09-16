@@ -11,7 +11,8 @@
  * persisted on its own. Writing it to storage on every navigation would put a
  * `localStorage` write in the hot path of the very layer under suspicion.
  */
-import type { NavKind } from "../ui/shell/navStack";
+/** How a location became current — the browser's own three kinds. */
+export type NavKind = "PUSH" | "POP" | "REPLACE";
 
 /** One navigation: when, where, and how it arrived. */
 export type Crumb = {

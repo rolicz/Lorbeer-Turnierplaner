@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef } from "react";
-import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
+import { NavigationType, useLocation, useNavigationType, useSearchParams } from "react-router-dom";
 import { LayoutGrid, LineChart, Swords, UserRound } from "lucide-react";
 
 import { useAuth } from "../../auth/AuthContext";
@@ -7,7 +7,6 @@ import { SectionTabs, type SectionTab } from "../../ui/SectionTabs";
 import { ChipGroup } from "../../ui/primitives/Chip";
 import Button from "../../ui/primitives/Button";
 import StatsFilterPill from "./StatsFilterPill";
-import { drillInBackActionFor } from "../../ui/shell/backNavigation";
 import { useReturnScroll } from "../../ui/shell/useReturnScroll";
 import type { StatsScope } from "../../api/types";
 import type { StatsMode } from "./statsMode";
@@ -137,7 +136,27 @@ export default function StatsInsights({
   // history entry remembers the offset for it (see `openMatchup`).
   const currentKey = matchup ? MATCHUP_KEY : bodyKey(view, activeSub);
   const { save, swap, restore } = useReturnScroll();
-  const nav = useNavigate();
+  // Leaving the matchup is the app's one back decision now (Q6): the chevron in
+  // the top bar, `PageLayout`'s on desktop, and the swipe all call `useBack()`,
+  // and the matchup carries no back control of its own. All this page still owns
+  // is the scroll bookkeeping below.
+  const navType = useNavigationType();
+
+  /**
+   * When back leaves the matchup **in place** — nothing to pop, because the
+   * reader arrived by deep link or from another page — the H2H list underneath
+   * has to come back to the offset it was left at. A *pop* never reaches this:
+   * there `useScrollRestoration` restores the history entry's own offset, and a
+   * second restore racing it is exactly what T11/A9.7 had to untangle.
+   */
+  const lastBodyRef = useRef(currentKey);
+  useEffect(() => {
+    const previous = lastBodyRef.current;
+    lastBodyRef.current = currentKey;
+    if (previous !== MATCHUP_KEY || currentKey !== bodyKey("h2h", h2hSub)) return;
+    if (navType !== NavigationType.Replace) return;
+    restore(currentKey);
+  }, [currentKey, h2hSub, navType, restore]);
 
   const setView = (v: StatsView) => {
     const nextSub = subForSection(v, searchParams.get("sub"));
@@ -183,25 +202,6 @@ export default function StatsInsights({
     save(currentKey);
     onSetVs([rightId], [leftId], { push: true });
   };
-  /**
-   * The in-view "Head-to-head" button, taking the same decision as the gesture
-   * (`backNavigation`): pop when the entry behind the matchup is this stats page
-   * without it — the matrix comes back exactly as it was left. Behind a deep
-   * link (from a match page or a profile) sits something else entirely, and
-   * popping would leave the page this button names, so there the param is
-   * cleared in place and the H2H list opens at its own remembered offset. The
-   * entry behind has to be the *H2H* body as well (A9) — `/stats` is four bodies
-   * under one path, and a matchup opened from the Player section must not pop
-   * back onto a page this button does not name.
-   */
-  const closeMatchup = () => {
-    if (drillInBackActionFor(location.pathname, "vs", { search: location.search, sameParams: ["view"] }).kind === "pop") {
-      nav(-1);
-      return;
-    }
-    restore(bodyKey("h2h", h2hSub));
-    onSetVs([]);
-  };
 
   return (
     <div className="space-y-3 pb-16">
@@ -242,7 +242,6 @@ export default function StatsInsights({
           leftIds={matchup.leftIds}
           rightIds={matchup.rightIds}
           rows={rows}
-          onBack={closeMatchup}
           initialRelation={searchParams.get("rel") === "together" ? "together" : undefined}
         />
       ) : (

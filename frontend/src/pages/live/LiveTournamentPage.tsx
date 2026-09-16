@@ -49,7 +49,6 @@ import { listTournamentComments, markAllTournamentCommentsRead } from "../../api
 import { qk } from "../../api/queryKeys";
 import { useRouteEntryLoading } from "../../ui/layout/useRouteEntryLoading";
 import { usePageTitle } from "../../ui/layout/PageTitleContext";
-import InlineBack from "../../ui/shell/InlineBack";
 import { forgetLocation } from "../../ui/shell/lastLocation";
 import { useReturnScroll } from "../../ui/shell/useReturnScroll";
 
@@ -605,9 +604,9 @@ export default function LiveTournamentPage() {
   const initialLoading = !pageEntered || (!tQ.error && !tQ.data && (tQ.isLoading || clubsQ.isLoading || commentsQ.isLoading));
   if (initialLoading) {
     return (
-      <div className="page">
+      <PageLayout>
         <PageLoadingScreen sectionCount={5} />
-      </div>
+      </PageLayout>
     );
   }
 
@@ -630,7 +629,6 @@ export default function LiveTournamentPage() {
   return (
     <PageLayout
       title={cardTitle}
-      back={<InlineBack />}
       meta={<TournamentMetaPills mode={tQ.data?.mode} date={tQ.data?.date} />}
     >
       <ErrorToastOnError error={tQ.error} title="Tournament loading failed" />

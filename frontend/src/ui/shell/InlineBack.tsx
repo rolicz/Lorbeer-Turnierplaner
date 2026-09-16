@@ -1,13 +1,15 @@
 import { ChevronLeft } from "lucide-react";
 
-import { useContextualBack } from "./backNavigation";
+import { useBack } from "./backNavigation";
 
 /**
- * Compact desktop-only back chevron for detail pages. On mobile the top bar
- * shows the contextual back control, so this stays hidden below `lg`.
+ * Compact desktop back chevron. `PageLayout` renders it for any page the reader
+ * went *into* — the same question the mobile top bar asks (`useBack().hasBack`),
+ * so the two chevrons cannot appear on different sets of pages. Below `lg` the
+ * top bar owns the control, so this stays hidden there.
  */
 export default function InlineBack({ className = "" }: { className?: string }) {
-  const { goBack } = useContextualBack();
+  const { goBack } = useBack();
   return (
     <button
       type="button"
