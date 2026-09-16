@@ -23,9 +23,17 @@ import {
  * pass/fail, updating live, with a field right here to raise the keyboard with.
  *
  * **Everything is above the field**, because the keyboard takes the bottom half of the
- * screen the moment he taps it: the verdict, the numbers and the conditions all sit in the
- * top ~300px, so one screenshot carries the whole answer. Nothing in the block scrolls, and
- * nothing moves when focus lands.
+ * screen the moment he taps it: the numbers, the conditions and the verdict all sit above
+ * it, so one screenshot carries the whole answer. Nothing in the block scrolls, and nothing
+ * moves when focus lands.
+ *
+ * **And the verdict and Copy sit *directly* above it**, which is the second thing the phone
+ * taught us: Safari scrolls the page by up to 222px to reveal a focused field, so the top of
+ * this block leaves the screen exactly when the keyboard arrives — Roli: *"i had to scroll
+ * up to reach copy button"*. The focused field is the one element the platform promises to
+ * keep visible, so the two controls that have to survive a shifted page are anchored to it,
+ * and Copy is the escape hatch: it carries now, at rest, deepest, the conditions and the
+ * user agent as text, so a readout he can only half see is still a readout he can send.
  *
  * **Three columns, not one.** "Now" is the reading; "at rest" is the last reading taken with
  * no caret anywhere, which is what makes the interesting question answerable at a glance —
@@ -212,34 +220,6 @@ export default function ViewportReadout() {
 
   return (
     <div className="space-y-2">
-      {/* Verdict first: the one line that says what the app currently believes. */}
-      <div className="flex items-center gap-2">
-        <span
-          className={cn(
-            "chip font-semibold",
-            now.open ? "border-accent/40 bg-accent/15 text-accent" : "text-text-muted"
-          )}
-        >
-          Keyboard {now.open ? "open" : "closed"}
-        </span>
-        <span className="min-w-0 flex-1 truncate text-xs text-text-muted">
-          flag {now.flag ? "set" : "unset"}
-        </span>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          className="shrink-0 gap-1.5"
-          // Keep the caret where it is: a copy tap must not close the keyboard the
-          // reading is about.
-          onMouseDown={(e) => e.preventDefault()}
-          onClick={() => void onCopy()}
-        >
-          <ClipboardCopy size={14} aria-hidden="true" />
-          <span>{copied === "done" ? "Copied" : copied === "failed" ? "Failed" : "Copy"}</span>
-        </Button>
-      </div>
-
       {/* The numbers. "At rest" is the comparison that answers the open question.
           Kept to five short rows: every line here has to fit above a keyboard. */}
       <dl className="inset grid grid-cols-[1fr,auto,auto,auto] gap-x-3 gap-y-0.5 py-2 text-xs">
@@ -285,9 +265,11 @@ export default function ViewportReadout() {
           <Condition ok={c.coveredOk}>
             3 · covered <span className="tabular-nums">{Math.round(c.covered)}</span> ≥{" "}
             <span className="tabular-nums">{Math.round(c.requiredCovered)}</span>{" "}
-            {/* The arithmetic in place: this subtraction is the whole question. */}
+            {/* The arithmetic in place: this subtraction is the whole question. `offsetTop`
+                is deliberately not in it — it says where the visible strip sits, not what
+                covers it, and subtracting it is the bug Q2 shipped twice. */}
             <span className="text-text-muted">
-              ({px(now.layoutHeight)} − {px(now.probe?.viewportHeight)} − {px(now.probe?.offsetTop)})
+              ({px(now.layoutHeight)} − {px(now.probe?.viewportHeight)})
             </span>
           </Condition>
         </div>
@@ -297,9 +279,36 @@ export default function ViewportReadout() {
         </p>
       )}
 
-      {/* The field, last of the block and still in the top half of the screen: everything
-          worth reading is above it when the keyboard covers the rest. */}
-      <div>
+      {/* The field, last of the block, with the verdict and Copy pinned to it: Safari
+          scrolls the page to reveal the field, so its immediate neighbours are the only
+          real estate on the page that a keyboard cannot push out of reach. */}
+      <div data-testid="viewport-readout-anchor">
+        <div className="flex items-center gap-2 pb-1">
+          <span
+            className={cn(
+              "chip font-semibold",
+              now.open ? "border-accent/40 bg-accent/15 text-accent" : "text-text-muted"
+            )}
+          >
+            Keyboard {now.open ? "open" : "closed"}
+          </span>
+          <span className="min-w-0 flex-1 truncate text-xs text-text-muted">
+            flag {now.flag ? "set" : "unset"}
+          </span>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="shrink-0 gap-1.5"
+            // Keep the caret where it is: a copy tap must not close the keyboard the
+            // reading is about.
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => void onCopy()}
+          >
+            <ClipboardCopy size={14} aria-hidden="true" />
+            <span>{copied === "done" ? "Copied" : copied === "failed" ? "Failed" : "Copy"}</span>
+          </Button>
+        </div>
         <label className="input-label block" htmlFor="viewport-readout-field">
           Tap here to raise the keyboard
         </label>
@@ -314,15 +323,17 @@ export default function ViewportReadout() {
           className="input-field"
         />
         <p className="input-hint">
-          The numbers above keep updating while the keyboard is up — screenshot them, or copy the report once it is
-          down.
+          The numbers above keep updating while the keyboard is up — screenshot them, or tap Copy right here: it keeps
+          the caret, so the report describes the keyboard that is still open.
         </p>
       </div>
 
       <p className="text-xs text-text-muted">
         The bottom tab bar hides while the keyboard is open, and open means all three conditions above at once,
         published as <code>data-keyboard-open</code> on <code>&lt;html&gt;</code> — that is what "flag" says. If one of
-        the three is false on the phone while the keyboard is visibly up, that one is the bug.
+        the three is false on the phone while the keyboard is visibly up, that one is the bug.{" "}
+        <code>vv.offsetTop</code> is listed because it is how far the page was scrolled to reveal the field — reported
+        here, never subtracted.
       </p>
       <p className="text-micro text-text-muted">{environmentLine()}</p>
     </div>
