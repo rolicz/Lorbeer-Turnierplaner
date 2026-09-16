@@ -9110,3 +9110,36 @@ Screenshot each, top and bottom, before and after.
   **Zero console/page errors** in all runs (5 themes × before/after, plus desktop and drawer probes).
   `cd frontend && npm run check` green (63 files, **645 tests**); `npm run build` green (the
   pre-existing >500 kB chunk hint only).
+
+---
+
+## Q14 — With the keyboard up, the page keeps 72px of room for a bar that is hidden  ☐
+
+Roli, 2026-09-16, testing Q2's simplified rule: *"keyboard is mostly fine, but in guestbook and idea
+details the page scrolls up by a lot and leaves empty space below"*.
+
+**One cause, both halves.** `ui/shell/AppShell.tsx:112` ends the page with **`pb-nav-h`** — the tab
+bar's *constant* height — and the comment above it says why: it reserves the end of the page for the
+bar. Q2 chose that deliberately over `pb-nav-clear`, the live value that collapses to 0 with the
+keyboard, and measured the reason: collapsing it moves content up 72px at the instant the keyboard
+appears, which takes the caret with it (measured on the guestbook at 390×844 scrolled to the end:
+caret would drop 72px, scroll −72, in one frame).
+
+So with the keyboard open the page still reserves 72px for a bar that is `display: none` — that is
+the empty space — and because the document is 72px longer than it needs to be, Safari scrolls
+further to reveal the field, which is the "scrolls up by a lot". Both composers Roli names are
+sticky at the page end, which is exactly where the reservation sits.
+
+**Neither option as stated is good enough.** Keeping it leaves the dead space he reported; collapsing
+it alone jumps the caret. The fix is to do both at once: collapse the reservation **and** compensate
+`window.scrollY` by the same amount in the same frame, so the space disappears and nothing under the
+thumb moves. Whoever takes this should verify the compensation on a page scrolled to the end, on a
+short page that does not scroll at all, and on the closing transition as well as the opening one —
+the keyboard going away has the same problem mirrored.
+
+**Watch out for:** `useScrollRestoration` is listening (N2 stores an offset per history entry, A9.7
+chases one on a save-and-return), so a compensating scroll must not be recorded as the user's own
+position. And the composers' own `bottom-nav-clear` already collapses — this is the *page's* bottom
+padding, a different thing that happens to be the same 72px.
+
+**Deviations:**
