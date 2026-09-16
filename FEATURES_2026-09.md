@@ -8143,6 +8143,93 @@ That one image says which of the three conditions is false and what the phone re
 until then.**
 
 **Deviations:**
+(The fix, written from his two readouts and nothing else. **Q2 stays open on purpose**: it has
+shipped green twice and done nothing on the device twice, so only his phone can close it. What he
+should re-test is at the end.)
+
+- **One term removed, and that is the whole defect.** `keyboardConditions()` computed
+  `covered = innerHeight − vv.height − vv.offsetTop`; it now computes `innerHeight − vv.height`. His two
+  readouts, keyboard visibly up in both (iOS 18.7, 440×956, standalone PWA):
+
+  | reading | innerHeight | vv.height | vv.offsetTop | old `covered` | new `covered` | verdict then → now |
+  |---|---|---|---|---|---|---|
+  | first | 956 | 568 | 131 | 257 ≥ 191 | 388 ≥ 191 | open (by luck) → open |
+  | second | 894 | 568 | 222 | **104 ≥ 179 ✗** | 326 ≥ 179 | **closed → open** |
+
+  Same keyboard in both — 568px of page left either way — and only how far Safari had scrolled
+  differed. `offsetTop` is *where the visible strip sits* inside the layout viewport, i.e. how far
+  the page was pushed up to reveal the focused field; subtracting it charged that scroll to the
+  keyboard. It is still read and still shown in the readout, and the type now says in words that it
+  is reported and never subtracted, with the table above in the module doc, because this is the line
+  Q2 got wrong twice.
+- **What `covered` is now, said so it cannot be re-broken**: how far the bottom edge of the *layout*
+  viewport — which is where `position: fixed; bottom: 0` puts the tab bar — hangs below the visible
+  area. That overlap **is** the bug, not a proxy for it, which is why it is the quantity measured.
+- **`innerHeight` moves on iOS too (956 at rest, 894 with the keyboard up), and the threshold still
+  measures against the live value.** That was the one real judgement call here, and the reason is the
+  sentence above: a layout viewport that shrank is a bar that moved up with it, so the shrink belongs
+  *inside* the subtraction. In reading 2 the bar hangs 326px below the visible area; a remembered
+  "at rest" 956 would have claimed 388 and described no element on the screen. The ratio term follows
+  the same number down (179 instead of 191) — the requirement eases exactly when the evidence does,
+  always in the safe direction — and the 120px floor, which is what actually keeps a browser toolbar
+  (~115px) out, does not move at all. Both readings clear the bar by 2.0× and 1.8×, so neither is close.
+  Keeping it stateless also keeps the module's own promise: the flag is *derived* on every event, so
+  it cannot drift, and a remembered baseline is exactly a thing that can go stale (rotation, split
+  view) while a field still holds the caret.
+- **The end of that road is not a bug either.** A browser that resizes the layout viewport *fully*
+  with the keyboard (Chromium's `resizes-content`) now reads `covered = 0` and never sets the flag —
+  correct, because a bar pinned to a resized layout viewport already sits above the keyboard and has
+  nothing to get out of the way of. The old hypothesis that this was Roli's case is disproved and the
+  test that encodes it now says so.
+- **The other two conditions were not touched.** Scale ≤ 1.05 and "a text field has the caret" both
+  held on the device in both readings; they are the module's fail-safes (focus always ends, and a
+  pinch is the one other thing that shrinks the visual viewport), and nothing in the readouts argues
+  against either.
+- **Both readings were reproduced in a browser before a line was changed**, and the reproduction is
+  the engine's own visual viewport, not a mock: a Chromium context **without `isMobile`** (mobile
+  emulation silently ignores it), `Emulation.setPageScaleFactor` for a real shrink to 568, and a real
+  `Input.dispatchMouseEvent` wheel that scrolls the real visual viewport to `offsetTop` 131 / 222.
+  The single override is `visualViewport.scale → 1`, because on iOS that shrink is a keyboard and in
+  Chromium it is a pinch. Before: reading 1 `flag=true`, reading 2 `flag=unset, "Keyboard closed"` —
+  his bug, on this machine. After: both `flag=true`, both "Keyboard open". Both rows are now in
+  `src/test/keyboardOpen.test.ts`, together with a sweep that pins `offsetTop` to **no** influence on
+  the answer over every value it can take in either reading (0…388 / 0…326).
+- **The chain verified end to end, not assumed**, at 390px in `blue` and `light`, with a real caret in
+  each composer and the reading-2 numbers driven into the real detector: flag set → `--bottom-nav-clearance`
+  72px → **0px** → the bottom tab bar `display: block → none` → **all three** composers' computed
+  `bottom` 72px → 0px (tournament comments, profile guestbook, Ideas — the last one opened the way the
+  app opens it, by focusing its title field) → the error toast **stays** `display: flex` and drops from
+  `bottom: 72px` to `0px` (rect 776–844, flush to the bottom of the visible area) → the stats filter
+  pill `display: block → none`. Everything returns when the keyboard goes away. Zero console errors in
+  every run. At 1280px the flag changes nothing, as designed: the bar is `lg:hidden`, the composers are
+  `lg:bottom-0`, the toast `lg:bottom-4`. (`/stats` has no text field at all, so the flag cannot be
+  raised there by a caret; the pill's row was driven by setting the attribute `setFlag()` sets.)
+- **The readout's Copy button no longer needs scrolling up to.** Roli: *"i had to scroll up to reach
+  copy button"* — and the same reading explains it: Safari scrolled the page by 222px, so the block's
+  first row left the screen exactly when the keyboard arrived. Reproduced (Copy at y 175–207, visible
+  strip 222–790) and fixed by moving the verdict + flag + **Copy** row from the top of the block to
+  **directly above the field**: the focused field is the one element the platform promises to keep
+  visible, so its immediate neighbours are the only real estate a keyboard cannot push out of reach.
+  Measured in the same strip: Copy 365–397, **visible**, in both themes, along with all three
+  conditions (`covered 326 ≥ 179 (894 − 568)`) and the field itself; only the top two rows of the
+  number grid stay cut, which costs nothing because Copy carries *everything* — now, at rest, deepest,
+  the conditions, the user agent — as text, and it still keeps the caret (`mousedown` default
+  prevented), so the report describes the keyboard that is still open. At rest the block now reads
+  evidence → verdict → the field that produces it.
+- **Verification:** isolated stack (backend :8003 on a copy of `backend/app.db` with a copy of
+  `uploads/` and a scratch secrets file, vite :8020), Playwright at 440×956 / 440×894 for the two
+  readings and 390×844 / 1280×844 for the chain, `blue` and `light` — the composers as admin, the
+  readout as a reader (it needs no login).
+  `cd frontend && npm run check` green (63 files, **645 tests**), `npm run build` green. No backend
+  change. The DB copy and both servers are gone.
+- **What Roli should re-test on the phone** (this is what closes Q2): Settings → Diagnostics, tap the
+  field — the readout should say **Keyboard open / flag set** and condition 3 should read
+  `covered 326 ≥ 179 (894 − 568)` or similar, with no third term in the brackets; **Copy should be on
+  screen without scrolling**. Then the real thing: open a tournament's comments, a profile's guestbook
+  and Ideas, tap the composer, and check that **the tab bar is gone** and the composer sits **on** the
+  keyboard rather than 72px above it — in the standalone PWA *and* in Safari, since his two readouts
+  differ by 62px of `innerHeight` and are probably one of each. If any of it still fails, the readout
+  is still there and Copy now reaches him with the caret alive.
 
 ---
 
@@ -8168,7 +8255,8 @@ the DB. Details view already shows crest + name + league + rating and should not
   one small node off the outer edge of a side's names — the slot mechanism the result badge (§8)
   already used, so a side reads `badge → mark → names` and the trio stays one grid. The friendlies
   list passes a 16px `ClubBadge` (`ClubMark` in `pages/tools/FriendlyList.tsx`); nothing else in the
-  app passes anything yet.
+  app passes anything yet. **The order was overruled** — see *Roli overruled the placement* at the
+  end of this section; a side now reads `badge → names → mark`.
 - **Nothing moved, and the reason is structural, not lucky.** The names *hug* the score
   (`justify-end` on the left side, `justify-start` on the right), so a symbol added on their far
   side grows outward into space that was empty anyway: it can move neither the numeral track nor the
@@ -8189,6 +8277,8 @@ the DB. Details view already shows crest + name + league + rating and should not
   the names are pinned to the score either way — it exists so every row's geometry is literally
   identical rather than merely equivalent. It says nothing else: Compact is the dense view, and a
   visible "no club" marker would spend a symbol on the absence of one (Details has the words).
+  (**That honest note expired with the move**: on the inner edge the slot is load-bearing —
+  measured below.)
 - **The symbol carries the club's name to screen readers** (`sr-only` next to the badge, which is
   `aria-hidden` by design): in Compact the symbol is the entire statement about the clubs, so
   leaving it silent would make the view worse for AT than the one it replaces. A `title` tooltip was
@@ -8217,6 +8307,61 @@ the DB. Details view already shows crest + name + league + rating and should not
   and as a reader: **zero console errors** everywhere, `a a` / `button button` / `a button` /
   `button a` all **0**, 24 rows, one row button each as admin and none at all as a reader, and the
   row still opens its editor with Delete inside it. The DB copy and both servers are gone.
+
+**Amendment — Roli overruled the placement** (2026-09-16, commit `fix(Q8): …`). Having seen it:
+*"i want the crests to sit between the result and names, not outside of names."* The mark moved
+from the outer edge of a side's names to the **inner** one — `badge → names → mark` on the left,
+mirrored on the right — and Q8's argument for the outer edge (a scoreboard reads crest-team-score;
+an inner mark would crowd the numerals) does not survive contact with the result. What changed:
+
+- **`ScoreLine`'s `Names` nests one flex instead of ordering four children.** The mark and the
+  names are one unit at `gap-1.5`; the result badge still hangs off that unit at `gap-2`, so
+  `MatchHistoryList`'s W/D/L chip — the only other caller of a slot — is byte-identical.
+- **Spacing: 6px to its own names against the grid's 12px to the numerals**, a 2:1 ratio that
+  settles what the mark belongs to; it is also the gap `MatchSides` already keeps between a club
+  symbol and its club name, so Compact and Details say "this club, this side" the same way. The
+  row does not grow: a side spends 22px on symbol + gap where Q8 spent 24, and both are inside a
+  `1fr` cell whose width never changed — the *names* move outward by 22px and nothing else does.
+  Q8's "the numerals would feel crowded" is answered by the 12px and by where the numeral actually
+  sits: in a two-digit track a single-digit score is ~23px from the crest, and even the `12` of the
+  widest row keeps the full 12px.
+- **Re-measured, not assumed.** Same 24-row list Q7 and Q8 used (20 real + the same four seeded:
+  two 2v2, a 12–3, a 2–10, a clubless row, the two longest club names), both views, 390px and
+  1280px, `blue` and `light`, reader and admin — 16 configurations, 1152 compared values:
+  **every score is exactly where it was**, separator x=**194.5** at 390px and **759.5** at 1280px,
+  numeral tracks 161.95/186.5 · 203.5/228.05 (Compact) and 153.77/186.5 · 203.5/236.23 (Details),
+  one value per column, spread **0.00px** before and after, row heights identical. The only
+  measured movement anywhere is in Compact and is exactly the two things that were meant to move:
+  the names (left edge 149.95 → **127.95**, right 240.05 → **262.05** at 390px; 714.95 → 692.95 and
+  805.05 → 827.05 at 1280px) and the marks. **Details is untouched**: every numeral, separator and
+  row height identical across all eight Details configurations, and their screenshots differ only
+  in the bottom bar's pulsing live dot and in ≤3/255 antialiasing noise on glyphs that did not move
+  — a same-code self-diff reproduces the dot on its own.
+- **The crests gained a column of their own**, which the outer edge could never have: their x used
+  to depend on how long the names were (left mark ranged 84.09–106.06 across the 24 rows) and is
+  now one value per side (133.95–149.95 and 240.05–256.05 at 390px).
+- **The reserved slot is now load-bearing, proved by removing it.** With `ClubMark` returning
+  `null` for a clubless side, the name column breaks into two x values — the clubless rows' names
+  snap 22px inward to 149.95 while every crested row stays at 127.95, and the half-clubless row
+  (`Flo 3 │ 1 🛡 Atzi`) is visibly lopsided, one side at each value. With the slot: one value,
+  every row. The slot was restored; the experiment lives only in this note.
+- **2v2 still reads as one pair.** The mark's vertical centre equals the two-name block's centre
+  and the numerals' centre to **0.00px** on every 2v2 row, at both widths — one symbol beside a
+  stacked pair, no extra line, no attachment to the upper name.
+- **Canon and tests follow**: `DESIGN.md` §7's `Any score` row and §8's club bullet now say
+  *inner edge*, carry the `gap-1.5` / `gap-3` ratio and Roli's overrule, and call the clubless slot
+  load-bearing; the three Q8 tests that asserted the outer order now assert the inner one (plus the
+  6px gap), and `scoreLine.test.tsx` checks the mark is the names' *last* child on the left side and
+  the *first* on the right. No new test file, no new dependency, no backend change.
+- **Verified** on an isolated stack — backend :8004 on a copy of `backend/app.db` with a scratch
+  secrets file, vite :8021 — at 390×844 and 1280×900, `blue` and `light`, both views, as a reader,
+  as an admin **and as a real (non-admin) editor account**: **zero console errors** in all of them,
+  `a a` / `button button` / `a button` / `button a` all **0**, no horizontal overflow, 24 row
+  buttons as admin and exactly **one** as the editor (the friendly that editor created — A10's
+  grace window), and the row still opens its editor with Delete inside it while all 24 list scores
+  hold their single x (the extra score inside the open editor is its own `MatchOverviewPanel`,
+  which passes no `digits` and is not part of the list column). The DB copy and both servers
+  are gone.
 
 ---
 
@@ -8432,7 +8577,7 @@ Chosen by Roli from rendered options. **Biggest value first**, not easiest first
 |---|---|---|
 | 1 | **Q6** — one model for back, forward and the gestures | Ungated by Q10. Runs on the consistency findings alone. |
 | 2 | **Q10** — split the four context files | ☑ Done 2026-09-16. Stops the app appearing to crash whenever a worker saves one. |
-| 3 | **Q2 (reopened)** — the keyboard does not hide the bar | Needs the readout below before the fix can be written. |
+| 3 | **Q2 (reopened)** — the keyboard does not hide the bar | Fixed 2026-09-16 from the readout (`offsetTop` was the bug). Still ☐: only his phone can close it. |
 | 4 | **Q8** — club crests beside a friendly's result | ☑ Done 2026-09-16. |
 | 5 | **Q9** — the cache is discarded faster than he navigates | ☑ Done 2026-09-16. Map in `AGENTS.md` §6. |
 
