@@ -8777,7 +8777,7 @@ invisible there. Q4's worker drove real inset values through Chromium's CDP
 
 ---
 
-## Q12 — The translucent top bar: does Roli want it?  ☐ (a question, not a defect)
+## Q12 — The nav bars stop being translucent  ☐
 
 Roli, 2026-09-16: *"is this blurry area because of the ios 27 update or because of something you
 did?"*
@@ -8794,5 +8794,42 @@ even wash instead of a recognisable shape; or drop translucency entirely and mak
 which also removes a compositing layer on a phone. **Do not change it without his word** — it is a
 look he has lived with since the shell was built, and the same treatment is on the bottom bar
 (`nav-shell` again), so any change should be made to both or deliberately not.
+
+**Deviations:**
+
+
+### Q12 — decided, and my first answer was wrong (2026-09-16)
+
+**Roli was right that the iOS update caused it.** I first told him the haze was the app's own
+translucency, having reproduced a similar wash in Chromium. That was the wrong test: it showed the
+mechanism *can* produce a haze, not that this haze came from the mechanism behaving as before.
+
+Measured on **two lossless screenshots from his own phone**, same device, same bar, one either side
+of the update, in the band `x 620–1150, y 150–240` (no glyphs, no buttons, nothing behind the bar on
+either page — both unscrolled):
+
+| | mean | **max** |
+|---|---|---|
+| yesterday, Safari 26.6 | `(11.0, 17.0, 30.0)` | `(11, 17, 30)` |
+| today, Safari 27 | `(11.3, 17.1, 29.9)` | **`(24, 29, 42)`** |
+
+Yesterday the band was **perfectly flat** — every pixel the theme colour to the digit. Today the
+floor is the same and the ceiling is not: there are genuinely brighter pixels where nothing sits
+behind the bar to show through. And our side did not change: `git log -S` over `backdrop-blur` and
+`nav-shell` since before his first screenshot returns **nothing**, so the instruction to the browser
+is identical and the result is not.
+
+**Decision (Roli, asked and answered): make the bars opaque.** `.nav-shell`'s `@supports` block drops
+`--color-bg-default` from **0.55** back to full, and the `backdrop-blur-md` goes with it — a blur
+behind an opaque surface is cost with no effect. **Both bars**, top (`ui/shell/MobileChrome.tsx`) and
+bottom (`ui/shell/BottomTabBar.tsx`), because they share the class and a mismatch would be worse than
+either choice. Check the drawer and any other `nav-shell` user. Removing the blur also drops a
+compositing layer on a phone.
+
+**Check the five themes**: `light` in particular, where an opaque bar over a paper-white page is a
+different judgement from an opaque bar over near-black, and `--color-bg-default` differs per theme.
+Screenshot each, top and bottom, before and after.
+
+**Blocked on Q2's worker**, which owns `styles.css`, `BottomTabBar.tsx` and `tailwind.config.cjs`.
 
 **Deviations:**
