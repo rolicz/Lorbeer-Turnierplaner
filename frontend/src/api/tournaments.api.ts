@@ -1,8 +1,10 @@
 import { apiFetch } from "./client";
-import type { TournamentSummary, TournamentDetail } from "./types";
+import type { ReassignPreview, TournamentSummary, TournamentDetail } from "./types";
 
-export function listTournaments(): Promise<TournamentSummary[]> {
-  return apiFetch("/tournaments", { method: "GET" });
+/** `token` is optional (the list is a public read) but decides the per-caller
+ * `can_edit` / `can_delete` / `can_set_decider` flags each row carries (A10). */
+export function listTournaments(token?: string | null): Promise<TournamentSummary[]> {
+  return apiFetch("/tournaments", { method: "GET", token });
 }
 
 export function createTournament(
@@ -30,8 +32,9 @@ export function generateSchedule(token: string, id: number, randomize = true) {
   });
 }
 
-export function getTournament(id: number): Promise<TournamentDetail> {
-  return apiFetch(`/tournaments/${id}`, { method: "GET" });
+/** Public read; `token` only decides the capability flags in the payload (A10). */
+export function getTournament(id: number, token?: string | null): Promise<TournamentDetail> {
+  return apiFetch(`/tournaments/${id}`, { method: "GET", token });
 }
 
 /**
@@ -109,6 +112,11 @@ export function patchTournamentDecider(
     token,
     body: JSON.stringify(body),
   });
+}
+
+/** What a re-assign would clear — asked for when the confirmation opens, never guessed. */
+export function getReassignPreview(token: string, tournamentId: number) {
+  return apiFetch<ReassignPreview>(`/tournaments/${tournamentId}/reassign-preview`, { token });
 }
 
 export function reassign2v2Schedule(

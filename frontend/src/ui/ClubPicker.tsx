@@ -22,6 +22,7 @@ import type { Club } from "../api/types";
 import ClubBadge from "./ClubBadge";
 import NationFlag from "./NationFlag";
 import { Chip } from "./primitives/Chip";
+import EmptyState from "./primitives/EmptyState";
 import Modal from "./primitives/Modal";
 import { Stars } from "./primitives/Stars";
 import {
@@ -102,9 +103,11 @@ function ClubRow({
   );
 }
 
+/** A group heading inside the sheet's card. Sentence case: uppercase belongs to
+ *  `section-label` and to column headers, never to a label inside a card (§6). */
 function GroupLabel({ children }: { children: ReactNode }) {
   return (
-    <div className="px-3 pb-1 pt-2 text-xs font-semibold uppercase tracking-wide text-text-muted">
+    <div className="px-3 pb-1 pt-2 text-sm font-semibold text-text-normal">
       {children}
     </div>
   );
@@ -121,6 +124,7 @@ export default function ClubPicker({
   filters,
   disabled = false,
   starsEditor,
+  starsHistory,
 }: {
   open: boolean;
   onClose: () => void;
@@ -135,6 +139,8 @@ export default function ClubPicker({
   disabled?: boolean;
   /** `ClubStarsEditor` for the selected club (editors/admins); readers pass nothing. */
   starsEditor?: ReactNode;
+  /** The selected club's star history (R4) — a block under its row, not in it. */
+  starsHistory?: ReactNode;
 }) {
   const [query, setQuery] = useState("");
   const [recentIds, setRecentIds] = useState<number[]>([]);
@@ -345,6 +351,7 @@ export default function ClubPicker({
                 onPick={() => pick(pinned.id)}
                 trailing={starsEditor ?? undefined}
               />
+              {starsHistory ? <div className="inset mx-1 mb-1 mt-1">{starsHistory}</div> : null}
             </>
           ) : null}
 
@@ -377,11 +384,11 @@ export default function ClubPicker({
           ) : null}
 
           {matches.length === 0 ? (
-            <div className="px-3 py-8 text-center text-sm text-text-muted">No clubs found</div>
+            <EmptyState title="No clubs found" className="px-3 py-8" />
           ) : groups ? (
             groups.map((g) => (
               <div key={g.name}>
-                <div className="sticky top-0 z-10 bg-bg-card-outer px-3 pb-1 pt-2 text-xs font-semibold uppercase tracking-wide text-text-muted">
+                <div className="sticky top-0 z-10 bg-bg-card-outer px-3 pb-1 pt-2 text-sm font-semibold text-text-normal">
                   {g.name}
                 </div>
                 {g.clubs.map((c) => {

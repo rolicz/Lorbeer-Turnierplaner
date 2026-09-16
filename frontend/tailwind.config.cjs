@@ -1,9 +1,61 @@
 const cssVar = (name) => `rgb(var(--${name}) / <alpha-value>)`;
 
+// The mobile bottom tab bar's own height: `min-h-[56px]` of tabs + its `py-1.5`, plus
+// the home-indicator strip it pads itself with. Written once, read as two tokens below.
+const bottomNavHeight = "calc(4.5rem + env(safe-area-inset-bottom, 0px))";
+
 module.exports = {
   content: ["./index.html", "./src/**/*.{ts,tsx}"],
   theme: {
     extend: {
+      // Safe-area insets as named spacing (DESIGN.md §7, Q4). Every *fixed* overlay
+      // escapes the `body` padding that handles the left/right notch, so the container
+      // that touches a viewport edge names the inset itself — `pt-safe-t`, `pb-safe-b`,
+      // `left-safe-l`, `bottom-safe-b`, … On a device without insets `env()` is 0px, so
+      // these resolve to 0 and change nothing. Never hand-spell `env(safe-area-inset-*)`
+      // in a class again; the token composes into arbitrary values too
+      // (`bottom-[calc(4.5rem+theme(spacing.safe-b))]`).
+      spacing: {
+        "safe-t": "env(safe-area-inset-top, 0px)",
+        "safe-r": "env(safe-area-inset-right, 0px)",
+        "safe-b": "env(safe-area-inset-bottom, 0px)",
+        "safe-l": "env(safe-area-inset-left, 0px)",
+
+        // The bottom tab bar, as the one question anything above it ever asks (Q2, Q14):
+        //   `nav-clear` — how much room to leave above the screen's bottom edge *right
+        //                 now*. It is the bar's height normally and **0px while the
+        //                 on-screen keyboard is up**, because the bar is hidden then
+        //                 (`html[data-keyboard-open]`, `ui/shell/keyboardOpen.ts`) and
+        //                 the room would otherwise be a gap over the keyboard. Every
+        //                 surface that clears the bar uses it — `ErrorToast`,
+        //                 `FilterPill`, all three composers, and the end of the page
+        //                 itself (`AppShell`) — so they collapse and return together.
+        // Q2 also kept `nav-h`, the bar's height as a constant, for the page's end
+        // padding; Q14 removed it, because a reservation that outlives the bar is 72px
+        // of dead space under a composer. The page's end is different only in that it is
+        // document height, which `ui/shell/bottomReservation.ts` compensates for.
+        // The fallback in the var is the fail-safe: with no flag, no stylesheet and no
+        // VisualViewport API, `nav-clear` is simply the bar's height, as before.
+        "nav-clear": `var(--bottom-nav-clearance, ${bottomNavHeight})`,
+
+        // The mobile **top** bar's side boxes (Q13). The bar is a fixed frame: two
+        // boxes of this width with the title between them, so the title's centre is
+        // the screen's centre on every page and in every state. The number is the
+        // widest either side ever needs — the left cluster, menu 40px + 4px + back
+        // 40px — and the right box reserves the same, holding one 36px control
+        // (bell or connection marker). It is not on the spacing scale because it is
+        // the sum of two controls, not a rhythm step; naming it keeps that arithmetic
+        // in one place instead of in a class.
+        "top-bar-side": "5.25rem",
+      },
+      maxHeight: {
+        // A full-screen-on-mobile sheet must fit the safe box, gutters included: without
+        // this a tall dialog (the croppers) grows past the screen and its buttons cannot be
+        // reached — worst in landscape, where a phone is ~390px tall. 1.5rem/3rem are the
+        // wrapper's own `p-3`/`sm:p-6` gutters, top and bottom.
+        sheet: "calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 1.5rem)",
+        "sheet-sm": "calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 3rem)",
+      },
       fontFamily: {
         sans: [
           "Inter var",
@@ -81,6 +133,11 @@ module.exports = {
         draw: cssVar("color-draw"),
         loss: cssVar("color-loss"),
         live: cssVar("color-live"),
+
+        // Semantic state colors (DESIGN.md §2): `text-error`, `bg-warn/10`, …
+        // A message never borrows a result colour.
+        error: cssVar("color-error"),
+        warn: cssVar("color-warn"),
 
         // Hover
         "hover-btn-bg": cssVar("color-hover-btn-bg"),

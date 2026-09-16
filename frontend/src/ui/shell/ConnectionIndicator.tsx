@@ -1,51 +1,40 @@
-import { useEffect, useState } from "react";
-
-import { useRealtimeStatus } from "../RealtimeStatusContext";
+import { useConnectionTrouble } from "./useConnectionTrouble";
 
 /**
- * Realtime **trouble** indicator (T10).
+ * Realtime **trouble** indicator, labelled (T10).
  *
  * The happy path says nothing: a working connection is the normal state, and
  * announcing it next to the bell put a third "live" marker on a screen that
  * already has the bottom bar's pulsing dot and the page's own content. This
  * renders only while the socket is reconnecting or offline — the one thing the
- * reader cannot see anywhere else.
+ * reader cannot see anywhere else. *When* it says so lives in
+ * `useConnectionTrouble` (grace in, settle out).
  *
- * A short grace period keeps the startup handshake (and any blink between two
- * sockets) quiet: every page load passes through `reconnecting` for a moment.
+ * This is the **desktop sidebar's** rendering, where a line of text costs
+ * nothing. The mobile top bar says the same thing as one 40px marker in the
+ * slot the bell otherwise owns (`TopBarStatus`, Q13): there the width of a word
+ * would shove a centred title, which is the whole reason that bar has fixed
+ * side boxes.
  */
-const TROUBLE_GRACE_MS = 1200;
-
 export default function ConnectionIndicator() {
-  const status = useRealtimeStatus();
-  const trouble = status !== "live";
-  const [visible, setVisible] = useState(false);
+  const trouble = useConnectionTrouble();
+  if (!trouble) return null;
 
-  useEffect(() => {
-    if (!trouble) return;
-    const t = window.setTimeout(() => setVisible(true), TROUBLE_GRACE_MS);
-    // Recovery (or unmount) clears the pending timer and arms the grace period
-    // again, so a second drop is just as quiet as the first.
-    return () => {
-      window.clearTimeout(t);
-      setVisible(false);
-    };
-  }, [trouble]);
-
-  if (!trouble || !visible) return null;
-
-  const offline = status === "offline";
+  const offline = trouble === "offline";
   const label = offline ? "Offline" : "Reconnecting";
 
+  // A dropped socket is not a drawn match: the amber here is the `warn` state token,
+  // never `draw` (A8). Offline stays the quieter of the two on purpose — red would put
+  // a second red dot in the chrome that already carries the live one.
   return (
     <span
-      data-connection-status={status}
-      className={`inline-flex items-center gap-1.5 text-xs ${offline ? "text-text-muted" : "text-draw"}`}
+      data-connection-status={trouble}
+      className={`inline-flex items-center gap-1.5 text-xs ${offline ? "text-text-muted" : "text-warn"}`}
       title={`Realtime: ${label}`}
       aria-label={`Realtime status: ${label}`}
     >
       <span
-        className={`inline-flex h-2 w-2 shrink-0 rounded-full ${offline ? "bg-status-bar-default" : "bg-draw"}`}
+        className={`inline-flex h-2 w-2 shrink-0 rounded-full ${offline ? "bg-status-bar-default" : "bg-warn"}`}
         aria-hidden="true"
       />
       <span className="truncate">{label}</span>

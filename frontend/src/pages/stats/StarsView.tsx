@@ -1,5 +1,8 @@
 /** Club stars — points per match bucketed by the star rating of the club played.
- *  Rendered inside the Player section (the player comes from the shared selection). */
+ *  Rendered inside the Player section (the player comes from the shared selection).
+ *
+ *  The rating is the one the club carried **on the day of the match** (`club_stars`,
+ *  R4); today's rating is only the fallback for a club with no history recorded. */
 import { useMemo } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 
@@ -25,9 +28,10 @@ function starBuckets(matches: StatsMatch[], pid: number, clubs: Club[]) {
     if (!st) continue;
     const side = sideOf(m, pid);
     if (!side) continue;
-    const club = m.sides.find((x) => x.side === side)?.club_id ?? null;
+    const played = m.sides.find((x) => x.side === side);
+    const club = played?.club_id ?? null;
     if (!club) continue;
-    const stars = starByClub.get(club);
+    const stars = played?.club_stars ?? starByClub.get(club);
     if (stars == null) continue;
     const cur = by.get(Math.round(stars * 2) / 2);
     if (!cur) continue;
@@ -57,7 +61,9 @@ export function StarsSection({ mode, scope, playerId }: { mode: StatsMode; scope
 
   return (
     <div className="space-y-3">
-      <p className="text-xs text-text-muted">Points per match by the star rating of the club played. {known ? `${known} rated matches.` : ""}</p>
+      <p className="text-xs text-text-muted">
+        Points per match by the star rating the club carried on the day. {known ? `${known} rated matches.` : ""}
+      </p>
       {matchesQ.isLoading && !matchesQ.data ? (
         <InlineLoading label="Loading…" />
       ) : !active.length ? (

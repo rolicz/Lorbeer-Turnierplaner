@@ -40,6 +40,13 @@ export type CommentMetaPayload = {
   comment_id?: number | null;
 };
 
+/**
+ * `action` values the backend sends (`services/events.py`):
+ * `created` · `updated` · `status` · `result` · `deleted` · `comment`.
+ * `comment` is the one that does not refetch the list (A5); `result` is a score or side
+ * correction on an already-done tournament, which moves no status but does move the
+ * winner, the cup owner and the stats (Q9).
+ */
 export type TournamentsChangedPayload = {
   action: string;
   tournament_id?: number;

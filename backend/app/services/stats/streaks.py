@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date, datetime, time
-from types import SimpleNamespace
 from typing import Any, Callable
 
 from sqlalchemy.orm import selectinload
@@ -11,6 +10,7 @@ from sqlmodel import Session, select
 from ...models import FriendlyMatch, FriendlyMatchSide, Match, MatchSide, Player, Tournament
 from .scope import (
     friendlies_schema_ready,
+    friendly_as_match_like,
     include_friendlies,
     include_tournaments,
     normalize_scope,
@@ -68,21 +68,6 @@ def _ts_for(m: Any) -> datetime:
     return _sort_key(m)[0]
 
 
-def _friendly_as_match_like(fm: FriendlyMatch) -> Any:
-    fid = int(fm.id or 0)
-    t = SimpleNamespace(
-        id=1_000_000_000 + fid,
-        mode=fm.mode,
-        date=fm.date,
-    )
-    return SimpleNamespace(
-        id=2_000_000_000 + fid,
-        tournament=t,
-        order_index=0,
-        sides=fm.sides,
-    )
-
-
 def _load_finished_matches(s: Session, *, scope: str) -> list[Any]:
     scope_norm = normalize_scope(scope)
     ms: list[Any] = []
@@ -106,7 +91,7 @@ def _load_finished_matches(s: Session, *, scope: str) -> list[Any]:
                 selectinload(FriendlyMatch.sides).selectinload(FriendlyMatchSide.players),
             )
         )
-        ms.extend(_friendly_as_match_like(fm) for fm in safe_exec_all(s, fstmt))
+        ms.extend(friendly_as_match_like(fm) for fm in safe_exec_all(s, fstmt))
 
     ms.sort(key=_sort_key)
     return ms

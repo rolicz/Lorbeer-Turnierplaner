@@ -128,7 +128,12 @@ export default function ProfileHeader({
 
       {/* Identity / title page (always visible) */}
       <div className="space-y-3">
-        <div className="relative overflow-hidden rounded-xl border border-border-card-inner/60 bg-bg-card-inner">
+        {/* The banner is the 16:9 crop the editor produced, shown whole and at the full
+            width of the page — no `max-h` (that cropped the picture Roli framed) and no
+            width cap either: "its left aligned and does not fully fill the width" (R2c).
+            The accepted cost, stated and waved through: at 1280×900 the banner is ~557px
+            tall and the tab strip below it sits near the fold. */}
+        <div className="relative w-full overflow-hidden rounded-xl border border-border-card-inner/60 bg-bg-card-inner">
           {headerImageSrc ? (
             <button type="button" className="block w-full" onClick={() => setHeaderLightboxSrc(headerImageSrc)} title="Open header image">
               <img

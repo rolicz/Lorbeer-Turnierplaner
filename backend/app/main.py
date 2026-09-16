@@ -14,6 +14,7 @@ from .routers.clubs import router as clubs_router
 from .routers.comments import router as comments_router
 from .routers.cup import router as cup_router
 from .routers.friendlies import router as friendlies_router
+from .routers.ideas import router as ideas_router
 from .routers.matches import router as matches_router
 from .routers.me import router as me_router
 from .routers.players import router as players_router
@@ -76,6 +77,7 @@ def create_app(settings: Settings) -> FastAPI:
     app.include_router(stats_router)
     app.include_router(comments_router)
     app.include_router(friendlies_router)
+    app.include_router(ideas_router)
     app.include_router(push_router)
 
     @app.get("/health")

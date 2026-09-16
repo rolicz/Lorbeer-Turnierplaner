@@ -5,12 +5,14 @@ import { MailOpen, MessageSquare, Gamepad2, LayoutGrid, ListChecks, Signpost, Sl
 
 import Button from "../../ui/primitives/Button";
 import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
+import ConfirmDialog from "../../ui/primitives/ConfirmDialog";
 import PageLoadingScreen from "../../ui/primitives/PageLoadingScreen";
 import { SectionTabs, type SectionTab } from "../../ui/SectionTabs";
 import PageLayout from "../../ui/layout/PageLayout";
 
 import {
   getTournament,
+  listTournaments,
   enableSecondLegAll,
   disableSecondLegAll,
   reorderTournamentMatches,
@@ -19,6 +21,7 @@ import {
   patchTournamentName,
   patchTournamentDecider,
   reassign2v2Schedule,
+  getReassignPreview,
 } from "../../api/tournaments.api";
 
 import { ApiError } from "../../api/client";
@@ -46,7 +49,6 @@ import { listTournamentComments, markAllTournamentCommentsRead } from "../../api
 import { qk } from "../../api/queryKeys";
 import { useRouteEntryLoading } from "../../ui/layout/useRouteEntryLoading";
 import { usePageTitle } from "../../ui/layout/PageTitleContext";
-import InlineBack from "../../ui/shell/InlineBack";
 import { forgetLocation } from "../../ui/shell/lastLocation";
 import { useReturnScroll } from "../../ui/shell/useReturnScroll";
 
@@ -106,7 +108,7 @@ export default function LiveTournamentPage() {
 
   const tQ = useQuery({
     queryKey: qk.tournament(tid!),
-    queryFn: () => getTournament(tid!),
+    queryFn: () => getTournament(tid!, token),
     enabled: !!tid,
   });
 
@@ -121,7 +123,7 @@ export default function LiveTournamentPage() {
 
   useTournamentWS(tid);
 
-  const seenCommentIds = useSeenSet(tid ?? 0);
+  const { ids: seenCommentIds, loaded: seenCommentIdsLoaded } = useSeenSet(tid ?? 0);
   const commentsQ = useQuery({
     queryKey: qk.commentsTournamentFull(tid!, token),
     queryFn: () => listTournamentComments(tid!, token),
@@ -183,31 +185,55 @@ export default function LiveTournamentPage() {
     forgetLocation(location.pathname + location.search);
   }, [tQ.error, location.pathname, location.search]);
 
+  /**
+   * The single writer for both comment deep links (A5).
+   *
+   * A deep link changes two things at once: it opens the Comments tab and it
+   * spends the param that asked for it. Done as two writes — `setActiveTab`
+   * first, then `setSearchParams` built from this render's `location.search` —
+   * the second one starts from the URL as it was *before* the first and
+   * silently reverts it, so `?tab=comments` was dropped and a reload (or a
+   * `lastLocation` replay) landed back on Overview. One write, built from the
+   * live URL, cannot lose a half of itself.
+   *
+   * No `swapTabScroll` here on purpose: a deep link is not a tab switch away
+   * from something — it scrolls to the entry it named.
+   */
+  const openCommentsForDeepLink = useCallback(
+    (consumedParam: "comment" | "unread", focusCommentId: number | null) => {
+      setChosenTabState("comments");
+      if (focusCommentId != null) {
+        setFocusCommentRequest((prev) => ({ id: focusCommentId, nonce: (prev?.nonce ?? 0) + 1 }));
+      }
+      const next = new URLSearchParams(window.location.search);
+      next.set("tab", "comments");
+      next.delete(consumedParam);
+      setSearchParams(next, { replace: true });
+    },
+    [setSearchParams],
+  );
+
   useEffect(() => {
     const raw = new URLSearchParams(location.search).get("comment");
     if (!raw) return;
     const cid = Number(raw);
     if (!Number.isFinite(cid) || cid <= 0) return;
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    setActiveTab("comments");
-    setFocusCommentRequest((prev) => ({ id: Math.trunc(cid), nonce: (prev?.nonce ?? 0) + 1 }));
-    const next = new URLSearchParams(location.search);
-    next.delete("comment");
-    setSearchParams(next, { replace: true });
-  }, [location.search, setSearchParams, setActiveTab]);
+    openCommentsForDeepLink("comment", Math.trunc(cid));
+  }, [location.search, openCommentsForDeepLink]);
 
+  // `?unread=1` (the unread pill on the tournaments list) can only be answered
+  // once the comments *and* this viewer's read ids are in — on a cold load both
+  // are still in flight while this first runs. Spending the flag then threw it
+  // away before it could be used, which is why the pill never jumped (A5). When
+  // nothing is unread any more the link still opens the feed it pointed at.
+  const unreadDeepLinkReady = commentsQ.isSuccess && seenCommentIdsLoaded;
   useEffect(() => {
-    const sp = new URLSearchParams(location.search);
-    const jumpUnread = sp.get("unread") === "1";
-    if (!jumpUnread) return;
-    if (latestUnreadCommentId) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setActiveTab("comments");
-      setFocusCommentRequest((prev) => ({ id: latestUnreadCommentId, nonce: (prev?.nonce ?? 0) + 1 }));
-    }
-    sp.delete("unread");
-    setSearchParams(sp, { replace: true });
-  }, [latestUnreadCommentId, location.search, setSearchParams, setActiveTab]);
+    if (new URLSearchParams(location.search).get("unread") !== "1") return;
+    if (!unreadDeepLinkReady) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    openCommentsForDeepLink("unread", latestUnreadCommentId);
+  }, [latestUnreadCommentId, location.search, openCommentsForDeepLink, unreadDeepLinkReady]);
 
   // When returning from a match detail page, scroll to (and flash) that match row.
   const focusMatchId = (location.state as { focusMatchId?: number } | null)?.focusMatchId ?? null;
@@ -322,6 +348,20 @@ export default function LiveTournamentPage() {
     },
   });
 
+  // The delete confirmation names what is lost, so it needs the cup stakes — which live on
+  // the list row, not the detail payload (computing them per detail request would walk every
+  // tournament × every cup on the realtime path). Fetched only once the dialog opens.
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const listForStakesQ = useQuery({
+    queryKey: qk.tournaments(),
+    queryFn: () => listTournaments(token),
+    enabled: confirmDelete,
+  });
+  const cupStakes = useMemo(() => {
+    const row = (listForStakesQ.data ?? []).find((t) => Number(t.id) === Number(tid));
+    return row?.cup_stakes ?? [];
+  }, [listForStakesQ.data, tid]);
+
   const deleteMut = useMutation({
     mutationFn: async () => {
       if (!token) throw new Error("Not logged in");
@@ -329,12 +369,60 @@ export default function LiveTournamentPage() {
       return deleteTournament(token, tid);
     },
     onSuccess: async () => {
+      setConfirmDelete(false);
       forgetLocation(location.pathname + location.search);
-      nav("/tournaments");
+      // `replace`: the page the reader came from no longer exists. Back pops more
+      // often under Q6b, so a deleted tournament left standing in the history
+      // would be a page you could walk back into; consuming its entry is the one
+      // case where the app *knows* in advance that popping there is wrong.
+      nav("/tournaments", { replace: true });
       await qc.invalidateQueries({ queryKey: qk.tournaments() });
+      // A deleted tournament is a hole in the cup fold and in every stat derived from it.
       await qc.invalidateQueries({ queryKey: qk.cupAll() }).catch(() => {});
+      await qc.invalidateQueries({ queryKey: qk.stats.all() }).catch(() => {});
     },
   });
+
+  // Re-assign throws the whole schedule away and draws a new one, so it asks first and
+  // names what goes with it — the counts come from the backend, which is the only place
+  // that knows which comments a rebuild takes (Q5).
+  const [confirmReassign, setConfirmReassign] = useState(false);
+  const reassignPreviewQ = useQuery({
+    queryKey: qk.tournamentReassignPreview(tid ?? 0),
+    queryFn: () => getReassignPreview(token!, tid!),
+    enabled: confirmReassign && !!tid && !!token,
+    staleTime: 0,
+  });
+  const reassignPreview = reassignPreviewQ.data ?? null;
+
+  const reassignLosses = useMemo(() => {
+    const p = reassignPreview;
+    if (!p) return [];
+    const lines: string[] = [];
+    if (p.matches_with_score > 0) {
+      lines.push(
+        p.matches_with_score === 1
+          ? "1 match loses the score it still carries."
+          : `${p.matches_with_score} matches lose the scores they still carry.`,
+      );
+    }
+    if (p.matches_with_club > 0) {
+      lines.push(
+        p.matches_with_club === 1
+          ? "1 match loses its clubs — they are picked again for the new fixture."
+          : `${p.matches_with_club} matches lose their clubs — they are picked again for the new fixtures.`,
+      );
+    }
+    if (p.comments > 0) {
+      lines.push(
+        p.comments === 1
+          ? "1 comment filed under a match is deleted. Comments on the tournament itself stay."
+          : `${p.comments} comments filed under these matches are deleted. Comments on the tournament itself stay.`,
+      );
+    }
+    if (lines.length > 0) lines.push("This cannot be undone.");
+    return lines;
+  }, [reassignPreview]);
 
   const reassignMut = useMutation({
     mutationFn: async () => {
@@ -343,7 +431,12 @@ export default function LiveTournamentPage() {
       return reassign2v2Schedule(token, tid, true);
     },
     onSuccess: async () => {
-      if (tid) await qc.invalidateQueries({ queryKey: qk.tournament(tid) });
+      setConfirmReassign(false);
+      if (tid) {
+        await qc.invalidateQueries({ queryKey: qk.tournament(tid) });
+        // The match-tied comments went with the old match ids.
+        await qc.invalidateQueries({ queryKey: qk.commentsTournament(tid) }).catch(() => {});
+      }
     },
   });
 
@@ -449,8 +542,14 @@ export default function LiveTournamentPage() {
     nav(`/live/${tid}/match/${m.id}`, { state: { fromTab: activeTab } });
   }
 
-  const canEditMatch = role === "admin" || (role === "editor" && !isDone);
-  const canReorder = isAdmin || (role === "editor" && !isDone);
+  // A10: the server answers "what may this caller do to this tournament right now" and
+  // ships the answer with the payload. The role check stays as the coarse gate only, so
+  // an admin previewing as editor/reader still gets that role's page.
+  const canEditTournament = isEditorOrAdmin && !!tQ.data?.can_edit;
+  const canDeleteTournament = isEditorOrAdmin && !!tQ.data?.can_delete;
+  const canSetDecider = isEditorOrAdmin && !!tQ.data?.can_set_decider;
+  const canEditMatch = canEditTournament;
+  const canReorder = canEditTournament;
   const canDisableSecondLeg = useMemo(() => {
     return !matchesSorted.some((m) => m.leg === 2 && m.state !== "scheduled");
   }, [matchesSorted]);
@@ -475,6 +574,8 @@ export default function LiveTournamentPage() {
   });
 
   const [panelError, setPanelError] = useState<string | null>(null);
+  /** "Read all" asks first — in the app's own dialog, never the browser's (R2). */
+  const [markAllReadAsked, setMarkAllReadAsked] = useState(false);
 
   const showControls = isEditorOrAdmin;
   // Nothing to project once every match has been played (T13).
@@ -489,8 +590,9 @@ export default function LiveTournamentPage() {
     if (showCurrentGameSection) t.push({ key: "current", label: "Current", icon: <Gamepad2 size={14} /> });
     t.push({ key: "standings", label: status === "done" ? "Results" : "Standings", icon: <Trophy size={14} /> });
     t.push({ key: "matches", label: "Matches", icon: <ListChecks size={14} /> });
-    t.push({ key: "comments", label: "Comments", icon: <MessageSquare size={14} />, badge: unreadCommentsCount || undefined });
+    // What if sits with the matches it projects, left of the comments (R2b).
     if (showWhatIf) t.push({ key: "whatif", label: "What if", icon: <Signpost size={14} /> });
+    t.push({ key: "comments", label: "Comments", icon: <MessageSquare size={14} />, badge: unreadCommentsCount || undefined });
     if (showControls) {
       t.push({ key: "controls", label: role === "admin" ? "Admin" : "Controls", icon: <SlidersHorizontal size={14} /> });
     }
@@ -506,9 +608,9 @@ export default function LiveTournamentPage() {
   const initialLoading = !pageEntered || (!tQ.error && !tQ.data && (tQ.isLoading || clubsQ.isLoading || commentsQ.isLoading));
   if (initialLoading) {
     return (
-      <div className="page">
+      <PageLayout>
         <PageLoadingScreen sectionCount={5} />
-      </div>
+      </PageLayout>
     );
   }
 
@@ -520,9 +622,7 @@ export default function LiveTournamentPage() {
         title="Mark all unread comments as read"
         onClick={() => {
           if (!token || !tid || unreadCommentIds.length === 0 || markAllReadMut.isPending) return;
-          const ok = window.confirm(`Mark ${unreadCommentIds.length} unread comment(s) as read?`);
-          if (!ok) return;
-          markAllReadMut.mutate();
+          setMarkAllReadAsked(true);
         }}
         disabled={!token || markAllReadMut.isPending}
       >
@@ -533,7 +633,6 @@ export default function LiveTournamentPage() {
   return (
     <PageLayout
       title={cardTitle}
-      back={<InlineBack />}
       meta={<TournamentMetaPills mode={tQ.data?.mode} date={tQ.data?.date} />}
     >
       <ErrorToastOnError error={tQ.error} title="Tournament loading failed" />
@@ -571,7 +670,7 @@ export default function LiveTournamentPage() {
               match={currentMatch}
               clubs={clubs}
               players={tQ.data?.players ?? []}
-              canControl={isEditorOrAdmin && !isDone}
+              canControl={canEditTournament}
               canDeleteComments={isAdmin}
               busy={currentGameMut.isPending}
               onPatch={(matchId, body) => currentGameMut.mutateAsync({ matchId, body })}
@@ -706,14 +805,14 @@ export default function LiveTournamentPage() {
                 mode={tQ.data.mode}
                 onReassign2v2={() => {
                   setPanelError(null);
-                  reassignMut.mutate(undefined, { onError: (e) => setPanelError(errorMessage(e)) });
+                  setConfirmReassign(true);
                 }}
+                canEdit={canEditTournament}
+                canDelete={canDeleteTournament}
+                canSetDecider={canSetDecider}
                 onDeleteTournament={() => {
-                  if (!isAdmin) return;
-                  const ok = window.confirm("Delete tournament permanently?");
-                  if (!ok) return;
-                  setPanelError(null);
-                  deleteMut.mutate(undefined, { onError: (e) => setPanelError(errorMessage(e)) });
+                  if (!canDeleteTournament) return;
+                  setConfirmDelete(true);
                 }}
                 dateValue={isAdmin ? editDate : undefined}
                 onDateChange={isAdmin ? setEditDate : undefined}
@@ -727,7 +826,7 @@ export default function LiveTournamentPage() {
                 deciderCandidates={topDrawInfo.candidates}
                 currentDecider={decider}
                 onSaveDecider={
-                  isEditorOrAdmin
+                  canSetDecider
                     ? (body) => {
                         setPanelError(null);
                         deciderMut.mutate(body, { onError: (e) => setPanelError(errorMessage(e)) });
@@ -736,10 +835,83 @@ export default function LiveTournamentPage() {
                 }
                 deciderBusy={deciderMut.isPending}
               />
+
+              <ConfirmDialog
+                open={confirmDelete}
+                title={`Delete "${tQ.data.name}"?`}
+                subtitle="The tournament and everything recorded in it are removed for good."
+                confirmLabel="Delete tournament"
+                busy={deleteMut.isPending}
+                onCancel={() => setConfirmDelete(false)}
+                onConfirm={() => {
+                  setPanelError(null);
+                  deleteMut.mutate(undefined, { onError: (e) => setPanelError(errorMessage(e)) });
+                }}
+              >
+                <div>
+                  {matchesSorted.length === 0
+                    ? "No matches were played yet."
+                    : `${matchesSorted.length} ${matchesSorted.length === 1 ? "match" : "matches"} and every result in ${matchesSorted.length === 1 ? "it" : "them"} are deleted.`}
+                </div>
+                {cupStakes.length > 0 ? (
+                  <div>
+                    {cupStakes.map((c) => c.name).join(" and ")}{" "}
+                    {cupStakes.length === 1 ? "was" : "were"} at stake here — deleting this
+                    recalculates who holds {cupStakes.length === 1 ? "it" : "them"}.
+                  </div>
+                ) : null}
+                <div>This cannot be undone.</div>
+              </ConfirmDialog>
+
+              {/* Re-assign never refuses over leftovers any more (Q5) — it clears them.
+                  So the dialog, not a 409, is where the cost is named. */}
+              <ConfirmDialog
+                open={confirmReassign}
+                title="Re-assign the 2v2 schedule?"
+                subtitle={
+                  reassignPreview
+                    ? `New partners and new opponents: all ${reassignPreview.matches} ${
+                        reassignPreview.matches === 1 ? "match is" : "matches are"
+                      } drawn again from scratch.`
+                    : "New partners and new opponents: every match is drawn again from scratch."
+                }
+                confirmLabel="Re-assign schedule"
+                busyLabel={reassignMut.isPending ? "Re-assigning…" : "Checking…"}
+                busy={reassignMut.isPending || reassignPreviewQ.isFetching}
+                onCancel={() => setConfirmReassign(false)}
+                onConfirm={() => {
+                  setPanelError(null);
+                  reassignMut.mutate(undefined, { onError: (e) => setPanelError(errorMessage(e)) });
+                }}
+              >
+                {reassignLosses.length > 0
+                  ? reassignLosses.map((line) => <div key={line}>{line}</div>)
+                  : null}
+              </ConfirmDialog>
             </div>
           ) : null}
         </>
       ) : null}
+
+      {/* Nothing is lost here, so no red block — a title, a sentence, Cancel and the verb. */}
+      <ConfirmDialog
+        open={markAllReadAsked}
+        title="Mark all comments as read?"
+        subtitle={
+          unreadCommentIds.length === 1
+            ? "The one unread comment in this tournament counts as read — for you only, and nothing is deleted."
+            : `All ${unreadCommentIds.length} unread comments in this tournament count as read — for you only, and nothing is deleted.`
+        }
+        confirmLabel={`Mark ${unreadCommentIds.length} as read`}
+        busyLabel="Marking…"
+        busy={markAllReadMut.isPending}
+        onCancel={() => setMarkAllReadAsked(false)}
+        onConfirm={() => {
+          setMarkAllReadAsked(false);
+          if (!token || !tid || unreadCommentIds.length === 0) return;
+          markAllReadMut.mutate();
+        }}
+      />
     </PageLayout>
   );
 }

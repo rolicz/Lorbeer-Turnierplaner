@@ -31,6 +31,7 @@ export function PlayerPicker({
             onClick={() => onSelect(p.id)}
             className={size}
             noOverflowAnchor
+            showName
           />
         ))}
       </div>

@@ -35,7 +35,9 @@ export default function NationFlag({
       className={cn("inline-flex shrink-0 items-center justify-center", BOX_CLASS[size], className)}
       aria-hidden="true"
     >
-      <span className={cn("fi", `fi-${code}`, "rounded-[2px]")} />
+      {/* No radius: 2px is off §4's scale and the smallest step on it (6px) would
+          round a 14px flag into a lozenge. A flag is a rectangle. */}
+      <span className={cn("fi", `fi-${code}`)} />
     </span>
   );
 }

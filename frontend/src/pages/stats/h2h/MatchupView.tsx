@@ -16,10 +16,8 @@
  */
 import { useMemo, useState, type ReactNode } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { ArrowLeft } from "lucide-react";
 
 import AvatarCircle from "../../../ui/primitives/AvatarCircle";
-import Button from "../../../ui/primitives/Button";
 import EmptyState from "../../../ui/primitives/EmptyState";
 import PlayerLink from "../../../ui/primitives/PlayerLink";
 import InlineLoading from "../../../ui/primitives/InlineLoading";
@@ -93,7 +91,7 @@ function MatchupSide({ ids, nameOf, align = "left" }: {
   );
 }
 
-export default function MatchupView({ mode, scope, leftIds, rightIds, rows, onBack, initialRelation }: {
+export default function MatchupView({ mode, scope, leftIds, rightIds, rows, initialRelation }: {
   mode: StatsMode;
   scope: StatsScope;
   /** The "own" side — perspective of every number shown here. One id, or a 2v2 team. */
@@ -101,7 +99,6 @@ export default function MatchupView({ mode, scope, leftIds, rightIds, rows, onBa
   /** The opposing side: one id, or the two players of the opposing team. */
   rightIds: number[];
   rows: Row[];
-  onBack: () => void;
   /** Relation to open with (`?rel=together`, from a match page's "together" card). */
   initialRelation?: Relation;
 }) {
@@ -168,14 +165,10 @@ export default function MatchupView({ mode, scope, leftIds, rightIds, rows, onBa
   const loading = q.isLoading && !q.data;
 
   return (
+    /* No back button of its own (Q6): the matchup is a page you went into, so the
+       chevron in the top bar (and `PageLayout`'s on desktop) is its way out — one
+       back per screen, in the same place as on every other page. */
     <div className="space-y-4">
-      <div>
-        <Button variant="ghost" size="sm" onClick={onBack} className="-ml-1 gap-1.5">
-          <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-          Head-to-head
-        </Button>
-      </div>
-
       <ErrorToastOnError error={q.error} title="Matchup loading failed" />
 
       <div className="card">

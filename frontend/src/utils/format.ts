@@ -7,6 +7,18 @@ export function fmtDate(d?: string | null): string {
   return dt.toLocaleDateString();
 }
 
+/**
+ * The spelled-out date — "15 September 2026" — for a heading that *is* a date
+ * (the friendlies list's day groups, Q7). The numeric `fmtDate` stays the form
+ * for a date pill, where it is a fixed-width token next to other tokens.
+ */
+export function fmtDateLong(d?: string | null): string {
+  if (!d) return "";
+  const dt = new Date(d + (d.includes("T") ? "" : "T00:00:00"));
+  if (Number.isNaN(dt.getTime())) return "";
+  return dt.toLocaleDateString(undefined, { day: "numeric", month: "long", year: "numeric" });
+}
+
 export function fmtDateTime(iso?: string | null): string {
   if (!iso) return "";
   const d = new Date(iso);
@@ -42,6 +54,15 @@ export function fmtMonthDate(d: Date): string {
 export function fmtInt(n: number): string {
   if (!Number.isFinite(n)) return "0";
   return String(Math.trunc(n));
+}
+
+/**
+ * A count with a unit that agrees with it — "1 match", "6 matches" (A7). Both forms
+ * are spelled out: English does not derive one from the other reliably ("match" →
+ * "matches", "game" → "games"), and a caller reading the call site should see both.
+ */
+export function fmtCount(n: number, singular: string, plural: string): string {
+  return `${n} ${n === 1 ? singular : plural}`;
 }
 
 export function fmtAvg(n: number): string {

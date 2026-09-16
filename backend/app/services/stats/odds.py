@@ -74,18 +74,29 @@ def _clamp(x: float, lo: float, hi: float) -> float:
 
 @dataclass(frozen=True)
 class _Agg:
-    lastN_avg_pts: float  # 0..3 (but divided by N even if fewer matches)
+    lastN_avg_pts: float  # 0..3, shrunk towards 0 by dividing by N (see below)
     played: int
     gd_per_match: float
 
 
-def _player_aggs_from_overall(per: dict[int, dict[str, Any]]) -> dict[int, _Agg]:
+def _player_aggs_from_overall(per: dict[int, dict[str, Any]], lastN: int) -> dict[int, _Agg]:
+    """
+    The odds model's own form number: the window's points divided by **N**, even
+    when fewer matches exist.
+
+    That is a deliberate prior, not a description — one played match at 3.0 must
+    not make a favourite. It used to come for free because `compute_overall_and_lastN`
+    divided by N as well; that is now fixed (A9) so the *displayed* Form is honest,
+    so the shrinkage lives here, where it is a modelling choice and says so.
+    """
+    lastN_eff = max(1, int(lastN or 0))
     out: dict[int, _Agg] = {}
     for pid, r in per.items():
         played = int(r.get("played") or 0)
         gd = int(r.get("gd") or 0)
+        window = [int(x) for x in (r.get("lastN_pts") or [])]
         out[int(pid)] = _Agg(
-            lastN_avg_pts=float(r.get("lastN_avg_pts") or 0.0),
+            lastN_avg_pts=(sum(window) / lastN_eff) if window else 0.0,
             played=played,
             gd_per_match=(gd / played) if played > 0 else 0.0,
         )
@@ -317,9 +328,9 @@ def compute_match_odds_for_tournament(
     all_players = list(s.exec(select(Player)).all())
 
     # Player form aggregates.
-    # lastN_avg_pts divides by lastN even if fewer matches exist (important to avoid 1 game = 3.0).
-    aggs_overall = _player_aggs_from_overall(compute_overall_and_lastN(finished_all, all_players, lastN=lastN_form))
-    aggs_mode = _player_aggs_from_overall(compute_overall_and_lastN(finished_mode, all_players, lastN=lastN_form))
+    # _player_aggs_from_overall divides by lastN even if fewer matches exist (important to avoid 1 game = 3.0).
+    aggs_overall = _player_aggs_from_overall(compute_overall_and_lastN(finished_all, all_players, lastN=lastN_form), lastN_form)
+    aggs_mode = _player_aggs_from_overall(compute_overall_and_lastN(finished_mode, all_players, lastN=lastN_form), lastN_form)
 
     draw_rate_mode = _draw_rate(finished_mode)
     pair_form: dict[tuple[int, int], float] = _pair_form_lastN(finished_mode, lastN=lastN_form) if mode == "2v2" else {}
@@ -532,8 +543,8 @@ def compute_single_match_odds(
 
     all_players = list(s.exec(select(Player)).all())
 
-    aggs_overall = _player_aggs_from_overall(compute_overall_and_lastN(finished_all, all_players, lastN=lastN_form))
-    aggs_mode = _player_aggs_from_overall(compute_overall_and_lastN(finished_mode, all_players, lastN=lastN_form))
+    aggs_overall = _player_aggs_from_overall(compute_overall_and_lastN(finished_all, all_players, lastN=lastN_form), lastN_form)
+    aggs_mode = _player_aggs_from_overall(compute_overall_and_lastN(finished_mode, all_players, lastN=lastN_form), lastN_form)
 
     draw_rate_mode = _draw_rate(finished_mode)
     pair_form: dict[tuple[int, int], float] = _pair_form_lastN(finished_mode, lastN=lastN_form) if mode_norm == "2v2" else {}

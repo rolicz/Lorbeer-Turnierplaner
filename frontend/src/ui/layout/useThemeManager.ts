@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { THEMES } from "../../themes";
+import { readStored, writeStored } from "../../utils/safeStorage";
 
 export type ThemeName = string;
 
@@ -9,7 +10,7 @@ export type ThemeName = string;
  */
 export function useThemeManager() {
   const [theme, setTheme] = useState<ThemeName>(() => {
-    const storedRaw = localStorage.getItem("theme");
+    const storedRaw = readStored("theme");
     const stored = storedRaw === "ibm" ? "blue" : storedRaw === "football" ? "green" : storedRaw;
     if (stored && (THEMES as readonly ThemeName[]).includes(stored)) {
       return stored;
@@ -19,7 +20,7 @@ export function useThemeManager() {
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
-    localStorage.setItem("theme", theme);
+    writeStored("theme", theme);
   }, [theme]);
 
   return { theme, setTheme };

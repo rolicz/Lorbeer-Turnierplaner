@@ -7,8 +7,8 @@ import { useTabParam } from "../ui/shell/useTabParam";
 type Tab = "overview" | "stats" | "guestbook";
 const KEYS = ["overview", "stats", "guestbook"] as const satisfies readonly Tab[];
 
-function Probe({ param }: { param?: string }) {
-  const [tab, setTab] = useTabParam<Tab>(KEYS, "overview", param);
+function Probe({ param, allowed }: { param?: string; allowed?: readonly Tab[] }) {
+  const [tab, setTab] = useTabParam<Tab>(KEYS, "overview", param, allowed ? { allowed } : undefined);
   const loc = useLocation();
   return (
     <div>
@@ -23,10 +23,10 @@ function Probe({ param }: { param?: string }) {
   );
 }
 
-function renderAt(url: string, param?: string) {
+function renderAt(url: string, param?: string, allowed?: readonly Tab[]) {
   return render(
     <MemoryRouter initialEntries={[url]}>
-      <Probe param={param} />
+      <Probe param={param} allowed={allowed} />
     </MemoryRouter>,
   );
 }
@@ -74,5 +74,32 @@ describe("useTabParam", () => {
     expect(getByTestId("tab")).toHaveTextContent("stats");
     fireEvent.click(getByRole("button", { name: "guestbook" }));
     expect(getByTestId("search")).toHaveTextContent("?view=guestbook");
+  });
+
+  // A9: a value the hook did not honour used to stay in the URL, so the address
+  // bar named a tab the page was not showing — and `lastLocation` replayed it.
+  it("rewrites an unknown value out of the URL", () => {
+    const { getByTestId } = renderAt("/profiles/1?tab=nope");
+    expect(getByTestId("tab")).toHaveTextContent("overview");
+    expect(getByTestId("search").textContent).toBe("");
+  });
+
+  it("rewrites a value this caller is not allowed out of the URL", () => {
+    const { getByTestId } = renderAt("/profiles/1?tab=guestbook", undefined, ["overview", "stats"]);
+    expect(getByTestId("tab")).toHaveTextContent("overview");
+    expect(getByTestId("search").textContent).toBe("");
+  });
+
+  it("keeps unrelated params while rewriting", () => {
+    const { getByTestId } = renderAt("/profiles/1?tab=nope&entry=7");
+    const search = getByTestId("search").textContent ?? "";
+    expect(search).toContain("entry=7");
+    expect(search).not.toContain("tab=");
+  });
+
+  it("leaves an allowed value alone", () => {
+    const { getByTestId } = renderAt("/profiles/1?tab=stats", undefined, ["overview", "stats"]);
+    expect(getByTestId("tab")).toHaveTextContent("stats");
+    expect(getByTestId("search")).toHaveTextContent("?tab=stats");
   });
 });

@@ -160,14 +160,26 @@ export default function StatsTable({
             <tr className="border-b border-border-card-chip/50 text-xs uppercase tracking-wide text-text-muted">
               <th className="sticky left-0 z-10 bg-bg-default py-2 pl-1 pr-2 text-left font-medium">Player</th>
               {cols.map((c) => (
-                <th key={c.key} className="px-2 py-2 text-right font-medium">
-                  <button type="button" onClick={() => setSort(c.key)} className={"inline-flex items-center gap-0.5 " + (sortKey === c.key ? "text-accent" : "hover:text-text-normal")}>
-                    {c.label}{sortKey === c.key ? <span>{dir === -1 ? "▾" : "▴"}</span> : null}
-                  </button>
-                  {/* How the rating works — only in the full table, not the dashboard preview. */}
-                  {c.key === "rating" && showControls && !controlled ? (
-                    <InfoButton on={eloNote} onClick={() => setEloNote((v) => !v)} label="How Elo is calculated" />
-                  ) : null}
+                /* A sort header is a real control, so it is one: the button fills its
+                   column and the 44px header row, instead of being an 8×16 word (A6).
+                   The cell's padding moves into the button, so the target grows without
+                   the column getting wider. */
+                <th key={c.key} className="p-0 text-right font-medium">
+                  <span className="flex h-11 items-center justify-end gap-1 pr-2">
+                    <button
+                      type="button"
+                      onClick={() => setSort(c.key)}
+                      title={`Sort by ${c.label}`}
+                      aria-label={`Sort by ${c.label}`}
+                      className={"focus-ring inline-flex h-11 flex-1 items-center justify-end gap-0.5 pl-2 " + (sortKey === c.key ? "text-accent" : "hover:text-text-normal")}
+                    >
+                      {c.label}{sortKey === c.key ? <span aria-hidden="true">{dir === -1 ? "▾" : "▴"}</span> : null}
+                    </button>
+                    {/* How the rating works — only in the full table, not the dashboard preview. */}
+                    {c.key === "rating" && showControls && !controlled ? (
+                      <InfoButton on={eloNote} onClick={() => setEloNote((v) => !v)} label="How Elo is calculated" />
+                    ) : null}
+                  </span>
                 </th>
               ))}
             </tr>

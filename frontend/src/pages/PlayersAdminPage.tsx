@@ -42,9 +42,11 @@ export default function PlayersAdminPage() {
   const navigate = useNavigate();
   const qc = useQueryClient();
 
-  const [rawTab, setTab] = useTabParam<PlayersTab>(PLAYERS_TAB_KEYS, "players");
-  // The "add" tab is admin-only; a stale/hand-typed deep link falls back.
-  const tab: PlayersTab = rawTab === "add" && !isAdmin ? "players" : rawTab;
+  // The "add" tab is admin-only; a stale/hand-typed deep link falls back to
+  // "players" *and* loses the param, so nothing remembers it (A9).
+  const [tab, setTab] = useTabParam<PlayersTab>(PLAYERS_TAB_KEYS, "players", "tab", {
+    allowed: isAdmin ? PLAYERS_TAB_KEYS : (["players"] as const),
+  });
   const playersTabs: SectionTab<PlayersTab>[] = [
     { key: "players", label: "Players", icon: <Users size={14} /> },
     ...(isAdmin ? [{ key: "add" as PlayersTab, label: "Add player", icon: <UserPlus size={14} /> }] : []),

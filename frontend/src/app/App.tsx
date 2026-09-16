@@ -10,6 +10,7 @@ import FriendliesPage from "../pages/FriendliesPage";
 import SettingsPage from "../pages/SettingsPage";
 import MatchDetailPage from "../pages/live/MatchDetailPage";
 import NotFoundPage from "../pages/NotFoundPage";
+import PageLayout from "../ui/layout/PageLayout";
 import PageLoadingScreen from "../ui/primitives/PageLoadingScreen";
 import { RequireRole } from "../auth/RequireRole";
 
@@ -17,8 +18,10 @@ const StatsPage = lazy(() => import("../pages/StatsPage"));
 const ProfilePage = lazy(() => import("../pages/ProfilePage"));
 const ClubsPage = lazy(() => import("../pages/ClubsPage"));
 const PlayersAdminPage = lazy(() => import("../pages/PlayersAdminPage"));
+const IdeasPage = lazy(() => import("../pages/ideas/IdeasPage"));
 
-const pageFallback = <div className="page"><PageLoadingScreen /></div>;
+// `PageLayout`, so a lazy route still carries its back chevron while it loads (Q6).
+const pageFallback = <PageLayout><PageLoadingScreen /></PageLayout>;
 
 export default function App() {
   return (
@@ -96,6 +99,18 @@ export default function App() {
           element={
             <RequireRole minRole="reader">
               <FriendliesPage />
+            </RequireRole>
+          }
+        />
+
+        {/* Reading the board is public; posting and voting need a login (R5). */}
+        <Route
+          path="/ideas"
+          element={
+            <RequireRole minRole="reader">
+              <Suspense fallback={pageFallback}>
+                <IdeasPage />
+              </Suspense>
             </RequireRole>
           }
         />

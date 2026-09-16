@@ -206,7 +206,15 @@ def iter_finished_match_goals(matches: list[Match]) -> list[tuple[datetime, int,
 
 
 def compute_overall_and_lastN(matches: list[Match], all_players: list[Player], lastN: int = 5) -> dict[int, dict[str, Any]]:
-    """Per player: played, wins/draws/losses, gf/ga/gd, pts, lastN_pts, lastN_gf, lastN_ga, lastN_avg_pts."""
+    """
+    Per player: played, wins/draws/losses, gf/ga/gd, pts, lastN_pts, lastN_gf, lastN_ga, lastN_avg_pts.
+
+    `lastN_avg_pts` is points **per match played** in the window: it divides by the
+    matches that are actually there, not by `lastN` (A9). Dividing by `lastN` made
+    a newcomer's perfect run read as a third of what it was, which is not "form" —
+    it is a prior, and one surface's chart axis is the wrong place to hide it. The
+    odds model still wants that shrinkage and applies it itself (`odds.py`).
+    """
     lastN_eff = int(lastN or 0)
     if lastN_eff < 0:
         lastN_eff = 0
@@ -254,7 +262,7 @@ def compute_overall_and_lastN(matches: list[Match], all_players: list[Player], l
         per[pid]["lastN_pts"] = lastN_pts
         per[pid]["lastN_gf"] = lastN_gf
         per[pid]["lastN_ga"] = lastN_ga
-        per[pid]["lastN_avg_pts"] = (sum(lastN_pts) / lastN_eff) if lastN_pts else 0.0
+        per[pid]["lastN_avg_pts"] = (sum(lastN_pts) / len(lastN_pts)) if lastN_pts else 0.0
 
     return per
 

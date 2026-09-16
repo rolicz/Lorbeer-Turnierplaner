@@ -33,6 +33,7 @@ export function DuoPicker({
                 onClick={() => onToggle(p.id)}
                 className="h-9 w-9"
                 noOverflowAnchor
+                showName
               />
             ))}
           </div>

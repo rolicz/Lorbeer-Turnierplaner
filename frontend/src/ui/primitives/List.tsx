@@ -94,7 +94,7 @@ export function ListRow({
           <span className="pointer-events-auto flex shrink-0 items-center gap-2 text-right">{trailing}</span>
         ) : null}
         {showChevron ? (
-          <ChevronRight className="h-4 w-4 shrink-0 text-text-muted/70" aria-hidden="true" />
+          <ChevronRight className="h-4 w-4 shrink-0 text-text-muted" aria-hidden="true" />
         ) : null}
       </div>
     </div>

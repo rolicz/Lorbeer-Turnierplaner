@@ -5,12 +5,13 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import selectinload
 from sqlmodel import Session, select
 
-from ..auth import require_editor
+from ..auth import require_editor_claims
 from ..db import get_session
 from ..models import Club, Match, MatchSide, Tournament
 from ..schemas import MatchPatchBody, MatchSidePatchBody
 from ..schemas.responses import MatchPatchResultOut, OkResponse
-from ..services.events import broadcast_tournament
+from ..services.authorization import can_edit_tournament
+from ..services.events import broadcast_tournament, global_action_for_match_change
 from ..services.notifications import (
     push_match_finished,
     push_match_score_changed,
@@ -63,26 +64,28 @@ def _validate_tournament_state_order(s: Session, tournament_id: int) -> None:
         raise HTTPException(status_code=409, detail="Only one match can be 'playing' at a time")
 
 
-@router.patch("/{match_id}", response_model=MatchPatchResultOut, dependencies=[Depends(require_editor)])
+@router.patch("/{match_id}", response_model=MatchPatchResultOut)
 async def patch_match(
     match_id: int,
     body: MatchPatchBody,
     request: Request,
     s: Session = Depends(get_session),
-    role: str = Depends(require_editor),
+    claims: dict = Depends(require_editor_claims),
 ):
     m = _match_or_404(s, match_id)
     t = s.exec(select(Tournament).where(Tournament.id == m.tournament_id)).first()
+    role = str(claims.get("role") or "")
     old_state = m.state
     old_scores = {side.side: int(side.goals or 0) for side in m.sides}
 
     fields = body.model_fields_set
 
-    # Automatic tournament status: block editing if tournament is DONE
-    # Exception: editor may patch ONLY the *last* match in order (to recover from accidental finish).
+    # Automatic tournament status: once a tournament is DONE an editor keeps editing it
+    # for one hour (A10, `can_edit_tournament`), and after that only the *last* match in
+    # order stays open to them — the existing escape hatch for an accidental finish.
     status_before = compute_status_for_tournament(s, m.tournament_id)
 
-    if status_before == "done" and role != "admin":
+    if t is not None and not can_edit_tournament(s, t, claims=claims, status=status_before):
         # Find last match by order_index (stable tie-breaker by id)
         last_match_id = s.exec(
             select(Match.id)
@@ -91,7 +94,10 @@ async def patch_match(
         ).first()
 
         if last_match_id is None or last_match_id != m.id:
-            raise HTTPException(status_code=403, detail="Tournament is done (admin required to edit)")
+            raise HTTPException(
+                status_code=403,
+                detail="Tournament finished more than an hour ago (admin required to edit)",
+            )
 
         # Optional safety: only allow changing state/goals/clubs on that last match (no other admin-like actions)
         if "leg" in fields:
@@ -167,6 +173,16 @@ async def patch_match(
         if "goals" in b_fields:
             sides["B"].goals = int(b.goals)
 
+    # A patch that puts a match back to "scheduled" is a reset, wherever it comes from —
+    # the current-game section, the match page's status switch, a bare PATCH — and a reset
+    # takes the score with it. A reset that left the goals behind is what froze a 2v2
+    # schedule for good: re-assign refused on those leftovers and nothing could clear them
+    # again (Q5). The clubs stay: a club is a setup choice, not a result, and a replay is
+    # usually the same fixture with the same teams.
+    if "state" in fields and body.state == "scheduled":
+        for side in m.sides:
+            side.goals = 0
+
     # Compute status AFTER modifications (autoflush happens before queries)
     status_after = compute_status_for_tournament(s, m.tournament_id)
 
@@ -199,7 +215,7 @@ async def patch_match(
         s,
         m.tournament_id,
         reason="match",
-        global_action="status" if status_before != status_after else None,
+        global_action=global_action_for_match_change(status_before, status_after),
         status=status_after,
     )
 
@@ -255,25 +271,29 @@ async def patch_match(
     return {"ok": True, "id": m.id, "state": m.state, "leg": m.leg, "tournament_status": status_after}
 
 
-@router.patch("/{match_id}/swap-sides", response_model=OkResponse, dependencies=[Depends(require_editor)])
+@router.patch("/{match_id}/swap-sides", response_model=OkResponse)
 async def swap_sides(
     match_id: int,
     s: Session = Depends(get_session),
-    role: str = Depends(require_editor),
+    claims: dict = Depends(require_editor_claims),
 ):
     """
     Swap home/away (Side A <-> Side B) by swapping the side labels.
 
     Editor/admin:
-      - allowed while tournament not done
+      - allowed while the tournament is not done, and for one hour after it finished (A10)
     Admin:
       - allowed even after tournament done
     """
     m = _match_or_404(s, match_id)
+    t = s.get(Tournament, m.tournament_id)
 
     status_now = compute_status_for_tournament(s, m.tournament_id)
-    if status_now == "done" and role != "admin":
-        raise HTTPException(status_code=403, detail="Tournament is done (admin required to swap sides)")
+    if t is not None and not can_edit_tournament(s, t, claims=claims, status=status_now):
+        raise HTTPException(
+            status_code=403,
+            detail="Tournament finished more than an hour ago (admin required to swap sides)",
+        )
 
     sides = {side.side: side for side in m.sides}
     a = sides.get("A")
@@ -295,5 +315,12 @@ async def swap_sides(
 
     s.commit()
 
-    await broadcast_tournament(s, m.tournament_id, reason="match")
+    # Swapping sides never changes the status, but on a done tournament it swaps who won.
+    await broadcast_tournament(
+        s,
+        m.tournament_id,
+        reason="match",
+        global_action=global_action_for_match_change(status_now, status_now),
+        status=status_now,
+    )
     return {"ok": True}

@@ -10,10 +10,18 @@ from sqlmodel import Session, select
 
 from ..models import Match, MatchSide, Player, Tournament
 from ..tournament_status import compute_status_for_tournament
+from .authorization import tournament_capabilities, tournament_creator_id
 from .stats.odds import compute_match_odds_for_tournament
 
 
-def serialize_tournament(s: Session, t: Tournament) -> dict:
+def serialize_tournament(s: Session, t: Tournament, *, claims: dict | None = None) -> dict:
+    """``claims`` = the caller, for the per-viewer capability flags (A10).
+
+    The websocket broadcast has no single viewer, so it serializes with ``claims=None``
+    and the flags come out all-False — the ``CommentOut.can_edit`` default. The client
+    keeps the flags it already fetched when it applies a sync, exactly as it keeps a
+    comment's votes (``applyTournamentSync`` / ``applyCommentUpsert``).
+    """
     matches = s.exec(
         select(Match)
         .options(selectinload(Match.sides).selectinload(MatchSide.players))
@@ -51,6 +59,15 @@ def serialize_tournament(s: Session, t: Tournament) -> dict:
         }
 
     return {
+        **tournament_capabilities(
+            s,
+            t,
+            claims=claims,
+            # Only a signed-in caller can be a creator — skip the lookup on the public/WS path.
+            creator_player_id=tournament_creator_id(s, int(t.id)) if claims else None,
+            status=status,
+            matches=list(matches),
+        ),
         "id": t.id,
         "name": t.name,
         "mode": t.mode,

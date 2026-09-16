@@ -20,6 +20,10 @@
           "title": "Neicha Gästebuch-Eintrag bei {profile_player_name}",
           "body": "{author_name} hot an Gruaß daglossn.\n{preview}\nSchau am Profil vorbei und gib deinen Senf dazua."
         },
+        "idea_created": {
+          "title": "A neiche Idee vo {author_name}",
+          "body": "{title}\n{meta_line}\nSchau eini und sog, wos draus wird."
+        },
         "poke_created": {
           "title": "{profile_player_name} is anpöbelt worn",
           "body": "{author_name} hot grad a bisserl ang'stichelt.\nBei {profile_player_name} is wos los.\nSchau eini, bevor no mehr daherkommt."
@@ -109,6 +113,10 @@
           "title": "Neuer Guestbook-Eintrag bei {profile_player_name}",
           "body": "{author_name} hat eine Nachricht dagelassen.\n{preview}\nOeffne das Profil und sieh dir den neuen Eintrag an."
         },
+        "idea_created": {
+          "title": "Neue Idee von {author_name}",
+          "body": "{title}\n{meta_line}\nOeffne die Ideen-Seite und setz einen Status."
+        },
         "poke_created": {
           "title": "Neues Anpoebeln fuer {profile_player_name}",
           "body": "{author_name} hat gerade angestichelt.\nBei {profile_player_name} geht etwas ab.\nSchau ins Profil, bevor noch mehr dazukommt."
@@ -197,6 +205,10 @@
         "guestbook_created": {
           "title": "New guestbook post for {profile_player_name}",
           "body": "{author_name} left a new message.\n{preview}\nOpen the profile and catch up on the latest note."
+        },
+        "idea_created": {
+          "title": "New idea from {author_name}",
+          "body": "{title}\n{meta_line}\nOpen Ideas to read it and set a status."
         },
         "poke_created": {
           "title": "New poke for {profile_player_name}",

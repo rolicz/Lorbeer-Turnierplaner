@@ -15,6 +15,12 @@ export default function AdminPanel({
   status,
   mode,
 
+  // What the server says this caller may do right now (A10). The panel renders these
+  // instead of re-deriving "editor and not done" — that copy is how the rule drifted.
+  canEdit,
+  canDelete,
+  canSetDecider,
+
   // tournament actions (editor OR admin)
   secondLegEnabled,
   onEnableSecondLeg,
@@ -55,6 +61,11 @@ export default function AdminPanel({
 }: {
   role: "reader" | "editor" | "admin";
   status: Status;
+
+  /** From `TournamentDetailOut.can_edit` / `can_delete` / `can_set_decider`, already role-gated. */
+  canEdit: boolean;
+  canDelete: boolean;
+  canSetDecider: boolean;
 
   secondLegEnabled: boolean;
   onEnableSecondLeg: () => void;
@@ -107,9 +118,10 @@ export default function AdminPanel({
   const isEditorOrAdmin = role === "editor" || role === "admin";
   const done = status === "done";
 
-  // Editors: allow second-leg always (even if done). Reorder only if not done.
+  // Editors: allow second-leg always (even if done) — that endpoint has its own rule.
   const canSecondLeg = isEditorOrAdmin;
-  const canReorder = isAdmin || (role === "editor" && !done);
+  // Everything else is the server's answer, unchanged.
+  const canReorder = canEdit;
 
   const showDateEditor = isAdmin && !!onSaveDate && !!onDateChange;
   const showNameEditor = isAdmin && !!onSaveName && !!onNameChange;
@@ -142,7 +154,7 @@ export default function AdminPanel({
     currentDecider?.loser_goals,
   ]);
 
-  const canEditDecider = !!showDeciderEditor && isEditorOrAdmin && !!onSaveDecider;
+  const canEditDecider = !!showDeciderEditor && !!onSaveDecider && canSetDecider;
 
   function normalizeInt(s: string): number | null {
     const t = s.trim();
@@ -252,15 +264,24 @@ export default function AdminPanel({
           </Button>
         )}
 
-        {isAdmin && (
+        {canDelete && (
           <Button variant="ghost" onClick={onDeleteTournament} disabled={busy}>
             Delete tournament
           </Button>
         )}
 
-        {!canReorder && role === "editor" && done && (
-          <div className="inline-flex h-10 items-center px-1 text-sm text-text-muted">
-            Tournament is done.
+        {/* Why a control is missing, in the muted idiom the panel already uses. `basis-full`
+            because these are sentences, not chips: they take their own row and wrap. */}
+        {!canEdit && role === "editor" && done && (
+          <div className="basis-full px-1 text-sm text-text-muted">
+            Tournament is done — the hour an editor has to fix it has passed.
+          </div>
+        )}
+
+        {!canDelete && role === "editor" && (
+          <div className="basis-full px-1 text-sm text-text-muted">
+            Only an admin can delete this tournament — an editor can delete one they created,
+            within its first hour.
           </div>
         )}
       </div>
@@ -322,6 +343,12 @@ export default function AdminPanel({
           <div className="section-head"><span className="section-label">Decider</span></div>
 
           {!isEditorOrAdmin && <div className="text-xs text-text-muted">Login as editor/admin to set a decider.</div>}
+
+          {isEditorOrAdmin && !canSetDecider && (
+            <div className="text-xs text-text-muted">
+              The hour to set a decider has passed — only an admin can change it now.
+            </div>
+          )}
 
           {canEditDecider && (
             <div className="space-y-3">

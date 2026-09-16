@@ -83,16 +83,14 @@ const row = (id: number, name: string): Row =>
 const ROWS: Row[] = [row(1, "Roli"), row(2, "Flo"), row(3, "Rumpi"), row(4, "Berni")];
 
 function renderView(props: Partial<React.ComponentProps<typeof MatchupView>> = {}) {
-  const onBack = vi.fn();
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  const utils = render(
+  return render(
     <MemoryRouter>
       <QueryClientProvider client={client}>
-        <MatchupView mode="overall" scope="tournaments" leftIds={[1]} rightIds={[2]} rows={ROWS} onBack={onBack} {...props} />
+        <MatchupView mode="overall" scope="tournaments" leftIds={[1]} rightIds={[2]} rows={ROWS} {...props} />
       </QueryClientProvider>
     </MemoryRouter>,
   );
-  return { ...utils, onBack };
 }
 
 describe("MatchupView", () => {
@@ -246,14 +244,15 @@ describe("MatchupView", () => {
     expect(await screen.findByText(/No matches between Roli \/ Berni and Flo \/ Rumpi yet/)).toBeInTheDocument();
   });
 
-  it("explains an empty matchup and offers the way back", async () => {
+  it("explains an empty matchup, and carries no back control of its own (Q6)", async () => {
     api.getStatsH2HMatches.mockImplementation((req) => Promise.resolve(response(req, [])));
-    const { onBack } = renderView({ mode: "2v2", scope: "friendlies" });
+    renderView({ mode: "2v2", scope: "friendlies" });
 
     expect(await screen.findByText(/No matches between Roli and Flo yet/)).toBeInTheDocument();
     expect(screen.getByText(/\(2v2 · Friendlies\)/)).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: /Head-to-head/ }));
-    expect(onBack).toHaveBeenCalledTimes(1);
+    // The way out is the chevron in the top bar, like on every other page you
+    // went into — not a second arrow inside the body.
+    expect(screen.queryByRole("button", { name: /Head-to-head/ })).toBeNull();
   });
 });

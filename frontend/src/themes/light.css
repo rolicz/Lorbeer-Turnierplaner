@@ -1,12 +1,39 @@
 :root[data-theme="light"] {
   color-scheme: light;
 
-  /* Semantic result tokens (DESIGN.md §2): the dark defaults are light-on-light here. */
-  --color-win: 21 128 61; /* green-700 */
-  --color-draw: 180 83 9; /* amber-700 */
-  --color-loss: 185 28 28; /* red-700 */
+  /* Semantic result tokens (DESIGN.md §2): the dark defaults are light-on-light here.
+     A6 stopped at "clears 4.5:1"; win and draw only just did, at 4.21:1 apiece, and a
+     W-D-L run is three small numerals sitting side by side, where the weakest of the
+     three sets the reading. Both go one step down (R3), which also puts them on the
+     same footing as the state tokens below. */
+  --color-win: 22 101 52; /* green-800 — 5.98:1 on the page ground, 4.81:1 on bg-win/15 */
+  --color-draw: 146 64 14; /* amber-800 — 5.95:1 on the page ground, 4.76:1 on bg-draw/15 */
+  /* `loss` was the one of the three that already cleared 4.5:1 plain (5.43:1) and so was
+     meant to stay put — but a W-D-L run is read as one word, and once the other two were
+     deepened red-700 was both the lightest of the three to the eye and, at 4.25:1 on its
+     own `bg-loss/15` badge, the only one still failing the tint test A8 set. It follows
+     them down; it no longer shares a value with `--color-error`, which is tuned for
+     sentences and stays at red-700 (R3). */
+  --color-loss: 153 27 27; /* red-800 — 6.98:1 on the page ground, 5.41:1 on bg-loss/15 */
   /* red-600: as text on white the defaults' red-500 is only 3.7:1 (DESIGN.md §2). */
   --color-live: 220 38 38; /* red-600 */
+
+  /* State tokens (DESIGN.md §2): same story as win/draw/loss above — the dark reds and
+     ambers are light-on-light here. These carry whole sentences (an error box, a
+     conflict banner, the connection state) rather than a numeral in a W-D-L run, so
+     they are darkened until they clear 4.5:1 on the page ground *and* on their own 10%
+     tint (A8). Since R3 took `--color-draw` to the same amber-800, the two now hold the
+     same value in this theme — the same coincidence `--color-loss` and `--color-error`
+     already had. They stay separate variables: they answer different questions, and a
+     theme is free to split them again. */
+  --color-error: 185 28 28; /* red-700 — 5.43:1 on the ground, 5.45:1 on bg-error/10 */
+  --color-warn: 146 64 14; /* amber-800 — 5.95:1 on the ground, 6.08:1 on bg-warn/10 */
+
+  /* Cup colours (DESIGN.md §2). The dark themes' amber and green-700 are 1.90:1 and
+     4.21:1 as the holder's name on the light page ground, so light darkens both —
+     4.89:1 and 4.91:1 — exactly as it darkens win/draw/loss above (A6). */
+  --color-cup-gold: 166 74 12; /* dark amber */
+  --color-cup-green-dark: 22 116 55; /* green-700, one shade down */
 
   /* Backgrounds */
   /* Light: grey page with white, elevated cards (modern light elevation). */
@@ -30,12 +57,19 @@
   --color-table-row-b: 235 234 233; /* Slightly darker zebra */
 
   /* Button */
+  /* The teal stays exactly as it is; the label is what changes. White on this teal
+     is 2.49:1 — unreadable — while the page ink on it is 7.94:1, and the green theme
+     already pairs a bright button colour with dark ink (A6). */
   --color-btn-bg: 20 184 166; /* Original emerald-500 */
-  --color-btn-text: 255 255 255; /* White */
+  --color-btn-text: 12 10 9; /* page ink: 7.94:1 on the teal, 10.61:1 on its hover */
 
   /* Accent */
-  --color-accent: 59 130 246; /* Original blue-500 */
-  --color-accent-text: 255 255 255; /* White */
+  /* blue-500 is 3.09:1 on the light page ground — every active tab label, selected
+     chip and inline link failed. This blue is 5.77:1 there and still clears 4.5:1
+     under a selected chip's own `bg-accent/15` tint (4.60:1), which blue-600 and
+     even blue-700 do not (3.57:1 / 4.49:1). Same family, two steps down (A6). */
+  --color-accent: 29 76 214; /* deep blue (≈ blue-700) */
+  --color-accent-text: 255 255 255; /* White: 6.87:1 on the accent */
 
   /* Hover */
   --color-hover-btn-bg: 45 212 191; /* Original emerald-400 */

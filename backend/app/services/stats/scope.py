@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+from types import SimpleNamespace
 from typing import Any, Literal
 
 from sqlalchemy import inspect
 from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel import Session
+
+from ...models import FriendlyMatch
 
 StatsScope = Literal["tournaments", "both", "friendlies"]
 
@@ -48,3 +51,29 @@ def safe_exec_all(s: Session, stmt: Any) -> list[Any]:
         return list(s.exec(stmt).all())
     except SQLAlchemyError:
         return []
+
+
+def friendly_as_match_like(fm: FriendlyMatch) -> Any:
+    """
+    A friendly, shaped like a tournament `Match` so the shared stats helpers can
+    read it. The synthetic ids stay far above any real row so a mixed scope can
+    never collide with a tournament match.
+
+    `state`/`tournament_id` exist because `services/stats/core.py` reads them on
+    whatever it is handed; the loaders only ever wrap finished friendlies, and a
+    friendly belongs to no tournament.
+    """
+    fid = int(fm.id or 0)
+    t = SimpleNamespace(
+        id=1_000_000_000 + fid,
+        mode=fm.mode,
+        date=fm.date,
+    )
+    return SimpleNamespace(
+        id=2_000_000_000 + fid,
+        tournament=t,
+        tournament_id=None,
+        state="finished",
+        order_index=0,
+        sides=fm.sides,
+    )

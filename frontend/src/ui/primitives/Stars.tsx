@@ -59,4 +59,49 @@ export function Stars({
   );
 }
 
+/**
+ * The same rating as one token — a filled star and the number (`★ 3.5`).
+ *
+ * Five outlined glyphs are a picture of a rating and are right where there is room
+ * for a picture (the hero panel, a club slot, the Clubs page's rows). In a dense
+ * list they are ~80px spent on one number per side, and the number is what the
+ * reader actually compares — the Clubs page already names its star groups this way
+ * (`4.5★`). `mirror` puts the glyph on the outside instead, so a mirrored pair keeps
+ * both numbers next to the centre gap (Q7).
+ */
+export function StarsToken({
+  rating,
+  mirror = false,
+  size = 12,
+  className = "",
+}: {
+  rating: number;
+  /** Right-hand side of a mirrored pair: number first, then the glyph. */
+  mirror?: boolean;
+  size?: number;
+  className?: string;
+}) {
+  const r = clamp(Number.isFinite(rating) ? rating : 0, 0, 5);
+  const rounded = Math.round(r * 2) / 2;
+  const text = rounded.toFixed(1).replace(/\.0$/, "");
+  const aria = `${text} out of 5 stars`;
+  const glyph = <Star size={size} strokeWidth={1.75} fill="currentColor" aria-hidden="true" className="shrink-0" />;
+
+  return (
+    <span
+      // `tabular-nums` but not `font-mono`: this token follows a league name of any
+      // length rather than sitting in a column, and a mono `.` sets "3.5" a third
+      // wider than it needs to be (DESIGN.md §5's rule is about columns).
+      className={`inline-flex items-center gap-0.5 tabular-nums ${className}`}
+      title={aria}
+      role="img"
+      aria-label={aria}
+    >
+      {mirror ? null : glyph}
+      {text}
+      {mirror ? glyph : null}
+    </span>
+  );
+}
+
 export default Stars;

@@ -160,6 +160,38 @@ describe("ScoreLine", () => {
   });
 
 
+  it("puts a side mark between its names and the score, never in the numeral track", () => {
+    const { container, getByTestId } = render(
+      <ScoreLine
+        size="sm"
+        leftNames={["Roli", "Berni"]}
+        rightNames="Flo"
+        leftGoals={12}
+        rightGoals={3}
+        digits={2}
+        leftMark={<span data-testid="mark-l">L</span>}
+        rightMark={<span data-testid="mark-r">R</span>}
+      />,
+    );
+
+    const grid = container.querySelector("[data-score-line]")!.firstElementChild!;
+    const [left, numerals, right] = [...grid.children];
+    // Left side: the names, then the mark on their inner edge — the side nearest the
+    // score. The right side mirrors it (Roli overruled Q8's outer edge).
+    expect(left.lastElementChild).toBe(getByTestId("mark-l"));
+    expect(right.firstElementChild).toBe(getByTestId("mark-r"));
+    // One mark per side, and neither is inside the numerals: the fixed score column
+    // is centred in the grid, so the mark may push the names outward and nothing else.
+    expect(numerals.contains(getByTestId("mark-l"))).toBe(false);
+    expect(numerals.contains(getByTestId("mark-r"))).toBe(false);
+    // 6px to its own names against the grid's 12px to the numerals, so the mark reads
+    // as part of the team rather than as decoration on the score.
+    expect(left.className).toContain("gap-1.5");
+    // A 2v2 side spends no extra line on it: the mark is centred against both names.
+    expect(left.className).toContain("items-center");
+    expect(getByTestId("mark-l").previousElementSibling?.children).toHaveLength(2);
+  });
+
   it("stacks both names of a 2v2 side", () => {
     const { getByText } = render(
       <ScoreLine

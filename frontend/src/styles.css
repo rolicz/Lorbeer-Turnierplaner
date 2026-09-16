@@ -87,15 +87,58 @@
     font-weight: 600;
   }
 
-  /* Main navigation / header */
+  /* Main navigation / header — the phone's top bar and bottom tab bar, and
+     nothing else (`MobileChrome`, `BottomTabBar`; the desktop `Sidebar` and the
+     drawer paint their own surface).
+
+     Opaque, on purpose (Q12). It used to paint `bg-default / 0.8`, dropping to
+     `/ 0.55` in an `@supports (backdrop-filter)` block so that the 12px
+     `backdrop-blur-md` on both bars had something to work through. Because the
+     page's own background *is* `bg-default`, a band with nothing behind it
+     composited back to exactly the theme colour — which is what Roli's phone
+     showed until iOS 27 (screenshot band: every pixel `11,17,30` to the digit).
+     After the update the same instruction composites brighter (same floor,
+     ceiling `24,29,42`) with our CSS unchanged, so the effect is no longer ours
+     to predict. Roli's call: drop it — the bar is a surface the page passes
+     under, not a window onto it, and the border plus the top bar's scrolled
+     `shadow-pop` already say so.
+
+     There is therefore no `@supports` block and no 0.8: that block existed only
+     to serve the blur, and 0.8 was the degraded fallback for browsers that could
+     not blur (unblurred content sliding under a half-transparent bar), never a
+     value anyone chose to look at. One rule, every engine, every theme. */
   .nav-shell {
     @apply border-b;
     border-color: rgb(var(--color-border-card-outer) / 0.8);
-    background-color: rgb(var(--color-bg-default) / 0.8);
+    background-color: rgb(var(--color-bg-default));
   }
-  @supports ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
-    .nav-shell {
-      background-color: rgb(var(--color-bg-default) / 0.55);
+
+  /* The on-screen keyboard, in two rules (Q2). `ui/shell/keyboardOpen.ts` sets
+     `<html data-keyboard-open>` while a text field has the caret; iOS re-anchors fixed
+     elements to the shrunken visual viewport, which is how the bottom tab bar ends up
+     sitting on the keyboard.
+
+     1. Anything bottom-pinned that is *not* worth reaching mid-sentence gets out of
+        the way — the tab bar and the floating filter pill. The error toast does not:
+        an error you cannot see is worse than a filter you cannot reach.
+     2. The room everything else leaves *for the bar* collapses with it, in the same
+        style recalculation, so no composer floats 72px above the keyboard — the three
+        composers, the error toast, the filter pill, and (Q14) the end of the page
+        itself, which would otherwise hold 72px of dead space under a composer for a bar
+        that is not there. The page's end is the only one of them that is document
+        height; `ui/shell/bottomReservation.ts` settles the scroll around its flip.
+
+     Both only where a keyboard can cover the page: a mobile-sized layout (below `lg`,
+     where the bar exists at all and every consumer's `lg:` offset takes over), plus any
+     coarse-pointer device at any width — an iPad in landscape is 1366px wide and still
+     puts a keyboard over the bottom of it. A desktop browser typing into a form is
+     neither, and must keep its filter pill. */
+  @media (max-width: 1023.98px), (pointer: coarse) {
+    html[data-keyboard-open] .hide-on-keyboard {
+      display: none;
+    }
+    html[data-keyboard-open] {
+      --bottom-nav-clearance: 0px;
     }
   }
 
@@ -324,7 +367,9 @@
     color: hsl(var(--pos-h) 85% 14% / 1);
   }
 
-  /* Discrete buckets (used in legend + fallback): fixed points on the ramp above. */
+  /* Discrete buckets (used in legend + fallback): fixed points on the ramp above. The set is
+     deliberately complete — the legend shows four of the five, but a ramp whose vocabulary
+     skips "good" between "best" and "mid" is worse than one unused class (A8). */
   .pos-best { --pos-p: 0; }
   .pos-good { --pos-p: 0.25; }
   .pos-mid { --pos-p: 0.5; }
@@ -336,6 +381,29 @@
   /* "Not played" is off the ramp: a neutral surface. */
   .pos-none { @apply border-border-card-inner/70 bg-bg-card-outer/30 text-text-muted; }
   [data-theme="light"] .pos-none { @apply border-border-card-inner bg-bg-card-inner text-text-muted; }
+
+  /* H2H matrix cells — the other micro-tile grid (DESIGN.md §4: the same thing at the
+     same size), on the same ramp as the positions grid above. The caller sets the hue
+     (`--h2h-h`: 0 = red … 120 = green for a verdict, 210 = blue where the number is a
+     magnitude) and the strength (`--h2h-t`, 0..1); the tint and the ink that reads on
+     it are written down here, once per theme. The cells used to paint themselves with
+     hard-coded HSL at 0.85 alpha and `text-white`, which is 2.2–4.0:1 in every theme
+     (A6/A8): a mid-tone tile can never carry white text. */
+  .h2h-cell {
+    --h2h-h: 210deg;
+    --h2h-t: 0.5;
+    background-color: hsl(var(--h2h-h) 70% 45% / calc(0.22 + var(--h2h-t) * 0.35));
+    color: hsl(var(--h2h-h) 85% 90% / 1);
+  }
+  [data-theme="light"] .h2h-cell {
+    background-color: hsl(var(--h2h-h) 75% 60% / calc(0.25 + var(--h2h-t) * 0.30));
+    color: hsl(var(--h2h-h) 85% 14% / 1);
+  }
+  /* Hover is an edge in the cell's own ink, not a brightness filter: a filter lifts the
+     text with the tile and eats the contrast the ramp just bought. */
+  @media (hover: hover) and (pointer: fine) {
+    .h2h-cell:hover { outline: 2px solid currentColor; outline-offset: -2px; }
+  }
 
   /* Page Layout */
   .page { @apply space-y-3; }
@@ -389,8 +457,11 @@
 
   .delta-up { color: rgb(var(--delta-up)); }
   .delta-down { color: rgb(var(--delta-down)); }
-  .live-dot { background-color: rgb(var(--live-indicator)); }
-  .live-ping { background-color: rgb(var(--live-indicator)); }
+  /* The live marker paints with the `live` token itself — it used to have a private
+     `--live-indicator` variable that light.css never overrode, which left a red-500
+     dot on a near-white page while the token next to it already knew better (A8). */
+  .live-dot { background-color: rgb(var(--color-live)); }
+  .live-ping { background-color: rgb(var(--color-live)); }
 }
 
 

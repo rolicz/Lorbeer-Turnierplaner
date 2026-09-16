@@ -1,3 +1,6 @@
+/* eslint-disable react-refresh/only-export-components -- `scoreDigits` sizes the
+   numeral columns for a whole list and belongs next to the component that consumes
+   them, like `recordWidths` next to `RecordLine`. */
 /**
  * The one way to render a score (`DESIGN.md` §8).
  *
@@ -7,11 +10,20 @@
  * Numerals are big, tabular and unboxed; the separator is a hairline, never a colon
  * and never a box. Never wrap this in a `chip`/`inset`/borders — the surface belongs
  * to the row or panel around it.
+ *
+ * **In a list, pass `digits`** (Q7). The trio is centred, so a `10` on one row and a
+ * `2` on the next widen the middle cell by different amounts and the separator walks
+ * left and right down the page — measured at 12–16px of drift in the friendlies list.
+ * `digits` gives each numeral the fixed track `RecordLine` gives a record's columns
+ * (T14): `scoreDigits(goals)` once per list, sized to that list's widest score, and
+ * every separator then sits at the same x. A single score (a panel, a hero) needs
+ * nothing: there is no column to keep.
  */
 import type { ReactNode } from "react";
 
 import type { MatchState } from "../../api/types";
 import { cn } from "../cn";
+import { RecordNum } from "./RecordLine";
 
 export type ScoreLineSize = "hero" | "md" | "sm";
 /** Result from the focus side's point of view (win / draw / loss). */
@@ -49,12 +61,27 @@ function toLines(names: ReactNode | ReactNode[]): ReactNode[] {
   return Array.isArray(names) ? names : [names];
 }
 
+/**
+ * How many digits a list's numeral columns must hold — the widest score in *this*
+ * list, never wider. Call it once per list and pass the result to every row's
+ * `digits`, exactly as `recordWidths` is called once per list (T14).
+ */
+export function scoreDigits(goals: readonly (number | null | undefined)[]): number {
+  let d = 1;
+  for (const g of goals) {
+    if (g == null || !Number.isFinite(g)) continue;
+    d = Math.max(d, Math.abs(Math.trunc(g)).toString().length);
+  }
+  return d;
+}
+
 function Names({
   lines,
   size,
   align,
   emphasis,
   badge,
+  mark,
 }: {
   lines: ReactNode[];
   size: ScoreLineSize;
@@ -62,7 +89,10 @@ function Names({
   emphasis: string;
   /** Result badge for this side — it sits on the side's outer edge, next to the names. */
   badge?: ReactNode;
+  /** This side's own symbol (the club crest), between its names and the score. */
+  mark?: ReactNode;
 }) {
+  const justify = align === "right" ? "justify-end" : "justify-start";
   const block = (
     <div className={cn("min-w-0", align === "right" ? "text-right" : "text-left")}>
       {lines.map((n, i) => (
@@ -80,11 +110,27 @@ function Names({
     </div>
   );
 
-  if (!badge) return block;
-  return (
-    <div className={cn("flex min-w-0 items-center gap-2", align === "right" ? "justify-end" : "justify-start")}>
-      {align === "right" ? badge : null}
+  if (!badge && !mark) return block;
+
+  // The mark belongs to the names, not to the numerals: 6px to its own side's
+  // names against the grid's 12px to the score — the same 6px a club symbol
+  // already keeps beside its club name in `MatchSides`, so it reads as part of
+  // the team and not as decoration on the score.
+  const named = mark ? (
+    <div className={cn("flex min-w-0 items-center gap-1.5", justify)}>
+      {align === "left" ? mark : null}
       {block}
+      {align === "right" ? mark : null}
+    </div>
+  ) : (
+    block
+  );
+
+  if (!badge) return named;
+  return (
+    <div className={cn("flex min-w-0 items-center gap-2", justify)}>
+      {align === "right" ? badge : null}
+      {named}
       {align === "left" ? badge : null}
     </div>
   );
@@ -101,6 +147,7 @@ export function ScoreNumerals({
   right,
   leftClassName,
   rightClassName,
+  digits,
   className,
 }: {
   size?: ScoreLineSize;
@@ -108,16 +155,29 @@ export function ScoreNumerals({
   right: ReactNode;
   leftClassName?: string;
   rightClassName?: string;
+  /** Fixed column width, in digits — `scoreDigits(list)`. See the file header. */
+  digits?: number;
   className?: string;
 }) {
+  // Both numerals hug the hairline and the slack goes outward, so the separator —
+  // the thing the eye follows down a list — is the part that cannot move.
+  const track = (value: ReactNode, align: "end" | "start") =>
+    digits ? (
+      <RecordNum digits={digits} align={align}>
+        {value}
+      </RecordNum>
+    ) : (
+      value
+    );
+
   return (
     <div className={cn("flex items-center justify-center gap-2 font-bold tabular-nums", NUMERAL_CLASS[size], className)}>
       <span data-score-numeral="left" className={leftClassName}>
-        {left}
+        {track(left, "end")}
       </span>
       <span aria-hidden="true" className="h-[0.75em] w-px bg-border-card-chip/70" />
       <span data-score-numeral="right" className={rightClassName}>
-        {right}
+        {track(right, "start")}
       </span>
     </div>
   );
@@ -150,7 +210,10 @@ export default function ScoreLine({
   focus = null,
   result = null,
   resultBadge = false,
+  leftMark,
+  rightMark,
   status,
+  digits,
   className,
 }: {
   size?: ScoreLineSize;
@@ -166,8 +229,19 @@ export default function ScoreLine({
   result?: ScoreResult | null;
   /** Renders a 16px W/D/L chip at the row's outer edge (dense lists). */
   resultBadge?: boolean;
+  /**
+   * A small symbol that belongs to one side and travels with its names — the club
+   * crest in the friendlies list (Q8). It sits **between that side's names and the
+   * score**, still outside the numeral track: the fixed score column (`digits`) is
+   * centred in the grid and cannot move, so the mark grows into the names' cell and
+   * pushes the *names* outward instead.
+   */
+  leftMark?: ReactNode;
+  rightMark?: ReactNode;
   /** Hero only: a short status line under the score (`Live · 34'`). */
   status?: ReactNode;
+  /** Fixed numeral columns for a list — `scoreDigits(list)`. See the file header. */
+  digits?: number;
   className?: string;
 }) {
   const scheduled = state === "scheduled";
@@ -199,6 +273,7 @@ export default function ScoreLine({
           align="right"
           emphasis={emphasis("left")}
           badge={badgeSide === "left" ? badge : null}
+          mark={leftMark}
         />
 
         {scheduled && size === "sm" ? (
@@ -214,6 +289,7 @@ export default function ScoreLine({
           <ScoreNumerals
             size={size}
             className="justify-self-center"
+            digits={digits}
             left={scheduled ? "–" : a}
             right={scheduled ? "–" : b}
             leftClassName={scheduled ? "text-text-muted" : numeralColor("left")}
@@ -227,6 +303,7 @@ export default function ScoreLine({
           align="left"
           emphasis={emphasis("right")}
           badge={badgeSide === "right" ? badge : null}
+          mark={rightMark}
         />
       </div>
 

@@ -31,6 +31,12 @@ def configure_db(db_url: str) -> None:
 def init_db() -> None:
     if _engine is None:
         raise RuntimeError("DB not configured. Call configure_db(db_url) first.")
+
+    # Imported here, not at module level: `db` is imported long before the models are
+    # wanted. It must happen *before* create_all, though — pulling in the service pulls
+    # in `app.models`, which is what puts every table into `SQLModel.metadata`.
+    from .services.club_stars import backfill_club_star_history
+
     SQLModel.metadata.create_all(_engine)
     _ensure_runtime_columns()
 
@@ -38,12 +44,23 @@ def init_db() -> None:
     if changed > 0:
         log.info("League nations backfilled: %s", changed)
 
+    # Every club starts its history at its current rating (R4).
+    seeded = backfill_club_star_history(_engine)
+    if seeded > 0:
+        log.info("Club star history seeded: %s", seeded)
+
 
 # Columns added to existing deployments after the fact: (table, column, DDL type/default).
 # Additive only — old code keeps working against a migrated DB.
 _RUNTIME_COLUMNS: tuple[tuple[str, str, str], ...] = (
     ("pushsubscriptionpreference", "notification_mode", "VARCHAR NOT NULL DEFAULT 'finished_only'"),
     ("league", "nation", "VARCHAR"),
+    # `featurerequest` is a table R5 introduces, so a deployed DB creates it whole and
+    # this line is a no-op there (the loop skips a table that does not exist yet). It
+    # is here for the dev databases that ran an in-progress build of R5 before
+    # `edited_at` existed: `create_all` never alters an existing table, so without it
+    # those copies would keep a `featurerequest` the shipped code cannot read.
+    ("featurerequest", "edited_at", "DATETIME"),
 )
 
 

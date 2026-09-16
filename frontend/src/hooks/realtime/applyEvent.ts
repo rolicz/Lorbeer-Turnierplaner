@@ -5,7 +5,7 @@
  */
 import type { QueryClient } from "@tanstack/react-query";
 import { qk } from "../../api/queryKeys";
-import type { TournamentCommentsResponse } from "../../api/types";
+import type { TournamentCommentsResponse, TournamentDetail } from "../../api/types";
 import type { RealtimeMessage } from "./connection";
 import {
   WS_COMMENT_DELETE,
@@ -27,13 +27,57 @@ import {
 const asObj = <T = Record<string, unknown>>(v: unknown): Partial<T> =>
   v && typeof v === "object" ? (v as Partial<T>) : {};
 
-/** Replace the whole tournament cache with the pushed full state (no merge). */
+/**
+ * Put a push in front of the requests it raced (A9).
+ *
+ * `setQueryData` has no ordering guard: a GET that was already on the wire when
+ * this event arrived answers with state from *before* it, and lands after it —
+ * overwriting a score, or resurrecting a comment somebody just deleted. There are
+ * ~12 mutation handlers invalidating these very keys, so an in-flight request is
+ * the normal case right after somebody edits something.
+ *
+ * Invalidating immediately after the write is the fix: it cancels the older
+ * request (so its answer is discarded, never applied) and puts a fresh one behind
+ * the push, which cannot be older than it.
+ *
+ * The predicate is what keeps this honest: it matches only the requests actually
+ * on the wire, so with nothing in flight nothing is invalidated and the push stays
+ * the zero-refetch DOM update this layer exists for. `refetchType: "all"` because
+ * the default ("active") leaves an unobserved query's stale answer to land.
+ */
+function overtakeInFlight(qc: QueryClient, queryKey: readonly unknown[], exact: boolean) {
+  void qc.invalidateQueries({
+    queryKey,
+    exact,
+    refetchType: "all",
+    predicate: (q) => q.state.fetchStatus === "fetching",
+  });
+}
+
+/**
+ * Replace the whole tournament cache with the pushed full state.
+ * The broadcast has no single viewer, so it cannot know this viewer's capability flags
+ * (A10) — they arrive all-false and are kept from what the viewer already fetched, the
+ * same way `applyCommentUpsert` keeps a comment's votes and `can_edit`.
+ */
 export function applyTournamentSync(qc: QueryClient, payload: unknown) {
   const p = asObj<TournamentSyncPayload>(payload);
   const tid = Number(p.tournament_id);
   const tournament = p.tournament;
   if (!tournament || !Number.isFinite(tid)) return;
-  qc.setQueryData(qk.tournament(tid), tournament);
+  const existing = qc.getQueryData<TournamentDetail>(qk.tournament(tid));
+  qc.setQueryData(
+    qk.tournament(tid),
+    existing
+      ? {
+          ...tournament,
+          can_edit: existing.can_edit,
+          can_delete: existing.can_delete,
+          can_set_decider: existing.can_set_decider,
+        }
+      : tournament,
+  );
+  overtakeInFlight(qc, qk.tournament(tid), true);
 }
 
 export function applyTournamentDeleted(qc: QueryClient, payload: unknown) {
@@ -76,8 +120,12 @@ export function applyCommentUpsert(qc: QueryClient, payload: unknown) {
     return { ...prev, comments: next };
   });
 
+  overtakeInFlight(qc, qk.commentsTournament(tid), false);
   // A new comment may be a reply to the viewer's comment → refresh the bell.
   void qc.invalidateQueries({ queryKey: qk.notificationsAll() });
+  // …and it changes the unread count the tournaments list shows for this
+  // tournament, exactly like the meta/global reducers below (A5).
+  void qc.invalidateQueries({ queryKey: qk.commentsSummary() });
 }
 
 export function applyCommentDelete(qc: QueryClient, payload: unknown) {
@@ -92,6 +140,9 @@ export function applyCommentDelete(qc: QueryClient, payload: unknown) {
       comments: (prev.comments ?? []).filter((c) => c.id !== cid),
     };
   });
+  overtakeInFlight(qc, qk.commentsTournament(tid), false);
+  // A deleted comment must not keep counting towards the list's unread badge (A5).
+  void qc.invalidateQueries({ queryKey: qk.commentsSummary() });
 }
 
 /** Vote / pin / read metadata changed -> narrow refetch (accurate counts + my_vote). */
@@ -106,10 +157,17 @@ export function applyCommentMeta(qc: QueryClient, payload: unknown) {
 export function applyTournamentsChanged(qc: QueryClient, payload: unknown) {
   const p = asObj<TournamentsChangedPayload>(payload);
   const action = typeof p.action === "string" ? p.action : "";
-  void qc.invalidateQueries({ queryKey: qk.tournaments() });
-  void qc.invalidateQueries({ queryKey: qk.tournamentsLive() });
   void qc.invalidateQueries({ queryKey: qk.commentsSummary() });
-  if (action === "deleted" || action === "status") {
+  // A comment changes nothing about the tournament itself — only its unread
+  // badge — so it is the one action that does not refetch the list (A5).
+  if (action !== "comment") {
+    void qc.invalidateQueries({ queryKey: qk.tournaments() });
+    void qc.invalidateQueries({ queryKey: qk.tournamentsLive() });
+  }
+  // `result` is a score/side correction on an already-done tournament: no status moved,
+  // but the winner, the cup owner and every stat did. Without it those three could stay
+  // wrong on every other device until something happened to remount them (Q9).
+  if (action === "deleted" || action === "status" || action === "result") {
     void qc.invalidateQueries({ queryKey: qk.stats.all() });
     void qc.invalidateQueries({ queryKey: qk.cupAll() });
   }

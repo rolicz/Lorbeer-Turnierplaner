@@ -2,6 +2,7 @@ import { useLocation } from "react-router-dom";
 
 import { useAuth } from "../../auth/AuthContext";
 import { useLiveTournament } from "../../hooks/useLiveTournament";
+import { NAV_JUMP_STATE } from "./backNavigation";
 import { resolveDestination } from "./lastLocation";
 import { activeDest, visibleDests, type NavDest } from "./navConfig";
 
@@ -11,6 +12,14 @@ export type DestinationLink = {
   to: string;
   /** Whether the item owns the current page (aria-current + active styling). */
   isActive: boolean;
+  /**
+   * `location.state` for the link: every one of these is a **jump** (Q6b). Tapping
+   * a destination can land on the page U6 remembered — a tournament, a match, a
+   * profile — and back from there must go up inside the destination you asked
+   * for, not pop out into the one you were in before (N1). Spread it on the
+   * `<Link>`; the three shells share it so they cannot drift apart.
+   */
+  state: typeof NAV_JUMP_STATE;
 };
 
 /**
@@ -46,6 +55,7 @@ export function useDestinationLinks(
       return {
         dest: d,
         to: resolveDestination(d, loc.pathname, fallback),
+        state: NAV_JUMP_STATE,
         isActive: active?.key === d.key && !(options.hasLiveEntry && onLivePage),
       };
     });

@@ -15,6 +15,8 @@ export const qk = {
   tournaments: () => ["tournaments"] as const,
   tournamentsLive: () => ["tournaments", "live"] as const,
   tournament: (id: number | string) => ["tournament", id] as const,
+  /** Counts for the re-assign confirmation (Q5) — fetched when the dialog opens. */
+  tournamentReassignPreview: (id: number | string) => ["tournament", id, "reassign-preview"] as const,
 
   // ---- comments -----------------------------------------------------------
   commentsSummary: () => ["comments", "summary"] as const,
@@ -26,6 +28,14 @@ export const qk = {
   commentsReadIds: (tournamentId: number, token: string | null) =>
     ["comments", "read", tournamentId, token ?? "none"] as const,
   commentsReadMap: (token: string | null) => ["comments", "read-map", token ?? "none"] as const,
+
+  // ---- ideas / feature requests -------------------------------------------
+  /** Prefix key — invalidates every ideas query regardless of viewer. */
+  ideasAll: () => ["ideas"] as const,
+  /** Full key including the viewer token: rows carry per-caller capability flags and my_vote. */
+  ideas: (token: string | null) => ["ideas", "list", token ?? "none"] as const,
+  ideaAreas: () => ["ideas", "areas"] as const,
+  ideaVoters: (ideaId: number | string) => ["ideas", "voters", ideaId] as const,
 
   // ---- players ------------------------------------------------------------
   players: () => ["players"] as const,
@@ -58,6 +68,8 @@ export const qk = {
 
   // ---- clubs / leagues ----------------------------------------------------
   clubs: (game?: string) => (game ? (["clubs", game] as const) : (["clubs"] as const)),
+  /** One club's star-rating history (R4) — read-only, shown next to the editors. */
+  clubStarHistory: (clubId: number) => ["clubs", "star-history", clubId] as const,
   leagues: () => ["leagues"] as const,
 
   // ---- cup ----------------------------------------------------------------
@@ -66,7 +78,11 @@ export const qk = {
   cupAll: () => ["cup"] as const,
 
   // ---- friendlies ---------------------------------------------------------
+  /** Prefix key — invalidates every friendlies query regardless of mode/viewer. */
   friendlies: (mode?: string) => (mode ? (["friendlies", mode] as const) : (["friendlies"] as const)),
+  /** Full key including the viewer token: the rows carry per-caller capability flags (A10). */
+  friendliesList: (mode: string, token: string | null) =>
+    ["friendlies", mode, token ?? "none"] as const,
 
   // ---- push notifications -------------------------------------------------
   push: {
@@ -79,9 +95,11 @@ export const qk = {
   // ---- stats --------------------------------------------------------------
   stats: {
     all: () => ["stats"] as const,
-    players: (mode?: string, lastN?: number | string) =>
+    players: (mode?: string, lastN?: number | string, scope?: string) =>
       mode !== undefined && lastN !== undefined
-        ? (["stats", "players", mode, lastN] as const)
+        ? scope !== undefined
+          ? (["stats", "players", mode, lastN, scope] as const)
+          : (["stats", "players", mode, lastN] as const)
         : (["stats", "players"] as const),
     h2h: (playerId?: number | string, limit?: number, order?: string, scope?: string) =>
       playerId !== undefined && limit !== undefined && order !== undefined

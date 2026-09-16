@@ -2,6 +2,7 @@ import { ArrowRightLeft, Flag, MessagesSquare, Play, RotateCcw } from "lucide-re
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import Button from "../../ui/primitives/Button";
+import ConfirmDialog from "../../ui/primitives/ConfirmDialog";
 import type { Club, Match, MatchSide, Player, TournamentMode } from "../../api/types";
 import { teamName } from "../../utils/matchDisplay";
 import { sideBy } from "../../helpers";
@@ -68,6 +69,9 @@ export default function CurrentGameSection({
   const [bClub, setBClub] = useState<number | null>(b?.club_id ?? null);
   const [aGoals, setAGoals] = useState<number>(Number(a?.goals ?? 0));
   const [bGoals, setBGoals] = useState<number>(Number(b?.goals ?? 0));
+  /** Reset wipes a real result, finishing an unplayed match records one: both ask (R2). */
+  const [resetAsked, setResetAsked] = useState(false);
+  const [finishAsked, setFinishAsked] = useState(false);
 
   // Clubs: `SelectClubsPanel` below holds the whole job — both slots, the
   // filters and the two random actions — behind one disclosure (T9).
@@ -285,11 +289,7 @@ export default function CurrentGameSection({
             {canControl && activeMatch.state !== "scheduled" && (
               <Button
                 variant="ghost"
-                onClick={() => {
-                  const text = "This will reset the match to 0:0 and scheduled state. Are you sure?";
-                  if (!window.confirm(text)) return;
-                  void reset();
-                }}
+                onClick={() => setResetAsked(true)}
                 disabled={busy}
                 title="Reset"
               >
@@ -302,11 +302,12 @@ export default function CurrentGameSection({
               <Button
                 disabled={busy}
                 onClick={() => {
-                  const text =
-                    activeMatch.state === "scheduled"
-                      ? "Match not started. Are you sure you want to finish this match (0:0)?"
-                      : undefined;
-                  if (text && !window.confirm(text)) return;
+                  // Finishing a match that was never started records a result nobody
+                  // played — the one case worth asking about.
+                  if (activeMatch.state === "scheduled") {
+                    setFinishAsked(true);
+                    return;
+                  }
                   void save("finished");
                 }}
                 title="Finish match"
@@ -393,6 +394,41 @@ export default function CurrentGameSection({
           </div>
         ) : null}
       </div>
+
+      {/* Reset throws a played result away, so it names the score it wipes (DESIGN.md §7). */}
+      <ConfirmDialog
+        open={resetAsked}
+        title="Reset this match?"
+        subtitle="It goes back to scheduled, ready to be played again."
+        confirmLabel="Reset match"
+        busyLabel="Resetting…"
+        busy={busy}
+        onCancel={() => setResetAsked(false)}
+        onConfirm={() => {
+          setResetAsked(false);
+          void reset();
+        }}
+      >
+        <div>
+          {aInline} {aGoals}–{bGoals} {bInline} is wiped.
+        </div>
+        <div>The clubs stay; the standings drop this match until it is played again.</div>
+      </ConfirmDialog>
+
+      {/* Nothing is lost by finishing — Reset puts it back — so no red block. */}
+      <ConfirmDialog
+        open={finishAsked}
+        title={`Finish this match at ${aGoals}:${bGoals}?`}
+        subtitle="It was never started. It counts as a played result in the standings, and Reset puts it back."
+        confirmLabel="Finish match"
+        busyLabel="Finishing…"
+        busy={busy}
+        onCancel={() => setFinishAsked(false)}
+        onConfirm={() => {
+          setFinishAsked(false);
+          void save("finished");
+        }}
+      />
     </div>
   );
 }

@@ -3090,9 +3090,44 @@ Recorded so they are not forgotten. Do not implement without an explicit go.
    - **An import must never touch existing FC 26 ratings** (Roli, 2026-09-13) — those are his, set
      by hand. A star import writes only the clubs of the game being imported.
    - **Still open:** whether FC 27 ratings are imported automatically or typed in.
+   - **The season/year view ships here, not before** (R4b, Roli 2026-09-15: *"fold the 'season or
+     year view' into the ea fc 27 changes -> i dont want them now, but when the game arrives i
+     want the plan to be ready"*). The two filters answer different questions and must both
+     exist, side by side in the filter pill:
+     - **Game** ("which edition was this played on") is a property of the *night* — it comes off
+       `Tournament.game` / `FriendlyMatch.game`, is exact, and is the filter that makes a club
+       comparison honest, because a club is a different thing in FC 26 and FC 27 (different
+       squad, often a different star rating).
+     - **Season** ("which run of nights was this") is a property of the *calendar*, derived from
+       the same `date` the cups and the as-of star ratings already use — nothing new is stored.
+       Roli's nights run with the game's year, so the season is a **1 Aug → 31 Jul** window
+       labelled by its release (`FC 26` = 2026-08-01 … 2027-07-31), not a calendar year: a
+       January night belongs to the season it was played in, not to a new one. A tournament
+       before the first release window (everything up to 2026-07-31) falls into one open-ended
+       "Before FC 27" bucket rather than inventing seasons backwards.
+     - **In practice the two coincide** the day FC 27 arrives, and they will drift apart the
+       moment one night is played on the old game after the new one is out — which is exactly
+       why Season is derived from the date and Game is stored on the row. Never compute one from
+       the other.
+     - **Where it applies:** the same surfaces `scope` already reaches — every `/stats/*`
+       endpoint that reads matches takes a `season` (or `game`) query param the same way, plus
+       the tournaments list and the friendlies list. It does **not** apply to the clubs page or
+       the pickers (those are a catalogue of what exists now, and Game alone narrows them), nor
+       to a single tournament's own pages.
+     - **Cups are already date-scoped and stay that way.** A cup era (`cups.json`, `since`/`mode`)
+       is its own timeline and must not be re-cut by a season filter: the Cups sub-view keeps
+       showing the full lineage, and a season filter never hides a reign or splits one in two.
+       Where a season and an era boundary disagree, the era wins — it is the rule the cup was
+       actually played under. The one place they meet is the Overview's per-season summary, where
+       "who held what at the end of this season" is a legitimate read of the same fold.
+     - **Same rule as the Game control:** the control is **not rendered while the data holds only
+       one season**, so nothing changes visually until the second season exists.
+     - Default is **All seasons** (like Mode's Overall), and the param is written with `replace`
+       like every other stats param (`&season=`, §10's URL scheme).
 
-4. **Star-rating history (Roli, 2026-09-13):** "when it has 2 stars and then 3, it should still
-   count as 2 stars for stats if played before the change."
+4. **Star-rating history (Roli, 2026-09-13):** → *implemented as R4 (2026-09-15); the research
+   below is what it was built from and the numbers it predicted held.* "when it has 2 stars and
+   then 3, it should still count as 2 stars for stats if played before the change."
    - **Today there is no history.** `Club.star_rating` is a single float (`models.py:168`), a
      `PATCH /clubs/{id}` overwrites it, and `MatchSide` stores only `club_id`. The stats "Club
      stars" view joins *today's* rating onto every historical match, so re-rating a club silently
@@ -5027,7 +5062,7 @@ backend claims were re-verified by the planner before being written down here. B
 already holds and must not regress: zero console errors, zero failed requests, zero horizontal
 overflow, zero nested anchors, no page hidden behind the bottom bar.
 
-## A1 — Permissions: two endpoints trust "editor" too far  ☐
+## A1 — Permissions: two endpoints trust "editor" too far  ☑
 
 **A1a. A finished tournament's result can be rewritten by any editor — and that moves the cup.**
 `backend/app/routers/tournaments.py:745-751`: `PATCH /tournaments/{id}/decider` is guarded by
@@ -5051,11 +5086,76 @@ only ever calls with admin headers — fix that too.
 
 **DoD:** `make test` green with the new cases; a reader/editor/admin matrix in Deviations.
 
-**Deviations:**
+**Deviations:** (implemented 2026-09-13 on `feature/2026-09-audit`)
+
+Both findings reproduced exactly as written before anything was changed.
+
+**A1a.** `patch_decider` now does what every sibling does, in the same two lines and the same
+place (right after the `get_or_404`): `compute_status_for_tournament` + `ensure_not_done_or_admin(
+status_now, role, action="set the decider")` — the previously unused `role` is what it reads.
+Detail string: `Tournament is done (admin required to set the decider)`.
+
+**A1b.** The rule was not re-invented: the block `patch_comment` already ran is now a helper,
+`_ensure_can_edit_comment(s, c, claims)` in `routers/comments.py` (next to the other `_validate_*`
+guards), which calls the same `comment_can_edit` and raises the same 403
+(`You can only edit your own comment within an hour of posting`, now through `api_utils.forbidden`
+instead of an inline `HTTPException` — same response, the documented convention). It returns
+`(viewer_id, is_admin, real_author_id)` so `patch_comment` still recomputes `can_edit` after the
+edit without loading the author link twice. Both image routes dropped
+`dependencies=[Depends(require_editor)]` for `claims: dict = Depends(require_editor_claims)` and
+call the helper — the shape `players.py` uses for owner-guarded media.
+
+**Matrix** (verified by the new tests):
+
+| Endpoint | reader (no token) | editor, not own / done | editor, own / not done | admin |
+|---|---|---|---|---|
+| `PATCH /tournaments/{id}/decider` | 401 `Missing token` | 403 `Tournament is done (admin required to set the decider)` | 200 (tournament draft/live) | 200 always |
+| `PUT /comments/{id}/image` | 401 `Missing token` | 403 `You can only edit your own comment within an hour of posting` | 200 (own comment, <1h) | 200 always |
+| `DELETE /comments/{id}/image` | 401 `Missing token` | 403 (same string) | 200 (own comment, <1h) | 200 always |
+
+(Reader = no `Authorization` header → 401 from `require_auth_claims`; a token below `editor`
+would be 403 `Insufficient privileges`. There is no such account.)
+
+**Frontend.** `AdminPanel.tsx:145` mirrors the server rule the way `canReorder` (`:112`) already
+did — `isAdmin || (role === "editor" && !done)` — and an editor on a done tournament now gets the
+muted line *"Tournament is done — only an admin can set the decider."*, the same shape as the
+existing *"Tournament is done."* under the reorder buttons (`:261`). **Consequence worth knowing:**
+`LiveTournamentPage.tsx:258` only shows the decider editor at all when `isDone && isTopDraw`, so in
+today's UI the decider is now effectively **admin-only**; the editor path exists on the API (a tie
+at the top of a *live* tournament) but nothing renders it. That is what the docstring always said,
+and it is exactly the hole A1a describes, so it was not softened.
+
+**Tests.** `test_tournament_endpoints_current.py::test_decider_is_open_to_editors_only_until_the_
+tournament_is_done` (reader/editor/admin, live *and* done, asserting the detail string);
+`test_comments_current.py::test_comment_image_follows_the_text_edit_rule` (reader, non-author
+editor on PUT and DELETE, author, admin override); one window case appended to
+`test_comment_guestbook_edits.py::test_comment_edit_window_expires` (past 1h the author cannot
+attach an image either, the admin can) — that file already owns the backdating helper.
+`test_stats_endpoints.py:119` now actually calls the decider as editor (403) before the admin call
+(200), so its comment is true.
+
+**Noticed, reported, not fixed** (out of A1's scope):
+- `tournaments.py:602` `PATCH /second-leg` also injects `role` and never reads it, and its own NOTE
+  says it may revive a *done* tournament to "live" on purpose — an editor can therefore still
+  re-open finished tournament data through it (and then edit matches, which the revival makes legal).
+  Same class as A1a, but documented as intended, so it needs Roli's call, not a worker's.
+- `tournaments.py:855` `POST /reassign` injects an unused `role` too, but its own preconditions
+  (every match still `scheduled` and untouched) make a done tournament unreachable — harmless.
+- `matches.py:94` and `:276` hand-write the `Tournament is done (admin required to …)` string
+  instead of calling `ensure_not_done_or_admin` (`:94` has a deliberate last-match exception and
+  cannot use it as-is; `:276` could).
+- The reader hint under the decider still reads *"Login as editor/admin to set a decider."* — with
+  the editor path unreachable in the UI (above) that is now imprecise; left alone deliberately.
+- `deleteCommentImage` (`frontend/src/api/comments.api.ts:112`) has no call site — dead API surface.
+
+**Verification:** `make test` → **132 passed** (130 before, +2 cases), `make lint` → *All checks passed!*,
+`make gen-types` → no diff (no response model changed), `cd frontend && npm run check` → typecheck
++ eslint clean, **48 files / 463 tests passed**. No browser run: both changes are permission logic,
+and the plan allows editor/admin flows to be checked by code + tests (Runtime verification note).
 
 ---
 
-## A2 — The match page can silently overwrite another editor's result  ☐
+## A2 — The match page can silently overwrite another editor's result  ☑
 
 `frontend/src/pages/live/MatchDetailPage.tsx` reads `qk.tournament(tid)` (`:63`) but subscribes to
 **no** tournament channel — it is a sibling route (`app/App.tsx:35`), not nested under
@@ -5073,11 +5173,78 @@ second save reverts the first.
 **DoD:** two browsers on one match; A saves 2:1 finished, B (stale) saves → B does not silently
 revert A; realtime updates land on the match page; `npm run check` + build.
 
-**Deviations:**
+**Deviations:** (implemented 2026-09-13 on `feature/2026-09-audit`)
+
+Reproduced first, two browser contexts on match 116 of the live tournament 21 (isolated stack,
+DB copy): A saved 3:1 → B's page never moved, and B pressing **Save** *having touched nothing*
+wrote 1:0 back. Also reproduced with disjoint fields (B only flipped the status → A's 4:2 became
+1:0 finished) and with a real clash (B had typed 5, A saved 2:2 → B's save wrote 5:0, no warning).
+
+**The decision.** The form no longer holds a copy of the match. It holds **only the fields this
+editor changed** (`MatchEdits` in the new `pages/live/matchDraft.ts`), each with the value it
+started from (`base`); every untouched field simply renders the server's current value. That
+makes the two halves of the problem disappear rather than be managed:
+- a realtime update *is* the form for untouched fields — there is no re-seed that could land
+  under someone's hands, and no effect that writes state (see "lint" below),
+- a touched field is this editor's until they save or drop it.
+
+Three rules ride on that:
+1. **`base` is captured when the field is first changed, not at page load.** The yardstick is
+   "the value I was looking at when I touched this", so an update the editor has already watched
+   arrive is not replayed as a conflict. Setting a field back to its base drops the override, so
+   the field follows the server again.
+2. **A save sends only the changed fields.** `PATCH /matches/{id}` already applies per field
+   (`model_fields_set` on the body *and* on each side), so a narrow body is enough — no backend
+   change. Disjoint edits now merge: B flipping the status keeps A's goals.
+3. **A stale save cannot win quietly.** The save re-reads the tournament (`fetchQuery`,
+   `staleTime: 0` — the global default is 5 s, and the socket can be dead on a backgrounded
+   phone) *immediately before writing*. If a field both editors moved disagrees and this exact
+   server state has not been acknowledged, **nothing is sent**: the amber banner names
+   field / theirs / yours, an error toast says the save was not sent, and the button becomes
+   **"Save my changes anyway"** — a second, deliberate press overwrites. "Use their values"
+   drops this editor's edits instead. Acknowledgement is the *whole* match state, so another
+   change arriving between the two presses re-arms the guard (deliberately strict).
+
+Also: `useTournamentWS(tid)` is now mounted here (it is a sibling route, so it had no channel at
+all — the comments tab on this page was equally frozen); pressing Save with nothing changed sends
+no request at all and just goes back; `swap-sides` drops pending edits, because after a swap a
+per-side edit means the opposite of what it meant; goals are numbers in state now (the string
+state + `parseGoal` only existed for a text input this page no longer has).
+
+**Rejected:** re-seeding the whole form on every `tournament.sync` (that *is* clobbering someone's
+typing), and a `window.confirm` on every save (noise on the 99 % of saves where nobody else is
+editing). A version/ETag on the match would be the real fix for two saves in the same second;
+that is a backend contract change and Roli's call, not a worker's — the pre-save re-read closes
+everything except a true sub-second race.
+
+**Lint note worth keeping:** the first implementation synced state in a `useEffect` (the shape the
+old code used). `react-hooks/set-state-in-effect` (React Compiler rules, on in this repo) rejects
+it. That is what pushed the design to derived state — the rule was right.
+
+**Two-browser proof** (A = admin Roli, desktop 1280; B = editor Flo, phone 390; same match,
+`?tab=edit`; server state read back from `GET /tournaments/21`):
+
+| # | What happened | Server before A2 | Server after A2 |
+|---|---|---|---|
+| 1 | A saves 3:1; B (untouched form) presses Save | **1:0** — A's result gone; B's page still showed 1:0 | **3:1** — B's page had followed to 3:1 live, B's Save sent nothing |
+| 2 | B has typed 5; A saves 2:2; B presses Save | **5:0** — silently, and A's 2 reverted to 0 | **2:2** — refused, banner *"Goals Rumpi + Berni: now 2 on the server — you have 5"*; 2nd press ("Save my changes anyway") → **5:2**: B's 5 deliberately, A's 2 kept |
+| 3 | B flips the status only; A saves 4:2; B presses Save | **1:0 finished** — A's goals gone | **4:2 finished** — both edits survive, no banner needed |
+
+Checked in both widths and both themes (screenshots), plus one club run (random matchup → Save
+wrote `aClub`/`bClub` only, goals and state untouched). Zero console errors in every run.
+
+**Noticed, reported, not fixed** (outside A2):
+- `pages/live/CurrentGameSection.tsx` (the live page's inline editor) autosaves a *full* body
+  (`state` + both clubs + both goals) on a debounce — the same class of overwrite on a different
+  surface. It sits inside a subscribed page, so its inputs do follow the server, but two editors
+  there still fight field-by-field.
+- `hooks/realtime/applyEvent.ts:105` `applyTournamentsChanged` still never invalidates
+  `qk.tournament` — the coarse `/ws/tournaments` channel cannot refresh an open detail page.
+  Irrelevant here now (this page has its own channel) but A5 should look at it.
 
 ---
 
-## A3 — A club edit never reaches stats, profiles or friendlies  ☐
+## A3 — A club edit never reaches stats, profiles or friendlies  ☑
 
 `frontend/src/pages/ClubsPage.tsx:188,221,231,422` invalidate `qk.clubs(game)` = `["clubs", game]`.
 TanStack prefix matching is one-directional, so the **unfiltered** `["clubs"]` key is never
@@ -5091,11 +5258,70 @@ trap — report what you find, `qk` was swept once in A1 of the June refactor an
 **DoD:** rename a club / change its stars on the Clubs page → the new value is visible on Stats,
 a profile and the friendlies list without a reload; `npm run check`.
 
-**Deviations:**
+**Deviations:** (implemented 2026-09-13 on `feature/2026-09-audit`)
+
+All four invalidations in `ClubsPage.tsx` (create `:188`, patch `:221`, delete `:231` and the
+manual **Refresh** button `:422`) now pass `qk.clubs()`; the page's own *query* keeps
+`qk.clubs(game)` — the prefix has to be on the invalidation side, never on the query side. One
+comment at the first site says why, so the trap does not grow back. `src/test/queryKeys.test.ts`
+gained a regression test that asserts **both** directions against a real `QueryClient`:
+`qk.clubs()` invalidates `["clubs"]` *and* `["clubs", game]`, while `qk.clubs(game)` leaves
+`["clubs"]` untouched.
+
+**Runtime proof** (isolated stack, DB copy, admin session, **one SPA session** — the only page
+load is the first one; every later hop is a nav click). Club 7 `Paris Saint-Germain F.C.` →
+`Paris A3 Renamed FC`, renamed on `/clubs`:
+
+| Surface (after the rename, no reload) | before A3 | after A3 |
+|---|---|---|
+| `/friendlies` → *Details* | old name still shown | new name, old name gone |
+| `/stats` → *Player* → *Details* (match history) | old name still shown | new name, old name gone |
+
+Zero console errors. Every consumer listed in the finding shares the **same** cache entry
+(`["clubs"]`), so the two surfaces above prove the invalidation for `H2HView`, `MatchupView`,
+`PlayerProfile`, `StarsView` and `ProfilePage` as well.
+
+**Where the DoD could not be checked as written:** `/profiles/:id` renders **no** club name or
+rating today — both of its `MatchHistoryList`s hardcode `showMeta={false}`
+(`profile/MatchHistorySection.tsx:31`, `profile/ProfileOverviewTab.tsx:189`), so its
+`qk.clubs()` query (`ProfilePage.tsx:75`) feeds a prop nothing displays. The invalidation now
+reaches it; there is simply nothing on that page to look at. Reported, not changed.
+
+**Sweep of every key factory that takes an optional argument** (the one-way-prefix trap):
+
+| Key | Query sites | Invalidated with | Verdict |
+|---|---|---|---|
+| `clubs(game?)` | `["clubs", game]` (Clubs page, live page, match page, friendly cards) **and** `["clubs"]` (stats, matchup, profile, stars, friendlies list) | was `clubs(game)` → now `clubs()` | **the bug — fixed** |
+| `friendlies(mode?)` | `friendlies(mode)` (`FriendlyMatchesListCard:235`) | `friendlies()` (`FriendlyMatchCard:295`, `FriendlyMatchesListCard:130,278`) | right way round |
+| `stats.players / h2h / streaks / ratings / playerMatches / playerTiles / starsPerformance` | always the full form | only ever `stats.all()` = `["stats"]` | safe; the zero-arg forms of these factories are used **nowhere** outside `queryKeys.test.ts` |
+| `push.subscriptions(token)` | full key | `push.subscriptionsAll()` (prefix) *and* `push.subscriptions(token)` (exact) | both correct |
+
+Correct prefix/full pairs elsewhere, checked and left alone: `commentsTournament(tid)` ⊂
+`commentsTournamentFull(tid, token)`, `playerPokesReadPrefix(pid)` ⊂ `playerPokesReadIds(pid,
+token)`, `notificationsAll()` ⊂ `notifications(token)`, `cupAll()` ⊂ `cup(key)`/`cupDefs()`,
+`tournaments()` ⊂ `tournamentsLive()`.
+
+**Noticed, reported, not fixed:**
+- `qk.players()` = `["players"]` is a prefix of **every** player key — profiles, avatars,
+  headers, guestbook, pokes and all their read-maps. `PlayersAdminPage:74,94` invalidates it
+  after a create/rename, so all of those refetch too. A superset, not a bug, but worth knowing
+  before anyone puts an expensive query under `["players"]`.
+- `qk.tournament(id)` (singular) is deliberately **not** under `qk.tournaments()`, which is why
+  the coarse `/ws/tournaments` channel cannot refresh an open detail page (see A2, A5).
+- The `?? "none"` keys (`playerProfile`, `playerGuestbook`, `playerPokes`, `stats.*` on the
+  profile) use the identical expression on both the query and the invalidation side, so they
+  match; with a null id both sides address a placeholder key no query ever holds — a no-op.
+- `qk.leagues()` is invalidated nowhere. Nothing in the UI creates a league (the Clubs page only
+  picks from the existing list), so nothing goes stale today.
+- There is no crest-upload UI (`PUT /clubs/{id}/crest` is API-only), so no invalidation is
+  missing for crests.
+- Club **names and star ratings are resolved client-side from the clubs list** on every surface
+  (the stats endpoints return `club_id` only), so `["clubs"]` really is the single cache entry a
+  club edit has to reach — no `stats.all()` invalidation is needed on top.
 
 ---
 
-## A4 — The Source filter is offered where the endpoint ignores it  ☐
+## A4 — The Source filter is offered where the endpoint ignores it  ☑
 
 `GET /stats/players` takes no `scope` (`backend/app/routers/stats.py:59-65`) — it is
 tournaments-only. Yet `pages/stats/StatsInsights.tsx:44,47` declares `scope: true` for
@@ -5112,11 +5338,83 @@ small. Whichever you choose, no surface may show a filter it ignores.
 **DoD:** every stats sub-view either honours Source or does not display it; a screenshot per
 sub-view with Source = Friendlies; `make test` if the backend changed; `npm run check`.
 
-**Deviations:**
+**Deviations:** (implemented 2026-09-14 on `feature/2026-09-audit`)
+
+**Option 1 — the endpoint learned `scope`.** Option 2 was checked first and is the wrong answer
+here, because *neither* sub-view actually ignores Source; each one mixes.
+
+- `overview:table`: everything except one column comes from the **scope-aware** ratings endpoint
+  (`standings.ts:19-23` — pts, P, W-D-L, Win%, GF/GA/GD, Elo). Only **Form** came from
+  `/stats/players`. Hiding the filter would have hidden a control that thirteen of the fourteen
+  columns obey — and the URL keeps `?source=` regardless, so the table would still have changed
+  silently when the filter was set from another sub-view. A hidden filter that is honoured is a
+  worse lie than a shown filter that is half honoured.
+- `overview:records`: the four match superlatives already come from the scope-aware
+  `/stats/player-matches`; only the "Most tournament wins" group came from `/stats/players`.
+
+**What the service layer cost** (the thing the task said to look at): the two halves it needed
+already existed. `services/stats/ratings.py` and `streaks.py` each load "finished tournament
+matches + finished friendlies wrapped to look like matches" with `scope.py`'s
+`include_tournaments` / `include_friendlies` / `friendlies_schema_ready` / `safe_exec_all`, and
+`services/stats/core.py` — which does all of `/stats/players`' counting — is duck-typed
+throughout (`getattr(m, "tournament", …)`, `m.state`, `m.sides`). So the change is one loader
+(+25 lines in `players.py`), one query param, one echoed field. That is cheaper than the
+frontend surgery option 2 would have needed, and it makes the filter mean one thing everywhere.
+
+**The one judgement call: what a friendly does to the tournament half of the payload.** A
+*position* only exists inside a tournament, so friendlies contribute none:
+`finished_tournament_ids` is derived from `m.tournament_id`, which the wrapper sets to `None`, so
+with `scope=friendlies` `tournaments` is `[]`, every `positions_by_tournament` is `{}` and the
+Records "Most tournament wins" group therefore disappears — which is the truth ("no titles are
+won in friendlies"), not a regression. With `scope=both` the totals and form span both sources
+while the tournament block is still built from the tournament half alone. `cup_owner_player_id`
+is cup state and stays scope-independent.
+
+**One small consolidation, deliberate.** `_friendly_as_match_like` existed **twice**, byte for
+byte, in `ratings.py` and `streaks.py`; `players.py` would have made three. It moved to
+`services/stats/scope.py` as `friendly_as_match_like` (the module those three already import for
+every other scope helper) and gained the two attributes `core.py` reads on whatever it is handed
+— `state="finished"` (the loaders only ever wrap finished friendlies) and `tournament_id=None`
+(a friendly belongs to no tournament). No behaviour change for ratings/streaks: both filter
+`state == "finished"` in SQL already and never read either attribute. This removes duplication
+rather than adding a fourth copy; nothing else in those two files was touched.
+
+**Frontend.** `getStatsPlayers` takes `scope` (omitted when `tournaments`, like every sibling
+fetcher); `qk.stats.players(mode, lastN, scope)` gained the optional third segment in the same
+shape `qk.stats.streaks` already uses, so the cache splits per source. Two call sites pass it —
+`standings.ts` (Form) and `RecordsView` (titles). The call sites that do **not** offer the filter
+were deliberately left on the default: `PositionsView` (Positions declares `scope: false`),
+`ProfilePage`, `TrendsPreviewCard` and `StandingsPreviewCard` (dashboard, always
+`"tournaments"`). The `FILTERS` map in `StatsInsights.tsx` is unchanged — it was already telling
+the truth about which sub-views *should* use Source; the endpoint was the part that lied.
+
+**Runtime proof** (isolated stack: backend :8003 on a copy of the dev DB, vite :8020, scratch
+secrets; 20 friendlies and 18 tournaments in the data). Every sub-view loaded at 390px and
+1280px with `?source=friendlies`, **zero console errors and zero failed requests** in every run:
+
+| Sub-view | Offers Source? | With Source = Friendlies |
+|---|---|---|
+| Overview · Table | yes | Roli P 16 (was 65), Form (last 12) redrawn from friendlies |
+| Overview · Positions | **no** (pill shows Mode only) | unchanged, as before |
+| Overview · Streaks | yes | friendly-only runs |
+| Overview · Records | yes | the four superlatives are friendlies; "Most tournament wins" is **gone** |
+| Overview · Cups | **no** (no pill at all) | unchanged, as before |
+| Trends | yes | x-axis is Friendly #1…#21 |
+| H2H | yes | matrix shows only friendly meetings |
+| Player | yes | Played 16, Form sparkline redrawn |
+
+The Form sparkline was read out of the DOM per source to prove it moves and is not a cache echo:
+`tournaments` → `2,20,2,14,2,2,20,20,2,2,2`…, `friendlies` → `14,14,14,20,14,2,14,2,2,2,2`…,
+`both` → a third series. `/stats/players?scope=…` at the API: Roli played 65 / 16 / 81.
+
+**Noticed, reported, not fixed:** `/stats/players` still returns `cup_owner_player_id`, marked
+"legacy" in its own comment since the frontend moved to `/cup`; nothing reads it
+(`grep cup_owner_player_id frontend/src` → 0 hits outside the generated schema). Dead response
+surface, out of A4's scope.
 
 ---
 
-## A5 — Deep links and freshness: four smaller realtime/navigation bugs  ☐
+## A5 — Deep links and freshness: four smaller realtime/navigation bugs  ☑
 
 1. **`?unread=1` never jumps.** `pages/live/LiveTournamentPage.tsx:199-210` deletes the param
    *outside* the `if (latestUnreadCommentId)` guard, but that id comes from a comments query still
@@ -5138,11 +5436,101 @@ sub-view with Source = Friendlies; `make test` if the backend changed; `npm run 
 **DoD:** the unread pill jumps to the comment on a cold load; the tab survives a reload; a second
 viewer sees a new guestbook entry and a moved comment badge without remounting; `npm run check`.
 
-**Deviations:**
+**Deviations:** (implemented 2026-09-14 on `feature/2026-09-audit`)
+
+All four reproduced first, on this branch, before anything was changed (the "before" column
+below is measured, not inferred).
+
+**Items 1 + 2 — one cause, one fix.** Both deep links wrote the URL **twice in one render
+pass**: `setActiveTab("comments")` first, then `setSearchParams(new URLSearchParams(
+location.search) minus their own param)`. The second write starts from the render's snapshot of
+the URL, which predates the first, so it reverted it. (Worth knowing: react-router 6.30's
+functional `setSearchParams(prev => …)` is **not** a fix — `prev` is the same render-time
+`searchParams` memo, `react-router-dom/dist/index.js:1031`.) Both effects now call one writer,
+`openCommentsForDeepLink(consumedParam, focusCommentId)`, which builds a single
+`URLSearchParams` from `window.location.search` — the live URL, the source `setActiveTab` in
+this file already trusted — sets `tab=comments`, drops the spent param and writes **once**. It
+deliberately does not `swapTabScroll`: a deep link is not a tab switch away from something, it
+scrolls to the entry it named (`useTabParam`'s own docstring already says deep links are left
+alone).
+
+Item 1 needed one more thing: the flag was spent before the data that answers it existed. The
+effect now waits for `commentsQ.isSuccess && seenCommentIdsLoaded`. **Both** queries matter —
+until the read ids arrive the seen-set is empty and *every* comment looks unread, so acting on
+`commentsQ` alone would have jumped to whatever is newest, read or not. `useSeenSet` therefore
+returns `{ ids, loaded }` instead of a bare `Set` (two call sites); a query that never runs (a
+reader has no read state) and a failed one both count as loaded, because their empty set is the
+honest answer. When nothing is unread any more the link still opens the feed it pointed at
+rather than silently doing nothing — checked as a reader: lands on Comments, param consumed,
+`history.length` unchanged (no replace loop).
+
+**Item 3 — wired, not documented away.** The evidence said wire it: the channel exists, the
+profile page is already subscribed to it, `resyncPlayer` was already the right shape, and the
+DoD asks for a second viewer to see the entry. Only two halves were missing, so it is 12 lines,
+not a feature. Backend: `_broadcast_player_pokes_event` is now
+`_broadcast_player_profile_event` (it was never poke-specific) plus a thin
+`_broadcast_guestbook_event`, called on **create, patch, vote and delete** — every write that
+changes what other viewers see. Frontend: `resyncPlayer` invalidates the guestbook keys next to
+the poke ones (`playerGuestbook`, `playerGuestbookSummary`, `playerGuestbookReadIds`,
+`playerGuestbookReadMap`), which is exactly the set `useProfileGuestbook` invalidates after its
+own writes. **Read-marking is deliberately not broadcast**: unlike pokes (which show the author
+an "unread" marker, `playerPokesAuthoredUnread`), the guestbook has no author-side read
+indicator, so a broadcast would make every other viewer refetch their own private read state
+for nothing.
+
+**Item 4 — both halves, both directions.** The reducer half: `applyCommentUpsert` now
+invalidates `qk.commentsSummary()` like its siblings. But that only helps a viewer already
+inside the tournament — the tournaments **list** is subscribed to the coarse channel alone, and
+the backend sent nothing there, so the backend half was required: `POST
+/tournaments/{id}/comments` now also sends `tournaments.changed {action: "comment"}`. That
+action is new and is the one action `applyTournamentsChanged` does **not** let refetch the
+tournament list (a comment changes nothing about the tournament), so the coarse channel stays
+coarse and cheap. **Deliberately beyond the literal finding:** the delete path got the same
+treatment (`applyCommentDelete` + `notify_tournaments_changed` in `delete_comment`), because a
+deleted comment otherwise leaves a phantom unread badge for every other viewer — the identical
+bug in the other direction, two lines.
+
+**Two-browser proof** (isolated stack: backend :8003 on a copy of the dev DB, vite :8020,
+scratch secrets. A = Flo/editor, desktop 1280; B = Roli/admin, phone 390; separate browser
+contexts, so separate storage and separate sockets. "before" = the same script against the
+branch's previous commit, backend restarted on the old code):
+
+| # | Measured | before | after |
+|---|---|---|---|
+| 1 | cold load of `/live/8?unread=1` (brand-new page, nothing cached) | URL `/live/8`, `scrollY 0`, nothing flashed, Overview | URL `/live/8?tab=comments`, **scrolled to y 854/6219 and flashed exactly `comment-269`**, the new unread one |
+| 2 | then F5 | `/live/8`, tab **Overview** | `/live/8?tab=comments`, tab **Comments** |
+| 2b | `/live/8?comment=<id>`, then F5 | `/live/8`, Overview | `/live/8?tab=comments`, Comments |
+| 3 | A writes a guestbook entry on profile 3 through the UI; B sits on `/profiles/3?tab=guestbook` | **not seen after 12 s** | **seen in ~0.5 s**, B never navigated |
+| 4 | A writes a comment on tournament 8; B sits on `/tournaments` | badge **7 → 7** after 12 s | badge **8 → 9** in ~0.5 s, B never navigated |
+
+Items 1/2/2b re-run at 1280 with the same result. Zero console errors and zero failed requests
+in every run.
+
+**Noticed, reported, not fixed:**
+- **A dev-only trap that cost an hour and will cost the next worker one too:** on a *cold full
+  page load* of a route the Vite dev server has not optimised yet, Vite force-reloads the page,
+  which aborts the in-flight `GET /me`; `AuthContext`'s validator treats any rejection as a bad
+  token and calls `clearAuth()`, so the browser silently drops to **reader** and every
+  token-gated query disappears. It reproduces identically on `HEAD` without any A5 change, and
+  only with `vite dev` — but it means "log in, then open a deep link in a fresh page" measures
+  a logged-out session unless the dev server is warmed first (the verification scripts now do).
+  Worth a thought for production too: `clearAuth()` cannot tell "the token is invalid" (401)
+  from "the request never finished" (abort/offline), and a PWA on a flaky phone connection hits
+  the second case.
+- `applyCommentMeta` invalidates `qk.commentsTournament(tid)` for *every* vote/pin/read event,
+  which is a full comments refetch for a read-marking that only concerns one viewer.
+- `qk.playerGuestbook(playerId)` and `qk.playerGuestbookSummary()` are `["players","guestbook",
+  <id>]` and `["players","guestbook","summary"]` — a guestbook keyed by the literal player id
+  `"summary"` would collide. Impossible today (ids are numbers); noted because A3 swept exactly
+  this class of key hazard.
+- `resyncPlayer` is not directly unit-testable (module-private, and the WS hook mounts a real
+  socket); the guestbook broadcast is covered backend-side instead
+  (`test_guestbook_writes_reach_the_profile_channel`), and the reducer half by the three new
+  `applyEvent` cases.
 
 ---
 
-## A6 — Accessibility and contrast: the runtime sweep's blocking finds  ☐
+## A6 — Accessibility and contrast: the runtime sweep's blocking finds  ☑
 
 1. **The login submit button has no accessible name below 768px** —
    `pages/LoginPage.tsx:70-71` hides the label and the icon is `aria-hidden`, leaving an unnamed
@@ -5168,9 +5556,93 @@ interactive element on the Matches tab; sort headers ≥ 44px tall on mobile; sc
 
 **Deviations:**
 
+Everything was measured in the browser against the isolated stack (backend :8003 on a copy of the
+dev DB, vite :8020, scratch secrets), *and* against the task's baseline `98d2690` served from a
+second vite on :8022 — so every "before" below is a number the old code really produced, in that
+theme, on that surface, not a recomputation.
+
+- **Item 1 — the label came back, it did not become an `aria-label`.** A hidden name would have
+  satisfied a scanner while the page's only action stayed a wordless icon on a phone. It is a
+  full-width button on an otherwise empty card, so icon *and* label now show at every width.
+
+- **Item 2 — exactly what moved (light theme only).** `blue`, `dark`, `red` and `green` resolve
+  every one of these to the value they had before — checked token by token in the browser, and
+  the cup gold in particular resolves to `251 191 36` (green: `245 208 90`), i.e. the same colour
+  those themes already painted through `--color-gradient-gold-from`.
+
+  | Token | from | to | on the light page ground |
+  |---|---|---|---|
+  | `--color-btn-text` | `255 255 255` | `12 10 9` | 2.49:1 → **7.94:1** |
+  | `--color-accent` | `59 130 246` (blue-500) | `29 76 214` | 3.09:1 → **5.77:1**, and 2.64:1 → **4.60:1** under a selected chip's own `bg-accent/15` |
+  | `--color-cup-gold` (new token) | `251 146 60` in light (`251 191 36` elsewhere) | `166 74 12` | 1.90:1 → **4.89:1** |
+  | `--color-cup-green-dark` | `21 128 61` | `22 116 55` | 4.21:1 → **4.91:1** |
+
+  - **The button keeps Roli's teal byte-for-byte.** White cannot reach 4.5:1 on `20 184 166`
+    without replacing the colour (teal-700 *and* a darker hover, since the hover has to pass too);
+    the page ink on the same teal is 7.94:1, and the green theme already pairs a bright button
+    colour with dark ink, so this is the palette's own idiom rather than a new one. If Roli would
+    rather keep white lettering, the alternative is `--color-btn-bg: 15 118 110` with
+    `--color-hover-btn-bg: 17 94 89` (5.47:1 / 7.58:1) — a visibly darker button.
+  - **The accent had to go two steps down, not one.** blue-600 is 4.34:1 on the ground and 3.57:1
+    under a selected chip's tint; even blue-700 stops at 4.49:1 there. `29 76 214` is the first
+    blue of the same family that clears 4.5:1 everywhere the accent is used *as text* — tab
+    labels, chips, links, the bottom bar, the active sort header — and it lifts white-on-accent
+    (the notification badge) from 3.68:1 to 6.87:1 on the way.
+  - **Cups got their own tokens** instead of borrowing a medal gradient that light deliberately
+    tints orange. `cupColors.ts` maps a cup key to `--color-cup-gold` / `--color-cup-green-dark`;
+    `DESIGN.md` §2 now lists both, and says a cup's colour may never borrow a gradient again.
+  - **The Bauernkranz's green was failing too** — 4.21:1 as the holder's name, same block, same
+    cause. Fixed in the same breath; the plan names only the Lorbeerkranz because it is the worse
+    of the two.
+
+- **Item 3 — done here, and it is A8's breach 1.** A6.3 asked to fold the matrix into "A8's first
+  item"; A8 has not started, so it was done here in full: the cells are off their hard-coded HSL
+  and on `.h2h-cell`, the positions grid's mechanism (a hue + a 0..1 strength from the component,
+  the tint and the ink from the stylesheet, one light-theme override). **A8's worker should tick
+  breach 1 rather than redo it.** Measured cell by cell at 390px, every theme: the worst cell
+  anywhere was **1.90:1** (light, Goal diff) and is now **5.01:1** (blue, Goal diff); in light
+  alone 2.23:1 → **7.26:1**. The finding called the matrix "theme-independent" — it is not: the
+  default W-D-L ramp was 3.31–3.35:1 in the dark themes too, while Played/Goal diff passed there.
+  Hover changed from `brightness-125` to an edge in the cell's own ink, because a filter lifts the
+  text with the tile and gives back the contrast the ramp just bought.
+
+- **Item 4 — the whole row is the target, the buttons are above it.** `role="button"` + a
+  hand-rolled keydown handler is gone: the row's action is a stretched `<button>` overlay
+  (`ListRow`'s pattern), so Enter/Space are the platform's, and the aria-label names the fixture
+  ("Open or edit match 1: Roli + Atzi vs Flo + Rumpi"). The reorder/swap buttons moved to
+  32→**36px** — not 44: at 44 they own the meta line, and 36×36 is comfortably past WCAG 2.5.8's
+  24×24 minimum. Re-measured on `/live/21?tab=matches` as admin: `a a`, `button button`,
+  `a button`, `button a` and `[role="button"] *` are **all 0**, and no `role="button"` is left on
+  the page (it was 5 rows with 9 buttons inside them).
+
+- **Item 5 — 44px at every width, not only on mobile.** A sort header is now a button that fills
+  its column and a 44px header row (the cell's padding moved into the button, so no column got
+  wider). `P` went from 8×16 to **27×44** at 390px and 90×44 at 1280px; the dashboard preview and
+  the stats Table share the component, so both are fixed at once. Desktop keeps the same 44px
+  header — a second breakpoint for a header row nobody has complained about is complexity for its
+  own sake.
+
+- **Found while measuring, deliberately left (not A6, not a regression):**
+  - **The primary button fails in the *dark* themes for the same reason.** The label colour is
+    one shared token, so the sweep's light-theme finding is really a palette-wide one: white on
+    `dark`'s teal is **2.49:1**, on `blue`'s blue-500 **3.68:1**, on `red`'s rose **4.32:1** —
+    and `green`, the only theme that already uses dark ink on its bright button, is **6.54:1**.
+    The fix is the same move this task made in light (ink instead of white, per theme, since ink
+    on blue-500 is only 3.81:1 and that theme would need a darker button colour), but it changes
+    four themes' primary buttons, which is Roli's call and not a contrast patch. Worth its own
+    line in A8 or a follow-up.
+  - `text-win` / `text-draw` as a bare number on the **light page ground** are 4.21:1 (they pass
+    at 5.0:1 on a white card, which is where most of them sit). The cup green is likewise
+    3.76–3.97:1 as the holder's name in the **dark** themes (it is the same green-700 there);
+    only light was in scope here. Same family as A6.2, but not on its list.
+  - `text-text-muted/40` separators (1.97:1) and the `/60` participant line on `/tournaments`
+    (2.96:1) — an alpha applied to a token that is already the muted one. A7 territory.
+  - The `red` theme's selected chip is 4.10:1 (its accent on its own 15% tint) — the same shape
+    as the light-theme chip finding, in a theme the sweep did not cover.
+
 ---
 
-## A7 — Runtime polish: the rough edges the sweep photographed  ☐
+## A7 — Runtime polish: the rough edges the sweep photographed  ☑
 
 Each is small on its own; together they are what makes the app feel unfinished. Fix what is cheap,
 and say plainly which you left and why.
@@ -5203,11 +5675,134 @@ and say plainly which you left and why.
 **DoD:** each item fixed or explicitly declined with a reason; before/after screenshots for the
 visual ones at the viewport/theme where the sweep caught them; `npm run check` + build.
 
-**Deviations:**
+**Deviations:** (implemented 2026-09-14 on `feature/2026-09-audit`)
+
+All twelve fixed, nothing declined. Every item was reproduced in a real browser against an
+isolated stack (backend :8003 on a **copy** of the DB, vite :8020) before it was written and
+re-shot after, at 390px and 1280px in the `blue` and the `light` theme. A closing sweep of 23
+routes × 2 widths × 2 themes kept Round 6's baseline: zero console errors, zero failed
+requests, zero horizontal overflow, zero nested anchors/buttons.
+
+**1 — thinned by width, and the picture is the argument.** Of the three approaches offered,
+"label only the ends plus hovered points" is not available (a touch device has no hover, and
+the chart has no tooltip — building one is a feature, not polish) and would drop 16 of 18
+names; rotating/staggering is what the axis already does. So: the axis keeps the **newest**
+label and walks left, dropping every tick that cannot clear the one already kept. Two labels
+at the same angle are parallel strips whose distance apart is `dx · sin45°`, so the rule is one
+number in px — `1.35 × line height ÷ sin45°` ≈ 15px — and it scales itself: 10 of 18 names at
+390px, 15 of 18 at 1280px, on a 6-month dashboard window 7 of 11 and 8 of 11.
+
+The plan's numbers come from a **bounding-box** metric, which for a -45° label measures a big
+square that touches its neighbour's long before the glyphs do; measured both ways (blue theme,
+before → after):
+
+| surface | width | overlapping pairs, true strip geometry | the sweep's AABB metric |
+|---|---|---|---|
+| dashboard preview | 390 | 4 → **0** | 16 → 5 |
+| dashboard preview | 1280 | 1 → **0** | 5 → 2 |
+| `?view=trends` | 390 | 8 → **0** | 52 → 13 |
+| `?view=trends` | 1280 | 1 → **0** | 12 → 10 |
+
+Zero real overlaps everywhere, light theme included (the AABB residue is entirely the rotated
+-box artefact — at 1280px the labels already had air between them and the metric still counted
+12). **Fixed in the same breath:** a label runs down-**left** from its tick, so the oldest one
+in view ran out of the SVG and printed as a fragment ("…zturnier") — it is now dropped rather
+than half-printed.
+
+**2 — the pill rides the scroll; the bottom gutter was already right.** Measured first: at the
+end of Positions, Streaks and the matchup the last row clears the capsule by exactly the 20px
+DESIGN.md §9 promises, so "reserve a gutter under the last row" was already done. What the
+sweep photographed is mid-scroll, and it is not a coincidence: the capsule is bottom-**right**,
+which is exactly the column those three sub-views right-align their values in. So the pill
+hides the way a hiding app bar does — gone while you scroll *down* into content, back on any
+upward scroll, at the top, at the very bottom (its own gutter), and whenever it is focused or
+open. `data-tucked` is exposed for tests. S9's job is untouched: the pill is there on arrival,
+still pulses once per session, and any flick up brings it back.
+
+**3 — say it, and offer the switch; do not overrule the reader's Mode.** Both answers the item
+offers are right for *half* the cases. A shared `?sub=duos` link means "show me duos", but the
+same silent fallback happens when the reader switches Mode away from 2v2 while on Duos, and
+there an automatic switch back would fight them. So the place the chips would be now says
+*"Duos only exist in 2v2 — showing Players"* next to one **Switch to 2v2** button: the
+explanation for the second case, the sender's intent one tap away in the first.
+
+**4 — "Anonymous", and quietly.** "General" names the scope in the same feed three times over
+(the filter chip, the group header, the composer's "General (tournament)" target), so it cannot
+also be an author. The author is now **Anonymous** — including on the two controls that *write*
+it (the composer's author chip, the "Posted as" select), so the reader can connect what they
+posted with what they see; the scope keeps the word everywhere it means the scope. The byline
+is muted instead of `font-semibold text-text-normal`: an unattributed author is a category, not
+a name, and it should not compete with the bylines that are names.
+
+**5 — flush, not floating.** `lg:bottom-4` left a 16px strip of the feed's own card under the
+composer. At 1280×900: 16px → 0 while scrolling, 1px (the card's border) once the feed ends —
+DESIGN.md §9b's "settles flush on the card's bottom edge". **Left deliberately:** the guestbook
+composer (`profile/GuestbookSection.tsx:107`) carries the identical `lg:bottom-4`, but it is
+still a second floating *card* over a feed of cards, which is A8's breach 7; flush against the
+viewport with that shape would look worse, and A8 is about to fold it into the feed.
+
+**6 — capped, not narrowed.** 557px → **256px** on a 1280×900 viewport (62% → 28% of it), tab
+strip y=765 → **455**. `max-h-64` with `object-center` rather than a narrower column, because a
+phone must not change and does not (16:9 of 390px is 200px, under the cap) and because a
+full-bleed banner is the shape this header has; the uncropped image is one tap away in the
+lightbox.
+
+**7 — the lineage moved into the gutters.** It joined cell *centres*, which is why it struck
+the digits and why it painted across cells of tournaments the holder never played. It is now a
+2px rail in the 4px gutter left of the holder's column, stepping sideways in the gutter above
+the row where the cup changed hands: same information, over no data at all. Each cup takes its
+own lane inside that gutter, because one player can hold both at once and the two rails used to
+paint over each other.
+
+**8 — the name goes under the face, everywhere a player is assigned.** `AvatarButton` takes
+`showName`; the label is one truncating `text-xs` line (`max-w-16`) and the `sr-only` span goes
+away with it, so nothing is announced twice. **Turned on past the three the item names:** the
+What-if picker *is* `stats/PlayerPicker`, so the stats Player and H2H pickers come with it, and
+`h2h/DuoPicker` is the same defect one file over — a picker whose names are invisible is not
+better for being in Stats. The layout cost is one line of text and it fits: at 390px the
+friendly setup's row is seven slots (None + six players) **with** names in 314px of the 358px
+available — one row, no scroll, no overflow.
+
+**9 — and two more of the same.** `{n} matches` is `stats/MatchHistoryList`, which is also what
+the H2H matchup renders, so the friendlies group headers and the matchup blocks are fixed
+together. The identical string in `live/MatchList` and `live/OverviewSection` went with them,
+through one new `fmtCount(n, singular, plural)` in `utils/format.ts`. **Left, with a reason:**
+`HeadToHeadRows`'s duo rivalries say "1 games" through `RecordLine`'s `playedLabel="games"` —
+that unit sits *outside* the fixed track, so shortening it for n=1 would move every segment
+after it and undo exactly the alignment item 10 is told not to break. `stats/h2h/DuoDetail:47`
+("1 games together") is A8's breach 6, which replaces that hand-rolled line with `RecordLine`.
+
+**10 — one track for the whole word, and T14 still holds.** The hyphens were detached because
+each of W, D and L held its *own* padded column, so every number sat at the right edge of its
+track and the slack landed between a hyphen and the number after it. `W-D-L` is one word: it
+now gets one track, sized to the widest whole token in the list (`recordWidths().wdl` changed
+meaning from "digits in the widest of the three numbers" to "digits in the widest token", the
+two hyphens added by the pad). The slack moves out of the middle of the word into the `gap-2`
+that already separates the segments, so **every segment still starts at the same x in every row
+of a list** — measured on the profile's rivals (two lines, both 42px wide) and teammates (three
+lines, all 34px) — and no list is padded wider than its own data. `recordLine.test.tsx` updated
+to the new pads; the `textContent` contract ("3P · 3-0-0 · 14:6 · GD +8") is unchanged.
+
+**11 — "Match 4", the number the app uses.** `order_index + 1`, the same number the panel below
+says, and the title was moved after the match loads so it is "Match" and never a stale id.
+`usePageTitle` feeds the phone's top bar as well as the document title, so this was wrong at
+both widths, not only on desktop. `order_index` runs across both legs of a tournament, so the
+number is still unique on a two-leg tournament.
+
+**12 — `Match 4 · Leg 2`, the app's own words.** Added to each row's meta line in Match H2H's
+"Recent matches", the same phrasing `MatchOverviewPanel` uses. Shown on every row rather than
+only on the ambiguous ones: a marker that appears and disappears with the data is harder to
+read than one that is always there, and the panel above it prints the leg unconditionally too.
+Verified on `/live/18/match/100`, where leg 1 and leg 2 of Flo vs Rumpi used to be two rows a
+reader could only tell apart by the scoreline.
+
+**Verification:** `cd frontend && npm run check` → typecheck + eslint clean, **52 files / 503
+tests passed**; `npm run build` green. No backend change, so no `make test` / `make lint` /
+`make gen-types`. Before/after screenshots for every visual item live in the session scratchpad.
 
 ---
 
-## A8 — Design-canon breaches, and the canon's own rot  ☐
+## A8 — Design-canon breaches, and the canon's own rot  ☑
 
 **Breaches** (each is `DESIGN.md` law, and each is one file):
 1. **The H2H matrix paints itself with hard-coded HSL ramps** (`pages/stats/H2HView.tsx:33-47`,
@@ -5257,11 +5852,169 @@ visual ones at the viewport/theme where the sweep caught them; `npm run check` +
 "last checked" line updated; `npm run check` + build; screenshots for the matrix ramp in both
 themes.
 
-**Deviations:**
+**Deviations:** (implemented 2026-09-14 on `feature/2026-09-audit`)
+
+Every breach was reproduced in a real browser before it was touched and re-shot after, against
+an isolated stack (backend :8003 on a **copy** of the dev DB, vite :8020, scratch secrets), at
+390px and 1280px in `blue` and `light`; the two token items were measured in **all five** themes.
+One item changed sides — half of breach 4 is rot, not a breach — and it is argued below rather than
+quietly converted; nothing else moved between the two halves in either direction.
+
+**Breach 1 — verified, ticked, not touched.** A6 moved the matrix onto `.h2h-cell` exactly as the
+item asks: the component passes a hue (`--h2h-h`) and a 0..1 strength (`--h2h-t`), the tint and the
+ink that reads on it live in `styles.css` with one `[data-theme="light"]` override, and `text-white`
+is gone. Re-shot at 390px in both themes (`h2h-blue-390.png`, `h2h-light-390.png`): light tiles take
+dark ink, dark tiles light ink, and the ramp still reads red→green across the grid.
+
+**Breach 2 — the Player view joins the page it lives on.** Five `card`s with their own `<h2>`
+became five `StatsSection`s (Key numbers · Profile net · Club stars · Streaks · Match history), the
+density switch became the section's `action`, and the identity block stays a `card` — the one card
+§6 allows a sub-view, the same one the matchup header is. The profile's Stats tab was the *other*
+half of the finding: its "Strengths relative to the field." moved from under the radar into the
+explainer slot, so the two renderings of those three blocks are now identical rather than merely
+similar, which is what the item was really complaining about.
+
+**Breach 3 — three hand-rolled boxes.** The two trend plots are `inset p-2`; the notification
+popover is `card p-0 shadow-pop backdrop-blur-md`, which is what §3/§4 already say a floating panel
+is and what the stats filter popover already did.
+
+**Breach 4 — one half fixed, one half reclassified as rot (argued).** `ClubPicker`'s two group
+labels really were uppercase headings inside a card competing with nothing; they are sentence-case
+`text-sm font-semibold text-text-normal` now, and the sheet gained the hierarchy it was missing.
+`live/OverviewSection`'s `# PLAYER P GD PTS` line is **not** a breach: it is a row of *column
+headers*, the same job the app's two real `<thead>`s (stats Table, a cup's per-player table) do in
+exactly this style, and the only thing separating it from them is that its rows are `<div>`s rather
+than `<td>`s. Lower-casing it would have made one job look two ways in two places — the defect
+breach 2 exists to remove — so the code stands and §6's wording is what changed: uppercase is for
+`section-label` and for a row of column headers, real `<thead>` or pseudo-`<thead>`, while a
+*group* heading inside a card (a league, "Recent") is sentence case. Verified on the screen: the
+`STANDINGS` label and the column line read as label + legend, not as two headings.
+
+**Breach 5 — ten states, not nine.** The five loading states and four empty states the item lists
+now go through `InlineLoading` / `EmptyState`, plus one the audit missed in a file already being
+touched (`ClubsPage`'s "No clubs match the current filters."). The bell's single string switching
+on `isLoading` became the two different components it always was.
+
+**Breach 6 — one `RecordLine`, and "1 games together" with it.** `DuoDetail`'s two hand-rolled `·`
+lines are one `RecordLine` (played · W-D-L · goals · GD · ppm) sized by `recordWidths([duo])` — the
+primitive its sibling `DuoLeaderboard` uses six pixels above it. The wrong singular goes away
+because a record line's unit is `P`, which has no plural to get wrong; A7 left the string here for
+exactly this reason. Measured at 390px: 80px wide in a 334px column, no wrap, no overflow.
+
+**Breach 7 — the guestbook became a feed.** One `card p-0`: header row (name + count + the unread
+pill and "Read all", which used to float above the feed in a row of their own), messages as level-2
+`inset` rows, `CommentSendRow` on the card's bottom edge behind a hairline, sticky. Measured at the
+end of the feed: composer bottom to card bottom = **1px** (the border) at 390px *and* at 1280px —
+A7's "settles flush" for the comments composer, now true here too. With the root message an `inset`,
+a reply inside it would have been inset → inset, so a reply is flat and tighter on the card's own
+surface behind a `border-l-2 border-accent/25` rule, the depth cue S10 gave comments; the inline
+reply editor lost its own `inset` for the same reason. `guestbook-entry-<id>` anchors and their
+`scroll-mt` are untouched, so U3's deep link and "jump to unread" still land.
+
+**Breach 8 — the canon gets *two* state tokens, not one (judgement call).** `--color-error` and
+`--color-warn`, in `defaults.css` + `light.css`, mapped in `tailwind.config.cjs`. One token could
+not carry the item's own list honestly: painting "Reconnecting" red makes a transient state louder
+than "Offline" (which is deliberately muted, T10) and puts a second red dot in the chrome that
+already carries the live one. A reconnecting socket is not an error, it is a warning — and the
+audit's own sibling task added a second caller for that meaning while A8 was unstarted: A2's
+"someone else changed this match" banner, `border-draw/40 bg-draw/10 text-draw`, the identical bend
+one file over. So: error = something failed or is about to be destroyed (the H2H panel's load
+failure, the denied push permission, the push error box, the toast icon — which had invented a
+third answer out of `--delta-down` — and `ConfirmDialog`'s danger block); warn = attention, nothing
+failed (the connection indicator, the conflict banner).
+
+`ConfirmDialog` was not on the item's list and is moved anyway: its own comment already called that
+box "the app's danger idiom", it is pixel-identical to the push error box beside it, and leaving the
+same red box written two ways is the drift this task exists to end. A deleted tournament is not a
+defeat. Said plainly here because it is scope the plan did not name.
+
+Contrast, measured in the browser per theme (text on the surface it actually sits on):
+
+| theme | `--color-error` | on `card` | on `inset` | on `bg-error/10` | `--color-warn` | on `card` | on `inset` | on `bg-warn/10` |
+|---|---|---|---|---|---|---|---|---|
+| blue | `248 113 113` | 6.02:1 | 4.85:1 | 5.27:1 | `251 191 36` | 9.98:1 | 8.04:1 | 8.17:1 |
+| dark | `248 113 113` | 6.70:1 | 5.86:1 | 5.91:1 | `251 191 36` | 11.10:1 | 9.71:1 | 9.22:1 |
+| red | `248 113 113` | 6.74:1 | 6.10:1 | 5.90:1 | `251 191 36` | 11.18:1 | 10.11:1 | 9.21:1 |
+| green | `248 113 113` | 6.06:1 | 4.89:1 | 5.30:1 | `251 191 36` | 10.04:1 | 8.10:1 | 8.14:1 |
+| light | `185 28 28` | 6.47:1 | 5.99:1 | 5.45:1 | `146 64 14` | 7.09:1 | 6.57:1 | 6.08:1 |
+
+(light also on the page ground: error 5.43:1, warn 5.95:1.) Light's warn is amber-**800**, one step
+past `--color-draw`: draw's amber-700 is 4.21:1 on the ground and 4.39:1 on its own tint — enough
+under a single numeral in a W-D-L run, not enough under the two-line paragraph a warning is. The
+dark themes resolve error/warn to the same red and amber as loss/draw today, so **nothing moved
+visually in four themes**; that is the point — the code now says what it means, and a theme can move
+one family without the other. Shot in all five themes with the toast open and the socket stubbed
+dead: the indicator reads `rgb(251,191,36)` in blue/dark/red/green and `rgb(146,64,14)` in light.
+
+**Breach 9 — a flag is a rectangle.** `rounded-[2px]` is gone; the scale's smallest step (6px)
+would round a 14×10.5px flag into a lozenge, so it takes no radius rather than a wrong one. It was
+the last arbitrary radius in `src/` (`grep -r "rounded-\["` → 0).
+
+**Canon rot — the `live` token: pointed, not deleted.** `.live-dot` / `.live-ping` read
+`--color-live`, and `--live-indicator` is deleted. Deleting the token instead would have kept a
+private variable that `light.css` was never going to learn about; pointing the class at the token
+answers the light-theme question in the same move — **a light-theme live dot is now red-600
+(`220 38 38`), not red-500** — because light already overrides `--color-live` for exactly this
+reason (A6 set it to clear 4.5:1 as text on white). Verified per theme: `rgb(239,68,68)` in
+blue/dark/red/green, `rgb(220,38,38)` in light.
+
+**Canon rot — §7's `List`/`ListRow` rule: the pattern that won is blessed, with a line between
+them.** The primitive is not wrong, its scope was: `ListRow` is leading · title · subtitle ·
+trailing, and 13 files whose rows carry a `ScoreLine`, a `MatchSides` block or a `RecordLine` under
+a name are right to build their own. §7 now has two rows instead of one, and the second one is
+explicit that only the *shape* is free — the mechanic is not: `list-divided` container, `relative`
+row, one stretched `<button>`/`<Link>` (`absolute inset-0 z-0 rounded-xl focus-ring`) with an
+`aria-label` naming what it opens, content `pointer-events-none relative z-10`, real controls
+`pointer-events-auto` above it; never `role="button"` on a `<div>`, never a button inside the row's
+own hit area. That is A6's restructured match row described as it now stands, and `MatchList.tsx`
+is named as the worked example. §10's "Do prefer `ListRow`" line was rewritten to match.
+
+**The rest of the canon rot** — `DESIGN.md` changed, the code did not:
+- §4 spacing: the "`space-y-5` between page sections" claim is replaced by what is actually there
+  (`space-y-3` inside cards *and* between a page column's blocks — that is what `.page` is;
+  `space-y-4` between the sections of a view that stacks several; `space-y-5` only in the five
+  places whose sections are themselves long lists).
+- §5 `font-mono`: "date pills, odds and compact W-D-L" → **fixed-width numeric tokens**, with the
+  practice enumerated (ppm, ranks, the positions grid and its legend, streak patches, the constants
+  inside an explainer) and the limit named (never a sentence, a name, or a value alone in prose).
+- §5 scale: `text-xl` added as the page `h1` and only there; `text-3xl` removed — it has no callers
+  and a hero score is `text-4xl` at every width.
+- §3 `CardSection`: it takes `title`, `actions`, `padded` and `className`, not only `padded`.
+- The header's "no `text-[Npx]`" line: corrected to name §5's own geometry exception
+  (`NationFlag`'s two flag-glyph sizes), which is the only one left.
+- §7's avatar-ring list: H2H dropped (its Players/Duos views render no avatars at all); the matchup
+  header, which does, is named instead.
+- §2: `--live-indicator` removed from the "existing families" line, with the reason; `--color-live`'s
+  row now names `.live-dot` / `.live-ping` as its callers.
+- §6: the uppercase rule (above), plus a line saying the identity `card` at the top of a sub-view is
+  the one card allowed, so nobody "fixes" it away.
+- §9b: the guestbook feed named alongside the comments feed, with the reply surface spelled out.
+- §1.4 and `AGENTS.md`'s DESIGN.md line now say result-vs-state in one breath.
+- `.pos-good`: **no change to either**, and nothing in `DESIGN.md` ever claimed otherwise. It is one
+  of five discrete stops on a ramp whose legend happens to show four; a vocabulary that skips "good"
+  between "best" and "mid" is worse than an unused class. `styles.css` now says so in a comment.
+
+**Found while working, reported, not fixed** (none of them A8's list):
+- **`window.confirm` for three destructive actions** — `ClubsPage:512` (delete club),
+  `GuestbookEntryCard:201` (delete message and its replies), `TournamentCommentsCard:308` (delete
+  comment) — plus six non-destructive ones. §7 says "**Never** `window.confirm` for a destructive
+  action", so this is a real breach the audit missed, not rot: the rule is right and A10 reaffirmed
+  it. It needs `ConfirmDialog` plumbing in three files (which row is pending) and is bigger than
+  anything in A8; it wants its own task.
+- `VoteVotersModal:68` paints a thumbs-**down** icon `text-loss`. Same family as breach 8, but a
+  vote's up/down really is a two-sided verdict, so it is the least wrong of the borrowings; left.
+- `MatchupView.tsx:51-52` keeps `bg-draw/15 … ring-draw/30` — those *are* results (W/D/L badges).
+
+**Verification.** `cd frontend && npm run check` → typecheck + eslint clean, **52 files / 503 tests
+passed**; `npm run build` green (the pre-existing >500 kB chunk hint unchanged). No backend change,
+so no `make test` / `make lint` / `make gen-types`. Closing sweep of 21 routes × 2 widths × 2 themes
+plus the five-theme token runs: zero console errors, zero page errors, zero failed requests, zero
+horizontal overflow, zero nested anchors/buttons. Screenshots (matrix ramp in both themes, and
+before/after for every visual item) live in the session scratchpad.
 
 ---
 
-## A9 — Fragility worth hardening (lower priority)  ☐
+## A9 — Fragility worth hardening (lower priority)  ☑
 
 1. **Unguarded `localStorage` on the boot path**: `main.tsx:13,19` at module scope and seven bare
    `getItem` calls in `auth/AuthContext.tsx:39-60`. Where storage access *throws* (Safari "block
@@ -5292,4 +6045,3438 @@ themes.
    (`LiveTournamentPage.tsx:214-222`) is aborted by `useScrollRestoration`'s instant
    `restoreWindowScroll(0)` on the PUSH, so the `comment-attn` flash plays off-screen.
 
+**Deviations:** (implemented 2026-09-14 on `feature/2026-09-audit`)
+
+All seven items done. Every fix was reproduced before it was written, and the two that can only be
+judged by watching the app (1 and 7) were A/B'd in a real browser against an isolated stack
+(backend :8004 on a copy of the DB, vite :8021).
+
+**1 — blocked storage, and a session that ended over nothing.** `utils/safeStorage.ts`
+(read/write/remove that cannot throw) now covers `main.tsx`'s module-scope theme read and all seven
+`AuthContext` keys. **Extended past the two files named:** `AppShell.tsx:44,49` (the sidebar-collapse
+flag, in a `useState` initialiser) and `useThemeManager.ts:12,22` sit on the same boot path and
+white-screen the same way — the item's "this is the one uncovered path" was not quite true.
+**Plus the bug the previous worker left.** `AuthContext` called `clearAuth()` on *any* rejection of
+`GET /me`. Reproduced on HEAD in Chromium with a **valid** admin token and a single aborted `/me`
+(`route.abort('failed')`): the page finished loading with `ea_fc_token` and `ea_fc_role` gone — an
+admin silently demoted to reader. (A first attempt with a *fake* token was a false positive: with a
+bad token every other authenticated request legitimately 401s, so the isolated backend was restarted
+with `--jwt-secret` and a real token minted.) After the fix the same run keeps `token: present,
+role: admin`. Only an `ApiError` of 401/403 clears now — the server saying no, as opposed to us not
+being able to ask. Five tests in `src/test/authSession.test.tsx` pin network failure, abort, 5xx,
+401 and 403, plus a boot with `Storage.prototype.getItem` throwing.
+
+**2 — all three parts, none left.**
+- *Per-channel `seq`*, the prerequisite: `_seq_counter` is gone; `_Channels` holds the sockets **and**
+  a counter per channel key, so `/ws/tournaments/17`, `/ws/tournaments/21`, `/ws/players/4` and the
+  global channel each count 1, 2, 3… on their own. Verified live: two comments on tournament 21 and
+  one on 20 gave `21 → [1, 2]`, `20 → [1]`, global `→ [1, 2, 3]`. Under the old shared counter those
+  same five broadcasts would have handed tournament 21 the numbers 1 and 3.
+- *The half-dead socket*: one that raises on `send_json` is now **closed** (1011) as well as dropped,
+  so the endpoint's `receive_text` loop ends and the client reconnects — instead of being answered
+  "pong" forever by a channel that no longer holds it.
+- *The gap check*: `connection.ts` keeps `lastSeq` per pooled socket (re-baselined on every `onopen`,
+  so a restarted server counting from 1 again is not a gap) and fires a new `onGap` handler when a
+  number is skipped; `useRealtime.ts` wires it to the same resync the reconnect path uses. The
+  per-player channel needs nothing — every message on it already resyncs.
+
+**3 — the realtime/refetch race.** Not `cancelQueries`: its default `revert: true` restores the
+pre-fetch data in a microtask *after* a synchronous `setQueryData`, so the reducers would have had to
+become async for no gain. `overtakeInFlight()` invalidates immediately after the write with
+`refetchType: "all"` and `predicate: q => q.state.fetchStatus === "fetching"`. That cancels the older
+request (its answer is discarded, never applied) and puts a fresh one behind the push — and matches
+nothing at all when no request is on the wire, so the zero-refetch path this layer exists for is
+intact. `refetchType: "all"` because the default, `"active"`, leaves an unobserved query's stale
+answer to land. Two new tests fail without it: a stale tournament answer overwriting a push, and a
+deleted comment coming back.
+
+**4 — one definition of Form.** Decided: **Form = points per match over the last 12 finished
+matches, of the matches that surface is describing.** 12 because it is the sparkline Roli actually
+reads on a player, and in this group's round-robins it is roughly the dashboard's "last 3
+tournaments" counted in matches instead of nights. `FORM_LAST_N` in `pages/stats/standings.ts` is the
+one definition; `ProfilePage` asks for it instead of 3. The divisor is fixed in
+`compute_overall_and_lastN` (`sum / len(window)`), so two wins reads 3.00 rather than 6/12 = 0.50.
+The odds model *wants* that shrinkage ("one played match is not a favourite"), so it now applies it
+itself in `_player_aggs_from_overall(per, lastN)` — the numbers fed to the model are unchanged, and a
+test pins both halves against each other. The comment that claimed the two surfaces matched is gone;
+the profile's label is `Form (last N)` with N the matches that exist, the same idiom the stats page
+already used. Verified in the browser: both surfaces now fetch `/stats/players?lastN=12` and both read
+`Form (last 12)`.
+
+**5 — club delete.** As specified, plus one decline: **`PRAGMA foreign_keys=ON` was not added.** It
+is the right long-term answer to this whole class, but switching it on changes every delete in the
+app at once (tournaments, players, comments and their link rows), which is not a change to make
+inside this item without its own permission matrix and tests.
+
+**6 — three nav seams.**
+- The drill-in back decision takes `sameParams` now, and `StatsInsights` passes `["view"]`, so a
+  matchup pushed from a *different* `/stats` body clears in place instead of popping onto a page the
+  "Head-to-head" button never named. **Honest caveat:** every in-app way into the matchup today is
+  the H2H matrix itself (same body) or a deep link from another path, so I could not trigger this
+  live — a latent seam, closed, with a unit test.
+- `navStack` truncates on the **first record of a page load** as well as on a push. A duplicated tab
+  copies sessionStorage without the forward history it describes; believing it made `canGoForward()`
+  promise a step the browser cannot take, and the swipe that asked for it did nothing at all. The
+  cost is that swipe-forward is not offered after a reload — the browser's own forward button still
+  works.
+- `useTabParam` rewrites any value it did not honour out of the URL, and takes an `allowed` list so
+  the same rewrite covers a role-forbidden tab. Wired on the three pages whose gate is a synchronous
+  `role` (Tournaments, Clubs, Players Admin); their local narrowing was then provably dead and is
+  gone. **Not wired on `MatchDetailPage`**: its `edit` tab depends on `tQ.data?.can_edit`, which is
+  false while the tournament is still loading, so rewriting there would throw away a legitimate
+  `?tab=edit` deep link a moment before it becomes valid. Verified in the browser: a reader's
+  `/tournaments?tab=new` and any `?tab=nonsense` become the clean URL, while an admin keeps
+  `?tab=new` and `?tab=add`.
+
+**7 — save and return.** Real, but **only when the match page was scrolled**, which took finding: the
+Edit tab does not scroll on its own (measured 0 at both 390px and 1280px), so `restoreWindowScroll(0)`
+from `scrollY === 0` issues no `scrollTo` at all and the smooth scroll wins — the first traces showed
+the flash playing perfectly in view on unfixed code. Open the Clubs disclosure, which is the normal
+editing flow, and the page scrolls 282px; then it is exactly as the finding says. Without the fix the
+return snaps to 0 and **stays** there, the row at `top: 1463` in an 844px viewport, flashing
+off-screen for the full 1.6s; with it the page runs 282 → 865 and the row settles at `top: 598`,
+flashing in view. The mechanism is a `state.ownsScroll` opt-out honoured only on a PUSH — the same
+contract `location.hash` already had in this hook. `MatchDetailPage` claims it **only when it returns
+to the Matches tab**: returning to any other tab nothing scrolls to anything, and a push belongs at
+the top.
+
+**Docs.** `AGENTS.md` §6 described the `seq` gap check as if it already existed. It now describes
+what item 2 actually built: per-channel numbering, the client's per-connect baseline, and the
+close-on-failure rule.
+
+---
+
+## A10 — Editors can finish what they started: a one-hour grace window  ☑
+
+Roli, after A1 made the decider admin-only in practice: "make sure an editor can also set a decider
+-> admin does not always participate in tournament. editors should be able to edit/set live
+tournaments and delete accidentally created ones for a limited time (eg 1h). also friendlies!"
+
+**Decisions (settled with Roli — do not relitigate):** window **1 hour**, the same constant comments
+already use. **Only the creator** (and any admin) may delete. Deleting is allowed **even when
+results exist**, and therefore **every delete asks for confirmation — for admins too**.
+
+**Why the decider needed this.** A decider only resolves a tie at the *top*, which is only known
+once every match is finished, and `LiveTournamentPage.tsx:258` only renders the editor on a done
+tournament. So "editors may set it while not done" (the old docstring, and A1a's fix) was nearly
+meaningless in practice. The window has to start **when the tournament finishes**, not when it is
+created.
+
+### What has to change
+
+1. **Record who created a tournament and a friendly.** Neither row has a creator today. Add two
+   link tables — `TournamentCreatorLink(tournament_id PK, creator_player_id)` and
+   `FriendlyCreatorLink(friendly_match_id PK, creator_player_id)` — written in the create handlers.
+   New tables, no `ALTER`, matching this project's schema rule and the `CommentAuthorLink`
+   precedent (`models.py`). **Rows created before this ship have no creator and stay admin-only**;
+   say so in the UI wording rather than showing a button that 403s.
+2. **One policy module, one window.** Put the rules in `backend/app/services/authorization.py`
+   next to `ensure_not_done_or_admin`, sharing the comments' 1h constant (find it, do not redefine
+   it):
+   - *edit / set decider*: admin always; editor while the tournament is **not done**, or within 1h
+     of it finishing (finish time = the latest `Match.finished_at` of its matches; fall back to
+     `updated_at` when a tournament is marked done with no finished match).
+   - *delete*: admin always; editor only if they are the recorded creator **and** within 1h of
+     `created_at`.
+   - friendlies: admin always; editor only if recorded creator and within 1h of `created_at` — for
+     **both** `PATCH /friendlies/{id}` and `DELETE /friendlies/{id}` (both are admin-only today,
+     `routers/friendlies.py:182,200`).
+3. **Return what the caller may do; stop re-deriving it in the client.** The frontend currently
+   spells out its own copy of the rule (`AdminPanel.tsx` `canEditDecider`/`canReorder`,
+   `LiveTournamentPage` `canEditMatch`, `FriendlyMatchesListCard` `canEdit`/`canDelete`) — that is
+   exactly how the docstring, the server and the UI drifted apart before A1. Add per-caller
+   capability flags to the payloads (`TournamentDetailOut`, `TournamentListItemOut`, `FriendlyOut`):
+   `can_edit`, `can_delete`, `can_set_decider`. Computed server-side, so the window is measured
+   against server time and no client clock can disagree. `make gen-types` and commit `schema.d.ts`.
+   Render every one of those controls from the flags.
+4. **Confirmation on every delete, including admin's** (Roli's explicit ask, because a delete may
+   now take real results with it). Use the app's `Modal`, not `window.confirm` — the tournament
+   delete at `AdminPanel.tsx:255-259` and the friendly delete both use the native dialog today,
+   which §7 does not bless. The dialog must name what is lost: the tournament's name, its match
+   count, and the cups it would move. For a friendly, its two sides and date.
+5. **Wording.** Where a control is hidden because the window closed, say why in the same muted
+   idiom the app already uses ("Tournament is done — only an admin can set the decider." exists
+   from A1). An editor past the hour should read something true, e.g. "Only an admin can delete a
+   tournament after the first hour."
+
+### Care
+
+- **Deleting a tournament moves cups** (ownership is a fold over finished tournaments). The
+  confirmation must say so when the tournament is a cup stake, and the cup queries must be
+  invalidated after the delete (`qk.cup*`, `qk.stats.all()`), the way the admin delete already does.
+- A tournament with **no matches at all** has no finish time — the delete window uses `created_at`,
+  which is the accidental-creation case this is for.
+- Push notifications already fire on delete; nothing to change, but check an editor-triggered
+  delete produces the same notification an admin's does.
+- The **second-leg** endpoint (`routers/tournaments.py:602`) can still revive a done tournament to
+  "live", which is a documented back door around the done rule. Out of scope here — but once the
+  grace window exists, that endpoint should use it too. Note it in Deviations rather than fixing it.
+
+**DoD:** a matrix test per endpoint (reader / editor-not-creator / editor-creator-in-window /
+editor-creator-past-window / admin) for tournament edit, decider, delete, friendly patch and
+friendly delete; flags present and correct in the three payloads; every delete confirms through a
+`Modal` naming what is lost; the decider editor renders for an editor within the hour on a done
+tournament; `make test`, `make lint`, `make gen-types` (schema committed), `npm run check`, build;
+screenshots of the confirmation dialog and of the decider editor as an editor, 390px + 1280px.
+
+**Deviations:** (implemented 2026-09-14 on `feature/2026-09-audit`)
+
+**Shape.** One module answers "may this caller change this row right now?", the payloads carry
+the answer, the UI renders it. `services/authorization.py` holds `GRACE_WINDOW`
+(`= COMMENT_EDIT_WINDOW`, imported — the comments' 1h constant, not a second one), the `can_*`
+predicates and the `ensure_can_*` guards; `tournament_capabilities()` / `friendly_capabilities()`
+call the *same* predicates the guards call, so a flag and a 403 can never disagree.
+`ensure_not_done_or_admin` had no callers left afterwards and was deleted with them.
+
+**Judgement 1 — when the hour starts on a done tournament.** `tournament_grace_anchor()` =
+the latest `Match.finished_at` of its matches, because that is when the tournament actually
+ended (not when the row was last touched, which a rename would move). A tournament can be
+"done" with no timestamp at all — matches finished before `finished_at` was recorded, or
+backfilled history — and then `Tournament.updated_at` is the only evidence of when it last
+changed, so it is the fallback rather than "no window at all". The alternative, treating a
+missing timestamp as "window closed", would lock an editor out of exactly the old rows an
+admin is least likely to be sitting next to. Covered by
+`test_a_done_tournament_without_finish_timestamps_falls_back_to_updated_at`.
+
+**Judgement 2 — what each dialog says.** All three name what is lost, in the `text-loss`
+idiom, and end on "This cannot be undone.":
+- *tournament, cup at stake* — `Delete "A10 grace check"?` / "The tournament and everything
+  recorded in it are removed for good." / "3 matches and every result in them are deleted." /
+  "Bauernkranz was at stake here — deleting this recalculates who holds it."
+- *tournament, no cup* — the same, without the cup line. A tournament with no matches reads
+  "No matches were played yet." instead of the match count (the accidental-creation case).
+- *friendly* — "Delete this friendly?" / "It disappears from the friendlies list and from every
+  stat built on it." / "Flo 3–1 Rumpi" / "Played on 2026-09-14."
+
+**Judgement 3 — wording where a control is withheld.** Muted, in the panel's own idiom, and
+true for *both* reasons a control can be missing (hour passed, or no creator recorded):
+- actions, edit closed: *"Tournament is done — the hour an editor has to fix it has passed."*
+- delete withheld: *"Only an admin can delete this tournament — an editor can delete one they
+  created, within its first hour."* (covers the pre-A10 rows, which have no creator — the plan's
+  "say so rather than showing a button that 403s")
+- decider withheld: *"The hour to set a decider has passed — only an admin can change it now."*
+
+**Scope calls.**
+- `can_edit` had to cover **every** tournament edit, not just `PATCH /tournaments/{id}`:
+  `canEditMatch` and `canReorder` render from it, so `generate`, `reorder`, `PATCH /matches/{id}`
+  and `/swap-sides` went through the same policy. Otherwise A10's own complaint — a flag that
+  does not match the guard — would be back on day one. The 403 string changed accordingly, from
+  `Tournament is done (admin required to …)` to
+  `Tournament finished more than an hour ago (admin required to …)`.
+- `matches.py`'s "editor may still patch the *last* match" escape hatch is preserved and is now
+  strictly wider: inside the hour any match, past it the last one, as before.
+- **`MatchDetailPage.tsx:127` was a fourth copy of the rule** (`role === "editor" && !isDone`),
+  not listed in the task. It reads the same payload, so it now reads the flag too; leaving it
+  would have been immediate drift.
+- `FriendlyOut` carries two flags, not three — `can_set_decider` is meaningless for a friendly.
+- **`/second-leg` still revives a done tournament** for any editor (`tournaments.py:635`), the
+  documented back door A1 already reported. Left alone, as the task says; it is now the only
+  tournament write that does not ask this module.
+
+**Frontend mechanics.**
+- The role check stays as a *coarse* gate (`isEditorOrAdmin && caps.can_x`), so the admin-only
+  "view as a lower role" preview still shows a reader a reader's page. Consequence worth knowing:
+  an admin previewing *as editor* still has admin capabilities, because the flags come from the
+  token's real role. That override is a frontend convenience and was never a real demotion.
+- `applyTournamentSync` keeps the viewer's three flags instead of taking the broadcast's
+  all-False ones — the `applyCommentUpsert` precedent for viewer-specific fields (unit-tested
+  both ways). Accepted consequence: a page left open past the hour still shows the control until
+  something refetches, and the save then 403s into the existing error toast. Polling the window
+  down to the second was not worth a timer.
+- `qk.tournament(tid)` deliberately keeps **no** token in the key — the websocket reducer writes
+  that key and has no token — so instead every fetcher of it now passes the token
+  (`LiveTournamentPage`, `MatchDetailPage`, `CurrentMatchPreviewCard`), and they agree.
+  `qk.friendliesList(mode, token)` *is* keyed by viewer (no WS writer); the bare `qk.friendlies()`
+  prefix still reaches it, which a test pins.
+- The delete dialog's cup stakes come from the tournaments **list** query, fetched only when the
+  dialog opens. `cup_stakes` is a fold over every tournament × every cup; putting it in
+  `TournamentDetailOut` would run that on every realtime `tournament.sync`.
+- `qk.stats.all()` joined `qk.tournaments()` / `qk.cupAll()` in the delete invalidation (Care).
+- New primitive `ui/primitives/ConfirmDialog.tsx` (Modal + a "what is lost" block + Cancel/verb),
+  because the two delete sites needed the same thing and `DESIGN.md` §7 blesses `Modal`, not
+  `window.confirm`. §7 gained a row for it; `AGENTS.md` §5 (the two new tables) and §6 (the
+  window, the flags, the "render from the flags" rule) were updated in the same pass. The five
+  *non-destructive* `window.confirm` calls elsewhere (mark-as-read, swap sides, …) were left
+  alone — out of scope.
+
+**Permission matrix** (from `tests/test_grace_window.py`; "creator" = the editor who created the
+row, "in window" = within `GRACE_WINDOW` of the anchor):
+
+| Endpoint | reader | editor, not creator | editor, creator, in window | editor, past window | admin |
+|---|---|---|---|---|---|
+| `PATCH /tournaments/{id}` | 401 | 200 live · 200 done <1h · 403 after | 200 | 403 `Tournament finished more than an hour ago (admin required to edit)` | 200 |
+| `POST /tournaments/{id}/generate` | 401 | same as edit | 200 | 403 (`…to regenerate`) | 200 |
+| `PATCH /tournaments/{id}/reorder` | 401 | same as edit | 200 | 403 (`…to reorder`) | 200 |
+| `PATCH /tournaments/{id}/decider` | 401 | 200 while ≤1h after the last match | 200 | 403 (`…to set the decider`) | 200 |
+| `PATCH /matches/{id}` | 401 | same as edit | 200 | 403 (`…to edit`), **except** the last match, still 200 | 200 |
+| `PATCH /matches/{id}/swap-sides` | 401 | same as edit | 200 | 403 (`…to swap sides`) | 200 |
+| `DELETE /tournaments/{id}` | 401 | 403 `Only an admin, or the editor who created it within the last hour, can delete a tournament` | 204 (even with results) | 403 (same string) | 204 |
+| `PATCH /friendlies/{id}` | 401 | 403 `…can edit a friendly` | 200 | 403 (same string) | 200 |
+| `DELETE /friendlies/{id}` | 401 | 403 `…can delete a friendly` | 200 | 403 (same string) | 200 |
+
+Reader = no `Authorization` header → 401 `Missing token` from `require_auth_claims`; there is no
+account below `editor`. A tournament with **no creator row** (everything created before A10)
+behaves as the "editor, not creator" column for delete, and is unaffected for edit.
+Payload flags match the table exactly, including `(False, False, False)` for a reader and for the
+websocket payload.
+
+**Verification.** `make test` → **144 passed** (132 before: +12 A10 cases, 5 pre-existing tests
+rewritten onto the window), `make lint` → *All checks passed!*, `make gen-types` → `schema.d.ts`
+regenerated and committed with the payload change, `cd frontend && npm run check` → typecheck +
+eslint clean, **49 files / 475 tests passed** (+6), `npm run build` → clean.
+**Rollback safety:** `main` @ `356ada6` (the previous build) was checked out into a worktree and
+run on :8004 against a *copy of the migrated DB* — booted with zero errors, served `/tournaments`,
+`/tournaments/{id}`, `/friendlies`, `/stats/overview`, `/cup`, and still created *and* deleted a
+tournament (200/204 throughout); its `create_all` left both new tables and their rows intact, and
+its payloads simply carry no `can_*` fields.
+**Runtime:** isolated stack (backend :8003 on `data/verify.db`, vite :8020, scratch secrets).
+Editor = Flo, admin = Roli. Screenshots at 390px and 1280px, blue and light: the decider editor
+rendering **for an editor** on a done, tied tournament (with the delete button next to it); the
+three confirmation dialogs; and the same page once the hour is backdated away — delete button and
+decider chips gone, the three muted lines in their place. Zero console errors on every run. Also
+checked live: a reader gets no Controls tab and no row actions on `/friendlies`, and an editor
+sees edit/delete on **only** the friendly they entered (1 of 7 rows).
+
+---
+
+# Round 6 — closed. What it found and deliberately did not fix (2026-09-14)
+
+All ten items (A1–A10) are implemented on `feature/2026-09-audit` and the branch head is green:
+`make test` → **154 passed** (3:38), `make lint` → *All checks passed!*, `make gen-types` → no
+diff, `cd frontend && npm run check` → **52 files / 503 tests**, `npm run build` → clean (the
+pre-existing ">500 kB chunk" hint only). Not pushed; `main` is untouched.
+
+The list below is everything the four workers found and left. It is not a queue — nothing here is
+agreed work — but none of it should have to be discovered twice.
+
+**Needs a decision from Roli (design, not bugs):**
+- **The primary button fails contrast in the four dark themes**, the same failure A6 fixed in
+  light: white on the teal is **2.49:1** in `dark`, **3.68:1** in `blue`, **4.32:1** in `red`.
+  `green` passes (6.54:1) because it already pairs a bright button with dark ink. One shared
+  token, four themes, and it changes the app's main button everywhere — Roli's call, not an
+  agent's. The same choice exists in light, where A6 took the ink route: the alternative there is
+  `--color-btn-bg: 15 118 110` + hover `17 94 89` (5.47:1 / 7.58:1), a visibly darker teal that
+  keeps white lettering.
+- **Smaller light-theme contrast misses, all below 4.5:1 and all deliberate palette choices:**
+  `text-win` / `text-draw` at **4.21:1** on the light page ground, the `text-text-muted/40`
+  separators at **1.97:1** and the `/60` participant line at **2.96:1** on `/tournaments`, and
+  `red`'s selected chip at **4.10:1**.
+
+**A real breach the audit missed** (found by A8's worker while fixing §7):
+- **`window.confirm` for three destructive actions** — `ClubsPage.tsx:512`,
+  `GuestbookEntryCard.tsx:201`, `TournamentCommentsCard.tsx:308`. `DESIGN.md` §7 says never, and
+  A10 built `ui/primitives/ConfirmDialog.tsx` for exactly this. It is three files of plumbing, not
+  a one-liner, which is why it was not folded into A8. The five *non-destructive* `window.confirm`
+  calls (mark-as-read, swap sides, …) are fine as they are.
+
+**Declined inside a task, with the reason that stands:**
+- **`PRAGMA foreign_keys=ON`** (A9.5) — the right answer, the wrong scope: it changes every delete
+  in the app at once and deserves its own task with its own test pass.
+- **`MatchDetailPage` keeps its permissive `?tab=`** (A9.6) — its `edit` tab depends on loaded
+  data, so an `allowed` list would reject a valid deep link before the data arrives.
+- **The matchup nav seam** (A9.6) — no path the app offers today can trigger it; closed as latent,
+  pinned by a unit test.
+- **"1 games" in the duo rivalries** (A7.9) — `RecordLine`'s `playedLabel` sits *outside* the
+  fixed track, so shortening it for n=1 shifts every following segment and undoes T14's alignment.
+- **`OverviewSection:229`'s uppercase pseudo-`<thead>`** (A8.4) — reclassified as canon rot, not a
+  breach: it is a row of column headers doing the same job as the app's two real `<thead>`s, in the
+  same style. §6 now covers it.
+- **`VoteVotersModal:68` paints a thumbs-down `text-loss`** (A8.8 family) — a vote genuinely is a
+  two-sided verdict, so the result token is the right one.
+- **`.pos-good`** — one of five stops on a ramp whose legend shows four; `styles.css` now says so
+  instead of the canon pretending it is dead.
+
+**Known and accepted, unchanged:** `npm run build`'s ">500 kB chunk" hint (≈669 kB `index-*.js`),
+and `PATCH /tournaments/{id}/second-leg` still reviving a done tournament for any editor (A10).
+
+---
+
+# Round 7 — Roli, 2026-09-15 (testing the audit branch)
+
+Baseline `a1a2acc` on `feature/2026-09-audit`. Nine items collapsed into **five jobs**, run in three
+waves. Wave 1 = R1 ‖ R2, wave 2 = R3 ‖ R4, wave 3 = R5. The pairing is by *file set*, not by
+subject: R2 carries the What-if tab order because the tournament page holds one of the browser
+confirms in the same file, and R3 waits for R2 because both touch `ClubsPage.tsx` and `MatchList.tsx`.
+
+Rules for implementing agents are the ones at the top of this file. In addition: never `git add`
+(commit with `git commit -o -m "…" -- <paths>`), never bind 8000/8001/8010/5173, never a broad
+`pkill`, never read `backend/secrets.json`.
+
+## R1 — The two micro-tile grids  ☑
+
+`DESIGN.md` §4 calls the positions grid and the H2H matrix "the same thing at the same size", so
+they are one job.
+
+**R1a — the cup lineage is diagonals again, and they stop crossing the digits.**
+Roli, on A7's replacement: *"huh, i expected it to be like before, with diagonal lines from cell to
+cell??"* and *"yeah i want the diagonals back, fix the digit-crossing as well"*.
+History: the original joined the holder's cell centres. A7.7 moved it into the gutters as a path
+that stepped sideways at each handover — *"super ugly in some cases"*, because a jog reads as a
+bracket drawn around a random block of cells. A follow-up (`a1a2acc`) removed the jogs, which left
+straight rails and no movement at all.
+The answer is the original polyline, painted **under** the tiles: `.pos-tile` is
+`hsl(… / 0.22)`, so the line still reads through the tile while the digit and the crown sit on top
+untouched. That also answers A7's second complaint — crossing a cell of a tournament the holder
+never played is fine when the line passes behind it.
+**This is already written into the working tree, uncommitted** (`pages/stats/PositionsView.tsx`):
+the `<svg>` moved *before* the grid (both are positioned with `z-index:auto`, so DOM order decides),
+`laurelPolylines` restored with the `cup_stakes` guard, a 3px lane per cup so one cannot hide the
+other, and `InfoLegend` gained a line per cup. Verify it, keep it, commit it with the rest.
+
+**R1b — the matrix uses the width it has.**
+Roli: *"in h2h matrix, on mobile its a bit weird: it does not use the width fully (which it probably
+should not if there are only 2-3 players), but in my case there are 6 and it should either be
+centered or additionally use the full width. make sure this scales accordingly and also looks nice
+on desktop"*.
+Cause: `pages/stats/H2HView.tsx:361-412` draws fixed `h-11 w-11` cells with `borderSpacing: 3` in an
+`overflow-x-auto` box. Six short names come to ~330px inside a 358px viewport, left-aligned, with a
+dead strip on the right.
+Do: cell size responsive, roughly `clamp(40px, (100% − name column) / n, 56px)`, square. Floor 40
+(not 38 — the `wdl` metric renders three numbers and two hyphens in that cell). Ceiling so two or
+three players do not become giant tiles. Centre the table once the ceiling caps it, which is every
+realistic count on desktop. Below the floor it keeps scrolling sideways. The rotated column labels
+and the `h-24` header must follow the cell width; the sticky first column keeps working.
+
+**DoD:** both grids at 390px and 1280px in blue and light; the matrix additionally with 2, 3 and 6
+players; zero console errors; `npm run check` + build.
+
 **Deviations:**
+
+- **R1a was kept as written**, with three corrections: the doc comment still said the two
+  cups get "a half-pixel lane each" where the code gives each a 3px lane; `InfoLegend`'s
+  header comment still said "cup rails"; and the removed `<svg>` left a blank line behind.
+  The plan also says `InfoLegend` "gained a line per cup" — it already had one, from the
+  rails work, but as a **vertical** bar, which promises the thing the lineage stopped
+  being. It is now a diagonal at the grid's own stroke and cap.
+- **The floor is 44px, not the 40 the plan proposed.** The plan's own reason for a floor is
+  that the default metric renders three numbers and two hyphens; measured in the browser,
+  40 is not enough — a real record (`11-10-5`, seven glyphs at `text-xs`) wraps onto a
+  second line at 40 and fits on one at 44. 44 is also exactly the cell's old fixed size, so
+  the change can only ever grow a tile, never shrink one.
+- **A `<td>` carries 1px of user-agent padding**, which made every column two pixels wider
+  than it asked to be — invisible at a fixed 44, fatal to arithmetic that must add up to
+  the box's width (the first attempt overflowed a 358px phone by 11px). The body cells got
+  `p-0`; the gutter is now `border-spacing` and nothing else, so it reads 3px instead of 5.
+- **The measurement hangs off a callback ref, not a dependency array.** The matrix leaves
+  the DOM whenever the Duos sub-view is up, and `rows` does not change when it comes back,
+  so an effect keyed on the data handed the returning table a stale zero and left it at the
+  floor until the next resize. Only the scroll box is observed, never the name column:
+  nothing in that column depends on the cell size, so there is no loop to get into.
+- `DESIGN.md` §4 said the two micro-tile grids are "the same thing at the same size", which
+  stops being literally true once one of them is elastic. One clause added naming both
+  sizes. No other canon change.
+- **Not changed, and worth a look:** the header block above the matrix is `h-24` (96px) with
+  the rotated names centred in it, so a short name like "Rumpi" floats with ~30px of dead
+  space under it before the first tile — most visible with two or three players, where the
+  matrix is now small and centred. It is pre-existing, it is not what Roli reported, and the
+  plan asks only that the header follow the cell **width**, so it was left alone. If it
+  should go: `writing-mode: vertical-rl` + `rotate-180` on the label makes its layout box
+  the real rotated box, and `items-end` then parks short names on top of the tiles while
+  long ones grow upward.
+- Verified at 2 / 3 / 6 / 7 / 12 players by trimming and padding the live `/stats/ratings`
+  payload in the browser — the component, the layout and the browser are real, only the data
+  is resized. The dev data has exactly six players under every Mode/Source combination, so
+  the small and large counts are unreachable through the filters. The arithmetic is also
+  pinned in `src/test/h2hHelpers.test.ts` (6 unit tests).
+
+---
+
+## R2 — One dialog, one tab order, one banner  ☑
+
+**R2a — the app's own dialog, everywhere.** Roli: *"use the own dialogs everywhere"*. `DESIGN.md`
+§7 already says never `window.confirm`; A10 built `ui/primitives/ConfirmDialog.tsx` for it and A8
+flagged three destructive sites it never reached. Roli's "everywhere" is all eight:
+
+| File | Line | What it asks | Destroys? |
+|---|---|---|---|
+| `pages/ClubsPage.tsx` | 512 | delete a club | yes |
+| `pages/profile/GuestbookEntryCard.tsx` | 203 | delete a message **and its replies** | yes |
+| `pages/live/TournamentCommentsCard.tsx` | 308 | delete a comment | yes |
+| `pages/profile/useProfileGuestbook.ts` | 427 | mark N unread as read | no |
+| `pages/live/LiveTournamentPage.tsx` | 572 | mark N unread as read | no |
+| `pages/live/MatchDetailPage.tsx` | 463 | swap sides A and B | no |
+| `pages/live/CurrentGameSection.tsx` | 290, 309 | (read them) | read them |
+
+The three destructive ones name **what is lost** in the dialog's red block — the club's name and
+that it is used in matches, the reply count, the comment's author and whether it carries an image.
+The rest get the same dialog without that block: a title, a sentence, Cancel and a verb. Never a
+bare "OK". `useProfileGuestbook.ts` is a hook, not a component — the dialog belongs to its caller,
+so the hook returns the intent and the page renders the dialog.
+
+**R2b — What if moves.** Roli: *"move the 'what if' to the right of matches (left of comments)"*.
+`pages/live/LiveTournamentPage.tsx:537-542` pushes overview · standings · matches · comments ·
+whatif. It becomes overview · standings · matches · **whatif** · comments. `showWhatIf` stays
+conditional; `?tab=` values do not change.
+
+**R2c — the banner fills the width again.** Roli: *"its left aligned and does not uflly fill the
+width"*. `a1a2acc` capped the banner's width so A7.6's height cap would stop cropping the 16:9 crop
+the editor produces. Wrong trade. `pages/profile/ProfileHeader.tsx`: drop `md:max-w-xl`, keep
+`w-full aspect-[16/9] object-cover`, no `max-h`, no `object-center`. Accepted consequence, stated to
+Roli and waved through: at 1280×900 the banner is ~557px and the tab strip sits near the fold.
+
+**DoD:** `grep -rn "window.confirm" frontend/src` returns nothing but the comment in
+`ConfirmDialog.tsx`; every dialog tried at 390px and 1280px; the tab order checked on a draft, a
+live and a done tournament; `npm run check` + build.
+
+**Deviations:**
+
+- **All eight replaced.** `grep -rn "window.confirm" frontend/src` → one hit, the sentence inside
+  `ConfirmDialog.tsx` itself. Two of my own comments were reworded so they do not answer that grep.
+- **`CurrentGameSection` classified, as asked.** **:290 Reset is destructive** — it throws a played
+  result away — so it carries the red block and names the score: *"Flo 2–1 Atzi is wiped"*, plus
+  "the clubs stay; the standings drop this match until it is played again". **:309 Finish is not**:
+  it records a result that Reset undoes, so it is title + sentence + verb. Its title now states the
+  score that would really be written (`Finish this match at 1:0?`) instead of the old hard-coded
+  "(0:0)" — the dev DB has scheduled matches carrying goals, and Finish would have recorded them.
+  Finishing a match that *is* being played still asks nothing, exactly as before.
+- **The hook returns intent, the page renders the dialog.** `useProfileGuestbook` exposes
+  `onRequestMarkAllRead` + `markAllAsked`/`markAllCount`/`onConfirm|onCancelMarkAllRead`, and
+  `pendingDelete`/`pendingDeleteReplyCount`/`deletePending`/`onConfirm|onCancelDelete`;
+  `GuestbookSection` renders both `ConfirmDialog`s. The recursive card's context callback
+  `deleteEntry(id)` became `requestDelete(entry)` for the same reason — one dialog for the feed,
+  not one Modal per card. Nothing in the hook's API now claims to act when it only asks.
+- **Reply counts are the whole subtree**, because both deletes cascade transitively
+  (`routers/players.py`, `routers/comments.py`): new tested helper `countGuestbookDescendants`
+  in `guestbookTree.ts`, and a local walk over `childrenByParent` in `TournamentCommentsCard`.
+  The native texts said "and all replies" / nothing at all.
+- **What the three destructive dialogs name.** Club: `name · league · stars`, "its crest and its
+  star rating go with it", then the rule A9 widened — used in a tournament match **or a friendly**,
+  the delete is refused and nothing changes. (`ClubOut` carries no usage count and the plan forbids
+  a round trip, so the dialog states the rule, not the answer.) Guestbook message: author + time as
+  the subtitle, the N replies, its votes, "cannot be undone". Comment: author + time as the
+  subtitle, *"Flo's comment is deleted, the attached image with it"*, the N replies, "cannot be
+  undone" — every word of it from the comment the client already holds.
+- **Two wordings were wrong and are fixed.** "Swap sides A and B? This cannot be undone" — the
+  endpoint swaps the two side labels and is its own inverse, so it now says what moves and that
+  swapping again puts it back. And both "mark N as read" dialogs now say the read marks are the
+  viewer's own and nothing is deleted (singular sentence when N is 1).
+- **Title style:** the club dialog is "Delete this club?" with the name in the red block, not
+  `Delete "<name>"?` like the tournament one — `Modal` truncates a string title and club names run
+  long on a phone.
+- **Verification:** isolated stack (backend :8004 on a copy of `app.db` with a scratch secrets
+  file, vite :8021), Playwright signed in as admin. 14 surfaces × blue/light × 390/1280 px = **56
+  runs, 0 console/page errors, 0 horizontal overflow**, plus 8 more for the singular "Mark 1 as
+  read" case; backend log clean (no 5xx). Tab order checked on draft (21), live (20) and done (19):
+  Overview · Current · Standings · Matches · **What if** · Comments · Admin, and the done one has
+  neither Current nor What if. `npm run check` green (52 files, 509 tests), `npm run build` green
+  (only the pre-existing >500 kB chunk hint).
+
+---
+
+## R3 — The themes read  ☑
+
+**R3a — the primary button, dark themes.** Roli, shown the rendered options: *"use darker color with
+a white label for all dark themes"*. So **option B**: keep the white label, darken the colour.
+
+| Theme | File | Now | Becomes | White label |
+|---|---|---|---|---|
+| dark (baseline) | `themes/defaults.css` | `20 184 166` | `15 118 110` | 2.49 → **5.47** |
+| blue | `themes/blue.css` | `59 130 246` | `37 99 235` | 3.68 → **5.17** |
+| red | `themes/red.css` | `225 56 74` | `200 35 50` | 4.32 → **5.61** |
+
+`--color-hover-btn-bg` moves with each one (one further step down; teal's is `17 94 89`).
+**`green` and `light` are not touched** — green already passes at 6.54 with its dark label and
+option B would take it to 4.12; light keeps A6's dark label at 7.94. Decided with Roli.
+
+**R3b — light theme, the rest.** Roli: *"also do the white theme fixes"*.
+- `--color-win` `21 128 61` → `22 101 52` (4.21 → **5.98**), `--color-draw` `180 83 9` → `146 64 14`
+  (4.21 → **5.95**), both on the light page ground `236 235 233`. `--color-loss` already passes at
+  5.43; move it to `153 27 27` (6.98) **only** if the three look mismatched side by side, and say so.
+- **Muted text drawn at alpha**: `text-text-muted/40` = 1.97:1 and `/60` = 2.96:1 on paper-white.
+  Seven occurrences in six files (`TournamentsPage.tsx` ×2, `ui/primitives/List.tsx`,
+  `ui/primitives/CollapsibleCard.tsx`, `ui/ClubStarsEditor.tsx`, `pages/live/MatchList.tsx`,
+  `ClubsPage.tsx`). Alpha is being used as a hierarchy tool where the light theme has no room for
+  it. Decide one answer and apply it to all seven: full-strength muted for text, and a real
+  separator treatment (a border or a full-strength `·`) where the alpha was decorative.
+
+**DoD:** every changed ratio measured in the browser in **all five** themes, before and after, in a
+table; no non-light value moves except the three button colours; `npm run check` + build.
+
+**Deviations:**
+
+- **R3a was written by a worker that died on an infrastructure timeout before it could verify
+  or commit anything.** Its edit to the three theme files and its `DESIGN.md` paragraph were
+  sitting uncommitted in the tree; both were re-measured here from scratch and kept.
+- **The inherited hover reasoning is right, and now has numbers.** It noticed what the plan did
+  not: every old `--color-hover-btn-bg` stepped *up* into a brighter shade, so the white label
+  got worse the instant a pointer touched it — measured in the browser, hovering dropped the
+  label to **1.86:1** (teal), **2.54:1** (blue) and **3.67:1** (red), each *below* the resting
+  fill it was already failing at. The three new hovers step down instead (7.58 / 6.70 / 7.29).
+  The general rule is now in `DESIGN.md`: a hover moves *away* from the label's luminance, never
+  toward it — which is also why `light`, whose label is dark ink and whose hover steps lighter
+  (7.94 → 10.61), was right all along and is untouched.
+- **The plan's "option B would take green to 4.12:1" is not reproducible.** Measured: green's
+  dark label on green-500 is 6.54:1; keeping that label on a green-700 fill gives **2.97:1**;
+  white on green-700 gives **5.02:1**. Every candidate is worse than 6.54, so the decision
+  (leave green alone) stands — only its stated reason was wrong, and `DESIGN.md` now carries the
+  measured one.
+- **`--color-loss` moved after all**, to `153 27 27` — the plan allowed it "only if the three look
+  mismatched, and say so". They did, and there is a harder reason than the eye: once `win` and
+  `draw` were deepened, red-700 was the lightest of the three to look at, and on its own
+  `bg-loss/15` badge (`ScoreLine`) it measured **4.25:1**, the only one of the three still under
+  4.5:1 there. The badge is the case A6 and A8 never measured: before this change the light
+  theme's W/D/L badges were **3.49 / 3.48 / 4.25**, and they are now **4.81 / 4.76 / 5.41**.
+  Consequence recorded in `DESIGN.md`: `--color-draw` now shares amber-800 with `--color-warn`,
+  and `--color-loss` no longer shares red-700 with `--color-error`.
+- **The muted-alpha half: one answer, "opacity is not a tone".** No `text-text-muted/<n>` remains
+  anywhere in `src/` (the seven were the only ones). Three were decorative `·` separators inside
+  a line that is *already* `text-text-muted` (`TournamentsPage` meta, `ClubsPage` club meta) — the
+  span now carries only its `mx-1.5` and inherits, because a separator is spacing, not a third
+  tone; a fourth (`MatchList` meta) names the token because its line is not muted as a whole.
+  One was real content — the participants line under a tournament name, at 2.96:1 on light — and
+  simply goes full strength. The last three were affordances: the `ListRow` chevron and the two
+  disclosure glyphs (`CollapsibleCard`, `ClubStarsEditor`). The hierarchy those alphas were
+  faking is carried by the type scale and weight, which is what `DESIGN.md` §5 already says.
+  A **border** was considered for the separators and rejected: a vertical rule between inline,
+  wrapping meta parts is a layout change, and the codebase already writes the full-strength `·`
+  in plain strings elsewhere (`MatchOverviewPanel`, `ClubPicker`, `SelectClubsPanel`) — the seven
+  were the outliers, not the pattern.
+- **Alpha *backgrounds* were deliberately left alone**, and `DESIGN.md` now says why they are a
+  different thing: `bg-win/15` is a tint of a surface, and `MatchList`'s finished-state dot at
+  `bg-text-muted/60` is a dot whose word ("finished") sits beside it. Taking that dot to full
+  strength would make *finished* the loudest marker in a list where live and scheduled carry
+  status colours. `WhatIfSection.tsx` has the same dot and is outside this task's file set.
+- **"No non-light value moves except the three button colours" is read as being about theme
+  *tokens*,** and holds: the only token values changed are light's `win`/`draw`/`loss` and the
+  three dark `--color-btn-bg`/`--color-hover-btn-bg` pairs; every other measured ratio in
+  blue/dark/red/green is identical before and after. The alpha repair is a *component* change to
+  seven class attributes, so it necessarily lands in all five themes — where it also fixed a
+  near-invisible separator (2.63–2.74:1 in the dark themes). Applying it to light alone would
+  have meant keeping alpha-as-hierarchy in four themes and dropping it in one, i.e. two answers
+  where the plan asked for one.
+- **The `ListRow` chevron has no live call site today**: both callers (`TournamentsPage`, which
+  passes `chevron={false}`, and `PlayersAdminPage`, which always passes `trailing`) suppress it,
+  so it could not be measured on a real surface. It was measured by injecting a span with the
+  same class into a real tournament row in the running app, so the theme variable and the
+  compositing are the browser's own. Left in place and fixed like the rest — it is live code in
+  the primitive.
+- **`DESIGN.md` §2 had two claims that R3 falsified and that are now corrected**: the
+  `--color-btn-text` table row still printed the dark teal's 2.49:1 as if current, and A8's
+  paragraph said 4.21:1 "is enough under a single numeral in a `W-D-L` run" — the sentence this
+  task exists to disprove.
+- **Verification:** baseline `27b1078` extracted with `git archive` into a scratch tree and served
+  by a second vite (`:8025`) against the same backend, so before/after are the same app, same
+  data, same browser, differing only in the diff. Backend `:8003` on a copy of `app.db` with a
+  throwaway `JWT_SECRET` env var and a self-minted admin token — `secrets.json` was never read.
+  Five themes × two widths (390 / 1280) × six surfaces, contrast computed in-page from
+  `getComputedStyle` with every translucent ancestor composited. Zero console errors in the after
+  run. Stack and DB copy removed afterwards.
+- Committed in two commits: the three dark theme files (R3a), then light's tokens, the seven
+  class attributes, the `DESIGN.md` canon for both halves and this tracker (R3b). `DESIGN.md` is
+  one file and documents both, so it rides with the second.
+
+---
+
+## R4 — A club's stars remember when they changed  ☑
+
+Roli: *"i want club star-rating history. recover history as well."* Parked idea 4 of this file is the
+research; read it before starting. The short version: `Club.star_rating` is one float, a
+`PATCH /clubs/{id}` overwrites it, and the stats "Club stars" view joins **today's** rating onto
+every historical match — so re-rating a club silently rewrites the past.
+
+- **New table** `ClubStarRating` (`club_id`, `stars`, `valid_from` date, `changed_at`) — a new
+  table, never a column, per §5. `init_db()` seeds one row per club at its current rating,
+  idempotently.
+- Every star write appends a row instead of only overwriting. Keep `Club.star_rating` as the
+  current value so nothing else breaks.
+- Stats resolve the rating **as of the match's date**; anything earlier than the first row uses that
+  first row. `services/stats/odds.py` keeps reading the *current* rating — odds are a prematch
+  estimate and that is correct.
+- **Recovery**: a `backend/manage.py` command that diffs the production snapshots in
+  `backup/deploy/*/data/app.db` (**deploy only** — `backup/local/*` are pre-sync dev copies and
+  interleaving them fakes changes that revert), dating each change at the snapshot where it first
+  appears, and reports what it found. Expect ~31 changes across 31 clubs; only 2 of 178 finished
+  match sides are misattributed today, so the value is protecting the future, not fixing the past.
+  State the limits in the output: nothing before 2026-03-28, and inside a gap the exact day is
+  unknown.
+- **Frontend**: where a rating is edited (`ClubsPage` panel and `ui/ClubStarsEditor.tsx`), show the
+  history for that club. Small and read-only.
+
+**R4b — a plan note, not code.** Roli: *"fold the 'season or year view' into the ea fc 27 changes ->
+i dont want them now, but when the game arrives i want the plan to be ready"*. Write it into parked
+idea 3 (EA FC 27 / multiple games) of this file: what a season/year filter means next to the Game
+filter, which surfaces it applies to, and that it ships with FC 27, not before.
+
+**DoD:** `make test` + `make lint` + `make gen-types`; new backend tests for the as-of resolution
+and for the appending write; the recovery command run against the real snapshots **read-only** with
+its report pasted into Deviations; `npm run check` + build.
+
+**Deviations:**
+
+- **The as-of rule, stated once** (`services/club_stars.StarRatingResolver.as_of`): the last row
+  whose `valid_from` is on or before the match's **own date**; before the first row, that first
+  row; with no date at all, the current rating; with no club, nothing. The "before the first row"
+  edge is the important one — tournaments start 2025-10-18 and the record starts 2026-03-28, so
+  falling back to *today's* rating there would have re-introduced the bug for every match of the
+  first five months. A **friendly** resolves on `FriendlyMatch.date`, not on the tournament it is
+  grouped under in the stats payload (it has none). `started_at`/`finished_at` are never used:
+  they record when a score was typed in (the warning already on `services/stats/streaks.py`).
+  `services/stats/odds.py` was left alone and a test pins that it stays on the current rating.
+- **Every write path found** — three, not one: `POST /clubs` (opens a club's history),
+  `PATCH /clubs/{id}` (the Clubs page panel **and** T2's inline `ClubStarsEditor` in the picker
+  both go through this one endpoint, so one call site covers both editors) and
+  `app/seed.py::upsert_clubs`, which silently changes `existing.star_rating` when a seed file
+  disagrees. `app/tools/sync_club_crests.py` touches crests only. All three go through
+  `record_star_rating()`, which writes **one row per club per day**: a second edit on the same day
+  is that day's value, and re-saving a rating that is already in force writes nothing.
+- **An extra column beyond the spec: `source`** (`live` | `seed` | `recovered`). Without it the UI
+  cannot tell an exact day from a reconstructed one, and R4 explicitly requires the limits to be
+  stated — the frontend says "since 12/09/2026" for a measured day and "by 31/05/2026" for a
+  recovered one.
+- **`init_db()` seeds at today's date**, not at a sentinel in the past. With only that one row
+  every historical match resolves to the club's current rating — i.e. *exactly* today's behaviour,
+  so a database that never runs the recovery is unchanged rather than subtly different. The
+  recovery then inserts rows *before* it and prunes the seed row when it says nothing new (626
+  pruned here).
+- **A latent bug found and fixed on the way** (`fix(R4)` commit): `db.py` imports no model, so
+  `SQLModel.metadata` is only populated once something pulls in `app.models`. Any entry point that
+  called `configure_db()` + `init_db()` directly got a `create_all` over empty metadata. The
+  service import now sits *above* `create_all`, where importing it is what registers the tables.
+- **Response models changed**, so `make gen-types` ran and `schema.d.ts` is in the same commit:
+  new `ClubStarHistoryOut`/`ClubStarHistoryEntryOut`, and a new `StatsMatchSideOut` (=
+  `MatchSideOut` + optional `club_stars`) used by `StatsMatchOut` alone. `MatchOut` — the live
+  tournament payload — is deliberately untouched: a live match asks "how good is this club now",
+  the same question the picker and the odds ask.
+- **Frontend reach, slightly wider than "show the history"**: `StarsView` buckets by `club_stars`,
+  and the *detailed* match rows pass it to `MatchSides` as an override. Without the second half
+  the same page would print "2.5★" under a score whose bucket counts it as 3★. Live surfaces pass
+  nothing and still show today's rating. `ui/primitives/MatchOverviewPanel` (a single match's hero
+  panel) was **not** changed — one screen, one tense, and that one is "this match, now".
+- **Where the history is shown**: the Clubs page edit panel (full width, under the fields) and the
+  club picker's "Selected" row. In the picker it is a block *under* the row rather than inside
+  `ClubStarsEditor`, because that editor lives in the row's `trailing` slot — a list of dates does
+  not fit in a right-aligned cell. `ClubStarHistory` brings no surface of its own; the caller owns
+  the box (an `inset` in the picker's modal, plain rows inside the page's existing `inset`).
+- **No `text-text-muted/<n>`** anywhere in the new component (R3's rule), no uppercase label inside
+  the `inset` (the "now" marker is lowercase `.text-micro`, DESIGN.md §6), `rounded` only through
+  `inset`/`list-divided`.
+- **The recovery command is `python3 backend/manage.py recover-club-star-history [--path …]
+  [--apply]`**, read-only by default. It never writes to `backup/` (every snapshot is opened
+  `mode=ro`) and in a dry run it does not configure an engine at all — even the target database is
+  read through a read-only connection, so the report costs nothing. Deploy snapshots are selected
+  by `snapshot.json`'s `kind`, **not** by the directory name: two of the twelve real deploy
+  snapshots (`20260328-022654`, `20260913-150024`) are named without the `-deploy` suffix and a
+  name-based filter would have silently dropped them.
+- **The research's numbers held.** 31 changes across 31 clubs, exactly as measured on 2026-09-13.
+  The impact reads **3 of 218** finished match sides rather than "2 of 178": the 178 *tournament*
+  sides and their 2 misattributions are confirmed to the row (San Jose Earthquakes and Carrarese
+  Calcio, both dated 2026-05-31); the third is a **friendly** side (Grazer AK, 2026-07-24), which
+  the original research did not count because it only looked at `matchside`. There are 12 usable
+  snapshots now, not 11 — one more was taken on 2026-09-13 after the research was written.
+- **Read-only run against the real snapshots** (target: the dev `backend/app.db`, which mirrors
+  production):
+
+```
+Club star-rating recovery — deploy snapshots under /home/roli/projects/turnierplaner-reloaded/backup/deploy
+
+Snapshots used (12):
+  2026-03-28  20260328-022654  (626 clubs)
+  2026-03-28  20260328-012722-deploy  (626 clubs)
+  2026-04-03  20260403-150029-deploy  (626 clubs)
+  2026-05-31  20260531-123205-deploy  (626 clubs)
+  2026-06-08  20260608-072542-deploy  (626 clubs)
+  2026-06-09  20260609-211825-deploy  (626 clubs)
+  2026-07-12  20260712-010531-deploy  (626 clubs)
+  2026-08-08  20260808-092732-deploy  (626 clubs)
+  2026-08-20  20260820-182445-deploy  (626 clubs)
+  2026-09-12  20260912-162149-deploy  (626 clubs)
+  2026-09-12  20260912-162230-deploy  (626 clubs)
+  2026-09-13  20260913-150024  (626 clubs)
+
+Skipped (1):
+  20260403-145834-deploy: no data/app.db
+
+Recovered: 626 clubs get an opening rating, 31 rating changes across 31 clubs.
+
+Changes (dated at the snapshot where the new value first appears):
+  2026-04-03  FC Porto (#49)  4★ → 4.5★   [after 2026-03-28]
+  2026-05-31  Huracán (#115)  3.5★ → 3★   [after 2026-04-03]
+  2026-05-31  Blau-Weiss Linz (#267)  2★ → 2.5★   [after 2026-04-03]
+  2026-05-31  San Jose Earthquakes (#295)  2★ → 2.5★   [after 2026-04-03]
+  2026-05-31  Bryne FK (#307)  1.5★ → 1★   [after 2026-04-03]
+  2026-05-31  FC Thun (#311)  1.5★ → 2★   [after 2026-04-03]
+  2026-05-31  SCR Altach (#323)  1.5★ → 2★   [after 2026-04-03]
+  2026-05-31  Yunnan Yukun (#355)  1.5★ → 1★   [after 2026-04-03]
+  2026-05-31  AFC Wimbledon (#360)  1.5★ → 1★   [after 2026-04-03]
+  2026-05-31  Derby County (#371)  3★ → 3.5★   [after 2026-04-03]
+  2026-05-31  Huddersfield (#372)  2★ → 2.5★   [after 2026-04-03]
+  2026-05-31  Lincoln City (#375)  1.5★ → 2★   [after 2026-04-03]
+  2026-05-31  Port Vale (#382)  1.5★ → 2★   [after 2026-04-03]
+  2026-05-31  Stockport (#387)  1.5★ → 2★   [after 2026-04-03]
+  2026-05-31  Barrow (#397)  1.5★ → 1★   [after 2026-04-03]
+  2026-05-31  Bristol Rovers (#399)  1.5★ → 1★   [after 2026-04-03]
+  2026-05-31  Alemania Aachen (#449)  1.5★ → 2★   [after 2026-04-03]
+  2026-05-31  FC Ingolstadt 04 (#453)  1.5★ → 2★   [after 2026-04-03]
+  2026-05-31  MSV Duisburg (#456)  1.5★ → 2★   [after 2026-04-03]
+  2026-05-31  Quatar (#485)  3★ → 2.5★   [after 2026-04-03]
+  2026-05-31  Carrarese Calcio (#497)  3★ → 2.5★   [after 2026-04-03]
+  2026-05-31  Daegu FC (#504)  2★ → 1.5★   [after 2026-04-03]
+  2026-05-31  Jeju SK (#521)  2★ → 1.5★   [after 2026-04-03]
+  2026-05-31  Suwon FC (#524)  2★ → 1.5★   [after 2026-04-03]
+  2026-05-31  FC Annecy (#552)  1.5★ → 2.5★   [after 2026-04-03]
+  2026-05-31  Macarthur FC (#618)  1.5★ → 2★   [after 2026-04-03]
+  2026-07-12  Tigre (#259)  2.5★ → 3★   [after 2026-06-09]
+  2026-08-08  Grazer AK (#314)  1.5★ → 2★   [after 2026-07-12]
+  2026-09-12  Gimnasia y Esgrima La Plata (#169)  3★ → 2.5★   [after 2026-08-20]
+  2026-09-12  San Diego FC (#206)  3★ → 2.5★   [after 2026-08-20]
+  2026-09-12  Swansea City (#417)  3★ → 3.5★   [after 2026-08-20]
+
+Impact on the target database: 3 of 218 finished match sides change value.
+  2025-11-30  San Jose Earthquakes (#295)  tournament side 27: counted 2.5★ → 2★
+  2026-04-17  Carrarese Calcio (#497)  tournament side 147: counted 2.5★ → 3★
+  2026-07-24  Grazer AK (#314)  friendly side 25: counted 2★ → 1.5★
+
+Limits of this recovery — read them before trusting a date:
+  * Nothing is recoverable before 2026-03-28, the oldest snapshot. A match played
+    earlier is counted at the oldest value on record, which is the best answer available,
+    not a measured one.
+  * Inside a gap between two snapshots the exact day is unknown. Each change is dated at the
+    snapshot where the new value was first seen, so it is an upper bound: the rating changed
+    somewhere in the window printed next to it.
+    Gaps longer than a week:
+      2026-04-03 → 2026-05-31 (58 days, 25 changes)
+      2026-05-31 → 2026-06-08 (8 days, 0 changes)
+      2026-06-09 → 2026-07-12 (33 days, 1 changes)
+      2026-07-12 → 2026-08-08 (27 days, 1 changes)
+      2026-08-08 → 2026-08-20 (12 days, 0 changes)
+      2026-08-20 → 2026-09-12 (23 days, 3 changes)
+  * Nothing after 2026-09-13 comes from a snapshot; from there on the history is
+    written live by every star edit.
+  * Rows written here are marked source=recovered, so the app can say the day is approximate.
+
+Read-only run: nothing was written. Re-run with --apply to write these rows.
+```
+
+- **Verified in a real browser** against an isolated stack (backend :8003 on a copy of the DB with
+  the recovery applied, vite :8020) at **390px and 1280px** in **blue and light**: the Clubs page
+  edit panel, the club picker's Selected block, Stats → Player → Club stars, and the H2H matchup's
+  detailed rows. **Zero console errors** in all of them, and `document.querySelectorAll("a a")`
+  stayed 0. Checked end to end in the DOM: Carrarese Calcio renders **3★** under its 2026-04-17
+  match while the club reads 2.5★ today.
+- **Roli's own dev server picked the change up while this was being built.** His `backend/app.db`
+  now carries the `clubstarrating` table with 626 seed rows, written by his own running backend's
+  `init_db()` at 20:11 — additive, idempotent and exactly what a deploy does. Nothing else in that
+  database changed, and the recovery was **not** applied to it.
+- **Deploy note:** this adds a table and a startup seed. The expected one-time log line is
+  `Club star history seeded: <n>` (626 against the current production data). The recovery is
+  optional and manual — run it read-only first, then with `--apply`, from this dev machine against
+  the server's database, or simply skip it: without it every past match keeps counting today's
+  rating, exactly as it does now.
+
+---
+
+## R5 — Ideas and feature requests  ☑
+
+Roli: *"add a page with ideas/feature requests (below clubs, no tab in bottom bar). make sure to
+follow design of rest of page. the feature requests are recorded and admin can see them. make sure
+to have relevant input fields, like text input, but also checkmarks which page they want to change
+(or if its more general or affects multiple pages) etc. think about this hard."*
+
+**Settled with Roli — do not relitigate:** a new nav entry **visually below Clubs** in the sidebar
+and the drawer, **no bottom-bar tab**. **Posting requires login.** **Everyone can read every request
+and vote on it.** **An editor may edit their own**; **an admin may do anything.** **Image upload**,
+reusing what comments already do. **A push to the admin when a new one arrives.**
+
+- **Tables** (all new): `FeatureRequest` (author player id, title, body, kind, status, timestamps),
+  `FeatureRequestArea` (request id + area — a child table, so a request can name several),
+  `FeatureRequestVote` (request id + player id, unique), `FeatureRequestImageFile` mirroring
+  `CommentImageFile`.
+- **Areas** are the app's own destinations — Dashboard, Tournaments, Friendlies, Stats, Players,
+  Clubs, Profile, Settings, Match page — plus **General** and **Several pages**. Multi-select,
+  because a complaint like Roli's about the banner spans a page *and* a viewport.
+- **Kind**: feature · change · bug. **Status** (admin only): new · planned · doing · done · declined.
+- **Endpoints** under `/ideas`: list (public read), create (editor+), patch (own, or admin), delete
+  (own, or admin — through `ConfirmDialog`), vote/unvote, image upload, status (admin only).
+- **Frontend**: the composer is **attached to the feed**, not a second floating card (§9b, the
+  mistake A8 had to undo in the guestbook). `Chip`/`ChipGroup` for areas and kind, `EmptyState`,
+  `InlineLoading`, the existing image lightbox, votes the way comments do them. Filter by status and
+  area. Every icon lucide.
+
+**DoD:** the full permission matrix tested backend-side (reader, editor, author-editor, admin);
+`make test` + `make lint` + `make gen-types`; the page at 390px and 1280px in blue and light;
+a push actually delivered to the admin on create; `npm run check` + build.
+
+**Deviations:**
+
+- **The area catalog is code, the stored area is a string** (`backend/app/feature_areas.py`).
+  `FeatureRequestArea.area` is a plain column, never a foreign key, and the rule that goes with
+  it is written at the top of that file: **a key is never deleted from `AREA_DEFS`, only marked
+  `retired=True`**. A retired area is not offered when writing (`selectable: false` from
+  `GET /ideas/areas`, and the server rejects it with a 400), still labels the old ideas that
+  carry it, and still appears in the page's filter for as long as one idea names it. A key the
+  catalog does not know at all — a hand-written row, or a deletion made against the rule — is
+  rendered as the raw key rather than dropped: losing "which page was this about" is worse than
+  an unpolished label. That is the answer to "the app grows a destination and an old request
+  still names one that no longer exists", and it is covered by a backend test that retires
+  `stats` at runtime and by three frontend ones.
+- **Areas are required, and the two scope answers stand alone.** The plan lists General and
+  Several pages *beside* the destinations, which would let an idea claim to be about the Stats
+  page and about no page at the same time. So `general` / `several` are mutually exclusive with
+  each other and with every page, the server enforces it (400 "cannot be combined"), and
+  `toggleArea` in the composer mirrors it so the Post button never dies on an invisible 400.
+  At least one area is required — the filter is the point of the checkmarks Roli asked for, and
+  an unlabelled idea rots it. "General" is relabelled **"Not about one page"**, because next to
+  ten page names "General" reads like an eleventh page.
+- **A vote is a "+1", not a ±1.** `FeatureRequestVote` has no `value` column: the row's
+  existence is the vote, `PUT /ideas/{id}/vote` takes `{"value": 0|1}` and answers a -1 with a
+  400. A board of five friends asking "who else wants this" does not need a way to downvote a
+  friend's idea. The shape stays `VoteResultOut` / `VotersOut` (with an always-empty
+  `downvoters`) so the vote button and the voters modal are the ones comments already use.
+- **`edited_at` is a column of its own, and only a PATCH stamps it.** Found in the browser: an
+  idea said "edited" because the *admin* had set its status. `updated_at` moves for a status, an
+  image and a vote, so it cannot answer "did the author rewrite this?" — `edited_at` can, and
+  the byline reads that. It is a column on a **new** table, which §5 rule 1 allows; it also got
+  a `_RUNTIME_COLUMNS` line, because a dev database that ran an in-progress build of R5 already
+  has a `featurerequest` table without it and `create_all` never alters one (see the last note
+  below).
+- **An idea has no edit window.** A10's hour exists so an editor cannot quietly rewrite a
+  *result*; an idea is a document the group answers, and its author owns it for as long as it
+  exists. The rule lives beside A10's in `services/authorization.py`
+  (`can_edit_feature_request` / `can_delete_feature_request` / `can_set_feature_request_status`,
+  `feature_request_capabilities`, two `ensure_*` guards), and `IdeaOut` carries `can_edit` /
+  `can_delete` / `can_set_status` so the page renders from the flags. Verified in the browser:
+  a reader sees no Edit/Delete/status control on any row, an editor sees Edit and Delete on
+  their own three rows and none on the other two, an admin sees all three on all five.
+- **Status carries a note.** A status with no reason is what makes a feature board feel like a
+  void, so `PUT /ideas/{id}/status` takes an optional `note` and the card prints
+  *"Declined — works as designed since N3"* under the pill. Five statuses over the app's three
+  status tokens (§2: blue = not started, green = happening, neutral = finished with), with a
+  lucide icon inside each pill doing the rest; `declined` is **neutral, not `error`** — a
+  decision is not a failure.
+- **Two editors, two triggers, each naming what it edits** (§9b). Edit rewrites the author's
+  text; tapping the **status pill** opens triage. They are different values with different
+  owners, so folding the status into the edit form would have put the admin's answer inside the
+  asker's paragraph.
+- **The composer is the feed's last row and grows in place.** An idea needs a title, a kind,
+  areas and optionally a screenshot, which is more than a chat row — so the row *becomes* the
+  form when you reach for it, exactly as the comment composer swaps into goal entry (§9b, T3).
+  Closed it is one field, `Share an idea…`, on the card's bottom edge. Focusing it opens the
+  block above and hands the caret to the title, the way picking a scoring side hands it to the
+  minute; the bottom field then becomes `Details (optional)`. Nothing hides behind a button that
+  reveals a form, and there is no second card.
+- **The push goes to the admins and to nobody else.** `notifications.admin_player_ids` resolves
+  `player_accounts[].admin` against `Player.display_name` case-insensitively — the same match
+  `auth.resolve_player_login` makes, so there is no second definition of "who is an admin" — and
+  the author is skipped (an admin posting their own idea already knows). Delivery needed a new
+  dispatcher method: `enqueue_for_player` narrows the audience but not the mode filter, and
+  `enqueue_personal` lifts the filter but broadcasts, so `enqueue_personal_for_player` does both
+  and `idea_created` joined `PERSONAL_DEFAULT_EVENT_TYPES`. A device set to "Off" still gets
+  nothing. The message deep-links to `/ideas?idea=<id>` (a new one-shot param in
+  `lastLocation.ts`; the page scrolls to the idea, flashes it and drops the param). Texts, all
+  three languages: title + `{title}` / `Kind · Areas` / a closing line — English *"New idea from
+  Flo"*, Deutsch *"Neue Idee von Flo"* (umlaut-free, like every other German text in that file),
+  Steirisch *"A neiche Idee vo Flo"* / *"Schau eini und sog, wos draus wird."* The kind and the
+  area names stay untranslated because they are the app's own English page names.
+- **The push could not be delivered over the wire on this machine.** `cryptography` is in
+  `backend/requirements.txt` but is **not installed in Roli's venv**, so
+  `web_push_runtime_ready()` is False and the dispatcher is disabled for *every* notification
+  locally. Installing it would have mutated his environment, so instead the chain is proven in
+  two tests that stop only at the encryption: one asserts the router addresses exactly the admin
+  ids (never the author) with the right path, tag and context and that all three languages
+  render; the other runs the **real** `NotificationDispatcher._deliver` against four real
+  subscription rows (three admin devices, one per language, plus an editor device) with only the
+  HTTPS POST faked, and asserts the three admin endpoints receive it in their own language and
+  the editor endpoint receives nothing.
+- **No realtime, no unread badge.** The board has no WebSocket channel and no read table: it is
+  a low-traffic list that the page refetches, and an unread count would have meant a fifth table
+  and a fourth badge in the shell for something nobody reads twice a day. The in-app
+  notification bell (`/me/notifications`) is likewise untouched — it is built from read tables.
+- **Verification.** Isolated stack: backend :8004 on a copy of `app.db`
+  (`backend/data/verify_r5.db`, deleted afterwards) with a scratch secrets file and its own
+  `UPLOADS_DIR`, vite :8022. Playwright over 3 roles × 2 themes (blue, light) × 2 widths (390,
+  1280) = 12 page runs plus the composer, the Closed tab, the image lightbox, the delete dialog,
+  the edit form and the status editor in each: **0 console errors, 0 page errors, 0 horizontal
+  overflow, 0 nested `<a>` and 0 nested interactive elements** in every state. The live
+  permission matrix was also probed over HTTP against :8004 and matches the tests exactly.
+- **A note on the dev database.** `backend/app.db` was found to already contain the four new
+  tables (empty) before this task ever started a server — an in-progress build of R5 reached it
+  from another process on this shared tree. Nothing was deleted or rewritten: the fix is the
+  additive `_RUNTIME_COLUMNS` entry for `featurerequest.edited_at`, which is a no-op on any
+  database that does not have the table yet (production included) and repairs the ones that do.
+
+---
+
+# Round 8 — queued, NOT started (Roli, 2026-09-15)
+
+Five items Roli found while testing Round 7 on his phone. **Do not start any of these without an
+explicit go** — he asked to be the one who says when ("only start when i tell you to"). The
+decisions below were settled with him in conversation and must not be relitigated; what is left is
+implementation. A sixth strand, the crash diagnostics, is already being built separately.
+
+## Q1 — The Ideas composer's details field is a chat row  ☑
+
+The composer reuses `CommentSendRow` (`pages/live/comments/CommentComposer.tsx`), which starts at
+one line and grows to a cap. Right for a comment, wrong for a field that asks *what should happen,
+and why*. The in-place edit form on an existing idea already uses a real textarea
+(`pages/ideas/IdeaCard.tsx:167`, `min-h-[72px] resize-y`) — the composer, where the first draft is
+actually written, got the chat row. Use the taller field in both, from one shared component in
+`pages/ideas/IdeaFields.tsx` (which already exists for exactly this reason: "what an idea is,
+written once").
+
+**Deviations:**
+- **The composer stopped reusing the chat row entirely**, rather than getting a taller variant of
+  it. Two reasons. Mechanical: `CommentSendRow` hard-codes `min-h-[2.5rem] max-h-32` on its
+  textarea and takes no prop for either, so a taller field is not reachable without editing
+  `CommentComposer.tsx` — another worker's file this wave. Substantive: that row's send posts the
+  *idea*, not the details, and `canSubmit` is title + areas, so the button was enabled while the
+  field it was welded to sat empty. It is now the form's own last row — the screenshot button as
+  the icon, "Post idea" filling the rest (`DESIGN.md` §9b, paired actions). The **closed** row is
+  untouched: still one field and one button on the card's bottom edge.
+- **Growth: a three-line minimum that auto-grows to eight, `resize-none`** — not the edit form's
+  `min-h-[72px] resize-y`, and not a chat row's one-line start. The two cannot be combined:
+  auto-grow writes `style.height` on every keystroke and would throw away whatever the reader had
+  dragged to, and a drag handle does not exist under a thumb, which is where ideas get written.
+  Measured at 390px, the old field was 56px empty (the two-line placeholder) and **shrank to 40px
+  on the first keystroke**; it is 78px now at every length, up to a 178px cap.
+- **`preventScroll` on the opening focus** (`IdeaComposer.tsx`). Not in the brief, but the taller
+  field caused it: the composer grew past the point where the newly focused title is already in
+  view, so the browser scrolled it to the top of the screen and left the send row 193px below the
+  fold at 390x400 (measured: send visible 0px). The composer is pinned to the bottom of the
+  viewport and needs no scrolling to reach. With it, opening leaves the page exactly where the
+  pre-change build left it.
+- **`DESIGN.md` §9b gained one bullet** — "a send button belongs to whatever it posts" — because
+  the canon otherwise reads as "a field with its send button is always a chat row", which this
+  composer now deliberately is not.
+- **Not done, left for later:** `AutoTextarea` in `CommentComposer.tsx` has the same "shrinks when
+  you start typing over a wrapped placeholder" behaviour; it is harmless for the comment and
+  guestbook rows (one-line placeholders) and that file belongs to Q5 this wave. And
+  `IdeaComposer`'s `focusNonce` is dead: it reaches the details field, but posting closes the
+  composer and unmounts it, so the effect never runs. Pre-existing, left alone — focusing the
+  closed title input instead would re-open the composer through its `onFocus`.
+- **Verification:** an isolated stack (backend :8004 on a copy of `backend/app.db`, vite :8021),
+  Playwright at 390x844, 390x400 and 1280x800 in blue and light; ideas composed, posted and
+  edited end to end, including one long enough to hit the cap. **The 390x400 viewport is a
+  stand-in for "the keyboard is up", not a real keyboard** — on iOS the layout viewport does not
+  shrink, which is Q2's subject. Zero console errors.
+
+## Q2 — The bottom tab bar rides up with the keyboard  ☐ REOPENED
+
+App-wide, not an Ideas bug: **nothing in the app listens to the visual viewport**
+(`grep -rn "visualViewport" frontend/src` → nothing). `BottomTabBar.tsx:27` is
+`fixed inset-x-0 bottom-0`, and on iOS a fixed bottom element follows the shrinking viewport, so it
+lands on top of the keyboard. Every composer is affected — comments, guestbook, Ideas.
+
+**Decided with Roli:** the bar hides **whenever the keyboard is open, anywhere in the app** — one
+rule, not a list of pages. The fix belongs in the shell, driven by the VisualViewport API (the only
+mechanism iOS Safari supports: `interactive-widget` and `env(keyboard-inset-height)` are Chromium-
+only). The composers' `bottom-[calc(4.5rem+env(safe-area-inset-bottom,0px))] lg:bottom-0` offset
+exists *only* to clear that bar, so it must collapse in the same moment.
+
+**Verification warning:** an emulated 390px viewport does **not** reproduce the iOS keyboard. Build
+it correctly, then say plainly in the report that only Roli's phone can confirm it.
+
+**Deviations:**
+- **One DOM flag drives everything, not a React context.** `ui/shell/keyboardOpen.ts` publishes a
+  single answer as `<html data-keyboard-open>`; `styles.css` turns that into `.hide-on-keyboard`
+  (the bar, the filter pill) and `--bottom-nav-clearance: 0px`. The six offsets became **two
+  spacing tokens** in `tailwind.config.cjs`, which is where Q4 put this vocabulary: **`nav-clear`**
+  = the clearance to leave above the bottom edge *right now* (the three composers, the error toast,
+  the pill) and **`nav-h`** = the bar's height, a constant. A context would have re-rendered five
+  components and let an offset trail the bar by a frame — which is the gap over the keyboard this
+  task is about. The var carries the bar's full height as its own fallback, so a missing
+  stylesheet, a missing flag or a missing API all land on today's behaviour.
+- **"The keyboard is open" = a focused text field + scale ≈ 1 + a covered strip ≥ max(120px, 20% of
+  the layout viewport).** The focus condition is the one that rules out scrolling, rotating and
+  reading — a keyboard needs a caret — and it doubles as the fail-safe, because focus always ends.
+  The ratio is what makes the threshold device- and orientation-independent: iOS Safari's own
+  toolbars are ~115px in portrait and ~50px in landscape, an iPad's hardware-keyboard accessory bar
+  ~55px, while a keyboard is 40–60% of the screen. **Measured, all four stay quiet:** a 115px
+  toolbar collapse, a 200px viewport pan, a real 400px scroll and a portrait→landscape rotation all
+  leave the flag unset with the caret in a field. **What it costs:** a pinch while typing brings the
+  bar back (the harmless direction); an iPad's accessory bar alone never hides it; and a wheel
+  picker (`date`, `time`) is not treated as a keyboard, so the bar stays under it.
+- **The page's end padding deliberately does *not* collapse** (`AppShell` keeps `pb-nav-h`). It is
+  the one offset of the six that is document height rather than a floating overlay, and it lives
+  behind the keyboard anyway. **Measured on the guestbook at 390×844, scrolled to the end:** as
+  shipped, `scrollY` 205 → 205, caret top 596 → 596, `scrollHeight` 1049 → 1049 when the keyboard
+  opens; collapsing that padding too would have moved the caret **down 72px** and the scroll
+  position by −72 in the same instant. That is why the tokens are a pair.
+- **The filter pill hides, the error toast does not.** The pill sits in the same bottom-right corner
+  as a composer's send button and filters nothing you are typing; the toast drops with the bar and
+  ends up on the keyboard's top edge, where it is still readable — an error you cannot see is worse
+  than a filter you cannot reach. Proven on the friendlies list, whose row editor has a real text
+  field ("Game"): with it focused, pill and bar both `display: none`, the field itself does not move
+  (top 597 → 597), and the page does not scroll.
+- **The bar is `display: none`, not a slide-out.** It is `fixed`, so hiding it reflows nothing, and
+  the keyboard's own animation already covers the moment; a transform would have left a focusable
+  strip over the keys. Nothing else changed about the bar's behaviour — it still never hides on
+  scroll.
+- **Q4's landscape leftovers, folded in as promised:** `BottomTabBar` gained `pl-safe-l pr-safe-r`
+  (background still full-bleed, the five tabs clear of the notch) and `pb-safe-b` in place of its
+  hand-spelled `env()`; `ErrorToast` and `FilterPill` gained `pr-safe-r`. Measured at 844×390 with
+  an asymmetric inset: notch left → the bar's box is still 0–844 while its first tab starts at 59;
+  notch right → the last tab ends at 785, the toast card at 769 and the pill button at 769, all
+  clear of the 59px inset.
+- **Verified on an isolated stack** — backend :8003 on a copy of `backend/app.db` with a copy of
+  `uploads/` and a scratch secrets file, vite :8020 — driven by Playwright at 390×844, 844×390
+  (both notch sides) and 1280×800, in **blue and light**, as admin: all three composers (a live
+  tournament's comments, a profile's guestbook, Ideas), the friendlies row editor, the stats and
+  friendlies pills, and the error toast. Zero console errors in every run. At 1280 the flag changes
+  nothing (every consumer has its own `lg:` offset and the bar is `lg:hidden`), which was measured
+  with the flag forced on.
+- **Proven here vs. left for the phone.** Proven: the whole chain against a **real, engine-level
+  shrunken visual viewport** — Chromium's `Emulation.setPageScaleFactor` takes the visual viewport
+  to 508px of an unchanged 844px layout viewport, a keyboard's exact geometry, and with the real
+  scale (1.66) the code **keeps** the bar (the pinch guard) while with the scale read as 1 it hides
+  it, the caret staying at 138px and the scroll at 0 throughout. Also proven: the flag→CSS→layout
+  consequences on every surface, the four non-keyboard viewport changes, and the no-API fail-safe
+  (bar visible, offsets at 72px). **Not proven, and only Roli's phone can:** that iOS reports the
+  numbers this test expects (a shrunken `visualViewport.height` at scale 1 with `window.innerHeight`
+  unchanged), and that hiding the bar actually clears the composer on a real iPhone PWA — the
+  desktop engine never re-anchors fixed elements to the visual viewport, which is the symptom
+  itself. Note for that test: iOS Safari ignores our `user-scalable=no`, so the pinch case is
+  reachable there even though Chromium forbids it.
+- **Not touched:** the app's `viewport` meta (no `interactive-widget`: Chromium-only, and the plan
+  rules it out), `MobileChrome`'s top bar (iOS pins it to the visual viewport's top, where it is
+  harmless), and `FilterSelect`'s anchored dropdown (it follows its trigger, not the screen edge).
+
+## Q3 — The positions and H2H headers do not stay on top  ☑
+
+Roli: *"scrolling stats/positions is weird. i want the player icons header to stay on top. it
+somehow depends on where i scroll what it does"*.
+
+**Cause:** `PositionsView.tsx:268,281` mark the header cells `sticky top-0`, but a sticky element
+sticks inside its nearest *scrolling* ancestor, and that is the `overflow-x-auto` box at `:253`.
+Setting overflow on one axis makes the box a scroll container in **both**, and it has no height
+limit, so vertically it never scrolls: the header is pinned to the top of a box exactly as tall as
+the grid, which is the same as not being pinned. The horizontal stickiness works, which is why one
+axis behaves and the other silently does not.
+
+**Decided with Roli (he was shown three options):** *fit the grid to the width* — scale the cells so
+there is no horizontal scroll box at all, the same clamp R1 built for the matrix, and then the
+header sticks to the **page** with no nested scrolling and no JS. **Write down the boundary rather
+than leaving it a surprise:** cells keep a readable floor, so past a player count that no longer
+fits at 390px the grid scrolls sideways again and the header stops pinning. Six players is nowhere
+near it. **Both grids in the same pass** — the matrix's column headers are not sticky at all today,
+and `DESIGN.md` §4 calls the two the same thing at the same size.
+
+**Deviations:**
+
+- **The tiles alone could not be scaled — the name column had to become elastic too.** The plan
+  says "scale the cells"; measured, that is not enough. At 390px the box is 358 and the grid was
+  **392** (a 128px name column plus six 40px tiles), so even tiles at a 32px floor next to a fixed
+  128px column leave the grid 4px too wide at seven players. Width is now surrendered in a fixed
+  order, cheapest first: the **name column** gives back everything above **104px** (a truncated
+  tournament name still names its row — it keeps its `title` and is a link, and these names carry
+  their number in the first characters), then the **tile** shrinks from 40 to **32** wide (never
+  in height — rows are what you scroll past), then the box scrolls. At six players a phone gets
+  `104 + 6×38` = **356px, no scroll box**; a desktop gets `176 + 6×40` = 440px **centred**, where
+  176 untruncates every tournament name in the DB. That last part fixes a second thing nobody
+  reported: the positions grid was a 392px ribbon in a 992px desktop column — the exact dead strip
+  R1b removed from the matrix.
+- **The boundary, written down.** Positions: **8 players at 390px** (`104 + 8×36 = 392 > 358`).
+  Seven still fit (`104 + 7×36 = 356`), six are comfortable. The matrix's floor is 44, so its
+  boundary is **7 players at 390px**. Past it the `overflow-x-auto` box comes back, the grid
+  scrolls sideways from its first column, and **the header stops pinning** — measured: at eight
+  players the header sits at **-6px** at the bottom of the grid instead of 0. To keep that state
+  legible the tournament-name column is now `sticky left-0`, which it never was: it is inert while
+  the grid fits (nothing scrolls it) and is what keeps the rows identifiable once it does not.
+  Desktop is far from any of this: 20 players fit at full size in a 992px column.
+- **The header does not pin at `top: 0`, and that is the whole judgement call.** The mobile top
+  bar is `sticky top-0 z-30` **and auto-hides on scroll-down**. Pinning at 0 parks the header
+  under the bar the moment you scroll back up; pinning at a fixed bar height leaves a 57px strip
+  of moving rows above it for as long as the bar is away, which is most of the time you spend
+  scrolling a long grid. So the header **follows the bar**: `ui/shell/useStickyTop.ts` returns the
+  bar's **measured** `offsetHeight` while it is shown and 0 while it is hidden, from the same
+  `useHideOnScroll` state the bar itself uses, and the sticky element carries the bar's own
+  `transition-[top] duration-300 ease-out-expo` so the two move as one piece. Measured at the
+  bottom of the grid: **0px** with the bar away, **57px** with it back — never behind it, never
+  floating over a gap. The height is measured and not a `3.5rem` token because the bar is `h-14`
+  **plus a 1px hairline plus `env(safe-area-inset-top)`** — 57 on this phone, more under a notch,
+  and 0 on desktop, where `lg:hidden` makes `offsetHeight` 0 by itself. A `ResizeObserver` and a
+  `resize` listener keep it true if that chrome ever changes height. The one thing it duplicates
+  is `MobileChrome`'s `useHideOnScroll(72)` threshold; a drift there would only matter inside the
+  first 72px of scroll, where nothing is pinned yet.
+- **A pinned band has to be opaque, which cost two more fixes than the plan expected.** (1) The
+  header's **`rounded-t`** left 4px notches at every top corner, and the cup-lineage SVG and the
+  tiles showed through them as the rows passed behind — visible in the first render at both
+  widths. The resting cell is now a rectangle and the radius moved onto the drag-over state,
+  which is a surface of its own; `DESIGN.md` §4's directional-radii example moved with it.
+  (2) The grid's **4px gutters** are holes in the same sense: every header cell now carries
+  `marginLeft: -gap; paddingLeft: gap`, so the cells tile one unbroken band (measured: cells at
+  121/163/205, width 42 — no gaps) while their content boxes stay exactly on their tracks. The
+  name column got the same treatment one axis over (`height: cellH + gap`, `marginTop: -gap`,
+  `paddingTop: gap`) for the scrolled-sideways case, where the lineage was visible through its
+  row gaps. The tiles themselves never bleed: a grid item stays inside its track.
+- **`data-no-swipe-nav` is conditional on the matrix and unconditional on the positions grid.**
+  The matrix's only reason for it is the scroller, so it comes and goes with the box; the
+  positions grid needs it whether or not anything scrolls, because a column **drag** is a
+  horizontal pointer travel that would otherwise read as a swipe-back.
+- **One helper, two grids.** `matrixCellSize` moved out of `h2hHelpers.ts` into a new
+  `pages/stats/microGrid.ts` that owns the geometry of both grids over one shared `fitCell`, plus
+  the `fits` predicates the two views switch their scroll box on. Its tests moved with it into
+  `src/test/microGrid.test.ts` (**15 tests**, up from 6): the matrix's arithmetic unchanged, the
+  positions widths, and the 8-player boundary pinned so it cannot move silently.
+- **The matrix header has nothing to stick through at today's data.** Six players make a table
+  ~405px tall, shorter than a 390×844 phone screen, so its new stickiness only shows when the
+  player set grows or the window is short. Proven at **390×360** (six real players, pinned at 0
+  and docked at 57) and at **12 / 16 players** on desktop (pinned at 0 at the bottom of a 759px
+  and a 979px table). The positions grid, at 19 rows, pins on every screen.
+- **Verification.** Isolated stack (backend :8004 on a copy of `backend/app.db`, vite :8022 —
+  :8021 was taken by the parallel worker), Playwright at 390×844, 390×360/500, 1280×800 in blue
+  and light; before/after header positions at the bottom of each grid; player counts of 2–16
+  produced by rewriting the live `/stats/players` and `/stats/ratings` payloads in the browser
+  (R1b's method — the component, the layout and the browser stay real). Zero console errors,
+  `document.querySelectorAll("a a").length` 0, no horizontal document scroll at either width.
+  **The column drag and the cup-lineage overlay were re-verified against the elastic geometry**:
+  the drag reorders correctly at 390 and 1280 *including while the header is pinned*, and the
+  polyline's points follow the computed `nameW`/`cellW` (they are in the `useMemo`'s deps now).
+  Note for whoever tests this next: Playwright's synthetic **mouse** drag does not reorder a
+  column — it does not on the pre-change code either (checked), so it is the harness, not the
+  app; CDP touch events do.
+
+## Q4 — Full-height surfaces ignore the bottom safe area  ☑
+
+Roli, on the drawer: *"not super happy with how settings sits in the rounded bottom area on iphone.
+make sure this looks nice on all devices"*.
+
+`MobileChrome.tsx:114` gives the drawer `pt-[env(safe-area-inset-top,0px)]` and **no bottom inset**,
+so its `mt-auto` footer (`:175`, `py-3`) puts Settings inside the home-indicator strip. Seven files
+in the app account for the bottom inset and every one of them is pinned to the bottom of the *page*;
+none of the full-height overlays do. So the same defect sits in **`Modal.tsx`'s `fullScreenOnMobile`
+path** (which `ConfirmDialog`, `VoteVotersModal`, the `ClubPicker` sheet and both image croppers are
+built on) and in **`ImageLightbox.tsx`**. Fix the containers, not ten call sites. Landscape deserves
+the same treatment — the drawer hugs the left edge, which is where the notch goes. Where `env()`
+resolves to 0 nothing moves, so this costs nothing on Android or desktop; give that footer more than
+its current 12px regardless, because a bottom-most row reads as glued to the edge even with no inset.
+
+**Deviations:**
+- **The rule became vocabulary, not a spelling.** Four spacing tokens in
+  `frontend/tailwind.config.cjs` — `safe-t/r/b/l` = `env(safe-area-inset-*, 0px)` — so every side has
+  a name on every property Tailwind derives from `spacing`: `pt-safe-t`, `pb-safe-b`, `left-safe-l`,
+  `bottom-safe-b`, and `theme(spacing.safe-b)` inside a `calc()`. The config is where `DESIGN.md` §2
+  already says the vocabulary lives, and `styles.css` belonged to Q3 this wave, so no new CSS file
+  was created. `MobileChrome`'s two hand-spelled `pt-[env(safe-area-inset-top,0px)]` are converted;
+  the six `bottom-[calc(4.5rem+env(...))]` offsets are **not** — the 4.5rem is the bottom tab bar's
+  height and Q2 is about to make that collapse with the keyboard, so rewriting them now is churn in
+  the file Q2 will rewrite anyway.
+- **The container owns the inset, the surface keeps its padding.** The insets are applied as
+  `left/right/bottom/top` on the *positioning* box (Modal's sheet wrapper, the lightbox's pan box),
+  never as padding on a box that already has some: a `padding-bottom` utility would have overridden
+  the wrapper's `p-3` and made the no-inset gap **0** on Android. It also keeps the lightbox honest —
+  its fit and pan limits read `clientWidth`/`clientHeight`, which padding would have inflated.
+- **Landscape.** The drawer takes `pl-safe-l` (its background still reaches the screen edge — only
+  the content clears the notch) and `Modal` takes `left-safe-l right-safe-r` (+ `sm:top-safe-t`).
+  Verified with an **asymmetric** inset (left 59, right 0) so left and right are proven separately.
+- **Footer air: `py-3` → `pt-3 pb-4`.** 16px is the next step on the scale and the asymmetry is the
+  point — the hairline above still reads at 12px, a bottom-most row needs more under it than over it.
+  With no inset at all this is the *only* pixel that changes anywhere: Settings 12px → 16px.
+- **The lightbox takes the inset, not its chrome** — it has no chrome (a tap anywhere closes it), so
+  "move only the controls" was not an option. The scrim stays full-bleed black; the pan/zoom box *is*
+  the safe area, so the photo never sits under the notch or the home indicator.
+- **Found while measuring, fixed here (1): an overlay inside a page column is 12px short.**
+  `.page > :not([hidden]) ~ :not([hidden])` gives every non-first child a 12px top margin, and a
+  `fixed inset-0` box honours it — both overlay roots measured 12..844 on an 844px screen, so the
+  scrim missed the top 12px. `mt-0` cannot beat that selector and the codebase has no `!`-utility
+  idiom, so `Modal` and `ImageLightbox` carry `style={{ margin: 0 }}`. Now 0..844.
+- **Found while measuring, fixed here (2): a sheet taller than the screen hid its own buttons.**
+  At 844x390 the avatar editor's Save/Delete row sat **99px below the viewport** with no way to
+  scroll to it (pre-existing, and the insets make the box shorter still). A non-`scrollBody` card is
+  now clamped to `max-h-sheet` (`100dvh` minus both insets and the wrapper's gutters) and scrolls
+  itself; `scrollBody` consumers are untouched, they bring their own max-height. After: that row is
+  at 328px of 390 and reachable. Portrait never hit the clamp.
+- **Surfaces checked: all seven `Modal` consumers, driven and measured** — `ConfirmDialog`,
+  `VoteVotersModal`, `ClubPicker`, `CommentImageCropper`, `PlayerAvatarEditor`, `ImageLightbox`, and
+  `H2HView`'s "Match history" sheet (H2H → Duos → 2v2 → a team-rivalry row; its file belongs to Q3
+  this wave, so it was opened through the UI and never edited). The last one moves like the rest:
+  card 12 → 46px off the bottom in portrait, 24 → 83px off the left in landscape, and identical
+  before/after with no inset.
+- **Not touched, reported instead:** `BottomTabBar` (Q2's file next wave), `ErrorToast` and
+  `StatsFilterPill` are `fixed` as well and take no left/right inset, so in landscape their content
+  can sit under a notch. One token each when their owners get to them.
+- **Verification:** an isolated stack (backend :8003 on a copy of `backend/app.db` **and** a copy of
+  `uploads/`, vite :8020) driven by Playwright with **real `env()` values** — Chromium 151's CDP
+  `Emulation.setSafeAreaInsetsOverride`, portrait 59/0/34/0, landscape 0/0/21/59 and 0/0/0/0 — at
+  390x844, 844x390 and 1280x800 in blue and light, before/after per surface. Zero console errors.
+  **Simulated, not real:** no iPhone was involved. The engine resolves `env()` for real, but it draws
+  no notch and no home indicator, so how the strip *looks* is still Roli's to confirm on his phone.
+
+## Q5 — Re-assign is permanently blocked by leftover goals and clubs  ☑
+
+Roli: *"all games are scheduled but i cant re-assigne the 2v2 schedule as some results were stored
+before"*. Measured on his dev DB: tournament 21 "test 2v2", 5 matches, **all scheduled, no
+timestamps**, but **4 sides carry goals and 4 carry a club**.
+
+`routers/tournaments.py:933-945` requires four things, not one: scheduled, no timestamps, every side
+on 0 goals, every side with no club. Resetting a match puts it back to scheduled but leaves the
+goals and the club behind, so the schedule is frozen for good and the only way out is deleting the
+tournament. The refusal message says results were stored, which is true and useless: it names
+neither how many matches nor that a club counts as "touched" exactly as much as a goal.
+
+**Decided with Roli:**
+- **Reset** (one match): keeps its single confirmation, clears the score **and the timestamps**,
+  **keeps the club** (a club is a setup choice, not a result, and a replay is usually the same
+  fixture with the same teams), and **keeps its comments** — same match row, same two teams, so they
+  still describe the fixture they are filed under.
+- **Re-assign** (whole tournament): **one confirmation**, then clears score, timestamps **and
+  clubs** on every match, and **never refuses**. Today it refuses, and escaping the dead end by hand
+  means five reset confirmations that still leave you blocked by the clubs.
+- **Comments on re-assign: delete the match-tied ones, keep the tournament-wide ones.** Not a
+  preference — **`_delete_schedule` destroys the match rows and builds new ones**, so every match id
+  changes, `Comment.match_id` is left pointing at a dead id, there is no FK enforcement (A9.5) and
+  `match.id` has **no AUTOINCREMENT**, so a stale comment can silently reattach itself to an
+  unrelated future match. Same shape as the orphaned club crest A9 found. (Checked: the dev DB has
+  **0** dangling comments today.)
+- The confirmation **names the count** — "this deletes 7 comments" before you agree, not after.
+
+**DoD for all five:** the usual gates (`npm run check` + build; `make test`/`lint`/`gen-types` if
+the backend moves), 390px and 1280px in blue and light, zero console errors — plus, for Q2, an
+explicit statement that the keyboard behaviour could not be proven off-device.
+
+**Deviations:**
+- **Re-assign still refuses one thing: a match that is not `scheduled`.** "Never refuses" was
+  settled about *leftovers*; a playing or finished match is a real result, and rebuilding the
+  schedule would throw a played evening away. Everything the plan names as a leftover — goals,
+  clubs, timestamps — is cleared instead of refused. **Roli should say if he wants that last
+  refusal gone too**; it is one `conflict()` call in `reassign_2v2`.
+- **The comment cleanup went into the chokepoint, not into re-assign.** `_bulk_delete_matches`
+  (`routers/tournaments.py`) is the only place that deletes `Match` rows, so it now also deletes
+  the comments filed under them. Re-`POST /generate` and disabling the second leg destroy match
+  ids exactly the same way and were leaving the same dangling rows behind; they are fixed by
+  construction rather than one-by-one. Only re-assign asks first — the other two already destroy
+  the matches those comments describe without a dialog. Proven on the verify DB: after a rebuild
+  SQLite handed the **same ids (114–118) back out**, which is the hazard, not a theory.
+- **Deleting a tournament now deletes its comments too** (all of them, plus the pin row). They
+  were orphaned before, with `tournament.id` reusable in the same way — and the delete dialog
+  already promised "everything recorded in it".
+- **New endpoint `GET /tournaments/{id}/reassign-preview`** (editor+, `ReassignPreviewOut`:
+  `matches`, `matches_with_score`, `matches_with_club`, `comments`). The confirmation names counts
+  the backend computed; the frontend does not re-derive which comments a rebuild takes, the same
+  split as A10's `can_edit` flags. `make gen-types` ran in the same commit.
+- **The reset invariant is "a patch that says `scheduled` clears the score", not "a scheduled
+  match can never carry goals".** The wider rule broke two existing tests that rely on
+  goals-on-a-scheduled-match as "touched" (`_leg2_started` blocks removing a second leg on it),
+  and that concept is deliberate. The narrow rule still covers every reset path, including the
+  match page's status switch, which sends the state alone.
+- The match page's `Scheduled` segment therefore clears the score on save with no dialog of its
+  own. Its goal steppers are already disabled at `Scheduled`, so the state says as much.
+- `DELETE /comments/{id}` now unlinks image files **after** its commit (rows first), so a failed
+  transaction cannot leave a hole where a file was. Same cascade, shared in
+  `services/comment_cleanup.py`.
+
+---
+
+## Q6 — Back, forward and the gestures: one model, applied everywhere  ☑
+
+Roli (2026-09-15): *"a worker that reevaluates the back/forth sweeps and back buttons and where or
+if they are shown on screen (consistency!). it should feel more natural. think hard about what a
+user expects in each scenario. it's super important that it feels natural and makes sense
+everywhere."*
+
+**Sequencing — RESOLVED 2026-09-16, and the answer was "no".** The trail arrived (see Q10): the
+crash is a React Fast Refresh artifact in `AuthContext.tsx`, development-only, with an **empty**
+navigation trail — it fires during the first render after a hot update, before any navigation
+happens. **The loop hypothesis is dead for that incident, and Q6 is no longer gated.** It now stands
+entirely on the consistency findings below, which is where its value always was. The original
+gating note follows, kept because the reasoning was right even though the answer was not the one
+expected.
+
+**Sequencing (historical).** Do not start this before the crash diagnostics have produced a trail
+from Roli's phone. The open crash — unresponsive, then the whole tree unmounted above the error
+boundary — has this layer as its prime suspect, and the trail will say whether a burst of POPs was
+involved. If it was, that finding belongs *in* this task. If it was not, this task stays what it is:
+a consistency pass. Refactoring first would destroy the evidence and risk fixing the wrong thing.
+
+### What is there today (surveyed 2026-09-15, not guesses)
+
+Seven files, 857 lines, all of it running on every navigation: `useSwipeNav.ts` (129),
+`backNavigation.ts` (195), `navStack.ts` (178), `routeMeta.ts` (26), `useScrollRestoration.ts`
+(149), `lastLocation.ts` (128), `useDestinationLinks.ts` (52). It mirrors the browser's history into
+`sessionStorage`, keyed by the `history.state.idx` counter the browser owns, and decides pop-vs-up by
+comparing the two. It has already needed four rounds of repair: N1 (back went to the last page
+instead of up), T11 (leaving the matchup), A9.6 (three seams, one of which could not be triggered
+from any path the app offers and was closed as latent), A9.7 (a restore fighting a save-and-return).
+
+**There are two different sources of truth for "is this a detail page", and they agree only by
+coincidence:**
+- **Mobile** (`MobileChrome.tsx:70`): the top bar shows a back chevron **iff**
+  `routeMeta(pathname).isDetail`, and `routeMeta.ts` is a hard-coded list of exactly three patterns —
+  `/live/:id/match/:mid`, `/live/:id`, `/profiles/:id`. Everything else gets the hamburger.
+- **Desktop** (`ui/layout/PageLayout.tsx`, prop `back`): **each page decides for itself**. Three
+  pass `<InlineBack />`: `ProfilePage.tsx:276` (conditionally, on `isDetailRoute`),
+  `LiveTournamentPage.tsx:586` and `MatchDetailPage.tsx:318` (both unconditionally).
+
+### The inconsistencies that follow (each verified in the code)
+
+1. **A pushed view with no back affordance.** The stats matchup (`?vs=`) is a deliberate history
+   **push** (T11), and the swipe does return from it (`resolveDrillInBackAction`). But it lives at
+   `/stats`, so `routeMeta` says `isDetail: false` and **the mobile top bar shows a hamburger**. The
+   only visible way back is an in-view "Head-to-head" button inside the content. A gesture and a
+   button that do the same thing, one of which is invisible in the chrome.
+2. **The chevron *replaces* the hamburger.** On any detail page a phone user cannot reach the menu
+   at all without going back first. That is a decision nobody wrote down; re-examine it.
+3. **A forward gesture with no visible counterpart.** Swipe-left calls `nav(1)` whenever
+   `canGoForward()` (`backNavigation.ts:175`, `useSwipeNav.ts:110`). Nothing anywhere indicates that
+   forward exists, or that it is available right now. **Roli has explicitly delegated this one**
+   (asked directly, 2026-09-15): keep it and make it visible, or drop it so back is the only gesture
+   the way iOS itself works — argue it in the scenario table and let him rule on the proposal.
+4. **Where a button falls back, the gesture does nothing** (documented at `useSwipeNav.ts:13`). The
+   reasoning is sound in isolation, but it means the same intent produces two different outcomes
+   depending on how it was expressed.
+5. **Ideas, Clubs and Settings** are destinations reachable only from the drawer/sidebar. Decide
+   what back means on them — today it is the hamburger and a history pop that may leave the app.
+
+### Decided with Roli, from rendered options (2026-09-16) — do not relitigate
+
+1. **A back affordance appears whenever you moved to get here** — not on a list of route patterns.
+   A matchup, a match, a profile and a tournament all show it, because to the reader they are the
+   same thing: somewhere you went into. This kills `routeMeta`'s three hard-coded patterns *and* the
+   per-page `back` prop as sources of truth; the question becomes "did you go somewhere", asked once.
+2. **The menu stays reachable.** Back and menu are both present on a page you drilled into; back
+   stops replacing the hamburger. Two controls, always the same two.
+3. **Back always means one level up**, identically whether you walked in, followed a deep link or
+   opened a push notification. Match → tournament → list → dashboard. It never ejects you from the
+   app, and it never depends on how you arrived.
+4. **The bottom bar's second tap resets.** First tap returns to the remembered page inside that
+   destination (U6), a second tap while already there goes to its root — the only escape from a
+   remembered page you no longer want.
+
+**What (3) means for the machinery, and the thing to think hardest about.** The nav-stack mirror
+(`navStack.ts`) exists to answer one question: *is the entry behind me the parent, so I can pop
+instead of navigating up?* Roli has now fixed the **destination** in every case — it is always the
+parent — so the mirror is no longer needed to decide *where* back goes, only whether the cheaper
+mechanism is available. Popping restores that page's scroll and state; navigating up pushes a new
+entry and grows history forever. So: does the mirror still earn its keep as a pure optimisation, or
+can scroll restoration key off the location instead and let the mirror go? Answer it explicitly —
+that mirror is the thing that has produced four rounds of bugs, and (3) is the first constraint that
+makes removing it conceivable.
+
+### What the worker must produce, in this order
+
+1. **A table of every scenario before touching code**: for each route and each entry path into it
+   (nav bar, deep link, notification, in-page drill-in, browser reload), what the chevron shows,
+   what the swipe does, what the browser's own back does, and **what a user would expect**. Roli's
+   instruction is to think hard about the expectation, so the expectation column is the deliverable,
+   not an afterthought.
+2. **One model, written down in `DESIGN.md`**, that the chevron, the swipe, the desktop button and
+   the browser button all read from. **One source of truth** — `routeMeta`'s three hard-coded
+   patterns and the per-page `back` prop cannot both survive. A pushed in-page view (the matchup) is
+   a first-class case, not an exception bolted on.
+3. **Then** the implementation, with the seam count going **down**. If the answer is that the
+   history mirror should go away entirely, say so and argue it: a mirror that can disagree with the
+   real history is what has produced four rounds of bugs and is the standing crash suspect.
+
+**Constraints.** Native feel on iOS matters more than cleverness: the system edge-swipe exists and
+must not be fought. `data-no-swipe-nav` opt-outs and the horizontal-scroller guards must keep
+working (the positions grid, the matrix, chip rows, sliders). Scroll restoration is coupled to this
+layer and must not regress — N2's per-entry offsets and A9.7's save-and-return both live here.
+
+**DoD:** the scenario table in the plan; the model in `DESIGN.md`; chevron, swipe, desktop button
+and browser back provably agreeing on every row of that table; the existing nav tests still green
+plus new ones per row; 390px and 1280px, blue and light; and an explicit list of anything that
+**cannot** be verified off-device, for Roli to check on the phone.
+
+### The model (written 2026-09-16, before any code change)
+
+Roli's four answers fix the *rules*; the table below is where they meet every route the app has.
+Two things fall out of it that the answers did not spell out, and both are argued in the rows they
+come from: **what back means between two top-level destinations** (there is no "up" between
+siblings, so it is the history step you took) and **what a page with no hierarchy above it does**
+(the 404, `/login`: the same).
+
+**One hierarchy, asked once.** Every location answers two questions, in `ui/shell/routeHierarchy.ts`:
+
+```
+placeOf(pathname, search, state) → { parent: string | null, inside: boolean }
+```
+
+| Place | `parent` | `inside` |
+|---|---|---|
+| `/dashboard` | `null` — the app's home | false |
+| `/tournaments` `/friendlies` `/stats` `/players` `/clubs` `/ideas` `/settings` | `/dashboard` | false |
+| `/login`, any unknown URL (404) | `/dashboard` | false |
+| `/live/:id` | `/tournaments` | **true** |
+| `/live/:id/match/:mid` | `/live/:id` + `?tab=` from `state.fromTab` | **true** |
+| `/profiles/:id`, `/profile` | `/players` | **true** |
+| `/stats?view=h2h…&vs=…` (the matchup) | the same URL without `vs`/`rel`, team collapsed | **true** |
+
+- **`inside: true` means "you went into this".** It is the *only* thing that decides whether a back
+  affordance is drawn — `routeMeta`'s three hard-coded patterns and `PageLayout`'s per-page `back`
+  prop are both gone, and the matchup joins the set for free because it is declared here like
+  everything else.
+- **`parent` is where back goes**, and it never depends on how you arrived.
+
+**One back, four affordances.** The mobile chevron, the desktop chevron in the title row, the
+swipe and (wherever the history allows it) the browser's own button all read one function:
+
+```
+back = inside ? (previous entry IS the parent ? pop : go to parent)
+              : (something behind ? pop : parent ? go to parent : nothing)
+```
+
+- **Pop when the entry behind us already is the parent.** It is free and it is better: the parent
+  comes back with its scroll offset (N2), its open tab and its data.
+- **Otherwise go to the parent, with `replace`.** Going up *consumes* the page you are leaving, the
+  way popping a native stack does. Three consequences, all wanted: walking up a deep link never
+  grows history, the ladder terminates instead of ping-ponging (`/settings` → home → `/settings`),
+  and nothing can be "swiped forward" back into a page you deliberately left.
+- **Between destinations there is no up**, so back is the history step you took to get here — what
+  the browser, iOS and Android all do with siblings. With nothing behind it (a cold deep link) it
+  goes home, which is Roli's "list → dashboard" rung and his "it never ejects you from the app".
+- **No chevron on a destination.** A chevron there would read "the screen before" and mean "the
+  dashboard"; the bar that is always on screen already holds every sibling, and no phone app puts
+  back on a tab root. The gesture still works there, because a gesture promises nothing.
+- **The menu stays.** On an `inside` page the top bar is `‹` · `☰` · title. Back takes the edge
+  (that is where the thumb starts the same gesture); the menu keeps its icon and its drawer.
+
+**The forward gesture is gone** (Roli delegated this one). Argued at row 31.
+
+**The history mirror stays, halved.** Argued after the table.
+
+### The scenario table — every route × every way in
+
+Verified in a real browser on the isolated stack (backend :8003 on a copy of `app.db`, vite :8020),
+390×844 with touch emulation and 1280×900, blue and light. "Swipe →" is a right swipe (back);
+"Browser ←" is the browser's own back button. A **deep link** means the URL was loaded cold.
+
+| # | Where you are · how you got there | What the reader expects, and why | Chevron | Swipe → | Browser ← | ✓ |
+|---|---|---|---|---|---|---|
+| 1 | `/dashboard` · cold load | Home. Nothing above it, and back must not leave the app on its own. | – | nothing | leaves the app (the browser's history, not ours) | ✓ |
+| 2 | `/dashboard` · Dashboard tab from `/stats` | The screen I came from. | – | `/stats` (pop) | `/stats` | ✓ |
+| 3 | `/tournaments` · Tournaments tab from `/dashboard` | The dashboard — it is both what I came from and what is above. | – | `/dashboard` (pop) | `/dashboard` | ✓ |
+| 4 | `/tournaments` · second tap on Tournaments while on `/live/21` | The list itself: the second tap is the only escape from a remembered page (U6, decision 4). | – | `/live/21` (pop) | `/live/21` | ✓ |
+| 5 | `/tournaments` · cold deep link | Home. Not out of the app. | – | `/dashboard` (up, replace) | leaves the app | ✓ |
+| 6 | `/stats` · Stats tab from `/players` | Players. Between siblings there is no up. | – | `/players` (pop) | `/players` | ✓ |
+| 7 | `/stats?view=h2h&sub=duos` · section + sub chips | Nothing: chips are `replace`, they are not history steps (T11). Back leaves `/stats` for the page before it. | – | the page before `/stats` | same | ✓ |
+| 8 | `/friendlies` · drawer | The page I came from. | – | pop | pop | ✓ |
+| 9 | `/clubs` · drawer (editor) | The page I came from. Clubs is a destination, not a detail page — the drawer is how you leave it. | – | pop | pop | ✓ |
+| 10 | `/ideas` · push notification `?idea=<id>`, cold | Home; the one-shot param is never replayed (`lastLocation`). | – | `/dashboard` (up) | leaves the app | ✓ |
+| 11 | `/settings` · drawer footer | The page I came from. | – | pop | pop | ✓ |
+| 12 | `/live/:id` · tapped in the `/tournaments` list | The list, at the row I tapped. | `‹` + `☰` | `/tournaments` at its offset (pop) | same | ✓ |
+| 13 | `/live/:id` · Tournaments tab's live shortcut, from `/stats` | The tournaments list — I asked for Tournaments, not for Stats (N1). | `‹` + `☰` | `/tournaments` (up) | `/stats` (the browser's trail) | ✓ |
+| 14 | `/live/:id` · push notification / cold deep link | The tournaments list. Never out of the app. | `‹` + `☰` | `/tournaments` (up) | leaves the app | ✓ |
+| 15 | `/live/:id` · reload while there | Exactly what it did before the reload — sessionStorage keeps the mirror. | `‹` + `☰` | as its row above | as its row above | ✓ |
+| 16 | `/live/:id/match/:mid` · row in the tournament's Matches tab | The matches list, where I left it, on the tab I opened it from. | `‹` + `☰` | `/live/:id?tab=matches` at its offset (pop) | same | ✓ |
+| 17 | `/live/:id/match/:mid` · Stats → Records row | Its tournament. Not the stats page I came from (N1's rule, now for every arrival). | `‹` + `☰` | `/live/:id?tab=matches` (up) | `/stats…` | ✓ |
+| 18 | `/live/:id/match/:mid` · cold deep link | Its tournament. | `‹` + `☰` | `/live/:id` (up) | leaves the app | ✓ |
+| 19 | `/live/:id/match/:mid` · Save and return (A9.7) | The Matches tab scrolled to the row I just edited, flashing. Not back, not the top. | – (page action) | n/a | n/a | ✓ |
+| 20 | `/profiles/:id` · row on `/players` | The players list. | `‹` + `☰` | `/players` (pop) | same | ✓ |
+| 21 | `/profiles/:id` · a `PlayerLink` inside a tournament's standings | The players page. One meaning per control, however I arrived. | `‹` + `☰` | `/players` (up) | the tournament | ✓ |
+| 22 | `/profiles/:id` · guestbook push, cold (`?tab=guestbook&entry=`) | The players page. | `‹` + `☰` | `/players` (up) | leaves the app | ✓ |
+| 23 | `/profile` (own) · Settings → My profile | The players page — the same page as row 20, so the same chrome. Today it shows a hamburger and no back, which is the two-sources-of-truth bug in one screenshot. | `‹` + `☰` | `/players` (up) | `/settings` | ✓ |
+| 24 | matchup · H2H matrix cell | The matrix, exactly as I left it. | `‹` + `☰` | the H2H list at its offset (pop) | same | ✓ |
+| 25 | matchup · "All matches: A vs B" on a match page | The H2H list it drills into. **Changed from T11** — see the note below the table. | `‹` + `☰` | the H2H list (up, in place) | the match page | ✓ |
+| 26 | matchup · rival link on a profile | The H2H list. | `‹` + `☰` | the H2H list (up) | the profile | ✓ |
+| 27 | matchup · cold deep link `?view=h2h&player=1&vs=2` | The H2H list — the thing it is a drill-in of. | `‹` + `☰` | the H2H list (up) | leaves the app | ✓ |
+| 28 | matchup · another section tab tapped from inside it | Nothing to undo: leaving the section consumes the drill-in's entry (`replace`, T11). | – | the entry behind the matchup | same | ✓ |
+| 29 | 404 (`/nope`) · a stale in-app link | Where I was. There is no hierarchy above an unknown URL, and the body already offers "Back to dashboard". | – | pop | pop | ✓ |
+| 30 | 404 · cold | Home. | – | `/dashboard` (up) | leaves the app | ✓ |
+| 31 | any page · swipe **left** | **Nothing, anywhere.** Argued below. | – | – | – | ✓ |
+| 32 | any page · swipe → starting on a horizontal scroller or a slider | Nothing: the element scrolls. Positions grid, H2H matrix, chip rows, `SectionTabs`, trends chart, range inputs, `data-no-swipe-nav`. | – | – | – | ✓ |
+| 33 | iOS standalone PWA · system edge swipe | The OS gesture, untouched. Our listener is passive and never calls `preventDefault`. | – | – | – | code |
+
+**Row 25, the one decision that overrules an earlier one.** T11 (2026-09-13) asked for the opposite:
+"if i get there from eg match details, i want swipe back to go to match details again." Q6's answer
+3 — back is one level up, identically however you arrived — cannot hold *and* keep that exception,
+and Q6's own DoD says the matchup must be "a first-class case, not an exception bolted on". So the
+matchup now behaves like every other page you went into. What T11 wanted is still one tap away and
+is now the *browser's* job on desktop (its back button pops to the match page, row 25) and the
+**Tournaments tab's** job on a phone: `lastLocation` remembers the match page as that destination's
+last page, so tapping Tournaments returns to it. Flagged here because it is a visible change to a
+screen Roli asked about by name.
+
+**Row 31 — the forward gesture is removed, not made visible.**
+- Nothing in the OS this app imitates has one. iOS has no forward gesture inside an app; Android has
+  none; a standalone PWA has no browser chrome to borrow one from. The gesture exists today only
+  because `nav(1)` was easy to write next to `nav(-1)`.
+- Making it visible would mean a forward chevron in the top bar — browser chrome inside an app,
+  permanently occupying a slot to offer a step that is available a minority of the time.
+- Under this model it is nearly always dead anyway: going up *replaces*, so there is no forward
+  entry to take.
+- It costs what an invisible gesture always costs. Every left-drag in the app is a candidate
+  navigation, guarded only by opt-outs someone has to remember (`data-no-swipe-nav`); dropping it
+  halves that surface at a stroke.
+- And it is the only reason the history mirror ever had to reason about the future. Deleting it
+  deletes `canGoForward`, `highestHistoryIndex`, the PUSH-truncation rule, the first-record-of-a-load
+  rule (A9.6's duplicated-tab seam) and the `NavKind` plumbing through `useRememberLocation` — the
+  single largest seam reduction available in this layer.
+
+**The history mirror (`navStack.ts`): kept, halved — and here is the argument.**
+Roli's answer 3 demotes it from decision-maker to optimisation, and that is exactly the right level
+for it, so it does not all go. Split it in two and the two halves have opposite risk profiles.
+
+- **The half that claims to know the future** — `canGoForward()`, `highestHistoryIndex()`, truncate-on-PUSH,
+  truncate-on-first-record — can be *wrong in a way that is visible*: it promised a forward step the
+  browser could not take, and a gesture that asks for it burns silently (A9.6). Every line of it
+  exists for swipe-left. **Deleted with the gesture.**
+- **The half that remembers the past** — `previousEntryPath()`, one string at `idx-1` — is the one
+  question the browser refuses to answer and sessionStorage answers truthfully for the tab that wrote
+  it. And it is *fail-degraded by construction*: if it is missing or stale, back does not misroute —
+  it navigates up to the same page it would have popped to, and the only loss is the parent's scroll
+  offset and open tab. **That property is what makes it safe to keep**, and it is the reason removing
+  it entirely is the wrong trade: the alternative is to always navigate up, which throws away N2's
+  restoration on the single most common back in the app (a match row 700 px down its list).
+- The scroll half (`saveScroll`/`scrollFor`, N2) is not a mirror of the URL stack at all — it is
+  `idx → offset` — and has to stay whatever happens to the rest.
+
+Net (measured after implementing): `navStack.ts` 178 → 156 lines, 104 → 90 excluding comments, and
+the module no longer has an opinion about anything but the entry behind the current one.
+
+
+**Deviations:** (implemented 2026-09-16 on `feature/2026-09-audit`; the scenario table above was
+written first and every row of it was then verified in a browser)
+
+**What the four answers did not settle, and what I decided.**
+
+1. **Back on a top-level destination.** Answer 3's ladder ends "list → dashboard", and answer 1 says
+   the affordance appears "whenever you moved to get here" — read literally together, every page but
+   the dashboard would carry a chevron meaning "go to the dashboard". That is wrong for the reader:
+   a chevron is read as *the screen before*, and on `/stats` reached from `/players` it would point
+   somewhere else entirely; no phone app puts back on a tab root. So: **the ladder is implemented in
+   full, the chevron is not drawn on a destination.** Back there is the history step you took, and
+   only when there is nothing behind it does it go home — which is precisely the rung answer 3 was
+   protecting, "it never ejects you from the app", now reachable by the gesture and the browser
+   button rather than by a chevron that would lie the rest of the time.
+2. **Going up is a `replace`, not a push.** Not in the answers at all, and it matters: with a push,
+   walking up out of a deep link grows history forever and "home" could be swiped straight back into
+   the page you just left (`/settings` → home → `/settings` → …). Replacing consumes the page being
+   left, the way popping a native stack does. Verified: a cold `/live/19/match/104` walks
+   match → tournament → list → home and stays at `history.state.idx === 0` the whole way, and a
+   further swipe at home does nothing.
+3. **Row 25 overrules T11.** Coming out of the matchup now opens the H2H list even when a match page
+   is behind it. Argued under the table; it is the price of answer 3, and it is flagged because Roli
+   asked for the opposite by name three days earlier. The match page is one tap away on the
+   Tournaments tab, and on the desktop the browser's own back button still returns to it (verified).
+4. **The matchup lost its in-view "← Head-to-head" button.** With the chevron finally in the chrome
+   (inconsistency 1), that button was a second back arrow 100px under the first. One back per screen,
+   in the same place on every page. The label it carried is the only thing lost; the section tabs
+   above still say H2H.
+5. **The desktop chevron needed a home of its own.** It lives in `PageLayout`'s title row, and a page
+   that returns early — still loading, "Login to open your profile", "Match not found" — used to
+   render a bare `<div className="page">` with no row at all. On the desktop there is no top bar, so
+   those screens had *no way back*. Found by the desktop verification run (row 23 failed on
+   `/profile` as a reader). Fixed once, generally: the row now renders for the chevron alone when
+   there is no title, and the five bare `.page` early returns plus `App`'s lazy-route fallback go
+   through `PageLayout`.
+
+**What was built.**
+
+- **`ui/shell/routeHierarchy.ts` (new) replaces `routeMeta.ts`.** `placeOf(pathname, search, state)`
+  → `{ parent, inside, drillParam?, sameParams? }`. It is the *only* place that knows the shape of
+  the app. `parentOf()` is the convenience wrapper. `historyCanPop()` moved to `navStack.canPop()`,
+  where the history index already lived.
+- **`backNavigation.ts`: three decision functions became one.** `resolveBackAction` is all that is
+  left — `resolveDrillInBackAction`/`drillInBackActionFor` are gone (the matchup is an ordinary
+  parent relationship now), `swipeAction` is gone (the gesture calls `backActionFor` directly), and
+  the `fallback` argument that made the button and the gesture differ is gone with them: there is no
+  argument left for them to differ on. `useContextualBack()` → `useBack()`, returning `{ hasBack,
+  goBack }`.
+- **`navStack.ts` lost its future half.** `canGoForward`, `highestHistoryIndex`, `NavKind`, the
+  truncate-on-PUSH rule and A9.6's truncate-on-first-record rule are all deleted with the forward
+  gesture. `recordNavigation(pathname, search)` no longer takes a kind. What remains answers
+  `idx - 1` and keeps the per-entry scroll offsets. `NavKind` moved to `diagnostics/breadcrumbs.ts`,
+  which is the only thing that still cares how a navigation arrived.
+- **`useSwipeNav.ts`**: right only. A left drag deactivates the gesture without spending the
+  debounce. `consumesSwipe` lost its direction parameter with it. Every guard is untouched.
+- **`MobileChrome.tsx`**: `‹` then `☰`, both present on an `inside` page, `☰` alone otherwise.
+- **`PageLayout.tsx`**: no `back` prop; the row asks `useBack()` and renders for the chevron alone
+  when a page has no title. `LiveTournamentPage`, `MatchDetailPage` and `ProfilePage` stopped
+  passing `<InlineBack />` (and `ProfilePage` stopped computing its own "is this a detail route").
+- **`statsNav.ts` gained `statsMatchupParent(search)`** — the matchup's parent URL, built by the
+  module that owns the stats URL scheme, so the hierarchy does not learn a second copy of it. The
+  shell imports it; nothing imports the shell from `pages`, so there is no cycle.
+- **`StatsInsights.tsx`** no longer decides anything about back. It keeps one effect: when the
+  matchup closes *in place* (a REPLACE on the same entry), the H2H list is restored to the offset it
+  was left at. A pop deliberately does not reach it — `useScrollRestoration` owns that entry's own
+  offset, and two restores racing each other is what T11 and A9.7 had to untangle.
+
+**Seams.** The seven files go 857 → 834 lines, and **518 → 482** once comments and blanks are taken
+out — 36 fewer lines of code and rather more explanation of the lines that are left. The numbers that
+matter are not lines: **decision functions 3 → 1** (`resolveBackAction`; `resolveDrillInBackAction`
+and `swipeAction` are gone), **sources of truth for "is this a page you went into" 2 → 1**
+(`routeMeta`'s pattern list and `PageLayout`'s per-page prop both replaced by one question),
+**exported entry points into the decision 10 → 7**, and the entire class of "the mirror disagrees
+with the real history about what is *in front* of us" — four rounds of bugs' worth — deleted rather
+than fixed again.
+
+**Tests — three files replaced, four written, and why.** The old nav tests pinned the *old* model, so
+they could not simply stay: `routeMeta.test.ts` tested the three hard-coded patterns that no longer
+exist, and `contextualBack.test.tsx` tested `useContextualBack`/`resolveBackTarget`, both renamed and
+re-shaped. `swipeAction`'s and `resolveDrillInBackAction`'s cases went with their functions. Every
+behaviour they pinned is still pinned, by a test that names the table row it belongs to:
+
+- `test/routeHierarchy.test.ts` (new, 10 cases) — `placeOf` for every route, both `inside` pages and
+  destinations, including `/profile` vs `/profiles/:id` (the bug), the team collapse, and `?vs=`
+  outside the H2H section.
+- `test/backNavigation.test.ts` (new, 14 cases) — `resolveBackAction` per table row, and
+  `backActionFor` against a live `navStack`, including "a mirror that lost its entry degrades to
+  'up', never to a wrong page".
+- `test/useBack.test.tsx` (new, 7 cases, replaces `contextualBack.test.tsx`) — where the affordance
+  is drawn (five `inside` pages, six destinations) and what it does against a real router, pinning
+  that up is a **REPLACE**.
+- `test/mobileChrome.test.tsx` (new, 3 cases) — back and menu together on an `inside` page, menu
+  alone on a destination, and back before the menu in the DOM order.
+- `test/swipeNav.test.ts` (rewritten) — the gesture's rows, plus "the module exports nothing that
+  claims to know what is in front of us" and the mirror's past-only behaviour.
+- `test/matchupBack.test.tsx` (rewritten) — kept only what is still true: opening the matchup pushes,
+  clearing it does not.
+- `test/pageRhythm.test.tsx` — the `back` prop cases became "the row renders the chevron from the
+  hierarchy" and "the row survives for the chevron alone while a page is still loading".
+- `test/matchupView.test.tsx` — the "offers the way back" case became "carries no back control of
+  its own".
+
+**Verification** (isolated stack: backend :8003 on a copy of `app.db` with a scratch secrets file,
+vite :8020; neither of Roli's ports touched; both stopped and the copies deleted afterwards).
+
+- **Mobile 390×844, real touch events via CDP `Input.dispatchTouchEvent`: 53/53 checks green.**
+  Every row of the table, one browser context per scenario so no per-destination memory leaks
+  between them.
+- **Desktop 1280×900 (the chevron instead of the gesture): 37/37 checks green.**
+- **Extra entry paths (rows 13, 22, 26): 6/6 green on each width** — the Tournaments tab's
+  live shortcut on the phone and the sidebar's own "Live now" entry on the desktop, a cold guestbook
+  push link (`/profiles/4?tab=guestbook&entry=1`), and the matchup opened from a profile's rival card.
+- **Row 19 (A9.7 save and return): 3/3 green**, logged in as an admin against the DB copy — the
+  edit page was at y=277, "Save and return" landed on `/live/19?tab=matches` **at y=331**, not at the
+  top, and back from there still goes up to the list.
+- Chrome sweep at 390 and 1280 in **blue and light**: back + menu on `/live/19`,
+  `/live/19/match/104`, the matchup and `/profiles/2`; menu alone on `/stats`; no horizontal
+  overflow, no nested `<a>` (`document.querySelectorAll("a a").length === 0`), zero console or page
+  errors on any of the twenty page loads.
+- `cd frontend && npm run check`: typecheck, eslint and **608 tests in 61 files** green (59 files
+  before: two deleted, four written). `npm run build` green in 8.4s, with the pre-existing
+  "chunks larger than 500 kB" hint (705 kB `index-*.js`; the Round-6 close recorded ≈669 kB and
+  Rounds 7–8 have added since). The one new eager import is `statsNav.ts`, whose only imports are
+  erased types — `StatsPage` is still its own 77 kB lazy chunk.
+
+**Could not be verified off-device — for Roli to check on the phone:**
+
+1. **The iOS system edge-swipe.** Chromium on the Pi has no OS-level edge gesture, so "our listener
+   does not fight it" is argued from the code (all four listeners are `{ passive: true }` and nothing
+   calls `preventDefault`) and not measured. Worth one deliberate edge-swipe from the very left edge
+   on a match page: it should do the *system* thing, and our own swipe from further in should go up.
+2. **The installed PWA's cold launch.** `useLocationRestore` only runs in `display-mode: standalone`;
+   a launch that resumes at, say, a match page should show the chevron and back should go to the
+   tournament (it is row 18 by construction, but the restore path itself is device-only).
+3. **A real push notification tap** while the app is backgrounded. The service worker calls
+   `client.navigate()`, which starts a *new document* — so `history.state.idx` is 0 and back goes up,
+   the same as row 14/18. Verified by simulating the URL cold; the actual notification tap is not
+   reproducible headless.
+4. **Thumb ergonomics of two buttons in the top-left.** The chevron sits at the edge and the
+   hamburger beside it; on a 390px screenshot they read clearly, but whether the menu's new position
+   (40px to the right, on detail pages only) feels right is a hand thing.
+5. **Whether row 25 is the right call.** See deviation 3. It is a one-line change to restore T11's
+   behaviour if he wants the matchup to be an exception.
+
+---
+
+# Round 7 — diagnostics: making the next crash legible (2026-09-15)
+
+> Out of band. It came out of the same phone-testing session as R1–R5, so it is a Round 7 item,
+> but it was implemented after Round 8 was already written down, which is why it sits at the end
+> of this file. Commits: `feat(diag): …` on `feature/2026-09-audit`.
+> **Nothing here tries to fix the crash.** The job was to make the next occurrence say what threw.
+
+## The evidence (established frame by frame from Roli's recording — do not re-derive it)
+
+- The app blanks to the **themed page background** with an empty body. Measured RGB **13,18,27**
+  against the blue theme's `--color-bg-default` of **11,17,30**. So the bundle had loaded,
+  `useThemeManager` had applied `data-theme`, and *then* the tree went empty. It is **not** a white
+  screen, **not** the install splash, **not** a reload.
+- The header **and** the bottom tab bar are gone too. `ui/shell/RouteErrorBoundary.tsx` exists, but
+  `AppShell.tsx:105` wrapped only `{children}` with it, so a throw in the shell or in a provider was
+  **above** the boundary and nothing caught it.
+- Roli: *"when i swiped back, it was unresponsive and then i got the blue screen only."* Unresponsive
+  first, then blank, roughly **2.6 s** after the gesture, with no further interaction. That signature
+  fits a render/update loop hitting React's maximum-update-depth, which React throws and which
+  unmounts the tree — **a hypothesis, not a finding.**
+- It does **not** reproduce in Chromium. WebKit is not installed (Roli asked not to install it yet).
+- **It no longer reproduces at all.** It is intermittent, so the recorder is the only route to it.
+
+## What was built
+
+| Piece | Where | What it does |
+|---|---|---|
+| Top-level boundary | `ui/shell/AppCrashBoundary.tsx`, mounted in `main.tsx` **outside every provider** | Catches a throw in the shell, a provider or the router. Names the failure, shows the message and the stack, offers Reload and a real navigation to `/dashboard`, and points at Settings → Diagnostics. No context, no query, no router hook — it is the last thing standing. `RouteErrorBoundary` keeps its own job (the *page* failed, the app is fine) and its own reset key. |
+| Recorder | `diagnostics/crashLog.ts` | Ring buffer of the last **10** events through `utils/safeStorage.ts` (never bare `localStorage`). Fed by both boundaries, `window.onerror` and `unhandledrejection`. Each entry: timestamp, source, message, stack, component stack, URL, Vite mode, repeat count, trail. |
+| Breadcrumbs | `diagnostics/breadcrumbs.ts`, fed from `ui/shell/useRememberLocation.ts` | Last **20** navigations in memory — timestamp, `pathname+search`, and the router's `PUSH`/`POP`/`REPLACE`. Attached to an error when one is recorded; never persisted on its own. |
+| Liveness marker | `diagnostics/lifecycle.ts` | Answers the death that throws nothing (iOS jettisoning the web view). See below. |
+| Install | `diagnostics/install.ts`, called from `main.tsx` before render | Boot check → global handlers → heartbeat, in that order. |
+| The phone-readable view | `ui/layout/DiagnosticsSettings.tsx`, Settings tab `?tab=diagnostics` | Newest first, each expandable to stack + component stack + trail; Copy all (clipboard, with a select-and-copy fallback); Clear behind `ConfirmDialog`. |
+
+## Decisions worth not re-litigating
+
+- **The loop guard is three things.** (1) A repeat with the same signature (message + first stack
+  frame) merges into the newest entry instead of appending. (2) A burst of *different* errors folds
+  into the newest once **5** new entries have been appended in 10 s, counted in `suppressed`.
+  (3) Storage is written at most **once a second** (leading write + trailing flush, plus a flush on
+  `pagehide`). A 100/s loop therefore costs **one entry and one write per second**.
+- **`count` is sampled at 400 ms**, and that is deliberate. One throw reaches the recorder two or
+  three times — React re-renders a failed tree to build the component stack, and a **dev build**
+  re-throws it to `window` as well — as *different* Error objects, which object identity cannot
+  catch. Sampling makes a single crash read `1`. A loop still climbs, and `lastTs - ts` is the real
+  measure of how long it ran. `suppressed` stays exact.
+- **Backgrounding is not a death.** The marker's `phase` is the whole rule: `hidden` (a
+  `pagehide`/`visibilitychange` ran, so the page *left* — backgrounded, reloaded or closed) is never
+  reported; only `visible` (the last thing we saw was the heartbeat, in the foreground, and then the
+  session stopped) becomes a synthetic entry. A real renderer kill was used to verify it, and an
+  ordinary backgrounding was verified to record nothing.
+- **The `pagehide` write is trail-free**, because iOS gives that handler very little time and a
+  hidden marker is never reported anyway. The trail rides on the foreground heartbeat (15 s) and on
+  every navigation (throttled to 1/s) — without the navigation refresh, a death in the first seconds
+  of a document would carry an empty trail, which is precisely the case being hunted.
+- **A synthetic entry is `warn`, not `error`** (`DESIGN.md` §2): nothing failed that we know of. The
+  four real sources are `error`. The UI says "No error was thrown." above the message.
+- **Known false positive, accepted:** two tabs of the app open at once on a desktop share the marker,
+  so the second one's boot can read the first one's live `visible` marker and report a death that
+  did not happen. On a one-window installed PWA this cannot happen, and the entry is labelled for
+  what it is.
+
+## Stack quality
+
+Roli's phone loads the PWA from the **Pi's Vite dev server** over the LAN, so the stacks in his log
+point at real source files and line numbers (`at ShellInner (…/src/ui/shell/AppShell.tsx:37:34)`),
+and `Build: development` on each entry says so. Production stacks would be minified and far less
+useful — if the crash ever has to be chased on `lorbeerkranz.xyz`, source maps are the follow-up.
+
+## Verified (isolated stack: backend :8003 on a DB copy, vite :8020)
+
+Four forced crashes, each producing exactly one correctly-labelled entry with its trail: a throw in
+`ShellInner` (**App boundary**, with component stack), a throw in `DashboardPage` (**Page boundary**),
+a bare `setTimeout` throw (**window.onerror**), a rejected promise (**Unhandled rejection**). Plus a
+real renderer kill (`chrome://crash`) → **Ended unexpectedly** on the next boot carrying the trail,
+and a plain `pagehide` → nothing recorded. 390px and 1280px, blue and light. `a a` count stayed 0.
+
+## Deviations
+
+- The brief asked for the Diagnostics section "on the Settings page"; it is a fourth **tab**
+  (`?tab=diagnostics`, the U1 scheme) rather than a block appended to an existing tab.
+- `SettingsSection` gained `min-w-0` — a grid item is `min-width: auto`, so the first unbreakable
+  stack frame made the entire page scroll sideways. Latent for every tab, found by this one.
+
+## Round 7b — the crash that still recorded nothing (2026-09-16)
+
+Roli, 2026-09-16: *"i now just had a crash again (from a different scenario) but nothing
+recorded...its annoying as these are hard to reproduce as they dont occur often/every time."*
+Twice now. The instrument above was built to be *watching when it happens*; this is the change that
+makes it *tell you afterwards*.
+
+**Why nothing was recorded — diagnosed, not guessed.** The diagnostics install from `main.tsx`
+*before* React and run independently of it. So when the app blanks — the React root emptied, the
+document untouched — the heartbeat carries on writing `phase: "visible"` every 15 s: **nothing ever
+asked whether anything was actually on screen**. And then Roli does the only sensible thing with a
+black screen: he backgrounds it or force-quits it, which fires `pagehide`/`visibilitychange`,
+rewrites the marker to `phase: "hidden"`, and `unexpectedEnd()` deliberately never reports a hidden
+marker. *Reacting to the crash destroyed the evidence of it.* Between those two behaviours, a blank
+screen whose document survives was exactly the case that left no trace — and it is the case he keeps
+hitting. (The renderer-kill case the section above verified is a different death: there the document
+dies too, and the stale `visible` marker is the whole point.)
+
+**What now covers it.** Three things, all in `src/diagnostics/`.
+
+| Piece | Where | What it does |
+|---|---|---|
+| The tick looks at the screen | `lifecycle.ts` | Every 3 s: is the mount point still holding a rendered tree? If it is not — and it once was — the entry is recorded **there and then** (source `blank-screen`, `warn` tone, "No error was thrown"), with the URL and the navigation trail, **with nothing having thrown**. The storage write stays where it was: the marker is written on every *fifth* tick, i.e. every 15 s, exactly as before. |
+| A blank screen stops being blank | `blankNotice.ts` | Paints "The app stopped drawing", a Reload button and a real navigation to Settings → Diagnostics into the empty root. Plain `document.createElement` + `textContent` + inline styles reading the theme's own CSS variables with literal fallbacks — **no React, no router, no context, no stylesheet dependency**, because any of them may be what just failed. Every statement inside one `try`; it paints at most once. |
+| Backgrounding stops destroying evidence | `lifecycle.ts` marker `blank`, `crashLog.recordBlankScreen` | The hide handler **looks before it rewrites the marker**, so a blank seen between two ticks is still caught on the way out; and once seen, the fact rides in the marker as `blank: <ts>`, which `unexpectedEnd` reports whatever the phase. The ordinary rule is untouched: a `hidden` marker *without* `blank` is still never a death. The two reports are one incident — a blank already in the log within 5 s of the one being recorded is left alone. |
+
+**Decisions worth not re-litigating.**
+
+- **What "still rendering" means is `root.firstElementChild != null`, and nothing richer.** Anything
+  about *visibility* or size needs geometry, and `offsetHeight`/`getBoundingClientRect`/
+  `getComputedStyle` force a reflow on every tick. Two O(1) property reads is the whole budget.
+- **A false "your app died" is worse than none** — it trains the reader to ignore the log. So the
+  detector fires only when all of these hold: it has seen a rendered tree at least once **in this
+  document** (which kills the window between `createRoot` and the first paint, and a boot that never
+  rendered at all — that is a different bug, and `window.onerror` has it); the document is older than
+  `BOOT_GRACE_MS` (2.5 s); and it has not already fired. A root React **replaced** rather than
+  emptied is re-resolved by `getElementById` before it counts as anything.
+- **A legitimately empty render cannot happen here** and is not guessed at: the shell renders on
+  every route, and the lazy routes have `Suspense` fallbacks *inside* it (`app/App.tsx`), so a chunk
+  still loading leaves the root full. Verified by driving 21 route loads with nothing recorded.
+- **The blank entry is `force`d past the loop guard** (`RecordInput.force`). It can fire once per
+  document, so it needs no burst budget — and a render loop that *ends* in a blank screen is exactly
+  the case where the burst fold would otherwise swallow the one line saying what was on screen.
+- **A synthetic entry never calls `noteErrorRecorded`.** That flag exists to say "a real error
+  already explains this death"; a blank screen explains nothing, and must not suppress the next
+  boot's report.
+
+**What the tick costs** (measured in the production build, on the Pi, 200k iterations):
+the look is **~77 ns**; a single `offsetHeight` read — the layout-forcing alternative, in an already
+settled document — is ~743 ns; the marker write it sits next to is **~18.6 µs**, i.e. 240× the look,
+and its frequency is unchanged. Twenty ticks a minute add ~1.5 µs of work per minute. No new timer
+(the existing interval got faster and writes on every fifth tick), no new storage write, no DOM walk.
+
+**Verified** (isolated stack: backend :8003 on a copy of `app.db`, vite :8020, production build
+served statically on :8031). Three forced blank screens, each recording exactly one `blank-screen`
+entry with its trail and painting the notice: `root.unmount()` **from outside React**; a throw
+**above** the app boundary (rendering a throwing element at the root — which also produced its own
+`window.onerror` entry beside the blank one, the pair being the ideal report); and the hide path,
+where the root is emptied and the page is backgrounded or reloaded before the next tick. The
+renderer kill (`chrome://crash`) still produces the pre-existing **Ended unexpectedly** entry, not a
+blank one. Recorded **nothing**: a normal boot (22 s), a route that renders little (`/no-such-page`),
+a reload, a backgrounding with the app intact, and 21 route loads across the lazy chunks. In the
+production build the entries carry `Build: production` and the same behaviour; at 390px and 1280px,
+blue and light, `a a` count 0, no console errors beyond the WebSocket the static harness does not
+proxy.
+
+**Source maps: worth it, but it is Roli's call and the build config was not touched.** Measured
+side by side, the same throw records `at Boom (…/src/main.tsx:39:11)` from the dev server and
+`at e (…/assets/index-kRxnvNJS.js:22:292267)` from the production build — a production stack names
+minified frames and is nearly useless for locating the failure. `build.sourcemap: true` in
+`vite.config.ts` would fix that, at the cost of publishing ~2–3 MB of `.map` files next to the
+bundle, which anyone can read as the original source (this is a private friends' app, so that is a
+small matter, but it is a real one and it is his to decide). The cheaper half-measure is
+`build.sourcemap: "hidden"`: maps are emitted but no `//# sourceMappingURL` comment is, so browsers
+never fetch them and the stack stays minified — useful only if someone de-minifies the copy by hand
+afterwards. **Nothing forces the decision today**: his phone loads the PWA from the Pi's dev server,
+so his stacks already name real files, and `lorbeerkranz.xyz` has never had to be chased.
+
+**Deviations.**
+
+- **The tick is 3 s, not the heartbeat's 15 s** — the plan says "each beat"; a beat every 15 s would
+  leave a reader in front of a black screen for up to fifteen seconds before the notice appears, and
+  the look is cheap enough that the honest answer was to look more often and write no more often.
+  One timer still, `HEARTBEAT_MS / RENDER_CHECK_MS` ticks per marker write.
+- **The blank is a source of its own (`blank-screen`), not a `lifecycle` entry with a different
+  message.** "Ended unexpectedly" is the wrong label for a page that is still open; the log now
+  distinguishes *it was taken away* from *it stopped drawing*, which are different bugs. Both are
+  `warn`, both say "No error was thrown", and `isSyntheticSource()` is the one place that knows.
+- **`window.addEventListener("pageshow")`, restricted to `event.persisted`.** Not asked for: found
+  while reading the hide path. The timer is stopped on the way out, and a bfcache restore does not
+  always fire `visibilitychange` — without this the heartbeat (and now the detector) could stay dead
+  for the rest of a restored document. Guarded so an ordinary load adds no write.
+- **A real OS-level backgrounding could not be produced in this environment.** Headless Chromium
+  reports `visibilityState: "visible"` regardless, and so does a headed one under Xvfb (no window
+  manager: `bringToFront`, minimising via CDP and `Page.setWebLifecycleState` all leave it visible).
+  So the `visibilitychange` half was driven by overriding that one property and firing the real
+  event — exactly what the code reads and listens to — while the `pagehide` half was exercised for
+  real by a reload. Unit tests cover both paths as well.
+- **The verification needed `main.tsx` patched temporarily** (to expose the root for `unmount()` and
+  a helper that renders a throwing element at the root). Applied, used for both the dev and the
+  production runs, reverted; the committed tree has none of it.
+
+---
+
+## Q7 — The friendlies list has no layout of its own  ☑
+
+Roli, on the Details and Compact views (2026-09-15): *"this does not look nice"*.
+
+**Cause, and it is structural.** The page has no list of its own: `pages/tools/FriendlyMatchesListCard.tsx:273`
+builds a **fake tournament per date** — `{ name: "Friendlies", date: dateKey, status: "friendly" }` —
+and hands it to `pages/stats/MatchHistoryList.tsx`, the component written for *matches grouped by
+tournament*. So the group title is the word "Friendlies", three times down one phone screen, while
+the thing that actually names each group (its date) is demoted to a chip underneath it, and the
+layout is one designed for a context this page does not have.
+
+**What is wrong, itemised:**
+1. **Two stacked filter rows on top of the content** (`:305-333`), each `section-label`
+   (`text-xs font-semibold uppercase tracking-wider`) + a `SegmentedSwitch`. This is the pattern
+   Roli rejected on stats in round 4; friendlies is the last page still using it.
+2. **Nothing forms a column.** The score is centred in the row, the two action buttons are
+   right-aligned, the club blocks float between them. T14 gave standings fixed columns for exactly
+   this complaint; this list never got it, so no two rows line up.
+3. **The rows sit on the bare page ground** with a hairline between them — no `card` (DESIGN.md §3).
+4. **Two 44px buttons on every row** for actions used rarely, making them the loudest thing in the list.
+5. **Details view is unbalanced**: long club names wrap to two lines ("Heart of Midlothian F.C.",
+   "Inter Mailand (Lombardia FC)"), and five outlined stars per side spend a lot of pixels on one number.
+
+**Decided with Roli (selected from rendered options — do not relitigate):**
+- **Keep entry order, align the columns.** Whoever was entered first stays on the left, because the
+  club is attached to a side and the row should stay honest about who was home. Fixed-width columns
+  so every score sits at the same x down the page, the way T14 did it for standings. Winner-first
+  ordering was offered and rejected.
+- **The row is the only control: tapping it opens the editor, and delete lives inside it.**
+  Confirmed with Roli from rendered options. The row carries **no buttons at all**; a tap opens the
+  friendly's existing editor, and the delete sits in there behind `ConfirmDialog` (Q5's house
+  style). Revealing the two buttons on the row instead was offered and rejected.
+- **The filters move into the floating pill**, the control he approved for stats (S5/S7/T4). Both
+  Mode and the Compact/Details choice go in it, and the two rows above the list disappear.
+  **Note:** `pages/stats/StatsFilterPill.tsx` is stats-shaped today. Promoting it to a shared
+  primitive is part of this task, not a side effect — and once it is shared, DESIGN.md §9 should
+  describe it as the app's filter control rather than the stats page's.
+
+**Also fix while in there:** the group header should be the date and the count
+("28 August 2026 · 1 match"), not a repeated page name with the date demoted beneath it.
+
+**Open, worth Roli's opinion when it is built rather than before:** whether the stars stay as five
+glyphs per side or collapse to a compact token ("3.5★"), which is what the clubs page already does
+and what would let a details row fit one line per club.
+
+**DoD:** every row's score at the same x, measured; no control on a row but the row itself; the
+filter pill on friendlies and stats from one shared component; `npm run check` + build; 390px and
+1280px in blue and light; before/after screenshots of both views.
+
+**Deviations:**
+- **The fake tournament is gone and friendlies got a list of their own**
+  (`pages/tools/FriendlyList.tsx`), rather than `MatchHistoryList` growing a mode. That component
+  has **five** callers, not one — the profile overview, the profile's Matches tab, the H2H matchup,
+  the Player view, plus the H2H panel's row — and four of them are *right* to show a group called
+  "Friendlies": those lists genuinely mix tournaments and friendlies, and the **backend** sends
+  `status: "friendly"` groups of its own (`services/stats/player_matches.py`, `h2h_matches.py`,
+  merged by `pages/stats/matchHistory.ts`). The repeated title was never a bug in that component;
+  it was a bug in borrowing it for a page where every group is a friendly. So the component keeps
+  its shape and its callers are untouched.
+- **The borrow's residue went with it.** `MatchRowWithClubs`'s `action` / `expanded` and
+  `MatchHistoryList`'s `renderMatchActions` / `renderMatchExpanded` existed only for this page —
+  their own doc comments say so — and had no caller left once it moved out. Removed, and the T8
+  test that guarded "the editor is not in the action slot" was re-pointed at the row that now owns
+  the rule (`src/test/friendlyList.test.tsx`, 8 new tests). `renderTournamentActions` is callerless
+  too but predates this task and was left alone.
+- **No card around the rows** — item 3 of the diagnosis, answered differently and on purpose. The
+  editor a row opens contains `SelectClubsPanel`, which **is** a `card` by canon (§9b, T9): a card
+  per day group would nest card-in-card the moment a row is tapped, which §1.1 and §10 forbid
+  outright, and a surface that cannot survive its own expanded state is the wrong surface. The
+  canon argues the same way unprompted — §1.2 is flat-and-list-first and §6 says in as many words
+  that "a card per group would box every number on the page" — and every other match list in the
+  app is flat, so boxing this one would make friendlies the odd page out. What item 3 was really
+  about, rows with no structure around them, is answered by the group's header band and a real
+  `row-tap` press state. Item 3 is a diagnosis, not one of the three settled decisions, and the DoD
+  does not ask for a card.
+- **The column rhythm is T14's mechanism moved into `ScoreLine`**, not a second one:
+  `scoreDigits(goals)` once for the whole page → `digits` on every row → each numeral holds a
+  `RecordNum` pad track. Both numerals hug the hairline and the slack goes outward, so the
+  *separator* is the part that cannot move. Measured with 1v1 and 2v2, single- and double-digit
+  rows mixed in one list: **before** 3 distinct separator x per view — spread **12.27px** compact,
+  **16.36px** details, at both widths; **after** exactly one — **spread 0.00px**, x=**195.00** at
+  390px and x=**760.00** at 1280px in both views, with every numeral track's own left and right
+  edge identical across all 24 rows.
+- **The pill is `ui/primitives/FilterPill`.** A page declares groups (`filterGroup`: label,
+  options, value, the value that counts as unfiltered, and whether the capsule shows it as text or
+  as an icon) and keeps the state where it already lived — stats in the URL, friendlies in
+  component state plus `localStorage`. The pill owns the capsule, the popover, the placement, the
+  outside/Escape close, the scroll tuck, the accent state and the pulse (`pulseKey` per surface, so
+  friendlies pulses once even if Stats pulsed first). `pages/stats/StatsFilterPill.tsx` survives as
+  the stats page's two groups and nothing else; its 17 tests pass unchanged.
+- **Compact/Details is in the pill but declared `display`**, so it never turns the pill accent. It
+  belongs in the control — it is part of "what this list shows", both rows above the list had to
+  disappear, and a second floating control would be one too many — but it filters nothing, and the
+  accent state means "the rows you are looking at are filtered". Verified at runtime: choosing
+  Details leaves `data-filtered="false"`; Mode 2v2 sets it `"true"`.
+- **The stars became a token** (`StarsToken` — one filled 12px glyph and the number) folded into
+  the league line instead of owning a third line, so a details row is 2 lines per side instead of 3
+  and the two ratings meet either side of the centre gap where they can be compared. It is
+  `tabular-nums` but **not** `font-mono`: it follows a league name of any length rather than sitting
+  in a column, and a mono `.` sets "3.5" a third wider than it needs to be. Long club names still
+  wrap at 390px; what actually reduced the wrapping was deleting the two 44px buttons, which gave
+  each side ~38px back. The Details page is **21% shorter** (7590 → 5986 device px at 390px,
+  6668 → 5336 at 1280px).
+- **Two small things the brief did not ask for**, both caused by the filter moving into the pill:
+  the view choice is remembered (`friendly_list_view`, the `match_list_view` idiom of §9b) because a
+  preference two taps away that resets every visit is worse than one on screen; and the empty state
+  now distinguishes "No friendlies yet." from "No 2v2 friendlies." — with the filter hidden, the old
+  wording is simply untrue.
+- **Left for later:** the four `MatchHistoryList` surfaces could pass `digits` now and get the same
+  aligned column for one line each. Out of scope here — five surfaces to re-verify.
+- **Canon touched** (targeted edits; Q4 was in `Modal` / `ImageLightbox` / `MobileChrome` /
+  `tailwind.config.cjs` and had not touched `DESIGN.md`): §7's `Filters`, `Clubs under a score` and
+  `Stars` rows; §8 gained the fixed-numeral-column bullet; §9 was retitled "Floating filter pill"
+  and rewritten as the *app's* control with the display-vs-filter rule. `AGENTS.md` §2's module map
+  names `FriendlyList.tsx` and `FilterPill`.
+- **Verified** on an isolated stack — backend :8004 on a copy of `backend/app.db` with a scratch
+  secrets file, vite :8022. Four friendlies were added to the copy (two 2v2, a 12–3, a 2–10, a
+  clubless row, the two longest club names in the DB) so the alignment claim is made against a list
+  that really mixes modes and digit counts. Playwright at 390×844 and 1280×800, blue and light, both
+  views, as admin and as a reader: zero console errors, `a a` = 0, `button button` = 0, `button a`
+  = 0, one button per row (the stretched overlay) and none at all for a reader; the row opens the
+  editor, Delete sits inside it behind `ConfirmDialog`. The stats pill was re-checked on all eight
+  sub-views — right labels, absent on Cups, mode-only on Positions, URL and `data-filtered` both
+  following a change. The DB copy and both servers are gone.
+
+
+---
+
+## Round 8 — running order
+
+Seven tasks, five waves, paired by **file set** so two workers never share a file. Reasons, not
+preferences:
+
+| Wave | Runs | Why here |
+|---|---|---|
+| 1 | **Q5** ‖ **Q1** | Q5 is backend + the live-tournament pages, Q1 is `pages/ideas/`. Disjoint. |
+| 2 | **Q3** ‖ **Q4** | Q3 is the two stats grids, Q4 is the drawer, `Modal` and the lightbox. Disjoint. |
+| 3 | **Q2** alone | It edits the shell **and** all three composers **and** the filter pill. It has to follow Q1 (both touch `IdeaComposer.tsx`) and precede Q7 (both touch `StatsFilterPill.tsx`). |
+| 4 | **Q7** alone | Promotes the filter pill to a shared control, so it must come after Q2 has finished moving offsets around inside it. Also rewrites `MatchHistoryList` usage, which Q3 reads. |
+| 5 | **Q6** alone | **Gated on the crash trail from Roli's phone** (see Q6's Sequencing note). It touches every file the other six avoid. |
+
+**Nothing in Round 8 starts without Roli saying so**, wave 1 included.
+
+
+---
+
+## Q2 (reopened) — the keyboard fix does not fire on the device  ☐
+
+Roli tested `ec5165f` on his iPhone, 2026-09-16: *"it happens in both safari and standalone pwa
+after re-opening (tabs group moves with keyboard)"*. Screenshot: keyboard up, **the bottom tab bar
+still visible** between the composer and the keyboard, and **the composer still 72px above the bar**.
+
+**What that rules out.** Not a stale bundle — he force-quit and reopened, and Q1's taller details
+field (shipped hours earlier) is visible in the same screenshot while Q2's effect is not. Not
+standalone-mode-specific — mobile Safari behaves identically. And **both halves failed together**
+(bar not hidden *and* `--bottom-nav-clearance` not collapsed), so `html[data-keyboard-open]` is
+never being set: this is the detection, not the CSS that hangs off it.
+
+**Where to look, in order.** The three conditions in `ui/shell/keyboardOpen.ts` are focus on a text
+field, `scale ≤ 1.05`, and `covered ≥ max(120px, 20% of innerHeight)` where
+`covered = innerHeight − visualViewport.height − visualViewport.offsetTop`. On paper all three hold
+on an iPhone. So one of the *inputs* is not what the code assumes — most likely `innerHeight`
+shrinking with the keyboard (making `covered ≈ 0`), or `offsetTop` absorbing the difference. Roli's
+words "tabs group moves with keyboard" say Safari **re-anchors the fixed bar to the visual
+viewport**, which is consistent with a non-zero `offsetTop`.
+
+**Do not guess a second time.** The next step is to *measure on his phone*: put a live readout of
+`window.innerHeight`, `visualViewport.height`, `visualViewport.offsetTop`, `visualViewport.scale`,
+the active element's tag and the current value of the flag into the Diagnostics section that already
+exists (R7 diagnostics, `ui/layout/DiagnosticsSettings.tsx`), with its own text field to focus so the
+keyboard can be raised while the numbers stay on screen. One screenshot from him then settles it.
+Only after that, fix the condition.
+
+**The instrument is in (2026-09-16) — Q2 itself is still untouched and still open.** Settings →
+Diagnostics now opens on **"Keyboard and viewport"**, above the crash log: a live readout that shows
+the verdict (*Keyboard open/closed*) and whether `<html data-keyboard-open>` is actually set, then
+`innerHeight`, `visualViewport.height`, `visualViewport.offsetTop` and `visualViewport.scale` in
+**three columns — now / at rest / deepest** — and then the three conditions one per line, each with
+its own ✓/✗ and the numbers it was decided on, including the subtraction itself
+(`covered 336 ≥ 169 (844 − 508 − 0)`). The focused element is named in condition 1. Its own text
+field sits at the bottom of the block, so everything worth reading is **above** it and stays on
+screen with a keyboard over the lower half (measured: the field's bottom edge is at 463px of 844 at
+390px wide, and nothing in the block scrolls). "At rest" is the last reading taken with no caret
+anywhere — that is the column that answers the actual question, *did `innerHeight` shrink when the
+keyboard opened?* — and "deepest" keeps the largest covered strip seen, so the evidence survives the
+keyboard closing. A **Copy** button puts all of it, plus the user agent and whether the app is
+standalone, on the clipboard; it keeps the caret (`mousedown` default prevented) so copying does not
+close the keyboard it is describing. The conditions are not recomputed in the readout:
+`keyboardConditions()` in `ui/shell/keyboardOpen.ts` *is* the shipped decision, and
+`keyboardOpenFrom()` is now its three answers ANDed.
+
+**What Roli should do:** Settings → Diagnostics, tap the field, screenshot with the keyboard up.
+That one image says which of the three conditions is false and what the phone reported. **No fix
+until then.**
+
+**Deviations:**
+(The fix, written from his two readouts and nothing else. **Q2 stays open on purpose**: it has
+shipped green twice and done nothing on the device twice, so only his phone can close it. What he
+should re-test is at the end.)
+
+- **One term removed, and that is the whole defect.** `keyboardConditions()` computed
+  `covered = innerHeight − vv.height − vv.offsetTop`; it now computes `innerHeight − vv.height`. His two
+  readouts, keyboard visibly up in both (iOS 18.7, 440×956, standalone PWA):
+
+  | reading | innerHeight | vv.height | vv.offsetTop | old `covered` | new `covered` | verdict then → now |
+  |---|---|---|---|---|---|---|
+  | first | 956 | 568 | 131 | 257 ≥ 191 | 388 ≥ 191 | open (by luck) → open |
+  | second | 894 | 568 | 222 | **104 ≥ 179 ✗** | 326 ≥ 179 | **closed → open** |
+
+  Same keyboard in both — 568px of page left either way — and only how far Safari had scrolled
+  differed. `offsetTop` is *where the visible strip sits* inside the layout viewport, i.e. how far
+  the page was pushed up to reveal the focused field; subtracting it charged that scroll to the
+  keyboard. It is still read and still shown in the readout, and the type now says in words that it
+  is reported and never subtracted, with the table above in the module doc, because this is the line
+  Q2 got wrong twice.
+- **What `covered` is now, said so it cannot be re-broken**: how far the bottom edge of the *layout*
+  viewport — which is where `position: fixed; bottom: 0` puts the tab bar — hangs below the visible
+  area. That overlap **is** the bug, not a proxy for it, which is why it is the quantity measured.
+- **`innerHeight` moves on iOS too (956 at rest, 894 with the keyboard up), and the threshold still
+  measures against the live value.** That was the one real judgement call here, and the reason is the
+  sentence above: a layout viewport that shrank is a bar that moved up with it, so the shrink belongs
+  *inside* the subtraction. In reading 2 the bar hangs 326px below the visible area; a remembered
+  "at rest" 956 would have claimed 388 and described no element on the screen. The ratio term follows
+  the same number down (179 instead of 191) — the requirement eases exactly when the evidence does,
+  always in the safe direction — and the 120px floor, which is what actually keeps a browser toolbar
+  (~115px) out, does not move at all. Both readings clear the bar by 2.0× and 1.8×, so neither is close.
+  Keeping it stateless also keeps the module's own promise: the flag is *derived* on every event, so
+  it cannot drift, and a remembered baseline is exactly a thing that can go stale (rotation, split
+  view) while a field still holds the caret.
+- **The end of that road is not a bug either.** A browser that resizes the layout viewport *fully*
+  with the keyboard (Chromium's `resizes-content`) now reads `covered = 0` and never sets the flag —
+  correct, because a bar pinned to a resized layout viewport already sits above the keyboard and has
+  nothing to get out of the way of. The old hypothesis that this was Roli's case is disproved and the
+  test that encodes it now says so.
+- **The other two conditions were not touched.** Scale ≤ 1.05 and "a text field has the caret" both
+  held on the device in both readings; they are the module's fail-safes (focus always ends, and a
+  pinch is the one other thing that shrinks the visual viewport), and nothing in the readouts argues
+  against either.
+- **Both readings were reproduced in a browser before a line was changed**, and the reproduction is
+  the engine's own visual viewport, not a mock: a Chromium context **without `isMobile`** (mobile
+  emulation silently ignores it), `Emulation.setPageScaleFactor` for a real shrink to 568, and a real
+  `Input.dispatchMouseEvent` wheel that scrolls the real visual viewport to `offsetTop` 131 / 222.
+  The single override is `visualViewport.scale → 1`, because on iOS that shrink is a keyboard and in
+  Chromium it is a pinch. Before: reading 1 `flag=true`, reading 2 `flag=unset, "Keyboard closed"` —
+  his bug, on this machine. After: both `flag=true`, both "Keyboard open". Both rows are now in
+  `src/test/keyboardOpen.test.ts`, together with a sweep that pins `offsetTop` to **no** influence on
+  the answer over every value it can take in either reading (0…388 / 0…326).
+- **The chain verified end to end, not assumed**, at 390px in `blue` and `light`, with a real caret in
+  each composer and the reading-2 numbers driven into the real detector: flag set → `--bottom-nav-clearance`
+  72px → **0px** → the bottom tab bar `display: block → none` → **all three** composers' computed
+  `bottom` 72px → 0px (tournament comments, profile guestbook, Ideas — the last one opened the way the
+  app opens it, by focusing its title field) → the error toast **stays** `display: flex` and drops from
+  `bottom: 72px` to `0px` (rect 776–844, flush to the bottom of the visible area) → the stats filter
+  pill `display: block → none`. Everything returns when the keyboard goes away. Zero console errors in
+  every run. At 1280px the flag changes nothing, as designed: the bar is `lg:hidden`, the composers are
+  `lg:bottom-0`, the toast `lg:bottom-4`. (`/stats` has no text field at all, so the flag cannot be
+  raised there by a caret; the pill's row was driven by setting the attribute `setFlag()` sets.)
+- **The readout's Copy button no longer needs scrolling up to.** Roli: *"i had to scroll up to reach
+  copy button"* — and the same reading explains it: Safari scrolled the page by 222px, so the block's
+  first row left the screen exactly when the keyboard arrived. Reproduced (Copy at y 175–207, visible
+  strip 222–790) and fixed by moving the verdict + flag + **Copy** row from the top of the block to
+  **directly above the field**: the focused field is the one element the platform promises to keep
+  visible, so its immediate neighbours are the only real estate a keyboard cannot push out of reach.
+  Measured in the same strip: Copy 365–397, **visible**, in both themes, along with all three
+  conditions (`covered 326 ≥ 179 (894 − 568)`) and the field itself; only the top two rows of the
+  number grid stay cut, which costs nothing because Copy carries *everything* — now, at rest, deepest,
+  the conditions, the user agent — as text, and it still keeps the caret (`mousedown` default
+  prevented), so the report describes the keyboard that is still open. At rest the block now reads
+  evidence → verdict → the field that produces it.
+- **Verification:** isolated stack (backend :8003 on a copy of `backend/app.db` with a copy of
+  `uploads/` and a scratch secrets file, vite :8020), Playwright at 440×956 / 440×894 for the two
+  readings and 390×844 / 1280×844 for the chain, `blue` and `light` — the composers as admin, the
+  readout as a reader (it needs no login).
+  `cd frontend && npm run check` green (63 files, **645 tests**), `npm run build` green. No backend
+  change. The DB copy and both servers are gone.
+- **What Roli should re-test on the phone** (this is what closes Q2): Settings → Diagnostics, tap the
+  field — the readout should say **Keyboard open / flag set** and condition 3 should read
+  `covered 326 ≥ 179 (894 − 568)` or similar, with no third term in the brackets; **Copy should be on
+  screen without scrolling**. Then the real thing: open a tournament's comments, a profile's guestbook
+  and Ideas, tap the composer, and check that **the tab bar is gone** and the composer sits **on** the
+  keyboard rather than 72px above it — in the standalone PWA *and* in Safari, since his two readouts
+  differ by 62px of `innerHeight` and are probably one of each. If any of it still fails, the readout
+  is still there and Copy now reaches him with the caret alive.
+
+**Third round (2026-09-16): the rule is the caret, and there is no threshold left.**
+(Roli's call after the fix above shipped and failed on the phone a second time: his video shows the
+bar hiding with the Ideas composer's title `<input>` focused and **staying** with the `<textarea>`
+directly under it focused — same keyboard, one tap apart. The focus test handles a textarea fine, so
+it was the geometry again. He rejected another measuring round as *"something that would fail on a
+different device"*. **Q2 still stays open**: only his phone can close it.)
+
+- **The covered strip is gone** — `covered`, `MIN_COVERED_PX`, `MIN_COVERED_RATIO`, `requiredCovered`,
+  `coveredOk`, the subtraction in the readout and the tests that pinned the two iPhone readings to it.
+  They encoded a rule that no longer exists. `keyboardOpenFrom()` is now **a text field has the caret,
+  and the scale is ≤ 1.05** — the caret because it has been right every time it was read (a keyboard
+  needs a caret, and focus always ends, so it is the fail-safe too), the scale because a pinch is the
+  one other thing that shrinks the visual viewport and it costs nothing to keep. On a phone, a caret
+  in a text field means the keyboard is up, near enough always.
+- **What replaced the threshold is a *negative* question, and it is the "would be cool" case.**
+  An iPad with a hardware keyboard shows no on-screen keyboard, so hiding the bar there is wrong.
+  The module now remembers `visualViewport.height` in the instant the caret arrives and asks whether
+  it moved **at all** 600ms later: unchanged ⇒ no on-screen keyboard ⇒ the bar comes back. There is
+  no magnitude in it — one pixel in either direction is a keyboard — so it cannot be wrong "by
+  device" the way `≥ max(120px, 20%)` was, and it can only ever *show* the bar, never hide it. Two
+  guards keep it from becoming the third failed heuristic: (1) the remembered height only counts if
+  it was measured with **no caret anywhere** (`fromRest`) — a caret that was already there when the
+  watcher started looking says nothing about the viewport before it, and condition 3 abstains; (2)
+  the "caret episode" ends 250ms after the caret leaves, not at every blur, so the title→textarea hop
+  (a blur and a focus in the same instant) keeps the height it started from instead of re-baselining
+  against the keyboard-open one — which would have reproduced Roli's video exactly. It is also
+  self-correcting in both directions: the comparison is re-derived on every event, so a keyboard that
+  arrives late still hides the bar, and one dismissed while the caret stays still brings it back.
+  **Known limitation, accepted:** a hardware keyboard whose accessory bar *does* shrink the viewport
+  (iPadOS' shortcuts bar) still reads as a keyboard. Telling those apart needs a size threshold,
+  which is the thing being deleted; it lands on today's behaviour, which is the safe direction.
+- **`innerHeight` and `offsetTop` are still read, and now only reported.** Both are in the probe and
+  in the readout (they are the numbers that identified the first bug), and a test asserts the
+  conditions are *identical* for a 956px and a 508px layout viewport, so neither can creep back into
+  the decision.
+- **One new CSS guard.** `.hide-on-keyboard` / `--bottom-nav-clearance: 0px` now live in
+  `@media (max-width: 1023.98px), (pointer: coarse)`. With the rule reduced to the caret, a desktop
+  browser sets the flag while you type in any form — and the filter pill is the one consumer without
+  an `lg:` escape, so it would have vanished mid-typing at 1280px. The pointer half keeps an iPad in
+  landscape (1366px, on-screen keyboard) covered. Measured both ways below.
+- **The readout says what the code does.** Condition 3 is now "a keyboard came with the caret —
+  vv.height 508 (moved from 844 at the caret)", or "(unchanged since the caret — no on-screen
+  keyboard)", or "(unchanged, giving a keyboard 600ms to show up)" while the window is still open;
+  the `(844 − 508)` subtraction is gone with the rule, "deepest" now means the *smallest* visual
+  viewport seen (it used to mean the largest covered strip), and `Copy` carries `caretArrival=…` and
+  `onscreenKeyboard=…` instead of `covered=…`. The block's shape, its position above the field and
+  the Copy button's reachability are unchanged — re-measured: Copy at y 365–397 of the 390×844 page
+  with the keyboard up, nothing overflows (`scrollWidth` 390) in either theme.
+- **Verification** — isolated stack (backend :8003 on a copy of `backend/app.db` with a copy of
+  `uploads/` and a scratch secrets file, vite :8020), Playwright at 390×844 and 1280×844, `blue` and
+  `light`, as admin, with the keyboard simulated as a **real** engine-level shrink of the visual
+  viewport (`Emulation.setPageScaleFactor` to 508 of an unchanged 844 layout viewport; the single
+  override is `visualViewport.scale → 1`, because on iOS that shrink is a keyboard and in Chromium a
+  pinch). For **each of the three composers** — a tournament's comments, a profile's guestbook and
+  Ideas — the caret alone hides the bar *before* any viewport event (flag set, bar `display: none`),
+  the keyboard arriving keeps it hidden with the composer's computed `bottom` at **0px** (from 72px)
+  and `--bottom-nav-clearance: 0px`, **and focusing the second field — Ideas' `<textarea>` under its
+  title `<input>`, and a blur+refocus of the textarea in the other two — keeps every one of those**
+  (this is Roli's regression case). Away from the field: bar back, composer back to 72px. The
+  hardware-keyboard case, driven the honest way (Chromium has no on-screen keyboard): flag set at
+  focus, **flag gone 900ms later with the bar back**, and hidden again the instant the viewport does
+  shrink. Filter pill `display: block → none` and the error toast **stays** `flex` and drops 72px →
+  0px. At 1280px the flag changes nothing — forced on, the bar stays `none` (it is `lg:hidden`), the
+  pill stays `block` and the toast stays at `bottom: 16px`; typing into a real field there settles
+  the flag back off on its own. Zero console errors in every run; the DB copy and both servers are gone.
+  `cd frontend && npm run check` green (63 files, **650 tests** — 5 net new in
+  `src/test/keyboardOpen.test.ts`), `npm run build` green. No backend change.
+- **What Roli should re-test on the phone** (this is what closes Q2): open a tournament's comments,
+  tap the composer — **the tab bar must be gone and the composer must sit on the keyboard**, not 72px
+  above it. Then the one from the video: on Ideas, open the composer (it focuses the title itself),
+  then **tap the details textarea underneath and check the bar is still gone** — that hop is the case
+  that failed. Same in a profile's guestbook. In the standalone PWA *and* in Safari. If it still
+  fails, Settings → Diagnostics is unchanged in shape: tap its field, **Copy**, and send the text —
+  condition 1 and 2 now say everything, and "3 · a keyboard came with the caret" says whether the
+  viewport moved at all.
+
+---
+
+## Q8 — A friendly's result should show which clubs played it  ☑
+
+Roli, on the new list (2026-09-16): *"i like the new list, but can you show the club crest beside the
+result?"* — which also settles Q7's open question: **the flat rows are right, no card.**
+
+Compact view shows the score and nothing else, so the clubs are only visible by switching to Details
+or opening the row. The crest is the compact way to say it: `ui/ClubBadge.tsx` already resolves
+crest → nation flag → monogram (AGENTS.md §10), and the friendlies list already loads the clubs it
+would need.
+
+Judgement, for whoever builds it: where the crest sits without breaking what Q7 just fixed. Every
+score now sits at exactly the same x (measured spread 0.00px across 24 mixed rows) because the two
+numerals hug a fixed centre; a crest placed inside that track would move it. It belongs beside the
+**player name** on each side, on the outside of the numeral track. Check it against a 2v2 row (two
+names per side), a row with no club at all (they exist in the data), and the longest club names in
+the DB. Details view already shows crest + name + league + rating and should not gain a second one.
+
+**Deviations:**
+- **The crest is a side *mark* on `ScoreLine`, not a new row shape.** `leftMark` / `rightMark` hang
+  one small node off the outer edge of a side's names — the slot mechanism the result badge (§8)
+  already used, so a side reads `badge → mark → names` and the trio stays one grid. The friendlies
+  list passes a 16px `ClubBadge` (`ClubMark` in `pages/tools/FriendlyList.tsx`); nothing else in the
+  app passes anything yet. **The order was overruled** — see *Roli overruled the placement* at the
+  end of this section; a side now reads `badge → names → mark`.
+- **Nothing moved, and the reason is structural, not lucky.** The names *hug* the score
+  (`justify-end` on the left side, `justify-start` on the right), so a symbol added on their far
+  side grows outward into space that was empty anyway: it can move neither the numeral track nor the
+  names. Measured on the same 24-row list Q7 used (20 real friendlies + four seeded: two 2v2, a
+  12–3, a 2–10, a clubless row, the two longest club names in the DB), **before and after are
+  identical to the pixel** — one distinct separator x per view, spread **0.00px**, x=**195.00** at
+  390px and **760.00** at 1280px, every numeral track's own edges one value across all 24 rows
+  (compact 161.95/186.50 · 203.50/228.05; details 153.77/186.50 · 203.50/236.23 at 390px), and the
+  **names** likewise: left-names right edge 149.95, right-names left edge 240.05 at 390px, 714.95 /
+  805.05 at 1280px, one value each, before **and** after.
+- **Compact only, and Details is provably untouched.** Details already spells the club out in words
+  with its own crest; a second symbol on the same row is the thing the brief forbade, and there is
+  no arrangement where a row needs two. Proved rather than asserted: the full-page screenshots of
+  Details at both widths in both themes are the same height before and after and differ in **zero**
+  pixels (light/1280) or in exactly one 16px square — the bottom bar's *pulsing live dot*, which
+  animates between captures.
+- **A clubless side keeps an inert 16px slot.** Honest note: nothing on screen depends on it, since
+  the names are pinned to the score either way — it exists so every row's geometry is literally
+  identical rather than merely equivalent. It says nothing else: Compact is the dense view, and a
+  visible "no club" marker would spend a symbol on the absence of one (Details has the words).
+  (**That honest note expired with the move**: on the inner edge the slot is load-bearing —
+  measured below.)
+- **The symbol carries the club's name to screen readers** (`sr-only` next to the badge, which is
+  `aria-hidden` by design): in Compact the symbol is the entire statement about the clubs, so
+  leaving it silent would make the view worse for AT than the one it replaces. A `title` tooltip was
+  rejected — the row content is `pointer-events-none` under the stretched edit button (A6/§7), so a
+  tooltip would work for a reader and not for an editor.
+- **Size: `ClubBadge size="sm"` (16px), the app's smallest, under the 18px `sm` numerals and beside
+  14px names** — the same footprint the club line already uses in Details, so the crest never
+  outweighs the score. No opacity fudge and no special case for the crestless clubs: checked live
+  across all 48 sides of the list — 33 real crests, **8 national-team flags**, **4 monograms**
+  (`AS` Al Shabab, `NF` Nottingham Forest ×3 — two of the six crestless clubs) and 3 empty slots.
+- **No new request, and not one per row.** The page already loads `/clubs` once
+  (`qk.clubs()` in `FriendlyMatchesListCard`) and hands the array down; `ClubMark` resolves through
+  the same `clubLabelPartsById` Details uses. Counted at runtime: **1** `/clubs` call, **1**
+  `/friendlies?limit=500`, and **25 crest images for 25 distinct URLs** — byte for byte what the
+  Details view already fetched, because repeats come from the browser cache (`?v=<updated_at>`,
+  `loading="lazy"`).
+- **Canon touched** (targeted): `DESIGN.md` §7's `Any score` and `Clubs under a score` rows, and a
+  new §8 bullet stating the rule — the club stands beside the name, never inside the score; one
+  club, one symbol per row; the clubless slot; the 2v2 centring. `AGENTS.md` needed no change (crest
+  precedence and the module map are still true as written).
+- **Tests:** 5 new (`friendlyList.test.tsx` ×4 — the symbol beside its own side, the screen-reader
+  name, the kept slot, Details getting no second symbol; `scoreLine.test.tsx` ×1 — a mark rides the
+  outer edge, never the numeral cell, and a 2v2 side spends no extra line on it).
+- **Verified** on an isolated stack — backend :8003 on a copy of `backend/app.db` with a scratch
+  secrets file, vite :8020 — at 390×844 and 1280×800, in `blue` and `light`, both views, as admin
+  and as a reader: **zero console errors** everywhere, `a a` / `button button` / `a button` /
+  `button a` all **0**, 24 rows, one row button each as admin and none at all as a reader, and the
+  row still opens its editor with Delete inside it. The DB copy and both servers are gone.
+
+**Amendment — Roli overruled the placement** (2026-09-16, commit `fix(Q8): …`). Having seen it:
+*"i want the crests to sit between the result and names, not outside of names."* The mark moved
+from the outer edge of a side's names to the **inner** one — `badge → names → mark` on the left,
+mirrored on the right — and Q8's argument for the outer edge (a scoreboard reads crest-team-score;
+an inner mark would crowd the numerals) does not survive contact with the result. What changed:
+
+- **`ScoreLine`'s `Names` nests one flex instead of ordering four children.** The mark and the
+  names are one unit at `gap-1.5`; the result badge still hangs off that unit at `gap-2`, so
+  `MatchHistoryList`'s W/D/L chip — the only other caller of a slot — is byte-identical.
+- **Spacing: 6px to its own names against the grid's 12px to the numerals**, a 2:1 ratio that
+  settles what the mark belongs to; it is also the gap `MatchSides` already keeps between a club
+  symbol and its club name, so Compact and Details say "this club, this side" the same way. The
+  row does not grow: a side spends 22px on symbol + gap where Q8 spent 24, and both are inside a
+  `1fr` cell whose width never changed — the *names* move outward by 22px and nothing else does.
+  Q8's "the numerals would feel crowded" is answered by the 12px and by where the numeral actually
+  sits: in a two-digit track a single-digit score is ~23px from the crest, and even the `12` of the
+  widest row keeps the full 12px.
+- **Re-measured, not assumed.** Same 24-row list Q7 and Q8 used (20 real + the same four seeded:
+  two 2v2, a 12–3, a 2–10, a clubless row, the two longest club names), both views, 390px and
+  1280px, `blue` and `light`, reader and admin — 16 configurations, 1152 compared values:
+  **every score is exactly where it was**, separator x=**194.5** at 390px and **759.5** at 1280px,
+  numeral tracks 161.95/186.5 · 203.5/228.05 (Compact) and 153.77/186.5 · 203.5/236.23 (Details),
+  one value per column, spread **0.00px** before and after, row heights identical. The only
+  measured movement anywhere is in Compact and is exactly the two things that were meant to move:
+  the names (left edge 149.95 → **127.95**, right 240.05 → **262.05** at 390px; 714.95 → 692.95 and
+  805.05 → 827.05 at 1280px) and the marks. **Details is untouched**: every numeral, separator and
+  row height identical across all eight Details configurations, and their screenshots differ only
+  in the bottom bar's pulsing live dot and in ≤3/255 antialiasing noise on glyphs that did not move
+  — a same-code self-diff reproduces the dot on its own.
+- **The crests gained a column of their own**, which the outer edge could never have: their x used
+  to depend on how long the names were (left mark ranged 84.09–106.06 across the 24 rows) and is
+  now one value per side (133.95–149.95 and 240.05–256.05 at 390px).
+- **The reserved slot is now load-bearing, proved by removing it.** With `ClubMark` returning
+  `null` for a clubless side, the name column breaks into two x values — the clubless rows' names
+  snap 22px inward to 149.95 while every crested row stays at 127.95, and the half-clubless row
+  (`Flo 3 │ 1 🛡 Atzi`) is visibly lopsided, one side at each value. With the slot: one value,
+  every row. The slot was restored; the experiment lives only in this note.
+- **2v2 still reads as one pair.** The mark's vertical centre equals the two-name block's centre
+  and the numerals' centre to **0.00px** on every 2v2 row, at both widths — one symbol beside a
+  stacked pair, no extra line, no attachment to the upper name.
+- **Canon and tests follow**: `DESIGN.md` §7's `Any score` row and §8's club bullet now say
+  *inner edge*, carry the `gap-1.5` / `gap-3` ratio and Roli's overrule, and call the clubless slot
+  load-bearing; the three Q8 tests that asserted the outer order now assert the inner one (plus the
+  6px gap), and `scoreLine.test.tsx` checks the mark is the names' *last* child on the left side and
+  the *first* on the right. No new test file, no new dependency, no backend change.
+- **Verified** on an isolated stack — backend :8004 on a copy of `backend/app.db` with a scratch
+  secrets file, vite :8021 — at 390×844 and 1280×900, `blue` and `light`, both views, as a reader,
+  as an admin **and as a real (non-admin) editor account**: **zero console errors** in all of them,
+  `a a` / `button button` / `a button` / `button a` all **0**, no horizontal overflow, 24 row
+  buttons as admin and exactly **one** as the editor (the friendly that editor created — A10's
+  grace window), and the row still opens its editor with Delete inside it while all 24 list scores
+  hold their single x (the extra score inside the open editor is its own `MatchOverviewPanel`,
+  which passes no `digits` and is not part of the list column). The DB copy and both servers
+  are gone.
+
+---
+
+## Q9 — The cache is discarded faster than Roli moves around  ☑
+
+Roli, 2026-09-16: *"i see that some screens are loading again after i move away from them and back ->
+i thought we already have the data and only load it if something changed? is there a regression? or
+was it always like this/is this ok?"*
+
+**Not a regression.** `frontend/src/main.tsx:35-43` has held `retry: 1`,
+`refetchOnWindowFocus: false`, `staleTime: 5000` since **the initial commit** (`d7101c9`), and
+`gcTime`/`cacheTime` is set **nowhere**, so it is TanStack's default of **5 minutes**. Nothing in
+rounds 6–8 touched either.
+
+**What he is actually seeing.** Two different timers, only one of which is visible:
+- `staleTime: 5000` — almost every return refetches, but the cached data renders immediately while
+  it happens, so there is no loading state. Invisible; costs traffic.
+- **`gcTime` 5 min** — once the last component using a key unmounts, the entry is dropped after five
+  minutes. Return after that and there is nothing to render, so the loader is real and correct.
+  This is the one he sees, and it fires exactly on the "went away and came back later" pattern.
+
+The loaders themselves are **not** the bug: v5's `isLoading` is `isPending && isFetching`, true only
+when there is no cached data, and the seven call sites using it are right. (`FriendlyMatchCard`'s
+three `isFetching` uses are disabled-states on controls, not loaders — leave them.)
+
+**Why the expectation is reachable.** The app pushes changes over the websocket and invalidates the
+affected keys (`hooks/realtime/applyEvent.ts`, and A9 made the `seq` gap check real). Where realtime
+covers a screen, a 5-second staleness window buys nothing: the data cannot go quietly stale, because
+a change announces itself. Where it does not — **clubs, ideas, and anything else with no channel** —
+the short window is doing real work and must stay.
+
+**What to do, and the judgement it needs:** raise `gcTime` substantially so returning to a screen is
+instant rather than a fresh load, and set `staleTime` **per domain** rather than globally — long
+where a channel covers it, short where none does. Write down which keys are covered by which
+channel; that map does not exist anywhere today and is the actual deliverable. Watch the memory cost
+of a long `gcTime` on a phone, and check what `placeholderData: keepPreviousData` (already used on
+the stats queries) should do once the numbers change.
+
+**DoD:** the channel-coverage map written into `AGENTS.md` §6; navigating away for ten minutes and
+back renders instantly on every realtime-covered screen; a screen with no channel still refreshes;
+`npm run check` + build.
+
+**Deviations:**
+
+- **The map is code, not prose, and prose second.** The table lives in
+  `frontend/src/api/cachePolicy.ts` — one row per `qk` key prefix carrying coverage, number and
+  reason together — and is applied with `queryClient.setQueryDefaults`, so a query inherits its
+  domain's policy **without any call site opting in**. That was the deciding argument between the
+  three options in the brief: declaring at each `useQuery` cannot be enforced, and a table the
+  queries *read* still needs every query to remember to read it. `AGENTS.md` §6 carries the same
+  rows as the human-readable map, and `src/test/cachePolicy.test.tsx` fails if a `qk` namespace
+  has no row — so the two cannot drift.
+- **One backend change, not expected by the brief.** Writing the map exposed a hole it would
+  otherwise have had to document as a known wrongness: a score correction (or a side swap) on an
+  **already-done** tournament changes no status, so `PATCH /matches/{id}` broadcast it on the
+  tournament's own channel and to the global channel **not at all** — the tournaments list's
+  winner, the cup owner and every stat could stay wrong on every other device indefinitely. With
+  that hole open, "covered by the always-on channel" could not honestly justify a long staleness
+  window. Closed with `services/events.py:global_action_for_match_change`, a new coarse action
+  `result` (only ever fired when the tournament is already done, so the "no refetch storm from a
+  goal" design decision is untouched), and `applyTournamentsChanged` treating it like `status`.
+  Three backend tests + two frontend ones. `make test` 204 passed, `make lint` clean,
+  `make gen-types` no diff (no response model changed).
+- **`gcTime` is 30 minutes and uniform**, not per domain. Measured cost on a realistic
+  22-screen session: **1.58 MB of JS heap** (76 entries, 782 KB of JSON; heap 18.80 MB with the
+  cache, 17.22 MB after clearing it, reproducible to ±3 KB). Nothing is retained that could
+  render *wrong*: every key whose data can change unannounced keeps a 5 s staleness window, so a
+  cached screen is repainted from a refetch within one round trip. The only long windows sit on
+  data the always-open global channel announces.
+- **`refetchOnWindowFocus` turned on globally** (it was off). It does not double up with the
+  websocket resync: `useVisibilityResync` *invalidates* the channel-covered keys regardless of
+  staleness, while a focus refetch only touches queries that are stale **and** active — which,
+  after the table, are exactly the keys no channel watches.
+- **`placeholderData: keepPreviousData` added to two queries, removed from none**: the Clubs
+  page's game selector and the friendlies mode tabs, both filters over one list, the same shape
+  as the stats filters. The rule written into §6 is "filters, not subjects"; the pre-existing
+  player-keyed uses in the stats Player/H2H sections sit on that line and were left alone (S3's
+  call, and one round trip long).
+- **One call-site override removed** (`pages/dashboard/TrendsPreviewCard.tsx`): it forced
+  `staleTime: 0` on `stats.players` **and** on one `stats.playerMatches` per player, so every
+  visit to the dashboard re-downloaded all six players' full match histories (~180 KB). It now
+  follows the table like the rest of `["stats"]`. In the measured session walk this is most of
+  the traffic saving: **152 → 129 API requests** for the same 21 screens, with
+  `/stats/player-matches` going 30 → 18 calls (≈365 KB). The overrides that stand are listed in
+  §6 with the claim each of them makes.
+- **Proof (isolated stack, backend :8003 on a copy of the DB, vite :8020, 300 ms simulated
+  mobile latency, Playwright fake clock):** going to a tournament, leaving for ten simulated
+  minutes and coming back with the history gesture — **before**, the cache fell from 33 entries /
+  300 KB to 6 / 1.1 KB and the first frame read `7. Bauernkranzturnier | Loading` (the profile
+  read `Player #4 · Angepöbelt: 0`); **after**, the cache holds at 36 entries / 301 KB,
+  `["tournament",19]` survives with `observers=0`, and the first frame is the finished page
+  (`WINNER · Rumpi · 9 pts · FINAL STANDINGS`), identical to the settled frame. A screen with no
+  channel still refreshes: /ideas, six seconds away, returns with **no loader** and shows an idea
+  a second client posted **2 ms** later, after exactly one refetch. And a change made in a second
+  browser still arrives on a channel-covered screen with no navigation at all: a corrected result
+  moved the tournaments list's winner in **216 ms** and the Cups page's holder in **925 ms**.
+  Zero console errors on ten screens at 390 px and 1280 px, no horizontal overflow, `a a` = 0.
+
+
+---
+
+## Q10 — The blue screen is a Fast Refresh artifact, not an app bug  ☑
+
+**Solved 2026-09-16 from the first captured trail.** Roli's Diagnostics report, iOS 18.7, Safari
+26.6.1, development build, at `/live/21/match/118`:
+
+```
+App boundary — useAuth must be used within AuthProvider
+  useAuth@/src/auth/AuthContext.tsx
+  ShellInner@/src/ui/shell/AppShell.tsx:30
+Navigation trail (0): (none recorded)
+```
+
+**The component stack contains `AuthProvider` as an ancestor of `ShellInner`** — the provider is
+right there, and `useContext` still returned null. That can only mean **two different context
+objects**: the mounted `<AuthProvider>` element is the *old* module's component, providing the old
+`createContext` object, while `useAuth` — an ES live binding, updated by the hot update — reads the
+*new* one. `AuthContext.tsx` exports a **component** (`AuthProvider`) alongside the context and the
+hook, which is exactly the shape React Fast Refresh cannot update safely, and
+**`AuthContext.tsx:1` is `/* eslint-disable react-refresh/only-export-components */`** — the lint
+rule that exists to prevent this was switched off in the one file where it mattered most.
+
+**Everything fits.** Development build. Only on Roli's phone, which loads from the Pi's dev server
+while workers edit files. Never reproducible in a fresh browser — there is no hot update to
+mis-apply. Intermittent and not tied to any user action, because the trigger is *us saving a file*,
+not him tapping. The empty trail says it happened during the first render of a document, not after
+navigating. And it lands above `RouteErrorBoundary` because the shell itself calls `useAuth`, which
+is why it blanked the whole app rather than one page.
+
+**Production is unaffected**: no HMR, no Fast Refresh, one module instance. This has never been a
+user-facing bug and cannot become one on `lorbeerkranz.xyz`.
+
+**Still worth fixing**, because it costs Roli real testing time and it re-teaches "the app crashes"
+every time we touch a context file. Four files have the hazardous shape — `auth/AuthContext.tsx`,
+`ui/RealtimeStatusContext.tsx`, `ui/layout/ThemeContext.tsx`, `ui/layout/PageTitleContext.tsx` — and
+all four silence the rule. The fix is the one the rule asks for: the context object and its hook in a
+module that exports **no** component, the provider in its own file. Then Fast Refresh updates each
+correctly and the four `eslint-disable` lines come out. `pages/profile/GuestbookEntryCard.tsx` has
+the same shape for a local context; judge it on its own.
+
+**Do not "fix" `useAuth` by making it return a default instead of throwing.** The throw is correct
+and is what made this findable; softening it would have hidden a broken provider tree instead.
+
+**DoD:** the four context files split; no `react-refresh/only-export-components` disable left in any
+of them; editing a context file with the app open no longer blanks it (test it by actually saving one
+while a phone or a second browser has the app open); `npm run check` + build.
+
+**Deviations:**
+
+- **Reproduced first, on the unfixed code.** One save is not enough: vite answers a single edit of
+  `AuthContext.tsx` with `Could not Fast Refresh ("useAuth" export is incompatible)` and a clean
+  full page reload. The blue screen needs what actually happens on the Pi — *several* saves in a
+  row, so the reload from save N races the re-timestamping of save N+1. Twelve rounds of that on
+  `/dashboard` blanked the app on round 1: `useAuth must be used within AuthProvider`,
+  an `app-boundary` entry in the crash log, "The app crashed" on screen. The captured stack names
+  the mechanism outright — `useAuth` at `/src/auth/AuthContext.tsx?t=1789560989261` called from
+  `useDestinationLinks.ts?t=1789560988402` and `BottomTabBar.tsx?t=1789560988402`: **two module
+  graphs, 859 ms apart, in one document.** Exactly the two-context-objects diagnosis, measured.
+- **Only `auth` reproduces the blank today**; the other three are the same shape, latent. `Theme`,
+  `PageTitle` and `RealtimeStatus` are all provided by `AppShell`, which is itself a refresh
+  boundary, so provider and consumer are re-timed together; storming `ThemeContext.tsx` at
+  `/settings` (14 rounds, with and without `SettingsPage.tsx` alongside) never crashed. `auth` is
+  the bad one because `AuthProvider` is mounted from `main.tsx`, which is *not* a boundary — the
+  provider stays on the old graph while everything under it moves to the new one. All four were
+  split anyway: same shape, same disable line, same trap for the next worker.
+- **No barrel, and the hook's import specifier did not change.** The context object and the hook
+  keep the file everyone already imports — `auth/AuthContext` — and only its *extension* changed,
+  `.tsx` → `.ts`, which no importer can see. So the ~30 `useAuth` call sites are untouched, and the
+  six `AuthProvider` importers (`main.tsx` + five tests) were updated by hand. A barrel was rejected
+  in both forms: one that re-exports the provider would rebuild the exact hazard being removed, and
+  one that re-exports only the hook would be indirection buying nothing.
+- **The `.ts` extension is the structural half of the fix.** A `.ts` file cannot contain JSX, so the
+  provider cannot drift back in later even if someone ignores the lint rule. Naming is
+  `<Name>Context.ts` / `<Name>Provider.tsx` throughout, so which half is which is readable from the
+  file list: `auth/{AuthContext.ts,AuthProvider.tsx}`, `ui/{RealtimeStatusContext.ts,
+  RealtimeStatusProvider.tsx}`, `ui/layout/{ThemeContext.ts,ThemeProvider.tsx}`,
+  `ui/layout/{PageTitleContext.ts,PageTitleProvider.tsx}`.
+- **The rule is now enforced, not merely obeyed.** `react-refresh/only-export-components` was
+  `"warn"`, and `npm run lint` is `eslint .`, which **exits 0 on warnings** — so the rule could
+  never fail a gate even with the disable lines removed. It is now `"error"`, verified by linting a
+  throwaway file with the hazardous shape: one error, exit 1. Rejected: `linterOptions.noInlineConfig`
+  scoped to `**/*Context.*` (it would make the disable comment ineffective, but silently swallows
+  every *other* inline directive in those files — a surprising failure mode for a guarantee the
+  `.ts` extension already gives), and a new eslint plugin (no new dependencies).
+- **`pages/profile/GuestbookEntryCard.tsx` was left alone, and it was right to.** It has a context
+  but not the hazardous shape: the context object is module-private, the hook is *not* exported, and
+  every value export is a component — so the module is already a valid Fast Refresh boundary, which
+  is why it is the one context file that never needed the disable comment. Provider and its only
+  consumer refresh together against the same new object. Verified: 14 rounds of saves on
+  `/profiles/1?tab=guestbook`, every one a clean `hmr update`, no reload, no error. Splitting it
+  would cost two files and the locality that makes the recursive card readable, for no safety.
+- **Proof, not assertion.** Before: 34 × `Could not Fast Refresh` and 5 forced page reloads in the
+  dev-server log, and the blank. After, on an isolated stack (backend :8003 on a DB copy, vite
+  :8020): each of the eight files edited live with the app open on `/live/21/match/118` — **zero**
+  `Could not Fast Refresh`, **zero** page reloads, every save a clean `hmr update`, the page still
+  drawing after all eight, no page errors, and Settings → Diagnostics reading **"Nothing recorded"**
+  where the same exercise previously left an App boundary entry. Storms of 12–14 rounds on each of
+  the four pairs: no crash. Regression pass: 9 routes × {390 px, 1280 px} × {blue, light} = 36
+  route loads, no crash, no console errors, `a a` = 0, no horizontal overflow, and theme switching
+  (which runs through `useTheme`) works in both directions at both widths.
+- **One edit outside this section**: the "What is left" queue row for Q10 is ticked
+  `☑ Done 2026-09-16`, matching how Q8 and Q9 are marked in the same table. The sentence below it
+  ("the Q10 crash keeps appearing until item 2 lands") is left as written — it records the decision
+  Roli made at the time, and item 2 has now landed.
+
+---
+
+## What is left, and in what order (Roli, 2026-09-16)
+
+Chosen by Roli from rendered options. **Biggest value first**, not easiest first:
+
+| # | Task | Note |
+|---|---|---|
+| 1 | **Q6** — one model for back, forward and the gestures | Ungated by Q10. Runs on the consistency findings alone. |
+| 2 | **Q10** — split the four context files | ☑ Done 2026-09-16. Stops the app appearing to crash whenever a worker saves one. |
+| 3 | **Q2 (reopened)** — the keyboard does not hide the bar | Fixed 2026-09-16 from the readout (`offsetTop` was the bug). Still ☐: only his phone can close it. |
+| 4 | **Q8** — club crests beside a friendly's result | ☑ Done 2026-09-16. |
+| 5 | **Q9** — the cache is discarded faster than he navigates | ☑ Done 2026-09-16. Map in `AGENTS.md` §6. |
+
+**Before Q2 can start**, build a live viewport readout into the Diagnostics section
+(`ui/layout/DiagnosticsSettings.tsx`): `window.innerHeight`, `visualViewport.height`,
+`visualViewport.offsetTop`, `visualViewport.scale`, the focused element's tag, and the current value
+of the `data-keyboard-open` flag — updating live, with **its own text field** so the keyboard can be
+raised while the numbers stay on screen. Roli screenshots it with the keyboard up; the fix is then
+written against measured values instead of against documentation, which is how Q2 failed the first
+time.
+
+**Deploy: after the queue, not before.** Rounds 6, 7 and 8 stay on `feature/2026-09-audit`,
+unpushed, and go out in one deploy when these five are done. Roli keeps testing the working tree via
+the Pi's dev server until then — which means the Q10 crash keeps appearing until item 2 lands, and
+that is understood.
+
+**Remember at deploy time:** §7 step 6, the manual `recover-club-star-history` run. Roli asked twice
+to be reminded.
+
+
+---
+
+## Q6b — Back means "where you came from", except after a jump  ☑
+
+**This supersedes decision 3 of Q6** (`back always means one level up`), tested on Roli's phone and
+changed by him on 2026-09-16 after seeing it. Q6's code, table and canon are otherwise correct and
+stay; this changes the rule they implement, so the table is **re-verified**, not patched.
+
+### What the device showed
+
+Roli's recording, plus two follow-ups from him:
+- **The app's swipe works on iOS** — a swipe from the *middle* of the screen goes up, as Q6 built it.
+- **The left edge belongs to iOS.** An edge swipe is the system's own back gesture (with its own
+  slide animation, which the app never draws), doing a plain history pop. So one flick landed in two
+  different places depending on where his thumb started, and Q6's chevron and gesture — which agree
+  with each other — both disagreed with the edge.
+- **He reversed the rule itself:** *"although im not sure if im happy with h2h details going to
+  matrix if i come from match details…"* — which is T11, his own round-4 request, by name.
+
+### The rule, and the collision that shapes it
+
+**Back returns you to the page you came from. If you arrived by tapping a nav destination, or you
+did not arrive from anywhere (cold link, push, reload), back goes one level up instead.**
+
+The second clause is not a nicety: without it this **re-breaks N1**, which Roli reported as a
+regression in round 3. Tapping Tournaments, landing on the live tournament U6 remembered, then
+pressing back must go **up to the tournaments list**, not pop to whatever destination he was in
+before. That case and the matchup case are structurally identical — the previous entry is in another
+part of the app — and he wants **opposite** outcomes in them. The thing that separates them is not
+where he came from but **how he got there**: a nav-destination tap is a *jump* and must not be popped
+back out of; an in-content link is a *drill-in* and must be.
+
+So the history entry has to carry that distinction. Q6 already records navigations
+(`useRememberLocation`, and the breadcrumb trail); marking a jump at the one place nav links are
+built (`useDestinationLinks` / `navConfig`) is the natural seam. **Do not infer it** from comparing
+destinations — that is exactly the test that gets these two cases wrong.
+
+### Verified expectations (every one already argued with Roli)
+
+| From | Arrived by | Back goes to |
+|---|---|---|
+| matchup | "All matches" on a match page | **the match page** (T11, restored) |
+| matchup | a cell in the H2H matrix | the matrix |
+| matchup | cold link / push | the H2H list (up) |
+| live tournament | Tournaments tab, U6-remembered | **the tournaments list** (up) — N1 stays fixed |
+| match page | a row in the Matches tab | that tab, at its offset |
+| match page | a Records row in Stats | **the Records row** — was "up to the tournament" under Q6 |
+| profile | a link inside a tournament | **the tournament** — was "up to Players" under Q6 |
+| anything | reload | as if walked in |
+
+### The edge stops mattering
+
+Under this rule the system's edge gesture and the app's own do the **same thing** everywhere except
+a nav-bar jump, so there is no case left worth suppressing a platform gesture for. Keep every
+listener passive; do not fight iOS. State in the report what the two still do differently after a
+jump, and whether that residue is worth anything further.
+
+**DoD:** Q6's scenario table re-verified end to end against the new rule (not patched — re-run, with
+the "arrived by" column made explicit), the N1 and T11 rows both passing in the same build, `DESIGN.md`
+and `AGENTS.md` §10 updated to the new rule, `npm run check` + build, 390px and 1280px in blue and
+light, and an explicit note of what still needs Roli's phone.
+
+**Deviations:** (implemented 2026-09-16 on `feature/2026-09-audit`; Q6's table was
+**re-run**, not patched — every row below was driven in a browser against the isolated stack, with
+the arrival made the way the row says.)
+
+### The re-verified scenario table — every route × **how you got there**
+
+Mobile 390×844 with real touch events (CDP `Input.dispatchTouchEvent`, one fresh browser context per
+row so no per-destination memory leaks between them); desktop 1280×900 clicking the chevron; blue and
+light. "Back" is the one decision — chevron, swipe and desktop button all call it. "Browser ←" is the
+browser's own button, which is also what the iOS edge gesture does.
+
+| # | Where you are | **Arrived by** | What the reader expects, and why | Chevron | Back (chevron · swipe) | Browser ← | ✓ |
+|---|---|---|---|---|---|---|---|
+| 1 | `/dashboard` | cold load | Home. Nothing above it. | – | nothing | leaves the app | ✓ |
+| 2 | `/dashboard` | Dashboard tab from `/stats` (jump) | The screen I came from. A destination has nothing deeper to leave, so the jump changes nothing here. | – | `/stats` (pop) | same | ✓ |
+| 3 | `/tournaments` | Tournaments tab from `/dashboard` (jump) | The dashboard. | – | `/dashboard` (pop) | same | ✓ |
+| 4 | `/tournaments` | second tap while on `/live/21` (jump) | Where I came from. The second tap was the escape from a remembered page (U6); back undoes the tap, not the escape. | – | `/live/21` (pop) | same | ✓ |
+| 5 | `/tournaments` | cold deep link | Home. Not out of the app. | – | `/dashboard` (up) | leaves the app | ✓ |
+| 6 | `/stats` | Stats tab from `/players` (jump) | Players. Between siblings there is no up. | – | `/players` (pop) | same | ✓ |
+| 7 | `/stats?view=h2h&sub=…` | the section and sub chips (replace) | Nothing to undo: chips are not history steps. Back leaves `/stats` for the page before it. | – | `/players` | same | ✓ |
+| 8 | `/friendlies` | the drawer (jump) | The page I came from. | – | `/dashboard` (pop) | same | ✓ |
+| 9 | `/clubs` | the drawer, as an editor (jump) | The page I came from. | – | `/stats` (pop) | same | ✓ |
+| 10 | `/ideas?idea=1` | push notification, cold | Home; the one-shot param is never replayed. | – | `/dashboard` (up) | leaves the app | ✓ |
+| 11 | `/settings` | the drawer footer (jump) | The page I came from. | – | `/stats` (pop) | same | ✓ |
+| 12 | `/live/19` | a row in the `/tournaments` list (drill) | The list, at the row I tapped. | `‹` + `☰` | `/tournaments` at **y=400** (pop) | `/tournaments` | ✓ |
+| 13 | `/live/19` | **Tournaments tab, U6-remembered (jump)** — **N1** | The tournaments **list**: I asked for Tournaments, not for the destination I was in. | `‹` + `☰` | **`/tournaments` (up)** | `/stats` (the trail) | ✓ |
+| 14 | `/live/19` | push notification / cold deep link | The tournaments list. Never out of the app. | `‹` + `☰` | `/tournaments` (up) | leaves the app | ✓ |
+| 15 | `/live/19` | walked in from the list, then **reloaded** | Exactly what it did before the reload. | `‹` + `☰` | `/tournaments` (pop) | same | ✓ |
+| 16 | `/live/19/match/104` | a row in the Matches tab (drill) | The matches list, where I left it, on the tab I opened it from. | `‹` + `☰` | `/live/19?tab=matches` at **y=211** (pop) | same | ✓ |
+| 17 | `/live/5/match/19` | **a Records row in Stats (drill)** | The row I tapped. **Changed from Q6**, which went up to the tournament. | `‹` + `☰` | `/stats?view=overview&sub=records` (pop) | same | ✓ |
+| 18 | `/live/5/match/19` | cold deep link | Its tournament. | `‹` + `☰` | `/live/5` (up) | leaves the app | ✓ |
+| 19 | `/live/19?tab=matches` | **"Save result" → return (A9.7)** | The Matches tab scrolled to the row I just edited (landed at **y=88**, flashing), and back from there goes up — not into the editor I just left. | – (page action) | `/tournaments` (up) | the match page | ✓ |
+| 20 | `/profiles/5` | a row on `/players` (drill) | The players list. | `‹` + `☰` | `/players` (pop) | same | ✓ |
+| 21 | `/profiles/3` | **a `PlayerLink` in a tournament's results (drill)** | The tournament. **Changed from Q6**, which went up to `/players`. | `‹` + `☰` | `/live/19?tab=results` (pop) | same | ✓ |
+| 22 | `/profiles/4?tab=guestbook&entry=1` | guestbook push, cold | The players page. | `‹` + `☰` | `/players` (up) | leaves the app | ✓ |
+| 23 | `/profile` (own) | **Settings → My profile (drill)** | Settings. **Changed from Q6**, which went up to `/players`. | `‹` + `☰` | `/settings` (pop) | same | ✓ |
+| 24 | the matchup | a cell in the H2H matrix (drill) | The matrix, exactly as I left it. | `‹` + `☰` | the H2H list (pop) | same | ✓ |
+| 25 | the matchup | **"All matches" on a match page (drill)** — **T11** | **The match page.** T11 restored; Q6 had overruled it. | `‹` + `☰` | **`/live/19/match/104` (pop)** | same | ✓ |
+| 26 | the matchup | **a rival link on a profile (drill)** | The profile. **Changed from Q6**, which went up to the H2H list. | `‹` + `☰` | `/profiles/1` (pop) | same | ✓ |
+| 27 | the matchup | cold deep link | The H2H list — the thing it is a drill-in of. | `‹` + `☰` | the H2H list (up, in place) | leaves the app | ✓ |
+| 28 | the matchup | another section tab tapped from inside it (replace) | Nothing to undo: leaving the section consumes the drill-in's entry. | – | the entry behind the matchup | same | ✓ |
+| 29 | `/nope` (404) | a stale in-app link (drill) | Where I was. | – | `/stats` (pop) | same | ✓ |
+| 30 | `/nope` (404) | cold | Home. | – | `/dashboard` (up) | leaves the app | ✓ |
+| 31 | any page | swipe **left** | Nothing, anywhere (Q6 removed the forward gesture). | – | – | – | ✓ |
+| 32 | `/stats` Overview | swipe right starting **on the table** | Nothing: the element owns the drag (`data-no-swipe-nav`). | – | – | – | ✓ |
+| 33 | iOS standalone PWA | the system edge swipe | The OS gesture, untouched: all four listeners are `{ passive: true }` and nothing calls `preventDefault`. | – | – | – | code |
+| 34 | `/live/21` | **a card on the dashboard (drill)** | The dashboard. **Changed from Q6**, which went up to `/tournaments`. | `‹` + `☰` | `/dashboard` (pop) | same | ✓ |
+| 35 | `/live/19?tab=matches` | Tournaments tab (jump), **then the page's own `?tab=` replace** | Still the list. The replace wipes `location.state`; re-deriving the kind there would hand N1 straight back. | `‹` + `☰` | `/tournaments` (up) | `/stats` | ✓ |
+| 36 | `/live/5/match/19` | a Records row (drill), **then a reload** | "As if walked in" — `sessionStorage` keeps the recorded kind across the reload. | `‹` + `☰` | `/stats?view=overview&sub=records` (pop) | same | ✓ |
+| 37 | `/profiles/4?tab=guestbook&entry=…` | the in-app notification bell (drill) | Where I was: the bell is content, not a nav destination, so it carries no mark and back undoes the detour. | `‹` + `☰` | pop | same | code |
+
+**Rows 17, 21, 23, 26 and 34 are the rule working**, not incidental: each is an in-content link whose
+back used to climb the hierarchy and now returns to the page it was opened from. **Rows 13 and 35 are
+N1** and **row 25 is T11** — the pair that had to pass in the same build, and did.
+
+### Deviations, and the judgement calls
+
+1. **A destination does not consult the arrival, and that is a deliberate reading of the rule.**
+   Q6b's sentence — "if you arrived by tapping a nav destination … back goes one level up instead" —
+   has one case it does not picture: a tab tap that lands on the destination's **own root**
+   (`/players` → Stats tab → `/stats`). Read literally, back there would go *home*. It does not: it
+   is the history step you took (rows 2, 3, 4, 6, 8, 9, 11).
+
+   The jump rule exists to stop a jump from being popped **out of a page you were dropped into** —
+   "Tournaments" landing on `/live/19` (N1). At a destination root there is nothing deeper to leave,
+   the destination's siblings are all one tap away in a bar that is always on screen, and popping is
+   both "the page you came from" (Q6b's headline sentence) and the only answer that agrees with the
+   browser's own button and the iOS edge on the app's five busiest pages. Going home instead would
+   have re-introduced exactly the complaint Q6b was written to fix — back handing you the parent when
+   you came from somewhere — on the most common navigation in the app.
+   **It is a one-line flip** if Roli wants the literal reading: drop the `place.inside` guard on the
+   arrival test in `resolveBackAction`.
+
+2. **Where the mark lives, and which way it fails.** Three homes were possible and each fails
+   differently, so the choice is about the failure, not the mechanism:
+   - `location.state` alone — **rejected**. `useTabParam` and every stats filter write
+     `setSearchParams(…, { replace: true })`, which wipes `location.state`. A jump into `/live/19`
+     would be relabelled the moment the page set `?tab=`, and N1 would come back (row 35 is the test
+     that would fail).
+   - a module-level record keyed by history index — **rejected**. It dies on reload, so
+     "reload → as if walked in" (row 36) would silently become "up".
+   - **chosen: the `navStack` mirror**, the module already keyed by `history.state.idx` and already
+     in `sessionStorage`. The entry grows one optional field. No new module, no new storage key.
+
+   **The mark is put on at the nav links** (`NAV_JUMP_STATE`, the seam Q6b names) but what is
+   *stored* is the arrival kind of the entry, written **only on a PUSH** — the one moment
+   `location.state` still belongs to that navigation. A REPLACE on the same page keeps the kind, a
+   REPLACE onto a different page clears it, a POP reads it back.
+
+   **Degradation is one-directional by construction.** Everything unknown is treated as a jump →
+   back goes **up**, which is precisely what the app did under Q6: never a wrong page, only a lost
+   scroll offset. Storage blocked or cleared, a session that started before this shipped (the reader
+   tolerates the old bare-string entries), a new tab, an index the mirror never saw — all land on
+   "up". The opposite polarity (record jumps, assume drill) would have degraded into *popping out of
+   a jump*, i.e. straight back into N1, which is the regression Roli has already reported once.
+
+3. **Two controls that are neither a nav tap nor a drill-in carry the mark by hand**: "Save and
+   return" and "Cancel" on the match page. Both *leave* the page they sit on; popping straight back
+   into an editor the reader just dismissed contradicts the button they pressed, and marking them
+   keeps A9.7's verified behaviour (row 19) exactly as it was. They are the only two, and the rule
+   for a future one is in `DESIGN.md` §10: mark a navigation that is not a drill-in when you write
+   it; never work it out afterwards.
+
+4. **When the page you came from no longer exists.** Back is a *history* operation — neither
+   `navigate(-1)` nor the browser's button can ask whether the target still resolves — so the answer
+   is not to avoid the pop but to make the landing survivable, and it already is: a deleted
+   tournament renders its own "not found" body, calls `forgetLocation` so neither U6 nor the nav bar
+   ever returns there, and carries a chevron whose parent (`/tournaments`) is one more back away. A
+   404 URL is a destination with `/dashboard` above it. Nothing traps the reader.
+   The one case the app *knows* in advance is its own deletion, and that one is now fixed:
+   `deleteTournament`'s success navigates with **`replace`** instead of pushing, so the dead page is
+   not left in a trail that Q6b pops back along more often than Q6 did. A tournament deleted by
+   *someone else* while you are deeper in the app stays in your history and you can pop onto its
+   empty state; rewriting history entries from a WebSocket event would be more dangerous than the
+   symptom, so it is left.
+
+5. **The edge residue, measured.** The browser's own back button — which is what the iOS edge
+   gesture performs — was run against the rows where jump and drill differ:
+
+   | Row | App back | Browser ← / iOS edge |
+   |---|---|---|
+   | 12 walked into `/live/19` | `/tournaments` | `/tournaments` — same |
+   | 17 match from a Records row | `/stats…records` | `/stats…records` — same |
+   | 21 profile from a tournament | `/live/19?tab=results` | same |
+   | 25 matchup from a match page | `/live/19/match/104` | same |
+   | 26 matchup from a profile | `/profiles/1` | same |
+   | **13 tournament from the Tournaments tab** | **`/tournaments`** | **`/stats`** |
+
+   So the residue is now exactly **one shape**: after a nav-bar jump, the app honours the destination
+   you asked for and the system honours the trail. (Plus the unchanged cold-arrival case, where the
+   system leaves the app and the app goes up.) **Nothing further is worth doing.** Removing it would
+   mean either suppressing a platform gesture — `preventDefault` on a non-passive touch listener at
+   the screen edge, which Q6's constraints forbid and which iOS users would feel immediately — or
+   making a jump a `replace`, which would delete the sibling trail the bar depends on. Both places
+   the reader can land are sane; the app's is the promise the nav bar made.
+
+**Verification** (isolated stack: backend :8003 on a copy of `app.db` with a scratch secrets file and
+its own uploads dir, vite :8020; neither of Roli's ports touched; both stopped and the copies deleted
+afterwards).
+
+- **Mobile 390×844, real touch events: 33/33 rows green in one run** — rows 1–34 of the table above,
+  including row 19 logged in as an admin, plus the guard rows 31 and 32.
+- **The two persistence rows (35, 36): 2/2 green** — the `?tab=` replace after a jump, and a reload
+  after a drill-in. These are the rows that fail if the mark is kept anywhere but the mirror.
+- **Desktop 1280×900, clicking the chevron: 17/17 green** — every `inside` row, landing exactly where
+  the phone's gesture landed.
+- **Browser-back probe: 6 rows**, table above.
+- **Chrome sweep, 7 pages × {390, 1280} × {blue, light}: 28/28 green** — back+menu on every `inside`
+  page and menu alone on every destination at 390, the desktop chevron and no drawer button at 1280,
+  `document.querySelectorAll("a a").length === 0`, no horizontal overflow (0 px at both widths), and
+  **zero console or page errors on all 28 loads**.
+- `cd frontend && npm run check`: typecheck, eslint and **628 tests in 62 files** green (608 in 61
+  before: `navJump.test.tsx` is new, `backNavigation.test.ts` and `useBack.test.tsx` gained the rows
+  that changed). `npm run build` green.
+
+**Could not be verified off-device — for Roli to check on the phone:**
+
+1. **The edge gesture against the app's own, on a jump.** Deliberately tap Tournaments so it lands on
+   the remembered tournament, then compare: the chevron (and a swipe from the middle) should go to
+   the tournaments list, an edge swipe should go back to where he was. That is the residue above, and
+   it is the one place the two disagree by design.
+2. **T11 on the device.** From a match page → "All matches: A vs B" → back should land on the match
+   page again. This is the row he named; it passes in Chromium here.
+3. **The installed PWA's cold launch** (`useLocationRestore` only runs in `display-mode: standalone`):
+   resuming at a match page should behave like row 18 — the restore replaces at index 0, so back goes
+   up.
+4. **A real push-notification tap** while the app is backgrounded: the service worker's
+   `client.navigate()` starts a new document, so it is row 14/18 by construction — verified by
+   simulating the URL cold, not by a real tap.
+5. **Whether "Save and return" then back should go up** (row 19) or back into the editor. It goes up,
+   which is what Q6 verified and what the button's wording promises; the mark on that one call is a
+   one-line change either way.
+
+
+### Q6b — the two flagged calls, ruled by Roli (2026-09-16)
+
+The worker built both one way and flagged each as a one-line flip. Roli was shown both, chose the
+built behaviour in both cases, and they are now **settled — do not flip them back**:
+
+- **A top-level page does not consult the arrival.** `/players` → Stats tab → back goes to
+  `/players`, not home. The jump rule exists to stop a pop *out of a page you were dropped into*;
+  at a root there is nothing deeper to leave, popping *is* "the page you came from", and it is the
+  only answer that agrees with the browser button and the iOS edge on the busiest pages in the app.
+  The literal reading of Q6b's exception would send it home; rejected.
+- **"Save and return" continues outwards.** Back from the matches list goes up to `/tournaments`,
+  not into the editor just dismissed. The editor was deliberately finished with; re-opening it is
+  the literal reading and reads as undoing the save. Rejected.
+
+---
+
+## Q11 — The sticky grid header pins under the status bar  ☑
+
+Roli, 2026-09-16, with a screenshot of the positions grid scrolled down on his iPhone: *"the player
+icons scroll all the way to the top where they are not really visible anymore"*.
+
+**Cause, and it is Q3's.** `ui/shell/useStickyTop.ts` returns the mobile top bar's **measured**
+height while it is shown and **0** while it is hidden, and the grid header sticks to that. The bar
+auto-hides on scroll-down, so the header's offset becomes 0 — which is correct on a desktop, where 0
+is the top of the window, and wrong on a notched iPhone, where the app declares
+`apple-mobile-web-app-status-bar-style: black-translucent` and `viewport-fit=cover` (`index.html`)
+and therefore **draws underneath the status bar**. The header pins into the strip the clock and the
+battery occupy, which is exactly what his screenshot shows: avatars and names present, unreadable.
+
+**The fix is a floor, not an offset.** The sticky top must never go below `env(safe-area-inset-top)`.
+Q4 already added the vocabulary for this (`safe-t`/`safe-b`/`safe-l`/`safe-r` in
+`tailwind.config.cjs`, documented in `DESIGN.md` §7's Overlay row and §10), so this is that rule
+applied to one more surface. Check **every** sticky surface that follows the auto-hiding bar, not
+just this one — the same zero is used wherever `useStickyTop` is consumed.
+
+**Verification note:** a desktop browser reports `env(safe-area-inset-top)` as 0, so this bug is
+invisible there. Q4's worker drove real inset values through Chromium's CDP
+(`Emulation.setSafeAreaInsetsOverride`); read its deviations before claiming a measurement.
+
+**Deviations:**
+
+- **The floor is inside the hook, not at the call sites**, and that is the whole judgement. A call
+  site can only get this wrong in one direction — forget the floor and the Q11 bug is back, silently
+  and only on a notched phone, because every desktop and every Android reports the inset as 0. The
+  hook already answers exactly this question ("where must page-level sticky content pin so it does
+  not slide under chrome") and the status bar is chrome too; it is simply chrome we do not own and
+  cannot measure, because the app asked to draw underneath it. Two consumers today would have
+  become two spellings of one rule, and `useStickyTop`'s only purpose is that there be one.
+- **So the hook returns a CSS length, not a number**: `max(<bar>px, env(safe-area-inset-top, 0px))`.
+  `env()` is the *live* source for that inset — it changes with rotation, with an in-call banner,
+  with the device — and CSS re-resolves it with no listener, no measurement and no re-render, where
+  a JS probe element would need a `resize`/`orientationchange` path of its own and would still lag a
+  rotation by a frame. The two call sites already spread the answer straight into `style={{ top }}`,
+  which takes a string, so **neither file changed**. Measured, the value still interpolates: with
+  the bar coming back the header's computed `top` walks 59 → 76.6 → 103.9 → 112.3 → 116px over the
+  shared 300ms `ease-out-expo`, so the header and the bar still move as one piece.
+- **Consumers found: exactly two files, four sticky elements** — `pages/stats/PositionsView.tsx`
+  (the corner cell and every column header) and `pages/stats/H2HView.tsx` (the matrix's corner `th`
+  and its rotated name `th`s). `grep -rn "useStickyTop" src` is the whole list; the app's other two
+  readers of `#app-top-nav` are **not** consumers of the zero and were checked rather than changed:
+  `ui/scrollToSection.ts` and `pages/profile/useProfileGuestbook.ts` both use the bar's *measured
+  height* as a scroll offset, and that height contains `pt-safe-t` already, so what they scroll to
+  can never land in the strip. `ClubPicker`'s `sticky top-0` sticks inside a modal sheet and
+  `Sidebar`'s is desktop-only; neither follows the auto-hiding bar.
+- **Measured with a real inset (CDP `Emulation.setSafeAreaInsetsOverride`, top 59 / bottom 34),
+  both grids, blue and light, at 390px**, at the pinned position with the bar away and then with it
+  back: **before** 0px → 116px, **after** 59px → 116px. The bug is exactly the first number: 0 is
+  the top of the window, and 0..59 is the clock-and-battery strip, so the avatars and names were
+  drawn *under* the status bar — reproduced as a screenshot that matches Roli's photo. With **no**
+  inset nothing moves at all (0 → 57 before and after), which is why this was invisible on a desktop.
+- **The top bar itself is right, and needed no change.** It is `sticky top-0` with `pt-safe-t`, so
+  shown it occupies 0..116 with its 57px content row starting at **59** — its background deliberately
+  fills the status-bar strip, which is the point of `black-translucent`. Hidden, `-translate-y-full`
+  moves it by its *own* height, inset included: measured bottom edge at **0**, content row at −57,
+  i.e. fully off-screen with nothing of it left in the strip. Coming back it lands on 0..116 again.
+  A floor would be wrong here — the bar is the one element that *should* paint into the safe area.
+- **Desktop is unchanged in practice and correct in principle.** At 1280px the bar is `lg:hidden`,
+  so the offset is 0 and, with a real desktop's inset of 0, `max(0px, 0px)` is what it always was.
+  Driven with a *forced* 59px inset at 1280 the header pins at 59 instead of 0 — the right answer if
+  a wide device ever has a top inset, and unreachable on the ones that do not.
+- **Verification:** isolated stack (backend :8003 on a copy of `backend/app.db` with a copy of
+  `uploads/` and a scratch secrets file, vite :8020), Playwright at 390×844 (positions) and 390×500
+  (the matrix, which only pins on a short screen at six players — Q3's note), plus 1280×800/1280×500,
+  in **blue and light**, with insets 59/0/34/0 and 0/0/0/0. Zero console errors in every run.
+  `cd frontend && npm run check` green (63 files, 641 tests).
+
+---
+
+## Q12 — The nav bars stop being translucent  ☑
+
+Roli, 2026-09-16: *"is this blurry area because of the ios 27 update or because of something you
+did?"*
+
+**Neither.** `.nav-shell` (`styles.css`) paints `rgb(var(--color-bg-default) / 0.8)`, dropping to
+**0.55** where `backdrop-filter` is supported, and `MobileChrome`'s header adds `backdrop-blur-md`
+(12px). So the bar is deliberately translucent and the page shows through it, blurred. Verified by
+reproducing the same wash in Chromium at 390px on his own data, and it predates this session by many
+commits (`3af70d3`, the shell rehaul; the `.nav-shell` values come from `f96b893`).
+
+Three dials if he wants it calmer, in increasing order of change: raise the `@supports` opacity from
+**0.55** toward the 0.8 non-blur value; increase the blur past 12px so the content behind becomes an
+even wash instead of a recognisable shape; or drop translucency entirely and make the bar opaque,
+which also removes a compositing layer on a phone. **Do not change it without his word** — it is a
+look he has lived with since the shell was built, and the same treatment is on the bottom bar
+(`nav-shell` again), so any change should be made to both or deliberately not.
+
+**Deviations:** the paragraph above is the *first* answer and it was wrong — see the block below,
+which is what was asked for and what was built. Implementation notes live under its Deviations line.
+
+
+### Q12 — decided, and my first answer was wrong (2026-09-16)
+
+**Roli was right that the iOS update caused it.** I first told him the haze was the app's own
+translucency, having reproduced a similar wash in Chromium. That was the wrong test: it showed the
+mechanism *can* produce a haze, not that this haze came from the mechanism behaving as before.
+
+Measured on **two lossless screenshots from his own phone**, same device, same bar, one either side
+of the update, in the band `x 620–1150, y 150–240` (no glyphs, no buttons, nothing behind the bar on
+either page — both unscrolled):
+
+| | mean | **max** |
+|---|---|---|
+| yesterday, Safari 26.6 | `(11.0, 17.0, 30.0)` | `(11, 17, 30)` |
+| today, Safari 27 | `(11.3, 17.1, 29.9)` | **`(24, 29, 42)`** |
+
+Yesterday the band was **perfectly flat** — every pixel the theme colour to the digit. Today the
+floor is the same and the ceiling is not: there are genuinely brighter pixels where nothing sits
+behind the bar to show through. And our side did not change: `git log -S` over `backdrop-blur` and
+`nav-shell` since before his first screenshot returns **nothing**, so the instruction to the browser
+is identical and the result is not.
+
+**Decision (Roli, asked and answered): make the bars opaque.** `.nav-shell`'s `@supports` block drops
+`--color-bg-default` from **0.55** back to full, and the `backdrop-blur-md` goes with it — a blur
+behind an opaque surface is cost with no effect. **Both bars**, top (`ui/shell/MobileChrome.tsx`) and
+bottom (`ui/shell/BottomTabBar.tsx`), because they share the class and a mismatch would be worse than
+either choice. Check the drawer and any other `nav-shell` user. Removing the blur also drops a
+compositing layer on a phone.
+
+**Check the five themes**: `light` in particular, where an opaque bar over a paper-white page is a
+different judgement from an opaque bar over near-black, and `--color-bg-default` differs per theme.
+Screenshot each, top and bottom, before and after.
+
+**Blocked on Q2's worker**, which owns `styles.css`, `BottomTabBar.tsx` and `tailwind.config.cjs`.
+
+**Deviations:** (implemented 2026-09-16 on `feature/2026-09-audit`, after Q2 released those files.)
+
+- **The `@supports` block is gone, not softened, and so is the 0.8.** The block existed for one
+  reason — to thin the bar to 0.55 *because* a blur was going to run behind it — so deleting the blur
+  deletes the block. The 0.8 underneath it was never a value anyone chose to look at either: it was
+  the fallback for an engine that cannot blur, i.e. unblurred page content sliding under a
+  half-transparent bar, the worse half of the same idea. `.nav-shell` is now **one rule**,
+  `rgb(var(--color-bg-default))`, for every engine and every theme.
+- **Nothing visible changes where nothing is behind the bar.** The page background *is*
+  `--color-bg-default`, so 0.55 of it over itself composited back to exactly the theme colour —
+  which is why Roli's pre-update screenshot was flat to the digit. The change is visible only where
+  content passes under, which is the state every screenshot below was taken in.
+- **`nav-shell` has exactly two users**, both changed together: `MobileChrome`'s top bar and
+  `BottomTabBar`. Checked and deliberately left alone: the **drawer** panel (`MobileChrome`) is
+  already opaque `bg-bg-card-outer` and sits on a 55%-black scrim — a surface over a scrim is a
+  different argument, the blur there (`backdrop-blur-[2px]`) is a real effect on the page it is
+  dismissing, not a window onto a page you are still reading; the desktop **`Sidebar`** is
+  `bg-bg-card-outer/60` with **no** `backdrop-filter`, a flat tint beside the content rather than
+  over it, so it cannot be hit by the compositing change at all.
+- **What is lost, and what replaces it: nothing new.** Translucency said “the page continues under
+  here”. The top bar already says it better — `shadow-pop` appears the moment you leave the top
+  (`atTop`) and goes away at rest, so the signal is *there when it is true*, which a constant haze
+  never was. The bottom bar keeps its `border-t`, and a list visibly running to the screen edge
+  behind it. No shadow was added to the bottom bar: it sits on the device edge where an upward
+  shadow reads as grime, and it would have been a new visual decision beyond what was asked.
+- **All five themes were judged, not just shipped.** blue / dark / red / green go from a measurable
+  wash to the flat theme colour; `light` is the interesting one and it is *better* opaque — the old
+  bar picked up whatever was under it and read as a slightly dirty grey (measured mean
+  `233.1, 231.8, 229.8` against a theme colour of `236, 235, 233`), where white cards pass under a
+  clean page-grey bar with the hairline doing the separating. None of the five looks wrong opaque.
+- **Proof the blur is gone from the shipped CSS** (`dist/assets/index-61ZmDIMv.css`, not the source):
+  the built rule is
+  `.nav-shell{border-bottom-width:1px;border-color:rgb(var(--color-border-card-outer) / .8);background-color:rgb(var(--color-bg-default))}`
+  and the stylesheet contains **`@supports` zero times**. Two `backdrop-filter` utilities survive:
+  `.backdrop-blur-[2px]`, used only by the drawer scrim (a real effect), and `.backdrop-blur-md`,
+  now used only by the `FilterPill` trigger + popover and the `NotificationBell` dropdown — all
+  three on fully **opaque** `card` / `bg-bg-card-outer` surfaces (measured live:
+  `backdrop-filter: blur(12px)` over `background-color: rgb(21, 30, 48)`), so they are the same
+  “cost with no effect” this task deleted from the bars. Left in place: they are not nav bars and
+  were not part of the decision. **Worth a follow-up.**
+- **`DESIGN.md` §4 now has one stale line** and I could not fix it — another worker owns that file
+  this session. Line 219 reads “Floating elements (filter pill, toasts, bottom bar) use `shadow-pop`
+  + `backdrop-blur-md`.” The bottom bar has neither now (and never had `shadow-pop`). It should say
+  the bottom bar is `nav-shell`, opaque, marked by its `border-t`.
+- **Verification** (isolated stack: backend :8003 on a copy of `app.db` with its own uploads copy,
+  vite :8020; none of 8000/8001/8002/8004/8010/8021/5173 touched, both stopped and the copies
+  deleted afterwards). Playwright at **390×844** on `/tournaments` scrolled to y=760 — far enough
+  that a month header passes under the top bar and a tournament row under the bottom one — in all
+  **five themes, before and after, both bars**. Masked pixel measurement (take the pixels the
+  *after* run paints flat, read the same pixels *before*): blue bottom bar mean
+  `(14.4, 20.3, 33.0)` → `(11.0, 17.0, 30.0)`, max `(72, 75, 85)` → `(12, 18, 31)`; same shape in
+  dark, red and green; `light` as above. After the change every bar is its theme colour to the
+  digit. **1280×800**: both bars are `display: none` (`lg:hidden`), the desktop sidebar unchanged.
+  **Zero console/page errors** in all runs (5 themes × before/after, plus desktop and drawer probes).
+  `cd frontend && npm run check` green (63 files, **645 tests**); `npm run build` green (the
+  pre-existing >500 kB chunk hint only).
+
+---
+
+## Q14 — With the keyboard up, the page keeps 72px of room for a bar that is hidden  ☑
+
+Roli, 2026-09-16, testing Q2's simplified rule: *"keyboard is mostly fine, but in guestbook and idea
+details the page scrolls up by a lot and leaves empty space below"*.
+
+**One cause, both halves.** `ui/shell/AppShell.tsx:112` ends the page with **`pb-nav-h`** — the tab
+bar's *constant* height — and the comment above it says why: it reserves the end of the page for the
+bar. Q2 chose that deliberately over `pb-nav-clear`, the live value that collapses to 0 with the
+keyboard, and measured the reason: collapsing it moves content up 72px at the instant the keyboard
+appears, which takes the caret with it (measured on the guestbook at 390×844 scrolled to the end:
+caret would drop 72px, scroll −72, in one frame).
+
+So with the keyboard open the page still reserves 72px for a bar that is `display: none` — that is
+the empty space — and because the document is 72px longer than it needs to be, Safari scrolls
+further to reveal the field, which is the "scrolls up by a lot". Both composers Roli names are
+sticky at the page end, which is exactly where the reservation sits.
+
+**Neither option as stated is good enough.** Keeping it leaves the dead space he reported; collapsing
+it alone jumps the caret. The fix is to do both at once: collapse the reservation **and** compensate
+`window.scrollY` by the same amount in the same frame, so the space disappears and nothing under the
+thumb moves. Whoever takes this should verify the compensation on a page scrolled to the end, on a
+short page that does not scroll at all, and on the closing transition as well as the opening one —
+the keyboard going away has the same problem mirrored.
+
+**Watch out for:** `useScrollRestoration` is listening (N2 stores an offset per history entry, A9.7
+chases one on a save-and-return), so a compensating scroll must not be recorded as the user's own
+position. And the composers' own `bottom-nav-clear` already collapses — this is the *page's* bottom
+padding, a different thing that happens to be the same 72px.
+
+**Deviations:** (implemented 2026-09-16 on `feature/2026-09-audit`.)
+
+1. **`nav-h` is gone, not merely unused.** `AppShell`'s `main` is `pb-nav-clear` now, and that left
+   Q2's second token with no consumer and a doc comment saying the opposite of what the app does
+   ("use it to reserve room at the end of a scrolling page, where the reservation must not move").
+   It is deleted from `tailwind.config.cjs`, and `DESIGN.md` §4/§9b/the Do-and-don't list and
+   `AGENTS.md` §10 now describe **one** token: `nav-clear`, the room to leave above the bottom edge
+   *right now*, asked by the three composers, the error toast, the filter pill and the page's end
+   alike.
+
+2. **The compensation is real but it is not what the brief assumed, and the difference is physics.**
+   The reservation is padding at the **end** of the document, so taking it away moves no element —
+   it only shortens the scroll range. Measured at 390×844 on the guestbook (22 entries), in both
+   themes, at the three positions the brief names:
+   - **Mid-page** (`scrollY` 1759 of max 3518): `scrollHeight` 4362 → 4290 and **`scrollY` 1759 →
+     1759, caret 724 → 796** — and that 72px is the *composer's own* `bottom-nav-clear` collapsing,
+     identical before and after this task (the pre-change run gives the same two numbers). The
+     page's reservation moves nothing here. Nothing to compensate, and nothing is.
+   - **Parked at the very end** (`scrollY` 3518 = max): the browser clamps to 3446 and the content
+     slides down 72px — **caret 723.25 → 795.25, composer bottom 771.25 → 843.25, flush**. This is
+     not avoidable by scrolling: the scroll that would hold the content still is exactly the scroll
+     that stopped existing. It is also the fix — the strip it closes is Roli's dead space, and the
+     composer already makes this move at every other scroll position.
+   - **A page shorter than the screen** (profile 6's guestbook at 390×1400): `scrollHeight` 1424 →
+     1400, `maxScroll` 24 → 0, **`scrollY` 0 → 0 and caret 631.25 → 631.25 — nothing moves at all**.
+     `main` is `flex-1` in a `min-h-screen` column, so a short page absorbs the reservation; its
+     only scroll *was* the reservation, and it goes with it.
+
+   So what is compensated is the **asymmetry**, and that is the whole of `ui/shell/bottomReservation.ts`:
+   the clamp takes 72px of scroll from the reader and the browser never gives it back, so without
+   this every keyboard visit at the end of a page would walk them 72px up it for good. The collapse
+   records what the clamp took; the expansion pays it back in the same turn the room returns. Round
+   trip at the end of the guestbook: 3518 → 3446 → **3518**, caret 723.25 → 795.25 → **723.25**,
+   composer 771.25 → 843.25 → **771.25**. Every number back to itself.
+
+3. **The closing transition, and what it does and does not move.** Without the repayment the close
+   is motionless — but only because the composer is sticky: it returns to 772 either way, while the
+   *feed behind it* would stay 72px low and the page would keep 72px of scroll below its own end.
+   With the repayment the close is the exact inverse of the open, so the screen the reader gets back
+   is the screen they tapped. Measured, the repay's 72px is spent on the feed and not on the
+   composer, it is instant (an animated 72px under a departing keyboard is the glitch `ui/scroll.ts`
+   already refuses for back navigation), and it lands in the same 250ms beat in which the keyboard
+   finishes leaving and the tab bar comes back — the busiest moment of the transition, deliberately,
+   rather than a movement of its own on a settled screen.
+
+4. **The debt is only ours while the reader has not moved.** `reservationScrollDebt()` voids itself
+   whenever `window.scrollY` is not where the clamp left it — derived on every read, so there is no
+   listener to order and nothing to go stale, and Safari's own scroll-to-reveal, a posted message
+   growing the feed and the reader scrolling up to re-read all end it the same way. Proven: parked
+   3518 → clamped 3446 → reader scrolls to 3146 → **close leaves it at 3146**, no repayment.
+
+5. **How the compensation is kept out of N2's record** (the failure this task was most likely to
+   introduce). The clamp fires a `scroll` event like any other, so `useScrollRestoration` would have
+   stored it as the offset the reader chose. It now records `window.scrollY + reservationScrollDebt()`
+   — the offset in the page's *full* coordinates, the ones it has again the moment the keyboard goes.
+   Proven both ways, by leaving the guestbook **with the keyboard still up** and coming back:
+   `lk:nav-scroll` holds `{"0":{"p":"/profiles/1","y":3518}}` and back restores **3518**; with the
+   one `+ reservationScrollDebt()` removed as a negative control, the same run stores **3446** and
+   restores 3446 — a scroll nobody chose, with the reservation showing under the composer. A
+   navigation also drops the debt unpaid (`forgetReservationScrollDebt()` in the watcher's pathname
+   effect, and on teardown): it was taken from a page that is no longer on screen.
+
+6. **The flip is bracketed, not watched.** `setFlag` now returns early unless the attribute actually
+   changes, and hands the write to `applyBottomReservation(collapse, flip)`, which measures, flips,
+   forces the layout by reading `scrollHeight`, and settles the scroll — one synchronous block, no
+   frame in between for the browser to paint an intermediate state. The clamp is computed
+   arithmetically (`min(before, scrollHeight − innerHeight)`) rather than read back from `scrollY`,
+   so it does not depend on when the engine gets round to clamping; the two agreed exactly in every
+   run.
+
+7. **What could not be produced here, and is the same gap Q2 has.** Chromium never re-anchors fixed
+   elements to the visual viewport and never scrolls a field into view the way Safari does, so the
+   half of Roli's report about *"scrolls up by a lot"* is inferred rather than demonstrated: a
+   document 72px shorter is 72px less for Safari's scroll-to-reveal to take. The *"empty space
+   below"* half is demonstrated exactly — see the before/after pair.
+
+**Verification** (isolated stack: backend :8003 on a **copy** of `backend/app.db` with a copy of
+`uploads/` and a scratch secrets file, vite :8020; none of 8000/8001/8002/8010/5173 touched, both
+stopped by PID and every copy deleted afterwards. The keyboard is the engine's real visual viewport
+shrunk with `Emulation.setPageScaleFactor` (508 of an unchanged 844 layout viewport) in a context
+created **without** `isMobile`, with `visualViewport.scale` read as 1 — Q2's rig.)
+
+- **The caret's on-screen y and `window.scrollY` immediately before and after the flag flips, both
+  directions**, at 390×844 in `blue` and `light`, as admin, with 22 guestbook entries and 14 ideas
+  seeded into the DB copy so every feed is longer than the screen:
+
+  | surface, position | open: scrollY · caret y | close: scrollY · caret y |
+  |---|---|---|
+  | guestbook @end | 3518 → **3446** · 723.25 → **795.25** | 3446 → **3518** · 795.25 → **723.25** |
+  | guestbook @half | 1759 → **1759** · 724 → 796 (sticky only) | 1759 → **1759** · 796 → 724 |
+  | guestbook @top | 0 → **0** · 724 → 796 (sticky only) | 0 → **0** · 796 → 724 |
+  | ideas @end | 2536 → **2464** · 725 → **797** | paid back to 2536 |
+  | tournament comments @end | 5247 → **5175** · 723 → **795** | 5175 → **5247** · 795 → **723** |
+  | tournament comments @half | 2624 → **2624** · 724 → 796 (sticky only) | 2624 → **2624** |
+  | short page (390×1400) | 0 → **0** · 631.25 → **631.25** | 0 → 0 · 631.25 → 631.25 |
+
+  In every row `main`'s computed `padding-bottom` goes 72px → **0px** and back, the bar goes
+  `display: block` → **none** and back, and the composer's bottom edge goes 771 → **843** (flush
+  with the bottom of the layout viewport) and back.
+- **Roli's two surfaces first, then the third**: a profile's guestbook, Ideas (both the collapsed
+  row's title field *and* the details `<textarea>` under it — his Q2 regression case), then a
+  tournament's comments. All three behave identically because all three sit at the end of the same
+  `main`.
+- **Screenshots** of the strip a keyboard leaves (the bottom 508px of the 844px layout viewport),
+  before and after, in both themes, for all three composers: before, the composer sits with a 72px
+  band of empty page under it; after, it is flush and one more message is on screen.
+- **1280×844, `blue` and `light`, flag forced on**: `main`'s padding stays `24px` (`lg:pb-6`),
+  `scrollHeight`, `scrollY`, caret and composer identical to the digit, and with animation frozen
+  the screenshots are **pixel-identical** with the flag on and off. (Unfrozen they differ by the
+  sidebar's `animate-ping` live dot, which flips between two frames on its own — measured as a
+  control.)
+- **Zero console errors** in every run above.
+- `cd frontend && npm run check`: typecheck, eslint and **665 tests in 65 files** green (657 in 64
+  before — `src/test/bottomReservation.test.ts` is new, 8 tests). `npm run build` green (only the
+  pre-existing >500 kB chunk hint). No backend change.
+
+**What Roli should re-test on the phone** (this is the last piece of Q2 he reported, so Q2 stays ☐):
+open a profile's **guestbook** scrolled to the bottom and tap the composer — the field should sit
+**on** the keyboard with **no empty band under it**, and the page should not scroll further than it
+needs to. Then **Ideas**: open the composer, tap the **details** field, and check the same. Then a
+tournament's comments. Dismiss the keyboard each time and check the feed comes back to the message
+you were looking at rather than one screen's worth away, and that the tab bar returns cleanly. In
+the standalone PWA *and* in Safari.
+
+---
+
+## Q13 — The mobile top bar: a fixed frame around a centred title  ☑
+
+Roli, 2026-09-16: *"not a big fan of the top bar: the back button moves the hamburger icon and the
+title label sits too close to the hamburger."*
+
+### What is there today (measured on this branch, not guessed)
+
+`MobileChrome`'s row is `flex h-14 items-center gap-1 px-3` with five children in source order —
+back (only on an `inside` page, Q6), menu, the title (`ml-1 min-w-0 flex-1 truncate`),
+`ConnectionIndicator`, `NotificationBell`. Nothing in it has a place of its own; every element is
+put where the element before it happened to end:
+
+- **The hamburger moves**: x=12 on a destination, x=56 on a page you went into — back took the
+  screen edge (Q6 decision 5) and pushed it.
+- **The title moves with it.** Over the app's 15 top-bar routes at 390px its ink starts at x=60 or
+  x=104, and its box changes width again with every state of the right-hand side.
+- **The title is 4px from a button** (`ml-1` against a 40px box whose glyph ends 10px in) — Roli's
+  second complaint, and the reason the first one is so visible: the label is glued to whatever is
+  to its left.
+- **The connection chip is variable-width text** appended to a `flex-1` title with no `shrink-0`:
+  "Reconnecting" ≈ 96px, "Offline" ≈ 56px, nothing ≈ 0px. It takes its width out of the title when
+  it appears, and on a long-title page it is itself crushed to the screen edge.
+- **The bell only exists when logged in**, so the right-hand side has three widths (none · bell ·
+  chip+bell) and the title's box has three too.
+
+### Settled with Roli, from rendered options (2026-09-16) — do not relitigate
+
+1. **The title is centred** and must not move between pages or states.
+2. **The hamburger is fixed at the left screen edge** and never moves.
+3. **Back appears inboard of the hamburger** — `[≡] [‹] · Title · [bell]` — in space that is
+   reserved whether or not it is there. Back at the outer edge, back on the right beside the bell,
+   and back in its own row below the bar were all shown to him and rejected.
+
+(3) supersedes the *ordering* half of Q6 decision 5 — "back takes the screen edge (that is where
+the thumb starts the same gesture)". Everything else Q6 and Q6b decided stands untouched: the
+chevron still appears exactly on `inside` pages, it still does not replace the hamburger, and it is
+still the same `useBack()` call as the swipe. `DESIGN.md` §10 rule 5 and the test that asserts the
+button order are Q6 artefacts and must be updated, not worked around.
+
+### The frame (this is the whole idea)
+
+One row, three boxes, and **the side boxes are the same fixed width**, because a centred title only
+stays centred if both sides reserve the same space:
+
+```
+  px-3 │ w-top-bar-side │ gap-2 │  flex-1 min-w-0  │ gap-2 │ w-top-bar-side │ px-3
+  12px │   [≡] [‹] 84px │  8px  │   centred title  │  8px  │   84px  [bell] │ 12px
+```
+
+- **84px is the left cluster** — menu 40 + gap 4 + back 40, the most that side ever holds — and the
+  right box reserves exactly the same, holding one 36px control. It is a named token
+  (`spacing["top-bar-side"]` in `tailwind.config.cjs`), not a number in a class, because it is the
+  sum of two controls rather than a step on the rhythm scale.
+- The centre box's x is `12 + 84 + 8` and its width is `W − 208`, so **its centre is `W/2` for every
+  screen width**, with back and without it, with the bell and without it. The title is
+  `truncate text-center`, so the ink is centred in the box: one number per width, provable.
+- Title width: **182px at 390** · 112px at 320 · 222px at 430. Air around the text: 8px of gap plus
+  the 10px inside each button's box, so ≥18px from the chevron's glyph even when the text truncates
+  — more than the 14px Roli called "too close".
+- `h-14` and the `border-b` stay exactly as they are: `useStickyTop` measures this bar (57px) and
+  every sticky grid header in the app is docked to that number (Q3/Q11).
+
+### The right box holds exactly one control (Roli, after the first draft)
+
+The right side must be fixed width or it shoves the title, and the chip was the thing that could not
+be: it is text. **The connection marker replaces the bell** rather than sitting beside it, so the
+right box always holds one 40px control — the bell normally, the marker while the socket is in
+trouble. Fixed width by construction, no arithmetic to get wrong, and the stronger signal: the
+control you would reach for is itself saying the connection is down, instead of a count you cannot
+trust sitting next to a warning that you can.
+
+What must survive from T10 and A8, which built this indicator deliberately quiet:
+
+- **The happy path still says nothing** — no "connected" state, ever. The bell is the resting state.
+- **The 1.2s grace stays**, and gets a mirror: once the marker is up it holds for the same 1.2s
+  before handing the slot back. A socket that wobbles must not blink the corner of the screen
+  between two icons. One constant, one idea: this slot changes at most every 1.2 seconds.
+- **The tone stays.** `reconnecting` is the `warn` token (amber, never `draw`); `offline` is
+  `text-text-muted`, deliberately the quieter of the two, because red there would be the second red
+  dot in a chrome that already carries the live one. No badge, no fill, no alarm.
+- **The words stay** — "Reconnecting" / "Offline" — as the marker's accessible name and its
+  `title`, and unchanged in the desktop sidebar, which has room for a labelled chip and no centred
+  title to protect. The mobile bar renders the same state in the space it has; that is responsive
+  design, not a second opinion.
+- **The popover is not yanked away.** If the bell's list is open when the socket drops, the bell
+  keeps the slot until it is closed. Losing the bell for the duration is acceptable — losing it
+  mid-read is not.
+
+### Truncation (report it, do not quietly ship it)
+
+Every real title the bar can show, measured at `text-base font-semibold` in Chromium on the Pi
+(system-ui here is wider than iOS's SF Pro, so these are pessimistic):
+the nav labels (Dashboard 83px, Tournaments 99px, Friendlies 72px, Stats 39px, Players 55px, Ideas
+41px, Clubs, Settings 62px), the fallbacks (Lorbeerkranz 100px, Not found 73px, Tournament, Match,
+Profile), `Match N` (61px), a player's name (Roli 27px — the longest in the DB is 5 characters), and
+the tournament names, which are the only long ones: **1. Lorbeerkranzturnier 163px**,
+7. Bauernkranzturnier 159px, Florianiturnier 🚒 127px.
+
+At 390px nothing truncates (182px box, 19px of headroom on the worst real title). The worker
+**measures this, does not assume it**, and reports every title that truncates at 390 and at 320.
+
+### The work
+
+1. `ui/shell/MobileChrome.tsx` — the three-box row; menu first, back second, both 40px, flush.
+2. The connection marker: lift T10's grace into a hook so the mobile marker and the sidebar's
+   labelled chip cannot disagree about *when*, add the settle period, and put the swap (marker or
+   bell, plus the popover guard) in one place the bar just renders.
+3. `test/mobileChrome.test.tsx` — the button order flips; add the frame's invariants (both side
+   boxes present and equal, back inboard, one control on the right).
+4. `DESIGN.md` §10 rule 5 (the order) and §4's page-rhythm block (the bar's geometry);
+   `AGENTS.md` §10 where it describes the bar.
+5. Desktop is out of scope and must be **unchanged**: `PageLayout`'s title row, the sidebar, its
+   `ConnectionIndicator`.
+
+**DoD:** the title's centre x measured on every top-level and every drilled-in route at 320 / 390 /
+430, with and without the connection state, **one value per width**; the hamburger's x identical on
+every route; the truncation list; 390 and 1280 in blue and light, plus the bar's auto-hidden and
+returned states and the drawer open; zero console errors; `npm run check` and `npm run build` green.
+
+**Deviations, and the judgement calls:** (implemented 2026-09-16 on `feature/2026-09-audit`.)
+
+1. **The pair is square, and that cost 8px of title** (Roli, mid-task). The first build narrowed the
+   menu and the chevron to 40×36 so both side boxes could be `w-20` (80px) and the title 190px wide.
+   He saw it and said no: a 40×36 icon button reads as squashed next to the 36×36 bell, and it takes
+   touch width off the two controls a thumb hits most. They are back to 40×40, the side boxes are
+   84px, and the title is 182px at 390 — still 19px more than the longest tournament name in the DB.
+   **The 4px between them is not decoration**: two flush 40px ghost buttons merge into one domino,
+   which in the `light` theme (where a ghost button is white with a hairline) reads as a single wide
+   box with a seam down it. Photographed both ways before choosing.
+2. **The connection marker replaces the bell — Roli's idea, and it is the better one.** The brief
+   said "a fixed-width marker in the reserved gutter", i.e. beside the bell. His version makes the
+   right box hold *one* control by construction, and says the thing better: the control you would
+   reach for is itself telling you the connection is down. Two consequences were decided here:
+   - **An open popover keeps the slot.** `NotificationBell` gained one optional prop
+     (`onOpenChange`); `TopBarStatus` will not take the bell away while its list is open. Losing the
+     bell for the duration is acceptable — a list vanishing under the reader's thumb is not.
+   - **The bell's data is HTTP, not the socket**, so "you cannot trust the count while the socket is
+     down" is true of a phone with no network and only *mostly* true of a dropped WebSocket
+     (`listMyNotifications` polls every 60s and refetches on reconnect). The swap is still right —
+     when a phone loses the network it loses both — but it is worth writing down that the marker
+     speaks for the realtime channel, not for the notification list.
+3. **The desktop sidebar keeps the labelled chip.** `ConnectionIndicator` is unchanged there: it has
+   room for a word and no centred title to protect. Only *when* it speaks moved, into
+   `useConnectionTrouble`, so the two surfaces cannot disagree about that. Two renderings of one
+   state in two very different spaces is responsive design, not a second opinion.
+4. **The settle period is a small lie, deliberately.** For up to 1.2s after the socket comes back the
+   marker is still up. The alternative is a right-hand control that can flip between two icons in
+   under a second, which is the thing a reader notices and cannot explain. T10's grace made the
+   appearance quiet; this makes the disappearance quiet, and the constant is the same one.
+5. **The marker is a `<span>`, not a button** — it carries no ghost-button background, unlike the
+   bell it replaces. It is a status: giving it a control's chrome would invite taps that do nothing.
+   The words survive as `sr-only` text plus a `title`; the old chip's visible label was its own
+   accessible name, so nothing is lost to a screen reader.
+6. **`offline` could not be produced at runtime and is covered by tests only.** With `AppShell`
+   mounted there is always at least one subscribed channel, and `computeAggregate` only returns
+   `"offline"` when there are none — so a phone with no network shows **Reconnecting** (amber
+   `RefreshCw`), and `WifiOff` in `text-text-muted` is reachable in practice only between mounts.
+   Worth knowing before anyone tunes that state: it is the rarer of the two, not the common one.
+7. **Landscape safe areas are unchanged and still not handled here.** The bar pads `pt-safe-t` only;
+   `pl-safe-l`/`pr-safe-r` would be *asymmetric* on a notched phone in landscape and would move the
+   centred title off the screen's centre. Out of scope, and worth thinking about as a pair with the
+   page gutter if it is ever done.
+8. **The one asymmetry the frame cannot remove.** The left box holds two controls and the right one
+   holds one, so a title long enough to fill its box sits 18px from the chevron's glyph and ~52px
+   from the bell. That shows only where a title truncates (320px screens, the long tournament
+   names); at 390 every real title is short enough to float centred with air on both sides.
+
+**Truncation, measured** (Chromium on the Pi, `text-base font-semibold`; system-ui here is wider
+than iOS's SF Pro, so these are pessimistic):
+
+| Width | Title box | Truncates |
+|---|---|---|
+| 430 | 222px | nothing |
+| 390 | 182px | **nothing** — the worst real title, `1. Lorbeerkranzturnier`, is 163px |
+| 320 | 112px | `1. Lorbeerkranzturnier` (163px), `7. Bauernkranzturnier` (159px), `Florianiturnier 🚒` (127px) — the three longest tournament names, and nothing else in the app |
+
+Every other title the bar can show is a short one: the nav labels (Tournaments 99px is the longest),
+`Lorbeerkranz` (100px), `Not found` (73px), `Match N` (61px), a player's name (27px for the longest
+in the DB), and the loading fallbacks (`Tournament`, `Match`, `Profile`).
+
+**Verification** (isolated stack: backend :8003 on a copy of `app.db` with a scratch secrets file and
+its own uploads copy, vite :8020; none of 8000/8001/8002/8010/5173 touched, both stopped and the
+copies deleted afterwards).
+
+- **The title's centre x, measured on all 15 top-bar routes** (9 destinations, 6 pages you went
+  into) **× 3 widths × {socket healthy, socket in trouble} × {logged out, logged in as admin}**:
+  **160 at 320 · 195 at 390 · 215 at 430** — exactly `W/2`, one value per width, in every run. The
+  hamburger is at **x=12** on every route and in every state; the chevron, when there is one, at
+  **x=56**; the right-hand control's right edge at **W−12** whether it is the bell (36px) or the
+  marker (36px). Before this task the same measurement gave the title two different left edges
+  (x=60 and x=104 at 390) and a box that changed width with the right-hand side.
+- **Bar height 57px**, unchanged, so `useStickyTop` and every sticky grid header docked to it (Q3,
+  Q11) are untouched.
+- **Chrome sweep at 390×844 in blue and light**: destination, tournament (longest title), match,
+  profile; the bar **auto-hidden** after a scroll-down and **returned** after a scroll-up; the
+  **drawer** open; and the connection marker forced by closing every WebSocket
+  (`page.routeWebSocket`). **Zero app console or page errors** in all runs — the only console errors
+  in the logs are Vite's own HMR socket complaining that the harness closed it.
+- **Desktop 1280×900, blue and light, pixel-diffed before/after**: `/dashboard` is **identical to
+  the pixel**; `/live/2` differs only in a 14×14px square in the sidebar, which is the "Live now"
+  dot mid-`animate-ping`. `PageLayout`'s title row, the sidebar and its labelled `ConnectionIndicator`
+  are untouched.
+- **Back and the menu still work**: cold into `/live/19/match/104` → chevron → `/live/19` (up, Q6b
+  row 18); back again → `/tournaments`; the hamburger opens the drawer on a page that also has a
+  chevron.
+- `cd frontend && npm run check`: typecheck, eslint and **657 tests in 64 files** green (645 in 63
+  before: `topBarStatus.test.tsx` is new, `mobileChrome.test.tsx` gained the frame invariants and had
+  its button-order row flipped). `npm run build` green (the pre-existing >500 kB chunk hint only).
+
+**For Roli to check on the phone** (cannot be produced off-device): the bar under a notch, where
+`pt-safe-t` grows the header but must not move the title sideways; and the real `Offline` marker,
+which needs the app to lose every channel rather than merely the network.

@@ -16,6 +16,7 @@ from ...models import (
     Player,
     Tournament,
 )
+from ...services.club_stars import StarRatingResolver
 from ...services.cup import compute_all_cup_tournament_stakes_by_tournament
 from .scope import (
     friendlies_schema_ready,
@@ -72,10 +73,14 @@ def compute_stats_player_matches(s: Session, *, player_id: int, scope: str = "to
         )
         friendlies = safe_exec_all(s, fstmt)
 
+    # What each club was worth *on the day the match was played* (R4) — a club
+    # re-rated since must not rewrite what an old match counted as.
+    stars = StarRatingResolver.load(s)
+
     def player_dict(pp: Player) -> dict[str, Any]:
         return {"id": int(pp.id), "display_name": pp.display_name}
 
-    def match_dict(m: Match) -> dict[str, Any]:
+    def match_dict(m: Match, played_on: Any) -> dict[str, Any]:
         sides = []
         for side in sorted(m.sides, key=lambda x: x.side):
             sides.append(
@@ -83,6 +88,7 @@ def compute_stats_player_matches(s: Session, *, player_id: int, scope: str = "to
                     "id": int(side.id),
                     "side": side.side,
                     "club_id": side.club_id,
+                    "club_stars": stars.as_of(side.club_id, played_on),
                     "goals": int(side.goals or 0),
                     "players": [player_dict(pp) for pp in side.players],
                 }
@@ -105,6 +111,8 @@ def compute_stats_player_matches(s: Session, *, player_id: int, scope: str = "to
                     "id": int(side.id),
                     "side": side.side,
                     "club_id": side.club_id,
+                    # A friendly carries its own date — it is not inside a tournament.
+                    "club_stars": stars.as_of(side.club_id, fm.date),
                     "goals": int(side.goals or 0),
                     "players": [player_dict(pp) for pp in side.players],
                 }
@@ -138,7 +146,7 @@ def compute_stats_player_matches(s: Session, *, player_id: int, scope: str = "to
                 "cup_stakes": cup_stakes_by_tid.get(tid, []),
                 "matches": [],
             }
-        g["matches"].append(match_dict(m))
+        g["matches"].append(match_dict(m, t.date))
 
     for fm in friendlies:
         fid = int(fm.id or 0)

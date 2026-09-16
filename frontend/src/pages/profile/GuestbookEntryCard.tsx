@@ -39,7 +39,9 @@ export type GuestbookCardContextValue = {
   setEditDraft: (entryId: number, text: string) => void;
   submitEdit: (entryId: number, text: string) => void;
   toggleCollapse: (entryId: number) => void;
-  deleteEntry: (entryId: number) => void;
+  /** Ask to delete: the dialog that names the cost belongs to the section, not to
+   *  each of the recursive cards (R2). */
+  requestDelete: (entry: PlayerGuestbookEntry) => void;
   vote: (entryId: number, value: -1 | 0 | 1) => void;
   showVoters: (entryId: number) => void;
   setReplyDraft: (entryId: number, text: string) => void;
@@ -86,16 +88,18 @@ export default function GuestbookEntryCard({
   const editOpen = ctx.editOpenEntryId === entry.id;
   const editDraft = ctx.editDraftByEntryId[entry.id] ?? entry.body;
   const isCollapsed = ctx.collapsedEntryIds.has(entry.id);
-  // A root entry is a level-1 `card` on the page; a reply is the level-2 `inset`
-  // under it, indented by depth (DESIGN.md §3).
-  const surfaceClass = depth === 0 ? "card" : "inset";
-  const indentPx = Math.min(depth, 8) * 14;
+  // Inside the feed's one card (DESIGN.md §9b), so a message is the level-2 `inset`
+  // row and a reply is flat and tighter on that card's own surface, hanging off an
+  // accent rule — the comment feed's shape exactly. A root used to be a second `card`
+  // inside the page and a reply an `inset` inside that, which is one surface too many
+  // in both directions (A8).
+  const surfaceClass = depth === 0 ? "inset p-3" : "px-3 py-2";
 
   return (
-    <div key={entry.id} className="space-y-2" style={indentPx > 0 ? { marginLeft: `${indentPx}px` } : undefined}>
+    <div key={entry.id} className={depth === 0 ? "space-y-2" : "space-y-1"}>
       <div
         id={`guestbook-entry-${entry.id}`}
-        className={`${surfaceClass} p-3 scroll-mt-28 sm:scroll-mt-32`}
+        className={`${surfaceClass} scroll-mt-28 sm:scroll-mt-32`}
         onClick={() => {
           if (!isUnseen || ctx.readPending) return;
           ctx.markRead(entry.id);
@@ -197,10 +201,7 @@ export default function GuestbookEntryCard({
                 onClick={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
-                  const hasReplies = children.length > 0;
-                  const ok = window.confirm(hasReplies ? "Delete this message and all replies?" : "Delete this message?");
-                  if (!ok) return;
-                  ctx.deleteEntry(entry.id);
+                  ctx.requestDelete(entry);
                 }}
                 title="Delete message"
                 className="h-8 w-8 p-0 inline-flex items-center justify-center"
@@ -276,7 +277,7 @@ export default function GuestbookEntryCard({
 
         {replyOpen && ctx.canPostGuestbook ? (
           <div
-            className="mt-2 inset p-2 space-y-2"
+            className="mt-2 space-y-2 border-l-2 border-accent/30 pl-2"
             onClick={(e) => {
               e.stopPropagation();
             }}
@@ -305,7 +306,7 @@ export default function GuestbookEntryCard({
       </div>
 
       {children.length > 0 && !isCollapsed ? (
-        <div className="space-y-2">
+        <div className="ml-2 space-y-1 border-l-2 border-accent/25 pl-2 sm:pl-3">
           {children.map((child) => (
             <GuestbookEntryCard key={child.id} entry={child} depth={depth + 1} />
           ))}

@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, Request, Response, 
 from sqlalchemy.orm import selectinload
 from sqlmodel import Session, select
 
-from ..api_utils import bad_request, conflict, get_or_404
+from ..api_utils import bad_request, conflict, forbidden, get_or_404
 from ..auth import decode_token, require_admin, require_auth_claims, require_editor, require_editor_claims
 from ..db import get_engine, get_session
 from ..models import (
@@ -38,9 +38,11 @@ from ..schemas.responses import (
     VotersOut,
 )
 from ..services.authorization import require_self_or_admin
+from ..services.comment_cleanup import delete_comment_rows, with_reply_subtree
 from ..services.comments_view import comment_can_edit, comment_dict, list_comments_for_tournament, parent_comment_map
 from ..services.events import (
     broadcast_tournament,
+    notify_tournaments_changed,
     push_comment_deleted,
     push_comment_meta,
     push_comment_upsert,
@@ -79,7 +81,19 @@ def _comment_image_updated_at(s: Session, comment_id: int) -> datetime | None:
     return None
 
 
+def _ensure_can_edit_comment(s: Session, c: Comment, claims: dict) -> tuple[int, bool, int | None]:
+    """Guard every comment mutation with the same rule: own comment in the window, or admin.
 
+    Returns ``(viewer_id, is_admin, real_author_id)`` so callers can re-evaluate
+    ``comment_can_edit`` after the change without loading the author link twice.
+    """
+    viewer_id = int(claims.get("player_id"))
+    is_admin = str(claims.get("role") or "") == "admin"
+    real_author_link = s.get(CommentAuthorLink, int(c.id))
+    real_author_id = int(real_author_link.real_author_player_id) if real_author_link else None
+    if not comment_can_edit(c, viewer_id=viewer_id, is_admin=is_admin, real_author_id=real_author_id):
+        forbidden("You can only edit your own comment within an hour of posting")
+    return viewer_id, is_admin, real_author_id
 
 
 def _validate_author(s: Session, tournament_id: int, author_player_id: int | None) -> None:
@@ -521,6 +535,10 @@ async def create_comment(
             s.commit()
 
     await push_comment_upsert(tournament_id, comment_dict(c, None, parent_comment_id=parent_comment_id))
+    # The tournaments list is only on the coarse channel, and its unread badge counts
+    # comments — so a new one has to be announced there too, or the badge never moves
+    # for anyone who is not already inside this tournament (A5).
+    await notify_tournaments_changed(action="comment", tournament_id=tournament_id)
     if match_for_event is not None and match_score_changed:
         await broadcast_tournament(s, tournament_id, reason="comment-score")
 
@@ -591,15 +609,7 @@ async def patch_comment(
     image_updated_at = _comment_image_updated_at(s, comment_id)
     fields = body.model_fields_set
 
-    viewer_id = int(claims.get("player_id"))
-    is_admin = str(claims.get("role") or "") == "admin"
-    real_author_link = s.get(CommentAuthorLink, comment_id)
-    real_author_id = int(real_author_link.real_author_player_id) if real_author_link else None
-    if not comment_can_edit(c, viewer_id=viewer_id, is_admin=is_admin, real_author_id=real_author_id):
-        raise HTTPException(
-            status_code=403,
-            detail="You can only edit your own comment within an hour of posting",
-        )
+    viewer_id, is_admin, real_author_id = _ensure_can_edit_comment(s, c, claims)
 
     if "body" in fields:
         text = str(body.body or "").strip()
@@ -635,48 +645,19 @@ async def delete_comment(
     c = get_or_404(s, Comment, comment_id, name="Comment")
     tournament_id = int(c.tournament_id)
 
-    # Cascade: delete this comment and the whole reply subtree beneath it.
-    links = s.exec(
-        select(CommentThreadLink.comment_id, CommentThreadLink.parent_comment_id)
-        .join(Comment, Comment.id == CommentThreadLink.comment_id)
-        .where(Comment.tournament_id == tournament_id)
-    ).all()
-    children_by_parent: dict[int, list[int]] = {}
-    for child_id, parent_id in links:
-        children_by_parent.setdefault(int(parent_id), []).append(int(child_id))
-
-    to_delete: set[int] = set()
-    stack = [int(comment_id)]
-    while stack:
-        current = stack.pop()
-        if current in to_delete:
-            continue
-        to_delete.add(current)
-        stack.extend(children_by_parent.get(current, []))
-
-    ids = list(to_delete)
-
-    pin = s.get(TournamentPinnedComment, tournament_id)
-    if pin and pin.comment_id in to_delete:
-        s.delete(pin)
-
-    for img_row in s.exec(select(CommentImageFile).where(CommentImageFile.comment_id.in_(ids))).all():
-        delete_media(img_row.file_path)
-        s.delete(img_row)
-    for rr in s.exec(select(CommentRead).where(CommentRead.comment_id.in_(ids))).all():
-        s.delete(rr)
-    for vr in s.exec(select(CommentVote).where(CommentVote.comment_id.in_(ids))).all():
-        s.delete(vr)
-    for lk in s.exec(select(CommentThreadLink).where(CommentThreadLink.comment_id.in_(ids))).all():
-        s.delete(lk)
-    for al in s.exec(select(CommentAuthorLink).where(CommentAuthorLink.comment_id.in_(ids))).all():
-        s.delete(al)
-    for cm in s.exec(select(Comment).where(Comment.id.in_(ids))).all():
-        s.delete(cm)
+    # Cascade: this comment, the whole reply subtree beneath it, and everything that
+    # hangs off them — one shared cascade with the 2v2 re-assign (`comment_cleanup`).
+    ids = with_reply_subtree(s, tournament_id, [int(comment_id)])
+    image_paths = delete_comment_rows(s, tournament_id, ids)
     s.commit()
+    # Files only after the rows are safely gone, so a failed commit leaves no hole.
+    for path in image_paths:
+        delete_media(path)
 
     for cid in ids:
         await push_comment_deleted(tournament_id, cid)
+    # Same badge, the other direction: a deleted comment must stop being counted (A5).
+    await notify_tournaments_changed(action="comment", tournament_id=tournament_id)
 
     return {"ok": True}
 
@@ -699,13 +680,16 @@ def get_comment_image(comment_id: int):
     return Response(content=data, media_type=content_type, headers=headers)
 
 
-@router.put("/comments/{comment_id}/image", response_model=CommentOut, dependencies=[Depends(require_editor)])
+@router.put("/comments/{comment_id}/image", response_model=CommentOut)
 async def put_comment_image(
     comment_id: int,
     file: UploadFile = File(...),
     s: Session = Depends(get_session),
+    claims: dict = Depends(require_editor_claims),
 ) -> dict:
     c = get_or_404(s, Comment, comment_id, name="Comment")
+    _ensure_can_edit_comment(s, c, claims)
+
     ct = (file.content_type or "").strip().lower()
     if not ct.startswith("image/"):
         bad_request("Invalid file type")
@@ -741,9 +725,15 @@ async def put_comment_image(
     return comment_dict(c, img_file.updated_at, parent_comment_id=parent_comment_id)
 
 
-@router.delete("/comments/{comment_id}/image", response_model=OkResponse, dependencies=[Depends(require_editor)])
-async def delete_comment_image(comment_id: int, s: Session = Depends(get_session)) -> dict:
+@router.delete("/comments/{comment_id}/image", response_model=OkResponse)
+async def delete_comment_image(
+    comment_id: int,
+    s: Session = Depends(get_session),
+    claims: dict = Depends(require_editor_claims),
+) -> dict:
     c = get_or_404(s, Comment, comment_id, name="Comment")
+    _ensure_can_edit_comment(s, c, claims)
+
     img_file = s.get(CommentImageFile, comment_id)
     if img_file is None:
         return {"ok": True}

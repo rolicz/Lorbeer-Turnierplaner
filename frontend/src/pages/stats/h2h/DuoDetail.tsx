@@ -2,9 +2,9 @@
 import { useMemo } from "react";
 
 import EmptyState from "../../../ui/primitives/EmptyState";
+import RecordLine, { recordWidths } from "../../../ui/primitives/RecordLine";
 import StatsSection from "../StatsSection";
 import type { StatsH2HDuo, StatsH2HTeamRivalry } from "../../../api/types";
-import { fmtInt } from "../../../utils/format";
 import { normalizeTeamRivalryForFocus } from "../h2hHelpers";
 import { TeamRivalryRow, teamRivalryWidths } from "../HeadToHeadRows";
 
@@ -32,8 +32,11 @@ export function DuoDetail({
         .sort((a, b) => b.rivalry_score - a.rivalry_score),
     [rivalries, duo.p1.id, duo.p2.id],
   );
-  const gd = duo.gd >= 0 ? `+${duo.gd}` : String(duo.gd);
   const matchupWidths = useMemo(() => teamRivalryWidths(matchups), [matchups]);
+  // One record line, the same primitive the duo leaderboard above uses (DESIGN.md §7).
+  // The hand-rolled `·` version also had to spell its own unit, and got it wrong for a
+  // single game ("1 games together"); `P` has no plural to get wrong (A8).
+  const widths = useMemo(() => recordWidths([duo]), [duo]);
 
   return (
     <div className="space-y-2">
@@ -43,9 +46,18 @@ export function DuoDetail({
             <div className="truncate text-sm font-semibold text-text-normal">
               {duo.p1.display_name} <span className="text-text-muted">/</span> {duo.p2.display_name}
             </div>
-            <div className="mt-0.5 text-xs text-text-muted">
-              {fmtInt(duo.played)} games together · {fmtInt(duo.gf)}:{fmtInt(duo.ga)} · GD {gd}
-            </div>
+            <RecordLine
+              played={duo.played}
+              wins={duo.wins}
+              draws={duo.draws}
+              losses={duo.losses}
+              gf={duo.gf}
+              ga={duo.ga}
+              gd={duo.gd}
+              widths={widths}
+              extra={<span className="font-semibold text-accent">{duo.pts_per_match.toFixed(2)} ppm</span>}
+              className="mt-0.5 font-mono text-xs text-text-muted"
+            />
           </div>
           <button
             type="button"
@@ -54,13 +66,6 @@ export function DuoDetail({
           >
             Matches
           </button>
-        </div>
-        <div className="mt-1.5 flex items-center gap-3 font-mono text-xs tabular-nums">
-          <span>
-            <span className="text-win">{fmtInt(duo.wins)}</span>-<span className="text-draw">{fmtInt(duo.draws)}</span>-<span className="text-loss">{fmtInt(duo.losses)}</span>
-          </span>
-          <span className="text-text-muted">·</span>
-          <span className="font-semibold text-accent">{duo.pts_per_match.toFixed(2)} ppm</span>
         </div>
       </div>
 

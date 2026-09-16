@@ -2,6 +2,7 @@ import json
 import logging
 import random
 from datetime import date, datetime
+from typing import NamedTuple
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from sqlalchemy import case, func
@@ -9,9 +10,19 @@ from sqlalchemy.orm import selectinload
 from sqlmodel import Session, delete, select
 
 from ..api_utils import bad_request, conflict, forbidden, get_or_404
-from ..auth import require_admin, require_editor
+from ..auth import decode_token, require_admin, require_editor, require_editor_claims
 from ..db import get_session
-from ..models import Match, MatchSide, MatchSidePlayer, Player, Tournament, TournamentPlayer
+from ..models import (
+    Comment,
+    Match,
+    MatchSide,
+    MatchSidePlayer,
+    Player,
+    Tournament,
+    TournamentCreatorLink,
+    TournamentPinnedComment,
+    TournamentPlayer,
+)
 from ..scheduling import assign_labels, schedule_1v1_labels, schedule_2v2_labels
 from ..schemas import (
     TournamentCreateBody,
@@ -27,6 +38,7 @@ from ..schemas.responses import (
     CommentSummaryOut,
     DeciderResultOut,
     OkResponse,
+    ReassignPreviewOut,
     ReassignResultOut,
     ScheduleGeneratedOut,
     TournamentDateOut,
@@ -36,13 +48,19 @@ from ..schemas.responses import (
     TournamentStatsOut,
     TournamentSummaryOut,
 )
-from ..services.authorization import ensure_not_done_or_admin
+from ..services.authorization import (
+    ensure_can_delete_tournament,
+    ensure_can_edit_tournament,
+)
+from ..services.comment_cleanup import delete_comment_rows, match_comment_ids
 from ..services.comments_summary import tournament_comments_summary
 from ..services.events import (
     broadcast_tournament,
     broadcast_tournament_deleted,
     notify_tournaments_changed,
+    push_comment_deleted,
 )
+from ..services.file_storage import delete_media
 from ..services.notifications import (
     push_schedule_generated,
     push_tournament_created,
@@ -85,20 +103,43 @@ def _leg2_started(s: Session, tournament_id: int) -> bool:
     return False
 
 
+class MatchDeletion(NamedTuple):
+    """What destroying a set of matches took with it, so the caller can finish the job."""
+
+    matches: int
+    comment_ids: list[int]
+    image_paths: list[str]
+
+
+EMPTY_DELETION = MatchDeletion(0, [], [])
+
+
 def _bulk_delete_matches(
     s: Session,
     tournament_id: int,
     leg: int | None = None,
     *,
     autocommit: bool = True,
-) -> int:
+) -> MatchDeletion:
+    """Destroy matches — and the comments filed under them.
+
+    A match id is not reusable *information*: the row goes, and `Comment.match_id` would
+    be left pointing at a dead id. Nothing enforces the foreign key (A9) and `match.id`
+    has no AUTOINCREMENT, so SQLite hands that id out again and the stale comment would
+    silently reappear under an unrelated future match. Every caller that deletes matches
+    goes through here, so none of them can leave that debris behind (Q5).
+    """
     q = select(Match.id).where(Match.tournament_id == tournament_id)
     if leg is not None:
         q = q.where(Match.leg == leg)
 
-    match_ids = s.exec(q).all()
+    match_ids = [int(i) for i in s.exec(q).all()]
     if not match_ids:
-        return 0
+        return EMPTY_DELETION
+
+    comment_ids = match_comment_ids(s, tournament_id, match_ids)
+    image_paths = delete_comment_rows(s, tournament_id, comment_ids)
+    s.flush()
 
     side_ids = s.exec(
         select(MatchSide.id).where(MatchSide.match_id.in_(match_ids))
@@ -125,21 +166,50 @@ def _bulk_delete_matches(
     if autocommit:
         s.commit()
         s.expire_all()
-    return len(match_ids)
+    return MatchDeletion(len(match_ids), comment_ids, image_paths)
 
 
-def _delete_schedule(s: Session, tournament_id: int, *, autocommit: bool = True) -> None:
-    _bulk_delete_matches(s, tournament_id, leg=None, autocommit=autocommit)
+def _delete_schedule(s: Session, tournament_id: int, *, autocommit: bool = True) -> MatchDeletion:
+    return _bulk_delete_matches(s, tournament_id, leg=None, autocommit=autocommit)
 
 
-def _delete_matches_by_leg(s: Session, tournament_id: int, leg: int, *, autocommit: bool = True) -> None:
-    _bulk_delete_matches(s, tournament_id, leg=leg, autocommit=autocommit)
+def _delete_matches_by_leg(s: Session, tournament_id: int, leg: int, *, autocommit: bool = True) -> MatchDeletion:
+    return _bulk_delete_matches(s, tournament_id, leg=leg, autocommit=autocommit)
+
+
+async def _finish_match_deletion(tournament_id: int, deletion: MatchDeletion) -> None:
+    """After the commit: drop the image files and tell open feeds the comments are gone.
+
+    Files last, so a transaction that never lands leaves no hole where a file was.
+    """
+    for path in deletion.image_paths:
+        delete_media(path)
+    for cid in deletion.comment_ids:
+        await push_comment_deleted(tournament_id, cid)
+    if deletion.comment_ids:
+        # Same badge, the other direction: deleted comments must stop being counted (A5).
+        await notify_tournaments_changed(action="comment", tournament_id=tournament_id)
 
 
 def _delete_tournament_graph(s: Session, tournament_id: int) -> bool:
+    """Delete a tournament and everything that only exists because of it.
+
+    Its comments included — all of them, not just the match-tied ones: `tournament.id`
+    has no AUTOINCREMENT either, so leaving them behind would let a dead conversation
+    surface inside whatever tournament is given that id next (Q5).
+    """
     exists = s.exec(select(Tournament.id).where(Tournament.id == tournament_id)).first()
     if not exists:
         return False
+
+    comment_ids = list(
+        s.exec(select(Comment.id).where(Comment.tournament_id == tournament_id)).all()
+    )
+    image_paths = delete_comment_rows(s, tournament_id, [int(i) for i in comment_ids])
+    pin = s.get(TournamentPinnedComment, tournament_id)
+    if pin is not None:
+        s.delete(pin)
+    s.flush()
 
     match_ids = list(s.exec(select(Match.id).where(Match.tournament_id == tournament_id)).all())
     if match_ids:
@@ -168,12 +238,19 @@ def _delete_tournament_graph(s: Session, tournament_id: int) -> bool:
         .execution_options(synchronize_session=False)
     )
     s.exec(
+        delete(TournamentCreatorLink)
+        .where(TournamentCreatorLink.tournament_id == tournament_id)
+        .execution_options(synchronize_session=False)
+    )
+    s.exec(
         delete(Tournament)
         .where(Tournament.id == tournament_id)
         .execution_options(synchronize_session=False)
     )
     s.commit()
     s.expire_all()
+    for path in image_paths:
+        delete_media(path)
     return True
 
 
@@ -183,7 +260,7 @@ def _generate_schedule_for_tournament(
     randomize: bool,
     *,
     autocommit: bool = True,
-) -> tuple[int, dict]:
+) -> tuple[int, dict, MatchDeletion]:
     player_names = [p.display_name for p in t.players]
 
     if t.mode == "1v1" and not (3 <= len(player_names) <= 6):
@@ -216,7 +293,7 @@ def _generate_schedule_for_tournament(
     if randomize:
         random.shuffle(label_matches)
 
-    _delete_schedule(s, int(t.id), autocommit=False)
+    deletion = _delete_schedule(s, int(t.id), autocommit=False)
 
     db_players = {p.display_name: p for p in t.players}
 
@@ -242,7 +319,7 @@ def _generate_schedule_for_tournament(
         s.commit()
         s.refresh(t)
 
-    return len(label_matches), label_to_name
+    return len(label_matches), label_to_name, deletion
 
 
 def _create_match_with_teams(
@@ -301,8 +378,11 @@ def _state_rank(state: str) -> int:
 
 
 @router.get("", response_model=list[TournamentListItemOut])
-def list_tournaments(s: Session = Depends(get_session)):
-    return build_tournament_list(s)
+def list_tournaments(
+    s: Session = Depends(get_session),
+    claims: dict | None = Depends(decode_token),
+):
+    return build_tournament_list(s, claims=claims)
 
 
 @router.get("/live", response_model=TournamentLiveOut | None)
@@ -375,13 +455,22 @@ def get_tournaments_comments_summary(s: Session = Depends(get_session)) -> list[
 
 
 @router.get("/{tournament_id}", response_model=TournamentDetailOut)
-def get_tournament(tournament_id: int, s: Session = Depends(get_session)):
+def get_tournament(
+    tournament_id: int,
+    s: Session = Depends(get_session),
+    claims: dict | None = Depends(decode_token),
+):
     t = get_or_404(s, Tournament, tournament_id, name="Tournament")
-    return serialize_tournament(s, t)
+    return serialize_tournament(s, t, claims=claims)
 
 
-@router.post("", response_model=TournamentSummaryOut, dependencies=[Depends(require_editor)])
-async def create_tournament(body: TournamentCreateBody, request: Request, s: Session = Depends(get_session)):
+@router.post("", response_model=TournamentSummaryOut)
+async def create_tournament(
+    body: TournamentCreateBody,
+    request: Request,
+    s: Session = Depends(get_session),
+    claims: dict = Depends(require_editor_claims),
+):
     name = (body.name or "").strip()
     mode = body.mode
     settings = body.settings or {}
@@ -411,7 +500,7 @@ async def create_tournament(body: TournamentCreateBody, request: Request, s: Ses
             s.refresh(t)
 
         if auto_generate:
-            created_matches, _ = _generate_schedule_for_tournament(s, t, randomize=randomize, autocommit=False)
+            created_matches, _, _ = _generate_schedule_for_tournament(s, t, randomize=randomize, autocommit=False)
             log.info(
                 "Created + generated tournament '%s' (id=%s, mode=%s, matches=%s)",
                 t.name,
@@ -419,6 +508,11 @@ async def create_tournament(body: TournamentCreateBody, request: Request, s: Ses
                 t.mode,
                 created_matches,
             )
+
+        # Record who created it (additive link table, the CommentAuthorLink pattern) so the
+        # grace window knows whose accidental tournament this is. Part of the same transaction:
+        # a tournament without its creator row would silently be admin-only to delete.
+        s.add(TournamentCreatorLink(tournament_id=int(t.id), creator_player_id=int(claims["player_id"])))
 
         s.commit()
         s.refresh(t)
@@ -442,13 +536,13 @@ async def create_tournament(body: TournamentCreateBody, request: Request, s: Ses
 
 
 
-@router.patch("/{tournament_id}", response_model=TournamentSummaryOut, dependencies=[Depends(require_editor)])
+@router.patch("/{tournament_id}", response_model=TournamentSummaryOut)
 async def patch_tournament(
     tournament_id: int,
     body: TournamentPatchBody,
     request: Request,
     s: Session = Depends(get_session),
-    role: str = Depends(require_editor),
+    claims: dict = Depends(require_editor_claims),
 ):
     """
     Patch tournament metadata (NO manual status).
@@ -459,7 +553,7 @@ async def patch_tournament(
     t = get_or_404(s, Tournament, tournament_id, name="Tournament")
 
     status_now = compute_status_for_tournament(s, tournament_id)
-    ensure_not_done_or_admin(status_now, role, action="edit")
+    ensure_can_edit_tournament(s, t, claims=claims, action="edit", status=status_now)
 
     fields = body.model_fields_set
 
@@ -514,13 +608,13 @@ async def patch_date(
     return {"ok": True, "date": t.date}
 
 
-@router.post("/{tournament_id}/generate", response_model=ScheduleGeneratedOut, dependencies=[Depends(require_editor)])
+@router.post("/{tournament_id}/generate", response_model=ScheduleGeneratedOut)
 async def generate_schedule(
     tournament_id: int,
     body: TournamentGenerateBody,
     request: Request,
     s: Session = Depends(get_session),
-    role: str = Depends(require_editor),
+    claims: dict = Depends(require_editor_claims),
 ):
     """
     body: { "randomize": true }
@@ -528,11 +622,12 @@ async def generate_schedule(
     t = get_or_404(s, Tournament, tournament_id, name="Tournament")
 
     status_now = compute_status_for_tournament(s, tournament_id)
-    ensure_not_done_or_admin(status_now, role, action="regenerate")
+    ensure_can_edit_tournament(s, t, claims=claims, action="regenerate", status=status_now)
 
     randomize = bool(body.randomize)
-    created_matches, label_to_name = _generate_schedule_for_tournament(s, t, randomize=randomize)
+    created_matches, label_to_name, deletion = _generate_schedule_for_tournament(s, t, randomize=randomize)
 
+    await _finish_match_deletion(tournament_id, deletion)
     await broadcast_tournament(s, tournament_id, reason="schedule", global_action="updated")
     log.info(
         "Generated schedule: tournament_id=%s matches=%s mode=%s players=%s",
@@ -545,17 +640,17 @@ async def generate_schedule(
     return {"ok": True, "matches": created_matches, "labels": label_to_name}
 
 
-@router.patch("/{tournament_id}/reorder", response_model=OkResponse, dependencies=[Depends(require_editor)])
+@router.patch("/{tournament_id}/reorder", response_model=OkResponse)
 async def reorder(
     tournament_id: int,
     body: TournamentReorderBody,
     s: Session = Depends(get_session),
-    role: str = Depends(require_editor),
+    claims: dict = Depends(require_editor_claims),
 ):
-    get_or_404(s, Tournament, tournament_id, name="Tournament")
+    t = get_or_404(s, Tournament, tournament_id, name="Tournament")
 
     status_now = compute_status_for_tournament(s, tournament_id)
-    ensure_not_done_or_admin(status_now, role, action="reorder")
+    ensure_can_edit_tournament(s, t, claims=claims, action="reorder", status=status_now)
 
     match_ids = list(body.match_ids or [])
     if not match_ids:
@@ -649,7 +744,7 @@ async def second_leg(
         if _leg2_started(s, tournament_id):
             forbidden("Second leg already started")
 
-        _delete_matches_by_leg(s, tournament_id, leg=2)
+        deletion = _delete_matches_by_leg(s, tournament_id, leg=2)
 
         # sync status
         t = get_or_404(s, Tournament, tournament_id, name="Tournament")
@@ -658,6 +753,7 @@ async def second_leg(
         s.add(t)
         s.commit()
 
+        await _finish_match_deletion(tournament_id, deletion)
         await broadcast_tournament(s, tournament_id, reason="schedule", global_action="updated")
         return {"ok": True, "second_leg": False, "deleted": True, "status": t.status}
 
@@ -721,14 +817,20 @@ def stats(tournament_id: int, s: Session = Depends(get_session)):
     return compute_tournament_stats(s, tournament_id)
 
 
-@router.delete("/{tournament_id}", dependencies=[Depends(require_admin)])
+@router.delete("/{tournament_id}")
 async def delete_tournament(
     tournament_id: int,
     request: Request,
     s: Session = Depends(get_session),
-    role: str = Depends(require_admin),
+    claims: dict = Depends(require_editor_claims),
 ):
+    """Admin always; the editor who created it may delete it within their first hour (A10).
+
+    Allowed even when results exist — which is why every client confirms first.
+    """
     tournament = get_or_404(s, Tournament, tournament_id, name="Tournament")
+    ensure_can_delete_tournament(s, tournament, claims=claims)
+    role = str(claims.get("role") or "")
     tournament_name = tournament.name  # capture before the row is deleted/expired
     _delete_tournament_graph(s, tournament_id)
 
@@ -742,12 +844,12 @@ async def delete_tournament(
 ALLOWED_DECIDERS = ("none", "penalties", "match", "scheresteinpapier")
 
 
-@router.patch("/{tournament_id}/decider", response_model=DeciderResultOut, dependencies=[Depends(require_editor)])
+@router.patch("/{tournament_id}/decider", response_model=DeciderResultOut)
 async def patch_decider(
     tournament_id: int,
     body: TournamentDeciderPatchBody,
     s: Session = Depends(get_session),
-    role: str = Depends(require_editor),
+    claims: dict = Depends(require_editor_claims),
 ):
     """
     body:
@@ -760,7 +862,9 @@ async def patch_decider(
       }
 
     Editors:
-      - can set decider while tournament is NOT done
+      - can set the decider while the tournament is NOT done, and for one hour after it
+        finished (A10 — a decider only resolves a tie that is known once every match is
+        played, so the window has to start when the tournament ends)
     Admin:
       - can set/adjust anytime, even after done
 
@@ -770,6 +874,9 @@ async def patch_decider(
       - goals must be >=0 integers when type != "none"
     """
     t = get_or_404(s, Tournament, tournament_id, name="Tournament")
+
+    status_now = compute_status_for_tournament(s, tournament_id)
+    ensure_can_edit_tournament(s, t, claims=claims, action="set the decider", status=status_now)
 
     dec_type = (body.type or "none").strip()
     if dec_type not in ALLOWED_DECIDERS:
@@ -852,6 +959,61 @@ async def patch_decider(
         "decider_loser_goals": t.decider_loser_goals,
     }
 
+def _reassign_blocked_message(started: list[Match]) -> str:
+    """Name the matches that stand in the way, and why it matters.
+
+    The old message ("results were stored") was true and useless: it named neither which
+    match nor what re-assign would have done to it.
+    """
+    ordered = sorted(started, key=lambda m: (int(m.order_index), int(m.id or 0)))
+    named = [f"Match {int(m.order_index) + 1} is {m.state}" for m in ordered[:3]]
+    which = ", ".join(named)
+    rest = len(ordered) - len(named)
+    if rest > 0:
+        which += f" and {rest} more"
+    return (
+        "Re-assign draws a completely new schedule, so every match has to be back at "
+        f"scheduled first — {which}. Reset the played ones, or keep this schedule."
+    )
+
+
+def _reassign_preview_counts(s: Session, tournament_id: int, matches: list[Match]) -> dict:
+    """What re-assign would clear, so the UI can name it before asking (Q5)."""
+    match_ids = [int(m.id) for m in matches]
+    return {
+        "matches": len(matches),
+        "matches_with_score": sum(1 for m in matches if any((side.goals or 0) != 0 for side in m.sides)),
+        "matches_with_club": sum(1 for m in matches if any(side.club_id is not None for side in m.sides)),
+        "comments": len(match_comment_ids(s, tournament_id, match_ids)),
+    }
+
+
+def _tournament_matches(s: Session, tournament_id: int) -> list[Match]:
+    return list(
+        s.exec(
+            select(Match)
+            .options(selectinload(Match.sides))
+            .where(Match.tournament_id == tournament_id)
+            .order_by(Match.order_index)
+        ).all()
+    )
+
+
+@router.get("/{tournament_id}/reassign-preview", response_model=ReassignPreviewOut, dependencies=[Depends(require_editor)])
+def reassign_2v2_preview(
+    tournament_id: int,
+    s: Session = Depends(get_session),
+):
+    """Counts for the re-assign confirmation: what it clears and how many comments go.
+
+    The frontend renders the dialog from these numbers instead of re-deriving which
+    comments a rebuild takes with it — the same split of responsibility as A10's
+    `can_edit` flags.
+    """
+    get_or_404(s, Tournament, tournament_id, name="Tournament")
+    return _reassign_preview_counts(s, tournament_id, _tournament_matches(s, tournament_id))
+
+
 @router.post("/{tournament_id}/reassign", response_model=ReassignResultOut, dependencies=[Depends(require_editor)])
 async def reassign_2v2(
     tournament_id: int,
@@ -864,7 +1026,14 @@ async def reassign_2v2(
 
     Only allowed for 2v2 (pairings/opponents are not uniquely determined).
     Safety:
-      - only when ALL matches are still scheduled (and "clean": no goals/clubs/timestamps)
+      - only when ALL matches are still scheduled. A playing or finished match is a real
+        result, and re-assigning would throw a played evening away.
+      - leftovers are NOT a refusal (Q5): goals, clubs and timestamps left on scheduled
+        matches are cleared, because the schedule is rebuilt from scratch anyway. Refusing
+        on them used to freeze a tournament for good — reset put a match back to scheduled
+        but left its score behind, and nothing could remove a club.
+      - the comments filed under the old matches go with them (see `comment_cleanup`);
+        the tournament-wide ones stay.
       - editor/admin only
       - preserves "second leg enabled" flag: if leg2 existed before, it is recreated to match new leg1
 
@@ -877,27 +1046,15 @@ async def reassign_2v2(
         conflict("Re-assign is only supported for 2v2 tournaments")
 
     # Must have an existing schedule
-    matches = s.exec(
-        select(Match)
-        .options(selectinload(Match.sides))
-        .where(Match.tournament_id == tournament_id)
-        .order_by(Match.order_index)
-    ).all()
+    matches = _tournament_matches(s, tournament_id)
     if not matches:
         conflict("No schedule exists yet (generate schedule first)")
 
-    # Safety: only if ALL matches are still scheduled and untouched
-    for m in matches:
-        if m.state != "scheduled":
-            conflict("Re-assign requires all matches to be scheduled")
-        if m.started_at is not None or m.finished_at is not None:
-            conflict("Re-assign requires untouched matches (no timestamps)")
-
-        for side in m.sides:
-            if (side.goals or 0) != 0:
-                conflict("Re-assign requires untouched matches (goals must be 0)")
-            if side.club_id is not None:
-                conflict("Re-assign requires untouched matches (clubs must be empty)")
+    # Safety: a played match is the one thing re-assign must not throw away. Leftover
+    # goals/clubs on a scheduled match are not results and never block (Q5).
+    started = [m for m in matches if m.state != "scheduled"]
+    if started:
+        conflict(_reassign_blocked_message(started))
 
     had_leg2 = any(m.leg == 2 for m in matches)
     randomize_order = bool(body.randomize_order) if body is not None else True
@@ -933,8 +1090,10 @@ async def reassign_2v2(
     if randomize_order:
         random.shuffle(label_matches)
 
-    # Delete old schedule (both legs, if present)
-    _delete_schedule(s, tournament_id, autocommit=False)
+    # Delete old schedule (both legs, if present). Every match id dies with it, so the
+    # comments filed under those matches go too — `_bulk_delete_matches` does that, and
+    # the tournament-wide ones are left alone.
+    deletion = _delete_schedule(s, tournament_id, autocommit=False)
 
     # Map label->player_id using current tournament players
     db_players = {p.display_name: p for p in t.players}
@@ -978,9 +1137,10 @@ async def reassign_2v2(
     s.add(t)
     s.commit()
 
+    await _finish_match_deletion(tournament_id, deletion)
     await broadcast_tournament(s, tournament_id, reason="schedule", global_action="updated")
     log.info(
-        "2v2 reassign: tournament_id=%s matches=%s had_leg2=%s by=%s",
-        tournament_id, len(label_matches), had_leg2, role
+        "2v2 reassign: tournament_id=%s matches=%s had_leg2=%s comments_deleted=%s by=%s",
+        tournament_id, len(label_matches), had_leg2, len(deletion.comment_ids), role
     )
     return {"ok": True, "matches": len(label_matches), "second_leg": had_leg2, "status": t.status}

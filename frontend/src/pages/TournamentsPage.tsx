@@ -58,15 +58,17 @@ export default function TournamentsPage() {
   const canWrite = role === "editor" || role === "admin";
   const pageEntered = useRouteEntryLoading();
 
-  const [rawTab, setTab] = useTabParam<TTab>(T_TAB_KEYS, "all");
-  // The "new" tab needs editor rights; a stale/hand-typed deep link falls back.
-  const tab: TTab = rawTab === "new" && !canWrite ? "all" : rawTab;
+  // The "new" tab needs editor rights; a stale/hand-typed deep link falls back to
+  // "all" *and* loses the param, so nothing remembers it (A9).
+  const [tab, setTab] = useTabParam<TTab>(T_TAB_KEYS, "all", "tab", {
+    allowed: canWrite ? T_TAB_KEYS : (["all"] as const),
+  });
   const tabs: SectionTab<TTab>[] = [
     { key: "all", label: "All tournaments", icon: <ListIcon size={14} /> },
     ...(canWrite ? [{ key: "new" as TTab, label: "New tournament", icon: <Plus size={14} /> }] : []),
   ];
 
-  const tournamentsQ = useQuery({ queryKey: qk.tournaments(), queryFn: listTournaments });
+  const tournamentsQ = useQuery({ queryKey: qk.tournaments(), queryFn: () => listTournaments(token) });
   const summaryQ = useQuery({ queryKey: qk.commentsSummary(), queryFn: listTournamentCommentsSummary });
 
   const tournamentsSorted = useMemo(() => {
@@ -206,13 +208,15 @@ export default function TournamentsPage() {
                 <span className="mt-0.5 flex flex-wrap items-center text-xs text-text-muted">
                   {meta.map((node, i) => (
                     <span key={i} className="inline-flex items-center">
-                      {i > 0 ? <span className="mx-1.5 text-text-muted/40">·</span> : null}
+                      {/* A separator is spacing, not a third tone: it inherits the meta
+                          line's own `text-text-muted` (R3). */}
+                      {i > 0 ? <span className="mx-1.5">·</span> : null}
                       {node}
                     </span>
                   ))}
                 </span>
                 {participants.length > 0 ? (
-                  <span className="mt-0.5 block truncate text-xs text-text-muted/60">
+                  <span className="mt-0.5 block truncate text-xs text-text-muted">
                     {participants.map((p) => p.display_name).join(", ")}
                   </span>
                 ) : null}

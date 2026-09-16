@@ -3,7 +3,7 @@
  *  backend's real duo stats (best_teammates_2v2 / team_rivalries_2v2) instead of a
  *  client-side recompute. The selected player is shared with the other sections. */
 import { HeartCrack, Smile } from "lucide-react";
-import { type ReactNode, useMemo, useState } from "react";
+import { type CSSProperties, type ReactNode, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 
 import Button from "../../ui/primitives/Button";
@@ -21,6 +21,8 @@ import StatsSection from "./StatsSection";
 import { MatchHistoryList, tournamentMatchHref } from "./MatchHistoryList";
 import { DuoRow } from "./HeadToHeadRows";
 import { duoKey } from "./h2hHelpers";
+import { MATRIX_GAP, matrixCellSize, matrixFits } from "./microGrid";
+import { useStickyTop } from "../../ui/shell/useStickyTop";
 import { DuoLeaderboard } from "./h2h/DuoLeaderboard";
 import { DuoPicker } from "./h2h/DuoPicker";
 import { DuoRivalries } from "./h2h/DuoRivalries";
@@ -30,20 +32,20 @@ import type { H2HSub } from "./statsNav";
 import type { StatsMode } from "./statsMode";
 import type { StatsScope, StatsH2HPair, StatsH2HOpponentRow, StatsH2HDuo, StatsH2HTeamRivalry } from "../../api/types";
 
-function h2hTone(pct: number): string {
-  const t = Math.max(0, Math.min(1, pct / 100));
-  return `hsl(${t * 130} 60% 42% / 0.85)`;
-}
+/** A matrix cell's colour, as the two inputs the shared micro-tile ramp takes
+ *  (`.h2h-cell` in `styles.css`, the positions grid's mechanism — DESIGN.md §4):
+ *  a hue that carries the meaning and a 0..1 strength. The ramp itself, and the ink
+ *  that reads on it in each theme, belong to the stylesheet — a component that mixes
+ *  its own HSL has no way to know it is being painted on a light page. */
+const H2H_HUE_LOSS = 0; // red
+const H2H_HUE_WIN = 120; // green
+const H2H_HUE_NEUTRAL = 210; // blue: a magnitude, not a verdict
+/** Win-rate paints with the hue alone, so those cells all carry the same weight. */
+const H2H_VERDICT_STRENGTH = 0.7;
 
-function h2hSequential(t: number): string {
-  return `hsl(210 60% ${48 - t * 22}% / ${0.55 + t * 0.3})`;
-}
-
-function h2hDiverging(gd: number, maxAbs: number): string {
-  if (maxAbs === 0) return `hsl(0 0% 40% / 0.55)`;
-  const t = Math.max(-1, Math.min(1, gd / maxAbs));
-  if (t >= 0) return `hsl(130 55% ${46 - t * 18}% / ${0.55 + t * 0.3})`;
-  return `hsl(0 55% ${46 + t * 18}% / ${0.55 - t * 0.3})`;
+function rampStyle(hue: number, strength: number): CSSProperties {
+  const t = Math.max(0, Math.min(1, Number.isFinite(strength) ? strength : 0));
+  return { "--h2h-h": `${Math.round(hue)}deg`, "--h2h-t": t.toFixed(2) } as CSSProperties;
 }
 
 type HistoryModalState = { title: string; req: StatsH2HMatchesRequest; focusPlayerId: number | null };
@@ -162,13 +164,71 @@ export default function H2HView({ mode, scope, rows, subView, selectedId, onSele
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pairs, rows]);
 
-  const cellColor = (v: ReturnType<typeof cell>): string => {
-    if (!v) return "";
+  /**
+   * Matrix geometry (R1b). The cell edge is computed, never fixed: it is what the scroll
+   * box has left once the sticky name column is paid for, clamped by `matrixCellSize`.
+   *
+   * Both inputs are **measured**. The name column is content-sized (a `truncate` capped at
+   * 120px), so this player set's five short names hand the tiles the ~60px a hard-coded
+   * 120 would have thrown away — and a long name still gets its room instead of eating
+   * into the cells. Nothing in that column depends on the cell size, so measuring one to
+   * size the other cannot oscillate; only the box is observed for resizes, and the name
+   * column is re-read with it.
+   */
+  const matrixBoxRef = useRef<HTMLDivElement | null>(null);
+  const nameColRef = useRef<HTMLTableCellElement | null>(null);
+  const matrixRoRef = useRef<ResizeObserver | null>(null);
+  const [matrixBox, setMatrixBox] = useState({ boxW: 0, nameW: 0 });
+  const measureMatrix = useCallback(() => {
+    const boxW = matrixBoxRef.current?.clientWidth ?? 0;
+    const nameW = nameColRef.current?.getBoundingClientRect().width ?? 0;
+    setMatrixBox((prev) => (prev.boxW === boxW && prev.nameW === nameW ? prev : { boxW, nameW }));
+  }, []);
+  /* A callback ref, not a dependency array: the matrix leaves the DOM entirely whenever
+     the Duos sub-view is up, and `rows` does not change when it comes back — an effect
+     keyed on the data would hand the returning table a stale zero and leave it at the
+     floor until the next window resize. Tying the measurement to the element's life
+     cannot go stale. */
+  const attachMatrixBox = useCallback((el: HTMLDivElement | null) => {
+    matrixBoxRef.current = el;
+    matrixRoRef.current?.disconnect();
+    matrixRoRef.current = null;
+    if (!el) return;
+    measureMatrix();
+    // jsdom has no ResizeObserver; the measurement above is enough there.
+    if (typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(measureMatrix);
+    ro.observe(el);
+    matrixRoRef.current = ro;
+  }, [measureMatrix]);
+  useEffect(() => () => matrixRoRef.current?.disconnect(), []);
+  // The name column is content-sized, so a different player set can resize it without the
+  // box ever changing: re-read both whenever the rows change.
+  useLayoutEffect(measureMatrix, [measureMatrix, rows]);
+  const matrixCell = matrixCellSize(matrixBox.boxW, matrixBox.nameW, rows.length);
+  /* Below the floor the table is wider than its box and needs a scroll box again — and a
+     box with `overflow-x` set is a scroll container in *both* axes, which is exactly what
+     stops the column headers below from sticking to the page (Q3). So the box exists only
+     when it is earning its keep, and `data-no-swipe-nav` with it: without a scroller there
+     is no scroll edge to protect, and a swipe over the matrix should navigate like a swipe
+     anywhere else. */
+  const matrixScrolls = !matrixFits(matrixBox.boxW, matrixBox.nameW, rows.length);
+  /* The header docks under the mobile top bar and rides to the top when it auto-hides;
+     0 on desktop, where there is no bar. */
+  const stickyTop = useStickyTop();
+
+  const cellRamp = (v: ReturnType<typeof cell>): CSSProperties => {
+    if (!v) return {};
     switch (matrixMetric) {
-      case "played": return h2hSequential(v.played / matrixRanges.maxPlayed);
-      case "rivalry": return h2hSequential(v.rivalry / matrixRanges.maxRivalry);
-      case "gd": return h2hDiverging(v.gd, matrixRanges.maxAbsGd);
-      default: return h2hTone(v.pct);
+      case "played": return rampStyle(H2H_HUE_NEUTRAL, v.played / matrixRanges.maxPlayed);
+      case "rivalry": return rampStyle(H2H_HUE_NEUTRAL, v.rivalry / matrixRanges.maxRivalry);
+      case "gd": {
+        if (matrixRanges.maxAbsGd === 0) return rampStyle(H2H_HUE_NEUTRAL, 0);
+        const t = Math.max(-1, Math.min(1, v.gd / matrixRanges.maxAbsGd));
+        return rampStyle(t >= 0 ? H2H_HUE_WIN : H2H_HUE_LOSS, Math.abs(t));
+      }
+      // Win %, W-D-L and PPM all read the same tone: red at 0%, green at 100%.
+      default: return rampStyle((Math.max(0, Math.min(100, v.pct)) / 100) * H2H_HUE_WIN, H2H_VERDICT_STRENGTH);
     }
   };
 
@@ -353,14 +413,26 @@ export default function H2HView({ mode, scope, rows, subView, selectedId, onSele
         {matrixRanges.anyPlayed ? (
           <p className="text-xs text-text-muted">Tap a cell for every match between two players.</p>
         ) : null}
-        <div className="overflow-x-auto" data-no-swipe-nav>
-          <table className="border-separate" style={{ borderSpacing: 3 }}>
+        <div ref={attachMatrixBox} className={matrixScrolls ? "overflow-x-auto" : undefined} data-no-swipe-nav={matrixScrolls ? true : undefined}>
+          {/* `mx-auto` centres the table once the ceiling caps it — every realistic count
+              on desktop. It is not a second layout: when the floor makes the table wider
+              than the box, the over-constrained auto margins resolve to 0, so the matrix
+              goes back to starting at x=0 and the box scrolls from its first column. */}
+          <table className="mx-auto border-separate" style={{ borderSpacing: MATRIX_GAP }}>
             <thead>
               <tr>
-                <th className="sticky left-0 z-10 bg-bg-default" />
+                {/* The corner is sticky in both axes: `left` for the (rare) sideways
+                    scroll, `top` so the rotated names stay on screen while the rows
+                    below them scroll past. z stays under the app's top bar (z-30). */}
+                <th style={{ top: stickyTop }} className="sticky left-0 z-20 bg-bg-default transition-[top] duration-300 ease-out-expo" />
                 {rows.map((c) => (
-                  <th key={c.id} className="p-0 align-bottom">
-                    <div className="mx-auto flex h-24 w-11 items-center justify-center overflow-visible">
+                  <th key={c.id} style={{ top: stickyTop }} className="sticky z-10 bg-bg-default p-0 align-bottom transition-[top] duration-300 ease-out-expo">
+                    {/* The block's *width* follows the cell; its height does not. A rotated
+                        label's vertical extent is the length of the name, which the cell
+                        width has nothing to say about — and an elastic height would make
+                        the whole matrix jump up and down as the Mode filter changes the
+                        player set. 96px is the budget for the longest name. */}
+                    <div className="mx-auto flex h-24 items-center justify-center overflow-visible" style={{ width: matrixCell }}>
                       <span className="-rotate-90 whitespace-nowrap text-xs font-medium text-text-muted">{c.name}</span>
                     </div>
                   </th>
@@ -368,9 +440,9 @@ export default function H2HView({ mode, scope, rows, subView, selectedId, onSele
               </tr>
             </thead>
             <tbody>
-              {rows.map((r) => (
+              {rows.map((r, i) => (
                 <tr key={r.id}>
-                  <th className="sticky left-0 z-10 bg-bg-default pr-2 text-right">
+                  <th ref={i === 0 ? nameColRef : undefined} className="sticky left-0 z-10 bg-bg-default pr-2 text-right">
                     <button
                       type="button"
                       onClick={() => onSelect(r.id)}
@@ -381,21 +453,26 @@ export default function H2HView({ mode, scope, rows, subView, selectedId, onSele
                     </button>
                   </th>
                   {rows.map((c) => {
-                    if (r.id === c.id) return <td key={c.id} className="h-11 w-11 rounded-md bg-bg-card-chip/30" />;
+                    const box = { width: matrixCell, height: matrixCell };
+                    // `p-0`: a `<td>` carries 1px of user-agent padding, which made every
+                    // column two pixels wider than it asked to be — invisible while the
+                    // cell was a fixed 44, fatal to arithmetic that has to add up to the
+                    // box's width. The gutter is now `border-spacing` and nothing else.
+                    if (r.id === c.id) return <td key={c.id} style={box} className="p-0 rounded-md bg-bg-card-chip/30" />;
                     const v = cell(r.id, c.id);
-                    if (!v) return <td key={c.id} className="h-11 w-11 rounded-md bg-bg-card-chip/15 text-center text-xs text-text-muted">–</td>;
+                    if (!v) return <td key={c.id} style={box} className="p-0 rounded-md bg-bg-card-chip/15 text-center text-xs text-text-muted">–</td>;
                     return (
-                      <td key={c.id}>
+                      <td key={c.id} style={box} className="p-0">
                         <button
                           type="button"
                           onClick={() => onOpenMatchup(r.id, c.id)}
                           title={`${r.name} vs ${c.name} — open matches`}
                           aria-label={`${r.name} vs ${c.name}: ${v.w}-${v.d}-${v.l} — open matches`}
                           className={
-                            "focus-ring grid h-11 w-11 cursor-pointer place-items-center rounded-md text-xs font-semibold leading-none text-white transition hover:brightness-125 active:scale-[0.97] " +
+                            "h2h-cell focus-ring grid cursor-pointer place-items-center rounded-md text-xs font-semibold leading-none transition active:scale-[0.97] " +
                             (matrixMetric === "wdl" ? "tracking-tight" : "")
                           }
-                          style={{ backgroundColor: cellColor(v) }}
+                          style={{ ...cellRamp(v), ...box }}
                         >
                           {cellText(v)}
                         </button>

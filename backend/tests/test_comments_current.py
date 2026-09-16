@@ -334,6 +334,52 @@ def test_comment_image_editor_or_admin_and_image_only_comment_allowed(client, ed
     assert r6.status_code == 400, r6.text
 
 
+def test_comment_image_follows_the_text_edit_rule(client, editor_headers, admin_headers):
+    """Replacing/deleting an image obeys the same rule as editing the text: author (in the
+    window) or admin -- an editor may not touch someone else's picture."""
+    p1 = client.post("/players", json={"display_name": "IA1"}, headers=admin_headers).json()["id"]
+    p2 = client.post("/players", json={"display_name": "IA2"}, headers=admin_headers).json()["id"]
+
+    tid = client.post(
+        "/tournaments",
+        json={"name": "comments-image-auth", "mode": "1v1", "player_ids": [p1, p2]},
+        headers=editor_headers,
+    ).json()["id"]
+
+    files = {"file": ("comment.webp", b"fakewebpdata", "image/webp")}
+
+    # A comment authored by the admin.
+    cid = client.post(f"/tournaments/{tid}/comments", json={"body": "admins"}, headers=admin_headers).json()["id"]
+
+    r_reader = client.put(f"/comments/{cid}/image", files=files)
+    assert r_reader.status_code in (401, 403), r_reader.text
+
+    r_editor = client.put(f"/comments/{cid}/image", files=files, headers=editor_headers)
+    assert r_editor.status_code == 403, r_editor.text
+    assert r_editor.json()["detail"] == "You can only edit your own comment within an hour of posting"
+
+    r_author = client.put(f"/comments/{cid}/image", files=files, headers=admin_headers)
+    assert r_author.status_code == 200, r_author.text
+    assert r_author.json()["has_image"] is True
+
+    r_del_editor = client.delete(f"/comments/{cid}/image", headers=editor_headers)
+    assert r_del_editor.status_code == 403, r_del_editor.text
+    assert client.get(f"/comments/{cid}/image").status_code == 200
+
+    # The editor's own fresh comment: their picture, their call -- and the admin may still step in.
+    cid_own = client.post(f"/tournaments/{tid}/comments", json={"body": "mine"}, headers=editor_headers).json()["id"]
+
+    r_own = client.put(f"/comments/{cid_own}/image", files=files, headers=editor_headers)
+    assert r_own.status_code == 200, r_own.text
+
+    r_admin_replace = client.put(f"/comments/{cid_own}/image", files=files, headers=admin_headers)
+    assert r_admin_replace.status_code == 200, r_admin_replace.text
+
+    r_own_delete = client.delete(f"/comments/{cid_own}/image", headers=editor_headers)
+    assert r_own_delete.status_code == 200, r_own_delete.text
+    assert client.get(f"/comments/{cid_own}/image").status_code == 404
+
+
 def test_shots_comment_records_stat_without_touching_score(client, editor_headers, admin_headers):
     p1 = client.post("/players", json={"display_name": "S1"}, headers=admin_headers).json()["id"]
     p2 = client.post("/players", json={"display_name": "S2"}, headers=admin_headers).json()["id"]

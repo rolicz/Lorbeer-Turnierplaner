@@ -15,7 +15,7 @@ vi.mock("../api/playerAvatars.api", () => ({
   playerAvatarUrl: (id: number) => `/players/${id}/avatar`,
 }));
 
-import { AuthProvider } from "../auth/AuthContext";
+import { AuthProvider } from "../auth/AuthProvider";
 import WhatIfSection from "../pages/live/WhatIfSection";
 
 const PLAYERS = [

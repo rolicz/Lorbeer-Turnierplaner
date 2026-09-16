@@ -8,19 +8,88 @@ from app import ws as ws_pkg
 from .conftest import create_player, create_tournament, generate
 
 
-def test_envelope_has_incrementing_seq():
-    a = ws_module._envelope("x", {"k": 1})
-    b = ws_module._envelope("y", {"k": 2})
+def test_envelope_carries_the_sequence_it_is_given():
+    a = ws_module._envelope("x", {"k": 1}, 1)
+    b = ws_module._envelope("y", {"k": 2}, 2)
     assert a["event"] == "x" and a["payload"] == {"k": 1}
     assert "ts" in a and isinstance(a["seq"], int)
     assert b["seq"] == a["seq"] + 1  # monotonic
+
+
+def test_each_channel_counts_from_one_on_its_own(monkeypatch):
+    """
+    A9: the sequence is a per-channel promise ("you missed something"), so the
+    numbers one client sees must not move because another channel broadcast.
+    """
+    mgr = ws_module.WSManager()
+    sent: dict[int, list[dict]] = {5: [], 9: []}
+
+    class _Sock:
+        def __init__(self, tid: int):
+            self.tid = tid
+
+        async def send_json(self, msg):
+            sent[self.tid].append(msg)
+
+    mgr._channels.add(5, _Sock(5))
+    mgr._channels.add(9, _Sock(9))
+
+    import asyncio
+
+    async def run():
+        await mgr.broadcast(5, "a", {})
+        await mgr.broadcast(9, "a", {})
+        await mgr.broadcast(5, "b", {})
+        await mgr.broadcast(5, "c", {})
+
+    asyncio.run(run())
+
+    assert [m["seq"] for m in sent[5]] == [1, 2, 3]
+    assert [m["seq"] for m in sent[9]] == [1]
+
+
+def test_a_socket_that_fails_a_broadcast_is_closed_not_just_forgotten():
+    """
+    A9: dropping it from the channel alone leaves the endpoint's receive loop
+    answering its pings, so the client shows "live" forever and never resyncs.
+    """
+    mgr = ws_module.WSManager()
+    closed: list[int] = []
+
+    class _DeadSock:
+        async def send_json(self, msg):
+            raise RuntimeError("connection is gone")
+
+        async def close(self, code=1000):
+            closed.append(code)
+
+    class _GoodSock:
+        def __init__(self):
+            self.got = []
+
+        async def send_json(self, msg):
+            self.got.append(msg)
+
+    dead = _DeadSock()
+    good = _GoodSock()
+    mgr._channels.add(3, dead)
+    mgr._channels.add(3, good)
+
+    import asyncio
+
+    asyncio.run(mgr.broadcast(3, "tournament.sync", {}))
+
+    assert closed == [1011]
+    assert mgr._channels.sockets(3) == [good]
+    # The healthy socket still got the message.
+    assert len(good.got) == 1
 
 
 def test_envelope_payload_is_json_safe_with_datetimes():
     # serialize_tournament carries raw datetimes; the envelope must encode them
     # so ws.send_json never raises (an uncaught raise silently drops the message
     # and disconnects the client).
-    env = ws_module._envelope("tournament.sync", {"created_at": datetime(2026, 1, 2, 3, 4, 5)})
+    env = ws_module._envelope("tournament.sync", {"created_at": datetime(2026, 1, 2, 3, 4, 5)}, 1)
     json.dumps(env)  # must not raise
     assert env["payload"]["created_at"] == "2026-01-02T03:04:05"
 
@@ -88,6 +157,61 @@ def test_goal_does_not_emit_global_notification(client, editor_headers, admin_he
     assert rec.global_channel == []
 
 
+def _finish_all(client, editor_headers, tid: int) -> list[int]:
+    """Play every match out so the tournament's derived status is `done`."""
+    detail = client.get(f"/tournaments/{tid}").json()
+    mids = [int(m["id"]) for m in detail["matches"]]
+    for mid in mids:
+        client.patch(
+            f"/matches/{mid}",
+            json={"state": "finished", "sideA": {"goals": 2}, "sideB": {"goals": 1}},
+            headers=editor_headers,
+        )
+    assert client.get(f"/tournaments/{tid}").json()["status"] == "done"
+    return mids
+
+
+def test_correcting_a_done_result_reaches_the_global_channel(client, editor_headers, admin_headers, monkeypatch):
+    """
+    Q9: a score fixed after the fact moves no status, so nothing used to announce it —
+    and the tournaments list's winner, the cup owner and every stat could stay wrong on
+    every other device. It now sends `action="result"`.
+    """
+    tid, _ = _live_match(client, editor_headers, admin_headers)
+    mids = _finish_all(client, editor_headers, tid)
+
+    rec = _patch_ws(monkeypatch)
+    r = client.patch(f"/matches/{mids[0]}", json={"sideA": {"goals": 5}}, headers=editor_headers)
+    assert r.status_code == 200, r.text
+
+    results = [p for (ev, p) in rec.global_channel if ev == "tournaments.changed" and p.get("action") == "result"]
+    assert results, "a corrected result on a done tournament must reach the global channel"
+    assert results[-1]["tournament_id"] == tid and results[-1]["status"] == "done"
+
+
+def test_swapping_sides_on_a_done_tournament_reaches_the_global_channel(client, editor_headers, admin_headers, monkeypatch):
+    """Q9: swapping A and B on a finished match swaps who won it — same grade of change."""
+    tid, _ = _live_match(client, editor_headers, admin_headers)
+    mids = _finish_all(client, editor_headers, tid)
+
+    rec = _patch_ws(monkeypatch)
+    r = client.patch(f"/matches/{mids[0]}/swap-sides", headers=editor_headers)
+    assert r.status_code == 200, r.text
+    assert any(ev == "tournaments.changed" and p.get("action") == "result" for (ev, p) in rec.global_channel)
+
+
+def test_swapping_sides_mid_tournament_stays_off_the_global_channel(client, editor_headers, admin_headers, monkeypatch):
+    """…but while the tournament is still running it changes no result that anything reads."""
+    tid, mid = _live_match(client, editor_headers, admin_headers)
+    client.patch(f"/matches/{mid}", json={"state": "playing", "sideA": {"goals": 1}}, headers=editor_headers)
+
+    rec = _patch_ws(monkeypatch)
+    r = client.patch(f"/matches/{mid}/swap-sides", headers=editor_headers)
+    assert r.status_code == 200, r.text
+    assert any(ev == "tournament.sync" for (_, ev, _) in rec.tournament_channel)
+    assert rec.global_channel == []
+
+
 def test_comment_create_pushes_upsert(client, editor_headers, admin_headers, monkeypatch):
     tid, _ = _live_match(client, editor_headers, admin_headers)
     rec = _patch_ws(monkeypatch)
@@ -116,3 +240,55 @@ def test_comment_vote_pushes_meta_not_full(client, editor_headers, admin_headers
     metas = [p for (chan, ev, p) in rec.tournament_channel if ev == "comment.meta" and chan == tid]
     assert any(p.get("action") == "voted" for p in metas)
     assert not any(ev == "comment.upsert" for (_, ev, _) in rec.tournament_channel)
+
+
+def test_comment_create_and_delete_move_the_global_badge(client, editor_headers, admin_headers, monkeypatch):
+    """A5: the tournaments list is only on the coarse channel, and its unread badge counts comments."""
+    tid, _ = _live_match(client, editor_headers, admin_headers)
+    rec = _patch_ws(monkeypatch)
+
+    cid = client.post(f"/tournaments/{tid}/comments", json={"body": "badge me"}, headers=editor_headers).json()["id"]
+    created = [p for (ev, p) in rec.global_channel if ev == "tournaments.changed" and p.get("action") == "comment"]
+    assert created, "a new comment must reach the global channel"
+    assert created[-1]["tournament_id"] == tid
+
+    rec.global_channel.clear()
+    r = client.delete(f"/comments/{cid}", headers=admin_headers)
+    assert r.status_code == 200, r.text
+    deleted = [p for (ev, p) in rec.global_channel if ev == "tournaments.changed" and p.get("action") == "comment"]
+    assert deleted, "a deleted comment must stop being counted"
+    assert deleted[-1]["tournament_id"] == tid
+
+
+class _ProfileRecorder:
+    def __init__(self):
+        self.sent: list[tuple[int, str, dict]] = []
+
+    async def broadcast(self, player_id, event, payload):
+        self.sent.append((int(player_id), event, payload))
+
+
+def test_guestbook_writes_reach_the_profile_channel(client, admin_headers, monkeypatch):
+    """A5: `/ws/players/{id}` is named "pokes / guestbook" — the guestbook half sent nothing."""
+    pid = create_player(client, admin_headers, "GbProfile")
+    rec = _ProfileRecorder()
+    monkeypatch.setattr(ws_pkg.ws_manager_player_profiles, "broadcast", rec.broadcast)
+
+    created = client.post(f"/players/{pid}/guestbook", json={"body": "hi there"}, headers=admin_headers)
+    assert created.status_code == 200, created.text
+    entry_id = int(created.json()["id"])
+
+    def actions() -> list[str]:
+        return [p["action"] for (chan, ev, p) in rec.sent if ev == "player:guestbook:update" and chan == pid]
+
+    assert actions() == ["created"]
+    assert rec.sent[-1][2]["entry_id"] == entry_id
+
+    edited = client.patch(f"/players/guestbook/{entry_id}", json={"body": "edited"}, headers=admin_headers)
+    assert edited.status_code == 200, edited.text
+    voted = client.put(f"/players/guestbook/{entry_id}/vote", json={"value": 1}, headers=admin_headers)
+    assert voted.status_code == 200, voted.text
+    removed = client.delete(f"/players/guestbook/{entry_id}", headers=admin_headers)
+    assert removed.status_code == 204, removed.text
+
+    assert actions() == ["created", "updated", "voted", "deleted"]

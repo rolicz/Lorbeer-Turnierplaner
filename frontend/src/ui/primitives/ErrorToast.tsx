@@ -61,6 +61,12 @@ export function ErrorToastOnError({
   return null;
 }
 
+/**
+ * The one mount. It floats above the bottom tab bar, and when the keyboard hides that
+ * bar (Q2) the toast drops with it and sits on the keyboard's top edge instead of
+ * disappearing: an error you cannot see is worse than a filter you cannot reach, so
+ * unlike the filter pill this surface never hides.
+ */
 export function ErrorToastViewport() {
   const [items, setItems] = useState<ToastItem[]>([]);
 
@@ -87,12 +93,12 @@ export function ErrorToastViewport() {
   if (!items.length) return null;
 
   return (
-    <div className="pointer-events-none fixed bottom-[calc(4.5rem+env(safe-area-inset-bottom,0px))] right-4 z-[70] flex max-w-[min(92vw,420px)] flex-col gap-2 lg:bottom-4">
+    <div className="pointer-events-none fixed bottom-nav-clear right-4 z-[70] flex max-w-[min(92vw,420px)] flex-col gap-2 pr-safe-r lg:bottom-4">
       {items.map((t) => (
         <div key={t.id} className="pointer-events-auto card p-2 shadow-xl">
           {/* not CardSection: custom py-2 padding and a flex layout. */}
           <div className="inset flex items-start gap-2 py-2">
-            <CircleAlert size={14} className="mt-0.5 shrink-0 text-[color:rgb(var(--delta-down)/1)]" aria-hidden="true" />
+            <CircleAlert size={14} className="mt-0.5 shrink-0 text-error" aria-hidden="true" />
             <div className="min-w-0 flex-1">
               <div className="text-xs font-semibold text-text-normal">{t.title}</div>
               <div className="mt-0.5 break-anywhere text-xs text-text-muted">{t.message}</div>

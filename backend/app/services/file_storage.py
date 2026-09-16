@@ -42,6 +42,11 @@ def media_path_for_comment(comment_id: int, content_type: str) -> str:
     return f"comments/{int(comment_id)}.{ext}"
 
 
+def media_path_for_idea(request_id: int, content_type: str) -> str:
+    ext = _ext_from_content_type(content_type)
+    return f"ideas/{int(request_id)}.{ext}"
+
+
 def media_path_for_profile_header(player_id: int, content_type: str) -> str:
     ext = _ext_from_content_type(content_type)
     return f"profile_headers/{int(player_id)}.{ext}"

@@ -1,4 +1,12 @@
-/** Player tab — radar, key-number tiles and match history for one player. */
+/**
+ * Player tab — radar, key-number tiles and match history for one player.
+ *
+ * Every block is a `StatsSection` (DESIGN.md §6 "Stats sub-view skeleton"), like every
+ * other stats sub-view: the blocks used to be `card`s with their own `<h2>`, which made
+ * this the one section of the stats page written in a different header language — and
+ * a different one again from the profile's Stats tab, which shows the same three blocks
+ * (A8). The identity block above them stays a `card`, exactly as the matchup's header is.
+ */
 import { useCallback, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
@@ -17,6 +25,7 @@ import { usePlayerColors } from "./usePlayerColors";
 import { Sparkline, Radar } from "./charts";
 import { ChipGroup, chipClass } from "../../ui/primitives/Chip";
 import { PlayerPicker } from "./PlayerPicker";
+import StatsSection from "./StatsSection";
 import { MatchHistoryList, tournamentMatchHref } from "./MatchHistoryList";
 import PlayerStreakChips from "./PlayerStreakChips";
 import { StarsSection } from "./StarsView";
@@ -111,8 +120,7 @@ export default function PlayerProfile({ mode, scope, rows, selectedId, onSelect 
             </div>
           </div>
 
-          <div className="card">
-            <h2 className="mb-2 text-sm font-semibold text-text-normal">Key numbers</h2>
+          <StatsSection label="Key numbers">
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
               <StatTile label="Played" value={String(row.played)} />
               <StatTile label="Win rate" value={row.played ? `${Math.round((row.wins / row.played) * 100)}%` : "—"} />
@@ -121,13 +129,11 @@ export default function PlayerProfile({ mode, scope, rows, selectedId, onSelect 
               <StatTile label="Conceded / match" value={row.played ? (row.ga / row.played).toFixed(2) : "—"} />
               <StatTile label="Goal diff" value={row.gd >= 0 ? `+${row.gd}` : String(row.gd)} />
             </div>
-          </div>
+          </StatsSection>
 
-          <div className="card">
-            <h2 className="text-sm font-semibold text-text-normal">Profile net</h2>
+          <StatsSection label="Profile net" explainer="Strengths relative to the field.">
             <div className="flex flex-col items-center">
               <Radar series={radarSeries} />
-              <div className="text-xs text-text-muted">Strengths relative to the field.</div>
             </div>
             {/* Overlay other players, each in their consistent colour. */}
             <div className="mt-2">
@@ -151,32 +157,31 @@ export default function PlayerProfile({ mode, scope, rows, selectedId, onSelect 
                 })}
               </div>
             </div>
-          </div>
+          </StatsSection>
 
-          <div className="card">
-            <h2 className="mb-2 text-sm font-semibold text-text-normal">Club stars</h2>
+          <StatsSection label="Club stars">
             <StarsSection mode={mode} scope={scope} playerId={row.id} />
-          </div>
+          </StatsSection>
 
-          <div className="card">
-            <h2 className="mb-2 text-sm font-semibold text-text-normal">Streaks · current / record</h2>
+          <StatsSection label="Streaks · current / record">
             <PlayerStreakChips categories={streaksQ.data?.categories ?? []} globalCategories={streaksGlobalQ.data?.categories ?? []} />
-          </div>
+          </StatsSection>
 
-          <div className="card">
-            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-              <h2 className="text-sm font-semibold text-text-normal">Match history</h2>
+          <StatsSection
+            label="Match history"
+            action={
               <ChipGroup<"compact" | "details">
                 value={details ? "details" : "compact"}
                 onChange={(v) => setDetails(v === "details")}
                 ariaLabel="Match details"
                 options={[{ key: "compact", label: "Compact" }, { key: "details", label: "Details" }]}
               />
-            </div>
+            }
+          >
             {matchesQ.isLoading && !matchesQ.data ? <InlineLoading label="Loading…" /> :
               tournaments.length ? <MatchHistoryList tournaments={tournaments} clubs={clubsQ.data ?? []} focusId={row.id} showMeta={details} showModePill={mode === "overall"} matchHref={tournamentMatchHref} /> :
                 <EmptyState title="No matches yet." className="py-2" />}
-          </div>
+          </StatsSection>
         </>
       )}
     </div>

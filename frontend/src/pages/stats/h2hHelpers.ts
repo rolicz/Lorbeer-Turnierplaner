@@ -1,4 +1,10 @@
-/** Pure helpers for the Head-to-Head card (unit-tested). */
+/**
+ * Pure helpers for the Head-to-Head card (unit-tested).
+ *
+ * The matrix's geometry is **not** here: it moved to `microGrid.ts` (Q3), which the
+ * positions grid shares — `DESIGN.md` §4 calls the two the same thing, and they now
+ * compute their column widths with the same arithmetic.
+ */
 import type { StatsH2HTeamRivalry } from "../../api/types";
 
 /** Stable key for a duo, order-independent (sorted player ids joined). */

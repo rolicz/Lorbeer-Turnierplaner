@@ -4,7 +4,7 @@
  */
 import { useSyncExternalStore, type ReactNode } from "react";
 
-import { RealtimeStatusProvider } from "../../ui/RealtimeStatusContext";
+import { RealtimeStatusProvider } from "../../ui/RealtimeStatusProvider";
 import { getStatus, subscribeStatus } from "./connection";
 
 export function RealtimeProvider({ children }: { children: ReactNode }) {

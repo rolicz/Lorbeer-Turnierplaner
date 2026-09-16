@@ -1,6 +1,6 @@
-import type { MatchSide, StatsMatch } from "./api/types";
+import type { StatsMatch, StatsMatchSide } from "./api/types";
 
-export function sideBy(m: StatsMatch, side: "A" | "B"): MatchSide | undefined {
+export function sideBy(m: StatsMatch, side: "A" | "B"): StatsMatchSide | undefined {
   return m.sides.find((s) => s.side === side);
 }
 

@@ -1,18 +1,22 @@
 import { useMemo, useState } from "react";
 import type { ReactNode } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Eraser, RotateCw, ShieldHalf, Star } from "lucide-react";
 
 import ClubBadge from "../ui/ClubBadge";
+import ClubStarHistory from "../ui/ClubStarHistory";
 import NationFlag from "../ui/NationFlag";
 import { nationalTeamNation } from "../ui/nationalTeams";
 import FormLabel from "../ui/primitives/FormLabel";
 import Input from "../ui/primitives/Input";
 import Button from "../ui/primitives/Button";
 import CollapsibleCard from "../ui/primitives/CollapsibleCard";
+import ConfirmDialog from "../ui/primitives/ConfirmDialog";
 import SegmentedSwitch from "../ui/primitives/SegmentedSwitch";
 import { ErrorToastOnError } from "../ui/primitives/ErrorToast";
 import PageLoadingScreen from "../ui/primitives/PageLoadingScreen";
+import InlineLoading from "../ui/primitives/InlineLoading";
+import EmptyState from "../ui/primitives/EmptyState";
 import { useRouteEntryLoading } from "../ui/layout/useRouteEntryLoading";
 import PageLayout from "../ui/layout/PageLayout";
 import { SectionTabs, type SectionTab } from "../ui/SectionTabs";
@@ -113,9 +117,11 @@ export default function ClubsPage() {
   const isEditorOrAdmin = role === "editor" || role === "admin";
   const canEdit = isEditorOrAdmin;
 
-  const [rawTab, setTab] = useTabParam<ClubTab>(CLUB_TAB_KEYS, "browse");
-  // The "new" tab needs editor rights; a stale/hand-typed deep link falls back.
-  const tab: ClubTab = rawTab === "new" && !canEdit ? "browse" : rawTab;
+  // The "new" tab needs editor rights; a stale/hand-typed deep link falls back to
+  // "browse" *and* loses the param, so nothing remembers it (A9).
+  const [tab, setTab] = useTabParam<ClubTab>(CLUB_TAB_KEYS, "browse", "tab", {
+    allowed: canEdit ? CLUB_TAB_KEYS : (["browse"] as const),
+  });
   const clubTabs: SectionTab<ClubTab>[] = [
     { key: "browse", label: "Clubs", icon: <List size={14} /> },
     ...(canEdit ? [{ key: "new" as ClubTab, label: "New club", icon: <Plus size={14} /> }] : []),
@@ -137,6 +143,9 @@ export default function ClubsPage() {
   const clubsQ = useQuery({
     queryKey: qk.clubs(game),
     queryFn: () => listClubs(game),
+    // Switching game is a filter, not a different subject: keep the list on screen
+    // while the other game loads instead of emptying the page under the picker (Q9).
+    placeholderData: keepPreviousData,
   });
 
   const leaguesQ = useQuery({
@@ -185,11 +194,15 @@ export default function ClubsPage() {
     },
     onSuccess: async () => {
       setName("");
-      await qc.invalidateQueries({ queryKey: qk.clubs(game) });
+      // `qk.clubs()` = ["clubs"] is the PREFIX: it matches this page's
+      // ["clubs", game] query and the unfiltered one Stats, profiles and the
+      // friendlies list use. `qk.clubs(game)` matches only this page's (A3).
+      await qc.invalidateQueries({ queryKey: qk.clubs() });
     },
   });
 
   // Edit per club
+  const [pendingDeleteClubId, setPendingDeleteClubId] = useState<number | null>(null);
   const [editId, setEditId] = useState<number | null>(null);
   const [editStars, setEditStars] = useState("4.0");
   const [editLeagueId, setEditLeagueId] = useState<number | "">("");
@@ -218,7 +231,7 @@ export default function ClubsPage() {
     },
     onSuccess: async () => {
       setEditId(null);
-      await qc.invalidateQueries({ queryKey: qk.clubs(game) });
+      await qc.invalidateQueries({ queryKey: qk.clubs() });
     },
   });
 
@@ -228,7 +241,7 @@ export default function ClubsPage() {
       return deleteClub(token, clubId);
     },
     onSuccess: async () => {
-      await qc.invalidateQueries({ queryKey: qk.clubs(game) });
+      await qc.invalidateQueries({ queryKey: qk.clubs() });
     },
   });
 
@@ -265,6 +278,11 @@ export default function ClubsPage() {
     if (groupMode === "league") return groupByLeague(filteredClubs, leaguesById);
     return groupByStars(filteredClubs, leaguesById);
   }, [filteredClubs, leaguesById, groupMode]);
+
+  const doomedClub = useMemo(
+    () => (pendingDeleteClubId == null ? null : clubs.find((c) => c.id === pendingDeleteClubId) ?? null),
+    [clubs, pendingDeleteClubId],
+  );
 
   const initialLoading =
     !pageEntered ||
@@ -419,16 +437,16 @@ export default function ClubsPage() {
       <section className="space-y-2">
         <div className="flex items-center justify-between gap-2 text-xs text-text-muted">
           <span>{filteredClubs.length} of {clubs.length} clubs</span>
-          <Button variant="ghost" onClick={() => void qc.invalidateQueries({ queryKey: qk.clubs(game) })} title="Refresh">
+          <Button variant="ghost" onClick={() => void qc.invalidateQueries({ queryKey: qk.clubs() })} title="Refresh">
             <RotateCw size={14} className="md:hidden" aria-hidden="true" />
             <span className="hidden md:inline">Refresh</span>
           </Button>
         </div>
 
-        {clubsQ.isLoading ? <div className="text-text-muted">Loading…</div> : null}
+        {clubsQ.isLoading ? <InlineLoading /> : null}
 
         {!clubsQ.isLoading && grouped.length === 0 ? (
-          <div className="px-1 py-6 text-sm text-text-muted">No clubs match the current filters.</div>
+          <EmptyState title="No clubs match the current filters." className="px-1 py-6" />
         ) : null}
 
         <div className="divide-y divide-border-card-chip/30">
@@ -475,7 +493,9 @@ export default function ClubsPage() {
                               <div className="mt-0.5 flex flex-wrap items-center text-xs text-text-muted">
                                 {metaParts.map((part, i) => (
                                   <span key={i} className="inline-flex items-center">
-                                    {i > 0 ? <span className="mx-1.5 text-text-muted/40">·</span> : null}
+                                    {/* Spacing, not a third tone — it inherits the meta
+                                        line's `text-text-muted` (R3). */}
+                                    {i > 0 ? <span className="mx-1.5">·</span> : null}
                                     {part}
                                   </span>
                                 ))}
@@ -501,11 +521,7 @@ export default function ClubsPage() {
                               {isAdmin ? (
                                 <Button
                                   variant="ghost"
-                                  onClick={() => {
-                                    const ok = window.confirm(`Delete club "${c.name}"? (Will fail if used in matches)`);
-                                    if (!ok) return;
-                                    deleteMut.mutate(c.id);
-                                  }}
+                                  onClick={() => setPendingDeleteClubId(c.id)}
                                   disabled={deleteMut.isPending}
                                   type="button"
                                 >
@@ -560,7 +576,11 @@ export default function ClubsPage() {
                                 </label>
                               </div>
 
-                              <div className="mt-2 flex items-center gap-2">
+                              {/* A star change appends to the record; the record is
+                                  right here so that is visible (R4). */}
+                              <ClubStarHistory clubId={c.id} className="mt-3" />
+
+                              <div className="mt-3 flex items-center gap-2">
                                 <Button onClick={() => patchMut.mutate()} disabled={patchMut.isPending}>
                                   {patchMut.isPending ? "Saving…" : "Save"}
                                 </Button>
@@ -582,6 +602,33 @@ export default function ClubsPage() {
       </section>
       </div>
       ) : null}
+
+      {/* A club only goes when nothing played with it — the dialog says so before you
+          press, instead of the 409 telling you afterwards (DESIGN.md §7). */}
+      <ConfirmDialog
+        open={!!doomedClub}
+        title="Delete this club?"
+        subtitle="Only a club that no match and no friendly uses can be removed."
+        confirmLabel="Delete club"
+        busy={deleteMut.isPending}
+        onCancel={() => setPendingDeleteClubId(null)}
+        onConfirm={() => {
+          if (pendingDeleteClubId == null) return;
+          const clubId = pendingDeleteClubId;
+          setPendingDeleteClubId(null);
+          deleteMut.mutate(clubId);
+        }}
+      >
+        <div>
+          {doomedClub?.name} · {doomedClub ? leagueNameForClub(doomedClub, leaguesById) : "—"} ·{" "}
+          {starsLabel(doomedClub?.star_rating)}★
+        </div>
+        <div>Its crest and its star rating go with it.</div>
+        <div>
+          Used in a tournament match or a friendly, it stays: the delete is refused and nothing
+          changes.
+        </div>
+      </ConfirmDialog>
     </PageLayout>
   );
 }

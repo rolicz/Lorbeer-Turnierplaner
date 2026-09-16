@@ -175,6 +175,22 @@ class ClubOut(BaseModel):
     crest_updated_at: datetime | None
 
 
+class ClubStarHistoryEntryOut(BaseModel):
+    """One recorded rating. Valid from `valid_from` until the next entry."""
+    stars: float
+    valid_from: date
+    changed_at: datetime
+    # "live" (a star edit), "seed" (the club's opening row) or "recovered"
+    # (reconstructed from a backup snapshot — the day is an upper bound, not exact).
+    source: str
+
+
+class ClubStarHistoryOut(BaseModel):
+    club_id: int
+    current_stars: float
+    entries: list[ClubStarHistoryEntryOut]
+
+
 class ClubCrestMetaOut(BaseModel):
     club_id: int
     updated_at: datetime
@@ -197,6 +213,11 @@ class FriendlyOut(BaseModel):
     created_at: datetime
     updated_at: datetime
     sides: list[FriendlySideOut]
+    # Per-caller capability flags (A10). Computed server-side against server time, so the
+    # client renders its controls from these instead of re-deriving the rule. Viewer-less
+    # paths (a reader, the websocket broadcast) get False.
+    can_edit: bool = False
+    can_delete: bool = False
 
 
 # ---- matches -----------------------------------------------------------
@@ -252,6 +273,53 @@ class CommentReadMapOut(BaseModel):
 
 class PinnedCommentOut(BaseModel):
     pinned_comment_id: int | None
+
+
+# ---- ideas / feature requests ------------------------------------------
+class IdeaAreaOut(BaseModel):
+    key: str
+    label: str
+    #: False for a retired area: it still labels the old requests that name it,
+    #: but it is not offered when writing a new one (`app/feature_areas.py`).
+    selectable: bool
+
+
+class IdeaAreasOut(BaseModel):
+    areas: list[IdeaAreaOut]
+
+
+class IdeaOut(BaseModel):
+    id: int
+    author_player_id: int
+    author_display_name: str
+    title: str
+    body: str
+    kind: str
+    status: str
+    status_note: str
+    #: Raw area keys, in catalog order. A key this build no longer knows is still
+    #: returned — the client labels it with the key itself rather than dropping it.
+    areas: list[str]
+    created_at: datetime
+    updated_at: datetime
+    #: When the author's own text last changed — `updated_at` also moves for a
+    #: status change or an image, so only this one may say "edited".
+    edited_at: datetime | None
+    has_image: bool
+    image_updated_at: datetime | None
+    votes: int
+    #: 0 or 1 — an idea takes a "+1", never a downvote.
+    my_vote: int
+    # Per-caller capability flags (R5, the A10 pattern). Computed server-side, so the
+    # page renders its controls from these and never re-derives the rule. A reader
+    # (and every viewer-less path) gets False.
+    can_edit: bool = False
+    can_delete: bool = False
+    can_set_status: bool = False
+
+
+class IdeaListOut(BaseModel):
+    ideas: list[IdeaOut]
 
 
 # ---- tournaments -------------------------------------------------------
@@ -326,6 +394,12 @@ class TournamentDetailOut(BaseModel):
     decider_loser_player_id: int | None
     decider_winner_goals: int | None
     decider_loser_goals: int | None
+    # Per-caller capability flags (A10). Computed server-side against server time, so the
+    # client renders its controls from these instead of re-deriving the rule. Viewer-less
+    # paths (a reader, the websocket broadcast) get False.
+    can_edit: bool = False
+    can_delete: bool = False
+    can_set_decider: bool = False
 
 
 class TournamentListItemOut(TournamentSummaryOut):
@@ -333,6 +407,12 @@ class TournamentListItemOut(TournamentSummaryOut):
     winner_string: str | None
     winner_decider_string: str | None
     participants: list[PlayerRef]
+    # Per-caller capability flags (A10). Computed server-side against server time, so the
+    # client renders its controls from these instead of re-deriving the rule. Viewer-less
+    # paths (a reader, the websocket broadcast) get False.
+    can_edit: bool = False
+    can_delete: bool = False
+    can_set_decider: bool = False
 
 
 class TournamentLiveOut(BaseModel):
@@ -363,6 +443,15 @@ class DeciderResultOut(BaseModel):
     decider_loser_player_id: int | None
     decider_winner_goals: int | None
     decider_loser_goals: int | None
+
+
+class ReassignPreviewOut(BaseModel):
+    """What a 2v2 re-assign would clear, counted before it is asked for (Q5)."""
+
+    matches: int
+    matches_with_score: int
+    matches_with_club: int
+    comments: int
 
 
 class ReassignResultOut(BaseModel):
@@ -503,6 +592,18 @@ class OddsResponseOut(BaseModel):
 
 
 # ---- stats: H2H and match history -------------------------------------
+class StatsMatchSideOut(MatchSideOut):
+    """
+    A match side as stats sees it: the club's rating **on the day the match was
+    played** (R4), not today's. `None` when the side had no club — or, for a very
+    old database, when the club has no recorded history at all.
+
+    Deliberately not on `MatchSideOut` itself: a live tournament shows the rating a
+    club has *now*, which is the same question the picker and the odds ask.
+    """
+    club_stars: float | None = None
+
+
 class StatsMatchOut(BaseModel):
     """Match inside a stats response — no tournament_id or odds."""
     id: int
@@ -511,7 +612,7 @@ class StatsMatchOut(BaseModel):
     state: str
     started_at: datetime | None
     finished_at: datetime | None
-    sides: list[MatchSideOut]
+    sides: list[StatsMatchSideOut]
 
 
 class StatsTournamentMatchesOut(BaseModel):
@@ -685,6 +786,7 @@ class StatsPlayerRowOut(BaseModel):
 class StatsPlayersOut(BaseModel):
     generated_at: datetime
     mode: str
+    scope: str
     cup_owner_player_id: int | None
     tournaments: list[StatsPlayersTournamentOut]
     players: list[StatsPlayerRowOut]

@@ -170,3 +170,26 @@ class PushSubscriptionBody(BaseModel):
 
 class PushSubscriptionDeleteBody(BaseModel):
     endpoint: str
+
+
+class IdeaCreateBody(BaseModel):
+    title: str = ""
+    body: str = ""
+    kind: str = "feature"
+    areas: list[str] = Field(default_factory=list)
+
+
+class IdeaPatchBody(BaseModel):
+    title: str | None = None
+    body: str | None = None
+    kind: str | None = None
+    areas: list[str] | None = None
+
+
+class IdeaStatusBody(BaseModel):
+    status: str = ""
+    note: str | None = None
+
+
+class IdeaVoteBody(BaseModel):
+    value: int | str | None = 0

@@ -1,5 +1,5 @@
 /** Positions tab — players × tournaments grid with cup-lineage overlay. */
-import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { keepPreviousData, useQueries, useQuery } from "@tanstack/react-query";
 import { Clock, Crown, Flag } from "lucide-react";
@@ -16,10 +16,12 @@ import { usePlayerAvatarMap } from "../../hooks/usePlayerAvatarMap";
 import { fmtRank } from "../../utils/format";
 import StatsSection from "./StatsSection";
 import { InfoButton } from "./explainers";
+import { POS_CELL_H, POS_GAP, POS_HEADER_H, positionsGridWidths } from "./microGrid";
+import { useStickyTop } from "../../ui/shell/useStickyTop";
 import type { StatsMode } from "./statsMode";
 
-/** What the cell colours, the "—" tile and the column shading mean. */
-function InfoLegend() {
+/** What the cell colours, the "—" tile, the cup lineage and the column shading mean. */
+function InfoLegend({ cups }: { cups: { key: string; name: string; color: string }[] }) {
   return (
     <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
       <div className="flex flex-wrap items-center gap-2 text-xs text-text-muted">
@@ -49,6 +51,17 @@ function InfoLegend() {
           </span>
           <span>winner</span>
         </span>
+        {cups.map((c) => (
+          <span key={c.key} className="inline-flex items-center gap-2">
+            {/* The swatch is the line itself — a diagonal hop, drawn with the stroke and
+                the cap the grid uses, because a vertical bar would promise the rails the
+                lineage stopped being. */}
+            <svg width="16" height="12" viewBox="0 0 16 12" aria-hidden="true">
+              <line x1="1.5" y1="10.5" x2="14.5" y2="1.5" stroke={c.color} strokeWidth="2.5" strokeLinecap="round" opacity="0.9" />
+            </svg>
+            <span>held the {c.name}</span>
+          </span>
+        ))}
       </div>
 
       <div className="flex items-center gap-2 text-xs text-text-muted">
@@ -176,16 +189,69 @@ export default function PositionsView({ mode }: { mode: StatsMode }) {
     return out;
   }, [cupDefs, cupsQ, q.data?.tournaments]);
 
-  // Grid geometry (fixed sizes so the overlay line can be positioned analytically).
-  const nameW = 128, headerH = 60, cellW = 40, cellH = 42, gap = 4;
-  const gridW = nameW + players.length * (cellW + gap);
+  /**
+   * Grid geometry (Q3). The column widths are **measured**, not fixed: the grid takes the
+   * width the page gives it (`positionsGridWidths`), so it needs no `overflow-x-auto` box
+   * — and without that box the header can stick to the page instead of to a wrapper that
+   * never scrolls. The overlay below is still positioned analytically; it just reads the
+   * same two numbers the grid tracks are built from.
+   *
+   * Only the box is observed. Nothing inside the grid feeds back into its width (every
+   * track is an explicit pixel value), so there is no loop to get into.
+   */
+  const boxRef = useRef<HTMLDivElement | null>(null);
+  const boxRoRef = useRef<ResizeObserver | null>(null);
+  const [boxW, setBoxW] = useState(0);
+  const measureBox = useCallback(() => {
+    const w = boxRef.current?.clientWidth ?? 0;
+    setBoxW((prev) => (prev === w ? prev : w));
+  }, []);
+  /* A callback ref, not a dependency array: this view unmounts whenever another stats
+     sub-view is up and comes back with unchanged data, so an effect keyed on the data
+     would hand the returning grid a stale zero (R1b hit the same thing on the matrix). */
+  const attachBox = useCallback((el: HTMLDivElement | null) => {
+    boxRef.current = el;
+    boxRoRef.current?.disconnect();
+    boxRoRef.current = null;
+    if (!el) return;
+    measureBox();
+    if (typeof ResizeObserver === "undefined") return; // jsdom: the read above is enough
+    const ro = new ResizeObserver(measureBox);
+    ro.observe(el);
+    boxRoRef.current = ro;
+  }, [measureBox]);
+  useEffect(() => () => boxRoRef.current?.disconnect(), []);
+  /* The header docks under the mobile top bar and rides to the very top when that bar
+     auto-hides; on desktop there is no bar and this is 0. */
+  const stickyTop = useStickyTop();
+
+  const { nameW, cellW, gridW, fits } = positionsGridWidths(boxW, orderedPlayers.length);
+  const headerH = POS_HEADER_H, cellH = POS_CELL_H, gap = POS_GAP;
   const gridH = headerH + gap + tournaments.length * (cellH + gap);
   const colX = (j: number) => nameW + gap + j * (cellW + gap) + cellW / 2;
   const rowY = (i: number) => headerH + gap + i * (cellH + gap) + cellH / 2;
+  /**
+   * The cup's lineage is a line from the holder's cell to the holder's cell — the
+   * diagonal hop *is* the handover, which is why Roli wanted it back after A7
+   * replaced it (first with a gutter path that jogged sideways and read as brackets
+   * drawn around random blocks of cells, then with straight rails that said nothing
+   * about movement at all).
+   *
+   * It no longer strikes through the numbers, because it is painted **under** the
+   * tiles rather than over them: a tile is `hsl(... / 0.22)`, so the line still
+   * reads through it, while the digit and the crown sit on top untouched. That also
+   * settles the second half of A7's complaint — crossing a cell of a tournament the
+   * holder never played is fine when the line passes behind it.
+   *
+   * Rows where the cup was not at stake are skipped, so one segment can span several
+   * rows; each cup gets its own 3px-wide lane through the cell centres, so the two
+   * lines run parallel instead of one hiding the other while a single player holds both.
+   */
+  const laneX = (ci: number) => (cupDefs.length < 2 ? 0 : (ci - (cupDefs.length - 1) / 2) * 3);
 
   const laurelPolylines = useMemo(() => {
     return cupDefs
-      .map((def) => {
+      .map((def, ci) => {
         const at = ownerByCup.get(def.key);
         const pts: string[] = [];
         tournaments.forEach((t, i) => {
@@ -194,13 +260,13 @@ export default function PositionsView({ mode }: { mode: StatsMode }) {
           if (owner == null) return;
           const j = colByPlayer.get(owner);
           if (j == null) return;
-          pts.push(`${colX(j)},${rowY(i)}`);
+          pts.push(`${colX(j) + laneX(ci)},${rowY(i)}`);
         });
         return { key: def.key, color: cupColor(def.key), pts: pts.join(" ") };
       })
       .filter((l) => l.pts.includes(" "));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cupDefs, ownerByCup, tournaments, colByPlayer, players.length]);
+  }, [cupDefs, ownerByCup, tournaments, colByPlayer, players.length, nameW, cellW]);
 
   if (q.isLoading && !q.data) return <InlineLoading label="Loading…" />;
   if (!tournaments.length) return <EmptyState title="No tournaments yet." className="py-6" />;
@@ -211,7 +277,7 @@ export default function PositionsView({ mode }: { mode: StatsMode }) {
       explainer="Drag a player's icon to reorder the columns."
       action={<InfoButton on={legend} onClick={() => setLegend((v) => !v)} label="What the colours mean" />}
     >
-      {legend ? <InfoLegend /> : null}
+      {legend ? <InfoLegend cups={cupDefs.map((d) => ({ key: d.key, name: d.name, color: cupColor(d.key) }))} /> : null}
       {modeCounts.total > 0 ? (
         <div className="text-xs text-text-muted">
           {modeCounts.total} tournament{modeCounts.total === 1 ? "" : "s"}
@@ -221,13 +287,34 @@ export default function PositionsView({ mode }: { mode: StatsMode }) {
             .join("")}
         </div>
       ) : null}
-      <div className="overflow-x-auto" data-no-swipe-nav>
-        <div className="relative" style={{ width: gridW }}>
+      {/* The scroll box exists **only** when the grid cannot fit (`fits === false`), because
+          a box with `overflow-x` set is a scroll container in both axes and would take the
+          sticky header's page-scrolling away from it. `data-no-swipe-nav` is unconditional:
+          it is not here for the scroller but for the column drag, whose horizontal pointer
+          travel would otherwise read as a swipe-back gesture. */}
+      <div ref={attachBox} className={fits ? undefined : "overflow-x-auto"} data-no-swipe-nav>
+        {/* `mx-auto` centres the grid once the name column and the tiles are both at their
+            ceiling — every realistic count on desktop. When it does not fit, the
+            over-constrained auto margins resolve to 0 and the box scrolls from column 1. */}
+        <div className="relative mx-auto" style={{ width: gridW }}>
+          {/* Before the grid on purpose: both are positioned with `z-index: auto`, so DOM
+              order decides which paints on top, and the lineage has to go underneath. */}
+          {laurelPolylines.length ? (
+            <svg className="pointer-events-none absolute left-0 top-0" width={gridW} height={gridH} aria-hidden="true">
+              {laurelPolylines.map((l) => (
+                <polyline key={l.key} points={l.pts} fill="none" stroke={l.color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" opacity="0.9" />
+              ))}
+            </svg>
+          ) : null}
           <div
             className="relative"
             style={{ display: "grid", gridTemplateColumns: `${nameW}px repeat(${orderedPlayers.length}, ${cellW}px)`, columnGap: gap, rowGap: gap }}
           >
-            <div style={{ height: headerH }} className="sticky top-0 z-30 bg-bg-default" />
+            {/* The corner: sticky in both axes, and the one cell that has to beat the
+                name column (z-10). Nothing in the grid goes above z-20 — the app's top
+                bar is z-30 and must stay in front while the two cross during its
+                auto-hide transition. */}
+            <div style={{ height: headerH, top: stickyTop }} className="sticky left-0 z-20 bg-bg-default transition-[top] duration-300 ease-out-expo" />
             {orderedPlayers.map((p) => {
               const isDragging = dragId === p.player_id;
               const isOver = dragId != null && overId === p.player_id && !isDragging;
@@ -238,10 +325,20 @@ export default function PositionsView({ mode }: { mode: StatsMode }) {
                   onPointerDown={(e) => onColDown(e, p.player_id)}
                   onPointerMove={onColMove}
                   onPointerUp={onColUp}
-                  style={{ height: headerH }}
+                  /* `-gap` margin + `gap` padding: the header must be an unbroken opaque
+                     band, or the cup lineage (an SVG across the whole grid, rows included)
+                     shows through the 4px column gutters while the rows scroll behind it.
+                     The negative margin makes each cell cover the gutter to its left; the
+                     matching padding puts its content box back on the track, so the avatars
+                     stay centred over their columns. */
+                  style={{ height: headerH, top: stickyTop, marginLeft: -gap, paddingLeft: gap }}
                   className={
-                    "sticky top-0 z-30 flex cursor-grab touch-none select-none flex-col items-center justify-end gap-1 rounded-t pb-1 bg-bg-default " +
-                    (isDragging ? "opacity-40" : isOver ? "ring-2 ring-accent ring-inset" : "")
+                    /* No `rounded-t` on the resting cell: its 4px corner notches are holes
+                       in a band that now really is pinned, and the grid — tiles and cup
+                       lineage — shows through them. The radius comes back with the drop
+                       ring, which is a surface of its own rather than a hole in this one. */
+                    "sticky z-20 flex cursor-grab touch-none select-none flex-col items-center justify-end gap-1 pb-1 bg-bg-default transition-[top] duration-300 ease-out-expo " +
+                    (isDragging ? "opacity-40" : isOver ? "rounded-t ring-2 ring-accent ring-inset" : "")
                   }
                   title="Drag to reorder"
                 >
@@ -263,7 +360,19 @@ export default function PositionsView({ mode }: { mode: StatsMode }) {
               const showModePill = mode === "overall";
               return (
               <Fragment key={t.id}>
-                <div style={{ height: cellH }} className="flex flex-col justify-center gap-0.5 pr-1.5">
+                {/* `sticky left-0`: inert while the grid fits (nothing scrolls it), and the
+                    thing that keeps the rows identifiable past the boundary, where the box
+                    scrolls sideways again. `z-10` puts it over the tiles and the lineage
+                    but under the header, which owns the corner. */}
+                <div
+                  /* Same trick as the header, one axis over: the column is an unbroken
+                     opaque band, so the cup lineage cannot show through the 4px row gaps
+                     while the grid is scrolled sideways behind it. The extra height is
+                     eaten by the negative margin, so the row track stays `cellH` and the
+                     padding puts the content box back exactly on it. */
+                  style={{ height: cellH + gap, marginTop: -gap, paddingTop: gap }}
+                  className="sticky left-0 z-10 flex flex-col justify-center gap-0.5 bg-bg-default pr-1.5"
+                >
                   <Link
                     to={`/live/${t.id}`}
                     title={`${t.name}${showModePill ? ` · ${t.mode}` : ""}${noWinner ? " · kein eindeutiger Sieger" : ""} — open tournament`}
@@ -324,13 +433,6 @@ export default function PositionsView({ mode }: { mode: StatsMode }) {
               );
             })}
           </div>
-          {laurelPolylines.length ? (
-            <svg className="pointer-events-none absolute left-0 top-0" width={gridW} height={gridH} aria-hidden="true">
-              {laurelPolylines.map((l) => (
-                <polyline key={l.key} points={l.pts} fill="none" stroke={l.color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" opacity="0.8" />
-              ))}
-            </svg>
-          ) : null}
         </div>
       </div>
     </StatsSection>

@@ -7,8 +7,8 @@ import { useAuth } from "../../auth/AuthContext";
 import { qk } from "../../api/queryKeys";
 import { listPlayerGuestbookSummary, listPlayerPokeSummary, listPlayerGuestbookReadMap, listPlayerPokeReadMap } from "../../api/players.api";
 import { listTournamentCommentsSummary, listTournamentCommentReadMap } from "../../api/comments.api";
-import { ThemeProvider } from "../layout/ThemeContext";
-import { PageTitleProvider } from "../layout/PageTitleContext";
+import { ThemeProvider } from "../layout/ThemeProvider";
+import { PageTitleProvider } from "../layout/PageTitleProvider";
 import { usePullToRefresh } from "../layout/usePullToRefresh";
 import { RealtimeProvider } from "../../hooks/realtime/RealtimeProvider";
 import { useAnyTournamentWS } from "../../hooks/realtime/useRealtime";
@@ -18,9 +18,11 @@ import BottomTabBar from "./BottomTabBar";
 import { ErrorToastViewport } from "../primitives/ErrorToast";
 import RouteErrorBoundary from "./RouteErrorBoundary";
 import { useSwipeNav } from "./useSwipeNav";
+import { readStored, writeStored } from "../../utils/safeStorage";
 import { useLocationRestore } from "./useLocationRestore";
 import { useRememberLocation } from "./useRememberLocation";
 import { useScrollRestoration } from "./useScrollRestoration";
+import { useKeyboardWatcher } from "./keyboardOpen";
 
 const COLLAPSE_KEY = "sidebar-collapsed";
 
@@ -40,13 +42,16 @@ function ShellInner({ children }: { children: React.ReactNode }) {
   useRememberLocation();
   // Back lands where you left off: every history entry keeps its own scroll offset.
   useScrollRestoration();
+  // The on-screen keyboard: hides the bottom tab bar and collapses the clearance every
+  // bottom-pinned surface leaves for it (Q2). One watcher for the whole app.
+  useKeyboardWatcher();
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [collapsed, setCollapsed] = useState<boolean>(() => localStorage.getItem(COLLAPSE_KEY) === "1");
+  const [collapsed, setCollapsed] = useState<boolean>(() => readStored(COLLAPSE_KEY) === "1");
 
   const toggleCollapse = () => {
     setCollapsed((v) => {
       const next = !v;
-      localStorage.setItem(COLLAPSE_KEY, next ? "1" : "0");
+      writeStored(COLLAPSE_KEY, next ? "1" : "0");
       return next;
     });
   };
@@ -97,8 +102,16 @@ function ShellInner({ children }: { children: React.ReactNode }) {
           </div>
         ) : null}
 
+        {/* `pb-nav-clear`: the end of the page keeps room for the bottom tab bar, and
+            gives it back the moment the keyboard hides that bar — otherwise a composer at
+            the page end sits in 72px of dead space reserved for something that is
+            `display: none`, and Safari scrolls further than it needs to in order to reveal
+            the field (Q14, Roli's report). This is the one of the six offsets that is
+            *document height* rather than a floating overlay, so the flip is bracketed by
+            `bottomReservation.ts`: it records the scroll the shortened document takes from
+            a reader parked at the end and pays it back when the room returns. */}
         <main
-          className="mx-auto w-full max-w-6xl flex-1 page-x py-4 pb-[calc(4.5rem+env(safe-area-inset-bottom,0px))] lg:py-6 lg:pb-6"
+          className="mx-auto w-full max-w-6xl flex-1 page-x py-4 pb-nav-clear lg:py-6 lg:pb-6"
           style={pull.distance > 0 && !pull.refreshing ? { transform: `translateY(${Math.min(pull.distance, 64)}px)` } : undefined}
         >
           <RouteErrorBoundary resetKey={location.pathname}>{children}</RouteErrorBoundary>

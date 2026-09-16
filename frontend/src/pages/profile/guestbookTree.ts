@@ -70,6 +70,30 @@ export function countUnreadRepliesByEntry(
   return out;
 }
 
+/**
+ * Number of replies hanging below an entry, recursively — what a delete takes with
+ * it, because the backend removes the whole subtree (`routers/players.py`). The
+ * delete dialog names this number, so it has to count grandchildren too.
+ */
+export function countGuestbookDescendants(
+  childrenByParent: Map<number, PlayerGuestbookEntry[]>,
+  entryId: number
+): number {
+  let total = 0;
+  const stack = [entryId];
+  const seen = new Set<number>([entryId]);
+  while (stack.length) {
+    const current = stack.pop() as number;
+    for (const child of childrenByParent.get(current) ?? []) {
+      if (seen.has(child.id)) continue;
+      seen.add(child.id);
+      total += 1;
+      stack.push(child.id);
+    }
+  }
+  return total;
+}
+
 /** Most recent unread entry id (ties broken by higher id), or null. */
 export function latestUnreadGuestbookId(
   rows: PlayerGuestbookEntry[],

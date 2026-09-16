@@ -1,164 +1,150 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 
-import { resolveBackAction, swipeAction } from "../ui/shell/backNavigation";
-import { canGoForward, highestHistoryIndex, recordNavigation, resetNavStack } from "../ui/shell/navStack";
+import { backActionFor } from "../ui/shell/backNavigation";
+import { canPop, previousEntryPath, recordNavigation, resetNavStack } from "../ui/shell/navStack";
 
-/** Put the router's history index where the browser would have it. */
+/**
+ * Q6 — the gesture is not "like" the chevron, it *is* the chevron: `useSwipeNav`
+ * calls `backActionFor` and nothing else, so the cases below are the same rows of
+ * the scenario table the button answers. What is specific to the gesture is the
+ * two things it must **not** do: go forward (row 31 — that gesture is gone), and
+ * fight a horizontal scroller (row 32, `isBlocked`).
+ *
+ * The DOM guards are verified at runtime with real touch events; a jsdom drag
+ * cannot exercise them (no layout, no `scrollWidth`).
+ */
 function atIndex(idx: number) {
   window.history.replaceState({ idx }, "");
 }
 
-describe("resolveBackAction", () => {
-  const detail = { pathname: "/live/19/match/108", state: { fromTab: "matches" } };
-
-  it("pops when the entry behind a detail page really is its parent", () => {
-    expect(
-      resolveBackAction({ ...detail, canPop: true, previousPath: "/live/19?tab=overview", fallback: "/dashboard" }),
-    ).toEqual({ kind: "pop" });
-  });
-
-  it("goes up when the entry behind it is something else", () => {
-    expect(
-      resolveBackAction({ ...detail, canPop: true, previousPath: "/stats?view=h2h", fallback: "/dashboard" }),
-    ).toEqual({ kind: "up", to: "/live/19?tab=matches" });
-  });
-
-  it("goes up from a deep-linked detail page with no history", () => {
-    expect(resolveBackAction({ ...detail, canPop: false, previousPath: null, fallback: null })).toEqual({
-      kind: "up",
-      to: "/live/19?tab=matches",
-    });
-  });
-
-  it("pops on a top-level page that has history", () => {
-    expect(
-      resolveBackAction({ pathname: "/stats", state: null, canPop: true, previousPath: "/dashboard", fallback: "/dashboard" }),
-    ).toEqual({ kind: "pop" });
-  });
-
-  it("uses the fallback on a top-level page with nothing to pop — but only when one is offered", () => {
-    const input = { pathname: "/stats", state: null, canPop: false, previousPath: null };
-    // A button needs a landing spot…
-    expect(resolveBackAction({ ...input, fallback: "/dashboard" })).toEqual({ kind: "up", to: "/dashboard" });
-    // …a gesture must not invent one.
-    expect(resolveBackAction({ ...input, fallback: null })).toEqual({ kind: "none" });
-  });
-
-  it("compares parents by path only, ignoring query strings and trailing slashes", () => {
-    expect(
-      resolveBackAction({ pathname: "/profiles/7", state: null, canPop: true, previousPath: "/players/?tab=all", fallback: null }),
-    ).toEqual({ kind: "pop" });
-  });
-});
-
-describe("swipeAction", () => {
+describe("the swipe's decision (rows 12–27)", () => {
   const original = window.history.state as unknown;
 
-  beforeEach(() => {
-    resetNavStack();
-  });
-
+  beforeEach(() => resetNavStack());
   afterEach(() => {
     window.history.replaceState(original, "");
     resetNavStack();
   });
 
-  it("swipe right on a match page entered from stats goes up to its tournament", () => {
+  it("row 17: a match page opened from stats goes up to its tournament", () => {
     atIndex(0);
     recordNavigation("/stats", "?view=h2h");
     atIndex(1);
     recordNavigation("/live/19/match/108");
 
-    expect(swipeAction(1, "/live/19/match/108", { fromTab: "matches" })).toEqual({
+    expect(backActionFor("/live/19/match/108", "", { fromTab: "matches" })).toEqual({
       kind: "up",
       to: "/live/19?tab=matches",
     });
   });
 
-  it("swipe right on a match page entered from its tournament pops", () => {
+  it("row 16: a match page opened from its own tournament pops, keeping its offset", () => {
     atIndex(0);
     recordNavigation("/live/19", "?tab=matches");
     atIndex(1);
     recordNavigation("/live/19/match/108");
 
-    expect(swipeAction(1, "/live/19/match/108", { fromTab: "matches" })).toEqual({ kind: "pop" });
+    expect(backActionFor("/live/19/match/108", "", { fromTab: "matches" })).toEqual({ kind: "pop" });
   });
 
-  it("swipe right on a top-level page with no history does nothing", () => {
+  it("row 24: the matchup pops back onto the H2H list it was opened from", () => {
     atIndex(0);
-    recordNavigation("/stats");
+    recordNavigation("/stats", "?view=h2h&mode=overall");
+    atIndex(1);
+    recordNavigation("/stats", "?view=h2h&mode=overall&player=1&vs=4");
 
-    expect(swipeAction(1, "/stats", null)).toEqual({ kind: "none" });
+    expect(backActionFor("/stats", "?view=h2h&mode=overall&player=1&vs=4", null)).toEqual({ kind: "pop" });
   });
 
-  it("swipe left does nothing at the front of the stack", () => {
+  it("row 25: opened from a match page, it goes up to that list instead", () => {
     atIndex(0);
-    recordNavigation("/dashboard");
+    recordNavigation("/live/19/match/104");
+    atIndex(1);
+    recordNavigation("/stats", "?view=h2h&mode=overall&player=1&vs=4");
+
+    expect(backActionFor("/stats", "?view=h2h&mode=overall&player=1&vs=4", null)).toEqual({
+      kind: "up",
+      to: "/stats?view=h2h&mode=overall&player=1",
+    });
+  });
+
+  it("row 6: on a destination it is the step behind you", () => {
+    atIndex(0);
+    recordNavigation("/players");
     atIndex(1);
     recordNavigation("/stats");
 
-    expect(swipeAction(-1, "/stats", null)).toEqual({ kind: "none" });
+    expect(backActionFor("/stats", "", null)).toEqual({ kind: "pop" });
   });
 
-  it("swipe left goes forward after a back", () => {
+  it("row 1: at home with nothing behind it, the gesture does nothing at all", () => {
     atIndex(0);
     recordNavigation("/dashboard");
-    atIndex(1);
-    recordNavigation("/stats");
-    // Back to /dashboard: a pop must not drop the entry in front of it.
-    atIndex(0);
-    recordNavigation("/dashboard", "", "POP");
 
-    expect(swipeAction(-1, "/dashboard", null)).toEqual({ kind: "forward" });
+    expect(backActionFor("/dashboard", "", null)).toEqual({ kind: "none" });
+  });
+
+  it("row 5: on any other destination with nothing behind it, it goes home", () => {
+    atIndex(0);
+    recordNavigation("/stats");
+
+    expect(backActionFor("/stats", "", null)).toEqual({ kind: "up", to: "/dashboard" });
   });
 });
 
-describe("canGoForward", () => {
+/**
+ * Row 31 — there is no forward gesture, and with it the mirror lost every
+ * question about the future. What is left only ever looks one entry back.
+ */
+describe("the mirror remembers the past only", () => {
   const original = window.history.state as unknown;
 
-  beforeEach(() => {
-    resetNavStack();
-  });
-
+  beforeEach(() => resetNavStack());
   afterEach(() => {
     window.history.replaceState(original, "");
     resetNavStack();
   });
 
-  it("is false on a fresh session", () => {
-    atIndex(0);
-    recordNavigation("/dashboard");
-    expect(highestHistoryIndex()).toBe(0);
-    expect(canGoForward()).toBe(false);
+  it("exports nothing that claims to know what is in front of us", async () => {
+    const navStack = await import("../ui/shell/navStack");
+    expect(Object.keys(navStack)).not.toContain("canGoForward");
+    expect(Object.keys(navStack)).not.toContain("highestHistoryIndex");
   });
 
-  it("a push after a back drops the entries it destroyed", () => {
+  it("answers `idx - 1`, and nothing about `idx + 1`", () => {
     atIndex(0);
     recordNavigation("/dashboard");
     atIndex(1);
-    recordNavigation("/stats");
+    recordNavigation("/stats", "?view=h2h");
     atIndex(2);
     recordNavigation("/players");
-    // Two steps back…
-    atIndex(0);
-    recordNavigation("/dashboard", "", "POP");
-    expect(highestHistoryIndex()).toBe(2);
-    expect(canGoForward()).toBe(true);
-    // …then a push: /stats and /players are gone from the browser's stack too.
+
+    expect(previousEntryPath()).toBe("/stats?view=h2h");
     atIndex(1);
-    recordNavigation("/tournaments", "", "PUSH");
-    expect(highestHistoryIndex()).toBe(1);
-    expect(canGoForward()).toBe(false);
+    expect(previousEntryPath()).toBe("/dashboard");
+    atIndex(0);
+    expect(previousEntryPath()).toBeNull();
+    expect(canPop()).toBe(false);
   });
 
-  it("a replace keeps the forward entries", () => {
+  it("a push after a back overwrites the entry it replaced", () => {
     atIndex(0);
-    recordNavigation("/tournaments");
+    recordNavigation("/dashboard");
     atIndex(1);
     recordNavigation("/stats");
+    // Back, then somewhere else: index 1 is a different page now.
     atIndex(0);
-    recordNavigation("/tournaments", "", "POP");
-    recordNavigation("/tournaments", "?tab=new", "REPLACE");
-    expect(canGoForward()).toBe(true);
+    recordNavigation("/dashboard");
+    atIndex(1);
+    recordNavigation("/players");
+
+    atIndex(2);
+    expect(previousEntryPath()).toBe("/players");
+  });
+
+  it("a mirror that lost its entry degrades to 'up', which is the same page", () => {
+    atIndex(3); // nothing recorded at 2
+    expect(previousEntryPath()).toBeNull();
+    expect(backActionFor("/profiles/7", "", null)).toEqual({ kind: "up", to: "/players" });
   });
 });

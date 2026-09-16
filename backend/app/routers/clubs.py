@@ -7,9 +7,17 @@ from sqlmodel import Session, select
 
 from ..auth import require_admin, require_editor
 from ..db import get_engine, get_session
-from ..models import Club, ClubCrestFile, League, MatchSide
+from ..models import Club, ClubCrestFile, FriendlyMatchSide, League, MatchSide
 from ..schemas import ClubCreateBody, ClubPatchBody, LeagueCreateBody
-from ..schemas.responses import ClubColumnsOut, ClubCrestMetaOut, ClubOut, LeagueOut
+from ..schemas.responses import (
+    ClubColumnsOut,
+    ClubCrestMetaOut,
+    ClubOut,
+    ClubStarHistoryEntryOut,
+    ClubStarHistoryOut,
+    LeagueOut,
+)
+from ..services.club_stars import record_star_rating, star_history
 from ..services.file_storage import (
     delete_media,
     media_path_for_club_crest,
@@ -198,6 +206,12 @@ def create_club(body: ClubCreateBody, s: Session = Depends(get_session)):
     s.add(c)
     s.commit()
     s.refresh(c)
+
+    # The club's history starts here (R4) — needs the id, so it is a second commit.
+    record_star_rating(s, int(c.id), stars)
+    s.commit()
+    s.refresh(c)
+
     log.info("Created club %s (%s) stars=%s", name, game, stars)
     return c
 
@@ -232,11 +246,13 @@ def patch_club(
     if "game" in fields:
         c.game = (body.game or "").strip()
 
+    stars_written: float | None = None
     if "star_rating" in fields:
         try:
             c.star_rating = validate_star_rating(body.star_rating)
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
+        stars_written = float(c.star_rating)
 
     # --- league assignment: admin-only, optional, must exist ---
     if "league_id" in fields:
@@ -268,6 +284,10 @@ def patch_club(
 
     try:
         s.add(c)
+        # The rating a club carries today is `Club.star_rating`; what it carried when a
+        # past match was played comes from this row (R4). Same transaction as the club.
+        if stars_written is not None:
+            record_star_rating(s, club_id, stars_written)
         s.commit()
     except IntegrityError:
         s.rollback()
@@ -275,6 +295,33 @@ def patch_club(
 
     s.refresh(c)
     return c
+
+
+@router.get("/{club_id}/star-history", response_model=ClubStarHistoryOut)
+def get_club_star_history(club_id: int, s: Session = Depends(get_session)):
+    """
+    Every recorded rating of one club, oldest first — a public read like `GET /clubs`.
+
+    `current_stars` is `Club.star_rating`, so a caller never has to guess whether the
+    last row is still in force.
+    """
+    c = s.get(Club, club_id)
+    if not c:
+        raise HTTPException(status_code=404, detail="Club not found")
+    rows = star_history(s, club_id)
+    return ClubStarHistoryOut(
+        club_id=club_id,
+        current_stars=float(c.star_rating),
+        entries=[
+            ClubStarHistoryEntryOut(
+                stars=float(r.stars),
+                valid_from=r.valid_from,
+                changed_at=r.changed_at,
+                source=r.source,
+            )
+            for r in rows
+        ],
+    )
 
 @router.delete("/{club_id}", dependencies=[Depends(require_admin)])
 def delete_club(
@@ -285,8 +332,18 @@ def delete_club(
     """
     Admin only:
       - deletes a club (team)
-      - refuses if club is referenced by any match side (to protect history)
+      - refuses if the club is used by any match, tournament or friendly (protects history)
+      - deletes its crest (row + file) with it
     """
+    # Friendlies count: they are matches with a club just as much as tournament
+    # matches are, and in the real data there are clubs referenced *only* by a
+    # friendly. Deleting one of those used to succeed and leave the friendly
+    # pointing at a club id that no longer exists (SQLite does not enforce the
+    # foreign key, and turning that on app-wide is its own task).
+    #
+    # The crest has to go too: `club.id` is not AUTOINCREMENT, so SQLite hands a
+    # freed id to the next club created — which would then inherit the deleted
+    # club's crest row and its file on disk.
     c = s.get(Club, club_id)
     if not c:
         raise HTTPException(status_code=404, detail="Club not found")
@@ -294,6 +351,15 @@ def delete_club(
     used = s.exec(select(MatchSide.id).where(MatchSide.club_id == club_id)).first()
     if used is not None:
         raise HTTPException(status_code=409, detail="Club is used in matches; cannot delete")
+
+    used_friendly = s.exec(select(FriendlyMatchSide.id).where(FriendlyMatchSide.club_id == club_id)).first()
+    if used_friendly is not None:
+        raise HTTPException(status_code=409, detail="Club is used in friendlies; cannot delete")
+
+    crest = s.get(ClubCrestFile, club_id)
+    if crest is not None:
+        delete_media(crest.file_path)
+        s.delete(crest)
 
     s.delete(c)
     s.commit()

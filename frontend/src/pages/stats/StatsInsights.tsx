@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useRef } from "react";
-import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
+import { NavigationType, useLocation, useNavigationType, useSearchParams } from "react-router-dom";
 import { LayoutGrid, LineChart, Swords, UserRound } from "lucide-react";
 
 import { useAuth } from "../../auth/AuthContext";
 import { SectionTabs, type SectionTab } from "../../ui/SectionTabs";
 import { ChipGroup } from "../../ui/primitives/Chip";
+import Button from "../../ui/primitives/Button";
 import StatsFilterPill from "./StatsFilterPill";
-import { drillInBackActionFor } from "../../ui/shell/backNavigation";
 import { useReturnScroll } from "../../ui/shell/useReturnScroll";
 import type { StatsScope } from "../../api/types";
 import type { StatsMode } from "./statsMode";
@@ -121,6 +121,12 @@ export default function StatsInsights({
       ? { leftIds, rightIds: vsIds }
       : null;
   const showSubs = subs.length > 0 && (view !== "h2h" || mode === "2v2") && matchup == null;
+  // A URL that asks for Duos outside 2v2 used to render the Players view with the
+  // sub chips hidden and the URL untouched — a shared duos link landed somewhere
+  // else and said nothing (A7). Say it where the chips would be, and offer the one
+  // tap that honours what the link asked for, rather than overruling the reader's
+  // own Mode behind their back.
+  const duosNeeds2v2 = view === "h2h" && mode !== "2v2" && sub === "duos" && matchup == null;
   const filters = FILTERS[view === "overview" ? `overview:${activeSub}` : view] ?? { mode: true, scope: true };
 
   // Sections and sub-views swap the body without navigating (their params are
@@ -130,7 +136,27 @@ export default function StatsInsights({
   // history entry remembers the offset for it (see `openMatchup`).
   const currentKey = matchup ? MATCHUP_KEY : bodyKey(view, activeSub);
   const { save, swap, restore } = useReturnScroll();
-  const nav = useNavigate();
+  // Leaving the matchup is the app's one back decision now (Q6): the chevron in
+  // the top bar, `PageLayout`'s on desktop, and the swipe all call `useBack()`,
+  // and the matchup carries no back control of its own. All this page still owns
+  // is the scroll bookkeeping below.
+  const navType = useNavigationType();
+
+  /**
+   * When back leaves the matchup **in place** — nothing to pop, because the
+   * reader arrived by deep link or from another page — the H2H list underneath
+   * has to come back to the offset it was left at. A *pop* never reaches this:
+   * there `useScrollRestoration` restores the history entry's own offset, and a
+   * second restore racing it is exactly what T11/A9.7 had to untangle.
+   */
+  const lastBodyRef = useRef(currentKey);
+  useEffect(() => {
+    const previous = lastBodyRef.current;
+    lastBodyRef.current = currentKey;
+    if (previous !== MATCHUP_KEY || currentKey !== bodyKey("h2h", h2hSub)) return;
+    if (navType !== NavigationType.Replace) return;
+    restore(currentKey);
+  }, [currentKey, h2hSub, navType, restore]);
 
   const setView = (v: StatsView) => {
     const nextSub = subForSection(v, searchParams.get("sub"));
@@ -176,22 +202,6 @@ export default function StatsInsights({
     save(currentKey);
     onSetVs([rightId], [leftId], { push: true });
   };
-  /**
-   * The in-view "Head-to-head" button, taking the same decision as the gesture
-   * (`backNavigation`): pop when the entry behind the matchup is this stats page
-   * without it — the matrix comes back exactly as it was left. Behind a deep
-   * link (from a match page or a profile) sits something else entirely, and
-   * popping would leave the page this button names, so there the param is
-   * cleared in place and the H2H list opens at its own remembered offset.
-   */
-  const closeMatchup = () => {
-    if (drillInBackActionFor(location.pathname, "vs").kind === "pop") {
-      nav(-1);
-      return;
-    }
-    restore(bodyKey("h2h", h2hSub));
-    onSetVs([]);
-  };
 
   return (
     <div className="space-y-3 pb-16">
@@ -206,6 +216,15 @@ export default function StatsInsights({
           ariaLabel={`${view === "h2h" ? "Head-to-head" : "Overview"} sub-view`}
           options={subs.map((s) => ({ key: s, label: SUB_LABELS[s] }))}
         />
+      ) : null}
+
+      {duosNeeds2v2 ? (
+        <div className="flex flex-wrap items-center gap-2 text-xs text-text-muted">
+          <span>Duos only exist in 2v2 — showing Players.</span>
+          <Button variant="ghost" size="sm" type="button" onClick={() => onModeChange("2v2")}>
+            Switch to 2v2
+          </Button>
+        </div>
       ) : null}
 
       {view === "overview" && activeSub === "table" && <StatsTable rows={rows} loading={loading} onSelect={goPlayer} mode={mode} scope={scope} />}
@@ -223,7 +242,6 @@ export default function StatsInsights({
           leftIds={matchup.leftIds}
           rightIds={matchup.rightIds}
           rows={rows}
-          onBack={closeMatchup}
           initialRelation={searchParams.get("rel") === "together" ? "together" : undefined}
         />
       ) : (

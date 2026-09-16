@@ -1,5 +1,5 @@
 import { apiFetch, mediaUrl } from "./client";
-import type { Club, League } from "./types";
+import type { Club, ClubStarHistory, League } from "./types";
 
 // Clubs
 export function listClubs(game?: string): Promise<Club[]> {
@@ -25,6 +25,11 @@ export function patchClub(
   body: Partial<{ name: string; game: string; star_rating: number; league_id: number }>
 ): Promise<Club> {
   return apiFetch(`/clubs/${id}`, { method: "PATCH", token, body: JSON.stringify(body) });
+}
+
+/** Every recorded rating of one club, oldest first (R4). Public read, like the list. */
+export function getClubStarHistory(id: number): Promise<ClubStarHistory> {
+  return apiFetch(`/clubs/${id}/star-history`);
 }
 
 export function deleteClub(token: string, id: number): Promise<void> {

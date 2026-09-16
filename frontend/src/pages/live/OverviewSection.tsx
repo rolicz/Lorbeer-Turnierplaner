@@ -4,11 +4,13 @@ import { ArrowRight, Trophy } from "lucide-react";
 
 import type { Club, Match, MatchSide, TournamentMode } from "../../api/types";
 import { sideBy } from "../../helpers";
+import { fmtCount } from "../../utils/format";
 import { pickPreviewMatch } from "../../utils/matchDisplay";
 import MatchOverviewPanel from "../../ui/primitives/MatchOverviewPanel";
 import TournamentMetaPills from "./TournamentMetaPills";
 import AvatarCircle from "../../ui/primitives/AvatarCircle";
 import Button from "../../ui/primitives/Button";
+import EmptyState from "../../ui/primitives/EmptyState";
 import PlayerLink from "../../ui/primitives/PlayerLink";
 import ScoreLine from "../../ui/primitives/ScoreLine";
 import { usePlayerAvatarMap } from "../../hooks/usePlayerAvatarMap";
@@ -153,7 +155,7 @@ export default function OverviewSection({
                 <div className="text-xs text-text-muted">
                   {outcome.viaDecider
                     ? `Tied at the top · won ${deciderLabel(decider?.type ?? "none")}`
-                    : `${outcome.row.played} matches · GD ${signed(outcome.row.gd)}`}
+                    : `${fmtCount(outcome.row.played, "match", "matches")} · GD ${signed(outcome.row.gd)}`}
                 </div>
               </div>
               <div className="shrink-0 text-right">
@@ -170,7 +172,7 @@ export default function OverviewSection({
               </div>
             </div>
           ) : (
-            <div className="inset text-sm text-text-muted">No players in this tournament.</div>
+            <EmptyState title="No players in this tournament." className="inset" />
           )}
         </div>
       ) : (
@@ -194,7 +196,7 @@ export default function OverviewSection({
               />
             </button>
           ) : (
-            <div className="inset text-sm text-text-muted">No matches yet.</div>
+            <EmptyState title="No matches yet." className="inset" />
           )}
         </div>
       )}

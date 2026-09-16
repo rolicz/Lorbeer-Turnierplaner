@@ -6,11 +6,24 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import selectinload
 from sqlmodel import Session, delete, select
 
-from ..auth import require_admin, require_editor
+from ..auth import decode_token, require_editor_claims
 from ..db import get_session
-from ..models import Club, FriendlyMatch, FriendlyMatchSide, FriendlyMatchSidePlayer, Player
+from ..models import (
+    Club,
+    FriendlyCreatorLink,
+    FriendlyMatch,
+    FriendlyMatchSide,
+    FriendlyMatchSidePlayer,
+    Player,
+)
 from ..schemas import FriendlyMatchCreateBody, MatchPatchBody, MatchSidePatchBody
 from ..schemas.responses import FriendlyOut, OkResponse
+from ..services.authorization import (
+    ensure_can_touch_friendly,
+    friendly_capabilities,
+    friendly_creator_id,
+    friendly_creator_map,
+)
 from ..services.notifications import (
     push_friendly_created,
     push_friendly_finished,
@@ -59,7 +72,13 @@ def _player_dict(p: Player) -> dict[str, int | str]:
     return {"id": int(p.id), "display_name": p.display_name}
 
 
-def _friendly_dict(fm: FriendlyMatch) -> dict:
+def _friendly_dict(
+    fm: FriendlyMatch,
+    *,
+    claims: dict | None = None,
+    creator_player_id: int | None = None,
+) -> dict:
+    """``claims`` + ``creator_player_id`` produce the per-caller capability flags (A10)."""
     sides_out = []
     for side in sorted(fm.sides, key=lambda s: s.side):
         sides_out.append(
@@ -72,6 +91,7 @@ def _friendly_dict(fm: FriendlyMatch) -> dict:
             }
         )
     return {
+        **friendly_capabilities(fm, claims=claims, creator_player_id=creator_player_id),
         "id": int(fm.id),
         "mode": fm.mode,
         "state": fm.state,
@@ -87,6 +107,7 @@ def list_friendlies(
     mode: str | None = Query(None, description='Optional mode filter: "1v1" or "2v2"'),
     limit: int = Query(200, ge=1, le=2000, description="Max rows"),
     s: Session = Depends(get_session),
+    claims: dict | None = Depends(decode_token),
 ):
     mode_norm = str(mode or "").strip().lower()
     stmt = (
@@ -98,14 +119,20 @@ def list_friendlies(
     if mode_norm in ("1v1", "2v2"):
         stmt = stmt.where(FriendlyMatch.mode == mode_norm)
     rows = list(s.exec(stmt).all())
-    return [_friendly_dict(fm) for fm in rows]
+    # Only a signed-in caller can be a creator — skip the lookup on the public read.
+    creator_by_fid = friendly_creator_map(s, [int(fm.id) for fm in rows]) if claims else {}
+    return [
+        _friendly_dict(fm, claims=claims, creator_player_id=creator_by_fid.get(int(fm.id)))
+        for fm in rows
+    ]
 
 
-@router.post("", response_model=FriendlyOut, dependencies=[Depends(require_editor)])
+@router.post("", response_model=FriendlyOut)
 def create_friendly_match(
     body: FriendlyMatchCreateBody,
     request: Request,
     s: Session = Depends(get_session),
+    claims: dict = Depends(require_editor_claims),
 ):
     mode = str(body.mode or "").strip().lower()
     if mode not in ("1v1", "2v2"):
@@ -168,6 +195,12 @@ def create_friendly_match(
 
     s.add(side_a)
     s.add(side_b)
+    # Record who entered it, so the grace window knows whose row this is (A10).
+    s.add(
+        FriendlyCreatorLink(
+            friendly_match_id=int(fm.id), creator_player_id=int(claims["player_id"])
+        )
+    )
     s.commit()
     s.refresh(fm)
     s.refresh(side_a)
@@ -176,34 +209,40 @@ def create_friendly_match(
     # Reuse list serializer for a stable response shape.
     fm.sides = [side_a, side_b]
     push_friendly_created(request, friendly_id=int(fm.id), mode=mode, scoreline=f"{a_goals}:{b_goals}")
-    return _friendly_dict(fm)
+    return _friendly_dict(fm, claims=claims, creator_player_id=int(claims["player_id"]))
 
 
-@router.delete("/{friendly_id}", response_model=OkResponse, dependencies=[Depends(require_admin)])
+@router.delete("/{friendly_id}", response_model=OkResponse)
 def delete_friendly(
     friendly_id: int,
     s: Session = Depends(get_session),
+    claims: dict = Depends(require_editor_claims),
 ):
+    """Admin always; the editor who created it may delete it within their first hour (A10)."""
     fm = s.get(FriendlyMatch, friendly_id)
     if not fm:
         raise HTTPException(status_code=404, detail="Friendly match not found")
+    ensure_can_touch_friendly(s, fm, claims=claims, action="delete")
 
     side_ids = [int(row) for row in s.exec(select(FriendlyMatchSide.id).where(FriendlyMatchSide.friendly_match_id == friendly_id)).all()]
     if side_ids:
         s.exec(delete(FriendlyMatchSidePlayer).where(FriendlyMatchSidePlayer.friendly_match_side_id.in_(side_ids)))
         s.exec(delete(FriendlyMatchSide).where(FriendlyMatchSide.id.in_(side_ids)))
+    s.exec(delete(FriendlyCreatorLink).where(FriendlyCreatorLink.friendly_match_id == friendly_id))
     s.exec(delete(FriendlyMatch).where(FriendlyMatch.id == friendly_id))
     s.commit()
     return {"ok": True}
 
 
-@router.patch("/{friendly_id}", response_model=FriendlyOut, dependencies=[Depends(require_admin)])
+@router.patch("/{friendly_id}", response_model=FriendlyOut)
 def patch_friendly(
     friendly_id: int,
     body: MatchPatchBody,
     request: Request,
     s: Session = Depends(get_session),
+    claims: dict = Depends(require_editor_claims),
 ):
+    """Admin always; the editor who created it may fix it within their first hour (A10)."""
     fm = s.exec(
         select(FriendlyMatch)
         .options(selectinload(FriendlyMatch.sides))
@@ -211,6 +250,7 @@ def patch_friendly(
     ).first()
     if not fm:
         raise HTTPException(status_code=404, detail="Friendly match not found")
+    ensure_can_touch_friendly(s, fm, claims=claims, action="edit")
 
     fields = body.model_fields_set
     old_state = fm.state
@@ -267,4 +307,4 @@ def patch_friendly(
         push_friendly_finished(request, friendly_id=int(row.id), scoreline=scoreline)
     if new_scores.get("A", 0) != old_scores.get("A", 0) or new_scores.get("B", 0) != old_scores.get("B", 0):
         push_friendly_score_changed(request, friendly_id=int(row.id), score_a=new_scores.get("A", 0), score_b=new_scores.get("B", 0), scoreline=scoreline)
-    return _friendly_dict(row)
+    return _friendly_dict(row, claims=claims, creator_player_id=friendly_creator_id(s, friendly_id))

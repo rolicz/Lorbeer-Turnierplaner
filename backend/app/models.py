@@ -171,6 +171,38 @@ class Club(SQLModel, table=True):
     league_id: int = Field(foreign_key="league.id", index=True)
     league: League = Relationship(back_populates="clubs")
 
+class ClubStarRating(SQLModel, table=True):
+    """
+    What a club was worth, and since when.
+
+    `Club.star_rating` stays the *current* value — everything that asks "how good is
+    this club today" (the pickers, the clubs page, the prematch odds) keeps reading it.
+    This table answers the other question: "what was it worth on the day that match was
+    played". One row per club per day; a row is valid from `valid_from` until the next
+    row for the same club, and the earliest row also answers every date before it (the
+    history starts where the record starts, it does not claim the club did not exist).
+
+    A new table rather than a column on `MatchSide`, because the question Roli asked is
+    about the *club* moving, not about one match's stake.
+    """
+
+    __table_args__ = (UniqueConstraint("club_id", "valid_from", name="uq_clubstar_club_day"),)
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    club_id: int = Field(foreign_key="club.id", index=True)
+    stars: float = Field(ge=0.5, le=5.0)
+    #: The day the rating started to apply. A date, not a timestamp: a match carries a
+    #: date, and "which rating did this Saturday's match use" is a question about days.
+    valid_from: dt.date = Field(index=True)
+    #: When the row was written. Differs from `valid_from` for a recovered row.
+    changed_at: dt.datetime = Field(default_factory=dt.datetime.utcnow, index=True)
+    #: Where the row came from — "live" (a star edit through the API or the seeder),
+    #: "seed" (the first row `init_db` writes for a club that has no history yet) or
+    #: "recovered" (reconstructed from a backup snapshot, so `valid_from` is an upper
+    #: bound, not the exact day). The UI has to be able to say which.
+    source: str = Field(default="live", index=True)
+
+
 class ClubCrestFile(SQLModel, table=True):
     """
     Club crest storage (metadata in DB, bytes on disk) — same pattern as
@@ -309,6 +341,26 @@ class CommentThreadLink(SQLModel, table=True):
     parent_comment_id: int = Field(foreign_key="comment.id", index=True)
 
 
+class TournamentCreatorLink(SQLModel, table=True):
+    """
+    The logged-in player who created a tournament (mirrors CommentAuthorLink).
+    Used by the grace window: only the creator may delete their own tournament,
+    and only within `services/authorization.GRACE_WINDOW` of creating it.
+    Additive: tournaments created before this table shipped have no row and stay admin-only.
+    """
+    tournament_id: int = Field(foreign_key="tournament.id", primary_key=True)
+    creator_player_id: int = Field(foreign_key="player.id", index=True)
+
+
+class FriendlyCreatorLink(SQLModel, table=True):
+    """
+    The logged-in player who created a friendly match (same rule as TournamentCreatorLink).
+    Additive: friendlies created before this table shipped have no row and stay admin-only.
+    """
+    friendly_match_id: int = Field(foreign_key="friendlymatch.id", primary_key=True)
+    creator_player_id: int = Field(foreign_key="player.id", index=True)
+
+
 class CommentAuthorLink(SQLModel, table=True):
     """
     The real author of a comment (the logged-in player who created it), recorded even
@@ -347,4 +399,69 @@ class PushSubscriptionPreference(SQLModel, table=True):
     subscription_id: int = Field(foreign_key="pushsubscription.id", primary_key=True)
     notification_language: str = Field(default="steirisch", index=True)
     notification_mode: str = Field(default="finished_only", index=True)
+    updated_at: dt.datetime = Field(default_factory=dt.datetime.utcnow, index=True)
+
+
+class FeatureRequest(SQLModel, table=True):
+    """
+    An idea / change request / bug report posted from the Ideas page (R5).
+
+    Posting requires a login, so the author is never NULL (unlike a Comment, which
+    may be shown as "General"): a request is something the group answers, and an
+    unattributed one cannot be asked about. `status`/`status_note` are the admin's
+    answer; everything else belongs to the author.
+    """
+    id: Optional[int] = Field(default=None, primary_key=True)
+
+    author_player_id: int = Field(foreign_key="player.id", index=True)
+
+    title: str
+    body: str = Field(default="")
+
+    kind: str = Field(default="feature", index=True)  # "feature" | "change" | "bug"
+    status: str = Field(default="new", index=True)  # "new" | "planned" | "doing" | "done" | "declined"
+    # Why the status is what it is ("already in Stats", "after FC 27"). Admin-written.
+    status_note: str = Field(default="")
+
+    created_at: dt.datetime = Field(default_factory=dt.datetime.utcnow, index=True)
+    updated_at: dt.datetime = Field(default_factory=dt.datetime.utcnow, index=True)
+    #: When the *author's own* text last changed. `updated_at` moves for a status
+    #: change and an image too, so it cannot answer "was this rewritten?" — and a
+    #: byline that says "edited" because someone triaged the idea is a lie.
+    edited_at: dt.datetime | None = Field(default=None)
+
+
+class FeatureRequestArea(SQLModel, table=True):
+    """
+    Which part of the app a request is about. A child table, not a column, because a
+    request names several areas — and because the catalog of areas is code
+    (`app/feature_areas.py`), never a foreign key: a destination the app later drops
+    still has to label the old requests that name it.
+    """
+    request_id: int = Field(foreign_key="featurerequest.id", primary_key=True)
+    area: str = Field(primary_key=True)
+
+
+class FeatureRequestVote(SQLModel, table=True):
+    """
+    One "+1" per player per request — the row's existence *is* the vote.
+
+    Deliberately not the (-1|+1) value column that CommentVote carries: a feature
+    board asks "who else wants this", and a downvote on a friend's idea answers a
+    different question nobody asked.
+    """
+    request_id: int = Field(foreign_key="featurerequest.id", primary_key=True)
+    player_id: int = Field(foreign_key="player.id", primary_key=True)
+    created_at: dt.datetime = Field(default_factory=dt.datetime.utcnow, index=True)
+
+
+class FeatureRequestImageFile(SQLModel, table=True):
+    """
+    Screenshot attached to a request (metadata in DB, bytes on disk) —
+    the same pattern as CommentImageFile, stored under `uploads/ideas/`.
+    """
+    request_id: int = Field(foreign_key="featurerequest.id", primary_key=True)
+    content_type: str
+    file_path: str = Field(index=True)
+    file_size: int
     updated_at: dt.datetime = Field(default_factory=dt.datetime.utcnow, index=True)

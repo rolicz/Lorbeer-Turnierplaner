@@ -1,16 +1,22 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { act, render } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 
 import PageLayout from "../ui/layout/PageLayout";
 import ConnectionIndicator from "../ui/shell/ConnectionIndicator";
-import { RealtimeStatusProvider, type RealtimeStatus } from "../ui/RealtimeStatusContext";
+import { RealtimeStatusProvider } from "../ui/RealtimeStatusProvider";
+import type { RealtimeStatus } from "../ui/RealtimeStatusContext";
 
 /**
  * T10: one live indicator, and the same band above every page's first block.
  */
 describe("PageLayout (T10 rhythm)", () => {
+  const renderAt = (path: string, ui: React.ReactElement) =>
+    render(<MemoryRouter initialEntries={[path]}>{ui}</MemoryRouter>);
+
   it("keeps the desktop title row out of the content column", () => {
-    const { container } = render(
+    const { container } = renderAt(
+      "/tournaments",
       <PageLayout title="Tournaments">
         <div data-testid="first-block">tabs</div>
       </PageLayout>,
@@ -25,25 +31,47 @@ describe("PageLayout (T10 rhythm)", () => {
   });
 
   it("renders back, meta and actions in the title row", () => {
-    const { getByText, container } = render(
-      <PageLayout
-        title="test 2v2"
-        back={<button type="button">back</button>}
-        meta={<span>2v2</span>}
-        actions={<button type="button">act</button>}
-      >
+    // Q6: the chevron is not a prop any more — the row asks the hierarchy, so a
+    // page you went into gets it and a destination does not.
+    const { getByText, getByLabelText, container } = renderAt(
+      "/live/19",
+      <PageLayout title="test 2v2" meta={<span>2v2</span>} actions={<button type="button">act</button>}>
         <div>body</div>
       </PageLayout>,
     );
 
     const row = container.querySelector("h1")?.parentElement?.parentElement;
-    expect(row).toContainElement(getByText("back"));
+    expect(row).toContainElement(getByLabelText("Back"));
     expect(row).toContainElement(getByText("2v2"));
     expect(row).toContainElement(getByText("act"));
   });
 
+  it("renders no chevron on a destination", () => {
+    const { queryByLabelText } = renderAt(
+      "/tournaments",
+      <PageLayout title="Tournaments">
+        <div>body</div>
+      </PageLayout>,
+    );
+    expect(queryByLabelText("Back")).toBeNull();
+  });
+
+  it("keeps the row for the chevron alone while a page you went into is still loading", () => {
+    // The desktop has no top bar, so this row is the only place back can live —
+    // a loading or "not found" state must not be the one screen with no way out.
+    const { getByLabelText, container } = renderAt(
+      "/live/19/match/108",
+      <PageLayout>
+        <div>loading</div>
+      </PageLayout>,
+    );
+    expect(getByLabelText("Back")).toBeInTheDocument();
+    expect(container.querySelector("h1")).toBeNull();
+  });
+
   it("renders no title row without a title", () => {
-    const { container } = render(
+    const { container } = renderAt(
+      "/tournaments",
       <PageLayout>
         <div>body</div>
       </PageLayout>,

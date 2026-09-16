@@ -126,7 +126,12 @@ export interface paths {
         get: operations["get_tournament_tournaments__tournament_id__get"];
         put?: never;
         post?: never;
-        /** Delete Tournament */
+        /**
+         * Delete Tournament
+         * @description Admin always; the editor who created it may delete it within their first hour (A10).
+         *
+         *     Allowed even when results exist — which is why every client confirms first.
+         */
         delete: operations["delete_tournament_tournaments__tournament_id__delete"];
         options?: never;
         head?: never;
@@ -261,7 +266,9 @@ export interface paths {
          *       }
          *
          *     Editors:
-         *       - can set decider while tournament is NOT done
+         *       - can set the decider while the tournament is NOT done, and for one hour after it
+         *         finished (A10 — a decider only resolves a tie that is known once every match is
+         *         played, so the window has to start when the tournament ends)
          *     Admin:
          *       - can set/adjust anytime, even after done
          *
@@ -271,6 +278,30 @@ export interface paths {
          *       - goals must be >=0 integers when type != "none"
          */
         patch: operations["patch_decider_tournaments__tournament_id__decider_patch"];
+        trace?: never;
+    };
+    "/tournaments/{tournament_id}/reassign-preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Reassign 2V2 Preview
+         * @description Counts for the re-assign confirmation: what it clears and how many comments go.
+         *
+         *     The frontend renders the dialog from these numbers instead of re-deriving which
+         *     comments a rebuild takes with it — the same split of responsibility as A10's
+         *     `can_edit` flags.
+         */
+        get: operations["reassign_2v2_preview_tournaments__tournament_id__reassign_preview_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/tournaments/{tournament_id}/reassign": {
@@ -288,7 +319,14 @@ export interface paths {
          *
          *     Only allowed for 2v2 (pairings/opponents are not uniquely determined).
          *     Safety:
-         *       - only when ALL matches are still scheduled (and "clean": no goals/clubs/timestamps)
+         *       - only when ALL matches are still scheduled. A playing or finished match is a real
+         *         result, and re-assigning would throw a played evening away.
+         *       - leftovers are NOT a refusal (Q5): goals, clubs and timestamps left on scheduled
+         *         matches are cleared, because the schedule is rebuilt from scratch anyway. Refusing
+         *         on them used to freeze a tournament for good — reset put a match back to scheduled
+         *         but left its score behind, and nothing could remove a club.
+         *       - the comments filed under the old matches go with them (see `comment_cleanup`);
+         *         the tournament-wide ones stay.
          *       - editor/admin only
          *       - preserves "second leg enabled" flag: if leg2 existed before, it is recreated to match new leg1
          *
@@ -337,7 +375,7 @@ export interface paths {
          * @description Swap home/away (Side A <-> Side B) by swapping the side labels.
          *
          *     Editor/admin:
-         *       - allowed while tournament not done
+         *       - allowed while the tournament is not done, and for one hour after it finished (A10)
          *     Admin:
          *       - allowed even after tournament done
          */
@@ -413,7 +451,8 @@ export interface paths {
          * Delete Club
          * @description Admin only:
          *       - deletes a club (team)
-         *       - refuses if club is referenced by any match side (to protect history)
+         *       - refuses if the club is used by any match, tournament or friendly (protects history)
+         *       - deletes its crest (row + file) with it
          */
         delete: operations["delete_club_clubs__club_id__delete"];
         options?: never;
@@ -427,6 +466,29 @@ export interface paths {
          *       - can set league_id (optional)
          */
         patch: operations["patch_club_clubs__club_id__patch"];
+        trace?: never;
+    };
+    "/clubs/{club_id}/star-history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Club Star History
+         * @description Every recorded rating of one club, oldest first — a public read like `GET /clubs`.
+         *
+         *     `current_stars` is `Club.star_rating`, so a caller never has to guess whether the
+         *     last row is still in force.
+         */
+        get: operations["get_club_star_history_clubs__club_id__star_history_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/players": {
@@ -1228,12 +1290,150 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        /** Delete Friendly */
+        /**
+         * Delete Friendly
+         * @description Admin always; the editor who created it may delete it within their first hour (A10).
+         */
         delete: operations["delete_friendly_friendlies__friendly_id__delete"];
         options?: never;
         head?: never;
-        /** Patch Friendly */
+        /**
+         * Patch Friendly
+         * @description Admin always; the editor who created it may fix it within their first hour (A10).
+         */
         patch: operations["patch_friendly_friendlies__friendly_id__patch"];
+        trace?: never;
+    };
+    "/ideas/areas": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Idea Areas
+         * @description The area catalog, so the page never keeps a hand-written copy of it.
+         */
+        get: operations["list_idea_areas_ideas_areas_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ideas": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List All Ideas */
+        get: operations["list_all_ideas_ideas_get"];
+        put?: never;
+        /** Create Idea */
+        post: operations["create_idea_ideas_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ideas/{idea_id}/voters": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Idea Voters */
+        get: operations["list_idea_voters_ideas__idea_id__voters_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ideas/{idea_id}/image": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Idea Image */
+        get: operations["get_idea_image_ideas__idea_id__image_get"];
+        /** Put Idea Image */
+        put: operations["put_idea_image_ideas__idea_id__image_put"];
+        post?: never;
+        /** Delete Idea Image */
+        delete: operations["delete_idea_image_ideas__idea_id__image_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ideas/{idea_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Idea */
+        delete: operations["delete_idea_ideas__idea_id__delete"];
+        options?: never;
+        head?: never;
+        /** Patch Idea */
+        patch: operations["patch_idea_ideas__idea_id__patch"];
+        trace?: never;
+    };
+    "/ideas/{idea_id}/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Set Idea Status
+         * @description Triage. Admin only — the status is the group's answer, not the asker's.
+         */
+        put: operations["set_idea_status_ideas__idea_id__status_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ideas/{idea_id}/vote": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Vote Idea
+         * @description A "+1", toggled. `value` is 1 or 0; -1 is not a thing an idea can take.
+         */
+        put: operations["vote_idea_ideas__idea_id__vote_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/push/config": {
@@ -1342,6 +1542,14 @@ export interface components {
              */
             file: string;
         };
+        /** Body_put_idea_image_ideas__idea_id__image_put */
+        Body_put_idea_image_ideas__idea_id__image_put: {
+            /**
+             * File
+             * Format: binary
+             */
+            file: string;
+        };
         /** Body_put_player_avatar_players__player_id__avatar_put */
         Body_put_player_avatar_players__player_id__avatar_put: {
             /**
@@ -1427,6 +1635,35 @@ export interface components {
             star_rating?: number | string | null;
             /** League Id */
             league_id?: number | string | null;
+        };
+        /**
+         * ClubStarHistoryEntryOut
+         * @description One recorded rating. Valid from `valid_from` until the next entry.
+         */
+        ClubStarHistoryEntryOut: {
+            /** Stars */
+            stars: number;
+            /**
+             * Valid From
+             * Format: date
+             */
+            valid_from: string;
+            /**
+             * Changed At
+             * Format: date-time
+             */
+            changed_at: string;
+            /** Source */
+            source: string;
+        };
+        /** ClubStarHistoryOut */
+        ClubStarHistoryOut: {
+            /** Club Id */
+            club_id: number;
+            /** Current Stars */
+            current_stars: number;
+            /** Entries */
+            entries: components["schemas"]["ClubStarHistoryEntryOut"][];
         };
         /** CommentCreateBody */
         CommentCreateBody: {
@@ -1698,6 +1935,16 @@ export interface components {
             updated_at: string;
             /** Sides */
             sides: components["schemas"]["FriendlySideOut"][];
+            /**
+             * Can Edit
+             * @default false
+             */
+            can_edit: boolean;
+            /**
+             * Can Delete
+             * @default false
+             */
+            can_delete: boolean;
         };
         /** FriendlySideOut */
         FriendlySideOut: {
@@ -1772,6 +2019,130 @@ export interface components {
         HTTPValidationError: {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
+        };
+        /** IdeaAreaOut */
+        IdeaAreaOut: {
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            /** Selectable */
+            selectable: boolean;
+        };
+        /** IdeaAreasOut */
+        IdeaAreasOut: {
+            /** Areas */
+            areas: components["schemas"]["IdeaAreaOut"][];
+        };
+        /** IdeaCreateBody */
+        IdeaCreateBody: {
+            /**
+             * Title
+             * @default
+             */
+            title: string;
+            /**
+             * Body
+             * @default
+             */
+            body: string;
+            /**
+             * Kind
+             * @default feature
+             */
+            kind: string;
+            /** Areas */
+            areas?: string[];
+        };
+        /** IdeaListOut */
+        IdeaListOut: {
+            /** Ideas */
+            ideas: components["schemas"]["IdeaOut"][];
+        };
+        /** IdeaOut */
+        IdeaOut: {
+            /** Id */
+            id: number;
+            /** Author Player Id */
+            author_player_id: number;
+            /** Author Display Name */
+            author_display_name: string;
+            /** Title */
+            title: string;
+            /** Body */
+            body: string;
+            /** Kind */
+            kind: string;
+            /** Status */
+            status: string;
+            /** Status Note */
+            status_note: string;
+            /** Areas */
+            areas: string[];
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /** Edited At */
+            edited_at: string | null;
+            /** Has Image */
+            has_image: boolean;
+            /** Image Updated At */
+            image_updated_at: string | null;
+            /** Votes */
+            votes: number;
+            /** My Vote */
+            my_vote: number;
+            /**
+             * Can Edit
+             * @default false
+             */
+            can_edit: boolean;
+            /**
+             * Can Delete
+             * @default false
+             */
+            can_delete: boolean;
+            /**
+             * Can Set Status
+             * @default false
+             */
+            can_set_status: boolean;
+        };
+        /** IdeaPatchBody */
+        IdeaPatchBody: {
+            /** Title */
+            title?: string | null;
+            /** Body */
+            body?: string | null;
+            /** Kind */
+            kind?: string | null;
+            /** Areas */
+            areas?: string[] | null;
+        };
+        /** IdeaStatusBody */
+        IdeaStatusBody: {
+            /**
+             * Status
+             * @default
+             */
+            status: string;
+            /** Note */
+            note?: string | null;
+        };
+        /** IdeaVoteBody */
+        IdeaVoteBody: {
+            /**
+             * Value
+             * @default 0
+             */
+            value: number | string | null;
         };
         /** KeyLabelOut */
         KeyLabelOut: {
@@ -2237,6 +2608,20 @@ export interface components {
             /** Rating */
             rating: number;
         };
+        /**
+         * ReassignPreviewOut
+         * @description What a 2v2 re-assign would clear, counted before it is asked for (Q5).
+         */
+        ReassignPreviewOut: {
+            /** Matches */
+            matches: number;
+            /** Matches With Score */
+            matches_with_score: number;
+            /** Matches With Club */
+            matches_with_club: number;
+            /** Comments */
+            comments: number;
+        };
         /** ReassignResultOut */
         ReassignResultOut: {
             /** Ok */
@@ -2486,7 +2871,30 @@ export interface components {
             /** Finished At */
             finished_at: string | null;
             /** Sides */
-            sides: components["schemas"]["MatchSideOut"][];
+            sides: components["schemas"]["StatsMatchSideOut"][];
+        };
+        /**
+         * StatsMatchSideOut
+         * @description A match side as stats sees it: the club's rating **on the day the match was
+         *     played** (R4), not today's. `None` when the side had no club — or, for a very
+         *     old database, when the club has no recorded history at all.
+         *
+         *     Deliberately not on `MatchSideOut` itself: a live tournament shows the rating a
+         *     club has *now*, which is the same question the picker and the odds ask.
+         */
+        StatsMatchSideOut: {
+            /** Id */
+            id: number;
+            /** Side */
+            side: string;
+            /** Club Id */
+            club_id: number | null;
+            /** Goals */
+            goals: number;
+            /** Players */
+            players: components["schemas"]["PlayerRef"][];
+            /** Club Stars */
+            club_stars?: number | null;
         };
         /** StatsOddsRequest */
         StatsOddsRequest: {
@@ -2595,6 +3003,8 @@ export interface components {
             generated_at: string;
             /** Mode */
             mode: string;
+            /** Scope */
+            scope: string;
             /** Cup Owner Player Id */
             cup_owner_player_id: number | null;
             /** Tournaments */
@@ -2827,6 +3237,21 @@ export interface components {
             decider_winner_goals: number | null;
             /** Decider Loser Goals */
             decider_loser_goals: number | null;
+            /**
+             * Can Edit
+             * @default false
+             */
+            can_edit: boolean;
+            /**
+             * Can Delete
+             * @default false
+             */
+            can_delete: boolean;
+            /**
+             * Can Set Decider
+             * @default false
+             */
+            can_set_decider: boolean;
         };
         /** TournamentGenerateBody */
         TournamentGenerateBody: {
@@ -2881,6 +3306,21 @@ export interface components {
             winner_decider_string: string | null;
             /** Participants */
             participants: components["schemas"]["PlayerRef"][];
+            /**
+             * Can Edit
+             * @default false
+             */
+            can_edit: boolean;
+            /**
+             * Can Delete
+             * @default false
+             */
+            can_delete: boolean;
+            /**
+             * Can Set Decider
+             * @default false
+             */
+            can_set_decider: boolean;
         };
         /** TournamentLiveOut */
         TournamentLiveOut: {
@@ -3518,6 +3958,37 @@ export interface operations {
             };
         };
     };
+    reassign_2v2_preview_tournaments__tournament_id__reassign_preview_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tournament_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReassignPreviewOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     reassign_2v2_tournaments__tournament_id__reassign_post: {
         parameters: {
             query?: never;
@@ -3886,6 +4357,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ClubColumnsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_club_star_history_clubs__club_id__star_history_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                club_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClubStarHistoryOut"];
                 };
             };
             /** @description Validation Error */
@@ -4906,6 +5408,8 @@ export interface operations {
                 mode?: string;
                 /** @description How many recent matches to average (0 disables) */
                 lastN?: number;
+                /** @description Data source scope: "tournaments" (default), "both", or "friendlies" */
+                scope?: "tournaments" | "both" | "friendlies";
             };
             header?: never;
             path?: never;
@@ -5740,6 +6244,343 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["FriendlyOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_idea_areas_ideas_areas_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IdeaAreasOut"];
+                };
+            };
+        };
+    };
+    list_all_ideas_ideas_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IdeaListOut"];
+                };
+            };
+        };
+    };
+    create_idea_ideas_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["IdeaCreateBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IdeaOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_idea_voters_ideas__idea_id__voters_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                idea_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VotersOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_idea_image_ideas__idea_id__image_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                idea_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    put_idea_image_ideas__idea_id__image_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                idea_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_put_idea_image_ideas__idea_id__image_put"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IdeaOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_idea_image_ideas__idea_id__image_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                idea_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OkResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_idea_ideas__idea_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                idea_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OkResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    patch_idea_ideas__idea_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                idea_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["IdeaPatchBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IdeaOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    set_idea_status_ideas__idea_id__status_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                idea_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["IdeaStatusBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IdeaOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    vote_idea_ideas__idea_id__vote_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                idea_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["IdeaVoteBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VoteResultOut"];
                 };
             };
             /** @description Validation Error */

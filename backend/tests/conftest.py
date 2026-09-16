@@ -16,6 +16,8 @@ def client(tmp_path, monkeypatch):
         db_url=f"sqlite:///{db_path}",
         player_accounts=(
             PlayerAccount(name="Editor", password="editor-secret", admin=False),
+            # A second editor, so "an editor who is not the creator" is testable (A10).
+            PlayerAccount(name="Editor2", password="editor2-secret", admin=False),
             PlayerAccount(name="Admin", password="admin-secret", admin=True),
         ),
         jwt_secret="test-jwt-secret",
@@ -26,7 +28,7 @@ def client(tmp_path, monkeypatch):
     init_db()
 
     with Session(get_engine()) as s:
-        for name in ("Editor", "Admin"):
+        for name in ("Editor", "Editor2", "Admin"):
             exists = s.exec(select(Player).where(Player.display_name == name)).first()
             if exists is None:
                 s.add(Player(display_name=name))
@@ -45,6 +47,13 @@ def login(client: TestClient, username: str, password: str) -> str:
 @pytest.fixture()
 def editor_headers(client):
     token = login(client, "Editor", "editor-secret")
+    return {"Authorization": f"Bearer {token}"}
+
+
+@pytest.fixture()
+def editor2_headers(client):
+    """A second editor account — used to test "an editor who did not create this row"."""
+    token = login(client, "Editor2", "editor2-secret")
     return {"Authorization": f"Bearer {token}"}
 
 

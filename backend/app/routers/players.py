@@ -92,7 +92,8 @@ def _profile_payload(player: Player, profile: PlayerProfile | None) -> dict:
     }
 
 
-def _broadcast_player_pokes_event(player_id: int, *, event: str, payload: dict) -> None:
+def _broadcast_player_profile_event(player_id: int, *, event: str, payload: dict) -> None:
+    """Push one profile-channel event (`/ws/players/{id}`) — pokes and guestbook both use it."""
     try:
         from_thread.run(
             ws_manager_player_profiles.broadcast,
@@ -103,6 +104,19 @@ def _broadcast_player_pokes_event(player_id: int, *, event: str, payload: dict) 
     except Exception:
         # WS notifications are best-effort and must never break API writes.
         return
+
+
+def _broadcast_guestbook_event(profile_player_id: int, *, action: str, entry_id: int) -> None:
+    """A guestbook write changes what every viewer of that profile sees — say so on the channel (A5)."""
+    _broadcast_player_profile_event(
+        int(profile_player_id),
+        event="player:guestbook:update",
+        payload={
+            "player_id": int(profile_player_id),
+            "action": action,
+            "entry_id": int(entry_id),
+        },
+    )
 
 
 def _upsert_profile_header_file(
@@ -663,6 +677,7 @@ def create_player_guestbook_entry(
         s.add(PlayerGuestbookRead(player_id=author_player_id, guestbook_entry_id=int(row.id), read_at=now))
     s.commit()
     s.refresh(row)
+    _broadcast_guestbook_event(int(player_id), action="created", entry_id=int(row.id))
     preview = text if len(text) <= 120 else text[:117].rstrip() + "..."
     push_guestbook_created(
         request,
@@ -710,6 +725,7 @@ def patch_player_guestbook_entry(
     s.add(row)
     s.commit()
     s.refresh(row)
+    _broadcast_guestbook_event(int(row.profile_player_id), action="updated", entry_id=int(row.id))
 
     author = s.get(Player, int(row.author_player_id))
     parent_link = s.get(PlayerGuestbookThreadLink, int(row.id))
@@ -770,7 +786,7 @@ def create_player_poke(
         s.add(PlayerPokeRead(player_id=author_player_id, poke_id=int(row.id), read_at=now))
         s.commit()
 
-    _broadcast_player_pokes_event(
+    _broadcast_player_profile_event(
         int(player_id),
         event="player:pokes:update",
         payload={
@@ -852,6 +868,7 @@ def vote_player_guestbook_entry(
             vote_row.updated_at = now
         s.add(vote_row)
         s.commit()
+    _broadcast_guestbook_event(int(row.profile_player_id), action="voted", entry_id=int(entry_id))
     return {"ok": True, "value": value}
 
 
@@ -952,7 +969,7 @@ def mark_player_poke_read_all(
         marked += 1
     if marked:
         s.commit()
-        _broadcast_player_pokes_event(
+        _broadcast_player_profile_event(
             int(player_id),
             event="player:pokes:update",
             payload={
@@ -1037,4 +1054,5 @@ def delete_player_guestbook_entry(
         s.delete(erow)
 
     s.commit()
+    _broadcast_guestbook_event(profile_player_id, action="deleted", entry_id=root_id)
     return Response(status_code=204)

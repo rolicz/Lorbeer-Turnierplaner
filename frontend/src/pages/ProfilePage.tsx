@@ -18,13 +18,12 @@ import { getCup, listCupDefs } from "../api/cup.api";
 import { getStatsH2H, getStatsPlayerMatches, getStatsPlayers, getStatsRatings, getStatsStreaks } from "../api/stats.api";
 import { listClubs } from "../api/clubs.api";
 import { groupFriendlyTournamentsByDate } from "./stats/matchHistory";
+import { FORM_LAST_N } from "./stats/standings";
 import { usePlayerAvatarMap } from "../hooks/usePlayerAvatarMap";
 import { usePlayerProfileWS } from "../hooks/useTournamentWS";
 import { useRouteEntryLoading } from "../ui/layout/useRouteEntryLoading";
 import { usePageTitle } from "../ui/layout/PageTitleContext";
-import InlineBack from "../ui/shell/InlineBack";
 import { forgetLocation } from "../ui/shell/lastLocation";
-import { useContextualBack } from "../ui/shell/backNavigation";
 import { SectionTabs, type SectionTab } from "../ui/SectionTabs";
 import PageLayout from "../ui/layout/PageLayout";
 import { useTabParam } from "../ui/shell/useTabParam";
@@ -56,9 +55,6 @@ export default function ProfilePage() {
   const isOwnProfileView = !!currentPlayerId && !!targetPlayerId && currentPlayerId === targetPlayerId;
 
   const [profileTab, setProfileTab] = useTabParam<ProfileTab>(PROFILE_TAB_KEYS, "overview");
-  // `/profiles/:id` is a detail route (back chevron); `/profile` is top level.
-  const { isDetail: isDetailRoute } = useContextualBack();
-
   const playersQ = useQuery({ queryKey: qk.players(), queryFn: listPlayers });
   const profileQ = useQuery({
     queryKey: qk.playerProfile(targetPlayerId ?? "none"),
@@ -75,7 +71,8 @@ export default function ProfilePage() {
   const clubsQ = useQuery({ queryKey: qk.clubs(), queryFn: () => listClubs() });
   const statsPlayersQ = useQuery({
     queryKey: qk.stats.players("profile", targetPlayerId ?? "none"),
-    queryFn: () => getStatsPlayers({ lastN: 3, mode: "overall" }),
+    // Same Form window as the stats Player tab — one definition, two surfaces (A9).
+    queryFn: () => getStatsPlayers({ lastN: FORM_LAST_N, mode: "overall" }),
     enabled: Number.isFinite(targetPlayerId) && (targetPlayerId ?? 0) > 0,
   });
   const statsStreaksQ = useQuery({
@@ -254,24 +251,26 @@ export default function ProfilePage() {
     focusGuestbookEntry: guestbook.focusGuestbookEntry,
   });
 
+  // `PageLayout`, not a bare `.page`: the desktop's back chevron lives in its title
+  // row, and a loading or logged-out profile is still a page you went into (Q6).
   if (!pageEntered) {
     return (
-      <div className="page">
+      <PageLayout>
         <PageLoadingScreen sectionCount={5} />
-      </div>
+      </PageLayout>
     );
   }
 
   if (!targetPlayerId) {
     return (
-      <div className="page">
+      <PageLayout>
         <div className="px-1 py-8 text-center text-sm text-text-muted">Login to open your profile.</div>
-      </div>
+      </PageLayout>
     );
   }
 
   return (
-    <PageLayout title={displayName ?? "Profile"} back={isDetailRoute ? <InlineBack /> : null}>
+    <PageLayout title={displayName ?? "Profile"}>
       <div id="profile-section-main" className="space-y-3">
         <ErrorToastOnError error={playersQ.error} title="Players loading failed" />
         <ErrorToastOnError error={profileQ.error} title="Profile loading failed" />

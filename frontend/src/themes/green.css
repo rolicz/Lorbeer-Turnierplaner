@@ -44,6 +44,7 @@
   --color-status-bar-default: 70 96 78; /* zinc-600 */
 
   /* Gradients */
+  --color-cup-gold: 245 208 90; /* the theme's own gold, as the medals use below */
   --color-gradient-gold-from: 245 208 90;
   --color-gradient-gold-to: 253 230 138;
   --color-gradient-silver-from: 147 170 155;

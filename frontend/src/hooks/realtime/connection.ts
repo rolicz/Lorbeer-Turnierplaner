@@ -8,6 +8,9 @@
  *   (handles half-open sockets after sleep / network changes).
  * - Aggregate connection status (live | reconnecting | offline) for the UI.
  * - onOpen fires on every (re)connect so subscribers can resync after a gap.
+ * - onGap fires when the server's per-channel `seq` skips a number: something
+ *   was broadcast that never arrived, and the socket is still up, so nothing
+ *   else would ever tell the subscriber to catch up (A9).
  */
 import type { RealtimeStatus } from "../../ui/RealtimeStatusContext";
 
@@ -55,6 +58,8 @@ export type Handler = {
   onMessage: (msg: RealtimeMessage) => void;
   /** Fired on every (re)connect; use to resync after a possible gap. `first` is true on the initial connect. */
   onOpen?: (first: boolean) => void;
+  /** Fired when a message was missed (the channel's `seq` skipped); resync. */
+  onGap?: () => void;
 };
 
 type ConnStatus = "connecting" | "open" | "closed";
@@ -71,6 +76,8 @@ type Conn = {
   pingTimer: number | null;
   reconnectTimer: number | null;
   livenessTimer: number | null;
+  /** Last `seq` seen on this socket, or null before the first message of a connect. */
+  lastSeq: number | null;
 };
 
 const CONNS = new Map<string, Conn>();
@@ -182,6 +189,9 @@ function connect(c: Conn) {
     setStatus(c, "open");
     startPing(c, ws);
     bumpLiveness(c);
+    // Each connect starts a fresh baseline: the server counts per channel and
+    // restarts its counters on a restart, and a reconnect already resyncs.
+    c.lastSeq = null;
     const first = !c.hasConnectedOnce;
     c.hasConnectedOnce = true;
     for (const sub of c.subscribers) sub.onOpen?.(first);
@@ -205,9 +215,24 @@ function connect(c: Conn) {
       seq: typeof rec.seq === "number" ? rec.seq : null,
     };
     if (msg.event === "connected" || msg.event === "pong" || msg.event == null) return;
+
+    // The channel numbers its broadcasts 1, 2, 3…: a jump means one never arrived.
+    // The socket is still up, so no reconnect and no visibility change will ever
+    // ask for the missing state — only this check does (A9).
+    const gap = msg.seq != null && c.lastSeq != null && msg.seq !== c.lastSeq + 1;
+    if (msg.seq != null) c.lastSeq = msg.seq;
+
     for (const sub of c.subscribers) {
       try {
         sub.onMessage(msg);
+      } catch {
+        /* ignore subscriber errors */
+      }
+    }
+    if (!gap) return;
+    for (const sub of c.subscribers) {
+      try {
+        sub.onGap?.();
       } catch {
         /* ignore subscriber errors */
       }
@@ -256,6 +281,7 @@ export function subscribe(url: string, handler: Handler): () => void {
       pingTimer: null,
       reconnectTimer: null,
       livenessTimer: null,
+      lastSeq: null,
     };
     CONNS.set(url, c);
   }

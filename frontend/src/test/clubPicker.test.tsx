@@ -3,7 +3,7 @@ import { fireEvent, render } from "@testing-library/react";
 import { useState } from "react";
 
 import type { Club } from "../api/types";
-import { AuthProvider } from "../auth/AuthContext";
+import { AuthProvider } from "../auth/AuthProvider";
 import ClubPicker from "../ui/ClubPicker";
 import SelectClubsPanel from "../ui/SelectClubsPanel";
 import { useClubFilters, useClubSelection } from "../ui/clubControls";

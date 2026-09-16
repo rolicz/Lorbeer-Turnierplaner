@@ -45,9 +45,13 @@ export type PlayerPokeReadMapRow = S["PokeReadMapOut"];
 // Clubs / Leagues
 export type League = S["LeagueOut"];
 export type Club = S["ClubOut"];
+export type ClubStarHistory = S["ClubStarHistoryOut"];
+export type ClubStarHistoryEntry = S["ClubStarHistoryEntryOut"];
 
 // Matches / Tournaments
 export type MatchSide = S["MatchSideOut"];
+/** A match side inside a stats response: `MatchSide` plus the as-of `club_stars` (R4). */
+export type StatsMatchSide = S["StatsMatchSideOut"];
 export type MatchOdds = S["OddsOut"];
 // state/leg are typed as string/int in generated schema; backend only returns these exact values.
 // started_at/finished_at are nullable strings (generated schema may say string | null already, but we make it explicit).
@@ -70,6 +74,8 @@ export type TournamentDetail = Omit<S["TournamentDetailOut"], "mode" | "status" 
   status: TournamentStatus;
   matches: Match[];
 };
+// What a 2v2 re-assign would clear — the numbers its confirmation names (Q5).
+export type ReassignPreview = S["ReassignPreviewOut"];
 // mode/status same as TournamentSummary — backend guarantees these values.
 export type TournamentLive = Omit<S["TournamentLiveOut"], "mode" | "status"> & {
   mode: TournamentMode;
@@ -82,6 +88,20 @@ export type TournamentCommentsResponse = S["CommentListOut"];
 export type TournamentCommentsSummary = S["CommentSummaryOut"];
 export type TournamentCommentReadIds = S["CommentIdsOut"];
 export type TournamentCommentReadMapRow = S["CommentReadMapOut"];
+
+// Ideas / feature requests
+export type IdeaKind = "feature" | "change" | "bug";
+export type IdeaStatus = "new" | "planned" | "doing" | "done" | "declined";
+// kind/status are typed as string in the generated schema; the backend validates them
+// against exactly these values (`services/ideas_view.py`), so narrow them here.
+export type Idea = Omit<S["IdeaOut"], "kind" | "status" | "my_vote"> & {
+  kind: IdeaKind;
+  status: IdeaStatus;
+  my_vote: 0 | 1;
+};
+export type IdeaListResponse = Omit<S["IdeaListOut"], "ideas"> & { ideas: Idea[] };
+export type IdeaArea = S["IdeaAreaOut"];
+export type IdeaAreasResponse = S["IdeaAreasOut"];
 
 // Auth
 // Login endpoint never returns "reader" (that is the unauthenticated default, not a credential).

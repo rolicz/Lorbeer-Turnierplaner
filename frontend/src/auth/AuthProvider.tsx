@@ -1,30 +1,15 @@
-/* eslint-disable react-refresh/only-export-components */
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+/**
+ * The auth provider component — and nothing else, so React Fast Refresh can
+ * update it in place (Q10). The context object it fills lives in
+ * `AuthContext.ts`; see the note there for what sharing one module cost us.
+ */
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+
 import { me } from "../api/auth.api";
+import { ApiError } from "../api/client";
 import { showErrorToast } from "../ui/primitives/ErrorToast";
-
-export type Role = "reader" | "editor" | "admin";
-
-type AuthState = {
-  token: string | null;
-  accountRole: Role;
-  role: Role;
-  playerId: number | null;
-  playerName: string | null;
-  actorPlayerId: number | null;
-  actorPlayerName: string | null;
-};
-
-type AuthCtx = AuthState & {
-  login: (token: string, role: Role, playerId: number | null, playerName: string | null) => void;
-  logout: () => void;
-  canCycleRole: boolean;
-  cycleRole: () => void;
-  canSwitchActor: boolean;
-  setActorPlayer: (playerId: number | null, playerName: string | null) => void;
-};
-
-const AuthContext = createContext<AuthCtx | null>(null);
+import { readStored, removeStored, writeStored } from "../utils/safeStorage";
+import { AuthContext, type AuthCtx, type Role } from "./AuthContext";
 
 const TOKEN_KEY = "ea_fc_token";
 const ROLE_KEY = "ea_fc_role";
@@ -35,29 +20,39 @@ const ACTOR_PLAYER_ID_KEY = "ea_fc_actor_player_id";
 const ACTOR_PLAYER_NAME_KEY = "ea_fc_actor_player_name";
 const ROLE_RANK: Record<Role, number> = { reader: 1, editor: 2, admin: 3 };
 
+/**
+ * Only the server saying "this token is no good" ends a session. A request that
+ * never got an answer — aborted (a dev force-reload, a navigation), offline, DNS
+ * down, the backend restarting — says nothing about the token, and logging the
+ * user out over one of those is how a PWA on flaky wifi silently became a reader (A9).
+ */
+function isTokenRejection(err: unknown): boolean {
+  return err instanceof ApiError && (err.status === 401 || err.status === 403);
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [token, setToken] = useState<string | null>(() => localStorage.getItem(TOKEN_KEY));
-  const [storedRole, setStoredRole] = useState<Role>(() => (localStorage.getItem(ROLE_KEY) as Role) || "reader");
+  const [token, setToken] = useState<string | null>(() => readStored(TOKEN_KEY));
+  const [storedRole, setStoredRole] = useState<Role>(() => (readStored(ROLE_KEY) as Role) || "reader");
   const [storedPlayerId, setStoredPlayerId] = useState<number | null>(() => {
-    const raw = localStorage.getItem(PLAYER_ID_KEY);
+    const raw = readStored(PLAYER_ID_KEY);
     if (!raw) return null;
     const n = Number(raw);
     return Number.isFinite(n) && n > 0 ? n : null;
   });
-  const [storedPlayerName, setStoredPlayerName] = useState<string | null>(() => localStorage.getItem(PLAYER_NAME_KEY));
+  const [storedPlayerName, setStoredPlayerName] = useState<string | null>(() => readStored(PLAYER_NAME_KEY));
   const [roleOverride, setRoleOverride] = useState<Role | null>(() => {
-    const raw = localStorage.getItem(ROLE_OVERRIDE_KEY) as Role | null;
+    const raw = readStored(ROLE_OVERRIDE_KEY) as Role | null;
     if (raw === "reader" || raw === "editor" || raw === "admin") return raw;
     return null;
   });
   const [actorPlayerIdOverride, setActorPlayerIdOverride] = useState<number | null>(() => {
-    const raw = localStorage.getItem(ACTOR_PLAYER_ID_KEY);
+    const raw = readStored(ACTOR_PLAYER_ID_KEY);
     if (!raw) return null;
     const n = Number(raw);
     return Number.isFinite(n) && n > 0 ? n : null;
   });
   const [actorPlayerNameOverride, setActorPlayerNameOverride] = useState<string | null>(
-    () => localStorage.getItem(ACTOR_PLAYER_NAME_KEY)
+    () => readStored(ACTOR_PLAYER_NAME_KEY)
   );
 
   const accountRole: Role = token ? storedRole : "reader";
@@ -75,13 +70,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     : playerName;
 
   function clearAuth() {
-    localStorage.removeItem(TOKEN_KEY);
-    localStorage.removeItem(ROLE_KEY);
-    localStorage.removeItem(PLAYER_ID_KEY);
-    localStorage.removeItem(PLAYER_NAME_KEY);
-    localStorage.removeItem(ROLE_OVERRIDE_KEY);
-    localStorage.removeItem(ACTOR_PLAYER_ID_KEY);
-    localStorage.removeItem(ACTOR_PLAYER_NAME_KEY);
+    removeStored(TOKEN_KEY);
+    removeStored(ROLE_KEY);
+    removeStored(PLAYER_ID_KEY);
+    removeStored(PLAYER_NAME_KEY);
+    removeStored(ROLE_OVERRIDE_KEY);
+    removeStored(ACTOR_PLAYER_ID_KEY);
+    removeStored(ACTOR_PLAYER_NAME_KEY);
     setToken(null);
     setStoredRole("reader");
     setStoredPlayerId(null);
@@ -103,25 +98,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (cancelled) return;
         const serverRole = res?.role as Role | undefined;
         if (serverRole && serverRole !== storedRole) {
-          localStorage.setItem(ROLE_KEY, serverRole);
+          writeStored(ROLE_KEY, serverRole);
           setStoredRole(serverRole);
         }
         const serverPlayerId = Number(res?.player_id ?? 0);
         const normalizedServerPlayerId = Number.isFinite(serverPlayerId) && serverPlayerId > 0 ? serverPlayerId : null;
         const serverPlayerName = res?.player_name ? String(res.player_name) : null;
         if (normalizedServerPlayerId !== storedPlayerId) {
-          if (normalizedServerPlayerId == null) localStorage.removeItem(PLAYER_ID_KEY);
-          else localStorage.setItem(PLAYER_ID_KEY, String(normalizedServerPlayerId));
+          if (normalizedServerPlayerId == null) removeStored(PLAYER_ID_KEY);
+          else writeStored(PLAYER_ID_KEY, String(normalizedServerPlayerId));
           setStoredPlayerId(normalizedServerPlayerId);
         }
         if (serverPlayerName !== storedPlayerName) {
-          if (!serverPlayerName) localStorage.removeItem(PLAYER_NAME_KEY);
-          else localStorage.setItem(PLAYER_NAME_KEY, serverPlayerName);
+          if (!serverPlayerName) removeStored(PLAYER_NAME_KEY);
+          else writeStored(PLAYER_NAME_KEY, serverPlayerName);
           setStoredPlayerName(serverPlayerName);
         }
-      } catch {
+      } catch (err) {
         if (cancelled) return;
-        clearAuth();
+        // Keep the session unless the server itself rejected the token; a failed
+        // request only means we could not ask.
+        if (isTokenRejection(err)) clearAuth();
       }
     })();
 
@@ -148,11 +145,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const idx = order.indexOf(current);
     const next = order[(idx + 1) % order.length];
     if (next === "admin") {
-      localStorage.removeItem(ROLE_OVERRIDE_KEY);
+      removeStored(ROLE_OVERRIDE_KEY);
       setRoleOverride(null);
       return;
     }
-    localStorage.setItem(ROLE_OVERRIDE_KEY, next);
+    writeStored(ROLE_OVERRIDE_KEY, next);
     setRoleOverride(next);
   }, [canCycleRole, normalizedOverride]);
 
@@ -160,17 +157,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     (pid: number | null, pname: string | null) => {
       if (!token || accountRole !== "admin") return;
       if (pid == null || (storedPlayerId != null && Number(pid) === Number(storedPlayerId))) {
-        localStorage.removeItem(ACTOR_PLAYER_ID_KEY);
-        localStorage.removeItem(ACTOR_PLAYER_NAME_KEY);
+        removeStored(ACTOR_PLAYER_ID_KEY);
+        removeStored(ACTOR_PLAYER_NAME_KEY);
         setActorPlayerIdOverride(null);
         setActorPlayerNameOverride(null);
         return;
       }
       const safePid = Number(pid);
       if (!Number.isFinite(safePid) || safePid <= 0) return;
-      localStorage.setItem(ACTOR_PLAYER_ID_KEY, String(safePid));
-      if (pname) localStorage.setItem(ACTOR_PLAYER_NAME_KEY, pname);
-      else localStorage.removeItem(ACTOR_PLAYER_NAME_KEY);
+      writeStored(ACTOR_PLAYER_ID_KEY, String(safePid));
+      if (pname) writeStored(ACTOR_PLAYER_NAME_KEY, pname);
+      else removeStored(ACTOR_PLAYER_NAME_KEY);
       setActorPlayerIdOverride(safePid);
       setActorPlayerNameOverride(pname || null);
     },
@@ -186,15 +183,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     actorPlayerId,
     actorPlayerName,
     login: (t, r, pid, pname) => {
-      localStorage.setItem(TOKEN_KEY, t);
-      localStorage.setItem(ROLE_KEY, r);
-      if (pid == null) localStorage.removeItem(PLAYER_ID_KEY);
-      else localStorage.setItem(PLAYER_ID_KEY, String(pid));
-      if (!pname) localStorage.removeItem(PLAYER_NAME_KEY);
-      else localStorage.setItem(PLAYER_NAME_KEY, pname);
-      localStorage.removeItem(ROLE_OVERRIDE_KEY);
-      localStorage.removeItem(ACTOR_PLAYER_ID_KEY);
-      localStorage.removeItem(ACTOR_PLAYER_NAME_KEY);
+      writeStored(TOKEN_KEY, t);
+      writeStored(ROLE_KEY, r);
+      if (pid == null) removeStored(PLAYER_ID_KEY);
+      else writeStored(PLAYER_ID_KEY, String(pid));
+      if (!pname) removeStored(PLAYER_NAME_KEY);
+      else writeStored(PLAYER_NAME_KEY, pname);
+      removeStored(ROLE_OVERRIDE_KEY);
+      removeStored(ACTOR_PLAYER_ID_KEY);
+      removeStored(ACTOR_PLAYER_NAME_KEY);
       setToken(t);
       setStoredRole(r);
       setStoredPlayerId(pid);
@@ -223,10 +220,4 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   ]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
-}
-
-export function useAuth() {
-  const ctx = useContext(AuthContext);
-  if (!ctx) throw new Error("useAuth must be used within AuthProvider");
-  return ctx;
 }
