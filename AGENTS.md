@@ -98,12 +98,16 @@ Size (2026-09-13): backend ≈ 13.3k LOC Python (`app/` + `manage.py` + `run.py`
   lucide-react component — see §9.
 - `src/themes/*.css` — CSS-variable themes (blue default, dark, red, light, green) consumed by
   Tailwind via `rgb(var(--color-*))`. `src/styles.css` holds shared component classes.
-- `src/diagnostics/` — the crash recorder (Round 7, 2026-09-15). `crashLog.ts` is a 10-entry ring
-  buffer in `safeStorage` fed by both error boundaries, `window.onerror` and `unhandledrejection`;
+- `src/diagnostics/` — the crash recorder (Round 7, 2026-09-15; the blank-screen detector
+  2026-09-16). `crashLog.ts` is a 10-entry ring buffer in `safeStorage` fed by both error
+  boundaries, `window.onerror` and `unhandledrejection`, plus two synthetic sources;
   `breadcrumbs.ts` keeps the last 20 navigations (URL + PUSH/POP/REPLACE) **in memory** and attaches
   them to whatever is recorded; `lifecycle.ts` leaves a liveness marker so a death that throws
-  nothing (iOS jettisoning the web view) is still visible on the next boot; `install.ts` wires the
-  three from `main.tsx` before React renders. Read on the phone at Settings →
+  nothing (iOS jettisoning the web view) is still visible on the next boot **and looks at the screen
+  on every tick**, so an app that stops drawing while the page stays open records itself on the spot
+  (`blank-screen`) instead of leaving no trace; `blankNotice.ts` paints the message that replaces the
+  blank screen — plain DOM, no React, no router, no context, because any of them may be what failed;
+  `install.ts` wires them from `main.tsx` before React renders. Read on the phone at Settings →
   Diagnostics (`ui/layout/DiagnosticsSettings.tsx`, `?tab=diagnostics`).
 - `src/push/` — service-worker registration + subscription; `public/sw.js` handles push/click.
 - `src/auth/AuthContext.tsx` — token/role in localStorage; "view as lower role" and admin
@@ -501,11 +505,29 @@ every past match simply keeps counting today's rating.
   tree to build the component stack and re-throws it to `window` — as *different* Error objects, so
   object identity cannot dedupe them. `crashLog` samples `count` at 400 ms for exactly this; do not
   "fix" that into an exact counter without re-reading why. Roli's phone runs the **dev** server, so
-  its stacks name real files and lines; a production stack would be minified.
+  its stacks name real files and lines; a production stack is minified (measured: `at e
+  (index-<hash>.js:22:292267)`), which is why `lorbeerkranz.xyz` would need `build.sourcemap`
+  before a crash can be chased there — an open call, deliberately not taken.
 - **Backgrounding a PWA is not a crash.** `lifecycle.ts` only reports a session whose last marker
   said `visible`; a `pagehide`/`visibilitychange` write (`hidden`) is an ordinary end and is
   silently dropped. Anything that makes the app write a `visible` marker on its way out would turn
-  every app switch into a false "Ended unexpectedly".
+  every app switch into a false "Ended unexpectedly". The **one** carve-out is a marker carrying
+  `blank` (below): the screen was already dead when the app was backgrounded, and backgrounding a
+  dead app is the reaction, not the cause.
+- **A blank screen that leaves the document alive used to record nothing at all** (2026-09-16, after
+  it happened to Roli twice). The diagnostics install before React and run independently of it, so
+  the heartbeat kept writing `visible` while the root sat empty — nothing ever asked whether anything
+  was on screen — and the only sensible reaction to a black screen, backgrounding or force-quitting
+  it, rewrote the marker to `hidden`, which is never reported. Now every tick (3 s) asks two O(1)
+  questions of the mount point — `isConnected`, `firstElementChild` — and a blank writes its own
+  entry there and then, with the trail, **with nothing having thrown**. Rules that must not be
+  loosened: it fires only after it has seen the app draw at least once in this document (so the
+  window between `createRoot` and the first paint, and a boot that never rendered, are not it), only
+  past `BOOT_GRACE_MS`, only once per document, and never on a root React *replaced* rather than
+  emptied (the element is re-resolved by id first). **The look must stay free of geometry** —
+  `offsetHeight`, `getBoundingClientRect`, `getComputedStyle` all force a reflow; the two property
+  reads measure ~77 ns against ~19 µs for the marker write they sit next to. The storage cadence is
+  unchanged: the marker is still written every 15 s (every fifth tick), never more.
 - **A `card` inside a CSS grid needs `min-w-0`.** A grid item defaults to `min-width: auto`, so one
   unbreakable line inside it (a stack frame, a long URL) widens the whole page instead of
   scrolling/truncating. `SettingsSection` learned this the hard way in Round 7.

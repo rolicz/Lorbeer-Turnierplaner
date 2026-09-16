@@ -7521,6 +7521,108 @@ and a plain `pagehide` → nothing recorded. 390px and 1280px, blue and light. `
 - `SettingsSection` gained `min-w-0` — a grid item is `min-width: auto`, so the first unbreakable
   stack frame made the entire page scroll sideways. Latent for every tab, found by this one.
 
+## Round 7b — the crash that still recorded nothing (2026-09-16)
+
+Roli, 2026-09-16: *"i now just had a crash again (from a different scenario) but nothing
+recorded...its annoying as these are hard to reproduce as they dont occur often/every time."*
+Twice now. The instrument above was built to be *watching when it happens*; this is the change that
+makes it *tell you afterwards*.
+
+**Why nothing was recorded — diagnosed, not guessed.** The diagnostics install from `main.tsx`
+*before* React and run independently of it. So when the app blanks — the React root emptied, the
+document untouched — the heartbeat carries on writing `phase: "visible"` every 15 s: **nothing ever
+asked whether anything was actually on screen**. And then Roli does the only sensible thing with a
+black screen: he backgrounds it or force-quits it, which fires `pagehide`/`visibilitychange`,
+rewrites the marker to `phase: "hidden"`, and `unexpectedEnd()` deliberately never reports a hidden
+marker. *Reacting to the crash destroyed the evidence of it.* Between those two behaviours, a blank
+screen whose document survives was exactly the case that left no trace — and it is the case he keeps
+hitting. (The renderer-kill case the section above verified is a different death: there the document
+dies too, and the stale `visible` marker is the whole point.)
+
+**What now covers it.** Three things, all in `src/diagnostics/`.
+
+| Piece | Where | What it does |
+|---|---|---|
+| The tick looks at the screen | `lifecycle.ts` | Every 3 s: is the mount point still holding a rendered tree? If it is not — and it once was — the entry is recorded **there and then** (source `blank-screen`, `warn` tone, "No error was thrown"), with the URL and the navigation trail, **with nothing having thrown**. The storage write stays where it was: the marker is written on every *fifth* tick, i.e. every 15 s, exactly as before. |
+| A blank screen stops being blank | `blankNotice.ts` | Paints "The app stopped drawing", a Reload button and a real navigation to Settings → Diagnostics into the empty root. Plain `document.createElement` + `textContent` + inline styles reading the theme's own CSS variables with literal fallbacks — **no React, no router, no context, no stylesheet dependency**, because any of them may be what just failed. Every statement inside one `try`; it paints at most once. |
+| Backgrounding stops destroying evidence | `lifecycle.ts` marker `blank`, `crashLog.recordBlankScreen` | The hide handler **looks before it rewrites the marker**, so a blank seen between two ticks is still caught on the way out; and once seen, the fact rides in the marker as `blank: <ts>`, which `unexpectedEnd` reports whatever the phase. The ordinary rule is untouched: a `hidden` marker *without* `blank` is still never a death. The two reports are one incident — a blank already in the log within 5 s of the one being recorded is left alone. |
+
+**Decisions worth not re-litigating.**
+
+- **What "still rendering" means is `root.firstElementChild != null`, and nothing richer.** Anything
+  about *visibility* or size needs geometry, and `offsetHeight`/`getBoundingClientRect`/
+  `getComputedStyle` force a reflow on every tick. Two O(1) property reads is the whole budget.
+- **A false "your app died" is worse than none** — it trains the reader to ignore the log. So the
+  detector fires only when all of these hold: it has seen a rendered tree at least once **in this
+  document** (which kills the window between `createRoot` and the first paint, and a boot that never
+  rendered at all — that is a different bug, and `window.onerror` has it); the document is older than
+  `BOOT_GRACE_MS` (2.5 s); and it has not already fired. A root React **replaced** rather than
+  emptied is re-resolved by `getElementById` before it counts as anything.
+- **A legitimately empty render cannot happen here** and is not guessed at: the shell renders on
+  every route, and the lazy routes have `Suspense` fallbacks *inside* it (`app/App.tsx`), so a chunk
+  still loading leaves the root full. Verified by driving 21 route loads with nothing recorded.
+- **The blank entry is `force`d past the loop guard** (`RecordInput.force`). It can fire once per
+  document, so it needs no burst budget — and a render loop that *ends* in a blank screen is exactly
+  the case where the burst fold would otherwise swallow the one line saying what was on screen.
+- **A synthetic entry never calls `noteErrorRecorded`.** That flag exists to say "a real error
+  already explains this death"; a blank screen explains nothing, and must not suppress the next
+  boot's report.
+
+**What the tick costs** (measured in the production build, on the Pi, 200k iterations):
+the look is **~77 ns**; a single `offsetHeight` read — the layout-forcing alternative, in an already
+settled document — is ~743 ns; the marker write it sits next to is **~18.6 µs**, i.e. 240× the look,
+and its frequency is unchanged. Twenty ticks a minute add ~1.5 µs of work per minute. No new timer
+(the existing interval got faster and writes on every fifth tick), no new storage write, no DOM walk.
+
+**Verified** (isolated stack: backend :8003 on a copy of `app.db`, vite :8020, production build
+served statically on :8031). Three forced blank screens, each recording exactly one `blank-screen`
+entry with its trail and painting the notice: `root.unmount()` **from outside React**; a throw
+**above** the app boundary (rendering a throwing element at the root — which also produced its own
+`window.onerror` entry beside the blank one, the pair being the ideal report); and the hide path,
+where the root is emptied and the page is backgrounded or reloaded before the next tick. The
+renderer kill (`chrome://crash`) still produces the pre-existing **Ended unexpectedly** entry, not a
+blank one. Recorded **nothing**: a normal boot (22 s), a route that renders little (`/no-such-page`),
+a reload, a backgrounding with the app intact, and 21 route loads across the lazy chunks. In the
+production build the entries carry `Build: production` and the same behaviour; at 390px and 1280px,
+blue and light, `a a` count 0, no console errors beyond the WebSocket the static harness does not
+proxy.
+
+**Source maps: worth it, but it is Roli's call and the build config was not touched.** Measured
+side by side, the same throw records `at Boom (…/src/main.tsx:39:11)` from the dev server and
+`at e (…/assets/index-kRxnvNJS.js:22:292267)` from the production build — a production stack names
+minified frames and is nearly useless for locating the failure. `build.sourcemap: true` in
+`vite.config.ts` would fix that, at the cost of publishing ~2–3 MB of `.map` files next to the
+bundle, which anyone can read as the original source (this is a private friends' app, so that is a
+small matter, but it is a real one and it is his to decide). The cheaper half-measure is
+`build.sourcemap: "hidden"`: maps are emitted but no `//# sourceMappingURL` comment is, so browsers
+never fetch them and the stack stays minified — useful only if someone de-minifies the copy by hand
+afterwards. **Nothing forces the decision today**: his phone loads the PWA from the Pi's dev server,
+so his stacks already name real files, and `lorbeerkranz.xyz` has never had to be chased.
+
+**Deviations.**
+
+- **The tick is 3 s, not the heartbeat's 15 s** — the plan says "each beat"; a beat every 15 s would
+  leave a reader in front of a black screen for up to fifteen seconds before the notice appears, and
+  the look is cheap enough that the honest answer was to look more often and write no more often.
+  One timer still, `HEARTBEAT_MS / RENDER_CHECK_MS` ticks per marker write.
+- **The blank is a source of its own (`blank-screen`), not a `lifecycle` entry with a different
+  message.** "Ended unexpectedly" is the wrong label for a page that is still open; the log now
+  distinguishes *it was taken away* from *it stopped drawing*, which are different bugs. Both are
+  `warn`, both say "No error was thrown", and `isSyntheticSource()` is the one place that knows.
+- **`window.addEventListener("pageshow")`, restricted to `event.persisted`.** Not asked for: found
+  while reading the hide path. The timer is stopped on the way out, and a bfcache restore does not
+  always fire `visibilitychange` — without this the heartbeat (and now the detector) could stay dead
+  for the rest of a restored document. Guarded so an ordinary load adds no write.
+- **A real OS-level backgrounding could not be produced in this environment.** Headless Chromium
+  reports `visibilityState: "visible"` regardless, and so does a headed one under Xvfb (no window
+  manager: `bringToFront`, minimising via CDP and `Page.setWebLifecycleState` all leave it visible).
+  So the `visibilitychange` half was driven by overriding that one property and firing the real
+  event — exactly what the code reads and listens to — while the `pagehide` half was exercised for
+  real by a reload. Unit tests cover both paths as well.
+- **The verification needed `main.tsx` patched temporarily** (to expose the root for `unmount()` and
+  a helper that renders a throwing element at the root). Applied, used for both the dev and the
+  production runs, reverted; the committed tree has none of it.
+
 ---
 
 ## Q7 — The friendlies list has no layout of its own  ☑
