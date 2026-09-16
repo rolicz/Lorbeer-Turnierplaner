@@ -1,32 +1,15 @@
-/* eslint-disable react-refresh/only-export-components */
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+/**
+ * The auth provider component — and nothing else, so React Fast Refresh can
+ * update it in place (Q10). The context object it fills lives in
+ * `AuthContext.ts`; see the note there for what sharing one module cost us.
+ */
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+
 import { me } from "../api/auth.api";
 import { ApiError } from "../api/client";
 import { showErrorToast } from "../ui/primitives/ErrorToast";
 import { readStored, removeStored, writeStored } from "../utils/safeStorage";
-
-export type Role = "reader" | "editor" | "admin";
-
-type AuthState = {
-  token: string | null;
-  accountRole: Role;
-  role: Role;
-  playerId: number | null;
-  playerName: string | null;
-  actorPlayerId: number | null;
-  actorPlayerName: string | null;
-};
-
-type AuthCtx = AuthState & {
-  login: (token: string, role: Role, playerId: number | null, playerName: string | null) => void;
-  logout: () => void;
-  canCycleRole: boolean;
-  cycleRole: () => void;
-  canSwitchActor: boolean;
-  setActorPlayer: (playerId: number | null, playerName: string | null) => void;
-};
-
-const AuthContext = createContext<AuthCtx | null>(null);
+import { AuthContext, type AuthCtx, type Role } from "./AuthContext";
 
 const TOKEN_KEY = "ea_fc_token";
 const ROLE_KEY = "ea_fc_role";
@@ -237,10 +220,4 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   ]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
-}
-
-export function useAuth() {
-  const ctx = useContext(AuthContext);
-  if (!ctx) throw new Error("useAuth must be used within AuthProvider");
-  return ctx;
 }

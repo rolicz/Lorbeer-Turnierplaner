@@ -8296,7 +8296,7 @@ back renders instantly on every realtime-covered screen; a screen with no channe
 
 ---
 
-## Q10 — The blue screen is a Fast Refresh artifact, not an app bug  ☐
+## Q10 — The blue screen is a Fast Refresh artifact, not an app bug  ☑
 
 **Solved 2026-09-16 from the first captured trail.** Roli's Diagnostics report, iOS 18.7, Safari
 26.6.1, development build, at `/live/21/match/118`:
@@ -8344,6 +8344,62 @@ while a phone or a second browser has the app open); `npm run check` + build.
 
 **Deviations:**
 
+- **Reproduced first, on the unfixed code.** One save is not enough: vite answers a single edit of
+  `AuthContext.tsx` with `Could not Fast Refresh ("useAuth" export is incompatible)` and a clean
+  full page reload. The blue screen needs what actually happens on the Pi — *several* saves in a
+  row, so the reload from save N races the re-timestamping of save N+1. Twelve rounds of that on
+  `/dashboard` blanked the app on round 1: `useAuth must be used within AuthProvider`,
+  an `app-boundary` entry in the crash log, "The app crashed" on screen. The captured stack names
+  the mechanism outright — `useAuth` at `/src/auth/AuthContext.tsx?t=1789560989261` called from
+  `useDestinationLinks.ts?t=1789560988402` and `BottomTabBar.tsx?t=1789560988402`: **two module
+  graphs, 859 ms apart, in one document.** Exactly the two-context-objects diagnosis, measured.
+- **Only `auth` reproduces the blank today**; the other three are the same shape, latent. `Theme`,
+  `PageTitle` and `RealtimeStatus` are all provided by `AppShell`, which is itself a refresh
+  boundary, so provider and consumer are re-timed together; storming `ThemeContext.tsx` at
+  `/settings` (14 rounds, with and without `SettingsPage.tsx` alongside) never crashed. `auth` is
+  the bad one because `AuthProvider` is mounted from `main.tsx`, which is *not* a boundary — the
+  provider stays on the old graph while everything under it moves to the new one. All four were
+  split anyway: same shape, same disable line, same trap for the next worker.
+- **No barrel, and the hook's import specifier did not change.** The context object and the hook
+  keep the file everyone already imports — `auth/AuthContext` — and only its *extension* changed,
+  `.tsx` → `.ts`, which no importer can see. So the ~30 `useAuth` call sites are untouched, and the
+  six `AuthProvider` importers (`main.tsx` + five tests) were updated by hand. A barrel was rejected
+  in both forms: one that re-exports the provider would rebuild the exact hazard being removed, and
+  one that re-exports only the hook would be indirection buying nothing.
+- **The `.ts` extension is the structural half of the fix.** A `.ts` file cannot contain JSX, so the
+  provider cannot drift back in later even if someone ignores the lint rule. Naming is
+  `<Name>Context.ts` / `<Name>Provider.tsx` throughout, so which half is which is readable from the
+  file list: `auth/{AuthContext.ts,AuthProvider.tsx}`, `ui/{RealtimeStatusContext.ts,
+  RealtimeStatusProvider.tsx}`, `ui/layout/{ThemeContext.ts,ThemeProvider.tsx}`,
+  `ui/layout/{PageTitleContext.ts,PageTitleProvider.tsx}`.
+- **The rule is now enforced, not merely obeyed.** `react-refresh/only-export-components` was
+  `"warn"`, and `npm run lint` is `eslint .`, which **exits 0 on warnings** — so the rule could
+  never fail a gate even with the disable lines removed. It is now `"error"`, verified by linting a
+  throwaway file with the hazardous shape: one error, exit 1. Rejected: `linterOptions.noInlineConfig`
+  scoped to `**/*Context.*` (it would make the disable comment ineffective, but silently swallows
+  every *other* inline directive in those files — a surprising failure mode for a guarantee the
+  `.ts` extension already gives), and a new eslint plugin (no new dependencies).
+- **`pages/profile/GuestbookEntryCard.tsx` was left alone, and it was right to.** It has a context
+  but not the hazardous shape: the context object is module-private, the hook is *not* exported, and
+  every value export is a component — so the module is already a valid Fast Refresh boundary, which
+  is why it is the one context file that never needed the disable comment. Provider and its only
+  consumer refresh together against the same new object. Verified: 14 rounds of saves on
+  `/profiles/1?tab=guestbook`, every one a clean `hmr update`, no reload, no error. Splitting it
+  would cost two files and the locality that makes the recursive card readable, for no safety.
+- **Proof, not assertion.** Before: 34 × `Could not Fast Refresh` and 5 forced page reloads in the
+  dev-server log, and the blank. After, on an isolated stack (backend :8003 on a DB copy, vite
+  :8020): each of the eight files edited live with the app open on `/live/21/match/118` — **zero**
+  `Could not Fast Refresh`, **zero** page reloads, every save a clean `hmr update`, the page still
+  drawing after all eight, no page errors, and Settings → Diagnostics reading **"Nothing recorded"**
+  where the same exercise previously left an App boundary entry. Storms of 12–14 rounds on each of
+  the four pairs: no crash. Regression pass: 9 routes × {390 px, 1280 px} × {blue, light} = 36
+  route loads, no crash, no console errors, `a a` = 0, no horizontal overflow, and theme switching
+  (which runs through `useTheme`) works in both directions at both widths.
+- **One edit outside this section**: the "What is left" queue row for Q10 is ticked
+  `☑ Done 2026-09-16`, matching how Q8 and Q9 are marked in the same table. The sentence below it
+  ("the Q10 crash keeps appearing until item 2 lands") is left as written — it records the decision
+  Roli made at the time, and item 2 has now landed.
+
 ---
 
 ## What is left, and in what order (Roli, 2026-09-16)
@@ -8353,7 +8409,7 @@ Chosen by Roli from rendered options. **Biggest value first**, not easiest first
 | # | Task | Note |
 |---|---|---|
 | 1 | **Q6** — one model for back, forward and the gestures | Ungated by Q10. Runs on the consistency findings alone. |
-| 2 | **Q10** — split the four context files | Stops the app appearing to crash whenever a worker saves one. |
+| 2 | **Q10** — split the four context files | ☑ Done 2026-09-16. Stops the app appearing to crash whenever a worker saves one. |
 | 3 | **Q2 (reopened)** — the keyboard does not hide the bar | Needs the readout below before the fix can be written. |
 | 4 | **Q8** — club crests beside a friendly's result | ☑ Done 2026-09-16. |
 | 5 | **Q9** — the cache is discarded faster than he navigates | ☑ Done 2026-09-16. Map in `AGENTS.md` §6. |

@@ -4,7 +4,7 @@ import { Link, MemoryRouter, useLocation, useNavigate } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 import type { LiveTournamentLite } from "../hooks/useLiveTournament";
-import { AuthProvider } from "../auth/AuthContext";
+import { AuthProvider } from "../auth/AuthProvider";
 import BottomTabBar from "../ui/shell/BottomTabBar";
 import MobileChrome from "../ui/shell/MobileChrome";
 import Sidebar from "../ui/shell/Sidebar";

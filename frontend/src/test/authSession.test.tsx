@@ -15,7 +15,8 @@ import { ApiError } from "../api/client";
 const meMock = vi.hoisted(() => vi.fn());
 vi.mock("../api/auth.api", () => ({ me: meMock, login: vi.fn() }));
 
-import { AuthProvider, useAuth } from "../auth/AuthContext";
+import { AuthProvider } from "../auth/AuthProvider";
+import { useAuth } from "../auth/AuthContext";
 
 function Probe() {
   const { role, token } = useAuth();

@@ -112,8 +112,23 @@ Size (2026-09-13): backend ≈ 13.3k LOC Python (`app/` + `manage.py` + `run.py`
   `install.ts` wires them from `main.tsx` before React renders. Read on the phone at Settings →
   Diagnostics (`ui/layout/DiagnosticsSettings.tsx`, `?tab=diagnostics`).
 - `src/push/` — service-worker registration + subscription; `public/sw.js` handles push/click.
-- `src/auth/AuthContext.tsx` — token/role in localStorage; "view as lower role" and admin
-  "act as player" overrides are frontend-only conveniences.
+- `src/auth/AuthContext.ts` (the context object + `useAuth`) and `src/auth/AuthProvider.tsx`
+  (the component) — token/role in localStorage; "view as lower role" and admin "act as player"
+  overrides are frontend-only conveniences.
+- **A React context is two files** (Q10, 2026-09-16): `<Name>Context.ts` holds the
+  `createContext` object and the hooks that read it and **exports no component** — being `.ts` it
+  cannot even contain JSX — while `<Name>Provider.tsx` holds the provider and nothing else. The
+  four pairs are `auth/AuthContext` + `auth/AuthProvider`, `ui/RealtimeStatusContext` +
+  `ui/RealtimeStatusProvider`, `ui/layout/ThemeContext` + `ui/layout/ThemeProvider`,
+  `ui/layout/PageTitleContext` + `ui/layout/PageTitleProvider`. One module holding both is the
+  shape React Fast Refresh declines: Vite re-times the importers instead, the mounted provider
+  keeps handing out the *old* `createContext` object while the hook reads the new one, and
+  `useAuth` throws "must be used within AuthProvider" with the provider visible in the stack —
+  above `RouteErrorBoundary`, so the whole app blanks. Dev-only, never production.
+  `react-refresh/only-export-components` is an **error**, not a warning (`eslint .` exits 0 on
+  warnings, so a warning could never fail a gate): when it fires on a context module, split the
+  file — never add the disable comment. Consuming a context is unchanged; `useAuth` and friends
+  still import from the same `…Context` specifier.
 
 ## 3. Commands
 

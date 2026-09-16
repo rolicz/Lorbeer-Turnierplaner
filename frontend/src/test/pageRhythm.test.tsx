@@ -4,7 +4,8 @@ import { MemoryRouter } from "react-router-dom";
 
 import PageLayout from "../ui/layout/PageLayout";
 import ConnectionIndicator from "../ui/shell/ConnectionIndicator";
-import { RealtimeStatusProvider, type RealtimeStatus } from "../ui/RealtimeStatusContext";
+import { RealtimeStatusProvider } from "../ui/RealtimeStatusProvider";
+import type { RealtimeStatus } from "../ui/RealtimeStatusContext";
 
 /**
  * T10: one live indicator, and the same band above every page's first block.

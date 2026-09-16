@@ -3,7 +3,7 @@ import { render } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 
 import type { LiveTournamentLite } from "../hooks/useLiveTournament";
-import { AuthProvider } from "../auth/AuthContext";
+import { AuthProvider } from "../auth/AuthProvider";
 import BottomTabBar from "../ui/shell/BottomTabBar";
 import { rememberLocation, resetForgottenPaths } from "../ui/shell/lastLocation";
 

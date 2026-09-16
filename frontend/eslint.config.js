@@ -36,7 +36,13 @@ export default [
     },
     rules: {
       ...reactHooks.configs.recommended.rules,
-      "react-refresh/only-export-components": ["warn", { allowConstantExport: true }],
+      // "error", not "warn": `npm run lint` is `eslint .`, which exits 0 on
+      // warnings, so a warning here could never fail a gate — and four context
+      // files silenced it anyway, which is how the Fast Refresh blue screen got
+      // in (Q10). A React context belongs in `<Name>Context.ts` (no JSX, no
+      // component) with its provider in `<Name>Provider.tsx`; if this rule fires
+      // on a context module, split it instead of disabling it.
+      "react-refresh/only-export-components": ["error", { allowConstantExport: true }],
     },
   },
 
