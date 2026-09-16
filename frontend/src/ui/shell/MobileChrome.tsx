@@ -11,8 +11,7 @@ import { usePageTitleValue } from "../layout/PageTitleContext";
 import { useHideOnScroll } from "../layout/useHideOnScroll";
 import { NAV_JUMP_STATE, useBack } from "./backNavigation";
 import Button from "../primitives/Button";
-import ConnectionIndicator from "./ConnectionIndicator";
-import NotificationBell from "./NotificationBell";
+import TopBarStatus from "./TopBarStatus";
 
 /** Mobile (and tablet < lg) top bar + slide-in navigation drawer. */
 export default function MobileChrome({
@@ -71,36 +70,56 @@ export default function MobileChrome({
           (atTop ? "" : " shadow-pop")
         }
       >
-        {/* Back takes the screen edge — that is where the thumb starts the same
-            gesture — and the menu keeps its place beside it. The chevron no longer
-            *replaces* the hamburger (Q6): on a page you went into, both are there,
-            so a phone can still reach Clubs, Ideas and Settings without leaving
-            first. It is drawn from one question, `useBack().hasBack`, asked for
-            every route including the stats matchup. */}
-        <div className="flex h-14 items-center gap-1 px-3">
-          {hasBack ? (
+        {/* One row, three boxes, and the two side boxes are the same fixed width —
+            that is the whole frame (Q13). `top-bar-side` (84px, in the Tailwind
+            config) is the widest either side ever needs — the left cluster, menu
+            40 + gap 4 + back 40 — so the menu sits at the screen edge on every
+            page and the chevron appears *inboard* of it in space that was
+            reserved anyway. The centre box therefore starts at 12+84+8 and is
+            `100% − 208px` wide, i.e. its centre is the screen's centre at every
+            width, in every state: the title never moves between pages, with back
+            or without it, with the bell or without it.
+
+            The chevron still does not *replace* the hamburger (Q6): on a page you
+            went into, both are there, so a phone can still reach Clubs, Ideas and
+            Settings without leaving first. It is drawn from one question,
+            `useBack().hasBack`, asked for every route including the stats matchup.
+            Q13 only moved it: Q6 put back at the edge, and it pushed the menu — and
+            the title — a different distance on every page. */}
+        <div className="flex h-14 items-center gap-2 px-3">
+          <div className="flex w-top-bar-side shrink-0 items-center gap-1">
             <Button
               type="button"
               variant="ghost"
-              onClick={goBack}
-              aria-label="Back"
+              onClick={() => setOpen(true)}
+              aria-label="Open menu"
               className="inline-flex h-10 w-10 shrink-0 items-center justify-center p-0"
             >
-              <ChevronLeft className="h-5 w-5" aria-hidden="true" />
+              <Menu className="h-5 w-5" aria-hidden="true" />
             </Button>
-          ) : null}
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={() => setOpen(true)}
-            aria-label="Open menu"
-            className="inline-flex h-10 w-10 shrink-0 items-center justify-center p-0"
+            {hasBack ? (
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={goBack}
+                aria-label="Back"
+                className="inline-flex h-10 w-10 shrink-0 items-center justify-center p-0"
+              >
+                <ChevronLeft className="h-5 w-5" aria-hidden="true" />
+              </Button>
+            ) : null}
+          </div>
+          <span
+            data-testid="top-bar-title"
+            className="min-w-0 flex-1 truncate text-center text-base font-semibold tracking-tight"
           >
-            <Menu className="h-5 w-5" aria-hidden="true" />
-          </Button>
-          <span className="ml-1 min-w-0 flex-1 truncate text-base font-semibold tracking-tight">{title}</span>
-          <ConnectionIndicator />
-          <NotificationBell align="right" placement="bottom" />
+            {title}
+          </span>
+          {/* The same 84px on the right, holding one control at a time: the bell,
+              or the connection marker while the socket is in trouble. */}
+          <div className="flex w-top-bar-side shrink-0 items-center justify-end">
+            <TopBarStatus />
+          </div>
         </div>
       </header>
 

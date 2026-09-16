@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Bell, BookOpen, Hand, Reply } from "lucide-react";
@@ -46,9 +46,16 @@ function headline(n: MyNotification): string {
 export default function NotificationBell({
   align = "right",
   placement = "bottom",
+  onOpenChange,
 }: {
   align?: "left" | "right";
   placement?: "top" | "bottom";
+  /**
+   * Told whenever the popover opens or closes (and told `false` on unmount).
+   * The mobile top bar shares one 40px slot between this bell and the
+   * connection marker, and will not take the slot away from an open list (Q13).
+   */
+  onOpenChange?: (open: boolean) => void;
 }) {
   const { token } = useAuth();
   const navigate = useNavigate();
@@ -56,6 +63,10 @@ export default function NotificationBell({
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement | null>(null);
   useClickOutside(wrapRef, open, () => setOpen(false));
+  useEffect(() => {
+    onOpenChange?.(open);
+    return () => onOpenChange?.(false);
+  }, [open, onOpenChange]);
 
   const q = useQuery({
     queryKey: qk.notifications(token),

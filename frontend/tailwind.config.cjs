@@ -35,6 +35,16 @@ module.exports = {
         // VisualViewport API, `nav-clear` is simply the bar's height, as before.
         "nav-h": bottomNavHeight,
         "nav-clear": `var(--bottom-nav-clearance, ${bottomNavHeight})`,
+
+        // The mobile **top** bar's side boxes (Q13). The bar is a fixed frame: two
+        // boxes of this width with the title between them, so the title's centre is
+        // the screen's centre on every page and in every state. The number is the
+        // widest either side ever needs — the left cluster, menu 40px + 4px + back
+        // 40px — and the right box reserves the same, holding one 36px control
+        // (bell or connection marker). It is not on the spacing scale because it is
+        // the sum of two controls, not a rhythm step; naming it keeps that arithmetic
+        // in one place instead of in a class.
+        "top-bar-side": "5.25rem",
       },
       maxHeight: {
         // A full-screen-on-mobile sheet must fit the safe box, gutters included: without

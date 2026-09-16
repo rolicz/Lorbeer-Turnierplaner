@@ -9146,7 +9146,7 @@ padding, a different thing that happens to be the same 72px.
 
 ---
 
-## Q13 — The mobile top bar: a fixed frame around a centred title  ☐
+## Q13 — The mobile top bar: a fixed frame around a centred title  ☑
 
 Roli, 2026-09-16: *"not a big fan of the top bar: the back button moves the hamburger icon and the
 title label sits too close to the hamburger."*
@@ -9191,17 +9191,20 @@ One row, three boxes, and **the side boxes are the same fixed width**, because a
 stays centred if both sides reserve the same space:
 
 ```
-  px-3 │ w-20 (80px) │ gap-2 │  flex-1 min-w-0  │ gap-2 │ w-20 (80px) │ px-3
-       │  [≡] [‹]    │       │   centred title  │       │      [bell] │
+  px-3 │ w-top-bar-side │ gap-2 │  flex-1 min-w-0  │ gap-2 │ w-top-bar-side │ px-3
+  12px │   [≡] [‹] 84px │  8px  │   centred title  │  8px  │   84px  [bell] │ 12px
 ```
 
-- **80px is exactly two 40px controls** — the most the left box ever holds (menu + back, flush, the
-  way a toolbar pairs two icon buttons). It is `w-20` on the spacing scale, not an arbitrary value.
-- The centre box's x is `12 + 80 + 8` and its width is `W − 200`, so **its centre is `W/2` for every
+- **84px is the left cluster** — menu 40 + gap 4 + back 40, the most that side ever holds — and the
+  right box reserves exactly the same, holding one 36px control. It is a named token
+  (`spacing["top-bar-side"]` in `tailwind.config.cjs`), not a number in a class, because it is the
+  sum of two controls rather than a step on the rhythm scale.
+- The centre box's x is `12 + 84 + 8` and its width is `W − 208`, so **its centre is `W/2` for every
   screen width**, with back and without it, with the bell and without it. The title is
   `truncate text-center`, so the ink is centred in the box: one number per width, provable.
-- Title width: **190px at 390** · 120px at 320 · 230px at 430. Air around the text: 8px of gap plus
-  the 10px inside each button's box, so ≥18px from the chevron's glyph even when the text truncates.
+- Title width: **182px at 390** · 112px at 320 · 222px at 430. Air around the text: 8px of gap plus
+  the 10px inside each button's box, so ≥18px from the chevron's glyph even when the text truncates
+  — more than the 14px Roli called "too close".
 - `h-14` and the `border-b` stay exactly as they are: `useStickyTop` measures this bar (57px) and
   every sticky grid header in the app is docked to that number (Q3/Q11).
 
@@ -9241,7 +9244,7 @@ Profile), `Match N` (61px), a player's name (Roli 27px — the longest in the DB
 the tournament names, which are the only long ones: **1. Lorbeerkranzturnier 163px**,
 7. Bauernkranzturnier 159px, Florianiturnier 🚒 127px.
 
-At 390px nothing truncates (190px box, 27px of headroom on the worst real title). The worker
+At 390px nothing truncates (182px box, 19px of headroom on the worst real title). The worker
 **measures this, does not assume it**, and reports every title that truncates at 390 and at 320.
 
 ### The work
@@ -9261,3 +9264,97 @@ At 390px nothing truncates (190px box, 27px of headroom on the worst real title)
 430, with and without the connection state, **one value per width**; the hamburger's x identical on
 every route; the truncation list; 390 and 1280 in blue and light, plus the bar's auto-hidden and
 returned states and the drawer open; zero console errors; `npm run check` and `npm run build` green.
+
+**Deviations, and the judgement calls:** (implemented 2026-09-16 on `feature/2026-09-audit`.)
+
+1. **The pair is square, and that cost 8px of title** (Roli, mid-task). The first build narrowed the
+   menu and the chevron to 40×36 so both side boxes could be `w-20` (80px) and the title 190px wide.
+   He saw it and said no: a 40×36 icon button reads as squashed next to the 36×36 bell, and it takes
+   touch width off the two controls a thumb hits most. They are back to 40×40, the side boxes are
+   84px, and the title is 182px at 390 — still 19px more than the longest tournament name in the DB.
+   **The 4px between them is not decoration**: two flush 40px ghost buttons merge into one domino,
+   which in the `light` theme (where a ghost button is white with a hairline) reads as a single wide
+   box with a seam down it. Photographed both ways before choosing.
+2. **The connection marker replaces the bell — Roli's idea, and it is the better one.** The brief
+   said "a fixed-width marker in the reserved gutter", i.e. beside the bell. His version makes the
+   right box hold *one* control by construction, and says the thing better: the control you would
+   reach for is itself telling you the connection is down. Two consequences were decided here:
+   - **An open popover keeps the slot.** `NotificationBell` gained one optional prop
+     (`onOpenChange`); `TopBarStatus` will not take the bell away while its list is open. Losing the
+     bell for the duration is acceptable — a list vanishing under the reader's thumb is not.
+   - **The bell's data is HTTP, not the socket**, so "you cannot trust the count while the socket is
+     down" is true of a phone with no network and only *mostly* true of a dropped WebSocket
+     (`listMyNotifications` polls every 60s and refetches on reconnect). The swap is still right —
+     when a phone loses the network it loses both — but it is worth writing down that the marker
+     speaks for the realtime channel, not for the notification list.
+3. **The desktop sidebar keeps the labelled chip.** `ConnectionIndicator` is unchanged there: it has
+   room for a word and no centred title to protect. Only *when* it speaks moved, into
+   `useConnectionTrouble`, so the two surfaces cannot disagree about that. Two renderings of one
+   state in two very different spaces is responsive design, not a second opinion.
+4. **The settle period is a small lie, deliberately.** For up to 1.2s after the socket comes back the
+   marker is still up. The alternative is a right-hand control that can flip between two icons in
+   under a second, which is the thing a reader notices and cannot explain. T10's grace made the
+   appearance quiet; this makes the disappearance quiet, and the constant is the same one.
+5. **The marker is a `<span>`, not a button** — it carries no ghost-button background, unlike the
+   bell it replaces. It is a status: giving it a control's chrome would invite taps that do nothing.
+   The words survive as `sr-only` text plus a `title`; the old chip's visible label was its own
+   accessible name, so nothing is lost to a screen reader.
+6. **`offline` could not be produced at runtime and is covered by tests only.** With `AppShell`
+   mounted there is always at least one subscribed channel, and `computeAggregate` only returns
+   `"offline"` when there are none — so a phone with no network shows **Reconnecting** (amber
+   `RefreshCw`), and `WifiOff` in `text-text-muted` is reachable in practice only between mounts.
+   Worth knowing before anyone tunes that state: it is the rarer of the two, not the common one.
+7. **Landscape safe areas are unchanged and still not handled here.** The bar pads `pt-safe-t` only;
+   `pl-safe-l`/`pr-safe-r` would be *asymmetric* on a notched phone in landscape and would move the
+   centred title off the screen's centre. Out of scope, and worth thinking about as a pair with the
+   page gutter if it is ever done.
+8. **The one asymmetry the frame cannot remove.** The left box holds two controls and the right one
+   holds one, so a title long enough to fill its box sits 18px from the chevron's glyph and ~52px
+   from the bell. That shows only where a title truncates (320px screens, the long tournament
+   names); at 390 every real title is short enough to float centred with air on both sides.
+
+**Truncation, measured** (Chromium on the Pi, `text-base font-semibold`; system-ui here is wider
+than iOS's SF Pro, so these are pessimistic):
+
+| Width | Title box | Truncates |
+|---|---|---|
+| 430 | 222px | nothing |
+| 390 | 182px | **nothing** — the worst real title, `1. Lorbeerkranzturnier`, is 163px |
+| 320 | 112px | `1. Lorbeerkranzturnier` (163px), `7. Bauernkranzturnier` (159px), `Florianiturnier 🚒` (127px) — the three longest tournament names, and nothing else in the app |
+
+Every other title the bar can show is a short one: the nav labels (Tournaments 99px is the longest),
+`Lorbeerkranz` (100px), `Not found` (73px), `Match N` (61px), a player's name (27px for the longest
+in the DB), and the loading fallbacks (`Tournament`, `Match`, `Profile`).
+
+**Verification** (isolated stack: backend :8003 on a copy of `app.db` with a scratch secrets file and
+its own uploads copy, vite :8020; none of 8000/8001/8002/8010/5173 touched, both stopped and the
+copies deleted afterwards).
+
+- **The title's centre x, measured on all 15 top-bar routes** (9 destinations, 6 pages you went
+  into) **× 3 widths × {socket healthy, socket in trouble} × {logged out, logged in as admin}**:
+  **160 at 320 · 195 at 390 · 215 at 430** — exactly `W/2`, one value per width, in every run. The
+  hamburger is at **x=12** on every route and in every state; the chevron, when there is one, at
+  **x=56**; the right-hand control's right edge at **W−12** whether it is the bell (36px) or the
+  marker (36px). Before this task the same measurement gave the title two different left edges
+  (x=60 and x=104 at 390) and a box that changed width with the right-hand side.
+- **Bar height 57px**, unchanged, so `useStickyTop` and every sticky grid header docked to it (Q3,
+  Q11) are untouched.
+- **Chrome sweep at 390×844 in blue and light**: destination, tournament (longest title), match,
+  profile; the bar **auto-hidden** after a scroll-down and **returned** after a scroll-up; the
+  **drawer** open; and the connection marker forced by closing every WebSocket
+  (`page.routeWebSocket`). **Zero app console or page errors** in all runs — the only console errors
+  in the logs are Vite's own HMR socket complaining that the harness closed it.
+- **Desktop 1280×900, blue and light, pixel-diffed before/after**: `/dashboard` is **identical to
+  the pixel**; `/live/2` differs only in a 14×14px square in the sidebar, which is the "Live now"
+  dot mid-`animate-ping`. `PageLayout`'s title row, the sidebar and its labelled `ConnectionIndicator`
+  are untouched.
+- **Back and the menu still work**: cold into `/live/19/match/104` → chevron → `/live/19` (up, Q6b
+  row 18); back again → `/tournaments`; the hamburger opens the drawer on a page that also has a
+  chevron.
+- `cd frontend && npm run check`: typecheck, eslint and **657 tests in 64 files** green (645 in 63
+  before: `topBarStatus.test.tsx` is new, `mobileChrome.test.tsx` gained the frame invariants and had
+  its button-order row flipped). `npm run build` green (the pre-existing >500 kB chunk hint only).
+
+**For Roli to check on the phone** (cannot be produced off-device): the bar under a notch, where
+`pt-safe-t` grows the header but must not move the title sideways; and the real `Offline` marker,
+which needs the app to lose every channel rather than merely the network.

@@ -574,10 +574,17 @@ drill-in that lives in a query param.
    sibling move the browser's own button and the iOS edge make too. There is nothing deeper to
    leave, so the arrival kind does not enter into it. With nothing behind it, it goes home; at home
    with nothing behind it, it does nothing. Back never ejects the reader from the app.
-5. **Back and the menu coexist.** On a page you went into the phone's top bar is `‹` · `☰` · title:
-   back takes the screen edge (that is where the thumb starts the same gesture), the menu keeps its
-   drawer. The chevron never *replaces* the hamburger — Clubs, Ideas and Settings stay reachable
-   without leaving the page first.
+5. **Back and the menu coexist, inside a frame that never moves** (Q13). The phone's top bar is one
+   row of three boxes: two side boxes of the **same fixed width** (`w-top-bar-side`, 84px — the
+   left cluster, menu 40 + gap 4 + back 40) with the title between them, so the title's centre is
+   the *screen's* centre on every page, with back and without it, with the bell and without it. The **menu owns the left screen
+   edge** and never moves; **back appears inboard of it**, in space that is reserved whether or not
+   it is there — `[≡] [‹] · Title · [bell]`. The chevron never *replaces* the hamburger, so Clubs,
+   Ideas and Settings stay reachable without leaving the page first. The right box holds **one**
+   control at a time: the notification bell, or the connection marker while the socket is in
+   trouble (`TopBarStatus`) — never both, because a chip of text there is a variable width and a
+   variable width moves the title. Back took the screen edge until 2026-09-16, and pushed the menu
+   *and* the title a different distance on every page; that is what this frame replaced.
 6. **One gesture: swipe right.** It does not imitate back, it *is* back — the same call, so a tap
    and a swipe can never land in different places. **There is no forward gesture**: nothing in the
    OS this app imitates has one, and an invisible gesture available a minority of the time only
