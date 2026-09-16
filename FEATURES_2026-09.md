@@ -8270,7 +8270,7 @@ to be reminded.
 
 ---
 
-## Q6b — Back means "where you came from", except after a jump  ☐
+## Q6b — Back means "where you came from", except after a jump  ☑
 
 **This supersedes decision 3 of Q6** (`back always means one level up`), tested on Roli's phone and
 changed by him on 2026-09-16 after seeing it. Q6's code, table and canon are otherwise correct and
@@ -8330,4 +8330,175 @@ the "arrived by" column made explicit), the N1 and T11 rows both passing in the 
 and `AGENTS.md` §10 updated to the new rule, `npm run check` + build, 390px and 1280px in blue and
 light, and an explicit note of what still needs Roli's phone.
 
-**Deviations:**
+**Deviations:** (implemented 2026-09-16 on `feature/2026-09-audit`; Q6's table was
+**re-run**, not patched — every row below was driven in a browser against the isolated stack, with
+the arrival made the way the row says.)
+
+### The re-verified scenario table — every route × **how you got there**
+
+Mobile 390×844 with real touch events (CDP `Input.dispatchTouchEvent`, one fresh browser context per
+row so no per-destination memory leaks between them); desktop 1280×900 clicking the chevron; blue and
+light. "Back" is the one decision — chevron, swipe and desktop button all call it. "Browser ←" is the
+browser's own button, which is also what the iOS edge gesture does.
+
+| # | Where you are | **Arrived by** | What the reader expects, and why | Chevron | Back (chevron · swipe) | Browser ← | ✓ |
+|---|---|---|---|---|---|---|---|
+| 1 | `/dashboard` | cold load | Home. Nothing above it. | – | nothing | leaves the app | ✓ |
+| 2 | `/dashboard` | Dashboard tab from `/stats` (jump) | The screen I came from. A destination has nothing deeper to leave, so the jump changes nothing here. | – | `/stats` (pop) | same | ✓ |
+| 3 | `/tournaments` | Tournaments tab from `/dashboard` (jump) | The dashboard. | – | `/dashboard` (pop) | same | ✓ |
+| 4 | `/tournaments` | second tap while on `/live/21` (jump) | Where I came from. The second tap was the escape from a remembered page (U6); back undoes the tap, not the escape. | – | `/live/21` (pop) | same | ✓ |
+| 5 | `/tournaments` | cold deep link | Home. Not out of the app. | – | `/dashboard` (up) | leaves the app | ✓ |
+| 6 | `/stats` | Stats tab from `/players` (jump) | Players. Between siblings there is no up. | – | `/players` (pop) | same | ✓ |
+| 7 | `/stats?view=h2h&sub=…` | the section and sub chips (replace) | Nothing to undo: chips are not history steps. Back leaves `/stats` for the page before it. | – | `/players` | same | ✓ |
+| 8 | `/friendlies` | the drawer (jump) | The page I came from. | – | `/dashboard` (pop) | same | ✓ |
+| 9 | `/clubs` | the drawer, as an editor (jump) | The page I came from. | – | `/stats` (pop) | same | ✓ |
+| 10 | `/ideas?idea=1` | push notification, cold | Home; the one-shot param is never replayed. | – | `/dashboard` (up) | leaves the app | ✓ |
+| 11 | `/settings` | the drawer footer (jump) | The page I came from. | – | `/stats` (pop) | same | ✓ |
+| 12 | `/live/19` | a row in the `/tournaments` list (drill) | The list, at the row I tapped. | `‹` + `☰` | `/tournaments` at **y=400** (pop) | `/tournaments` | ✓ |
+| 13 | `/live/19` | **Tournaments tab, U6-remembered (jump)** — **N1** | The tournaments **list**: I asked for Tournaments, not for the destination I was in. | `‹` + `☰` | **`/tournaments` (up)** | `/stats` (the trail) | ✓ |
+| 14 | `/live/19` | push notification / cold deep link | The tournaments list. Never out of the app. | `‹` + `☰` | `/tournaments` (up) | leaves the app | ✓ |
+| 15 | `/live/19` | walked in from the list, then **reloaded** | Exactly what it did before the reload. | `‹` + `☰` | `/tournaments` (pop) | same | ✓ |
+| 16 | `/live/19/match/104` | a row in the Matches tab (drill) | The matches list, where I left it, on the tab I opened it from. | `‹` + `☰` | `/live/19?tab=matches` at **y=211** (pop) | same | ✓ |
+| 17 | `/live/5/match/19` | **a Records row in Stats (drill)** | The row I tapped. **Changed from Q6**, which went up to the tournament. | `‹` + `☰` | `/stats?view=overview&sub=records` (pop) | same | ✓ |
+| 18 | `/live/5/match/19` | cold deep link | Its tournament. | `‹` + `☰` | `/live/5` (up) | leaves the app | ✓ |
+| 19 | `/live/19?tab=matches` | **"Save result" → return (A9.7)** | The Matches tab scrolled to the row I just edited (landed at **y=88**, flashing), and back from there goes up — not into the editor I just left. | – (page action) | `/tournaments` (up) | the match page | ✓ |
+| 20 | `/profiles/5` | a row on `/players` (drill) | The players list. | `‹` + `☰` | `/players` (pop) | same | ✓ |
+| 21 | `/profiles/3` | **a `PlayerLink` in a tournament's results (drill)** | The tournament. **Changed from Q6**, which went up to `/players`. | `‹` + `☰` | `/live/19?tab=results` (pop) | same | ✓ |
+| 22 | `/profiles/4?tab=guestbook&entry=1` | guestbook push, cold | The players page. | `‹` + `☰` | `/players` (up) | leaves the app | ✓ |
+| 23 | `/profile` (own) | **Settings → My profile (drill)** | Settings. **Changed from Q6**, which went up to `/players`. | `‹` + `☰` | `/settings` (pop) | same | ✓ |
+| 24 | the matchup | a cell in the H2H matrix (drill) | The matrix, exactly as I left it. | `‹` + `☰` | the H2H list (pop) | same | ✓ |
+| 25 | the matchup | **"All matches" on a match page (drill)** — **T11** | **The match page.** T11 restored; Q6 had overruled it. | `‹` + `☰` | **`/live/19/match/104` (pop)** | same | ✓ |
+| 26 | the matchup | **a rival link on a profile (drill)** | The profile. **Changed from Q6**, which went up to the H2H list. | `‹` + `☰` | `/profiles/1` (pop) | same | ✓ |
+| 27 | the matchup | cold deep link | The H2H list — the thing it is a drill-in of. | `‹` + `☰` | the H2H list (up, in place) | leaves the app | ✓ |
+| 28 | the matchup | another section tab tapped from inside it (replace) | Nothing to undo: leaving the section consumes the drill-in's entry. | – | the entry behind the matchup | same | ✓ |
+| 29 | `/nope` (404) | a stale in-app link (drill) | Where I was. | – | `/stats` (pop) | same | ✓ |
+| 30 | `/nope` (404) | cold | Home. | – | `/dashboard` (up) | leaves the app | ✓ |
+| 31 | any page | swipe **left** | Nothing, anywhere (Q6 removed the forward gesture). | – | – | – | ✓ |
+| 32 | `/stats` Overview | swipe right starting **on the table** | Nothing: the element owns the drag (`data-no-swipe-nav`). | – | – | – | ✓ |
+| 33 | iOS standalone PWA | the system edge swipe | The OS gesture, untouched: all four listeners are `{ passive: true }` and nothing calls `preventDefault`. | – | – | – | code |
+| 34 | `/live/21` | **a card on the dashboard (drill)** | The dashboard. **Changed from Q6**, which went up to `/tournaments`. | `‹` + `☰` | `/dashboard` (pop) | same | ✓ |
+| 35 | `/live/19?tab=matches` | Tournaments tab (jump), **then the page's own `?tab=` replace** | Still the list. The replace wipes `location.state`; re-deriving the kind there would hand N1 straight back. | `‹` + `☰` | `/tournaments` (up) | `/stats` | ✓ |
+| 36 | `/live/5/match/19` | a Records row (drill), **then a reload** | "As if walked in" — `sessionStorage` keeps the recorded kind across the reload. | `‹` + `☰` | `/stats?view=overview&sub=records` (pop) | same | ✓ |
+| 37 | `/profiles/4?tab=guestbook&entry=…` | the in-app notification bell (drill) | Where I was: the bell is content, not a nav destination, so it carries no mark and back undoes the detour. | `‹` + `☰` | pop | same | code |
+
+**Rows 17, 21, 23, 26 and 34 are the rule working**, not incidental: each is an in-content link whose
+back used to climb the hierarchy and now returns to the page it was opened from. **Rows 13 and 35 are
+N1** and **row 25 is T11** — the pair that had to pass in the same build, and did.
+
+### Deviations, and the judgement calls
+
+1. **A destination does not consult the arrival, and that is a deliberate reading of the rule.**
+   Q6b's sentence — "if you arrived by tapping a nav destination … back goes one level up instead" —
+   has one case it does not picture: a tab tap that lands on the destination's **own root**
+   (`/players` → Stats tab → `/stats`). Read literally, back there would go *home*. It does not: it
+   is the history step you took (rows 2, 3, 4, 6, 8, 9, 11).
+
+   The jump rule exists to stop a jump from being popped **out of a page you were dropped into** —
+   "Tournaments" landing on `/live/19` (N1). At a destination root there is nothing deeper to leave,
+   the destination's siblings are all one tap away in a bar that is always on screen, and popping is
+   both "the page you came from" (Q6b's headline sentence) and the only answer that agrees with the
+   browser's own button and the iOS edge on the app's five busiest pages. Going home instead would
+   have re-introduced exactly the complaint Q6b was written to fix — back handing you the parent when
+   you came from somewhere — on the most common navigation in the app.
+   **It is a one-line flip** if Roli wants the literal reading: drop the `place.inside` guard on the
+   arrival test in `resolveBackAction`.
+
+2. **Where the mark lives, and which way it fails.** Three homes were possible and each fails
+   differently, so the choice is about the failure, not the mechanism:
+   - `location.state` alone — **rejected**. `useTabParam` and every stats filter write
+     `setSearchParams(…, { replace: true })`, which wipes `location.state`. A jump into `/live/19`
+     would be relabelled the moment the page set `?tab=`, and N1 would come back (row 35 is the test
+     that would fail).
+   - a module-level record keyed by history index — **rejected**. It dies on reload, so
+     "reload → as if walked in" (row 36) would silently become "up".
+   - **chosen: the `navStack` mirror**, the module already keyed by `history.state.idx` and already
+     in `sessionStorage`. The entry grows one optional field. No new module, no new storage key.
+
+   **The mark is put on at the nav links** (`NAV_JUMP_STATE`, the seam Q6b names) but what is
+   *stored* is the arrival kind of the entry, written **only on a PUSH** — the one moment
+   `location.state` still belongs to that navigation. A REPLACE on the same page keeps the kind, a
+   REPLACE onto a different page clears it, a POP reads it back.
+
+   **Degradation is one-directional by construction.** Everything unknown is treated as a jump →
+   back goes **up**, which is precisely what the app did under Q6: never a wrong page, only a lost
+   scroll offset. Storage blocked or cleared, a session that started before this shipped (the reader
+   tolerates the old bare-string entries), a new tab, an index the mirror never saw — all land on
+   "up". The opposite polarity (record jumps, assume drill) would have degraded into *popping out of
+   a jump*, i.e. straight back into N1, which is the regression Roli has already reported once.
+
+3. **Two controls that are neither a nav tap nor a drill-in carry the mark by hand**: "Save and
+   return" and "Cancel" on the match page. Both *leave* the page they sit on; popping straight back
+   into an editor the reader just dismissed contradicts the button they pressed, and marking them
+   keeps A9.7's verified behaviour (row 19) exactly as it was. They are the only two, and the rule
+   for a future one is in `DESIGN.md` §10: mark a navigation that is not a drill-in when you write
+   it; never work it out afterwards.
+
+4. **When the page you came from no longer exists.** Back is a *history* operation — neither
+   `navigate(-1)` nor the browser's button can ask whether the target still resolves — so the answer
+   is not to avoid the pop but to make the landing survivable, and it already is: a deleted
+   tournament renders its own "not found" body, calls `forgetLocation` so neither U6 nor the nav bar
+   ever returns there, and carries a chevron whose parent (`/tournaments`) is one more back away. A
+   404 URL is a destination with `/dashboard` above it. Nothing traps the reader.
+   The one case the app *knows* in advance is its own deletion, and that one is now fixed:
+   `deleteTournament`'s success navigates with **`replace`** instead of pushing, so the dead page is
+   not left in a trail that Q6b pops back along more often than Q6 did. A tournament deleted by
+   *someone else* while you are deeper in the app stays in your history and you can pop onto its
+   empty state; rewriting history entries from a WebSocket event would be more dangerous than the
+   symptom, so it is left.
+
+5. **The edge residue, measured.** The browser's own back button — which is what the iOS edge
+   gesture performs — was run against the rows where jump and drill differ:
+
+   | Row | App back | Browser ← / iOS edge |
+   |---|---|---|
+   | 12 walked into `/live/19` | `/tournaments` | `/tournaments` — same |
+   | 17 match from a Records row | `/stats…records` | `/stats…records` — same |
+   | 21 profile from a tournament | `/live/19?tab=results` | same |
+   | 25 matchup from a match page | `/live/19/match/104` | same |
+   | 26 matchup from a profile | `/profiles/1` | same |
+   | **13 tournament from the Tournaments tab** | **`/tournaments`** | **`/stats`** |
+
+   So the residue is now exactly **one shape**: after a nav-bar jump, the app honours the destination
+   you asked for and the system honours the trail. (Plus the unchanged cold-arrival case, where the
+   system leaves the app and the app goes up.) **Nothing further is worth doing.** Removing it would
+   mean either suppressing a platform gesture — `preventDefault` on a non-passive touch listener at
+   the screen edge, which Q6's constraints forbid and which iOS users would feel immediately — or
+   making a jump a `replace`, which would delete the sibling trail the bar depends on. Both places
+   the reader can land are sane; the app's is the promise the nav bar made.
+
+**Verification** (isolated stack: backend :8003 on a copy of `app.db` with a scratch secrets file and
+its own uploads dir, vite :8020; neither of Roli's ports touched; both stopped and the copies deleted
+afterwards).
+
+- **Mobile 390×844, real touch events: 33/33 rows green in one run** — rows 1–34 of the table above,
+  including row 19 logged in as an admin, plus the guard rows 31 and 32.
+- **The two persistence rows (35, 36): 2/2 green** — the `?tab=` replace after a jump, and a reload
+  after a drill-in. These are the rows that fail if the mark is kept anywhere but the mirror.
+- **Desktop 1280×900, clicking the chevron: 17/17 green** — every `inside` row, landing exactly where
+  the phone's gesture landed.
+- **Browser-back probe: 6 rows**, table above.
+- **Chrome sweep, 7 pages × {390, 1280} × {blue, light}: 28/28 green** — back+menu on every `inside`
+  page and menu alone on every destination at 390, the desktop chevron and no drawer button at 1280,
+  `document.querySelectorAll("a a").length === 0`, no horizontal overflow (0 px at both widths), and
+  **zero console or page errors on all 28 loads**.
+- `cd frontend && npm run check`: typecheck, eslint and **628 tests in 62 files** green (608 in 61
+  before: `navJump.test.tsx` is new, `backNavigation.test.ts` and `useBack.test.tsx` gained the rows
+  that changed). `npm run build` green.
+
+**Could not be verified off-device — for Roli to check on the phone:**
+
+1. **The edge gesture against the app's own, on a jump.** Deliberately tap Tournaments so it lands on
+   the remembered tournament, then compare: the chevron (and a swipe from the middle) should go to
+   the tournaments list, an edge swipe should go back to where he was. That is the residue above, and
+   it is the one place the two disagree by design.
+2. **T11 on the device.** From a match page → "All matches: A vs B" → back should land on the match
+   page again. This is the row he named; it passes in Chromium here.
+3. **The installed PWA's cold launch** (`useLocationRestore` only runs in `display-mode: standalone`):
+   resuming at a match page should behave like row 18 — the restore replaces at index 0, so back goes
+   up.
+4. **A real push-notification tap** while the app is backgrounded: the service worker's
+   `client.navigate()` starts a new document, so it is row 14/18 by construction — verified by
+   simulating the URL cold, not by a real tap.
+5. **Whether "Save and return" then back should go up** (row 19) or back into the editor. It goes up,
+   which is what Q6 verified and what the button's wording promises; the mark on that one call is a
+   one-line change either way.

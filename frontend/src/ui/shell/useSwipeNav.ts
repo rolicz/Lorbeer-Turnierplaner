@@ -8,9 +8,9 @@ import { backActionFor } from "./backNavigation";
  *
  * It is not "like" the back chevron, it *is* the back chevron: both call
  * `backActionFor`, so a swipe and a tap can never land in different places. On a
- * page you went into it goes one level up (popping when the entry behind already
- * is that parent); on a destination it is the history step behind you, or home
- * when there is none.
+ * page you went into it returns to the page the reader came from, unless a nav
+ * destination put them there, in which case it goes one level up (Q6b); on a
+ * destination it is the history step behind you, or home when there is none.
  *
  * **There is no forward gesture** (Q6). Nothing in the OS this app imitates has
  * one — iOS has none inside an app, Android has none, and a standalone PWA has no

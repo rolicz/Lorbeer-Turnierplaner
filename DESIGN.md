@@ -502,8 +502,9 @@ An editor is not a section you unfold; it is the thing itself becoming editable.
 ## 10. Navigation: back, the menu, and the one gesture
 
 Everything that moves the reader backwards reads **one** model (`ui/shell/routeHierarchy.ts` →
-`ui/shell/backNavigation.ts`, Q6). There is no second opinion: no per-page `back` prop, no list of
-"detail" route patterns, no separate rule for the drill-in that lives in a query param.
+`ui/shell/backNavigation.ts`, Q6, with the rule Q6b settled on the device). There is no second
+opinion: no per-page `back` prop, no list of "detail" route patterns, no separate rule for the
+drill-in that lives in a query param.
 
 **Every location is one of two things.**
 
@@ -526,33 +527,50 @@ Everything that moves the reader backwards reads **one** model (`ui/shell/routeH
    `useBack().hasBack`, asked by the mobile top bar and by `PageLayout`'s desktop title row. A
    chevron on a tab destination would read "the screen before" and mean "the dashboard"; the bar
    holding every sibling is already on screen.
-2. **Back means one level up** — identically whether you walked in, followed a deep link or opened
-   a push notification. It **pops** when the entry behind already is the parent (free, and better:
-   that page returns with its scroll offset, its open tab and its data) and otherwise **navigates
-   to the parent with `replace`**, consuming the page being left the way a native stack pops. So
-   walking up a deep link never grows history and a ladder can never ping-pong.
-3. **On a destination there is no up**, so back is the history step you took to get here. With
-   nothing behind it, it goes home; at home with nothing behind it, it does nothing. Back never
-   ejects the reader from the app.
-4. **Back and the menu coexist.** On a page you went into the phone's top bar is `‹` · `☰` · title:
+2. **Back returns the reader to the page they came from.** On a page you went into it **pops**
+   whenever the entry behind is that page — the parent you walked in from, or whatever drilled in
+   here (a match page's "All matches" opens the matchup; back returns to the match page, T11).
+   Popping is free and it is better: that page comes back with its scroll offset, its open tab and
+   its data.
+3. **Except after a jump**, where back means **one level up**. Tapping a nav destination is not
+   walking into something, it is teleporting: "Tournaments" that lands on the tournament U6
+   remembered goes up to the **tournaments list**, not back out into the destination you were in
+   before (N1). Arriving from nowhere is the same case — a cold deep link, a push notification, a
+   restored session — and so is an arrival the app cannot vouch for. Up is a **`replace`**,
+   consuming the page being left the way a native stack pops, so walking up a deep link never grows
+   history and a ladder can never ping-pong.
+
+   A jump and a drill-in are **indistinguishable afterwards** — the entry behind sits in another
+   part of the app either way — so the difference is **recorded when the navigation is made** and
+   never inferred by comparing the two URLs. Every nav-destination link carries `NAV_JUMP_STATE`
+   (the bottom bar, the sidebar, the drawer, "Live now" — all built by `useDestinationLinks`), plus
+   the few in-page controls whose whole promise is *leaving* the page they sit on ("Save and
+   return", "Cancel"). `navStack` stores the answer against the history entry, where a `?tab=`
+   replace cannot wipe it. Anything it does not know is treated as a jump: back goes up, which is
+   never a wrong page — only a lost scroll offset.
+4. **On a destination there is no up**, so back is the history step you took to get here — the
+   sibling move the browser's own button and the iOS edge make too. There is nothing deeper to
+   leave, so the arrival kind does not enter into it. With nothing behind it, it goes home; at home
+   with nothing behind it, it does nothing. Back never ejects the reader from the app.
+5. **Back and the menu coexist.** On a page you went into the phone's top bar is `‹` · `☰` · title:
    back takes the screen edge (that is where the thumb starts the same gesture), the menu keeps its
    drawer. The chevron never *replaces* the hamburger — Clubs, Ideas and Settings stay reachable
    without leaving the page first.
-5. **One gesture: swipe right.** It does not imitate back, it *is* back — the same call, so a tap
+6. **One gesture: swipe right.** It does not imitate back, it *is* back — the same call, so a tap
    and a swipe can never land in different places. **There is no forward gesture**: nothing in the
    OS this app imitates has one, and an invisible gesture available a minority of the time only
    turns ordinary left drags into surprise navigation. The listeners are passive, so the iOS system
    edge-swipe is never fought.
-6. **Anything horizontally draggable opts out** with `data-no-swipe-nav` — tables, matrices, chip
+7. **Anything horizontally draggable opts out** with `data-no-swipe-nav` — tables, matrices, chip
    rows, tab strips, charts, carousels — or a swipe past its scroll edge navigates. Range inputs and
    live horizontal scrollers are excluded automatically. This is not optional politeness: it is the
    price of having a global gesture at all.
-7. **The browser's own back button is the browser's.** Inside the app it lands where the chevron
-   lands whenever you walked in the front door. Where the two differ — you entered a page from
-   somewhere other than its parent — the chevron is the *hierarchy* and the browser button is the
-   *trail*, and that is the correct division. On a cold deep link the browser button leaves the app,
-   because there is nothing else behind it; the app's own back still goes up.
-8. **A drill-in that swaps the whole body is a history step** (the matchup: a push). A lateral move
+8. **The browser's own back button is the browser's**, and it now agrees with the chevron almost
+   everywhere: both walk the trail. The one place they part is after a jump, where the chevron goes
+   up the hierarchy and the button pops back into the destination you came from — the browser's
+   button is the *trail* and the chevron is the *promise the nav bar made*. On a cold deep link the
+   button leaves the app, because there is nothing else behind it; the app's own back still goes up.
+9. **A drill-in that swaps the whole body is a history step** (the matchup: a push). A lateral move
    between things that are all on screen is not (section tabs, sub-view chips, `?tab=`, filters —
    all `replace`). If it deserves a back affordance, it deserves an entry.
 
@@ -583,5 +601,8 @@ Everything that moves the reader backwards reads **one** model (`ui/shell/routeH
   don't write its height into a class, and don't leave anything floating over the keyboard.
 - Do let `useBack()` decide whether a page has a back affordance and where it goes; don't hand a
   page its own back button, and don't add a second way out of one screen.
+- Do mark a navigation that is *not* a drill-in with `NAV_JUMP_STATE` when you add one (a new nav
+  entry point, a "done here" button); don't try to work out afterwards whether back should pop by
+  comparing where the reader is with where they were.
 - Do give any horizontally draggable element `data-no-swipe-nav`; don't assume the guard will
   notice it on its own.

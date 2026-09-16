@@ -18,9 +18,12 @@ import { statsMatchupParent } from "../../pages/stats/statsNav";
  *   "inside" anything: its siblings are one tap away in a bar that is always on
  *   screen, and a chevron there would read "the screen before" while meaning
  *   "the dashboard".
- * - **`parent`** — the page one level up. `null` only at home. It never depends
- *   on how the reader arrived: walked in, deep link and push notification all
- *   get the same answer (Roli, 2026-09-16).
+ * - **`parent`** — the page one level up. `null` only at home. The *hierarchy*
+ *   never depends on how the reader arrived: walked in, deep link and push
+ *   notification all name the same parent. Whether back **goes** there is a
+ *   separate question, and the one Q6b answers (`backNavigation.ts`): it goes up
+ *   after a jump or an arrival from nowhere, and otherwise returns to the page
+ *   the reader came from.
  */
 
 /** The top of the hierarchy: the app's home. */
@@ -52,8 +55,8 @@ function normalise(pathname: string): string {
 
 /**
  * A match page returns to the tab it was opened from — `state.fromTab` is the
- * *parent's* tab, not a memory of where the reader came from, so it survives
- * "back never depends on how you arrived".
+ * *parent's* tab, not a memory of where the reader came from, so it says the same
+ * thing however the page was reached.
  */
 function liveParent(base: string, state: unknown): string {
   const fromTab = (state as { fromTab?: unknown } | null)?.fromTab;
