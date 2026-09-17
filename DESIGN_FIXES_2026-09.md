@@ -1770,7 +1770,7 @@ parallel" ordering, not touched here.
 
 ---
 
-## C13 — The colour of "live" (audit 2.4)  ☐
+## C13 — The colour of "live" (audit 2.4)  ☑
 
 > **Decided: green everywhere.** The nav dot changes; the six in-page markers stay.
 
@@ -1817,7 +1817,31 @@ both themes; the pulse still animates; nothing else changed colour
 **Gates.** `npm run check`; browser at 390×844 (tab bar + drawer) and 1280×900 (sidebar) in `blue`
 **and** `light`, with a live tournament in the data so the dot actually renders.
 
-**Deviations:**
+**Deviations:** The plan's proposed light value (green-600 `22 163 74`, computed at "3.4:1")
+does not clear 3:1 against the bottom tab bar's real background. `BottomTabBar` paints through
+`.nav-shell`, which sets `background-color: rgb(var(--color-bg-default))` directly (no opacity) —
+`236 235 233` in `light.css`, not white — and green-600 measures **2.766:1** there (verified both
+by the WCAG formula on the raw token pair and by sampling the live page: Playwright at 390×844,
+`getComputedStyle` on the visible `.live-dot`, walking up to the first opaque background). Used
+**green-700 `21 128 61`** instead: 4.21:1 on the tab bar, 4.68:1 on the sidebar (blended
+`bg-card-outer/60` over `bg-default`), 5.02:1 on the drawer (`bg-card-outer` solid white) — all
+comfortably clear 3:1, several clear 4.5:1 too, no downside. `defaults.css` keeps the plan's exact
+value, `34 197 94` (green-500), which the file already carried as `--status-live` for the same
+concept — measured 7.3–8.3:1 across all three dot placements in the dark theme.
+Measured with the isolated stack (backend :8053, vite :8063, `backend/data/verify-c13.db`,
+tournament 21 live) via Playwright (chromium in the npx cache), both mobile (390×844, tab bar +
+drawer) and desktop (1280×900, sidebar), both themes: dot colour, its real composited background,
+WCAG contrast, and `.live-ping`'s computed animation (`ping`, 1s, infinite, running) — screenshots
+confirm the nav dot now reads the same green as the in-page "playing" pill on the same screen.
+`git diff --stat` touches exactly `themes/defaults.css` and `themes/light.css` (comments + the
+one token line in each); `styles.css` untouched, confirmed by re-running the task's own greps
+before editing (`text-live`/`bg-live` → 0 real hits; `.live-dot`/`.live-ping` still at ~:477-478).
+`npm run check` green (688 tests, 68 files). No other files changed.
+**Canon line for C15** (`DESIGN.md` §2's `--color-live` row): replace the current row —
+`| `--color-live` | `text-live`, `bg-live/…`, and `.live-dot` / `.live-ping` | live/playing
+marker | `239 68 68` (red-500) | `220 38 38` (red-600, ≥4.5:1 as text on white) |` — with:
+`| `--color-live` | (no `text-live`/`bg-live` call sites) `.live-dot` / `.live-ping` only | live/playing marker, non-text (3:1 floor) | `34 197 94` (green-500) | `21 128 61` (green-700, 4.21:1 on the bottom tab bar's own ground) |`
+and change the line 39 family list from `` `status-*` (green = live/playing, blue = draft/scheduled, default = neutral) `` so it no longer contradicts the row above — both now say green. (C15 also owns rewording the stale "T10 made the nav dot… A8 made it read the token" contradiction note in this task's own body — leave it, it is now history, not a live claim.)
 
 ---
 

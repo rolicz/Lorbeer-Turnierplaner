@@ -31,8 +31,10 @@
    * goes through these — never a raw Tailwind palette class. The dark values are
    * the baseline for every dark theme (dark/blue/red/green inherit them);
    * themes/light.css darkens win/draw/loss for white surfaces.
-   * --color-live is the live marker: `.live-dot` / `.live-ping` paint with it, and
-   * light.css darkens it to red-600 so it is legible as text on white too.
+   * --color-live is the live marker: `.live-dot` / `.live-ping` paint with it. It is a
+   * non-text mark (nothing in the app paints text with `text-live`), so it only needs
+   * the 3:1 non-text floor, not 4.5:1 — C13 made it green-500/green-700 to match the
+   * in-page "playing" markers, which already used the status green.
    */
   --color-win: 74 222 128; /* green-400 */
   /* draw was amber-400 — the same value as `--color-cup-gold` and the winner's
@@ -42,7 +44,7 @@
      borrowing a warning tone (C11). */
   --color-draw: 253 224 71; /* yellow-300 */
   --color-loss: 248 113 113; /* red-400 */
-  --color-live: 239 68 68; /* red-500 */
+  --color-live: 34 197 94; /* green-500 — C13: was red-500, matched --status-live */
 
   /*
    * Semantic *state* tokens (DESIGN.md §2). A result colour answers "how did this
