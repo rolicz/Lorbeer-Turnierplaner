@@ -1,6 +1,6 @@
 import { Crown } from "lucide-react";
 
-import { cupColorVarForKey } from "../../cupColors";
+import { cupMarkColorVarForKey } from "../../cupColors";
 import { cn } from "../cn";
 
 type CupOwnerBadgeProps = {
@@ -18,7 +18,9 @@ export default function CupOwnerBadge({
   title,
   className,
 }: CupOwnerBadgeProps) {
-  const varName = cupColorVarForKey(cupKey);
+  // The badge's border/fill/icon are a mark, not text (C11): the 3:1 non-text
+  // floor, not the 4.5:1 a holder's name needs.
+  const varName = cupMarkColorVarForKey(cupKey);
   const sizeCls = size === "md" ? "h-7 w-7" : "h-6 w-6";
   const iconSize = size === "md" ? 14 : 12;
 

@@ -10,7 +10,7 @@ import EmptyState from "../../ui/primitives/EmptyState";
 import InlineLoading from "../../ui/primitives/InlineLoading";
 import { getStatsPlayers } from "../../api/stats.api";
 import { getCup, listCupDefs } from "../../api/cup.api";
-import { cupColorVarForKey, rgbFromCssVar } from "../../cupColors";
+import { cupMarkColorVarForKey, rgbFromCssVar } from "../../cupColors";
 import { qk } from "../../api/queryKeys";
 import { usePlayerAvatarMap } from "../../hooks/usePlayerAvatarMap";
 import { fmtCount, fmtRank } from "../../utils/format";
@@ -124,7 +124,9 @@ export default function PositionsView({ mode }: { mode: StatsMode }) {
     return out;
   }, [order, baseOrder, players]);
   const colByPlayer = useMemo(() => new Map(orderedPlayers.map((p, j) => [p.player_id, j])), [orderedPlayers]);
-  const cupColor = (key: string) => rgbFromCssVar(cupColorVarForKey(key));
+  // The lineage line, its legend swatch and the tile's crown are all marks, not
+  // text (C11): the 3:1 non-text floor, not the 4.5:1 a holder's name needs.
+  const cupColor = (key: string) => rgbFromCssVar(cupMarkColorVarForKey(key));
 
   // Pointer-based column drag (works on touch).
   const dragRef = useRef<number | null>(null);

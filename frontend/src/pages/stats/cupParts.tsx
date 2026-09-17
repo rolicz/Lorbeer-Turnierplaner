@@ -46,7 +46,12 @@ export function CupHolder({
   trailing,
 }: {
   owner: PlayerRef | null;
-  /** The cup's colour — the holder's name wears it on both surfaces. */
+  /**
+   * The cup's **text** colour (`cupColorVarForKey`, >=4.5:1) — the holder's
+   * name wears it on both surfaces. A mark (a ring, a dot, a crown disc) wants
+   * `cupMarkColorVarForKey` instead (`CupMarkDot` below); the two answer
+   * different contrast floors (C11).
+   */
   color: string;
   /** Start date of the running reign (`streak.since.date`). */
   since?: string | null;
@@ -96,6 +101,23 @@ export function CupHolder({
       )}
       {trailing}
     </div>
+  );
+}
+
+/**
+ * The small circular swatch a cup wears as a mark — the dashboard preview's
+ * header dot next to the cup's name. Non-text (the 3:1 floor, not 4.5:1):
+ * pass the cup's **mark** colour (`cupMarkColorVarForKey`), never
+ * `CupHolder`'s text colour, or a light-theme dot reads brown instead of gold
+ * (C11).
+ */
+export function CupMarkDot({ color, className }: { color: string; className?: string }) {
+  return (
+    <span
+      className={cn("h-2.5 w-2.5 shrink-0 rounded-full", className)}
+      style={{ backgroundColor: color, boxShadow: `0 0 0 3px ${color}22` }}
+      aria-hidden="true"
+    />
   );
 }
 

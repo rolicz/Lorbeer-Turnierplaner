@@ -4,10 +4,16 @@
   /* Semantic result tokens (DESIGN.md §2): the dark defaults are light-on-light here.
      A6 stopped at "clears 4.5:1"; win and draw only just did, at 4.21:1 apiece, and a
      W-D-L run is three small numerals sitting side by side, where the weakest of the
-     three sets the reading. Both go one step down (R3), which also puts them on the
-     same footing as the state tokens below. */
+     three sets the reading. Both went one step down (R3), which also put them on the
+     same footing as the state tokens below — and left `draw` at amber-800, only
+     deltaE ~21 from `loss`'s red-800: on a match-history row the draw "5" and the loss
+     "2" read as two dark warm digits of the same temperature (1.10). C11 moves `draw`
+     a second step, to yellow-800 — the only Tailwind step that still clears the badge
+     floor (4.5:1) with a larger distance (deltaE 33); a custom hue clears the plain
+     ground but falls to 4.04:1 on the badge, and moving `loss` instead does not help
+     (red-900's deltaE to amber-800 is still 22). */
   --color-win: 22 101 52; /* green-800 — 5.98:1 on the page ground, 4.81:1 on bg-win/15 */
-  --color-draw: 146 64 14; /* amber-800 — 5.95:1 on the page ground, 4.76:1 on bg-draw/15 */
+  --color-draw: 133 77 14; /* yellow-800 — 5.75:1 on the page ground, 4.64:1 on bg-draw/15; deltaE 33 to loss (was 21 as amber-800) */
   /* `loss` was the one of the three that already cleared 4.5:1 plain (5.43:1) and so was
      meant to stay put — but a W-D-L run is read as one word, and once the other two were
      deepened red-700 was both the lightest of the three to the eye and, at 4.25:1 on its
@@ -22,18 +28,32 @@
      ambers are light-on-light here. These carry whole sentences (an error box, a
      conflict banner, the connection state) rather than a numeral in a W-D-L run, so
      they are darkened until they clear 4.5:1 on the page ground *and* on their own 10%
-     tint (A8). Since R3 took `--color-draw` to the same amber-800, the two now hold the
-     same value in this theme — the same coincidence `--color-loss` and `--color-error`
-     already had. They stay separate variables: they answer different questions, and a
-     theme is free to split them again. */
+     tint (A8). `--color-warn` stays at amber-800 — the value `--color-draw` held from
+     R3 until C11 moved it a second step, to yellow-800, so a drawn score and a loss
+     read further apart (deltaE 21 -> 33). The two are no longer a coincidence to note;
+     they stay separate variables regardless, because they answer different questions
+     and a theme is free to split or join them at will. */
   --color-error: 185 28 28; /* red-700 — 5.43:1 on the ground, 5.45:1 on bg-error/10 */
   --color-warn: 146 64 14; /* amber-800 — 5.95:1 on the ground, 6.08:1 on bg-warn/10 */
 
   /* Cup colours (DESIGN.md §2). The dark themes' amber and green-700 are 1.90:1 and
      4.21:1 as the holder's name on the light page ground, so light darkens both —
-     4.89:1 and 4.91:1 — exactly as it darkens win/draw/loss above (A6). */
-  --color-cup-gold: 166 74 12; /* dark amber */
-  --color-cup-green-dark: 22 116 55; /* green-700, one shade down */
+     4.89:1 and 4.91:1 — exactly as it darkens win/draw/loss above (A6). That darkened
+     gold is the **text** value (the holder's name) and reads brown, not gold, on a
+     ring or a crown disc — a mark only needs the 3:1 non-text floor, not 4.5:1.
+     `--color-cup-gold-mark` is the brighter value that still clears 3:1 and reads gold
+     (C11); the Bauernkranz has no such conflict and keeps one token for both jobs.
+     Two re-measurements moved it off the plan's own estimate (amber-600 `217 119 6`):
+     that value is only 2.67:1 on the page ground (fails outright), and — the binding
+     case — `CupOwnerBadge`/`TournamentLaurelMarkers` paint the crown *and* its own
+     disc from the same token (`/0.14` and `/0.22` tints), so the icon is measured
+     against a lighter tint of itself, not the plain ground; nothing between amber-600
+     and amber-700 clears that at once. The value below is the brightest on the
+     amber-600 hue that still clears the worst of the three (the `/0.22` disc,
+     3.09:1); 4.07:1 on the plain ground, 3.43:1 on the `/0.14` disc, 4.84:1 on white. */
+  --color-cup-gold: 166 74 12; /* dark amber — text, 4.89:1 on the page ground */
+  --color-cup-gold-mark: 171 94 5; /* custom amber — mark, see above for the three floors it clears */
+  --color-cup-green-dark: 22 116 55; /* green-700, one shade down — text and mark */
 
   /* The player palette (C2): the same six hues, dark enough for white cards. The floor
      is set by the yellow hue, the weakest of the six on white — the dark baseline's

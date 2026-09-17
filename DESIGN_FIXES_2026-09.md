@@ -1471,7 +1471,7 @@ the green status pill), and `Streaks · current / record` unchanged.
 
 ---
 
-## C11 — Draw, loss and cup gold (audit 1.10, 2.5, 2.6)  ☐
+## C11 — Draw, loss and cup gold (audit 1.10, 2.5, 2.6)  ☑
 
 **All three parts are DECIDED.** (1) Light-theme draw → yellow-800 `133 77 14`. (2) The gold cup
 splits into a text value and a brighter mark value. (3) Dark-theme draw → yellow-300 `253 224 71`.
@@ -1546,6 +1546,148 @@ If `--color-draw` already reads `133 77 14` in `light.css`, this task is done �
 **Gates.** `npm run check`; browser at 390×844 and 1280×900 in `blue` **and** `light`.
 
 **Deviations:**
+
+All three parts landed as specified: `--color-draw` light → `133 77 14`, dark → `253 224 71`;
+`--color-cup-gold-mark` added in both theme files; the six named consumers (`AvatarCircle.tsx`,
+`CupOwnerBadge.tsx`, `cupParts.tsx`, `CupsPreviewCard.tsx`, `TournamentLaurelMarkers.tsx`,
+`PositionsView.tsx`) moved to the mark token via a new `cupMarkColorVarForKey` in `cupColors.ts`.
+Verified first (rule 4): `--color-draw` in `light.css` was still `146 64 14` (amber-800, the
+second-pass value) at the start — the defect was live, nothing to tick-and-stop.
+
+**The mark value is not the plan's own estimate, and moved twice, both times for a reason
+found by rendering the real thing, not by reading the stylesheet:**
+1. The plan's example, amber-600 `217 119 6`, is claimed at "3.0:1 on the page ground." Computed
+   with the same WCAG formula the rest of `light.css` uses (and cross-checked against real
+   `getComputedStyle` reads in the browser): **2.67:1** — it fails the mark floor outright.
+2. The real binding constraint is a level deeper than "on the ground" and only shows up once you
+   look at where the token is actually used: `CupOwnerBadge` and `TournamentLaurelMarkers` paint
+   the crown **and** its own disc from the *same* token (`/0.14` and `/0.22` tints respectively —
+   the exact same pattern `bg-draw/15 text-draw` uses for a result badge). A colour is always
+   *less* distinct from a translucent tint of itself than from the opaque page ground, so the
+   `/0.22` disc is the tightest floor. Checked at the plan's own estimate: the icon-on-its-own-
+   badge contrast would have been **~2.2–2.5:1** — worse than the plain-ground failure, and, had I
+   stopped at a value that only cleared the ground (I first tried `196 108 5`, 3.21:1 on the
+   ground), it would *still* have failed there at 2.53:1. Final value **`171 94 5`**: 4.07:1 on
+   the page ground, **3.09:1 on the `/0.22` disc** (the binding case), 3.43:1 on the `/0.14` disc,
+   4.84:1 on white. ΔE to the text value (`166 74 12`) is 11.5 — a real, visible step brighter,
+   just smaller than the plan's amber-600 example would have been had it worked. This is exactly
+   the "measure it on the surface it is carried on" rule `DESIGN.md` §2 already states for
+   `draw`/`warn` (R3) — the crown's own tinted disc is that surface for a mark, the same way a
+   `/15` badge is for a result token, and it isn't optional to check.
+
+**`cupParts.tsx`'s edit is a real one, not a doc-only touch.** Its `CupHolder`'s `color` prop
+doc-comment now says explicitly that it takes the **text** value (a caller reads `cupColorVarForKey`
+into a variable and can no longer accidentally hand it the mark one). More importantly, the file
+gained an exported `CupMarkDot` — the small circular swatch a cup's header wears, which
+`CupsPreviewCard.tsx` used to draw inline and `CupDetail.tsx` (out of scope, see below) still does.
+`cupParts.tsx`'s own doc comment calls it "the pieces of a cup that more than one surface renders"
+(rule 8, reuse before you create), so the dot belongs there, not re-invented inside
+`CupsPreviewCard.tsx` a second time next to the token split it also needed.
+
+**One file outside C11's list was touched, and it was unavoidable, not a scope decision.**
+`AvatarCircle.tsx:31` is named explicitly in the task's own "mechanics" section as the file that
+moves the ring to the mark token — that's the whole fix for defect 2.6 (a light-theme ring reading
+brown, not gold). Doing that changes the ring's painted `background` string, and
+`test/avatarRing.test.tsx` (which is **not** in C11's file list — it's in C12's) asserts that
+exact string for a two-cup conic-gradient ring (`…rgb(var(--color-cup-gold))…` → now
+`…rgb(var(--color-cup-gold-mark))…`). Five of its six assertions were untouched; the sixth needed
+one line. Before editing it I read the file end to end: it contains no reference to
+`CupOwnerBadge`, `PlayersAdminPage` or `ProfileHeader` (the actual subject of C12's task), so
+C12's own conditional clause ("`test/avatarRing.test.tsx` if it asserts the badge") does not apply
+to it — and confirmed after the fact: C12 landed as `cb7988e`, touching only
+`PlayersAdminPage.tsx` and `ProfileHeader.tsx`, this file not in its diff. No collision occurred,
+but flagging the boundary crossing per rule 3 rather than treating "it worked out" as permission.
+
+**Two out-of-scope consumers still read the *text* token for a mark job, unchanged.** Both predate
+C11 and reuse this exact pattern, but neither is in C11's six-file list, so neither was touched:
+- `pages/TournamentsPage.tsx`'s `CupStakePill` (~line 34) — a near-duplicate of `CupOwnerBadge`
+  (border/fill/crown icon, same three-property style object) that the plan's file list does not
+  name.
+- `pages/stats/CupDetail.tsx`'s header dot (line 107) and the `cupColor` it shares with the
+  `CupHolder` it calls at line 116 — the same text/mark conflation `CupsPreviewCard.tsx` had
+  before this task, on the page right next to the one that got fixed.
+
+Both remain fully readable (the text value clears 4.5:1, well past the 3:1 floor a mark needs) —
+this is not a regression — but both will look a shade darker/duller than the six consumers C11 did
+move, right down to the same page family (`/stats?view=overview&sub=cups` sits `CupDetail` next to
+the dashboard preview that now uses the brighter value). Recorded here rather than fixed, per rule
+1 (implement only the named files) and rule 3 (stop and report rather than expand scope). A follow-
+up task can fold both onto `cupMarkColorVarForKey`/`CupMarkDot` in one pass.
+
+**`themes/green.css` overrides `--color-cup-gold` to its own tuned value (`245 208 90`, "the
+theme's own gold, as the medals use below") and was not touched — out of C11's two-file scope.**
+It defines no `--color-cup-gold-mark`, so a mark on the green theme falls back through the cascade
+to `defaults.css`'s dark baseline (`251 191 36`) rather than green theme's own tuned gold. Not a
+regression (the baseline value reads fine there too, unmeasured but structurally identical to the
+dark theme's numbers above), just an inconsistency for whoever eventually gives `green.css` the
+same split.
+
+**Measured contrast** (WCAG formula, `getComputedStyle` read from the real rendered DOM against an
+isolated stack — backend 8051, vite 8061, `backend/data/verify-c11.db` — not a token-file eyeball;
+dev DB players/tournaments per the header table):
+
+| | blue (dark) | light |
+|---|---|---|
+| `win` on ground / on `bg-win/15` | 10.83 / 8.11 | 5.98 / 4.81 |
+| `draw` on ground / on `bg-draw/15` | 14.31 / 10.14 | **5.75 / 4.65** |
+| `loss` on ground / on `bg-loss/15` | 6.82 / 5.61 | 6.98 / 5.39 |
+| ΔE(draw, loss) | 79.4 | **32.9** (was 21 as amber-800) |
+| ΔE(draw, win) | 67.3 | 58.7 |
+| cup **text** (`cupParts.tsx` holder name) on ground | 11.30 | 4.89 (unchanged) |
+| cup **mark** (ring/crown/dot) on ground | 11.30 (= text) | **4.07** |
+| cup mark, crown-on-its-own-`/0.22`-disc (binding case) | 7.03 | **3.09** |
+| cup mark, crown-on-its-own-`/0.14`-disc | — | 3.43 |
+| Bauernkranz (single token) on ground | 3.76 | 4.91 |
+| Sparkline, last match = win, on its card | 9.56 (blue card) | 7.13 (white) |
+| Sparkline, last match = draw, on its card | 12.64 (blue card, computed) | **6.85 (white, real DOM — player 4/Berni)** |
+
+All read from real rendered elements (`getComputedStyle`) on: the dashboard's Cups block (both
+cups' dot + holder name + reign bar), `/profiles/1?tab=matches` (W/D/L badges, both numeral and
+disc renderings, `TournamentLaurelMarkers` on real fixtures), `/stats?view=player&player=1` and
+`&player=4` (the Form sparkline — win-toned and draw-toned respectively, the second because C2's
+own number was measured against the *old* draw and this task moves it, exactly the staleness the
+task calls out), `/tournaments`, `/live/17` (a done, gold-cup tournament) — every page loaded with
+**zero console/page errors** in both themes. `npm run check` was also green mid-flight from the
+other three group-A/C10/C11-sibling tasks sharing this worktree (688 tests, 68 files, up from the
+684/67 baseline before this session's other commits landed).
+
+**What a real match list, standings row and cup block look like (390px, both themes, described
+since screenshots don't travel in this report):** on the dashboard, BAUERNKRANZ's dot, avatar ring
+and "Rumpi" all read as one unbroken green (single token, as decided); LORBEERKRANZ's dot and
+Berni's avatar ring are a visibly brighter orange-gold than "Berni" the name text underneath them,
+which stays the darker, more brown-red text tone for legibility — the split is visible, not just
+measured. On `/profiles/1?tab=matches`, W/L badge discs (green/red) and the plain W-D-L numerals in
+a neutral (non-focused) match list render correctly; the `Lorbeerkranz at stake` crown pill reads
+distinctly more golden than `TournamentsPage.tsx`'s still-unmoved crown pill elsewhere in the app
+(the known deviation above). No layout shift, no clipped text, no colour bleeding into an adjacent
+badge at 390px in either theme.
+
+**`npm run check`:** typecheck clean, eslint clean, vitest **688 passed in 68 files** (both before
+and after the final `light.css` value correction). No `npm run build` run (not required by this
+task's gates; no bundled asset shape changed, only CSS custom-property values and which one three
+call sites read).
+
+**Commit:** see the commit this edit ships in (`fix(C11): …`).
+
+**Canon (for C15 to transcribe verbatim into `DESIGN.md` §2, not invent):**
+- `--color-draw` row: Dark `253 224 71` (yellow-300); Light `133 77 14` (yellow-800).
+- New row, `--color-cup-gold-mark` | (inline, via `cupColors.ts`, `cupMarkColorVarForKey`) | the
+  Lorbeerkranz's *mark* colour (ring, crown disc, dot — non-text, ≥3:1; the holder's *name* keeps
+  using `--color-cup-gold`, ≥4.5:1) | `251 191 36` (amber-400, same as text) | `171 94 5` (custom
+  amber; 4.07:1 on the page ground, 3.09:1 on its own `/0.22` crown disc — the binding floor,
+  3.43:1 on `/0.14`, 4.84:1 on white).
+- The Bauernkranz has no text/mark split: `--color-cup-green-dark` is unchanged and answers both
+  jobs, in both theme files.
+- Add a sentence to the "Light theme, the result run (R3)" paragraph: a second step, C11, took
+  `draw` from amber-800 to yellow-800 (`133 77 14`) to widen its distance from `loss` (ΔE 21 → 33)
+  — `warn` stays at amber-800, so the two are no longer a coincidence to note.
+- Add a sentence next to "A cup's colour is a token of its own": a **mark** (ring, crown disc, dot)
+  and **text** (the holder's name) are different jobs with different contrast floors (3:1 vs
+  4.5:1) from the same cup, so a cup token may split into `--color-cup-<x>` (text) and
+  `--color-cup-<x>-mark` (mark) where they'd otherwise collide, as the Lorbeerkranz does — and
+  where a badge/disc paints an icon *and* its own translucent fill from the same token, the icon's
+  contrast against **that fill**, not the plain page ground, is the floor to measure (the same
+  "measure it on the surface it is carried on" rule R3 already states for `draw`/`warn`).
 
 ---
 

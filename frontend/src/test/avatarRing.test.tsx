@@ -59,7 +59,7 @@ describe("AvatarCircle ring", () => {
 
     expect(r.dataset.avatarRing).toBe("cup");
     expect(r.style.background).toBe(
-      "conic-gradient(rgb(var(--color-cup-green-dark)) 0deg 180deg, rgb(var(--color-cup-gold)) 180deg 360deg)",
+      "conic-gradient(rgb(var(--color-cup-green-dark)) 0deg 180deg, rgb(var(--color-cup-gold-mark)) 180deg 360deg)",
     );
     expect(r.querySelector("[title]")).toHaveAttribute("title", "Holds Bauernkranz · Lorbeerkranz");
   });

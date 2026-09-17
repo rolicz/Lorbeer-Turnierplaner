@@ -35,7 +35,12 @@
    * light.css darkens it to red-600 so it is legible as text on white too.
    */
   --color-win: 74 222 128; /* green-400 */
-  --color-draw: 251 191 36; /* amber-400 */
+  /* draw was amber-400 — the same value as `--color-cup-gold` and the winner's
+     trophy (2.5), so a drawn score, the Lorbeerkranz ring and the trophy were
+     one colour. yellow-300 keeps the >=10:1 the dark cards need and stays a
+     visible step from amber (deltaE ~20 to `--color-cup-gold`) without
+     borrowing a warning tone (C11). */
+  --color-draw: 253 224 71; /* yellow-300 */
   --color-loss: 248 113 113; /* red-400 */
   --color-live: 239 68 68; /* red-500 */
 
@@ -52,9 +57,16 @@
 
   /* Cup palette. A cup's colour is its identity (the ring on an avatar, the dot on a
      block, the holder's name), so it has its own tokens instead of borrowing the medal
-     gradients; `light.css` darkens both so the holder's name stays readable (A6). */
-  --color-cup-gold: 251 191 36; /* amber-400 — the Lorbeerkranz */
-  --color-cup-green-dark: 21 128 61; /* green-700 — the Bauernkranz */
+     gradients; `light.css` darkens both so the holder's name stays readable (A6).
+     `--color-cup-gold` is the **text** value (the holder's name, >=4.5:1);
+     `--color-cup-gold-mark` is the **mark** value (ring, crown disc, dot —
+     non-text, >=3:1). They are the same amber-400 here — the split only
+     matters in `light.css`, where a darkened text colour would read brown as
+     a ring (C11). The Bauernkranz has no such conflict and stays one token
+     for both jobs. */
+  --color-cup-gold: 251 191 36; /* amber-400 — the Lorbeerkranz, text */
+  --color-cup-gold-mark: 251 191 36; /* amber-400 — the Lorbeerkranz, mark (same as text here) */
+  --color-cup-green-dark: 21 128 61; /* green-700 — the Bauernkranz, text and mark */
 
   /* The player palette (C2). `colorForIdx` (pages/stats/trendsMath.ts) spreads the six
      hues round the wheel and hands out `hsl(<hue> var(--player-solid-s) var(--player-solid-l))`
