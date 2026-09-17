@@ -159,12 +159,12 @@ export default function PlayerProfile({ mode, scope, rows, selectedId, onSelect 
             </div>
           </StatsSection>
 
-          <StatsSection label="Club stars">
-            <StarsSection mode={mode} scope={scope} playerId={row.id} />
-          </StatsSection>
-
           <StatsSection label="Streaks · current / record">
             <PlayerStreakChips categories={streaksQ.data?.categories ?? []} globalCategories={streaksGlobalQ.data?.categories ?? []} />
+          </StatsSection>
+
+          <StatsSection label="Club stars">
+            <StarsSection mode={mode} scope={scope} playerId={row.id} />
           </StatsSection>
 
           <StatsSection
