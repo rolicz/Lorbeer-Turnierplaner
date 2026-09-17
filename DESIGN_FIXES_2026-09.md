@@ -1945,7 +1945,7 @@ differs per theme, so "no longer accent" must be confirmed in both.
 
 ---
 
-## C15 — Documentation pass (runs LAST)  ☐
+## C15 — Documentation pass (runs LAST)  ☑
 
 Applies every "Canon" line listed above in one commit so no two workers touched
 `DESIGN.md`/`AGENTS.md`:
@@ -1965,6 +1965,93 @@ describes a prop or branch C8 deleted (`fullScreenOnMobile`, `bodyVariant`, `wid
 `shadow-card`); `npm run check` green at the branch head.
 
 **Deviations:**
+
+**No code was touched** — three files changed, `DESIGN.md`, `AGENTS.md` and this one, in one
+commit. Where a task wrote the sentence it wanted, it was transcribed rather than paraphrased
+(C2's token row, C5's `resultBadge` clause, C10's whole "Words" paragraph, C11's `draw`/cup rows
+and its two added sentences, C13's `--color-live` row, C8's `CollapsibleCard` sentence).
+
+**`DESIGN.md`, what changed and whose line it was.**
+- §2 — the `status-*` family line now says `--color-live` is *the same green*, not a second answer
+  (C13; the canon claimed green in one line and red in the next, and the nav dot read the red
+  one). The `--live-indicator` note keeps its history but says the value was the token's *then*.
+- §2 — a new paragraph: **`accent` means *selected***, not "press me" (C14's decision), naming the
+  three sites that still paint accent text as a listed exception rather than pretending they don't
+  exist.
+- §2 token table — `--color-draw` dark `253 224 71` / light `133 77 14` (C11); `--color-live`
+  rewritten verbatim from C13's canon line, call sites and 3:1 floor included; `--color-cup-gold`
+  relabelled the *text* value; **new** `--color-cup-gold-mark` row with C11's four measured floors;
+  `--color-cup-green-dark` says it has no split; **new** `--player-solid-s` / `--player-solid-l`
+  row in C2's own words.
+- §2 prose — the cup mark/text rule and "measure it on the surface it is carried on" (C11); the
+  player-palette rule, its 3:1 floor and "the theme never enters JavaScript" (C2); a sentence in
+  the R3 "result run" paragraph recording `draw`'s second move in both themes (C11).
+- §3 — the inset row and the light-theme paragraph now say the hairline is an inset `box-shadow`,
+  not a border, with C3's five measured page deltas and the `border-accent` carve-out.
+- §3 — `Card` / `CollapsibleCard` sentence replaced with C8's exact wording.
+- **§5b (new) — "Words"**, C10's paragraph transcribed, with A8's "1 games together" folded in as
+  the example the task asked for.
+- §6 — a "see more" bullet: the muted-text + chevron look with the class string, and C14's own
+  closing line that an action which does not navigate takes the same treatment **without** the
+  chevron.
+- §7 — "Confirming a delete" became **"Confirming an irreversible action"**, with C7's inferred
+  red-block rule (red iff something *stored* is deleted) and the `busyLabel` constraint.
+- §7 — `AvatarCircle`: the crown is never drawn beside a ringed avatar (C12a), and the picker's
+  accent ring is recorded as the deliberate, audited exception (C12b, decided as *no change*).
+- §8 — `resultBadge` "for dense lists" → C5's replacement clause.
+- §11 Do/Don't — three lines mirroring the confirm rule, the "see more" rule and §5b.
+- Header — "Last checked against the code" is now 2026-09-17 and names what this pass changed.
+
+**`AGENTS.md`.** §9 gains this tracker in the planning-files bullet, a "Words are canon too"
+pointer to §5b, and C1's locale bullet (`APP_LOCALE_NUMERIC` / `APP_LOCALE_MONTHS`, the grep that
+proves no call site spells a locale, and the kept "Sept" wart). §9's T15 avatar bullet records
+C12 (crown only in the standings; the picker ring as the one exception). §10's "One live
+indicator" bullet gains C13's green, with the reason green-600 was not usable (the tab bar paints
+`--color-bg-default`, not white). §11 is rewritten: `main` is `671473e` (this branch is off
+`2e23365` and predates that commit), **`f425961` is still the only thing deployed**, the batch is
+finished-and-unmerged with a one-line-per-task summary, and the Open list gains the deferred
+design-system batch and the three things C11/C14 deliberately left. §12 lists this file and the
+audit.
+
+**Three judgement calls, recorded rather than taken silently.**
+1. **The locale constants are in `AGENTS.md` only, not in `DESIGN.md` §5b.** C1 wrote no Canon
+   block, and C15's own brief puts the locale under `AGENTS.md` §9 "Style". A paragraph was
+   drafted for §5b and removed again: date format is vocabulary, so it would sit well there, but
+   nobody approved a canon line for it. If Roli wants it in the visual canon, it is two sentences.
+2. **C14's line is attached to a "see more" bullet that did not exist.** The task's canon says
+   "`DESIGN.md`'s 'a "see more" link' mechanism row" — that row is in *this plan's* Rule 8 table,
+   not in the canon, which had no "see more" rule at all. Rather than drop the line, §6 gained the
+   bullet, built only from what C14 shipped and measured (the class string, the chevron, the
+   no-chevron action) plus the precedent file it names.
+3. **The canon states the accent rule while three sites still break it.** C14's decision is
+   "accent means selected only", but 2.8 is partially closed, so the rule is written as a rule and
+   the three survivors (Back, "Create one.", Dismiss) are named in the same paragraph as a listed
+   exception. The canon does not claim more than shipped.
+
+**Two canon sentences the batch falsified were repaired, and they are not in anyone's Canon
+block.** §2 said "in the dark themes `error`/`warn` resolve to the same red and amber as
+`loss`/`draw`" and R3's paragraph said "`draw` shares amber-800 with `--color-warn`" — both stopped
+being true the moment C11 moved `draw` in *both* themes, and a canon that states a stale
+coincidence is worse than one that states none. Rewritten in the past tense with C11 named, per
+A8's "fix the canon when it is the canon that drifted".
+
+**One nuance observed and left to Roli rather than ruled on.** §5 lists `ppm` beside `pts` as a
+`.text-micro` "unit caption", but no `ppm` site has ever used `.text-micro` — all four render the
+unit at the number's own size, and C10 kept it that way on purpose (Rule 8: `.text-micro` would
+have been a second spelling). `pts` genuinely is `.text-micro` at three sites. The line is
+pre-existing drift, not something this batch caused, and C10 wrote no canon line for it, so it
+stands as it is; a future pass should either drop `ppm` from that list or shrink the four sites.
+
+**Not written, deliberately.** Nothing about `Button.iconOnly` (kept, its adoption deferred) —
+§7 still lists it, which is still true. Nothing about C6 beyond its numbers staying in this file:
+it changed no code and its finding was that §9's promise already holds, so the canon needed no
+line. No rule about the `.inset` paddings, heading treatments, avatar scale or filter idioms —
+that is the deferred batch's canon to write. No new claim about `MatchDetailPage`'s narrower
+`MatchOverviewPanel`: §8's T8 sentence already ruled it and C3 only re-confirmed it.
+
+**Checks.** `cd frontend && npm run check` green — typecheck clean, eslint clean, **688 tests in
+68 files**. `npm run build` green, 8.20s, `index-*.js` 723.99 kB. `make gen-types` → no diff
+(`git status` clean afterwards). No browser gate: this task renders no pixels.
 
 ---
 
@@ -1997,6 +2084,42 @@ describes a prop or branch C8 deleted (`fullScreenOnMobile`, `bodyVariant`, `wid
   Each returns a count the audit put a number on; if one is not what the pick table promised, the
   sweep is incomplete, not "mostly done". A worker that cannot reach 0 on a line must say which
   sites resisted and why, in its Deviations section — never leave it to be rediscovered.
+
+### Final run (C15, 2026-09-17, at `44d302d` — C15 itself changes no code)
+
+**Checks.** `cd frontend && npm run check` → typecheck clean, `eslint .` clean, vitest
+**688 passed in 68 files** (baseline at `f1ea22b` was 681 in 67; the batch added
+`confirmedActions.test.tsx`, five date-shape pins in `format.test.ts` and several rewritten
+expectations, and deleted `fmtPct`'s test). `cd frontend && npm run build` → green in 8.20s,
+`index-*.js` **723.99 kB** (722 kB before the batch; the >500 kB hint is the pre-existing one).
+`make gen-types` → **no diff**, as expected: no backend task in this batch, so `make test` /
+`make lint` are untouched at `f1ea22b`'s **204 passed** / clean.
+
+**The variant re-count, run at the branch head — every line is what the pick table promised:**
+
+| grep (`frontend/src`, `test/` excluded) | expected | measured |
+|---|---|---|
+| `join("/")\|join(" / ")` (2v2 teams) | 0 | **0** |
+| `"Win rate"\|"Win%"` | 0 | **0** |
+| `fmtRating\([^)]*\)[^ ]*★` (the star on an Elo number) | 0 | **0** |
+| `[a-z]\.\.\.` | 1 | **1** — `diagnostics/crashLog.ts:191`'s `\n... (truncated)`, copied-text plumbing |
+| `playedLabel=` | 0 | **0** |
+| `toLocale` not through `APP_LOCALE_*` (C1) | 0 | **0** |
+| `fmtPct` · `splitPlayers` (both deleted by C10) | 0 · 0 | **0 · 0** |
+| `<ConfirmDialog` (C7: 13 existing + 11 new) | 24 | **24** |
+| `fullScreenOnMobile` · `widthClass` · `shadow-card` · `shadow-focus` · `theme-legacy` (C8) | 0 each | **0 each** |
+
+**Pixel gates** were measured per task against per-task isolated stacks at 390×844 and 1280×900 in
+`blue` **and** `light`, and the numbers live in each task's Deviations rather than being repeated
+here: the six palette lines ≥ 3:1 with the weakest at 3.27 (dark) / 3.44 (light) (C2);
+placeholders 6.14:1 / 9.35:1 (C3); `document.body.scrollHeight` **equal** across themes on all
+five pages (C3); standings dividers 1.35:1 / 1.32:1 (C3); the League select's right edge exactly
+on the 16px gutter (C3); end-of-page clearance 20.0px at both widths, 26.0px on the friendlies
+list, 0 px² of overlap (C6); `draw` 5.75:1 with ΔE 33 to `loss`, the cup mark 3.09:1 on its own
+`/0.22` disc (C11); the live dot 4.21:1 on the tab bar (C13); the two "see more" links
+pixel-identical to their precedent in all four theme/width cells (C14).
+`document.querySelectorAll("a a").length` = **0** on every surface touched, with C7's dialogs and
+C9's voters modal open (C9's own run).
 
 ## Deployment (later, on Roli's go)
 
