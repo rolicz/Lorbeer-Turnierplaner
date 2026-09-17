@@ -53,10 +53,10 @@ type RecMatch = {
   href: string | null;
 };
 
-/** Tie count next to a category title ("×4 matches share this record"). */
+/** Tie count next to a category title ("4 tied" = four matches share this record). */
 function TieCount({ n }: { n: number }) {
   if (n <= 1) return null;
-  return <span className="text-xs font-normal text-text-muted">×{n}</span>;
+  return <span className="text-xs font-normal text-text-muted">{n} tied</span>;
 }
 
 /** "+N more" — the one way a truncated stats list says it is truncated. */
@@ -98,7 +98,7 @@ function RecordGroup({ icon, label, explainer, matches, clubs }: { icon: ReactNo
             );
           })}
         </div>
-      ) : <EmptyState title="None yet." className="py-2" />}
+      ) : <EmptyState title="No matches yet." className="py-2" />}
       <MoreLine total={matches.length} shown={shown.length} />
     </StatsSection>
   );
@@ -111,7 +111,7 @@ function TitlesGroup({ leaders, onSelect }: { leaders: WinLeader[]; onSelect: (i
   const { avatarUpdatedAtById } = usePlayerAvatarMap();
   const { cupsHeldByPlayerId } = useCupHolders();
   const shown = leaders.slice(0, SHOWN);
-  // "×N" here means N players share the top count — the same meaning it had before.
+  // "N tied" here means N players share the top count — the same meaning it had before.
   const topTies = leaders.filter((l) => l.rank === 1).length;
   return (
     <StatsSection
@@ -148,7 +148,7 @@ function TitlesGroup({ leaders, onSelect }: { leaders: WinLeader[]; onSelect: (i
             </div>
           ))}
         </div>
-      ) : <EmptyState title="None yet." className="py-2" />}
+      ) : <EmptyState title="No titles yet." className="py-2" />}
       <MoreLine total={leaders.length} shown={shown.length} />
     </StatsSection>
   );

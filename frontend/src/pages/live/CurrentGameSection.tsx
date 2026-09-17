@@ -267,7 +267,7 @@ export default function CurrentGameSection({
                 title="Swap home/away (A↔B)"
               >
                 <ArrowRightLeft size={14} className="md:hidden" aria-hidden="true" />
-                <span className="hidden md:inline">Swap Home/Away</span>
+                <span className="hidden md:inline">Swap home/away</span>
               </Button>
             )}
 
@@ -417,7 +417,7 @@ export default function CurrentGameSection({
       {/* Nothing is lost by finishing — Reset puts it back — so no red block. */}
       <ConfirmDialog
         open={finishAsked}
-        title={`Finish this match at ${aGoals}:${bGoals}?`}
+        title={`Finish this match at ${aGoals}–${bGoals}?`}
         subtitle="It was never started. It counts as a played result in the standings, and Reset puts it back."
         confirmLabel="Finish match"
         busyLabel="Finishing…"

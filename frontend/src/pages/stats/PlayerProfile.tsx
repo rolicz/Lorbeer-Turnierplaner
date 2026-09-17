@@ -101,7 +101,7 @@ export default function PlayerProfile({ mode, scope, rows, selectedId, onSelect 
               type="button"
               onClick={() => nav(`/profiles/${row.id}`)}
               className="flex min-w-0 flex-1 items-center gap-3 rounded-xl text-left focus-ring"
-              title={`Open ${row.name}'s full profile`}
+              title={`Open ${row.name}'s profile`}
             >
               <AvatarCircle playerId={row.id} name={row.name} updatedAt={avatarUpdatedAtById.get(row.id) ?? null} sizeClass="h-14 w-14" cups={cupsHeldByPlayerId.get(row.id)} />
               <div className="min-w-0 flex-1">

@@ -12,6 +12,7 @@ import { RotateCcw } from "lucide-react";
 
 import type { Match } from "../../api/types";
 import { sideBy } from "../../helpers";
+import { fmtCount } from "../../utils/format";
 import { joinNames } from "../../utils/matchDisplay";
 import { useAuth } from "../../auth/AuthContext";
 import { usePlayerAvatarMap } from "../../hooks/usePlayerAvatarMap";
@@ -159,7 +160,7 @@ function focusClause(name: string, wins: number, draws: number, losses: number):
   if (draws) parts.push(`draws ${draws}`);
   if (losses) parts.push(`loses ${losses}`);
   const listed = parts.length > 1 ? `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}` : parts[0];
-  return `${name} ${listed} of their ${total} remaining ${total === 1 ? "match" : "matches"}`;
+  return `${name} ${listed} of their ${fmtCount(total, "remaining match", "remaining matches")}`;
 }
 
 export default function WhatIfSection({ matches, players }: { matches: Match[]; players: PlayerLite[] }) {
@@ -208,7 +209,7 @@ export default function WhatIfSection({ matches, players }: { matches: Match[]; 
   );
 
   if (focusId == null || !best || !projection) {
-    return <EmptyState title="Nothing to project" hint="This tournament has no players yet." />;
+    return <EmptyState title="Nothing to project." hint="This tournament has no players yet." />;
   }
 
   const focusName = players.find((p) => p.id === focusId)?.display_name ?? "";

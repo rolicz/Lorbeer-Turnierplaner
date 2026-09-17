@@ -13,7 +13,7 @@ import { getCup, listCupDefs } from "../../api/cup.api";
 import { cupColorVarForKey, rgbFromCssVar } from "../../cupColors";
 import { qk } from "../../api/queryKeys";
 import { usePlayerAvatarMap } from "../../hooks/usePlayerAvatarMap";
-import { fmtRank } from "../../utils/format";
+import { fmtCount, fmtRank } from "../../utils/format";
 import StatsSection from "./StatsSection";
 import { InfoButton } from "./explainers";
 import { POS_CELL_H, POS_GAP, POS_HEADER_H, positionsGridWidths } from "./microGrid";
@@ -85,7 +85,7 @@ export default function PositionsView({ mode }: { mode: StatsMode }) {
     queryFn: () => getStatsPlayers({ mode }),
     placeholderData: keepPreviousData, staleTime: 30_000,
   });
-  // Always-overall counts for the "N tournaments · N× 1v1 · N× 2v2" line — independent of
+  // Always-overall counts for the "N tournaments · 1v1: N · 2v2: N" line — independent of
   // the active Mode filter. Keyed identically to the main query when mode is already
   // "overall" so react-query dedupes the request.
   const overallQ = useQuery({
@@ -280,10 +280,10 @@ export default function PositionsView({ mode }: { mode: StatsMode }) {
       {legend ? <InfoLegend cups={cupDefs.map((d) => ({ key: d.key, name: d.name, color: cupColor(d.key) }))} /> : null}
       {modeCounts.total > 0 ? (
         <div className="text-xs text-text-muted">
-          {modeCounts.total} tournament{modeCounts.total === 1 ? "" : "s"}
+          {fmtCount(modeCounts.total, "tournament", "tournaments")}
           {["1v1", "2v2", ...Array.from(modeCounts.byMode.keys()).filter((m) => m !== "1v1" && m !== "2v2")]
             .filter((m) => (modeCounts.byMode.get(m) ?? 0) > 0)
-            .map((m) => ` · ${modeCounts.byMode.get(m)}× ${m}`)
+            .map((m) => ` · ${m}: ${modeCounts.byMode.get(m)}`)
             .join("")}
         </div>
       ) : null}

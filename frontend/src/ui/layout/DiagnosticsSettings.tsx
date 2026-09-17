@@ -3,6 +3,7 @@ import { ChevronDown, ClipboardCopy, Trash2 } from "lucide-react";
 
 import { cn } from "../cn";
 import { copyText } from "../../utils/clipboard";
+import { fmtCount } from "../../utils/format";
 import Button from "../primitives/Button";
 import ConfirmDialog from "../primitives/ConfirmDialog";
 import EmptyState from "../primitives/EmptyState";
@@ -231,7 +232,7 @@ export default function DiagnosticsSettings() {
         </div>
       ) : (
         <EmptyState
-          title="Nothing recorded"
+          title="Nothing recorded."
           hint="Crashes, unhandled errors, a screen that goes blank and an app that ends without one show up here."
         />
       )}
@@ -240,12 +241,12 @@ export default function DiagnosticsSettings() {
         open={confirmClear}
         title="Clear the crash log?"
         confirmLabel="Clear log"
-        busyLabel="Clearing..."
+        busyLabel="Clearing…"
         onCancel={() => setConfirmClear(false)}
         onConfirm={onClear}
       >
         <p>
-          {entries.length} recorded {entries.length === 1 ? "event" : "events"} and their navigation trails are deleted
+          {fmtCount(entries.length, "recorded event", "recorded events")} and their navigation trails are deleted
           from this device. This is the only copy.
         </p>
       </ConfirmDialog>

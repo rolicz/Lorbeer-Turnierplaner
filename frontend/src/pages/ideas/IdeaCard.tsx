@@ -276,7 +276,7 @@ export default function IdeaCard({
                 title={idea.my_vote === 1 ? "Take your vote back" : "I want this too"}
               />
             ) : (
-              <span className="chip inline-flex items-center gap-1" title="Log in to vote">
+              <span className="chip inline-flex items-center gap-1" title="Login to vote">
                 <ThumbsUp size={12} aria-hidden="true" />
                 <span className="tabular-nums">{idea.votes}</span>
               </span>

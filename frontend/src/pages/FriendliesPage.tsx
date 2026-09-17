@@ -11,7 +11,7 @@ import { Plus, List } from "lucide-react";
 type Tab = "create" | "all";
 const TAB_KEYS = ["all", "create"] as const satisfies readonly Tab[];
 const TABS: SectionTab<Tab>[] = [
-  { key: "all", label: "All Friendlies", icon: <List size={14} /> },
+  { key: "all", label: "All friendlies", icon: <List size={14} /> },
   { key: "create", label: "New", icon: <Plus size={14} /> },
 ];
 

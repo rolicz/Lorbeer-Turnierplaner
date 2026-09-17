@@ -117,7 +117,7 @@ describe("CommentComposer", () => {
     expect(options[1].querySelector('[data-score-numeral="right"]')?.textContent).toBe("1");
     expect(options[0]).toHaveAttribute("aria-checked", "false");
 
-    fireEvent.click(getByTitle("Goal for Rumpi — makes it 1-0"));
+    fireEvent.click(getByTitle("Goal for Rumpi — makes it 1–0"));
     expect(onGoalSideChange).toHaveBeenCalledWith("A");
 
     expect(getByLabelText("Goal minute")).toBeInTheDocument();
@@ -276,7 +276,7 @@ describe("GoalSideChoice", () => {
     expect(a.textContent).toContain("Atzi");
     expect(a).toHaveAttribute("aria-checked", "false");
     expect(b).toHaveAttribute("aria-checked", "true");
-    expect(b).toHaveAttribute("aria-label", "Goal for Flo/Rumpi — makes it 2-3");
+    expect(b).toHaveAttribute("aria-label", "Goal for Flo/Rumpi — makes it 2–3");
     // the numeral that goes up is the emphasised one
     expect(b.querySelector('[data-score-numeral="left"]')?.className).toContain("text-text-muted");
     expect(b.querySelector('[data-score-numeral="right"]')?.className ?? "").not.toContain("text-text-muted");

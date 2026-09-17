@@ -6,7 +6,7 @@ import Textarea from "../../ui/primitives/Textarea";
 import AvatarCircle from "../../ui/primitives/AvatarCircle";
 import VoteButton from "../../ui/primitives/VoteButton";
 import type { PlayerGuestbookEntry } from "../../api/types";
-import { fmtDateTime } from "../../utils/format";
+import { fmtCount, fmtDateTime } from "../../utils/format";
 
 /**
  * Everything a GuestbookEntryCard needs, provided via context so the
@@ -132,7 +132,7 @@ export default function GuestbookEntryCard({
                   e.stopPropagation();
                   ctx.toggleCollapse(entry.id);
                 }}
-                title={isCollapsed ? `Show ${children.length} repl${children.length === 1 ? "y" : "ies"}` : "Hide replies"}
+                title={isCollapsed ? `Show ${fmtCount(children.length, "reply", "replies")}` : "Hide replies"}
                 className="h-8 px-2 p-0 inline-flex items-center justify-center gap-1"
               >
                 {isCollapsed ? <ChevronRight size={14} aria-hidden="true" /> : <ChevronDown size={14} aria-hidden="true" />}

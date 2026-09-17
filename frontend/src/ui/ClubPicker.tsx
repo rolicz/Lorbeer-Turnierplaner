@@ -18,6 +18,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 
 import type { Club } from "../api/types";
+import { fmtCount } from "../utils/format";
 
 import ClubBadge from "./ClubBadge";
 import NationFlag from "./NationFlag";
@@ -265,7 +266,7 @@ export default function ClubPicker({
       open={open}
       onClose={onClose}
       title="Select club"
-      subtitle={`${active.label} · ${matches.length} club${matches.length === 1 ? "" : "s"}`}
+      subtitle={`${active.label} · ${fmtCount(matches.length, "club", "clubs")}`}
       maxWidth="max-w-md"
       scrollBody
       className="max-h-[84vh] overflow-hidden"
@@ -383,7 +384,7 @@ export default function ClubPicker({
           ) : null}
 
           {matches.length === 0 ? (
-            <EmptyState title="No clubs found" className="px-3 py-8" />
+            <EmptyState title="No clubs found." className="px-3 py-8" />
           ) : groups ? (
             groups.map((g) => (
               <div key={g.name}>

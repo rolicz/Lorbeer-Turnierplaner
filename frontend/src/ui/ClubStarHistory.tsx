@@ -67,7 +67,7 @@ export default function ClubStarHistory({
                   {entryLabel(entry)}
                   {/* Lowercase on purpose: uppercase inside an `inset` belongs to
                       `section-label` and to column headers alone (DESIGN.md §6). */}
-                  {i === 0 ? <span className="ml-1.5 text-micro text-text-muted">now</span> : null}
+                  {i === 0 ? <span className="ml-1.5 text-micro text-text-muted">current</span> : null}
                 </span>
               </div>
             ))}

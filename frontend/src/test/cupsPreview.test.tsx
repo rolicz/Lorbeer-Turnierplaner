@@ -116,7 +116,7 @@ describe("CupsPreviewCard", () => {
 
     expect(within(lk).getByRole("link", { name: /Berni/ }).getAttribute("href")).toBe("/profiles/4");
     expect(within(lk).getByText(/^Holding since 11\.07\.2026$/)).toBeTruthy();
-    expect(within(lk).getByTitle("1 tournaments held").textContent).toBe("×1");
+    expect(within(lk).getByTitle("1 tournament held").textContent).toBe("×1");
   });
 
   it("renders each cup's reign timeline and names the holders under it", async () => {
@@ -165,7 +165,7 @@ describe("CupsPreviewCard", () => {
     const { container } = renderPreview();
     const [bk] = await cupBlocks(container);
 
-    expect(within(bk).getByText("No owner yet")).toBeTruthy();
+    expect(within(bk).getByText("No owner yet.")).toBeTruthy();
     expect(within(bk).getByText("No title changes yet.")).toBeTruthy();
   });
 });

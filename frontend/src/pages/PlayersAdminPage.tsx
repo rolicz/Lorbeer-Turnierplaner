@@ -197,7 +197,7 @@ export default function PlayersAdminPage() {
               <div key={p.id}>
                 <ListRow
                   onClick={() => openProfile(p.id, false)}
-                  ariaLabel={`Open profile: ${p.display_name}`}
+                  ariaLabel={`Open ${p.display_name}'s profile`}
                   leading={
                     <AvatarCircle playerId={p.id} name={p.display_name} updatedAt={updatedAt} sizeClass="h-10 w-10" cups={heldCups} />
                   }

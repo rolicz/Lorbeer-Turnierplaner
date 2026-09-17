@@ -327,7 +327,7 @@ export default function StandingsTable({
           <div
             key={r.playerId}
             className="row row-tap relative cursor-pointer"
-            title={`Open profile: ${r.name}`}
+            title={`Open ${r.name}'s profile`}
             onClick={() => navigate(`/profiles/${r.playerId}`)}
             onKeyDown={(e) => {
               if (e.key === "Enter" || e.key === " ") {

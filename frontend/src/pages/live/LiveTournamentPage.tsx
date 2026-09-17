@@ -25,6 +25,7 @@ import {
 } from "../../api/tournaments.api";
 
 import { ApiError } from "../../api/client";
+import { fmtCount } from "../../utils/format";
 import { patchMatch, swapMatchSides } from "../../api/matches.api";
 import { listClubs } from "../../api/clubs.api";
 import type { DeciderType, Match, Club, PatchMatchBody } from "../../api/types";
@@ -302,7 +303,7 @@ export default function LiveTournamentPage() {
         ? playerNameById.get(decider.loser_player_id) ?? `#${decider.loser_player_id}`
         : "—";
     const score =
-      decider.winner_goals != null && decider.loser_goals != null ? `${decider.winner_goals}-${decider.loser_goals}` : "—";
+      decider.winner_goals != null && decider.loser_goals != null ? `${decider.winner_goals}–${decider.loser_goals}` : "—";
     const deciderText =
       decider.type === "scheresteinpapier"
         ? "Schere-Stein-Papier Turnier"
@@ -850,7 +851,7 @@ export default function LiveTournamentPage() {
                 <div>
                   {matchesSorted.length === 0
                     ? "No matches were played yet."
-                    : `${matchesSorted.length} ${matchesSorted.length === 1 ? "match" : "matches"} and every result in ${matchesSorted.length === 1 ? "it" : "them"} are deleted.`}
+                    : `${fmtCount(matchesSorted.length, "match", "matches")} and every result in ${matchesSorted.length === 1 ? "it" : "them"} are deleted.`}
                 </div>
                 {cupStakes.length > 0 ? (
                   <div>
@@ -869,8 +870,8 @@ export default function LiveTournamentPage() {
                 title="Re-assign the 2v2 schedule?"
                 subtitle={
                   reassignPreview
-                    ? `New partners and new opponents: all ${reassignPreview.matches} ${
-                        reassignPreview.matches === 1 ? "match is" : "matches are"
+                    ? `New partners and new opponents: all ${fmtCount(reassignPreview.matches, "match", "matches")} ${
+                        reassignPreview.matches === 1 ? "is" : "are"
                       } drawn again from scratch.`
                     : "New partners and new opponents: every match is drawn again from scratch."
                 }

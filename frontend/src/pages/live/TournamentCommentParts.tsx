@@ -8,7 +8,7 @@ import VoteButton from "../../ui/primitives/VoteButton";
 import type { Player } from "../../api/types";
 import { commentImageUrl } from "../../api/comments.api";
 import { CommentSendRow } from "./comments/CommentComposer";
-import { fmtTs } from "../../utils/format";
+import { fmtCount, fmtTs } from "../../utils/format";
 import type { CommentAuthor, TournamentComment } from "./tournamentCommentTypes";
 
 /**
@@ -190,7 +190,7 @@ export function CommentCard({
                   e.stopPropagation();
                   onToggleCollapse();
                 }}
-                title={collapsed ? `Show ${childCount} repl${childCount === 1 ? "y" : "ies"}` : "Hide replies"}
+                title={collapsed ? `Show ${fmtCount(childCount, "reply", "replies")}` : "Hide replies"}
                 className="h-9 px-2 p-0 inline-flex items-center justify-center gap-1"
               >
                 {collapsed ? <ChevronRight size={14} aria-hidden="true" /> : <ChevronDown size={14} aria-hidden="true" />}

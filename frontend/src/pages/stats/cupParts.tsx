@@ -13,7 +13,7 @@ import PlayerLink from "../../ui/primitives/PlayerLink";
 import { cn } from "../../ui/cn";
 import { usePlayerAvatarMap } from "../../hooks/usePlayerAvatarMap";
 import { useCupHolders } from "../../hooks/useCupHolders";
-import { fmtDate } from "../../utils/format";
+import { fmtCount, fmtDate } from "../../utils/format";
 import { usePlayerColors } from "./usePlayerColors";
 import { reignSpan, type PlayerRef, type Reign } from "./cupReigns";
 
@@ -24,7 +24,7 @@ export const CHIP_ACCENT = `${CHIP} bg-accent/15 text-accent ring-1 ring-inset r
 /** The `×N` tournaments-held chip; the running reign wears the accent style. */
 export function ReignChip({ tournaments, current }: { tournaments: number; current?: boolean }) {
   return (
-    <span className={current ? CHIP_ACCENT : CHIP_PLAIN} title={`${tournaments} tournaments held`}>
+    <span className={current ? CHIP_ACCENT : CHIP_PLAIN} title={`${fmtCount(tournaments, "tournament", "tournaments")} held`}>
       ×{tournaments}
     </span>
   );
@@ -89,7 +89,7 @@ export function CupHolder({
             <Trophy size={18} aria-hidden="true" />
           </span>
           <div className="min-w-0 flex-1">
-            <div className="truncate text-base font-semibold">No owner yet</div>
+            <div className="truncate text-base font-semibold">No owner yet.</div>
             <div className="text-xs text-text-muted">{meta}</div>
           </div>
         </>
@@ -132,7 +132,7 @@ export function CupReignTimeline({
       >
         {reigns.map((r, i) => {
           const style = { flexGrow: Math.max(1, r.tournaments), flexBasis: 0, backgroundColor: colorOf(r.holder.id).solid };
-          const title = `${r.holder.display_name} · ${r.tournaments} tournaments · ${reignSpan(r)}`;
+          const title = `${r.holder.display_name} · ${fmtCount(r.tournaments, "tournament", "tournaments")} · ${reignSpan(r)}`;
           const pulse = r.current ? (
             <span className="absolute inset-0 animate-pulse" style={{ boxShadow: "inset 0 0 0 2px rgb(var(--color-text-normal) / 0.45)" }} />
           ) : null;
@@ -143,7 +143,7 @@ export function CupReignTimeline({
               type="button"
               onClick={() => onSelect(r, i)}
               title={title}
-              aria-label={`${r.holder.display_name}, ${r.tournaments} tournaments — jump to this reign`}
+              aria-label={`${r.holder.display_name}, ${fmtCount(r.tournaments, "tournament", "tournaments")} — jump to this reign`}
               className="relative h-full min-w-[6px] border-0 p-0"
               style={style}
             >

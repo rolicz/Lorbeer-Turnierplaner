@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import Button from "../../ui/primitives/Button";
 import ConfirmDialog from "../../ui/primitives/ConfirmDialog";
+import { fmtCount } from "../../utils/format";
 import FormLabel from "../../ui/primitives/FormLabel";
 import Input from "../../ui/primitives/Input";
 import FilterSelect from "../../ui/FilterSelect";
@@ -476,7 +477,7 @@ export default function AdminPanel({
         }}
       >
         <div>
-          {`${secondLegMatchCount} scheduled leg-2 ${secondLegMatchCount === 1 ? "match is" : "matches are"} deleted, and any comments on ${secondLegMatchCount === 1 ? "it" : "them"} go with ${secondLegMatchCount === 1 ? "it" : "them"} (Q5).`}
+          {`${fmtCount(secondLegMatchCount, "scheduled leg-2 match", "scheduled leg-2 matches")} ${secondLegMatchCount === 1 ? "is" : "are"} deleted, and any comments on ${secondLegMatchCount === 1 ? "it" : "them"} go with ${secondLegMatchCount === 1 ? "it" : "them"} (Q5).`}
         </div>
       </ConfirmDialog>
 

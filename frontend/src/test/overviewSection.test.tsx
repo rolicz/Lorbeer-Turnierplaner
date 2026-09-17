@@ -139,7 +139,7 @@ describe("Overview tab", () => {
     // No row is hidden, so the link cannot claim to reveal any (T15-D).
     expect(playedHrefs()).toEqual(hrefs(many));
     expect(screen.queryByText(/Show all/)).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: /Open Matches/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Open matches/ }));
     expect(onGoToMatches).toHaveBeenCalled();
   });
 
@@ -148,17 +148,17 @@ describe("Overview tab", () => {
 
     // The standings list every player, so neither link may promise extra rows.
     expect(screen.queryByText(/Show all/)).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: /Open Results/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Open results/ }));
     expect(onGoToStandings).toHaveBeenCalled();
-    fireEvent.click(screen.getByRole("button", { name: /Open Matches/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Open matches/ }));
     expect(onGoToMatches).toHaveBeenCalled();
   });
 
   it("names the live tab it opens instead of the done one", () => {
     const { onGoToStandings } = renderTab();
 
-    expect(screen.queryByRole("button", { name: /Open Results/ })).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: /Open Standings/ }));
+    expect(screen.queryByRole("button", { name: /Open results/ })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Open standings/ }));
     expect(onGoToStandings).toHaveBeenCalled();
   });
 

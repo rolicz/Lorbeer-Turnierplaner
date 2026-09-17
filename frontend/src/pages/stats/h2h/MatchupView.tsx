@@ -32,7 +32,7 @@ import { ChipGroup } from "../../../ui/primitives/Chip";
 import { MatchHistoryList, tournamentMatchHref } from "../MatchHistoryList";
 import StatsSection from "../StatsSection";
 import { currentRun, resultsTimeline, summarizeMatches, type MatchResult } from "./matchupSummary";
-import { fmtAvg } from "../../../utils/format";
+import { fmtAvg, fmtCount } from "../../../utils/format";
 import { joinNames } from "../../../utils/matchDisplay";
 import type { Row } from "../standings";
 import type { StatsMode } from "../statsMode";
@@ -201,7 +201,7 @@ export default function MatchupView({ mode, scope, leftIds, rightIds, rows, init
         <div className="card space-y-3">
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
             <Tile label="Played">{summary.played}</Tile>
-            <Tile label="W-D-L" title={`${summary.wins} wins, ${summary.draws} draws, ${summary.losses} losses`}>
+            <Tile label="W-D-L" title={`${fmtCount(summary.wins, "win", "wins")}, ${fmtCount(summary.draws, "draw", "draws")}, ${fmtCount(summary.losses, "loss", "losses")}`}>
               <span className="text-win">{summary.wins}</span>
               <span className="text-text-muted">-</span>
               <span className="text-draw">{summary.draws}</span>
