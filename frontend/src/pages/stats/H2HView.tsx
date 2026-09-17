@@ -23,6 +23,7 @@ import { DuoRow } from "./HeadToHeadRows";
 import { duoKey } from "./h2hHelpers";
 import { MATRIX_GAP, matrixCellSize, matrixFits } from "./microGrid";
 import { useStickyTop } from "../../ui/shell/useStickyTop";
+import { joinNames } from "../../utils/matchDisplay";
 import { DuoLeaderboard } from "./h2h/DuoLeaderboard";
 import { DuoPicker } from "./h2h/DuoPicker";
 import { DuoRivalries } from "./h2h/DuoRivalries";
@@ -308,13 +309,13 @@ export default function H2HView({ mode, scope, rows, subView, selectedId, onSele
 
   const openDuoTeammates = (d: StatsH2HDuo) =>
     setHistoryModal({
-      title: `${d.p1.display_name} / ${d.p2.display_name}`,
+      title: joinNames([d.p1.display_name, d.p2.display_name]),
       req: { mode, relation: "teammates", left_player_ids: [d.p1.id, d.p2.id], right_player_ids: [], scope },
       focusPlayerId: null,
     });
   const openTeamRivalry = (r: StatsH2HTeamRivalry) =>
     setHistoryModal({
-      title: `${r.team1.map((p) => p.display_name).join("/")} vs ${r.team2.map((p) => p.display_name).join("/")}`,
+      title: `${joinNames(r.team1.map((p) => p.display_name))} vs ${joinNames(r.team2.map((p) => p.display_name))}`,
       req: { mode, relation: "opposed", left_player_ids: r.team1.map((p) => p.id), right_player_ids: r.team2.map((p) => p.id), exact_teams: true, scope },
       focusPlayerId: r.team1[0]?.id ?? null,
     });

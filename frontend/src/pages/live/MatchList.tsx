@@ -3,7 +3,7 @@ import { ArrowDown, ArrowRightLeft, ArrowUp, Layers, List, Shrink } from "lucide
 import Button from "../../ui/primitives/Button";
 import ConfirmDialog from "../../ui/primitives/ConfirmDialog";
 import type { Club, Match } from "../../api/types";
-import { teamName } from "../../utils/matchDisplay";
+import { joinNames } from "../../utils/matchDisplay";
 import { sideBy } from "../../helpers";
 import MatchSides from "../../ui/primitives/MatchSides";
 import ScoreLine from "../../ui/primitives/ScoreLine";
@@ -12,10 +12,6 @@ import ClubBadge from "../../ui/ClubBadge";
 import { useEffect, useState } from "react";
 import SegmentedSwitch from "../../ui/primitives/SegmentedSwitch";
 import { fmtCount, fmtOdd } from "../../utils/format";
-
-function splitPlayers(names: string): string[] {
-  return names.split(" + ").map((s) => s.trim()).filter(Boolean);
-}
 
 /** The quiet mono odds line of `DESIGN.md` §8, same shape as the hero panel's. */
 function OddsInline({ odds }: { odds: { home: number; draw: number; away: number } }) {
@@ -92,8 +88,10 @@ export default function MatchList({
           const a = sideBy(m, "A");
           const b = sideBy(m, "B");
 
-          const aPlayers = splitPlayers(teamName(a));
-          const bPlayers = splitPlayers(teamName(b));
+          // The array, never a joined string: a 2v2 side stacks two lines (DESIGN.md §8),
+          // and nothing in the app parses a team label back apart (C10 row 7).
+          const aPlayers = (a?.players ?? []).map((p) => p.display_name).filter(Boolean);
+          const bPlayers = (b?.players ?? []).map((p) => p.display_name).filter(Boolean);
           if (!aPlayers.length) aPlayers.push("—");
           if (!bPlayers.length) bPlayers.push("—");
 
@@ -155,7 +153,7 @@ export default function MatchList({
 
           // The row is one target and the actions are another, so the label says which
           // match the row opens — screen readers get the fixture, not "button".
-          const rowLabel = `${canEdit ? "Open or edit" : "Open"} match ${m.order_index + 1}: ${aPlayers.join(" + ")} vs ${bPlayers.join(" + ")}`;
+          const rowLabel = `${canEdit ? "Open or edit" : "Open"} match ${m.order_index + 1}: ${joinNames(aPlayers)} vs ${joinNames(bPlayers)}`;
 
           return (
             <div key={m.id} id={`match-row-${m.id}`} className="scroll-mt-28 sm:scroll-mt-24">

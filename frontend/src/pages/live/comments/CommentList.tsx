@@ -25,8 +25,9 @@ type CommentMatchHeaderClub = {
 /** Score/clubs/stars summary for a match block header, as computed by the coordinator. */
 export type CommentMatchHeader = {
   title: string;
-  aPlayers: string;
-  bPlayers: string;
+  /** Names per side, one per line — a 2v2 header stacks like every other score (§8). */
+  aPlayers: string[];
+  bPlayers: string[];
   state: MatchState;
   aGoals: number;
   bGoals: number;

@@ -23,6 +23,7 @@ import type { Match } from "../../api/types";
 import { usePlayerAvatarMap } from "../../hooks/usePlayerAvatarMap";
 import { useAuth } from "../../auth/AuthContext";
 import { APP_LOCALE_NUMERIC } from "../../utils/format";
+import { joinNames } from "../../utils/matchDisplay";
 
 const FRIENDLY_MATCH_STORAGE_KEY = "friendly_match_state_v1";
 const DEFAULT_CLUB_GAME = "EA FC 26";
@@ -207,12 +208,12 @@ export default function FriendlyMatchCard({ onInitialReady }: { onInitialReady?:
   const bTeamIds = useMemo(() => [b1, mode === "2v2" ? b2 : null].filter((x): x is number => x != null), [b1, b2, mode]);
 
   const aLabel = useMemo(() => {
-    const names = aTeamIds.map((id) => players.find((p) => p.id === id)?.display_name).filter(Boolean);
-    return names.length ? names.join("/") : "Team A";
+    const names = aTeamIds.map((id) => players.find((p) => p.id === id)?.display_name ?? "");
+    return joinNames(names) || "Team A";
   }, [aTeamIds, players]);
   const bLabel = useMemo(() => {
-    const names = bTeamIds.map((id) => players.find((p) => p.id === id)?.display_name).filter(Boolean);
-    return names.length ? names.join("/") : "Team B";
+    const names = bTeamIds.map((id) => players.find((p) => p.id === id)?.display_name ?? "");
+    return joinNames(names) || "Team B";
   }, [bTeamIds, players]);
 
   const oddsReq = useMemo<StatsOddsRequest | null>(() => {

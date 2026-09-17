@@ -12,6 +12,7 @@ import { RotateCcw } from "lucide-react";
 
 import type { Match } from "../../api/types";
 import { sideBy } from "../../helpers";
+import { joinNames } from "../../utils/matchDisplay";
 import { useAuth } from "../../auth/AuthContext";
 import { usePlayerAvatarMap } from "../../hooks/usePlayerAvatarMap";
 import AvatarCircle from "../../ui/primitives/AvatarCircle";
@@ -129,8 +130,8 @@ function MatchRow({ row, onSet }: { row: WhatIfRow; onSet: (id: number, o: Outco
           <OutcomeControl
             value={row.outcome}
             onChange={(o) => onSet(m.id, o)}
-            aLabel={aNames.join(" + ")}
-            bLabel={bNames.join(" + ")}
+            aLabel={joinNames(aNames)}
+            bLabel={joinNames(bNames)}
           />
         </div>
       )}

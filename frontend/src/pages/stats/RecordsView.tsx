@@ -28,7 +28,6 @@ import { getStatsPlayerMatches, getStatsPlayers } from "../../api/stats.api";
 import { qk } from "../../api/queryKeys";
 import { usePlayerAvatarMap } from "../../hooks/usePlayerAvatarMap";
 import { useCupHolders } from "../../hooks/useCupHolders";
-import { teamName } from "../../utils/matchDisplay";
 import { fmtShortDate } from "../../utils/format";
 import { tournamentMatchHref } from "./MatchHistoryList";
 import StatsSection from "./StatsSection";
@@ -39,12 +38,14 @@ import type { Club, StatsScope, StatsMatch, StatsPlayerMatchesTournament, StatsT
 /** How many rows a category shows before the "+N more" line (`DESIGN.md` §6). */
 const SHOWN = 6;
 
-function teamNames(m: StatsMatch, side: "A" | "B"): string {
-  return teamName(m.sides.find((x) => x.side === side));
+/** The side's names, one per line — a record row is a `ScoreLine`, and 2v2 stacks (§8). */
+function teamNames(m: StatsMatch, side: "A" | "B"): string[] {
+  const names = (m.sides.find((x) => x.side === side)?.players ?? []).map((p) => p.display_name).filter(Boolean);
+  return names.length ? names : ["—"];
 }
 type RecMatch = {
   id: number; tName: string; date: string;
-  a: string; b: string; ag: number; bg: number;
+  a: string[]; b: string[]; ag: number; bg: number;
   aIds: number[]; bIds: number[];
   /** The clubs that played it — a record row shows a score and nothing else (Q17). */
   aClubId: number | null; bClubId: number | null;

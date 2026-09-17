@@ -5,6 +5,7 @@ import { type CSSProperties, type ReactNode, useMemo } from "react";
 import type { StatsH2HDuo, StatsH2HTeamRivalry } from "../../api/types";
 import RecordLine, { recordWidths, type RecordWidths } from "../../ui/primitives/RecordLine";
 import { normalizeTeamRivalryForFocus, pct } from "./h2hHelpers";
+import { joinNames } from "../../utils/matchDisplay";
 
 function RowShell({
   onClick,
@@ -130,8 +131,8 @@ export function TeamRivalryRow({
     return [rr.team1[1], rr.team1[0]];
   }, [rr.team1, focusPlayerId]);
 
-  const t1 = team1.map((p) => p.display_name).join("/");
-  const t2 = rr.team2.map((p) => p.display_name).join("/");
+  const t1 = joinNames(team1.map((p) => p.display_name));
+  const t2 = joinNames(rr.team2.map((p) => p.display_name));
   const closePct = pct(rr.rivalry_score / Math.max(1, rr.played));
   return (
     <RowShell
