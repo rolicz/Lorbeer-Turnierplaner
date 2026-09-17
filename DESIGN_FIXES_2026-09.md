@@ -546,7 +546,7 @@ drawn as an inset shadow so the box is the same size in every theme — C3)".
 
 ---
 
-## C4 — The comments feed says `vs` for an unplayed match (audit 1.7)  ☐
+## C4 — The comments feed says `vs` for an unplayed match (audit 1.7)  ☑
 
 **The defect.** `pages/live/TournamentCommentsCard.tsx:581` computes
 `scoreDash = m.state === "scheduled" && rawAG == null && rawBG == null`, and `CommentList.tsx:180`
@@ -584,7 +584,25 @@ playing and finished matches.
 
 **Canon.** Follows `DESIGN.md` §8 (scheduled → dash pair / `vs`). Nothing to change.
 
-**Deviations:**
+**Deviations:** One: `CommentList.tsx:180` is `state={h.state}`, not `state={h.state as MatchState}`
+as the task text suggested. `CommentMatchHeader.state` is declared `MatchState` directly (the
+value flows in from `Match.state`, already `MatchState`-typed at that boundary), so the cast the
+plan describes would be a no-op — and `@typescript-eslint/no-unnecessary-type-assertion` (on in
+this repo's `recommendedTypeChecked` config) makes a no-op cast an `npm run check` failure, not a
+style nit. `MatchHistoryList.tsx:77`'s cast earns its keep because `StatsMatch.state` is a plain
+wire string there; `CommentMatchHeader` has no such boundary, so typing it narrow and dropping the
+cast is the same fix with one less no-op. Also touched `aGoals`/`bGoals`'s type (`number | null` →
+`number`, since they can no longer be `null`) — flagging for C10 per the task's note, since it
+touches the same field the C10 "2v2 stacks" rework will later touch on `aPlayers`/`bPlayers`
+(untouched here). Verified in a real browser (Playwright, isolated stack, 8034/8044,
+`verify-c4.db` copied from `backend/app.db` and deleted after): tournament 21 (live) has a
+`scheduled` match (117) that already carried non-null leftover goals `[1, 0]` on the wire — the
+exact "never null in practice" case the defect describes — and its Comments block now renders
+`Flo/Berni  vs  Roli/Rumpi` with `—` placeholders under both clubs, both names at equal weight, in
+both `blue` and `light` at 390px. The `playing` match (118, `0 │ 0`) and finished matches in
+tournament 19 (e.g. `Rumpi 4 │ 0 Roli`) render numerals unchanged. No `CommentList` test exists
+(confirmed via `grep -rln CommentList frontend/src/test` → none); per the task, the browser check
+stands as the proof and none was added.
 
 ---
 

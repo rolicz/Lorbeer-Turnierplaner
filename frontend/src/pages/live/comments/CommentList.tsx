@@ -6,6 +6,7 @@
  */
 import { ChevronDown, ChevronRight } from "lucide-react";
 
+import type { MatchState } from "../../../api/types";
 import EmptyState from "../../../ui/primitives/EmptyState";
 import ScoreLine from "../../../ui/primitives/ScoreLine";
 import { Stars } from "../../../ui/primitives/Stars";
@@ -26,8 +27,9 @@ export type CommentMatchHeader = {
   title: string;
   aPlayers: string;
   bPlayers: string;
-  aGoals: number | null;
-  bGoals: number | null;
+  state: MatchState;
+  aGoals: number;
+  bGoals: number;
   aClub: CommentMatchHeaderClub;
   bClub: CommentMatchHeaderClub;
 };
@@ -177,7 +179,7 @@ export default function CommentList(props: CommentListProps) {
           <div>
             <ScoreLine
               size="sm"
-              state={h.aGoals == null || h.bGoals == null ? "scheduled" : "finished"}
+              state={h.state}
               leftNames={h.aPlayers}
               rightNames={h.bPlayers}
               leftGoals={h.aGoals}

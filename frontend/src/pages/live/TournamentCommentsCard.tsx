@@ -576,18 +576,13 @@ export default function TournamentCommentsCard({
     const aClub = clubLabelPartsById(clubs, aClubId);
     const bClub = clubLabelPartsById(clubs, bClubId);
 
-    const rawAG = a?.goals;
-    const rawBG = b?.goals;
-    const scoreDash = m.state === "scheduled" && rawAG == null && rawBG == null;
-    const aGoals = scoreDash ? null : Number(rawAG ?? 0);
-    const bGoals = scoreDash ? null : Number(rawBG ?? 0);
-
     return {
       title: scopeLabel({ kind: "match", matchId }),
       aPlayers: sidePlayersLabel(m, "A"),
       bPlayers: sidePlayersLabel(m, "B"),
-      aGoals,
-      bGoals,
+      state: m.state,
+      aGoals: Number(a?.goals ?? 0),
+      bGoals: Number(b?.goals ?? 0),
       aClub: { ...aClub, present: !!aClubId },
       bClub: { ...bClub, present: !!bClubId },
     };
