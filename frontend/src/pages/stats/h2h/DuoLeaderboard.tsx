@@ -41,7 +41,9 @@ export function DuoLeaderboard({
               widths={widths}
               className="shrink-0 font-mono text-xs text-text-muted"
             />
-            <span className="w-16 shrink-0 text-right text-sm font-semibold tabular-nums text-accent">{fmtAvg(d.pts_per_match)} ppm</span>
+            {/* `2.50 ppm` never wraps: the unit belongs to the number, and a second line
+                here is 12px of row height the rest of the list does not spend. */}
+            <span className="w-20 shrink-0 whitespace-nowrap text-right text-sm font-semibold tabular-nums text-accent">{fmtAvg(d.pts_per_match)} ppm</span>
           </button>
         );
       })}

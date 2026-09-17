@@ -1229,7 +1229,7 @@ verify script are in the session scratchpad, not committed (throwaway).
 
 ---
 
-## C10 — Vocabulary sweeps: one word per quantity, one plural helper, the text splits (audit 1.12, 2.1, 2.9, 2.10 + Part 3 subset)  ☐
+## C10 — Vocabulary sweeps: one word per quantity, one plural helper, the text splits (audit 1.12, 2.1, 2.9, 2.10 + Part 3 subset)  ☑
 
 Runs **alone, after C8** (≈35 files). Picks default to the majority; the count that justifies each
 is in the table; **thin majorities and context splits are flagged** so Roli can veto by row number.
@@ -1342,9 +1342,132 @@ text; `light` on the four surfaces where a token changed: row 15's chip).
 
 **Canon.** C15 adds a short "Words" paragraph to `DESIGN.md` §5 or a new §5b recording rows 1–8,
 15, 16 and 18 as the vocabulary (the canon has no word list today; A8's "1 games together" note
-becomes an example there).
+becomes an example there). **The exact wording C10 implemented, for C15 to lift:**
+
+> **Words.** One word per quantity, split by the two jobs a label does. A *fixed-column line*
+> (`RecordLine`) and a *column header* take the abbreviation — `P`, `Pts`, `GD`, `PPM`, `G/M`,
+> `GA/M`, `GD/M`, `Elo`, `Win %`. A *tile* or a *chip* takes the word — `Played`, `Points`
+> (as `Pts` in a chip group), `Goal diff`, `Pts / match`, `Goals / match`, `Conceded / match`.
+> A *unit after a number* is lowercase — `pts`, `ppm`. A *count in prose* is
+> `fmtCount(n, singular, plural)` and never a hand-rolled ternary; pronoun and verb agreement
+> (`it`/`them`, `is`/`are`, `was`/`were`) stays hand-rolled beside it. A per-match average is
+> `fmtAvg` and nothing else — `fmtPct` is gone and an inline `.toFixed(2)` is not allowed back.
+> `★` means a **club's** star rating and never a player's Elo. `×N` means "tournaments held";
+> a tie says `N tied` and a per-mode count says `1v1: 4 · 2v2: 3`.
+> **Two names on one line** go through `joinNames` / `NAME_JOINER` (`utils/matchDisplay.ts`) —
+> `A / B`, spaced — and **nothing parses a joined name string back into an array**: stacking is
+> `ScoreLine`'s job (§8), so a 2v2 side is passed as an array, never as a string.
+> A score written in prose is an **en dash** (`3–1`); `RecordLine`'s `14:6` and the Goals tile are
+> GF:GA records, not scores. `…`, never `...`. `Login` is the noun (the label), "log in" the verb
+> (inside a sentence). Buttons, tabs and titles are **sentence case**. An empty state ends with a
+> full stop and names its thing ("No streaks yet.", never "None yet."). A state that is still
+> running is `current` (and wears `.chip`, not a status pill — it is not a match state); only the
+> open end of a **date range** is `now`. A profile door is `Open X's profile`.
 
 **Deviations:**
+
+Implemented all 21 rows. Rows 17, 19, 20 and 21 are "no change" rows and were verified, not
+edited. Three commits: `5f6486b` (row 7), `43bbfc5` (rows 1–6), `d227192` (rows 8–16, 18) — plus
+the DuoLeaderboard width fix and this file.
+
+**Per-row verification (the grep run, count before → after; `frontend/src`, `test/` excluded
+unless said otherwise). "before" is `git grep` at the baseline `e90382f`.**
+
+| Row | grep | before | after | note |
+|---|---|---|---|---|
+| 1 | `playedLabel=` | 4 | 0 | the 4 overrides dropped; the 5th hit is `test/recordLine.test.tsx`, which tests the prop itself and stays |
+| 2 | `label: "Points"` | 1 | 0 | → `Pts` |
+| 3 | `"Win rate"\|"Win%"` | 4 | 0 | + `H2HView`'s matrix cell now prints `%` (1 → 0) |
+| 4 | `fmtPct` | 9 | 0 | deleted with its test; 9 inline `.toFixed(2)` per-match averages → `fmtAvg` (the plan said 8 and listed 9) |
+| 5 | `fmtRating\(…\)★\|label: "Rating"` | 2 | 0 | → `Elo 1052 · …`, and the trends View chip → `Elo` |
+| 6 | `gdLabel=""` | 1 | 0 | measured, see below |
+| 7 | `join("/")\|join(" / ")\|join(" + ")` | 14 | 0 | + `splitPlayers` 3 → 0; `joinNames` has exactly one definition and 9 importers |
+| 8 | the 3 named prose scores | 3 | 0 | en dash |
+| 9 | count+noun ternaries and never-pluralised strings | 19 | 0 | see the two additions and the two deliberate leaves below |
+| 10 | `[a-z]\.\.\.` | 3 | 1 | the 1 is `crashLog.ts`'s `"\n... (truncated)"`, as the gate expects |
+| 11 | `"Log in ` (the *label*) | 1 | 0 | `IdeasPage.tsx:291` "Log in as a player to write the first one." is the **verb in a sentence** and is left — row 11 is about the label |
+| 12 | the 6 named Title Case strings | 6 | 0 | + 5 test regexes in `overviewSection.test.tsx` |
+| 13 | empty-state title without a full stop | 4 | 0 | all 30 `EmptyState` titles in the app now end with one |
+| 14 | `"None yet."` | 3 | 0 | → "No matches yet." / "No titles yet." / "No streaks yet." |
+| 15 | the streak `live` chip, `ongoing`, the star-history `now` tag | 3 | 0 | `cupReigns.ts:105`'s date-range `now` kept, as the row says |
+| 16 | `Open profile:\|full profile` | 3 | 0 | → `Open X's profile` |
+| 17 | — | — | — | **no change**, as decided: `#3/8`, `3 of 10` and `5 / 12` are three idioms for three things |
+| 18 | `×N` not meaning "held" | 2 | 0 | `RecordsView` → `N tied`, `PositionsView` → `1v1: 4 · 2v2: 3`; the 4 "held" uses (`cupParts`, `CupDetail`×3) stay |
+| 19 | — | — | — | **done in C1**: `fmtShortDate` prints a four-digit year (`11 Sept 2026`) |
+| 20 | — | — | — | **done in C2**: `charts.tsx:261` says the gap with the `2 4` dash alone, at full opacity |
+| 21 | — | — | — | **no change**: `3P` on the line, `9 pts` above it — the record line's own design |
+
+**Row 7's mechanism, exactly as specified.** `NAME_JOINER = " / "` + `joinNames(names)` in
+`utils/matchDisplay.ts`; `teamName(side)` delegates and keeps its `—`; `splitPlayers` is deleted
+and `MatchList` passes `(side?.players ?? []).map(p => p.display_name)` straight through;
+`matchHeaderMeta.aPlayers`/`bPlayers`, `RecordsView`'s `RecMatch.a`/`b` and `teamNames()` are
+`string[]`. **Browser-verified at 390px: all three surfaces stack two lines** — measured by the
+distinct `getBoundingClientRect().top` of each name element inside a `[data-score-line]`'s outer
+cells: live Matches (`/live/21?tab=matches`) 5 rows × 2 sides = 2 y-lines each; the 2v2 comment
+header (`/live/17?tab=comments`) 9 × 2 = 2 each; Records at `mode=2v2` 5 × 2 = 2 each. No name
+cell anywhere in the app contains a `" / "` joined string (checked on 17 surfaces × 2 themes).
+
+**Things I did that the task did not name, each with its reason:**
+
+1. **`DuoLeaderboard`'s ppm cell is `w-20 whitespace-nowrap`, not `w-16`.** Row 4 adds ` ppm` to
+   a `w-12` (48px) cell; "2.50 ppm" is ~65px at `text-sm`, so it wrapped and the row grew from
+   **52px to 64px**. `w-20` + `whitespace-nowrap` puts it back to **52px exactly**, measured.
+   The unit stays the same size as the number, like the other three `ppm` sites
+   (`HeadToHeadRows`, `DuoDetail`, `ProfileOverviewTab`) — `.text-micro` would have been a second
+   spelling of one thing (Rule 8).
+2. **Row 6, measured as the row asked.** After dropping `gdLabel=""`, at **390px** the duo name
+   cell is 112px (was 166px) and **no name truncates** on any of the 15 rows — so `GD` stays, as
+   the row's pick says. **At 320px it does truncate** (name cell 42px, 15/15 rows; before: 96px,
+   0/15). 320 is below the canon's ~390px floor, so this is reported, not acted on: if Roli wants
+   320 clean, row 6's veto for this one site (`gdLabel=""` back) buys ~22px.
+3. **`AdminPanel.tsx:479` also went through `fmtCount`** (`scheduled leg-2 match(es)`). It is a
+   count+noun hand-roll the audit could not have listed — C7 (`913bd59`) added it after the audit
+   ran. The transformation is byte-identical in output and identical in shape to row 9's named
+   `LiveTournamentPage.tsx:874`, so leaving it would have left a third spelling. **No C7 copy was
+   re-worded**; only the `${n} ${n === 1 ? "match is" : "matches are"}` split moved to
+   `fmtCount(…) + (is|are)`.
+4. **`StandingsPreviewCard.tsx:9`** (a doc comment naming the preview's column set) says `Win %`
+   with the columns it describes. Comment-only, outside the site list, named here.
+5. **Three comments that quoted a changed string** were updated with it: `RecordsView`'s
+   `TieCount` ("×4 matches share this record" → "4 tied"), its `topTies` note, and
+   `PositionsView:88`'s "N× 1v1" → "1v1: N".
+6. **`sidePlayersLabel` is renamed `sidePlayerNames`** in `TournamentCommentsCard.tsx` — it
+   returns `string[]` now, and a function called `…Label` that returns an array is a trap.
+7. **`FriendlyMatchCard`'s two name maps end `?? ""`** instead of `.filter(Boolean)`: the map
+   yields `string | undefined`, which `joinNames(readonly string[])` rejects. `joinNames` filters
+   falsy itself, so `joinNames(names) || "Team A"` is the wrap the row specifies.
+
+**Left alone, deliberately:**
+
+- **`GuestbookSection.tsx:184-186` and `IdeasPage.tsx:377-379`** — sentence-level branches, as
+  the row says. Same for `LiveTournamentPage.tsx:895-903` (C7's "Mark all as read", two different
+  sentences) and `CupDetail.tsx:143` (the else branch can only be ≥ 2 reigns).
+- **`LiveTournamentPage.tsx:859-860`'s `was`/`were` and `it`/`them`** — verb and pronoun
+  agreement, which row 9 keeps hand-rolled.
+- **The muted-separator name spans** (`DuoLeaderboard:32`, `DuoDetail:47`, `HeadToHeadRows:80`):
+  they render their own spans and never join, so row 7 does not reach them.
+- **`RecordLine`'s geometry, `recordWidths`, `ScoreLine`'s API** — untouched. Dropping the four
+  `playedLabel` overrides only shortens tracks.
+- **`ViewportReadout.tsx:244`'s `now`** column header (a diagnostics reading, not a state tag),
+  and `DiagnosticsSettings`' `{count}x` crash-repeat marker (not the `×N` idiom).
+- The 12 German strings, per the row table's own exclusion.
+
+**Checks.** `cd frontend && npm run check` → **68 files, 688 passed** (687 + the `fmtPct` test
+deleted, + 6 expectations updated: `cupsPreview` ×2, `commentComposer` ×2, `overviewSection` ×5
+regexes, `clubStarHistory` ×1). `npm run build` → green, 8.14s, `index-*.js` 723.78 kB (the
+pre-existing >500 kB hint; +0.2% on the 722 kB baseline). `npx tsc --noEmit` and `eslint .` clean.
+
+**Browser verification.** Isolated stack per the C10 row — backend **8050** on
+`backend/data/verify-c10.db` (a copy of `app.db`), vite **8060**, throwaway secrets written
+outside the repo, both PIDs killed by number afterwards. 17 surfaces × `blue` and `light` at
+390×844 (`isMobile`, `hasTouch`), plus 3 more and a 320px pass for the duo row: **0 console
+errors, 0 page errors, 0 horizontal overflow on all 34 page loads.** Text-verified in the light
+theme: `Win %` (header **and** chip), `61%` in the H2H matrix cell, `Elo 1052 · 31-12-20 · 105 pts`,
+`17 tournaments · 1v1: 11 · 2v2: 6`, `5 tied` on Biggest upset, `59 rated matches across 10 of 10
+ratings.`, `31P · 19-7-5`, `2.06 ppm`, `Player login` / `Login`, `All friendlies`,
+`Open results` / `Open matches`, `wins all 3 of their remaining matches`, `since 04 Jan 2026`
++ the neutral `current` chip (screenshot-checked in both themes — it is the `.chip` capsule, not
+the green status pill), and `Streaks · current / record` unchanged.
 
 ---
 
