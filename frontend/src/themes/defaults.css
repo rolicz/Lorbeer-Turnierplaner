@@ -76,11 +76,20 @@
      numbers move, and they move in the cascade, so every surface that paints a player
      (both trend charts, both legends, the "Compare with" dots, the cup reign bar and its
      legend) repaints together with no React render. The dark baseline is inherited by
-     every dark theme; `light.css` darkens it for white cards. The value is chosen by the
-     3:1 non-text floor on the *lightest* dark surface a player's mark ever sits on — the
-     `chip` of the blue theme — where the blue hue is the weakest of the six. */
+     every dark theme; `light.css` darkens it for white cards.
+
+     **The floor is measured on the chart card, not on the legend chip** (Roli, 2026-09-17).
+     C2 first targeted the chip — the lightest dark surface any player mark sits on — which
+     forced 72% lightness and turned the whole palette pale: a CIE76 ΔE of ~30 on average and
+     45 at worst against the colours the app had had for its whole life, for one weak hue.
+     The chart line *is* the data and carries its meaning alone, so it takes the 3:1 floor.
+     A legend dot sits directly beside the player's own name, so the colour is not the sole
+     carrier there and the dot may sit lower — the blue hue reads 2.20:1 on the chip and that
+     is accepted deliberately. 64% is the least that lifts the blue line off its old 2.09:1;
+     going further buys contrast nobody asked for at a cost Roli could see. */
   --player-solid-s: 72%;
-  --player-solid-l: 72%;
+  --player-solid-l: 64%; /* 8 points above the pre-C2 56%, the least that lifts the blue
+                            hue off 2.09:1 — see the comment above for why not more */
 
   /* Backgrounds */
   --color-bg-default: 12 12 15; /* Shifted darker for more usable dark shades */
