@@ -64,16 +64,60 @@
 
 ### Runtime verification (isolated stack)
 
+**Tasks run in parallel, so every task has its own ports and its own database copy.** Use the row
+for *your* task and nothing else — two workers on one port or one `verify.db` will fight.
+
+| task | backend | vite | db copy |
+|---|---|---|---|
+| C1 | 8031 | 8041 | `backend/data/verify-c1.db` |
+| C2 | 8032 | 8042 | `backend/data/verify-c2.db` |
+| C3 | 8033 | 8043 | `backend/data/verify-c3.db` |
+| C4 | 8034 | 8044 | `backend/data/verify-c4.db` |
+| C5 | 8035 | 8045 | `backend/data/verify-c5.db` |
+| C6 | 8038 | 8048 | `backend/data/verify-c6.db` |
+| C7 | 8036 | 8046 | `backend/data/verify-c7.db` |
+| C8 | 8039 | 8049 | `backend/data/verify-c8.db` |
+| C9 | 8037 | 8047 | `backend/data/verify-c9.db` |
+| C10 | 8050 | 8060 | `backend/data/verify-c10.db` |
+| C11 | 8051 | 8061 | `backend/data/verify-c11.db` |
+| C12 | 8052 | 8062 | `backend/data/verify-c12.db` |
+| C13 | 8053 | 8063 | `backend/data/verify-c13.db` |
+| C14 | 8054 | 8064 | `backend/data/verify-c14.db` |
+
+`backend/data/*.db` is gitignored, so the copies never reach a commit. **Never** point the stack at
+`backend/app.db` or `backend/data/app.db` — those are Roli's real synced data.
+
 ```bash
-cp backend/app.db backend/data/verify.db      # gitignored
-cd backend && .venv/bin/python run.py --host 127.0.0.1 --port 8003 --db-url sqlite:///./data/verify.db &
-cd frontend && VITE_API_BASE_URL=http://127.0.0.1:8003 VITE_WS_BASE_URL=ws://127.0.0.1:8003 npx vite --port 8020 --strictPort &
-# Playwright lives in the npx cache (see FEATURES_2026-09.md "Runtime verification" for the one-liner);
-# theme: set localStorage "theme" to "blue" / "light" before the first navigation.
+# <B>, <V>, <DB> from your row above
+cp backend/app.db backend/data/<DB>
+
+# A throwaway secrets file, because backend/secrets.json must never be read (Rule 7) and the
+# editor/admin flows need a login. Write it OUTSIDE the repo so it cannot be committed:
+SEC=$(mktemp -d)/secrets.json
+cat > "$SEC" <<'JSON'
+{ "db_url": "sqlite:///./app.db",
+  "player_accounts": [ { "name": "Roli", "password": "verify-only", "admin": true } ],
+  "jwt_secret": "verify-only", "ws_require_auth": false, "log_level": "WARNING" }
+JSON
+
+cd backend && UPLOADS_DIR="$PWD/data/uploads" .venv/bin/python run.py \
+  --host 127.0.0.1 --port <B> --secrets "$SEC" --db-url "sqlite:///$PWD/data/<DB>" &
+cd frontend && VITE_API_BASE_URL=http://127.0.0.1:<B> VITE_WS_BASE_URL=ws://127.0.0.1:<B> \
+  npx vite --port <V> --strictPort &
+
+# log in (the body field is `username`, not `name`):
+curl -s -X POST http://127.0.0.1:<B>/auth/login -H 'Content-Type: application/json' \
+  -d '{"username":"Roli","password":"verify-only"}'
+# then in the browser, before the first navigation:
+#   localStorage ea_fc_token=<token> · ea_fc_role=admin · ea_fc_player_id=1 · ea_fc_player_name=Roli
+#   localStorage theme = "blue" | "light"
 ```
-Kill your servers when done. Dev DB players: Roli=1, Flo=2, Rumpi=3, Berni=4, Atzi=5, Mike=6;
-tournament 19 is done (1v1), 17 is done (2v2). Reader role is enough for read-only checks; editor
-and admin flows need a login against the copy's accounts.
+Playwright lives in the npx cache (see `FEATURES_2026-09.md` "Runtime verification" for the
+one-liner). **Kill only the PIDs you started** — never a broad `pkill`; Roli has long-running
+servers on 8000/8001/8010/5173.
+
+Dev DB players: Roli=1, Flo=2, Rumpi=3, Berni=4, Atzi=5, Mike=6; tournament 21 is live (2v2),
+19 is done (1v1), 17 is done (2v2). Reader role is enough for read-only checks.
 
 ---
 
