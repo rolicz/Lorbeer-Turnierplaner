@@ -772,14 +772,31 @@ every past match simply keeps counting today's rating.
 - `backend/app.db*`, `backend/data/app.db` are real (synced) data — never commit, never run
   destructive experiments on them; copy first.
 
-## 11. Current state (2026-09-16)
+## 11. Current state (2026-09-17)
 
-- **`main` is `f1ea22b`, pushed.** `feature/2026-09-audit` was merged (`f425961`) and **deployed**
+- **`main` is `2e23365`, pushed.** On top of `f1ea22b` it carries the §11 rewrite (`56d8719`) and
+  one frontend change: Stats → Player puts Streaks above Club stars (Roli's call). Frontend-only,
+  so it is the short deploy; **`f425961` is still the last thing actually deployed.**
+- **A batch is open on `feature/2026-09-design-fixes` (`b3f33ef`, branched from `2e23365`)** —
+  two docs commits, no code yet. `DESIGN_AUDIT_2026-09-17.md` is a blind design-consistency audit
+  (eight parallel reviewers, four over `frontend/src` and four over 71 screenshots, working
+  deliberately **without** this file or `DESIGN.md` so the findings were not anchored by decisions
+  already made; a finding counted only with counted evidence behind it). The eight raw reports are
+  in `design-audit-2026-09-17/`. `DESIGN_FIXES_2026-09.md` is the plan that answers it: fifteen
+  tasks **C1–C15** (the `C` prefix because `F1`/`F2` are taken by `FEATURES_2026-09.md`), Roli's
+  twelve decisions recorded at the top under "do not relitigate", nothing blocked. Two tasks change
+  the canon rather than the code — **C5** rewrites `DESIGN.md` §8's "for dense lists" and **C13** a
+  §2 row, because the canon currently says "live" is both green and red. Structural work (heading
+  treatments, `.inset` paddings, `iconOnly` adoption, an avatar scale, the nine filter idioms, the
+  desktop rework) is deferred to a later batch and listed at the end of the plan.
+- `feature/2026-09-audit` was merged (`f425961`) and **deployed**
   on 2026-09-16, carrying Rounds 6, 7 and 8 and everything that came out of Roli testing on his
   phone — 110 commits, 234 files, seven new tables. **§7 step 6 was run on that deploy and is
   done**: the club star history is recovered in production and that step is now history, not a
-  pending chore. Every batch branch is merged; they can be deleted whenever Roli wants.
-- **`f1ea22b` is pushed but not yet deployed** — Q15/Q16/Q17, **frontend and docs only**, so it is
+  pending chore. Every *earlier* batch branch is merged and can be deleted whenever Roli wants;
+  `feature/2026-09-design-fixes` is the one open branch.
+- **Pushed and not yet deployed** — Q15/Q16/Q17 (`f1ea22b`) plus the Streaks/Club-stars swap
+  (`2e23365`), **frontend and docs only**, so it is
   the short deploy (`git pull && docker compose up -d --build frontend`), no backup, no schema
   change, no manual step. Q15: the clubs list's row is the edit trigger, no buttons, delete inside
   the editor (which also un-truncated 3 of 16 club names on a phone and dropped 12 wrapped league
@@ -787,7 +804,8 @@ every past match simply keeps counting today's rating.
   — "no matches" plus an em dash — because rows genuinely played for zero points already exist and
   would otherwise be indistinguishable. Q17: `ClubMark` moved into `ui/primitives/` and every
   score-only match row wears one, across all seven surfaces, not just the friendlies list.
-- Checks at `f1ea22b`: `make test` **204 passed**, `make lint` clean, `make gen-types` no diff,
+- Checks at `2e23365`: `cd frontend && npm run check` **681 tests in 67 files**, typecheck and
+  lint clean. Backend untouched since `f1ea22b`, whose checks were: `make test` **204 passed**, `make lint` clean, `make gen-types` no diff,
   `cd frontend && npm run check` **681 tests in 67 files**, `npm run build` green.
 
 ### Open, and each one is waiting on something specific
