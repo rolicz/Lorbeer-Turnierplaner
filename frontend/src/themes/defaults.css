@@ -31,10 +31,13 @@
    * goes through these — never a raw Tailwind palette class. The dark values are
    * the baseline for every dark theme (dark/blue/red/green inherit them);
    * themes/light.css darkens win/draw/loss for white surfaces.
-   * --color-live is the live marker: `.live-dot` / `.live-ping` paint with it. It is a
-   * non-text mark (nothing in the app paints text with `text-live`), so it only needs
-   * the 3:1 non-text floor, not 4.5:1 — C13 made it green-500/green-700 to match the
-   * in-page "playing" markers, which already used the status green.
+   * --color-live paints the navigation's "something is happening" dot (`.live-dot` /
+   * `.live-ping`) and nothing else. It is deliberately NOT the status green the in-page
+   * "playing" markers use: those describe a state a reader is already looking at, this
+   * one is an attention mark in the nav asking them to go and look, and it lives beside
+   * the unread badge, not beside a match. Two jobs, two colours (Roli, 2026-09-17 — C13
+   * briefly unified them on a consistency argument that ignored what the dot is for).
+   * Non-text mark, so 3:1, not 4.5:1.
    */
   --color-win: 74 222 128; /* green-400 */
   /* draw was amber-400 — the same value as `--color-cup-gold` and the winner's
@@ -44,7 +47,7 @@
      borrowing a warning tone (C11). */
   --color-draw: 253 224 71; /* yellow-300 */
   --color-loss: 248 113 113; /* red-400 */
-  --color-live: 34 197 94; /* green-500 — C13: was red-500, matched --status-live */
+  --color-live: 239 68 68; /* red-500 — the nav's attention dot, not the status green */
 
   /*
    * Semantic *state* tokens (DESIGN.md §2). A result colour answers "how did this

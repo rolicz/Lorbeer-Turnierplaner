@@ -41,13 +41,16 @@
 
 Existing families stay: `bg-default / bg-card-outer / bg-card-inner / bg-card-chip`,
 `text-normal / text-chip / text-muted`, `border-card-outer / -inner / -chip`, `accent`,
-`btn-*`, `hover-*`, `status-*` (green = live/playing, blue = draft/scheduled, default = neutral —
-and `--color-live` below is **the same green**, not a second answer: the canon used to claim green
-here and red there, and the nav dot read the red one, C13),
+`btn-*`, `hover-*`, `status-*` (green = live/playing, blue = draft/scheduled, default = neutral).
+**`--color-live` is red and that is not a contradiction**: `status-*` green describes a state on a
+page the reader is already looking at ("this match is playing"), while `--color-live` is the
+navigation's attention dot, which sits beside the unread badge and asks the reader to go somewhere.
+Two jobs, two colours — don't "unify" them (C13 did, on a consistency argument that ignored what
+the dot is for; reverted the same day on Roli's call).
 `delta-up / delta-down`, gradients. (`--live-indicator` is gone: it was a private copy of
 `--color-live` that `light.css` never overrode, so a light-theme live dot stayed red-500 on a
-near-white page while the token beside it already knew better — that was the token's value then;
-C13 made it green. `.live-dot` / `.live-ping` read the token — A8.)
+near-white page while the token beside it already knew better. `.live-dot` / `.live-ping` read the
+token — A8.)
 **`accent` means *selected***: an active tab, a segment, a chip, a sort arrow, the filter pill's
 filtered state. It is not "press me" — a text link that leads somewhere is muted text + a chevron
 (§6), and a real action is a `Button`. Three recovery/error affordances still paint accent text
@@ -61,7 +64,7 @@ are a known, listed exception, not the pattern (C14).
 | `--color-win` | `text-win`, `bg-win/…` | a win for the focused side | `74 222 128` (green-400) | `21 128 61` (green-700) |
 | `--color-draw` | `text-draw`, `bg-draw/…` | a draw | `253 224 71` (yellow-300) | `133 77 14` (yellow-800) |
 | `--color-loss` | `text-loss`, `bg-loss/…` | a loss | `248 113 113` (red-400) | `185 28 28` (red-700) |
-| `--color-live` | (no `text-live`/`bg-live` call sites) `.live-dot` / `.live-ping` only | live/playing marker, non-text (3:1 floor) | `34 197 94` (green-500) | `21 128 61` (green-700, 4.21:1 on the bottom tab bar's own ground) |
+| `--color-live` | (no `text-live`/`bg-live` call sites) `.live-dot` / `.live-ping` only | the nav's **attention** dot — go and look; deliberately not the status green, non-text (3:1 floor) | `239 68 68` (red-500) | `220 38 38` (red-600, 4.05:1 on the bottom tab bar's own ground) |
 | `--color-cup-gold` | (inline, via `cupColors.ts`, `cupColorVarForKey`) | the Lorbeerkranz's *text* colour (the holder's name, ≥4.5:1) | `251 191 36` (amber-400; green theme `245 208 90`) | `166 74 12` (dark amber) |
 | `--color-cup-gold-mark` | (inline, via `cupColors.ts`, `cupMarkColorVarForKey`) | the Lorbeerkranz's *mark* colour (ring, crown disc, dot — non-text, ≥3:1; the holder's *name* keeps using `--color-cup-gold`) | `251 191 36` (amber-400, same as text) | `171 94 5` (custom amber; 4.07:1 on the page ground, 3.09:1 on its own `/0.22` crown disc — the binding floor, 3.43:1 on `/0.14`, 4.84:1 on white) |
 | `--color-cup-green-dark` | (inline, via `cupColors.ts`) | the Bauernkranz's colour — **no text/mark split**, one value answers both jobs in both theme files | `21 128 61` (green-700) | `22 116 55` |

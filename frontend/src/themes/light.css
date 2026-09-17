@@ -26,7 +26,7 @@
      call sites), so it needs 3:1, not 4.5 — green-600 clears that on white but only
      2.77:1 on the bottom tab bar's own `--color-bg-default` ground (236 235 233), so
      green-700 is used instead: 4.21:1 there, 5.02:1 on the drawer's white. */
-  --color-live: 21 128 61; /* green-700 */
+  --color-live: 220 38 38; /* red-600 — the nav's attention dot; 4.05:1 on the tab bar's own ground */
 
   /* State tokens (DESIGN.md §2): same story as win/draw/loss above — the dark reds and
      ambers are light-on-light here. These carry whole sentences (an error box, a
