@@ -139,15 +139,19 @@ and admin flows need a login against the copy's accounts.
 | 8 | C6 | Floating elements: verify the clearance the canon promises (1.4) | none expected; `pages/stats/StatsInsights.tsx`, `pages/tools/FriendlyMatchesListCard.tsx`, `pages/ideas/IdeasPage.tsx` only if a measurement fails | after group A |
 | 9 | C8 | Defined and never reached (Part 4) | `ui/primitives/Modal.tsx` + its 6 callers, `pages/live/AdminPanel.tsx`, `pages/live/StandingsTable.tsx`, `pages/live/LiveTournamentPage.tsx`, `ui/primitives/CollapsibleCard.tsx`, `pages/clubs/ClubList.tsx`, `ui/primitives/SegmentedSwitch.tsx`, `pages/live/MatchList.tsx`, `pages/live/MatchDetailPage.tsx`, `tailwind.config.cjs`, `ui/primitives/Pill.tsx`, `ui/theme.ts`, `ui/theme-legacy.ts` | after group A |
 | 10 | C10 | Vocabulary sweeps (1.12, 2.1, 2.9, 2.10, Part 3 subset) | see the pick table | after C8, **alone** |
-| 11 | C11 | Draw, loss and cup gold — all decided (1.10, 2.5, 2.6) | `themes/defaults.css`, `themes/light.css`, `cupColors.ts` (+3 consumers if split) | after C2 |
-| 12 | C12 | The crown goes; the picker ring stays — decided (2.2, 2.3) | `pages/PlayersAdminPage.tsx`, `pages/profile/ProfileHeader.tsx` | after C7 |
-| 13 | C13 | The colour of "live" — decided: green everywhere (2.4) | two theme files **or** six marker sites | after C11 |
+| 11 | C11 | Draw, loss and cup gold — all decided (1.10, 2.5, 2.6) | `themes/defaults.css`, `themes/light.css`, `cupColors.ts`, and the six mark consumers: `ui/primitives/AvatarCircle.tsx`, `ui/primitives/CupOwnerBadge.tsx`, `pages/stats/cupParts.tsx`, `pages/dashboard/CupsPreviewCard.tsx`, `pages/stats/TournamentLaurelMarkers.tsx`, `pages/stats/PositionsView.tsx` | **after C10** (both edit `cupParts.tsx`) |
+| 12 | C12 | The crown goes; the picker ring stays — decided (2.2, 2.3) | `pages/PlayersAdminPage.tsx`, `pages/profile/ProfileHeader.tsx`, `test/avatarRing.test.tsx` | **after C10** |
+| 13 | C13 | The colour of "live" — decided: green everywhere (2.4) | `themes/defaults.css`, `themes/light.css` (two lines; no `styles.css` edit) | after C11 |
 | 14 | C14 | Accent means "selected" only — decided (2.8) | 3 link sites | after C10 |
 | 15 | C15 | Documentation pass | `DESIGN.md`, `AGENTS.md`, this file | last |
 
 **Order:** C1 alone → **group A** {C2, C3, C4, C5, C7, C9} in parallel (file sets verified
-disjoint above) → C6 and C8 (disjoint from each other) → C10 alone → C11–C14 as Roli unblocks
-them (C11 before C13; C12 after C7; C14 after C10) → C15.
+disjoint above) → C6 and C8 (disjoint from each other) → **C10 alone** → C11–C14 (C11 before C13;
+C11, C12 and C14 may run in parallel — their file sets are disjoint) → C15.
+**Nothing runs beside C10.** C10 touches `cupParts.tsx`, `MatchList.tsx`, `StandingsTable.tsx`,
+`ClubPicker.tsx`, `MatchDetailPage.tsx` and `TrendsExplorer.tsx`, which C11, C12 and C14 also
+touch; with `git commit -o -- <paths>` and no `git add`, whichever commits second commits the
+other's half-finished file.
 
 All tasks are frontend-only. Gates per task: `cd frontend && npm run check`; `npm run build`
 additionally for C2 (CSS tokens read by the bundle), C8 (props and config removed) and C10
@@ -173,7 +177,7 @@ month forms → `en-GB`, so no German month name appears in the English UI. Whic
 |---|---|---|
 | `fmtDate`, `fmtDateTime`, `fmtTs` | `de-AT` | `03.09.2026`, `03.09.2026, 14:30` |
 | `fmtDateLong` (friendlies day headings) | `en-GB` | `3 September 2026` |
-| `fmtShortDate` (Records, Streaks) | `en-GB` | `3 Sept 26` |
+| `fmtShortDate` (Records, Streaks) | `en-GB` | `3 Sept 2026` (four-digit, row 19) |
 | `TournamentsPage.tsx:98` (month headings) | `en-GB` | `September 2026` |
 | `charts.tsx:188` (axis ticks) | `en-GB` | `Sept` |
 | `FriendlyMatchCard.tsx:386` (time only) | `de-AT` | `14:30:45` |
@@ -191,27 +195,35 @@ node -e 'console.log(new Date(2026,8,3).toLocaleDateString("de-AT",{day:"2-digit
 (Verified 2026-09-17 on Node 24.13: `03.09.2026` · `03.09.2026, 14:30` · `3. September 2026` ·
 `03. Sep. 2026` · `September 2026` · `Sep` · `14:30` · `05. Jän. 2026` · `März 2026`.)
 
-**The change.** `frontend/src/utils/format.ts`:
-- `export const APP_LOCALE = "de-AT";` with a two-line comment: the app's one locale (Roli,
-  2026-09-17), so a date reads the same on every phone; every `toLocale*` call in the app
-  passes it, never `undefined`.
-- `fmtDate` → `dt.toLocaleDateString(APP_LOCALE, { day: "2-digit", month: "2-digit", year: "numeric" })`
-  → `12.09.2026`. The `2-digit` day/month is what settles the padding: it now matches
-  `fmtDateTime`.
-- `fmtDateLong` → `(APP_LOCALE, { day: "numeric", month: "long", year: "numeric" })` → `12. September 2026`.
-- `fmtDateTime`, `fmtTs` → `(APP_LOCALE, …same options…)` → `12.09.2026, 14:30` (24h in `de-AT`).
-- `fmtShortDate` → `(APP_LOCALE, { day: "2-digit", month: "short", year: "numeric" })` →
-  `12. Sep. 2026`. The two-digit year goes (pick-table row 19): the helper promised `'26` and never
-  printed the apostrophe, and `26` read as a day number; a four-digit year is 3 characters wider
-  on the Streaks/Records rows and needs no apostrophe. Rewrite the helper's doc comment.
-- Inline callers: `pages/TournamentsPage.tsx:98` and `pages/stats/charts.tsx:188` pass
-  `APP_LOCALE` instead of `undefined`; `pages/tools/FriendlyMatchCard.tsx:386` becomes
-  `new Date(lastSavedAt).toLocaleTimeString(APP_LOCALE, { hour: "2-digit", minute: "2-digit" })`
+**The change — TWO constants, not one.** `frontend/src/utils/format.ts`:
+- ```ts
+  // Roli, 2026-09-17: a date must read the same on every phone, so nothing passes `undefined`.
+  // Numbers are Austrian; spelled-out and abbreviated months are English, because the UI is
+  // English and "März 2026" in it is a bug, not a feature. en-GB (not en-US) so the spelled
+  // form stays day-first and agrees with the numeric one.
+  export const APP_LOCALE_NUMERIC = "de-AT";
+  export const APP_LOCALE_MONTHS = "en-GB";
+  ```
+  **Both names are normative** — do not rename them; `C15` documents them and Rule 8 forbids a
+  third. No call site anywhere spells a locale string itself.
+- `fmtDate` → `(APP_LOCALE_NUMERIC, { day: "2-digit", month: "2-digit", year: "numeric" })`
+  → `12.09.2026`. The `2-digit` day/month is what settles the padding: it now matches `fmtDateTime`.
+- `fmtDateTime`, `fmtTs` → `(APP_LOCALE_NUMERIC, …same options…)` → `12.09.2026, 14:30` (24h).
+- `fmtDateLong` → `(APP_LOCALE_MONTHS, { day: "numeric", month: "long", year: "numeric" })`
+  → `12 September 2026`.
+- `fmtShortDate` → `(APP_LOCALE_MONTHS, { day: "2-digit", month: "short", year: "numeric" })`
+  → `12 Sept 2026`. **Four-digit year** (pick-table row 19, and this task's table above is wrong
+  where it says `26` — the year is never omitted elsewhere in the app and `26` reads as a day).
+  Rewrite the helper's doc comment, which still promises `'26` and never printed the apostrophe.
+- Inline callers: `pages/TournamentsPage.tsx:98` (month heading) and `pages/stats/charts.tsx:188`
+  (axis ticks) pass **`APP_LOCALE_MONTHS`** → `September 2026`, `Sept`;
+  `pages/tools/FriendlyMatchCard.tsx:386` becomes
+  `new Date(lastSavedAt).toLocaleTimeString(APP_LOCALE_NUMERIC, { hour: "2-digit", minute: "2-digit" })`
   — the only seconds in the product UI go with it (source-3 §Times of day).
 - Tests: `test/cupsPreview.test.tsx:114` → `23.04.2026`, `:118` → `11.07.2026`.
-  `test/format.test.ts`: add one shape assertion per helper (`fmtDate("2026-09-12") === "12.09.2026"`,
-  `fmtDateTime("2026-09-12T14:30:00") === "12.09.2026, 14:30"`, `fmtDateLong === "12. September 2026"`,
-  `fmtShortDate === "12. Sep. 2026"`) so the shape is pinned in the locale we chose.
+  `test/format.test.ts`: one shape assertion per helper (`fmtDate === "12.09.2026"`,
+  `fmtDateTime === "12.09.2026, 14:30"`, `fmtDateLong === "12 September 2026"`,
+  `fmtShortDate === "12 Sept 2026"`) so the shapes are pinned.
 
 **What must not change.** `diagnostics/crashLog.ts:512` (`formatTimestamp`, ISO, locale-free) and
 `ui/layout/ViewportReadout.tsx:174` (UTC ISO in copied text) stay as they are — they are for
@@ -219,17 +231,21 @@ pasting into a bug report. `NotificationBell.tsx:19-30` (`timeAgo`) keeps its re
 falls through to `fmtDate` after 7 days as today. `fmtMonthDate` (no app caller, D1) untouched.
 The `<input type="date">` in `AdminPanel.tsx:296` is the browser's.
 
-**Definition of done.** Every `toLocale*` call in `frontend/src` (excluding `test/`) passes
-`APP_LOCALE` (`grep -rn 'toLocale' frontend/src --include='*.ts' --include='*.tsx' | grep -v test | grep -vc APP_LOCALE` → 0);
-the tournaments list, a comment byline, a Streaks row, a friendlies day heading and the friendly
-form's "Saved" line render `12.09.2026`, `12.09.2026, 14:30`, `12. Sep. 2026`, `12. September 2026`,
-`14:30` in a browser whose own locale is set to `en-US`; `npm run check` green.
+**Definition of done.** Every `toLocale*` call in `frontend/src` (excluding `test/`) passes one of
+the two constants:
+```bash
+grep -rn 'toLocale' frontend/src --include='*.ts' --include='*.tsx' | grep -v test/ | grep -vc 'APP_LOCALE_'   # → 0
+```
+and in a browser whose own locale is `en-US`, the tournaments list reads `12.09.2026`, a comment
+byline `12.09.2026, 14:30`, a Streaks row `12 Sept 2026`, a friendlies day heading
+`12 September 2026`, a tournaments month heading `September 2026`, and the friendly form's Saved
+line `14:30`. **No German month appears anywhere.** `npm run check` green.
 
 **Gates.** `npm run check`. Browser check at 390 in `blue` only (no pixel change beyond text).
 
-**Be aware (flagged, not changed):** `de-AT` spells months in German inside an English UI —
-`12. September 2026`, `März 2026`, `05. Jän. 2026`. That is what Roli's phone renders today;
-it is question 7 in "Decisions still needed".
+**Known wart (row 19's neighbour, flagged for review not decision):** `en-GB` abbreviates
+September as `Sept`, four letters where every other month is three. Roli was told; keep it unless
+he vetoes.
 
 **Deviations:**
 
@@ -442,6 +458,20 @@ its `<select>` → `className="select-field w-auto min-w-0 max-w-full"`. Nothing
 (T8) rules exactly this: "The one panel on a `card` is the match-detail 'Result' editor, where the
 card groups the whole form: card → inset is the canon". Leave it; note it in Deviations as checked.
 
+**Definition of done (whole task).** Measured, both themes, not eyeballed:
+- (a) the Clubs search and the Ideas composer placeholders are the muted token, **≥ 4.5:1** on
+  their own field in `light` (they measure 2.54:1 today); `grep -rn 'placeholder:' frontend/src`
+  shows no site relying on Tailwind's default grey
+- (b) **`document.body.scrollHeight` is equal in `blue` and `light`** on `/dashboard`, `/ideas`,
+  a live tournament Overview, a match detail and Stats → Player — the five pages the audit
+  measured drifting by 2–20 device px. The light `.inset` still carries its hairline: the reason
+  in `styles.css:58-70` (a white inset on a white card disappears) must survive the fix
+- (c) standings row dividers **≥ 1.3:1** in both themes on the dashboard preview and Stats → Table
+  (1.02:1 / 1.06:1 today), matching the ordinary list-row hairline
+- (d) the Clubs League select's right edge sits on the 16px gutter like everything else on the page
+- (e) nothing changed for the match-edit card — record in Deviations that it is by-canon (T8)
+- `npm run check` green
+
 **Gates (whole task).** `npm run check`; browser 390/1280 × blue/light on `/clubs`, `/dashboard`,
 `/stats?view=overview&sub=table`, `/stats?view=overview&sub=cups`, `/ideas`.
 
@@ -589,8 +619,25 @@ them back", both said in the code's own comments at `CurrentGameSection.tsx:398,
 **Verify first.** `grep -rn '<ConfirmDialog' frontend/src --include='*.tsx' | grep -v test | wc -l`
 → 13; each site below still calls its mutation directly from `onClick`.
 
-**The change — one `ConfirmDialog` per site, local `useState`, house copy** (sentence case, full
-stops, the verb on the button, never "OK"; `busyLabel` where the site has a busy state):
+**The change — one `ConfirmDialog` per site, house copy** (sentence case, full stops, the verb on
+the button, never "OK").
+
+**Copy this state shape at all eleven sites** — it already exists at `pages/ideas/IdeasPage.tsx:95`
+and `:358`, and Rule 8 forbids inventing a second:
+`const [pendingX, setPendingX] = useState<T | null>(null)` with
+`<ConfirmDialog open={!!pendingX} onCancel={() => setPendingX(null)} onConfirm={…}>`. Site 9 is the
+documented exception (`swapAskedId: number | null`, one dialog for the whole list).
+
+**`busyLabel` is mandatory wherever you pass `busy`.** `ui/primitives/ConfirmDialog.tsx:59` falls
+back to **`"Deleting…"`**, and seven of these eleven are not deletes — a swap-sides dialog reading
+"Deleting…" is exactly the kind of defect this batch exists to remove. The sites with a busy flag
+in scope are 4, 5, 6 and 7 (`AdminPanel`'s `busy`, `setLastMatchPlayingBusy`, `deciderBusy`). Use
+the present participle of the button verb: "Removing…", "Reopening…", "Reshuffling…".
+
+Site 7's red block needs the decider's type label. It is an inline nested ternary at
+`AdminPanel.tsx:372-380`, and a second spelling already exists at `OverviewSection.tsx:26`. **Do not
+add a third**: extract the map into `ui/theme.ts` beside the other label maps, use it in both
+places, and declare it in Deviations (Rule 8).
 
 | # | Site | Title · subtitle | Red block (names what is lost) | Button |
 |---|------|------------------|-------------------------------|--------|
@@ -682,8 +729,10 @@ Runs after group A (it touches files C3 and C7 own).
    block; delete `ui/theme-legacy.ts` if nothing else imports it (`grep -rn theme-legacy`).
 
 **What must not change.** Every sheet keeps its `maxWidth`, `className` (`max-h-[84vh]` etc.)
-and `scrollBody`; `ConfirmDialog` unchanged in look; `Card` keeps `variant` (Login passes `card`,
-StandingsTable `inset` — both reached); `ideaMeta.ts`'s `pillBaseClass` import; the clubs list's
+and `scrollBody`; `ConfirmDialog` unchanged in look; `Card` keeps `variant` — but note what step 2 does to it:
+deleting `StandingsTable.tsx:383-385` removes the **only** `variant="inset"` caller, leaving
+`LoginPage.tsx:47` alone. Keep the prop and the branch (a one-caller prop is not dead code) and
+say so in Deviations, so the next audit does not re-flag it; `ideaMeta.ts`'s `pillBaseClass` import; the clubs list's
 group headers look identical (measure one group header row before/after at 390).
 
 **Definition of done.** Every grep in "Verify first" returns 0 (or the component alone);
@@ -762,7 +811,7 @@ grepped); a site list per row is in `design-audit-2026-09-17/source-3-text.md`.
 | 4 | Per-match average | tile words `Pts / match` etc. (7) · header/chip abbreviations `PPM`/`G/M`/`GA/M`/`GD/M` (7) · unit `ppm` (6) · bare number (1) — and 4 code paths (`fmtAvg`, `fmtPct`, inline `toFixed(2)`, `fmtOdd`) | **7–7 tie, split by context:** tiles keep the words, headers/chips keep the abbreviations, a number in a row carries `ppm`; every path goes through **`fmtAvg`**, `fmtPct` is deleted (it never formats a percentage) | a column header and a tile label are different jobs; one formatter keeps profile and Stats → Player agreeing | `DuoLeaderboard.tsx:44` gains ` ppm`; `fmtPct` callers (6) → `fmtAvg`; inline `.toFixed(2)` (8: `PlayerProfile.tsx:127-129`, `H2HView.tsx:67,139`, `HeadToHeadRows.tsx:97`, `DuoLeaderboard.tsx:44`, `StarsView.tsx:123`, `DuoDetail.tsx:57`) → `fmtAvg`; delete `fmtPct` + its test |
 | 5 | Elo | `Elo` (4) · `Rating` (1) · `1052★` (1, **2.1**) | `Elo` | majority; `★` means a club's stars everywhere else — three reviewers found it | `TrendsExplorer.tsx:193` → `Elo`; `PlayerProfile.tsx:113` → `Elo {fmtRating(row.rating)} · …` |
 | 6 | Goal difference | `GD` (4 paths) · `Goal diff` (4) · `GD/M` (1) · bare signed number (1, `gdLabel=""`) | **4–4 tie, split by context:** `RecordLine`/columns → `GD`; tile/chip → `Goal diff`; `GD/M` stays (a column); the bare number takes `GD` back | same split as row 1 | `DuoLeaderboard.tsx:40` drop `gdLabel=""` — measure the row at 390 afterwards; if a name truncates, keep `""` and say so |
-| 7 | A 2v2 team on one line | `A/B` (5 sites) · `A / B` (4) · muted-slash span `A` `/` `B` (3) · `A + B` via `teamName` (4 visible + 3 aria) | **`A / B`** (spaced slash) through one helper: `teamName` in `utils/matchDisplay.ts` switches to `" / "`, every `join("/")` and `join(" / ")` routes through it; the muted-separator styling may stay where a row already styles it | slash family 12 vs plus 7; spaced 7 vs unspaced 5 — **thin**, flagged | `teamName` (1 line); `TournamentCommentsCard.tsx:92,776`, `HeadToHeadRows.tsx:133-134`, `FriendlyMatchCard.tsx:207,211`, `H2HView.tsx:311,317`, `matchupSummary.ts:41`. **Also by canon (§8, "2v2 stacks two lines"):** `RecordsView.tsx:79` and `CommentList.tsx:181` pass a joined string to `ScoreLine` — pass the array so those two rows stack like the other seven |
+| 7 | A 2v2 team on one line | `A/B` (5 sites) · `A / B` (4) · muted-slash span `A` `/` `B` (3) · `A + B` via `teamName` (4 visible + 3 aria) | **`A / B`** (spaced slash) through **one new helper** — `teamName` cannot be that helper, see **Row 7 in full** below | slash family 12 vs plus 7; spaced 7 vs unspaced 5 — **thin**, flagged | see **Row 7 in full** below the table — it is the only row with a mechanism to build, and it has a landmine |
 | 8 | A score written in prose | en dash `3–1` (2) · hyphen `3-1` (2) · colon as a *score* (1: the Finish title) — `RecordLine`'s `14:6` and the Goals tile are GF:GA records, not scores, and stay | **en dash** | 2/2/1 — **thin**, flagged; the typographic score convention, and the Reset dialog on the same match already uses it | `CurrentGameSection.tsx:421` title, `CommentComposer.tsx:167` "makes it", `LiveTournamentPage.tsx:305` decider |
 | 9 | Pluralisation (**1.12** + the ternaries) | never pluralised (5) · hand-rolled (13) · `fmtCount` (4) | `fmtCount` wherever the string is *count + noun*; pronoun/verb agreement stays hand-rolled | the helper exists and its comment says why | **1.12:** `cupParts.tsx:27,135,146` (`fmtCount(n, "tournament", "tournaments")`), `MatchupView.tsx:203` (×3), `SelectClubsPanel.tsx:295` (`${filtered} of ${fmtCount(sorted, "club", "clubs")}`); **ternaries:** `ClubPicker.tsx:268`, `PositionsView.tsx:283`, `StarsView.tsx:76`, `WhatIfSection.tsx:161`, `TournamentCommentParts.tsx:193` + `GuestbookEntryCard.tsx:135` (`reply`/`replies`), `DiagnosticsSettings.tsx:248`, `LiveTournamentPage.tsx:854,874` (the noun only; `it/them`, `is/are`, `was/were` at `:859-860` stay); leave `GuestbookSection.tsx:184-186`, `IdeasPage.tsx:377-379` (sentence-level). Tests: `cupsPreview.test.tsx:115,119` → `"2 tournaments held"` stays, `"1 tournaments held"` → `"1 tournament held"` |
 | 10 | Ellipsis | `…` (68) · `...` (2) | `…` | majority | `LoginPage.tsx:76`, `DiagnosticsSettings.tsx:243` |
@@ -770,7 +819,7 @@ grepped); a site list per row is in `design-audit-2026-09-17/source-3-text.md`.
 | 12 | Title Case outliers | sentence case ≈45 buttons / 15 tabs / 4 titles · Title Case 5 / 1 / 1 | sentence case | majority | "Create tournament" (`NewTournamentForm.tsx:119`), "Open standings" / "Open results" / "Open matches" (`OverviewSection.tsx:225,299`), "Swap home/away" (`CurrentGameSection.tsx:271`), "All friendlies" (`FriendliesPage.tsx:14`), "Player login" (`LoginPage.tsx:47`). Tests: `overviewSection.test.tsx:142,151,153,160,161` regexes |
 | 13 | Empty-state full stop | with (31) · without (4) | full stop | majority | `ClubPicker.tsx:387`, `WhatIfSection.tsx:210`, `cupParts.tsx:92`, `DiagnosticsSettings.tsx:234` |
 | 14 | "None yet." | `No <thing> yet.` (≈22) · `None yet.` (3) | name the thing | majority | `RecordsView.tsx:100` → "No matches yet.", `:150` → "No titles yet.", `StreaksView.tsx:68` → "No streaks yet." |
-| 15 | Still running | `current` (3) · `now` (2) · `live` (1) · `ongoing` (1) | **split:** a state tag/heading → `current`; the open end of a date range → `now` | `current` is the majority state word; "12.09.2026 – now" is a date placeholder, not a state — flagged | `StreaksView.tsx:63` chip `live` → `current` (and it stops wearing the green status pill: `bg-bg-card-chip/50 text-text-muted` like the "Current" heading — it is not a match state), `streakDisplay.ts:7` `ongoing` → `current`, `ClubStarHistory.tsx:70` tag `now` → `current`; `cupReigns.ts:105` keeps `now` |
+| 15 | Still running | `current` (3) · `now` (2) · `live` (1) · `ongoing` (1) | **split:** a state tag/heading → `current`; the open end of a date range → `now` | `current` is the majority state word; "12.09.2026 – now" is a date placeholder, not a state — flagged | `StreaksView.tsx:63` chip `live` → `current`, and it stops wearing the green status pill because it is not a match state. **Use the canon primitive, do not hand-spell another `rounded-full`**: `DESIGN.md` §3 level 3 gives `.chip` for this shape, and the audit counted 13 distinct `rounded-full` recipes already (3.5). The `"Current"` heading at `:71` is a `<div className="mb-1 text-xs font-medium text-text-muted">` — **not a pill** — so it is not the thing to copy, `streakDisplay.ts:7` `ongoing` → `current`, `ClubStarHistory.tsx:70` tag `now` → `current`; `cupReigns.ts:105` keeps `now` |
 | 16 | Profile-door tooltip | `Open X's profile` (`PlayerLink` default, 14) · `Open profile: X` (2) · `Open X's full profile` (1) · `… · drag to reorder` (1) | `Open X's profile`; the drag suffix stays | majority | `StandingsTable.tsx:336`, `PlayersAdminPage.tsx:200` (`ariaLabel`), `PlayerProfile.tsx:104` |
 | 17 | "a of b" | `#3/8` rank (`fmtRank`, 3) · `3 of 10` count (2) · `5 / 12` current / record (1) | **no change** — three idioms for three things: a rank, a count of a total, a pair under a label that says "current / record" | listed so the split is a decision, not an oversight | — |
 | 18 | `×N` (**2.9**) | `×N` = tournaments held (4) · tied at the top (1) · count of a mode (1) | `×N` means "held"; the other two say it in words | majority | `RecordsView.tsx:58` `×{n}` → `{n} tied`; `PositionsView.tsx:286` `` ` · ${n}× ${m}` `` → `` ` · ${m}: ${n}` `` ("7 tournaments · 1v1: 4 · 2v2: 3") |
@@ -781,6 +830,66 @@ grepped); a site list per row is in `design-audit-2026-09-17/source-3-text.md`.
 Not in this table, on purpose: the 12 German strings (the audit itself calls them likely flavour;
 `AGENTS.md` §1 says notification texts are dialect by design), the "still running" chip's colour
 beyond row 15, and the date shapes beyond rows 19 (C1 owns them).
+
+### Row 7 in full — the 2v2 team name
+
+**Why this row is not a one-liner.** The obvious change ("switch `teamName` to `" / "`") is wrong
+twice over, and both were missed until review:
+
+1. **`teamName` cannot be the shared helper.** `frontend/src/utils/matchDisplay.ts:3` is
+   `teamName(side?: MatchSide | null)` — it takes a **`MatchSide`**. Six of the nine sites do not
+   have one: `H2HView.tsx:317` and `HeadToHeadRows.tsx:133-134` join a stats DTO's player array,
+   `MatchupView.tsx:108-109` an id array, `matchupSummary.ts:41` and
+   `TournamentCommentsCard.tsx:92` a plain `string[]`, and `FriendlyMatchCard.tsx:207,211` a
+   `string[]` **with a `"Team A"`/`"Team B"` fallback `teamName` does not have** (it returns `—`).
+   Telling a worker "route every join through `teamName`" produces nine hand-edits — nine
+   implementations of one job, which Rule 8 calls a failed task.
+2. **Something parses the separator.** `pages/live/MatchList.tsx:15-16`:
+   ```ts
+   function splitPlayers(names: string): string[] {
+     return names.split(" + ").map((s) => s.trim()).filter(Boolean);
+   }
+   ```
+   used at `:91-92` as `splitPlayers(teamName(a))` to feed `ScoreLine` **stacked** 2v2 names.
+   Change `teamName`'s separator and every 2v2 row in the live match list silently collapses to one
+   line — against `DESIGN.md` §8 ("2v2 stacks two lines"). `MatchList.tsx` was not in this row's
+   site list.
+
+**The mechanism (this is the one implementation; Rule 8).** In `utils/matchDisplay.ts`:
+```ts
+/** The one way two names share a line. Stacking is ScoreLine's job — see DESIGN.md §8. */
+export const NAME_JOINER = " / ";
+export function joinNames(names: readonly string[]): string {
+  return names.filter(Boolean).join(NAME_JOINER);
+}
+```
+- `teamName(side)` **delegates**: `joinNames(players.map((p) => p.display_name))`, keeping its `—`
+  empty case. It stays the convenience wrapper for a `MatchSide`; it is not the helper.
+- **Delete `splitPlayers` from `MatchList.tsx`.** At `:91-92` pass the array straight through:
+  `(a?.players ?? []).map((p) => p.display_name)`. Nothing in the app may parse a joined name
+  string back into an array — that is what made a separator change dangerous.
+- **`matchHeaderMeta.aPlayers`/`bPlayers` become `string[]`.** `TournamentCommentsCard.tsx:92`
+  (`sidePlayersLabel`) returns the array; `CommentList.tsx:181` passes it to `ScoreLine` so a 2v2
+  comment header **stacks** like the other seven (canon §8); the composer target list at `:776`
+  calls `joinNames(...)` itself, because that one genuinely needs a string.
+- `RecordsView.tsx:79` likewise takes the array (via `:202`'s `teamNames()`), so Records stops
+  being the one score list that collapses a team onto one line.
+- The remaining prose sites call `joinNames`: `H2HView.tsx:311` (**a template literal, not a
+  `join` — the "every join" wording never reached it**), `:317`, `HeadToHeadRows.tsx:133-134`,
+  `MatchupView.tsx:108-109`, `matchupSummary.ts:41`, `FriendlyMatchCard.tsx:207,211` (wrap:
+  `joinNames(names) || "Team A"`).
+- The muted-separator styling at `DuoLeaderboard.tsx:32`, `DuoDetail.tsx:47` and
+  `HeadToHeadRows.tsx:80` stays — it renders its own spans and never joins.
+
+**Row 7's gate** (the batch gate's `join` grep is necessary but not sufficient):
+```bash
+cd frontend/src
+grep -rn 'join("/")\|join(" / ")\|join(" + ")' . | grep -v test/   # → 0
+grep -rn 'splitPlayers' .                                          # → 0
+grep -rn 'NAME_JOINER\|joinNames' utils/matchDisplay.ts            # → the one definition
+```
+Then look at a 2v2 row on the live Matches tab, the Records list and a 2v2 comment header at 390px:
+**all three stack two lines.** If any renders `A / B` on one line, the row is not done.
 
 **What must not change.** `RecordLine`'s geometry and `recordWidths` (labels are text inside a
 fixed track; `P` is the default — dropping overrides shortens tracks, never lengthens them);
@@ -804,8 +913,6 @@ becomes an example there).
 ---
 
 ## C11 — Draw, loss and cup gold (audit 1.10, 2.5, 2.6)  ☐
-
-> **Draw is decided** (yellow-800 `133 77 14`). **The gold cup is still open** — see the Decisions list.
 
 **All three parts are DECIDED.** (1) Light-theme draw → yellow-800 `133 77 14`. (2) The gold cup
 splits into a text value and a brighter mark value. (3) Dark-theme draw → yellow-300 `253 224 71`.
@@ -856,13 +963,34 @@ owns the CSS comment, C15 the canon).
 **Gates.** `npm run check`; browser 390 × blue/light on a profile's Matches tab, the dashboard
 cups block, the tournaments list crowns.
 
+**Verify first.**
+```bash
+cd frontend/src/themes
+grep -n 'color-draw\|color-loss\|color-cup-gold' defaults.css light.css
+# expect light --color-draw 146 64 14 (amber-800) and dark 251 191 36 (amber-400);
+# one --color-cup-gold per theme, amber-400 dark / 166 74 12 light
+grep -rn 'cup-gold' ../cupColors.ts ../ui ../pages | grep -v test/   # the consumers that follow a split
+```
+If `--color-draw` already reads `133 77 14` in `light.css`, this task is done — tick and stop.
+
+**Definition of done.** Measured with the WCAG formula on sampled pixels, both themes:
+- light `draw` ≥ 4.5:1 on the page ground **and** on its own `bg-draw/15` badge; ΔE to `loss` ≥ 30
+- dark `draw` ≥ 4.5:1 on the page ground and distinguishable in hue from `--color-cup-gold`
+- the cup **text** value ≥ 4.5:1 where a holder's name is painted (`cupParts.tsx`), the cup **mark**
+  value ≥ 3:1 for ring, crown and dot
+- **the Form sparkline is re-measured on the light theme's white player card ≥ 3:1.** C2 set it to
+  the result tokens and measured it against the *old* draw; this task moves draw in both themes, so
+  C2's number is stale the moment this lands. Re-measuring it here is what keeps the two in step.
+- a match list, a standings row and a cup block look right at 390 in both themes — **this changes
+  every drawn score in the theme Roli uses**, so look at real data, not a token diff
+
+**Gates.** `npm run check`; browser at 390×844 and 1280×900 in `blue` **and** `light`.
+
 **Deviations:**
 
 ---
 
 ## C12 — The crown and the ring (audit 2.2, 2.3)  ☐
-
-> **(a) the duplicate crown is decided** — remove it. **(b) the picker's selection ring is still open.**
 
 **(a) is DECIDED: remove the crown where the avatar already wears the cup ring** (Players page,
 profile header), so a crown on a person means only "held it going into this tournament".
@@ -888,16 +1016,34 @@ either way, so it is his call. For the picker: `Chip`/`SegmentedSwitch` share on
 (`bg-accent/15 ring-1 ring-inset ring-accent/40`, §7) — giving the *button box* that wash instead of
 ringing the *avatar* keeps "ring = cup" whole.
 
-**The mechanics, once decided.** (a) delete the `CupOwnerBadge` at `PlayersAdminPage.tsx:237-243`
-and `ProfileHeader.tsx:184-190` (imports with them); `test/avatarRing.test.tsx` if it asserts the
-badge. (b) `AvatarButton.tsx`: move the selected state from `AvatarCircle`'s `className` ring to the
-button: `showName` box → `bg-accent/15 ring-1 ring-inset ring-accent/40`; the `rounded-full` no-name
-variant (check whether any caller still uses it — the comment says every assigning picker shows
-the name) → same wash on the circle button; the "None" slot in `FriendlyMatchCard.tsx:124-148`
-follows. Re-check the six pickers at 390.
+**The mechanics.** Delete the `CupOwnerBadge` at `PlayersAdminPage.tsx:237-243` and
+`ProfileHeader.tsx:184-190` (imports with them), and `test/avatarRing.test.tsx` if it asserts the
+badge. **That is the whole task.** `ui/primitives/AvatarButton.tsx` and its four callers
+(`pages/stats/PlayerPicker.tsx`, `pages/stats/h2h/DuoPicker.tsx`, `pages/tools/FriendlyMatchCard.tsx`,
+`pages/tournaments/NewTournamentForm.tsx`) are **out of scope — do not open them.** The picker keeps
+its accent selection ring by decision; C15 records it in `DESIGN.md` as a deliberate exception.
 
 **Canon (C15).** §7 `AvatarCircle` row: add "a selected picker avatar is a Chip-washed button, never a
 ring (C12)"; and, if (a), "the crown is never drawn beside a ringed avatar".
+
+**Verify first.**
+```bash
+cd frontend/src
+sed -n '237,243p' pages/PlayersAdminPage.tsx      # expect a <CupOwnerBadge …>
+sed -n '184,190p' pages/profile/ProfileHeader.tsx # expect a <CupOwnerBadge …>
+grep -n 'cups=' pages/PlayersAdminPage.tsx pages/profile/ProfileHeader.tsx
+# expect the avatar at both sites already receives cups -> the ring already says "holds it today"
+```
+If either badge is gone, tick that half and say so.
+
+**Definition of done.** No `CupOwnerBadge` on the Players page or the profile header; the cup ring
+on the avatar is untouched at both; `CupOwnerBadge` still renders in the tournament standings
+(`StandingsTable.tsx:359-361`), which is now its only meaning — "held it going into this
+tournament"; unused imports gone; `ui/primitives/AvatarButton.tsx` **not in the diff**;
+`npm run check` green.
+
+**Gates.** `npm run check`; browser at 390 and 1280 in `blue` — the Players page and one profile,
+confirming a cup holder still reads as one from the ring alone.
 
 **Deviations:**
 
@@ -930,6 +1076,26 @@ in `light.css`; `.live-dot`/`.live-ping` follow; DESIGN.md §2 row rewritten. Co
 `playing` → a red status family that does not exist yet (new `status-*-live` tokens ×2 themes);
 DESIGN.md §2 "green = live/playing" rewritten. Cost: 6 sites + 6 tokens.
 
+**Verify first.**
+```bash
+cd frontend/src
+grep -n 'color-live' themes/defaults.css themes/light.css   # expect red-500 / red-600
+grep -rn 'text-live\|bg-live' . | grep -v test/            # expect 0 — no text uses the token
+grep -n 'live-dot\|live-ping' styles.css                   # expect the two rules at ~:463
+```
+Two token lines are the whole change: the three dots (`Sidebar.tsx:67-68`,
+`BottomTabBar.tsx:66-67`, `MobileChrome.tsx:176-177`) use only those two classes, so `styles.css`
+is **not** edited. Because nothing paints text with the token, the 4.5:1 text floor does not apply —
+a dot is a non-text mark at ≥ 3:1.
+
+**Definition of done.** `--color-live` is the status green in both theme files; the tab-bar dot,
+the sidebar "Live now" dot and the drawer dot are green and ≥ 3:1 against their own background in
+both themes; the pulse still animates; nothing else changed colour
+(`git diff --stat` touches two files); `npm run check` green.
+
+**Gates.** `npm run check`; browser at 390×844 (tab bar + drawer) and 1280×900 (sidebar) in `blue`
+**and** `light`, with a live tournament in the data so the dot actually renders.
+
 **Deviations:**
 
 ---
@@ -947,9 +1113,51 @@ and "Reset zoom" (`TrendsExplorer.tsx:156`) text links. The dashboard's own "Ful
 half — "blue means selected in one theme and press-me in the other" — is a theme redesign and is
 deferred, not decided here.)
 
-**The mechanics, once decided.** The three accent links take the dashboard's treatment:
-`text-xs text-text-muted hover:text-text-normal` + `ChevronRight size={14}` instead of `→`.
-Cost: 3 sites. Alternative: accept.
+**Verify first.**
+```bash
+cd frontend/src
+grep -n 'text-accent' pages/profile/ProfileOverviewTab.tsx pages/profile/ProfileStatsSection.tsx pages/stats/trends/TrendsExplorer.tsx
+# expect 3 hits: :179 "View all →", :76 "Full stats →", :156 "Reset zoom"
+sed -n '48,53p' pages/dashboard/StandingsPreviewCard.tsx      # the precedent, verbatim
+```
+
+**The mechanics.** Two of the three are navigation; one is not. They do **not** get the same
+treatment, and the difference is the rule:
+
+- **A link that goes somewhere** (`ProfileOverviewTab.tsx:179` "View all", `ProfileStatsSection.tsx:76`
+  "Full stats") takes the precedent **verbatim** — copy the class string from
+  `pages/dashboard/StandingsPreviewCard.tsx:48-53`, do not retype it from this plan:
+  ```
+  inline-flex items-center gap-1 text-xs text-text-muted transition hover:text-text-normal
+  ```
+  followed by `<ChevronRight size={14} />` in place of the `→`. **`inline-flex items-center gap-1`
+  and `transition` are load-bearing** — without them the SVG does not align to the text and there
+  is no gap, which is a *fourth* look, not the precedent. Keep each site's existing
+  `order-1 shrink-0` (`.section-head` needs it) and **drop `font-medium`** (the precedent has none).
+- **A button that does something** (`TrendsExplorer.tsx:156` "Reset zoom" — an action, no arrow)
+  takes the same muted text **without a chevron**. A `ChevronRight` on "Reset zoom" would promise
+  navigation that does not happen. This is not a new variant: it is the same treatment minus an
+  affordance it has no use for.
+
+**Scope — say it plainly.** Audit 2.8 lists more accent-as-action sites than this task touches.
+`MatchDetailPage.tsx:307` ("Back"), `TournamentsPage.tsx:135` ("Create one.") and
+`PushNotificationsSettings.tsx:141` ("Dismiss") are **out of scope**: the first two are recovery
+paths where findability beats consistency, the third is an error affordance. The raw reports count
+eight accent/text-action looks in total (`source-4-frame.md:218`) and five ways to say "see more"
+(`pixel-3-desktop-chrome.md:215`); this task closes the three that sit in a section header next to
+a selected chip. **Record in Deviations that 2.8 is partially closed**, so the next audit is not
+surprised.
+
+**What must not change.** The dashboard precedent itself. The `→` inside
+`OverviewSection.tsx`'s "Open Standings →" buttons — those are filled buttons, not text links.
+
+**Definition of done.** `grep -rn 'text-accent' frontend/src/pages/profile frontend/src/pages/stats/trends | grep -v test/`
+returns 0 for those three sites; the two navigation links are pixel-identical to "Full table ›" at
+390 and 1280 (same height, same gap, same muted colour, chevron baseline-aligned); "Reset zoom"
+reads as muted text with no chevron; `npm run check` green.
+
+**Gates.** `npm run check`; browser at 390×844 and 1280×900 in `blue` **and** `light` — the accent
+differs per theme, so "no longer accent" must be confirmed in both.
 
 **Deviations:**
 
@@ -965,7 +1173,8 @@ Applies every "Canon" line listed above in one commit so no two workers touched
   §8: the `resultBadge` sentence (C5). §5/§5b: the vocabulary paragraph (C10). "Last checked
   against the code" date.
 - `AGENTS.md` §9: add this tracker to the list of planning files; note the locale constant
-  (`APP_LOCALE`, C1) under §9 "Style"; §11 current state: baseline, checks, what is deployed.
+  (**`APP_LOCALE_NUMERIC` / `APP_LOCALE_MONTHS`**, C1 — numbers de-AT, months en-GB) under §9
+  "Style"; §11 current state: baseline, checks, what is deployed.
 - This file: every task ticked with its Deviations filled; the verification-gates section below
   with the final numbers.
 
@@ -996,10 +1205,13 @@ describes a prop or branch C8 deleted (`fullScreenOnMobile`, `bodyVariant`, `wid
   cd frontend/src
   grep -rn 'join("/")\|join(" / ")' . | grep -v test/   # 2v2 teams: expect 0 — all through teamName
   grep -rn '"Win rate"\|"Win%"' . | grep -v test/        # win rate: expect 0 — "Win %" only
-  grep -rn '★`\|★"\|★{' . | grep -v test/               # the star: no hit on an Elo number
-  grep -rn '\.\.\.' --include=*.tsx . | grep -v test/  # ellipsis: expect 0 three-dot literals
+  grep -rnE 'fmtRating\([^)]*\)[^ ]*★' . | grep -v test/  # the star on an Elo number: expect 0
+  grep -rnE '[a-z]\.\.\.' --include='*.tsx' --include='*.ts' . | grep -v test/  # expect 1
   grep -rn 'playedLabel=' . | grep -v test/              # expect 0 — the split is by context now
   ```
+  Expected after the batch: `join` **0** · `Win rate|Win%` **0** · the Elo star **0** ·
+  `[a-z]\.\.\.` **1** (only `diagnostics/crashLog.ts:191`'s `\n... (truncated)` marker, which is
+  copied-text plumbing, not a UI label) · `playedLabel=` **0**.
   Each returns a count the audit put a number on; if one is not what the pick table promised, the
   sweep is incomplete, not "mostly done". A worker that cannot reach 0 on a line must say which
   sites resisted and why, in its Deviations section — never leave it to be rediscovered.
