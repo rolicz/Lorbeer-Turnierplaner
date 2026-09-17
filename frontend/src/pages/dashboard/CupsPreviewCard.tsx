@@ -14,9 +14,9 @@ import { ChevronRight } from "lucide-react";
 
 import { currentEraMode, getCup, listCupDefs, orderCups, type CupDef } from "../../api/cup.api";
 import { qk } from "../../api/queryKeys";
-import { cupColorVarForKey, rgbFromCssVar } from "../../cupColors";
+import { cupColorVarForKey, cupMarkColorVarForKey, rgbFromCssVar } from "../../cupColors";
 import { buildReigns } from "../stats/cupReigns";
-import { CupHolder, CupReignTimeline, ReignChip } from "../stats/cupParts";
+import { CupHolder, CupMarkDot, CupReignTimeline, ReignChip } from "../stats/cupParts";
 import { cupSectionHref } from "../stats/statsNav";
 import InlineLoading from "../../ui/primitives/InlineLoading";
 import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
@@ -44,7 +44,10 @@ export default function CupsPreviewCard() {
 
 function CupPreview({ cup }: { cup: CupDef }) {
   const q = useQuery({ queryKey: qk.cup(cup.key), queryFn: () => getCup(cup.key) });
-  const color = rgbFromCssVar(cupColorVarForKey(cup.key));
+  // The header dot is a mark (3:1 floor); the holder's name inside `CupHolder`
+  // is text (4.5:1) — two different jobs from the same cup colour (C11).
+  const textColor = rgbFromCssVar(cupColorVarForKey(cup.key));
+  const markColor = rgbFromCssVar(cupMarkColorVarForKey(cup.key));
   const reigns = useMemo(() => buildReigns(q.data), [q.data]);
 
   // Both doors open the full Cups sub-view *at this cup* (`?cup=<key>`).
@@ -67,11 +70,7 @@ function CupPreview({ cup }: { cup: CupDef }) {
           title={`Open ${cup.name} in Stats — reigns, records and per-player totals`}
           className="section-label inline-flex min-w-0 items-center gap-2 no-underline transition hover:text-text-normal"
         >
-          <span
-            className="h-2.5 w-2.5 shrink-0 rounded-full"
-            style={{ backgroundColor: color, boxShadow: `0 0 0 3px ${color}22` }}
-            aria-hidden="true"
-          />
+          <CupMarkDot color={markColor} />
           <span className="truncate">{cup.name}</span>
           <ChevronRight size={14} className="shrink-0" aria-hidden="true" />
         </Link>
@@ -96,7 +95,7 @@ function CupPreview({ cup }: { cup: CupDef }) {
           <div className="pointer-events-none relative z-10 space-y-3">
             <CupHolder
               owner={q.data?.owner ?? null}
-              color={color}
+              color={textColor}
               since={q.data?.streak?.since?.date}
               defended={defended}
               avatarSizeClass="h-10 w-10"

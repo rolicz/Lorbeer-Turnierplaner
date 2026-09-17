@@ -400,7 +400,6 @@ export default function MatchDetailPage() {
                       { key: "playing", label: "Playing" },
                       { key: "finished", label: "Finished" },
                     ]}
-                    widthClass="w-[98px]"
                     ariaLabel="Match state"
                     title="Match state"
                   />

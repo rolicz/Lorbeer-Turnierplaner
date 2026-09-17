@@ -2,6 +2,7 @@ import { ImageIcon, Save, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import Button from "../../ui/primitives/Button";
+import ConfirmDialog from "../../ui/primitives/ConfirmDialog";
 import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
 import FormLabel from "../../ui/primitives/FormLabel";
 import Modal from "../../ui/primitives/Modal";
@@ -54,6 +55,7 @@ export default function PlayerAvatarEditor({
 
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [pendingDeleteAvatar, setPendingDeleteAvatar] = useState<true | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -177,6 +179,20 @@ export default function PlayerAvatarEditor({
     return blob2;
   }
 
+  async function runDelete() {
+    if (!onDelete || busy) return;
+    setErr(null);
+    setBusy(true);
+    try {
+      await onDelete();
+      onClose();
+    } catch (e: unknown) {
+      setErr(errorMessage(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   if (!open) return null;
 
   const cropFrameStyle =
@@ -197,7 +213,6 @@ export default function PlayerAvatarEditor({
       title={title}
       subtitle="Square crop, stored locally in DB"
       onClose={onClose}
-      fullScreenOnMobile
       maxWidth="max-w-lg"
     >
           <ErrorToastOnError error={err} title="Avatar action failed" />
@@ -295,21 +310,7 @@ export default function PlayerAvatarEditor({
                 <Button
                   type="button"
                   variant="ghost"
-                  onClick={() => {
-                    void (async () => {
-                      if (busy) return;
-                      setErr(null);
-                      setBusy(true);
-                      try {
-                        await onDelete();
-                        onClose();
-                      } catch (e: unknown) {
-                        setErr(errorMessage(e));
-                      } finally {
-                        setBusy(false);
-                      }
-                    })();
-                  }}
+                  onClick={() => setPendingDeleteAvatar(true)}
                   disabled={!canEdit || busy}
                   title="Delete avatar"
                 >
@@ -346,6 +347,22 @@ export default function PlayerAvatarEditor({
               </Button>
             </div>
           </div>
+
+          {/* Rendered inside the editor's own Modal — same fixed z-50, later in the
+              tree, so it paints above it. */}
+          <ConfirmDialog
+            open={!!pendingDeleteAvatar}
+            title="Delete the avatar?"
+            subtitle="The initial takes its place until a new photo is uploaded."
+            confirmLabel="Delete avatar"
+            onCancel={() => setPendingDeleteAvatar(null)}
+            onConfirm={() => {
+              setPendingDeleteAvatar(null);
+              void runDelete();
+            }}
+          >
+            <div>The current photo is removed for good.</div>
+          </ConfirmDialog>
     </Modal>
   );
 }

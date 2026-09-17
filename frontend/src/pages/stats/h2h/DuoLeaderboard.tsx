@@ -3,6 +3,7 @@ import EmptyState from "../../../ui/primitives/EmptyState";
 import RecordLine, { recordWidths } from "../../../ui/primitives/RecordLine";
 import type { StatsH2HDuo } from "../../../api/types";
 import { duoKey } from "../h2hHelpers";
+import { fmtAvg } from "../../../utils/format";
 
 export function DuoLeaderboard({
   duos,
@@ -37,11 +38,12 @@ export function DuoLeaderboard({
               draws={d.draws}
               losses={d.losses}
               gd={d.gd}
-              gdLabel=""
               widths={widths}
               className="shrink-0 font-mono text-xs text-text-muted"
             />
-            <span className="w-12 shrink-0 text-right text-sm font-semibold tabular-nums text-accent">{d.pts_per_match.toFixed(2)}</span>
+            {/* `2.50 ppm` never wraps: the unit belongs to the number, and a second line
+                here is 12px of row height the rest of the list does not spend. */}
+            <span className="w-20 shrink-0 whitespace-nowrap text-right text-sm font-semibold tabular-nums text-accent">{fmtAvg(d.pts_per_match)} ppm</span>
           </button>
         );
       })}

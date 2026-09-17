@@ -40,6 +40,7 @@ import ScoreLine, { scoreDigits } from "../../ui/primitives/ScoreLine";
 import type { Club, MatchState } from "../../api/types";
 import type { FriendlyMatchResponse } from "../../api/friendlies.api";
 import { fmtCount, fmtDateLong } from "../../utils/format";
+import { joinNames } from "../../utils/matchDisplay";
 
 export type FriendlyDayGroup = { dateKey: string; rows: FriendlyMatchResponse[] };
 
@@ -151,7 +152,7 @@ function FriendlyRow({
             type="button"
             onClick={onToggle}
             aria-expanded={open}
-            aria-label={`${open ? "Close" : "Open"} friendly: ${aNames.join(" + ")} ${ag}–${bg} ${bNames.join(" + ")}`}
+            aria-label={`${open ? "Close" : "Open"} friendly: ${joinNames(aNames)} ${ag}–${bg} ${joinNames(bNames)}`}
             title={open ? "Close the editor" : "Edit this friendly"}
             className="focus-ring absolute inset-0 z-0 rounded-xl"
           />

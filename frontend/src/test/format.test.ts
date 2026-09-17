@@ -1,12 +1,12 @@
 import { describe, it, expect } from "vitest";
 import {
   fmtDate,
+  fmtDateLong,
   fmtDateTime,
   fmtTs,
   fmtMonthDate,
   fmtInt,
   fmtAvg,
-  fmtPct,
   fmtOdd,
   clamp,
   wrapTwoLinesWords,
@@ -30,6 +30,22 @@ describe("fmtDate", () => {
   it("returns empty string for an unparseable string", () => {
     expect(fmtDate("not-a-date")).toBe("");
   });
+
+  it("pins the de-AT numeric shape regardless of runtime locale", () => {
+    expect(fmtDate("2026-09-12")).toBe("12.09.2026");
+  });
+});
+
+describe("fmtDateLong", () => {
+  it("returns empty string for null/undefined/empty", () => {
+    expect(fmtDateLong(null)).toBe("");
+    expect(fmtDateLong(undefined)).toBe("");
+    expect(fmtDateLong("")).toBe("");
+  });
+
+  it("pins the en-GB spelled-out shape", () => {
+    expect(fmtDateLong("2026-09-12")).toBe("12 September 2026");
+  });
 });
 
 describe("fmtDateTime", () => {
@@ -40,6 +56,10 @@ describe("fmtDateTime", () => {
 
   it("returns a non-empty string for a valid ISO datetime", () => {
     expect(fmtDateTime("2024-03-15T14:30:00")).not.toBe("");
+  });
+
+  it("pins the de-AT numeric shape regardless of runtime locale", () => {
+    expect(fmtDateTime("2026-09-12T14:30:00")).toBe("12.09.2026, 14:30");
   });
 });
 
@@ -81,12 +101,6 @@ describe("fmtAvg", () => {
 
   it("returns '0.00' for non-finite", () => {
     expect(fmtAvg(NaN)).toBe("0.00");
-  });
-});
-
-describe("fmtPct", () => {
-  it("formats to 2 decimal places", () => {
-    expect(fmtPct(0.75)).toBe("0.75");
   });
 });
 
@@ -156,6 +170,10 @@ describe("fmtShortDate", () => {
 
   it("returns a non-empty string for a valid ISO date", () => {
     expect(fmtShortDate("2024-03-15")).not.toBe("");
+  });
+
+  it("pins the en-GB abbreviated shape with a four-digit year", () => {
+    expect(fmtShortDate("2026-09-12")).toBe("12 Sept 2026");
   });
 });
 

@@ -68,9 +68,19 @@ export function tournamentPalette(status: TournamentStatus) {
   }
 }
 
-// Legacy exports, keeping them to avoid breaking imports for now,
-// but they are deprecated in favor of the more specific functions above.
-export const colorMatch = matchStatusPill;
-export const colorTournament = tournamentStatusPill;
+// --- Decider type (the tournament's tie-break) ---
+// One spelling for the type (C7, Rule 8): was an inline ternary at AdminPanel.tsx's
+// decider chips; extracted here so the confirm dialog that removes a saved decider
+// can name it without writing a second one.
+const DECIDER_TYPE_LABEL: Record<"none" | "penalties" | "match" | "scheresteinpapier", string> = {
+  none: "Keep draw",
+  scheresteinpapier: "Schere-Stein-Papier Turnier",
+  match: "Match",
+  penalties: "Penalties",
+};
+
+export function deciderTypeLabel(type: "none" | "penalties" | "match" | "scheresteinpapier"): string {
+  return DECIDER_TYPE_LABEL[type] ?? type;
+}
+
 export const pillBaseClass = pillDefault;
-export { matchColor, tournamentColor } from "./theme-legacy";

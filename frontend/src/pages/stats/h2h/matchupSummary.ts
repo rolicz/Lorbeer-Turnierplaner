@@ -5,6 +5,7 @@
  */
 import type { MatchSide, StatsMatch, StatsPlayerMatchesTournament } from "../../../api/types";
 import { sideBy } from "../../../helpers";
+import { joinNames } from "../../../utils/matchDisplay";
 
 export type Summary = {
   played: number;
@@ -38,7 +39,7 @@ export function playerIds(side?: MatchSide): number[] {
 export function playerNames(side?: MatchSide): string {
   const names = (side?.players ?? []).map((p) => p.display_name).filter(Boolean);
   if (!names.length) return "—";
-  return names.join(" / ");
+  return joinNames(names);
 }
 
 /** Whether every id is on that side (subset match: partners may differ). */

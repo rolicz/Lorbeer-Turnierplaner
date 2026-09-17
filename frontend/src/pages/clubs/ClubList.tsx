@@ -162,7 +162,6 @@ export default function ClubList({
           }
           right={<span className="text-xs text-text-muted">{g.rows.length}</span>}
           defaultOpen={defaultOpen}
-          variant="none"
           className="px-0"
         >
           {() => (

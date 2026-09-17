@@ -20,6 +20,7 @@ import { Stars } from "../../ui/primitives/Stars";
 import { getStatsPlayerMatches } from "../../api/stats.api";
 import { listClubs } from "../../api/clubs.api";
 import { qk } from "../../api/queryKeys";
+import { fmtAvg, fmtCount } from "../../utils/format";
 import { matchStats, sideOf } from "./standings";
 import type { StatsMode } from "./statsMode";
 import type { Club, StatsMatch, StatsScope } from "../../api/types";
@@ -73,7 +74,7 @@ export function StarsSection({ mode, scope, playerId }: { mode: StatsMode; scope
     <div className="space-y-3">
       <p className="text-xs text-text-muted">
         Points per match by the star rating the club carried on the day.{" "}
-        {known ? `${known} rated match${known === 1 ? "" : "es"} across ${rated.length} of ${STAR_LEVELS.length} ratings.` : ""}
+        {known ? `${fmtCount(known, "rated match", "rated matches")} across ${rated.length} of ${STAR_LEVELS.length} ratings.` : ""}
       </p>
       {matchesQ.isLoading && !matchesQ.data ? (
         <InlineLoading label="Loading…" />
@@ -120,7 +121,7 @@ export function StarsSection({ mode, scope, playerId }: { mode: StatsMode; scope
                         <RecordNum digits={4}>—</RecordNum>
                       </span>
                     ) : (
-                      <span className="font-mono text-sm font-bold tabular-nums text-text-normal">{b.ppm.toFixed(2)}</span>
+                      <span className="font-mono text-sm font-bold tabular-nums text-text-normal">{fmtAvg(b.ppm)}</span>
                     )}
                     {/* The unit belongs to a value; an unplayed rung has none, so the
                         caption only holds its width (`visibility: hidden` — the same trick

@@ -45,6 +45,11 @@
 
   /* Gradients */
   --color-cup-gold: 245 208 90; /* the theme's own gold, as the medals use below */
+  /* C11 split the cup into a text value and a mark value. This theme tunes its own gold,
+     so it must tune both — otherwise the mark falls back to the dark baseline's amber-400 and
+     a holder's name and their ring are two different golds on the same screen. Dark theme, so
+     one value clears both floors, exactly as `defaults.css` does. */
+  --color-cup-gold-mark: 245 208 90;
   --color-gradient-gold-from: 245 208 90;
   --color-gradient-gold-to: 253 230 138;
   --color-gradient-silver-from: 147 170 155;

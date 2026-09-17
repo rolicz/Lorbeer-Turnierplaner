@@ -1,7 +1,7 @@
 import { Crown } from "lucide-react";
 
 import type { TournamentCupStake } from "../../api/types";
-import { cupColorVarForKey } from "../../cupColors";
+import { cupMarkColorVarForKey } from "../../cupColors";
 import { cn } from "../../ui/cn";
 
 export default function TournamentLaurelMarkers({
@@ -17,7 +17,8 @@ export default function TournamentLaurelMarkers({
   return (
     <span className={cn("pointer-events-none absolute -right-1 -top-1 z-10 inline-flex items-center gap-0.5", className)}>
       {rows.map((stake) => {
-        const varName = cupColorVarForKey(stake.key);
+        // A tiny crown disc is a mark, not text (C11): the 3:1 non-text floor.
+        const varName = cupMarkColorVarForKey(stake.key);
         return (
           <span
             key={stake.key}

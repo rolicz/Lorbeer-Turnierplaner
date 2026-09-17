@@ -516,7 +516,9 @@ every past match simply keeps counting today's rating.
 - **Planning files at the repo root are the trackers**: `REFACTORING_PLAN.md` (cleanup, done),
   `FEATURES_2026-07.md` (T1–T11, done), `FEATURES_2026-08.md` (G1–G8, done),
   `FEATURES_2026-09.md` (32 tasks: H2H matchup, stats IA, mobile navigation, the design canon —
-  done on `feature/2026-09-batch`, see §11). A new batch gets a
+  done on `feature/2026-09-batch`, see §11),
+  `DESIGN_FIXES_2026-09.md` (C1–C15: the blind design audit's Parts 1, 2 and 4 plus the
+  vocabulary sweeps, done on `feature/2026-09-design-fixes`, see §11). A new batch gets a
   new dated file with the same shape: baseline commit, rules for implementing agents, decisions
   already made, one section per task with exact files/symbols, definition of done, deviations
   notes, verification gates, deployment notes. Plans must be mechanical enough that a cheaper
@@ -557,7 +559,11 @@ every past match simply keeps counting today's rating.
   tournaments, avatars keep the hairline alone; cup information there comes only from the
   standings' `CupOwnerBadge` crown ("owned it going into this tournament", Roli's call after
   seeing rings on old results). Comment authors, guestbook entries and pickers carry no cup
-  marking at all.
+  marking at all. **The crown is never drawn beside a ringed avatar** (C12, 2026-09-17): it left
+  the Players page and the profile header, where the ring already said "holds it today", so the
+  standings is now its only site and its only meaning. A picker avatar's accent ring means
+  "selected" and is the one audited exception to "a ring means a cup" — no picker passes `cups`,
+  so the two can never meet.
 - **Icons: lucide-react only** (`DESIGN.md` §1.5). Font Awesome is gone (DS7, 2026-09-13) —
   the dependency, the CSS import and every `<i class="fa-…">` with it. Import the component
   (`import { Crown } from "lucide-react"`) and give it an explicit `size` in px; `aria-hidden`
@@ -567,6 +573,17 @@ every past match simply keeps counting today's rating.
   for markers — arbitrary `text-[Npx]` is banned, `DESIGN.md` §5);
   `qk` for every query key; generated types, no hand-written API mirrors; thin routers, logic in
   services; error helpers from `api_utils.py`. No new dependencies unless the plan says so.
+- **Words are canon too** (C10, 2026-09-17): `DESIGN.md` §5b is the app's word list — one word per
+  quantity, `fmtCount` for a count in prose, `fmtAvg` for a per-match average, `joinNames` for two
+  names on one line, sentence case, `…`. Read it before naming a label.
+- **No call site spells a locale** (C1, 2026-09-17). `frontend/src/utils/format.ts` exports the
+  two constants every date helper uses: **`APP_LOCALE_NUMERIC = "de-AT"`** for numeric dates and
+  times (`12.09.2026`, `12.09.2026, 14:30`) and **`APP_LOCALE_MONTHS = "en-GB"`** for spelled and
+  abbreviated months (`12 September 2026`, `12 Sept 2026`), so a German month name never appears
+  in the English UI and both shapes are day-first. One helper per shape, no inline
+  `toLocaleDateString`/`toLocaleTimeString` anywhere (`grep -rn 'toLocale' frontend/src | grep -v
+  test/ | grep -v APP_LOCALE_` → 0). `en-GB` abbreviating September as the four-letter "Sept" is
+  known and kept.
 - **Local-first rule:** the PWA must not depend on runtime CDNs. Assets ship in the bundle or are
   served by our backend (flags via `flag-icons` npm, crests via `/clubs/{id}/crest`).
 - Decided against (don't re-propose): refresh tokens, pagination envelopes, zod runtime
@@ -729,7 +746,11 @@ every past match simply keeps counting today's rating.
 - **One live indicator** (T10): the pulsing dot in the bottom tab bar (mobile) / sidebar
   "Live now" (desktop). `ui/shell/ConnectionIndicator.tsx` renders **nothing** while the socket
   is up and only says "Reconnecting"/"Offline" after a 1.2s grace period; the tournament page has
-  no status chip, and the dashboard's "Live now" section label carries no dot.
+  no status chip, and the dashboard's "Live now" section label carries no dot. **And it is green**
+  (C13, 2026-09-17): `--color-live` was red-500/red-600 while every in-page "playing" marker used
+  the green `status-*` family, so the nav dot was the one place the app said red for "now". The
+  token is `34 197 94` (green-500) dark and `21 128 61` (green-700) light — green-600 does not
+  clear 3:1 on the tab bar, which paints `--color-bg-default` (`236 235 233`), not white.
 - **Tab state is `?tab=` on every tabbed page** (U1). Eight pages go through
   `ui/shell/useTabParam.ts` (unknown or role-forbidden values fall back to the page default, the
   default value is deleted from the URL, writes are `replace`); `LiveTournamentPage` keeps its own
@@ -774,21 +795,34 @@ every past match simply keeps counting today's rating.
 
 ## 11. Current state (2026-09-17)
 
-- **`main` is `2e23365`, pushed.** On top of `f1ea22b` it carries the §11 rewrite (`56d8719`) and
-  one frontend change: Stats → Player puts Streaks above Club stars (Roli's call). Frontend-only,
-  so it is the short deploy; **`f425961` is still the last thing actually deployed.**
-- **A batch is open on `feature/2026-09-design-fixes` (`b3f33ef`, branched from `2e23365`)** —
-  two docs commits, no code yet. `DESIGN_AUDIT_2026-09-17.md` is a blind design-consistency audit
-  (eight parallel reviewers, four over `frontend/src` and four over 71 screenshots, working
-  deliberately **without** this file or `DESIGN.md` so the findings were not anchored by decisions
-  already made; a finding counted only with counted evidence behind it). The eight raw reports are
-  in `design-audit-2026-09-17/`. `DESIGN_FIXES_2026-09.md` is the plan that answers it: fifteen
-  tasks **C1–C15** (the `C` prefix because `F1`/`F2` are taken by `FEATURES_2026-09.md`), Roli's
-  twelve decisions recorded at the top under "do not relitigate", nothing blocked. Two tasks change
-  the canon rather than the code — **C5** rewrites `DESIGN.md` §8's "for dense lists" and **C13** a
-  §2 row, because the canon currently says "live" is both green and red. Structural work (heading
-  treatments, `.inset` paddings, `iconOnly` adoption, an avatar scale, the nine filter idioms, the
-  desktop rework) is deferred to a later batch and listed at the end of the plan.
+- **`main` is `671473e`, pushed — and `f425961` (2026-09-16) is still the last thing actually
+  deployed.** On top of `f1ea22b`, `main` carries two §11 doc rewrites (`56d8719`, `671473e`) and
+  one frontend change, `2e23365`: Stats → Player puts Streaks above Club stars (Roli's call).
+  Nothing since `f425961` has gone to the server.
+- **`feature/2026-09-design-fixes` is finished and unmerged** (branched from `2e23365`; six docs
+  commits, then C1–C14 as fifteen implementation commits, then this doc pass). It answers
+  `DESIGN_AUDIT_2026-09-17.md`, a blind design-consistency audit — eight parallel reviewers, four
+  over `frontend/src` and four over 71 screenshots, working deliberately **without** `AGENTS.md`
+  or `DESIGN.md` so the findings were not anchored by decisions already made; a finding counted
+  only with counted evidence behind it (raw reports in `design-audit-2026-09-17/`).
+  `DESIGN_FIXES_2026-09.md` is the plan, with Roli's decisions recorded at the top under "do not
+  relitigate". **Frontend-only, and not deployed: Roli tests locally first.** What landed:
+  **C1** one locale constant per shape (numbers `de-AT`, months `en-GB`); **C2** the player
+  palette takes its lightness from the theme (hue stays the player's identity); **C3** light
+  hairlines, placeholders and the League select — a light page is now exactly as tall as the same
+  page in a dark theme; **C4** the comments feed reads `match.state`, not the goals; **C5** the
+  W/D/L badge follows the result in both densities; **C6** measured only — the floating pill's
+  promised clearance holds, **no code changed**; **C7** eleven more irreversible actions ask first
+  (24 `ConfirmDialog`s, red block iff something stored is deleted); **C8** six defined-and-never-
+  reached branches deleted (`Modal.fullScreenOnMobile`, two `wrap` props, `CollapsibleCard`'s
+  variants, `SegmentedSwitch.widthClass`, `shadow-card`/`shadow-focus`, `theme-legacy.ts`);
+  **C9** a name in a pill opens the profile; **C10** the vocabulary sweep, 21 rows, ≈35 files —
+  one word per quantity, `fmtCount`, `fmtAvg` (`fmtPct` gone), `joinNames`/`NAME_JOINER` and
+  nothing parsing a joined name back into an array; **C11** `draw` moves off cup gold in both
+  themes and the cup gold splits into a text and a mark value; **C12** the duplicate crown goes
+  (the picker's selection ring stays, by decision); **C13** "live" is green everywhere;
+  **C14** three accent text links become muted text + chevron. `DESIGN.md` and `AGENTS.md` were
+  edited by **C15 alone**, at the end, from the canon lines the fourteen workers wrote down.
 - `feature/2026-09-audit` was merged (`f425961`) and **deployed**
   on 2026-09-16, carrying Rounds 6, 7 and 8 and everything that came out of Roli testing on his
   phone — 110 commits, 234 files, seven new tables. **§7 step 6 was run on that deploy and is
@@ -804,9 +838,12 @@ every past match simply keeps counting today's rating.
   — "no matches" plus an em dash — because rows genuinely played for zero points already exist and
   would otherwise be indistinguishable. Q17: `ClubMark` moved into `ui/primitives/` and every
   score-only match row wears one, across all seven surfaces, not just the friendlies list.
-- Checks at `2e23365`: `cd frontend && npm run check` **681 tests in 67 files**, typecheck and
-  lint clean. Backend untouched since `f1ea22b`, whose checks were: `make test` **204 passed**, `make lint` clean, `make gen-types` no diff,
-  `cd frontend && npm run check` **681 tests in 67 files**, `npm run build` green.
+  The design-fixes batch above joins this queue when Roli merges it — same short deploy, and its
+  smoke list is in the plan's "Deployment" section.
+- Checks at the design-fixes branch head: `cd frontend && npm run check` **688 tests in 68 files**
+  (typecheck and lint clean), `npm run build` green (`index-*.js` 723.99 kB — the pre-existing
+  >500 kB hint), `make gen-types` no diff. The backend is untouched by the batch; its last run,
+  at `f1ea22b`, was `make test` **204 passed** and `make lint` clean.
 
 ### Open, and each one is waiting on something specific
 
@@ -832,7 +869,20 @@ every past match simply keeps counting today's rating.
   palette describes. **Do not shrink the dimensions**: 200px is barely enough for a 22px badge at
   dpr 3 and leaves room for a larger crest later. Offered and **declined** (2026-09-16) — raise it
   again only if crest weight becomes a real complaint.
-- `npm run build` prints the pre-existing ">500 kB chunk" hint (≈705 kB `index-*.js`). Not a
+- **The design-system half of the audit is deferred to a later batch, by Roli's decision** — the
+  eight section-heading treatments, the eight `.inset` paddings and eleven `.card` overrides,
+  adopting `Button.iconOnly` across the 43 hand-sized icon buttons, an avatar size scale, the nine
+  filter/tab idioms, and the desktop width rework. The list is at the end of
+  `DESIGN_FIXES_2026-09.md`; don't start any of it as a drive-by.
+- **Three small things the design-fixes batch deliberately left**, each flagged by its own worker
+  so the next audit does not re-report them as new: two cup surfaces still read the *text* token
+  for a mark job (`TournamentsPage`'s `CupStakePill`, `CupDetail`'s header dot and the `cupColor`
+  it shares) — readable, just a shade duller than the six consumers C11 moved; `themes/green.css`
+  overrides `--color-cup-gold` but defines no `--color-cup-gold-mark`, so a mark there falls back
+  to the dark baseline; and audit 2.8 is **partially** closed — `MatchDetailPage`'s "Back", the
+  tournaments list's "Create one." and push settings' "Dismiss" are still accent text, left out as
+  recovery paths and an error affordance.
+- `npm run build` prints the pre-existing ">500 kB chunk" hint (≈724 kB `index-*.js`). Not a
   regression; nobody has split it.
 - `frontend/src/utils/format.ts` keeps three exports with no app caller (`fmtMonthDate`,
   `parseDateSafe`, `wrapTwoLinesWords`) — generic formatters covered by tests, deliberately left (D1).
@@ -848,6 +898,7 @@ every past match simply keeps counting today's rating.
 | Visual language (surfaces, tokens, type, primitives) | `DESIGN.md` — the design canon, follow it for every UI change |
 | Tool entry points | `CLAUDE.md` (imports this file), `GEMINI.md` (points here) |
 | Human README / setup narrative | `README.md` |
-| Batch trackers (history + decisions) | `REFACTORING_PLAN.md`, `FEATURES_2026-07.md`, `FEATURES_2026-08.md`, `FEATURES_2026-09.md` |
+| Batch trackers (history + decisions) | `REFACTORING_PLAN.md`, `FEATURES_2026-07.md`, `FEATURES_2026-08.md`, `FEATURES_2026-09.md`, `DESIGN_FIXES_2026-09.md` |
+| The blind design audit behind the C-batch | `DESIGN_AUDIT_2026-09-17.md` + `design-audit-2026-09-17/` (eight raw reports) |
 | Claude Code auto-memory (per-machine, not in git) | `~/.claude/projects/-home-roli-projects-turnierplaner-reloaded/memory/` |
 | Production data snapshots (not in git) | `backup/deploy/<ts>/`, `backup/local/<ts>/` |

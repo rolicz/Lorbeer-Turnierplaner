@@ -60,12 +60,12 @@ export default function StreaksView({ mode, scope }: { mode: StatsMode; scope: S
                         {streakDateText(r) ? <span className="block text-xs tabular-nums text-text-muted">{streakDateText(r)}</span> : null}
                       </span>
                     </PlayerLink>
-                    {r.ongoing ? <span className="shrink-0 rounded-full bg-status-bg-green/60 px-1.5 text-xs text-status-text-green">live</span> : null}
+                    {r.ongoing ? <span className="chip shrink-0">current</span> : null}
                     <span className="text-sm font-bold tabular-nums text-accent">{r.length}</span>
                   </div>
                 ))}
               </div>
-            ) : <EmptyState title="None yet." className="py-2" />}
+            ) : <EmptyState title="No streaks yet." className="py-2" />}
             {all.length > records.length ? <div className="text-xs text-text-muted">+{all.length - records.length} more</div> : null}
             {current.length ? (
               <div className="pt-1">

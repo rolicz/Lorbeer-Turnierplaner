@@ -25,6 +25,7 @@ import { ChevronDown, ShieldHalf, Shuffle, SlidersHorizontal, X } from "lucide-r
 import { useId, useState } from "react";
 
 import type { Club } from "../api/types";
+import { fmtCount } from "../utils/format";
 
 import Button from "./primitives/Button";
 import { chipClass } from "./primitives/Chip";
@@ -292,7 +293,7 @@ export default function SelectClubsPanel({
                 <div className="flex items-center justify-between gap-2">
                   <span className="min-w-0 truncate text-xs text-text-muted">
                     {filters.active
-                      ? `${filters.filtered.length} of ${filters.sorted.length} clubs`
+                      ? `${filters.filtered.length} of ${fmtCount(filters.sorted.length, "club", "clubs")}`
                       : "All clubs"}
                   </span>
                   <Button

@@ -19,7 +19,7 @@ import { useChartGestures } from "./useChartGestures";
 export type { Metric, ViewMode } from "./useChartData";
 
 const METRIC_OPTS: { key: Metric; label: string }[] = [
-  { key: "points", label: "Points" },
+  { key: "points", label: "Pts" },
   { key: "goals", label: "Goals" },
   { key: "conceded", label: "Conceded" },
   { key: "gd", label: "Goal diff" },
@@ -153,7 +153,11 @@ export default function TrendsExplorer({ mode, scope, rows, initialMetric, initi
         </div>
         <div className="mt-1 flex items-center justify-between gap-2 text-xs text-text-muted">
           <span>Pinch to zoom · drag to pan</span>
-          {manualWin ? <button type="button" className="font-medium text-accent" onClick={() => setManualWin(null)}>Reset zoom</button> : null}
+          {manualWin ? (
+            <button type="button" className="text-xs text-text-muted transition hover:text-text-normal" onClick={() => setManualWin(null)}>
+              Reset zoom
+            </button>
+          ) : null}
         </div>
         {/* Same explainer as the Elo column in the table. */}
         {isElo ? <div className="mt-2"><EloNote /></div> : null}
@@ -171,7 +175,7 @@ export default function TrendsExplorer({ mode, scope, rows, initialMetric, initi
                   "chip inline-flex items-center gap-1.5 transition focus-ring " +
                   (on ? "text-text-normal" : "border-dashed bg-transparent text-text-muted line-through")
                 }>
-                <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: c.solid, opacity: on ? 1 : 0.4 }} />
+                <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: c.solid }} />
                 {r.name}
               </button>
             );
@@ -190,7 +194,7 @@ export default function TrendsExplorer({ mode, scope, rows, initialMetric, initi
         <Field label="View">
           {isElo ? (
             <ChipGroup<"cumulative" | "per"> value={effView === "per" ? "per" : "cumulative"} onChange={(v) => setView(v)} ariaLabel="View"
-              options={[{ key: "cumulative", label: "Rating" }, { key: "per", label: "Δ per event" }]} />
+              options={[{ key: "cumulative", label: "Elo" }, { key: "per", label: "Δ per event" }]} />
           ) : isForm ? (
             <ChipGroup<"cumulative" | "per"> value={effView === "per" ? "per" : "cumulative"} onChange={(v) => setView(v)} ariaLabel="View"
               options={[{ key: "cumulative", label: "Form" }, { key: "per", label: "Δ per event" }]} />

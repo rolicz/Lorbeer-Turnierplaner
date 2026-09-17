@@ -116,7 +116,7 @@ export default function NewTournamentForm({ onCancel }: { onCancel?: () => void 
           onClick={() => createMut.mutate()}
           disabled={createMut.isPending || !name.trim() || selectedIds.length < 3}
         >
-          {createMut.isPending ? "Creating…" : "Create Tournament"}
+          {createMut.isPending ? "Creating…" : "Create tournament"}
         </Button>
       </div>
     </div>

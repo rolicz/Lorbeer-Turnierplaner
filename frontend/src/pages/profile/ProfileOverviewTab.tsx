@@ -1,4 +1,4 @@
-import { HeartCrack, Smile } from "lucide-react";
+import { ChevronRight, HeartCrack, Smile } from "lucide-react";
 import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
 
@@ -8,7 +8,7 @@ import { Pill } from "../../ui/primitives/Pill";
 import RecordLine, { recordWidths, type RecordWidths } from "../../ui/primitives/RecordLine";
 import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
 import type { Club, StatsH2HOpponentRow, StatsPlayerMatchesTournament } from "../../api/types";
-import { fmtPct, fmtRank } from "../../utils/format";
+import { fmtAvg, fmtRank } from "../../utils/format";
 import { MatchHistoryList, tournamentMatchHref } from "../stats/MatchHistoryList";
 import { statsMatchupHref } from "../stats/statsNav";
 import { type FavoriteTeammate } from "./favoriteTeammates";
@@ -37,7 +37,7 @@ function RivalCard({ icon, label, row, widths, playerId }: {
           draws={row.draws}
           losses={row.losses}
           widths={widths}
-          extra={`${fmtPct(row.pts_per_match)} ppm`}
+          extra={`${fmtAvg(row.pts_per_match)} ppm`}
           className="mt-0.5 text-text-muted"
         />
       ) : null}
@@ -146,7 +146,7 @@ export default function ProfileOverviewTab({
                     draws={tm.d}
                     losses={tm.l}
                     widths={teammateWidths}
-                    extra={`${fmtPct(tm.ppm)} ppm`}
+                    extra={`${fmtAvg(tm.ppm)} ppm`}
                     className="mt-0.5 text-text-muted"
                   />
                 </>
@@ -176,8 +176,12 @@ export default function ProfileOverviewTab({
         <div className="section-head">
           <span className="section-label">Recent matches</span>
           {allMatchTournaments.length > 2 ? (
-            <button type="button" className="order-1 shrink-0 text-xs font-medium text-accent" onClick={onViewAllMatches}>
-              View all →
+            <button
+              type="button"
+              className="order-1 shrink-0 inline-flex items-center gap-1 text-xs text-text-muted transition hover:text-text-normal"
+              onClick={onViewAllMatches}
+            >
+              View all <ChevronRight size={14} />
             </button>
           ) : null}
         </div>

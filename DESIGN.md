@@ -5,7 +5,12 @@
 > (project knowledge). Created 2026-09-12 after a full audit of the frontend (see
 > `FEATURES_2026-09.md` § "Design audit findings").
 >
-> Last checked against the code: **2026-09-14** (A8, the Round 6 audit's canon pass — every
+> Last checked against the code: **2026-09-17** (C15, the blind audit's fix batch —
+> `DESIGN_FIXES_2026-09.md`, C1–C14 — whose fourteen workers each wrote down the canon line their
+> task changed; this pass applies them. Changed here: §2's `draw`, `live`, cup gold split and the
+> player palette, §3's inset hairline and `CollapsibleCard`, §5b (new, the word list), §6's
+> "see more" link, §7's confirm rule and the crown/ring lines, §8's `resultBadge`.)
+> The previous full re-read was **2026-09-14** (A8, the Round 6 audit's canon pass — every
 > claim below was re-read against the code it describes, and the ones that had drifted are
 > corrected here rather than enforced against a practice that won on merit). Verified at that
 > point: no retired surface class is defined or used, no raw Tailwind palette class outside
@@ -36,22 +41,34 @@
 
 Existing families stay: `bg-default / bg-card-outer / bg-card-inner / bg-card-chip`,
 `text-normal / text-chip / text-muted`, `border-card-outer / -inner / -chip`, `accent`,
-`btn-*`, `hover-*`, `status-*` (green = live/playing, blue = draft/scheduled, default = neutral),
+`btn-*`, `hover-*`, `status-*` (green = live/playing, blue = draft/scheduled, default = neutral).
+**`--color-live` is red and that is not a contradiction**: `status-*` green describes a state on a
+page the reader is already looking at ("this match is playing"), while `--color-live` is the
+navigation's attention dot, which sits beside the unread badge and asks the reader to go somewhere.
+Two jobs, two colours — don't "unify" them (C13 did, on a consistency argument that ignored what
+the dot is for; reverted the same day on Roli's call).
 `delta-up / delta-down`, gradients. (`--live-indicator` is gone: it was a private copy of
 `--color-live` that `light.css` never overrode, so a light-theme live dot stayed red-500 on a
 near-white page while the token beside it already knew better. `.live-dot` / `.live-ping` read the
 token — A8.)
+**`accent` means *selected***: an active tab, a segment, a chip, a sort arrow, the filter pill's
+filtered state. It is not "press me" — a text link that leads somewhere is muted text + a chevron
+(§6), and a real action is a `Button`. Three recovery/error affordances still paint accent text
+(`MatchDetailPage`'s "Back", the tournaments list's "Create one.", push settings' "Dismiss"); they
+are a known, listed exception, not the pattern (C14).
 
 **New semantic tokens (defined in `defaults.css`, overridden in `light.css`):**
 
 | Token | Tailwind | Meaning | Dark default | Light |
 |---|---|---|---|---|
 | `--color-win` | `text-win`, `bg-win/…` | a win for the focused side | `74 222 128` (green-400) | `21 128 61` (green-700) |
-| `--color-draw` | `text-draw`, `bg-draw/…` | a draw | `251 191 36` (amber-400) | `180 83 9` (amber-700) |
+| `--color-draw` | `text-draw`, `bg-draw/…` | a draw | `253 224 71` (yellow-300) | `133 77 14` (yellow-800) |
 | `--color-loss` | `text-loss`, `bg-loss/…` | a loss | `248 113 113` (red-400) | `185 28 28` (red-700) |
-| `--color-live` | `text-live`, `bg-live/…`, and `.live-dot` / `.live-ping` | live/playing marker | `239 68 68` (red-500) | `220 38 38` (red-600, ≥4.5:1 as text on white) |
-| `--color-cup-gold` | (inline, via `cupColors.ts`) | the Lorbeerkranz's colour | `251 191 36` (amber-400; green theme `245 208 90`) | `166 74 12` (dark amber) |
-| `--color-cup-green-dark` | (inline, via `cupColors.ts`) | the Bauernkranz's colour | `21 128 61` (green-700) | `22 116 55` |
+| `--color-live` | (no `text-live`/`bg-live` call sites) `.live-dot` / `.live-ping` only | the nav's **attention** dot — go and look; deliberately not the status green, non-text (3:1 floor) | `239 68 68` (red-500) | `220 38 38` (red-600, 4.05:1 on the bottom tab bar's own ground) |
+| `--color-cup-gold` | (inline, via `cupColors.ts`, `cupColorVarForKey`) | the Lorbeerkranz's *text* colour (the holder's name, ≥4.5:1) | `251 191 36` (amber-400; green theme `245 208 90`) | `166 74 12` (dark amber) |
+| `--color-cup-gold-mark` | (inline, via `cupColors.ts`, `cupMarkColorVarForKey`) | the Lorbeerkranz's *mark* colour (ring, crown disc, dot — non-text, ≥3:1; the holder's *name* keeps using `--color-cup-gold`) | `251 191 36` (amber-400, same as text) | `171 94 5` (custom amber; 4.07:1 on the page ground, 3.09:1 on its own `/0.22` crown disc — the binding floor, 3.43:1 on `/0.14`, 4.84:1 on white) |
+| `--color-cup-green-dark` | (inline, via `cupColors.ts`) | the Bauernkranz's colour — **no text/mark split**, one value answers both jobs in both theme files | `21 128 61` (green-700) | `22 116 55` |
+| `--player-solid-s` / `--player-solid-l` | (inline, via `trendsMath.ts`) | the player palette. `colorForIdx` spreads six hues round the wheel and emits `hsl(<hue> var(--player-solid-s) var(--player-solid-l))`; **the hue is the player's identity and is the same in every theme**, only saturation and lightness move | `72% / 72%` | `72% / 30%` |
 | `--color-error` | `text-error`, `bg-error/10`, `border-error/40` | something failed, or is about to be destroyed | `248 113 113` (red-400) | `185 28 28` (red-700) |
 | `--color-warn` | `text-warn`, `bg-warn/10`, `border-warn/40` | attention, but nothing failed | `251 191 36` (amber-400) | `146 64 14` (amber-800) |
 
@@ -64,12 +81,24 @@ wrong", and each has to stay readable as a **sentence** on a card, on an `inset`
 body of a delete confirmation are `error`; a reconnecting socket and the "someone else changed
 this" banner are `warn`. Nothing that is not a match result may reach for a result token, and
 nothing that is not broken may reach for `error` — the connection indicator spent a release
-painted `draw`, which is how this rule came to be written down. In the dark themes `error`/`warn`
-resolve to the same red and amber as `loss`/`draw`; that is a coincidence a theme is free to
-break, which is the point of their being separate variables.
+painted `draw`, which is how this rule came to be written down. In the dark themes `error` still
+resolves to the same red as `loss`, and `warn` shared amber-400 with `draw` until C11 moved `draw`
+to yellow-300; a theme breaking such a coincidence is exactly what separate variables are for.
 **A cup's colour is a token of its own** (`src/cupColors.ts` maps cup key → token): it is worn as
 text (the holder's name), as a ring and as a dot, so it may never borrow a medal gradient or a
 status colour, which move for other reasons.
+**A mark and text are different jobs from the same cup** (C11): a mark (ring, crown disc, dot)
+clears 3:1, the holder's name clears 4.5:1, so a cup token may split into `--color-cup-<x>` (text)
+and `--color-cup-<x>-mark` (mark) where those two floors would otherwise collide — as the
+Lorbeerkranz does, the light theme having darkened its gold to brown to make the *name* readable.
+And where a badge or disc paints an icon **and** its own translucent fill from the same token, the
+icon's contrast against **that fill**, not the plain page ground, is the floor to measure — the
+same "measure it on the surface it is carried on" rule R3 states below for `draw`/`warn`.
+**The player palette is a theme's job too** (C2): `colorForIdx` owns the six hues and the theme
+owns their lightness, so a player's colour is the same hue everywhere and the theme never enters
+JavaScript — the function stays pure and a theme switch repaints with no React commit. The floor
+is the 3:1 non-text minimum against the *lightest* surface a player's mark sits on in that theme —
+the blue theme's `chip` (where the blue hue is the weakest of the six), and white in light.
 
 **Light theme, contrast (A6).** Light is not a tint of the dark palette: a colour picked to glow
 on a near-black page is unreadable on a near-white one. So `light.css` restates every token that
@@ -120,10 +149,15 @@ they measured 3.49:1, 3.48:1 and 4.25:1. All three go one step down — `win` `2
 (5.98:1 plain, 4.81:1 on its badge), `draw` `146 64 14` (5.95 / 4.76), `loss` `153 27 27`
 (6.98 / 5.41). `loss` moved although it passed plain at 5.43:1: left where it was it became the
 lightest of the three to the eye and the only one still failing on its badge. Two values
-coincide differently now — `draw` shares amber-800 with `--color-warn`, and `loss` no longer
-shares red-700 with `--color-error`, which is tuned for sentences and stays. Both are
+coincided differently after that — `draw` shared amber-800 with `--color-warn`, and `loss` no
+longer shared red-700 with `--color-error`, which is tuned for sentences and stays. Both were
 coincidences, not couplings: the families answer different questions (see above) and a theme may
 split or join them freely.
+A second step, **C11**, then took `draw` from amber-800 to **yellow-800** (`133 77 14`) to widen
+its distance from `loss` (ΔE 21 → 33; 5.75:1 on the page, 4.64:1 on its own badge) — `warn` stays
+at amber-800, so even that coincidence is gone. The dark themes' `draw` moved with it, to
+**yellow-300** (`253 224 71`), because amber-400 was the same value as every cup mark and a drawn
+score should not read as a trophy.
 
 **Opacity is not a tone.** A token drawn at alpha (`text-text-muted/40`, `/60`, `/80`) is asking
 the palette for a shade it does not have, and on the light theme's paper-white ground it buys
@@ -140,7 +174,7 @@ measured against the surface behind them, not read as text.
 | Class | Level | Use | Style |
 |---|---|---|---|
 | `card` | 1 | a standalone block on the page | `rounded-2xl p-3`, `bg-card-outer`, hairline `border-card-outer/55`, soft shadow |
-| `inset` | 2 | a box *inside* a card or a page section: score panel, stat tile, sub-panel, list block | `rounded-xl p-3`, `bg-card-chip/50` (light: `bg-card-inner` + a `border-card-inner` hairline), no shadow |
+| `inset` | 2 | a box *inside* a card or a page section: score panel, stat tile, sub-panel, list block | `rounded-xl p-3`, `bg-card-chip/50` (light: `bg-card-inner` + a `border-card-inner` hairline, drawn as an inset shadow so the box is the same size in every theme — C3), no shadow |
 | `chip` | 3 | inline tag/pill/badge | `rounded-full px-2.5 py-1 text-xs`, `bg-card-chip`, hairline |
 | `divider` / `list-divided` | — | hairlines between rows | unchanged |
 
@@ -149,8 +183,8 @@ Retired and **deleted** (DS1 + DS3, 2026-09-13): `card-outer`, `card-inner`, `ca
 `surface-2`, `hairline`, `hairline-b`, `eyebrow`, `stack`, `stack-tight`, `modal-shell`,
 `sheet-shell`, `nav-link*`, `main-nav-*`, `subnav-*`, `page-slide-*`, `symbol-margin-to-text`,
 `accent-text`, `text-subtle`, `page-x-bleed`, `pill-green`, `accent`, `icon-button`.
-`Card` and `CollapsibleCard` take `variant="card" | "inset" | "none"` (plus
-`bodyVariant` on the collapsible); `CardSection` **is** an `inset` — it takes an optional `title`
+`Card` takes `variant="card" | "inset" | "none"`; `CollapsibleCard` has no surface of its own —
+its one use, the clubs list, lays its groups flat on the page (C8); `CardSection` **is** an `inset` — it takes an optional `title`
 and `actions` (rendered as one `text-sm font-semibold` row, §6), `padded` (off ⇒ `p-0`, for a box
 whose children bring their own padding) and `className`, and nothing that would let it be a
 different surface; `Modal` is always a `card` on a scrim. `card` and `inset` bring their own
@@ -162,7 +196,12 @@ right for a `chip` or an input on the grey page, wrong for an `inset`, which wou
 white on a white `card`. So in light an `inset` is `--color-bg-card-inner` (247 246 245) with
 a `--color-border-card-inner` hairline — separated both on a white card and on the grey page —
 while `chip`, `.input-field` and `.select-field` stay white. Dark themes are unaffected
-(`bg-card-chip/50`, no border).
+(`bg-card-chip/50`, no border). **That hairline is an inset `box-shadow`, never a `border`**
+(C3): a border adds to the box, so light pages stood 2 device px taller per inset than the same
+page in a dark theme (measured: dashboard +8, ideas +6, live overview +10, match detail +18,
+stats/player +20). A shadow paints inside the box and changes nothing but the pixels. An `.inset`
+that also carries a real `border` class (`PlayerStreakChips`' record state) drops the shadow, so
+the two never draw as adjacent rings.
 
 ## 4. Radius, spacing, elevation
 
@@ -244,6 +283,28 @@ the constants quoted inside an explainer (`K=24`, `1000`). Never for a sentence,
 value that stands alone in running text. (The canon used to list only the first three — A8.)
 Weights: `font-medium` default emphasis, `font-semibold` titles, `font-bold` numerals.
 
+## 5b. Words
+
+One word per quantity, split by the two jobs a label does. A *fixed-column line* (`RecordLine`)
+and a *column header* take the abbreviation — `P`, `Pts`, `GD`, `PPM`, `G/M`, `GA/M`, `GD/M`,
+`Elo`, `Win %`. A *tile* or a *chip* takes the word — `Played`, `Points` (as `Pts` in a chip
+group), `Goal diff`, `Pts / match`, `Goals / match`, `Conceded / match`. A *unit after a number*
+is lowercase — `pts`, `ppm`. A *count in prose* is `fmtCount(n, singular, plural)` and never a
+hand-rolled ternary (the duo detail spelled its own and told a reader "1 games together" — A8);
+pronoun and verb agreement (`it`/`them`, `is`/`are`, `was`/`were`) stays hand-rolled beside it.
+A per-match average is `fmtAvg` and nothing else — `fmtPct` is gone and an inline `.toFixed(2)` is
+not allowed back. `★` means a **club's** star rating and never a player's Elo. `×N` means
+"tournaments held"; a tie says `N tied` and a per-mode count says `1v1: 4 · 2v2: 3`.
+**Two names on one line** go through `joinNames` / `NAME_JOINER` (`utils/matchDisplay.ts`) —
+`A / B`, spaced — and **nothing parses a joined name string back into an array**: stacking is
+`ScoreLine`'s job (§8), so a 2v2 side is passed as an array, never as a string.
+A score written in prose is an **en dash** (`3–1`); `RecordLine`'s `14:6` and the Goals tile are
+GF:GA records, not scores. `…`, never `...`. `Login` is the noun (the label), "log in" the verb
+(inside a sentence). Buttons, tabs and titles are **sentence case**. An empty state ends with a
+full stop and names its thing ("No streaks yet.", never "None yet."). A state that is still
+running is `current` (and wears `.chip`, not a status pill — it is not a match state); only the
+open end of a **date range** is `now`. A profile door is `Open X's profile`.
+
 ## 6. Section headers
 
 - Page-level flat section: `section-label` (uppercase, tracked, `text-xs`, muted) inside
@@ -256,6 +317,15 @@ Weights: `font-medium` default emphasis, `font-semibold` titles, `font-bold` num
   (§5 "card titles"); anything nested below that is `text-sm`.
 - A label that names one control or filter group ("Mode", "Range", "League", "Columns") is a
   bare `section-label` next to its control — no `section-head`, no hairline.
+- **A "see more" link is muted text + a chevron, never accent** (C14). One look, one class string
+  — `inline-flex items-center gap-1 text-xs text-text-muted transition hover:text-text-normal`
+  followed by `<ChevronRight size={14} />` (`pages/dashboard/StandingsPreviewCard.tsx` is the
+  worked example; `inline-flex items-center gap-1` and `transition` are load-bearing, and there is
+  no `font-medium`). A text link that does **not** navigate — an action like "Reset zoom" — takes
+  the same muted text **without** the chevron: the icon is the navigation affordance, not part of
+  the look. Accent belongs to the selected chip next to it (§2), so a "see more" that painted
+  accent said "selected" to the same eye. A section with somewhere bigger to go may instead use a
+  ghost `Button` as its `action` (the stats skeleton below) — what it may not be is a third look.
 
 Never two of these for the same block. **No uppercase labels inside a card or an `inset`** —
 uppercase is reserved for `section-label` and for a row of **column headers**: a real `<thead>`
@@ -320,8 +390,8 @@ Matchup, Player) is built from the same block, so the sections read as one page:
 | A list of rows that carry a primitive | `list-divided` + the row the page writes itself | A `ScoreLine`, a `MatchSides` block, a `RecordLine` under a name, a two-line standings row: these are not "title + subtitle + trailing", and squeezing them through `ListRow`'s slots costs more than it saves — 13 files build their own rows and that is **correct** (A8). What is *not* optional is the mechanic: the container is `list-divided`, and an interactive row copies `ListRow`'s pattern exactly — `relative` row, one stretched `<button>`/`<Link>` (`absolute inset-0 z-0 rounded-xl focus-ring`) carrying an `aria-label` that names what it opens, the content `pointer-events-none relative z-10`, and any real control inside it `pointer-events-auto` above the overlay (`pages/live/MatchList.tsx` is the worked example, A6). Never `role="button"` on a `<div>`, never a hand-rolled keydown handler, never a button inside the row's own hit area |
 | Empty / loading | `EmptyState`, `InlineLoading` (lucide `Loader2` spinner), `LoadingPlaceholder` |
 | Overlay | `Modal` (card on scrim, full-screen sheet on mobile) | **The container owns the screen edge** (Q4). A `fixed` overlay escapes the `body` padding that clears a landscape notch, so the sheet's *positioning box* takes the insets itself — `bottom-safe-b left-safe-l right-safe-r`, plus `sm:top-safe-t` once it centres — and the card keeps its own `p-3` on top; the card is also clamped to `max-h-sheet` and scrolls, so a tall dialog's buttons can never end up off-screen. `ImageLightbox` does the same on its pan/zoom box (as `top/right/bottom/left`, not padding: `clientWidth` there *is* the fit maths) and the drawer (`MobileChrome`) pads itself `pt-safe-t pb-safe-b pl-safe-l`. An overlay root carries `style={{ margin: 0 }}`, because a page column's `> * ~ *` rule would otherwise hand it a 12px top margin and the scrim would miss the top of the screen. Never hand-spell `env(safe-area-inset-*)` in a class: the four `safe-t/r/b/l` spacing tokens (`tailwind.config.cjs`, §2) are the vocabulary, and they are 0px wherever a device has no inset. The mobile tab bar has its own token in the same place — `nav-clear`, the room you must leave above the screen's bottom edge *right now*, which is the bar's height normally and 0 while the keyboard is up (§9b, Q2/Q14). **A sticky page header floors at the top inset** the same way: `useStickyTop` returns `max(<measured bar height>, env(safe-area-inset-top, 0px))`, because with the auto-hiding bar away 0 is the top of the *window*, and on a notched phone that is the status bar's own strip (Q11). It is the one place `env()` is spelled outside the config — the other half of that `max()` is a measured number, which no class can carry — and the floor lives in the hook so a call site cannot forget it |
-| Confirming a delete | `ConfirmDialog` | a `Modal` whose body *names what is lost* (match count, the cups that move, a friendly's two sides and date) in the danger idiom — `border-error/40 bg-error/10 text-error`, the `error` token and never `loss`, because a deleted tournament is not a defeat (§2, A8) — then Cancel + the verb. **Every** delete confirms, an admin's too (A10) — deleting is allowed even when real results hang off the row. Never `window.confirm` for a destructive action |
-| Identity | `AvatarCircle`, `ClubBadge`, `NationFlag`, `CupOwnerBadge` (lucide `Crown`) | `AvatarCircle` is the only avatar, and it always wears a ring: a 1px neutral hairline by default (decoration — it gives the disc an edge on a white card as well as a dark page), or, given `cups`, a 2.5px ring in the cup's colour (a conic split for two). **Colour is the information and its tense is always "today"** (T15): a cup ring means this player holds that cup *right now* — `useCupHolders` is where that answer comes from. Historic ownership is never a ring. **One tense per screen:** the ring is worn only where the surface is about now — the Players page, a profile, the stats leaderboards (Table, Records, Streaks, Cups, the H2H matchup's header, Player) and the dashboard cups preview — H2H's own Players/Duos views render no avatars at all, though the canon used to list them (A8). **Inside a tournament** — its standings/results, the What-if table, its match lists, the Overview's blocks, and the Positions grid of past tournaments — every avatar keeps the neutral hairline, because that screen is about a past or ongoing event and a present-tense ring would read as "held it back then"; cup information there has exactly one carrier, the standings' `CupOwnerBadge` crown ("owned it going into this tournament"). Comment authors, guestbook entries and pickers get no cup marking at all. The ring is drawn inside the avatar's own box, so adopting it never moves the layout |
+| Confirming an irreversible action | `ConfirmDialog` | a `Modal` with a title, a one-line subtitle saying what happens, then Cancel + **the verb** (never "OK"), all in sentence case. **Every** irreversible action asks first — a delete, an admin's too (A10; deleting is allowed even when real results hang off the row), and equally a logout, a reshuffle, a side swap or clearing a dirty form (C7). Never `window.confirm`. **The red block is not decoration and is not a mood:** the body *names what is lost* in the danger idiom (`border-error/40 bg-error/10 text-error`, the `error` token and never `loss`, because a deleted tournament is not a defeat — §2, A8) **iff the action deletes something that is stored** — a result, a comment, a message, a file, a whole entity. An action that is reversible by its own inverse, or that changes state without deleting (mark read, reopen a tournament, swap sides, reshuffle an unplayed order, discard what is only typed), carries **no** red block; its subtitle says how to undo it instead. A dialog that shows a `busy` state must pass `busyLabel` — the fallback is "Deleting…", and most of these are not deletes |
+| Identity | `AvatarCircle`, `ClubBadge`, `NationFlag`, `CupOwnerBadge` (lucide `Crown`) | `AvatarCircle` is the only avatar, and it always wears a ring: a 1px neutral hairline by default (decoration — it gives the disc an edge on a white card as well as a dark page), or, given `cups`, a 2.5px ring in the cup's colour (a conic split for two). **Colour is the information and its tense is always "today"** (T15): a cup ring means this player holds that cup *right now* — `useCupHolders` is where that answer comes from. Historic ownership is never a ring. **One tense per screen:** the ring is worn only where the surface is about now — the Players page, a profile, the stats leaderboards (Table, Records, Streaks, Cups, the H2H matchup's header, Player) and the dashboard cups preview — H2H's own Players/Duos views render no avatars at all, though the canon used to list them (A8). **Inside a tournament** — its standings/results, the What-if table, its match lists, the Overview's blocks, and the Positions grid of past tournaments — every avatar keeps the neutral hairline, because that screen is about a past or ongoing event and a present-tense ring would read as "held it back then"; cup information there has exactly one carrier, the standings' `CupOwnerBadge` crown ("owned it going into this tournament"). Comment authors, guestbook entries and pickers get no cup marking at all. The ring is drawn inside the avatar's own box, so adopting it never moves the layout. **The crown is never drawn beside a ringed avatar** (C12): where the ring already says "holds it today", a `CupOwnerBadge` next to it says the same thing twice, so the badge was removed from the Players page and the profile header and a crown on a person now means exactly one thing — "owned it going into this tournament", in the standings. **A ring means "holds a cup" — except on a picker avatar, where it means "selected"** (`ui/primitives/AvatarButton`, `ring-2` accent, 6 pickers plus the friendly form's "None" slot). That is a deliberate, audited exception, not drift: no picker passes `cups`, so the two meanings can never meet on one disc, and re-ringing six pickers to prove a point is churn. Don't re-report it |
 | Identity → profile | `PlayerLink` | the only way an avatar/name becomes a link; hugs its text, stops click/Enter from bubbling so a row keeps its own action, `decorative` for an avatar that duplicates the name link. Never nest it in another `<a>` |
 | Stars | `Stars` (lucide `Star`/`StarHalf`, replaces `StarsFA`); `StarsToken` is the same rating as one glyph plus the number, for a row too dense to spend 80px per side on a picture |
 
@@ -346,7 +416,8 @@ Sizes `hero` (match panel), `md` (match rows in lists), `sm` (compact rows, mini
   the outcome; that side's numeral takes `text-win` / `text-draw` / `text-loss`; nothing else
   is coloured. Optional `resultBadge` prop renders a
   16px `W/D/L` letter chip on that side's outer edge, inside its names cell — so it stays
-  next to the score on a wide row — for dense lists (Last 5, recent meetings).
+  next to the score on a wide row — on every row that has a focus result, in both densities: the
+  letter is the result the colour alone cannot carry (C5).
 - **The mode is not part of a match.** A match row or panel does not repeat `1v1` / `2v2`:
   the page around it says it (the tournament's meta pills — next to the desktop `h1`, and at the
   top of its Overview tab on a phone — or a friendly's mode switch) and a
@@ -640,6 +711,13 @@ drill-in that lives in a query param.
   make a `<div>` a `role="button"`.
 - Do say `text-error` / `text-warn` when something is wrong; don't borrow `text-loss` or
   `text-draw`, which mean a match went a certain way.
+- Do ask before anything irreversible with `ConfirmDialog`, and keep the red block for what
+  actually deletes stored data; don't use `window.confirm`, and don't let a non-delete say
+  "Deleting…".
+- Do say "see more" as muted text + a chevron; don't paint a text link accent — accent means
+  *selected*.
+- Do take a label from §5b's vocabulary and a count from `fmtCount`; don't invent a second word
+  for a quantity you can already name.
 - Do build hierarchy from size, weight and the three text tokens; don't draw text at a fraction
   of a token (`text-text-muted/40`) to make it quieter.
 - Do let the page say the mode; don't print `1v1`/`2v2` on a match card that sits in a

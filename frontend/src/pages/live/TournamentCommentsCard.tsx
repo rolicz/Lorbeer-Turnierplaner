@@ -15,6 +15,7 @@ import VoteVotersModal from "../../ui/primitives/VoteVotersModal";
 import type { Club, Match, Player } from "../../api/types";
 import { clubLabelPartsById } from "../../ui/clubControls";
 import { fmtTs } from "../../utils/format";
+import { joinNames } from "../../utils/matchDisplay";
 import { listTournamentComments, listCommentVoters } from "../../api/comments.api";
 import { qk } from "../../api/queryKeys";
 import { useAuth } from "../../auth/AuthContext";
@@ -84,12 +85,14 @@ export default function TournamentCommentsCard({
   const matchById = useMemo(() => new Map(matches.map((m) => [m.id, m])), [matches]);
   const playerById = useMemo(() => new Map(players.map((p) => [p.id, p.display_name])), [players]);
 
-  function sidePlayersLabel(m: Match, side: "A" | "B") {
+  /**
+   * The side's names as an array — a 2v2 header stacks them (`ScoreLine`, DESIGN.md §8).
+   * Prose that genuinely needs one string joins it with `joinNames` (C10 row 7).
+   */
+  function sidePlayerNames(m: Match, side: "A" | "B"): string[] {
     const s = sideBy(m, side);
     const names = (s?.players ?? []).map((p) => p.display_name).filter(Boolean);
-    if (!names.length) return "—";
-    // Use "/" to avoid the "Foo & Bar" look.
-    return names.join("/");
+    return names.length ? names : ["—"];
   }
 
   // --- composer state (the chat row at the bottom of the feed) ---
@@ -576,18 +579,13 @@ export default function TournamentCommentsCard({
     const aClub = clubLabelPartsById(clubs, aClubId);
     const bClub = clubLabelPartsById(clubs, bClubId);
 
-    const rawAG = a?.goals;
-    const rawBG = b?.goals;
-    const scoreDash = m.state === "scheduled" && rawAG == null && rawBG == null;
-    const aGoals = scoreDash ? null : Number(rawAG ?? 0);
-    const bGoals = scoreDash ? null : Number(rawBG ?? 0);
-
     return {
       title: scopeLabel({ kind: "match", matchId }),
-      aPlayers: sidePlayersLabel(m, "A"),
-      bPlayers: sidePlayersLabel(m, "B"),
-      aGoals,
-      bGoals,
+      aPlayers: sidePlayerNames(m, "A"),
+      bPlayers: sidePlayerNames(m, "B"),
+      state: m.state,
+      aGoals: Number(a?.goals ?? 0),
+      bGoals: Number(b?.goals ?? 0),
       aClub: { ...aClub, present: !!aClubId },
       bClub: { ...bClub, present: !!bClubId },
     };
@@ -604,11 +602,11 @@ export default function TournamentCommentsCard({
       .sort((left, right) => left.side.localeCompare(right.side))
       .map((side) => {
         const s = side.side as CommentGoalSide;
-        const names = (sideBy(match, s)?.players ?? []).map((p) => p.display_name).filter(Boolean);
+        const names = sidePlayerNames(match, s);
         return {
           side: s,
-          label: sidePlayersLabel(match, s),
-          names: names.length ? names : ["—"],
+          label: joinNames(names),
+          names,
           nextA: s === "A" ? current.a + 1 : current.a,
           nextB: s === "B" ? current.b + 1 : current.b,
         };
@@ -773,7 +771,7 @@ export default function TournamentCommentsCard({
               { value: "general", label: "General (tournament)" },
               ...matchesOrdered.map((m) => ({
                 value: `m-${m.id}`,
-                label: `Match ${matchIndexById.get(m.id)} — ${sidePlayersLabel(m, "A")} vs ${sidePlayersLabel(m, "B")}`,
+                label: `Match ${matchIndexById.get(m.id)} — ${joinNames(sidePlayerNames(m, "A"))} vs ${joinNames(sidePlayerNames(m, "B"))}`,
               })),
             ]}
           />

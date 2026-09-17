@@ -31,13 +31,23 @@
    * goes through these — never a raw Tailwind palette class. The dark values are
    * the baseline for every dark theme (dark/blue/red/green inherit them);
    * themes/light.css darkens win/draw/loss for white surfaces.
-   * --color-live is the live marker: `.live-dot` / `.live-ping` paint with it, and
-   * light.css darkens it to red-600 so it is legible as text on white too.
+   * --color-live paints the navigation's "something is happening" dot (`.live-dot` /
+   * `.live-ping`) and nothing else. It is deliberately NOT the status green the in-page
+   * "playing" markers use: those describe a state a reader is already looking at, this
+   * one is an attention mark in the nav asking them to go and look, and it lives beside
+   * the unread badge, not beside a match. Two jobs, two colours (Roli, 2026-09-17 — C13
+   * briefly unified them on a consistency argument that ignored what the dot is for).
+   * Non-text mark, so 3:1, not 4.5:1.
    */
   --color-win: 74 222 128; /* green-400 */
-  --color-draw: 251 191 36; /* amber-400 */
+  /* draw was amber-400 — the same value as `--color-cup-gold` and the winner's
+     trophy (2.5), so a drawn score, the Lorbeerkranz ring and the trophy were
+     one colour. yellow-300 keeps the >=10:1 the dark cards need and stays a
+     visible step from amber (deltaE ~20 to `--color-cup-gold`) without
+     borrowing a warning tone (C11). */
+  --color-draw: 253 224 71; /* yellow-300 */
   --color-loss: 248 113 113; /* red-400 */
-  --color-live: 239 68 68; /* red-500 */
+  --color-live: 239 68 68; /* red-500 — the nav's attention dot, not the status green */
 
   /*
    * Semantic *state* tokens (DESIGN.md §2). A result colour answers "how did this
@@ -52,9 +62,37 @@
 
   /* Cup palette. A cup's colour is its identity (the ring on an avatar, the dot on a
      block, the holder's name), so it has its own tokens instead of borrowing the medal
-     gradients; `light.css` darkens both so the holder's name stays readable (A6). */
-  --color-cup-gold: 251 191 36; /* amber-400 — the Lorbeerkranz */
-  --color-cup-green-dark: 21 128 61; /* green-700 — the Bauernkranz */
+     gradients; `light.css` darkens both so the holder's name stays readable (A6).
+     `--color-cup-gold` is the **text** value (the holder's name, >=4.5:1);
+     `--color-cup-gold-mark` is the **mark** value (ring, crown disc, dot —
+     non-text, >=3:1). They are the same amber-400 here — the split only
+     matters in `light.css`, where a darkened text colour would read brown as
+     a ring (C11). The Bauernkranz has no such conflict and stays one token
+     for both jobs. */
+  --color-cup-gold: 251 191 36; /* amber-400 — the Lorbeerkranz, text */
+  --color-cup-gold-mark: 251 191 36; /* amber-400 — the Lorbeerkranz, mark (same as text here) */
+  --color-cup-green-dark: 21 128 61; /* green-700 — the Bauernkranz, text and mark */
+
+  /* The player palette (C2). `colorForIdx` (pages/stats/trendsMath.ts) spreads the six
+     hues round the wheel and hands out `hsl(<hue> var(--player-solid-s) var(--player-solid-l))`
+     — the **hue is the player's identity** and is the same in every theme; only these two
+     numbers move, and they move in the cascade, so every surface that paints a player
+     (both trend charts, both legends, the "Compare with" dots, the cup reign bar and its
+     legend) repaints together with no React render. The dark baseline is inherited by
+     every dark theme; `light.css` darkens it for white cards.
+
+     **The floor is measured on the chart card, not on the legend chip** (Roli, 2026-09-17).
+     C2 first targeted the chip — the lightest dark surface any player mark sits on — which
+     forced 72% lightness and turned the whole palette pale: a CIE76 ΔE of ~30 on average and
+     45 at worst against the colours the app had had for its whole life, for one weak hue.
+     The chart line *is* the data and carries its meaning alone, so it takes the 3:1 floor.
+     A legend dot sits directly beside the player's own name, so the colour is not the sole
+     carrier there and the dot may sit lower — the blue hue reads 2.20:1 on the chip and that
+     is accepted deliberately. 64% is the least that lifts the blue line off its old 2.09:1;
+     going further buys contrast nobody asked for at a cost Roli could see. */
+  --player-solid-s: 72%;
+  --player-solid-l: 64%; /* 8 points above the pre-C2 56%, the least that lifts the blue
+                            hue off 2.09:1 — see the comment above for why not more */
 
   /* Backgrounds */
   --color-bg-default: 12 12 15; /* Shifted darker for more usable dark shades */

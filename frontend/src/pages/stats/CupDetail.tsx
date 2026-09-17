@@ -257,7 +257,7 @@ export default function CupDetail({ cupKey, cupName }: { cupKey: string; cupName
                   <tr
                     key={row.player.id}
                     onClick={() => nav(`/stats?view=player&player=${row.player.id}`)}
-                    className="cursor-pointer border-b border-border-card-inner/40 transition hover:bg-hover-default/30"
+                    className="cursor-pointer border-b border-border-card-chip/40 transition hover:bg-hover-default/30"
                   >
                     <td className="py-2 pl-1 pr-2">
                       {/* The row opens this player's stats; the identity opens their profile. */}

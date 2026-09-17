@@ -71,10 +71,7 @@ module.exports = {
         ],
       },
       boxShadow: {
-        // Soft, sleek elevation (subtle on dark, gentle on light).
-        card: "0 1px 2px rgb(0 0 0 / 0.06), 0 6px 20px rgb(0 0 0 / 0.10)",
         pop: "0 12px 40px rgb(0 0 0 / 0.28)",
-        focus: "0 0 0 2px rgb(var(--color-accent) / 0.35)",
       },
       transitionTimingFunction: {
         "out-expo": "cubic-bezier(0.16, 1, 0.3, 1)",

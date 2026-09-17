@@ -93,6 +93,7 @@ export default function IdeasPage() {
   const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
   const [votersIdea, setVotersIdea] = useState<Idea | null>(null);
   const [pendingDelete, setPendingDelete] = useState<Idea | null>(null);
+  const [pendingRemoveImage, setPendingRemoveImage] = useState<Idea | null>(null);
   const [flashId, setFlashId] = useState<number | null>(null);
   const [savingId, setSavingId] = useState<number | null>(null);
 
@@ -218,10 +219,7 @@ export default function IdeasPage() {
       }
     },
     onReplaceImage: (idea) => setCropperTarget(idea.id),
-    onRemoveImage: (idea) => {
-      setSavingId(idea.id);
-      void deleteImageMut.mutateAsync(idea.id).finally(() => setSavingId(null));
-    },
+    onRemoveImage: (idea) => setPendingRemoveImage(idea),
   };
 
   const loading = ideasQ.isLoading && !ideasQ.data;
@@ -387,6 +385,26 @@ export default function IdeasPage() {
           </div>
         ) : null}
         <div>This cannot be undone.</div>
+      </ConfirmDialog>
+
+      <ConfirmDialog
+        open={!!pendingRemoveImage}
+        title="Remove the screenshot?"
+        subtitle="The idea stays; only the image goes."
+        confirmLabel="Remove image"
+        busy={deleteImageMut.isPending}
+        busyLabel="Removing…"
+        onCancel={() => setPendingRemoveImage(null)}
+        onConfirm={() => {
+          const idea = pendingRemoveImage;
+          setPendingRemoveImage(null);
+          if (idea) {
+            setSavingId(idea.id);
+            void deleteImageMut.mutateAsync(idea.id).finally(() => setSavingId(null));
+          }
+        }}
+      >
+        <div>The screenshot is removed for good.</div>
       </ConfirmDialog>
     </PageLayout>
   );

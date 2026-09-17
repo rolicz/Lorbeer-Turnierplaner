@@ -6,6 +6,7 @@ import FormLabel from "../../ui/primitives/FormLabel";
 import Input from "../../ui/primitives/Input";
 import Button from "../../ui/primitives/Button";
 import AvatarButton from "../../ui/primitives/AvatarButton";
+import ConfirmDialog from "../../ui/primitives/ConfirmDialog";
 import InlineLoading from "../../ui/primitives/InlineLoading";
 import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
 import SelectClubsPanel from "../../ui/SelectClubsPanel";
@@ -21,8 +22,11 @@ import { getStatsOdds, type StatsOddsRequest } from "../../api/stats.api";
 import type { Match } from "../../api/types";
 import { usePlayerAvatarMap } from "../../hooks/usePlayerAvatarMap";
 import { useAuth } from "../../auth/AuthContext";
+import { APP_LOCALE_NUMERIC } from "../../utils/format";
+import { joinNames } from "../../utils/matchDisplay";
 
 const FRIENDLY_MATCH_STORAGE_KEY = "friendly_match_state_v1";
+const DEFAULT_CLUB_GAME = "EA FC 26";
 
 type FriendlyMatchPersistedState = {
   clubGame: string;
@@ -52,7 +56,7 @@ function toNonNegativeInt(v: unknown, fallback: number): number {
 
 function loadFriendlyState(): FriendlyMatchPersistedState {
   const defaults: FriendlyMatchPersistedState = {
-    clubGame: "EA FC 26",
+    clubGame: DEFAULT_CLUB_GAME,
     mode: "2v2",
     a1: null,
     a2: null,
@@ -178,6 +182,7 @@ export default function FriendlyMatchCard({ onInitialReady }: { onInitialReady?:
   const [bGoals, setBGoals] = useState(initialState.bGoals);
   const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
   const initialReadyFiredRef = useRef(false);
+  const [pendingClearForm, setPendingClearForm] = useState<true | null>(null);
 
   const clubsQ = useQuery({
     queryKey: qk.clubs(clubGame),
@@ -203,12 +208,12 @@ export default function FriendlyMatchCard({ onInitialReady }: { onInitialReady?:
   const bTeamIds = useMemo(() => [b1, mode === "2v2" ? b2 : null].filter((x): x is number => x != null), [b1, b2, mode]);
 
   const aLabel = useMemo(() => {
-    const names = aTeamIds.map((id) => players.find((p) => p.id === id)?.display_name).filter(Boolean);
-    return names.length ? names.join("/") : "Team A";
+    const names = aTeamIds.map((id) => players.find((p) => p.id === id)?.display_name ?? "");
+    return joinNames(names) || "Team A";
   }, [aTeamIds, players]);
   const bLabel = useMemo(() => {
-    const names = bTeamIds.map((id) => players.find((p) => p.id === id)?.display_name).filter(Boolean);
-    return names.length ? names.join("/") : "Team B";
+    const names = bTeamIds.map((id) => players.find((p) => p.id === id)?.display_name ?? "");
+    return joinNames(names) || "Team B";
   }, [bTeamIds, players]);
 
   const oddsReq = useMemo<StatsOddsRequest | null>(() => {
@@ -333,6 +338,26 @@ export default function FriendlyMatchCard({ onInitialReady }: { onInitialReady?:
     setBGoals(0);
   }
 
+  // Ask only when there is something to lose (C7): an empty, untouched form clears directly.
+  const formIsDirty =
+    aGoals !== 0 ||
+    bGoals !== 0 ||
+    aClub != null ||
+    bClub != null ||
+    a1 != null ||
+    a2 != null ||
+    b1 != null ||
+    b2 != null ||
+    clubGame !== DEFAULT_CLUB_GAME;
+
+  function requestClear() {
+    if (formIsDirty) {
+      setPendingClearForm(true);
+    } else {
+      clearAll();
+    }
+  }
+
   const content = (
     <div className="space-y-4">
         <ErrorToastOnError error={oddsQ.error} title="Odds loading failed" />
@@ -346,7 +371,7 @@ export default function FriendlyMatchCard({ onInitialReady }: { onInitialReady?:
 
           <Button
             variant="ghost"
-            onClick={clearAll}
+            onClick={requestClear}
             type="button"
             title="Clear"
             className="h-10 w-10 p-0 inline-flex items-center justify-center md:w-auto md:px-4 md:py-2"
@@ -383,7 +408,9 @@ export default function FriendlyMatchCard({ onInitialReady }: { onInitialReady?:
           </Button>
         </div>
         {lastSavedAt ? (
-          <div className="text-xs text-text-muted">Saved {new Date(lastSavedAt).toLocaleTimeString()}.</div>
+          <div className="text-xs text-text-muted">
+            Saved {new Date(lastSavedAt).toLocaleTimeString(APP_LOCALE_NUMERIC, { hour: "2-digit", minute: "2-digit" })}.
+          </div>
         ) : null}
         {!canStore ? (
           <div className="text-xs text-text-muted">Login as editor/admin to store friendlies for stats.</div>
@@ -501,6 +528,18 @@ export default function FriendlyMatchCard({ onInitialReady }: { onInitialReady?:
           </div>
         </div>
 
+        {/* Unsaved input is not stored data, so no red block. */}
+        <ConfirmDialog
+          open={!!pendingClearForm}
+          title="Clear the form?"
+          subtitle="Everything typed into this friendly is discarded; nothing saved is touched."
+          confirmLabel="Clear form"
+          onCancel={() => setPendingClearForm(null)}
+          onConfirm={() => {
+            setPendingClearForm(null);
+            clearAll();
+          }}
+        />
 
     </div>
   );

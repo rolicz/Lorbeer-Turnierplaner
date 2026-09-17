@@ -2,16 +2,25 @@
 import type { StatsMatch } from "../../api/types";
 import { sideBy, winnerSide } from "../../helpers";
 
-export type PlayerColor = { solid: string; muted: string; outline: string };
+export type PlayerColor = { solid: string };
 
-/** Distinct, theme-invariant HSL palette entry for a series index. */
+/**
+ * The palette entry for a series index: **theme-aware through two CSS tokens**, and
+ * the hue is the player's identity and never moves between themes (C2).
+ *
+ * The function stays pure and the theme never enters JavaScript: the string carries
+ * `var(--player-solid-s)` / `var(--player-solid-l)` (`themes/defaults.css`, overridden
+ * in `themes/light.css`) and the browser resolves them **where the colour is painted**
+ * — an inline `backgroundColor`, an SVG `stroke`/`fill` presentation attribute. So
+ * every consumer of a player's colour agrees by construction, and switching theme
+ * costs one style recalculation and zero React renders.
+ *
+ * The cost: the string is not a resolvable colour in JS. Nothing does colour maths on
+ * it; if something ever needs to, read the painted value with `getComputedStyle`.
+ */
 export function colorForIdx(idx: number, total: number): PlayerColor {
   const hue = Math.round(((idx % Math.max(1, total)) * 360) / Math.max(1, total));
-  return {
-    solid: `hsl(${hue} 72% 56%)`,
-    muted: `hsl(${hue} 62% 38%)`, // darker for "no data" segments
-    outline: `hsl(${hue} 25% 16%)`,
-  };
+  return { solid: `hsl(${hue} var(--player-solid-s) var(--player-solid-l))` };
 }
 
 /**

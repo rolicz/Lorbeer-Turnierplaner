@@ -4,7 +4,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import Button from "../../ui/primitives/Button";
 import AvatarCircle from "../../ui/primitives/AvatarCircle";
-import CupOwnerBadge from "../../ui/primitives/CupOwnerBadge";
+import ConfirmDialog from "../../ui/primitives/ConfirmDialog";
 import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
 import CommentImageCropper from "../../ui/primitives/CommentImageCropper";
 import ImageLightbox from "../../ui/primitives/ImageLightbox";
@@ -63,6 +63,7 @@ export default function ProfileHeader({
   const [headerEditorOpen, setHeaderEditorOpen] = useState(false);
   const [avatarLightboxSrc, setAvatarLightboxSrc] = useState<string | null>(null);
   const [headerLightboxSrc, setHeaderLightboxSrc] = useState<string | null>(null);
+  const [pendingDeleteHeader, setPendingDeleteHeader] = useState<true | null>(null);
 
   const avatarImageSrc = avatarUpdatedAt ? playerAvatarUrl(targetPlayerId, avatarUpdatedAt) : null;
   const headerUpdatedAt = headerUpdatedAtByPlayerId.get(targetPlayerId) ?? profileHeaderUpdatedAt ?? null;
@@ -181,13 +182,6 @@ export default function ProfileHeader({
               <span className="truncate text-base font-semibold text-text-normal">
                 {displayName ?? `Player #${targetPlayerId}`}
               </span>
-              {ownedCups.length ? (
-                <span className="inline-flex items-center gap-1.5">
-                  {ownedCups.map((c) => (
-                    <CupOwnerBadge key={c.key} cupKey={c.key} cupName={c.name} />
-                  ))}
-                </span>
-              ) : null}
             </div>
             <div className="text-xs text-text-muted">{isOwnProfile ? "This is your profile" : "Public profile"}</div>
             <div className="mt-0.5 text-xs text-text-muted">
@@ -248,9 +242,7 @@ export default function ProfileHeader({
                     <Button
                       type="button"
                       variant="ghost"
-                      onClick={() => {
-                        void delHeaderMut.mutateAsync();
-                      }}
+                      onClick={() => setPendingDeleteHeader(true)}
                       title="Delete header image"
                       className="h-9 w-9 p-0 inline-flex items-center justify-center"
                     >
@@ -361,6 +353,20 @@ export default function ProfileHeader({
 
       <ImageLightbox open={!!avatarLightboxSrc} src={avatarLightboxSrc} onClose={() => setAvatarLightboxSrc(null)} />
       <ImageLightbox open={!!headerLightboxSrc} src={headerLightboxSrc} onClose={() => setHeaderLightboxSrc(null)} />
+
+      <ConfirmDialog
+        open={!!pendingDeleteHeader}
+        title="Delete the header image?"
+        subtitle="The profile shows the placeholder until a new image is uploaded."
+        confirmLabel="Delete header image"
+        onCancel={() => setPendingDeleteHeader(null)}
+        onConfirm={() => {
+          setPendingDeleteHeader(null);
+          void delHeaderMut.mutateAsync();
+        }}
+      >
+        <div>The current image is removed for good.</div>
+      </ConfirmDialog>
     </>
   );
 }

@@ -164,7 +164,7 @@ function GoalSideChoice({
       {teams.map((team) => {
         const selected = value === team.side;
         const scoresLeft = team.side === "A";
-        const scoreline = `${team.nextA}-${team.nextB}`;
+        const scoreline = `${team.nextA}–${team.nextB}`;
         return (
           <button
             key={team.side}

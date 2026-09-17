@@ -43,7 +43,7 @@ describe("ClubStarHistory", () => {
     expect(rows).toHaveLength(2);
     // Newest first, and the top row is the one in force.
     expect(rows[0].textContent).toContain("4★");
-    expect(rows[0].textContent).toContain("now");
+    expect(rows[0].textContent).toContain("current");
     expect(rows[1].textContent).toContain("3★");
     expect(rows[0].textContent).toMatch(/since/);
     expect(container.textContent).not.toMatch(/production backup/);

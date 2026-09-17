@@ -1,12 +1,5 @@
 /* eslint-disable react-refresh/only-export-components */
-import {
-  matchColor,
-  matchStatusPill,
-  pillBaseClass,
-  pillDateClass,
-  tournamentColor,
-  tournamentStatusPill,
-} from "../theme";
+import { matchStatusPill, pillBaseClass, pillDateClass, tournamentStatusPill } from "../theme";
 
 export function Pill({
   className,
@@ -29,7 +22,5 @@ export function Pill({
 }
 
 export const statusMatchPill = matchStatusPill;
-export const colorMatch = matchColor;
 export const statusPill = tournamentStatusPill;
-export const colorTournament = tournamentColor;
 export const pillDate = pillDateClass;

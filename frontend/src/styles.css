@@ -19,6 +19,10 @@
     -moz-osx-font-smoothing: grayscale;
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
   }
+
+  /* Placeholder text is the muted token, not preflight's grey-400 (C3): 2.54:1 on the light
+     theme's white field. `opacity: 1` because Firefox dims placeholders on its own. */
+  input::placeholder, textarea::placeholder { color: rgb(var(--color-text-muted)); opacity: 1; }
 }
 
 @media (min-width: 640px) {
@@ -63,10 +67,20 @@
   /* Light theme: `--color-bg-card-chip` is pure white there — right for a chip or an
      input on the grey page, but an inset painted white on a white `card` disappears.
      So light insets take the subtle grey surface (`bg-card-inner`) and its hairline;
-     that separates them on a white card *and* on the grey page backdrop. */
+     that separates them on a white card *and* on the grey page backdrop. The hairline is
+     drawn as an inset shadow, not a border, so the box is the same size in every theme
+     (C3; a border here used to add to the box and the two themes drifted 2 device px per
+     inset — dashboard +8, ideas +6, live overview +10, match detail +18, stats/player +20). */
   [data-theme="light"] .inset {
     background-color: rgb(var(--color-bg-card-inner));
-    border: 1px solid rgb(var(--color-border-card-inner));
+    box-shadow: inset 0 0 0 1px rgb(var(--color-border-card-inner));
+  }
+  /* An `.inset` that also carries a real border (`PlayerStreakChips`' record-highlight
+     state, `border border-accent`) would otherwise show that border AND this shadow's
+     hairline as two adjacent rings — border and box-shadow are independent properties,
+     so the shadow does not get replaced the way it does under a Tailwind `ring-*` (C3). */
+  [data-theme="light"] .inset.border-accent {
+    box-shadow: none;
   }
 
   /* Level 3 — an inline tag/pill/badge. Never a container for numbers. */

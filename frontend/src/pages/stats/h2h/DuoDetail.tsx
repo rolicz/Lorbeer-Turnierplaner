@@ -1,11 +1,13 @@
 /** Detail for a selected 2v2 duo: overall record, matches action, and its duo-vs-duo matchups. */
 import { useMemo } from "react";
 
+import Button from "../../../ui/primitives/Button";
 import EmptyState from "../../../ui/primitives/EmptyState";
 import RecordLine, { recordWidths } from "../../../ui/primitives/RecordLine";
 import StatsSection from "../StatsSection";
 import type { StatsH2HDuo, StatsH2HTeamRivalry } from "../../../api/types";
 import { normalizeTeamRivalryForFocus } from "../h2hHelpers";
+import { fmtAvg } from "../../../utils/format";
 import { TeamRivalryRow, teamRivalryWidths } from "../HeadToHeadRows";
 
 /** True when the rivalry involves exactly the given duo (both members on one side). */
@@ -55,17 +57,13 @@ export function DuoDetail({
               ga={duo.ga}
               gd={duo.gd}
               widths={widths}
-              extra={<span className="font-semibold text-accent">{duo.pts_per_match.toFixed(2)} ppm</span>}
+              extra={<span className="font-semibold text-accent">{fmtAvg(duo.pts_per_match)} ppm</span>}
               className="mt-0.5 font-mono text-xs text-text-muted"
             />
           </div>
-          <button
-            type="button"
-            onClick={() => onOpenTeammates(duo)}
-            className="shrink-0 rounded-full bg-bg-card-chip/50 px-3 py-1.5 text-xs font-medium text-text-normal transition hover:text-accent"
-          >
+          <Button variant="ghost" size="sm" onClick={() => onOpenTeammates(duo)} className="shrink-0">
             Matches
-          </button>
+          </Button>
         </div>
       </div>
 

@@ -222,7 +222,7 @@ export default function OverviewSection({
               }
               className="gap-1.5"
             >
-              <span>{isDone ? "Open Results" : "Open Standings"}</span>
+              <span>{isDone ? "Open results" : "Open standings"}</span>
               <ArrowRight size={14} aria-hidden="true" />
             </Button>
           </div>
@@ -296,7 +296,7 @@ export default function OverviewSection({
                 title="Open the Matches tab, where this list can be reordered and shown in detail"
                 className="gap-1.5"
               >
-                <span>Open Matches</span>
+                <span>Open matches</span>
                 <ArrowRight size={14} aria-hidden="true" />
               </Button>
             </div>

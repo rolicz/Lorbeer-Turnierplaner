@@ -190,7 +190,6 @@ export default function CommentImageCropper({
       title={title}
       subtitle={hint ?? `Crop ${aspectW}:${aspectH} · exported as ${outputWidth}x${outputHeight}`}
       onClose={onClose}
-      fullScreenOnMobile
       maxWidth="max-w-2xl"
     >
           <ErrorToastOnError error={err} title="Image crop failed" />

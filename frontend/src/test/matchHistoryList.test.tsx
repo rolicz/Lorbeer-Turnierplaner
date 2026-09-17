@@ -205,12 +205,12 @@ describe("MatchRowWithClubs score (DESIGN.md §8)", () => {
     expect(container.querySelector("[data-score-result-badge]")).toBeNull();
   });
 
-  it("adds the W/D/L badge in the dense compact rows only", () => {
+  it("adds the W/D/L badge on a focused row in both densities", () => {
     const compact = render(<MatchRowWithClubs m={makeMatch(1, 2)} clubs={CLUBS} focusId={1} showMeta={false} />);
     expect(compact.container.querySelector("[data-score-result-badge]")?.textContent).toBe("W");
 
     const details = render(<MatchRowWithClubs m={makeMatch(1, 2)} clubs={CLUBS} focusId={1} showMeta />);
-    expect(details.container.querySelector("[data-score-result-badge]")).toBeNull();
+    expect(details.container.querySelector("[data-score-result-badge]")?.textContent).toBe("W");
   });
 
   it("shows a dash pair instead of numerals for a scheduled match", () => {

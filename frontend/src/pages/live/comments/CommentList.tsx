@@ -6,6 +6,7 @@
  */
 import { ChevronDown, ChevronRight } from "lucide-react";
 
+import type { MatchState } from "../../../api/types";
 import EmptyState from "../../../ui/primitives/EmptyState";
 import ScoreLine from "../../../ui/primitives/ScoreLine";
 import { Stars } from "../../../ui/primitives/Stars";
@@ -24,10 +25,12 @@ type CommentMatchHeaderClub = {
 /** Score/clubs/stars summary for a match block header, as computed by the coordinator. */
 export type CommentMatchHeader = {
   title: string;
-  aPlayers: string;
-  bPlayers: string;
-  aGoals: number | null;
-  bGoals: number | null;
+  /** Names per side, one per line — a 2v2 header stacks like every other score (§8). */
+  aPlayers: string[];
+  bPlayers: string[];
+  state: MatchState;
+  aGoals: number;
+  bGoals: number;
   aClub: CommentMatchHeaderClub;
   bClub: CommentMatchHeaderClub;
 };
@@ -177,7 +180,7 @@ export default function CommentList(props: CommentListProps) {
           <div>
             <ScoreLine
               size="sm"
-              state={h.aGoals == null || h.bGoals == null ? "scheduled" : "finished"}
+              state={h.state}
               leftNames={h.aPlayers}
               rightNames={h.bPlayers}
               leftGoals={h.aGoals}

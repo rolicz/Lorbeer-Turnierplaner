@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 
 import { playerAvatarUrl } from "../../api/playerAvatars.api";
-import { cupColorVarForKey } from "../../cupColors";
+import { cupMarkColorVarForKey } from "../../cupColors";
 
 /**
  * A cup the pictured player holds **today**. Never a historic reign: an avatar
@@ -27,7 +27,10 @@ const HAIRLINE_PX = 1;
 const CUP_RING_PX = 2.5;
 
 function cupRingPaint(cups: AvatarCup[]): string {
-  const colors = cups.map((c) => `rgb(var(${cupColorVarForKey(c.key)}))`);
+  // The ring is a mark, not text (C11): it only has to clear the 3:1 non-text
+  // floor, so it reads the brighter mark colour rather than the darkened one
+  // a holder's name wears.
+  const colors = cups.map((c) => `rgb(var(${cupMarkColorVarForKey(c.key)}))`);
   if (colors.length === 1) return colors[0];
   const step = 360 / colors.length;
   return `conic-gradient(${colors.map((col, i) => `${col} ${i * step}deg ${(i + 1) * step}deg`).join(", ")})`;

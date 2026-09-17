@@ -8,7 +8,6 @@ import Button from "../ui/primitives/Button";
 import { ErrorToastOnError } from "../ui/primitives/ErrorToast";
 import PageLoadingScreen from "../ui/primitives/PageLoadingScreen";
 import AvatarCircle from "../ui/primitives/AvatarCircle";
-import CupOwnerBadge from "../ui/primitives/CupOwnerBadge";
 import { Pill } from "../ui/primitives/Pill";
 import { List, ListRow } from "../ui/primitives/List";
 import { SectionTabs, type SectionTab } from "../ui/SectionTabs";
@@ -197,7 +196,7 @@ export default function PlayersAdminPage() {
               <div key={p.id}>
                 <ListRow
                   onClick={() => openProfile(p.id, false)}
-                  ariaLabel={`Open profile: ${p.display_name}`}
+                  ariaLabel={`Open ${p.display_name}'s profile`}
                   leading={
                     <AvatarCircle playerId={p.id} name={p.display_name} updatedAt={updatedAt} sizeClass="h-10 w-10" cups={heldCups} />
                   }
@@ -235,13 +234,6 @@ export default function PlayersAdminPage() {
                 >
                   <span className="flex min-w-0 items-center gap-1.5">
                     <span className="truncate font-medium text-text-normal">{p.display_name}</span>
-                    {heldCups.length ? (
-                      <span className="flex shrink-0 items-center gap-1">
-                        {heldCups.map((c) => (
-                          <CupOwnerBadge key={c.key} cupKey={c.key} cupName={c.name} size="sm" />
-                        ))}
-                      </span>
-                    ) : null}
                   </span>
                   {bio ? <span className="mt-0.5 block truncate text-xs text-text-muted">{bio}</span> : null}
                 </ListRow>

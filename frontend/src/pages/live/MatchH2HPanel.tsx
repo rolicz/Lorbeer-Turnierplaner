@@ -55,7 +55,6 @@ function SummaryCard({
         gf={summary.gf}
         ga={summary.ga}
         widths={widths}
-        playedLabel="matches"
         extra={`${fmtAvg(summary.ptsPerMatch)} ppm`}
         className="mt-2 font-mono text-xs text-text-muted"
       />

@@ -41,7 +41,6 @@ export default function ConfirmDialog({
       title={title}
       subtitle={subtitle}
       onClose={busy ? () => {} : onCancel}
-      fullScreenOnMobile
       maxWidth="max-w-md"
     >
       <div className="space-y-4">

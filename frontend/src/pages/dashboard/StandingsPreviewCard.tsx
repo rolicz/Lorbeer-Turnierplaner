@@ -6,7 +6,7 @@ import { useStandings, DEFAULT_COLS } from "../stats/standings";
 
 /**
  * Compact standings preview on the dashboard: the same sortable Stats table with a
- * fixed column set (Pts · PPM · P · Win% · Elo) and no controls. Sorting works on the
+ * fixed column set (Pts · PPM · P · Win % · Elo) and no controls. Sorting works on the
  * column headers; a row opens that player in Stats (their name opens their profile),
  * the header and the footer open the full table.
  */

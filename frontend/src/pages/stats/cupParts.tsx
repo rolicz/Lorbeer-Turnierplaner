@@ -13,7 +13,7 @@ import PlayerLink from "../../ui/primitives/PlayerLink";
 import { cn } from "../../ui/cn";
 import { usePlayerAvatarMap } from "../../hooks/usePlayerAvatarMap";
 import { useCupHolders } from "../../hooks/useCupHolders";
-import { fmtDate } from "../../utils/format";
+import { fmtCount, fmtDate } from "../../utils/format";
 import { usePlayerColors } from "./usePlayerColors";
 import { reignSpan, type PlayerRef, type Reign } from "./cupReigns";
 
@@ -24,7 +24,7 @@ export const CHIP_ACCENT = `${CHIP} bg-accent/15 text-accent ring-1 ring-inset r
 /** The `×N` tournaments-held chip; the running reign wears the accent style. */
 export function ReignChip({ tournaments, current }: { tournaments: number; current?: boolean }) {
   return (
-    <span className={current ? CHIP_ACCENT : CHIP_PLAIN} title={`${tournaments} tournaments held`}>
+    <span className={current ? CHIP_ACCENT : CHIP_PLAIN} title={`${fmtCount(tournaments, "tournament", "tournaments")} held`}>
       ×{tournaments}
     </span>
   );
@@ -46,7 +46,12 @@ export function CupHolder({
   trailing,
 }: {
   owner: PlayerRef | null;
-  /** The cup's colour — the holder's name wears it on both surfaces. */
+  /**
+   * The cup's **text** colour (`cupColorVarForKey`, >=4.5:1) — the holder's
+   * name wears it on both surfaces. A mark (a ring, a dot, a crown disc) wants
+   * `cupMarkColorVarForKey` instead (`CupMarkDot` below); the two answer
+   * different contrast floors (C11).
+   */
   color: string;
   /** Start date of the running reign (`streak.since.date`). */
   since?: string | null;
@@ -89,13 +94,30 @@ export function CupHolder({
             <Trophy size={18} aria-hidden="true" />
           </span>
           <div className="min-w-0 flex-1">
-            <div className="truncate text-base font-semibold">No owner yet</div>
+            <div className="truncate text-base font-semibold">No owner yet.</div>
             <div className="text-xs text-text-muted">{meta}</div>
           </div>
         </>
       )}
       {trailing}
     </div>
+  );
+}
+
+/**
+ * The small circular swatch a cup wears as a mark — the dashboard preview's
+ * header dot next to the cup's name. Non-text (the 3:1 floor, not 4.5:1):
+ * pass the cup's **mark** colour (`cupMarkColorVarForKey`), never
+ * `CupHolder`'s text colour, or a light-theme dot reads brown instead of gold
+ * (C11).
+ */
+export function CupMarkDot({ color, className }: { color: string; className?: string }) {
+  return (
+    <span
+      className={cn("h-2.5 w-2.5 shrink-0 rounded-full", className)}
+      style={{ backgroundColor: color, boxShadow: `0 0 0 3px ${color}22` }}
+      aria-hidden="true"
+    />
   );
 }
 
@@ -132,7 +154,7 @@ export function CupReignTimeline({
       >
         {reigns.map((r, i) => {
           const style = { flexGrow: Math.max(1, r.tournaments), flexBasis: 0, backgroundColor: colorOf(r.holder.id).solid };
-          const title = `${r.holder.display_name} · ${r.tournaments} tournaments · ${reignSpan(r)}`;
+          const title = `${r.holder.display_name} · ${fmtCount(r.tournaments, "tournament", "tournaments")} · ${reignSpan(r)}`;
           const pulse = r.current ? (
             <span className="absolute inset-0 animate-pulse" style={{ boxShadow: "inset 0 0 0 2px rgb(var(--color-text-normal) / 0.45)" }} />
           ) : null;
@@ -143,7 +165,7 @@ export function CupReignTimeline({
               type="button"
               onClick={() => onSelect(r, i)}
               title={title}
-              aria-label={`${r.holder.display_name}, ${r.tournaments} tournaments — jump to this reign`}
+              aria-label={`${r.holder.display_name}, ${fmtCount(r.tournaments, "tournament", "tournaments")} — jump to this reign`}
               className="relative h-full min-w-[6px] border-0 p-0"
               style={style}
             >

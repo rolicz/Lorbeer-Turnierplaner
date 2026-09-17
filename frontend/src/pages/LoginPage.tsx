@@ -44,7 +44,7 @@ export default function LoginPage() {
   }
 
   return (
-    <Card title="Player Login" variant="card">
+    <Card title="Player login" variant="card">
       <ErrorToastOnError error={err} title="Login failed" />
       <form
         onSubmit={(e) => {
@@ -73,7 +73,7 @@ export default function LoginPage() {
           className="inline-flex w-full items-center justify-center gap-2"
         >
           <LogIn size={14} aria-hidden="true" />
-          <span>{busy ? "Logging in..." : "Login"}</span>
+          <span>{busy ? "Logging in…" : "Login"}</span>
         </Button>
         <div className="text-sm text-text-muted">
           No login is needed for read-only viewing.
