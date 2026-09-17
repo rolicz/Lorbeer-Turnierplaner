@@ -85,11 +85,13 @@ describe("pooledPpm", () => {
 });
 
 describe("colorForIdx", () => {
-  it("produces distinct hues and the expected shape", () => {
+  it("produces distinct hues and takes lightness from the theme tokens", () => {
     const c = colorForIdx(0, 4);
     expect(c).toHaveProperty("solid");
-    expect(c).toHaveProperty("muted");
-    expect(c).toHaveProperty("outline");
+    // The hue is the player's identity; saturation and lightness are the theme's (C2),
+    // so the string stays unresolved until the browser paints it.
+    expect(c.solid).toContain("var(--player-solid-s)");
+    expect(c.solid).toContain("var(--player-solid-l)");
     expect(colorForIdx(0, 4).solid).not.toBe(colorForIdx(1, 4).solid);
   });
 });

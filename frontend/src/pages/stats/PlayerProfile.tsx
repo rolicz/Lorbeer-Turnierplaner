@@ -150,7 +150,7 @@ export default function PlayerProfile({ mode, scope, rows, selectedId, onSelect 
                       onClick={() => setOverlayIds((prev) => { const s = new Set(prev); if (s.has(r.id)) s.delete(r.id); else s.add(r.id); return s; })}
                       className={chipClass(on, "inline-flex items-center gap-1.5")}
                     >
-                      <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: c, opacity: on ? 1 : 0.45 }} />
+                      <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: c }} />
                       {r.name}
                     </button>
                   );

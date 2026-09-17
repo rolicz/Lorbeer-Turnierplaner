@@ -315,7 +315,7 @@ mechanical (one `toLocaleTimeString` call, same pattern as every other site).
 
 ---
 
-## C2 — The palette takes its lightness from the theme; sparkline and dots on tokens (audit 1.1, 1.2)  ☐
+## C2 — The palette takes its lightness from the theme; sparkline and dots on tokens (audit 1.1, 1.2)  ☑
 
 **The defect.** `frontend/src/pages/stats/trendsMath.ts:8` (`colorForIdx`) spreads hue round the
 wheel at a **fixed** `hsl(hue 72% 56%)`, with no theme input. Measured against its own card
@@ -407,9 +407,127 @@ written into Deviations as a 6×5 table per theme.
 
 **Canon.** None to change: `DESIGN.md` §1.4 ("semantic colour only through tokens") is what this
 task makes true for the one family that escaped it. C15 adds one row to §2's token table for
-`--player-solid-s/-l`.
+`--player-solid-s/-l`. **The line C15 writes** (the numbers below are the measured ones, not the
+task's estimates): `--player-solid-s` / `--player-solid-l` — *the player palette*. `colorForIdx`
+(`pages/stats/trendsMath.ts`) spreads six hues round the wheel and emits
+`hsl(<hue> var(--player-solid-s) var(--player-solid-l))`; **the hue is the player's identity and
+is the same in every theme**, only saturation and lightness move. Dark baseline `72% / 72%`,
+light `72% / 30%`. The floor is the 3:1 non-text minimum against the *lightest* surface a player's
+mark sits on in that theme — the blue theme's `chip` (where the blue hue is the weakest of the
+six), and white in light.
 
 **Deviations:**
+
+**The mechanism is the one the task specified** — two CSS tokens, resolved where the string is
+painted — and no second one was added. The `var()`-in-a-presentation-attribute precedent
+(`charts.tsx:40`) was checked before relying on it, not assumed: a standalone page in Chromium 151
+resolves `stroke="hsl(240 var(--s) var(--l))"` and `fill=…` exactly like an inline
+`backgroundColor`, and re-resolves both when `data-theme` flips, with no JS. `usePlayerColors`,
+`buildPlayerColorMap`, the hue assignment and `Radar`'s single-series accent are untouched.
+
+**The two numbers are not the task's estimates.** The task computed `L 66%` (dark) / `L 32%`
+(light) against the card surfaces only; measured against **every** surface a player's mark
+actually sits on, both fall short, so both moved (the task allows ±2 and says to write the final
+numbers here — this is ±6 and ±2, and the reason is a surface the estimate did not include):
+- **dark `L 72%`** (not 66). The lightest dark surface in the app is the blue theme's `chip`
+  (sampled `48,63,89`), which is what the Trends legend keys wear — and the blue hue on it is
+  2.44:1 at L 66 and 2.96:1 at L 70 (both computed against that sampled colour), **3.27:1 at
+  L 72** — where computed and browser-measured agree to the second decimal. 72 is the *smallest*
+  value that clears 3:1 everywhere, i.e. the most saturated the palette can be and still pass.
+- **light `L 30%`** (not 32). At L 32 the yellow hue computes to 3.004:1 on the page ground: it
+  passes by four thousandths, which is no margin at all. L 30 puts the weakest cell at a measured
+  3.44:1 and is still the *lightest* (most colourful) value with real headroom.
+Saturation stays `72%` in both themes: raising it does not help the blue hue in the dark theme
+(blue carries 7% of the luminance) and only mutes the yellow in the light one.
+
+**Measured contrast, real pixels, WCAG formula** (Playwright/Chromium against the isolated stack
+— backend 8032, vite 8042, `backend/data/verify-c2.db`; full-page screenshots decoded and sampled
+pixel by pixel, the surface taken as the modal colour of the neighbourhood around each sample).
+Identical inks at **390×844 dpr 3** and **1280×900 dpr 2**, so one table per theme. A chart line
+is sampled as painted (`opacity 0.95` over its card), a dot as its own pixels.
+
+`blue` — chart card `29,40,60` · legend `chip` `48,63,89` · page `11,17,30`:
+
+| player (hue) | chart line | dashed segment | legend dot (chip) | Compare-with dot (unselected) | reign bar + legend |
+|---|---|---|---|---|---|
+| Roli (0°) | 5.29 | 5.29 | 4.12 | — (own page) | 7.34 |
+| Flo (60°) | 10.73 | 10.73 | 8.46 | 11.79 | — (never a holder) |
+| Rumpi (120°) | 9.14 | 9.14 | 7.17 | 9.99 | 12.75 |
+| Berni (180°) | 9.68 | 9.68 | 7.60 | 10.60 | 13.53 |
+| Atzi (240°) | 4.24 | 4.24 | **3.27** | 4.56 | 5.82 |
+| Mike (300°) | 5.84 | 5.84 | 4.56 | 6.36 | — (never a holder) |
+
+`light` — chart card `247,246,245` · legend chip white · page `236,235,233`:
+
+| player (hue) | chart line | dashed segment | legend dot (chip) | Compare-with dot (unselected) | reign bar + legend |
+|---|---|---|---|---|---|
+| Roli (0°) | 8.49 | 8.49 | 10.00 | — (own page) | 8.40 |
+| Flo (60°) | **3.44** | 3.44 | 3.97 | 3.64 | — |
+| Rumpi (120°) | 4.17 | 4.17 | 4.84 | 4.44 | 4.06 |
+| Berni (180°) | 3.89 | 3.89 | 4.50 | 4.13 | 3.78 |
+| Atzi (240°) | 11.94 | 11.94 | 14.26 | 13.10 | 11.97 |
+| Mike (300°) | 7.39 | 7.39 | 8.67 | 7.96 | — |
+
+Plus the singles the DoD names. The **radar** was measured with all five overlays switched on, so
+all six outlines are covered: blue 7.34 · 15.05 · 12.75 · 13.53 · 5.82 · **3.04** (Roli · Flo ·
+Rumpi · Berni · Atzi · Mike — Mike's cell is against the pale wash where six translucent series
+fills overlap, the worst backdrop the radar can produce); light 8.40 · **3.33** · 4.06 · 3.78 ·
+11.97 · 3.77. The **sparkline** is 9.56 on the blue card / **7.13 on the white light card** (it
+now paints `--color-win`: `74,222,128` dark, `22,101,52` light — measured, not assumed). Before the
+change the same harness reproduced the audit: Atzi 2.01 / dash 1.18 / legend dot 1.50 in blue,
+Flo 1.29 / Rumpi 1.60 / Berni 1.62 in light. Four runs (390 and 1280 × blue and light):
+**156 sampled cells, 0 below 3:1**, worst cell 3.27 (blue) and 3.44 (light). Six cells — three per
+theme, all on the phone-width dashboard chart — could not be sampled cleanly because two series
+cross inside one 2.25px stroke; the same series measure cleanly at 1280px and on the Trends chart,
+so all six players are covered on every surface. Mike's *solid* line was off the visible window in
+the phone runs; his dashed one was not, and after this task the two are the same colour at the
+same opacity. Hues, read back from the pixels, are identical (not merely ±1°) between themes:
+0 · 60 · 120 · 180 · 240 · 300 for Roli · Flo · Rumpi · Berni · Atzi · Mike in both.
+
+**"Repaints with no React commit", measured:** on the mounted dashboard, flipping
+`<html data-theme>` (exactly what `useThemeManager` writes) changed the chart's painted stroke
+from `rgb(132,132,235)` to `rgb(21,21,132)` with a `MutationObserver` over the chart subtree
+recording **0 mutations**, same `<svg>` node, twice in a row (control run without the flip: 0
+mutations, colour unchanged). Nothing in React has to run for the palette to follow the theme.
+(The app's own Settings switch still re-renders the tree beneath `ThemeProvider` because the theme
+is root React state — pre-existing, unrelated to the palette, and the dashboard is unmounted at
+that moment anyway.)
+
+**Small things the task did not spell out:**
+- `GREEN/AMBER/RED` in `charts.tsx` are renamed **`WIN/DRAW/LOSS`** along with their values. A
+  constant called `GREEN` holding `rgb(var(--color-win))` would be the colour name outliving the
+  colour; the tone answers "how did the last match go".
+- `src/test/useChartData.test.ts` is edited (it built a `PlayerColor` literal with
+  `muted`/`outline`, which no longer typechecks). The task's step 6 anticipates this; the file is
+  not in any other task's set.
+- `pages/stats/cupParts.tsx` and `pages/stats/CupDetail.tsx` are named in the defect text but
+  belong to another worker running in parallel and were **read, not touched**: both consume
+  `colorOf(...).solid` and nothing else, so the timeline bar, its legend and the reign rows follow
+  the new tokens with no edit. Measured above.
+- The `oklch()` upgrade is **not** taken (the task says not to). Recording why it might still be
+  wanted: at one HSL lightness the six hues are not equally light — the blue hue is the weakest
+  cell in the dark theme (3.27) and the yellow the weakest in the light one (3.44), which is
+  exactly what a perceptual space would flatten. It re-spaces the hues visibly, so it is a
+  deliberate future call, not a follow-up.
+
+**One surface the DoD does not name still misses 3:1, and it is left, on purpose.** A
+"Compare with" dot in a **selected** chip sits on that chip's accent wash, not on a card: in the
+`light` theme the yellow dot measures **2.66:1** on it and the cyan 3.01 (the other four 3.24 →
+9.55); in `blue` the worst is 4.98. Before this task the same dot was ~1.35:1 there, so it
+improves either way, and the DoD deliberately specifies the *unselected* chip — the state where
+the dot is the only colour the reader has, since a selected chip also carries the accent border,
+the accent label and the series drawn in the chart. Making it pass costs `--player-solid-l: 26%`
+(computed: yellow 3.40, cyan 3.82 on that wash), four points darker than any named surface needs,
+which would take every line in the light theme with it and start collapsing the hues towards
+black. If Roli wants that state to pass too it is **one number in `light.css`** — nothing else
+moves.
+
+**Gates.** `cd frontend && npm run check` green — typecheck clean, eslint clean, vitest **689
+passed in 68 files** (baseline 681/67; the extra files/tests are the other group-A tasks sharing
+this worktree, and the run includes their work in flight). `npm run build` green,
+`index-CKujt--x.js` 724.55 kB (the pre-existing ">500 kB chunk" hint, not a regression). The
+isolated stack was backend 8032 / vite 8042 / `backend/data/verify-c2.db` (left in place,
+gitignored, as the batch now requires); every browser process was started and closed by handle.
 
 ---
 

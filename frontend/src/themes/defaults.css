@@ -56,6 +56,18 @@
   --color-cup-gold: 251 191 36; /* amber-400 — the Lorbeerkranz */
   --color-cup-green-dark: 21 128 61; /* green-700 — the Bauernkranz */
 
+  /* The player palette (C2). `colorForIdx` (pages/stats/trendsMath.ts) spreads the six
+     hues round the wheel and hands out `hsl(<hue> var(--player-solid-s) var(--player-solid-l))`
+     — the **hue is the player's identity** and is the same in every theme; only these two
+     numbers move, and they move in the cascade, so every surface that paints a player
+     (both trend charts, both legends, the "Compare with" dots, the cup reign bar and its
+     legend) repaints together with no React render. The dark baseline is inherited by
+     every dark theme; `light.css` darkens it for white cards. The value is chosen by the
+     3:1 non-text floor on the *lightest* dark surface a player's mark ever sits on — the
+     `chip` of the blue theme — where the blue hue is the weakest of the six. */
+  --player-solid-s: 72%;
+  --player-solid-l: 72%;
+
   /* Backgrounds */
   --color-bg-default: 12 12 15; /* Shifted darker for more usable dark shades */
   /* Increase contrast between the surface levels (outer -> inner -> chip). */

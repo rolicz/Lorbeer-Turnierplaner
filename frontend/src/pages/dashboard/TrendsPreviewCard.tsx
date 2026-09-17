@@ -257,7 +257,7 @@ export default function TrendsPreviewCard() {
         lastForm = v;
         return { y: v, present: true };
       });
-      return { id: p.player_id, name: p.display_name, color: c.solid, colorMuted: c.muted, outline: c.outline, points: pts };
+      return { id: p.player_id, name: p.display_name, color: c.solid, points: pts };
     });
 
     if (view === "lastN") {

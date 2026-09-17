@@ -171,7 +171,7 @@ export default function TrendsExplorer({ mode, scope, rows, initialMetric, initi
                   "chip inline-flex items-center gap-1.5 transition focus-ring " +
                   (on ? "text-text-normal" : "border-dashed bg-transparent text-text-muted line-through")
                 }>
-                <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: c.solid, opacity: on ? 1 : 0.4 }} />
+                <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: c.solid }} />
                 {r.name}
               </button>
             );

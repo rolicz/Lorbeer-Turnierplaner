@@ -4,9 +4,11 @@ import { useId } from "react";
 import EmptyState from "../../ui/primitives/EmptyState";
 import { APP_LOCALE_MONTHS } from "../../utils/format";
 
-const GREEN = "rgb(34 197 94)";
-const AMBER = "rgb(234 179 8)";
-const RED = "rgb(239 68 68)";
+/* The sparkline's tone is the last match's **result**, so it paints the semantic
+   result tokens — never a raw palette value (DESIGN.md §2, C2). */
+const WIN = "rgb(var(--color-win))";
+const DRAW = "rgb(var(--color-draw))";
+const LOSS = "rgb(var(--color-loss))";
 
 type RadarAxis = { label: string; value: number };
 type RadarSeries = { name: string; color: string; axes: RadarAxis[] };
@@ -86,7 +88,7 @@ export function Sparkline({ values, w = 64, h = 22 }: { values: number[]; w?: nu
     return `${x.toFixed(1)},${y.toFixed(1)}`;
   });
   const last = values[values.length - 1] ?? 0;
-  const tone = last >= 2 ? GREEN : last >= 1 ? AMBER : RED;
+  const tone = last >= 2 ? WIN : last >= 1 ? DRAW : LOSS;
   const lastY = h - 2 - (Math.max(0, Math.min(max, last)) / max) * (h - 4);
   return (
     <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} className="shrink-0" aria-hidden="true">
@@ -256,7 +258,9 @@ export function TrendChart({
                 stroke={s.color}
                 strokeWidth="2.25"
                 strokeLinecap="round"
-                opacity={skipped ? 0.28 : 0.95}
+                /* A "no data" run is said by the `2 4` dash alone: dimming it as well
+                   put it under 3:1 against every card in every theme (C2). */
+                opacity={0.95}
                 strokeDasharray={skipped ? "2 4" : undefined}
               />
             );

@@ -35,6 +35,12 @@
   --color-cup-gold: 166 74 12; /* dark amber */
   --color-cup-green-dark: 22 116 55; /* green-700, one shade down */
 
+  /* The player palette (C2): the same six hues, dark enough for white cards. The floor
+     is set by the yellow hue, the weakest of the six on white — the dark baseline's
+     lightness leaves it at 1.3:1 here. */
+  --player-solid-s: 72%;
+  --player-solid-l: 30%;
+
   /* Backgrounds */
   /* Light: grey page with white, elevated cards (modern light elevation). */
   --color-bg-default: 236 235 233; /* Page backdrop (light grey) */

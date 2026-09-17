@@ -5,7 +5,7 @@ import type { StatsMatch, StatsPlayerMatchesTournament } from "../api/types";
 import type { StatsRatingsHistoryResponse } from "../api/stats.api";
 import type { PlayerColor } from "../pages/stats/trendsMath";
 
-const colorOf = (id: number): PlayerColor => ({ solid: `solid-${id}`, muted: `muted-${id}`, outline: `outline-${id}` });
+const colorOf = (id: number): PlayerColor => ({ solid: `solid-${id}` });
 
 function smatch(
   id: number,
