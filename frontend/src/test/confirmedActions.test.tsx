@@ -36,7 +36,6 @@ describe("C7 — Remove second leg (AdminPanel)", () => {
       onDeleteTournament: vi.fn(),
       busy: false,
       error: null,
-      wrap: false,
     };
   }
 
