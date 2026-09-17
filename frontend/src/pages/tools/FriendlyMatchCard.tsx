@@ -21,6 +21,7 @@ import { getStatsOdds, type StatsOddsRequest } from "../../api/stats.api";
 import type { Match } from "../../api/types";
 import { usePlayerAvatarMap } from "../../hooks/usePlayerAvatarMap";
 import { useAuth } from "../../auth/AuthContext";
+import { APP_LOCALE_NUMERIC } from "../../utils/format";
 
 const FRIENDLY_MATCH_STORAGE_KEY = "friendly_match_state_v1";
 
@@ -383,7 +384,9 @@ export default function FriendlyMatchCard({ onInitialReady }: { onInitialReady?:
           </Button>
         </div>
         {lastSavedAt ? (
-          <div className="text-xs text-text-muted">Saved {new Date(lastSavedAt).toLocaleTimeString()}.</div>
+          <div className="text-xs text-text-muted">
+            Saved {new Date(lastSavedAt).toLocaleTimeString(APP_LOCALE_NUMERIC, { hour: "2-digit", minute: "2-digit" })}.
+          </div>
         ) : null}
         {!canStore ? (
           <div className="text-xs text-text-muted">Login as editor/admin to store friendlies for stats.</div>

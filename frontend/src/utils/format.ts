@@ -1,10 +1,17 @@
 /** Shared date/number formatting utilities. Import from here instead of defining locally. */
 
+// Roli, 2026-09-17: a date must read the same on every phone, so nothing passes `undefined`.
+// Numbers are Austrian; spelled-out and abbreviated months are English, because the UI is
+// English and "März 2026" in it is a bug, not a feature. en-GB (not en-US) so the spelled
+// form stays day-first and agrees with the numeric one.
+export const APP_LOCALE_NUMERIC = "de-AT";
+export const APP_LOCALE_MONTHS = "en-GB";
+
 export function fmtDate(d?: string | null): string {
   if (!d) return "";
   const dt = new Date(d + (d.includes("T") ? "" : "T00:00:00"));
   if (Number.isNaN(dt.getTime())) return "";
-  return dt.toLocaleDateString();
+  return dt.toLocaleDateString(APP_LOCALE_NUMERIC, { day: "2-digit", month: "2-digit", year: "numeric" });
 }
 
 /**
@@ -16,14 +23,14 @@ export function fmtDateLong(d?: string | null): string {
   if (!d) return "";
   const dt = new Date(d + (d.includes("T") ? "" : "T00:00:00"));
   if (Number.isNaN(dt.getTime())) return "";
-  return dt.toLocaleDateString(undefined, { day: "numeric", month: "long", year: "numeric" });
+  return dt.toLocaleDateString(APP_LOCALE_MONTHS, { day: "numeric", month: "long", year: "numeric" });
 }
 
 export function fmtDateTime(iso?: string | null): string {
   if (!iso) return "";
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "";
-  return d.toLocaleString(undefined, {
+  return d.toLocaleString(APP_LOCALE_NUMERIC, {
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
@@ -34,7 +41,7 @@ export function fmtDateTime(iso?: string | null): string {
 
 /** Format a JS timestamp (ms) as a compact locale datetime string. */
 export function fmtTs(ms: number): string {
-  return new Date(ms).toLocaleString(undefined, {
+  return new Date(ms).toLocaleString(APP_LOCALE_NUMERIC, {
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
@@ -114,12 +121,12 @@ export function parseDateSafe(s?: string | null): number | null {
   return Number.isFinite(t) ? t : null;
 }
 
-/** "12 Jun '26" style — used for streak date ranges and match history meta. */
+/** "12 Sept 2026" style — used for streak date ranges and match history meta. */
 export function fmtShortDate(ts: string | null | undefined): string {
   if (!ts) return "";
   const d = new Date(ts);
   if (!Number.isFinite(d.getTime())) return "";
-  return d.toLocaleDateString(undefined, { day: "2-digit", month: "short", year: "2-digit" });
+  return d.toLocaleDateString(APP_LOCALE_MONTHS, { day: "2-digit", month: "short", year: "numeric" });
 }
 
 /** Round an ELO/rating to the nearest integer. Returns "—" for non-finite values. */

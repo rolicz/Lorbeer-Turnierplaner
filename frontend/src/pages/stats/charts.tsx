@@ -2,6 +2,7 @@
 import { useId } from "react";
 
 import EmptyState from "../../ui/primitives/EmptyState";
+import { APP_LOCALE_MONTHS } from "../../utils/format";
 
 const GREEN = "rgb(34 197 94)";
 const AMBER = "rgb(234 179 8)";
@@ -185,7 +186,7 @@ export function TrendChart({
     const jan = d.getMonth() === 0;
     marks.push({
       ts: d.getTime(),
-      label: jan ? String(d.getFullYear()) : d.toLocaleDateString(undefined, { month: "short" }),
+      label: jan ? String(d.getFullYear()) : d.toLocaleDateString(APP_LOCALE_MONTHS, { month: "short" }),
       major: jan,
       show: mi % everyMonths === 0 || jan,
     });

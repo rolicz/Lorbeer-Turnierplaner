@@ -204,7 +204,7 @@ task that changes a pixel (C2, C3, C5, C6, C7, C9, C10, C11–C14).
 
 ---
 
-## C1 — Numeric dates pinned to `de-AT`, spelled months `en-GB`, one shape per helper (audit 1.11)  ☐
+## C1 — Numeric dates pinned to `de-AT`, spelled months `en-GB`, one shape per helper (audit 1.11)  ☑
 
 **The defect.** All five date helpers in `frontend/src/utils/format.ts` and the three inline
 formatters (`pages/TournamentsPage.tsx:98`, `pages/stats/charts.tsx:188`,
@@ -291,7 +291,27 @@ line `14:30`. **No German month appears anywhere.** `npm run check` green.
 September as `Sept`, four letters where every other month is three. Roli was told; keep it unless
 he vetoes.
 
-**Deviations:**
+**Deviations:** None from the task spec — implemented literally as written, only the listed
+files touched. Verify-first confirmed the defect (8 `toLocale*` calls, all `undefined`/no-locale
+argument; `cupsPreview.test.tsx:114`/`:118` pinned `23/04/2026`/`11/07/2026`). Node 24.13 shape
+check reproduced the task's own "Verified 2026-09-17" line exactly before any edit.
+After the change: DoD grep (`grep -rn 'toLocale' frontend/src … | grep -v test/ | grep -vc
+'APP_LOCALE_'`) → `0`. `npm run check` green: typecheck clean, eslint clean, vitest **686/686**
+(681 baseline + 5 new shape-pin tests in `format.test.ts`: `fmtDate`, `fmtDateLong` ×2,
+`fmtDateTime`, `fmtShortDate`). Browser gate run against the isolated stack (backend 8031 /
+vite 8041 / `backend/data/verify-c1.db`, deleted afterward) in **both** `blue` and `light`
+(the task only asked for `blue`, but both cost nothing extra and the task's own DoD lists
+several surfaces) at 390px, admin session: `/tournaments` month heading `September 2026` +
+numeric date `13.09.2026`; `/friendlies` day heading `28 August 2026`; `/stats?view=overview&sub=streaks`
+short date `04 Jan 2026`; `/stats?view=trends` axis ticks `Dec/2026/Feb/Apr/Jun/Aug` (en-GB
+3-letter forms; no September tick was in the visible range, so the `Sept` 4-letter wart wasn't
+re-observed live, but the Node-level check above confirms it); comment bylines on tournaments
+19 and 17 (`fmtTs`) render `11.09.2026, 20:24` / `11.07.2026, 19:47` — `de-AT`, correct. A
+full-page body-text scan for the eleven German month abbreviations (`Jän`, `Feb.`, `März`, …)
+found zero hits on every page visited. Zero console/page errors in either theme. Did not
+exercise `FriendlyMatchCard.tsx`'s "Saved HH:MM" line live (it only renders after a save
+mutation) — verified instead by the Node-level shape check plus reading the diff, which is
+mechanical (one `toLocaleTimeString` call, same pattern as every other site).
 
 ---
 

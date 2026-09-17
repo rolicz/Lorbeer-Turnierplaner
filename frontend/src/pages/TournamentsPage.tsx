@@ -22,7 +22,7 @@ import { useAuth } from "../auth/AuthContext";
 import { useSeenIdsByTournamentId } from "../hooks/useSeenComments";
 import { useRouteEntryLoading } from "../ui/layout/useRouteEntryLoading";
 import { useTabParam } from "../ui/shell/useTabParam";
-import { fmtDate } from "../utils/format";
+import { fmtDate, APP_LOCALE_MONTHS } from "../utils/format";
 
 type Status = "draft" | "live" | "done";
 
@@ -95,7 +95,7 @@ export default function TournamentsPage() {
       const d = t.date ? new Date(`${t.date}T00:00:00`) : null;
       const valid = d && Number.isFinite(d.getTime());
       const key = valid ? `${d.getFullYear()}-${d.getMonth()}` : "undated";
-      const label = valid ? d.toLocaleDateString(undefined, { month: "long", year: "numeric" }) : "Undated";
+      const label = valid ? d.toLocaleDateString(APP_LOCALE_MONTHS, { month: "long", year: "numeric" }) : "Undated";
       const last = groups[groups.length - 1];
       if (last && last.key === key) last.items.push(t);
       else groups.push({ key, label, items: [t] });
