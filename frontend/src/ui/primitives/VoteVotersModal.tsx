@@ -35,7 +35,6 @@ export default function VoteVotersModal({
       open={open}
       title={title}
       onClose={onClose}
-      fullScreenOnMobile
       maxWidth="max-w-lg"
       scrollBody
       className="max-h-[84vh] overflow-hidden"

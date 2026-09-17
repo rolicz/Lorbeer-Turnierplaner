@@ -327,7 +327,6 @@ export default function H2HView({ mode, scope, rows, subView, selectedId, onSele
       title={historyModal?.title ?? ""}
       subtitle="Match history"
       onClose={() => setHistoryModal(null)}
-      fullScreenOnMobile
       maxWidth="max-w-4xl"
       scrollBody
       className="max-h-[88vh] overflow-hidden"

@@ -213,7 +213,6 @@ export default function PlayerAvatarEditor({
       title={title}
       subtitle="Square crop, stored locally in DB"
       onClose={onClose}
-      fullScreenOnMobile
       maxWidth="max-w-lg"
     >
           <ErrorToastOnError error={err} title="Avatar action failed" />

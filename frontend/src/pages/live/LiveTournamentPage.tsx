@@ -703,7 +703,6 @@ export default function LiveTournamentPage() {
                 tournamentDate={tQ.data?.date ?? null}
                 tournamentMode={tQ.data?.mode === "2v2" ? "2v2" : "1v1"}
                 tournamentStatus={tQ.data?.status ?? undefined}
-                wrap={false}
                 matches={matchesSorted}
                 players={tQ.data.players}
               />
@@ -767,7 +766,6 @@ export default function LiveTournamentPage() {
                 <span className="section-label">{role === "admin" ? "Admin controls" : "Editor controls"}</span>
               </div>
               <AdminPanel
-                wrap={false}
                 role={role}
                 status={tQ.data.status}
                 secondLegEnabled={secondLegEnabled}

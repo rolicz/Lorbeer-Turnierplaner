@@ -266,7 +266,6 @@ export default function ClubPicker({
       onClose={onClose}
       title="Select club"
       subtitle={`${active.label} · ${matches.length} club${matches.length === 1 ? "" : "s"}`}
-      fullScreenOnMobile
       maxWidth="max-w-md"
       scrollBody
       className="max-h-[84vh] overflow-hidden"

@@ -3,7 +3,6 @@ import { useNavigate } from "react-router-dom";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import type { Match, Player } from "../../api/types";
 import { sideBy } from "../../helpers";
-import Card from "../../ui/primitives/Card";
 import AvatarCircle from "../../ui/primitives/AvatarCircle";
 import CupOwnerBadge from "../../ui/primitives/CupOwnerBadge";
 import RecordLine, { recordWidths } from "../../ui/primitives/RecordLine";
@@ -127,7 +126,6 @@ export default function StandingsTable({
   matches,
   players,
   tournamentStatus,
-  wrap = true,
 }: {
   tournamentId: number;
   tournamentDate?: string | null;
@@ -135,8 +133,6 @@ export default function StandingsTable({
   matches: Match[];
   players: Player[];
   tournamentStatus?: "draft" | "live" | "done";
-  /** If false, renders borderless (for embedding inside another Card/Collapsible). */
-  wrap?: boolean;
 }) {
   const navigate = useNavigate();
   const baseRows = useMemo(() => computeStandings(matches, players, "finished"), [matches, players]);
@@ -318,8 +314,6 @@ export default function StandingsTable({
     return m;
   }, [cups, cupsQ, tournamentDate, tournamentId]);
 
-  const title = tournamentStatus === "done" ? "Results" : "Standings (live)";
-
   const content = (
     <>
       <div className="list-divided">
@@ -380,7 +374,5 @@ export default function StandingsTable({
     </>
   );
 
-  if (!wrap) return content;
-
-  return <Card title={title} variant="inset">{content}</Card>;
+  return content;
 }

@@ -1,6 +1,6 @@
 /**
  * Overlay dialog: the level-1 `card` surface on a scrim (`DESIGN.md` §3/§7),
- * full-screen sheet on mobile when `fullScreenOnMobile` is set.
+ * a bottom sheet on mobile and centered on `sm` and up — the only layout.
  *
  * Safe area (Q4): the sheet is `fixed`, so it escapes the `body` padding that keeps the
  * page clear of a landscape notch, and its bottom edge would otherwise land in the home
@@ -29,7 +29,6 @@ export default function Modal({
   subtitle,
   onClose,
   children,
-  fullScreenOnMobile = false,
   maxWidth,
   scrollBody = false,
   className,
@@ -40,11 +39,9 @@ export default function Modal({
   subtitle?: React.ReactNode;
   onClose: () => void;
   children: React.ReactNode;
-  /** Bottom-sheet on mobile, centered dialog on ≥sm. Default false = centered only. */
-  fullScreenOnMobile?: boolean;
-  /** Tailwind max-width class applied to the inner card (fullScreenOnMobile only). Default: max-w-lg. */
+  /** Tailwind max-width class applied to the inner card. Default: max-w-lg. */
   maxWidth?: string;
-  /** Extra classes on the inner card (fullScreenOnMobile only), e.g. "max-h-[84vh] overflow-hidden". */
+  /** Extra classes on the inner card, e.g. "max-h-[84vh] overflow-hidden". */
   className?: string;
   /**
    * Lay the card out as a flex column (the header is shrink-0) so a child marked
@@ -92,36 +89,24 @@ export default function Modal({
     </div>
   );
 
-  if (fullScreenOnMobile) {
-    // A sheet never grows past the safe box: `scrollBody` cards bring their own max-height
-    // and scroll a child, the rest are clamped here and scroll themselves — otherwise a tall
-    // dialog's buttons end up off-screen (measured in landscape, 844x390: the avatar editor's
-    // row sat 99px below the viewport).
-    const parts = [
-      "card w-full p-3 sm:p-4",
-      maxWidth ?? "max-w-lg",
-      scrollBody ? "flex flex-col" : "max-h-sheet sm:max-h-sheet-sm overflow-y-auto",
-      className,
-    ].filter(Boolean).join(" ");
-    return (
-      <div className="fixed inset-0 z-50" style={OVERLAY_ROOT_STYLE}>
-        <div className="overlay-scrim" onClick={onClose} />
-        <div className="absolute bottom-safe-b left-safe-l right-safe-r sm:top-safe-t sm:flex sm:items-center sm:justify-center p-3 sm:p-6">
-          <div className={parts}>
-            {header}
-            {children}
-          </div>
-        </div>
-      </div>
-    );
-  }
-
+  // A sheet never grows past the safe box: `scrollBody` cards bring their own max-height
+  // and scroll a child, the rest are clamped here and scroll themselves — otherwise a tall
+  // dialog's buttons end up off-screen (measured in landscape, 844x390: the avatar editor's
+  // row sat 99px below the viewport).
+  const parts = [
+    "card w-full p-3 sm:p-4",
+    maxWidth ?? "max-w-lg",
+    scrollBody ? "flex flex-col" : "max-h-sheet sm:max-h-sheet-sm overflow-y-auto",
+    className,
+  ].filter(Boolean).join(" ");
   return (
     <div className="fixed inset-0 z-50" style={OVERLAY_ROOT_STYLE}>
       <div className="overlay-scrim" onClick={onClose} />
-      <div className={["card p-4 absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2", scrollBody && "flex flex-col", maxWidth ?? "w-[min(92vw,520px)]"].filter(Boolean).join(" ")}>
-        {header}
-        {children}
+      <div className="absolute bottom-safe-b left-safe-l right-safe-r sm:top-safe-t sm:flex sm:items-center sm:justify-center p-3 sm:p-6">
+        <div className={parts}>
+          {header}
+          {children}
+        </div>
       </div>
     </div>
   );

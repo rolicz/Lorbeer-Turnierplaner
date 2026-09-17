@@ -83,9 +83,4 @@ export function deciderTypeLabel(type: "none" | "penalties" | "match" | "scheres
   return DECIDER_TYPE_LABEL[type] ?? type;
 }
 
-// Legacy exports, keeping them to avoid breaking imports for now,
-// but they are deprecated in favor of the more specific functions above.
-export const colorMatch = matchStatusPill;
-export const colorTournament = tournamentStatusPill;
 export const pillBaseClass = pillDefault;
-export { matchColor, tournamentColor } from "./theme-legacy";

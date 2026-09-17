@@ -60,7 +60,6 @@ export default function AdminPanel({
   currentDecider,
   onSaveDecider,
   deciderBusy,
-  wrap = true,
 }: {
   role: "reader" | "editor" | "admin";
   status: Status;
@@ -117,7 +116,6 @@ export default function AdminPanel({
     loser_goals: number | null;
   }) => void;
   deciderBusy?: boolean;
-  wrap?: boolean;
 }) {
   const isAdmin = role === "admin";
   const isEditorOrAdmin = role === "editor" || role === "admin";
@@ -538,9 +536,5 @@ export default function AdminPanel({
     </div>
   );
 
-  if (!wrap) return content;
-
-  // `wrap` is a level-1 `card` fallback; the live page already supplies its own
-  // section header, so it passes wrap={false}.
-  return <div className="card">{content}</div>;
+  return content;
 }

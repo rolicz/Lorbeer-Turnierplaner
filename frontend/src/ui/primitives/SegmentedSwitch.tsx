@@ -22,20 +22,15 @@ export default function SegmentedSwitch<T extends Primitive>({
   value,
   onChange,
   options,
-  // widthClass is accepted for backwards-compat but ignored: segments now size to
-  // their label so option text is always readable (no icon-only state on mobile).
-  widthClass: _widthClass,
   ariaLabel,
   title,
 }: {
   value: T;
   onChange: (v: T) => void;
   options: ReadonlyArray<SegmentedOption<T>>;
-  widthClass?: string;
   ariaLabel: string;
   title?: string;
 }) {
-  void _widthClass;
   const idx = Math.max(0, options.findIndex((o) => o.key === value));
   const containerRef = useRef<HTMLDivElement | null>(null);
   const btnRefs = useRef<(HTMLButtonElement | null)[]>([]);

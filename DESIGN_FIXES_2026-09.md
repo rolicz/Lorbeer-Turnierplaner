@@ -1061,7 +1061,7 @@ that row's first sentence to "Confirming an irreversible action" and records the
 
 ---
 
-## C8 — Defined and never reached: the dead branches go (audit Part 4)  ☐
+## C8 — Defined and never reached: the dead branches go (audit Part 4)  ☑
 
 Runs after group A (it touches files C3 and C7 own).
 
@@ -1129,7 +1129,48 @@ segmented switches and the admin panel render pixel-identical at 390 and 1280 in
 the clubs list, lays its groups flat on the page (C8)". §7's `Modal` row: "(card on scrim,
 full-screen sheet on mobile)" is already the truth; drop nothing.
 
-**Deviations:**
+**Deviations:** Implemented as written, plus the necessary knock-on cleanup the spec didn't
+spell out line-by-line:
+- **Line numbers had shifted from C7's 11 dialogs**, as warned. Found every site by symbol
+  instead: `wrap` in `AdminPanel.tsx` was now at 63/120/539-543 (not 60/115/474-478),
+  `StandingsTable.tsx`'s at 130/139/383-385 (unchanged). Re-verified each against the current
+  file before touching it.
+- **StandingsTable's `Card variant="inset"` branch was confirmed unreached** (the sole caller,
+  `LiveTournamentPage.tsx:701`, passes `wrap={false}`), so per the task's own correction it was
+  deleted along with `wrap`, leaving `StandingsTable` always borderless. This drops `Card`'s only
+  other caller besides `LoginPage.tsx:47` — exactly the one-caller state the task text already
+  flagged; `Card.tsx` itself (out of scope) was not touched, so `variant="inset"` still exists
+  there, just with one caller now. Confirmed by the correction note before starting.
+- **Two unused declarations came out with their branches**, not named in the task text but
+  required for `npm run check` to stay green (`no-unused-vars`): `StandingsTable.tsx`'s
+  `const title = …` (only consumer was the deleted `<Card title={title} …>`) and its now-unused
+  `import Card from "../../ui/primitives/Card"`.
+- **`ui/theme-legacy.ts` had zero importers anywhere** (grepped `theme-legacy` across `frontend/src`
+  including `test/`) once `ui/theme.ts`'s re-export was removed — deleted the file, as the task
+  allowed.
+- **Left alone, out of C8's file list:** `test/confirmedActions.test.tsx` (C7's file) still spreads
+  a `wrap: false` prop into `<AdminPanel {...props} />`. `AdminPanel` no longer declares `wrap`;
+  the extra key is silently accepted (TS excess-property checks don't fire through a spread of a
+  variable, only on a fresh object literal assigned directly to the prop type), so `npm run check`
+  stays green and the test still passes 689/689. Not touched — it's not in C8's file set and isn't
+  broken, just a harmless dead key in a fixture; flagging it here so C7's owner (or a later sweep)
+  can drop it without rediscovery.
+- **Runtime verification** on the isolated stack (backend :8039, vite :8049, `verify-c8.db`, copy
+  deleted afterward): Playwright (390×844 and 1280×900, `blue` and `light`) against the clubs page
+  (`CollapsibleCard` groups), live tournament 21's Overview/Matches/Standings/Controls tabs
+  (`StandingsTable` and `AdminPanel` now-unwrapped, `MatchList`'s Compact/Details `SegmentedSwitch`),
+  match 118's Edit-result tab (`MatchDetailPage`'s Scheduled/Playing/Finished `SegmentedSwitch`,
+  the `ClubPicker` sheet opened from the Clubs disclosure), and Settings → Logout
+  (`ConfirmDialog`). **0 console/page errors** on every surface × viewport × theme combination.
+  Screenshots confirm: the clubs list's group headers are unchanged (flat, `px-3 py-2.5` header /
+  `px-3 pb-3` body, no card ring); the admin panel and standings render with no double surface
+  (identical to the pre-existing `wrap={false}` look); both segmented switches size to their
+  label text; `Modal` (ClubPicker, ConfirmDialog) renders as a bottom sheet at 390px and a centred
+  card at 1280px in both themes — the one layout the component now has.
+- No other deviations. `Button.iconOnly` left untouched (kept per the task text, deferred batch's
+  job). `pillBaseClass`, `matchStatusPill`, `tournamentStatusPill`, `pillDateClass` and
+  `deciderTypeLabel` (C7's, live callers in `AdminPanel.tsx`) all kept — none were on the removal
+  list.
 
 ---
 
