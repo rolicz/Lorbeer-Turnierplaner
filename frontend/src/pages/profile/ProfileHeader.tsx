@@ -5,7 +5,6 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import Button from "../../ui/primitives/Button";
 import AvatarCircle from "../../ui/primitives/AvatarCircle";
 import ConfirmDialog from "../../ui/primitives/ConfirmDialog";
-import CupOwnerBadge from "../../ui/primitives/CupOwnerBadge";
 import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
 import CommentImageCropper from "../../ui/primitives/CommentImageCropper";
 import ImageLightbox from "../../ui/primitives/ImageLightbox";
@@ -183,13 +182,6 @@ export default function ProfileHeader({
               <span className="truncate text-base font-semibold text-text-normal">
                 {displayName ?? `Player #${targetPlayerId}`}
               </span>
-              {ownedCups.length ? (
-                <span className="inline-flex items-center gap-1.5">
-                  {ownedCups.map((c) => (
-                    <CupOwnerBadge key={c.key} cupKey={c.key} cupName={c.name} />
-                  ))}
-                </span>
-              ) : null}
             </div>
             <div className="text-xs text-text-muted">{isOwnProfile ? "This is your profile" : "Public profile"}</div>
             <div className="mt-0.5 text-xs text-text-muted">
