@@ -60,7 +60,8 @@ export function MatchRowWithClubs({
 
   const w = winnerSide(m);
   // The result belongs to the focus player's side: `ScoreLine` colours that numeral
-  // (and, in the dense compact rows, adds the W/D/L badge). Nothing else is tinted.
+  // and adds the W/D/L badge, in both densities (C5) — the letter is the result the
+  // colour alone cannot carry. Nothing else is tinted.
   const focus: ScoreSide | null = focusSide === "A" ? "left" : focusSide === "B" ? "right" : null;
   const res: ScoreResult | null = (() => {
     if (m.state !== "finished" || !focusSide) return null;
@@ -82,7 +83,7 @@ export function MatchRowWithClubs({
           rightGoals={bg}
           focus={focus}
           result={res}
-          resultBadge={!showMeta}
+          resultBadge={res != null}
           // The clubs, in the one view that has no room to name them (Q17). This is the
           // same answer the friendlies list gives (Q8) to the same question, and it is
           // decided by `showMeta` rather than by a prop so that no caller can forget it:

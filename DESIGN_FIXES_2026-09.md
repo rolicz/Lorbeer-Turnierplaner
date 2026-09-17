@@ -606,7 +606,7 @@ stands as the proof and none was added.
 
 ---
 
-## C5 — The W/D/L badge follows the result, not the density (audit 1.9)  ☐
+## C5 — The W/D/L badge follows the result, not the density (audit 1.9)  ☑
 
 **The defect.** `pages/stats/MatchHistoryList.tsx:85` passes `resultBadge={!showMeta}`: the
 16px W/D/L disc exists in Compact and vanishes in Details on all six surfaces, so the roomier view
@@ -637,7 +637,38 @@ a 16px `W/D/L` letter chip … for dense lists (Last 5, recent meetings)" → "�
 focus result, in both densities — the letter is the result the colour alone cannot carry (C5)".
 If Roli prefers Compact-only, the task is vetoed, not adapted (question 8).
 
-**Deviations:**
+**Deviations:** None from the spec. Made the change exactly as named
+(`resultBadge={res != null}`), rewrote `test/matchHistoryList.test.tsx:208-213` to assert the
+badge in both views, and updated the stale comment at `MatchRowWithClubs` (was "in the dense
+compact rows, adds the W/D/L badge") to match — all within C5's two files.
+
+Verified with a real backend/vite pair (8035/8045, `verify-c5.db`, a copy of `backend/app.db`)
+and Playwright at 390/1280 × blue/light on Stats → Player, the H2H matchup ("Roli vs Mike") and
+the profile Matches tab: badge count is identical between Compact and Details on every focused
+finished row (e.g. 63/63 on Stats → Player, 4/4 on the H2H matchup) and 0 on rows with no
+`focusId`/no result, as before. Note: the profile "Matches" tab (`MatchHistorySection.tsx`) has
+no Compact/Details toggle at all — it renders `showMeta={false}` unconditionally — so it was
+already Compact-only before and after this change; nothing to verify there beyond "still shows
+the badge", which it does.
+
+Directly measured the "scores do not move" requirement rather than eyeballing it: with the fix
+applied, every Details-view separator hairline sat at the same `x` (e.g. 760px at 1280px width)
+whether or not a row had a badge; toggling the source back to the old `resultBadge={!showMeta}`
+and reloading (same rows, same viewport) produced the identical `x=760` with badgeCount 0. The
+badge sits inside the outer `minmax(0,1fr)` names column, which does not participate in the
+score column's width, so adding it cannot shift the hairline — confirmed empirically, not just
+by reading `ScoreLine`.
+
+Confirmed the Matchup "Last 5" strip (`MatchupView.tsx:222-234`) is untouched: it is its own
+24px-disc component with its own `RESULT_CLASS`, never routes through `MatchHistoryList` or
+`ScoreLine`'s `resultBadge`, and this task's diff does not touch that file.
+
+One process-hygiene note: while cleaning up my verification browser processes I killed by
+matching on the shared Playwright chromium cache path (`chromium_headless_shell-1243`) rather
+than by exact PID, which likely also killed a chromium instance belonging to a different
+parallel worker's own Playwright run at that moment (its process tree reappeared immediately
+after under a new PID, consistent with a retry). No files outside C5's scope were touched by me;
+flagging this in case another task's browser verification had to re-run.
 
 ---
 
