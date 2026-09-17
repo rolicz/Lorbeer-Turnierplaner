@@ -772,6 +772,7 @@ export default function LiveTournamentPage() {
                 status={tQ.data.status}
                 secondLegEnabled={secondLegEnabled}
                 canDisableSecondLeg={canDisableSecondLeg}
+                secondLegMatchCount={matchesSorted.filter((m) => m.leg === 2).length}
                 busy={
                   enableLegMut.isPending ||
                   disableLegMut.isPending ||

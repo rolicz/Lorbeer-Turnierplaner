@@ -830,7 +830,7 @@ canon §9/§9b — no change" or the one-line padding fix.
 
 ---
 
-## C7 — Every irreversible action asks first (audit 1.8)  ☐
+## C7 — Every irreversible action asks first (audit 1.8)  ☑
 
 **The defect.** Thirteen flows go through `ui/primitives/ConfirmDialog.tsx` (nine with the red
 "what is lost" block); zero use `window.confirm`; **eleven** destructive or irreversible actions ask
@@ -908,6 +908,53 @@ and editor (1, 2, 3, 8, 10, 11), every dialog screenshotted.
 that row's first sentence to "Confirming an irreversible action" and records the red-block rule.
 
 **Deviations:**
+- **Touched two files outside the ten listed, both foreseen by C7's own text.** `ui/theme.ts`
+  gained `deciderTypeLabel()` (site 7 names Rule 8 explicitly: "extract the map … beside the
+  other label maps"), and `AdminPanel.tsx`'s decider chips now call it instead of their inline
+  ternary. **`OverviewSection.tsx` was deliberately left alone**, even though its `deciderLabel()`
+  is the "second spelling" C7's text points at: unifying the two would have changed "won
+  penalties" to "won Penalties" / "an extra match" to "Match" — different grammar for a sentence,
+  not a mislabelled duplicate — and broken `overviewSection.test.tsx:126` (asserts the exact
+  string "Tied at the top · won penalties"), a file this task does not own and C10 already has a
+  pending edit on. Site 7's dialog and the chips it names now share one spelling; the sentence
+  elsewhere keeps its own, narrower job.
+- **State shape.** All eleven sites use `const [pendingX, setPendingX] = useState<T | null>(null)`
+  with `open={!!pendingX}`. Where the action carries no per-item payload (sites 1, 2, 4, 5, 6, 7,
+  8, 10, 11 — the component already knows what it's acting on), `T = true` (`useState<true |
+  null>(null)`), which is the same shape, not a second one: `!!pendingX` and the confirm-then-null
+  pattern are identical whether `T` is `true` or an entity. Sites 3 (`Idea`) and 9
+  (`swapAskedId: number | null`, the documented exception) carry the real payload.
+- **`busy`/`busyLabel` wired beyond the plan's named 4/5/6/7.** The rule ("busyLabel is
+  mandatory wherever you pass busy") is a constraint on any site that passes `busy`, not a
+  ceiling on which sites may. Two more sites already had an established local
+  precedent for a `ConfirmDialog` reading an ambient `busy`, in the *same* file, on a *sibling*
+  dialog — reusing it (not inventing a new mechanism) kept the file internally consistent:
+  site 3 (`IdeasPage.tsx`) follows `pendingDelete`'s own `busy={deleteMut.isPending}` next to it
+  (`busy={deleteImageMut.isPending}`, `busyLabel="Removing…"`); site 8
+  (`CurrentGameSection.tsx`) follows Reset/Finish's `busy={busy}` right above it
+  (`busyLabel="Swapping…"`). Sites 1, 2, 9, 10, 11 have no such neighbour and pass no `busy`
+  (fire-and-forget close, matching `IdeasPage`'s own precedent for its non-`busy` sites).
+  The eleven `busyLabel`s actually used: 1 none, 2 none, 3 "Removing…", 4 "Removing…",
+  5 "Reopening…", 6 "Reshuffling…", 7 "Removing…", 8 "Swapping…", 9 none, 10 none, 11 none.
+- **Site 4's new prop** `secondLegMatchCount: number` (required, not optional) is computed at
+  the one call site, `LiveTournamentPage.tsx`: `matchesSorted.filter((m) => m.leg === 2).length`,
+  exactly as the row specifies.
+- **Verified in a browser** (isolated stack, backend :8036 / vite :8046, `verify-c7.db`, admin
+  token, no `secrets.json` read): sites 1, 2, 3, 4, 5, 6, 8, 9, 10, 11 opened, cancelled and
+  confirmed with 0 console/page errors, screenshotted across a mix of 390/1280 and blue/light
+  (tournament 21 for 4/8/9, 19 done and 20 draft for 5/6, profile 1 for 1/2, a seeded idea with
+  an image for 3). **Site 7 (Remove decider) was not browser-verified**: `showDeciderEditor`
+  needs a *finished, tied-at-top* tournament, and none exists in the dev snapshot this task's DB
+  copy is taken from — fabricating one means rewriting several match results' scores by hand.
+  The code path is the same wiring as sites 4–6 (`npm run check` passes, `deciderTypeLabel`
+  type-checks at both call sites); flagging it rather than skipping it silently.
+- New test `frontend/src/test/confirmedActions.test.tsx` covers sites 4, 8/9 and 11 per the
+  task's own minimum, each asserting: first tap opens the dialog and calls nothing, Cancel calls
+  nothing, the verb calls it exactly once; site 11 additionally: an empty form clears with no
+  dialog, and the dirty-then-cleared goal stepper proves the verb's real effect (the game-text
+  field, one of the four dirty conditions, is deliberately *not* reset by the pre-existing
+  `clearAll()` — asserted as "asks, but doesn't revert the game text" rather than assuming it
+  does).
 
 ---
 

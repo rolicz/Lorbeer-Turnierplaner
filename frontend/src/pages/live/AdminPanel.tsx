@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
 import Button from "../../ui/primitives/Button";
+import ConfirmDialog from "../../ui/primitives/ConfirmDialog";
 import FormLabel from "../../ui/primitives/FormLabel";
 import Input from "../../ui/primitives/Input";
 import FilterSelect from "../../ui/FilterSelect";
 import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
+import { deciderTypeLabel } from "../../ui/theme";
 
 type Status = "draft" | "live" | "done";
 type DeciderType = "none" | "penalties" | "match" | "scheresteinpapier";
@@ -26,6 +28,7 @@ export default function AdminPanel({
   onEnableSecondLeg,
   onDisableSecondLeg,
   canDisableSecondLeg,
+  secondLegMatchCount,
   onReshuffle,
   onReassign2v2,
 
@@ -72,6 +75,8 @@ export default function AdminPanel({
   onDisableSecondLeg: () => void;
   /** If false, "Remove second leg" is hidden (e.g. leg2 already started). */
   canDisableSecondLeg?: boolean;
+  /** How many leg-2 matches "Remove second leg" deletes — named in its confirm dialog (Q5). */
+  secondLegMatchCount: number;
   onReshuffle: () => void;
 
   mode: "1v1" | "2v2";
@@ -206,6 +211,13 @@ export default function AdminPanel({
 
   const showReopenLastMatch = isEditorOrAdmin && done && !!onSetLastMatchPlaying;
 
+  // Every irreversible action here asks first (C7): one `pendingX` per site, the
+  // dialog itself opened only on tap and firing the existing callback on confirm.
+  const [pendingRemoveSecondLeg, setPendingRemoveSecondLeg] = useState<true | null>(null);
+  const [pendingReopenLastMatch, setPendingReopenLastMatch] = useState<true | null>(null);
+  const [pendingReshuffle, setPendingReshuffle] = useState<true | null>(null);
+  const [pendingClearDecider, setPendingClearDecider] = useState<true | null>(null);
+
   const content = (
     <div className="space-y-5">
       <ErrorToastOnError error={error} title="Admin action failed" />
@@ -233,7 +245,7 @@ export default function AdminPanel({
             ) : (
               // Only show "Remove" if it's actually safe/allowed (no leg2 match started)
               canDisableSecondLeg ? (
-                <Button variant="ghost" onClick={onDisableSecondLeg} disabled={busy}>
+                <Button variant="ghost" onClick={() => setPendingRemoveSecondLeg(true)} disabled={busy}>
                   Remove second leg
                 </Button>
               ) : null
@@ -242,7 +254,7 @@ export default function AdminPanel({
         )}
 
         {canReorder && status === "draft" && (
-          <Button variant="ghost" onClick={onReshuffle} disabled={busy}>
+          <Button variant="ghost" onClick={() => setPendingReshuffle(true)} disabled={busy}>
             Reshuffle order
           </Button>
         )}
@@ -256,7 +268,7 @@ export default function AdminPanel({
         {showReopenLastMatch && (
           <Button
             variant="ghost"
-            onClick={onSetLastMatchPlaying}
+            onClick={() => setPendingReopenLastMatch(true)}
             disabled={busy || !!setLastMatchPlayingBusy}
             title="If someone finished the last match by accident and the tournament became done."
           >
@@ -369,15 +381,7 @@ export default function AdminPanel({
                       onClick={() => setDType(k)}
                       disabled={busy || !!deciderBusy}
                     >
-                      {k === "none"
-                        ? "Keep draw"
-                        : k === "scheresteinpapier"
-                          ? "Schere-Stein-Papier Turnier"
-                          : k === "match"
-                            ? "Match"
-                            : k === "penalties"
-                              ? "Penalties"
-                              : k}
+                      {deciderTypeLabel(k)}
                     </button>
                   );
                 })}
@@ -446,15 +450,7 @@ export default function AdminPanel({
                 {deciderHasValue && (
                   <Button
                     variant="ghost"
-                    onClick={() =>
-                      onSaveDecider?.({
-                        type: "none",
-                        winner_player_id: null,
-                        loser_player_id: null,
-                        winner_goals: null,
-                        loser_goals: null,
-                      })
-                    }
+                    onClick={() => setPendingClearDecider(true)}
                     disabled={busy || !!deciderBusy}
                   >
                     Clear to draw
@@ -467,6 +463,77 @@ export default function AdminPanel({
           )}
         </div>
       )}
+
+      <ConfirmDialog
+        open={!!pendingRemoveSecondLeg}
+        title="Remove the second leg?"
+        subtitle="The tournament goes back to one leg; Add second leg puts a new, unplayed one back."
+        confirmLabel="Remove second leg"
+        busy={busy}
+        busyLabel="Removing…"
+        onCancel={() => setPendingRemoveSecondLeg(null)}
+        onConfirm={() => {
+          setPendingRemoveSecondLeg(null);
+          onDisableSecondLeg();
+        }}
+      >
+        <div>
+          {`${secondLegMatchCount} scheduled leg-2 ${secondLegMatchCount === 1 ? "match is" : "matches are"} deleted, and any comments on ${secondLegMatchCount === 1 ? "it" : "them"} go with ${secondLegMatchCount === 1 ? "it" : "them"} (Q5).`}
+        </div>
+      </ConfirmDialog>
+
+      {/* Nothing is lost — the tournament simply goes live again, and finishing the
+          match closes it a second time (its own inverse) — so no red block. */}
+      <ConfirmDialog
+        open={!!pendingReopenLastMatch}
+        title="Reopen the tournament?"
+        subtitle="The last match goes back to playing and the tournament is live again; standings, cup ownership and stats follow. Finishing the match closes it again."
+        confirmLabel="Set last match to playing"
+        busy={!!setLastMatchPlayingBusy}
+        busyLabel="Reopening…"
+        onCancel={() => setPendingReopenLastMatch(null)}
+        onConfirm={() => {
+          setPendingReopenLastMatch(null);
+          onSetLastMatchPlaying?.();
+        }}
+      />
+
+      {/* Nothing recorded changes — the tournament has no results yet — so no red block. */}
+      <ConfirmDialog
+        open={!!pendingReshuffle}
+        title="Reshuffle the match order?"
+        subtitle="Every match gets a new random position. Nothing recorded changes — the tournament has no results yet."
+        confirmLabel="Reshuffle order"
+        busy={busy}
+        busyLabel="Reshuffling…"
+        onCancel={() => setPendingReshuffle(null)}
+        onConfirm={() => {
+          setPendingReshuffle(null);
+          onReshuffle();
+        }}
+      />
+
+      <ConfirmDialog
+        open={!!pendingClearDecider}
+        title="Remove the decider?"
+        subtitle="The tournament ends in a draw; the cup stays with its holder."
+        confirmLabel="Remove decider"
+        busy={!!deciderBusy}
+        busyLabel="Removing…"
+        onCancel={() => setPendingClearDecider(null)}
+        onConfirm={() => {
+          setPendingClearDecider(null);
+          onSaveDecider?.({
+            type: "none",
+            winner_player_id: null,
+            loser_player_id: null,
+            winner_goals: null,
+            loser_goals: null,
+          });
+        }}
+      >
+        <div>The saved decider ({deciderTypeLabel(currentDecider?.type ?? "none")}) is removed.</div>
+      </ConfirmDialog>
 
     </div>
   );

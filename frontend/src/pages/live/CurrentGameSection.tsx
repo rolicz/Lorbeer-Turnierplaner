@@ -72,6 +72,7 @@ export default function CurrentGameSection({
   /** Reset wipes a real result, finishing an unplayed match records one: both ask (R2). */
   const [resetAsked, setResetAsked] = useState(false);
   const [finishAsked, setFinishAsked] = useState(false);
+  const [swapAsked, setSwapAsked] = useState(false);
 
   // Clubs: `SelectClubsPanel` below holds the whole job — both slots, the
   // filters and the two random actions — behind one disclosure (T9).
@@ -261,9 +262,7 @@ export default function CurrentGameSection({
             {canControl && onSwapSides && (
               <Button
                 variant="ghost"
-                onClick={() => {
-                  void onSwapSides(activeMatch.id);
-                }}
+                onClick={() => setSwapAsked(true)}
                 disabled={busy}
                 title="Swap home/away (A↔B)"
               >
@@ -427,6 +426,21 @@ export default function CurrentGameSection({
         onConfirm={() => {
           setFinishAsked(false);
           void save("finished");
+        }}
+      />
+
+      {/* Swap again to put them back — its own inverse — so no red block. */}
+      <ConfirmDialog
+        open={swapAsked}
+        title="Swap sides A and B?"
+        subtitle="Home and away change places; players, clubs and goals move with them. Swap again to put them back."
+        confirmLabel="Swap sides"
+        busyLabel="Swapping…"
+        busy={busy}
+        onCancel={() => setSwapAsked(false)}
+        onConfirm={() => {
+          setSwapAsked(false);
+          if (onSwapSides) void onSwapSides(activeMatch.id);
         }}
       />
     </div>

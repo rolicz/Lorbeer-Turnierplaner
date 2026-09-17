@@ -1,6 +1,7 @@
 import { ArrowDown, ArrowRightLeft, ArrowUp, Layers, List, Shrink } from "lucide-react";
 
 import Button from "../../ui/primitives/Button";
+import ConfirmDialog from "../../ui/primitives/ConfirmDialog";
 import type { Club, Match } from "../../api/types";
 import { teamName } from "../../utils/matchDisplay";
 import { sideBy } from "../../helpers";
@@ -54,6 +55,10 @@ export default function MatchList({
     // Details by default (user request 2026-08); the choice sticks via localStorage.
     return "comfort";
   });
+
+  // One dialog for the whole list (documented exception, C7): which match asked is
+  // the state, not a per-row boolean.
+  const [swapAskedId, setSwapAskedId] = useState<number | null>(null);
 
   useEffect(() => {
     localStorage.setItem("match_list_view", view);
@@ -208,9 +213,7 @@ export default function MatchList({
                       {canEdit ? (
                         <Button
                           variant="ghost"
-                          onClick={() => {
-                            void onSwapSides(m.id);
-                          }}
+                          onClick={() => setSwapAskedId(m.id)}
                           disabled={busyReorder}
                           className="h-9 w-9 p-0 inline-flex items-center justify-center"
                           title="Swap sides"
@@ -249,6 +252,21 @@ export default function MatchList({
           );
         })}
       </div>
+
+      {/* Swap again to put them back — its own inverse — so no red block. One dialog
+          for the whole list; which match asked is `swapAskedId` (C7). */}
+      <ConfirmDialog
+        open={swapAskedId != null}
+        title="Swap sides A and B?"
+        subtitle="Home and away change places; players, clubs and goals move with them. Swap again to put them back."
+        confirmLabel="Swap sides"
+        onCancel={() => setSwapAskedId(null)}
+        onConfirm={() => {
+          const id = swapAskedId;
+          setSwapAskedId(null);
+          if (id != null) void onSwapSides(id);
+        }}
+      />
     </div>
   );
 }

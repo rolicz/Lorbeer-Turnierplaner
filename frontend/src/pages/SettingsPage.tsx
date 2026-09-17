@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Check, Eye, LogIn, LogOut, UserCog } from "lucide-react";
@@ -18,6 +18,7 @@ import { useRouteEntryLoading } from "../ui/layout/useRouteEntryLoading";
 import { useTabParam } from "../ui/shell/useTabParam";
 import PageLayout from "../ui/layout/PageLayout";
 import Button, { buttonClass } from "../ui/primitives/Button";
+import ConfirmDialog from "../ui/primitives/ConfirmDialog";
 import PageLoadingScreen from "../ui/primitives/PageLoadingScreen";
 
 const THEME_SWATCHES: Record<string, string[]> = {
@@ -82,6 +83,8 @@ export default function SettingsPage() {
 
   usePageTitle("Settings");
 
+  const [pendingLogout, setPendingLogout] = useState<true | null>(null);
+
   const [tab, setTab] = useTabParam<SettingsTab>(SETTINGS_TAB_KEYS, "account");
   const settingsTabs: SectionTab<SettingsTab>[] = [
     { key: "account", label: "Account", icon: <UserCircle2 size={14} /> },
@@ -137,7 +140,7 @@ export default function SettingsPage() {
                 </Link>
                 <Button
                   type="button"
-                  onClick={() => logout()}
+                  onClick={() => setPendingLogout(true)}
                   variant="ghost"
                   size="md"
                   className="justify-center gap-2"
@@ -254,6 +257,18 @@ export default function SettingsPage() {
         </SettingsSection>
         ) : null}
       </div>
+
+      <ConfirmDialog
+        open={!!pendingLogout}
+        title="Logout?"
+        subtitle="Login again with your player password; nothing else changes."
+        confirmLabel="Logout"
+        onCancel={() => setPendingLogout(null)}
+        onConfirm={() => {
+          setPendingLogout(null);
+          logout();
+        }}
+      />
     </PageLayout>
   );
 }
