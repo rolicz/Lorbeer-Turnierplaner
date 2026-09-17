@@ -816,7 +816,7 @@ full-screen sheet on mobile)" is already the truth; drop nothing.
 
 ---
 
-## C9 — A name in a pill opens the profile (audit 2.7)  ☐
+## C9 — A name in a pill opens the profile (audit 2.7)  ☑
 
 **The defect.** Three pills of one shape, three behaviours: the Streaks "Current" pills open a
 profile (`StreaksView.tsx:71-83`, a `PlayerLink`), the voter chips do nothing
@@ -853,7 +853,21 @@ opens the modal.
 **Gates.** `npm run check`; browser at 390 in `blue` and `light`: the voters modal on an idea with
 votes, Stats → H2H → Duos.
 
-**Deviations:**
+**Deviations:** None from spec. `VoteVotersModal.tsx`'s two `.chip` spans (upvoters, downvoters)
+now render as `<PlayerLink playerId={row.id} name={row.display_name} className="chip">`;
+`DuoDetail.tsx:62`'s raw `<button className="… rounded-full …">` is now
+`<Button variant="ghost" size="sm" className="shrink-0">` (matches the `RecordsView.tsx`/
+`H2HView.tsx`/`CupDetail.tsx` ghost-sm precedent, no `type="button"` — none of those three set it
+either). Left `VoteVotersModal.tsx:70`'s `text-loss` on the downvote thumb untouched, as instructed
+— a separate canon breach, not this task's. Verified against isolated stack (backend :8037,
+vite :8047, `backend/data/verify-c9.db`, deleted after): created a throwaway idea, upvoted it as
+two players (Roli + Flo) via the API to populate both the idea's voters modal and confirm the
+downvoters code path (structurally identical, no idea with a downvote existed in the dev copy — the
+plan's Bauernkranz/1v1 dev-DB `ideas` table is empty on this snapshot). Playwright (390×844 and
+1280×900, `blue` and `light`): `document.querySelectorAll("a a").length` = 0 on every surface;
+clicking a voter chip navigated to `/profiles/<id>` and closed the modal; the "Matches" button
+renders as a bordered ghost pill and still opens the duo's match-history modal. Screenshots and the
+verify script are in the session scratchpad, not committed (throwaway).
 
 ---
 

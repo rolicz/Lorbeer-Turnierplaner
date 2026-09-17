@@ -5,6 +5,7 @@ import type { VoteVotersResponse } from "../../api/types";
 import CardSection from "./CardSection";
 import InlineLoading from "./InlineLoading";
 import Modal from "./Modal";
+import PlayerLink from "./PlayerLink";
 
 export default function VoteVotersModal({
   open,
@@ -54,9 +55,9 @@ export default function VoteVotersModal({
             </div>
             <div className="flex flex-wrap gap-2">
               {upvoters.map((row) => (
-                <span key={row.id} className="chip">
+                <PlayerLink key={row.id} playerId={row.id} name={row.display_name} className="chip">
                   {row.display_name}
-                </span>
+                </PlayerLink>
               ))}
             </div>
           </CardSection>
@@ -71,9 +72,9 @@ export default function VoteVotersModal({
             </div>
             <div className="flex flex-wrap gap-2">
               {downvoters.map((row) => (
-                <span key={row.id} className="chip">
+                <PlayerLink key={row.id} playerId={row.id} name={row.display_name} className="chip">
                   {row.display_name}
-                </span>
+                </PlayerLink>
               ))}
             </div>
           </CardSection>
