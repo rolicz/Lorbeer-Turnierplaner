@@ -838,7 +838,7 @@ flagging this in case another task's browser verification had to re-run.
 
 ---
 
-## C6 — Floating elements: verify the clearance the canon promises (audit 1.4)  ☐
+## C6 — Floating elements: verify the clearance the canon promises (audit 1.4)  ☑
 
 **The defect as reported.** On the viewport captures the filter capsule (117×44, 15px above the
 bar) covered the right end of the last **visible** friendlies row and the radar's "Defense" label,
@@ -874,7 +874,62 @@ canon §9/§9b — no change" or the one-line padding fix.
 
 **Canon.** Follows §9 and §9b. Nothing to change.
 
-**Deviations:**
+**Deviations:** **No code changed — the audit's finding is answered by the canon, not by a fix.**
+All four measurements pass, so `pages/stats/StatsInsights.tsx`, `pages/tools/FriendlyMatchesListCard.tsx`
+and `pages/ideas/IdeasPage.tsx` are untouched. The numbers, so the next audit does not re-report
+this: measured with Playwright on the isolated stack (backend 8038, vite 8048,
+`backend/data/verify-c6.db`), 390×844 (coarse pointer) and 1280×900, `blue` **and** `light`, three
+seeded ideas (the DB copy had none), 0 console/page errors throughout.
+
+1. **End-of-page clearance, pill pages.** `grep pb-16` → present on both
+   (`StatsInsights.tsx:207`, `FriendlyMatchesListCard.tsx:346`), and the geometry agrees with §9
+   to the pixel. Scrolled fully to the end, gap = capsule top − last content bottom:
+
+   | page | 390×844 blue | 390×844 light | 1280×900 blue | 1280×900 light |
+   |---|---|---|---|---|
+   | `/stats?view=player&player=1` (last block = Match history card) | **20.0px** | 20.0px | **20.0px** | 20.0px |
+   | `/friendlies` (last block = the day group) | 20.0px | 20.0px | 20.0px | 20.0px |
+   | `/friendlies`, last *printed* row (the score digit) | **26.0px** | 26.0px | 26.0px | 26.0px |
+
+   §9's two figures are both exact: 20px of air at 390px **and** at 1280px for a full-width block,
+   26px on the friendlies list, "whose last row is a score rather than a full-width block" — that
+   26 is the score glyph's own baseline box; the friendlies row's right-hand column (the player
+   name under the capsule) clears by 31.25px. Pixel overlap between the capsule rect and any
+   content leaf at the end of the page: **0 px²** on every page, width and theme. The arithmetic
+   behind it, for whoever changes a padding later: mobile `AppShell` `pb-nav-clear` 72 + the page
+   column's `pb-16` 64 = 136 above the document end, against the capsule's `bottom-nav-clear` 72 +
+   `h-11` 44 = 116 → 20. Desktop `lg:pb-6` 24 + 64 = 88 against `lg:bottom-6` 24 + 44 = 68 → 20.
+2. **Ideas composer.** Scrolled to the end, the composer settles flush on the card's bottom edge
+   (composer bottom 771 vs feed card bottom 772 at 390px — sub-pixel; 875 vs 876 at 1280px) and the
+   last idea card is **fully visible above it**: card bottom 702, composer top 714 → **12px** of air
+   (the feed's own `py-3`), **0px covered**, identical in both themes and at both widths. The
+   audit's "5px slit over the third card" is the mid-scroll state §9b describes ("floats over the
+   feed while you read"), not the end state.
+3. **The capsule does tuck.** From the top, scrolling down past `y > 120`:
+   `data-tucked="true"`, `opacity: 0`, `translateY(128px)` — the button's top leaves the viewport
+   (856 > 844 at 390px, 960 > 900 at 1280px). Scrolling back up 150px: `data-tucked="false"`,
+   opacity 1, back at top 728 / 832. True on both pill pages, both widths, both themes. Mid-scroll
+   *while untucked* the capsule does cover content (measured 3406 px² over a friendlies row) — that
+   is the ruled trade-off of a floating control (§9/T4/S9) and the tuck is its answer.
+4. **Keyboard.** Caret into the Ideas title field → `<html data-keyboard-open>`, the composer's
+   sticky offset collapses `72px → 0px` (its bottom edge lands on the viewport bottom, 844) and
+   `BottomTabBar` goes `display: none`. The hop the plan names — title `<input>` → details
+   `<textarea>` — **keeps the episode**: the flag stays up across the blur/focus. With a caret in a
+   field on `/friendlies` the capsule's computed `display` is **`none`** (`hide-on-keyboard`).
+   Both themes. Note the expected headless artefact: after `SETTLE_MS` (600ms) with a viewport that
+   never moves, condition 3 correctly concludes "no on-screen keyboard" and the bar, the pill and
+   the 72px all come back — that is the hardware-keyboard/desktop path working, not a defect. As an
+   independent check of the CSS alone, forcing the flag at 390px coarse gives pill `display: none`,
+   bar `display: none`, `pb-nav-clear` → `0px`.
+
+Two notes for whoever reads this next. (a) The pill is rendered *inside* the `pb-16` column
+(`StatsInsights.tsx:263`, `FriendlyMatchesListCard.tsx:388`) and is `position: fixed`, so a naive
+"last child of the container" measurement returns the capsule itself and reports a gap of 0 — the
+measurement has to skip fixed elements. (b) `/ideas` carries **no** filter capsule (its tabs, area
+chips and sort are in-page controls), so step 4's "the capsule is hidden" was verified on
+`/friendlies`, the nearest pill page with a text field. Measurements were taken with C8's
+in-progress working-tree changes present (parallel worker); its diff removes two `boxShadow`
+entries and touches no spacing token, so none of the geometry above depends on it.
 
 ---
 
