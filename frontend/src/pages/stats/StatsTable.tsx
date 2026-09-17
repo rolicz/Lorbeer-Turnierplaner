@@ -186,7 +186,7 @@ export default function StatsTable({
           </thead>
           <tbody>
             {sorted.map((r, i) => (
-              <tr key={r.id} onClick={() => onSelect(r.id)} className="cursor-pointer border-b border-border-card-inner/40 transition hover:bg-hover-default/30">
+              <tr key={r.id} onClick={() => onSelect(r.id)} className="cursor-pointer border-b border-border-card-chip/40 transition hover:bg-hover-default/30">
                 <td className="sticky left-0 z-10 bg-bg-default py-2 pl-1 pr-2">
                   <div className="flex items-center gap-2">
                     <span className="w-4 text-right text-xs tabular-nums text-text-muted">{i + 1}</span>

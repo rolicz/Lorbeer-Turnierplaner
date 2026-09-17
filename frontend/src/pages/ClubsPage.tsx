@@ -414,10 +414,10 @@ export default function ClubsPage() {
             })}
           </select>
         </label>
-        <label className="flex items-center gap-2">
+        <label className="flex min-w-0 max-w-full items-center gap-2">
           <span className="section-label">League</span>
           <select
-            className="select-field w-auto"
+            className="select-field w-auto min-w-0 max-w-full"
             value={filterLeagueId === "" ? "" : String(filterLeagueId)}
             onChange={(e) => setFilterLeagueId(e.target.value ? Number(e.target.value) : "")}
           >

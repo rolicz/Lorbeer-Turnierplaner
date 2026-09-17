@@ -300,7 +300,7 @@ export default function ClubPicker({
             onKeyDown={onSearchKeyDown}
             placeholder="Search clubs…"
             aria-label="Search clubs"
-            className="w-full bg-transparent text-sm text-text-normal outline-none placeholder:text-text-muted"
+            className="w-full bg-transparent text-sm text-text-normal outline-none"
           />
           {query ? (
             <button

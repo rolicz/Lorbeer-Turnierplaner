@@ -531,7 +531,7 @@ gitignored, as the batch now requires); every browser process was started and cl
 
 ---
 
-## C3 — Hairlines, placeholders and the League select (audit 1.3, 1.5, 1.6, 1.13)  ☐
+## C3 — Hairlines, placeholders and the League select (audit 1.3, 1.5, 1.6, 1.13)  ☑
 
 Four small fixes one worker does together; every one is a single rule or a single class.
 
@@ -661,6 +661,54 @@ card groups the whole form: card → inset is the canon". Leave it; note it in D
 drawn as an inset shadow so the box is the same size in every theme — C3)".
 
 **Deviations:**
+
+All five defects verified present before touching anything (isolated stack, backend :8033 /
+vite :8043 / `verify-c3.db`, dev DB's real synced data): (a) placeholder 2.54:1 in light,
+matching the task's own number exactly; (c) both `border-border-card-inner/40` dividers at
+1.02:1 blue / 1.06:1 light; (d) League select margin 8.875px at 390 (< 16px gutter); (b)
+`document.body.scrollHeight` drifted (dashboard +70px measured cleanly, and up to ~4800px of
+noise on `statsPlayer` before I switched the wait strategy — see below).
+
+One addition beyond the task text, flagged live in it: `PlayerStreakChips.tsx:54`'s
+`isNewRecordNow` state adds a real `border border-accent` to an `.inset`. Border and box-shadow
+are independent CSS properties (unlike a Tailwind `ring-*`, which replaces `box-shadow`
+wholesale), so the new light hairline shadow would sit as a second ring just inside the accent
+border — confirmed by reasoning (couldn't reproduce live: no player in the dev DB copy currently
+has a current streak equal to the *global* record) and by inspecting Tailwind's own generated
+`.border`/`.border-accent` rules in the served stylesheet, which land after `.inset` and do
+override it correctly in the app's real build. Added the override the task names:
+`[data-theme="light"] .inset.border-accent { box-shadow: none; }`, right after the new rule.
+
+Measurement note for whoever verifies other tasks on this Pi with Playwright: `networkidle` and
+a short "no 'Loading' text" wait are both unreliable here — several sections use skeletons with
+no text and stage in over several seconds (dashboard's trends chart, `statsPlayer`'s H2H/records
+lists). A flat 8s wait was still occasionally short for the dashboard specifically; 10s was
+reliable across 4 repeated runs. Numbers below are from a clean 10s-wait run, both themes
+launched as separate browser instances (this machine ran low on headroom with six workers'
+browsers up at once — launch/close per measurement, don't hold one browser across many pages).
+
+`document.body.scrollHeight`, blue vs light, both **equal after the fix** (were unequal before:
+dashboard measured +70 in an early, less careful run; the other four were short enough in the dev
+DB that the pre-fix drift didn't show at this data volume, so their "after" numbers don't prove
+much beyond "still equal"):
+| page | blue | light |
+|---|---|---|
+| `/dashboard` | 1465 | 1465 |
+| `/ideas` (0 ideas in dev DB — short page, no drift to show either way) | 844 | 844 |
+| `/live/21?tab=overview` | 844 | 844 |
+| `/live/19/match/105` | 844 | 844 |
+| `/stats?view=player&player=1` | 6291 | 6291 |
+
+Contrast/geometry after the fix: placeholder 6.14:1 (blue) / 9.35:1 (light) on both the Clubs
+search and Ideas composer (computed `::placeholder` colour now resolves to the muted token,
+`rgb(186 198 216)` blue / `rgb(74 70 66)` light, exactly the values the task names); standings
+divider 1.35:1 (blue) / 1.32:1 (light) on both Stats → Table and the Cups per-player table;
+League select at 390 right edge = `innerWidth - 16` exactly (margin 16px, was 8.875px), unchanged
+at 1280 (margin 297px). (e) checked, left alone — the match-edit card's narrower `MatchOverviewPanel`
+is `MatchDetailPage.tsx:390`'s canon per T8, not a C3 defect.
+
+`npm run check`: typecheck clean, lint clean, 689/689 tests green (68 files — higher than this
+plan's baseline count because other parallel tasks' tests were already merged into the tree).
 
 ---
 
