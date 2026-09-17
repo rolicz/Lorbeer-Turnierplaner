@@ -35,7 +35,30 @@
    contrast with the WCAG formula on sampled pixels, geometry with `getBoundingClientRect`.
 7. Never read or print `backend/secrets.json`. Never run destructive commands on
    `backend/app.db` or `backend/data/app.db` — copy first. Never bind 8000/8001/8010/5173.
-8. Tick your task's checkbox here and fill in **Deviations** under it (what you changed that the
+8. **One mechanism per job — reuse before you create.** This batch exists to collapse N ways of
+   doing a thing into one; a worker that invents its own way while fixing that is the batch
+   defeating itself. Before writing a helper, a hook, a wrapper or a class string, look for the
+   existing one — and if your task names a mechanism, use **that** one and no other. The shared
+   things this batch depends on, none of which may be re-implemented:
+
+   | job | the one implementation | who builds it |
+   |---|---|---|
+   | asking before an irreversible action | `ui/primitives/ConfirmDialog` — one per site, local `useState` | exists; C7 wires 11 more |
+   | a locale | the two constants exported from `utils/format.ts` — **no call site spells a locale string** | C1 |
+   | a per-match average | `fmtAvg` — `fmtPct` is deleted, inline `.toFixed(2)` is not allowed back | C10 |
+   | a count + a noun | `fmtCount` | C10 |
+   | two names on one line | `teamName` in `utils/matchDisplay.ts` — every `join` routes through it | C10 |
+   | a player's colour | `colorForIdx` in `trendsMath.ts` and the theme tokens it reads | C2 |
+   | a "see more" link | the `StandingsPreviewCard.tsx:49` look — copy it; the audit already counted four | C14 |
+   | a score, a record, a club symbol, an avatar | `ScoreLine`, `RecordLine`, `ClubMark`, `AvatarCircle` | all exist |
+
+   **C11 and C13 run after C2 on purpose:** they take their colours from the token mechanism C2
+   establishes and add no parallel one. If your task genuinely needs something new and shared,
+   put it where the existing family lives (a primitive in `ui/primitives/`, a formatter in
+   `utils/format.ts`), and say so in **Deviations** in your first sentence, so the next task reuses
+   it instead of writing its own. Two implementations of one job is a failed task even when both
+   are correct and the tests are green.
+9. Tick your task's checkbox here and fill in **Deviations** under it (what you changed that the
    task did not say, what you measured, what you left). Include that edit in your commit.
    If blocked or the code does not match this spec, stop, note it here, commit nothing broken.
 
