@@ -966,6 +966,20 @@ describes a prop or branch C8 deleted (`fullScreenOnMobile`, `bodyVariant`, `wid
   and `light`: the six palette lines ≥ 3:1 (C2); placeholders ≥ 4.5:1 (C3); `scrollHeight` equal
   across themes (C3); standings dividers ≥ 1.3:1 (C3); League select inside the gutter (C3);
   end-of-page clearance ≥ 20px (C6).
+- **Re-count what the batch claims to have collapsed.** The gates above re-measure pixels; these
+  re-measure *variants*, because a half-landed sweep leaves three spellings where there were two
+  and is worse than no sweep. Run after C10 and again after C14, and expect **1** for each:
+  ```bash
+  cd frontend/src
+  grep -rn 'join("/")\|join(" / ")' . | grep -v test/   # 2v2 teams: expect 0 — all through teamName
+  grep -rn '"Win rate"\|"Win%"' . | grep -v test/        # win rate: expect 0 — "Win %" only
+  grep -rn '★`\|★"\|★{' . | grep -v test/               # the star: no hit on an Elo number
+  grep -rn '\.\.\.' --include=*.tsx . | grep -v test/  # ellipsis: expect 0 three-dot literals
+  grep -rn 'playedLabel=' . | grep -v test/              # expect 0 — the split is by context now
+  ```
+  Each returns a count the audit put a number on; if one is not what the pick table promised, the
+  sweep is incomplete, not "mostly done". A worker that cannot reach 0 on a line must say which
+  sites resisted and why, in its Deviations section — never leave it to be rediscovered.
 
 ## Deployment (later, on Roli's go)
 
