@@ -29,7 +29,7 @@ import StatsSection from "./StatsSection";
 import { MatchHistoryList, tournamentMatchHref } from "./MatchHistoryList";
 import PlayerStreakChips from "./PlayerStreakChips";
 import { StarsSection } from "./StarsView";
-import { fmtRating } from "../../utils/format";
+import { fmtAvg, fmtRating } from "../../utils/format";
 import type { Row } from "./standings";
 import type { StatsMode } from "./statsMode";
 import type { StatsScope } from "../../api/types";
@@ -110,7 +110,7 @@ export default function PlayerProfile({ mode, scope, rows, selectedId, onSelect 
                   <ChevronRight className="h-4 w-4 shrink-0 text-text-muted" aria-hidden="true" />
                 </div>
                 <div className="text-xs text-text-muted">
-                  {fmtRating(row.rating)}★ · <span className="text-win">{row.wins}</span>-<span className="text-draw">{row.draws}</span>-<span className="text-loss">{row.losses}</span> · {row.pts} pts · view profile
+                  Elo {fmtRating(row.rating)} · <span className="text-win">{row.wins}</span>-<span className="text-draw">{row.draws}</span>-<span className="text-loss">{row.losses}</span> · {row.pts} pts · view profile
                 </div>
               </div>
             </button>
@@ -123,10 +123,10 @@ export default function PlayerProfile({ mode, scope, rows, selectedId, onSelect 
           <StatsSection label="Key numbers">
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
               <StatTile label="Played" value={String(row.played)} />
-              <StatTile label="Win rate" value={row.played ? `${Math.round((row.wins / row.played) * 100)}%` : "—"} />
-              <StatTile label="Pts / match" value={row.played ? (row.pts / row.played).toFixed(2) : "—"} />
-              <StatTile label="Goals / match" value={row.played ? (row.gf / row.played).toFixed(2) : "—"} />
-              <StatTile label="Conceded / match" value={row.played ? (row.ga / row.played).toFixed(2) : "—"} />
+              <StatTile label="Win %" value={row.played ? `${Math.round((row.wins / row.played) * 100)}%` : "—"} />
+              <StatTile label="Pts / match" value={row.played ? fmtAvg(row.pts / row.played) : "—"} />
+              <StatTile label="Goals / match" value={row.played ? fmtAvg(row.gf / row.played) : "—"} />
+              <StatTile label="Conceded / match" value={row.played ? fmtAvg(row.ga / row.played) : "—"} />
               <StatTile label="Goal diff" value={row.gd >= 0 ? `+${row.gd}` : String(row.gd)} />
             </div>
           </StatsSection>

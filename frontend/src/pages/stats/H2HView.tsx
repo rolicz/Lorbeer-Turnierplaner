@@ -24,6 +24,7 @@ import { duoKey } from "./h2hHelpers";
 import { MATRIX_GAP, matrixCellSize, matrixFits } from "./microGrid";
 import { useStickyTop } from "../../ui/shell/useStickyTop";
 import { joinNames } from "../../utils/matchDisplay";
+import { fmtAvg } from "../../utils/format";
 import { DuoLeaderboard } from "./h2h/DuoLeaderboard";
 import { DuoPicker } from "./h2h/DuoPicker";
 import { DuoRivalries } from "./h2h/DuoRivalries";
@@ -65,7 +66,7 @@ function RivalCard({ icon, label, row, widths, onOpen }: {
           draws={row.draws}
           losses={row.losses}
           widths={widths}
-          extra={`${row.pts_per_match.toFixed(2)} ppm`}
+          extra={`${fmtAvg(row.pts_per_match)} ppm`}
           className="mt-0.5 text-text-muted"
         />
       ) : null}
@@ -137,9 +138,9 @@ export default function H2HView({ mode, scope, rows, subView, selectedId, onSele
     matrixMetric === "played" ? String(v.played)
       : matrixMetric === "gd" ? (v.gd >= 0 ? `+${v.gd}` : String(v.gd))
         : matrixMetric === "wdl" ? `${v.w}-${v.d}-${v.l}`
-          : matrixMetric === "ppm" ? v.ppm.toFixed(2)
+          : matrixMetric === "ppm" ? fmtAvg(v.ppm)
             : matrixMetric === "rivalry" ? String(Math.round(v.rivalry))
-              : String(Math.round(v.pct));
+              : `${Math.round(v.pct)}%`;
   const sortedRivalries = useMemo(
     () => pairs.slice().sort((a, b) => (rivalryOrder === "played" ? b.played - a.played || b.rivalry_score - a.rivalry_score : b.rivalry_score - a.rivalry_score)),
     [pairs, rivalryOrder],
@@ -597,7 +598,6 @@ export default function H2HView({ mode, scope, rows, subView, selectedId, onSele
                 draws={p.draws}
                 losses={p.b_wins}
                 widths={rivalryWidths}
-                playedLabel="matches"
                 className="text-xs text-text-muted"
               />
             </div>

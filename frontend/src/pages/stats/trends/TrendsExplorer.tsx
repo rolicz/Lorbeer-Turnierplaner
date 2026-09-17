@@ -19,7 +19,7 @@ import { useChartGestures } from "./useChartGestures";
 export type { Metric, ViewMode } from "./useChartData";
 
 const METRIC_OPTS: { key: Metric; label: string }[] = [
-  { key: "points", label: "Points" },
+  { key: "points", label: "Pts" },
   { key: "goals", label: "Goals" },
   { key: "conceded", label: "Conceded" },
   { key: "gd", label: "Goal diff" },
@@ -190,7 +190,7 @@ export default function TrendsExplorer({ mode, scope, rows, initialMetric, initi
         <Field label="View">
           {isElo ? (
             <ChipGroup<"cumulative" | "per"> value={effView === "per" ? "per" : "cumulative"} onChange={(v) => setView(v)} ariaLabel="View"
-              options={[{ key: "cumulative", label: "Rating" }, { key: "per", label: "Δ per event" }]} />
+              options={[{ key: "cumulative", label: "Elo" }, { key: "per", label: "Δ per event" }]} />
           ) : isForm ? (
             <ChipGroup<"cumulative" | "per"> value={effView === "per" ? "per" : "cumulative"} onChange={(v) => setView(v)} ariaLabel="View"
               options={[{ key: "cumulative", label: "Form" }, { key: "per", label: "Δ per event" }]} />

@@ -7,7 +7,6 @@ import {
   fmtMonthDate,
   fmtInt,
   fmtAvg,
-  fmtPct,
   fmtOdd,
   clamp,
   wrapTwoLinesWords,
@@ -102,12 +101,6 @@ describe("fmtAvg", () => {
 
   it("returns '0.00' for non-finite", () => {
     expect(fmtAvg(NaN)).toBe("0.00");
-  });
-});
-
-describe("fmtPct", () => {
-  it("formats to 2 decimal places", () => {
-    expect(fmtPct(0.75)).toBe("0.75");
   });
 });
 

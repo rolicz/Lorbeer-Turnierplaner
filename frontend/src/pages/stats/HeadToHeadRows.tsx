@@ -6,6 +6,7 @@ import type { StatsH2HDuo, StatsH2HTeamRivalry } from "../../api/types";
 import RecordLine, { recordWidths, type RecordWidths } from "../../ui/primitives/RecordLine";
 import { normalizeTeamRivalryForFocus, pct } from "./h2hHelpers";
 import { joinNames } from "../../utils/matchDisplay";
+import { fmtAvg } from "../../utils/format";
 
 function RowShell({
   onClick,
@@ -89,13 +90,12 @@ export function DuoRow({
           gf={rr.gf}
           ga={rr.ga}
           widths={widths}
-          playedLabel="games"
           extra={`${pct(rr.win_rate)} win`}
           className="text-xs text-text-muted"
         />
       </div>
       <div className="shrink-0 text-right">
-        <div className="font-mono tabular-nums text-sm text-text-normal">{rr.pts_per_match.toFixed(2)} ppm</div>
+        <div className="font-mono tabular-nums text-sm text-text-normal">{fmtAvg(rr.pts_per_match)} ppm</div>
         <RecordLine
           wins={rr.wins}
           draws={rr.draws}
@@ -153,7 +153,6 @@ export function TeamRivalryRow({
         <RecordLine
           played={rr.played}
           widths={widths}
-          playedLabel="games"
           extra={`${closePct} close`}
           className="shrink-0"
         />

@@ -8,7 +8,7 @@ import { Pill } from "../../ui/primitives/Pill";
 import RecordLine, { recordWidths, type RecordWidths } from "../../ui/primitives/RecordLine";
 import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
 import type { Club, StatsH2HOpponentRow, StatsPlayerMatchesTournament } from "../../api/types";
-import { fmtPct, fmtRank } from "../../utils/format";
+import { fmtAvg, fmtRank } from "../../utils/format";
 import { MatchHistoryList, tournamentMatchHref } from "../stats/MatchHistoryList";
 import { statsMatchupHref } from "../stats/statsNav";
 import { type FavoriteTeammate } from "./favoriteTeammates";
@@ -37,7 +37,7 @@ function RivalCard({ icon, label, row, widths, playerId }: {
           draws={row.draws}
           losses={row.losses}
           widths={widths}
-          extra={`${fmtPct(row.pts_per_match)} ppm`}
+          extra={`${fmtAvg(row.pts_per_match)} ppm`}
           className="mt-0.5 text-text-muted"
         />
       ) : null}
@@ -146,7 +146,7 @@ export default function ProfileOverviewTab({
                     draws={tm.d}
                     losses={tm.l}
                     widths={teammateWidths}
-                    extra={`${fmtPct(tm.ppm)} ppm`}
+                    extra={`${fmtAvg(tm.ppm)} ppm`}
                     className="mt-0.5 text-text-muted"
                   />
                 </>

@@ -4,7 +4,7 @@ import { Link } from "react-router-dom";
 import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
 import StatTile from "../../ui/primitives/StatTile";
 import type { StatsPlayerRow, StatsRatingsRow, StatsStreakCategory } from "../../api/types";
-import { fmtInt, fmtPct, fmtRating } from "../../utils/format";
+import { fmtAvg, fmtInt, fmtRating } from "../../utils/format";
 import { Radar } from "../stats/charts";
 import PlayerStreakChips from "../stats/PlayerStreakChips";
 
@@ -89,10 +89,10 @@ export default function ProfileStatsSection({
           <>
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
               <StatTile label="Played" value={String(played)} />
-              <StatTile label="Win rate" value={played ? `${Math.round(((r?.wins ?? 0) / played) * 100)}%` : "—"} />
-              <StatTile label="Pts / match" value={played ? fmtPct((r?.pts ?? 0) / played) : "—"} />
-              <StatTile label="Goals / match" value={played ? fmtPct((r?.gf ?? 0) / played) : "—"} />
-              <StatTile label="Conceded / match" value={played ? fmtPct((r?.ga ?? 0) / played) : "—"} />
+              <StatTile label="Win %" value={played ? `${Math.round(((r?.wins ?? 0) / played) * 100)}%` : "—"} />
+              <StatTile label="Pts / match" value={played ? fmtAvg((r?.pts ?? 0) / played) : "—"} />
+              <StatTile label="Goals / match" value={played ? fmtAvg((r?.gf ?? 0) / played) : "—"} />
+              <StatTile label="Conceded / match" value={played ? fmtAvg((r?.ga ?? 0) / played) : "—"} />
               <StatTile label="Goal diff" value={(r?.gd ?? 0) >= 0 ? `+${fmtInt(r?.gd ?? 0)}` : fmtInt(r?.gd ?? 0)} />
             </div>
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-text-muted">
@@ -100,7 +100,7 @@ export default function ProfileStatsSection({
                 Record <span className="tabular-nums text-win">{fmtInt(r?.wins ?? 0)}</span>-<span className="tabular-nums text-draw">{fmtInt(r?.draws ?? 0)}</span>-<span className="tabular-nums text-loss">{fmtInt(r?.losses ?? 0)}</span>
               </span>
               <span>Elo <b className="tabular-nums text-text-normal">{eloRow ? fmtRating(eloRow.rating) : "—"}</b>{eloRank != null ? ` · #${eloRank}` : ""}</span>
-              <span>Form{formWindow ? ` (last ${formWindow})` : ""} <b className="tabular-nums text-text-normal">{formWindow ? fmtPct(r?.lastN_avg_pts ?? 0) : "—"}</b></span>
+              <span>Form{formWindow ? ` (last ${formWindow})` : ""} <b className="tabular-nums text-text-normal">{formWindow ? fmtAvg(r?.lastN_avg_pts ?? 0) : "—"}</b></span>
             </div>
           </>
         );

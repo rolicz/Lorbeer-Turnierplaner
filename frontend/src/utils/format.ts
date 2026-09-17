@@ -72,12 +72,8 @@ export function fmtCount(n: number, singular: string, plural: string): string {
   return `${n} ${n === 1 ? singular : plural}`;
 }
 
+/** The one per-match average: two decimals, `0.00` for anything non-finite (C10 row 4). */
 export function fmtAvg(n: number): string {
-  if (!Number.isFinite(n)) return "0.00";
-  return n.toFixed(2);
-}
-
-export function fmtPct(n: number): string {
   if (!Number.isFinite(n)) return "0.00";
   return n.toFixed(2);
 }
