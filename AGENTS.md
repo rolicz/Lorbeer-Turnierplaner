@@ -795,18 +795,22 @@ every past match simply keeps counting today's rating.
 
 ## 11. Current state (2026-09-17)
 
-- **`main` is `671473e`, pushed — and `f425961` (2026-09-16) is still the last thing actually
-  deployed.** On top of `f1ea22b`, `main` carries two §11 doc rewrites (`56d8719`, `671473e`) and
-  one frontend change, `2e23365`: Stats → Player puts Streaks above Club stars (Roli's call).
-  Nothing since `f425961` has gone to the server.
-- **`feature/2026-09-design-fixes` is finished and unmerged** (branched from `2e23365`; six docs
+- **`main` carries the 2026-09 design batch, merged and pushed — and `f425961` (2026-09-16) is
+  still the last thing actually deployed.** Between the two sit: Q15/Q16/Q17 (`f1ea22b`), Stats →
+  Player putting Streaks above Club stars (`2e23365`), two §11 doc rewrites, and the merge of
+  `feature/2026-09-design-fixes`. Everything since `f425961` is **frontend-only** — no backend, no
+  schema, no manual step — so it is the short deploy
+  (`git pull && docker compose up -d --build frontend`). Nothing here has run on iOS: every check
+  was headless Chromium at 390×844 and 1280×900.
+- **`feature/2026-09-design-fixes` is merged** (`5a97fa9`) and can be deleted (branched from
+  `2e23365`; six docs
   commits, then C1–C14 as fifteen implementation commits, then this doc pass). It answers
   `DESIGN_AUDIT_2026-09-17.md`, a blind design-consistency audit — eight parallel reviewers, four
   over `frontend/src` and four over 71 screenshots, working deliberately **without** `AGENTS.md`
   or `DESIGN.md` so the findings were not anchored by decisions already made; a finding counted
   only with counted evidence behind it (raw reports in `design-audit-2026-09-17/`).
   `DESIGN_FIXES_2026-09.md` is the plan, with Roli's decisions recorded at the top under "do not
-  relitigate". **Frontend-only, and not deployed: Roli tests locally first.** What landed:
+  relitigate". **Frontend-only, merged, not yet deployed.** What landed:
   **C1** one locale constant per shape (numbers `de-AT`, months `en-GB`); **C2** the player
   palette takes its lightness from the theme (hue stays the player's identity); **C3** light
   hairlines, placeholders and the League select — a light page is now exactly as tall as the same
