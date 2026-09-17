@@ -153,7 +153,11 @@ export default function TrendsExplorer({ mode, scope, rows, initialMetric, initi
         </div>
         <div className="mt-1 flex items-center justify-between gap-2 text-xs text-text-muted">
           <span>Pinch to zoom · drag to pan</span>
-          {manualWin ? <button type="button" className="font-medium text-accent" onClick={() => setManualWin(null)}>Reset zoom</button> : null}
+          {manualWin ? (
+            <button type="button" className="text-xs text-text-muted transition hover:text-text-normal" onClick={() => setManualWin(null)}>
+              Reset zoom
+            </button>
+          ) : null}
         </div>
         {/* Same explainer as the Elo column in the table. */}
         {isElo ? <div className="mt-2"><EloNote /></div> : null}

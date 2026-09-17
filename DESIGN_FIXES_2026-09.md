@@ -1549,7 +1549,7 @@ If `--color-draw` already reads `133 77 14` in `light.css`, this task is done �
 
 ---
 
-## C12 — The crown and the ring (audit 2.2, 2.3)  ☐
+## C12 — The crown and the ring (audit 2.2, 2.3)  ☑
 
 **(a) is DECIDED: remove the crown where the avatar already wears the cup ring** (Players page,
 profile header), so a crown on a person means only "held it going into this tournament".
@@ -1604,7 +1604,27 @@ tournament"; unused imports gone; `ui/primitives/AvatarButton.tsx` **not in the 
 **Gates.** `npm run check`; browser at 390 and 1280 in `blue` — the Players page and one profile,
 confirming a cup holder still reads as one from the ring alone.
 
-**Deviations:**
+**Deviations:** None from the task spec. Verify-first confirmed both defects still present
+(`CupOwnerBadge` at `PlayersAdminPage.tsx:241` and `ProfileHeader.tsx:189`, `cups=` already wired
+to both avatars) before touching anything. Deleted exactly the crown block + its now-unused
+`CupOwnerBadge` import at both sites; left `heldCups`/`ownedCups` in place since they still feed
+`AvatarCircle`'s `cups` prop. `ui/primitives/AvatarButton.tsx` never opened; `git status` after
+the edit shows only the two task files. `npm run check`: 0 TypeScript errors, 0 ESLint errors
+(one pre-existing warning in `ProfileOverviewTab.tsx` from a different in-flight task, not this
+one's file), 688/688 tests in 68 files. `test/avatarRing.test.tsx` asserts only `AvatarCircle`'s
+own ring contract, never `CupOwnerBadge` — left untouched, no defect there.
+Browser verification on the isolated stack (backend :8052, vite :8062, `verify-c12.db`, deleted
+after): Players page and Berni's profile (`/profiles/4`) at 390×844 and 1280×900, `blue` and
+`light` — `[title*="owner"]` (the badge) count 0, `[data-avatar-ring="cup"]` count matches the
+known holders (Berni → Lorbeerkranz, Roli → Bauernkranz) with legible tooltips
+("Holds Lorbeerkranz"/"Holds Bauernkranz"), 0 console/page errors, screenshots confirm the ring
+alone reads as "holds a cup" at both widths and both themes. Confirmed `CupOwnerBadge` is
+unbroken and still the only mark in the tournament standings: tournament 19's Results tab shows
+"Bauernkranz owner (before tournament)" on Roli's row (ring-less, per T15/A8), matching the API's
+own cup-history timeline. One incidental find while building the check, not a C12 defect: C11 is
+mid-flight on `CupOwnerBadge.tsx`/`cupColors.ts` in parallel (colour-var rename), visible as a
+live file-change note during this session — expected per the plan's "C11, C12 and C14 may run in
+parallel" ordering, not touched here.
 
 ---
 
@@ -1659,7 +1679,7 @@ both themes; the pulse still animates; nothing else changed colour
 
 ---
 
-## C14 — Accent means "selected" only (audit 2.8)  ☐
+## C14 — Accent means "selected" only (audit 2.8)  ☑
 
 > **Decided: the three accent text links take the dashboard's muted text + chevron look.**
 > `StandingsPreviewCard.tsx:49` ("Full table ›") is the precedent to copy — match it exactly rather
@@ -1719,6 +1739,43 @@ reads as muted text with no chevron; `npm run check` green.
 differs per theme, so "no longer accent" must be confirmed in both.
 
 **Deviations:**
+- No deviation from the spec's classes or scope. `ProfileOverviewTab.tsx` "View all" and
+  `ProfileStatsSection.tsx` "Full stats" now read
+  `order-1 shrink-0 inline-flex items-center gap-1 text-xs text-text-muted transition hover:text-text-normal`
+  (the Link additionally keeps its pre-existing `no-underline`, orthogonal to the precedent since
+  the precedent is a `<button>`), each followed by `<ChevronRight size={14} />` verbatim as the
+  plan specifies, replacing the `→` glyph. `TrendsExplorer.tsx` "Reset zoom" took the muted-text
+  half only — `text-xs text-text-muted transition hover:text-text-normal`, no `inline-flex
+  items-center gap-1` (nothing to align without an icon) and no chevron.
+- **Measured**, isolated stack (backend :8054, vite :8064, `backend/data/verify-c14.db`, deleted
+  after use), Playwright, both `blue` and `light`, both 390×844 and 1280×900: the two navigation
+  links and the `StandingsPreviewCard.tsx` "Full table" precedent are pixel-identical in every
+  cell — `elHeight` 16px, `font-size` 12px, `font-weight` 400 (no `font-medium` on any of them),
+  `column-gap` 4px, text-to-chevron gap 4px (measured via `Range` on the text node vs the SVG's
+  `getBoundingClientRect`), chevron 14×14 and vertically centred with the text (`align-items:
+  center` on a `display:flex` element), and identical `color` per theme (blue
+  `rgb(186,198,216)`, light `rgb(74,70,66)`) across precedent/View all/Full stats. "Reset zoom"
+  (triggered via a synthetic two-finger pinch `TouchEvent` dispatched on the chart's `.inset.p-2`
+  plot div, since it only appears once `manualWin` is set) confirmed `hasSvg: false` and the same
+  muted color/size/weight as the navigation links, in all four theme/width combinations — same
+  treatment, no affordance it has no use for.
+- One transient, unrelated finding, not fixed here: during measurement, the shared working tree
+  showed brief `pageerror: cupColorVarForKey is not defined` crashes on the dashboard (via
+  `CupsPreviewCard`/`AvatarCircle`/`CupHolder`) and on a profile's match history (via
+  `TournamentLaurelMarkers`) — a Vite HMR race against another worker's in-flight, uncommitted
+  edits to `cupColors.ts`/`AvatarCircle.tsx`/`CupOwnerBadge.tsx`/`CupsPreviewCard.tsx`/
+  `TournamentLaurelMarkers.tsx` (none of which are C14's files). A clean re-run immediately after
+  showed 0 console errors in all four theme/width combinations with identical measurements, so
+  this was a save-timing artifact of the shared tree, not a defect — noted here only so the next
+  worker isn't surprised by a stray crash on an unrelated page mid-run.
+- Audit 2.8 is **partially closed**: `MatchDetailPage.tsx:307` ("Back"), `TournamentsPage.tsx:135`
+  ("Create one.") and `PushNotificationsSettings.tsx:141` ("Dismiss") remain accent text, out of
+  scope per the plan (recovery paths / error affordance) — flagging for the next audit as
+  instructed.
+- **Canon** (for C15): `DESIGN.md`'s "a 'see more' link" mechanism row should note that a text
+  link that does not navigate (an action like "Reset zoom") takes the same muted-text treatment
+  **without** the chevron — the icon is the navigation affordance, not part of the "no longer
+  accent" look.
 
 ---
 

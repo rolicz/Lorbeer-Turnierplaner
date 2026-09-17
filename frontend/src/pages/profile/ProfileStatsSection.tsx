@@ -1,3 +1,4 @@
+import { ChevronRight } from "lucide-react";
 import { useMemo } from "react";
 import { Link } from "react-router-dom";
 
@@ -73,8 +74,11 @@ export default function ProfileStatsSection({
       <div className="section-head">
         <span className="section-label">Key numbers</span>
         {targetPlayerId > 0 ? (
-          <Link to={`/stats?view=player&player=${targetPlayerId}`} className="order-1 shrink-0 text-xs font-medium text-accent no-underline">
-            Full stats →
+          <Link
+            to={`/stats?view=player&player=${targetPlayerId}`}
+            className="order-1 shrink-0 inline-flex items-center gap-1 text-xs text-text-muted no-underline transition hover:text-text-normal"
+          >
+            Full stats <ChevronRight size={14} />
           </Link>
         ) : null}
       </div>

@@ -1,4 +1,4 @@
-import { HeartCrack, Smile } from "lucide-react";
+import { ChevronRight, HeartCrack, Smile } from "lucide-react";
 import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
 
@@ -176,8 +176,12 @@ export default function ProfileOverviewTab({
         <div className="section-head">
           <span className="section-label">Recent matches</span>
           {allMatchTournaments.length > 2 ? (
-            <button type="button" className="order-1 shrink-0 text-xs font-medium text-accent" onClick={onViewAllMatches}>
-              View all →
+            <button
+              type="button"
+              className="order-1 shrink-0 inline-flex items-center gap-1 text-xs text-text-muted transition hover:text-text-normal"
+              onClick={onViewAllMatches}
+            >
+              View all <ChevronRight size={14} />
             </button>
           ) : null}
         </div>
