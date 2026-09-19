@@ -47,8 +47,15 @@ export function patchPlayerProfile(token: string, playerId: number, body: { bio?
   });
 }
 
-export function listPlayerGuestbook(playerId: number): Promise<PlayerGuestbookEntry[]> {
-  return apiFetch(`/players/${playerId}/guestbook`, { method: "GET" });
+/**
+ * Public read; `token` only decides the per-caller answers each row carries — `can_edit`
+ * (`guestbook_can_edit`: the author inside the hour, or an admin) and `my_vote`. Read
+ * anonymously they are `false` and `0` for everybody, which is how the edit pencil came to
+ * be dead in the app while the API was right all along (G4). A logged-out reader still
+ * gets the same list, with the same flags an anonymous caller is entitled to.
+ */
+export function listPlayerGuestbook(playerId: number, token?: string | null): Promise<PlayerGuestbookEntry[]> {
+  return apiFetch(`/players/${playerId}/guestbook`, { method: "GET", token: token ?? undefined });
 }
 
 export function listPlayerGuestbookSummary(): Promise<PlayerGuestbookSummary[]> {

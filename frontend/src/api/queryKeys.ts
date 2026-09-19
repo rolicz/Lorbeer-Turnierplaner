@@ -43,7 +43,16 @@ export const qk = {
   playerAvatars: () => ["players", "avatars"] as const,
   playerHeaders: () => ["players", "headers"] as const,
   playerProfile: (playerId: number | string) => ["players", "profile", playerId] as const,
+  /** Prefix key — invalidates a profile's guestbook regardless of who is looking at it. */
   playerGuestbook: (playerId: number | string) => ["players", "guestbook", playerId] as const,
+  /**
+   * Full key including the viewer token — use in `useQuery`. The rows carry per-caller
+   * answers (`can_edit` from `guestbook_can_edit`, `my_vote`), so one identity's payload
+   * must never be handed to another: the `commentsTournamentFull` / `friendliesList` /
+   * `ideas` shape, and the prefix above still reaches every one of them (G4).
+   */
+  playerGuestbookFull: (playerId: number | string, token: string | null) =>
+    ["players", "guestbook", playerId, token ?? "none"] as const,
   playerGuestbookSummary: () => ["players", "guestbook", "summary"] as const,
   playerGuestbookReadIds: (playerId: number | string, token: string | null) =>
     ["players", "guestbook", "read", playerId, token ?? "none"] as const,

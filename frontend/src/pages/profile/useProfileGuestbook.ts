@@ -57,9 +57,19 @@ export function useProfileGuestbook({
 }) {
   const qc = useQueryClient();
 
+  /**
+   * The feed is a public read that carries per-caller answers: `can_edit` and `my_vote`
+   * are computed from the bearer token, so reading it anonymously told every logged-in
+   * reader they could edit nothing and had voted on nothing (G4). The token therefore goes
+   * with the request **and** into the key — the `commentsTournamentFull` / `friendliesList`
+   * / `ideas` shape — because `["players","guestbook",id]` alone would let a logged-out
+   * payload (or the previous account's) be served after a login, which is the same bug with
+   * an extra step. Every invalidation in this file keeps using the short prefix, which
+   * matches every token's entry.
+   */
   const guestbookQ = useQuery({
-    queryKey: qk.playerGuestbook(targetPlayerId ?? "none"),
-    queryFn: () => listPlayerGuestbook(targetPlayerId as number),
+    queryKey: qk.playerGuestbookFull(targetPlayerId ?? "none", token),
+    queryFn: () => listPlayerGuestbook(targetPlayerId as number, token),
     enabled: Number.isFinite(targetPlayerId) && (targetPlayerId ?? 0) > 0,
   });
   const guestbookReadQ = useQuery({
@@ -340,7 +350,13 @@ export function useProfileGuestbook({
       isUnread: isGuestbookUnread,
       canDelete: (entry) =>
         !!token && (role === "admin" || isOwnProfile || currentPlayerId === entry.author_player_id),
-      canEditEntry: (entry) => !!token && !!entry.can_edit,
+      // The server owns the rule (`guestbook_can_edit`: the author inside the hour, or an
+      // admin) and this never re-derives it — but the flag is computed from the *account*,
+      // while "view as lower role" is a frontend-only convenience, so the effective role
+      // gates it exactly as `isEditorOrAdmin && !!row.can_edit` does for a tournament and a
+      // friendly (A10). `PATCH /players/guestbook/{id}` is editor+, which is what
+      // `canPostGuestbook` is.
+      canEditEntry: (entry) => canPostGuestbook && !!entry.can_edit,
       readPending: markGuestbookReadMut.isPending,
       votePending: voteGuestbookMut.isPending,
       createPending: createGuestbookMut.isPending,

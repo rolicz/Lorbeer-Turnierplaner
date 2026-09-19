@@ -23,6 +23,19 @@ describe("queryKeys factory", () => {
     expect(qk.playerPokesSummary()).toEqual(["players", "pokes", "summary"]);
   });
 
+  // G4: the guestbook rows carry per-caller answers (`can_edit`, `my_vote`), so the
+  // viewer is part of the key — while the bare prefix must still reach every one of them,
+  // because that is what every mutation and `resyncPlayer` invalidate.
+  it("guestbook list key includes the viewer, and the prefix still matches it", async () => {
+    expect(qk.playerGuestbookFull(3, "tok")).toEqual(["players", "guestbook", 3, "tok"]);
+    expect(qk.playerGuestbookFull(3, null)).toEqual(["players", "guestbook", 3, "none"]);
+
+    const qc = new QueryClient();
+    qc.setQueryData(qk.playerGuestbookFull(3, "tok"), []);
+    await qc.invalidateQueries({ queryKey: qk.playerGuestbook(3) });
+    expect(qc.getQueryState(qk.playerGuestbookFull(3, "tok"))?.isInvalidated).toBe(true);
+  });
+
   it("stats keys include parameters", () => {
     expect(qk.stats.players()).toEqual(["stats", "players"]);
     expect(qk.stats.players("1v1", 10)).toEqual(["stats", "players", "1v1", 10]);
