@@ -923,12 +923,15 @@ every past match simply keeps counting today's rating.
 ## 11. Current state (2026-09-19)
 
 - **`f425961` (2026-09-16) is still the only thing that has ever run on the server**, and two
-  batches now sit in front of it. **Merged and undeployed:** the 2026-09 design batch, plus
-  Q15/Q16/Q17 (`f1ea22b`) and the Stats → Player swap (`2e23365`) — all **frontend-only**, so that
-  half is the short deploy (`git pull && docker compose up -d --build frontend`). **Unmerged:** the
-  Ideas batch below, on `feature/2026-09-ideas`. `main` is at `880a6fd` locally while `origin/main`
-  is still at `4fb03fc`, so even the three plan-docs commits on `main` are unpushed. Nothing in
-  either batch has run on iOS: every check was headless Chromium at 390×844 and 1280×900.
+  batches now sit in front of it, **both merged into `main` and pushed**: the 2026-09 design batch
+  (frontend-only) and the Ideas batch (`feature/2026-09-ideas`, merged 2026-09-19). Because the
+  Ideas half touches the **backend and the schema**, the next deploy is the **full** one —
+  `git pull && docker compose up -d --build`, with the §7 step-2 data backup taken first — and it
+  carries both batches at once (Roli's call: one deploy, not two). No manual step: the three new
+  tables are created by `init_db()` at startup, and old code was run against a migrated database to
+  prove it still boots. Both feature branches can be deleted once it is live.
+  **Nothing in either batch has run on iOS, and no push has ever gone over the wire from this
+  machine** (dev has no VAPID and is not HTTPS), so the first real test of P2 and P5 is production.
 - **`feature/2026-09-ideas` (P1–P6, `FEATURES_2026-09-ideas.md`) is complete and unmerged** —
   branched from `880a6fd`, seven commits, 38 files, three new tables. It is the first batch since
   the audit to **touch the backend and the schema**, so it is the **full** deploy when Roli says so:
