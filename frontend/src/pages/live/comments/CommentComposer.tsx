@@ -53,9 +53,17 @@ function AutoTextarea({
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
-    el.style.height = "auto";
     // 20px line-height + 16px vertical padding, capped so the row never eats the feed.
-    el.style.height = `${Math.min(el.scrollHeight, maxRows * 20 + 16)}px`;
+    // **One cap, not two** (Q-C). The cap used to be spelled twice — here as `maxRows`
+    // and again as `max-h-32` on the element — and 6 rows is 136px while `max-h-32` is
+    // 128, so the sixth line was the one the box asked to show and CSS refused: measured
+    // at 390px, `style.height: 136px` against a `max-height: 128px`, the field scrolling
+    // inside itself with the caret 8px below its own bottom edge. Derived from the prop,
+    // the two cannot drift again.
+    const cap = maxRows * 20 + 16;
+    el.style.maxHeight = `${cap}px`;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, cap)}px`;
   }, [value, maxRows]);
 
   return (
@@ -76,7 +84,7 @@ function AutoTextarea({
       placeholder={placeholder}
       aria-label={ariaLabel}
       disabled={disabled}
-      className="input-field max-h-32 min-h-[2.5rem] flex-1 resize-none py-2 leading-5"
+      className="input-field min-h-[2.5rem] flex-1 resize-none py-2 leading-5"
     />
   );
 }

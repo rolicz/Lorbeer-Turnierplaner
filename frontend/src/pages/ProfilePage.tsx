@@ -399,19 +399,19 @@ export default function ProfilePage() {
         ) : null}
 
         {profileTab === "guestbook" ? (
-          /* The `id` is the anchor the unread jump and `scrollToGuestbookSection` scroll to,
-             and nothing else: the wrapper holds **no height of its own** (G3). It used to
-             carry `min-h-[60svh]`, the app's only forced viewport height on content, which
-             bought 228px of dead space under a one-message wall, 338px under an empty one
-             and 216px of scroll over nothing — and floated the sticky composer 42px above
-             the feed's end, its hairline cutting through the last message's vote row. A
-             feed is as tall as what is in it. */
-          <div id="profile-section-guestbook">
-            <GuestbookSection
-              {...guestbook.sectionProps}
-              placeholder={`Write something for ${displayName ?? "this player"}…`}
-            />
-          </div>
+          /* No wrapper (Q-C). `GuestbookSection` returns the feed and its chat row as two
+             siblings, so **this** column — `#profile-section-main`, which starts at the top
+             of the page — is the sticky row's containing block and the pin holds on every
+             screen; a wrapper here would start where the feed does, under the ~490px
+             header, and `position: sticky` cannot lift a box above its containing block.
+             `id="profile-section-guestbook"` rides on the feed itself: it is the anchor the
+             unread jump and `scrollToGuestbookSection` scroll to, and it holds **no height
+             of its own** (G3 — `min-h-[60svh]` bought 228px of dead space under a
+             one-message wall and floated the composer 42px above the feed's end). */
+          <GuestbookSection
+            {...guestbook.sectionProps}
+            placeholder={`Write something for ${displayName ?? "this player"}…`}
+          />
         ) : null}
       </div>
 

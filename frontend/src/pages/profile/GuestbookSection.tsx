@@ -7,6 +7,7 @@ import ImageLightbox from "../../ui/primitives/ImageLightbox";
 import LoadingPlaceholder from "../../ui/primitives/LoadingPlaceholder";
 import Modal from "../../ui/primitives/Modal";
 import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
+import { cn } from "../../ui/cn";
 import { CommentSendRow, ModeBadge } from "../live/comments/CommentComposer";
 import { guestbookSubjectImageUrl } from "../../api/players.api";
 import { fmtDateTime } from "../../utils/format";
@@ -99,6 +100,16 @@ export default function GuestbookSection({
 
   const doomedReplies = pendingDeleteReplyCount;
 
+  /* **One composer is pinned at a time** (Q-C). A reply and an edit are the chat row too,
+     opened *inside* the feed, and the pinned composer is opaque and above them — so tapping
+     Reply on a message near the feed's end put the field you are typing in behind the field
+     you are not (measured at 390px: the reply row at 703–743 under a composer box at
+     715–772, i.e. 28 of its 40px covered). While one is open the wall composer stops
+     floating and sits at the feed's end, where it belongs; nothing is added or removed, so
+     no height changes and no scroll is forced. `CommentComposer`'s `sticky={false}` is the
+     same move in the tournament's feed. */
+  const replyOrEditOpen = cardContext.replyOpenEntryId != null || cardContext.editOpenEntryId != null;
+
   /* **A feed inside a tabbed page is flat** (G1, Roli's decision, `DESIGN.md` §9b).
      This was the profile's one boxed tab: Overview, Stats and Matches carry no `card` at
      all and start at the page gutter, while the guestbook wrapped everything in one, so
@@ -106,12 +117,24 @@ export default function GuestbookSection({
      (measured at 390px: x=41 / 308px against x=16 / 358px), through a surface stack of
      page → card → inset → chip where the siblings have page → row. So the head is a
      `section-head` like every other section on this page, the messages are hairline-
-     separated rows at the gutter (`list-divided` + this page's own row, `AGENTS.md` §9),
-     and the chat row stays sticky at the end of the feed. The tournament's comments feed
-     keeps its card: it *is* its page, 6950px tall, and its edges are never on screen. */
+     separated rows at the gutter (`list-divided` + this page's own row, `AGENTS.md` §9).
+     The tournament's comments feed keeps its card: it *is* its page, 6950px tall, and its
+     edges are never on screen.
+
+     **The chat row is a sibling of the feed, not its last child** (Q-C). `position: sticky`
+     can lift a box no higher than the top of its own containing block, so a composer inside
+     the feed can only be pinned while the *feed's* top is high enough on screen — and on a
+     profile the feed starts under a ~490px header. Measured at the feed section: 375×667
+     with a header image put the row at 564–621 with the bottom tab bar's top at 610, i.e.
+     11px of it behind the bar, while the same screen on a profile *without* a header image
+     was fine — Roli's "not always though"; 1280×900 left 3px of it on screen and asked for
+     1209px of scrolling. Hoisting it out of `<section>` makes `#profile-section-main` the
+     containing block (top 72–73 on every screen), so the pin is real at every size. The
+     `id` moves onto the feed with it — that anchor is the *feed*, which is what the unread
+     jump scrolls to. */
   return (
     <>
-    <section className="min-w-0 space-y-2" data-guestbook-feed>
+    <section id="profile-section-guestbook" className="min-w-0 space-y-2" data-guestbook-feed>
       <div className="section-head" data-guestbook-head>
         <h2 className="section-label inline-flex min-w-0 items-center gap-2">
           <span className="truncate">Guestbook</span>
@@ -174,53 +197,57 @@ export default function GuestbookSection({
           </div>
         </GuestbookCardProvider>
       ) : null}
-
-      {/* You write at the end of the feed, in the same chat row as the comments
-          (T3 / DESIGN.md §9b) — never behind a button, never above what you read.
-          `bottom-nav-clear` and `lg:bottom-0` are load-bearing and never hand-spelled:
-          they are what collapses this box with the mobile tab bar when the keyboard
-          comes up (Q2) and what keeps Q14's bottom reservation honest. Flat, the strip
-          paints the page's own background instead of the card's. */}
-      {canPost ? (
-        <div
-          className="sticky bottom-nav-clear z-10 border-t border-border-card-chip/40 bg-bg-default py-2 lg:bottom-0"
-          data-guestbook-composer
-        >
-          <div className="space-y-2">
-            {/* Armed: the composer says what the next message is about, with the way out
-                beside it — the goal/shots chip generalised (DESIGN.md §9b). */}
-            {subjectDraft
-              ? (() => {
-                  const Icon = SUBJECT_ICON[subjectDraft];
-                  return (
-                    <ModeBadge
-                      label={SUBJECT_LABEL[subjectDraft]}
-                      icon={<Icon size={12} aria-hidden="true" />}
-                      onLeave={() => onClearSubject?.()}
-                      leaveLabel="Remove the subject"
-                    />
-                  );
-                })()
-              : null}
-            <CommentSendRow
-              value={draft}
-              onChange={onDraftChange}
-              onSubmit={onPost}
-              canSubmit={!!draft.trim()}
-              submitting={posting}
-              ariaLabel="Guestbook message"
-              placeholder={placeholder}
-              sendLabel="Post message"
-              focusNonce={composerNonce}
-            />
-          </div>
-        </div>
-      ) : (
-        <div className="border-t border-border-card-chip/40 py-2.5 text-sm text-text-muted">
-          Log in as a player to post guestbook messages.
-        </div>
-      )}
     </section>
+
+    {/* You write at the end of the feed, in the same chat row as the comments
+        (T3 / DESIGN.md §9b) — never behind a button, never above what you read.
+        `bottom-nav-clear` and `lg:bottom-0` are load-bearing and never hand-spelled:
+        they are what collapses this box with the mobile tab bar when the keyboard
+        comes up (Q2) and what keeps Q14's bottom reservation honest. Flat, the strip
+        paints the page's own background instead of the card's. */}
+    {canPost ? (
+      <div
+        className={cn(
+          "z-10 border-t border-border-card-chip/40 bg-bg-default py-2",
+          !replyOrEditOpen && "sticky bottom-nav-clear lg:bottom-0",
+        )}
+        data-guestbook-composer
+        data-pinned={!replyOrEditOpen ? "" : undefined}
+      >
+        <div className="space-y-2">
+          {/* Armed: the composer says what the next message is about, with the way out
+              beside it — the goal/shots chip generalised (DESIGN.md §9b). */}
+          {subjectDraft
+            ? (() => {
+                const Icon = SUBJECT_ICON[subjectDraft];
+                return (
+                  <ModeBadge
+                    label={SUBJECT_LABEL[subjectDraft]}
+                    icon={<Icon size={12} aria-hidden="true" />}
+                    onLeave={() => onClearSubject?.()}
+                    leaveLabel="Remove the subject"
+                  />
+                );
+              })()
+            : null}
+          <CommentSendRow
+            value={draft}
+            onChange={onDraftChange}
+            onSubmit={onPost}
+            canSubmit={!!draft.trim()}
+            submitting={posting}
+            ariaLabel="Guestbook message"
+            placeholder={placeholder}
+            sendLabel="Post message"
+            focusNonce={composerNonce}
+          />
+        </div>
+      </div>
+    ) : (
+      <div className="border-t border-border-card-chip/40 py-2.5 text-sm text-text-muted">
+        Log in as a player to post guestbook messages.
+      </div>
+    )}
 
     {/* Both confirmations the guestbook needs (R2). The hook asks; this renders. */}
     <ConfirmDialog

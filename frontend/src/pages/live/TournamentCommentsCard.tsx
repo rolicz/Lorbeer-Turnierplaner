@@ -814,6 +814,13 @@ export default function TournamentCommentsCard({
       canSubmit={canSubmit}
       submitting={createMut.isPending}
       focusNonce={composerFocusNonce}
+      /* **One composer is pinned at a time** (Q-C). A reply and an edit are the same chat
+         row, opened *inside* the feed, and this one is opaque and above them — measured at
+         390px, a reply row at 612–652 under a composer box starting at 629, i.e. 23 of its
+         40px behind it. While one is open this row stops floating and sits at the card's
+         bottom edge, where it belongs. Nothing is added or removed, so the document keeps
+         its height and no scroll is forced. */
+      sticky={replyToId == null && editingId == null}
     />
   ) : null;
 

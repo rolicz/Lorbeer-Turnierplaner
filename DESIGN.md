@@ -5,7 +5,15 @@
 > (project knowledge). Created 2026-09-12 after a full audit of the frontend (see
 > `FEATURES_2026-09.md` § "Design audit findings").
 >
-> Last checked against the code: **2026-09-19** (G5, the pass Q-A and Q-B never had, on the same
+> Last checked against the code: **2026-09-20** (Q-C, the composer's reachability, on
+> `feature/2026-09-composer`. Changed here: §9b's feed rule gains the condition sticky carries —
+> a box cannot be lifted above its own containing block, so a chat row written as the feed's last
+> child is pinned only while the feed's top is high enough, which on a profile it is not (375×667
+> put it 11px behind the bottom tab bar, 1280×900 left 3px of it on screen) — plus **one composer
+> floats at a time**, because a reply opened inside the feed was covered by the pinned one; and
+> §9b's "light input" bullet gains the field's one growth ceiling. Every number was measured in a
+> browser at 375/390/414/1280 in both themes; nothing else was re-read this pass.)
+> The pass before it was **2026-09-19** (G5, the pass Q-A and Q-B never had, on the same
 > branch. Changed here: §5b and §7's "What a guestbook entry is about" row — a tagged entry
 > **cites** its subject (a thumbnail of the pinned copy, or a quoted excerpt) instead of naming it
 > in a word-only `.chip`, which is what Q-B built and what the previous two passes could not
@@ -637,7 +645,32 @@ An editor is not a section you unfold; it is the thing itself becoming editable.
   the composer is the block's last row, separated by a hairline and sticky, so it floats over the
   feed while you read and settles flush at its end — never a second card floating next to the
   feed. Groups *inside* the feed (match blocks, day separators) are hairline-separated sections
-  of that one block, never cards of their own. The app's two feeds now differ, on purpose:
+  of that one block, never cards of their own.
+  **"Sticky" is a claim, and it has a condition** (Q-C, 2026-09-20; it corrects G1's "the chat
+  row stays sticky at the end of the feed", which was true of the code and not of the screen).
+  `position: sticky` can lift a box no higher than the top of its **own containing block**, so a
+  composer written as the feed's last child is pinned only while the *feed's* top is far enough
+  up the screen — it needs roughly `composer height + nav-clear` of room above the fold. A feed
+  that starts at the top of its page always has it; a feed under a header does not, and the
+  failure is silent and intermittent rather than obvious. Measured with the row inside the feed
+  section: on a profile at **375×667** with a header image it settled at 564–621 against a bottom
+  tab bar whose top is 610 — **11px of it behind the bar** — while the same screen on a profile
+  *without* a header image was fine (31px less header), which is exactly the "not always" a
+  reader reports; at **1280×900** it left **3px** of itself on screen and asked for **1209px** of
+  scrolling to be used. So **the chat row is a sibling of the feed, not its last child**,
+  whenever the block does not start the page: the profile's guestbook renders `<section>` and the
+  row as two children of the page column (`#profile-section-main`), which begins at 72–73px on
+  every screen. The row's own classes do not change — `sticky bottom-nav-clear … lg:bottom-0`
+  stay exactly as Q2 and Q14 need them — only which box it is allowed to float inside.
+  **And only one composer floats at a time.** A reply and an edit are this same chat row, opened
+  *inside* the feed, and a pinned composer is opaque and above them: measured at 390px, tapping
+  Reply on a message near the feed's end put the reply field at 703–743 under a composer box at
+  715–772, i.e. **28 of its 40px behind the field you are not typing in** (23 of 40 in the
+  tournament's feed). While a reply or an edit is open the block's own composer therefore stops
+  floating and sits at the feed's end, where it belongs. Nothing is added or removed, so the
+  document keeps its height and no scroll is forced — the guestbook reads its feed state,
+  `CommentComposer` takes `sticky={false}`.
+  The app's two feeds differ in the surface, on purpose:
   - **A feed that is its own page keeps its card** — the tournament's comments
     (`pages/live/TournamentCommentsCard.tsx`): `card p-0`, a header row naming the feed and its
     count, the messages as `inset` rows, the chat row welded to the bottom edge. Its card is
@@ -645,7 +678,8 @@ An editor is not a section you unfold; it is the thing itself becoming editable.
   - **A feed inside a tabbed page is flat** — a profile's guestbook
     (`pages/profile/GuestbookSection.tsx`): a `section-head` + `section-label` with the count
     (§6), the messages as `list-divided` rows **at the page gutter** with no surface of their own,
-    and the same sticky chat row at the end, painting the page's own background. The reason is
+    and the same chat row after it — a sibling of the feed rather than its last child (above),
+    painting the page's own background. The reason for the flat surface is
     the siblings: Overview, Stats and Matches carry no `.card` at all, so a boxed fourth tab
     stepped its text 25px inward and took 50px of line width off it on every switch (measured at
     390px: x=41 / 308px against x=16 / 358px), through page → card → inset → chip where the other
@@ -673,8 +707,9 @@ An editor is not a section you unfold; it is the thing itself becoming editable.
   spent with the message it was posted on — the next one is an ordinary entry unless an item arms
   the composer again — and the badge and the send row share a wrapper *inside* the sticky box, which
   keeps its own classes so the composer still settles flush at the end of the feed (G1 made that
-  end the page's own surface rather than a card's bottom edge; the sticky box's classes did not
-  move, because `bottom-nav-clear` and `lg:bottom-0` are what Q2 and Q14 stand on). A reader who
+  end the page's own surface rather than a card's bottom edge and Q-C moved the box out of the
+  feed section to the page column, but the classes themselves have never moved, because
+  `bottom-nav-clear` and `lg:bottom-0` are what Q2 and Q14 stand on). A reader who
   cannot post is taken to the conversation instead of to a composer they may not use. Two ways in
   are allowed where the item is a picture — the control inside the lightbox and the count badge in
   the banner's corner — because one of them is invisible until you tap; three would be a crowd.
@@ -730,6 +765,12 @@ An editor is not a section you unfold; it is the thing itself becoming editable.
   in the tournament's comments and in the guestbook alike (G2 — the guestbook's reply used to
   open a labelled 298×96 `Textarea` with a drag grabber and a Cancel/Reply pair, which grew the
   message from 144px to 354px to hold one line of text).
+  The row's field starts one line high and grows with the text to **six** (20px line-height +
+  16px padding = 136px), then scrolls. **That ceiling is spelled once**, derived from `maxRows`
+  in the effect that sizes the field — never a `max-h-*` class beside it: the two drifted by one
+  line (`max-h-32` = 128px against six rows' 136px), so the sixth line was the one the field
+  asked to show and CSS refused, and the caret sat 8px below the field's own bottom edge with
+  the box scrolling inside itself (Q-C, measured at 390px).
   **Editing is the one place a real field stays**, because rewriting a paragraph in a one-line row
   is worse than the form it replaces — but it takes `Textarea`'s `resizable={false}` (Q1 again:
   no drag handle under a thumb) and its action row is one primary filling the width, never a pair
@@ -841,6 +882,12 @@ drill-in that lives in a query param.
 - Do let a feed that lives inside a tabbed page lie flat on the page, at the gutter its sibling
   tabs use; don't box the one tab whose siblings are flat (§9b, G1). A feed that *is* the page
   keeps its card.
+- Do give a chat row a containing block that starts above the fold — the page column, not the
+  feed section — when the block it closes does not start the page; don't call a row "sticky" and
+  leave it pinned to a box that begins below the screen (§9b, Q-C).
+- Do let one composer float at a time: a reply or an edit opened inside the feed un-pins the
+  block's own row; don't let an opaque pinned row sit over the field the reader is typing in
+  (§9b, Q-C).
 - Do use `chip` for tags; don't use it as a container for numbers.
 - Do colour a result through `text-win/draw/loss`; don't tint whole boxes red/green.
 - Do keep names next to scores; don't push them to the panel edges.
