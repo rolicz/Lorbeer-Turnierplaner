@@ -127,7 +127,7 @@ _RECORD_LABELS: dict[str, dict[str, str]] = {
         "biggest_win": "höchster Sieg",
         "highest_scoring_match": "torreichstes Match",
         "most_goals_one_side": "meiste Tor vo ana Seitn",
-        "biggest_upset": "gräßte Überraschung (nach Elo)",
+        "biggest_upset": "greßte Überraschung (nach Elo)",
     },
 }
 
