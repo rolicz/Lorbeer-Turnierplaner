@@ -268,6 +268,29 @@ and its URL carries its id. No new `qk` namespace, so `cachePolicy.test.tsx` nee
 **8. Task order and parallelism** — the overview table below. K1 alone → **group A** {K2, K3} in
 parallel, with K2's first commit (`guestbookSubjects.ts`) landing before K3's final check → K4.
 
+### Answered 2026-09-19, second pass — fold these in wherever a task still asks
+
+All five open questions are closed. Four took the plan's own answer; **one did not.**
+
+- **The banner gets a count badge as well as the lightbox control** (Roli overruled the plan's
+  "lightbox only"). So K3 builds **two** ways in: the control inside `ImageLightbox`, and a small
+  count in the banner's corner that is visible without a tap and opens the same composer. The
+  plan's objection stands and is now a *constraint* rather than a reason not to: `M8` and `M9` spent
+  two tasks calming this header down — the badge must not push the identity block, must not appear
+  when the count is zero, and must be measured at 390px and 1280px in both themes against the
+  `M9` baseline (avatar `h-20`, band 6 per row, tab strip at 447px for an owner with 8 badges).
+  If it cannot be added without moving the tab strip, stop and report rather than shipping a header
+  that grew back.
+- **A pinned copy dies with the last entry that names it.** `release_subjects` stays in K1, wired
+  wherever an entry dies — `services/comment_cleanup.py` is the precedent for "destroying a thing
+  destroys what hangs off it". Storage tracks the conversation, not the upload history.
+- **Anyone who can post can tag, including on their own profile.** No `isOwnProfile` guard: there is
+  no rule to explain, and an owner may want to post "new header, thoughts?" on their own wall.
+- **The chip reads `Earlier header image` / `Earlier About text` / `Earlier avatar`** once the
+  subject has been replaced. Wording fixed before K2 ships it into a DoD screenshot.
+- **The push wording does not change.** A subject-tagged entry is still "left a new message" — no
+  second text key, no `text_key` branch in the router, and one notification per entry as today.
+
 ## Task overview & order
 
 | # | ID | Title | Files (disjoint per parallel group) | Runs |
