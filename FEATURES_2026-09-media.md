@@ -1242,7 +1242,7 @@ Roli's closed decision. Nothing pre-warms the cache: the first phone to open a p
 
 ---
 
-## W4 — Documentation pass  ☐
+## W4 — Documentation pass  ☑
 
 **Verify first.** `grep -n "Pillow\|derived/\|mediaSizes" AGENTS.md` → 0;
 `grep -n "mediaWidthFor\|srcSet" DESIGN.md` → 0.
@@ -1270,6 +1270,63 @@ Three things `AGENTS.md` says today that this batch changes and that must not be
 **Gates.** All of them, on the final tree; `git status` shows only the three files.
 
 **Deviations:**
+
+- **Where it went.** `AGENTS.md` §2 (the `media_derivatives.py` bullet — the one module that
+  knows a derivative exists — plus `media_derivatives.py` in the services list and
+  `mediaSizes.ts` in the `src/api/` one), §4 (`UPLOADS_DIR` also holds the cache), §5 (a new
+  bullet: the derived path shape, the row's own token, the seven-file ceiling, the two purging
+  paths, the boot sweep — and **no schema change at all**), §6 (the `?w=` contract on the
+  **four** GETs, the 422, the WebP out, the source's `Cache-Control` byte for byte, every
+  failure serving the original, and the two endpoints deliberately left without it), §7 (the
+  first image dependency and what its build log must show, `uploads/derived/` in the bind mount
+  but not among the stateful things, and what a rollback does), §8 (the cache rides along with
+  `uploads/` in both the backup and the sync, harmlessly), §9 (the dependency exception spelled
+  at the rule it excepts, and a new convention bullet: *a picture asks for the size it is drawn
+  at, and the picture you open is a different URL*), §10 (four new gotchas, below), §11
+  (rewritten) and §12 (this file in the tracker list). `DESIGN.md` §7: the citation row's
+  "there is no thumbnail endpoint" sentence is **replaced** by the fixed-rung rule, the
+  `ImageLightbox` row gains "always handed the original", the Identity row gains "the disc asks
+  for its own size", one **new row** covers the two `srcset` consumers, and §11 gains one
+  Do/Don't line. Nothing else in `DESIGN.md` was touched and nothing was reflowed — another
+  worker is in §9b on a different branch.
+- **Where a Canon block and the shipped code disagreed, the code won, and the file says what
+  shipped.** Three of them, all already corrected in W1's and W3's own Deviations rather than
+  found here: the helper is `media_derivatives.py::media_response`, **in the service**, not
+  `routers/players.py::_media_response` as W1's canon block spells it (a router importing a
+  router is how one mechanism becomes two, and the fourth family lives in the other router);
+  the parameter is `MediaWidthParam` — `Annotated[MediaWidth | None, BeforeValidator(...),
+  Query(...)]` — not the plan's `Optional[Literal[...]] = Query(None)`, which 422s every
+  request (§10 now carries that trap, both halves of it); and the citation's number is a local
+  `thumbCssWidth`, not a module-level `CITATION_THUMB_CSS_W`, because it depends on
+  `subject.kind`. `AGENTS.md` documents the shipped shapes and never the planned ones.
+- **One number the plan predicted and the code overran, recorded as measured.** "The entire
+  cache … is 1.43 MB over 74 files" was written for three families; with comment images it is
+  **116 files, 2,684,334 bytes** (the three the plan costed: 74 files exactly, 1,568,714 bytes,
+  7 % over its estimate). §5 carries the four-family number, because that is what a disk holds.
+- **Two things in §11 were stale rather than canon, and were corrected in passing**: `main` had
+  moved to `a0b1392` and the guestbook batch was **merged** (`87586f8`) while §11 still called
+  it complete-and-unmerged, so the deploy queue now reads four merged batches and one unmerged
+  (this one). Nothing about the media batch caused either; they are what a dated section costs.
+- **The three gotchas each worker paid for are §10 entries now**, in their own words: pydantic
+  v2 not coercing a query string into an int `Literal` (and `Query` having to sit *inside* the
+  `Annotated`); `performance.getEntriesByType("resource")` being unable to see media against a
+  vite dev server (`transferSize: 0`, and a 250-entry buffer full of ES modules — measure with
+  `page.on("response")`); and vitest loading `.env.local`, so `API_BASE` in a test run is the
+  Pi's LAN address. A fourth records the two `sizes` strings and where their numbers come from,
+  and a fifth the one manual step this batch costs this machine —
+  `ModuleNotFoundError: No module named 'PIL'` until the venv is re-installed.
+- **What was deliberately not written down.** No new "Open" item: the batch's two unknowns (a
+  production comments corpus that is not this dev one, and the fact that no rung has ever been
+  served to a real phone) live inside its own §11 bullet, and §11's first bullet already says
+  nothing in the queue has run on iOS. The accepted 1536 ceiling is recorded as a decision, not
+  as an open question, because Roli took it knowingly.
+- **Gates, on the final tree** (`make test` and `make lint` on the backend, which this task did
+  not touch, plus the full frontend set): `make test` **303 passed** in 15:28,
+  `make lint` clean, `make gen-types` **no diff**, `cd frontend && npm run check` **806 tests in
+  85 files** in 82 s, `npm run build` green (`index-*.js` **735.23 kB**, the pre-existing
+  >500 kB hint). The frontend numbers are W3's exactly, as they must be for a documentation
+  pass. Step 0's `backend/.venv/bin/python -m pip install -r backend/requirements.txt` was run
+  first here too.
 
 ---
 
