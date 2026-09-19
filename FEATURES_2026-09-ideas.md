@@ -507,8 +507,10 @@ grep -n 'export type MyNotification' frontend/src/api/notifications.api.ts   # �
        event_id: int = Field(foreign_key="featurerequestevent.id", primary_key=True)
        read_at: dt.datetime = Field(default_factory=dt.datetime.utcnow, index=True)
    ```
-   A comment's "edited" is `updated_at != created_at` (the guestbook's rule, `GuestbookEntryCard.tsx:121`):
-   only a PATCH moves it, so no `edited_at` is needed here.
+   **There is no "edited" state.** Roli's call: a comment cannot be edited at all, a typo is fixed by
+   deleting and reposting. `updated_at` exists only because every sibling table has one and adding a
+   column later would have to go through `_RUNTIME_COLUMNS`; **nothing writes it**. Do not render an
+   "edited" byline and do not compare it to `created_at`.
 2. **`services/idea_events.py` (new)** — the only module that writes, removes or reads-marks an event:
    - `record_idea_event(s, *, request_id, kind, actor_player_id, comment_id=None, status="", status_note="") -> FeatureRequestEvent`
      — adds the row **and a read row for the actor** (the guestbook does the same for the author,
@@ -932,11 +934,11 @@ event reaches it inside its 60 s poll or on focus, exactly as a guestbook entry 
      an idea row *is* the level-2 `inset` and inset → inset is forbidden (§3); this is the shape a
      reply already takes under a guestbook root (§9b, `GuestbookEntryCard.tsx:96`). Each comment:
      `AvatarCircle` `h-6 w-6` inside a decorative `PlayerLink`, name as a `PlayerLink`
-     (`text-xs font-semibold`), `fmtDateTime(created_at)` + `" · edited"` when `updated_at !==
-     created_at`, body `whitespace-pre-wrap text-sm`, and — from the flags only — `Pencil` /
-     `Trash2` `size={14}` icon ghost buttons `h-7 w-7 p-0` (`title` "Edit comment" / "Delete
-     comment"). Editing swaps the body for `ui/primitives/Textarea` + ghost **Cancel** / **Save**
-     (`Save` icon, "Saving…" while busy), the idea editor's own idiom in the same file family.
+     (`text-xs font-semibold`), `fmtDateTime(created_at)` with **no "edited" suffix** (comments
+     cannot be edited), body `whitespace-pre-wrap text-sm`, and — from the `can_delete` flag only —
+     a single `Trash2` `size={14}` icon ghost button `h-7 w-7 p-0` (`title` "Delete comment").
+     **There is no `Pencil`, no inline editor and no `can_edit` flag**: P1 shipped no PATCH
+     endpoint, so a pencil here would be a control with nothing behind it.
    - **The composer** is the block's last row when `token`: `CommentSendRow` from
      `pages/live/comments/CommentComposer.tsx` — `placeholder="Write a comment…"`,
      `ariaLabel="Comment on this idea"`, `sendLabel="Post comment"`, `canSubmit = !!draft.trim()`,
@@ -1039,8 +1041,10 @@ phone; on one phone delete and re-add the PWA → the notice on first launch.
 ## Deferred — explicitly NOT here
 
 - A per-card unread marker on the Ideas board (R5 declined the badge; the bell is the badge).
-- Notifying admins about comments on ideas they do not own, or notifying earlier commenters
-  (thread participants) — one more `or` in `unread_idea_events` and one more push target each.
+- Notifying admins about comments on ideas they have nothing to do with. (**Earlier commenters
+  *are* notified** — that was decided on the third pass and is in the Decisions block: a comment
+  reaches the idea's author plus everyone who has already commented, minus the actor. This bullet
+  used to say otherwise.)
 - Auto-disabling subscriptions on repeated non-410 failures (a VAPID 401 is the server's fault).
 - Exposing `last_error`/`failure_count` per device in Settings.
 - Moving `usePushNotifications` into a context so Settings and the notice share one instance.
