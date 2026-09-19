@@ -1,5 +1,6 @@
-import { apiFetch } from "./client";
+import { apiFetch, mediaUrl } from "./client";
 import type {
+  GuestbookSubjectKind,
   Player,
   PlayerGuestbookEntry,
   PlayerGuestbookReadIds,
@@ -46,8 +47,15 @@ export function patchPlayerProfile(token: string, playerId: number, body: { bio?
   });
 }
 
-export function listPlayerGuestbook(playerId: number): Promise<PlayerGuestbookEntry[]> {
-  return apiFetch(`/players/${playerId}/guestbook`, { method: "GET" });
+/**
+ * Public read; `token` only decides the per-caller answers each row carries — `can_edit`
+ * (`guestbook_can_edit`: the author inside the hour, or an admin) and `my_vote`. Read
+ * anonymously they are `false` and `0` for everybody, which is how the edit pencil came to
+ * be dead in the app while the API was right all along (G4). A logged-out reader still
+ * gets the same list, with the same flags an anonymous caller is entitled to.
+ */
+export function listPlayerGuestbook(playerId: number, token?: string | null): Promise<PlayerGuestbookEntry[]> {
+  return apiFetch(`/players/${playerId}/guestbook`, { method: "GET", token: token ?? undefined });
 }
 
 export function listPlayerGuestbookSummary(): Promise<PlayerGuestbookSummary[]> {
@@ -136,6 +144,8 @@ export function createPlayerGuestbookEntry(
   body: string,
   parentEntryId?: number | null,
   authorPlayerId?: number | null,
+  /** The subject this entry is about (K1/K2). Root entries only — a reply is a 400. */
+  subjectKind?: GuestbookSubjectKind | null,
 ): Promise<PlayerGuestbookEntry> {
   return apiFetch(`/players/${playerId}/guestbook`, {
     method: "POST",
@@ -144,8 +154,18 @@ export function createPlayerGuestbookEntry(
       body,
       parent_entry_id: parentEntryId ?? null,
       author_player_id: authorPlayerId ?? null,
+      subject_kind: subjectKind ?? null,
     }),
   });
+}
+
+/**
+ * The pinned copy an entry is about — never the live picture, which may have been
+ * replaced since. The snapshot is immutable and its URL carries its id, so `capturedAt`
+ * is only the `?v=` habit every other media URL here keeps.
+ */
+export function guestbookSubjectImageUrl(snapshotId: number, capturedAt?: string | null): string {
+  return mediaUrl(`/players/guestbook-subjects/${snapshotId}/image`, capturedAt);
 }
 
 export function editPlayerGuestbookEntry(

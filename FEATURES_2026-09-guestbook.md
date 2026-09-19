@@ -123,9 +123,12 @@ UP=$(mktemp -d)/uploads && rsync -a backend/data/uploads/ "$UP"/     # a copy, o
 
 # A throwaway secrets file OUTSIDE the repo (Rule 7). Three accounts: the wall's owner, a
 # commenter, and an admin who may delete anyone's entry.
+# `db_url` names YOUR COPY, spelled absolutely — belt and braces, so that a stack started
+# without `--db-url` cannot reach `backend/app.db`. Same idea for `UPLOADS_DIR`: pass it, and
+# never let the default `backend/data/uploads` be what a forgotten flag falls back to.
 SEC=$(mktemp -d)/secrets.json
-cat > "$SEC" <<'JSON'
-{ "db_url": "sqlite:///./app.db",
+cat > "$SEC" <<JSON
+{ "db_url": "sqlite:///$PWD/backend/data/<DB>",
   "player_accounts": [ { "name": "Roli",  "password": "verify-only", "admin": true },
                        { "name": "Berni", "password": "verify-only", "admin": false },
                        { "name": "Flo",   "password": "verify-only", "admin": false } ],
@@ -316,7 +319,7 @@ commit only your own.
 
 ---
 
-## K1 — Schema, the pin, the release, the sweep, the API  ☐
+## K1 — Schema, the pin, the release, the sweep, the API  ☑
 
 **The gap.** `models.py:93-128` has the guestbook's four tables and nothing that could remember a
 picture; `services/file_storage.py` has five `media_path_for_*` builders and none for a copy;
@@ -586,9 +589,76 @@ into Deviations.
 
 **Deviations:**
 
+Built as specified; five small things the task did not spell out, and the numbers behind
+every claim it asked to be *measured*.
+
+- **One spelling of the directory.** `services/file_storage.py::GUESTBOOK_SUBJECT_DIR =
+  "guestbook_subjects"` is new and not in the spec: the path builder and `list_media`'s caller
+  both name that directory, and two string literals is exactly the drift rule 8 is about. It
+  lives in `file_storage.py` (the module that owns the media root) and `guestbook_subjects.py`
+  imports it. The plan's `SUBJECT_MEDIA_DIR` in the service is therefore gone.
+- **The 409's words come from `_LABEL` through one helper** (`_unavailable(kind)`), so the three
+  messages cannot drift apart: *"There is no header image / About text / avatar to comment on
+  right now"*. Measured on the stack: player 6 (no header) → `409 {"detail":"There is no header
+  image to comment on right now"}`; an unknown kind → 400; `subject_kind: ""` → **200** with
+  `subject: null`, because empty is "no subject", not an error.
+- **`list_media` returns its paths sorted** — the plan said only "relative paths"; a stable order
+  makes the sweep's own behaviour reproducible.
+- **`test_a_tagged_entry_notifies_exactly_once` asserts two bell items, not one.** It posts an
+  untagged entry first as the yardstick for what a push carries, so the owner's bell legitimately
+  holds two — the assertions that matter are unchanged and sharper: exactly **one** queued push
+  for the tagged entry, `event_type == "guestbook_created"`, `set(text_context)` **identical** to
+  the untagged entry's, every bell item of kind `guestbook` (no new kind), exactly one of them
+  for the tagged entry, and its `path` the existing
+  `/profiles/{id}?tab=guestbook&entry={eid}`.
+- **`sweep_orphan_subjects` counts rows, not bytes.** A deleted link is 1, a deleted snapshot is 1
+  and its file rides along uncounted; a file with no row at all counts 1. That is what makes the
+  predicted `Guestbook subjects swept: 2` below exactly 2.
+
+**Gates, observed.** `make test` **286 passed** in 12:12 (273 + the 13 new; the branch baseline `14e27db`
+collects exactly 273, checked with `--collect-only` against the `git archive` tree below, so the
+badges head's number carried over the merge unchanged); `make lint` clean; `make gen-types` →
+`schema.d.ts` **+90 lines** (`GuestbookSubjectOut`, the `subject` field, `subject_kind`, the new
+path), committed with the models; `cd frontend && npm run
+check` **735 tests in 74 files** in 73 s — the baseline unchanged, K1 adds no frontend test and the
+two new aliases in `types.ts` are (deliberately) unused until K2.
+
+**The rollback check, measured.** Baseline `14e27db` extracted with `git archive | tar -x` into a
+temp dir (`.git` never touched), booted on the repo's venv against `backend/data/verify-k1.db` —
+a copy of the dev DB the new code had already written both tables and a pinned copy into, with
+`UPLOADS_DIR` a copy outside the repo:
+- it **boots clean** (`DB initialized`, no error), `GET /players/1/guestbook` → **200** and the
+  rows carry **12 keys, no `subject` at all**;
+- it **posts** an entry (200) and **deletes** the tagged one (204), leaving exactly what the plan
+  predicted: one link row `(entry 7 → snapshot 1)` and one snapshot row with
+  `guestbook_subjects/1.png` still on disk;
+- **A9 was not theoretical here**: the entry old code posted came back as **id 8** — the id a
+  previously deleted entry had held. Ids are handed out again in the same database, so the stale
+  link is a subject waiting to reattach itself, which is the whole reason for the sweep.
+- the next boot of the new code logged exactly `Guestbook subjects swept: 2` and
+  `guestbook_subjects/` was **empty**; a further boot logged **nothing** (idempotent), and
+  `sweep_orphan_subjects()` returns 0 in the test for the same reason.
+
+**The DoD on the isolated stack** (`:8121`, DB copy `backend/data/verify-k1.db`, uploads copy
+outside the repo, throwaway secrets outside the repo, three accounts): as Berni,
+`POST /players/1/guestbook {"subject_kind":"header_image"}` → 200 with `subject.current: true` and
+**one** file (`1.png`); a second post → **same `snapshot_id`, still one file**; as Roli,
+`PUT /players/1/header-image` with different bytes → both entries list `current: false` while
+`GET /players/guestbook-subjects/1/image` still serves the **old** bytes with
+`cache-control: public, max-age=31536000, immutable` and `/players/1/header-image` serves the new
+one; deleting the first of the two shared entries left row **and** file alone, deleting the last
+took both; all three kinds pin (About stores the text and writes **no** file); deleting every
+tagged entry left `guestbook_subjects/` empty and both tables at 0 rows. No port but 8121 was
+bound and every process was killed by its own PID.
+
+**Left for others, on purpose.** `frontend/src/api/types.ts` gains `GuestbookSubjectKind`,
+`PlayerGuestbookSubject` and the narrowed `PlayerGuestbookEntry` and nothing consumes them yet
+(K2/K3). `AGENTS.md` and `DESIGN.md` are untouched — the Canon block above is what K4 folds in,
+and it needed no correction from this task.
+
 ---
 
-## K2 — The feed: the chip on an entry, the armed composer, the snapshot viewers  ☐
+## K2 — The feed: the chip on an entry, the armed composer, the snapshot viewers  ☑
 
 **The gap.** `GuestbookEntryCard.tsx` renders author, date, body, votes and the reply/edit/delete
 controls and nothing about a subject; `GuestbookSection.tsx:147-160` renders `CommentSendRow` bare;
@@ -731,12 +801,81 @@ snapshot — the lightbox for an image, a `Modal` for the About text — never t
 guestbook composer, armed, shows the subject as a `ModeBadge` above `CommentSendRow`, the goal/shots
 chip generalised; §5b — `Earlier …` is the word for a subject that has changed since; "About text" is
 the About's name in a chip.
+- Add to §7: `ModeBadge` (`pages/live/comments/CommentComposer.tsx`) is **exported** and takes an
+  optional `icon` and `leaveLabel`; without them it still draws Goal/Target by `label`, so the two
+  tournament call sites are unchanged. It is the one chip a composer wears to say what it is about
+  to post, with the way out beside it.
 
 **Deviations:**
 
+Built as specified. Five things the task did not spell out, and the numbers behind everything it
+asked to be *measured*.
+
+- **The sticky composer box keeps its classes; the `space-y-2` is an inner wrapper.** Step 5 said
+  "wrapped in `space-y-2`" and "What must not change" named the sticky box's own class string
+  (`GuestbookSection.tsx:148`). Both readings are satisfiable at once, so the badge and
+  `CommentSendRow` share a plain `<div className="space-y-2">` *inside* the sticky box, and the box
+  is byte-identical. Measured in the browser: `sticky bottom-nav-clear z-10 rounded-b-2xl border-t
+  border-border-card-outer/55 bg-bg-card-outer p-2 lg:bottom-0` on all four
+  viewport × theme runs, with the wrapper inside it.
+- **The chip is 26px tall, not the 28 the DoD predicted** — and it is 26 because it is the
+  canonical `.chip` (`text-xs` 16px line + `py-1` + the hairline). Measured identically in all four
+  runs; widths 121px "Header image", 99px "About text", 77px "Avatar", and 158 / 139 / 89px for the
+  three `Earlier …` words. Nothing was hand-sized to reach a number.
+- **The subject is spent with the message it was posted on.** The plan says `onSuccess` clears it;
+  what that means in the browser is that the *next* message is an ordinary entry unless an item arms
+  the composer again. Measured: post while armed → the badge is gone, the draft is empty, the new
+  entry's chip reads "About text".
+- **`sectionProps`' four new fields are optional with defaults** (`subjectDraft = null`,
+  `viewedSubject = null`, the two callbacks optional-called). The hook always passes all four, so
+  this costs nothing; it keeps `GuestbookSection` renderable from a test with a minimal prop set,
+  which is what the chip test does.
+- **`postedNonce` is gone, not aliased.** The rename to `composerNonce` is the whole story:
+  `grep -rn postedNonce frontend/src` → 0, and the only consumer was `GuestbookSection` itself
+  (`ProfilePage` spreads `sectionProps`), so K3 needed no coordination for it.
+
+**Gates, observed.** `cd frontend && npm run check` **757 tests in 78 files** in 94 s, typecheck and
+eslint clean — that is the 735 baseline plus this task's 11 (in 2 files) and K3's 11 (in 2 files),
+which were in the tree at the same time; my own two files are 11 of those tests and pass alone
+(`npx vitest run src/test/guestbookSubjects.test.ts src/test/guestbookSubjectChip.test.tsx` → 11
+passed). `npm run build` green.
+
+**The browser, measured** (isolated stack: backend **8122** on a copy of the dev DB at
+`backend/data/verify-k2.db`, uploads copied outside the repo, throwaway secrets outside the repo,
+vite **8142**; Playwright chromium; as Berni on `/profiles/1?tab=guestbook`; **every number below
+was identical at 390×844 and 1280×900 in both the `blue` and the `light` theme**, four runs):
+
+- Three tagged entries and one untagged one. Each chip sits **below the author row and above the
+  body** (`belowAuthor` and `aboveBody` true for all three), is **26px** tall, and reads
+  `Header image` / `About text` / `Avatar` with `data-subject-current="true"`.
+- The header chip opens `ImageLightbox` on
+  `…/players/guestbook-subjects/1/image?v=2026-09-19T17%3A09%3A00.163294` and the lightbox carries
+  **no** `[data-lightbox-footer]` — K3's trigger belongs to the live picture, not to a snapshot of
+  it.
+- The About chip opens the `Modal` titled **About text**, subtitle `As of 19.09.2026, 17:09`, body
+  the snapshot's own text.
+- **After Roli replaced both** (`PUT /players/1/header-image` with a different 178-byte PNG, `PATCH
+  /players/1/profile` with a new bio): the two chips read **`Earlier header image`** and **`Earlier
+  About text`** and carry no `data-subject-current`; the avatar chip, untouched, still reads
+  `Avatar`. The lightbox still serves the **pinned** copy — 1920×1080, **2,662,379 bytes** — while
+  the live header is the 178-byte 64×64 square (`sameAsLive: false`). The About modal's subtitle
+  becomes `As of 19.09.2026, 17:09 · changed since` and its body is still the **old** text.
+- **Armed, through K3's real trigger** (it was in the tree by then, so the fallback the DoD allows
+  was not needed): the `ModeBadge` reads `Header image`, is 26px tall, sits **above** the field with
+  an 11px gap, and `document.activeElement` **is** the textarea. Posting while armed sent
+  `subject_kind` — on the wire the new entry came back with
+  `subject {kind: "about", snapshot_id: 4, current: true}` — and cleared both the badge and the
+  draft.
+- `document.querySelectorAll("a a").length` = **0**, console errors = **0**, and every entry id is
+  unique (`[id^="guestbook-entry-"]`, 6 then 7 rows) in every run.
+
+**Left for others, on purpose.** `ImageLightbox`'s `footer` and the trigger that fills it are K3's;
+this task's lightbox deliberately passes none. `AGENTS.md` and `DESIGN.md` are untouched — the Canon
+block above is what K4 folds in, and it needed one addition (the exported `ModeBadge`).
+
 ---
 
-## K3 — The items: one trigger on the banner, the avatar and the About text  ☐
+## K3 — The items: one trigger on the banner, the avatar and the About text  ☑
 
 **The gap.** `ImageLightbox.tsx` closes on any click (`onClickCapture`, `:96`) and has no slot for a
 control; `ProfileHeader.tsx:146/164` open it for the banner and the avatar with nothing else in it;
@@ -862,9 +1001,106 @@ because `current` is a fact about the profile the guestbook list carries.
 
 **Deviations:**
 
+Built as specified, with **one variant the plan could not name** (it predates Roli's overrule)
+and **one DoD clause that cannot hold as written**. Every claim below is a number this task
+measured on the isolated stack (`:8123` / `:8143`, `backend/data/verify-k3.db`, an uploads copy
+outside the repo), never an estimate.
+
+- **`SubjectCommentTrigger` has a third variant, `overlay`, and it is the count badge.** The plan
+  wrote `ghost | solid` because it was written before Roli asked for the banner badge as well; the
+  badge is the same job — "start a comment about this item" — so it is the *same* component with a
+  third look rather than a second button in `ProfileHeader` (rule 8). Three things about it are
+  decisions the plan did not make: it is a bare `<button>`, not `Button`, because `buttonClass` has
+  no look for a marker sitting on a photograph; its scrim is `bg-black/60 text-white`, which is the
+  `.overlay-scrim` / `ImageLightbox` precedent and the one way a mark on an arbitrary picture reads
+  the same in blue and in light; and **the zero rule lives in the component**, not at the call site
+  (`variant === "overlay" && count === 0 → null`), so Roli's constraint cannot be lost by a future
+  caller. It renders the **number alone** — a badge is a marker, never prose (`DESIGN.md` §5b) —
+  with the whole sentence in `title`/`aria-label` ("2 comments on the header image").
+- **The badge is a *sibling* of the banner's own button, not inside it.** A `<button>` inside a
+  `<button>` is invalid HTML and the outer one would swallow the tap. It sits in the banner's
+  existing `relative … overflow-hidden` box as `absolute bottom-2 right-2 z-10`.
+- **The count badge moves nothing — measured four ways, not argued.** The tab strip
+  (`[data-section-tabs]`, document coordinates) on the **owner's own profile with 8 badges**:
+
+  | width / theme | tab strip top | badge present | badge removed from the DOM |
+  |---|---|---|---|
+  | 390×844 blue | **451.3px** | 451.3 | 451.3 (**Δ 0.0**) |
+  | 390×844 light | **451.3px** | 451.3 | 451.3 (**Δ 0.0**) |
+  | 1280×900 blue | **779.9px** | 779.9 | 779.9 (**Δ 0.0**) |
+  | 1280×900 light | **779.9px** | 779.9 | 779.9 (**Δ 0.0**) |
+
+  and the same number at source level across four data states at each width — four tagged entries
+  with the badge showing, the two header entries deleted so the badge does not render at all, the
+  **pristine dev DB** (no tagged entry has ever existed, i.e. the pre-K3 header), and restored:
+  **451.3 / 451.3 / 451.3 / 451.3** at 390px and **779.9 ×4** at 1280px. The measurement is not
+  blind: inserting a 20px block as the tab strip's sibling moves it to **483.3px** (+32 = 20 plus
+  the page column's own 12px flow margin), so it would have seen any growth at all. The M9 baseline
+  it must not disturb is intact in the same runs — avatar **80×80** (`h-20`), band **8 chips**, one
+  row of 8 at 1280px and **5 + 3** at 390px in a **218px** owner column (M9's "6 per row" is for
+  uniform 32px chips and it says itself that one 51px Elo chip pushes the next one down; Roli holds
+  two). The badge itself is **41.9 × 28px**, bottom-right, fully inside the banner's box
+  (measured `insideBanner: true`), on a banner of 358×202.3 at 390px and 992×558.9 at 1280px.
+- **The About head does grow, by 16px, and the DoD's own clause cannot hold.** "both must be the
+  `h-8` row — the trigger may not grow the head" contradicts the component the same task specifies:
+  a bare `.section-head` is its label's line, **16.0px**, and the trigger is the Ideas toggle
+  verbatim, **32.0px**, so the head with it is **32.0px** — at both widths, in both themes. Nothing
+  was improvised to dodge this: the plan names the class string, rule 8 forbids a second smaller
+  "comment on this" look, and the *hard* constraint (the tab strip, the identity block) is untouched
+  because this head is inside the Overview tab. The number is here so K4 or Roli can decide; the
+  in-app yardstick is that the "Recent matches" head, which already carries an action, is **16.0px**
+  because its action is text-only. It is flush right (`order: 1`, `flushRight`), which is the
+  section-head action slot working as documented.
+- **The lightbox footer, measured**: the solid button is **32px**, **centred** (|centre − viewport
+  centre| < 1px), carries `btn-solid` in all four runs, and its box is flush to the safe box
+  (`bottom-safe-b`, gap 0 — `env()` is 0px in Chromium, and the footer's own `p-3` keeps the button
+  12px off the edge). A click on the scrim still closes it; a click on the button does not (both in
+  the browser and in `imageLightboxFooter.test.tsx`, which needed a `ResizeObserver` stub as the
+  plan predicted). `footer` is declared on **both** exported components — the wrapper forwards it.
+- **The whole chain, at 390×844 and 1280×900, in `blue` and in `light`, as Berni on `/profiles/1`**
+  (0 console errors and `a a` = 0 in every one of the four runs): the banner badge reads the count
+  → the banner opens the lightbox → its solid button reads "2 comments" → tapping it closes the
+  lightbox, lands on **`?tab=guestbook`**, shows the `ModeBadge` **"Header image"** above the field
+  (verified *inside* the sticky composer box, which keeps `bottom-nav-clear`), and
+  `document.activeElement` **is** the textarea → posting writes an entry whose chip reads "Header
+  image", clears the badge, and the banner's count steps **2 → 3 → 4 → 5 → 6** over the four runs.
+  The avatar arms **"Avatar"**, the About head arms **"About text"**. Entry ids are unique
+  (`[id^="guestbook-entry-"]`, 10 ids, 10 distinct) — an entry appears exactly once.
+- **The reader, measured**: the banner badge and the About trigger ("1 comment") are both there,
+  tapping lands on `?tab=guestbook` with the guestbook on screen, the "Login as a player…" line and
+  **no** `ModeBadge`; on a profile with a bio and no About comment (player 2) there is **no trigger
+  and a 16.0px head**; on a profile with an empty bio (player 6) there is no trigger at all.
+- **`current` flips both ways, and the invalidations are what does it.** Through the **real owner
+  UI** — the one edit button → the sheet → Edit header image → Use image — the chip on the entry
+  about the old picture goes "Header image" → **"Earlier header image"** with **no reload**
+  (`performance.getEntriesByType("navigation").length` stays 1); that is
+  `putHeaderMut.onSuccess`'s new `qk.playerGuestbook` line. The bio save does the same from
+  `ProfilePage` ("About text" → "Earlier About text", no reload) **and comes back** to "About text"
+  when the exact words are typed again, which is K1's text-equality rule for `current` seen from the
+  browser. On **another device** (Berni's tab, nothing touched in it) a header replaced over HTTP
+  reaches it after **6.8s away and a return**: 2 refetches, chip flips, no reload — the 5s window
+  plus the focus refetch, exactly as §7 of this plan predicted, since no channel announces an upload.
+  After a new header nobody has commented on, the banner badge correctly says **nothing**.
+- **Two tests beyond the plan's list**, both about the overrule: the overlay says nothing at zero
+  *whoever is looking*, and it renders the bare count with the sentence in its accessible name.
+- **The iOS caret is still unproven, as the plan said it would be.** The focus is placed by the
+  composer nonce after the tab switch, outside the tap's own call stack, so Safari may show the
+  field focused without raising the keyboard; headless Chromium reports `document.activeElement ===
+  textarea` in all four runs, and the armed chip is visible either way.
+- **Nothing outside the file set was touched.** No port but 8123/8143 was bound, every process was
+  killed by its own PID, the DB was a copy and the uploads root a directory outside the repo — the
+  two header uploads this verification made went there and nowhere near `backend/data/uploads`.
+
+**Gates, observed** (on the shared tree, so K2's in-flight feed work is in these numbers too):
+`cd frontend && npm run check` → tsc + eslint clean, **757 tests in 78 files** in 69.6 s (the
+branch baseline is 735 in 74; K3 adds two files and 11 tests, K2 the other two and 11);
+`npm run build` green in 8.98 s, `index-BC7SuiK6.js` **734.44 kB** — the pre-existing
+">500 kB chunk" hint, 0.39 kB over the badges head's 734.05 kB. Browser: 390×844 and 1280×900
+× `blue` and `light`, **0 console errors** and **`a a` = 0** in all four.
+
 ---
 
-## K4 — Documentation pass  ☐
+## K4 — Documentation pass  ☑
 
 **Verify first.** `grep -n 'guestbook_subjects\|PlayerSubjectSnapshot' AGENTS.md` → 0;
 `grep -n 'SubjectCommentTrigger\|Earlier header image' DESIGN.md` → 0.
@@ -880,6 +1116,71 @@ diff, `npm run check`, `npm run build`).
 **Gates.** All of them, on the final tree; `git status` shows only the three files.
 
 **Deviations:**
+
+Every Canon block from K1, K2 and K3 is folded in, plus the three things the workers measured that
+no Canon block had a line for. Where a Canon block and the shipped code disagreed, **the code is
+what is written down** — three such places, listed below.
+
+- **Where each block landed.** `AGENTS.md`: §2 (`guestbook_subjects.py` as the only reader/writer of
+  both tables, with `file_storage`'s two halves and `GUESTBOOK_SUBJECT_DIR`; the frontend's
+  `guestbookSubjects.ts`, `SubjectCommentTrigger.tsx` and the borrowed `ModeBadge`), §5 (the two
+  tables in the list, then a block of its own: copy-on-comment, the version, `current`'s two rules,
+  release-with-the-last-entry, the 409 before the insert, the boot sweep and the measured rollback;
+  plus the media list and the one immutable URL), §6 (the prefix line, a paragraph on the wire
+  shape and on what a subject deliberately does *not* change, and the `["players","guestbook"]`
+  row's `why`), §7 (the persistent-data list), §9 (the "a conversation lives in one place"
+  convention and the two new plan files), §10 (the banner badge's four-way measurement, the About
+  head's 32px, and the hardening below), §11 (rewritten — see the next bullet), §12.
+  `DESIGN.md`: §5b (the subject words and `Earlier …`), §6 (a button action makes the head as tall
+  as the button), §7 (four new rows: `ModeBadge`, `SubjectCommentTrigger`, the subject chip,
+  `ImageLightbox`'s `footer`; plus the composer row's armed clause), §9b (an item never hosts its
+  own thread).
+- **§11 needed correcting before it could be extended.** It described the badges batch as
+  "complete and unmerged" with `main` at `b8e741a`; `main` is now `14e27db`, the badges merge, so
+  the head bullet, the badges bullet and the stale "short deploy" queue for Q15–Q17 were rewritten.
+  All four undeployed batches now ride in **one full deploy**, which is what that section has to
+  say for a deploy to be safe. The file's own "Last full review" header moved to this branch.
+- **The `overlay` variant is canon, not drift** — recorded in `DESIGN.md` §7 as the one audited
+  place a bare `<button>` replaces `Button`. The reasoning K3 gave holds and is now written down:
+  `buttonClass` has no look for a marker sitting on a photograph, and `bg-black/60` is exactly what
+  `.overlay-scrim` already paints (`styles.css:243`, checked), so the badge reads the same in blue
+  and in light without a theme token that would have to mean something on an arbitrary picture. It
+  is one component for one job rather than a second button, its zero rule lives inside it, and it is
+  `absolute` and never part of the flow. If a second such marker is ever wanted, *that* is when it
+  becomes a primitive — not before.
+- **The About head's 32px is recorded twice and decided nowhere.** `AGENTS.md` §10 carries the
+  measurement (32.0px with the trigger, 16.0px without, both widths, both themes, the "Recent
+  matches" yardstick) and `AGENTS.md` §11's open list carries the question with its three possible
+  answers; `DESIGN.md` §6 states the rule that produces the number — a real button makes the head as
+  tall as the button — and forbids the one answer nobody should take unilaterally, a third
+  section-head treatment. Roli decides the rest.
+- **`ModeBadge` is named in three places** because "a shared primitive living in a page module" is
+  exactly the kind of fact that gets re-invented: `AGENTS.md` §2 (frontend modules), `DESIGN.md` §7
+  (its own row, with the two optional props and the promise that the tournament call sites are
+  byte-identical) and `DESIGN.md` §9b (the armed composer).
+- **Three places where a Canon block and the shipped code disagreed; the code won.**
+  1. K1's Canon says `SUBJECT_MEDIA_DIR` lives in the service; the code spells
+     `GUESTBOOK_SUBJECT_DIR` in `file_storage.py` and imports it (K1's own first Deviation).
+     `AGENTS.md` §2 names the shipped one.
+  2. K2's Canon calls the chip "the `ModeBadge` chip's look without the accent" and the DoD
+     predicted 28px; it ships at **26px**, because it is the canonical `.chip`. `DESIGN.md` §7 says
+     26 and says why, so nobody hand-sizes one to 28.
+  3. K3's Canon (written from the plan) says `ghost | solid`; three variants shipped, and the plan's
+     DoD clause "the trigger may not grow the head" is unsatisfiable alongside the component the
+     same task specifies. Both are recorded as they are, not as they were planned.
+- **One hardening with nothing behind it**: the runtime-verification recipe above now spells the
+  task's own DB copy in the throwaway `secrets.json` (and the heredoc is unquoted so `$PWD`
+  expands), instead of `"db_url": "sqlite:///./app.db"` plus a `--db-url` flag that has to be
+  remembered. Same line in `AGENTS.md` §10. It is belt and braces on a template, not a report of
+  anything that happened.
+- **Nothing was deleted that a worker did not mark stale**, and no task's Deviations were edited.
+  `git status` shows exactly `AGENTS.md`, `DESIGN.md` and this file.
+
+**Gates, observed on the final (documentation) tree** — docs-only, so these confirm the batch's real
+numbers rather than testing this task: `make test` **286 passed** in 13:02 (the badges head's 273
+plus K1's 13); `make lint` clean; `make gen-types` **no diff**; `cd frontend && npm run check`
+**757 tests in 78 files** in 90.6 s, tsc and eslint clean (735 plus 11 from K2 and 11 from K3).
+Both match what K1 and K3 reported, so nothing moved between their runs and this one.
 
 ---
 

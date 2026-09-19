@@ -1,14 +1,18 @@
-import { Mail, MailOpen, MessageSquare } from "lucide-react";
+import { Mail, MailOpen } from "lucide-react";
 
 import Button from "../../ui/primitives/Button";
 import ConfirmDialog from "../../ui/primitives/ConfirmDialog";
 import EmptyState from "../../ui/primitives/EmptyState";
+import ImageLightbox from "../../ui/primitives/ImageLightbox";
 import LoadingPlaceholder from "../../ui/primitives/LoadingPlaceholder";
-import { Pill } from "../../ui/primitives/Pill";
+import Modal from "../../ui/primitives/Modal";
 import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
-import { CommentSendRow } from "../live/comments/CommentComposer";
+import { CommentSendRow, ModeBadge } from "../live/comments/CommentComposer";
+import { guestbookSubjectImageUrl } from "../../api/players.api";
 import { fmtDateTime } from "../../utils/format";
-import type { PlayerGuestbookEntry } from "../../api/types";
+import type { GuestbookSubjectKind, PlayerGuestbookEntry, PlayerGuestbookSubject } from "../../api/types";
+import { SUBJECT_ICON, SUBJECT_LABEL } from "./guestbookSubjects";
+import { SECTION_HEAD_ACTION_CLASS } from "./SubjectCommentTrigger";
 import GuestbookEntryCard, {
   GuestbookCardProvider,
   type GuestbookCardContextValue,
@@ -48,8 +52,14 @@ export type GuestbookSectionProps = {
   onDraftChange: (text: string) => void;
   onPost: () => void;
   posting: boolean;
-  /** Bumped after a posted message, to put the caret back in the field. */
-  postedNonce?: number;
+  /** Bumped after a posted message and when the composer is armed, to put the caret in the field. */
+  composerNonce?: number;
+  /** What the composer is armed for, shown as the badge above the send row (K2). */
+  subjectDraft?: GuestbookSubjectKind | null;
+  onClearSubject?: () => void;
+  /** The snapshot a chip asked to see; the lightbox or the modal below renders it. */
+  viewedSubject?: PlayerGuestbookSubject | null;
+  onCloseSubject?: () => void;
   placeholder: string;
 };
 
@@ -77,7 +87,11 @@ export default function GuestbookSection({
   onDraftChange,
   onPost,
   posting,
-  postedNonce,
+  composerNonce,
+  subjectDraft = null,
+  onClearSubject,
+  viewedSubject = null,
+  onCloseSubject,
   placeholder,
 }: GuestbookSectionProps) {
   // Total messages, replies included — the number the header states.
@@ -85,34 +99,50 @@ export default function GuestbookSection({
 
   const doomedReplies = pendingDeleteReplyCount;
 
-  /* The feed and its composer are one card (DESIGN.md §9b), exactly like the
-     tournament comments feed: a header row, the messages as hairline-separated
-     level-2 rows, and the chat row attached to the card's bottom edge. It used to be
-     a second, floating card over a feed of cards — a card inside a card's worth of
-     surfaces, and a composer that belonged to none of them (A8). */
+  /* **A feed inside a tabbed page is flat** (G1, Roli's decision, `DESIGN.md` §9b).
+     This was the profile's one boxed tab: Overview, Stats and Matches carry no `card` at
+     all and start at the page gutter, while the guestbook wrapped everything in one, so
+     switching to this tab stepped the text 25px inward and took 50px of line width off it
+     (measured at 390px: x=41 / 308px against x=16 / 358px), through a surface stack of
+     page → card → inset → chip where the siblings have page → row. So the head is a
+     `section-head` like every other section on this page, the messages are hairline-
+     separated rows at the gutter (`list-divided` + this page's own row, `AGENTS.md` §9),
+     and the chat row stays sticky at the end of the feed. The tournament's comments feed
+     keeps its card: it *is* its page, 6950px tall, and its edges are never on screen. */
   return (
     <>
-    <section className="card min-w-0 p-0" data-guestbook-feed>
-      <div className="flex items-center justify-between gap-2 border-b border-border-card-outer/55 px-3 py-2.5">
-        <h2 className="inline-flex min-w-0 items-center gap-2 text-sm font-semibold text-text-normal">
-          <MessageSquare size={14} className="shrink-0 text-text-muted" aria-hidden="true" />
+    <section className="min-w-0 space-y-2" data-guestbook-feed>
+      <div className="section-head" data-guestbook-head>
+        <h2 className="section-label inline-flex min-w-0 items-center gap-2">
           <span className="truncate">Guestbook</span>
-          <span className="shrink-0 text-xs font-normal tabular-nums text-text-muted">{total}</span>
+          <span className="shrink-0 font-normal tabular-nums">{total}</span>
         </h2>
         {unreadCount > 0 ? (
-          <span className="inline-flex shrink-0 items-center gap-2">
-            <button type="button" title="Jump to latest unread guestbook message" onClick={onJumpUnread}>
-              <Pill title="Unread guestbook messages">
-                <Mail size={12} className="text-accent" aria-hidden="true" />
-                <span className="tabular-nums text-text-normal">{unreadCount}</span>
-              </Pill>
-            </button>
+          /* Two actions, one treatment (Q-A): both are the `h-8` ghost button the profile's
+             heads already wear, so the head is 32px and neither control invents a size.
+             The jump used to be a bare `<button>` with no class at all — 56×24px, no focus
+             ring — wrapping a status `Pill`, with a `title` on each of them, so the reader
+             got two tooltips for one action. `Pill` is a status tag and this is an action
+             (`DESIGN.md` §7). */
+          <span className="order-1 shrink-0 inline-flex items-center gap-1.5">
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={onJumpUnread}
+              title="Jump to the latest unread message"
+              aria-label={`Jump to the latest unread message · ${unreadCount} unread`}
+              className={SECTION_HEAD_ACTION_CLASS}
+            >
+              <Mail size={14} className="text-accent" aria-hidden="true" />
+              <span className="tabular-nums">{unreadCount}</span>
+            </Button>
             <Button
               type="button"
               variant="ghost"
               onClick={onRequestMarkAllRead}
               title="Mark all unread guestbook messages as read"
               disabled={markAllPending}
+              className={SECTION_HEAD_ACTION_CLASS}
             >
               <MailOpen size={14} className="md:hidden" aria-hidden="true" />
               <span className="hidden md:inline">Read all</span>
@@ -129,12 +159,15 @@ export default function GuestbookSection({
       <ErrorToastOnError error={errors.markAll} title="Could not mark guestbook as read" />
       <ErrorToastOnError error={errors.vote} title="Could not vote guestbook message" />
 
-      {loading ? <div className="px-3 py-3"><LoadingPlaceholder /></div> : null}
-      {!loading && isEmpty ? <EmptyState title="No messages yet." className="px-3 py-6" /> : null}
+      {loading ? <div className="py-3"><LoadingPlaceholder /></div> : null}
+      {!loading && isEmpty ? <EmptyState title="No messages yet." className="py-6" /> : null}
 
       {roots.length ? (
         <GuestbookCardProvider value={cardContext}>
-          <div className="space-y-2 px-3 py-3">
+          {/* A message carries an author row, a citation, a body and a vote row, so it is
+              `list-divided` plus this page's own row rather than a `ListRow` (§7). The
+              hairline runs between whole threads: a reply belongs to the message above it. */}
+          <div className="list-divided">
             {roots.map((entry) => (
               <GuestbookEntryCard key={entry.id} entry={entry} />
             ))}
@@ -143,24 +176,48 @@ export default function GuestbookSection({
       ) : null}
 
       {/* You write at the end of the feed, in the same chat row as the comments
-          (T3 / DESIGN.md §9b) — never behind a button, never above what you read. */}
+          (T3 / DESIGN.md §9b) — never behind a button, never above what you read.
+          `bottom-nav-clear` and `lg:bottom-0` are load-bearing and never hand-spelled:
+          they are what collapses this box with the mobile tab bar when the keyboard
+          comes up (Q2) and what keeps Q14's bottom reservation honest. Flat, the strip
+          paints the page's own background instead of the card's. */}
       {canPost ? (
-        <div className="sticky bottom-nav-clear z-10 rounded-b-2xl border-t border-border-card-outer/55 bg-bg-card-outer p-2 lg:bottom-0">
-          <CommentSendRow
-            value={draft}
-            onChange={onDraftChange}
-            onSubmit={onPost}
-            canSubmit={!!draft.trim()}
-            submitting={posting}
-            ariaLabel="Guestbook message"
-            placeholder={placeholder}
-            sendLabel="Post message"
-            focusNonce={postedNonce}
-          />
+        <div
+          className="sticky bottom-nav-clear z-10 border-t border-border-card-chip/40 bg-bg-default py-2 lg:bottom-0"
+          data-guestbook-composer
+        >
+          <div className="space-y-2">
+            {/* Armed: the composer says what the next message is about, with the way out
+                beside it — the goal/shots chip generalised (DESIGN.md §9b). */}
+            {subjectDraft
+              ? (() => {
+                  const Icon = SUBJECT_ICON[subjectDraft];
+                  return (
+                    <ModeBadge
+                      label={SUBJECT_LABEL[subjectDraft]}
+                      icon={<Icon size={12} aria-hidden="true" />}
+                      onLeave={() => onClearSubject?.()}
+                      leaveLabel="Remove the subject"
+                    />
+                  );
+                })()
+              : null}
+            <CommentSendRow
+              value={draft}
+              onChange={onDraftChange}
+              onSubmit={onPost}
+              canSubmit={!!draft.trim()}
+              submitting={posting}
+              ariaLabel="Guestbook message"
+              placeholder={placeholder}
+              sendLabel="Post message"
+              focusNonce={composerNonce}
+            />
+          </div>
         </div>
       ) : (
-        <div className="border-t border-border-card-outer/55 px-3 py-2.5 text-sm text-text-muted">
-          Login as a player to post guestbook messages.
+        <div className="border-t border-border-card-chip/40 py-2.5 text-sm text-text-muted">
+          Log in as a player to post guestbook messages.
         </div>
       )}
     </section>
@@ -204,6 +261,32 @@ export default function GuestbookSection({
       onCancel={onCancelMarkAllRead}
       onConfirm={onConfirmMarkAllRead}
     />
+
+    {/* A citation always opens the *snapshot*, never the live item: once the profile has
+        moved on, the banner is the wrong picture, and while it has not, the pinned copy
+        is the banner. No `footer` here — the trigger belongs to the live picture (K3). */}
+    <ImageLightbox
+      open={!!viewedSubject && viewedSubject.kind !== "about"}
+      src={
+        viewedSubject && viewedSubject.kind !== "about"
+          ? guestbookSubjectImageUrl(viewedSubject.snapshot_id, viewedSubject.captured_at)
+          : null
+      }
+      onClose={() => onCloseSubject?.()}
+    />
+    <Modal
+      open={!!viewedSubject && viewedSubject.kind === "about"}
+      title="About text"
+      subtitle={
+        viewedSubject
+          ? `As of ${fmtDateTime(viewedSubject.captured_at)}${viewedSubject.current ? "" : " · changed since"}`
+          : undefined
+      }
+      onClose={() => onCloseSubject?.()}
+      maxWidth="max-w-md"
+    >
+      <div className="whitespace-pre-wrap text-sm text-text-normal">{viewedSubject?.text}</div>
+    </Modal>
     </>
   );
 }

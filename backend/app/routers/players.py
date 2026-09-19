@@ -19,6 +19,7 @@ from ..models import (
     PlayerPoke,
     PlayerPokeRead,
     PlayerProfile,
+    PlayerSubjectSnapshot,
 )
 from ..schemas import (
     PlayerCreateBody,
@@ -57,6 +58,15 @@ from ..services.file_storage import (
     upsert_media_row,
 )
 from ..services.guestbook import guestbook_can_edit, guestbook_entry_payload, list_guestbook_entries
+from ..services.guestbook_subjects import (
+    SubjectUnavailable,
+    attach_subject,
+    find_or_create_snapshot,
+    normalize_subject_kind,
+    release_subjects,
+    subject_payload,
+    subjects_for_entries,
+)
 from ..services.guestbook_summary import player_guestbook_summary
 from ..services.notifications import enqueue_poke_push, push_guestbook_created
 from ..services.poke_summary import player_poke_summary
@@ -449,6 +459,28 @@ def get_player_header_image(player_id: int):
     return Response(content=data, media_type=content_type, headers=headers)
 
 
+@router.get("/guestbook-subjects/{snapshot_id}/image")
+def get_guestbook_subject_image(snapshot_id: int):
+    """The pinned copy a guestbook entry is about (K1).
+
+    Public read, like the avatar. Immutable: a snapshot never changes and its URL carries
+    its id, so the browser may keep it for a year — this is the one picture in the app
+    that is *guaranteed* not to be replaced under its own URL.
+    """
+    with Session(get_engine()) as s:
+        snap = s.get(PlayerSubjectSnapshot, snapshot_id)
+        if not snap or not snap.file_path:
+            raise HTTPException(status_code=404, detail="Guestbook subject image not found")
+        content_type = snap.content_type
+        file_path = snap.file_path
+
+    data = read_media(file_path)
+    if data is None:
+        raise HTTPException(status_code=404, detail="Guestbook subject image file missing")
+    headers = {"Cache-Control": "public, max-age=31536000, immutable"}
+    return Response(content=data, media_type=content_type, headers=headers)
+
+
 @router.put("/{player_id}/header-image", response_model=PlayerMediaMetaOut)
 async def put_player_header_image(
     player_id: int,
@@ -644,6 +676,7 @@ def create_player_guestbook_entry(
     if not author_player:
         raise HTTPException(status_code=401, detail="Invalid token payload")
 
+    now = dt.datetime.utcnow()
     parent_entry_id: int | None = None
     if body.parent_entry_id is not None:
         parent_entry_id = int(body.parent_entry_id)
@@ -653,7 +686,21 @@ def create_player_guestbook_entry(
         if int(parent_row.profile_player_id) != int(player_id):
             bad_request("Parent entry belongs to a different profile")
 
-    now = dt.datetime.utcnow()
+    # What this entry is about (K1). Pinned *before* the entry is inserted, so a subject
+    # that is not on the profile any more costs nothing but the 409.
+    try:
+        subject_kind = normalize_subject_kind(body.subject_kind)
+    except ValueError:
+        bad_request("Unknown subject")
+    if subject_kind is not None and parent_entry_id is not None:
+        bad_request("A reply cannot carry a subject")
+    snapshot = None
+    if subject_kind is not None:
+        try:
+            snapshot = find_or_create_snapshot(s, player_id=int(player_id), kind=subject_kind, now=now)
+        except SubjectUnavailable as exc:
+            conflict(str(exc))
+
     row = PlayerGuestbookEntry(
         profile_player_id=int(player_id),
         author_player_id=author_player_id,
@@ -663,6 +710,9 @@ def create_player_guestbook_entry(
     )
     s.add(row)
     s.flush()
+
+    if snapshot is not None:
+        attach_subject(s, entry_id=int(row.id), snapshot_id=int(snapshot.id))
 
     if parent_entry_id is not None:
         s.add(
@@ -691,6 +741,7 @@ def create_player_guestbook_entry(
         entry=row,
         author_display_name=author_player.display_name,
         parent_entry_id=parent_entry_id,
+        subject=subject_payload(snapshot, current=True) if snapshot is not None else None,
     )
 
 
@@ -744,6 +795,9 @@ def patch_player_guestbook_entry(
         downvotes=down,
         my_vote=int(my_vote_row.value) if my_vote_row else 0,
         can_edit=guestbook_can_edit(row, viewer_id=viewer_id, is_admin=is_admin),
+        subject=subjects_for_entries(
+            s, player_id=int(row.profile_player_id), entry_ids=[int(row.id)]
+        ).get(int(row.id)),
     )
 
 
@@ -1047,6 +1101,10 @@ def delete_player_guestbook_entry(
     for vrow in vote_rows:
         s.delete(vrow)
 
+    # A pinned copy dies with the last entry that names it (K1) — rows now, files after
+    # the commit.
+    subject_paths = release_subjects(s, entry_ids=list(to_delete))
+
     entry_rows = s.exec(
         select(PlayerGuestbookEntry).where(PlayerGuestbookEntry.id.in_(list(to_delete)))
     ).all()
@@ -1054,5 +1112,8 @@ def delete_player_guestbook_entry(
         s.delete(erow)
 
     s.commit()
+    # Files only after the rows are safely gone, so a failed commit leaves no hole.
+    for path in subject_paths:
+        delete_media(path)
     _broadcast_guestbook_event(profile_player_id, action="deleted", entry_id=root_id)
     return Response(status_code=204)

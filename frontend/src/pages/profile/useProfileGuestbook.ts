@@ -12,7 +12,7 @@ import {
   votePlayerGuestbookEntry,
 } from "../../api/players.api";
 import { qk } from "../../api/queryKeys";
-import type { PlayerGuestbookEntry, Role } from "../../api/types";
+import type { GuestbookSubjectKind, PlayerGuestbookEntry, PlayerGuestbookSubject, Role } from "../../api/types";
 import { scrollToSectionById } from "../../ui/scrollToSection";
 import {
   buildGuestbookTree,
@@ -22,6 +22,7 @@ import {
   latestUnreadGuestbookId,
   summarizeUnreadGuestbookAuthors,
 } from "./guestbookTree";
+import { countCurrentSubjectEntries } from "./guestbookSubjects";
 import { type GuestbookCardContextValue } from "./GuestbookEntryCard";
 import { type GuestbookSectionProps } from "./GuestbookSection";
 
@@ -56,9 +57,19 @@ export function useProfileGuestbook({
 }) {
   const qc = useQueryClient();
 
+  /**
+   * The feed is a public read that carries per-caller answers: `can_edit` and `my_vote`
+   * are computed from the bearer token, so reading it anonymously told every logged-in
+   * reader they could edit nothing and had voted on nothing (G4). The token therefore goes
+   * with the request **and** into the key — the `commentsTournamentFull` / `friendliesList`
+   * / `ideas` shape — because `["players","guestbook",id]` alone would let a logged-out
+   * payload (or the previous account's) be served after a login, which is the same bug with
+   * an extra step. Every invalidation in this file keeps using the short prefix, which
+   * matches every token's entry.
+   */
   const guestbookQ = useQuery({
-    queryKey: qk.playerGuestbook(targetPlayerId ?? "none"),
-    queryFn: () => listPlayerGuestbook(targetPlayerId as number),
+    queryKey: qk.playerGuestbookFull(targetPlayerId ?? "none", token),
+    queryFn: () => listPlayerGuestbook(targetPlayerId as number, token),
     enabled: Number.isFinite(targetPlayerId) && (targetPlayerId ?? 0) > 0,
   });
   const guestbookReadQ = useQuery({
@@ -68,6 +79,11 @@ export function useProfileGuestbook({
   });
 
   const [guestbookDraftByPlayerId, setGuestbookDraftByPlayerId] = useState<Record<number, string>>({});
+  // What the composer is armed for, per profile — the `guestbookDraftByPlayerId` shape, so
+  // switching profiles keeps each wall's own arming instead of carrying one across.
+  const [subjectDraftByPlayerId, setSubjectDraftByPlayerId] = useState<Record<number, GuestbookSubjectKind | null>>({});
+  /** The snapshot a chip asked to see — the lightbox or the modal renders it (K2). */
+  const [viewedSubject, setViewedSubject] = useState<PlayerGuestbookSubject | null>(null);
   const [replyDraftByProfileAndEntry, setReplyDraftByProfileAndEntry] = useState<
     Record<number, Record<number, string>>
   >({});
@@ -85,6 +101,7 @@ export function useProfileGuestbook({
   const [markAllReadAsked, setMarkAllReadAsked] = useState(false);
 
   const guestbookDraft = targetPlayerId != null ? (guestbookDraftByPlayerId[targetPlayerId] ?? "") : "";
+  const subjectDraft = targetPlayerId != null ? (subjectDraftByPlayerId[targetPlayerId] ?? null) : null;
   const replyDraftByEntryId = useMemo(
     () => (targetPlayerId != null ? (replyDraftByProfileAndEntry[targetPlayerId] ?? {}) : {}),
     [targetPlayerId, replyDraftByProfileAndEntry]
@@ -101,8 +118,13 @@ export function useProfileGuestbook({
   );
 
   const canPostGuestbook = !!token && role !== "reader";
-  /** Bumped after a posted message, to return the caret to the composer. */
-  const [postedNonce, setPostedNonce] = useState(0);
+  /**
+   * Bumped whenever the caret belongs in the composer: after a posted message, and when
+   * an item's trigger arms it for a subject. `AutoTextarea`'s focus effect also runs on
+   * mount while the nonce is non-zero, so arming from another tab focuses the field the
+   * moment the feed mounts.
+   */
+  const [composerNonce, setComposerNonce] = useState(0);
   const seenGuestbook = useMemo(
     () => new Set((guestbookReadQ.data?.entry_ids ?? []).map((x) => Number(x))),
     [guestbookReadQ.data?.entry_ids]
@@ -146,6 +168,29 @@ export function useProfileGuestbook({
     [guestbookRootsAndChildren, isGuestbookUnread]
   );
 
+  /**
+   * Arm the composer for a subject — what an item's trigger does (K3). The caret follows
+   * via the nonce, so a trigger tapped on another tab lands in a focused field.
+   */
+  const armSubject = useCallback(
+    (kind: GuestbookSubjectKind) => {
+      if (!targetPlayerId) return;
+      setSubjectDraftByPlayerId((prev) => ({ ...prev, [targetPlayerId]: kind }));
+      setComposerNonce((n) => n + 1);
+    },
+    [targetPlayerId],
+  );
+  const clearSubject = useCallback(() => {
+    if (!targetPlayerId) return;
+    setSubjectDraftByPlayerId((prev) => ({ ...prev, [targetPlayerId]: null }));
+  }, [targetPlayerId]);
+
+  /** Per kind, the roots about the version the profile shows *now* — the items' counts. */
+  const currentSubjectCounts = useMemo(
+    () => countCurrentSubjectEntries(guestbookQ.data ?? []),
+    [guestbookQ.data],
+  );
+
   const scrollToGuestbookSection = useCallback(
     (behavior: ScrollBehavior = "smooth") => {
       scrollToSectionById("profile-section-guestbook", 20, 0, behavior);
@@ -187,20 +232,33 @@ export function useProfileGuestbook({
     mutationFn: async ({
       body,
       parentEntryId,
+      subjectKind,
     }: {
       body: string;
       parentEntryId: number | null;
+      /** Roots only — the server answers 400 for a reply that carries one. */
+      subjectKind: GuestbookSubjectKind | null;
     }) => {
       if (!token) throw new Error("Not logged in");
       if (!targetPlayerId) throw new Error("Invalid player");
-      return createPlayerGuestbookEntry(token, targetPlayerId, body, parentEntryId, actorPlayerId ?? null);
+      return createPlayerGuestbookEntry(
+        token,
+        targetPlayerId,
+        body,
+        parentEntryId,
+        actorPlayerId ?? null,
+        subjectKind,
+      );
     },
     onSuccess: async (_result, vars) => {
       if (targetPlayerId && vars.parentEntryId == null) {
         setGuestbookDraftByPlayerId((prev) => ({ ...prev, [targetPlayerId]: "" }));
+        // The subject is spent with the message it was posted on: the next one is an
+        // ordinary entry until an item arms the composer again.
+        setSubjectDraftByPlayerId((prev) => ({ ...prev, [targetPlayerId]: null }));
         // Send moves focus to the button, which then disables itself — put the caret
         // back in the field so the next message costs one tap (same as the comments).
-        setPostedNonce((n) => n + 1);
+        setComposerNonce((n) => n + 1);
       }
       if (targetPlayerId && vars.parentEntryId != null) {
         const parentEntryId = vars.parentEntryId;
@@ -292,7 +350,13 @@ export function useProfileGuestbook({
       isUnread: isGuestbookUnread,
       canDelete: (entry) =>
         !!token && (role === "admin" || isOwnProfile || currentPlayerId === entry.author_player_id),
-      canEditEntry: (entry) => !!token && !!entry.can_edit,
+      // The server owns the rule (`guestbook_can_edit`: the author inside the hour, or an
+      // admin) and this never re-derives it — but the flag is computed from the *account*,
+      // while "view as lower role" is a frontend-only convenience, so the effective role
+      // gates it exactly as `isEditorOrAdmin && !!row.can_edit` does for a tournament and a
+      // friendly (A10). `PATCH /players/guestbook/{id}` is editor+, which is what
+      // `canPostGuestbook` is.
+      canEditEntry: (entry) => canPostGuestbook && !!entry.can_edit,
       readPending: markGuestbookReadMut.isPending,
       votePending: voteGuestbookMut.isPending,
       createPending: createGuestbookMut.isPending,
@@ -322,6 +386,7 @@ export function useProfileGuestbook({
         voteGuestbookMut.mutate({ entryId, value });
       },
       showVoters: (entryId) => setVoteVotersEntryId(entryId),
+      viewSubject: (subject) => setViewedSubject(subject),
       setReplyDraft: (entryId, text) => {
         if (!targetPlayerId) return;
         setReplyDraftByProfileAndEntry((prev) => ({
@@ -332,7 +397,7 @@ export function useProfileGuestbook({
       submitReply: (entryId, text) => {
         const t = text.trim();
         if (!t) return;
-        createGuestbookMut.mutate({ body: t, parentEntryId: entryId });
+        createGuestbookMut.mutate({ body: t, parentEntryId: entryId, subjectKind: null });
       },
       toggleEdit: (entry) => {
         if (!targetPlayerId) return;
@@ -344,13 +409,6 @@ export function useProfileGuestbook({
         setEditOpenEntryByProfileId((prev) => ({
           ...prev,
           [targetPlayerId]: prev[targetPlayerId] === entry.id ? null : entry.id,
-        }));
-      },
-      cancelEdit: (entryId) => {
-        if (!targetPlayerId) return;
-        setEditOpenEntryByProfileId((prev) => ({
-          ...prev,
-          [targetPlayerId]: prev[targetPlayerId] === entryId ? null : prev[targetPlayerId] ?? null,
         }));
       },
       setEditDraft: (entryId, text) => {
@@ -401,6 +459,7 @@ export function useProfileGuestbook({
       setEditDraftByProfileAndEntry,
       setCollapsedEntryByProfileId,
       setVoteVotersEntryId,
+      setViewedSubject,
     ]
   );
 
@@ -457,9 +516,14 @@ export function useProfileGuestbook({
       if (!targetPlayerId) return;
       setGuestbookDraftByPlayerId((prev) => ({ ...prev, [targetPlayerId]: text }));
     },
-    onPost: () => createGuestbookMut.mutate({ body: guestbookDraft.trim(), parentEntryId: null }),
+    onPost: () =>
+      createGuestbookMut.mutate({ body: guestbookDraft.trim(), parentEntryId: null, subjectKind: subjectDraft }),
     posting: createGuestbookMut.isPending,
-    postedNonce,
+    composerNonce,
+    subjectDraft,
+    onClearSubject: clearSubject,
+    viewedSubject,
+    onCloseSubject: () => setViewedSubject(null),
   };
 
   return {
@@ -473,5 +537,11 @@ export function useProfileGuestbook({
     voteVotersEntryId,
     setVoteVotersEntryId,
     sectionProps,
+    // The K3 contract: an item's trigger arms this composer, and the items need to know
+    // whether there is anyone to arm it for and how many comments they already wrote.
+    armSubject,
+    canPostGuestbook,
+    currentSubjectCounts,
+    scrollToGuestbookSection,
   };
 }

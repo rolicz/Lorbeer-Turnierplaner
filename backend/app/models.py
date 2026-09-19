@@ -128,6 +128,44 @@ class PlayerGuestbookRead(SQLModel, table=True):
     read_at: dt.datetime = Field(default_factory=dt.datetime.utcnow, index=True)
 
 
+class PlayerSubjectSnapshot(SQLModel, table=True):
+    """What a profile's header image, About text or avatar was at one moment (K1).
+
+    Avatars and header images are one file per player, overwritten on every upload
+    (`avatars/{player_id}.{ext}`), so the first guestbook entry filed against the current
+    image copies it aside and points at the copy; a later entry on the same version finds
+    this row and shares the copy. Images nobody commented on are never kept — Roli's call:
+    the storage tracks the conversation, not the upload history. The About text is the
+    `text` column and needs no file.
+
+    The version is the source row's `updated_at` at capture time, so "one copy per
+    version" is a constraint, not a convention. Written by
+    `services/guestbook_subjects.py` only; a row whose last entry is deleted goes with it,
+    file included, and `init_db()` sweeps whatever a rollback leaves behind (A9).
+    """
+    __table_args__ = (UniqueConstraint("player_id", "kind", "source_updated_at", name="uq_subject_snapshot_version"),)
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    player_id: int = Field(foreign_key="player.id", index=True)
+    kind: str = Field(index=True)  # "header_image" | "about" | "avatar"
+    #: The source row's `updated_at` when this was captured — the version identity.
+    source_updated_at: dt.datetime = Field(index=True)
+    #: kind == "about": the About text as it was. Images: "".
+    text: str = Field(default="")
+    #: Images: the pinned copy. About: all three empty.
+    content_type: str = Field(default="")
+    file_path: str = Field(default="", index=True)
+    file_size: int = Field(default=0)
+    captured_at: dt.datetime = Field(default_factory=dt.datetime.utcnow, index=True)
+
+
+class PlayerGuestbookEntrySubject(SQLModel, table=True):
+    """Which snapshot a guestbook entry is about — one row per tagged root entry, none for
+    an untagged entry or a reply (the `PlayerGuestbookThreadLink` shape)."""
+    entry_id: int = Field(foreign_key="playerguestbookentry.id", primary_key=True)
+    snapshot_id: int = Field(foreign_key="playersubjectsnapshot.id", index=True)
+
+
 class PlayerPoke(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     profile_player_id: int = Field(foreign_key="player.id", index=True)

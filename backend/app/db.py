@@ -59,6 +59,16 @@ def init_db() -> None:
     if seeded_records > 0:
         log.info("Record holders seeded: %s", seeded_records)
 
+    # What a guestbook entry is about, and the pinned copy behind it (K1). Old code
+    # knows neither table, so an entry deleted while rolled back leaves its link and
+    # its file — and a reused entry id (A9) would inherit the stale subject. Silent
+    # when there is nothing to do.
+    from .services.guestbook_subjects import sweep_orphan_subjects
+
+    swept = sweep_orphan_subjects(_engine)
+    if swept > 0:
+        log.info("Guestbook subjects swept: %s", swept)
+
 
 # Columns added to existing deployments after the fact: (table, column, DDL type/default).
 # Additive only — old code keeps working against a migrated DB.

@@ -203,12 +203,32 @@ function GoalSideChoice({
   );
 }
 
-/** The "Goal" / "Shots" badge that leaves the entry mode again. */
-function ModeBadge({ label, onLeave, disabled }: { label: string; onLeave: () => void; disabled?: boolean }) {
+/**
+ * The chip above a composer that names the mode it is in and leaves it again — the
+ * "Goal" / "Shots" badge here, and the subject badge the guestbook composer wears when
+ * it is armed for the header image, the About text or the avatar (K2). One chip for the
+ * one job: a composer saying what it is about to post, with the way out beside it.
+ */
+export function ModeBadge({
+  label,
+  onLeave,
+  disabled,
+  icon,
+  leaveLabel,
+}: {
+  label: string;
+  onLeave: () => void;
+  disabled?: boolean;
+  /** The glyph beside the word. Without it, "Goal" and "Shots" draw their own. */
+  icon?: React.ReactNode;
+  /** What leaving is called. Default: `Leave <label> entry`. */
+  leaveLabel?: string;
+}) {
+  const leave = leaveLabel ?? `Leave ${label.toLowerCase()} entry`;
   return (
     <div className="flex items-center justify-between gap-2">
       <span className="chip inline-flex items-center gap-1.5 text-accent">
-        {label === "Goal" ? <Goal size={12} aria-hidden="true" /> : <Target size={12} aria-hidden="true" />}
+        {icon ?? (label === "Goal" ? <Goal size={12} aria-hidden="true" /> : <Target size={12} aria-hidden="true" />)}
         {label}
       </span>
       <Button
@@ -216,8 +236,8 @@ function ModeBadge({ label, onLeave, disabled }: { label: string; onLeave: () =>
         variant="ghost"
         onClick={onLeave}
         disabled={disabled}
-        title={`Leave ${label.toLowerCase()} entry`}
-        aria-label={`Leave ${label.toLowerCase()} entry`}
+        title={leave}
+        aria-label={leave}
         className="inline-flex h-8 w-8 shrink-0 items-center justify-center p-0"
       >
         <X size={14} aria-hidden="true" />

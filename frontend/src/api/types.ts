@@ -30,7 +30,13 @@ export type PlayerProfileMeta = S["ProfileMetaOut"];
 export type PlayerMediaMeta = S["PlayerMediaMetaOut"];
 
 // Guestbook
-export type PlayerGuestbookEntry = S["GuestbookEntryOut"];
+// What an entry is about (K1) — the deliberate narrowing: the backend types `kind` as a
+// plain string (it is a `SUBJECT_KINDS` member, not an enum) and every consumer wants to
+// switch on it. `current` is the server's answer to "is this still what the profile
+// shows"; the frontend renders it and never re-derives the rule.
+export type GuestbookSubjectKind = "header_image" | "about" | "avatar";
+export type PlayerGuestbookSubject = Omit<S["GuestbookSubjectOut"], "kind"> & { kind: GuestbookSubjectKind };
+export type PlayerGuestbookEntry = Omit<S["GuestbookEntryOut"], "subject"> & { subject?: PlayerGuestbookSubject | null };
 export type PlayerGuestbookSummary = S["GuestbookSummaryOut"];
 export type PlayerGuestbookReadIds = S["EntryIdsOut"];
 export type PlayerGuestbookReadMapRow = S["GuestbookReadMapOut"];

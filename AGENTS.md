@@ -5,10 +5,13 @@
 > non-obvious about the project (deploy quirks, data semantics, decisions), **update this file**
 > so the knowledge survives model/tool switches. Keep the "Current state" section dated.
 >
-> Last full review: 2026-09-19 (branch `feature/2026-09-ideas`; code at `dedd6fa`, this pass on
-> top). `f425961` is still
-> the only thing deployed: the 2026-09 design batch is merged to `main` and undeployed, and the
-> Ideas batch (P1–P6) is not merged.
+> Last full review: 2026-09-19 (branch `feature/2026-09-guestbook`; code at `34a48e2`, this pass on
+> top). `f425961` is still the only thing deployed: the design, Ideas and badges batches are all
+> merged to `main` (`14e27db`) and undeployed, and the guestbook batch (K1–K4, then Q-A/Q-B, G1–G3
+> and G4) is not merged. **Q-A and Q-B now have their canon pass** (G5, this one): K4 reviewed the
+> tree at `ad21035` and G1–G3's pass deliberately did not speak for the two commits after it, so
+> this file and `DESIGN.md` described a word-only subject chip and an always-open About field that
+> the code had already replaced. Both are corrected here, against the running app.
 
 ---
 
@@ -49,7 +52,17 @@ Size (2026-09-13): backend ≈ 13.3k LOC Python (`app/` + `manage.py` + `run.py`
   records, tournament_stats, core, scope, registry), `comments_summary.py`, `guestbook_summary.py`,
   `club_stars.py` (the star-rating timeline: every write appends, every match resolves by date),
   `record_holders.py` (who held which record last time, and the one function every result-changing
-  path calls — §5, §6).
+  path calls — §5, §6), `guestbook_subjects.py` (what a guestbook entry is *about*, and the copy
+  that keeps it true — §5).
+- **`guestbook_subjects.py` is the only module that reads or writes `PlayerSubjectSnapshot` /
+  `PlayerGuestbookEntrySubject`** (K1): `find_or_create_snapshot` pins the current version of a
+  profile's header image, About text or avatar — called **before** the entry is inserted, so a
+  subject that is not there any more costs a 409 and nothing else; `subjects_for_entries` builds
+  the payload and decides `current`; `release_subjects` stages the rows and hands the files back to
+  unlink **after** the commit; `sweep_orphan_subjects` runs from `init_db()`. The rule all four
+  serve is in §5. Its two halves in `file_storage.py` are `media_path_for_guestbook_subject` and
+  `list_media(rel_dir)` (the sweep's eyes, sorted), with `GUESTBOOK_SUBJECT_DIR` spelled **once**
+  there because the path builder and the sweep both name that directory.
 - **`stats/records.py` is the only place that decides what a record is** (M1). `RECORD_DEFS` is the
   registry — sixteen keys, each with its English label, its one-line explainer, its sort column and
   its deep-link `path` — and `compute_stats_records` folds the answer out of
@@ -105,6 +118,25 @@ Size (2026-09-13): backend ≈ 13.3k LOC Python (`app/` + `manage.py` + `run.py`
   superlatives in the browser from six requests (M4).
   `profile/RecordBadges.tsx` is the profile's band of the records that player holds today **and the
   one `Modal` legend any of its chips opens** (M5 built the band, M8 made it explain itself — §9).
+  `profile/guestbookSubjects.ts` is the browser's **one** subject vocabulary (K2) — the three kinds'
+  words (`Header image` / `Earlier header image` …), their glyphs, `subjectExcerpt` and the two
+  small folds — read by the feed's **citation** (`GuestbookEntryCard`, Q-B: the pinned copy as a
+  thumbnail or a quoted excerpt, with the word beside it, as one tap target; `DESIGN.md` §7) and by
+  `profile/SubjectCommentTrigger.tsx`, the one
+  "comment on this" control the banner, the avatar and the About head all wear (K3; its three looks
+  are `DESIGN.md` §7, and it owns `SECTION_HEAD_ACTION_CLASS`, the one `h-8` string a section
+  head's actions share — Q-A put the owner's About **Edit** beside it). The guestbook's armed
+  composer borrows `ModeBadge` from
+  `pages/live/comments/CommentComposer.tsx`, which is **exported** for it — a shared primitive that
+  lives in a page module because that is where its family is, and the one chip a composer wears to
+  say what it is about to post. **The guestbook feed is flat** (G1): `GuestbookSection.tsx` is a
+  `section-head` + `list-divided` rows at the page gutter, like every other section on the profile,
+  and `GuestbookEntryCard.tsx` is the row — no `card`, no `inset`. Its reply *and* the tournament
+  feed's reply are both `CommentSendRow`; the one field left in either is the edit form
+  (`DESIGN.md` §9b). `useProfileGuestbook.ts` holds all of its state and **reads the feed with the
+  viewer's token** (G4 — §6: the rows carry per-caller answers, so the viewer is part of the key).
+  `ProfileOverviewTab.tsx`'s About block renders the visitor's read view for the owner too, until
+  the owner opens the editor from that head (Q-A; `DESIGN.md` §9b).
 - `src/ui/` — `primitives/` (Button, Card, CardSection, Modal, Input, Pill, EmptyState,
   InlineLoading, LoadingPlaceholder, MatchOverviewPanel, ScoreLine, MatchSides, ClubMark [the one
   16px club symbol every score-only match row wears, Q8/Q17], StatTile, Chip,
@@ -238,6 +270,7 @@ Current prod config (mirrored in `backend/app/cups.json` and `backend/data/cups.
   star_rating 0.5–5 in 0.5 steps = the **current** value, league_id), `ClubStarRating`,
   `ClubCrestFile`, `PlayerProfile`,
   `PlayerAvatarFile`, `PlayerHeaderImageFile`, `PlayerGuestbookEntry` (+ThreadLink, Vote, Read),
+  `PlayerSubjectSnapshot` + `PlayerGuestbookEntrySubject`,
   `PlayerPoke` (+Read), `Comment` (+Read, Vote, ImageFile, ThreadLink, AuthorLink),
   `TournamentPinnedComment`, `TournamentCreatorLink`, `FriendlyCreatorLink`,
   `FeatureRequest` (+`FeatureRequestArea`, `FeatureRequestVote`, `FeatureRequestImageFile`,
@@ -336,10 +369,62 @@ Current prod config (mirrored in `backend/app/cups.json` and `backend/data/cups.
   - `source` is `live` | `seed` | `recovered`. A **recovered** row's `valid_from` is an upper bound
     (the day a backup first showed the new value), which is why the UI says "by <date>" for it and
     "since <date>" for the rest. See §8 for the recovery command.
+- **A guestbook entry can be *about* the header image, the About text or the avatar, and what it is
+  about is pinned** (K1). `PlayerSubjectSnapshot` is what one of those was at one moment
+  (`player_id`, `kind`, `source_updated_at`, `text` for the About, `content_type`/`file_path`/
+  `file_size` for an image, `captured_at`, unique on `(player_id, kind, source_updated_at)`) and
+  `PlayerGuestbookEntrySubject` (`entry_id` PK → `snapshot_id`) is which one an entry names — the
+  `PlayerGuestbookThreadLink` shape, and **no column on `PlayerGuestbookEntry`**, so a subject is
+  optional on the wire, needs no default explained, and cannot move the "· edited" byline
+  (`updated_at`) for something that is not an edit. Both additive, nothing altered, nothing in
+  `_RUNTIME_COLUMNS`, **written and read by `services/guestbook_subjects.py` alone**.
+  - **Copy-on-comment.** An avatar and a header image are one file per player, overwritten in place
+    by `upsert_media_row`, and the About text is one `PlayerProfile.bio` column — so a comment about
+    the old one would silently point at the new one. The **first** entry filed against the current
+    version pins it: the bytes are copied once to `guestbook_subjects/{snapshot_id}.{ext}` — a *new*
+    file in a *new* directory, so the overwriting writer and the two media `DELETE` endpoints never
+    touch it — the About text is stored in `text` and needs no file at all, and later entries on the
+    same version **share** that pin. **Nothing nobody commented on is kept** (Roli, 2026-09-19: the
+    storage tracks the conversation, not the upload history).
+  - **The version is the source row's `updated_at`** at capture time (`PlayerHeaderImageFile` /
+    `PlayerAvatarFile` / `PlayerProfile`), which is what makes "one copy per version" a
+    `UniqueConstraint` rather than a convention.
+  - **`current` — "is this still what the profile shows" — is computed server-side** in
+    `subjects_for_entries`; the frontend renders the flag and never re-derives the rule (the A10
+    shape). For an image it is version equality; **for the About it is *text* equality**, because
+    re-saving the same words is a new version but not a change and the chip must not call it one —
+    it flips back to "About text" when the old words are typed again, measured in the browser.
+  - **The pin dies with the last entry that names it.** `release_subjects` deletes the links of the
+    whole subtree being deleted, then every snapshot left with no link, and returns the paths; the
+    router unlinks the **files after `commit()`**, exactly as `comment_cleanup` does — a failed
+    commit leaves no hole. Deleting the avatar or the header image leaves the pin alone: the entry
+    still needs it.
+  - **Pinning happens before the entry is inserted**, so a subject that is not on the profile right
+    now costs a **409** and nothing else; one helper writes all three messages so they cannot drift
+    (*"There is no header image / About text / avatar to comment on right now"*), and a metadata row
+    whose file is missing on disk is the same 409 for the same reason `get_player_header_image` 404s
+    it.
+  - **`init_db()` sweeps orphans on every boot** — `sweep_orphan_subjects`, logged as
+    `Guestbook subjects swept: N` **only when it removed something**, counting rows and stray files
+    (a deleted link 1, a deleted snapshot 1 with its file riding along, a file with no row 1). It is
+    not housekeeping: old code knows neither table, so an entry deleted while rolled back leaves its
+    link and its copy, and `playerguestbookentry.id` has no AUTOINCREMENT (A9) — the next entry to
+    take that id would silently inherit the dead subject. `attach_subject` **replaces** a stale row
+    for its entry id rather than assuming there is none, for the same reason.
+  - **Rule 3 was measured, not asserted.** `14e27db` extracted with `git archive` (so `.git` was
+    never touched) booted against a database the new code had already written both tables and a
+    pinned copy into: it boots clean, `GET /players/1/guestbook` answers **200** with **no `subject`
+    key at all** (12 keys per row), and it posts and deletes entries. A9 was not theoretical there —
+    the entry it posted came back as **the id a deleted entry had held**. The next boot of the new
+    code logged exactly `Guestbook subjects swept: 2` and `guestbook_subjects/` was empty; a further
+    boot logged nothing.
 - **Media** are files on disk, metadata rows in DB: `uploads/avatars/{player_id}.{ext}`,
   `profile_headers/{player_id}.{ext}`, `comments/{comment_id}.{ext}`, `club_crests/{club_id}.{ext}`,
-  `ideas/{request_id}.{ext}`.
-  Served by the backend with cache-busting `?v=<updated_at>` (`mediaUrl()`).
+  `ideas/{request_id}.{ext}`, `guestbook_subjects/{snapshot_id}.{ext}` (the pinned copies, K1).
+  Served by the backend with cache-busting `?v=<updated_at>` (`mediaUrl()`). A pinned copy is the
+  one picture in the app the backend serves `public, max-age=31536000, immutable` — a snapshot never
+  changes and its path already carries its id, so the `?v=<captured_at>` its client URL still gets
+  from `mediaUrl` is belt and braces rather than the mechanism.
 - Stats scopes: `tournaments | both | friendlies`, taken as a `scope` query param by **every**
   `/stats/*` endpoint that reads matches — `/stats/players` learned it last (A4), so no stats
   surface can show the Source filter and ignore it. Ratings are Elo-like per mode.
@@ -358,8 +443,8 @@ create, patch, `/date`, `/generate`, `/reorder`, `/second-leg`, `/stats`, `/deci
 `/reassign` (+`/reassign-preview`), delete, comments), `/matches/{id}` (patch score/state/clubs,
 `/swap-sides`),
 `/clubs` (+`/leagues`, `/{id}/crest`, `/{id}/star-history` — public read, oldest first),
-`/players…` (profiles, avatars, headers, guestbook, pokes,
-read-maps), `/cup?key=`, `/cup/defs`, `/stats/{overview,players,h2h,h2h-matches,streaks,
+`/players…` (profiles, avatars, headers, guestbook (+`subject_kind` on POST),
+`/guestbook-subjects/{sid}/image`, pokes, read-maps), `/cup?key=`, `/cup/defs`, `/stats/{overview,players,h2h,h2h-matches,streaks,
 player-matches,ratings,ratings/history,odds,records}`, `/friendlies`, `/ideas` (+`/areas`, `/{id}`,
 `/{id}/status`, `/{id}/vote`, `/{id}/voters`, `/{id}/image`, `/{id}/comments`, `/comments/{cid}`,
 `/{id}/read`), `/push/{config,subscription,subscriptions/me,test}`, `/comments/…`, `/health`.
@@ -439,6 +524,27 @@ FastAPI now renders the optional keys an item does not use as explicit `null` wh
 be absent — `exclude_none` was deliberately **not** used, because it would also have removed the
 meaningful `"author_player_id": null` a "General" comment carries. `created_at` stays a `str`. The
 bell's copy for all seven lives in `ui/shell/notificationText.ts`, never inline in the component.
+
+**A guestbook entry's subject rides inside the entry** (K1). `POST /players/{id}/guestbook` takes
+`subject_kind` — `header_image` | `about` | `avatar`, **root entries only**, because a reply's
+subject is its root's: a reply that carries one is a **400**, an unknown kind is a 400, and `""` is
+simply "no subject" and answers 200. `GuestbookEntryOut.subject` carries it back
+(`GuestbookSubjectOut`: `kind`, `snapshot_id`, `captured_at`, `text`, `has_image`, `current`) on the
+list, on the POST and on the PATCH, so there is **no second endpoint and no second query key**, and
+an untagged entry's `subject` is null. `GET /players/guestbook-subjects/{snapshot_id}/image` serves
+the pinned copy: a public read like the avatar, immutable for a year (§5). **A subject changes
+nothing else about the guestbook** — `push_guestbook_created` fires once per entry with the same
+`text_context`, the bell's `guestbook` kind and its `path` are unchanged, so are
+`PlayerGuestbookRead`, the edit window and `player:guestbook:update`, and a test
+(`test_a_tagged_entry_notifies_exactly_once`) is what keeps that true. Whether the push should *say*
+"about your header image" was asked and declined (Roli): a tagged entry still "left a new message".
+**`GET /players/{id}/guestbook` is a public read that answers per caller** (G4). `can_edit`
+(`guestbook_can_edit`: the author within `GUESTBOOK_EDIT_WINDOW`, or an admin) and `my_vote` are
+computed from the bearer token, so the frontend sends it whenever there is one — the read itself
+stays public and a logged-out reader gets the same list with an anonymous caller's flags. That
+makes the viewer part of the query key, exactly as it is for comments, friendlies and ideas: see
+the cache table below. **A per-caller flag is only as good as the request that asked for it** — the
+gotcha in §10.
 
 **Records are computed in one place, and the backend says where each one lives** (M1).
 `GET /stats/records?mode&scope` is a public read like every `/stats/*`, with the same `mode`/`scope`
@@ -567,7 +673,7 @@ Coverage is not "is there a channel" but "is the channel open *while you are awa
 | `["match-h2h", …]` | **partial** | 30 s | The same numbers as `/stats`, but the key sits *outside* `["stats"]`, so no reducer ever invalidates it — only the window does. |
 | `["me","notifications"]` | **partial** | 30 s | A reply to your comment invalidates it from the tournament channel; a poke, a guestbook entry or an idea event does not. `NotificationBell`'s own 60 s poll covers the rest. |
 | `["players"]` (roster, profiles, avatars, headers) | **none** | 5 s | No channel: a rename or a new avatar reaches another device only by refetching. |
-| `["players","pokes"]`, `["players","guestbook"]` | **page channel** — `/ws/players/{id}` | 5 s | Open only while that profile is on screen. |
+| `["players","pokes"]`, `["players","guestbook"]` | **page channel** — `/ws/players/{id}` | 5 s | Open only while that profile is on screen. The row did **not** move for K1 or G4: a subject rides inside this list payload, so `resyncPlayer` already carries it, and G4's `qk.playerGuestbookFull(id, token)` lands under this same prefix, so no row was added and `cachePolicy.test.tsx` needed none. The one thing the channel never announces is a change to the *subject itself* — a new upload or a bio save flips `current` — so the owner's own picture and bio mutations invalidate `qk.playerGuestbook` locally (K3) and any other device finds it in this window or on the focus refetch (measured: 6.8 s away and back, 2 refetches, no reload). |
 | `["clubs", …]`, `["leagues"]` | **none** | 5 s | Nothing announces an added club or an edited star rating; the window is the only thing that finds it. The catalogue is also the biggest payload in the app (113 KB), which is why six call sites raise it to 60 s where the data is a lookup table rather than the subject. |
 | `["friendlies", …]` | **none** | 5 s | Friendlies broadcast nothing — a result typed into another phone in the same session is invisible until this one asks again. |
 | `["ideas", …]` | **none** | 5 s | R5 gave the board no channel on purpose, and P1's comments changed nothing: they ride in the same payload under the same key, so the writer's own mutation invalidates `qk.ideasAll()` and everyone else gets them on the next return or focus. `["ideas","areas"]` is a static list (1 h at its call site). |
@@ -612,7 +718,8 @@ doing only what it is for — the combination nobody has asked for yet.
   `frontend/nginx.conf`: hashed assets immutable, `index.html`/`sw.js`/manifest `no-store`,
   SPA fallback), `caddy` (ports 80/443, `deploy/Caddyfile`, certs in named volumes).
 - **Persistent data on the server** = `backend/data/` (`app.db`, `cups.json`,
-  `vapid_private_key.pem`, `uploads/{avatars,profile_headers,comments,club_crests}`) plus the
+  `vapid_private_key.pem`,
+  `uploads/{avatars,profile_headers,comments,club_crests,ideas,guestbook_subjects}`) plus the
   git-ignored `backend/secrets.json`. Nothing else is stateful.
 - **Standard deploy** (run on the server):
   ```bash
@@ -713,7 +820,14 @@ every past match simply keeps counting today's rating.
   `DESIGN_FIXES_2026-09.md` (C1–C15: the blind design audit's Parts 1, 2 and 4 plus the
   vocabulary sweeps, done on `feature/2026-09-design-fixes`, see §11),
   `FEATURES_2026-09-ideas.md` (P1–P6: comments on ideas, the author's notifications and the
-  device that hears nothing, done on `feature/2026-09-ideas`, see §11). A new batch gets a
+  device that hears nothing, done on `feature/2026-09-ideas`, see §11),
+  `FEATURES_2026-09-badges.md` (M1–M10: `/stats/records`, the stored holders, the push when one
+  moves, the profile's badge band, done on `feature/2026-09-badges`, see §11),
+  `FEATURES_2026-09-guestbook.md` (K1–K4: a guestbook entry can be about the header image, the
+  About text or the avatar, pinned so it still makes sense later, done on
+  `feature/2026-09-guestbook`, see §11 — **Q-A, Q-B and G1–G5 came from Roli living with that
+  batch and have no section in the plan file**, so §11 and their commit messages are where they
+  are written down). A new batch gets a
   new dated file with the same shape: baseline commit, rules for implementing agents, decisions
   already made, one section per task with exact files/symbols, definition of done, deviations
   notes, verification gates, deployment notes. Plans must be mechanical enough that a cheaper
@@ -745,6 +859,24 @@ every past match simply keeps counting today's rating.
   page, player stats). A row that already has an action keeps it — the identity link hugs its text
   and sits above a stretched link/button overlay (`ListRow` pattern). **Never nest an `<a>` in an
   `<a>`**; `document.querySelectorAll("a a").length` must stay 0.
+- **A conversation lives in one place, and an item never hosts its own thread** (K1–K3,
+  2026-09-19). The profile's three items — the header image, the About text, the avatar — get a way
+  to *start* a comment and a count of the ones about what is there now, and nothing else: the
+  message itself is an ordinary guestbook entry carrying a **subject**, so it appears exactly once
+  on the page, and the trigger arms the guestbook's own composer rather than opening a second one.
+  That is what let the whole feature reuse the guestbook's push, bell, read state, realtime event
+  and edit window **unchanged**. Before giving a new surface comments, ask whether an existing feed
+  can carry them with one more field; a second comment surface would have duplicated five
+  mechanisms to say the same thing. **And an entry *cites* what it was about rather than naming
+  it** (Q-B): the pinned copy as a thumbnail or a quoted excerpt, with the word still beside it
+  (`DESIGN.md` §7).
+- **An owner's page is the visitor's page plus one action** (Q-A, 2026-09-19, Roli: *"about text on
+  own profile should look exactly like other profiles, with edit button beside comments label"*).
+  A block the owner may edit renders the **visitor's** read view until they open the editor from
+  one action in the section head — never an always-open field where everyone else sees text, or the
+  owner never sees their own wall the way the friend group sees it. It is M8's move on the profile
+  header applied below it; the rule, the shared `SECTION_HEAD_ACTION_CLASS` and the
+  close-after-`mutateAsync` detail are in `DESIGN.md` §9b and §6.
 - **An avatar speaks in the present tense** (T15, 2026-09-13): every player avatar is
   `ui/primitives/AvatarCircle` and wears a ring — neutral hairline by default, the cup's colour
   when `cups` says that player holds it **today** (`hooks/useCupHolders`). A ring is never used for
@@ -820,6 +952,23 @@ every past match simply keeps counting today's rating.
   11.07. Expected owners after that date: Lorbeerkranz → Berni, Bauernkranz → Roli.
 - `/clubs` page and pickers require editor login; stats, live pages, friendlies, profiles and
   `/ideas` are public reads.
+- **A per-caller flag is only as good as the request that asked for it** (G4, 2026-09-19 — found
+  while verifying G2, which had reworked a control that had never once rendered in the app). A
+  public read that carries `can_edit` / `can_delete` / `my_vote` answers for **whoever asked**, so
+  a client that omits the token gets the anonymous answer and the A10 rule — "render the flags,
+  never re-derive the rule" — silently renders nothing at all. `listPlayerGuestbook` did exactly
+  that: `can_edit` was `false` for the author inside the window *and* for an admin, and `my_vote`
+  was 0 for everybody, with the API demonstrably correct under `curl -H "Authorization: Bearer …"`.
+  **Two halves, and the second is the one that gets forgotten:** send the token, *and* put it in
+  the query key, or the logged-out payload already in the cache (fresh for 5 s, kept for 30 min) is
+  handed to the account that just logged in — the same bug one step later, and it was reproduced in
+  a browser before it was closed. The app has one mechanism for this and it is a **full key beside
+  a prefix key**: `qk.playerGuestbookFull(id, token)` under `qk.playerGuestbook(id)`, the shape
+  `commentsTournamentFull`, `friendliesList` and `ideas` already use, so every existing
+  invalidation keeps working and the cache-policy row does not move. The flag is computed from the
+  **account**, while "view as lower role" is frontend-only, so the effective role still gates the
+  control (`canPostGuestbook && !!can_edit`, the app's `isEditorOrAdmin && !!row.can_edit` shape).
+  When adding a per-caller field to a public read, check both halves.
 - **Ideas sits below Clubs in the sidebar and the drawer and has no bottom-bar tab** (R5, Roli's
   call): five items are what fits a phone row. It is the only nav destination a reader can see
   that an editor also sees in the same place, because reading the board is public and only
@@ -1094,6 +1243,26 @@ every past match simply keeps counting today's rating.
   two tasks even so: deleting the "Public profile" / "This is your profile" line and un-wrapping the
   owner's band took **66px** off the tab strip's top (M8), and the taller avatar put back only
   4–9.5px of it (M9).
+- **The banner's comment badge costs that header nothing, and it was measured four ways** (K3,
+  2026-09-19). It is `absolute bottom-2 right-2 z-10` inside the banner's own `relative …
+  overflow-hidden` box — a **sibling** of the banner's button, never inside it (a `<button>` in a
+  `<button>` is invalid and the outer one swallows the tap) — so it takes no part in the flow: the
+  tab strip stays at **451.3px** (390×844) and **779.9px** (1280×900), in `blue` and in `light`,
+  with the badge, with it removed from the DOM, and against a pristine database where no tagged
+  entry has ever existed. The measurement is not blind — a 20px block inserted as the tab strip's
+  sibling moves it to 483.3px (+32 = 20 plus the page column's own 12px flow margin). The badge is
+  41.9 × 28px and renders **nothing at zero, whoever is looking**; that rule lives inside
+  `SubjectCommentTrigger` and not at the call site, so a future caller cannot lose Roli's
+  constraint. The M9 baseline is intact in the same runs (avatar 80×80, 8 chips, 5 + 3 at 390px).
+- **The About section head is 32px with its trigger and 16px without, and that is the component,
+  not a mistake** (K3, measured at 390px and 1280px in both themes). A bare `.section-head` is its
+  label's line; `SubjectCommentTrigger` is the Ideas board's comment toggle verbatim, an `h-8`
+  button, so a head carrying one is exactly twice as tall. The app's other head with an action —
+  "Recent matches", on the same tab — is 16px because its action is text-only. The plan asked for
+  the shared component *and* for the head not to grow; those cannot both be true, and K3 shipped
+  the shared look and wrote the number down rather than inventing a second, smaller "comment on
+  this". The *hard* constraint is untouched: this head is inside the Overview tab, so the identity
+  block and the tab strip did not move. **Whether 32px is what Roli wants there is open** — §11.
 - Scroll position is app-managed (N2): `history.scrollRestoration` is `"manual"`, each history
   entry's offset lives in sessionStorage (`navStack`) and in-page view swaps (tabs, stats
   sections) keep their own offsets (`useReturnScroll`) — the H2H matchup rides on its own history
@@ -1125,25 +1294,111 @@ every past match simply keeps counting today's rating.
   `Editor`/`Admin`. Frontend tests: vitest + jsdom, files in `frontend/src/test/`.
 - `backend/app.db*`, `backend/data/app.db` are real (synced) data — never commit, never run
   destructive experiments on them; copy first.
+- **A throwaway `secrets.json` for a verification stack must name the task's own DB copy.** The
+  template these plans hand out carries `"db_url": "sqlite:///./app.db"` and relies on `--db-url`
+  and `UPLOADS_DIR` arriving on the command line; a stack started without the flag points at
+  `backend/app.db` and writes under `backend/data/uploads`, with no error, because that is a valid
+  configuration. Spell the copy in the file
+  (`"db_url": "sqlite:////abs/path/backend/data/verify-<task>.db"`) so a forgotten flag cannot
+  reach the real data at all.
 
 ## 11. Current state (2026-09-19)
 
 - **`f425961` (2026-09-16) is still the only thing that has ever run on the server.** `main` is
-  `b8e741a` and carries two batches that are **merged and undeployed**: the 2026-09 design batch
-  (frontend-only) and the Ideas batch (`feature/2026-09-ideas`, merged 2026-09-19 as `a547193`).
-  In front of both sits a third that is **not merged at all** — `feature/2026-09-badges`, below.
-  Because the Ideas half and the badges half each touch the **backend and the schema**, the next
-  deploy is the **full** one — `git pull && docker compose up -d --build`, with the §7 step-2 data
-  backup taken first — and it carries whatever is on `main` at that moment (Roli's call: one deploy,
-  not one per batch). No manual step in either: the new tables are created by `init_db()` at
-  startup, and in both batches old code was run against a migrated database to prove it still boots.
-  **Nothing in any of the three has run on iOS, and no push has ever gone over the wire from this
+  `14e27db` and carries **three** batches that are merged and undeployed: the 2026-09 design batch
+  (frontend-only), the Ideas batch (`feature/2026-09-ideas`, merged as `a547193`) and the badges
+  batch (`feature/2026-09-badges`, merged 2026-09-19 as `14e27db`). In front of all three sits a
+  fourth that is **not merged at all** — `feature/2026-09-guestbook`, below. Ideas, badges and
+  guestbook each touch the **backend and the schema**, so the next deploy is the **full** one —
+  `git pull && docker compose up -d --build`, with the §7 step-2 data backup taken first — and it
+  carries whatever is on `main` at that moment (Roli's call: one deploy, not one per batch). No
+  manual step in any of them: every new table is created by `init_db()` at startup, and in all three
+  backend batches old code was run against a migrated database to prove it still boots.
+  **Nothing in any of the four has run on iOS, and no push has ever gone over the wire from this
   machine** (dev has no VAPID and is not HTTPS), so production is the first real test of P2, P5 and
   the record push — **including whether iOS renders a non-ASCII push body**, which nothing here can
   check (§9).
-- **`feature/2026-09-badges` (M1–M10, `FEATURES_2026-09-badges.md`) is complete and unmerged** —
-  branched from `b8e741a`, twelve commits, 48 files, **two new tables**, so it is a **full** deploy
-  when Roli says so. Ten tasks, because M8–M10 came out of Roli living with the batch on his phone
+- **`feature/2026-09-guestbook` (K1–K4, then Q-A/Q-B, G1–G3 and G4/G5) is complete and unmerged** —
+  branched from `14e27db`, thirteen commits, 34 files, **two new tables
+  and one new media directory**, so it is a **full** deploy when Roli says
+  so. Roli asked to be able to comment on a profile's header image, About text and avatar, *"make
+  sure the image and about texts persist so it is also clear what its about later when they
+  change"* — and the answer is that **the guestbook absorbs it**: an entry gains a subject and
+  nothing else is built, so the feed, the composer, the read state, the push, the bell kind and the
+  realtime event are all the ones that already existed (§9). What landed: **K1** the two tables,
+  `services/guestbook_subjects.py`, copy-on-comment with `current` computed server-side, the
+  release-with-the-last-entry rule, the boot sweep and the API (§5, §6); **K2** the feed — one
+  `.chip` button per tagged entry that opens the *snapshot*, the composer armed with a `ModeBadge`,
+  and `pages/profile/guestbookSubjects.ts` as the one vocabulary; **K3** the items — one
+  `SubjectCommentTrigger` on the banner, the avatar and the About head, `ImageLightbox`'s `footer`,
+  the banner's count badge (Roli overruled the plan's "lightbox only") and the owner's own
+  mutations invalidating `qk.playerGuestbook`; **K4** the first documentation pass. Then, from Roli
+  living with it: **Q-A** the owner's About block became the visitor's — the same read view and the
+  same "No profile text yet.", with one `h-8` **Edit** in the head's action slot beside the
+  comments trigger, sharing `SECTION_HEAD_ACTION_CLASS` so the pair cannot drift into two heights,
+  Edit inboard so the corner is the same for everyone, shown even on an empty About (where the
+  trigger is absent by design), and the editor closing only once `mutateAsync` has resolved;
+  **Q-B** an entry stopped *naming* its subject and started **citing** it — the pinned copy as a
+  thumbnail in its source's own shape (71×40 banner, 40×40 avatar) or the About text as a quoted
+  excerpt (`subjectExcerpt`: whitespace collapsed, cut at a word boundary at 140 chars), the word
+  still beside it because a thumbnail cannot say *which* picture and it is what survives a failed
+  image, all of it **one** tap target opening the same two viewers K2 built. Re-measured for G5 at
+  390px in both themes: the citation is 48px for a picture and 42/58px for a one/two-line quote,
+  taking a tagged entry from the untagged 124px to 180px and 174/190px; at 1280px the same
+  two-line quote fits on one. **G4** is the fix for the bug G2 found (below) and **G5** is this
+  documentation pass, the one K4 and G1–G3 could not give them. Two things a reader should know
+  before the deploy: the sweep's log line `Guestbook subjects swept: N` appears **only when a boot
+  removed something**, so silence on the first boot is the expected outcome, and
+  `curl https://lorbeerkranz.xyz/api/players/1/guestbook | grep -c '"subject"'` > 0 proves the new
+  code is up (the key is present and `null` on every untagged entry). Rollback to `14e27db` ignores
+  both tables — measured, not assumed (§5) — and costs two things: tagged entries render as plain
+  entries, and an entry deleted while rolled back leaves a link and a file that the next boot of the
+  new code sweeps.
+- **G1–G3 answered a measured design audit of that tab, and one of the three changed the canon
+  rather than the code** (`facdef5`, `b3a618c`, `57050e4`, then their docs pass `6de35f6`),
+  frontend-only, no schema, no backend.
+  - **G1 — the guestbook is flat.** It was the profile's only boxed tab: measured at 390px, the
+    message text started at x=41 and was 308px wide, against x=16 / 358px on Overview, Stats and
+    Matches, which carry **no** `.card` at all. **Roli was shown that the code was *obeying*
+    `DESIGN.md` §9b ("a feed and its composer are one card", written when a feed was the whole
+    page) and chose flat anyway**, knowing it makes the app's two feeds differ — so §9b now says a
+    feed inside a tabbed page is flat and a feed that *is* its page keeps its card (the tournament
+    comments card is 6950px tall; its edges are never on screen). After: x=16 / 358px at 390, and
+    x=264 / 992px at 1280, identical to the three siblings.
+  - **G2 — one height per control.** A message wore five (24 · 26 · 30/36 · 32 · 40); it now wears
+    32 for every control on it and 40 for the chat row's send. Replying is `CommentSendRow` with a
+    `ChevronUp` cancel (144 → 192px, against 180 → 354px for the form it replaced); editing keeps a
+    real field with `Textarea`'s new `resizable={false}` and one Save filling the row; the
+    unread-replies marker is a `.chip`; the byline prints `· edited <ts>`; the unread jump is a
+    ghost `Button` with one tooltip instead of a classless `<button>` around a `Pill` with two.
+  - **G3 — `min-h-[60svh]` is gone**, the app's only forced viewport height on content: it bought
+    238px of dead space under a one-message wall, 338px under an empty one and 354px logged out,
+    and made an empty wall scroll 216px over nothing. All three are 0 now.
+  - **The one thing G2 deliberately did not change is the invisible click target**: tapping an
+    unread message marks it read, from a bare `onClick` on the row `<div>`. It stays, because the
+    honest answer is that it should not be a control at all — `role="button"` on a div is forbidden
+    (§7/§11), a stretched overlay is wrong on a row with six controls and selectable text, and the
+    row already has a labelled, focusable **Mark as read** button doing exactly this (the
+    tournament feed has *only* that button and no such handler). **Whether the shortcut should
+    exist is Roli's call**; the reasoning is written at the call site so the next audit does not
+    re-report it as an oversight.
+  - **Found while verifying G2, fixed by G4**: `listPlayerGuestbook` fetched the feed **without a
+    token**, so `GuestbookEntryOut.can_edit` came back `false` for everybody and the pencil G2 had
+    just reworked had never once rendered in the app — not for an author inside the window, not for
+    an admin — while the API was right all along. Roli asked for it, and G4 sends the token *and*
+    puts it in the key (§10 has the rule and why the second half matters). Verified in a browser at
+    390 and 1280 in both themes: Berni sees the pencil on his fresh message and not on his
+    backdated one, an admin on all nine, an editor who is neither author nor admin on none, a
+    logged-out reader on none — and the whole G2 edit path round-trips, `resize: none`, one Save
+    filling the row, the byline gaining `· edited <ts>`, the header toggle discarding the draft.
+    `my_vote` was wrong in the same way and is fixed with it. One thing G4 did **not** touch,
+    noted here so the next reader does not take it for a bug: the guestbook **POST** response still
+    reports `can_edit: false` for the entry it just created (the router's `guestbook_entry_payload`
+    call leaves the default), which is invisible because the mutation invalidates and the refetched
+    list carries the right answer.
+- **`feature/2026-09-badges` (M1–M10, `FEATURES_2026-09-badges.md`) is merged** (`14e27db`) and can
+  be deleted — branched from `b8e741a`, twelve commits, 48 files, **two new tables**, part of the
+  same full deploy. Ten tasks, because M8–M10 came out of Roli living with the batch on his phone
   on the day it was built. What landed: **M1** `GET /stats/records`, the one computation — sixteen
   records in `services/stats/records.py`, folded out of the services the pages already call and
   writing no ranking query of its own, with the deep-link `path` emitted per record (§6);
@@ -1212,16 +1467,26 @@ every past match simply keeps counting today's rating.
   pending chore. Every *earlier* batch branch is merged and can be deleted whenever Roli wants;
   `feature/2026-09-design-fixes` is the one open branch.
 - **Pushed and not yet deployed** — Q15/Q16/Q17 (`f1ea22b`) plus the Streaks/Club-stars swap
-  (`2e23365`), **frontend and docs only**, so it is
-  the short deploy (`git pull && docker compose up -d --build frontend`), no backup, no schema
-  change, no manual step. Q15: the clubs list's row is the edit trigger, no buttons, delete inside
+  (`2e23365`), **frontend and docs only** in themselves, which is why they were once queued as a
+  short deploy; they have since been overtaken by three backend batches on `main`, so they simply
+  ride along in the one **full** deploy the first bullet describes. Q15: the clubs list's row is the edit trigger, no buttons, delete inside
   the editor (which also un-truncated 3 of 16 club names on a phone and dropped 12 wrapped league
   lines). Q16: the club-stars ladder shows all ten rungs, and an unplayed rung prints **no digits**
   — "no matches" plus an em dash — because rows genuinely played for zero points already exist and
   would otherwise be indistinguishable. Q17: `ClubMark` moved into `ui/primitives/` and every
   score-only match row wears one, across all seven surfaces, not just the friendlies list.
-  The design-fixes batch above is merged (`5a97fa9`) and is in this same short-deploy queue; its
+  The design-fixes batch above is merged (`5a97fa9`) and is in that same queue; its
   smoke list is in that plan's "Deployment" section.
+- Checks at the **guestbook** branch head (code at `34a48e2`, G4's tree; G5 is documentation only
+  and touches no code): `cd frontend && npm run check` **780 tests in 80 files** in 68 s,
+  `npm run build` green (`index-*.js` 734.56 kB — the same pre-existing >500 kB hint). G4 added the
+  7 between G1–G3's 773 and this: six in the new `src/test/guestbookIdentity.test.tsx` (which
+  drives the real hook against the real `createAppQueryClient` — five of the six fail against the
+  old code, checked) and one in `queryKeys.test.ts`. The backend was last run at K4's tree
+  (`ad21035`): `make test` **286 passed** in 13:02, `make lint` clean, `make gen-types` **no diff**
+  — that is the badges head's 273 plus K1's 13, and **nothing since K4 has touched `backend/` at
+  all** (Q-A, Q-B, G1–G3 and G4 are frontend-only). At K4's tree the frontend read **757 tests in
+  78 files** (735 plus 11 from K2 and 11 from K3); Q-A and Q-B added the 16 between that and 773.
 - Checks at the badges branch head (code at `787fe71`, re-run on M10's documentation tree):
   `make test` **273 passed** in 11:23, `make lint` clean, `make gen-types` **no diff**,
   `cd frontend && npm run check` **735 tests in 74 files** in 72 s, `npm run build` green
@@ -1239,6 +1504,23 @@ every past match simply keeps counting today's rating.
 
 ### Open, and each one is waiting on something specific
 
+- **The About head doubled in height, and whether that is right is still Roli's call** (K3, §10;
+  narrowed by Q-A). With an action it is 32.0px; a head with none — and every other section head
+  whose action is text-only, "Recent matches" being the one on the same tab — is 16.0px (both
+  re-measured for G5 at 390 and 1280 in both themes). **Q-A took one of the three options off the
+  table**: Roli asked for the owner's Edit to sit *in that head beside the comments label*, and it
+  is deliberately the same `h-8` button, so "give this one head a smaller text-only look" would now
+  mean two looks for two buttons standing next to each other. What is left is keep it, or drop the
+  About trigger and reach the About text only from a citation on an entry — and note that for the
+  **owner** the head is 32px whatever is decided, because Edit is there even on an empty About.
+  The banner and the avatar are unaffected, because their triggers live inside the lightbox and the
+  banner's own box.
+- **The armed composer's caret on iOS is unproven** (K3). Tapping a trigger switches to the
+  Guestbook tab and the focus is placed by the composer nonce *after* that switch, outside the tap's
+  own call stack, so Safari may show the field focused without raising the keyboard. Headless
+  Chromium reports `document.activeElement === textarea` in all four verification runs, and the
+  armed chip is visible either way, so the worst case is one extra tap. It is the same family as
+  Q2 below and should be re-tested in the same session.
 - **Whether iOS renders a non-ASCII push body is unverified, and only Roli's phone can close it.**
   The catalogue now carries its umlauts (§9, M2) and these are the first such bodies the app will
   have sent; nothing on this machine can check it, because push has never gone over the wire from
@@ -1316,7 +1598,7 @@ every past match simply keeps counting today's rating.
 | Visual language (surfaces, tokens, type, primitives) | `DESIGN.md` — the design canon, follow it for every UI change |
 | Tool entry points | `CLAUDE.md` (imports this file), `GEMINI.md` (points here) |
 | Human README / setup narrative | `README.md` |
-| Batch trackers (history + decisions) | `REFACTORING_PLAN.md`, `FEATURES_2026-07.md`, `FEATURES_2026-08.md`, `FEATURES_2026-09.md`, `DESIGN_FIXES_2026-09.md`, `FEATURES_2026-09-ideas.md` |
+| Batch trackers (history + decisions) | `REFACTORING_PLAN.md`, `FEATURES_2026-07.md`, `FEATURES_2026-08.md`, `FEATURES_2026-09.md`, `DESIGN_FIXES_2026-09.md`, `FEATURES_2026-09-ideas.md`, `FEATURES_2026-09-badges.md`, `FEATURES_2026-09-guestbook.md` |
 | The blind design audit behind the C-batch | `DESIGN_AUDIT_2026-09-17.md` + `design-audit-2026-09-17/` (eight raw reports) |
 | Claude Code auto-memory (per-machine, not in git) | `~/.claude/projects/-home-roli-projects-turnierplaner-reloaded/memory/` |
 | Production data snapshots (not in git) | `backup/deploy/<ts>/`, `backup/local/<ts>/` |

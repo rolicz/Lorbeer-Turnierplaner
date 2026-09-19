@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 function clamp(v: number, lo: number, hi: number) {
   return Math.max(lo, Math.min(hi, v));
@@ -8,21 +8,27 @@ export default function ImageLightbox({
   open,
   src,
   onClose,
+  footer,
 }: {
   open: boolean;
   src: string | null;
   onClose: () => void;
+  /** A control that belongs to this picture (K3). Rendered in the safe box at the
+      bottom of the scrim; a click inside it never closes the lightbox. */
+  footer?: ReactNode;
 }) {
   if (!open || !src) return null;
-  return <ImageLightboxOpen key={src} src={src} onClose={onClose} />;
+  return <ImageLightboxOpen key={src} src={src} onClose={onClose} footer={footer} />;
 }
 
 function ImageLightboxOpen({
   src,
   onClose,
+  footer,
 }: {
   src: string;
   onClose: () => void;
+  footer?: ReactNode;
 }) {
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const [scale, setScale] = useState(1);
@@ -94,6 +100,9 @@ function ImageLightboxOpen({
          inherit that column's 12px top margin and stop 12px short of the screen. */
       style={{ margin: 0 }}
       onClickCapture={(e) => {
+        // The footer's own controls are not a click on the scrim. Capture runs *before*
+        // the child's handler, so the child's `stopPropagation` alone cannot save it.
+        if ((e.target as Element | null)?.closest?.("[data-lightbox-footer]")) return;
         if (movedRef.current) {
           movedRef.current = false;
           e.stopPropagation();
@@ -215,6 +224,20 @@ function ImageLightboxOpen({
           />
         </div>
       </div>
+
+      {/* Safe box, not the scrim's edge: a `fixed inset-0` overlay escapes the body's
+          inset padding, so it names the insets itself (Q4). The footer overlaps the
+          bottom of a picture that fills the height; on a phone the 16:9 banner sits in
+          black space and nothing is covered. */}
+      {footer ? (
+        <div
+          data-lightbox-footer
+          className="absolute bottom-safe-b left-safe-l right-safe-r z-10 flex justify-center p-3"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {footer}
+        </div>
+      ) : null}
     </div>
   );
 }
