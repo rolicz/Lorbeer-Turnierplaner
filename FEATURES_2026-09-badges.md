@@ -2088,7 +2088,10 @@ grep -c '272 passed' AGENTS.md ; grep -c '734 tests in 74 files' AGENTS.md  # �
     **ten-task** batch: twelve commits, 48 files, two new tables, M7–M10 and the two unnumbered
     fixes named. The decided decision leaves §11's open list, and the umlaut bullet records that
     Roli has already corrected `gräßte` → `greßte` and `Siegsserie` → `Siegesserie` while the six
-    **lead** lines are newer than his reading and have had no eye at all.
+    **lead** lines were shown to him too, in the same pass that produced `greßte` — the three
+    Styrian sentences (`X is jetzt vorn.` · `X is überholt worn.` · `Grod is kana vorn.`) and the
+    six titles. So the copy has been read; what has *not* happened is a push rendering any of it
+    on a real device.
 
 **Blast radius.** `AGENTS.md`, `DESIGN.md`, this file. No code, no test, no response model.
 
