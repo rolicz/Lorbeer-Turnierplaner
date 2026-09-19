@@ -19,6 +19,7 @@ from .notification_texts import (
     normalize_notification_language,
     render_notification_text,
 )
+from .stats.records import record_kind
 from .webpush import (
     WebPushConfig,
     WebPushConfigError,
@@ -645,12 +646,13 @@ def push_record_moves(request: Request, s: Session, moves: list["RecordMove"]) -
         gained, lost, holders = set(move.gained), set(move.lost), move.holders
         gainer_names, loser_names, holder_names = names(move.gained), names(move.lost), names(holders)
         for pid in everyone:
+            kind = record_kind(move.key)
             if pid in gained:
-                text_key = "record_gained"
+                text_key = f"{kind}_gained"
             elif pid in lost:
-                text_key = "record_lost"
+                text_key = f"{kind}_lost"
             else:
-                text_key = "record_watch"
+                text_key = f"{kind}_watch"
             message = localized_push_message(
                 text_key,
                 path=move.path,

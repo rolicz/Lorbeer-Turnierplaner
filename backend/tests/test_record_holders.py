@@ -19,7 +19,7 @@ from app.services.record_holders import (
     after_result_change,
     reconcile_record_holders,
 )
-from app.services.stats.records import RECORD_DEFS, RECORD_KEYS, compute_stats_records
+from app.services.stats.records import RECORD_DEFS, RECORD_KEYS, compute_stats_records, record_kind
 
 from .conftest import create_player, create_tournament, generate
 
@@ -221,16 +221,16 @@ def test_the_first_result_notifies_every_player_with_the_right_text(client, edit
         return next(m.text_key for p, m in rec.for_key(key) if p == pid)
 
     assert "most_points" in moved_keys
-    assert key_of(winner, "most_points") == "record_gained"
-    assert key_of(loser, "most_points") == "record_watch"
+    assert key_of(winner, "most_points") == "lead_gained"   # a lead, not a record
+    assert key_of(loser, "most_points") == "lead_watch"
     for pid in everyone:
         if pid not in (winner, loser):
-            assert key_of(pid, "most_points") == "record_watch"
+            assert key_of(pid, "most_points") == "lead_watch"
 
     # …while "most played" is gained by *both* players of the match.
     assert "most_played" in moved_keys
-    assert key_of(winner, "most_played") == "record_gained"
-    assert key_of(loser, "most_played") == "record_gained"
+    assert key_of(winner, "most_played") == "lead_gained"
+    assert key_of(loser, "most_played") == "lead_gained"
 
 
 def test_a_correction_moves_the_record_and_the_loser_hears_lost(client, editor_headers, admin_headers):
@@ -327,10 +327,11 @@ def test_the_variant_follows_the_recipient_never_the_actor(client, editor_header
         for pid, message in rec.for_key(key):
             gained = {int(p) for p in message.data.get("gained") or []}
             lost = {int(p) for p in message.data.get("lost") or []}
-            expected = "record_gained" if pid in gained else "record_lost" if pid in lost else "record_watch"
+            kind = record_kind(key)
+            expected = f"{kind}_gained" if pid in gained else f"{kind}_lost" if pid in lost else f"{kind}_watch"
             assert message.text_key == expected, (key, pid)
     # The one who typed it in gained it, and is told so.
-    assert dict(rec.for_key("most_points"))[editor_id].text_key == "record_gained"
+    assert dict(rec.for_key("most_points"))[editor_id].text_key == "lead_gained"
 
 
 def test_no_dispatcher_means_no_push_but_still_correct_holders(client, editor_headers, admin_headers):
@@ -469,7 +470,7 @@ def test_deleting_a_tournament_takes_the_records_with_it(client, editor_headers,
         if held_before[key]:
             addressed = dict(rec.for_key(key))
             for pid in held_before[key]:
-                assert addressed[pid].text_key == "record_lost", (key, pid)
+                assert addressed[pid].text_key == f"{record_kind(key)}_lost", (key, pid)
 
 
 def test_a_decider_moves_most_titles(client, editor_headers, admin_headers, spy):

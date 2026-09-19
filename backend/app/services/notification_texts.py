@@ -5,6 +5,8 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
+from .stats.records import record_kind
+
 DEFAULT_NOTIFICATION_LANGUAGE = "steirisch"
 
 
@@ -118,7 +120,7 @@ _RECORD_LABELS: dict[str, dict[str, str]] = {
         "highest_ppm": "meiste Punkt pro Match",
         "most_played": "meiste Matches",
         "most_goals_per_match": "meiste Tor pro Match",
-        "win_streak": "längste Siegsserie",
+        "win_streak": "längste Siegesserie",
         "unbeaten_streak": "längste Serie ohne Niederlog",
         "scoring_streak": "längste Torserie",
         "clean_sheet_streak": "längste Serie ohne Gegentor",
@@ -165,7 +167,7 @@ def _join_names(names: list[str], language: str) -> str:
     return f"{unique[0]}, {unique[1]} und no {remaining} weitere"
 
 
-def _record_lines(*, record: str, gainers: list[str], losers: list[str], holders: list[str], language: str) -> dict[str, str]:
+def _record_lines(*, record: str, gainers: list[str], losers: list[str], holders: list[str], language: str, kind: str = "record") -> dict[str, str]:
     """The three sentences a "record moved" push is built from (M2).
 
     `gainers_line` and `losers_line` are empty when nobody gained or lost, and carry
@@ -188,12 +190,18 @@ def _record_lines(*, record: str, gainers: list[str], losers: list[str], holders
     holder_count = len(list(dict.fromkeys(n for n in holders if str(n or "").strip())))
 
     if language == "english":
-        gainers_line = f"{gained} took {record}.\n" if gained else ""
-        losers_line = f"Taken from {lost}.\n" if lost else ""
+        if kind == "lead":
+            verb = "are" if many_gained else "is"
+            gainers_line = f"{gained} {verb} top now.\n" if gained else ""
+            verb = "were" if many_lost else "was"
+            losers_line = f"{lost} {verb} overtaken.\n" if lost else ""
+        else:
+            gainers_line = f"{gained} took {record}.\n" if gained else ""
+            losers_line = f"Taken from {lost}.\n" if lost else ""
         if holder_count == 0:
-            holders_line = "Nobody holds it right now."
+            holders_line = "Nobody leads it right now." if kind == "lead" else "Nobody holds it right now."
         elif holder_count == 1:
-            holders_line = f"Holder now: {held}."
+            holders_line = f"Top now: {held}." if kind == "lead" else f"Holder now: {held}."
         else:
             holders_line = f"Level at the top: {held}."
     elif language == "deutsch":
@@ -201,13 +209,21 @@ def _record_lines(*, record: str, gainers: list[str], losers: list[str], holders
             # "den Rekord", not "{record}": the labels are article-less noun phrases
             # ("meiste Punkte"), and German wants an article here. The record is named
             # in the title of all three templates, so nothing is lost.
-            verb = "haben" if many_gained else "hat"
-            gainers_line = f"{gained} {verb} sich den Rekord geholt.\n"
+            if kind == "lead":
+                verb = "sind" if many_gained else "ist"
+                gainers_line = f"{gained} {verb} jetzt vorn.\n"
+            else:
+                verb = "haben" if many_gained else "hat"
+                gainers_line = f"{gained} {verb} sich den Rekord geholt.\n"
         else:
             gainers_line = ""
         if lost:
-            verb = "sind" if many_lost else "ist"
-            losers_line = f"{lost} {verb} nicht mehr vorn.\n"
+            if kind == "lead":
+                verb = "wurden" if many_lost else "wurde"
+                losers_line = f"{lost} {verb} überholt.\n"
+            else:
+                verb = "sind" if many_lost else "ist"
+                losers_line = f"{lost} {verb} nicht mehr vorn.\n"
         else:
             losers_line = ""
         if holder_count == 0:
@@ -218,17 +234,25 @@ def _record_lines(*, record: str, gainers: list[str], losers: list[str], holders
             holders_line = f"Aktuell gleichauf vorn: {held}."
     else:
         if gained:
-            verb = "ham" if many_gained else "hot"
-            gainers_line = f"{gained} {verb} si'n Rekord gschnappt.\n"
+            if kind == "lead":
+                verb = "san" if many_gained else "is"
+                gainers_line = f"{gained} {verb} jetzt vorn.\n"
+            else:
+                verb = "ham" if many_gained else "hot"
+                gainers_line = f"{gained} {verb} si'n Rekord gschnappt.\n"
         else:
             gainers_line = ""
         if lost:
-            verb = "san" if many_lost else "is"
-            losers_line = f"{lost} {verb} nimma vorn.\n"
+            if kind == "lead":
+                verb = "san" if many_lost else "is"
+                losers_line = f"{lost} {verb} überholt worn.\n"
+            else:
+                verb = "san" if many_lost else "is"
+                losers_line = f"{lost} {verb} nimma vorn.\n"
         else:
             losers_line = ""
         if holder_count == 0:
-            holders_line = "Grod hot'n kana."
+            holders_line = "Grod is kana vorn." if kind == "lead" else "Grod hot'n kana."
         elif holder_count == 1:
             holders_line = f"Jetzt vorn: {held}."
         else:
@@ -331,6 +355,7 @@ def render_notification_text(key: str, language: str | None, context: dict[str, 
     if "record" in prepared and any(k in prepared for k in ("gainers", "losers", "holders")):
         prepared.update(
             _record_lines(
+                kind=record_kind(str(prepared.get("record_key") or "")),
                 record=str(prepared.get("record") or ""),
                 gainers=list(prepared.get("gainers") or []),
                 losers=list(prepared.get("losers") or []),

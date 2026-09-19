@@ -77,6 +77,22 @@ RECORD_DEFS: tuple[RecordDef, ...] = (
 RECORD_KEYS: tuple[str, ...] = tuple(d.key for d in RECORD_DEFS)
 RECORD_DEF_BY_KEY: dict[str, RecordDef] = {d.key: d for d in RECORD_DEFS}
 
+
+#: Which of the sixteen are *records* and which are *leads*.
+#:
+#: A record is a best-ever mark that stands on its own — the longest streak anyone has
+#: ever run, the biggest win ever played. A lead is simply whoever is top of a running
+#: tally right now: most points, highest Elo, most tournament wins. Calling the second
+#: kind a "Rekord" in a push is wrong, and Roli said so (2026-09-19), so the two kinds
+#: take different copy. `most_titles` is a lead: a cumulative count, like points.
+_LEAD_GROUPS = frozenset({"title", "elo", "table"})
+
+
+def record_kind(key: str) -> str:
+    """`"record"` or `"lead"` — the only place that decides which copy a key takes."""
+    d = RECORD_DEF_BY_KEY.get(key)
+    return "lead" if d is not None and d.group in _LEAD_GROUPS else "record"
+
 #: The four streak categories, in registry order — the keys `compute_stats_streaks` emits.
 STREAK_KEYS: tuple[str, ...] = tuple(d.key for d in RECORD_DEFS if d.group == "streak")
 
