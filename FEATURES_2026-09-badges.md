@@ -337,6 +337,49 @@ Here the table above is the list, and `tests/test_record_holders.py` walks it.
 
 **9. Task order and parallelism** — the overview table below. M1 alone → {M2, M3} → {M4, M5, M6} → M7.
 
+### Answered 2026-09-19, second pass — fold these in wherever a task still asks
+
+- **Icons: approved as proposed.** The sixteen glyphs stand, Elo keeps one `Award` with a `1v1`/`2v2`
+  micro-label, `Coins` and `Goal` stay (Roli looked at them rendered at 14px and was happy). The two
+  flagged pairs are closed: `Flame`/`Zap` are distinct enough, `Coins`/`Award` likewise.
+- **An ongoing streak is marked with the accent border, not a dot.** `ui/StreakPatches.tsx:38`
+  already does exactly this in the standings — *"Record streak: accent border only (keep the chip
+  surface for readability/consistency)"* — so the band teaches the reader nothing new. **Do not use a
+  green dot**: `C10` moved the streak chip off the green status pill because green means "a match is
+  playing", and a streak is not a match state. Reintroducing it here would undo that.
+- **`played > 0` is required** for every table and Elo badge. Not the floor Roli declined — simply
+  "has an entry at all", so a never-played newcomer sitting at the default Elo 1000 tops nothing and
+  an empty database does not hand all six players every record.
+- **Both sides hold "Highest-scoring match."** It is the match's record; the loser of a 7:6 made it too.
+- **Overflow wraps** (Roli's call), accepting that the tab strip moves ~34px per extra row.
+- **Push only. No bell item**, and therefore no read-state table and no new `/me/notifications` kind.
+
+### German and Styrian get their umlauts back (Roli, 2026-09-19)
+
+The existing catalog transliterates — `Oeffne`, `fuer`, `Anpoebeln`, `geaendert`, `geloescht`,
+`laeuft`, `naechste`, `Anpoebeleien` (17 distinct words in `deutsch`, 4 in `steirisch`) — and
+`deutsch` even says **`Guestbook`**, an English word where `Gästebuch` belongs. **There was never a
+reason.** `services/webpush.py:173` already serialises with `ensure_ascii=False` and encodes UTF-8;
+the only `ascii` in that module is the base64 of the VAPID key, where it belongs. The convention was
+imitation, not a constraint.
+
+So: **write real characters — ä ö ü ß — in every new string, and repair the existing ones in the same
+sweep.** Delete any note in the plan, the code comments or the canon that calls German "ASCII-safe",
+so nobody reimposes it. **Verify on a real device**: these are the first non-ASCII push bodies the app
+will have sent, and iOS rendering them is the one thing that cannot be checked from here — if a real
+push ever shows mojibake, that is where to look.
+
+### The record labels are translated too (Roli, 2026-09-19)
+
+`{record}` no longer stays English inside a German or Styrian push. All sixteen labels get a
+`deutsch` and a `steirisch` form; English keeps the stats label verbatim.
+
+**The consequence, stated so nobody is surprised:** a push will say *"meiste Punkte is weg"* while the
+badge and the Stats page both say *"Most points"*, because the UI is English. That is the same split
+the app already lives with — English UI, German notifications — but the two now have to be edited
+together. **Put the label map beside the English labels**, in one place, so a record renamed in one
+language is obviously missing in the others rather than silently stale.
+
 ## Task overview & order
 
 | # | ID | Title | Files (disjoint per parallel group) | Runs |
