@@ -28,7 +28,7 @@ from __future__ import annotations
 import datetime as dt
 from collections.abc import Iterable
 
-from sqlmodel import Session, select
+from sqlmodel import Session, and_, or_, select
 
 from ..models import (
     FeatureRequest,
@@ -264,3 +264,85 @@ def idea_ids_commented_on_by(s: Session, player_id: int) -> list[int]:
         )
     ).all()
     return sorted({int(rid) for rid in rows})
+
+
+# ---- reading (the bell) ---------------------------------------------------
+
+
+def unread_idea_events(
+    s: Session, *, player_id: int, is_admin: bool, limit: int = 100
+) -> list[tuple[FeatureRequestEvent, FeatureRequest, str | None]]:
+    """Unread idea events that reach this player — the bell's read of the event log
+    (P3), the way `me.py` already reads comment replies, guestbook entries and pokes.
+
+    SQL only *narrows* the candidates — events on ideas this player authored or has
+    commented on (`comment` / `vote` / `status`), plus `created` events when
+    `is_admin` — the same three candidate sets `idea_event_reaches`'s own docstring
+    names, and it is deliberately loose (a `vote`/`status` event on an idea this
+    player merely commented on is a candidate too, not just the idea's author).
+    `idea_event_reaches` is what actually decides every row that idea_id passes
+    through, so a loose narrowing can only cost a wasted row — never a missed one or
+    a wrongly-included one. **The predicate is that function, not this query.**
+
+    Returns newest first (`created_at desc, id desc`), capped at `limit`. The third
+    tuple element is the comment body for a `comment` event (one extra `in_` query
+    over the kept rows), `None` for every other kind.
+    """
+    me = int(player_id)
+    commented_idea_ids = idea_ids_commented_on_by(s, me)
+
+    author_or_participant = [FeatureRequest.author_player_id == me]
+    if commented_idea_ids:
+        author_or_participant.append(FeatureRequestEvent.request_id.in_(commented_idea_ids))
+
+    candidate_kinds = [
+        and_(FeatureRequestEvent.kind.in_(("comment", "vote", "status")), or_(*author_or_participant))
+    ]
+    if is_admin:
+        candidate_kinds.append(FeatureRequestEvent.kind == "created")
+
+    unread = ~select(FeatureRequestEventRead.event_id).where(
+        FeatureRequestEventRead.player_id == me,
+        FeatureRequestEventRead.event_id == FeatureRequestEvent.id,
+    ).exists()
+
+    rows = s.exec(
+        select(FeatureRequestEvent, FeatureRequest)
+        .join(FeatureRequest, FeatureRequest.id == FeatureRequestEvent.request_id)
+        .where(FeatureRequestEvent.actor_player_id != me, or_(*candidate_kinds), unread)
+    ).all()
+
+    kept = [
+        (event, fr)
+        for event, fr in rows
+        if idea_event_reaches(
+            s,
+            event,
+            player_id=me,
+            is_admin=is_admin,
+            idea_author_player_id=int(fr.author_player_id),
+        )
+    ]
+    kept.sort(key=lambda pair: (pair[0].created_at, pair[0].id), reverse=True)
+    kept = kept[: int(limit)]
+
+    comment_ids = [int(e.comment_id) for e, _ in kept if e.kind == "comment" and e.comment_id is not None]
+    body_by_comment_id: dict[int, str] = {}
+    if comment_ids:
+        for cid, body in s.exec(
+            select(FeatureRequestComment.id, FeatureRequestComment.body).where(
+                FeatureRequestComment.id.in_(comment_ids)
+            )
+        ).all():
+            body_by_comment_id[int(cid)] = body
+
+    return [
+        (
+            event,
+            fr,
+            body_by_comment_id.get(int(event.comment_id))
+            if event.kind == "comment" and event.comment_id is not None
+            else None,
+        )
+        for event, fr in kept
+    ]

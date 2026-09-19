@@ -887,6 +887,63 @@ entry or an **idea event** does not" (P6).
 
 **Deviations:**
 
+- **Verified first, the gap was live**: `grep -n '"kind": "' backend/app/routers/me.py` found exactly
+  the three hits the task named (`comment_reply`, `guestbook`, `poke`); `/me/notifications` as a
+  fresh Editor after Editor2 comments/votes and Admin sets a status answered `items == []`. Nothing
+  was already fixed.
+- **`idea_events.py` gained one function, `unread_idea_events`**, beside P1's audience helpers — no
+  change to `idea_event_audience`/`idea_event_reaches`'s signature or behaviour (P2's running push
+  depends on them). Its SQL narrowing is deliberately **loose**, not the literal author-only filter
+  the task text sketched: a candidate is any event on an idea this player authored *or has
+  commented on* (`comment`/`vote`/`status`), plus `created` for an admin — because a `comment` event
+  must reach every participant, not just the idea's author, and a narrowing that only checked
+  authorship would silently under-deliver that case even though none of this task's own named tests
+  would have caught it. Every candidate row is then confirmed through `idea_event_reaches` itself
+  before being kept, so the narrowing can only waste a row, never award or withhold one on its own
+  authority — "the predicate that decides must stay that one function" (rule 8), verified by
+  `idea_event_reaches`'s own docstring naming these exact three candidate sets. Comment bodies are
+  resolved in one follow-up `in_` query over the kept rows, as specified.
+- **`routers/me.py`** gained one import, one small `_IDEA_EVENT_KIND` map beside the existing
+  `_NOTIF_LIMIT`/`_SNIPPET_MAX` constants, and section **D) Idea events** — sections A–C, the limit,
+  the snippet cap and the final sort/cap are untouched. `is_admin` reads `claims.get("role")`
+  exactly like `comments.py:91`/`players.py:709`/`services/authorization.py:59` — no second
+  definition of "who is an admin".
+- **`ui/shell/notificationText.ts` (new)** holds `notificationHeadline`/`notificationDetail`, moving
+  the three old inline headlines out of the bell. `idea_vote`'s headline is **"likes your idea"**,
+  per the Decisions block's second-pass answer ("Roli's own word for it, not the board's 'wants'"),
+  **not** the "wants your idea too" text this task section itself still carried — the later decision
+  wins, as rule 9's "fold these in wherever the tasks still ask" says. An unknown `idea_status` value
+  falls back to the raw string (`ideaStatusLabel`), matching the task's "unknown status → the raw
+  value" and `IdeaOut.areas`' precedent for an unrecognised catalog key.
+- **`NotificationBell.tsx`**: `kindIcon` gained the four lucide icons named in the task
+  (`Lightbulb`/`MessageSquare`/`ThumbsUp`/`ListChecks`) with a doc comment listing all seven kinds;
+  the local `headline()` function and the inline `n.snippet` render were replaced by
+  `notificationText.ts`'s two exports. Popover markup, the 60 s poll and `openItem`'s optimistic
+  `(kind, id)` drop are byte-for-byte unchanged — event ids are unique across kinds, confirmed live.
+- **Verified on the isolated stack** (backend **8073**, vite **8083**, `backend/data/verify-p3.db`,
+  a throwaway secrets file outside the repo, both since removed): Flo posts an idea, Berni comments
+  and votes, Roli sets it to `planned` with a note → **Flo's** bell shows exactly the three idea
+  items (`idea_comment`/`idea_vote`/`idea_status`), each `path == /ideas?idea=<id>`, with the comment
+  and status-note snippets; **Berni**, the actor for the comment and the vote, sees neither; **Roli**
+  (admin) sees one `idea_created` for Flo's idea and none for an idea Roli posted themself. An
+  unvote by Berni on a second idea removed the vote item for Flo without a page reload (checked via
+  `/me/notifications` before/after); deleting Berni's comment removed only the comment item and left
+  a live vote item in place; deleting the idea removed all three. `PUT /ideas/{id}/read` zeroed
+  `unread_count`. Screenshot-verified the popover at 390×844 and 1280×900, `blue` and `light`
+  (`document.querySelectorAll("a a").length === 0`, 0 console errors in all four): the four idea rows
+  render with the right icon, headline and `title · snippet` detail line, and clicking one navigates
+  to `/ideas` and clears the badge (P4's `?idea=` read-marking effect was already live in the shared
+  tree and composed correctly with this task's items — not this task's code).
+- **Gates:** `make test` **224 passed**, 0 failed (223 on the branch before this task + 1 here;
+  17m47s, the Pi was running P2's and P4's full suites at the same time), `make lint` clean,
+  `cd frontend && npm run check` **717 tests in 71 files**, 0 errors (one pre-existing warning in
+  `pages/ideas/IdeasPage.tsx`, P4's file, untouched by this task). `make gen-types`: not run — this
+  task adds no field to any response model, so there is nothing to regenerate; confirmed no diff in
+  `schema.d.ts` from this task's own edits.
+- **Not done, on purpose:** no change to the popover's structural markup beyond the two lines the
+  task named; no change to `_NOTIF_LIMIT`/`_SNIPPET_MAX`; no page-side read-marking (P4's `?idea=`
+  effect, already present in the shared tree).
+
 ---
 
 ## P4 — The board: comments under an idea, and reading marks read  ☑

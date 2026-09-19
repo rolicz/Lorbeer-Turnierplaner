@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Bell, BookOpen, Hand, Reply } from "lucide-react";
+import { Bell, BookOpen, Hand, Lightbulb, ListChecks, MessageSquare, Reply, ThumbsUp } from "lucide-react";
 
 import { useAuth } from "../../auth/AuthContext";
 import { qk } from "../../api/queryKeys";
@@ -12,6 +12,7 @@ import { useClickOutside } from "../layout/useClickOutside";
 import Button from "../primitives/Button";
 import EmptyState from "../primitives/EmptyState";
 import InlineLoading from "../primitives/InlineLoading";
+import { notificationDetail, notificationHeadline } from "./notificationText";
 
 function timeAgo(iso: string): string {
   const t = new Date(iso).getTime();
@@ -27,16 +28,16 @@ function timeAgo(iso: string): string {
   return fmtDate(iso);
 }
 
+/** One icon per kind: "comment_reply" | "guestbook" | "poke" | "idea_created" |
+ * "idea_comment" | "idea_vote" | "idea_status" — the seven `/me/notifications` builds. */
 function kindIcon(kind: MyNotification["kind"]) {
   if (kind === "comment_reply") return <Reply className="h-4 w-4" aria-hidden="true" />;
   if (kind === "guestbook") return <BookOpen className="h-4 w-4" aria-hidden="true" />;
-  return <Hand className="h-4 w-4" aria-hidden="true" />;
-}
-
-function headline(n: MyNotification): string {
-  if (n.kind === "comment_reply") return `${n.author_name} replied to your comment`;
-  if (n.kind === "guestbook") return `${n.author_name} wrote on your guestbook`;
-  return `${n.author_name} poked you`;
+  if (kind === "poke") return <Hand className="h-4 w-4" aria-hidden="true" />;
+  if (kind === "idea_created") return <Lightbulb className="h-4 w-4" aria-hidden="true" />;
+  if (kind === "idea_comment") return <MessageSquare className="h-4 w-4" aria-hidden="true" />;
+  if (kind === "idea_vote") return <ThumbsUp className="h-4 w-4" aria-hidden="true" />;
+  return <ListChecks className="h-4 w-4" aria-hidden="true" />; // idea_status
 }
 
 /** Personal notification bell (replies to your comments, pokes, guestbook). */
@@ -149,9 +150,11 @@ export default function NotificationBell({
                         {kindIcon(n.kind)}
                       </span>
                       <span className="min-w-0 flex-1">
-                        <span className="block truncate text-sm text-text-normal">{headline(n)}</span>
-                        {n.snippet ? (
-                          <span className="mt-0.5 block truncate text-xs text-text-muted">{n.snippet}</span>
+                        <span className="block truncate text-sm text-text-normal">{notificationHeadline(n)}</span>
+                        {notificationDetail(n) ? (
+                          <span className="mt-0.5 block truncate text-xs text-text-muted">
+                            {notificationDetail(n)}
+                          </span>
                         ) : null}
                         <span className="mt-0.5 block text-xs text-text-muted">{timeAgo(n.created_at)}</span>
                       </span>

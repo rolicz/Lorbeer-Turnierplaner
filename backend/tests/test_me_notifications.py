@@ -107,3 +107,73 @@ def test_notifications_exclude_self_authored_and_read(client, editor_headers, ad
 
 def test_notifications_requires_auth(client):
     assert client.get("/me/notifications").status_code == 401
+
+
+def _create_idea(client, headers, **overrides) -> dict:
+    payload = {
+        "title": "Dark mode for the match page",
+        "body": "The score panel glows at night.",
+        "kind": "feature",
+        "areas": ["match"],
+    }
+    payload.update(overrides)
+    r = client.post("/ideas", json=payload, headers=headers)
+    assert r.status_code == 200, r.text
+    return r.json()
+
+
+def test_idea_events_reach_the_bell_and_drop_off_when_read(
+    client, editor_headers, editor2_headers, admin_headers
+):
+    """P3: the four idea event kinds join the bell, with the same read/unread rules
+    as the three existing kinds — and never reach the actor of their own action."""
+    iid = _create_idea(client, editor_headers)["id"]
+    admin_own_id = _create_idea(client, admin_headers, title="Admin's own idea")["id"]
+
+    assert client.post(
+        f"/ideas/{iid}/comments", json={"body": "It is bright at night."}, headers=editor2_headers
+    ).status_code == 200
+    assert client.put(f"/ideas/{iid}/vote", json={"value": 1}, headers=editor2_headers).status_code == 200
+    assert client.put(
+        f"/ideas/{iid}/status", json={"status": "planned", "note": "after FC 27"}, headers=admin_headers
+    ).status_code == 200
+
+    # --- Editor (the idea's author) sees the three idea kinds, all pointing home ---
+    editor_items = client.get("/me/notifications", headers=editor_headers).json()["items"]
+    mine = [it for it in editor_items if it.get("idea_id") == iid]
+    assert {it["kind"] for it in mine} == {"idea_comment", "idea_vote", "idea_status"}
+    for it in mine:
+        assert it["path"] == f"/ideas?idea={iid}"
+        assert it["idea_title"] == "Dark mode for the match page"
+        expected_author = "Admin" if it["kind"] == "idea_status" else "Editor2"
+        assert it["author_name"] == expected_author
+    comment_item = next(it for it in mine if it["kind"] == "idea_comment")
+    assert comment_item["snippet"] == "It is bright at night."
+    status_item = next(it for it in mine if it["kind"] == "idea_status")
+    assert status_item["snippet"] == "after FC 27"
+    assert status_item["idea_status"] == "planned"
+
+    # --- Editor2, the actor for the comment and the vote, never sees their own act ---
+    editor2_items = client.get("/me/notifications", headers=editor2_headers).json()["items"]
+    assert all(it.get("idea_id") != iid for it in editor2_items)
+
+    # --- Admin sees exactly one "created" item: Editor's idea, never their own ---
+    admin_items = client.get("/me/notifications", headers=admin_headers).json()["items"]
+    created = [it for it in admin_items if it["kind"] == "idea_created"]
+    assert {it["idea_id"] for it in created} == {iid}
+    assert admin_own_id not in {it["idea_id"] for it in created}
+
+    # --- Reading marks every event on the idea read for that viewer ---
+    assert client.put(f"/ideas/{iid}/read", headers=editor_headers).status_code == 200
+    after_read = client.get("/me/notifications", headers=editor_headers).json()
+    assert all(it.get("idea_id") != iid for it in after_read["items"])
+
+    # --- An unvote removes the vote item for a fresh viewer ---
+    iid2 = _create_idea(client, editor_headers, title="A second idea")["id"]
+    assert client.put(f"/ideas/{iid2}/vote", json={"value": 1}, headers=editor2_headers).status_code == 200
+    before_unvote = client.get("/me/notifications", headers=editor_headers).json()["items"]
+    assert any(it["kind"] == "idea_vote" and it["idea_id"] == iid2 for it in before_unvote)
+
+    assert client.put(f"/ideas/{iid2}/vote", json={"value": 0}, headers=editor2_headers).status_code == 200
+    after_unvote = client.get("/me/notifications", headers=editor_headers).json()["items"]
+    assert not any(it["kind"] == "idea_vote" and it["idea_id"] == iid2 for it in after_unvote)

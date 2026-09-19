@@ -15,6 +15,7 @@ from ..models import (
     PlayerPokeRead,
 )
 from ..schemas.responses import MeOut, MyNotificationsOut
+from ..services.idea_events import unread_idea_events
 
 router = APIRouter(tags=["auth"])
 
@@ -23,6 +24,14 @@ router = APIRouter(tags=["auth"])
 # read tables (no new storage) and keyed to the real logged-in player.
 _NOTIF_LIMIT = 50
 _SNIPPET_MAX = 90
+
+# Idea event kind (services/idea_events.py) -> bell kind (schemas/responses.py).
+_IDEA_EVENT_KIND: dict[str, str] = {
+    "created": "idea_created",
+    "comment": "idea_comment",
+    "vote": "idea_vote",
+    "status": "idea_status",
+}
 
 
 @router.get("/me", response_model=MeOut)
@@ -188,6 +197,33 @@ def my_notifications(
                     "path": f"/profiles/{me_id}",
                 }
             )
+
+    # --- D) Idea events: created (admins only), comment/vote/status (the idea's
+    # author, and a comment also reaches everyone who has already commented) ---
+    # The token's role is the same source `admin_player_ids` reads (player_accounts
+    # in secrets.json), so this adds no second definition of "who is an admin".
+    is_admin = str(claims.get("role") or "") == "admin"
+    for event, fr, comment_body in unread_idea_events(s, player_id=me_id, is_admin=is_admin):
+        author_ids.add(int(event.actor_player_id))
+        if event.kind == "comment":
+            snippet = _snippet(comment_body)
+        elif event.kind == "status":
+            snippet = _snippet(event.status_note)
+        else:
+            snippet = ""
+        items.append(
+            {
+                "kind": _IDEA_EVENT_KIND[event.kind],
+                "id": int(event.id),
+                "author_player_id": int(event.actor_player_id),
+                "snippet": snippet,
+                "created_at": event.created_at.isoformat(),
+                "path": f"/ideas?idea={int(fr.id)}",
+                "idea_id": int(fr.id),
+                "idea_title": fr.title,
+                "idea_status": event.status or None,
+            }
+        )
 
     # Resolve author display names in one query.
     name_by_id: dict[int, str] = {}
