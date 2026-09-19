@@ -1,19 +1,17 @@
 /** Cups sub-view — one `CupDetail` (holder, records, timeline, reigns, per player) per cup. */
-import { useEffect, useMemo, useRef } from "react";
+import { useMemo } from "react";
 import { useQueries, useQuery } from "@tanstack/react-query";
-import { useSearchParams } from "react-router-dom";
 
 import InlineLoading from "../../ui/primitives/InlineLoading";
 import { getCup, listCupDefs, orderCups } from "../../api/cup.api";
 import { qk } from "../../api/queryKeys";
-import { scrollToSectionById } from "../../ui/scrollToSection";
 import { CUP_PARAM, cupSectionId } from "./statsNav";
+import { useOneShotSectionParam } from "./useOneShotSectionParam";
 import CupDetail from "./CupDetail";
 
 export default function CupsView() {
   const defsQ = useQuery({ queryKey: qk.cupDefs(), queryFn: listCupDefs });
   const cups = useMemo(() => orderCups(defsQ.data?.cups), [defsQ.data]);
-  const [searchParams, setSearchParams] = useSearchParams();
 
   // The same queries the sections run (same keys → the cache answers, no second
   // request): a deep link may only jump once every section above the target has
@@ -25,22 +23,10 @@ export default function CupsView() {
 
   // `?cup=<key>` (the dashboard preview): scroll that cup into view, then drop
   // the param with a `replace` so it fires exactly once — Back returns to a
-  // clean URL and N2's scroll restoration owns the offset from then on.
-  const target = searchParams.get(CUP_PARAM);
-  const jumpedRef = useRef<string | null>(null);
-  useEffect(() => {
-    if (!target) {
-      jumpedRef.current = null;
-      return;
-    }
-    if (!ready || jumpedRef.current === target) return;
-    jumpedRef.current = target;
-    const next = new URLSearchParams(searchParams);
-    next.delete(CUP_PARAM);
-    setSearchParams(next, { replace: true });
-    if (!cups.some((c) => c.key === target)) return; // unknown cup: just clean the URL
-    scrollToSectionById(cupSectionId(target), 40, 0, "auto");
-  }, [cups, ready, searchParams, setSearchParams, target]);
+  // clean URL and N2's scroll restoration owns the offset from then on. The
+  // shared `?record=` mechanism (M4), so Streaks/Records do not carry a copy.
+  const cupKeys = useMemo(() => cups.map((c) => c.key), [cups]);
+  useOneShotSectionParam(CUP_PARAM, cupSectionId, cupKeys, ready);
 
   if (defsQ.isLoading && !defsQ.data) return <InlineLoading label="Loading…" />;
 

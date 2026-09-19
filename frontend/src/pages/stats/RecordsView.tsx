@@ -6,15 +6,23 @@
  * explainer, then rows — and every match row is a `ScoreLine` (§8), never a local
  * score rendering.
  *
+ * **One computation, read here and nowhere else recomputed** (M1/M4): every
+ * superlative — titles, biggest win, highest-scoring match, most goals by one
+ * side, the Elo upset — is computed once on the backend (`/stats/records`) and
+ * this page only renders the answer. It used to fetch `/stats/player-matches`
+ * once per player and fold the same rules in the browser; the profile's badge
+ * band reads the identical cache entry, so a badge can never claim a record
+ * this page does not show.
+ *
  * **Longest runs live in Streaks** (T6): every streak record — win, unbeaten,
  * scoring, clean sheet — is owned by the Streaks sub-view, which shows all four
  * categories with their current runs. Records used to repeat two of them; it now
  * only points there.
  */
-import { Flame, Goal, TrendingUp, Trophy, Zap } from "lucide-react";
-import { type ReactNode, useMemo } from "react";
+import { Flame } from "lucide-react";
+import { type ReactNode } from "react";
 import { Link } from "react-router-dom";
-import { keepPreviousData, useQueries, useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 
 import AvatarCircle from "../../ui/primitives/AvatarCircle";
 import Button from "../../ui/primitives/Button";
@@ -24,16 +32,18 @@ import InlineLoading from "../../ui/primitives/InlineLoading";
 import PlayerLink from "../../ui/primitives/PlayerLink";
 import ScoreLine from "../../ui/primitives/ScoreLine";
 import { listClubs } from "../../api/clubs.api";
-import { getStatsPlayerMatches, getStatsPlayers } from "../../api/stats.api";
+import { getStatsRecords } from "../../api/stats.api";
 import { qk } from "../../api/queryKeys";
 import { usePlayerAvatarMap } from "../../hooks/usePlayerAvatarMap";
 import { useCupHolders } from "../../hooks/useCupHolders";
-import { fmtShortDate } from "../../utils/format";
+import { fmtCount, fmtShortDate } from "../../utils/format";
+import { recordIcon } from "./recordIcons";
+import { RECORD_PARAM, recordSectionId } from "./statsNav";
+import { useOneShotSectionParam } from "./useOneShotSectionParam";
 import { tournamentMatchHref } from "./MatchHistoryList";
 import StatsSection from "./StatsSection";
-import type { Row } from "./standings";
 import type { StatsMode } from "./statsMode";
-import type { Club, StatsScope, StatsMatch, StatsPlayerMatchesTournament, StatsTournamentLite } from "../../api/types";
+import type { Club, StatsMatch, StatsRecord, StatsRecordLeader, StatsScope } from "../../api/types";
 
 /** How many rows a category shows before the "+N more" line (`DESIGN.md` §6). */
 const SHOWN = 6;
@@ -46,14 +56,29 @@ function teamNames(m: StatsMatch, side: "A" | "B"): string[] {
 type RecMatch = {
   id: number; tName: string; date: string;
   a: string[]; b: string[]; ag: number; bg: number;
-  aIds: number[]; bIds: number[];
   /** The clubs that played it — a record row shows a score and nothing else (Q17). */
   aClubId: number | null; bClubId: number | null;
   /** Match detail page, or null for a friendly (no detail page). */
   href: string | null;
 };
 
-/** Tie count next to a category title ("4 tied" = four matches share this record). */
+/** A record's `matches[]` payload, rendered exactly as `/stats/player-matches` renders a row. */
+function toRecMatches(rows: StatsRecord["matches"]): RecMatch[] {
+  return (rows ?? []).map(({ tournament: t, match: m }) => {
+    const A = m.sides.find((s) => s.side === "A");
+    const B = m.sides.find((s) => s.side === "B");
+    return {
+      id: m.id, tName: t.name, date: t.date,
+      a: teamNames(m, "A"), b: teamNames(m, "B"),
+      ag: Number(A?.goals ?? 0), bg: Number(B?.goals ?? 0),
+      aClubId: A?.club_id ?? null, bClubId: B?.club_id ?? null,
+      // The shared match link: a friendly has no detail page, so the row stays inert.
+      href: tournamentMatchHref(t, m),
+    };
+  });
+}
+
+/** Tie count next to a category title ("4 tied" = four matches/players share this record). */
 function TieCount({ n }: { n: number }) {
   if (n <= 1) return null;
   return <span className="text-xs font-normal text-text-muted">{n} tied</span>;
@@ -104,21 +129,23 @@ function RecordGroup({ icon, label, explainer, matches, clubs }: { icon: ReactNo
   );
 }
 
-type WinLeader = { id: number; name: string; count: number; rank: number; latest: StatsTournamentLite | null };
+type WinLeader = { id: number; name: string; count: number; rank: number; latest: { name: string; date: string } | null };
+
+function toWinLeaders(leaders: StatsRecordLeader[]): WinLeader[] {
+  return leaders.map((l) => ({ id: l.player.id, name: l.player.display_name, count: l.count, rank: l.rank, latest: l.latest ?? null }));
+}
 
 /** Most tournament wins — a ranked identity list, the same row shape as Streaks'. */
-function TitlesGroup({ leaders, onSelect }: { leaders: WinLeader[]; onSelect: (id: number) => void }) {
+function TitlesGroup({ icon, leaders, holderCount, onSelect }: { icon: ReactNode; leaders: WinLeader[]; holderCount: number; onSelect: (id: number) => void }) {
   const { avatarUpdatedAtById } = usePlayerAvatarMap();
   const { cupsHeldByPlayerId } = useCupHolders();
   const shown = leaders.slice(0, SHOWN);
-  // "N tied" here means N players share the top count — the same meaning it had before.
-  const topTies = leaders.filter((l) => l.rank === 1).length;
   return (
     <StatsSection
       label="Most tournament wins"
-      icon={<Trophy size={12} aria-hidden="true" />}
+      icon={icon}
       explainer="Tournaments won, with each player's most recent title."
-      action={<TieCount n={topTies} />}
+      action={<TieCount n={holderCount} />}
     >
       {shown.length ? (
         <div className="list-divided">
@@ -155,155 +182,74 @@ function TitlesGroup({ leaders, onSelect }: { leaders: WinLeader[]; onSelect: (i
 }
 
 export default function RecordsView({
-  mode, scope, rows, onSelect, onOpenStreaks,
+  mode, scope, onSelect, onOpenStreaks,
 }: {
-  mode: StatsMode; scope: StatsScope; rows: Row[];
+  mode: StatsMode; scope: StatsScope;
   onSelect: (id: number) => void;
   /** Opens the Streaks sub-view — the single home of every longest run (T6). */
   onOpenStreaks: () => void;
 }) {
-  const eloById = useMemo(() => new Map(rows.map((r) => [r.id, r.rating])), [rows]);
-  const matchesQs = useQueries({
-    queries: rows.map((r) => ({
-      queryKey: qk.stats.playerMatches(r.id, scope),
-      queryFn: () => getStatsPlayerMatches({ playerId: r.id, scope }),
-      enabled: rows.length > 0,
-      placeholderData: keepPreviousData, staleTime: 30_000,
-    })),
+  const q = useQuery({
+    queryKey: qk.stats.records(mode, scope),
+    queryFn: () => getStatsRecords({ mode, scope }),
+    placeholderData: keepPreviousData,
   });
-  // Titles: wins per player, from the same tournament-winner data PositionsView uses.
-  // Scoped like every other record here (A4) — with Source = Friendlies the endpoint
-  // reports no tournaments, so there are no titles to show, which is the truth.
-  // The only new request this sub-view makes (Q17), and it is on the `qk.clubs()` key
-  // four other stats views already use — so it is a cache hit for anyone arriving from
-  // one of them, and one shared request otherwise. The club *ids* are already in the
-  // match payload; this resolves them to a crest.
+  // The only request this sub-view makes beyond `/stats/records` (Q17), and it is
+  // on the `qk.clubs()` key four other stats views already use — so it is a cache
+  // hit for anyone arriving from one of them, and one shared request otherwise.
+  // The club *ids* are already in the match payload; this resolves them to a crest.
   const clubsQ = useQuery({ queryKey: qk.clubs(), queryFn: () => listClubs(), staleTime: 60_000 });
-  const playersQ = useQuery({
-    queryKey: qk.stats.players(mode, "records", scope),
-    queryFn: () => getStatsPlayers({ mode, scope }),
-    placeholderData: keepPreviousData, staleTime: 30_000,
-  });
-  const loading = matchesQs.some((q) => q.isLoading && !q.data) || (playersQ.isLoading && !playersQ.data);
 
-  const matches = useMemo(() => {
-    const seen = new Set<number>();
-    const out: RecMatch[] = [];
-    for (const q of matchesQs) {
-      const data = q.data as { tournaments: StatsPlayerMatchesTournament[] } | undefined;
-      for (const t of data?.tournaments ?? []) {
-        if (mode !== "overall" && t.mode !== mode) continue;
-        for (const m of t.matches) {
-          if (m.state !== "finished" || seen.has(m.id)) continue;
-          seen.add(m.id);
-          const A = m.sides.find((s) => s.side === "A");
-          const B = m.sides.find((s) => s.side === "B");
-          out.push({
-            id: m.id, tName: t.name, date: t.date,
-            a: teamNames(m, "A"), b: teamNames(m, "B"),
-            ag: Number(A?.goals ?? 0), bg: Number(B?.goals ?? 0),
-            aIds: (A?.players ?? []).map((p) => p.id), bIds: (B?.players ?? []).map((p) => p.id),
-            aClubId: A?.club_id ?? null, bClubId: B?.club_id ?? null,
-            // The shared match link: a friendly has no detail page, so the row stays inert.
-            href: tournamentMatchHref(t, m),
-          });
-        }
-      }
-    }
-    return out;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [matchesQs.map((q) => q.dataUpdatedAt).join("|"), mode]);
+  const data = q.data;
+  const records = data?.records ?? [];
+  const titles = records.find((r) => r.key === "most_titles");
+  const matchGroups = records.filter((r) => r.group === "match");
 
-  const records = useMemo(() => {
-    if (!matches.length) return null;
-    const avg = (a: number[]) => (a.length ? a.reduce((x, y) => x + y, 0) / a.length : 1000);
-    const decided = matches.filter((m) => m.ag !== m.bg);
-    // Collect ALL matches that tie the record value, not just the first.
-    const topBy = (arr: RecMatch[], valOf: (m: RecMatch) => number): RecMatch[] => {
-      if (!arr.length) return [];
-      const max = Math.max(...arr.map(valOf));
-      return arr.filter((m) => valOf(m) === max);
-    };
-    const biggestWin = topBy(decided, (m) => Math.abs(m.ag - m.bg));
-    const highestScoring = topBy(matches, (m) => m.ag + m.bg);
-    const mostSide = topBy(matches, (m) => Math.max(m.ag, m.bg));
-    const upsetScored = decided.map((m) => {
-      const winnerIds = m.ag > m.bg ? m.aIds : m.bIds;
-      const loserIds = m.ag > m.bg ? m.bIds : m.aIds;
-      return { m, gap: avg(loserIds.map((id) => eloById.get(id) ?? 1000)) - avg(winnerIds.map((id) => eloById.get(id) ?? 1000)) };
-    });
-    const maxGap = upsetScored.length ? Math.max(...upsetScored.map((u) => u.gap)) : -Infinity;
-    const upset = maxGap > 0 ? upsetScored.filter((u) => u.gap === maxGap).map((u) => u.m) : [];
-    return { biggestWin, highestScoring, mostSide, upset, total: matches.length };
-  }, [matches, eloById]);
+  // `?record=<key>` — a badge tap, or a record's own deep-link path, lands here,
+  // scrolls to that record's section and drops the param (`useOneShotSectionParam`,
+  // the shared `?cup=` mechanism, M4).
+  useOneShotSectionParam(RECORD_PARAM, recordSectionId, records.map((r) => r.key), !!data);
 
-  const winLeaders = useMemo<WinLeader[]>(() => {
-    const players = playersQ.data?.players ?? [];
-    const tournaments = playersQ.data?.tournaments ?? [];
-    if (!players.length || !tournaments.length) return [];
-    const nameById = new Map(players.map((p) => [p.player_id, p.display_name]));
-    // Most recent won tournament first, so the first hit per player is the latest.
-    const chrono = tournaments
-      .slice()
-      .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : b.id - a.id));
-    const byPlayer = new Map<number, { count: number; latest: StatsTournamentLite | null }>();
-    for (const t of chrono) {
-      // Only finished tournaments have a winner (backend also guards this).
-      if (t.status !== "done" || t.winner_player_id == null) continue;
-      const cur = byPlayer.get(t.winner_player_id) ?? { count: 0, latest: null };
-      cur.count += 1;
-      if (!cur.latest) cur.latest = t;
-      byPlayer.set(t.winner_player_id, cur);
-    }
-    const list = Array.from(byPlayer.entries())
-      .map(([id, v]) => ({ id, name: nameById.get(id) ?? `#${id}`, count: v.count, latest: v.latest }))
-      .sort((a, b) => b.count - a.count);
-    let rank = 0, prevCount = -1;
-    return list.map((x, i) => {
-      if (x.count !== prevCount) { rank = i + 1; prevCount = x.count; }
-      return { ...x, rank };
-    });
-  }, [playersQ.data]);
+  if (q.isLoading && !data) return <InlineLoading label="Loading…" />;
+  if (!data || data.finished_matches === 0) return <EmptyState title="No finished matches yet." className="py-6" />;
 
-  if (loading) return <InlineLoading label="Loading…" />;
-  if (!records) return <EmptyState title="No finished matches yet." className="py-6" />;
+  const clubs = clubsQ.data ?? [];
+  const showTitles = !!titles && (titles.leaders?.length ?? 0) > 0;
 
   return (
     <div className="space-y-6">
       <div className="grid gap-6 lg:grid-cols-2">
-        {winLeaders.length ? <TitlesGroup leaders={winLeaders} onSelect={onSelect} /> : null}
-        <RecordGroup
-          icon={<Zap size={12} aria-hidden="true" />}
-          label="Biggest win"
-          explainer="Largest goal difference in a finished match."
-          matches={records.biggestWin}
-          clubs={clubsQ.data ?? []}
-        />
-        <RecordGroup
-          icon={<Goal size={12} aria-hidden="true" />}
-          label="Highest-scoring match"
-          explainer="Most goals in one match, both sides together."
-          matches={records.highestScoring}
-          clubs={clubsQ.data ?? []}
-        />
-        <RecordGroup
-          icon={<Flame size={12} aria-hidden="true" />}
-          label="Most goals by one side"
-          explainer="The biggest single-side tally in a match."
-          matches={records.mostSide}
-          clubs={clubsQ.data ?? []}
-        />
-        <RecordGroup
-          icon={<TrendingUp size={12} aria-hidden="true" />}
-          label="Biggest upset (by Elo)"
-          explainer="Win against the largest Elo gap between the two sides."
-          matches={records.upset}
-          clubs={clubsQ.data ?? []}
-        />
+        {showTitles && titles ? (() => {
+          const TitlesIcon = recordIcon("most_titles");
+          return (
+            <div id={recordSectionId(titles.key)}>
+              <TitlesGroup
+                icon={<TitlesIcon size={12} aria-hidden="true" />}
+                leaders={toWinLeaders(titles.leaders ?? [])}
+                holderCount={titles.holders.length}
+                onSelect={onSelect}
+              />
+            </div>
+          );
+        })() : null}
+        {matchGroups.map((r) => {
+          const Icon = recordIcon(r.key);
+          return (
+            <div key={r.key} id={recordSectionId(r.key)}>
+              <RecordGroup
+                icon={<Icon size={12} aria-hidden="true" />}
+                label={r.label}
+                explainer={r.explainer}
+                matches={toRecMatches(r.matches)}
+                clubs={clubs}
+              />
+            </div>
+          );
+        })}
       </div>
       {/* Streak records are not repeated here — Streaks owns every run (T6). */}
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-xs text-text-muted">Across {records.total} finished matches.</p>
+        <p className="text-xs text-text-muted">Across {fmtCount(data.finished_matches, "finished match", "finished matches")}.</p>
         <Button variant="ghost" size="sm" onClick={onOpenStreaks} className="gap-1.5" title="Open the Streaks sub-view">
           <Flame size={14} aria-hidden="true" />
           Longest runs in Streaks

@@ -258,7 +258,7 @@ export default function StatsInsights({
       )}
       {view === "overview" && activeSub === "positions" && <PositionsView mode={mode} />}
       {view === "overview" && activeSub === "streaks" && <StreaksView mode={mode} scope={scope} />}
-      {view === "overview" && activeSub === "records" && <RecordsView mode={mode} scope={scope} rows={rows} onSelect={goPlayer} onOpenStreaks={() => setSub("streaks")} />}
+      {view === "overview" && activeSub === "records" && <RecordsView mode={mode} scope={scope} onSelect={goPlayer} onOpenStreaks={() => setSub("streaks")} />}
       {view === "overview" && activeSub === "cups" && <CupsView />}
 
       {view === "trends" && <TrendsExplorer mode={mode} scope={scope} rows={rows} initialMetric={initState?.trendsMetric} initialView={initState?.trendsView} initialPerMatch={initState?.trendsPerMatch} />}

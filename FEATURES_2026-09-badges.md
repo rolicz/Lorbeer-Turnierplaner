@@ -1171,7 +1171,7 @@ render; the dashboard preview is unchanged (pixel-compare the Standings card bef
 
 ---
 
-## M4 — Records and Streaks read the one computation; the anchors; the shared icons  ☐
+## M4 — Records and Streaks read the one computation; the anchors; the shared icons  ☑
 
 **The gap.** `RecordsView.tsx` computes its records in the browser (`:166-266`) from six requests;
 after M1 the backend has the same answer and the page must read it, or the badge and the page are two
@@ -1257,6 +1257,96 @@ page's numbers.
 `?cup=` uses.* `AGENTS.md` §2 frontend: `RecordsView` reads `/stats/records`. M7 writes.
 
 **Deviations:**
+
+- Implemented as specified. `useOneShotSectionParam.ts` (new) is `CupsView`'s effect generalised
+  (`param`, `sectionIdFor`, `knownKeys`, `ready`); its effect deps list `param`/`sectionIdFor`/
+  `knownKeys` explicitly (CupsView's original only listed its one array, `cups`) — correctness for
+  a now-parameterised hook, no behaviour change. `CupsView` adopted it and lost its inline effect.
+  `RecordsView.tsx` reads one `useQuery(qk.stats.records(mode, scope))`; the six-request
+  `useQueries`/`getStatsPlayerMatches`/`getStatsPlayers` path is gone. `StreaksView`, `StreakPatches`
+  and `PlayerStreakChips` now import `recordIcon` from `recordIcons.ts` and carry no `lucide-react`
+  import of their own (`grep -rln 'from "lucide-react"' … StreakPatches.tsx PlayerStreakChips.tsx
+  StreaksView.tsx` → 0, per the batch's own final gate). `MatchHistoryList.tsx`'s
+  `tournamentMatchHref` is structurally widened to `{id, status}`/`{id}` — body unchanged.
+- **One eslint fix the plan didn't anticipate.** `react-hooks/static-components` (part of this
+  repo's `reactHooks.configs.recommended.rules`) flags `const TitlesIcon = recordIcon("most_titles");
+  … <TitlesIcon .../>` when the assignment sits directly in the component's top-level render scope —
+  "component created during render" — even though `recordIcon` always returns a referentially stable
+  glyph from a fixed map. The identical pattern inside `matchGroups.map((r) => { const Icon =
+  recordIcon(r.key); … })` and inside `StreaksView`'s own `.map()` is **not** flagged (nested closure,
+  outside the rule's top-level check) — confirmed by running `npm run lint` with only the top-level
+  case present. Fixed by wrapping the titles-icon lookup in an IIFE (`{showTitles && titles ? (() => {
+  const TitlesIcon = recordIcon("most_titles"); return (<div>…</div>); })() : null}`), matching the
+  `.map()` shape the rule already accepts. `npm run lint` is clean; no rule was disabled.
+- **Verify-first confirmed the gap exactly as written** (all five checks in "Verify first" matched
+  their stated output before any edit).
+- **Isolated stack:** backend **8094**, vite **8114** — both free, no port collision this time (M3
+  hit one on 8093/8113 and moved to 8193/8213). DB copy `backend/data/verify-m4.db` (copy of
+  `backend/app.db`), removed after use; throwaway secrets outside the repo, removed after use.
+  Stopped only the PIDs this session started, all by exact PID (backend, vite, and vite's `sh -c`/
+  `node` children resolved via `pgrep -P`).
+- **Before/after comparison method.** M4 is frontend-only, so the *backend* (`:8094`, the copied DB)
+  was shared between "before" and "after" — only the frontend build differs. "Before" was a
+  temporary `git worktree add /tmp/.../m4-before-worktree 0588eee` (M4's own stated baseline sha,
+  i.e. immediately after M3 landed) with `frontend/node_modules` symlinked from the main tree (no
+  dependency changed between the two commits) and its own `vite --port 8214` pointed at the same
+  `:8094` backend; "after" was the working tree's `vite --port 8114`. Both stacks logged in as Roli
+  the same way. The worktree and its vite server were removed after the screenshots were taken.
+- **Records vs Streaks screenshots, 390×844 and 1280×900, `blue` and `light` (16 total, Playwright
+  headless Chromium).** `Streaks` is **byte-identical, zero differing pixels** before vs after, in
+  all four theme/viewport combinations (`ImageChops.difference(...).getbbox()` → `None` on every
+  pair) — confirms `StreaksView`'s icon repoint, its new `useOneShotSectionParam` call, and the
+  `<div id=…>` wrapper changed nothing visible. `Records` differs **only inside one bounding box**
+  per viewport (`(264,513)-(784,1065)` at 1280, `(16,692)-(374,1374)` at 390 — identical box for
+  `blue` and `light`, i.e. no theme-related drift anywhere), which is exactly the "Highest-scoring
+  match" + "Most goals by one side" pair of blocks: cropped side-by-side comparison confirms (a) the
+  two intended icon swaps (`Goal`→`PartyPopper`, `Flame`→`Rocket`, screenshotted at 3× DPR) and (b)
+  the four tied rows inside "Highest-scoring match" are the **same four matches**, reordered
+  most-recent-first — exactly M1's Deviations note ("Tied match rows are ordered most-recent-first
+  … the browser's order was whatever its six `useQueries` happened to resolve in — only the display
+  order of a tie differs"), now visible for the first time because M4 is what makes the page read
+  that order. "Most tournament wins", "Biggest win" and "Biggest upset (by Elo)" — the three
+  sections whose icon is unchanged — are pixel-identical, confirmed both from the full diff bbox
+  excluding them and from dedicated header-only crops of all five sections (`Trophy`, `Zap`,
+  `TrendingUp` pixel-for-pixel the same before/after; `Goal`→`PartyPopper` and `Flame`→`Rocket` the
+  only two glyphs that differ) — the two things the task named as the regression risk, checked
+  deliberately rather than assumed.
+- **`mode=1v1&source=both` parity**, the DoD's explicit check: the Records sub-view's full text
+  content (`textContent` of the section list) is **byte-identical**, before vs after, at that filter
+  combination against the same DB copy (77 finished matches, six sections incl. the 6-tied "Biggest
+  upset").
+- **`?record=` scroll-and-drop, measured.** `?sub=records&record=biggest_win` and
+  `?sub=streaks&record=scoring_streak` both land with the target's `getBoundingClientRect().top`
+  at **61px** (57px sticky top bar + 4px, exactly the DoD's "≈ 57 + 4 at 390") and the URL loses
+  `record` — the same 61px the untouched `?cup=bauernkranz` case measures, confirming
+  `useOneShotSectionParam` behaves identically for all three call sites. **One thing the DoD's own
+  example (`record=biggest_upset`) could not have shown**: `biggest_upset` is the *last* section on
+  the Records page, and at 390×844 against this DB the page's total scroll room (`scrollHeight −
+  innerHeight` = 781px) is **less** than the distance needed to pull that particular section flush
+  under the header — the browser clamps `scrollY` at 781, `scrollTo` cannot ask for more, and the
+  section lands at `top: 384` instead of 61. This is `scrollToSectionById`'s own documented
+  behaviour ("unless the user scrolls in the meantime" — it never claims to overcome a page that is
+  simply too short below the target) and is identical for `?cup=` on a cup with nothing after it; it
+  is not new to this task and not a defect in `useOneShotSectionParam`. The param still drops from
+  the URL in that case (confirmed) — only the pixel-perfect landing is capped by page length. Verify
+  first if this needs a real fix (e.g. padding the page's scroll room, which no other one-shot anchor
+  in the app currently does either) — recording it here rather than "fixing" it silently. `?record=`
+  on every *other* key (streaks and the three non-last match records) lands at 61px.
+- **Tests.** `frontend/src/test/recordsView.test.tsx` (new, 3 tests, not the plan's literal single
+  test — split for readability): tied `biggest_win` (one real tournament match, one friendly with
+  `tournament.id < 0`) renders "2 tied", the tournament row links to `/live/42/match/501`, the
+  friendly row carries no anchor; `#record-biggest_win` and `#record-most_titles` both exist;
+  `finished_matches: 0` renders the empty state instead of an empty/broken list;
+  `document.querySelectorAll("a a").length === 0`. Beyond `vi.mock("../api/stats.api")` and
+  `../api/clubs.api` (both required to drive the view), `../api/playerAvatars.api` and
+  `../api/cup.api` are also stubbed to resolve empty — `TitlesGroup` calls `usePlayerAvatarMap`/
+  `useCupHolders`, and leaving those unmocked would hit real (failing) network calls in jsdom, as
+  `cupsPreview.test.tsx` already does for the same reason.
+- **Gates, on the final shared-branch HEAD** (M2's and M5's commits landed on this branch mid-task;
+  re-ran everything against the merged tree rather than only my own diff): `cd frontend && npm run
+  check` → **734 tests in 74 files**, clean typecheck, clean lint; `npm run build` → green, the
+  pre-existing `>500 kB chunk` hint only (`index-*.js` 734 kB, unchanged category, not a regression —
+  `AGENTS.md` §11 already notes this and D1 leaves it deliberately unsplit).
 
 ---
 

@@ -15,8 +15,12 @@ import { useCupFirstClaims } from "../../hooks/useCupHolders";
 /**
  * Link target for a match row: the match detail page of a real tournament.
  * Friendlies have synthetic negative tournament ids and no detail page → `null`.
+ *
+ * Structurally typed (not `StatsPlayerMatchesTournament`/`StatsMatch`) so the
+ * Records sub-view's rows — `StatsRecordTournament`/`StatsMatch` from
+ * `/stats/records` — fit without a cast (M4).
  */
-export function tournamentMatchHref(t: StatsPlayerMatchesTournament, m: StatsMatch): string | null {
+export function tournamentMatchHref(t: { id: number; status: string }, m: { id: number }): string | null {
   return t.id > 0 && t.status !== "friendly" ? `/live/${t.id}/match/${m.id}` : null;
 }
 
