@@ -158,10 +158,28 @@ faked `send_web_push_message` (the real `_deliver` with the POST stubbed). P5's 
 - **Read = you opened it.** `PUT /ideas/{id}/read` marks every event on that idea read for the
   caller. The board calls it when the `?idea=` deep link is consumed and when the viewer expands an
   idea's comments. No per-card unread marker in this batch (R5 declined a badge; the bell is the badge).
-- **Push audience is the idea's author and nobody else, never the actor** — the `push_idea_created`
-  rule. An author commenting on, voting for, or (as admin) triaging their own idea gets nothing.
-  Delivery through `enqueue_personal_for_player`; the three event types join
-  `PERSONAL_DEFAULT_EVENT_TYPES` so a default "Results & personal" device gets them.
+- **Audience, per event kind — and a comment reaches the whole thread** (Roli 2026-09-19, third
+  pass). **Never the actor**, in every case — the `push_idea_created` rule. Otherwise:
+  - **`comment` → the idea's author *plus every player who has already commented on that idea*,
+    minus the actor.** Once you have said something in a thread you hear the replies, whoever you
+    are; an admin who commented is a participant like anyone else, and an admin who has not
+    commented on someone else's idea still hears nothing. Compute the set from the comment rows
+    themselves (`SELECT DISTINCT author_player_id FROM featurerequestcomment WHERE
+    feature_request_id = …`) union the idea's author, minus the actor — **do not** special-case
+    roles; the predicate is participation, not permission.
+  - **`vote` → the idea's author alone.** A like is about the idea, not the conversation; a
+    commenter is not told every time someone upvotes.
+  - **`status` → the idea's author alone.** Triage is an answer to the author.
+  - **`created` → the admins**, as `push_idea_created` already does.
+
+  This is the same shape the bell already uses for tournaments, where the thing that reaches you is
+  a reply to **your** comment. Delivery through `enqueue_personal_for_player`; the three event types
+  join `PERSONAL_DEFAULT_EVENT_TYPES` so a default "Results & personal" device gets them.
+
+  Both channels use one audience function — `AGENTS.md` §9 and rule 8: the bell query (P3) and the
+  push targets (P2) must not each compute "who cares about this event" their own way, or they will
+  disagree the first time someone deletes a comment. One helper in `services/notifications.py` or
+  the ideas service, called by both.
 - **Push texts:** Roli's Styrian drafts go in as written (his to correct — Decisions list item 2);
   German is **ASCII-safe** (`Oeffne`, `fuer`), English in the house voice. The status word is
   translated per language by a renderer helper (`_status_label`, precedent `_mode_label`); the status
@@ -191,8 +209,10 @@ faked `send_web_push_message` (the real `_deliver` with the POST stubbed). P5's 
   the failure this exists to prevent: Roli went days without knowing. Dismissal is per install, so a
   reader who genuinely wants notifications off is asked once and never again; a reinstall is a new
   install and asks again, which is exactly the case that broke.
-- **Admins are not notified about comments on ideas they do not own.** The push and bell audience for
-  `comment`, `vote` and `status` stays the idea's author alone. `created` keeps its admin audience.
+- **Admins are not buzzed about comments on ideas they have nothing to do with** — but **a comment
+  notifies everyone who has commented on that idea**, admins included, exactly like any other
+  participant (Roli: "admins should get reply when they commented themselves (like others)"). The
+  full per-kind audience is in the Decisions block above; participation is the predicate, not role.
 - **Styrian copy — my calls on the four open details, all still Roli's to correct:**
   - status words `neich · eiplant · in Arbeit · fertig · obglehnt` — accepted as drafted;
   - the comment body reads **`Schau eini, wos gmoant is.`**, not "wos er moant" — the neutral form,
