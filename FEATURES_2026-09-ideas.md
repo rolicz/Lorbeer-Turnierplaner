@@ -176,10 +176,12 @@ faked `send_web_push_message` (the real `_deliver` with the POST stubbed). P5's 
   a reply to **your** comment. Delivery through `enqueue_personal_for_player`; the three event types
   join `PERSONAL_DEFAULT_EVENT_TYPES` so a default "Results & personal" device gets them.
 
-  Both channels use one audience function — `AGENTS.md` §9 and rule 8: the bell query (P3) and the
-  push targets (P2) must not each compute "who cares about this event" their own way, or they will
-  disagree the first time someone deletes a comment. One helper in `services/notifications.py` or
-  the ideas service, called by both.
+  **P1 builds the audience helper; P2 and P3 import it and never write their own.** Both channels
+  must answer "who cares about this event" identically or they disagree the first time a comment is
+  deleted — a push for something the bell never shows, which nobody notices because the two are
+  never compared. P2 and P3 run in parallel, so neither can own it: whichever started first would
+  define it and the other would find it half-written. It belongs to P1, the task both depend on
+  anyway. `AGENTS.md` §9, and rule 8 — one mechanism per job.
 - **Push texts:** Roli's Styrian drafts go in as written (his to correct — Decisions list item 2);
   German is **ASCII-safe** (`Oeffne`, `fuer`), English in the house voice. The status word is
   translated per language by a renderer helper (`_status_label`, precedent `_mode_label`); the status
