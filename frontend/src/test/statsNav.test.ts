@@ -8,6 +8,8 @@ import {
   defaultSubFor,
   formatMatchupSide,
   parseMatchupSide,
+  parseSortDir,
+  recordSectionId,
   resolveStatsView,
   statsMatchupHref,
   subForSection,
@@ -127,6 +129,13 @@ describe("canonicalStatsParams", () => {
     expect(p.get("sub")).toBeNull();
     expect(p.toString()).toBe("player=2&view=trends");
   });
+
+  it("keeps sort, dir and record — it copies unknown params rather than allow-listing them", () => {
+    const p = canonicalStatsParams(new URLSearchParams("sort=ppm&dir=asc&record=win_streak"), "overview", "streaks");
+    expect(p.get("sort")).toBe("ppm");
+    expect(p.get("dir")).toBe("asc");
+    expect(p.get("record")).toBe("win_streak");
+  });
 });
 
 describe("subsFor / defaultSubFor / subForSection", () => {
@@ -234,5 +243,25 @@ describe("statsMatchupHref — the shortcuts into H2H", () => {
     expect(parseMatchupSide(search.get("player"))).toEqual([1, 5]);
     expect(parseMatchupSide(search.get("vs"))).toEqual([2, 4]);
     expect(search.get("source")).toBe("tournaments");
+  });
+});
+
+describe("parseSortDir — the Table's ?sort=/?dir= (M3)", () => {
+  it("reads only 'asc' as ascending", () => {
+    expect(parseSortDir("asc")).toBe("asc");
+  });
+
+  it("defaults everything else (absent, unknown, 'desc') to descending", () => {
+    expect(parseSortDir(null)).toBe("desc");
+    expect(parseSortDir("desc")).toBe("desc");
+    expect(parseSortDir("nope")).toBe("desc");
+    expect(parseSortDir("")).toBe("desc");
+  });
+});
+
+describe("recordSectionId — the anchor a ?record= lands on", () => {
+  it("prefixes the record key", () => {
+    expect(recordSectionId("win_streak")).toBe("record-win_streak");
+    expect(recordSectionId("highest_scoring_match")).toBe("record-highest_scoring_match");
   });
 });

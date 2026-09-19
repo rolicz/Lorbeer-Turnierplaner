@@ -880,7 +880,7 @@ paths), §10 (a live goal is not a result; `RecordKeyState` row = "computed at l
 
 ---
 
-## M3 — The stats URL learns `?sort=`, `?dir=` and `?record=`; the one icon map  ☐
+## M3 — The stats URL learns `?sort=`, `?dir=` and `?record=`; the one icon map  ☑
 
 **The gap.** `StatsTable.tsx:42-43` keeps `sortKey`/`dir` in component state; a deep link cannot name
 a column. `statsNav.ts` knows `cup` as its only one-shot section param. The streak icons live in three
@@ -968,6 +968,45 @@ render; the dashboard preview is unchanged (pixel-compare the Standings card bef
 (one-shot); §9 gains "a record's icon comes from `pages/stats/recordIcons.ts`". M7 writes.
 
 **Deviations:**
+
+- Implemented exactly as specified: `SORT_PARAM`/`DIR_PARAM`/`parseSortDir`/`RECORD_PARAM`/
+  `recordSectionId` in `statsNav.ts`; `StatsInsights` reads `sort`/`dir` once and passes
+  `sortKey`/`sortDir`/`onSortChange` only to the Overview/Table `StatsTable`; `StatsTable` takes
+  the three as optional props, falls back to its own `localSort` state when they are absent (the
+  dashboard preview), and gained the one new effect that makes a deep-linked sort column visible
+  (gated on `controlled`, i.e. `fixedColumns != null`, so the preview is untouched); `record` was
+  added to `lastLocation.ts`'s `ONE_SHOT_PARAMS`; `recordIcons.ts` is the one map, sixteen keys,
+  used nowhere yet (M4 repoints the four consumers).
+- **`?record=` does not yet scroll-and-drop on its own page** — that wiring is
+  `pages/stats/useOneShotSectionParam.ts` and its adoption in `StreaksView`/`RecordsView`
+  (M4's file set, not M3's). What M3 delivers and what I verified: the constant/helper exist, and
+  `record` is registered as one-shot in `lastLocation.ts` — so a page carrying `?record=win_streak`
+  is never *remembered* with it (confirmed live: `localStorage["lk:dest-last"]` for `stats` after
+  visiting `/stats?view=overview&sub=streaks&record=win_streak&sort=ppm` holds
+  `.../streaks?sort=ppm` with `record` gone and `sort` kept — filter state survives, the one-shot
+  anchor does not). The parent task's "Prove it" line ("`?record=` scrolls to the record and then
+  disappears from the URL") describes the *end-to-end* behaviour M4 completes; I did not add
+  scrolling or in-page dropping here because `StreaksView.tsx`/`RecordsView.tsx` are outside M3's
+  file set and the plan's own M3 "Definition of done" does not ask for it (only the URL/table
+  behaviour and the dashboard-preview parity do). Flagging this now so M4 isn't surprised — verify
+  the same URL again after M4 lands and confirm the param disappears from the *address bar itself*.
+- Verified in a real headless Chromium (npx-cached `playwright`, not a project devDependency) on
+  the isolated stack at 390×844 and 1280×900, `blue` and `light`, all four green:
+  `?sort=ppm` → PPM header accent + `▾` (desc default); `?sort=gpm` → G/M becomes visible and
+  sorted (accent), while its `GF-GA-GD /m` column-chip group correctly stays un-highlighted since
+  only the sorted column, not the whole triplet, was auto-added; `?sort=nope` → falls back to Pts,
+  clean render, 0 page errors; tapping PPM again → `dir=asc` in the URL; tapping Pts → both `sort`
+  and `dir` removed from the URL. Dashboard preview: columns stay exactly `Pts/PPM/P/Win %/Elo`
+  (`DEFAULT_COLS`), default sort stays Pts-desc, tapping a header sorts locally without ever
+  touching `/dashboard`'s URL — screenshotted, matches the pre-existing layout. No console errors;
+  the only warnings seen are the pre-existing React Router v7 future-flag notices and one
+  navigation-timing WebSocket-closed warning, neither related to this change.
+- Ports: the plan's M3 row (backend 8093 / vite 8113) collided with an unrelated long-running
+  process already bound to 127.0.0.1:8093 on this machine (not part of this repo or this batch,
+  PID 736, up since before this session). Used 8193/8213 instead, otherwise followed the isolated-
+  stack recipe verbatim (copy of `backend/app.db` → `backend/data/verify-m3.db`, throwaway
+  secrets outside the repo, three accounts). Stopped only the two PIDs this session started; the
+  DB copy and secrets file were removed afterward.
 
 ---
 

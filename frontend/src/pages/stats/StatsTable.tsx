@@ -1,11 +1,12 @@
 /** Sortable standings table. Used full-featured in Stats and as a fixed-column preview on the dashboard. */
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { keepPreviousData, useQueries } from "@tanstack/react-query";
 
 import { getStatsPlayerMatches } from "../../api/stats.api";
 import { qk } from "../../api/queryKeys";
 import type { StatsPlayerMatchesTournament, StatsScope } from "../../api/types";
 import type { StatsMode } from "./statsMode";
+import type { SortDir } from "./statsNav";
 import AvatarCircle from "../../ui/primitives/AvatarCircle";
 import EmptyState from "../../ui/primitives/EmptyState";
 import PlayerLink from "../../ui/primitives/PlayerLink";
@@ -25,6 +26,9 @@ export default function StatsTable({
   scope,
   showControls = true,
   fixedColumns,
+  sortKey: sortKeyProp,
+  sortDir: sortDirProp,
+  onSortChange,
 }: {
   rows: Row[];
   loading: boolean;
@@ -35,12 +39,19 @@ export default function StatsTable({
   showControls?: boolean;
   /** Force a fixed visible column set (key order follows TABLE_COLS). */
   fixedColumns?: string[];
+  /** Controlled sort (`?sort=`/`?dir=`, M3) — the Overview/Table call site passes these; the
+   * dashboard preview passes none of the three and keeps its own uncontrolled sort state. */
+  sortKey?: string;
+  sortDir?: SortDir;
+  onSortChange?: (key: string, dir: SortDir) => void;
 }) {
   const controlled = fixedColumns != null;
   const { avatarUpdatedAtById } = usePlayerAvatarMap();
   const { cupsHeldByPlayerId } = useCupHolders();
-  const [sortKey, setSortKey] = useState<string>("pts");
-  const [dir, setDir] = useState<1 | -1>(-1);
+  const [localSort, setLocalSort] = useState<{ key: string; dir: SortDir }>({ key: "pts", dir: "desc" });
+  const sortKey = sortKeyProp ?? localSort.key;
+  const sortDirValue: SortDir = sortDirProp ?? localSort.dir;
+  const dir = sortDirValue === "asc" ? 1 : -1;
   const [visible, setVisible] = useState<Set<string>>(() => new Set(DEFAULT_COLS));
   const [lastN, setLastN] = useState(false);
   const [nWin, setNWin] = useState(5);
@@ -92,7 +103,22 @@ export default function StatsTable({
     () => tableRows.slice().sort((a, b) => (sortCol.val(a) - sortCol.val(b)) * dir),
     [tableRows, sortCol, dir],
   );
-  const setSort = (k: string) => { if (k === sortKey) setDir((d) => (d === 1 ? -1 : 1)); else { setSortKey(k); setDir(-1); } };
+  const setSort = (k: string) => {
+    const nextDir: SortDir = k === sortKey ? (sortDirValue === "asc" ? "desc" : "asc") : "desc";
+    if (onSortChange) onSortChange(k, nextDir);
+    else setLocalSort({ key: k, dir: nextDir });
+  };
+  // A deep link (a record badge's `?sort=`) can name a column that is hidden by
+  // default (e.g. `gpm`) — make it visible so the sort it asked for is seen. The
+  // `fixedColumns` preview (dashboard) is untouched: it never reads URL sort, and
+  // `controlled` here means its column set, not the sort — the two are unrelated
+  // controls that happen to share this component.
+  useEffect(() => {
+    if (!controlled && !effVisible.has(sortKey)) {
+      setVisible((prev) => new Set([...prev, sortKey]));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sortKey]);
   const toggleGroup = (groupCols: string[], on: boolean) =>
     setVisible((prev) => {
       const n = new Set(prev);

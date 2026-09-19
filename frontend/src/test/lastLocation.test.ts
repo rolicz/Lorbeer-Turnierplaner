@@ -74,6 +74,12 @@ describe("lastLocation", () => {
       expect(stored().stats.path).toBe("/stats?view=h2h&sub=players&player=1&vs=2&mode=1v1&source=both");
     });
 
+    it("keeps sort/dir (filter state) but strips the one-shot record anchor (M3)", () => {
+      rememberLocation("/stats", "?view=overview&sub=table&sort=ppm&dir=asc&record=most_points");
+
+      expect(stored().stats.path).toBe("/stats?view=overview&sub=table&sort=ppm&dir=asc");
+    });
+
     it("survives a failing storage write", () => {
       vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
         throw new Error("quota");
@@ -205,6 +211,8 @@ describe("lastLocation", () => {
       expect(normalizePath("/profiles/1", "?tab=guestbook&unread=1")).toBe("/profiles/1?tab=guestbook");
       // `?cup=` jumps to one cup once; the Stats tab must not replay it (T5).
       expect(normalizePath("/stats", "?view=overview&sub=cups&cup=bauernkranz")).toBe("/stats?view=overview&sub=cups");
+      // `?record=` is the same shape, for a badge's landing in Streaks/Records (M3).
+      expect(normalizePath("/stats", "?view=overview&sub=streaks&record=win_streak")).toBe("/stats?view=overview&sub=streaks");
     });
   });
 });
