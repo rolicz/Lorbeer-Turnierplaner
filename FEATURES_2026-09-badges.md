@@ -9,7 +9,8 @@
 > This batch **touches the backend and the schema** (two new tables) and is the **full** deploy.
 > **Not deployed** at the end of the batch — Roli tests first.
 >
-> Task IDs `M1`–`M7`. `A B C D DS F G N P Q R S T U` are taken; `M` is free
+> Task IDs `M1`–`M7`, plus the follow-up `M8` (Roli after testing M5 on his phone).
+> `A B C D DS F G N P Q R S T U` are taken; `M` is free
 > (`grep -rn '^## M[0-9]' *.md` → nothing at the baseline).
 
 ## The icon proposal — Roli approves this before any frontend code is written
@@ -391,6 +392,7 @@ language is obviously missing in the others rather than silently stale.
 | 5 | M5 | The badge band on the profile | `frontend/src/pages/profile/RecordBadges.tsx` (new), `frontend/src/pages/profile/ProfileHeader.tsx`, `frontend/src/pages/ProfilePage.tsx`, `frontend/src/test/recordBadges.test.tsx` (new) | group B |
 | 6 | M6 | Standings: evaluate, expect nothing | none expected (`pages/live/StandingsTable.tsx` read, not written) | group B |
 | 7 | M7 | Documentation pass | `AGENTS.md`, `DESIGN.md`, this file | last |
+| 8 | M8 | The badges explain themselves; the profile stops narrating itself | `frontend/src/pages/profile/RecordBadges.tsx`, `frontend/src/pages/profile/ProfileHeader.tsx`, `frontend/src/test/recordBadges.test.tsx`, this file | follow-up, after M7 (its canon corrections are written in its own section for a later pass) |
 
 **Order:** M1 alone → **group A** {M2, M3} in parallel → **group B** {M4, M5, M6} in parallel → M7.
 **Why M1 alone:** every other task reads its response models, its generated types or its `RECORD_DEFS`,
@@ -1663,6 +1665,188 @@ and fold them in; **no code**. Specifically:
 **Gates (this tree).** `make test` **272 passed** in 14:45 · `make lint` clean · `make gen-types`
 **no diff** · `npm run check` **734 tests in 74 files** · `npm run build` green (734.05 kB, the
 pre-existing hint). No code was touched by this task.
+
+---
+
+## M8 — The badges explain themselves; the profile stops narrating itself  ☑
+
+Roli, after living with M5 on his phone (2026-09-19), in his words:
+
+1. *"clicking on a badge open a thing (deliberately wrote thing, it should be consistent with rest
+   of design) that shows what each badge means and then clicking on that item brings me to the
+   stats page for it"*
+2. *"on the profile, it does not have to say 'Public profile' -> that just wastes space"*
+3. *"on my own profile, dont write 'This is your profile'"*
+4. *"find a better spot for the edit buttons and edit text -> i want to see my page as if someone
+   else visits my page plus one edit button or so"*
+
+and, on the sheet: *"make sure the modal items are aligned -> the elo 1v1 moves the text to the right"*.
+
+**The gap.** M5 shipped the band as sixteen glyphs that navigate. A glyph cannot say what it stands
+for, so the only way to learn what `Coins` means was to tap it and read the page it landed on — and
+the tap was a commitment, not a question. Meanwhile the header spent one whole line saying "Public
+profile" (which every profile is) or "This is your profile" (which the reader knows), and the owner's
+three edit buttons took **144px of the 278px** text column, which is why an own profile wrapped the
+band to **three** rows where a visitor's took two.
+
+**Verify first** (all four confirmed at `289ddf3` before a line was changed, on the M8 stack, with
+screenshots kept as the before evidence — `before-{owner,visitor}-{390,1280}-{blue,light}.png`):
+```bash
+grep -n 'Public profile' frontend/src/pages/profile/ProfileHeader.tsx          # → 1 (the line)
+grep -c 'variant="ghost"' frontend/src/pages/profile/ProfileHeader.tsx          # → the three edit buttons + bell + poke
+grep -n '<Link' frontend/src/pages/profile/RecordBadges.tsx                     # → the chip is a link
+```
+
+**The change.**
+
+1. **`pages/profile/RecordBadges.tsx`** — the band becomes a **legend, not a link**. Every chip is a
+   `button` and **any** chip opens one `Modal` (`maxWidth="max-w-md"`, `scrollBody`, clamped to
+   `max-h-sheet`), titled "Records held", subtitled "What each badge means — tap one to open it in
+   Stats." Inside: `List` + `ListRow`, one row per record **this player holds** (Roli's choice —
+   never the other eight), in payload order, each row `to={r.path}` — the path the backend emits,
+   never built here. An ongoing streak keeps its `border-accent` on the mark and adds the app's
+   existing `current` chip (`StreaksView`'s word). A consequence worth naming: with no `<a>` left in
+   the band, the nested-anchor hazard M5 had to guard against cannot occur.
+2. **The row's leading mark is a fixed 28px square**, the glyph alone — *not* the band's chip. The
+   three Elo chips carry a `1v1`/`2v2` micro-label and measure **51px against 32px**; a leading slot
+   that mirrored them would step those rows' label and explainer right and nothing in the column
+   would line up. Nothing is lost: `RECORD_DEFS` already spells the mode into the name ("Highest Elo
+   (1v1)"), which is the line the row prints.
+3. **`pages/profile/ProfileHeader.tsx`** — the "Public profile" / "This is your profile" line is
+   deleted outright, and the three edit controls become **one** 36px ghost `Button` (lucide `Pencil`,
+   the app's edit glyph) at the identity row's right edge. It opens a second `Modal` ("Profile
+   pictures") whose three `ListRow`s are the three actions — edit/upload header, delete header,
+   edit avatar — each closing the sheet as it hands over to the editor it names, so two overlays are
+   never stacked. **Delete still goes through `ConfirmDialog`** (C7): the sheet is a chooser, not a
+   shortcut past the confirmation.
+4. **`test/recordBadges.test.tsx`** — rewritten for the new shape: chips are buttons with no `<a>` in
+   the band; any chip opens the legend; the legend holds only the held records, in payload order,
+   with label + explainer; each row's `href` is the payload's `path` untouched; the ongoing row keeps
+   `border-accent` and says `current`; `a a` stays 0.
+
+**Blast radius.** `frontend/src/pages/profile/RecordBadges.tsx`,
+`frontend/src/pages/profile/ProfileHeader.tsx`, `frontend/src/test/recordBadges.test.tsx`, this file.
+No backend, no response model, no `qk` key, no primitive: both sheets are `Modal` + `List`/`ListRow`
+exactly as the club picker, the voters list and every confirm dialog use them.
+
+**Definition of done.** `npm run check` + `npm run build` green; owner and visitor, 390×844 and
+1280×900, `blue` and `light`: the header carries no "Public profile"/"This is your profile" and one
+control instead of three; the legend opens from any chip with the right rows and their explainers;
+its labels and explainers start at the same x on every row; a row taps through to the right Stats
+page with no second `/stats/records` request; back returns to the profile; `a a` = 0; 0 console errors.
+
+**Gates.** `cd frontend && npm run check` — **735 tests in 74 files**, tsc clean, eslint clean.
+`npm run build` — green, `index-*.js` 734.05 kB with the pre-existing ">500 kB" hint. No backend file
+touched, so no backend gate applies.
+
+**Canon — the sentence M7 wrote that this task makes wrong.**
+
+`DESIGN.md` §7 (line 409), the "A record held today" row, currently ends:
+
+> …Each chip is a `Link` to the record's own `path`, which the backend emits; the band renders
+> **nothing** when a player holds nothing, and it wraps rather than scrolling sideways (Roli's call,
+> ~33px of tab-strip movement per extra row)
+
+It should read:
+
+> …Each chip is a **`button`**, not a link: a glyph cannot say what it stands for, so **any** chip
+> opens one `Modal` legend ("Records held") listing **only the records this player holds** — a
+> fixed-width glyph mark, the record's label, its explainer — and the **row** carries the `Link` to
+> the record's own `path`, which the backend emits. That mark is a **28px square holding the glyph
+> alone**, never the band's chip: the three Elo chips are 51px against 32px because of their
+> `1v1`/`2v2` label, and a leading slot that varied would step every label and explainer right
+> (Roli, M8). The mode is not lost — `RECORD_DEFS` spells it into the name the row prints. An
+> ongoing streak keeps `border-accent` on the mark and adds the `current` chip `StreaksView`
+> already uses. The band renders **nothing** when a player holds nothing, and it wraps rather than
+> scrolling sideways (Roli's call, ~33px of tab-strip movement per extra row)
+
+Two more lines follow from it, both M7's:
+
+- `AGENTS.md` §6 (line ~447): *"**The badge link and the push deep link both use that `path`**"* →
+  *"**The legend row behind a badge, and the push deep link, both use that `path`**"*. The badge
+  itself no longer navigates.
+- `AGENTS.md` §11's measured-width paragraph (lines ~1053-1062) is superseded by M8's numbers below:
+  the own-profile column is **242px** and fits **6** badges per row, because the edit cluster is
+  **36px**, not 144px; the band is 2 rows on an own profile, not 4; and the header line the paragraph
+  assumes ("Public profile") no longer exists.
+
+A third, smaller one: `DESIGN.md` §9b's *"No chevron on such a row: that glyph promises navigation,
+and these rows expand"* is about a row that expands **in place**. The legend's rows genuinely
+navigate and keep their chevron; the Profile-pictures sheet's rows open an overlay on the same page
+and are given `chevron={false}` for exactly that reason. Worth one clause in §9b so the next worker
+does not have to re-derive it.
+
+**Deviations:**
+
+- **Where the single control went, and why — both options measured, not argued.** It sits at the
+  **identity row's right edge**, where the three buttons were: one `h-9 w-9` ghost `Button` with a
+  lucide `Pencil`, `title`/`aria-label` "Edit profile pictures". The alternative Roli's brief
+  allowed — overlaying it on the header banner, which would leave the owner's identity row byte-for-byte
+  a visitor's — was measured by removing the control from the live DOM and re-laying the row out:
+  | 390px, owner, 8 badges | text column | badges per row | band rows | tab strip top |
+  |---|---|---|---|---|
+  | before (three buttons, 144px) | 134px | 3 | 3 (3+3+2) | 513px |
+  | **A: one 36px button (shipped)** | **242px** | **6** | **2 (6+2)** | **447px** |
+  | B: no control in the row (banner overlay) | 278px | 6 | 2 (6+2) | 447px |
+  | a visitor, for reference | 278px | 6 | 2 (6+2) | 504px |
+  **B buys 36px of column and zero badges per row** — the band packs identically and the tab strip
+  lands on the same pixel, because 242px already fits six 32px chips (`38n − 6 ≤ W`: 6 needs 222,
+  7 needs 260) and the 7th is blocked by the 51px Elo chip in both. B is only better in the
+  all-uniform case (7 vs 6), which this data does not contain. Against that: the app has **no**
+  overlay-on-image control anywhere (`grep 'absolute right-\|absolute top-'` → the tab-strip fades,
+  the lightbox and `Modal`'s own box, nothing else), the banner is already a `<button>` so an edit
+  control would have to be a positioned sibling with its own scrim to survive an arbitrary photo,
+  and `DESIGN.md` §9b asks a trigger to name what it edits — a pencil on the banner names the banner
+  but opens a sheet that also edits the avatar. Rule 8 (reuse before you create) decides a tie, and
+  the measurement says it is a tie. **A wins on zero measured cost.**
+- **What the numbers say the change bought.** Own profile at 390: the edit cluster **144px → 36px**,
+  the text column **134 → 242px** (+81%), the band **3 rows → 2**, the tab strip **513 → 447px** —
+  **66px** of the page back, and the 66 decomposes exactly: 16px for the deleted line, 34px for the
+  band row that no longer wraps, and **16px nobody predicted** — at 134px the meta line broke into
+  two ("Guestbook: 2 ·" / "Angepöbelt: 47"), and at 242px it is one line again. A visitor's profile
+  is unchanged in width (278px, 6 per row) and gains the **16px** of the deleted "Public profile"
+  line (520 → 504). At 1280 nothing wraps in either case (317px column, all 8 badges in one row) and
+  the strip moves up by that same 16px (owner 785 → 769, visitor 839 → 823). Measured at
+  `deviceScaleFactor: 2` in headless Chromium on the M8 stack; geometry was identical in `blue` and
+  `light`, as it should be (CSS variables only).
+- **The legend, measured.** 8 rows for Roli in the dev data (he holds 8 of the 16), no scrolling at
+  390×844 (sheet 268→819 of an 844px viewport, `scrollHeight == clientHeight`). Every leading mark is
+  **28px** — one width, all sixteen keys — and every label **and** every explainer starts at
+  **x = 65px** at 390 (x = 473 at 1280), i.e. a single distinct value per column across all 8 rows:
+  that is Roli's alignment complaint measured rather than eyeballed. Both themes identical.
+- **The tap-through, and the shared cache entry.** Three rows tested in both themes, six runs:
+  `Most points` → `/stats?view=overview&sub=table&mode=overall&source=tournaments&sort=pts`
+  (`sort` survives — it is persistent state, not a one-shot); `Win streak` → `sub=streaks` with
+  `?record=win_streak` **consumed and dropped** by `useOneShotSectionParam` and the page scrolled to
+  the section (`scrollY` 155); `Most tournament wins` → `sub=records`, same one-shot behaviour.
+  **`recordsRequestsAfterTap` = 0 in all six**: the badge and the Records page are still one cache
+  entry under `qk.stats.records("overall", "tournaments")`, so tapping through fetches nothing.
+  Back returned to `/profiles/1` every time. 0 console errors in every run.
+- **The ongoing marking could not be exercised by the dev data** — no streak in `verify-m8.db` is
+  currently running — so it was forced in the browser with `page.route`, rewriting `ongoing: true`
+  onto `win_streak` in the live response: the band chip keeps `data-ongoing="true"` and
+  `border-accent`, and in the legend the flame mark keeps the accent ring with the `current` chip
+  beside the label (`ongoing-blue-sheet.png`, `ongoing-light-sheet.png`). The unit test covers the
+  same path headlessly.
+- **The delete confirmation survives the move**, asserted in the browser and not only by reading the
+  code: opening Profile pictures → "Delete header image" puts up *"Delete the header image?"* with
+  its `ConfirmDialog` body, in both themes.
+- **Edge cases re-checked.** A profile whose player holds nothing (Mike, id 6) renders no
+  `[data-record-badges]` at all — no empty strip, no gap. A **signed-out reader** on Roli's profile
+  sees the full band and can open the legend: `/stats/records` is a public read and the chips are
+  buttons, so nothing about the change is gated on a login. `document.querySelectorAll("a a").length`
+  is **0** in every case measured — profile, legend open, pictures sheet open, at both widths, both
+  themes, and with the desktop sidebar's own links on the page.
+- **`useState` is the sheet's whole state.** No URL param, no `?record=` on the profile: the legend
+  is a lookup, not a destination, and giving it a history entry would put a back-chevron target
+  between a profile and Stats. `Modal`'s Escape/scrim/`body` lock are the only close paths.
+- **One thing deliberately not built:** the legend does not scroll to or highlight the chip you
+  tapped. It lists at most 16 rows in the same order as the band, and at 390×844 all 8 of the
+  worst real case fit without scrolling. A "which one did I tap" affordance is a mechanism to
+  maintain for a case that does not exist yet.
+- **Isolated stack:** backend **8097**, vite **8117**, `backend/data/verify-m8.db` (a copy of
+  `backend/app.db`), throwaway secrets outside the repo. Both were free; nothing on 8000/8001/8010/5173
+  was touched, and only the two PIDs this task started were killed.
 
 ---
 
