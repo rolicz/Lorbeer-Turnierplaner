@@ -1030,7 +1030,7 @@ the tree while this ran, so the count is exactly mine.
 
 ---
 
-## W3 — The two big pictures: the banner and the citation thumbnail  ☐
+## W3 — The two big pictures: the banner and the citation thumbnail  ☑
 
 **The gap.** `ProfileHeader.tsx:83-85` builds one `avatarImageSrc` and one `headerImageSrc` and
 uses each for **two** jobs — the drawn picture and the lightbox — so the banner at 358 px CSS and
@@ -1140,8 +1140,105 @@ W2's first commit must be in: `grep -n "export function mediaWidthFor" frontend/
 - §10: the banner's `sizes` string and where its three numbers come from (358 px at 390, 1104 px
   max on desktop, the 16/20/24 px gutters), so the next person to change the page column knows
   what else moves.
+- §2/§6 and `DESIGN.md` §7: **comment images are the fourth call site** and they took the
+  banner's treatment, not a rung — `TournamentCommentParts.tsx`'s `COMMENT_IMAGE_WIDTHS` /
+  `COMMENT_IMAGE_SIZES`, and `commentImageUrl(id, v, w)` beside the other three helpers.
 
 **Deviations:**
+
+- **Comment images are in, and they are the banner's problem, not the citation's** (Roli,
+  2026-09-20, after the plan was written: *"yeah comment images as well, go"*). W1 gave
+  `GET /comments/{id}/image` its `?w=` and left the browser side open, saying in as many words that
+  "what the feed draws them at was never measured". It is measured now, and the measurement is what
+  chose the treatment rather than a preference: the feed's picture is `w-full` inside the comment
+  column, so its width **follows the viewport** exactly as the banner's does — measured `<img>`
+  widths **222 / 292 / 332** at 320 / 390 / 430 (viewport − 98), **534 / 662 / 794** at 640 / 768 /
+  900 (viewport − 106), and **670 / 926 / 1038** at 1024 / 1280 / 1440+, where the page column caps
+  it. No single rung covers a range of 222 → 1038: `mediaWidthFor(292)` is 1152 at dpr 3 but **384**
+  at dpr 1, which is a visibly blurry picture on a 926 px desktop box, and a hard-coded 1152 is
+  4.4× more bytes than a dpr-1 phone needs. So it gets `srcset`/`sizes` — **the same mechanism this
+  task introduces for the banner, one more consumer of it, not a second one** (rule 8). The rung
+  both real screens land on is **1152**: 292 × 3 = 876 on Roli's phone, 926 × 1 = 926 on a 1280 px
+  desktop, and that is also the `src` fallback. This cost two files outside W3's declared set —
+  `frontend/src/pages/live/TournamentCommentParts.tsx` (the only place in the app that draws a
+  comment image; `grep -rn commentImageUrl frontend/src` is that file and `comments.api.ts`) and
+  `frontend/src/api/comments.api.ts`, whose `commentImageUrl` gained the same optional third
+  parameter W2 gave the other three helpers. Neither is in W2's set — W2's own text names
+  `commentImageUrl` as deliberately untouched — so there was no collision, and a third test file,
+  `frontend/src/test/commentImageWidth.test.tsx`, went with them.
+- **EXIF was checked with a rotated upload, because the dev corpus cannot check it.** All six
+  comment images in `backend/data/uploads/comments/` are 1920×1440 and carry **no** orientation
+  tag: they came through `CommentImageCropper`, which is a canvas re-encode, not a raw phone
+  upload. So one was made — a 1600×1200 JPEG stored landscape with `orientation=6`, a red bar down
+  its stored left edge — and `PUT /comments/265/image` on the isolated stack took it. The browser
+  reads the **original** as 1200×1600 (it applies the tag) and the derivatives as **384×512** and
+  **1152×1536**, with the red bar on the displayed **top** edge and no EXIF tag of their own: W1's
+  `ImageOps.exif_transpose` bakes the rotation in, so a rung renders identically to the original
+  and no `srcset` candidate can flip relative to another.
+- **The plan's `BANNER_SIZES` string is right and was re-measured rather than trusted.** The
+  `<img>` is **286 / 356 / 396** at 320 / 390 / 430 — viewport − 34, not − 32, because the card
+  around it has a 1 px border on each side — **598 / 726 / 858** at 640 / 768 / 900 (− 42, not
+  − 40), and **734 / 990 / 1102** at 1024 / 1280 / 1440+. The plan's three terms each over-state
+  by 2 px and the desktop term by up to 370 px at 1024, which is the over-statement it asks for in
+  writing; it was kept verbatim.
+- **Two small shapes the plan did not spell.** The banner `<img>` carries `data-profile-banner` and
+  the comment `<img>` carries `data-comment-image`, so a test (and the byte measurement) can name
+  the *drawn* picture and tell it from the lightbox's copy of the same file — there was no selector
+  that distinguished them. And `SubjectCitation`'s number is a local `thumbCssWidth` rather than the
+  plan's module-level `CITATION_THUMB_CSS_W`, because it depends on `subject.kind` and so cannot be
+  a module constant.
+
+**Measured on the isolated stack** (`:8153`/`:8173`, `backend/data/verify-w3.db`, an uploads copy
+**outside the repo**; player 1, who has a header image, two citations of a header snapshot and one
+of an avatar snapshot; tournament 8, whose feed carries three images). **Blue and light are
+byte-for-byte identical at every viewport** (asserted, not assumed — the theme changes no URL).
+
+| surface | before | after | |
+|---|---|---|---|
+| **identity block** (banner + 80 px avatar), 390/dpr3 | **2,989,081** (2,662,379 + 326,702) | **45,962** (`w=1152` 40,178 + `w=256` 5,784) | **−98.5 %** |
+| identity block, 1280/dpr1 | 2,989,081 | **42,608** (`w=1152` + `w=128`) | −98.6 % |
+| **one citation of a header snapshot**, 390/dpr3 | **2,662,379** | **4,926** (`w=256`) | **−99.8 %** |
+| the same citation, 1280/dpr1 | 2,662,379 | **1,406** (`w=128`) | −99.9 % |
+| one citation of an avatar snapshot, 390/dpr3 | 326,702 | **2,430** (`w=128`) | −99.3 % |
+| **the comments feed of tournament 8** (3 images), 390/dpr3 **and** 1280/dpr1 | **5,829,717** (3,461,835 + 158,952 + 2,208,930) | **116,382** (all three at `w=1152`: 37,910 + 50,972 + 27,500) | **−98.0 %** |
+| the whole profile page, guestbook tab, 390/dpr3 | 6,492,268 | **59,694** | −99.1 % |
+| the whole comments page, 390/dpr3 | 6,603,188 | **122,358** | −98.1 % |
+
+The plan predicted **2,919 KB → 44.8 KB** for the identity block; the page did 2,919.0 KB →
+**44.9 KB**. It predicted 8.9 KB for a citation against a 2,940 KB snapshot; player 1's snapshot is
+2,600 KB and its citation is **4.8 KB**. The "before" column is the tree at `9a55829`, i.e. W1's
+server with no browser-side width; W2's own commits had already taken the avatars down before this
+task ran, and the avatar figures above are its saving, quoted so the identity block is one number.
+
+**The DoD's own checks, each answered:**
+- `img[data-profile-banner].currentSrc` carries **`w=1152`** at 390/dpr3 **and** at 1280/dpr1, and
+  `img[data-subject-thumb='image'].currentSrc` carries **`w=256`** at dpr 3 (`w=128` at dpr 1).
+- **Nothing visual moved.** Identity block top **287 → 287**, avatar top **302 → 302**, tab strip
+  top **508 → 508**, document height **1358 → 1358** (overview) and **1833 → 1833** (guestbook), at
+  390 px in **both** themes; 643 / 643 / 832 and 1576 / 2109 at 1280 px, likewise unchanged. M8 and
+  M9 spent two tasks on those numbers and this task cost none of them.
+- **The lightbox still shows the original.** Opened from the banner and zoomed with the wheel until
+  the picture was drawn **1519 px** wide, its `currentSrc` is
+  `/players/1/header-image?v=…` with **no `w=`** — and the network shows the request for the
+  original being made at that moment, because the page never fetched it before. The comment
+  lightbox is the same: `onOpenImage` is handed a URL with no width, asserted in the test too.
+- **Desktop density, the plan's one deliberate regression.** At 1280/dpr2 and 1440/dpr2 both the
+  banner (box 990 / 1102) and the comment image (box 926 / 1038) take the top rung **1536** against
+  a 1920 px original — 55,868 bytes instead of 2,662,379. At 1920/dpr1 they take 1152 for a 1102 px
+  box, the over-stated `sizes` costing one rung exactly as designed. Roli accepted the ceiling
+  knowing the lightbox shows the true original, and the lightbox does.
+
+**Gates, on the committed tree.** `cd frontend && npm run check` **806 tests in 85 files** in 73 s
+(780/80 at the batch baseline, plus W2's 15 in 2 files and this task's 11 in 3), `npm run build`
+green (`index-*.js` **735.23 kB**, the pre-existing >500 kB hint). Step 0's
+`backend/.venv/bin/python -m pip install -r backend/requirements.txt` was run first, as every
+worker in this batch owes.
+
+**What W3 deliberately left.** `GuestbookSection.tsx`'s snapshot lightbox and
+`ProfileHeader`'s crop editor still pass no width, which is correct and is the point.
+`/ideas/{id}/image` has no `?w=` on the server and so has no call site here either, and crests stay
+Roli's closed decision. Nothing pre-warms the cache: the first phone to open a profile pays the
+275 ms W1 measured for the 1152 rung, once, ever.
 
 ---
 
