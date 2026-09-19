@@ -5,14 +5,13 @@
 > non-obvious about the project (deploy quirks, data semantics, decisions), **update this file**
 > so the knowledge survives model/tool switches. Keep the "Current state" section dated.
 >
-> Last full review: 2026-09-19 (branch `feature/2026-09-guestbook`; code at `57050e4`, this pass on
+> Last full review: 2026-09-19 (branch `feature/2026-09-guestbook`; code at `34a48e2`, this pass on
 > top). `f425961` is still the only thing deployed: the design, Ideas and badges batches are all
-> merged to `main` (`14e27db`) and undeployed, and the guestbook batch (K1–K4, then Q-A/Q-B and
-> G1–G3) is not merged. **Q-A and Q-B are the one part of that branch this file has not caught up
-> with**: K4 reviewed the tree at `ad21035`, and the two commits after it — the owner's About block
-> becoming the visitor's plus one Edit button, and an entry *citing* its subject with a thumbnail or
-> a quoted excerpt instead of naming it in a chip — are described in their commit messages and in
-> the code, not here (G1–G3's own pass, below, deliberately did not speak for them).
+> merged to `main` (`14e27db`) and undeployed, and the guestbook batch (K1–K4, then Q-A/Q-B, G1–G3
+> and G4) is not merged. **Q-A and Q-B now have their canon pass** (G5, this one): K4 reviewed the
+> tree at `ad21035` and G1–G3's pass deliberately did not speak for the two commits after it, so
+> this file and `DESIGN.md` described a word-only subject chip and an always-open About field that
+> the code had already replaced. Both are corrected here, against the running app.
 
 ---
 
@@ -120,17 +119,24 @@ Size (2026-09-13): backend ≈ 13.3k LOC Python (`app/` + `manage.py` + `run.py`
   `profile/RecordBadges.tsx` is the profile's band of the records that player holds today **and the
   one `Modal` legend any of its chips opens** (M5 built the band, M8 made it explain itself — §9).
   `profile/guestbookSubjects.ts` is the browser's **one** subject vocabulary (K2) — the three kinds'
-  words (`Header image` / `Earlier header image` …), their glyphs and the two small folds — read by
-  the feed's chip (`GuestbookEntryCard`) and by `profile/SubjectCommentTrigger.tsx`, the one
+  words (`Header image` / `Earlier header image` …), their glyphs, `subjectExcerpt` and the two
+  small folds — read by the feed's **citation** (`GuestbookEntryCard`, Q-B: the pinned copy as a
+  thumbnail or a quoted excerpt, with the word beside it, as one tap target; `DESIGN.md` §7) and by
+  `profile/SubjectCommentTrigger.tsx`, the one
   "comment on this" control the banner, the avatar and the About head all wear (K3; its three looks
-  are `DESIGN.md` §7). The guestbook's armed composer borrows `ModeBadge` from
+  are `DESIGN.md` §7, and it owns `SECTION_HEAD_ACTION_CLASS`, the one `h-8` string a section
+  head's actions share — Q-A put the owner's About **Edit** beside it). The guestbook's armed
+  composer borrows `ModeBadge` from
   `pages/live/comments/CommentComposer.tsx`, which is **exported** for it — a shared primitive that
   lives in a page module because that is where its family is, and the one chip a composer wears to
   say what it is about to post. **The guestbook feed is flat** (G1): `GuestbookSection.tsx` is a
   `section-head` + `list-divided` rows at the page gutter, like every other section on the profile,
   and `GuestbookEntryCard.tsx` is the row — no `card`, no `inset`. Its reply *and* the tournament
   feed's reply are both `CommentSendRow`; the one field left in either is the edit form
-  (`DESIGN.md` §9b).
+  (`DESIGN.md` §9b). `useProfileGuestbook.ts` holds all of its state and **reads the feed with the
+  viewer's token** (G4 — §6: the rows carry per-caller answers, so the viewer is part of the key).
+  `ProfileOverviewTab.tsx`'s About block renders the visitor's read view for the owner too, until
+  the owner opens the editor from that head (Q-A; `DESIGN.md` §9b).
 - `src/ui/` — `primitives/` (Button, Card, CardSection, Modal, Input, Pill, EmptyState,
   InlineLoading, LoadingPlaceholder, MatchOverviewPanel, ScoreLine, MatchSides, ClubMark [the one
   16px club symbol every score-only match row wears, Q8/Q17], StatTile, Chip,
@@ -532,6 +538,13 @@ nothing else about the guestbook** — `push_guestbook_created` fires once per e
 `PlayerGuestbookRead`, the edit window and `player:guestbook:update`, and a test
 (`test_a_tagged_entry_notifies_exactly_once`) is what keeps that true. Whether the push should *say*
 "about your header image" was asked and declined (Roli): a tagged entry still "left a new message".
+**`GET /players/{id}/guestbook` is a public read that answers per caller** (G4). `can_edit`
+(`guestbook_can_edit`: the author within `GUESTBOOK_EDIT_WINDOW`, or an admin) and `my_vote` are
+computed from the bearer token, so the frontend sends it whenever there is one — the read itself
+stays public and a logged-out reader gets the same list with an anonymous caller's flags. That
+makes the viewer part of the query key, exactly as it is for comments, friendlies and ideas: see
+the cache table below. **A per-caller flag is only as good as the request that asked for it** — the
+gotcha in §10.
 
 **Records are computed in one place, and the backend says where each one lives** (M1).
 `GET /stats/records?mode&scope` is a public read like every `/stats/*`, with the same `mode`/`scope`
@@ -660,7 +673,7 @@ Coverage is not "is there a channel" but "is the channel open *while you are awa
 | `["match-h2h", …]` | **partial** | 30 s | The same numbers as `/stats`, but the key sits *outside* `["stats"]`, so no reducer ever invalidates it — only the window does. |
 | `["me","notifications"]` | **partial** | 30 s | A reply to your comment invalidates it from the tournament channel; a poke, a guestbook entry or an idea event does not. `NotificationBell`'s own 60 s poll covers the rest. |
 | `["players"]` (roster, profiles, avatars, headers) | **none** | 5 s | No channel: a rename or a new avatar reaches another device only by refetching. |
-| `["players","pokes"]`, `["players","guestbook"]` | **page channel** — `/ws/players/{id}` | 5 s | Open only while that profile is on screen. The row did **not** move for K1: a subject rides inside this list payload, so `resyncPlayer` already carries it. The one thing the channel never announces is a change to the *subject itself* — a new upload or a bio save flips `current` — so the owner's own picture and bio mutations invalidate `qk.playerGuestbook` locally (K3) and any other device finds it in this window or on the focus refetch (measured: 6.8 s away and back, 2 refetches, no reload). |
+| `["players","pokes"]`, `["players","guestbook"]` | **page channel** — `/ws/players/{id}` | 5 s | Open only while that profile is on screen. The row did **not** move for K1 or G4: a subject rides inside this list payload, so `resyncPlayer` already carries it, and G4's `qk.playerGuestbookFull(id, token)` lands under this same prefix, so no row was added and `cachePolicy.test.tsx` needed none. The one thing the channel never announces is a change to the *subject itself* — a new upload or a bio save flips `current` — so the owner's own picture and bio mutations invalidate `qk.playerGuestbook` locally (K3) and any other device finds it in this window or on the focus refetch (measured: 6.8 s away and back, 2 refetches, no reload). |
 | `["clubs", …]`, `["leagues"]` | **none** | 5 s | Nothing announces an added club or an edited star rating; the window is the only thing that finds it. The catalogue is also the biggest payload in the app (113 KB), which is why six call sites raise it to 60 s where the data is a lookup table rather than the subject. |
 | `["friendlies", …]` | **none** | 5 s | Friendlies broadcast nothing — a result typed into another phone in the same session is invisible until this one asks again. |
 | `["ideas", …]` | **none** | 5 s | R5 gave the board no channel on purpose, and P1's comments changed nothing: they ride in the same payload under the same key, so the writer's own mutation invalidates `qk.ideasAll()` and everyone else gets them on the next return or focus. `["ideas","areas"]` is a static list (1 h at its call site). |
@@ -812,7 +825,9 @@ every past match simply keeps counting today's rating.
   moves, the profile's badge band, done on `feature/2026-09-badges`, see §11),
   `FEATURES_2026-09-guestbook.md` (K1–K4: a guestbook entry can be about the header image, the
   About text or the avatar, pinned so it still makes sense later, done on
-  `feature/2026-09-guestbook`, see §11). A new batch gets a
+  `feature/2026-09-guestbook`, see §11 — **Q-A, Q-B and G1–G5 came from Roli living with that
+  batch and have no section in the plan file**, so §11 and their commit messages are where they
+  are written down). A new batch gets a
   new dated file with the same shape: baseline commit, rules for implementing agents, decisions
   already made, one section per task with exact files/symbols, definition of done, deviations
   notes, verification gates, deployment notes. Plans must be mechanical enough that a cheaper
@@ -852,7 +867,16 @@ every past match simply keeps counting today's rating.
   That is what let the whole feature reuse the guestbook's push, bell, read state, realtime event
   and edit window **unchanged**. Before giving a new surface comments, ask whether an existing feed
   can carry them with one more field; a second comment surface would have duplicated five
-  mechanisms to say the same thing.
+  mechanisms to say the same thing. **And an entry *cites* what it was about rather than naming
+  it** (Q-B): the pinned copy as a thumbnail or a quoted excerpt, with the word still beside it
+  (`DESIGN.md` §7).
+- **An owner's page is the visitor's page plus one action** (Q-A, 2026-09-19, Roli: *"about text on
+  own profile should look exactly like other profiles, with edit button beside comments label"*).
+  A block the owner may edit renders the **visitor's** read view until they open the editor from
+  one action in the section head — never an always-open field where everyone else sees text, or the
+  owner never sees their own wall the way the friend group sees it. It is M8's move on the profile
+  header applied below it; the rule, the shared `SECTION_HEAD_ACTION_CLASS` and the
+  close-after-`mutateAsync` detail are in `DESIGN.md` §9b and §6.
 - **An avatar speaks in the present tense** (T15, 2026-09-13): every player avatar is
   `ui/primitives/AvatarCircle` and wears a ring — neutral hairline by default, the cup's colour
   when `cups` says that player holds it **today** (`hooks/useCupHolders`). A ring is never used for
@@ -928,6 +952,23 @@ every past match simply keeps counting today's rating.
   11.07. Expected owners after that date: Lorbeerkranz → Berni, Bauernkranz → Roli.
 - `/clubs` page and pickers require editor login; stats, live pages, friendlies, profiles and
   `/ideas` are public reads.
+- **A per-caller flag is only as good as the request that asked for it** (G4, 2026-09-19 — found
+  while verifying G2, which had reworked a control that had never once rendered in the app). A
+  public read that carries `can_edit` / `can_delete` / `my_vote` answers for **whoever asked**, so
+  a client that omits the token gets the anonymous answer and the A10 rule — "render the flags,
+  never re-derive the rule" — silently renders nothing at all. `listPlayerGuestbook` did exactly
+  that: `can_edit` was `false` for the author inside the window *and* for an admin, and `my_vote`
+  was 0 for everybody, with the API demonstrably correct under `curl -H "Authorization: Bearer …"`.
+  **Two halves, and the second is the one that gets forgotten:** send the token, *and* put it in
+  the query key, or the logged-out payload already in the cache (fresh for 5 s, kept for 30 min) is
+  handed to the account that just logged in — the same bug one step later, and it was reproduced in
+  a browser before it was closed. The app has one mechanism for this and it is a **full key beside
+  a prefix key**: `qk.playerGuestbookFull(id, token)` under `qk.playerGuestbook(id)`, the shape
+  `commentsTournamentFull`, `friendliesList` and `ideas` already use, so every existing
+  invalidation keeps working and the cache-policy row does not move. The flag is computed from the
+  **account**, while "view as lower role" is frontend-only, so the effective role still gates the
+  control (`canPostGuestbook && !!can_edit`, the app's `isEditorOrAdmin && !!row.can_edit` shape).
+  When adding a per-caller field to a public read, check both halves.
 - **Ideas sits below Clubs in the sidebar and the drawer and has no bottom-bar tab** (R5, Roli's
   call): five items are what fits a phone row. It is the only nav destination a reader can see
   that an editor also sees in the same place, because reading the board is public and only
@@ -1277,8 +1318,8 @@ every past match simply keeps counting today's rating.
   machine** (dev has no VAPID and is not HTTPS), so production is the first real test of P2, P5 and
   the record push — **including whether iOS renders a non-ASCII push body**, which nothing here can
   check (§9).
-- **`feature/2026-09-guestbook` (K1–K4, then Q-A/Q-B and G1–G3) is complete and unmerged** —
-  branched from `14e27db`, ten commits, 31 files, **two new tables
+- **`feature/2026-09-guestbook` (K1–K4, then Q-A/Q-B, G1–G3 and G4/G5) is complete and unmerged** —
+  branched from `14e27db`, thirteen commits, 34 files, **two new tables
   and one new media directory**, so it is a **full** deploy when Roli says
   so. Roli asked to be able to comment on a profile's header image, About text and avatar, *"make
   sure the image and about texts persist so it is also clear what its about later when they
@@ -1291,7 +1332,21 @@ every past match simply keeps counting today's rating.
   and `pages/profile/guestbookSubjects.ts` as the one vocabulary; **K3** the items — one
   `SubjectCommentTrigger` on the banner, the avatar and the About head, `ImageLightbox`'s `footer`,
   the banner's count badge (Roli overruled the plan's "lightbox only") and the owner's own
-  mutations invalidating `qk.playerGuestbook`; **K4** this pass. Two things a reader should know
+  mutations invalidating `qk.playerGuestbook`; **K4** the first documentation pass. Then, from Roli
+  living with it: **Q-A** the owner's About block became the visitor's — the same read view and the
+  same "No profile text yet.", with one `h-8` **Edit** in the head's action slot beside the
+  comments trigger, sharing `SECTION_HEAD_ACTION_CLASS` so the pair cannot drift into two heights,
+  Edit inboard so the corner is the same for everyone, shown even on an empty About (where the
+  trigger is absent by design), and the editor closing only once `mutateAsync` has resolved;
+  **Q-B** an entry stopped *naming* its subject and started **citing** it — the pinned copy as a
+  thumbnail in its source's own shape (71×40 banner, 40×40 avatar) or the About text as a quoted
+  excerpt (`subjectExcerpt`: whitespace collapsed, cut at a word boundary at 140 chars), the word
+  still beside it because a thumbnail cannot say *which* picture and it is what survives a failed
+  image, all of it **one** tap target opening the same two viewers K2 built. Re-measured for G5 at
+  390px in both themes: the citation is 48px for a picture and 42/58px for a one/two-line quote,
+  taking a tagged entry from the untagged 124px to 180px and 174/190px; at 1280px the same
+  two-line quote fits on one. **G4** is the fix for the bug G2 found (below) and **G5** is this
+  documentation pass, the one K4 and G1–G3 could not give them. Two things a reader should know
   before the deploy: the sweep's log line `Guestbook subjects swept: N` appears **only when a boot
   removed something**, so silence on the first boot is the expected outcome, and
   `curl https://lorbeerkranz.xyz/api/players/1/guestbook | grep -c '"subject"'` > 0 proves the new
@@ -1300,8 +1355,8 @@ every past match simply keeps counting today's rating.
   entries, and an entry deleted while rolled back leaves a link and a file that the next boot of the
   new code sweeps.
 - **G1–G3 answered a measured design audit of that tab, and one of the three changed the canon
-  rather than the code.** They are the last three commits on the branch (`facdef5`, `b3a618c`,
-  `57050e4`), frontend-only, no schema, no backend.
+  rather than the code** (`facdef5`, `b3a618c`, `57050e4`, then their docs pass `6de35f6`),
+  frontend-only, no schema, no backend.
   - **G1 — the guestbook is flat.** It was the profile's only boxed tab: measured at 390px, the
     message text started at x=41 and was 308px wide, against x=16 / 358px on Overview, Stats and
     Matches, which carry **no** `.card` at all. **Roli was shown that the code was *obeying*
@@ -1327,13 +1382,20 @@ every past match simply keeps counting today's rating.
     tournament feed has *only* that button and no such handler). **Whether the shortcut should
     exist is Roli's call**; the reasoning is written at the call site so the next audit does not
     re-report it as an oversight.
-  - **Found while verifying, not fixed**: `listPlayerGuestbook` fetches the feed **without a
-    token** (`players.api.ts`), so `GuestbookEntryOut.can_edit` comes back `false` for everybody and
-    the pencil never renders — the guestbook's edit affordance is unreachable in the app today, for
-    an author inside the window and for an admin alike. The API itself is correct (`curl` with a
-    bearer token returns `can_edit: true`). G2 improved the form behind it and verified it by
-    forcing the flag in a throwaway local patch; the one-line fix (pass the token, or drop the
-    column) is a decision about a public read, not a design fix, so it was left for Roli.
+  - **Found while verifying G2, fixed by G4**: `listPlayerGuestbook` fetched the feed **without a
+    token**, so `GuestbookEntryOut.can_edit` came back `false` for everybody and the pencil G2 had
+    just reworked had never once rendered in the app — not for an author inside the window, not for
+    an admin — while the API was right all along. Roli asked for it, and G4 sends the token *and*
+    puts it in the key (§10 has the rule and why the second half matters). Verified in a browser at
+    390 and 1280 in both themes: Berni sees the pencil on his fresh message and not on his
+    backdated one, an admin on all nine, an editor who is neither author nor admin on none, a
+    logged-out reader on none — and the whole G2 edit path round-trips, `resize: none`, one Save
+    filling the row, the byline gaining `· edited <ts>`, the header toggle discarding the draft.
+    `my_vote` was wrong in the same way and is fixed with it. One thing G4 did **not** touch,
+    noted here so the next reader does not take it for a bug: the guestbook **POST** response still
+    reports `can_edit: false` for the entry it just created (the router's `guestbook_entry_payload`
+    call leaves the default), which is invisible because the mutation invalidates and the refetched
+    list carries the right answer.
 - **`feature/2026-09-badges` (M1–M10, `FEATURES_2026-09-badges.md`) is merged** (`14e27db`) and can
   be deleted — branched from `b8e741a`, twelve commits, 48 files, **two new tables**, part of the
   same full deploy. Ten tasks, because M8–M10 came out of Roli living with the batch on his phone
@@ -1415,14 +1477,16 @@ every past match simply keeps counting today's rating.
   score-only match row wears one, across all seven surfaces, not just the friendlies list.
   The design-fixes batch above is merged (`5a97fa9`) and is in that same queue; its
   smoke list is in that plan's "Deployment" section.
-- Checks at the **guestbook** branch head (code at `57050e4`, re-run on G1–G3's documentation
-  tree): `cd frontend && npm run check` **773 tests in 79 files** in 67 s, `npm run build` green
-  (`index-*.js` 734.48 kB — the same pre-existing >500 kB hint). G1–G3 are frontend-only and
-  changed no test count: 773 in 79 files is Q-A/Q-B's number and it held. The backend was last run
-  at K4's tree (`ad21035`): `make test` **286 passed** in 13:02, `make lint` clean, `make
-  gen-types` **no diff** — that is the badges head's 273 plus K1's 13, and nothing has touched
-  `backend/` since. At K4's tree the frontend read **757 tests in 78 files** (735 plus 11 from K2
-  and 11 from K3); Q-A and Q-B added the 16 between that and 773.
+- Checks at the **guestbook** branch head (code at `34a48e2`, G4's tree; G5 is documentation only
+  and touches no code): `cd frontend && npm run check` **780 tests in 80 files** in 68 s,
+  `npm run build` green (`index-*.js` 734.56 kB — the same pre-existing >500 kB hint). G4 added the
+  7 between G1–G3's 773 and this: six in the new `src/test/guestbookIdentity.test.tsx` (which
+  drives the real hook against the real `createAppQueryClient` — five of the six fail against the
+  old code, checked) and one in `queryKeys.test.ts`. The backend was last run at K4's tree
+  (`ad21035`): `make test` **286 passed** in 13:02, `make lint` clean, `make gen-types` **no diff**
+  — that is the badges head's 273 plus K1's 13, and **nothing since K4 has touched `backend/` at
+  all** (Q-A, Q-B, G1–G3 and G4 are frontend-only). At K4's tree the frontend read **757 tests in
+  78 files** (735 plus 11 from K2 and 11 from K3); Q-A and Q-B added the 16 between that and 773.
 - Checks at the badges branch head (code at `787fe71`, re-run on M10's documentation tree):
   `make test` **273 passed** in 11:23, `make lint` clean, `make gen-types` **no diff**,
   `cd frontend && npm run check` **735 tests in 74 files** in 72 s, `npm run build` green
@@ -1440,14 +1504,17 @@ every past match simply keeps counting today's rating.
 
 ### Open, and each one is waiting on something specific
 
-- **The About head doubled in height, and whether that is right is Roli's call** (K3, §10). With a
-  comment trigger it is 32.0px; without one — and on every other section head whose action is
-  text-only, "Recent matches" being the one on the same tab — it is 16.0px. The trigger is the Ideas
-  board's comment toggle verbatim, which is what rule 8 asked for, so the choices are: keep it,
-  give this one head a smaller text-only look (and accept two "comment on this" affordances), or
-  drop the About trigger and reach the About text only from the chip on an entry. Nothing here
-  decided it; the banner and the avatar are unaffected, because their triggers live inside the
-  lightbox and the banner's own box.
+- **The About head doubled in height, and whether that is right is still Roli's call** (K3, §10;
+  narrowed by Q-A). With an action it is 32.0px; a head with none — and every other section head
+  whose action is text-only, "Recent matches" being the one on the same tab — is 16.0px (both
+  re-measured for G5 at 390 and 1280 in both themes). **Q-A took one of the three options off the
+  table**: Roli asked for the owner's Edit to sit *in that head beside the comments label*, and it
+  is deliberately the same `h-8` button, so "give this one head a smaller text-only look" would now
+  mean two looks for two buttons standing next to each other. What is left is keep it, or drop the
+  About trigger and reach the About text only from a citation on an entry — and note that for the
+  **owner** the head is 32px whatever is decided, because Edit is there even on an empty About.
+  The banner and the avatar are unaffected, because their triggers live inside the lightbox and the
+  banner's own box.
 - **The armed composer's caret on iOS is unproven** (K3). Tapping a trigger switches to the
   Guestbook tab and the focus is placed by the composer nonce *after* that switch, outside the tap's
   own call stack, so Safari may show the field focused without raising the keyboard. Headless

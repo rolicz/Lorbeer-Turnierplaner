@@ -5,14 +5,21 @@
 > (project knowledge). Created 2026-09-12 after a full audit of the frontend (see
 > `FEATURES_2026-09.md` § "Design audit findings").
 >
-> Last checked against the code: **2026-09-19** (G1–G3, the guestbook design fixes on the same
+> Last checked against the code: **2026-09-19** (G5, the pass Q-A and Q-B never had, on the same
+> branch. Changed here: §5b and §7's "What a guestbook entry is about" row — a tagged entry
+> **cites** its subject (a thumbnail of the pinned copy, or a quoted excerpt) instead of naming it
+> in a word-only `.chip`, which is what Q-B built and what the previous two passes could not
+> describe; §6's About-head paragraph and §7's `SubjectCommentTrigger` row — that head now carries
+> **two** actions and one shared class literal (Q-A); one new §9b bullet — an owner's page is the
+> visitor's page plus one action; and one new §11 line. Every number in those edits was
+> re-measured against the running app at 390 and 1280 in both themes, not copied. Nothing else was
+> re-read this pass.)
+> The pass before it was **2026-09-19** (G1–G3, the guestbook design fixes on the same
 > branch. Changed here: §9b's feed rule — **a feed and its composer are one *block*, and it is a
 > card only when the feed is its own page**, which is Roli's decision and supersedes "one card";
 > §9b's "light input" bullet (a reply is the chat row in both feeds, editing is the one field left,
 > and `Textarea`'s `resizable={false}`); §7's `Button`, `Pill` and `CommentComposer` rows; and one
-> new §11 line. **Not re-read, and known stale: §7's "What a guestbook entry is about" row still
-> describes a word-only `.chip`, which Q-B replaced with a citation of the pinned copy** — Q-A and
-> Q-B have not had a canon pass at all, see `AGENTS.md` §11. Nothing else was re-read this pass.)
+> new §11 line. Nothing else was re-read that pass.)
 > The pass before it was **2026-09-19** (K4, the guestbook-subjects batch —
 > `FEATURES_2026-09-guestbook.md`, K1–K3. Changed here: §5b's subject words and `Earlier …`, §6's
 > "an action that is a real button makes the head as tall as the button" (with the open question
@@ -333,11 +340,13 @@ the record's label (M8). Only the open end of a **date range** is `now`. A profi
 **What a guestbook entry is about is named in words, never left to its glyph** (K2): `Header image`
 · `About text` · `Avatar` while that is still what the profile shows, and **`Earlier header image`
 · `Earlier About text` · `Earlier avatar`** once it has been replaced — `Earlier …` is the app's
-word for "this is what it was *then*", and the chip keeps the same glyph either way (the M8 lesson:
-a glyph cannot say what it stands for). `About text` is the About block's name wherever it is named
-in a chip, a badge or an overlay title. A "comment on this" control reads `Comment` at zero and
-`fmtCount(n, "comment", "comments")` above it; a count sitting **on a picture** is a marker and
-carries the **number alone**, with the whole sentence in its `title` / `aria-label`.
+word for "this is what it was *then*", and the citation keeps the same glyph and the same word
+either way (the M8 lesson: a glyph cannot say what it stands for, and a *thumbnail* cannot say
+whether it is a header image or an avatar — Q-B). `About text` is the About block's name wherever
+it is named in a citation, a badge or an overlay title. A "comment on this" control reads
+`Comment` at zero and `fmtCount(n, "comment", "comments")` above it; a count sitting **on a
+picture** is a marker and carries the **number alone**, with the whole sentence in its `title` /
+`aria-label`.
 
 ## 6. Section headers
 
@@ -361,7 +370,21 @@ carries the **number alone**, with the whole sentence in its `title` / `aria-lab
   measured at 390 and 1280 in both themes (K3). That is the price of reusing the one look instead
   of inventing a smaller one for a single head; the other head on that tab ("Recent matches") stays
   16px because its action is text-only. Whether the About head should pay it is an open question in
-  `AGENTS.md` §11 — **do not answer it by adding a third head treatment.** A text link that does
+  `AGENTS.md` §11 — **do not answer it by adding a third head treatment.**
+  **A head with two actions has one class literal, not two** (Q-A): that same head gained the
+  owner's **Edit**, and both buttons are the `h-8` ghost button, from the one string
+  `SECTION_HEAD_ACTION_CLASS` (`pages/profile/SubjectCommentTrigger.tsx`) — because one of them
+  *is* the "comment on this" control and a smaller look for the button beside it would be the
+  third treatment the line above forbids. The actions sit in one `order-1 shrink-0 flex gap-1.5`
+  slot and the **shared** one keeps the outer edge, so the corner a visitor taps is the corner the
+  owner taps; the owner's extra button sits inboard of it. Re-measured on the running app at 390
+  and 1280 in `blue` and `light`: the head is **32px** with either action or both and the two
+  buttons are 32px each, 6px apart, with the trigger flush to the head's right edge (374 at 390px,
+  1256 at 1280px); a head with no action at all is **16px**, the same as "Recent matches". On an
+  **empty** About the trigger is gone for everyone (there is nothing pinned to comment on, and the
+  server would answer 409) while the owner's Edit stays and takes the edge — measured 32px for the
+  owner, 16px for a visitor and a reader — because a way in that hid there would leave an owner
+  with no bio no way to write one. A text link that does
   **not** navigate — an action like "Reset zoom" — takes
   the same muted text **without** the chevron: the icon is the navigation affordance, not part of
   the look. Accent belongs to the selected chip next to it (§2), so a "see more" that painted
@@ -431,8 +454,8 @@ Matchup, Player) is built from the same block, so the sections read as one page:
 | Picking a club | `SelectClubsPanel` + `ClubPicker` (`ui/`) | one panel per match, a `card` behind a single "Clubs" disclosure that summarises both clubs (§9b, T9). Open, it holds the whole job in one bounded block: the two `ClubSlot`s (side players + crest, league, stars), then the star/league filters, then the dice + *Random matchup* row. A slot opens the `ClubPicker` sheet: search focused on open, the club this side already has pinned on top with its `ClubStarsEditor`, then recents, then league groups, crest + stars per row, one tap selects. The scoreboard above (`MatchOverviewPanel`/`MatchSides`) stays **read-only on every surface** |
 | Writing a comment | `CommentComposer` (`pages/live/comments/`) | one chat row at the end of the feed, behind a hairline and sticky, so it floats over the feed while reading and settles flush at the end (T3); scope + author are chips above the field, goal/shots swap the row in place. It sits *inside* the card where the feed is its own page, and on the page's own background where the feed is flat (§9b, G1) — the class string is the same either way, and `bottom-nav-clear` + `lg:bottom-0` in it are load-bearing (Q2, Q14). The guestbook's composer is this row (`CommentSendRow`) at the end of its feed, **armed** with a subject the same way goal/shots arms this one (§9b); so is every **reply**, in both feeds, with a `ChevronUp` cancel as `trailing` |
 | Saying what a composer is about to post | `ModeBadge` (`pages/live/comments/CommentComposer.tsx`, **exported**) | one `.chip` in accent naming the mode, with the way out — a ghost icon `Button` carrying an `X` — beside it. Optional `icon` and `leaveLabel`; with neither it still draws `Goal`/`Target` from its `label`, so the two tournament call sites are byte-identical. The guestbook's armed composer passes the subject's glyph and "Remove the subject" (K2). It is a shared primitive that lives in a page module because that is where its family is: move it only when a third kind of composer needs it |
-| Commenting on a profile item | `SubjectCommentTrigger` (`pages/profile/`) | the **one** "start a comment about this" control, worn by the banner, the avatar and the About head so the three cannot drift into three affordances for one job (K3). It never hosts a thread — it arms the guestbook's composer (§9b). The look and the `MessageSquare` + `fmtCount` label are the Ideas board's comment toggle verbatim. Three variants, one behaviour: **`ghost`** in a `section-head`'s action slot (`order-1`), **`solid`** inside `ImageLightbox`, where a ghost button would paint dark text on a black scrim in the light themes, and **`overlay`**, the count badge in a picture's own corner. `overlay` is the one audited place a bare `<button>` replaces `Button`: `buttonClass` has no look for a marker sitting on a photograph, and `bg-black/60 text-white` is what the app already paints on one (`.overlay-scrim`, `ImageLightbox`), so it reads the same in every theme. It is **`absolute`, positioned by its caller, and never part of the flow** — a badge that pushed a header down is the height M8/M9 spent two tasks removing. **A control that does nothing is never shown**: nothing at all for a reader with a count of zero, and, for `overlay`, nothing at zero *whoever* is looking — that rule lives in the component, not at the call site |
-| What a guestbook entry is about | one `.chip` `<button>` + `pages/profile/guestbookSubjects.ts` | a tagged entry wears a single grey `.chip` between its author row and its body (26px — `text-xs` + `py-1` + the hairline; nothing is hand-sized to reach a number): the subject's glyph at 12px and its **word** (§5b). It is the `ModeBadge` chip's shape without the accent, because a subject is a fact and not a selected mode. Tapping it **always opens the snapshot** — `ImageLightbox` on the pinned copy for a picture, a `Modal` titled "About text" for the text, subtitled `As of <date, time>` plus ` · changed since` when it is no longer current — and **never the live item**: once the profile has moved on the banner is the wrong picture, and while it has not, the pinned copy *is* the banner. The words, glyphs and counts come from `guestbookSubjects.ts` and are never spelled a second time |
+| Commenting on a profile item | `SubjectCommentTrigger` (`pages/profile/`) | the **one** "start a comment about this" control, worn by the banner, the avatar and the About head so the three cannot drift into three affordances for one job (K3). It never hosts a thread — it arms the guestbook's composer (§9b). The look and the `MessageSquare` + `fmtCount` label are the Ideas board's comment toggle verbatim. Three variants, one behaviour: **`ghost`** in a `section-head`'s action slot (`order-1`) — whose `h-8` class literal it **owns and exports** as `SECTION_HEAD_ACTION_CLASS`, so the owner's Edit beside it on the About head cannot drift into a second height (§6, Q-A) — **`solid`** inside `ImageLightbox`, where a ghost button would paint dark text on a black scrim in the light themes, and **`overlay`**, the count badge in a picture's own corner. `overlay` is the one audited place a bare `<button>` replaces `Button`: `buttonClass` has no look for a marker sitting on a photograph, and `bg-black/60 text-white` is what the app already paints on one (`.overlay-scrim`, `ImageLightbox`), so it reads the same in every theme. It is **`absolute`, positioned by its caller, and never part of the flow** — a badge that pushed a header down is the height M8/M9 spent two tasks removing. **A control that does nothing is never shown**: nothing at all for a reader with a count of zero, and, for `overlay`, nothing at zero *whoever* is looking — that rule lives in the component, not at the call site |
+| What a guestbook entry is about | one `<button>` citation + `pages/profile/guestbookSubjects.ts` | a tagged entry **cites** its subject between its author row and its body (Q-B, which replaced K2's word-only `.chip`): the **pinned copy itself** — a thumbnail in its source's own shape, 71×40 for the banner and 40×40 for the avatar (`h-10`, `aspect-[16/9]`/`aspect-square`, `rounded-xl` with a `ring-1 ring-inset` hairline) — or, for the About text, a quoted excerpt (`text-xs` italic, `line-clamp-2`, `subjectExcerpt`: whitespace collapsed to spaces, cut at a word boundary at 140 chars, closed with `…`). **The word stays beside it**: a thumbnail cannot say whether it is a header image or an avatar (§5b, the M8 lesson), and it is what is left when the picture does not load — `onError` swaps in a box of exactly the same size carrying the kind's 16px glyph. It carries **no surface of its own**: it lives inside a row that is already at the page gutter (§9b, G1), where inset → inset is forbidden. **One tap target, not two** — the thumbnail, the caption and the quote are one `<button>`, and it **always opens the snapshot**: `ImageLightbox` on the pinned copy for a picture, a `Modal` titled "About text" for the text, subtitled `As of <date, time>` plus ` · changed since` when it is no longer current — **never the live item**: once the profile has moved on the banner is the wrong picture, and while it has not, the pinned copy *is* the banner. Measured at 390px in both themes: the citation is **48px** for a picture and **42 / 58px** for a one/two-line quote, taking a tagged entry from the untagged 124px to **180px** (picture) and **174 / 190px** (quote); at 1280px the same two-line quote fits on one (42px), the 140-char cap being what bounds it there. The bytes are the full pinned copy (there is no thumbnail endpoint), but the URL carries the snapshot id and is served `immutable`, so entries about one version cost one request. The words, glyphs and counts come from `guestbookSubjects.ts` and are never spelled a second time |
 | A picture full-screen | `ImageLightbox` | pan/zoom on a `bg-black/85` scrim, and it takes the safe box on its own box (see Overlay). `footer` is a control that belongs to **this picture** (K3), rendered centred in the safe box at the bottom; a click inside it never closes the lightbox, which needs a guard in the root's `onClickCapture` (`closest("[data-lightbox-footer]")`) because capture runs *before* the child's own `stopPropagation`. A footer holds the live picture's affordance, so the guestbook's snapshot viewer deliberately passes none |
 | Telling one person something happened | `NotificationBell` (`ui/shell/`) + `notificationText.ts` | seven kinds, one icon each, all `h-4 w-4` lucide: `Reply` `comment_reply`, `BookOpen` `guestbook`, `Hand` `poke`, `Lightbulb` `idea_created`, `MessageSquare` `idea_comment`, `ThumbsUp` `idea_vote`, `ListChecks` `idea_status` (P3). Every headline and detail line for all seven lives in `notificationText.ts` — never inline in the component — and a row reads *headline* (who did what) over *detail* (`snippet`, or the idea's title, or `title · snippet`) over `timeAgo` |
 | Key number | `StatTile` | `inset` + `text-2xl font-bold tabular-nums` value + `text-xs` muted label |
@@ -655,6 +678,17 @@ An editor is not a section you unfold; it is the thing itself becoming editable.
   cannot post is taken to the conversation instead of to a composer they may not use. Two ways in
   are allowed where the item is a picture — the control inside the lightbox and the count badge in
   the banner's corner — because one of them is invisible until you tap; three would be a crowd.
+- **An owner's page is the visitor's page plus one action** (Q-A, Roli 2026-09-19: *"about text on
+  own profile should look exactly like other profiles, with edit button beside comments label"*).
+  A block the owner may edit renders **the visitor's read view, the same element and the same
+  empty state**, until they open the editor from one action in the head's action slot — never an
+  always-open field where everyone else sees text, which is how an owner stops seeing their own
+  wall the way the friend group sees it. It is the move M8 made on the profile header, applied to
+  the block below it: the profile's About block (`ProfileOverviewTab`) is the worked example —
+  read view or `Textarea`, never both, `Cancel` puts the saved text back into the draft, and the
+  editor **closes only once the save has resolved** (`mutateAsync`, not `mutate`), so the read
+  view it returns to never shows stale text for a frame. The way in is shown whenever the owner
+  may edit, including on an empty block where the *comments* trigger is absent by design.
 - **The keyboard owns the bottom of the screen.** Everything pinned there clears the mobile
   tab bar with the `nav-clear` token, never a hand-written `4.5rem` — and that token is **0 while
   the on-screen keyboard is up**, because the bar is hidden then (`<html data-keyboard-open>`,
@@ -812,6 +846,11 @@ drill-in that lives in a query param.
 - Do keep names next to scores; don't push them to the panel edges.
 - Do use `section-label` for flat page sections; don't invent new header styles.
 - Do open an editor from the value it edits; don't scatter one job across two places.
+- Do let an owner read their own block exactly as a visitor does, with one action in the head that
+  opens the editor; don't leave an always-open field where everyone else sees text (§9b, Q-A).
+- Do let a tagged entry *show* what it is about — the pinned copy as a thumbnail or a quoted
+  excerpt — with the word still beside it; don't make the reader tap a word to find out what is
+  meant, and don't drop the word for the picture's sake (§7, Q-B).
 - Do hide a *toolbox* behind one named disclosure; don't leave secondary tools on screen forever.
 - Do use `ListRow` where a row is leading · title · subtitle · trailing, and `list-divided` +
   your own row where it carries a `ScoreLine` or a `RecordLine`; either way the row's action is a
