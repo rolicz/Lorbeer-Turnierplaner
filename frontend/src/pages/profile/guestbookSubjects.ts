@@ -3,12 +3,12 @@
  * about — the header image, the About text or the avatar — with their words, their glyphs
  * and the two counts the feed and the items need.
  *
- * One module, because two surfaces speak it: the feed's chip on an entry
+ * One module, because two surfaces speak it: the feed's citation on an entry
  * (`GuestbookEntryCard`) and the "comment on this" trigger on the item itself
- * (`SubjectCommentTrigger`, K3). A second copy of "Header image" is how a chip and a
+ * (`SubjectCommentTrigger`, K3). A second copy of "Header image" is how a citation and a
  * button come to disagree about what the reader is looking at.
  *
- * Pure: no React, no network, no query keys — the labels and the two small folds only.
+ * Pure: no React, no network, no query keys — the labels and the small folds only.
  * Whether a subject is still what the profile shows is `subject.current`, computed
  * server-side by `services/guestbook_subjects.py::subjects_for_entries` and rendered
  * here, never re-derived (the A10 rule).
@@ -47,14 +47,39 @@ export const SUBJECT_NOUN: Record<GuestbookSubjectKind, string> = {
   avatar: "the avatar",
 };
 
-/** The chip's word: what the entry was about *then*, which is what the pin is for. */
-export function subjectChipLabel(s: PlayerGuestbookSubject): string {
+/** The citation's word: what the entry was about *then*, which is what the pin is for. */
+export function subjectCitationLabel(s: PlayerGuestbookSubject): string {
   return s.current ? SUBJECT_LABEL[s.kind] : SUBJECT_LABEL_EARLIER[s.kind];
 }
 
-/** The chip always opens the snapshot — the lightbox for an image, a modal for the text. */
-export function subjectChipTitle(s: PlayerGuestbookSubject): string {
+/** The citation always opens the snapshot — the lightbox for an image, a modal for the text. */
+export function subjectCitationTitle(s: PlayerGuestbookSubject): string {
   return s.kind === "about" ? "Show the text this is about" : "Show the image this is about";
+}
+
+/**
+ * How much of the pinned About text the citation quotes (Q-B). Two bounds, each for the
+ * width the other cannot reach, and both ending in an ellipsis so the reader is told
+ * either way: at 390px the citation column is 308px and the `line-clamp-2` the citation
+ * draws it with cuts first (two `text-xs` lines hold ~90 characters); at 1280px it is 942px,
+ * the quote is one line, and this cap is what stops it. Measured, both themes.
+ */
+export const SUBJECT_EXCERPT_MAX = 140;
+
+/**
+ * The quoted excerpt of a pinned About text: **one paragraph's worth of words**, cut at a
+ * word boundary and closed with the app's `…` (§5b), never mid-word and never with "...".
+ * Every run of whitespace — the newlines an About text is full of — collapses to one space,
+ * because a citation is two lines of *words*, not a squashed copy of someone's layout; the
+ * full text is one tap away in the modal, which keeps `whitespace-pre-wrap`.
+ */
+export function subjectExcerpt(text: string, max: number = SUBJECT_EXCERPT_MAX): string {
+  const flat = (text ?? "").replace(/\s+/g, " ").trim();
+  if (flat.length <= max) return flat;
+  const cut = flat.slice(0, max);
+  const lastSpace = cut.lastIndexOf(" ");
+  // A single word longer than the cap has no boundary to respect — take the cap itself.
+  return (lastSpace > max * 0.6 ? cut.slice(0, lastSpace) : cut).trimEnd() + "…";
 }
 
 /** The trigger's own word: a count once there is one, the invitation while there is none. */

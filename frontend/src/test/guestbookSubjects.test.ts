@@ -1,14 +1,16 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  SUBJECT_EXCERPT_MAX,
   SUBJECT_ICON,
   SUBJECT_KINDS,
   SUBJECT_LABEL,
   SUBJECT_LABEL_EARLIER,
   SUBJECT_NOUN,
   countCurrentSubjectEntries,
-  subjectChipLabel,
-  subjectChipTitle,
+  subjectCitationLabel,
+  subjectCitationTitle,
+  subjectExcerpt,
   subjectTriggerLabel,
   subjectTriggerTitle,
 } from "../pages/profile/guestbookSubjects";
@@ -52,16 +54,36 @@ describe("the subject vocabulary", () => {
   });
 
   it("names the subject while it is current and says 'Earlier …' once it has changed", () => {
-    expect(subjectChipLabel(subject({ kind: "header_image", current: true }))).toBe("Header image");
-    expect(subjectChipLabel(subject({ kind: "header_image", current: false }))).toBe("Earlier header image");
-    expect(subjectChipLabel(subject({ kind: "about", current: false }))).toBe("Earlier About text");
-    expect(subjectChipLabel(subject({ kind: "avatar", current: false }))).toBe("Earlier avatar");
+    expect(subjectCitationLabel(subject({ kind: "header_image", current: true }))).toBe("Header image");
+    expect(subjectCitationLabel(subject({ kind: "header_image", current: false }))).toBe("Earlier header image");
+    expect(subjectCitationLabel(subject({ kind: "about", current: false }))).toBe("Earlier About text");
+    expect(subjectCitationLabel(subject({ kind: "avatar", current: false }))).toBe("Earlier avatar");
   });
 
   it("promises the snapshot, not the live item — the text for About, the image for the two pictures", () => {
-    expect(subjectChipTitle(subject({ kind: "about" }))).toBe("Show the text this is about");
-    expect(subjectChipTitle(subject({ kind: "header_image" }))).toBe("Show the image this is about");
-    expect(subjectChipTitle(subject({ kind: "avatar" }))).toBe("Show the image this is about");
+    expect(subjectCitationTitle(subject({ kind: "about" }))).toBe("Show the text this is about");
+    expect(subjectCitationTitle(subject({ kind: "header_image" }))).toBe("Show the image this is about");
+    expect(subjectCitationTitle(subject({ kind: "avatar" }))).toBe("Show the image this is about");
+  });
+
+  it("quotes an About text as words, not as someone's layout", () => {
+    expect(subjectExcerpt("  Ich bin der Roli.\n\n  Seit 2004 dabei.  ")).toBe("Ich bin der Roli. Seit 2004 dabei.");
+    expect(subjectExcerpt("")).toBe("");
+  });
+
+  it("cuts a long excerpt at a word boundary and closes it with the app's ellipsis", () => {
+    const long = "wort ".repeat(60).trim();
+    const cut = subjectExcerpt(long);
+    expect(cut.length).toBeLessThanOrEqual(SUBJECT_EXCERPT_MAX + 1);
+    expect(cut.endsWith("…")).toBe(true);
+    expect(cut.includes("...")).toBe(false);
+    // A boundary, never mid-word.
+    expect(cut.slice(0, -1).endsWith("wort")).toBe(true);
+  });
+
+  it("takes the cap itself when one word is longer than the whole excerpt", () => {
+    const cut = subjectExcerpt("a".repeat(400), 20);
+    expect(cut).toBe("a".repeat(20) + "…");
   });
 
   it("invites at zero and counts from one", () => {

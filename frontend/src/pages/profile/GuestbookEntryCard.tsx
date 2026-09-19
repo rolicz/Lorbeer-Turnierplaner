@@ -1,5 +1,5 @@
 import { ChevronDown, ChevronRight, ChevronUp, Mail, Pencil, Reply, Trash2, Users } from "lucide-react";
-import { createContext, useContext, type JSX } from "react";
+import { createContext, useContext, useState, type JSX } from "react";
 
 import Button from "../../ui/primitives/Button";
 import Textarea from "../../ui/primitives/Textarea";
@@ -7,7 +7,8 @@ import AvatarCircle from "../../ui/primitives/AvatarCircle";
 import VoteButton from "../../ui/primitives/VoteButton";
 import type { PlayerGuestbookEntry, PlayerGuestbookSubject } from "../../api/types";
 import { fmtCount, fmtDateTime } from "../../utils/format";
-import { SUBJECT_ICON, subjectChipLabel, subjectChipTitle } from "./guestbookSubjects";
+import { guestbookSubjectImageUrl } from "../../api/players.api";
+import { SUBJECT_ICON, subjectCitationLabel, subjectCitationTitle, subjectExcerpt } from "./guestbookSubjects";
 
 /**
  * Everything a GuestbookEntryCard needs, provided via context so the
@@ -67,6 +68,96 @@ function useGuestbookCard(): GuestbookCardContextValue {
   const ctx = useContext(GuestbookCardContext);
   if (!ctx) throw new Error("GuestbookEntryCard must be used within GuestbookCardProvider");
   return ctx;
+}
+
+/**
+ * What a tagged entry is about, shown rather than only named (Q-B): the **pinned copy**,
+ * as a thumbnail for the two pictures and as a quoted excerpt for the About text — so an
+ * entry cites its subject the way a reply quotes a message, instead of asking the reader
+ * to tap a word to find out what is meant.
+ *
+ * Three rules it must not lose:
+ * - **The word stays.** A thumbnail cannot say whether it is a header image or an avatar,
+ *   and an excerpt cannot say it is the About text — that is the M8 lesson, and it is also
+ *   what is left when the picture does not load. The caption is never dropped for the
+ *   picture's sake.
+ * - **`Earlier …` is the server's answer** (`subject.current`), rendered and never
+ *   re-derived (the A10 rule). It is the whole reason the copy was pinned: the citation
+ *   shows what the reader is looking at *and* says it is no longer on the profile.
+ * - **One tap target, not two.** The thumbnail, the caption and the quote are one
+ *   `<button>` opening the same snapshot viewers the chip opened — a picture that is
+ *   tappable beside a word that is tappable is two mechanisms for one job (rule 8).
+ *
+ * The thumbnail keeps the source's own shape — 16:9 for the banner, square for the avatar
+ * — because a header image center-cropped to a square is a different picture. Both are
+ * 40px tall, one `inset` radius step, and lazy: the bytes are the full pinned copy (there
+ * is no thumbnail endpoint and this batch adds no backend), but the URL carries the
+ * snapshot id and is served `immutable`, so two entries about one version cost one request
+ * and a return visit costs none.
+ */
+function SubjectCitation({
+  subject,
+  onOpen,
+}: {
+  subject: PlayerGuestbookSubject;
+  onOpen: (subject: PlayerGuestbookSubject) => void;
+}): JSX.Element {
+  const [imageFailed, setImageFailed] = useState(false);
+  const Icon = SUBJECT_ICON[subject.kind];
+  const label = subjectCitationLabel(subject);
+  const title = subjectCitationTitle(subject);
+  const excerpt = subject.kind === "about" ? subjectExcerpt(subject.text) : "";
+  // A square avatar and a 16:9 banner, sized by their aspect off one height.
+  const thumbShape = `h-10 shrink-0 rounded-xl ring-1 ring-inset ring-border-card-chip/55 ${
+    subject.kind === "avatar" ? "aspect-square" : "aspect-[16/9]"
+  }`;
+
+  return (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        onOpen(subject);
+      }}
+      className="row-tap focus-ring mt-2 flex w-full items-center gap-2 p-1 text-left"
+      title={title}
+      aria-label={`${label}. ${title}`}
+      data-subject={subject.kind}
+      data-subject-current={subject.current || undefined}
+    >
+      {subject.has_image ? (
+        imageFailed ? (
+          // The picture is gone or unreachable; the citation still says what it is about.
+          <span className={`${thumbShape} grid place-items-center bg-bg-card-chip/50`} data-subject-thumb="missing">
+            <Icon size={16} className="text-text-muted" aria-hidden="true" />
+          </span>
+        ) : (
+          <img
+            src={guestbookSubjectImageUrl(subject.snapshot_id, subject.captured_at)}
+            alt=""
+            loading="lazy"
+            decoding="async"
+            draggable={false}
+            onError={() => setImageFailed(true)}
+            className={`${thumbShape} object-cover`}
+            data-subject-thumb="image"
+          />
+        )
+      ) : null}
+      <span className="min-w-0">
+        <span className="flex items-center gap-1.5 text-xs text-text-muted">
+          <Icon size={12} aria-hidden="true" />
+          <span className="truncate">{label}</span>
+        </span>
+        {excerpt ? (
+          <span className="mt-0.5 line-clamp-2 break-anywhere text-xs italic text-text-normal" data-subject-excerpt="">
+            {`“${excerpt}”`}
+          </span>
+        ) : null}
+      </span>
+    </button>
+  );
 }
 
 export default function GuestbookEntryCard({
@@ -214,32 +305,10 @@ export default function GuestbookEntryCard({
             ) : null}
           </div>
         </div>
-        {/* What this message is about, as it was then — the word is in the chip, never
-            only the glyph (M8), and it says "Earlier …" once the profile moved on. */}
-        {entry.subject
-          ? (() => {
-              const subject = entry.subject;
-              const Icon = SUBJECT_ICON[subject.kind];
-              return (
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    ctx.viewSubject(subject);
-                  }}
-                  className="chip mt-2 inline-flex items-center gap-1.5 focus-ring"
-                  title={subjectChipTitle(subject)}
-                  aria-label={`${subjectChipLabel(subject)}. ${subjectChipTitle(subject)}`}
-                  data-subject={subject.kind}
-                  data-subject-current={subject.current || undefined}
-                >
-                  <Icon size={12} aria-hidden="true" />
-                  <span>{subjectChipLabel(subject)}</span>
-                </button>
-              );
-            })()
-          : null}
+        {/* What this message is about, as it was then — the pinned copy itself, with the
+            word beside it (M8), saying "Earlier …" once the profile moved on. A reply
+            never has one: its subject is its root's (K1's 400). */}
+        {entry.subject ? <SubjectCitation subject={entry.subject} onOpen={ctx.viewSubject} /> : null}
         {editOpen ? (
           <div className="mt-2 space-y-2" onClick={(e) => e.stopPropagation()}>
             <Textarea
