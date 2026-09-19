@@ -1416,7 +1416,7 @@ deliberately not a ring. M7 writes.
 
 ---
 
-## M6 — Standings: evaluate, expect nothing  ☐
+## M6 — Standings: evaluate, expect nothing  ☑
 
 **The question.** Should `pages/live/StandingsTable.tsx` show anything about records now that the
 profile does? Roli expects "nothing". This task reads, measures and answers; it writes no code unless
@@ -1447,6 +1447,53 @@ written as a proposal here, not implemented.
 **Gates.** None (no code). **Canon.** None expected.
 
 **Deviations:**
+
+No code changed; `git status` is clean for every file this task touched (read-only). Verified with
+the isolated stack (backend 8096, vite 8116, `backend/data/verify-m6.db`, deleted after use — both
+free, nothing else was bound there). The dev DB copy had no live/mixed tournament and no current run
+tied to an all-time record, so the accent-border check (item 1) needed a constructed case: created a
+throwaway 1v1 tournament ("M6 Verify Live", id 21, 3 players) in the DB copy only, finished two
+matches so Rumpi's current win streak became 4 — exactly tying the all-time win-streak record (4,
+his own, 2025-11-30 → 2025-12-23) — and left the third match scheduled so the tournament sat at
+derived status `live`. Screenshotted via Playwright (`headless_shell`, per the raspi5 launch note in
+another project's memory) at 390×844 and 1280×900, `blue` and `light`, all four combinations.
+
+1. **Confirmed.** Rumpi's row shows two streak patches: win-streak "4" with the accent border (orange
+   on `blue`, blue on `light`) and unbeaten-streak "4" with the ordinary neutral border (unbeaten
+   record is 13, so 4 doesn't light it) — same row, same length number, two different borders, which
+   is the whole mechanism working exactly as `StandingsTable.tsx:215` / `StreakPatches.tsx:38`
+   describe. Both themes, both viewports, consistent.
+2. **Confirmed, not a conflict.** `MIN_LEN = 2` (`:182`) only filters which *current runs* get a
+   patch at all (a streak of 1 isn't shown); it never touches record status. The badge system's "no
+   minimum threshold" (M1) is a different question — whether `played > 0` is enough to top a column —
+   answered by `RECORD_DEFS`/`compute_stats_records`, not by this constant. Nothing to reconcile.
+3. **Confirmed against the canon.** `DESIGN.md`'s Identity row (mirrored in `AGENTS.md` §9, T15)
+   states inside a tournament every avatar keeps the neutral hairline "because that screen is about a
+   past or ongoing event and a present-tense ring would read as 'held it back then'; cup information
+   there has exactly one carrier, the standings' `CupOwnerBadge` crown". A stable-record badge (most
+   titles, most points, highest Elo) is present-tense information exactly like the ring is, so putting
+   one on a standings row would be the second present-tense mark on a screen the canon keeps
+   deliberately free of them — the same duplication `C12` removed once already (crown beside a ringed
+   avatar).
+4. **Confirmed, and already covered end-to-end.** The one new thing a tournament night can produce
+   for a *stable* record is someone taking it over mid-tournament (e.g. overtaking Highest Elo). That
+   is already told three ways that don't need a fourth: the `record_moved` push (M2, three texts:
+   gained/lost/watching) reaches every player immediately; the badge band (M5, `RecordBadges.tsx`,
+   `08153fb`) shows it the moment that profile is opened; and `/stats` shows the live holder. A
+   standings badge would only restate the same fact on the one screen the app has kept present-tense
+   free.
+
+**Space measurement (390×844, the binding width — desktop has hundreds of spare px, see the
+screenshots).** The row's badge cluster is already hard-capped by existing code regardless of how
+many records a player holds: `cupMarks.slice(0, 2)` + `streaks.slice(0, 2)`, at most 4 chips beside
+the name, and no real player today holds two cups at once (Lorbeerkranz → Berni, Bauernkranz → Roli),
+so the realistic worst case is 1 cup badge + 2 streak patches. Measured on that row ("Rumpi", 5
+characters — representative, since every real player name is ≤ 6 characters): the chip cluster's
+rightmost pixel sits at x≈255 of 390, the points column's leftmost pixel at x≈355 — **≈100px (about a
+quarter of the row) of clear space between them**, even fully loaded. So the answer is not "there's no
+room" — there measurably is. It's "there's nothing to put there that doesn't already say something
+the row, the ring, or the push has already said" (points 3 and 4). Recommend adding nothing;
+`StandingsTable.tsx` and `StreakPatches.tsx` are unchanged.
 
 ---
 
