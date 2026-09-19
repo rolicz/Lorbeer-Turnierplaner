@@ -1,5 +1,6 @@
-import { apiFetch } from "./client";
+import { apiFetch, mediaUrl } from "./client";
 import type {
+  GuestbookSubjectKind,
   Player,
   PlayerGuestbookEntry,
   PlayerGuestbookReadIds,
@@ -136,6 +137,8 @@ export function createPlayerGuestbookEntry(
   body: string,
   parentEntryId?: number | null,
   authorPlayerId?: number | null,
+  /** The subject this entry is about (K1/K2). Root entries only — a reply is a 400. */
+  subjectKind?: GuestbookSubjectKind | null,
 ): Promise<PlayerGuestbookEntry> {
   return apiFetch(`/players/${playerId}/guestbook`, {
     method: "POST",
@@ -144,8 +147,18 @@ export function createPlayerGuestbookEntry(
       body,
       parent_entry_id: parentEntryId ?? null,
       author_player_id: authorPlayerId ?? null,
+      subject_kind: subjectKind ?? null,
     }),
   });
+}
+
+/**
+ * The pinned copy an entry is about — never the live picture, which may have been
+ * replaced since. The snapshot is immutable and its URL carries its id, so `capturedAt`
+ * is only the `?v=` habit every other media URL here keeps.
+ */
+export function guestbookSubjectImageUrl(snapshotId: number, capturedAt?: string | null): string {
+  return mediaUrl(`/players/guestbook-subjects/${snapshotId}/image`, capturedAt);
 }
 
 export function editPlayerGuestbookEntry(

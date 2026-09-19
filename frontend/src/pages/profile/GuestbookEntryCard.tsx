@@ -5,8 +5,9 @@ import Button from "../../ui/primitives/Button";
 import Textarea from "../../ui/primitives/Textarea";
 import AvatarCircle from "../../ui/primitives/AvatarCircle";
 import VoteButton from "../../ui/primitives/VoteButton";
-import type { PlayerGuestbookEntry } from "../../api/types";
+import type { PlayerGuestbookEntry, PlayerGuestbookSubject } from "../../api/types";
 import { fmtCount, fmtDateTime } from "../../utils/format";
+import { SUBJECT_ICON, subjectChipLabel, subjectChipTitle } from "./guestbookSubjects";
 
 /**
  * Everything a GuestbookEntryCard needs, provided via context so the
@@ -44,6 +45,8 @@ export type GuestbookCardContextValue = {
   requestDelete: (entry: PlayerGuestbookEntry) => void;
   vote: (entryId: number, value: -1 | 0 | 1) => void;
   showVoters: (entryId: number) => void;
+  /** Open the snapshot a subject chip names — the pinned copy, never the live item. */
+  viewSubject: (subject: PlayerGuestbookSubject) => void;
   setReplyDraft: (entryId: number, text: string) => void;
   submitReply: (entryId: number, text: string) => void;
 };
@@ -211,6 +214,32 @@ export default function GuestbookEntryCard({
             ) : null}
           </div>
         </div>
+        {/* What this message is about, as it was then — the word is in the chip, never
+            only the glyph (M8), and it says "Earlier …" once the profile moved on. */}
+        {entry.subject
+          ? (() => {
+              const subject = entry.subject;
+              const Icon = SUBJECT_ICON[subject.kind];
+              return (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    ctx.viewSubject(subject);
+                  }}
+                  className="chip mt-2 inline-flex items-center gap-1.5 focus-ring"
+                  title={subjectChipTitle(subject)}
+                  aria-label={`${subjectChipLabel(subject)}. ${subjectChipTitle(subject)}`}
+                  data-subject={subject.kind}
+                  data-subject-current={subject.current || undefined}
+                >
+                  <Icon size={12} aria-hidden="true" />
+                  <span>{subjectChipLabel(subject)}</span>
+                </button>
+              );
+            })()
+          : null}
         {editOpen ? (
           <div className="mt-2 space-y-2" onClick={(e) => e.stopPropagation()}>
             <Textarea

@@ -3,12 +3,16 @@ import { Mail, MailOpen, MessageSquare } from "lucide-react";
 import Button from "../../ui/primitives/Button";
 import ConfirmDialog from "../../ui/primitives/ConfirmDialog";
 import EmptyState from "../../ui/primitives/EmptyState";
+import ImageLightbox from "../../ui/primitives/ImageLightbox";
 import LoadingPlaceholder from "../../ui/primitives/LoadingPlaceholder";
+import Modal from "../../ui/primitives/Modal";
 import { Pill } from "../../ui/primitives/Pill";
 import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
-import { CommentSendRow } from "../live/comments/CommentComposer";
+import { CommentSendRow, ModeBadge } from "../live/comments/CommentComposer";
+import { guestbookSubjectImageUrl } from "../../api/players.api";
 import { fmtDateTime } from "../../utils/format";
-import type { PlayerGuestbookEntry } from "../../api/types";
+import type { GuestbookSubjectKind, PlayerGuestbookEntry, PlayerGuestbookSubject } from "../../api/types";
+import { SUBJECT_ICON, SUBJECT_LABEL } from "./guestbookSubjects";
 import GuestbookEntryCard, {
   GuestbookCardProvider,
   type GuestbookCardContextValue,
@@ -48,8 +52,14 @@ export type GuestbookSectionProps = {
   onDraftChange: (text: string) => void;
   onPost: () => void;
   posting: boolean;
-  /** Bumped after a posted message, to put the caret back in the field. */
-  postedNonce?: number;
+  /** Bumped after a posted message and when the composer is armed, to put the caret in the field. */
+  composerNonce?: number;
+  /** What the composer is armed for, shown as the badge above the send row (K2). */
+  subjectDraft?: GuestbookSubjectKind | null;
+  onClearSubject?: () => void;
+  /** The snapshot a chip asked to see; the lightbox or the modal below renders it. */
+  viewedSubject?: PlayerGuestbookSubject | null;
+  onCloseSubject?: () => void;
   placeholder: string;
 };
 
@@ -77,7 +87,11 @@ export default function GuestbookSection({
   onDraftChange,
   onPost,
   posting,
-  postedNonce,
+  composerNonce,
+  subjectDraft = null,
+  onClearSubject,
+  viewedSubject = null,
+  onCloseSubject,
   placeholder,
 }: GuestbookSectionProps) {
   // Total messages, replies included — the number the header states.
@@ -146,17 +160,34 @@ export default function GuestbookSection({
           (T3 / DESIGN.md §9b) — never behind a button, never above what you read. */}
       {canPost ? (
         <div className="sticky bottom-nav-clear z-10 rounded-b-2xl border-t border-border-card-outer/55 bg-bg-card-outer p-2 lg:bottom-0">
-          <CommentSendRow
-            value={draft}
-            onChange={onDraftChange}
-            onSubmit={onPost}
-            canSubmit={!!draft.trim()}
-            submitting={posting}
-            ariaLabel="Guestbook message"
-            placeholder={placeholder}
-            sendLabel="Post message"
-            focusNonce={postedNonce}
-          />
+          <div className="space-y-2">
+            {/* Armed: the composer says what the next message is about, with the way out
+                beside it — the goal/shots chip generalised (DESIGN.md §9b). */}
+            {subjectDraft
+              ? (() => {
+                  const Icon = SUBJECT_ICON[subjectDraft];
+                  return (
+                    <ModeBadge
+                      label={SUBJECT_LABEL[subjectDraft]}
+                      icon={<Icon size={12} aria-hidden="true" />}
+                      onLeave={() => onClearSubject?.()}
+                      leaveLabel="Remove the subject"
+                    />
+                  );
+                })()
+              : null}
+            <CommentSendRow
+              value={draft}
+              onChange={onDraftChange}
+              onSubmit={onPost}
+              canSubmit={!!draft.trim()}
+              submitting={posting}
+              ariaLabel="Guestbook message"
+              placeholder={placeholder}
+              sendLabel="Post message"
+              focusNonce={composerNonce}
+            />
+          </div>
         </div>
       ) : (
         <div className="border-t border-border-card-outer/55 px-3 py-2.5 text-sm text-text-muted">
@@ -204,6 +235,32 @@ export default function GuestbookSection({
       onCancel={onCancelMarkAllRead}
       onConfirm={onConfirmMarkAllRead}
     />
+
+    {/* A chip always opens the *snapshot*, never the live item: once the profile has
+        moved on, the banner is the wrong picture, and while it has not, the pinned copy
+        is the banner. No `footer` here — the trigger belongs to the live picture (K3). */}
+    <ImageLightbox
+      open={!!viewedSubject && viewedSubject.kind !== "about"}
+      src={
+        viewedSubject && viewedSubject.kind !== "about"
+          ? guestbookSubjectImageUrl(viewedSubject.snapshot_id, viewedSubject.captured_at)
+          : null
+      }
+      onClose={() => onCloseSubject?.()}
+    />
+    <Modal
+      open={!!viewedSubject && viewedSubject.kind === "about"}
+      title="About text"
+      subtitle={
+        viewedSubject
+          ? `As of ${fmtDateTime(viewedSubject.captured_at)}${viewedSubject.current ? "" : " · changed since"}`
+          : undefined
+      }
+      onClose={() => onCloseSubject?.()}
+      maxWidth="max-w-md"
+    >
+      <div className="whitespace-pre-wrap text-sm text-text-normal">{viewedSubject?.text}</div>
+    </Modal>
     </>
   );
 }

@@ -655,7 +655,7 @@ and it needed no correction from this task.
 
 ---
 
-## K2 — The feed: the chip on an entry, the armed composer, the snapshot viewers  ☐
+## K2 — The feed: the chip on an entry, the armed composer, the snapshot viewers  ☑
 
 **The gap.** `GuestbookEntryCard.tsx` renders author, date, body, votes and the reply/edit/delete
 controls and nothing about a subject; `GuestbookSection.tsx:147-160` renders `CommentSendRow` bare;
@@ -798,8 +798,77 @@ snapshot — the lightbox for an image, a `Modal` for the About text — never t
 guestbook composer, armed, shows the subject as a `ModeBadge` above `CommentSendRow`, the goal/shots
 chip generalised; §5b — `Earlier …` is the word for a subject that has changed since; "About text" is
 the About's name in a chip.
+- Add to §7: `ModeBadge` (`pages/live/comments/CommentComposer.tsx`) is **exported** and takes an
+  optional `icon` and `leaveLabel`; without them it still draws Goal/Target by `label`, so the two
+  tournament call sites are unchanged. It is the one chip a composer wears to say what it is about
+  to post, with the way out beside it.
 
 **Deviations:**
+
+Built as specified. Five things the task did not spell out, and the numbers behind everything it
+asked to be *measured*.
+
+- **The sticky composer box keeps its classes; the `space-y-2` is an inner wrapper.** Step 5 said
+  "wrapped in `space-y-2`" and "What must not change" named the sticky box's own class string
+  (`GuestbookSection.tsx:148`). Both readings are satisfiable at once, so the badge and
+  `CommentSendRow` share a plain `<div className="space-y-2">` *inside* the sticky box, and the box
+  is byte-identical. Measured in the browser: `sticky bottom-nav-clear z-10 rounded-b-2xl border-t
+  border-border-card-outer/55 bg-bg-card-outer p-2 lg:bottom-0` on all four
+  viewport × theme runs, with the wrapper inside it.
+- **The chip is 26px tall, not the 28 the DoD predicted** — and it is 26 because it is the
+  canonical `.chip` (`text-xs` 16px line + `py-1` + the hairline). Measured identically in all four
+  runs; widths 121px "Header image", 99px "About text", 77px "Avatar", and 158 / 139 / 89px for the
+  three `Earlier …` words. Nothing was hand-sized to reach a number.
+- **The subject is spent with the message it was posted on.** The plan says `onSuccess` clears it;
+  what that means in the browser is that the *next* message is an ordinary entry unless an item arms
+  the composer again. Measured: post while armed → the badge is gone, the draft is empty, the new
+  entry's chip reads "About text".
+- **`sectionProps`' four new fields are optional with defaults** (`subjectDraft = null`,
+  `viewedSubject = null`, the two callbacks optional-called). The hook always passes all four, so
+  this costs nothing; it keeps `GuestbookSection` renderable from a test with a minimal prop set,
+  which is what the chip test does.
+- **`postedNonce` is gone, not aliased.** The rename to `composerNonce` is the whole story:
+  `grep -rn postedNonce frontend/src` → 0, and the only consumer was `GuestbookSection` itself
+  (`ProfilePage` spreads `sectionProps`), so K3 needed no coordination for it.
+
+**Gates, observed.** `cd frontend && npm run check` **757 tests in 78 files** in 94 s, typecheck and
+eslint clean — that is the 735 baseline plus this task's 11 (in 2 files) and K3's 11 (in 2 files),
+which were in the tree at the same time; my own two files are 11 of those tests and pass alone
+(`npx vitest run src/test/guestbookSubjects.test.ts src/test/guestbookSubjectChip.test.tsx` → 11
+passed). `npm run build` green.
+
+**The browser, measured** (isolated stack: backend **8122** on a copy of the dev DB at
+`backend/data/verify-k2.db`, uploads copied outside the repo, throwaway secrets outside the repo,
+vite **8142**; Playwright chromium; as Berni on `/profiles/1?tab=guestbook`; **every number below
+was identical at 390×844 and 1280×900 in both the `blue` and the `light` theme**, four runs):
+
+- Three tagged entries and one untagged one. Each chip sits **below the author row and above the
+  body** (`belowAuthor` and `aboveBody` true for all three), is **26px** tall, and reads
+  `Header image` / `About text` / `Avatar` with `data-subject-current="true"`.
+- The header chip opens `ImageLightbox` on
+  `…/players/guestbook-subjects/1/image?v=2026-09-19T17%3A09%3A00.163294` and the lightbox carries
+  **no** `[data-lightbox-footer]` — K3's trigger belongs to the live picture, not to a snapshot of
+  it.
+- The About chip opens the `Modal` titled **About text**, subtitle `As of 19.09.2026, 17:09`, body
+  the snapshot's own text.
+- **After Roli replaced both** (`PUT /players/1/header-image` with a different 178-byte PNG, `PATCH
+  /players/1/profile` with a new bio): the two chips read **`Earlier header image`** and **`Earlier
+  About text`** and carry no `data-subject-current`; the avatar chip, untouched, still reads
+  `Avatar`. The lightbox still serves the **pinned** copy — 1920×1080, **2,662,379 bytes** — while
+  the live header is the 178-byte 64×64 square (`sameAsLive: false`). The About modal's subtitle
+  becomes `As of 19.09.2026, 17:09 · changed since` and its body is still the **old** text.
+- **Armed, through K3's real trigger** (it was in the tree by then, so the fallback the DoD allows
+  was not needed): the `ModeBadge` reads `Header image`, is 26px tall, sits **above** the field with
+  an 11px gap, and `document.activeElement` **is** the textarea. Posting while armed sent
+  `subject_kind` — on the wire the new entry came back with
+  `subject {kind: "about", snapshot_id: 4, current: true}` — and cleared both the badge and the
+  draft.
+- `document.querySelectorAll("a a").length` = **0**, console errors = **0**, and every entry id is
+  unique (`[id^="guestbook-entry-"]`, 6 then 7 rows) in every run.
+
+**Left for others, on purpose.** `ImageLightbox`'s `footer` and the trigger that fills it are K3's;
+this task's lightbox deliberately passes none. `AGENTS.md` and `DESIGN.md` are untouched — the Canon
+block above is what K4 folds in, and it needed one addition (the exported `ModeBadge`).
 
 ---
 
