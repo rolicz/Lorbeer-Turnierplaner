@@ -1436,6 +1436,76 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/ideas/{idea_id}/comments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Idea Comment
+         * @description Say something under an idea. Reading the board is public; this needs a login.
+         *
+         *     The idea's own `updated_at` is deliberately **not** touched: a comment is neither
+         *     the author's text changing nor the admin's answer, and `updated_at` already
+         *     carries more meanings than it can (R5's `edited_at` note).
+         */
+        post: operations["create_idea_comment_ideas__idea_id__comments_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ideas/comments/{comment_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete Idea Comment
+         * @description The comment's author or an admin, for as long as it exists — no window.
+         *
+         *     Not the idea's author: a comment on an idea is a reply to a document, not a note
+         *     on somebody's wall. The comment's event goes with it, so the bell forgets it too.
+         */
+        delete: operations["delete_idea_comment_ideas_comments__comment_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ideas/{idea_id}/read": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Mark Idea Read
+         * @description Read = you opened it: every event on this idea is marked read for the caller.
+         *
+         *     The board calls this when the `?idea=` deep link is consumed and when a viewer
+         *     expands an idea's comments. Idempotent — a second call marks 0.
+         */
+        put: operations["mark_idea_read_ideas__idea_id__read_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/push/config": {
         parameters: {
             query?: never;
@@ -2034,6 +2104,53 @@ export interface components {
             /** Areas */
             areas: components["schemas"]["IdeaAreaOut"][];
         };
+        /**
+         * IdeaCommentCreateBody
+         * @description A flat comment under an idea. Body only — there is no editing, no image and
+         *     no reply target (P1).
+         */
+        IdeaCommentCreateBody: {
+            /**
+             * Body
+             * @default
+             */
+            body: string;
+        };
+        /**
+         * IdeaCommentOut
+         * @description One flat comment under an idea (P1).
+         *
+         *     `can_delete` is the whole permission surface: an idea comment cannot be edited —
+         *     a typo is fixed by deleting and reposting — so there is no `can_edit` here and no
+         *     PATCH behind it. `updated_at` is carried because the row has it; nothing moves it.
+         */
+        IdeaCommentOut: {
+            /** Id */
+            id: number;
+            /** Request Id */
+            request_id: number;
+            /** Author Player Id */
+            author_player_id: number;
+            /** Author Display Name */
+            author_display_name: string;
+            /** Body */
+            body: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /**
+             * Can Delete
+             * @default false
+             */
+            can_delete: boolean;
+        };
         /** IdeaCreateBody */
         IdeaCreateBody: {
             /**
@@ -2114,6 +2231,8 @@ export interface components {
              * @default false
              */
             can_set_status: boolean;
+            /** Comments */
+            comments: components["schemas"]["IdeaCommentOut"][];
         };
         /** IdeaPatchBody */
         IdeaPatchBody: {
@@ -2274,6 +2393,50 @@ export interface components {
             iat: number | null;
             /** Exp */
             exp: number | null;
+        };
+        /**
+         * MyNotificationOut
+         * @description One item in the personal notification bell.
+         *
+         *     Every kind shares this one shape and fills the fields that apply — the union of
+         *     seven kinds rather than seven models, because the bell renders one row type and
+         *     the client narrows `kind` itself. `created_at` is a **string**: the router has
+         *     always built `.isoformat()` and the wire format does not move for a type.
+         */
+        MyNotificationOut: {
+            /** Kind */
+            kind: string;
+            /** Id */
+            id: number;
+            /** Author Name */
+            author_name: string;
+            /** Snippet */
+            snippet: string;
+            /** Created At */
+            created_at: string;
+            /** Path */
+            path: string;
+            /** Author Player Id */
+            author_player_id?: number | null;
+            /** Tournament Id */
+            tournament_id?: number | null;
+            /** Match Id */
+            match_id?: number | null;
+            /** Profile Player Id */
+            profile_player_id?: number | null;
+            /** Idea Id */
+            idea_id?: number | null;
+            /** Idea Title */
+            idea_title?: string | null;
+            /** Idea Status */
+            idea_status?: string | null;
+        };
+        /** MyNotificationsOut */
+        MyNotificationsOut: {
+            /** Items */
+            items: components["schemas"]["MyNotificationOut"][];
+            /** Unread Count */
+            unread_count: number;
         };
         /** OddsOut */
         OddsOut: {
@@ -3555,9 +3718,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["MyNotificationsOut"];
                 };
             };
         };
@@ -6581,6 +6742,103 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["VoteResultOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_idea_comment_ideas__idea_id__comments_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                idea_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["IdeaCommentCreateBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IdeaCommentOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_idea_comment_ideas_comments__comment_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                comment_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OkResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    mark_idea_read_ideas__idea_id__read_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                idea_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MarkedResponse"];
                 };
             };
             /** @description Validation Error */

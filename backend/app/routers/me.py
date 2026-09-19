@@ -14,7 +14,7 @@ from ..models import (
     PlayerPoke,
     PlayerPokeRead,
 )
-from ..schemas.responses import MeOut
+from ..schemas.responses import MeOut, MyNotificationsOut
 
 router = APIRouter(tags=["auth"])
 
@@ -44,7 +44,7 @@ def _snippet(body: str | None) -> str:
     return text
 
 
-@router.get("/me/notifications")
+@router.get("/me/notifications", response_model=MyNotificationsOut)
 def my_notifications(
     s: Session = Depends(get_session),
     claims: dict = Depends(require_auth_claims),

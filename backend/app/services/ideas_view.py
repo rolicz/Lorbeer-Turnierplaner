@@ -1,8 +1,12 @@
 """Serialization for the Ideas board (R5) — the `comments_view` of feature requests.
 
 The router stays thin: everything that turns rows into a payload (areas, votes, the
-attached image, the per-caller capability flags) lives here, and the flags come from
-`services.authorization` so the rule has exactly one home.
+attached image, the flat comment list, the per-caller capability flags) lives here,
+and the flags come from `services.authorization` so the rule has exactly one home.
+
+Comments ride **inside** the idea (`comments`, oldest first), not behind a second
+endpoint: the board is tens of ideas, so one query and one invalidation beat an
+expand-fetch per card (P1).
 """
 from __future__ import annotations
 
@@ -14,6 +18,7 @@ from ..feature_areas import sort_areas
 from ..models import (
     FeatureRequest,
     FeatureRequestArea,
+    FeatureRequestComment,
     FeatureRequestImageFile,
     FeatureRequestVote,
     Player,
@@ -28,6 +33,8 @@ IDEA_KINDS: tuple[str, ...] = ("feature", "change", "bug")
 MAX_IDEA_TITLE_LEN = 120
 MAX_IDEA_BODY_LEN = 4000
 MAX_IDEA_STATUS_NOTE_LEN = 300
+#: The guestbook's ceiling — a comment is a remark, not a second idea.
+MAX_IDEA_COMMENT_LEN = 2000
 
 
 def areas_map(s: Session, request_ids: list[int]) -> dict[int, list[str]]:
@@ -96,6 +103,60 @@ def author_name_map(s: Session, player_ids: list[int]) -> dict[int, str]:
     return {int(pid): str(name) for pid, name in rows}
 
 
+def comment_dict(
+    c: FeatureRequestComment,
+    *,
+    author_display_name: str,
+    capabilities: dict[str, bool] | None = None,
+) -> dict:
+    """One comment as the payload carries it. `can_delete` is the whole permission
+    surface — an idea comment cannot be edited (Roli, 2026-09-19)."""
+    caps = capabilities or {}
+    return {
+        "id": int(c.id),
+        "request_id": int(c.request_id),
+        "author_player_id": int(c.author_player_id),
+        "author_display_name": author_display_name,
+        "body": c.body,
+        "created_at": c.created_at,
+        "updated_at": c.updated_at,
+        "can_delete": bool(caps.get("can_delete")),
+    }
+
+
+def comments_map(s: Session, request_ids: list[int], claims: dict | None) -> dict[int, list[dict]]:
+    """``{request_id: [comment, ...]}`` — oldest first, a flat conversation read
+    top-down. One query for the rows, one for the names."""
+    from .authorization import feature_request_comment_capabilities
+
+    if not request_ids:
+        return {}
+    rows = s.exec(
+        select(FeatureRequestComment)
+        .where(FeatureRequestComment.request_id.in_([int(r) for r in request_ids]))
+        .order_by(FeatureRequestComment.created_at.asc(), FeatureRequestComment.id.asc())
+    ).all()
+    if not rows:
+        return {}
+    names = author_name_map(s, [int(c.author_player_id) for c in rows])
+    out: dict[int, list[dict]] = {}
+    for c in rows:
+        out.setdefault(int(c.request_id), []).append(
+            comment_dict(
+                c,
+                author_display_name=names.get(
+                    int(c.author_player_id), f"Player #{int(c.author_player_id)}"
+                ),
+                capabilities=feature_request_comment_capabilities(c, claims=claims),
+            )
+        )
+    return out
+
+
+def comments_for(s: Session, request_id: int, claims: dict | None) -> list[dict]:
+    return comments_map(s, [int(request_id)], claims).get(int(request_id), [])
+
+
 def idea_dict(
     fr: FeatureRequest,
     *,
@@ -105,6 +166,7 @@ def idea_dict(
     my_vote: int = 0,
     image_updated_at: datetime | None = None,
     capabilities: dict[str, bool] | None = None,
+    comments: list[dict] | None = None,
 ) -> dict:
     caps = capabilities or {}
     return {
@@ -127,6 +189,9 @@ def idea_dict(
         "can_edit": bool(caps.get("can_edit")),
         "can_delete": bool(caps.get("can_delete")),
         "can_set_status": bool(caps.get("can_set_status")),
+        # Oldest first, and always present: a client never has to guess whether the
+        # list was left out or is empty.
+        "comments": list(comments or []),
     }
 
 
@@ -146,6 +211,7 @@ def list_ideas(s: Session, claims: dict | None) -> dict:
     areas = areas_map(s, ids)
     votes, my_votes = vote_maps(s, ids, viewer_id)
     images = image_meta_map(s, ids)
+    comments = comments_map(s, ids, claims)
     names = author_name_map(s, [int(fr.author_player_id) for fr in requests])
 
     return {
@@ -158,6 +224,7 @@ def list_ideas(s: Session, claims: dict | None) -> dict:
                 my_vote=1 if int(fr.id) in my_votes else 0,
                 image_updated_at=images.get(int(fr.id)),
                 capabilities=feature_request_capabilities(fr, claims=claims),
+                comments=comments.get(int(fr.id), []),
             )
             for fr in requests
         ]
@@ -178,4 +245,5 @@ def one_idea_dict(s: Session, fr: FeatureRequest, claims: dict | None) -> dict:
         my_vote=1 if rid in my_votes else 0,
         image_updated_at=image_updated_at(s, rid),
         capabilities=feature_request_capabilities(fr, claims=claims),
+        comments=comments_for(s, rid, claims),
     )

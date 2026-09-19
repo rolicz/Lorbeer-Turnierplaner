@@ -458,7 +458,7 @@ re-subscribes on `pushsubscriptionchange`.* `DESIGN.md` §2: the notice is a `wa
 
 ---
 
-## P1 — Schema, comments API, events, the typed bell contract  ☐
+## P1 — Schema, comments API, events, the typed bell contract  ☑
 
 **The gap.** `FeatureRequest*` is four tables (`models.py:405-467`): no comment, no event, no read
 state. `routers/ideas.py` has no comment endpoint and no read endpoint. A status change is a column
@@ -621,6 +621,96 @@ P1 stack stopped, run the baseline backend (`git stash` or a second checkout of 
 (the comment rule, the read endpoint) — P6 writes them.
 
 **Deviations:**
+
+- **The new shared thing this task owns is the audience helper**, and it lives with the rest of
+  the event family in `backend/app/services/idea_events.py`:
+  `idea_event_audience(s, *, request_id, kind, actor_player_id, idea_author_player_id=None,
+  admin_player_ids=()) -> list[int]` — the sorted ids that should hear about one event, never
+  including the actor. `created` → the ids the caller names as admins; `comment` → the idea's
+  author ∪ every player with a comment row on that idea; `vote`/`status` → the author alone; an
+  unknown kind → nobody. **Who is an admin is deliberately the caller's parameter**, because push
+  resolves it from `secrets.json` (`admin_player_ids`) and the bell from the token's `role`, and
+  this module must not become a third definition. Beside it, `idea_event_reaches(s, event, *,
+  player_id, is_admin, idea_author_player_id=None) -> bool` is *the same call* asked about one
+  person (`admin_player_ids=(me,) if is_admin else ()`), so the bell cannot drift from the push by
+  construction — `test_idea_event_reaches_answers_exactly_the_same_question` asserts the two agree
+  for every event × every viewer. **P2 addresses its pushes from the list form; P3 filters with the
+  membership form; neither writes a rule of its own.** For P3 there is also
+  `idea_ids_commented_on_by(s, player_id)`, a *narrowing* helper so the bell's SQL does not scan
+  every event — it is not the rule, and the docstring says so.
+- **Verified first, the gap was live** (2026-09-19, at `1c8808d`): `models.py` had exactly four
+  `FeatureRequest*` classes (no Comment / Event / EventRead), `routers/ideas.py` mentioned
+  "comments" once and only in a comment about the vote modal, `me.py` carried a `response_model`
+  on `/me` alone, and `api/notifications.api.ts:5` still hand-wrote `MyNotification`. Nothing was
+  already fixed.
+- **No editing anywhere, so there is no `can_edit` on a comment.** The Decisions block's second
+  pass removed the editor; a flag nothing can act on is a contract P4 would have rendered a pencil
+  from, so `IdeaCommentOut` carries `can_delete` alone, there is no `PATCH /ideas/comments/{id}`
+  and no `IdeaCommentPatchBody`. `FeatureRequestComment.updated_at` is kept (every sibling table
+  has one and a later column would have to go through `_RUNTIME_COLUMNS`) but **nothing ever moves
+  it**, which the payload test pins. **P4's step 3 still describes a `Pencil` button, an inline
+  editor and a "· edited" byline: that text is stale**, as is the "Deferred" bullet about not
+  notifying thread participants (the third-pass decision supersedes it). P6 should delete both.
+- **Three tables, nothing altered, nothing in `_RUNTIME_COLUMNS`:** `FeatureRequestComment`,
+  `FeatureRequestEvent`, `FeatureRequestEventRead`. **Old code boots against the migrated DB** —
+  measured, not assumed: the baseline (`1c8808d`, extracted with `git archive` so `.git` was never
+  touched) was run against `backend/data/verify-p1.db` *after* the new code had written all three
+  tables. It booted, `GET /ideas` answered **200**, and it still created an idea and voted on it.
+  The new code then read that idea back as `comments: []` with **no `created` event** — the
+  documented consequence: an idea posted while rolled back gives the admins no bell item, and
+  nothing else is lost.
+- **The event log is written where the thing happens, and removed with it.** `record_idea_event`
+  writes the row **and the actor's own read row** (the guestbook's trick, `players.py:675`), so
+  "never tell me about my own action" is a stored fact rather than a filter every reader has to
+  remember. A status event is recorded **only when `(status, status_note)` actually changed** — a
+  re-save of the same answer is not news; an unvote deletes its `vote` event; deleting a comment
+  deletes the event that names it (and its read rows); deleting an idea takes comments, events and
+  reads. The reason is A9's: `featurerequest.id` and `featurerequestcomment.id` have no
+  AUTOINCREMENT, so a row left pointing at a dead id silently reattaches to whatever takes that id.
+- **`/me/notifications` is typed** (`MyNotificationsOut` / `MyNotificationOut`, seven kinds in one
+  shape with `created_at` kept as `str`). **One wire nuance:** FastAPI now renders the optional
+  keys an item does not use as explicit `null` (a `guestbook` item gains `"tournament_id": null`),
+  where before the key was simply absent. Nothing that had a value changed, `exclude_none` was
+  **not** used (it would have *removed* the deliberate `"author_player_id": null` a "General"
+  comment carries), and the frontend type has always had those fields optional-and-nullable.
+  `me.py` gained the `response_model` and its import and **nothing else** — the body is P3's.
+- **`comments` is required on `IdeaOut`**, so the generated type is `IdeaComment[]` and no consumer
+  guesses; `frontend/src/test/ideaMeta.test.ts` is the only literal in the app that needed
+  `comments: []`. `api/types.ts` gained `IdeaComment`, all seven `NotificationKind`s and the two
+  notification aliases (so P3 need not touch that file); `notifications.api.ts` lost its three
+  hand-written types and keeps `listMyNotifications`; `NotificationBell.tsx` changed **only** its
+  import line. The bell's icons and headlines still fall through to the poke branch for the four
+  idea kinds — P3's job, and type-safe meanwhile.
+- **Routes:** `POST /ideas/{id}/comments`, `DELETE /ideas/comments/{cid}`, `PUT /ideas/{id}/read`.
+  The middle one is the guestbook's `/players/guestbook/{entry_id}` shape; it collides with nothing
+  (`/ideas/{id}/image` needs a literal third segment), verified live. Writing needs `require_editor_claims`
+  like posting an idea; `PUT …/read` takes any token; reading comments needs none.
+- **Verified on the isolated stack** (backend **8071**, a copy of the prod DB as
+  `backend/data/verify-p1.db`, a throwaway secrets file outside the repo, both since removed; no
+  vite — this task ships no UI): every idea carries `comments`; a reader sees the list and
+  `can_delete: false` and is **401** on every write; Berni's comment shows `can_delete` for Berni
+  and for the admin but **not for the idea's own author** (403 on his delete attempt — the "the
+  asker does not moderate" rule, live); `PUT /ideas/{id}/read` answered `{ok, marked: 3}` then
+  `{ok, marked: 0}`, and **404** for an unknown idea; a real `guestbook` and a real `poke` came
+  back through the new response model unchanged.
+- **Tests:** `backend/tests/test_idea_comments.py`, **17 new** (the plan asked for 10) — the extra
+  seven are the audience section, because three other tasks trust it: the actor is never in the
+  audience (every kind × every actor), a commenter who is not the author is included, an admin who
+  has not commented is not, a deleted comment drops its author unless they have another comment
+  there, a vote and a status reach the author alone, `created` reaches only the admins the caller
+  names, and the two forms of the helper agree. `tests/test_ideas.py` and
+  `tests/test_me_notifications.py` are untouched and green — the proof the response model fits the
+  three existing kinds.
+- **Gates:** `make test` **223 passed**, 0 failed (206 on the branch before this task + 17 here;
+  8m53s, the Pi was busy), `make lint` clean, `make gen-types` regenerated and committed with the models, `cd frontend && npm run check`
+  green (**700 tests in 69 files**), `npm run build` green (the pre-existing >500 kB hint).
+- **Not done, on purpose:** no WebSocket channel (the Decisions block, and §6's coverage row for
+  `["ideas"]` is unchanged — comments ride under the same key and inherit its 5 s); no UI (P4); no
+  push (P2); no bell body (P3); `AGENTS.md` and `DESIGN.md` untouched (P6).
+- **One note on rule 3:** `git commit -o -- <paths>` refuses a path git has never heard of, so the
+  two new files needed `git add --intent-to-add <those two files>` first — it stages no content and
+  names nothing else. Everything else went in by path, as the rule says; the tree held only this
+  task's files (this task runs alone).
 
 ---
 

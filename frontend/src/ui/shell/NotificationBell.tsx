@@ -5,11 +5,8 @@ import { Bell, BookOpen, Hand, Reply } from "lucide-react";
 
 import { useAuth } from "../../auth/AuthContext";
 import { qk } from "../../api/queryKeys";
-import {
-  listMyNotifications,
-  type MyNotification,
-  type MyNotificationsResponse,
-} from "../../api/notifications.api";
+import { listMyNotifications } from "../../api/notifications.api";
+import type { MyNotification, MyNotificationsResponse } from "../../api/types";
 import { fmtDate } from "../../utils/format";
 import { useClickOutside } from "../layout/useClickOutside";
 import Button from "../primitives/Button";

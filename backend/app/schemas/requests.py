@@ -193,3 +193,9 @@ class IdeaStatusBody(BaseModel):
 
 class IdeaVoteBody(BaseModel):
     value: int | str | None = 0
+
+
+class IdeaCommentCreateBody(BaseModel):
+    """A flat comment under an idea. Body only — there is no editing, no image and
+    no reply target (P1)."""
+    body: str = ""
