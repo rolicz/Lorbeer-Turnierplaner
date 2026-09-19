@@ -9,6 +9,8 @@ import {
 } from "../api/push.api";
 import type { PushNotificationLanguage, PushNotificationMode } from "../api/types";
 import { qk } from "../api/queryKeys";
+import { ApiError } from "../api/client";
+import { readStored, writeStored } from "../utils/safeStorage";
 import type { PushPlatform } from "./push";
 import {
   detectPushPlatform,
@@ -16,9 +18,12 @@ import {
   getPushPermission,
   isPushSupported,
   isStandaloneDisplayMode,
+  rotateBrowserPushSubscription,
   serializePushSubscription,
   subscribeBrowserToPush,
 } from "./push";
+import type { PushSetupState } from "./pushSetup";
+import { isPushDisabledByUser, pushSetupState, setPushDisabledByUser } from "./pushSetup";
 
 const PUSH_LANGUAGE_STORAGE_KEY = "push_notification_language";
 const PUSH_MODE_STORAGE_KEY = "push_notification_mode";
@@ -41,12 +46,12 @@ function normalizePushLanguage(value: string | null | undefined, fallback: PushN
 
 function loadStoredPushLanguage(): PushNotificationLanguage {
   if (typeof window === "undefined") return FALLBACK_PUSH_LANGUAGE;
-  return normalizePushLanguage(window.localStorage.getItem(PUSH_LANGUAGE_STORAGE_KEY), FALLBACK_PUSH_LANGUAGE);
+  return normalizePushLanguage(readStored(PUSH_LANGUAGE_STORAGE_KEY), FALLBACK_PUSH_LANGUAGE);
 }
 
 function storePushLanguage(value: PushNotificationLanguage) {
   if (typeof window === "undefined") return;
-  window.localStorage.setItem(PUSH_LANGUAGE_STORAGE_KEY, value);
+  writeStored(PUSH_LANGUAGE_STORAGE_KEY, value);
 }
 
 function normalizePushMode(value: string | null | undefined, fallback: PushNotificationMode): PushNotificationMode {
@@ -55,12 +60,41 @@ function normalizePushMode(value: string | null | undefined, fallback: PushNotif
 
 function loadStoredPushMode(): PushNotificationMode {
   if (typeof window === "undefined") return FALLBACK_PUSH_MODE;
-  return normalizePushMode(window.localStorage.getItem(PUSH_MODE_STORAGE_KEY), FALLBACK_PUSH_MODE);
+  return normalizePushMode(readStored(PUSH_MODE_STORAGE_KEY), FALLBACK_PUSH_MODE);
 }
 
 function storePushMode(value: PushNotificationMode) {
   if (typeof window === "undefined") return;
-  window.localStorage.setItem(PUSH_MODE_STORAGE_KEY, value);
+  writeStored(PUSH_MODE_STORAGE_KEY, value);
+}
+
+/**
+ * PUT this browser's subscription, and rotate it once if the server says it is dead.
+ *
+ * `PUT /push/subscription` answers **410** for an endpoint the push service has
+ * rejected (P5): re-enabling it would resurrect a corpse that the next push kills
+ * again, silently, for ever. The cure is a new endpoint, so unsubscribe, subscribe
+ * again and PUT that — once. A second 410 is a real error and surfaces.
+ *
+ * Both writers (enable, and the auto-sync that repairs a subscription the server has
+ * lost) go through here; there is no second copy of this rule.
+ */
+async function putSubscriptionRotatingOn410(args: {
+  token: string;
+  subscription: PushSubscription;
+  language: PushNotificationLanguage;
+  mode: PushNotificationMode;
+  vapidPublicKey: string;
+}): Promise<string> {
+  try {
+    await putPushSubscription(args.token, serializePushSubscription(args.subscription, args.language, args.mode));
+    return args.subscription.endpoint;
+  } catch (error) {
+    if (!(error instanceof ApiError) || error.status !== 410 || !args.vapidPublicKey) throw error;
+    const rotated = await rotateBrowserPushSubscription(args.vapidPublicKey);
+    await putPushSubscription(args.token, serializePushSubscription(rotated, args.language, args.mode));
+    return rotated.endpoint;
+  }
 }
 
 function errText(error: unknown): string {
@@ -86,6 +120,8 @@ export type PushNotificationsState = {
   serverEnabled: boolean;
   serverReason: string | null;
   serverSubscriptionCount: number;
+  /** Does this device receive notifications, and if not, whose move is it (P5). */
+  setupState: PushSetupState;
   loading: boolean;
   syncing: boolean;
   testing: boolean;
@@ -114,8 +150,11 @@ export function usePushNotifications(token: string | null): PushNotificationsSta
   const [selectedMode, setSelectedMode] = useState<PushNotificationMode>(() => loadStoredPushMode());
   const [preferencesSyncing, setPreferencesSyncing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [browserChecked, setBrowserChecked] = useState(false);
+  const [userDisabled, setUserDisabled] = useState<boolean>(() => isPushDisabledByUser());
   const autoSyncKeyRef = useRef("");
   const autoSyncInFlightRef = useRef(false);
+  const autoResubscribeRef = useRef("");
   const previousTokenRef = useRef<string | null>(token);
 
   const configQ = useQuery({
@@ -138,11 +177,18 @@ export function usePushNotifications(token: string | null): PushNotificationsSta
     [browserEndpoint, mySubscriptionsQ.data?.subscriptions],
   );
 
+  /** The device's own answer, kept in storage so a relaunch still knows it. */
+  const rememberUserDisabled = useCallback((value: boolean) => {
+    setPushDisabledByUser(value);
+    setUserDisabled(value);
+  }, []);
+
   const refreshBrowserState = useCallback(async (): Promise<PushSubscription | null> => {
     setPermission(getPushPermission());
     setStandalone(isStandaloneDisplayMode());
     if (!supported) {
       setBrowserEndpoint(null);
+      setBrowserChecked(true);
       return null;
     }
     try {
@@ -152,6 +198,10 @@ export function usePushNotifications(token: string | null): PushNotificationsSta
     } catch {
       setBrowserEndpoint(null);
       return null;
+    } finally {
+      // "no subscription" and "not asked yet" look identical from outside, and the
+      // notice must never claim the first while it is still the second.
+      setBrowserChecked(true);
     }
   }, [supported]);
 
@@ -243,12 +293,20 @@ export function usePushNotifications(token: string | null): PushNotificationsSta
         throw new Error("Notification permission was not granted.");
       }
       const subscription = await subscribeBrowserToPush(config.vapid_public_key);
-      await putPushSubscription(token, serializePushSubscription(subscription, selectedLanguage, selectedMode));
-      return subscription.endpoint;
+      return putSubscriptionRotatingOn410({
+        token,
+        subscription,
+        language: selectedLanguage,
+        mode: selectedMode,
+        vapidPublicKey: config.vapid_public_key,
+      });
     },
     onSuccess: async (endpoint) => {
       setError(null);
       setBrowserEndpoint(endpoint);
+      // This device said yes. A later "granted but no subscription" is then the
+      // browser having dropped it, and is repaired silently (P5).
+      rememberUserDisabled(false);
       storePushLanguage(selectedLanguage);
       await refreshAll();
     },
@@ -273,6 +331,8 @@ export function usePushNotifications(token: string | null): PushNotificationsSta
     onSuccess: async () => {
       setError(null);
       setBrowserEndpoint(null);
+      // A deliberate no: never silently re-subscribe this device behind its back.
+      rememberUserDisabled(true);
       await refreshAll();
     },
     onError: (mutationError) => {
@@ -313,7 +373,14 @@ export function usePushNotifications(token: string | null): PushNotificationsSta
         autoSyncKeyRef.current = "";
         return;
       }
-      await putPushSubscription(token, serializePushSubscription(subscription, selectedLanguage, selectedMode));
+      const endpoint = await putSubscriptionRotatingOn410({
+        token,
+        subscription,
+        language: selectedLanguage,
+        mode: selectedMode,
+        vapidPublicKey: configQ.data?.vapid_public_key ?? "",
+      });
+      setBrowserEndpoint(endpoint);
       await qc.invalidateQueries({ queryKey: qk.push.subscriptions(token) });
     })()
       .catch((syncError) => {
@@ -337,6 +404,31 @@ export function usePushNotifications(token: string | null): PushNotificationsSta
   ]);
 
   const deviceEnabled = !!browserEndpoint && permission === "granted" && (mySubscriptionsQ.data?.endpoints ?? []).includes(browserEndpoint);
+
+  const setupState = pushSetupState({
+    token,
+    supported,
+    serverEnabled: !!configQ.data?.enabled,
+    permission,
+    browserEndpoint,
+    userDisabled,
+  });
+
+  // Permission is granted but the subscription is gone — the browser dropped it, or
+  // `pushsubscriptionchange` fired and the service worker re-subscribed without being
+  // able to tell the server (it has no bearer token). Subscribing again needs no
+  // prompt, so repair it here, once per token+key, rather than asking the reader to
+  // notice. `browserChecked` keeps "not asked yet" from looking like "gone".
+  useEffect(() => {
+    if (!browserChecked || setupState !== "resubscribe") return;
+    const key = `${token ?? ""}:${configQ.data?.vapid_public_key ?? ""}`;
+    if (autoResubscribeRef.current === key) return;
+    autoResubscribeRef.current = key;
+    enableMut.mutate();
+    // `enableMut` is stable enough for this: the ref, not the dependency list, is what
+    // makes it fire once.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [browserChecked, configQ.data?.vapid_public_key, setupState, token]);
 
   const syncSubscriptionPreferences = useCallback(
     async (language: PushNotificationLanguage, mode: PushNotificationMode) => {
@@ -393,7 +485,8 @@ export function usePushNotifications(token: string | null): PushNotificationsSta
     serverEnabled: !!configQ.data?.enabled,
     serverReason: configQ.data?.reason ?? null,
     serverSubscriptionCount: mySubscriptionsQ.data?.count ?? 0,
-    loading: configQ.isLoading || (!!token && mySubscriptionsQ.isLoading),
+    setupState,
+    loading: configQ.isLoading || (!!token && mySubscriptionsQ.isLoading) || (supported && !browserChecked),
     syncing: enableMut.isPending || disableMut.isPending || preferencesSyncing,
     testing: testMut.isPending,
     availableLanguages,

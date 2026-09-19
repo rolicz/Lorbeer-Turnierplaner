@@ -19,6 +19,7 @@ from sqlmodel import Session, select
 from ..api_utils import forbidden
 from ..models import (
     FeatureRequest,
+    FeatureRequestComment,
     FriendlyCreatorLink,
     FriendlyMatch,
     Match,
@@ -312,6 +313,37 @@ def feature_request_capabilities(fr: FeatureRequest, *, claims: dict | None) -> 
     }
 
 
+def _is_idea_comment_author(c: FeatureRequestComment, claims: dict | None) -> bool:
+    viewer = _viewer_id(claims)
+    return viewer is not None and int(c.author_player_id) == viewer
+
+
+def can_delete_feature_request_comment(c: FeatureRequestComment, *, claims: dict | None) -> bool:
+    """Admin always; otherwise the author of this comment, with no deadline (P1).
+
+    Deliberately **not** the idea's author: the guestbook lets the wall's owner clear
+    a note from their wall, but a comment on an idea is a reply to a document, not a
+    note on a wall, and an asker who can delete the answers is a board nobody argues
+    on. There is no edit verb at all — a typo is fixed by deleting and reposting
+    (Roli, 2026-09-19) — so this is the comment's whole permission surface.
+    """
+    if _is_admin(claims):
+        return True
+    if not _is_editor_or_admin(claims):
+        return False
+    return _is_idea_comment_author(c, claims)
+
+
+def feature_request_comment_capabilities(
+    c: FeatureRequestComment, *, claims: dict | None
+) -> dict[str, bool]:
+    """What this caller may do with this comment — the flag the payload carries.
+
+    A reader gets all-False; the page renders the flag and never re-derives the rule.
+    """
+    return {"can_delete": can_delete_feature_request_comment(c, claims=claims)}
+
+
 # ---- guards: the same answers, raised as 403s -----------------------------
 
 
@@ -356,3 +388,10 @@ def ensure_can_edit_feature_request(fr: FeatureRequest, *, claims: dict | None, 
 def ensure_can_set_feature_request_status(claims: dict | None) -> None:
     if not can_set_feature_request_status(claims=claims):
         forbidden("Only an admin can set the status of an idea")
+
+
+def ensure_can_delete_feature_request_comment(
+    c: FeatureRequestComment, *, claims: dict | None, action: str = "delete"
+) -> None:
+    if not can_delete_feature_request_comment(c, claims=claims):
+        forbidden(f"Only the author of this comment, or an admin, can {action} it")

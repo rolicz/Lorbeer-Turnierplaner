@@ -465,3 +465,59 @@ class FeatureRequestImageFile(SQLModel, table=True):
     file_path: str = Field(index=True)
     file_size: int
     updated_at: dt.datetime = Field(default_factory=dt.datetime.utcnow, index=True)
+
+
+class FeatureRequestComment(SQLModel, table=True):
+    """
+    A flat comment under an idea (P1).
+
+    No thread link, no image, no vote — Roli's "it can stay a flat list" — and **no
+    editing**: a typo is fixed by deleting and reposting, which is why there is no
+    `edited_at` here and why `updated_at` never moves away from `created_at` (it is
+    kept because every sibling table carries it, not because anything writes it).
+    The author is never NULL: commenting needs a login, exactly like posting an idea.
+    """
+    id: Optional[int] = Field(default=None, primary_key=True)
+
+    request_id: int = Field(foreign_key="featurerequest.id", index=True)
+    author_player_id: int = Field(foreign_key="player.id", index=True)
+
+    body: str
+
+    created_at: dt.datetime = Field(default_factory=dt.datetime.utcnow, index=True)
+    updated_at: dt.datetime = Field(default_factory=dt.datetime.utcnow, index=True)
+
+
+class FeatureRequestEvent(SQLModel, table=True):
+    """
+    Something that happened to an idea and somebody may want to hear about:
+    kind "created" | "comment" | "vote" | "status".
+
+    One event log rather than four read tables: a status change is not a row anywhere
+    else, and a vote has no id of its own, so a per-kind read table would have needed
+    a three-column key. The bell derives from these rows minus
+    `FeatureRequestEventRead`, the way it derives the other three kinds from their
+    tables — so an unvote takes its event, a deleted comment takes its event, and a
+    deleted idea takes all of them.
+    """
+    id: Optional[int] = Field(default=None, primary_key=True)
+
+    request_id: int = Field(foreign_key="featurerequest.id", index=True)
+    kind: str = Field(index=True)
+    actor_player_id: int = Field(foreign_key="player.id", index=True)
+    comment_id: Optional[int] = Field(default=None, foreign_key="featurerequestcomment.id", index=True)
+
+    #: kind == "status": the status as it was set (the bell shows the word).
+    status: str = Field(default="")
+    #: kind == "status": the note as it was set.
+    status_note: str = Field(default="")
+
+    created_at: dt.datetime = Field(default_factory=dt.datetime.utcnow, index=True)
+
+
+class FeatureRequestEventRead(SQLModel, table=True):
+    """Who has already seen which idea event. The actor's own row is written with
+    the event, so nobody is ever told about their own action."""
+    player_id: int = Field(foreign_key="player.id", primary_key=True)
+    event_id: int = Field(foreign_key="featurerequestevent.id", primary_key=True)
+    read_at: dt.datetime = Field(default_factory=dt.datetime.utcnow, index=True)

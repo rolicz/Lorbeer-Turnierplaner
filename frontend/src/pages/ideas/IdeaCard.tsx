@@ -7,6 +7,9 @@
  * triages it. Which of them a viewer sees is not decided here: the payload carries
  * `can_edit` / `can_delete` / `can_set_status`, computed server-side, and this
  * component renders them.
+ *
+ * Below the actions row sits the flat comment thread (`IdeaComments.tsx`, P4):
+ * a comment cannot be edited, so its own flag is `can_delete` alone.
  */
 import { Check, ImageIcon, Pencil, Save, ThumbsUp, Trash2, Users, X } from "lucide-react";
 import { useState } from "react";
@@ -19,7 +22,7 @@ import { Pill } from "../../ui/primitives/Pill";
 import { cn } from "../../ui/cn";
 import { fmtDateTime } from "../../utils/format";
 import { ideaImageUrl } from "../../api/ideas.api";
-import type { Idea, IdeaArea, IdeaKind, IdeaStatus } from "../../api/types";
+import type { Idea, IdeaArea, IdeaComment, IdeaKind, IdeaStatus } from "../../api/types";
 import {
   IDEA_KIND_ICON,
   IDEA_KIND_LABEL,
@@ -30,6 +33,7 @@ import {
   ideaStatusPillClass,
 } from "./ideaMeta";
 import { IdeaAreasField, IdeaBodyField, IdeaKindField, IdeaTitleInput } from "./IdeaFields";
+import IdeaComments from "./IdeaComments";
 
 export type IdeaCardHandlers = {
   token: string | null;
@@ -43,6 +47,10 @@ export type IdeaCardHandlers = {
   onSaveStatus: (idea: Idea, status: IdeaStatus, note: string) => Promise<void>;
   onReplaceImage: (idea: Idea) => void;
   onRemoveImage: (idea: Idea) => void;
+  /** Reading marks read: called when a viewer expands an idea's comments (P4/P1). */
+  onOpenComments: (idea: Idea) => void;
+  onPostComment: (idea: Idea, body: string) => Promise<void>;
+  onRequestDeleteComment: (comment: IdeaComment) => void;
   savingId: number | null;
 };
 
@@ -67,6 +75,9 @@ export default function IdeaCard({
     onSaveStatus,
     onReplaceImage,
     onRemoveImage,
+    onOpenComments,
+    onPostComment,
+    onRequestDeleteComment,
     savingId,
   } = handlers;
 
@@ -79,6 +90,23 @@ export default function IdeaCard({
   const [statusOpen, setStatusOpen] = useState(false);
   const [status, setStatus] = useState<IdeaStatus>(idea.status);
   const [note, setNote] = useState(idea.status_note);
+
+  // The deep link (`?idea=`) forces the thread open; its own read-marking
+  // lives in the page's effect, so this does not call `onOpenComments` again.
+  // Adjusted during render, not an effect (react-hooks/set-state-in-effect):
+  // the React-endorsed "store the previous prop and compare" shape.
+  const [commentsOpen, setCommentsOpen] = useState(false);
+  const [prevFlash, setPrevFlash] = useState(flash);
+  if (flash !== prevFlash) {
+    setPrevFlash(flash);
+    if (flash) setCommentsOpen(true);
+  }
+
+  function toggleComments() {
+    const next = !commentsOpen;
+    setCommentsOpen(next);
+    if (next) onOpenComments(idea);
+  }
 
   const busy = savingId === idea.id;
   const edited = !!idea.edited_at;
@@ -321,6 +349,16 @@ export default function IdeaCard({
               ) : null}
             </span>
           </div>
+
+          <IdeaComments
+            idea={idea}
+            token={token}
+            open={commentsOpen}
+            onToggle={toggleComments}
+            avatarUpdatedAtByPlayerId={avatarUpdatedAtByPlayerId}
+            onPost={onPostComment}
+            onRequestDelete={onRequestDeleteComment}
+          />
         </div>
       )}
 

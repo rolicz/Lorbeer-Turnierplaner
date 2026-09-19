@@ -102,12 +102,31 @@ export type Idea = Omit<S["IdeaOut"], "kind" | "status" | "my_vote"> & {
 export type IdeaListResponse = Omit<S["IdeaListOut"], "ideas"> & { ideas: Idea[] };
 export type IdeaArea = S["IdeaAreaOut"];
 export type IdeaAreasResponse = S["IdeaAreasOut"];
+// A flat comment under an idea. It rides inside the idea payload (`Idea.comments`,
+// oldest first), so there is no list response and no query key of its own — and no
+// edit: `can_delete` is its whole permission surface.
+export type IdeaComment = S["IdeaCommentOut"];
 
 // Auth
 // Login endpoint never returns "reader" (that is the unauthenticated default, not a credential).
 export type LoginResponse = Omit<S["LoginOut"], "role"> & { role: Exclude<Role, "reader"> };
 // /me returns role: null when the caller has no player profile yet.
 export type MeResponse = Omit<S["MeOut"], "role"> & { role: Role | null };
+
+// Personal notifications (the bell). `kind` is a string in the generated schema; the
+// backend builds exactly these seven, so narrow it here — once, for every consumer.
+export type NotificationKind =
+  | "comment_reply"
+  | "guestbook"
+  | "poke"
+  | "idea_created"
+  | "idea_comment"
+  | "idea_vote"
+  | "idea_status";
+export type MyNotification = Omit<S["MyNotificationOut"], "kind"> & { kind: NotificationKind };
+export type MyNotificationsResponse = Omit<S["MyNotificationsOut"], "items"> & {
+  items: MyNotification[];
+};
 
 // Push notification language/mode are typed as string in the generated schema; narrow to the known values.
 // If the backend adds a new language or mode, add it to PushNotificationLanguage/PushNotificationMode above.

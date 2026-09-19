@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from sqlmodel import Session
+from sqlmodel import Session, select
 
 from ..auth import require_auth_claims
 from ..db import get_session
+from ..models import PushSubscription
 from ..schemas import PushSubscriptionBody, PushSubscriptionDeleteBody
 from ..schemas.responses import (
     OkResponse,
@@ -66,6 +67,20 @@ def put_subscription(
     dispatcher = push_dispatcher_from_request(request)
     if dispatcher is None or not dispatcher.enabled:
         raise HTTPException(status_code=503, detail=dispatcher.disabled_reason if dispatcher else "Push is unavailable")
+
+    # A subscription the push service itself rejected (404/410) is a corpse, not a
+    # paused device: `_deliver_one` disabled it because APNs/FCM said the endpoint is
+    # gone, and it will say so again. `upsert_push_subscription` clears `disabled_at`,
+    # so a client that kept the dead endpoint used to resurrect it on every launch and
+    # kill it again on the next push, silently, for ever (P5). Refusing with 410 tells
+    # the client to rotate (unsubscribe -> subscribe -> PUT a *new* endpoint); the new
+    # endpoint is a different row and is accepted normally. A row a client disabled
+    # itself carries no rejection status and is re-enabled as before.
+    endpoint_norm = str(body.endpoint or "").strip()
+    if endpoint_norm:
+        dead = s.exec(select(PushSubscription).where(PushSubscription.endpoint == endpoint_norm)).first()
+        if dead is not None and dead.disabled_at is not None and dead.last_http_status in (404, 410):
+            raise HTTPException(status_code=410, detail="The push service no longer knows this endpoint; subscribe again")
 
     try:
         row = upsert_push_subscription(

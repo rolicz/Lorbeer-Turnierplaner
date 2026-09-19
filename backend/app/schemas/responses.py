@@ -58,6 +58,41 @@ class MeOut(BaseModel):
     exp: int | None
 
 
+class MyNotificationOut(BaseModel):
+    """One item in the personal notification bell.
+
+    Every kind shares this one shape and fills the fields that apply — the union of
+    seven kinds rather than seven models, because the bell renders one row type and
+    the client narrows `kind` itself. `created_at` is a **string**: the router has
+    always built `.isoformat()` and the wire format does not move for a type.
+    """
+    #: "comment_reply" | "guestbook" | "poke" | "idea_created" | "idea_comment"
+    #: | "idea_vote" | "idea_status"
+    kind: str
+    #: Unique within its kind — the row the item came from (a comment, a poke, an
+    #: idea event). The bell's optimistic drop keys on (kind, id).
+    id: int
+    author_name: str
+    snippet: str
+    created_at: str
+    #: Client route that opens the item, e.g. `/live/12?comment=34`.
+    path: str
+
+    author_player_id: int | None = None
+    tournament_id: int | None = None
+    match_id: int | None = None
+    profile_player_id: int | None = None
+    idea_id: int | None = None
+    idea_title: str | None = None
+    idea_status: str | None = None
+
+
+class MyNotificationsOut(BaseModel):
+    items: list[MyNotificationOut]
+    #: Every unread item, not just the ones that fit in `items`.
+    unread_count: int
+
+
 # ---- players / profiles ------------------------------------------------
 class ProfileMetaOut(BaseModel):
     player_id: int
@@ -288,6 +323,24 @@ class IdeaAreasOut(BaseModel):
     areas: list[IdeaAreaOut]
 
 
+class IdeaCommentOut(BaseModel):
+    """One flat comment under an idea (P1).
+
+    `can_delete` is the whole permission surface: an idea comment cannot be edited —
+    a typo is fixed by deleting and reposting — so there is no `can_edit` here and no
+    PATCH behind it. `updated_at` is carried because the row has it; nothing moves it.
+    """
+    id: int
+    request_id: int
+    author_player_id: int
+    author_display_name: str
+    body: str
+    created_at: datetime
+    updated_at: datetime
+    #: The comment's author, or an admin. A reader gets False (R5's pattern).
+    can_delete: bool = False
+
+
 class IdeaOut(BaseModel):
     id: int
     author_player_id: int
@@ -316,6 +369,10 @@ class IdeaOut(BaseModel):
     can_edit: bool = False
     can_delete: bool = False
     can_set_status: bool = False
+    #: The idea's comments, oldest first. Required, not defaulted: the list rides in
+    #: this payload rather than behind a second endpoint, and a client must never
+    #: have to guess whether it was omitted or is genuinely empty.
+    comments: list[IdeaCommentOut]
 
 
 class IdeaListOut(BaseModel):

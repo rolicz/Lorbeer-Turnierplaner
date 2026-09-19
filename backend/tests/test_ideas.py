@@ -505,3 +505,237 @@ def test_the_idea_push_is_delivered_to_the_admin_devices_in_each_language(client
     for title, body in by_endpoint.values():
         assert "One dialog everywhere" in body
         assert "Change · Not about one page" in body
+
+
+# ---- P2: push for a comment, a vote, and a status ------------------------
+#
+# Audience for all three comes from `idea_event_audience` (P1) — imported, never
+# re-derived. For a two-person thread (author + one commenter/voter/admin) that
+# collapses to "the author alone", which is what these tests see; the "everyone who
+# has already commented" half of the `comment` rule is P1's own audience matrix
+# (`test_idea_comments.py`), not re-proven here.
+
+
+def test_a_comment_a_vote_and_a_status_are_pushed_to_the_idea_author_only(
+    client, editor_headers, editor2_headers, admin_headers
+):
+    sent: list[tuple[int, object]] = []
+
+    class _Recorder:
+        def enqueue(self, message):  # pragma: no cover - the wrong path
+            sent.append((-1, message))
+
+        def enqueue_for_player(self, player_id, message):  # pragma: no cover - fallback path
+            sent.append((int(player_id), message))
+
+        def enqueue_personal_for_player(self, player_id, message):
+            sent.append((int(player_id), message))
+
+    client.app.state.push_dispatcher = _Recorder()
+
+    editor_id = client.get("/me", headers=editor_headers).json()["player_id"]
+
+    idea = _create(client, editor_headers, title="Filter the friendlies list")
+    iid = idea["id"]
+    sent.clear()  # drop the "created" push to the admins — not this test's subject
+
+    # A comment from someone else reaches the author (nobody else has said
+    # anything in this thread yet, so the audience is just the author).
+    r = client.post(f"/ideas/{iid}/comments", json={"body": "Would love this too."}, headers=editor2_headers)
+    assert r.status_code == 200, r.text
+    comment_id = r.json()["id"]
+    assert [pid for pid, _ in sent] == [editor_id]
+    message = sent[0][1]
+    assert message.event_type == "idea_commented"
+    assert message.path == f"/ideas?idea={iid}"
+    assert message.tag == f"idea-comment-{iid}"
+    assert message.data == {"idea_id": iid, "comment_id": comment_id}
+    assert message.text_context["author_name"] == "Editor2"
+    assert message.text_context["title"] == "Filter the friendlies list"
+    assert message.text_context["preview"] == "Would love this too."
+    for language in ("steirisch", "deutsch", "english"):
+        payload = message.to_payload(language)
+        assert "Editor2" in payload["title"]
+        assert "Filter the friendlies list" in payload["body"]
+        assert "Would love this too." in payload["body"]
+
+    # A vote from someone else reaches the author alone.
+    sent.clear()
+    r = client.put(f"/ideas/{iid}/vote", json={"value": 1}, headers=editor2_headers)
+    assert r.status_code == 200
+    assert [pid for pid, _ in sent] == [editor_id]
+    message = sent[0][1]
+    assert message.event_type == "idea_voted"
+    assert message.tag == f"idea-vote-{iid}"
+    assert message.data == {"idea_id": iid, "vote_count": 1}
+    assert message.text_context["author_name"] == "Editor2"
+    for language in ("steirisch", "deutsch", "english"):
+        payload = message.to_payload(language)
+        assert "Editor2" in payload["title"]
+        assert "Filter the friendlies list" in payload["body"]
+
+    # A status change from the admin reaches the author alone, with the status word
+    # translated per language.
+    sent.clear()
+    r = client.put(f"/ideas/{iid}/status", json={"status": "planned", "note": "soon"}, headers=admin_headers)
+    assert r.status_code == 200
+    assert [pid for pid, _ in sent] == [editor_id]
+    message = sent[0][1]
+    assert message.event_type == "idea_status"
+    assert message.tag == f"idea-status-{iid}"
+    assert message.data == {"idea_id": iid, "status": "planned"}
+    assert message.text_context["status"] == "planned"
+    assert message.text_context["status_note_line"] == "\nsoon"
+    expected_status_word = {"steirisch": "eiplant", "deutsch": "geplant", "english": "planned"}
+    for language, word in expected_status_word.items():
+        payload = message.to_payload(language)
+        assert word in payload["title"]
+        assert "soon" in payload["body"]
+        assert "Filter the friendlies list" in payload["body"]
+
+
+def test_nothing_is_pushed_for_ones_own_action(client, editor_headers, admin_headers):
+    sent: list[tuple[int, object]] = []
+
+    class _Recorder:
+        def enqueue(self, message):  # pragma: no cover - the wrong path
+            sent.append((-1, message))
+
+        def enqueue_for_player(self, player_id, message):  # pragma: no cover - fallback path
+            sent.append((int(player_id), message))
+
+        def enqueue_personal_for_player(self, player_id, message):
+            sent.append((int(player_id), message))
+
+    client.app.state.push_dispatcher = _Recorder()
+
+    idea = _create(client, editor_headers)
+    iid = idea["id"]
+    sent.clear()
+
+    assert client.post(f"/ideas/{iid}/comments", json={"body": "Note to self."}, headers=editor_headers).status_code == 200
+    assert sent == []
+
+    assert client.put(f"/ideas/{iid}/vote", json={"value": 1}, headers=editor_headers).status_code == 200
+    assert sent == []
+
+    admin_idea = _create(client, admin_headers, title="Admin's own")["id"]
+    sent.clear()
+    assert client.put(f"/ideas/{admin_idea}/status", json={"status": "planned"}, headers=admin_headers).status_code == 200
+    assert sent == []
+
+
+def test_idea_events_reach_the_default_notification_mode(client):
+    """`idea_commented`/`idea_voted`/`idea_status` are personal events too, so a
+    default "Results & personal" subscription still gets them."""
+    from app.services.notifications import FINISHED_ONLY_EVENT_TYPES, PERSONAL_DEFAULT_EVENT_TYPES
+
+    for key in ("idea_commented", "idea_voted", "idea_status"):
+        assert key in PERSONAL_DEFAULT_EVENT_TYPES
+        assert key not in FINISHED_ONLY_EVENT_TYPES
+
+
+def test_the_idea_comment_push_is_delivered_to_the_author_and_not_the_commenter(
+    client, editor_headers, editor2_headers, monkeypatch
+):
+    """The other half of the chain, this file's own precedent for `idea_created`:
+    the queued message reaches the author's devices, never the commenter's own."""
+    import asyncio
+
+    from sqlmodel import Session
+
+    from app.db import get_engine
+    from app.models import PushSubscription, PushSubscriptionPreference
+    from app.services import notifications as notifications_service
+    from app.services.notifications import NotificationDispatcher
+    from app.settings import Settings
+
+    editor_id = client.get("/me", headers=editor_headers).json()["player_id"]
+    editor2_id = client.get("/me", headers=editor2_headers).json()["player_id"]
+
+    with Session(get_engine()) as s:
+        author_row = PushSubscription(
+            player_id=editor_id,
+            endpoint="https://push.example.test/author",
+            endpoint_hash="author",
+            p256dh="p256dh",
+            auth="auth",
+        )
+        commenter_row = PushSubscription(
+            player_id=editor2_id,
+            endpoint="https://push.example.test/commenter",
+            endpoint_hash="commenter",
+            p256dh="p256dh",
+            auth="auth",
+        )
+        s.add(author_row)
+        s.add(commenter_row)
+        s.flush()
+        s.add(PushSubscriptionPreference(subscription_id=int(author_row.id), notification_language="english"))
+        s.add(PushSubscriptionPreference(subscription_id=int(commenter_row.id), notification_language="english"))
+        s.commit()
+
+    queued: list[tuple[int, object]] = []
+
+    class _Recorder:
+        def enqueue(self, message):  # pragma: no cover - the wrong path
+            queued.append((-1, message))
+
+        def enqueue_for_player(self, player_id, message):  # pragma: no cover - fallback path
+            queued.append((int(player_id), message))
+
+        def enqueue_personal_for_player(self, player_id, message):
+            queued.append((int(player_id), message))
+
+    client.app.state.push_dispatcher = _Recorder()
+
+    iid = _create(client, editor_headers, title="Sort ideas by votes")["id"]
+    queued.clear()
+    r = client.post(f"/ideas/{iid}/comments", json={"body": "Big yes."}, headers=editor2_headers)
+    assert r.status_code == 200, r.text
+    assert [pid for pid, _ in queued] == [editor_id]
+
+    sent: list[tuple[str, str, str]] = []
+
+    async def fake_send(http_client, config, subscription, payload):
+        sent.append((str(subscription.endpoint), payload["title"], payload["body"]))
+
+        class FakeResponse:
+            status_code = 201
+            text = ""
+
+        return FakeResponse()
+
+    monkeypatch.setattr(notifications_service, "send_web_push_message", fake_send)
+
+    async def run() -> None:
+        dispatcher = NotificationDispatcher(
+            get_engine(),
+            Settings(
+                db_url="sqlite://",
+                player_accounts=(),
+                jwt_secret="test-jwt-secret",
+                ws_require_auth=False,
+                log_level="DEBUG",
+                push_vapid_public_key="test-public-key",
+                push_vapid_private_key="test-private-key",
+                push_vapid_subject="mailto:test@example.com",
+            ),
+        )
+        dispatcher._client = object()
+        dispatcher._runtime_ready = True
+        for player_id, message in queued:
+            await dispatcher._deliver(
+                notifications_service._QueuedPushMessage(
+                    message=message, player_id=player_id, default_mode_player_id=player_id
+                )
+            )
+
+    asyncio.run(run())
+
+    endpoints = sorted(endpoint for endpoint, _, _ in sent)
+    assert endpoints == ["https://push.example.test/author"]
+    _, title, body = sent[0]
+    assert title == "Editor2 commented on your idea"
+    assert "Sort ideas by votes" in body
+    assert "Big yes." in body

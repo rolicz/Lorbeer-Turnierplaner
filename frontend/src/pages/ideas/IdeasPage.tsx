@@ -32,7 +32,8 @@ import { listIdeaAreas, listIdeaVoters, listIdeas } from "../../api/ideas.api";
 import { qk } from "../../api/queryKeys";
 import { useAuth } from "../../auth/AuthContext";
 import { usePlayerAvatarMap } from "../../hooks/usePlayerAvatarMap";
-import type { Idea, IdeaKind, IdeaStatus } from "../../api/types";
+import { fmtDateTime } from "../../utils/format";
+import type { Idea, IdeaComment, IdeaKind, IdeaStatus } from "../../api/types";
 import IdeaCard, { type IdeaCardHandlers } from "./IdeaCard";
 import IdeaComposer, { type IdeaDraft } from "./IdeaComposer";
 import {
@@ -79,6 +80,9 @@ export default function IdeasPage() {
     statusMut,
     deleteMut,
     voteMut,
+    commentMut,
+    deleteCommentMut,
+    markReadMut,
   } = useIdeaMutations();
 
   // --- composer state ----------------------------------------------------
@@ -94,6 +98,7 @@ export default function IdeasPage() {
   const [votersIdea, setVotersIdea] = useState<Idea | null>(null);
   const [pendingDelete, setPendingDelete] = useState<Idea | null>(null);
   const [pendingRemoveImage, setPendingRemoveImage] = useState<Idea | null>(null);
+  const [pendingDeleteComment, setPendingDeleteComment] = useState<IdeaComment | null>(null);
   const [flashId, setFlashId] = useState<number | null>(null);
   const [savingId, setSavingId] = useState<number | null>(null);
 
@@ -115,6 +120,7 @@ export default function IdeasPage() {
     setTab("all");
     setArea(null);
     setFlashId(deepLinkId);
+    if (token) markReadMut.mutate(deepLinkId);
     const next = new URLSearchParams(searchParams);
     next.delete("idea");
     setSearchParams(next, { replace: true });
@@ -123,7 +129,7 @@ export default function IdeasPage() {
     }, 0);
     const t = window.setTimeout(() => setFlashId(null), 2400);
     return () => window.clearTimeout(t);
-  }, [deepLinkId, ideas, searchParams, setSearchParams, setTab]);
+  }, [deepLinkId, ideas, searchParams, setSearchParams, setTab, token, markReadMut]);
 
   const availableAreas = useMemo(() => usedAreaKeys(ideas, areaCatalog), [ideas, areaCatalog]);
   // An area filter whose ideas all moved to another tab would silently show nothing.
@@ -220,6 +226,13 @@ export default function IdeasPage() {
     },
     onReplaceImage: (idea) => setCropperTarget(idea.id),
     onRemoveImage: (idea) => setPendingRemoveImage(idea),
+    onOpenComments: (idea) => {
+      if (token) markReadMut.mutate(idea.id);
+    },
+    onPostComment: async (idea, body) => {
+      await commentMut.mutateAsync({ ideaId: idea.id, body });
+    },
+    onRequestDeleteComment: (comment) => setPendingDeleteComment(comment),
   };
 
   const loading = ideasQ.isLoading && !ideasQ.data;
@@ -235,6 +248,8 @@ export default function IdeasPage() {
       <ErrorToastOnError error={deleteMut.error} title="Could not delete the idea" />
       <ErrorToastOnError error={voteMut.error} title="Could not vote" />
       <ErrorToastOnError error={deleteImageMut.error} title="Could not remove the image" />
+      <ErrorToastOnError error={commentMut.error} title="Could not post the comment" />
+      <ErrorToastOnError error={deleteCommentMut.error} title="Could not delete the comment" />
 
       <SectionTabs tabs={TABS} active={tab} onChange={setTab} />
 
@@ -328,7 +343,7 @@ export default function IdeasPage() {
           />
         ) : (
           <div className="border-t border-border-card-outer/55 px-3 py-2.5 text-sm text-text-muted">
-            Log in as a player to post an idea or vote for one.
+            Log in as a player to post an idea, vote for one or comment.
           </div>
         )}
       </section>
@@ -405,6 +420,27 @@ export default function IdeasPage() {
         }}
       >
         <div>The screenshot is removed for good.</div>
+      </ConfirmDialog>
+
+      <ConfirmDialog
+        open={!!pendingDeleteComment}
+        title="Delete this comment?"
+        subtitle={
+          pendingDeleteComment
+            ? `${pendingDeleteComment.author_display_name} · ${fmtDateTime(pendingDeleteComment.created_at)}`
+            : undefined
+        }
+        confirmLabel="Delete comment"
+        busy={deleteCommentMut.isPending}
+        busyLabel="Deleting…"
+        onCancel={() => setPendingDeleteComment(null)}
+        onConfirm={() => {
+          const doomed = pendingDeleteComment;
+          setPendingDeleteComment(null);
+          if (doomed) deleteCommentMut.mutate(doomed.id);
+        }}
+      >
+        <div>The comment is removed for good.</div>
       </ConfirmDialog>
     </PageLayout>
   );

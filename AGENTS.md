@@ -5,7 +5,10 @@
 > non-obvious about the project (deploy quirks, data semantics, decisions), **update this file**
 > so the knowledge survives model/tool switches. Keep the "Current state" section dated.
 >
-> Last full review: 2026-09-16 (`main` at `f1ea22b`; `f425961` deployed, Q15–Q17 pushed and pending a frontend-only deploy).
+> Last full review: 2026-09-19 (branch `feature/2026-09-ideas`; code at `dedd6fa`, this pass on
+> top). `f425961` is still
+> the only thing deployed: the 2026-09 design batch is merged to `main` and undeployed, and the
+> Ideas batch (P1–P6) is not merged.
 
 ---
 
@@ -40,8 +43,9 @@ Size (2026-09-13): backend ≈ 13.3k LOC Python (`app/` + `manage.py` + `run.py`
 - `app/services/` — `tournament_view.py` (serialization), `tournament_list.py`, `events.py`
   (WS broadcasts), `notifications.py` + `webpush.py` + `notification_texts.py` (push pipeline),
   `cup.py` (cup ownership fold), `file_storage.py` (media on disk), `authorization.py`
-  (owner/admin guards), `comments_view.py`, `guestbook*.py`, `ideas_view.py`, `poke_summary.py`,
-  `stats/` (players, h2h, h2h_matches, streaks, ratings, odds, player_matches, tournament_stats,
+  (owner/admin guards), `comments_view.py`, `guestbook*.py`, `ideas_view.py` + `idea_events.py`
+  (the Ideas board's event log, and the one helper that answers who hears about an event — §6),
+  `poke_summary.py`, `stats/` (players, h2h, h2h_matches, streaks, ratings, odds, player_matches, tournament_stats,
   core, scope, registry), `comments_summary.py`, `guestbook_summary.py`,
   `club_stars.py` (the star-rating timeline: every write appends, every match resolves by date).
 - `app/models.py` — all SQLModel tables. `app/schemas/requests.py` + `responses.py` — pydantic
@@ -73,7 +77,8 @@ Size (2026-09-13): backend ≈ 13.3k LOC Python (`app/` + `manage.py` + `run.py`
   friendlies (`tools/` — `FriendlyMatchesListCard` holds the queries, the filter pill and the
   editor, `FriendlyList.tsx` the day-grouped list itself, Q7), `ideas/` (the Ideas board:
   `IdeasPage`, `IdeaCard`, `IdeaComposer`,
-  `IdeaFields`, `ideaMeta.ts`, `useIdeaMutations.ts`), settings, login,
+  `IdeaFields`, `IdeaComments.tsx` (the flat comment thread and the toggle that opens it, P4),
+  `ideaMeta.ts`, `useIdeaMutations.ts`), settings, login,
   `NotFoundPage` (the `*` route).
   `stats/` is one layout driven by `StatsInsights.tsx`: `statsNav.ts` resolves `?view=`/`?sub=`
   (and maps every legacy URL shape onto them, §10), `StatsSection.tsx` is the shared sub-view
@@ -95,7 +100,9 @@ Size (2026-09-13): backend ≈ 13.3k LOC Python (`app/` + `manage.py` + `run.py`
   navStack [the entry behind us, how this one was arrived at, and each entry's scroll offset],
   useScrollRestoration + useReturnScroll for scroll memory, useTabParam [`?tab=` for every
   tabbed page], keyboardOpen [the on-screen keyboard's one answer: `<html data-keyboard-open>`,
-  Q2], NotificationBell, RouteErrorBoundary [the *page* failed] and AppCrashBoundary
+  Q2], NotificationBell + notificationText [the bell's copy for all seven kinds, in one module],
+  PushSetupNotice ["this device gets no notifications", P5], RouteErrorBoundary [the *page*
+  failed] and AppCrashBoundary
   [the app failed — mounted in `main.tsx` outside every provider, see `src/diagnostics/`]),
   `ClubBadge`, `NationFlag`, `SectionTabs`, and the club selection: `SelectClubsPanel` (T9 — one
   "Clubs" disclosure per match holding both club slots, the filters and the two random actions)
@@ -114,7 +121,10 @@ Size (2026-09-13): backend ≈ 13.3k LOC Python (`app/` + `manage.py` + `run.py`
   blank screen — plain DOM, no React, no router, no context, because any of them may be what failed;
   `install.ts` wires them from `main.tsx` before React renders. Read on the phone at Settings →
   Diagnostics (`ui/layout/DiagnosticsSettings.tsx`, `?tab=diagnostics`).
-- `src/push/` — service-worker registration + subscription; `public/sw.js` handles push/click.
+- `src/push/` — service-worker registration + subscription; `public/sw.js` handles push/click and
+  re-subscribes on `pushsubscriptionchange`. `pushSetup.ts` is the pure answer to "does this device
+  receive push, and what should be done about it" (P5), and `usePushNotifications` is mounted
+  app-wide by `AppShell` as well as by Settings — see §10.
 - `src/auth/AuthContext.ts` (the context object + `useAuth`) and `src/auth/AuthProvider.tsx`
   (the component) — token/role in localStorage; "view as lower role" and admin "act as player"
   overrides are frontend-only conveniences.
@@ -146,10 +156,10 @@ make frontend       # or: make frontend-lan
 make dev            # both, LAN
 
 # checks — run before every commit
-make test           # backend pytest   (baseline 130 tests green, ~3.7 min on the Pi, 2026-09-13)
+make test           # backend pytest   (baseline 228 passed, ~9 min on the Pi, 2026-09-19; §11 is the authority)
 make lint           # ruff (E/W/F/I; line-length 150)
 make gen-types      # regenerate frontend/src/api/generated/schema.d.ts after ANY response-model change
-cd frontend && npm run check   # tsc + eslint + vitest (baseline 369 tests in 40 files, ~35 s)
+cd frontend && npm run check   # tsc + eslint + vitest (baseline 717 tests in 71 files, ~80 s)
 cd frontend && npm run build   # tsc -b + vite build (run for structural changes)
 ```
 
@@ -210,7 +220,8 @@ Current prod config (mirrored in `backend/app/cups.json` and `backend/data/cups.
   `PlayerAvatarFile`, `PlayerHeaderImageFile`, `PlayerGuestbookEntry` (+ThreadLink, Vote, Read),
   `PlayerPoke` (+Read), `Comment` (+Read, Vote, ImageFile, ThreadLink, AuthorLink),
   `TournamentPinnedComment`, `TournamentCreatorLink`, `FriendlyCreatorLink`,
-  `FeatureRequest` (+`FeatureRequestArea`, `FeatureRequestVote`, `FeatureRequestImageFile`),
+  `FeatureRequest` (+`FeatureRequestArea`, `FeatureRequestVote`, `FeatureRequestImageFile`,
+  `FeatureRequestComment`, `FeatureRequestEvent`, `FeatureRequestEventRead`),
   `PushSubscription`, `PushSubscriptionPreference`.
 - **The Ideas board** (R5, four new tables): `FeatureRequest` is one idea — author (never NULL,
   posting needs a login), `title`, `body`, `kind` (feature|change|bug), `status`
@@ -223,6 +234,28 @@ Current prod config (mirrored in `backend/app/cups.json` and `backend/data/cups.
   asks "who else wants this". `FeatureRequestImageFile` mirrors `CommentImageFile`.
   Area rules, enforced server-side *and* mirrored in the composer: at least one, and the two
   scope answers (`general` "Not about one page", `several` "Several pages") stand alone.
+- **Comments and the event log on an idea** (P1, three more tables). `FeatureRequestComment` is one
+  flat comment under an idea — author (never NULL, commenting needs a login), `body`, no thread
+  link, no image, no vote and **no editing at all**, so there is no `edited_at`: `updated_at` exists
+  only because every sibling table has one and a later column would have to go through
+  `_RUNTIME_COLUMNS`, and **nothing ever moves it**. Never render an "edited" byline from it.
+  `FeatureRequestEvent` is one row per thing that happened to an idea — kind `created` | `comment` |
+  `vote` | `status`, the actor, the comment id where there is one, and the status + note as set —
+  with `FeatureRequestEventRead(player_id, event_id)` as its read state. One event table, not four
+  read tables: a status change was not a row at all before, and a vote has no id of its own, so the
+  log is the shape that makes all four kinds one thing. **The bell derives from state, as it does
+  for the other three kinds**: an unvote deletes its `vote` event, a deleted comment takes its
+  event, and deleting an idea takes its comments, events and reads with it — `featurerequest.id`
+  and `featurerequestcomment.id` have no AUTOINCREMENT either (A9), so a row left pointing at a dead
+  id would silently reattach to whatever takes that id next. `record_idea_event` writes the actor's
+  **own read row** along with the event (the guestbook's trick), so "never tell me about my own
+  action" is a stored fact rather than a filter every reader has to remember; a status re-save that
+  changes neither status nor note records nothing. Three additive tables, nothing altered, nothing
+  in `_RUNTIME_COLUMNS` — and rule 3 above (rollback safety) was **measured, not asserted**: the
+  commit before the schema landed (`1c8808d`, extracted with `git archive` so `.git` was never
+  touched) was booted against a database the new code had already written all three tables into,
+  answered `GET /ideas` **200**, and still created an idea and voted on it. The one documented consequence of a rollback: an idea
+  posted under the old code carries no `created` event, so the admins get no bell item for it.
 - **Tournament "live/done/draft" is derived from match states** (`tournament_status.py`): all
   scheduled → draft, all finished → done, otherwise live. The `Tournament.status` column still
   exists but is not authoritative and there is **no status endpoint** (the README's old
@@ -260,8 +293,9 @@ Current prod config (mirrored in `backend/app/cups.json` and `backend/data/cups.
   `/stats/*` endpoint that reads matches — `/stats/players` learned it last (A4), so no stats
   surface can show the Source filter and ignore it. Ratings are Elo-like per mode.
 - Push: languages `steirisch` (default) | `deutsch` | `english`; modes `finished_only` (default)
-  | `all` | `off`; personal events (pokes, guestbook, a new idea) go only to the addressed
-  player. Dispatcher is started in the FastAPI lifespan.
+  | `all` | `off`; personal events (pokes, guestbook, and all four idea events — created,
+  commented, voted, status) go only to the players that event is about, never to the actor (§6
+  names the audience per kind). Dispatcher is started in the FastAPI lifespan.
 
 ## 6. API & realtime contract (short map)
 
@@ -273,8 +307,8 @@ create, patch, `/date`, `/generate`, `/reorder`, `/second-leg`, `/stats`, `/deci
 `/players…` (profiles, avatars, headers, guestbook, pokes,
 read-maps), `/cup?key=`, `/cup/defs`, `/stats/{overview,players,h2h,h2h-matches,streaks,
 player-matches,ratings,ratings/history,odds}`, `/friendlies`, `/ideas` (+`/areas`, `/{id}`,
-`/{id}/status`, `/{id}/vote`, `/{id}/voters`, `/{id}/image`), `/push/{config,subscription,
-subscriptions/me,test}`, `/comments/…`, `/health`.
+`/{id}/status`, `/{id}/vote`, `/{id}/voters`, `/{id}/image`, `/{id}/comments`, `/comments/{cid}`,
+`/{id}/read`), `/push/{config,subscription,subscriptions/me,test}`, `/comments/…`, `/health`.
 Roles: `reader` (no token) < `editor` < `admin`; deps `require_editor` / `require_admin`;
 owner-only checks in `services/authorization.py`. Error helpers in `app/api_utils.py`
 (400/403/404/409).
@@ -315,6 +349,42 @@ case-insensitively, exactly as login does), never to its own author, and never t
 It is a personal event (`idea_created` is in `PERSONAL_DEFAULT_EVENT_TYPES`), so it reaches a
 default "Results & personal" subscription; a device set to "Off" still gets nothing. It deep-links
 to `/ideas?idea=<id>`, a one-shot param the page consumes and drops.
+**Comments on an idea (P1/P4) are flat and cannot be edited at all** — Roli's call: a typo is
+fixed by deleting and reposting, so there is no PATCH endpoint, no inline editor and no `can_edit`
+on a comment. **Delete is the comment's own author or an admin**, for as long as the comment exists
+and with no time window; **the idea's author does not moderate** other people's comments on their
+idea (the guestbook lets the wall owner, but a comment on an idea is a reply to a document, not a
+note on a wall). `IdeaCommentOut.can_delete` carries the per-caller answer and the page renders it.
+Comments **ride inside `IdeaOut`** (`comments: […]`, oldest first, a required field) rather than
+behind a second endpoint or query key, so the board is one query and one invalidation
+(`qk.ideasAll()`). Posting needs editor+, like posting an idea; reading needs no token.
+`PUT /ideas/{id}/read` marks every event on that idea read for the caller — any token will do, and
+the board calls it when the `?idea=` deep link is consumed and when a logged-in reader opens an
+idea's comments, both idempotent server-side.
+**Who hears about an idea event is participation, not permission** (Roli 2026-09-19): a **comment**
+reaches the idea's author *plus every player who has already commented on that idea*, minus the
+actor — once you have said something in a thread you hear the replies, and an admin who has not
+commented on someone else's idea still hears nothing; a **vote** and a **status change** reach the
+author alone; a **new idea** reaches the admins. **Never the actor**, in every case. One helper
+answers this for both channels — `services/idea_events.py::idea_event_audience` addresses the
+pushes, `idea_event_reaches` is the same call asked about one person and filters the bell — so the
+two cannot disagree the first time a comment is deleted (a push for something the bell never shows
+is exactly the kind of drift nobody notices). **Who counts as an admin is the caller's parameter**,
+because push resolves it from `secrets.json` (`admin_player_ids`) and the bell from the token's
+`role`; that module is not a third definition. `idea_commented`, `idea_voted` and `idea_status`
+join `idea_created` in `PERSONAL_DEFAULT_EVENT_TYPES`, so they reach a default "Results & personal"
+device and a device set to "Off" still gets nothing, and each carries its own OS tag
+(`idea-comment-{id}`, `idea-vote-{id}`, `idea-status-{id}`) — a same-tag notification replaces the
+previous one, and "Berni commented" must not be overwritten by "Flo wants it". All four deep-link
+to `/ideas?idea=<id>`.
+**`/me/notifications` has a response model** (`MyNotificationsOut` / `MyNotificationOut`, P1) — it
+was the one endpoint typed by hand on the frontend — and it now builds **seven** kinds:
+`comment_reply`, `guestbook`, `poke`, `idea_created` (admins only, decided from the token's
+`role`), `idea_comment`, `idea_vote`, `idea_status`. The wire format did not move, with one nuance:
+FastAPI now renders the optional keys an item does not use as explicit `null` where the key used to
+be absent — `exclude_none` was deliberately **not** used, because it would also have removed the
+meaningful `"author_player_id": null` a "General" comment carries. `created_at` stays a `str`. The
+bell's copy for all seven lives in `ui/shell/notificationText.ts`, never inline in the component.
 
 WebSocket channels (`app/main.py`, `app/ws.py`, `services/events.py`):
 - `/ws/tournaments/{id}` → `tournament.sync` (full tournament payload), `tournament.deleted`,
@@ -375,12 +445,12 @@ Coverage is not "is there a channel" but "is the channel open *while you are awa
 | `["cup","defs"]` | none (static) | 30 min | `cups.json`, read once at backend startup. Only a deploy changes it. |
 | `["stats", …]` | **partial** | 30 s | Tournament results announce themselves; **friendly results are broadcast by nothing at all**, and every `/stats/*` endpoint takes `scope=friendlies\|both`. |
 | `["match-h2h", …]` | **partial** | 30 s | The same numbers as `/stats`, but the key sits *outside* `["stats"]`, so no reducer ever invalidates it — only the window does. |
-| `["me","notifications"]` | **partial** | 30 s | A reply to your comment invalidates it from the tournament channel; a poke, a guestbook entry or a new idea does not. `NotificationBell`'s own 60 s poll covers the rest. |
+| `["me","notifications"]` | **partial** | 30 s | A reply to your comment invalidates it from the tournament channel; a poke, a guestbook entry or an idea event does not. `NotificationBell`'s own 60 s poll covers the rest. |
 | `["players"]` (roster, profiles, avatars, headers) | **none** | 5 s | No channel: a rename or a new avatar reaches another device only by refetching. |
 | `["players","pokes"]`, `["players","guestbook"]` | **page channel** — `/ws/players/{id}` | 5 s | Open only while that profile is on screen. |
 | `["clubs", …]`, `["leagues"]` | **none** | 5 s | Nothing announces an added club or an edited star rating; the window is the only thing that finds it. The catalogue is also the biggest payload in the app (113 KB), which is why six call sites raise it to 60 s where the data is a lookup table rather than the subject. |
 | `["friendlies", …]` | **none** | 5 s | Friendlies broadcast nothing — a result typed into another phone in the same session is invisible until this one asks again. |
-| `["ideas", …]` | **none** | 5 s | R5 gave the board no channel on purpose. `["ideas","areas"]` is a static list (1 h at its call site). |
+| `["ideas", …]` | **none** | 5 s | R5 gave the board no channel on purpose, and P1's comments changed nothing: they ride in the same payload under the same key, so the writer's own mutation invalidates `qk.ideasAll()` and everyone else gets them on the next return or focus. `["ideas","areas"]` is a static list (1 h at its call site). |
 | `["push", …]` | **none** | 30 s | This device's own subscriptions; nothing but this device changes them. |
 
 **Call-site overrides that stand** (a `useQuery` option still beats the table, so each one is a
@@ -486,6 +556,9 @@ python3 backend/manage.py sync-local-from-deploy     # backup local, pull prod, 
 `backend/data/app.db`, mirrors `uploads/`, `cups.json`, `*.pem`. Snapshots are named
 `<ts>-before-sync` (local) and `<ts>-deploy` (prod) and carry a `snapshot.json`. `backup/` is
 git-ignored; the latest deploy snapshot is the best offline picture of production.
+**Restart the backend after a sync** — `init_db()` runs at startup only, so a database swapped
+underneath a running server keeps serving production's schema and 500s on every table added since
+(§10).
 Other helpers: `seed --file backend/data/seed.json` (players/leagues/clubs upsert),
 `add-match --file`, `vacuum-db [--analyze]`, `generate-vapid`.
 
@@ -518,7 +591,9 @@ every past match simply keeps counting today's rating.
   `FEATURES_2026-09.md` (32 tasks: H2H matchup, stats IA, mobile navigation, the design canon —
   done on `feature/2026-09-batch`, see §11),
   `DESIGN_FIXES_2026-09.md` (C1–C15: the blind design audit's Parts 1, 2 and 4 plus the
-  vocabulary sweeps, done on `feature/2026-09-design-fixes`, see §11). A new batch gets a
+  vocabulary sweeps, done on `feature/2026-09-design-fixes`, see §11),
+  `FEATURES_2026-09-ideas.md` (P1–P6: comments on ideas, the author's notifications and the
+  device that hears nothing, done on `feature/2026-09-ideas`, see §11). A new batch gets a
   new dated file with the same shape: baseline commit, rules for implementing agents, decisions
   already made, one section per task with exact files/symbols, definition of done, deviations
   notes, verification gates, deployment notes. Plans must be mechanical enough that a cheaper
@@ -601,6 +676,38 @@ every past match simply keeps counting today's rating.
   call): five items are what fits a phone row. It is the only nav destination a reader can see
   that an editor also sees in the same place, because reading the board is public and only
   writing needs a login.
+- **A PWA reinstall silently destroys the push subscription** (P5, 2026-09-19 — it cost Roli days
+  of silence and he found out only by tapping Settings → Send test). Re-adding the app to the Home
+  Screen throws away the service-worker registration and the subscription with it; the server still
+  holds the old endpoint and only learns it is dead when the push service answers 404/410 to the
+  *next* push. Worse, `upsert_push_subscription` cleared `disabled_at` on the next PUT of the same
+  endpoint, so the client's auto-sync **resurrected the corpse on every launch** and it died again
+  on the next push, for ever. Now `PUT /push/subscription` answers **410** for an endpoint whose row
+  is disabled **and** whose `last_http_status` is 404/410 — the push service's own verdict, keyed on
+  the endpoint string — and the client rotates (unsubscribe → subscribe → PUT) instead of
+  re-enabling it. A row a *client* disabled carries no rejection status and is re-enabled exactly as
+  before, and other failure classes (5xx, timeouts, a VAPID 401) never disable a row at all: a bad
+  VAPID key is a server problem, not a dead device. `sw.js` re-subscribes on
+  `pushsubscriptionchange` but **cannot PUT the new endpoint itself** (auth is a bearer token in
+  `localStorage`; there is no cookie session), so the server learns it on the next launch through
+  the auto-sync — which is why `usePushNotifications` is mounted app-wide (`AppShell` →
+  `ui/shell/PushSetupNotice.tsx`) and no longer only in Settings. **A device that receives nothing
+  now says so, unprompted**: one `warn` line under the top bar on whatever page the reader is on,
+  shown only while nobody has decided on this install (`permission === "default"`) and no
+  subscription exists — once per install, dismissible. `denied` is a decision and is respected;
+  `granted` with no subscription is the browser having dropped it and is re-subscribed **silently**
+  (no prompt is possible or needed) unless the person turned push off here on purpose. The
+  dismissal lives in `localStorage` on purpose: a reinstall wipes it along with the subscription,
+  which is exactly the case that must ask again. **The iOS half is unverified and only Roli's phone
+  can close it** — that iOS resets `Notification.permission` to `default` on a reinstall is WebKit's
+  documented behaviour, not something measured here; if it comes back `granted` instead, the device
+  takes the silent re-subscribe path and the notice correctly stays away.
+- **Headless Chromium cannot tell you what a permission prompt would do** (P5, two hours). It
+  reports `Notification.permission === "denied"` no matter what, CDP `Browser.setPermission:
+  "prompt"` included, so the "nobody has decided" case exists only in a **headed** browser under
+  `xvfb-run`; and Playwright's `newContext({ permissions: [] })` is an *empty grant*, which denies
+  notifications — omit the option entirely to leave the default alone. `pushManager.subscribe()`
+  cannot succeed here either (no push service), so a test can assert the attempt and not the PUT.
 - Six clubs have no crest (free TheSportsDB key limits): Nottingham Forest, San Lorenzo,
   St. Louis CITY SC, Wisła Płock, Al Shabab, United Tigewrs SC → monogram fallback; admin can
   `PUT /clubs/{id}/crest` manually. Crest precedence in UI: crest → nation flag → monogram.
@@ -786,6 +893,26 @@ every past match simply keeps counting today's rating.
   sections) keep their own offsets (`useReturnScroll`) — the H2H matchup rides on its own history
   entry instead (T11). A same-page `replace` deliberately never moves the scroll, so filters and
   `?tab=` deep links stay put.
+- **After `sync-local-from-deploy`, restart the backend** (2026-09-19). `init_db()` runs once, in
+  the FastAPI lifespan, so a database swapped underneath a running server never gets `create_all`:
+  the dev API keeps serving **production's** schema and every table added since is simply missing.
+  The symptom is a 500 with `no such table: featurerequestcomment` on `/ideas`, from code that is
+  demonstrably correct, and no amount of reloading the page fixes it. Restart the server, not the
+  browser.
+- **`make dev` used to survive Ctrl+C** (2026-09-19). The recipe ran `set -m`, which turns job
+  control on and puts each background job in its **own** process group; Ctrl+C signals only the
+  *foreground* group, so neither server ever got it — both were reparented to init and kept holding
+  8000 and 8001. That is where "Address already in use" came from, and it is why a vite left running
+  for 22 hours served a white screen after a module it had cached was deleted on another branch.
+  Without job control the children share make's process group, a terminal's Ctrl+C reaches them, and
+  `trap "kill 0" INT TERM HUP` covers a `kill` and a closed terminal too (`kill 0` targets the
+  *group* deliberately: killing `make backend-lan` alone leaves the `python run.py` grandchild on
+  the port). **`EXIT` must not be added to that trap**: it fires on *any* exit, a `make -n` dry run
+  included, and `kill 0` then takes down whatever process group make happens to be running in —
+  harmless in a terminal, destructive under a script or a tool (measured: `make -n dev` exited
+  **144** with `EXIT` trapped, 0 without it). The recipe itself is not verified end to end —
+  reproducing a terminal's Ctrl+C needs a real foreground job on a tty, and a backgrounded harness
+  inherits SIGINT ignored — so the next Ctrl+C is the real check.
 - Frontend Docker build uses `npm install` (not `ci`) on purpose: the lockfile is generated on the
   arm64/glibc Pi, the image is alpine/musl on x86.
 - Tests use a temp SQLite file + `UPLOADS_DIR` in tmp (`backend/tests/conftest.py`); accounts
@@ -793,15 +920,31 @@ every past match simply keeps counting today's rating.
 - `backend/app.db*`, `backend/data/app.db` are real (synced) data — never commit, never run
   destructive experiments on them; copy first.
 
-## 11. Current state (2026-09-17)
+## 11. Current state (2026-09-19)
 
-- **`main` carries the 2026-09 design batch, merged and pushed — and `f425961` (2026-09-16) is
-  still the last thing actually deployed.** Between the two sit: Q15/Q16/Q17 (`f1ea22b`), Stats →
-  Player putting Streaks above Club stars (`2e23365`), two §11 doc rewrites, and the merge of
-  `feature/2026-09-design-fixes`. Everything since `f425961` is **frontend-only** — no backend, no
-  schema, no manual step — so it is the short deploy
-  (`git pull && docker compose up -d --build frontend`). Nothing here has run on iOS: every check
-  was headless Chromium at 390×844 and 1280×900.
+- **`f425961` (2026-09-16) is still the only thing that has ever run on the server**, and two
+  batches now sit in front of it. **Merged and undeployed:** the 2026-09 design batch, plus
+  Q15/Q16/Q17 (`f1ea22b`) and the Stats → Player swap (`2e23365`) — all **frontend-only**, so that
+  half is the short deploy (`git pull && docker compose up -d --build frontend`). **Unmerged:** the
+  Ideas batch below, on `feature/2026-09-ideas`. `main` is at `880a6fd` locally while `origin/main`
+  is still at `4fb03fc`, so even the three plan-docs commits on `main` are unpushed. Nothing in
+  either batch has run on iOS: every check was headless Chromium at 390×844 and 1280×900.
+- **`feature/2026-09-ideas` (P1–P6, `FEATURES_2026-09-ideas.md`) is complete and unmerged** —
+  branched from `880a6fd`, seven commits, 38 files, three new tables. It is the first batch since
+  the audit to **touch the backend and the schema**, so it is the **full** deploy when Roli says so:
+  `python3 backend/manage.py backup-deploy-data` first, then `git pull && docker compose up -d
+  --build`. **No manual step** — the three tables come from `create_all` with no log line of their
+  own, nothing goes into `_RUNTIME_COLUMNS`, and `notification_texts.json` ships in the image;
+  `curl https://lorbeerkranz.xyz/api/ideas | grep -c '"comments"'` > 0 proves the new code is up,
+  and a rollback to `880a6fd` simply ignores the new tables (measured, not assumed — §5). What
+  landed: **P5** a device that receives nothing says so (the shell notice, `usePushNotifications`
+  app-wide, the 410 on a dead endpoint, `pushsubscriptionchange` in `sw.js` — §10); **P1** the three
+  tables, the comment endpoints, `PUT /ideas/{id}/read`, the one audience helper both channels use,
+  and a response model on `/me/notifications`, the last endpoint typed by hand; **P2** push for a
+  comment, a vote and a status in all three languages; **P3** the bell's four idea kinds with read
+  state that agrees with the push; **P4** the board's flat comment thread, where opening one marks
+  it read. Beside them one unnumbered fix: Ctrl+C on `make dev` now stops the servers it started
+  (§10).
 - **`feature/2026-09-design-fixes` is merged** (`5a97fa9`) and can be deleted (branched from
   `2e23365`; six docs
   commits, then C1–C14 as fifteen implementation commits, then this doc pass). It answers
@@ -842,15 +985,33 @@ every past match simply keeps counting today's rating.
   — "no matches" plus an em dash — because rows genuinely played for zero points already exist and
   would otherwise be indistinguishable. Q17: `ClubMark` moved into `ui/primitives/` and every
   score-only match row wears one, across all seven surfaces, not just the friendlies list.
-  The design-fixes batch above joins this queue when Roli merges it — same short deploy, and its
-  smoke list is in the plan's "Deployment" section.
-- Checks at the design-fixes branch head: `cd frontend && npm run check` **688 tests in 68 files**
-  (typecheck and lint clean), `npm run build` green (`index-*.js` 723.99 kB — the pre-existing
-  >500 kB hint), `make gen-types` no diff. The backend is untouched by the batch; its last run,
-  at `f1ea22b`, was `make test` **204 passed** and `make lint` clean.
+  The design-fixes batch above is merged (`5a97fa9`) and is in this same short-deploy queue; its
+  smoke list is in that plan's "Deployment" section.
+- Checks at the Ideas branch head (code at `dedd6fa`): `make test` **228 passed**, `make lint` clean,
+  `make gen-types` no diff, `cd frontend && npm run check` **717 tests in 71 files**, `npm run build` green
+  (the pre-existing >500 kB hint). For the merged design batch, at its own head: `npm run check`
+  **688 tests in 68 files**, `npm run build` green (`index-*.js` 723.99 kB), `make gen-types` no
+  diff, and a backend untouched (`make test` **204 passed** at `f1ea22b`).
+  **Push has never been delivered over the wire on this machine** — no `cryptography` in the venv,
+  no VAPID — so every push test in the Ideas batch stops at the queued `PushMessage` or at the real
+  `_deliver` with the HTTPS POST faked. The wire itself is the phone's to prove.
 
 ### Open, and each one is waiting on something specific
 
+- **The PWA reinstall path is unverified and only Roli's phone can close it** (P5). On the phone:
+  delete the PWA, re-add it, log in — the "This device gets no notifications." notice should be on
+  the first screen, **Turn on** should lead to the iOS permission prompt, and Settings →
+  Notifications should then say Enabled with **Send test** arriving. Everything else about P5 was
+  measured (40/40 browser checks, the server's 410 live and in tests); what cannot be measured here
+  is iOS resetting `Notification.permission` to `default` on a reinstall, and push delivery at all.
+  If it comes back `granted` with no subscription instead, the device re-subscribes silently and
+  the notice correctly never appears.
+- **The push and bell copy for the four idea events is Roli's to correct** — three languages × four
+  events (`backend/app/notification_texts.json`, `frontend/src/ui/shell/notificationText.ts`): his
+  Styrian drafts transcribed as written, the German ASCII-safe, the English plain. One divergence to
+  read with fresh eyes, because it is deliberate and not drift: the **bell** says "likes your idea"
+  (his own word for it, decided on the second pass) while the English **push** still says "wants
+  your idea too" (the board's own verb). Either is a one-line string edit with no code behind it.
 - **Q2, the keyboard, is unticked and only Roli's phone can close it.** The rule is now the caret
   (§10); it shipped green twice on a threshold that measured geometry and did nothing on the
   device both times. What he should re-test: a tournament's comments, the Ideas composer
@@ -902,7 +1063,7 @@ every past match simply keeps counting today's rating.
 | Visual language (surfaces, tokens, type, primitives) | `DESIGN.md` — the design canon, follow it for every UI change |
 | Tool entry points | `CLAUDE.md` (imports this file), `GEMINI.md` (points here) |
 | Human README / setup narrative | `README.md` |
-| Batch trackers (history + decisions) | `REFACTORING_PLAN.md`, `FEATURES_2026-07.md`, `FEATURES_2026-08.md`, `FEATURES_2026-09.md`, `DESIGN_FIXES_2026-09.md` |
+| Batch trackers (history + decisions) | `REFACTORING_PLAN.md`, `FEATURES_2026-07.md`, `FEATURES_2026-08.md`, `FEATURES_2026-09.md`, `DESIGN_FIXES_2026-09.md`, `FEATURES_2026-09-ideas.md` |
 | The blind design audit behind the C-batch | `DESIGN_AUDIT_2026-09-17.md` + `design-audit-2026-09-17/` (eight raw reports) |
 | Claude Code auto-memory (per-machine, not in git) | `~/.claude/projects/-home-roli-projects-turnierplaner-reloaded/memory/` |
 | Production data snapshots (not in git) | `backup/deploy/<ts>/`, `backup/local/<ts>/` |

@@ -44,6 +44,7 @@ function idea(over: Partial<Idea> = {}): Idea {
     can_edit: false,
     can_delete: false,
     can_set_status: false,
+    comments: [],
     ...over,
   };
 }

@@ -2,8 +2,11 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import {
   createIdea,
+  createIdeaComment,
   deleteIdea as apiDeleteIdea,
+  deleteIdeaComment,
   deleteIdeaImage,
+  markIdeaRead,
   patchIdea as apiPatchIdea,
   putIdeaImage,
   setIdeaStatus,
@@ -96,5 +99,43 @@ export function useIdeaMutations() {
     onSuccess: refresh,
   });
 
-  return { createMut, putImageMut, deleteImageMut, patchMut, statusMut, deleteMut, voteMut };
+  const commentMut = useMutation({
+    mutationFn: async (payload: { ideaId: number; body: string }) => {
+      if (!token) throw new Error("Not logged in");
+      return createIdeaComment(token, payload.ideaId, payload.body);
+    },
+    onSuccess: refresh,
+  });
+
+  const deleteCommentMut = useMutation({
+    mutationFn: async (commentId: number) => {
+      if (!token) throw new Error("Not logged in");
+      return deleteIdeaComment(token, commentId);
+    },
+    onSuccess: refresh,
+  });
+
+  /** Reading changes nothing on the board itself — only the bell's unread count. */
+  const markReadMut = useMutation({
+    mutationFn: async (ideaId: number) => {
+      if (!token) throw new Error("Not logged in");
+      return markIdeaRead(token, ideaId);
+    },
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: qk.notificationsAll() });
+    },
+  });
+
+  return {
+    createMut,
+    putImageMut,
+    deleteImageMut,
+    patchMut,
+    statusMut,
+    deleteMut,
+    voteMut,
+    commentMut,
+    deleteCommentMut,
+    markReadMut,
+  };
 }

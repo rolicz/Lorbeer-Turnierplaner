@@ -66,6 +66,40 @@ def _mode_label(mode: str, language: str) -> str:
     return "Friendly"
 
 
+_STATUS_LABELS: dict[str, dict[str, str]] = {
+    "steirisch": {"new": "neich", "planned": "eiplant", "doing": "in Arbeit", "done": "fertig", "declined": "obglehnt"},
+    "deutsch": {"new": "neu", "planned": "geplant", "doing": "in Arbeit", "done": "erledigt", "declined": "abgelehnt"},
+    "english": {"new": "new", "planned": "planned", "doing": "in progress", "done": "done", "declined": "declined"},
+}
+
+
+def _status_label(status: str, language: str) -> str:
+    """An idea's status, in the reader's language (P2, precedent `_mode_label`)."""
+    value = str(status or "").strip().lower()
+    table = _STATUS_LABELS.get(language) or _STATUS_LABELS["steirisch"]
+    return table.get(value, value)
+
+
+def _vote_line(vote_count: Any, language: str) -> str:
+    """The "who else likes this" line, singular at one vote in every language.
+
+    A literal "Jetzt san's 1" reads wrong (Roli, 2026-09-19, second pass), and so do
+    "That makes 1 who like it" and its German twin — so all three templates take
+    `{vote_line}` rather than an inline `{vote_count}`. The verb is **like**, matching
+    the bell (`notificationText.ts`): the board's own word is "want", but a push and a
+    bell describing the same act in two different words is the drift this batch exists
+    to remove."""
+    try:
+        count = int(vote_count)
+    except (TypeError, ValueError):
+        count = 0
+    if language == "steirisch":
+        return "Jetzt mog des ana a." if count == 1 else f"Jetzt san's {count}, de des a wolln."
+    if language == "deutsch":
+        return "Jetzt mag das einer auch." if count == 1 else f"Jetzt sind es {count}, denen das gefaellt."
+    return "One person likes it so far." if count == 1 else f"That is {count} who like it."
+
+
 def _authors_line(author_names: list[str], language: str) -> str:
     names = [str(name or "").strip() for name in author_names if str(name or "").strip()]
     unique_names = list(dict.fromkeys(names))
@@ -127,6 +161,10 @@ def render_notification_text(key: str, language: str | None, context: dict[str, 
         prepared["mode_label"] = _mode_label(str(prepared.get("mode") or ""), resolved_language)
     if "authors_line" not in prepared and "author_names" in prepared:
         prepared["authors_line"] = _authors_line(list(prepared.get("author_names") or []), resolved_language)
+    if "status_label" not in prepared and "status" in prepared:
+        prepared["status_label"] = _status_label(str(prepared.get("status") or ""), resolved_language)
+    if "vote_line" not in prepared and "vote_count" in prepared:
+        prepared["vote_line"] = _vote_line(prepared.get("vote_count"), resolved_language)
 
     string_context = _SafeFormatDict({k: "" if v is None else str(v) for k, v in prepared.items()})
     return (

@@ -78,10 +78,11 @@ token. `delta-up`/`delta-down` stay for numeric deltas (ratings, form).
 has to stay readable *next to the other two* in a `W-D-L` run; `error`/`warn` answer "is anything
 wrong", and each has to stay readable as a **sentence** on a card, on an `inset` and on its own
 10% tint. Two jobs, two families: an error message, a denied permission, a failed load and the
-body of a delete confirmation are `error`; a reconnecting socket and the "someone else changed
-this" banner are `warn`. Nothing that is not a match result may reach for a result token, and
-nothing that is not broken may reach for `error` — the connection indicator spent a release
-painted `draw`, which is how this rule came to be written down. In the dark themes `error` still
+body of a delete confirmation are `error`; a reconnecting socket, the "someone else changed
+this" banner and the shell's "This device gets no notifications." notice (P5) are `warn`.
+Nothing that is not a match result may reach for a result token, and nothing that is not broken
+may reach for `error` — the connection indicator spent a release painted `draw`, which is how
+this rule came to be written down. In the dark themes `error` still
 resolves to the same red as `loss`, and `warn` shared amber-400 with `draw` until C11 moved `draw`
 to yellow-300; a theme breaking such a coincidence is exactly what separate variables are for.
 **A cup's colour is a token of its own** (`src/cupColors.ts` maps cup key → token): it is worn as
@@ -384,6 +385,7 @@ Matchup, Player) is built from the same block, so the sections read as one page:
 | A club beside a score | `ClubMark` (`ui/primitives/`) | one 16px `ClubBadge` for a side, plus the club's name `sr-only` and — for a side with no club — an inert 16px box that keeps the row's geometry. The **only** way a score-only match row names its clubs, and the same component on every one of them: the friendlies list in Compact, `MatchRowWithClubs` in Compact (Stats → Player, both profile lists, the H2H matchup, the H2H history modal, the match page's H2H panel) and `RecordsView`'s superlatives (Q17). It is passed to `ScoreLine` as `leftMark`/`rightMark` and never rendered on its own |
 | Picking a club | `SelectClubsPanel` + `ClubPicker` (`ui/`) | one panel per match, a `card` behind a single "Clubs" disclosure that summarises both clubs (§9b, T9). Open, it holds the whole job in one bounded block: the two `ClubSlot`s (side players + crest, league, stars), then the star/league filters, then the dice + *Random matchup* row. A slot opens the `ClubPicker` sheet: search focused on open, the club this side already has pinned on top with its `ClubStarsEditor`, then recents, then league groups, crest + stars per row, one tap selects. The scoreboard above (`MatchOverviewPanel`/`MatchSides`) stays **read-only on every surface** |
 | Writing a comment | `CommentComposer` (`pages/live/comments/`) | one chat row *inside* the feed's card, attached to its bottom edge behind a hairline and sticky, so it floats over the feed while reading and settles flush at the end (T3); scope + author are chips above the field, goal/shots swap the row in place. The guestbook's composer is the same row (`CommentSendRow`) at the end of its feed |
+| Telling one person something happened | `NotificationBell` (`ui/shell/`) + `notificationText.ts` | seven kinds, one icon each, all `h-4 w-4` lucide: `Reply` `comment_reply`, `BookOpen` `guestbook`, `Hand` `poke`, `Lightbulb` `idea_created`, `MessageSquare` `idea_comment`, `ThumbsUp` `idea_vote`, `ListChecks` `idea_status` (P3). Every headline and detail line for all seven lives in `notificationText.ts` — never inline in the component — and a row reads *headline* (who did what) over *detail* (`snippet`, or the idea's title, or `title · snippet`) over `timeAgo` |
 | Key number | `StatTile` | `inset` + `text-2xl font-bold tabular-nums` value + `text-xs` muted label |
 | A row's record (`3P 3-0-0 14:6 GD +8`) | `RecordLine` | the only way to print played / W-D-L / goals / GD under a name. Fixed columns, not `·` separators: `recordWidths(rows)` once per list sizes every track to that list's widest value, so segment *k* starts at the same x in every row (T14). The separators survive as `sr-only` text; the on-screen gap is `gap-2`. `RecordNum` is the bare fixed-width numeral for a column outside the line. A real `<table>` (the stats table, the dashboard preview) already aligns its columns and does not use it |
 | A list of one-line rows | `List` / `ListRow` | leading · title · subtitle · trailing, hairline separators, and the row's action as a **stretched overlay** (`absolute inset-0 z-0`) so `trailing` can hold its own buttons without nesting one control in another. Reach for it whenever the row fits that shape (players admin, tournaments, nav-ish lists) |
@@ -565,6 +567,17 @@ An editor is not a section you unfold; it is the thing itself becoming editable.
   its count, the messages as `inset` rows, a reply flat and tighter on the card's own surface
   behind a `border-l-2 border-accent/25` rule (a reply inside an `inset` would be inset → inset,
   which §3 forbids), then the chat row on the bottom edge.
+- **A flat comment list under a row that is itself an `inset` takes the reply shape** — flat rows
+  behind the accent rail, the chat row last — **never an `inset` of its own**. The Ideas board is
+  the case (P4): an idea row *is* the level-2 surface and inset → inset is forbidden (§3), so its
+  comments sit on the idea's own surface behind `border-l-2 border-accent/25 pl-3`, exactly as a
+  reply does under a guestbook root. The block opens from one toggle in the idea's actions row that
+  **names the count** (`fmtCount`); at zero comments the toggle reads **Comment** for someone who
+  can post one and is **not rendered at all** for a reader, because a control that does nothing is
+  never shown. **There is no edit affordance on such a comment**: a comment cannot be edited — a
+  typo is fixed by deleting and reposting — so there is no PATCH endpoint behind it,
+  `IdeaCommentOut` carries `can_delete` alone, and the only per-comment control is the trash, shown
+  from that flag. No "edited" byline either: nothing moves the row's `updated_at`.
 - **The keyboard owns the bottom of the screen.** Everything pinned there clears the mobile
   tab bar with the `nav-clear` token, never a hand-written `4.5rem` — and that token is **0 while
   the on-screen keyboard is up**, because the bar is hidden then (`<html data-keyboard-open>`,

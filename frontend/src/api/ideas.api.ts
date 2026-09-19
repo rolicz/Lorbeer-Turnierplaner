@@ -2,6 +2,7 @@ import { apiFetch, apiUpload, mediaUrl } from "./client";
 import type {
   Idea,
   IdeaAreasResponse,
+  IdeaComment,
   IdeaKind,
   IdeaListResponse,
   IdeaStatus,
@@ -70,4 +71,19 @@ export async function putIdeaImage(
 
 export function deleteIdeaImage(token: string, ideaId: number) {
   return apiFetch<{ ok: boolean }>(`/ideas/${ideaId}/image`, { method: "DELETE", token });
+}
+
+/** Say something under an idea. Flat, no reply target, no edit (Roli's "it can stay a flat list"). */
+export function createIdeaComment(token: string, ideaId: number, body: string): Promise<IdeaComment> {
+  return apiFetch(`/ideas/${ideaId}/comments`, { method: "POST", token, body: JSON.stringify({ body }) });
+}
+
+/** The comment's author or an admin, for as long as it exists — no window, no idea-author moderation. */
+export function deleteIdeaComment(token: string, commentId: number) {
+  return apiFetch<{ ok: boolean }>(`/ideas/comments/${commentId}`, { method: "DELETE", token });
+}
+
+/** Read = you opened it: every event on this idea is marked read for the caller. Idempotent. */
+export function markIdeaRead(token: string, ideaId: number) {
+  return apiFetch<{ ok: boolean; marked: number }>(`/ideas/${ideaId}/read`, { method: "PUT", token });
 }

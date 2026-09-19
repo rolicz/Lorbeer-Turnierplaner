@@ -245,7 +245,7 @@ in-flight files in `make test` / `npm run check` runs, as the last batch did; co
 
 ---
 
-## P5 — The device that receives nothing says so  ☐
+## P5 — The device that receives nothing says so  ☑
 
 **The gap.** After a PWA reinstall the service-worker registration and the push subscription are
 gone, the server still holds the old endpoint (it only learns it is dead when APNs answers 410 to the
@@ -390,9 +390,75 @@ re-subscribes on `pushsubscriptionchange`.* `DESIGN.md` §2: the notice is a `wa
 
 **Deviations:**
 
+- **Verified first, all three gaps were live** (2026-09-19, at `880a6fd`): `usePushNotifications(`
+  had exactly one non-test caller (`PushNotificationsSettings.tsx:27`), `sw.js` had no
+  `pushsubscriptionchange`, and a scratch run against the `client` fixture answered **200 /
+  `disabled: false`** to a PUT of an endpoint whose row was disabled with `last_http_status = 410`.
+  Nothing was already fixed.
+- **The server rule, as chosen:** refuse with **410** when a row for this exact endpoint is
+  disabled **and** `last_http_status in (404, 410)` — i.e. the push service itself said the
+  endpoint is gone. Identity is the endpoint string, which is what separates "a genuinely new
+  endpoint" (a different row, accepted normally) from "the corpse the browser still holds". A row
+  a *client* disabled carries no rejection status and is re-enabled exactly as before; other
+  failure classes (5xx, timeouts, a VAPID 401) never disable a row and so can never refuse one.
+  `_deliver_one` is untouched.
+- **`loading` gained a third term:** `supported && !browserChecked`, a new internal flag set in a
+  `finally` around the `getSubscription()` read. Without it "nobody has subscribed" and "the
+  browser has not answered yet" are the same value (`browserEndpoint === null`) and the notice
+  flashes on every boot before the browser replies. Measured on the isolated stack: the answer
+  lands ~3 s after first load (the dev server registers the SW in ~1.9 s), so the flash would have
+  been long and visible. The Settings panel's refresh spinner honours the same flag.
+- **The user's deliberate "off" is remembered in the hook, not only in storage:** `userDisabled`
+  is `useState(isPushDisabledByUser())` kept in step by `rememberUserDisabled`, because
+  `pushSetupState` is called during render and a bare storage read there would not re-render on a
+  change.
+- **The 410 rotation is one helper, `putSubscriptionRotatingOn410`** (module-level in
+  `usePushNotifications.ts`), used by `enableMut` **and** the auto-sync effect — rule 8; the two
+  call sites do not each own a copy. The preferences PUT (`syncSubscriptionPreferences`) is left
+  alone: it only runs for an endpoint the server already lists.
+- **The four raw `window.localStorage` calls moved onto `utils/safeStorage`** in the same file, as
+  the task allowed.
+- **`AppShell` passes `token` from `ShellInner`**, and the notice is `<main>`'s first child, as
+  specified. Double mount with Settings → Notifications open is unchanged and idempotent; no
+  context was built for it.
+- **Verified in a real browser** (isolated stack: backend 8075 with a stub dispatcher, vite 8085,
+  `backend/data/verify-p5.db`, since removed), 390×844 **and** 1280×900, `blue` **and** `light`,
+  `/push/config` routed to an enabled stub, logged in as Berni: **40/40 checks passed**. The
+  notice appears on `/dashboard`, `/ideas` and `/stats`; at 390 it sits **16px under the 57px top
+  bar** (y=73, height 66, the sentence wrapping to two lines *inside* its own span rather than
+  above the buttons — `flex-wrap` allows either and this reads better), at 1280 it is the first
+  element above the desktop title row (y=24, height 58). **Not now** hides it and survives a
+  reload; a new context shows it again; a reader never sees it; `a a` = 0; 0 console errors.
+- **Two browser facts worth writing down for the next task that measures a permission:**
+  headless Chromium reports `Notification.permission === "denied"` no matter what (CDP
+  `Browser.setPermission: "prompt"` does not help), so the "nobody has decided" case only exists
+  in a **headed** browser under `xvfb-run`; and Playwright's `newContext({ permissions: [] })` is
+  an *empty grant*, which denies notifications — omit the option entirely to leave the default
+  alone. Both cost an hour here.
+- **What could not be exercised, and what was substituted.** A real 404/410 from Apple's or
+  Google's push service: substituted by writing exactly what `_deliver_one` writes
+  (`disabled_at`, `last_http_status = 410`) and then replaying the client's PUT — done twice, in
+  `tests/test_push_notifications.py` and **live** against the isolated stack, where the dead
+  endpoint answered **410** and stayed disabled while a rotated endpoint was accepted (and a
+  client-disabled row still re-enabled on PUT). The **client-side rotation** could not be driven
+  end to end: `pushManager.subscribe()` cannot succeed in this browser (no push service), so the
+  granted-permission context reached `subscribe()` — asserted, **1 call** — and got no endpoint to
+  PUT, which is why that check asserts the attempt and not the PUT. `pushsubscriptionchange`
+  cannot be fired synthetically either; `node --check` proves the handler parses, and the browser
+  is what fires it. Push **delivery** remains untestable on this machine (no `cryptography`).
+- **Left alone deliberately:** `PushNotificationsSettings.tsx`, `statusLabel`, the
+  language/mode handling, `_deliver_one`, `main.tsx`, the bell, and every response model — so no
+  `gen-types` diff (regenerated anyway: none).
+- **Still outstanding — only Roli's phone can close it:** delete the PWA, re-add it, log in, and
+  check that the notice is on the first screen and that **Turn on** leads to the iOS prompt and a
+  working **Send test**. The plan's assumption that iOS resets `Notification.permission` to
+  `default` on reinstall is WebKit's documented behaviour and is **not** verified here; if it
+  comes back `granted` instead, the device takes the silent `resubscribe` path and the notice
+  correctly stays away — the subscription is then repaired without anyone being asked.
+
 ---
 
-## P1 — Schema, comments API, events, the typed bell contract  ☐
+## P1 — Schema, comments API, events, the typed bell contract  ☑
 
 **The gap.** `FeatureRequest*` is four tables (`models.py:405-467`): no comment, no event, no read
 state. `routers/ideas.py` has no comment endpoint and no read endpoint. A status change is a column
@@ -441,8 +507,10 @@ grep -n 'export type MyNotification' frontend/src/api/notifications.api.ts   # �
        event_id: int = Field(foreign_key="featurerequestevent.id", primary_key=True)
        read_at: dt.datetime = Field(default_factory=dt.datetime.utcnow, index=True)
    ```
-   A comment's "edited" is `updated_at != created_at` (the guestbook's rule, `GuestbookEntryCard.tsx:121`):
-   only a PATCH moves it, so no `edited_at` is needed here.
+   **There is no "edited" state.** Roli's call: a comment cannot be edited at all, a typo is fixed by
+   deleting and reposting. `updated_at` exists only because every sibling table has one and adding a
+   column later would have to go through `_RUNTIME_COLUMNS`; **nothing writes it**. Do not render an
+   "edited" byline and do not compare it to `created_at`.
 2. **`services/idea_events.py` (new)** — the only module that writes, removes or reads-marks an event:
    - `record_idea_event(s, *, request_id, kind, actor_player_id, comment_id=None, status="", status_note="") -> FeatureRequestEvent`
      — adds the row **and a read row for the actor** (the guestbook does the same for the author,
@@ -453,25 +521,28 @@ grep -n 'export type MyNotification' frontend/src/api/notifications.api.ts   # �
      event on the idea the player has none for; returns how many. No commit.
    - `delete_idea_comments(s, *, request_id) -> int` — every comment row of the idea (their events go
      through `delete_idea_events(request_id=…)`). No commit. (P3 adds `unread_idea_events` here.)
-3. **`services/authorization.py`**, beside the idea's rule: `_is_comment_author`,
-   `can_edit_feature_request_comment(c, *, claims)` (admin always; otherwise editor+ **and** author,
-   **no window**), `can_delete_feature_request_comment` = the same answer,
-   `feature_request_comment_capabilities(c, *, claims) -> {"can_edit", "can_delete"}`,
-   `ensure_can_edit_feature_request_comment(c, *, claims, action)` → 403
-   `"Only the author of this comment, or an admin, can {action} it"`.
+3. **`services/authorization.py`**, beside the idea's rule: `_is_idea_comment_author`,
+   `can_delete_feature_request_comment(c, *, claims)` (admin always; otherwise the comment's own
+   author, **no window** — and never the idea's author),
+   `feature_request_comment_capabilities(c, *, claims) -> {"can_delete"}`,
+   `ensure_can_delete_feature_request_comment(c, *, claims, action)` → 403
+   `"Only the author of this comment, or an admin, can {action} it"`. **There is no edit
+   predicate**: a comment cannot be edited at all (the Decisions block), so `can_delete` is a
+   comment's whole permission surface.
 4. **`services/ideas_view.py`**: `MAX_IDEA_COMMENT_LEN = 2000` (the guestbook's ceiling);
    `comment_dict(c, *, author_display_name, capabilities)`; `comments_map(s, request_ids, claims) ->
    dict[int, list[dict]]` — one query for the rows ordered `created_at asc, id asc` (a flat
    conversation reads top-down), `author_name_map` for the names, capabilities per row; `idea_dict`
    gains `comments: list[dict]`; `list_ideas` and `one_idea_dict` pass it. Same lazy import of
    `authorization` as the file already uses.
-5. **`schemas/requests.py`**: `IdeaCommentCreateBody(body: str = "")`, `IdeaCommentPatchBody(body: str = "")`.
+5. **`schemas/requests.py`**: `IdeaCommentCreateBody(body: str = "")`. No patch body — there is
+   no editing.
 6. **`schemas/responses.py`**:
    ```python
    class IdeaCommentOut(BaseModel):
        id: int; request_id: int; author_player_id: int; author_display_name: str
        body: str; created_at: datetime; updated_at: datetime
-       can_edit: bool = False; can_delete: bool = False
+       can_delete: bool = False   # the whole permission surface: no editing, so no can_edit
    ```
    `IdeaOut.comments: list[IdeaCommentOut]` — **required, not defaulted**, so the generated type is
    `comments: IdeaCommentOut[]` and no consumer has to guess. And the bell:
@@ -495,7 +566,8 @@ grep -n 'export type MyNotification' frontend/src/api/notifications.api.ts   # �
      touched (a comment is not the author's text changing and not the admin's answer; `updated_at`
      already lies enough — R5's `edited_at` note), commit, return `comment_dict`. *(P2 adds the push
      call here.)*
-   - `PATCH /ideas/comments/{comment_id}` → `IdeaCommentOut` (author/admin, `updated_at = now`).
+   - **No PATCH.** A comment is fixed by deleting and reposting (the Decisions block), so the
+     endpoint, its body schema and any inline editor are all absent by design.
    - `DELETE /ideas/comments/{comment_id}` → `OkResponse`: `delete_idea_events(request_id=…,
      comment_id=…)`, delete the row, commit.
    - `PUT /ideas/{idea_id}/read` → `MarkedResponse` (`require_auth_claims`; 404 idea):
@@ -526,9 +598,9 @@ grep -n 'export type MyNotification' frontend/src/api/notifications.api.ts   # �
 10. **Tests — `backend/tests/test_idea_comments.py` (new)**, the P1 matrix in the shape of
    `test_ideas.py`: `test_comments_ride_on_the_idea_payload_oldest_first`;
    `test_reader_may_not_comment_and_sees_no_comment_capabilities` (401s; `can_*` all False);
-   `test_comment_permission_matrix` (Editor2 403 on Editor's comment for PATCH and DELETE, author and
-   admin 200; flags agree with the codes); `test_a_comment_has_no_edit_window` (backdate 30 days,
-   PATCH 200); `test_comment_body_is_required_and_bounded`;
+   `test_comment_permission_matrix` (Editor2 403 on Editor's comment for DELETE, the author and an
+   admin 200, the *idea's* author 403; `can_delete` agrees with the codes);
+   `test_comment_body_is_required_and_bounded`;
    `test_events_are_recorded_with_the_actor_already_read` (created/comment/vote/status kinds; a read
    row for the actor on each); `test_unvote_removes_the_vote_event_and_a_status_resave_records_nothing`;
    `test_mark_read_covers_every_event_and_is_idempotent` (`marked` = n, then 0);
@@ -556,9 +628,99 @@ P1 stack stopped, run the baseline backend (`git stash` or a second checkout of 
 
 **Deviations:**
 
+- **The new shared thing this task owns is the audience helper**, and it lives with the rest of
+  the event family in `backend/app/services/idea_events.py`:
+  `idea_event_audience(s, *, request_id, kind, actor_player_id, idea_author_player_id=None,
+  admin_player_ids=()) -> list[int]` — the sorted ids that should hear about one event, never
+  including the actor. `created` → the ids the caller names as admins; `comment` → the idea's
+  author ∪ every player with a comment row on that idea; `vote`/`status` → the author alone; an
+  unknown kind → nobody. **Who is an admin is deliberately the caller's parameter**, because push
+  resolves it from `secrets.json` (`admin_player_ids`) and the bell from the token's `role`, and
+  this module must not become a third definition. Beside it, `idea_event_reaches(s, event, *,
+  player_id, is_admin, idea_author_player_id=None) -> bool` is *the same call* asked about one
+  person (`admin_player_ids=(me,) if is_admin else ()`), so the bell cannot drift from the push by
+  construction — `test_idea_event_reaches_answers_exactly_the_same_question` asserts the two agree
+  for every event × every viewer. **P2 addresses its pushes from the list form; P3 filters with the
+  membership form; neither writes a rule of its own.** For P3 there is also
+  `idea_ids_commented_on_by(s, player_id)`, a *narrowing* helper so the bell's SQL does not scan
+  every event — it is not the rule, and the docstring says so.
+- **Verified first, the gap was live** (2026-09-19, at `1c8808d`): `models.py` had exactly four
+  `FeatureRequest*` classes (no Comment / Event / EventRead), `routers/ideas.py` mentioned
+  "comments" once and only in a comment about the vote modal, `me.py` carried a `response_model`
+  on `/me` alone, and `api/notifications.api.ts:5` still hand-wrote `MyNotification`. Nothing was
+  already fixed.
+- **No editing anywhere, so there is no `can_edit` on a comment.** The Decisions block's second
+  pass removed the editor; a flag nothing can act on is a contract P4 would have rendered a pencil
+  from, so `IdeaCommentOut` carries `can_delete` alone, there is no `PATCH /ideas/comments/{id}`
+  and no `IdeaCommentPatchBody`. `FeatureRequestComment.updated_at` is kept (every sibling table
+  has one and a later column would have to go through `_RUNTIME_COLUMNS`) but **nothing ever moves
+  it**, which the payload test pins. **P4's step 3 still describes a `Pencil` button, an inline
+  editor and a "· edited" byline: that text is stale**, as is the "Deferred" bullet about not
+  notifying thread participants (the third-pass decision supersedes it). P6 should delete both.
+- **Three tables, nothing altered, nothing in `_RUNTIME_COLUMNS`:** `FeatureRequestComment`,
+  `FeatureRequestEvent`, `FeatureRequestEventRead`. **Old code boots against the migrated DB** —
+  measured, not assumed: the baseline (`1c8808d`, extracted with `git archive` so `.git` was never
+  touched) was run against `backend/data/verify-p1.db` *after* the new code had written all three
+  tables. It booted, `GET /ideas` answered **200**, and it still created an idea and voted on it.
+  The new code then read that idea back as `comments: []` with **no `created` event** — the
+  documented consequence: an idea posted while rolled back gives the admins no bell item, and
+  nothing else is lost.
+- **The event log is written where the thing happens, and removed with it.** `record_idea_event`
+  writes the row **and the actor's own read row** (the guestbook's trick, `players.py:675`), so
+  "never tell me about my own action" is a stored fact rather than a filter every reader has to
+  remember. A status event is recorded **only when `(status, status_note)` actually changed** — a
+  re-save of the same answer is not news; an unvote deletes its `vote` event; deleting a comment
+  deletes the event that names it (and its read rows); deleting an idea takes comments, events and
+  reads. The reason is A9's: `featurerequest.id` and `featurerequestcomment.id` have no
+  AUTOINCREMENT, so a row left pointing at a dead id silently reattaches to whatever takes that id.
+- **`/me/notifications` is typed** (`MyNotificationsOut` / `MyNotificationOut`, seven kinds in one
+  shape with `created_at` kept as `str`). **One wire nuance:** FastAPI now renders the optional
+  keys an item does not use as explicit `null` (a `guestbook` item gains `"tournament_id": null`),
+  where before the key was simply absent. Nothing that had a value changed, `exclude_none` was
+  **not** used (it would have *removed* the deliberate `"author_player_id": null` a "General"
+  comment carries), and the frontend type has always had those fields optional-and-nullable.
+  `me.py` gained the `response_model` and its import and **nothing else** — the body is P3's.
+- **`comments` is required on `IdeaOut`**, so the generated type is `IdeaComment[]` and no consumer
+  guesses; `frontend/src/test/ideaMeta.test.ts` is the only literal in the app that needed
+  `comments: []`. `api/types.ts` gained `IdeaComment`, all seven `NotificationKind`s and the two
+  notification aliases (so P3 need not touch that file); `notifications.api.ts` lost its three
+  hand-written types and keeps `listMyNotifications`; `NotificationBell.tsx` changed **only** its
+  import line. The bell's icons and headlines still fall through to the poke branch for the four
+  idea kinds — P3's job, and type-safe meanwhile.
+- **Routes:** `POST /ideas/{id}/comments`, `DELETE /ideas/comments/{cid}`, `PUT /ideas/{id}/read`.
+  The middle one is the guestbook's `/players/guestbook/{entry_id}` shape; it collides with nothing
+  (`/ideas/{id}/image` needs a literal third segment), verified live. Writing needs `require_editor_claims`
+  like posting an idea; `PUT …/read` takes any token; reading comments needs none.
+- **Verified on the isolated stack** (backend **8071**, a copy of the prod DB as
+  `backend/data/verify-p1.db`, a throwaway secrets file outside the repo, both since removed; no
+  vite — this task ships no UI): every idea carries `comments`; a reader sees the list and
+  `can_delete: false` and is **401** on every write; Berni's comment shows `can_delete` for Berni
+  and for the admin but **not for the idea's own author** (403 on his delete attempt — the "the
+  asker does not moderate" rule, live); `PUT /ideas/{id}/read` answered `{ok, marked: 3}` then
+  `{ok, marked: 0}`, and **404** for an unknown idea; a real `guestbook` and a real `poke` came
+  back through the new response model unchanged.
+- **Tests:** `backend/tests/test_idea_comments.py`, **17 new** (the plan asked for 10) — the extra
+  seven are the audience section, because three other tasks trust it: the actor is never in the
+  audience (every kind × every actor), a commenter who is not the author is included, an admin who
+  has not commented is not, a deleted comment drops its author unless they have another comment
+  there, a vote and a status reach the author alone, `created` reaches only the admins the caller
+  names, and the two forms of the helper agree. `tests/test_ideas.py` and
+  `tests/test_me_notifications.py` are untouched and green — the proof the response model fits the
+  three existing kinds.
+- **Gates:** `make test` **223 passed**, 0 failed (206 on the branch before this task + 17 here;
+  8m53s, the Pi was busy), `make lint` clean, `make gen-types` regenerated and committed with the models, `cd frontend && npm run check`
+  green (**700 tests in 69 files**), `npm run build` green (the pre-existing >500 kB hint).
+- **Not done, on purpose:** no WebSocket channel (the Decisions block, and §6's coverage row for
+  `["ideas"]` is unchanged — comments ride under the same key and inherit its 5 s); no UI (P4); no
+  push (P2); no bell body (P3); `AGENTS.md` and `DESIGN.md` untouched (P6).
+- **One note on rule 3:** `git commit -o -- <paths>` refuses a path git has never heard of, so the
+  two new files needed `git add --intent-to-add <those two files>` first — it stages no content and
+  names nothing else. Everything else went in by path, as the rule says; the tree held only this
+  task's files (this task runs alone).
+
 ---
 
-## P2 — Push: commented, voted, status  ☐
+## P2 — Push: commented, voted, status  ☑
 
 **The gap.** `notification_texts.json` has one idea key (`idea_created`) per language;
 `PERSONAL_DEFAULT_EVENT_TYPES` (`notifications.py:36`) has four members; the comment, vote and status
@@ -603,12 +765,13 @@ Editor2 comments → `sent == []`.
    | done | done | erledigt | fertig |
    | declined | declined | abgelehnt | obglehnt |
 3. **`notification_texts.json`** — nine entries, verbatim (Styrian = Roli's drafts, adjusted only
-   for the note line; German ASCII-safe like every German string in the file):
+   for the note line and for his two second-pass corrections — the neutral "wos gmoant is." and the
+   singular/plural `{vote_line}`; German ASCII-safe like every German string in the file):
    ```json
    "idea_commented": { "title": "{author_name} hot wos zu deiner Idee gsogt",
-                       "body":  "{title}\n{preview}\nSchau eini, wos er moant." },
+                       "body":  "{title}\n{preview}\nSchau eini, wos gmoant is." },
    "idea_voted":     { "title": "{author_name} mog dei Idee",
-                       "body":  "{title}\nJetzt san's {vote_count}, de des a wolln.\nSchau eini." },
+                       "body":  "{title}\n{vote_line}\nSchau eini." },
    "idea_status":    { "title": "Dei Idee is jetzt {status_label}",
                        "body":  "{title}{status_note_line}\nSchau eini, wos si tuat." }
    ```
@@ -662,9 +825,74 @@ response model touched); `make lint` clean.
 
 **Deviations:**
 
+- **Verified first, the gap was live** (2026-09-19, at `bdc25a0`): the catalog had exactly 3
+  `"idea_*"` keys, `PERSONAL_DEFAULT_EVENT_TYPES` had 4 members, and the comment/vote/status
+  paths in `routers/ideas.py` called no push helper. Nothing was already fixed.
+- **The three new helpers take `s: Session`, which the plan's signature list did not show.**
+  They must — `idea_event_audience` (P1's audience helper, imported and never re-derived) needs a
+  session to read the comment-participant rows for a `comment` event, and every endpoint that
+  calls these helpers already has `s` open. Without it there would be no way to honour rule 8
+  ("P2 addresses its pushes from the list form") short of re-deriving the audience locally, which
+  is exactly what the caller's brief forbids. `request`, `s`, `idea_id`, `title`,
+  `author_player_id`, `actor_player_id` are otherwise exactly as specified.
+- **Each of the three helpers computes its own full audience and loops the enqueue itself** — one
+  call per event, in the shape of `push_idea_created` (which loops over `admin_player_ids` the
+  same way) — rather than the router looping and calling the helper once per recipient. For
+  `vote`/`status` the audience is always "the author alone or nobody", so this is invisible in
+  practice; for `comment` it is not: the idea's own author plus every other commenter, minus the
+  actor, can be several people, and only the helper itself (holding `s`) can compute that set.
+  This is what makes the third-pass audience decision ("a comment reaches the idea's author plus
+  everyone who has already commented") actually true for push, not just for the bell — verified
+  directly (`test_a_comment_a_vote_and_a_status_are_pushed_to_the_idea_author_only`, plus the two
+  delivery tests below).
+- **`_vote_line(vote_count, language)`** (new, `notification_texts.py`, beside `_status_label`) is
+  the mechanism behind Roli's second-pass correction — a literal "Jetzt san's 1" reads wrong —
+  computed generically for every language but **only referenced by the Steirisch `idea_voted`
+  template**; German and English keep the `{vote_count}` they were drafted with, inline, unchanged
+  from the plan's JSON, so no copy not explicitly corrected was touched. `_status_label` follows
+  the `_mode_label` precedent exactly, both wired into `render_notification_text` the same way
+  `mode_label`/`authors_line` already are (compute once if the raw field is present and the
+  rendered one is not).
+- **The Steirisch `idea_commented` body reads "Schau eini, wos gmoant is."** — the neutral form
+  from the second-pass correction, not "wos er moant" as it still stood in this section's own
+  drafted JSON before that correction (§"Answered 2026-09-19 (second pass)"). Every other string
+  is Roli's draft transcribed as written — his to correct, not mine.
+- **The comment preview follows the guestbook's own 120-char rule inline**
+  (`text if len(text) <= 120 else text[:117].rstrip() + "..."`), not `_snippet` — as the task
+  named it. `vote_count` is one extra `select(...).all()` over `FeatureRequestVote` after the
+  commit (no `func.count()` import needed, consistent with how `list_idea_voters` already reads
+  the same table). `status_note_line` is built at the call site exactly like `goal_note_line`
+  (`routers/comments.py:573`) — a computed `\n`-prefixed line that vanishes when empty, never a
+  helper of its own.
+- **`create_idea_comment`, `vote_idea` and `set_idea_status` each gained a `request: Request`
+  parameter and now capture `fr = get_or_404(...)`** (previously the idea row was fetched and its
+  return value discarded in all three) so the idea's `title` and `author_player_id` are on hand
+  for the push call without a second query. `set_idea_status` also gained a local `changed` flag
+  in place of the inline `if (fr.status, fr.status_note) != before:` so the same condition gates
+  both `record_idea_event` and the push call without evaluating the tuple comparison twice.
+- **Verified:** `make test` **228 passed**, 0 failed (a shared run against the group-A worktree, so
+  it includes P3's and P4's in-flight, uncommitted files too — expected per the plan's own note on
+  parallel workers; my own 4 tests are part of that count). `make lint` clean on the full tree.
+  `make gen-types` → **no diff**, confirmed against `git diff --stat` on `schema.d.ts` before and
+  after — no response model touched, as expected.
+- **What could not be exercised, and why:** push delivery over the wire (no VAPID configured, no
+  `cryptography` in this venv) — substituted, as R5/P1 did, by stopping at the queued
+  `PushMessage` for the audience/context assertions and by running the real
+  `NotificationDispatcher._deliver` with only the HTTPS POST faked
+  (`test_the_idea_comment_push_is_delivered_to_the_author_and_not_the_commenter`), which proves the
+  per-device language rendering and the author/commenter split actually reach `_deliver_one`, not
+  just the queue. The "everyone who has already commented" half of the `comment` audience for a
+  thread with three or more participants is P1's own matrix
+  (`test_idea_comments.py`) against `idea_event_audience` directly — not re-proven here, since P2
+  imports that function and never re-derives its rule (rule 8).
+- **Left alone, as instructed:** `push_idea_created` and its admin audience; `enqueue_personal_push`
+  (not used — the narrow `enqueue_personal_for_player` precedent stands); the six existing text
+  keys; `_mode_label`/`_authors_line`; `idea_events.py` (imported only, not edited — P3 owns it
+  this batch).
+
 ---
 
-## P3 — Bell: the four idea kinds with read state  ☐
+## P3 — Bell: the four idea kinds with read state  ☑
 
 **The gap.** `me.py:59-190` builds exactly three kinds; an idea event has no in-app trace.
 
@@ -696,8 +924,9 @@ Against the P1 stack: Editor posts an idea, Editor2 comments and votes, Admin se
 3. **`ui/shell/notificationText.ts` (new)**: `notificationHeadline(n: MyNotification): string` and
    `notificationDetail(n: MyNotification): string`, moving the three existing headlines out of the
    bell. New headlines: `idea_created` → `${author_name} shared an idea`; `idea_comment` →
-   `${author_name} commented on your idea`; `idea_vote` → `${author_name} wants your idea too` (the
-   board's own verb: "I want this too", "Most wanted"); `idea_status` → `${author_name} set your idea
+   `${author_name} commented on your idea`; `idea_vote` → `${author_name} likes your idea`
+   (**Roli's own word**, the second-pass answer above — not the board's "wants", which this line
+   carried when the plan was written); `idea_status` → `${author_name} set your idea
    to ${IDEA_STATUS_LABEL[n.idea_status]}` (import from `pages/ideas/ideaMeta` — precedent
    `ui/shell/routeHierarchy.ts:1` importing `pages/stats/statsNav`; unknown status → the raw value).
    Detail: for the three old kinds `n.snippet` as today; for idea kinds `n.idea_title` alone, or
@@ -729,9 +958,66 @@ entry or an **idea event** does not" (P6).
 
 **Deviations:**
 
+- **Verified first, the gap was live**: `grep -n '"kind": "' backend/app/routers/me.py` found exactly
+  the three hits the task named (`comment_reply`, `guestbook`, `poke`); `/me/notifications` as a
+  fresh Editor after Editor2 comments/votes and Admin sets a status answered `items == []`. Nothing
+  was already fixed.
+- **`idea_events.py` gained one function, `unread_idea_events`**, beside P1's audience helpers — no
+  change to `idea_event_audience`/`idea_event_reaches`'s signature or behaviour (P2's running push
+  depends on them). Its SQL narrowing is deliberately **loose**, not the literal author-only filter
+  the task text sketched: a candidate is any event on an idea this player authored *or has
+  commented on* (`comment`/`vote`/`status`), plus `created` for an admin — because a `comment` event
+  must reach every participant, not just the idea's author, and a narrowing that only checked
+  authorship would silently under-deliver that case even though none of this task's own named tests
+  would have caught it. Every candidate row is then confirmed through `idea_event_reaches` itself
+  before being kept, so the narrowing can only waste a row, never award or withhold one on its own
+  authority — "the predicate that decides must stay that one function" (rule 8), verified by
+  `idea_event_reaches`'s own docstring naming these exact three candidate sets. Comment bodies are
+  resolved in one follow-up `in_` query over the kept rows, as specified.
+- **`routers/me.py`** gained one import, one small `_IDEA_EVENT_KIND` map beside the existing
+  `_NOTIF_LIMIT`/`_SNIPPET_MAX` constants, and section **D) Idea events** — sections A–C, the limit,
+  the snippet cap and the final sort/cap are untouched. `is_admin` reads `claims.get("role")`
+  exactly like `comments.py:91`/`players.py:709`/`services/authorization.py:59` — no second
+  definition of "who is an admin".
+- **`ui/shell/notificationText.ts` (new)** holds `notificationHeadline`/`notificationDetail`, moving
+  the three old inline headlines out of the bell. `idea_vote`'s headline is **"likes your idea"**,
+  per the Decisions block's second-pass answer ("Roli's own word for it, not the board's 'wants'"),
+  **not** the "wants your idea too" text this task section itself still carried — the later decision
+  wins, as rule 9's "fold these in wherever the tasks still ask" says. An unknown `idea_status` value
+  falls back to the raw string (`ideaStatusLabel`), matching the task's "unknown status → the raw
+  value" and `IdeaOut.areas`' precedent for an unrecognised catalog key.
+- **`NotificationBell.tsx`**: `kindIcon` gained the four lucide icons named in the task
+  (`Lightbulb`/`MessageSquare`/`ThumbsUp`/`ListChecks`) with a doc comment listing all seven kinds;
+  the local `headline()` function and the inline `n.snippet` render were replaced by
+  `notificationText.ts`'s two exports. Popover markup, the 60 s poll and `openItem`'s optimistic
+  `(kind, id)` drop are byte-for-byte unchanged — event ids are unique across kinds, confirmed live.
+- **Verified on the isolated stack** (backend **8073**, vite **8083**, `backend/data/verify-p3.db`,
+  a throwaway secrets file outside the repo, both since removed): Flo posts an idea, Berni comments
+  and votes, Roli sets it to `planned` with a note → **Flo's** bell shows exactly the three idea
+  items (`idea_comment`/`idea_vote`/`idea_status`), each `path == /ideas?idea=<id>`, with the comment
+  and status-note snippets; **Berni**, the actor for the comment and the vote, sees neither; **Roli**
+  (admin) sees one `idea_created` for Flo's idea and none for an idea Roli posted themself. An
+  unvote by Berni on a second idea removed the vote item for Flo without a page reload (checked via
+  `/me/notifications` before/after); deleting Berni's comment removed only the comment item and left
+  a live vote item in place; deleting the idea removed all three. `PUT /ideas/{id}/read` zeroed
+  `unread_count`. Screenshot-verified the popover at 390×844 and 1280×900, `blue` and `light`
+  (`document.querySelectorAll("a a").length === 0`, 0 console errors in all four): the four idea rows
+  render with the right icon, headline and `title · snippet` detail line, and clicking one navigates
+  to `/ideas` and clears the badge (P4's `?idea=` read-marking effect was already live in the shared
+  tree and composed correctly with this task's items — not this task's code).
+- **Gates:** `make test` **224 passed**, 0 failed (223 on the branch before this task + 1 here;
+  17m47s, the Pi was running P2's and P4's full suites at the same time), `make lint` clean,
+  `cd frontend && npm run check` **717 tests in 71 files**, 0 errors (one pre-existing warning in
+  `pages/ideas/IdeasPage.tsx`, P4's file, untouched by this task). `make gen-types`: not run — this
+  task adds no field to any response model, so there is nothing to regenerate; confirmed no diff in
+  `schema.d.ts` from this task's own edits.
+- **Not done, on purpose:** no change to the popover's structural markup beyond the two lines the
+  task named; no change to `_NOTIF_LIMIT`/`_SNIPPET_MAX`; no page-side read-marking (P4's `?idea=`
+  effect, already present in the shared tree).
+
 ---
 
-## P4 — The board: comments under an idea, and reading marks read  ☐
+## P4 — The board: comments under an idea, and reading marks read  ☑
 
 **The gap.** `IdeaCard.tsx` renders no comment control; `useIdeaMutations.ts` has no comment or
 read mutation; the `?idea=` effect in `IdeasPage.tsx:106-126` flashes the idea and marks nothing.
@@ -758,14 +1044,14 @@ event reaches it inside its 60 s poll or on focus, exactly as a guestbook entry 
 **The change.**
 
 1. **`api/ideas.api.ts`**: `createIdeaComment(token, ideaId, body) → IdeaComment`
-   (`POST /ideas/${ideaId}/comments`), `patchIdeaComment(token, commentId, body) → IdeaComment`,
-   `deleteIdeaComment(token, commentId) → {ok}`, `markIdeaRead(token, ideaId) → {ok, marked}`
+   (`POST /ideas/${ideaId}/comments`), `deleteIdeaComment(token, commentId) → {ok}` — no patch
+   call, there is no PATCH endpoint — `markIdeaRead(token, ideaId) → {ok, marked}`
    (`PUT /ideas/${ideaId}/read`).
-2. **`useIdeaMutations.ts`**: `commentMut`, `patchCommentMut`, `deleteCommentMut` (all
-   `onSuccess: refresh`), and `markReadMut` whose `onSuccess` invalidates **`qk.notificationsAll()`
-   only** — reading changes nothing on the board.
+2. **`useIdeaMutations.ts`**: `commentMut` and `deleteCommentMut` (both `onSuccess: refresh`), and
+   `markReadMut` whose `onSuccess` invalidates **`qk.notificationsAll()` only** — reading changes
+   nothing on the board.
 3. **`pages/ideas/IdeaComments.tsx` (new)** — one component, props `{ idea, token, open, onToggle,
-   avatarUpdatedAtByPlayerId, onPost, onSave, onRequestDelete, busy }`:
+   avatarUpdatedAtByPlayerId, onPost, onRequestDelete }` (no `onSave`: nothing edits a comment):
    - **The toggle** lives in `IdeaCard`'s actions row (between the voters button and the `ms-auto`
      span): a ghost `Button` with `MessageSquare size={14}` + `fmtCount(n, "comment", "comments")`
      when `n > 0`; when `n === 0`: label **Comment** for a logged-in viewer (it opens the composer),
@@ -776,11 +1062,11 @@ event reaches it inside its 60 s poll or on focus, exactly as a guestbook entry 
      an idea row *is* the level-2 `inset` and inset → inset is forbidden (§3); this is the shape a
      reply already takes under a guestbook root (§9b, `GuestbookEntryCard.tsx:96`). Each comment:
      `AvatarCircle` `h-6 w-6` inside a decorative `PlayerLink`, name as a `PlayerLink`
-     (`text-xs font-semibold`), `fmtDateTime(created_at)` + `" · edited"` when `updated_at !==
-     created_at`, body `whitespace-pre-wrap text-sm`, and — from the flags only — `Pencil` /
-     `Trash2` `size={14}` icon ghost buttons `h-7 w-7 p-0` (`title` "Edit comment" / "Delete
-     comment"). Editing swaps the body for `ui/primitives/Textarea` + ghost **Cancel** / **Save**
-     (`Save` icon, "Saving…" while busy), the idea editor's own idiom in the same file family.
+     (`text-xs font-semibold`), `fmtDateTime(created_at)` with **no "edited" suffix** (comments
+     cannot be edited), body `whitespace-pre-wrap text-sm`, and — from the `can_delete` flag only —
+     a single `Trash2` `size={14}` icon ghost button `h-7 w-7 p-0` (`title` "Delete comment").
+     **There is no `Pencil`, no inline editor and no `can_edit` flag**: P1 shipped no PATCH
+     endpoint, so a pencil here would be a control with nothing behind it.
    - **The composer** is the block's last row when `token`: `CommentSendRow` from
      `pages/live/comments/CommentComposer.tsx` — `placeholder="Write a comment…"`,
      `ariaLabel="Comment on this idea"`, `sendLabel="Post comment"`, `canSubmit = !!draft.trim()`,
@@ -791,21 +1077,21 @@ event reaches it inside its 60 s poll or on focus, exactly as a guestbook entry 
 4. **`IdeaCard.tsx`**: `const [commentsOpen, setCommentsOpen] = useState(false)`, forced open by
    `useEffect(() => { if (flash) setCommentsOpen(true) }, [flash])` (the deep link); mount
    `<IdeaComments …>` inside the non-editing branch after the actions row. `IdeaCardHandlers` gains
-   `onOpenComments(idea)`, `onPostComment(idea, body): Promise<void>`, `onSaveComment(comment, body):
-   Promise<void>`, `onRequestDeleteComment(comment)`.
+   `onOpenComments(idea)`, `onPostComment(idea, body): Promise<void>`,
+   `onRequestDeleteComment(comment)`.
 5. **`IdeasPage.tsx`**: the handlers (`commentMut` etc. with `savingId` as the idea editor does);
    `pendingDeleteComment` state + a **`ConfirmDialog`** ("Delete this comment?", subtitle
    `${author} · ${fmtDateTime(created_at)}`, body "The comment is removed for good.", red block —
    something stored is deleted; C7's rule); `ErrorToastOnError` for the three new mutations
-   ("Could not post the comment" / "Could not save the comment" / "Could not delete the comment").
+   ("Could not post the comment" / "Could not delete the comment").
    **Marking read:** in the existing `?idea=` effect, after `setFlashId(deepLinkId)` →
    `if (token) markReadMut.mutate(deepLinkId)`; `onOpenComments` → `if (token) markReadMut.mutate(idea.id)`.
    Both idempotent server-side; no local dedupe needed.
 6. **Tests — `frontend/src/test/ideaComments.test.tsx`**: with two comments and a token: the toggle
    reads "2 comments", opens the list with both bodies, the composer is present, posting calls
    `onPost` with the trimmed body and clears the field; with zero comments: "Comment" for a token,
-   nothing for a reader; `can_delete: false` hides the trash; `updated_at !== created_at` prints
-   "edited"; one comment reads "1 comment" (`fmtCount`).
+   nothing for a reader; `can_delete: false` hides the trash; one comment reads "1 comment"
+   (`fmtCount`). **No "edited" case** — nothing moves `updated_at` and no byline reads it.
 
 **What must not change.** `IdeaComposer`, `IdeaFields`, `ideaMeta.ts` (nothing new is needed
 there), the idea editor and status editor, the delete-idea dialog, `CommentComposer.tsx` (reused as
@@ -814,9 +1100,9 @@ batch), `types.ts` (P1 added `IdeaComment`).
 
 **Definition of done.** At 390×844 and 1280×900 in `blue` **and** `light`, on the P4 stack: an idea
 with 0, 1 and 3 comments renders; Berni's comment on Roli's idea appears in Roli's list after the
-mutation without a reload; Berni sees edit/delete on his own comment and not on Roli's; Roli (admin)
-sees them on both; the confirm dialog opens and deletes; the reader build shows comments and no
-controls; opening `/ideas?idea=<id>` as the idea's author expands its comments, flashes it, and
+mutation without a reload; Berni sees the trash on his own comment and not on Roli's (there is no
+edit control anywhere); Roli (admin) sees it on both; the confirm dialog opens and deletes; the
+reader build shows comments and no controls; opening `/ideas?idea=<id>` as the idea's author expands its comments, flashes it, and
 `GET /me/notifications` afterwards is one item shorter (P3 running or not — the endpoint is P1's);
 `document.querySelectorAll("a a").length` = 0; no horizontal overflow; 0 console errors;
 `npm run check` and `npm run build` green.
@@ -830,9 +1116,89 @@ board (bell and push agree).
 
 **Deviations:**
 
+- **No new shared thing** — `IdeaComments.tsx` reuses `CommentSendRow`, `PlayerLink`, `AvatarCircle`,
+  `ConfirmDialog`, `fmtCount`, `fmtDateTime`, `ErrorToastOnError` and `qk.notificationsAll()`
+  exactly as they exist; nothing generalized, nothing new for another surface to find later.
+- **Verified first, both gaps were live** (at `bdc25a0`): `grep -c 'comment'
+  frontend/src/pages/ideas/IdeaCard.tsx` → 0, `grep -c 'read'
+  frontend/src/pages/ideas/useIdeaMutations.ts` → 0. Nothing was already fixed.
+- **No editing anywhere, confirmed against P1's correction and one more stale line this task's own
+  text still carried:** no `Pencil`, no `can_edit`, no "edited" byline — `updated_at` is read
+  nowhere. The plan's own step-6 test bullet ("`updated_at !== created_at` prints 'edited'") is the
+  same stale passage under a different heading (P1 struck it from step 3 and the Deferred list in
+  `bdc25a0` but this one survived); it is not implemented, and `IdeaComments` carries no `can_edit`
+  prop at all — `IdeaCommentOut` (generated schema) has only `can_delete`, so there is nothing to
+  render a pencil from.
+- **One component, mounted once — but not literally *inside* the actions row.** The toggle and the
+  panel are both `IdeaComments`, a single default export, called once from `IdeaCard` right after
+  the actions row (`<div className="flex flex-wrap items-center gap-2 …">…</div>` closes, then
+  `<IdeaComments …/>` as the next sibling in the `space-y-2` column) rather than as a flex child
+  wedged between the voters button and the `ms-auto` Edit/Delete span. Tried the literal reading
+  first — a `w-full` fragment child forcing a flex-wrap line break inside the actions row — and
+  rejected it: with `flex-wrap`, a `w-full` item starts a fresh line and so does whatever follows
+  it, which pushes the idea's own Edit/Delete controls *below* the comment thread once it is open
+  (worse the longer the thread). Mounting the whole thing after the row keeps Edit/Delete anchored
+  to the compact row and the thread expanding under it, which is what "under the actions row" (the
+  block's own instruction, two sentences later in the same task) already asks for. Noted here
+  because the two sentences point at different DOM positions and I picked the one that does not
+  regress the row above it.
+- **Draft, "posting" and focus-nonce are local `useState` inside `IdeaComments`, not lifted to
+  `IdeasPage`.** `commentMut` is one shared mutation object for every idea's composer; if its own
+  `isPending` drove every card's `submitting` prop, posting on one idea would grey out every other
+  idea's send button on screen. Keeping the draft and the in-flight flag inside the one card
+  instance that owns them avoids inventing a per-idea id map for state three lines of local
+  `useState` already give for free.
+- **Dropped the `busy` prop and `onSave`** from the component's originally sketched signature: no
+  edit exists, so `onSave` has nothing to call; deleting a comment goes through the same
+  `ConfirmDialog` shape the idea's own delete already uses, with no extra guard beyond what that one
+  has either (the dialog closes on confirm before the mutation settles — an accepted, pre-existing
+  gap, not a new one).
+- **Read-marking:** the deep-link effect calls `markReadMut.mutate(deepLinkId)` guarded on `token`;
+  `IdeaCard`'s `onOpenComments` fires only on a *manual* open (the toggle), not on the flash-forced
+  open from the same deep link, so the same idea is never marked read twice in one visit. Fixed the
+  resulting `react-hooks/exhaustive-deps` warning by adding `token`/`markReadMut` to that effect's
+  dependency array (harmless here — the effect already bails via a ref guard on repeat runs).
+- **Found and fixed a real lint error along the way, not asked for by this task but required to
+  ship it:** the natural `useEffect(() => { if (flash) setCommentsOpen(true) }, [flash])` triggers
+  `react-hooks/set-state-in-effect` (a hard error in this repo's `eslint-hooks` config, not a
+  warning). Replaced with React's own "store the previous prop, compare during render" shape (no
+  effect at all) — `const [prevFlash, setPrevFlash] = useState(flash); if (flash !== prevFlash) {
+  setPrevFlash(flash); if (flash) setCommentsOpen(true); }` — in `IdeaCard.tsx`.
+  `IdeaComposer.tsx`'s own `useEffect` for autofocus was left alone: it calls `.focus()`, not
+  `setState`, so the rule never fires there.
+- **The reader's footer line was extended**, as the plan's own composer bullet asked: "Log in as a
+  player to post an idea or vote for one." → "…, vote for one or comment."
+- **Verified on the isolated stack** (backend **8074**, a copy of `backend/app.db` as
+  `backend/data/verify-p4.db`, vite **8084**, a throwaway secrets file outside the repo — all since
+  removed, ports and the DB copy killed by exact PID only), via a headless Chromium driven from
+  `playwright-core` (no `playwright` package in this repo; the browsers and the driver were already
+  cached on this machine from another project, used read-only): **63/63 checks passed** across
+  390×844 and 1280×900, `blue` and `light`. Covered: the idea-1 toggle reading "1 comment" from a
+  seeded comment; opening it and seeing the body; posting a trimmed comment as Berni and seeing it
+  appear with no reload, the count moving to "2 comments"; deleting that own comment via the trash +
+  `ConfirmDialog` and seeing it gone; a reader (no token) seeing the remaining comment with no
+  composer and no delete button anywhere; a second idea authored by **Berni** (non-admin) with a
+  comment from **Flo** — Berni (the idea's own author, not the comment's author, not admin) has
+  **no** delete button on Flo's comment, Flo has one on his own, and Roli (admin, neither author)
+  has one too, exercising the "the idea's author does not moderate" rule against an author who is
+  not also the admin (the fixture data — Roli — would have hidden this, since admin always sees
+  delete regardless of the rule under test); the `?idea=1` deep link firing `PUT /ideas/1/read` and
+  forcing that idea's thread open with its comment visible; no horizontal overflow at either width in
+  either theme; 0 console errors. `document.querySelectorAll("a a").length` was checked with
+  comments open as Berni, as a reader, as the non-admin author, as the comment's author and as the
+  admin — **0** in every case.
+- **Gates:** `cd frontend && npm run check` green — **717 tests in 71 files** passed at the point
+  this task's suite ran; P2 and P3 were committing to the same working tree in parallel (P2's
+  checkbox was already ticked when this section was written), so that total is not purely P4's —
+  this task's own contribution is exactly the 5 tests in the 1 new file
+  (`frontend/src/test/ideaComments.test.tsx`). `npm run build` green (the pre-existing `>500 kB`
+  chunk hint, `index-*.js` 730 kB). No response model was touched, so no `make gen-types` run.
+- **Left alone, as the task said to:** `IdeaComposer.tsx`, `IdeaFields.tsx`, `ideaMeta.ts`,
+  `types.ts`, `CommentComposer.tsx` (used as-is; `CommentSendRow` needed no prop it did not have).
+
 ---
 
-## P6 — Documentation pass (runs LAST)  ☐
+## P6 — Documentation pass (runs LAST)  ☑
 
 Changes no code. Reads every task's **Canon** and **Deviations** and edits the two canon files once.
 
@@ -853,19 +1219,86 @@ Changes no code. Reads every task's **Canon** and **Deviations** and edits the t
 
 **Deviations:**
 
+- **Every Canon line a task wrote was transcribed, with one exception, and the exception is not a
+  judgement call — the code contradicts it.** P4's `DESIGN.md` §5b line (*"wants … too" is the vote
+  verb on the Ideas board (bell and push agree)*) is **not true of what shipped**: the bell says
+  "likes your idea" (Roli's second-pass correction, which P3 implemented and flagged) while the
+  English push still says "wants your idea too" (Roli's own draft, transcribed as written and his to
+  correct). Writing the rule would have made the canon claim an agreement that does not exist, and
+  deciding which of the two words wins is Roli's, not a documentation pass's. It is recorded as a
+  **fact** instead, in `AGENTS.md` §11's open list beside the standing "the copy is Roli's to
+  review", with both strings named so he can settle it in one edit.
+- **P3's bell kinds and icons went into `DESIGN.md` §7's components table, not a section of their
+  own.** P3's Canon block claimed only the `AGENTS.md` coverage row, and `DESIGN.md` had no
+  notification-bell entry at all; §7 already carries non-primitives (`CommentComposer`), so one row
+  — the seven kinds, their seven lucide icons at `h-4 w-4`, and "every headline and detail line
+  lives in `notificationText.ts`, never inline" — adds no structure nobody approved.
+- **One §10 gotcha beyond the three the brief named**, and it is a task's own words: P5 wrote down
+  the two headless-Chromium facts "for the next task that measures a permission" (permission is
+  always `denied` there, and `newContext({ permissions: [] })` is an *empty grant*, which denies).
+  Both cost an hour once; §10 is where an hour like that is meant to go.
+- **What I deliberately did not write.** No canon claims a push was **delivered**: §11 says in so
+  many words that push has never gone over the wire on this machine (no `cryptography`, no VAPID) and
+  that every push test stops at the queued message or a faked POST. No canon claims the **iOS
+  reinstall** path works: §10 and §11 both say it is unverified and only Roli's phone can close it,
+  and §10 names the WebKit assumption behind it. The **three-or-more-participant comment audience**
+  is stated as the *rule* and attributed to the one helper both channels call — not as something
+  P2's push tests exercised, because they did not (P1's matrix did, against `idea_event_audience`
+  directly). The `make dev` fix is written down as **not verified end to end**, because reproducing
+  a terminal's Ctrl+C needs a real foreground job on a tty.
+- **Further stale passages found and fixed** (beyond the two struck in `bdc25a0`), all of them the
+  editor that Roli's second-pass decision removed, plus two wordings a later decision overrode:
+  P1 step 3 (`can_edit_feature_request_comment`, a capabilities dict with `can_edit`,
+  `ensure_can_edit_…`), step 5 (`IdeaCommentPatchBody`), step 6 (`can_edit` on `IdeaCommentOut`),
+  step 7 (the `PATCH /ideas/comments/{comment_id}` bullet) and step 10 (the two PATCH-based tests);
+  P4 step 1 (`patchIdeaComment`), step 2 (`patchCommentMut`), step 3's props (`onSave`, `busy`),
+  step 4 (`onSaveComment`), step 5 ("Could not save the comment"), step 6's "`updated_at !==
+  created_at` prints 'edited'" (which P4 reported and left), and its Definition of done ("Berni sees
+  edit/delete"); P3 step 3's `idea_vote` headline ("wants your idea too" → "likes your idea", the
+  second-pass answer); and P2 step 3's drafted Steirisch JSON, which still read "wos er moant" and
+  `Jetzt san's {vote_count}` where the shipped catalog has the neutral "wos gmoant is." and
+  `{vote_line}` — both second-pass corrections recorded elsewhere in this file but never folded into
+  the draft they corrected. Two **gate expectations** were also wrong rather than stale and are now
+  the measured answers: `grep '"kind": "' me.py` gives **3**, not 7 (P3 maps the four idea kinds
+  through `_IDEA_EVENT_KIND` instead of writing four literals), and `grep 'usePushNotifications('`
+  gives **3**, not 2 (the grep counts the hook's own declaration beside its two call sites).
+- **Two stale *numbers* fixed outside the brief**, in `AGENTS.md` §3's Commands block: the baselines
+  beside `make test` and `npm run check` still read **130 tests** and **369 tests in 40 files**
+  (dated 2026-09-13), which no batch since has been true. They are now the measured 228 and 717 in
+  71, with a pointer that §11 is the authority — a number, not a rule, so correcting it invents no
+  canon.
+- **No code was touched**, which is this task's whole contract: `git show --stat` for this commit is
+  `AGENTS.md`, `DESIGN.md` and this file. The gates below were re-run on the documentation tree and
+  are green: `make test` **228 passed**, `make lint` clean, `npm run check` **717 in 71**,
+  `npm run build` green, `make gen-types` no diff.
+
 ---
 
 ## Verification gates (after all tasks)
 
-- `make test` — baseline 204; expect ≈ 204 + 1 (P5) + 10 (P1) + 4 (P2) + 1 (P3). `make lint` clean.
-- `make gen-types` → **no diff** at the branch head.
-- `cd frontend && npm run check` — baseline 688 tests in 68 files; record the new count.
-  `npm run build` green (the >500 kB hint is pre-existing). `node --check frontend/public/sw.js`.
-- `grep -rn 'usePushNotifications(' frontend/src | grep -v test/` → **2** (Settings, the notice).
-- `grep -n '"kind": "' backend/app/routers/me.py` → **7**.
+**Measured at the branch head on 2026-09-19 (P6's tree — documentation only, no code):**
+
+- `make test` → **228 passed**, 0 failed, 27 warnings, 9m13s (baseline 204; +1 P5, +17 P1 — the plan
+  asked for 10 — +4 P2, +1 P3, and P1's 17 include the seven audience tests three other tasks
+  depend on). `make lint` → **clean**.
+- `make gen-types` → **no diff** (regenerated on this tree; `git diff` on `schema.d.ts` is empty).
+- `cd frontend && npm run check` → **717 tests in 71 files**, 0 failures, typecheck and lint clean
+  (baseline 688 in 68). `npm run build` → green, `index-*.js` **730.35 kB** (the pre-existing
+  >500 kB hint). `node --check frontend/public/sw.js` → passes.
+- `grep -rn 'usePushNotifications(' frontend/src | grep -v test/` → **3**: the hook's own
+  declaration plus its two call sites, Settings and the notice (the grep counts the definition too).
+- `grep -n '"kind": "' backend/app/routers/me.py` → **3**, plus `_IDEA_EVENT_KIND`'s four: P3 maps
+  the idea kinds through one dict instead of four inline literals, so seven kinds leave three hits.
+  `grep -c 'idea_' frontend/src/ui/shell/notificationText.ts` is the readable check that all four
+  arrived — **10** (four headlines, the detail branch's four, the doc comment's two lines).
 - `grep -rn 'export type MyNotification' frontend/src/api` → only `types.ts`.
-- `document.querySelectorAll("a a").length` = 0 on `/ideas` with comments open and the bell open.
-- **Rollback drill:** baseline backend against a DB the branch has written to → boots, `/ideas` 200.
+- `document.querySelectorAll("a a").length` = 0 on `/ideas` with comments open and the bell open —
+  checked by P4 (as five different viewers) and by P3 (with the popover open), both **0**.
+- **Rollback drill:** done in P1 — the pre-schema backend (`1c8808d`, extracted with `git archive`)
+  booted against `verify-p1.db` *after* the new code had written all three tables, answered
+  `GET /ideas` **200**, and still created an idea and voted on it.
+- **Not a gate, and not provable here:** push over the wire (no `cryptography`, no VAPID), the iOS
+  reinstall path, and `pushsubscriptionchange` firing at all — all three are the phone's to close.
 
 ## Deployment (later, on Roli's go)
 
@@ -875,7 +1308,10 @@ Backend and schema change → the **full** deploy: step 2's backup first
 validated", "DB initialized" — the three tables are created by `create_all` with no log line of
 their own; `curl https://lorbeerkranz.xyz/api/ideas | grep -c '"comments"'` > 0 proves the new code
 is up. **No manual step**, no `_RUNTIME_COLUMNS`, `notification_texts.json` ships in the image.
-Rollback: `git checkout 4fb03fc && docker compose up -d --build` — old code ignores the new tables.
+Rollback: `git checkout 880a6fd && docker compose up -d --build` — the branch point, code-identical
+to the `4fb03fc` this plan was written against (the three commits between them are docs). Old code
+ignores the new tables; P1 measured that against a database the new code had already written
+(§P1 Deviations, `AGENTS.md` §5).
 Smoke: from a second phone, comment on and vote for one of Roli's ideas → his bell shows both and a
 push arrives; set a status as Roli on someone else's idea → their bell; Settings → Send test on each
 phone; on one phone delete and re-add the PWA → the notice on first launch.
@@ -883,8 +1319,10 @@ phone; on one phone delete and re-add the PWA → the notice on first launch.
 ## Deferred — explicitly NOT here
 
 - A per-card unread marker on the Ideas board (R5 declined the badge; the bell is the badge).
-- Notifying admins about comments on ideas they do not own, or notifying earlier commenters
-  (thread participants) — one more `or` in `unread_idea_events` and one more push target each.
+- Notifying admins about comments on ideas they have nothing to do with. (**Earlier commenters
+  *are* notified** — that was decided on the third pass and is in the Decisions block: a comment
+  reaches the idea's author plus everyone who has already commented, minus the actor. This bullet
+  used to say otherwise.)
 - Auto-disabling subscriptions on repeated non-410 failures (a VAPID 401 is the server's fault).
 - Exposing `last_error`/`failure_count` per device in Settings.
 - Moving `usePushNotifications` into a context so Settings and the notice share one instance.

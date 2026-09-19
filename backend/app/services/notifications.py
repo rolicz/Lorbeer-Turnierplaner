@@ -13,6 +13,7 @@ from sqlmodel import Session, select
 
 from ..models import Player, PushSubscription, PushSubscriptionPreference
 from ..settings import Settings
+from .idea_events import idea_event_audience
 from .notification_texts import (
     default_notification_language,
     normalize_notification_language,
@@ -33,7 +34,15 @@ SUPPORTED_NOTIFICATION_MODES = ("finished_only", "all", "off")
 FINISHED_ONLY_EVENT_TYPES = {"tournament_finished", "push_test"}
 # Events directed at a specific player. In the "results & personal" mode these
 # are delivered only to that player (carried via default_mode_player_id).
-PERSONAL_DEFAULT_EVENT_TYPES = {"poke_created", "poke_summary", "guestbook_created", "idea_created"}
+PERSONAL_DEFAULT_EVENT_TYPES = {
+    "poke_created",
+    "poke_summary",
+    "guestbook_created",
+    "idea_created",
+    "idea_commented",
+    "idea_voted",
+    "idea_status",
+}
 
 
 def hash_push_endpoint(endpoint: str) -> str:
@@ -457,6 +466,142 @@ def push_idea_created(
         else:
             dispatcher.enqueue_for_player(pid, message)
     return len(targets)
+
+
+def push_idea_commented(
+    request: Request,
+    s: Session,
+    *,
+    idea_id: int,
+    title: str,
+    author_player_id: int,
+    actor_player_id: int,
+    actor_name: str,
+    preview: str,
+    comment_id: int,
+) -> bool:
+    """Tell everyone already in the thread that a new comment landed.
+
+    Audience is `idea_event_audience(kind="comment")` (P1) — the idea's author plus
+    every player who already has a comment there, minus the actor. Never a rule of
+    our own: P3's bell asks the same helper the same question, so the two channels
+    cannot disagree about who this reaches. Returns whether anyone was addressed.
+    """
+    targets = idea_event_audience(
+        s,
+        request_id=int(idea_id),
+        kind="comment",
+        actor_player_id=int(actor_player_id),
+        idea_author_player_id=int(author_player_id),
+    )
+    if not targets:
+        return False
+    dispatcher = push_dispatcher_from_request(request)
+    if dispatcher is None:
+        return False
+    message = localized_push_message(
+        "idea_commented",
+        path=f"/ideas?idea={int(idea_id)}",
+        tag=f"idea-comment-{int(idea_id)}",
+        event_type="idea_commented",
+        data={"idea_id": int(idea_id), "comment_id": int(comment_id)},
+        author_name=actor_name,
+        title=title,
+        preview=preview,
+    )
+    for pid in targets:
+        if hasattr(dispatcher, "enqueue_personal_for_player"):
+            dispatcher.enqueue_personal_for_player(pid, message)
+        else:
+            dispatcher.enqueue_for_player(pid, message)
+    return True
+
+
+def push_idea_voted(
+    request: Request,
+    s: Session,
+    *,
+    idea_id: int,
+    title: str,
+    author_player_id: int,
+    actor_player_id: int,
+    actor_name: str,
+    vote_count: int,
+) -> bool:
+    """A "+1" on someone's idea. Audience: the idea's author alone (a like is about
+    the idea, not the conversation), from `idea_event_audience(kind="vote")` — so a
+    self-vote (audience empty once the actor is discarded) queues nothing."""
+    targets = idea_event_audience(
+        s,
+        request_id=int(idea_id),
+        kind="vote",
+        actor_player_id=int(actor_player_id),
+        idea_author_player_id=int(author_player_id),
+    )
+    if not targets:
+        return False
+    dispatcher = push_dispatcher_from_request(request)
+    if dispatcher is None:
+        return False
+    message = localized_push_message(
+        "idea_voted",
+        path=f"/ideas?idea={int(idea_id)}",
+        tag=f"idea-vote-{int(idea_id)}",
+        event_type="idea_voted",
+        data={"idea_id": int(idea_id), "vote_count": int(vote_count)},
+        author_name=actor_name,
+        title=title,
+        vote_count=int(vote_count),
+    )
+    for pid in targets:
+        if hasattr(dispatcher, "enqueue_personal_for_player"):
+            dispatcher.enqueue_personal_for_player(pid, message)
+        else:
+            dispatcher.enqueue_for_player(pid, message)
+    return True
+
+
+def push_idea_status(
+    request: Request,
+    s: Session,
+    *,
+    idea_id: int,
+    title: str,
+    author_player_id: int,
+    actor_player_id: int,
+    status: str,
+    status_note: str,
+) -> bool:
+    """Triage lands on the author alone (`idea_event_audience(kind="status")`) — an
+    admin who resolves their own idea is skipped, like every other kind here."""
+    targets = idea_event_audience(
+        s,
+        request_id=int(idea_id),
+        kind="status",
+        actor_player_id=int(actor_player_id),
+        idea_author_player_id=int(author_player_id),
+    )
+    if not targets:
+        return False
+    dispatcher = push_dispatcher_from_request(request)
+    if dispatcher is None:
+        return False
+    message = localized_push_message(
+        "idea_status",
+        path=f"/ideas?idea={int(idea_id)}",
+        tag=f"idea-status-{int(idea_id)}",
+        event_type="idea_status",
+        data={"idea_id": int(idea_id), "status": status},
+        title=title,
+        status=status,
+        status_note_line=(f"\n{status_note}" if status_note else ""),
+    )
+    for pid in targets:
+        if hasattr(dispatcher, "enqueue_personal_for_player"):
+            dispatcher.enqueue_personal_for_player(pid, message)
+        else:
+            dispatcher.enqueue_for_player(pid, message)
+    return True
 
 
 def push_friendly_created(request: Request, *, friendly_id: int, mode: str, scoreline: str) -> None:
