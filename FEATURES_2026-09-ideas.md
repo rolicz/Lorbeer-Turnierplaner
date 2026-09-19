@@ -716,7 +716,7 @@ P1 stack stopped, run the baseline backend (`git stash` or a second checkout of 
 
 ---
 
-## P2 — Push: commented, voted, status  ☐
+## P2 — Push: commented, voted, status  ☑
 
 **The gap.** `notification_texts.json` has one idea key (`idea_created`) per language;
 `PERSONAL_DEFAULT_EVENT_TYPES` (`notifications.py:36`) has four members; the comment, vote and status
@@ -822,7 +822,7 @@ response model touched); `make lint` clean.
 
 ---
 
-## P3 — Bell: the four idea kinds with read state  ☐
+## P3 — Bell: the four idea kinds with read state  ☑
 
 **The gap.** `me.py:59-190` builds exactly three kinds; an idea event has no in-app trace.
 
@@ -889,7 +889,7 @@ entry or an **idea event** does not" (P6).
 
 ---
 
-## P4 — The board: comments under an idea, and reading marks read  ☐
+## P4 — The board: comments under an idea, and reading marks read  ☑
 
 **The gap.** `IdeaCard.tsx` renders no comment control; `useIdeaMutations.ts` has no comment or
 read mutation; the `?idea=` effect in `IdeasPage.tsx:106-126` flashes the idea and marks nothing.
@@ -987,6 +987,86 @@ chat row last — never an `inset` of its own.* §5b: "wants … too" is the vot
 board (bell and push agree).
 
 **Deviations:**
+
+- **No new shared thing** — `IdeaComments.tsx` reuses `CommentSendRow`, `PlayerLink`, `AvatarCircle`,
+  `ConfirmDialog`, `fmtCount`, `fmtDateTime`, `ErrorToastOnError` and `qk.notificationsAll()`
+  exactly as they exist; nothing generalized, nothing new for another surface to find later.
+- **Verified first, both gaps were live** (at `bdc25a0`): `grep -c 'comment'
+  frontend/src/pages/ideas/IdeaCard.tsx` → 0, `grep -c 'read'
+  frontend/src/pages/ideas/useIdeaMutations.ts` → 0. Nothing was already fixed.
+- **No editing anywhere, confirmed against P1's correction and one more stale line this task's own
+  text still carried:** no `Pencil`, no `can_edit`, no "edited" byline — `updated_at` is read
+  nowhere. The plan's own step-6 test bullet ("`updated_at !== created_at` prints 'edited'") is the
+  same stale passage under a different heading (P1 struck it from step 3 and the Deferred list in
+  `bdc25a0` but this one survived); it is not implemented, and `IdeaComments` carries no `can_edit`
+  prop at all — `IdeaCommentOut` (generated schema) has only `can_delete`, so there is nothing to
+  render a pencil from.
+- **One component, mounted once — but not literally *inside* the actions row.** The toggle and the
+  panel are both `IdeaComments`, a single default export, called once from `IdeaCard` right after
+  the actions row (`<div className="flex flex-wrap items-center gap-2 …">…</div>` closes, then
+  `<IdeaComments …/>` as the next sibling in the `space-y-2` column) rather than as a flex child
+  wedged between the voters button and the `ms-auto` Edit/Delete span. Tried the literal reading
+  first — a `w-full` fragment child forcing a flex-wrap line break inside the actions row — and
+  rejected it: with `flex-wrap`, a `w-full` item starts a fresh line and so does whatever follows
+  it, which pushes the idea's own Edit/Delete controls *below* the comment thread once it is open
+  (worse the longer the thread). Mounting the whole thing after the row keeps Edit/Delete anchored
+  to the compact row and the thread expanding under it, which is what "under the actions row" (the
+  block's own instruction, two sentences later in the same task) already asks for. Noted here
+  because the two sentences point at different DOM positions and I picked the one that does not
+  regress the row above it.
+- **Draft, "posting" and focus-nonce are local `useState` inside `IdeaComments`, not lifted to
+  `IdeasPage`.** `commentMut` is one shared mutation object for every idea's composer; if its own
+  `isPending` drove every card's `submitting` prop, posting on one idea would grey out every other
+  idea's send button on screen. Keeping the draft and the in-flight flag inside the one card
+  instance that owns them avoids inventing a per-idea id map for state three lines of local
+  `useState` already give for free.
+- **Dropped the `busy` prop and `onSave`** from the component's originally sketched signature: no
+  edit exists, so `onSave` has nothing to call; deleting a comment goes through the same
+  `ConfirmDialog` shape the idea's own delete already uses, with no extra guard beyond what that one
+  has either (the dialog closes on confirm before the mutation settles — an accepted, pre-existing
+  gap, not a new one).
+- **Read-marking:** the deep-link effect calls `markReadMut.mutate(deepLinkId)` guarded on `token`;
+  `IdeaCard`'s `onOpenComments` fires only on a *manual* open (the toggle), not on the flash-forced
+  open from the same deep link, so the same idea is never marked read twice in one visit. Fixed the
+  resulting `react-hooks/exhaustive-deps` warning by adding `token`/`markReadMut` to that effect's
+  dependency array (harmless here — the effect already bails via a ref guard on repeat runs).
+- **Found and fixed a real lint error along the way, not asked for by this task but required to
+  ship it:** the natural `useEffect(() => { if (flash) setCommentsOpen(true) }, [flash])` triggers
+  `react-hooks/set-state-in-effect` (a hard error in this repo's `eslint-hooks` config, not a
+  warning). Replaced with React's own "store the previous prop, compare during render" shape (no
+  effect at all) — `const [prevFlash, setPrevFlash] = useState(flash); if (flash !== prevFlash) {
+  setPrevFlash(flash); if (flash) setCommentsOpen(true); }` — in `IdeaCard.tsx`.
+  `IdeaComposer.tsx`'s own `useEffect` for autofocus was left alone: it calls `.focus()`, not
+  `setState`, so the rule never fires there.
+- **The reader's footer line was extended**, as the plan's own composer bullet asked: "Log in as a
+  player to post an idea or vote for one." → "…, vote for one or comment."
+- **Verified on the isolated stack** (backend **8074**, a copy of `backend/app.db` as
+  `backend/data/verify-p4.db`, vite **8084**, a throwaway secrets file outside the repo — all since
+  removed, ports and the DB copy killed by exact PID only), via a headless Chromium driven from
+  `playwright-core` (no `playwright` package in this repo; the browsers and the driver were already
+  cached on this machine from another project, used read-only): **63/63 checks passed** across
+  390×844 and 1280×900, `blue` and `light`. Covered: the idea-1 toggle reading "1 comment" from a
+  seeded comment; opening it and seeing the body; posting a trimmed comment as Berni and seeing it
+  appear with no reload, the count moving to "2 comments"; deleting that own comment via the trash +
+  `ConfirmDialog` and seeing it gone; a reader (no token) seeing the remaining comment with no
+  composer and no delete button anywhere; a second idea authored by **Berni** (non-admin) with a
+  comment from **Flo** — Berni (the idea's own author, not the comment's author, not admin) has
+  **no** delete button on Flo's comment, Flo has one on his own, and Roli (admin, neither author)
+  has one too, exercising the "the idea's author does not moderate" rule against an author who is
+  not also the admin (the fixture data — Roli — would have hidden this, since admin always sees
+  delete regardless of the rule under test); the `?idea=1` deep link firing `PUT /ideas/1/read` and
+  forcing that idea's thread open with its comment visible; no horizontal overflow at either width in
+  either theme; 0 console errors. `document.querySelectorAll("a a").length` was checked with
+  comments open as Berni, as a reader, as the non-admin author, as the comment's author and as the
+  admin — **0** in every case.
+- **Gates:** `cd frontend && npm run check` green — **717 tests in 71 files** passed at the point
+  this task's suite ran; P2 and P3 were committing to the same working tree in parallel (P2's
+  checkbox was already ticked when this section was written), so that total is not purely P4's —
+  this task's own contribution is exactly the 5 tests in the 1 new file
+  (`frontend/src/test/ideaComments.test.tsx`). `npm run build` green (the pre-existing `>500 kB`
+  chunk hint, `index-*.js` 730 kB). No response model was touched, so no `make gen-types` run.
+- **Left alone, as the task said to:** `IdeaComposer.tsx`, `IdeaFields.tsx`, `ideaMeta.ts`,
+  `types.ts`, `CommentComposer.tsx` (used as-is; `CommentSendRow` needed no prop it did not have).
 
 ---
 
