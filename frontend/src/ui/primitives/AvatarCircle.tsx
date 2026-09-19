@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 
+import { avatarPxFromSizeClass, mediaWidthFor } from "../../api/mediaSizes";
 import { playerAvatarUrl } from "../../api/playerAvatars.api";
 import { cupMarkColorVarForKey } from "../../cupColors";
 
@@ -62,6 +63,12 @@ export default function AvatarCircle({
 }) {
   const initial = (name || "?").trim().slice(0, 1).toUpperCase();
   const held = cups ?? [];
+  // The disc already says how big it is (W2); asking each of the 25 call sites to say it
+  // again is how one component grows 25 chances to disagree with itself. The ring padding
+  // is deliberately not subtracted: over-serving by 5px is free, under-serving is a blurry
+  // face. An unrecognised class means no `?w=` at all, i.e. the original — slow, never broken.
+  const boxPx = avatarPxFromSizeClass(sizeClass);
+  const avatarWidth = boxPx == null ? undefined : mediaWidthFor(boxPx);
   // The ring is drawn *inside* the avatar's own box (padding + background), so
   // adopting it never moves a single pixel of the layout around it.
   return (
@@ -72,7 +79,7 @@ export default function AvatarCircle({
     >
       <span className="inset p-0 inline-flex h-full w-full items-center justify-center overflow-hidden rounded-full">
         {playerId != null && updatedAt ? (
-          <img src={playerAvatarUrl(playerId, updatedAt)} alt={alt} className={imgClassName} loading="lazy" decoding="async" />
+          <img src={playerAvatarUrl(playerId, updatedAt, avatarWidth)} alt={alt} className={imgClassName} loading="lazy" decoding="async" />
         ) : fallbackIcon ? (
           fallbackIcon
         ) : (

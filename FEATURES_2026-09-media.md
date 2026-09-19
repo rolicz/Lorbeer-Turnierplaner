@@ -820,7 +820,7 @@ pre-warms the cache, as decided.
 
 ---
 
-## W2 — The one place the browser asks for a size  ☐
+## W2 — The one place the browser asks for a size  ☑
 
 **The gap.** `mediaUrl` (`api/client.ts:79`) takes a path and an `updatedAt` and nothing else;
 `playerAvatarUrl` (`api/playerAvatars.api.ts:9`), `playerHeaderImageUrl`
@@ -959,6 +959,74 @@ W3 waits for; it changes no pixel, because nothing passes a width yet):
   invalidates no cached URL.
 
 **Deviations:**
+
+- **The module, `mediaUrl`, the three helpers, `AvatarCircle` and both tests shipped exactly as
+  specced**, in the two commits the plan asked for: `dc788fd` *feat(W2): the widths the browser may
+  ask for* (the mechanism W3 codes against — `mediaSizes.ts`, `client.ts`, the three api helpers;
+  no pixel moves, because nothing passes a width yet) and the commit this paragraph is in,
+  *perf(W2): an avatar asks for the size it is drawn at*. `MediaWidth` really is the generated
+  union and not `unknown`: probed with a throwaway `const bad: MediaWidth = 137`, which is
+  `TS2322`.
+- **The plan's own measuring recipe does not work against a vite dev server, and the next worker
+  should not reach for it.** The "Playwright note" says to read
+  `performance.getEntriesByType("resource")` and sum `transferSize`. Two things, both measured
+  here: media entries report **`transferSize: 0`**, because the API is a different origin and sends
+  no `Timing-Allow-Origin`; and the 250-entry resource-timing buffer is **full of ES modules**
+  before an avatar is ever requested, so Stats → Table reported **zero** avatar entries at all
+  while the screenshot plainly showed six. The numbers below were taken from `page.on("response")`
+  and each response's own `content-length` — the wire, not the timing API.
+- **A test that spells `/api` fails on this machine**: vitest *does* load `.env.local`, so during
+  `npm run check` `import.meta.env.VITE_API_BASE_URL` is the Pi's LAN address and `API_BASE` is
+  `http://192.168.178.78:8001`. `avatarMediaWidth.test.tsx` builds its expected `src` from
+  `API_BASE`; what it pins is everything after the base.
+- **Every avatar in the app parses today** — the `null` branch is a promise to the future, not a
+  live fallback. The size classes in use are `h-6/7/8/9/10/12/14/20` over 20 `<AvatarCircle>` and 5
+  `<AvatarButton>` call sites (`AvatarButton` forwards its own `className` as `sizeClass`, default
+  `h-9 w-9`), so nothing falls through to the original; `mediaSizes.test.ts` and
+  `avatarMediaWidth.test.tsx` pin the unparseable case instead.
+- **One arithmetic consequence W3 and W4 should know**: `mediaWidthFor` was built as specced —
+  the smallest rung `>= cssPx × dpr`, else `undefined` — so at **dpr 3** a 1104px desktop banner
+  needs 3,312 and gets `undefined`, i.e. the original. That is deliberate (§3's rung table caps
+  the banner at 1536 by *choosing* a rung, which is what `srcset` does per-candidate), and it is
+  why the banner must go through `srcset`/`sizes` rather than through one `mediaWidthFor` call.
+  No avatar can reach it: the largest disc is 80px, which is 240 at dpr 3.
+
+**Measured on the isolated stack** (`:8152`/`:8172`, `backend/data/verify-w2.db`, an uploads copy
+**outside the repo**; fresh browser context per row, so every row is a cold cache). Six avatars,
+the same six files each time; **both themes produced byte-identical numbers**, as they must — a
+theme cannot change a picture — so the theme column is folded:
+
+| screen | viewport / dpr | requests | total bytes | each carried |
+|---|---|---|---|---|
+| Stats → Table | 390 / dpr 3 | 6 | **2,168,688 → 19,098** (−99.1 %) | `w=128` |
+| Stats → Table | 1280 / dpr 2 | 6 | **2,168,688 → 7,420** (−99.7 %) | `w=64` |
+| Players | 390 / dpr 3 | 6 | **2,168,688 → 19,098** (−99.1 %) | `w=128` |
+| Players | 1280 / dpr 2 | 6 | **2,168,688 → 19,098** (−99.1 %) | `w=128` |
+
+The plan predicted 2,117 KB → 18.8 KB for the six `h-7` discs at 390/dpr 3; the wire says
+**2,118 KB → 18.7 KB**. Per file at `w=128`: 2,430 · 2,744 · 2,940 · 3,492 · 3,546 · 3,946 B; at
+`w=64`: 1,060 · 1,124 · 1,130 · 1,314 · 1,364 · 1,428 B. The Players page draws `h-10` (40px), so
+it asks for `w=128` at dpr 3 **and** at dpr 2 (80 → 128) — the one row where the desktop saves no
+more than the phone.
+
+**The pictures are the rung, and the rung is enough.** `naturalWidth` in the DOM is **128** at
+390/dpr 3 and **64** at 1280/dpr 2, against a drawn box of 26px (28px minus the 1px hairline ring
+on each side; 23px where a cup ring takes 2.5px) — 26 × 3 = 78 ≤ 128 and 26 × 2 = 52 ≤ 64, so no
+disc is upscaled, in either theme, at either width. Screenshots in both themes at both widths show
+sharp faces and untouched rings, and no page error was recorded on any of the eight runs.
+
+**The no-width invariant, on a real screen and not only in a test.** On `/clubs` and `/profiles/1`
+at 390/dpr 3: `/players/1/header-image` and `/clubs/{id}/crest` were requested with **`?v=` only,
+no `w=`** — byte-identical to the URLs they had before this batch — while the profile's 80px
+avatar asked for `w=256`, the rung §3 predicts for it. In `mediaSizes.test.ts` the same promise is
+pinned against a copy of the pre-W2 builder over six URL shapes (absolute and relative path, a
+version, `null`, `undefined`, `""`), each asserted three ways: no third argument, `undefined` and
+`null`.
+
+**Gates, on the committed tree.** `cd frontend && npm run check` **795 tests in 82 files** in 87 s
+(the baseline 780/80 plus this task's 15 in 2 files; nothing pre-existing moved) and
+`npm run build` green (`index-*.js` 734.99 kB, the pre-existing >500 kB hint). W3 had nothing in
+the tree while this ran, so the count is exactly mine.
 
 ---
 
