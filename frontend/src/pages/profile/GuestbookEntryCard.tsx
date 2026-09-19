@@ -182,12 +182,13 @@ export default function GuestbookEntryCard({
   const editOpen = ctx.editOpenEntryId === entry.id;
   const editDraft = ctx.editDraftByEntryId[entry.id] ?? entry.body;
   const isCollapsed = ctx.collapsedEntryIds.has(entry.id);
-  // Inside the feed's one card (DESIGN.md §9b), so a message is the level-2 `inset`
-  // row and a reply is flat and tighter on that card's own surface, hanging off an
-  // accent rule — the comment feed's shape exactly. A root used to be a second `card`
-  // inside the page and a reply an `inset` inside that, which is one surface too many
-  // in both directions (A8).
-  const surfaceClass = depth === 0 ? "inset p-3" : "px-3 py-2";
+  // The feed is flat on the page (G1, DESIGN.md §9b), so a message is a **row** at the
+  // page gutter — no surface of its own — and a reply is the same row, tighter, behind
+  // the accent rule its parent draws. It was an `inset` inside a `card` inside the page
+  // until the profile's other three tabs went flat and left this one the only box; the
+  // rows are hairline-separated by the list around them (`list-divided`), which is what
+  // separates one message from the next now that no box does.
+  const surfaceClass = depth === 0 ? "py-3" : "py-2";
 
   return (
     <div key={entry.id} className={depth === 0 ? "space-y-2" : "space-y-1"}>

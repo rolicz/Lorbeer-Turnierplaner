@@ -1,4 +1,4 @@
-import { Mail, MailOpen, MessageSquare } from "lucide-react";
+import { Mail, MailOpen } from "lucide-react";
 
 import Button from "../../ui/primitives/Button";
 import ConfirmDialog from "../../ui/primitives/ConfirmDialog";
@@ -99,19 +99,23 @@ export default function GuestbookSection({
 
   const doomedReplies = pendingDeleteReplyCount;
 
-  /* The feed and its composer are one card (DESIGN.md §9b), exactly like the
-     tournament comments feed: a header row, the messages as hairline-separated
-     level-2 rows, and the chat row attached to the card's bottom edge. It used to be
-     a second, floating card over a feed of cards — a card inside a card's worth of
-     surfaces, and a composer that belonged to none of them (A8). */
+  /* **A feed inside a tabbed page is flat** (G1, Roli's decision, `DESIGN.md` §9b).
+     This was the profile's one boxed tab: Overview, Stats and Matches carry no `card` at
+     all and start at the page gutter, while the guestbook wrapped everything in one, so
+     switching to this tab stepped the text 25px inward and took 50px of line width off it
+     (measured at 390px: x=41 / 308px against x=16 / 358px), through a surface stack of
+     page → card → inset → chip where the siblings have page → row. So the head is a
+     `section-head` like every other section on this page, the messages are hairline-
+     separated rows at the gutter (`list-divided` + this page's own row, `AGENTS.md` §9),
+     and the chat row stays sticky at the end of the feed. The tournament's comments feed
+     keeps its card: it *is* its page, 6950px tall, and its edges are never on screen. */
   return (
     <>
-    <section className="card min-w-0 p-0" data-guestbook-feed>
-      <div className="flex items-center justify-between gap-2 border-b border-border-card-outer/55 px-3 py-2.5">
-        <h2 className="inline-flex min-w-0 items-center gap-2 text-sm font-semibold text-text-normal">
-          <MessageSquare size={14} className="shrink-0 text-text-muted" aria-hidden="true" />
+    <section className="min-w-0 space-y-2" data-guestbook-feed>
+      <div className="section-head" data-guestbook-head>
+        <h2 className="section-label inline-flex min-w-0 items-center gap-2">
           <span className="truncate">Guestbook</span>
-          <span className="shrink-0 text-xs font-normal tabular-nums text-text-muted">{total}</span>
+          <span className="shrink-0 font-normal tabular-nums">{total}</span>
         </h2>
         {unreadCount > 0 ? (
           /* Two actions, one treatment (Q-A): both are the `h-8` ghost button the profile's
@@ -120,7 +124,7 @@ export default function GuestbookSection({
              ring — wrapping a status `Pill`, with a `title` on each of them, so the reader
              got two tooltips for one action. `Pill` is a status tag and this is an action
              (`DESIGN.md` §7). */
-          <span className="shrink-0 inline-flex items-center gap-1.5">
+          <span className="order-1 shrink-0 inline-flex items-center gap-1.5">
             <Button
               type="button"
               variant="ghost"
@@ -155,12 +159,15 @@ export default function GuestbookSection({
       <ErrorToastOnError error={errors.markAll} title="Could not mark guestbook as read" />
       <ErrorToastOnError error={errors.vote} title="Could not vote guestbook message" />
 
-      {loading ? <div className="px-3 py-3"><LoadingPlaceholder /></div> : null}
-      {!loading && isEmpty ? <EmptyState title="No messages yet." className="px-3 py-6" /> : null}
+      {loading ? <div className="py-3"><LoadingPlaceholder /></div> : null}
+      {!loading && isEmpty ? <EmptyState title="No messages yet." className="py-6" /> : null}
 
       {roots.length ? (
         <GuestbookCardProvider value={cardContext}>
-          <div className="space-y-2 px-3 py-3">
+          {/* A message carries an author row, a citation, a body and a vote row, so it is
+              `list-divided` plus this page's own row rather than a `ListRow` (§7). The
+              hairline runs between whole threads: a reply belongs to the message above it. */}
+          <div className="list-divided">
             {roots.map((entry) => (
               <GuestbookEntryCard key={entry.id} entry={entry} />
             ))}
@@ -169,9 +176,16 @@ export default function GuestbookSection({
       ) : null}
 
       {/* You write at the end of the feed, in the same chat row as the comments
-          (T3 / DESIGN.md §9b) — never behind a button, never above what you read. */}
+          (T3 / DESIGN.md §9b) — never behind a button, never above what you read.
+          `bottom-nav-clear` and `lg:bottom-0` are load-bearing and never hand-spelled:
+          they are what collapses this box with the mobile tab bar when the keyboard
+          comes up (Q2) and what keeps Q14's bottom reservation honest. Flat, the strip
+          paints the page's own background instead of the card's. */}
       {canPost ? (
-        <div className="sticky bottom-nav-clear z-10 rounded-b-2xl border-t border-border-card-outer/55 bg-bg-card-outer p-2 lg:bottom-0" data-guestbook-composer>
+        <div
+          className="sticky bottom-nav-clear z-10 border-t border-border-card-chip/40 bg-bg-default py-2 lg:bottom-0"
+          data-guestbook-composer
+        >
           <div className="space-y-2">
             {/* Armed: the composer says what the next message is about, with the way out
                 beside it — the goal/shots chip generalised (DESIGN.md §9b). */}
@@ -202,7 +216,7 @@ export default function GuestbookSection({
           </div>
         </div>
       ) : (
-        <div className="border-t border-border-card-outer/55 px-3 py-2.5 text-sm text-text-muted">
+        <div className="border-t border-border-card-chip/40 py-2.5 text-sm text-text-muted">
           Log in as a player to post guestbook messages.
         </div>
       )}
