@@ -60,9 +60,23 @@ frontend-lan:
 # Runs both concurrently (Linux/macOS). On Windows, use two terminals:
 #   make backend-lan
 #   make frontend-lan
+# NOTE: no `set -m` here, deliberately. Job control puts each background job in its
+# own process group, and Ctrl+C only signals the *foreground* group — so the two
+# servers survived every Ctrl+C, were reparented to init and kept holding 8000/8001.
+# That is where "Address already in use" came from, and a stale vite serving a white
+# screen after a file it had cached was deleted. Without job control the children
+# share this shell's group, so a terminal's Ctrl+C reaches them, and the trap covers
+# SIGTERM and a closed terminal (SIGHUP) as well. `kill 0` targets the *group*, which
+# is the point: killing `make backend-lan` alone leaves the `python run.py` grandchild
+# holding the port.
+#
+# EXIT is deliberately NOT in the trap list. It fires on *any* exit, a `make -n` dry
+# run included, and `kill 0` then takes down whatever process group make happened to
+# be running in — which is fine in a terminal and destructive when make is driven by a
+# script or a tool. Signals only.
 dev:
 	@echo "Starting backend (LAN) + frontend (LAN) ..."
-	@bash -c 'set -m; \
+	@bash -c 'trap "kill 0" INT TERM HUP; \
 		$(MAKE) backend-lan & \
 		$(MAKE) frontend-lan & \
 		wait'
