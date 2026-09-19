@@ -394,8 +394,12 @@ language is obviously missing in the others rather than silently stale.
 | 7 | M7 | Documentation pass | `AGENTS.md`, `DESIGN.md`, this file | last |
 | 8 | M8 | The badges explain themselves; the profile stops narrating itself | `frontend/src/pages/profile/RecordBadges.tsx`, `frontend/src/pages/profile/ProfileHeader.tsx`, `frontend/src/test/recordBadges.test.tsx`, this file | follow-up, after M7 (its canon corrections are written in its own section for a later pass) |
 | 9 | M9 | The avatar grows to match the band beside it | `frontend/src/pages/profile/ProfileHeader.tsx`, this file | follow-up, after M8 (its canon corrections are written in its own section for a later pass) |
+| 10 | M10 | Documentation correction pass — the canon M7 could not know | `AGENTS.md`, `DESIGN.md`, this file | last, after M9 |
 
-**Order:** M1 alone → **group A** {M2, M3} in parallel → **group B** {M4, M5, M6} in parallel → M7.
+**Order:** M1 alone → **group A** {M2, M3} in parallel → **group B** {M4, M5, M6} in parallel → M7
+→ then the follow-ups Roli's phone produced, in order: the two unnumbered fixes (a lead is not a
+record; the comment box cannot rewrite a finished result), M8, M9, and **M10**, which is the second
+documentation pass and corrects what M7 wrote before any of them existed.
 **Why M1 alone:** every other task reads its response models, its generated types or its `RECORD_DEFS`,
 and a half-written `responses.py` breaks `make gen-types` for anyone sharing the worktree. **Why M2
 and M3 are disjoint:** M2 is backend + `manage.py` + three backend tests; M3 is four frontend files
@@ -2029,7 +2033,118 @@ band already wraps (**254px**, was 278px).
 
 ---
 
+## M10 — Documentation correction pass: the canon M7 could not know  ☑
+
+M7 wrote the canon for this batch and then **four** things landed on top of it — two unnumbered
+fixes out of Roli's own testing, then M8 and M9 — three of which make what M7 wrote **wrong**.
+Wrong canon is worse than missing canon, because the next agent trusts it. Files: `AGENTS.md`,
+`DESIGN.md`, this file. **No code.**
+
+**Verify first** (all run against `787fe71`, the tree M7's canon describes; every one of them
+matched, so every correction below was still needed):
+```bash
+grep -c 'The badge link and the push deep link' AGENTS.md          # → 1  (M8 made it the legend row)
+grep -c 'Each chip is a `Link`' DESIGN.md                          # → 1  (M8 made every chip a button)
+grep -c 'A goal comment can still rewrite a finished result' AGENTS.md  # → 1  (fixed in 8f2ad29)
+grep -c 'Roli decides what to do about it' AGENTS.md               # → 1  (he decided: refuse)
+grep -c '144px' AGENTS.md                                          # → 1  (M8: one 36px button)
+grep -c 'M1–M7' AGENTS.md                                          # → 1  (ten tasks now)
+grep -c '272 passed' AGENTS.md ; grep -c '734 tests in 74 files' AGENTS.md  # → 2, 2  (both moved)
+```
+
+**The change.**
+
+1. **`DESIGN.md` §7, "A record held today"** — M8's replacement sentence, **transcribed verbatim**
+   from its own Canon block: the chip is a `button`, any chip opens the one `Modal` legend listing
+   only the records this player holds, the **row** carries the `Link` to the backend's `path`, and
+   the leading mark is a 28px square holding the glyph alone (51px vs 32px is why).
+2. **`DESIGN.md` §7, "Identity"** — M9's clause, transcribed: the profile header's avatar is
+   `h-20 w-20` (80px), the largest `AvatarCircle` in the app, and the name beside it is `text-lg`.
+3. **`DESIGN.md` §9b** — the clause M8 asked for: a row that *genuinely navigates* keeps its
+   chevron (the legend's rows do), a row that opens an overlay on the same page passes
+   `chevron={false}` for the same reason an expanding row has none.
+4. **`DESIGN.md` §5b** — the legend row for an ongoing run wears the word `current` as a `.chip`;
+   one more site for a word the section already lists.
+5. **`DESIGN.md`'s header note** — M10 leads it, M7's entry is demoted below it, each saying what
+   it re-read.
+6. **`AGENTS.md` §6** — the badge-link line becomes the legend-row line (M8, verbatim), and a new
+   paragraph records **a lead is not a record**: eight of the sixteen are leads, `record_kind()` is
+   the one place that decides, the push takes `lead_gained`/`lead_lost`/`lead_watch`, a lead is
+   *taken and overtaken* while a record is *snatched and lost*, and nothing else in the app branches
+   on the kind (same `record_moved` event type, same `record-{key}` tag, same audience).
+7. **`AGENTS.md` §9** — the band's chips are buttons that open the legend; "a tie is visible when
+   you tap through" now says where.
+8. **`AGENTS.md` §10** — the goal-comment bullet is rewritten from *"here is a hole"* to *"here is
+   the rule and why"*: both branches refuse with **409** through
+   `_refuse_score_on_a_finished_match`, a goal in a *playing* match is untouched, and the two
+   reasons the hole mattered (no `global_action`, never reaching `after_result_change`) are kept,
+   because they are why the answer is "refuse" and not "recompute".
+9. **`AGENTS.md` §10** — the measured-width paragraph, superseded **twice** in one day, is rewritten
+   once with both layers: a wrapping band's column is **254px** on a visitor's profile and **218px**
+   on your own (the 36px difference is M8's single edit button; both are 24px narrower than M8
+   measured, because M9's avatar grew), **6** badges per row in either case, and a band that does
+   not wrap is content-sized and lost nothing.
+10. **`AGENTS.md` §3 and §11** — the gate numbers (below), and §11's badge bullet rewritten for a
+    **ten-task** batch: twelve commits, 48 files, two new tables, M7–M10 and the two unnumbered
+    fixes named. The decided decision leaves §11's open list, and the umlaut bullet records that
+    Roli has already corrected `gräßte` → `greßte` and `Siegsserie` → `Siegesserie` while the six
+    **lead** lines are newer than his reading and have had no eye at all.
+
+**Blast radius.** `AGENTS.md`, `DESIGN.md`, this file. No code, no test, no response model.
+
+**Definition of done.** No line of canon describes the pre-M8 badge, the pre-M9 header, a record
+push that calls a lead a Rekord, or a goal comment that can rewrite a finished result; the batch's
+own numbers (tasks, commits, files, gates) match the tree; `make test` and `npm run check` green.
+
+**Gates (this tree).** `make test` **273 passed**, 36 warnings, in **683.50s (11:23)** · `make
+lint` clean · `make gen-types` **no diff** · `cd frontend && npm run check` **735 tests in 74
+files** in 71.98s · `npm run build` green in 8.58s (`index-*.js` **734,051 bytes**, the pre-existing
+">500 kB" hint). No code was touched by this task.
+
+**Deviations:**
+
+- **No code changed.** `git diff --stat` for this task is `AGENTS.md`, `DESIGN.md` and this file and
+  nothing else; the gates are the tree M9 left, re-run.
+- **Transcribed, not reworded, wherever a task wrote the sentence out** — M8's §7 replacement and
+  M9's Identity clause are their own words, adapted only by being folded into a one-line table cell.
+  Items 6's lead paragraph and 8's goal-comment rule had no written sentence to copy (the first was
+  a commit message, the second a decision), so they are new prose in the voice of the section that
+  holds them.
+- **Two lines nobody flagged were falsified by the same commits, and are fixed here.** §6's push
+  example read *"a push says \"meiste Punkte is weg\""* — wrong twice over: `most_points` is a
+  **lead**, so its push is `lead_lost` (*"Bei meiste Punkt bist nimma vorn"*), and the Styrian label
+  is `meiste Punkt`, not `meiste Punkte`. And §6's list of the three text keys (`record_gained` ·
+  `record_lost` · `record_watch`) now names the *roles* — gained · lost · watching — with the kind
+  paragraph beside it, because there are six keys per language now, not three.
+- **§5b's existing sentence was left standing and only extended.** The band's chip still carries
+  "record holder, current run" in its `title` and `aria-label` (`RecordBadges.tsx`), so M5's claim
+  is still true; the legend row is an *additional* site of the word, not a replacement.
+- **Nothing was promoted to canon that no task claimed.** Two candidates were considered and left
+  where they are: the legend's "no second `/stats/records` request on tap-through" (M8 measured it,
+  but it is the existing `["stats"]` cache row doing its job, already canon in §6) and M9's
+  "a one-row band is content-sized, a wrapping band is space-sized" — which *is* in §10 now, but as
+  the measured reason the two numbers differ, not as a new rule for anyone to follow.
+- **What I deliberately did not write.** No claim that a push has been delivered over the wire —
+  none ever has from this machine, and the lead texts are no more proven than the record ones; no
+  claim that iOS renders the umlauts; no work attributed to **M6**, which changed nothing; and
+  nothing about the two unnumbered fixes beyond what their commits actually did (`8f2ad29` also
+  fixed one Styrian label, `289ddf3` another — both recorded as Roli's corrections, not as a sweep).
+- **Line numbers were dropped where they had already rotted.** §10's goal-comment bullet used to
+  cite `routers/comments.py:474` and `:487`; both moved when the guard was added. The rewrite names
+  `_refuse_score_on_a_finished_match` and `TournamentCommentsCard.tsx` without a line number, which
+  is what M7's own §2 convention does everywhere else.
+
+---
+
 ## Verification gates (after all tasks)
+
+**Re-run by M10 on the final tree (code at `787fe71`, unchanged by that pass) — all green:**
+`make test` **273 passed** in 11:23 · `make lint` clean · `make gen-types` **no diff** ·
+`cd frontend && npm run check` **735 tests in 74 files** in 71.98s · `npm run build` green. The two
+counts moved after M7 by one each: `8f2ad29` added the tests that hold the comment box's 409 (and `289ddf3`
+made M2's own record tests kind-aware rather than adding any), and M8 rewrote
+`recordBadges.test.tsx` for the legend. Everything below is M7's earlier reading of the same gates,
+kept because it carries the reasons.
 
 **Run by M7 on the documentation tree (code at `9c3bc67`, unchanged by that pass) — all green:**
 

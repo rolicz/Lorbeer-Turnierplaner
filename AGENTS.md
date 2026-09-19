@@ -103,7 +103,8 @@ Size (2026-09-13): backend ≈ 13.3k LOC Python (`app/` + `manage.py` + `run.py`
   `useOneShotSectionParam.ts` the `?record=`/`?cup=` anchor Streaks, Records and Cups all consume
   (M4), and `RecordsView.tsx`, which **reads `/stats/records`** instead of computing the
   superlatives in the browser from six requests (M4).
-  `profile/RecordBadges.tsx` is the profile's band of the records that player holds today (M5, §9).
+  `profile/RecordBadges.tsx` is the profile's band of the records that player holds today **and the
+  one `Modal` legend any of its chips opens** (M5 built the band, M8 made it explain itself — §9).
 - `src/ui/` — `primitives/` (Button, Card, CardSection, Modal, Input, Pill, EmptyState,
   InlineLoading, LoadingPlaceholder, MatchOverviewPanel, ScoreLine, MatchSides, ClubMark [the one
   16px club symbol every score-only match row wears, Q8/Q17], StatTile, Chip,
@@ -175,10 +176,10 @@ make frontend       # or: make frontend-lan
 make dev            # both, LAN
 
 # checks — run before every commit
-make test           # backend pytest   (baseline 272 passed, ~15 min on the Pi, 2026-09-19; §11 is the authority)
+make test           # backend pytest   (baseline 273 passed, 11–15 min on the Pi, 2026-09-19; §11 is the authority)
 make lint           # ruff (E/W/F/I; line-length 150)
 make gen-types      # regenerate frontend/src/api/generated/schema.d.ts after ANY response-model change
-cd frontend && npm run check   # tsc + eslint + vitest (baseline 734 tests in 74 files, ~72 s)
+cd frontend && npm run check   # tsc + eslint + vitest (baseline 735 tests in 74 files, ~72 s)
 cd frontend && npm run build   # tsc -b + vite build (run for structural changes)
 ```
 
@@ -444,8 +445,9 @@ bell's copy for all seven lives in `ui/shell/notificationText.ts`, never inline 
 shapes `/streaks` has. It returns the sixteen records in `RECORD_DEFS` order, each with its
 `holders`, its `value` and its **`path`** — where that record lives in Stats (`table`/`elo` →
 `sub=table&sort=<col>`; `streak` → `sub=streaks&record=<key>`; `title`/`match` →
-`sub=records&record=<key>`). **The badge link and the push deep link both use that `path`**, the way
-`/ideas?idea=<id>` is already emitted by the backend; the frontend never builds one. The Records
+`sub=records&record=<key>`). **The legend row behind a badge, and the push deep link, both use
+that `path`**, the way `/ideas?idea=<id>` is already emitted by the backend; the frontend never
+builds one. The Records
 page reads this same endpoint (M4), which is what makes "a badge claiming a record the Records page
 does not show" impossible rather than merely unlikely, and the badge reads the same **cache entry**
 at the page's defaults — `qk.stats.records(mode, scope)` lands under the existing `["stats"]` row of
@@ -473,16 +475,32 @@ one carries, because a guard and not a comment is what keeps a list like this ho
 deliberately **not** in the list, and a test asserts each of them does not call it.
 **A record that changes hands notifies every player** (M2, Roli's decision): one push **per player
 per record moved**, with three texts chosen by the *recipient's* relationship to the move and never
-by the actor — `record_gained` · `record_lost` · `record_watch`, so the editor who types in their
-own win is told they gained it. **Roli was shown the arithmetic — six players is six notifications
-per record moved, and a four-record night is four per person — and chose to keep it**; nobody
-quietly turns this into a digest later. The only batching is the OS tag `record-{key}`, which
+by the actor — gained · lost · watching, in the vocabulary of the **kind** the paragraph below
+defines — so the editor who types in their own win is told they gained it. **Roli was shown the
+arithmetic — six players is six notifications per record moved, and a four-record night is four
+per person — and chose to keep it**; nobody quietly turns this into a digest later. The only batching is the OS tag `record-{key}`, which
 replaces the previous message about that same record. `record_moved` joins
 `PERSONAL_DEFAULT_EVENT_TYPES`, so it reaches a default "Results & personal" device and a device set
 to "Off" still gets nothing. The deep link is the record's own `path`, and a record's *name* is
 translated per language (`notification_texts.py::_RECORD_LABELS`, one entry per key of
 `RECORD_KEYS` in each language, guarded by a test that fails the moment the two disagree in either
-direction) — so a push says "meiste Punkte is weg" while the English UI says "Most points".
+direction) — so a push says "Bei meiste Punkt bist nimma vorn" while the English UI says
+"Most points".
+**Eight of the sixteen are not records at all — they are leads, and the push says so** (Roli,
+2026-09-19). A record is a best-ever mark that stands: the longest streak anyone has run, the
+biggest win ever played. A **lead** is whoever is top of a running tally *right now* — most points,
+highest points per match, most played, most goals per match, the three Elo badges, and most
+tournament wins, which is a cumulative count like points rather than a feat.
+`services/stats/records.py::record_kind(key)` is the **one place** that decides which of the two a
+key is (by `RecordDef.group`: `table`, `elo` and `title` are leads; `streak` and `match` are
+records), and both the push key and the sentences follow it — `lead_gained` / `lead_lost` /
+`lead_watch` beside `record_gained` / `record_lost` / `record_watch`, six keys per language, and
+`_record_lines` takes the same `kind` so no line contradicts its own title. **A lead is taken and
+overtaken; a record is snatched and lost**, and a lead is never called a Rekord: *"Jetzt bist du
+vorn bei meiste Punkt"*, never *"Rekord! meiste Punkt is jetzt deins"*. Nothing else in the app
+branches on the kind — the event type stays `record_moved`, the OS tag stays `record-{key}`, the
+audience is unchanged, and `/stats/records`, the Records page and the badges treat all sixteen
+alike; it is a copy decision, made once, server-side.
 
 WebSocket channels (`app/main.py`, `app/ws.py`, `services/events.py`):
 - `/ws/tournaments/{id}` → `tournament.sync` (full tournament payload), `tournament.deleted`,
@@ -747,8 +765,11 @@ every past match simply keeps counting today's rating.
   different kind of mark (the duplication `C12` deleted once already). An ongoing streak record
   wears `border-accent`, the very signal `PlayerStreakChips` paints on the same profile — **never a
   dot**, and never the green one, because `C10` moved the streak chip off green for saying "a match
-  is playing". The band carries no count: a tie is visible when you tap through (`×N` already means
-  three things, `DESIGN.md` §5b).
+  is playing". **A chip is a `button`, not a link** (M8): a glyph cannot say what it stands for, so
+  any chip opens one `Modal` legend — only the records this player holds, each row a fixed 28px
+  glyph mark, the label and the explainer — and the **row** is what navigates, to the `path` the
+  backend emits (`DESIGN.md` §7). The band carries no count: a tie is visible in Stats, one legend
+  row away (`×N` already means three things, `DESIGN.md` §5b).
 - **Icons: lucide-react only** (`DESIGN.md` §1.5). Font Awesome is gone (DS7, 2026-09-13) —
   the dependency, the CSS import and every `<i class="fa-…">` with it. Import the component
   (`import { Crown } from "lucide-react"`) and give it an explicit `size` in px; `aria-hidden`
@@ -1024,19 +1045,22 @@ every past match simply keeps counting today's rating.
   nav-bar jump leaves it for the H2H list.
   All older shapes (`?view=table|stars`, `?section=…`, `#trends`, nav `state.statsTab`) are
   mapped once by `pages/stats/statsNav.ts` and rewritten — **never re-introduce `?section=`**.
-- **A goal comment can still rewrite a finished result, and tells nobody** (M2 found it, deliberately
-  did not take it — wrong file set). `POST /tournaments/{id}/comments` with `event_type: "goal"` or
-  `"score_update"` writes the match's goals through `_set_match_score`
-  (`backend/app/routers/comments.py:474` and `:487`) with **no check on the match's state**, so a
-  goal comment filed against a *finished* match silently changes a real result — and it broadcasts
-  `reason="comment-score"` with **no `global_action`**, so every other device is never told: a
-  `Q9`-shaped hole on the websocket side as well. It is reachable from the UI, not theoretical —
-  `pages/live/TournamentCommentsCard.tsx:389` posts `event_type: "goal"` against `composerScope`,
-  which is any match in the tournament, not only the playing one (`score_update` has no UI caller
-  today). It is also the one result-writing path that does **not** call `after_result_change`, so a
-  record moved this way moves silently too. **Roli decides the fix**: recompute after it (one guard
-  in the shape of the other eight, `create_comment` already takes `request`) or refuse to change a
-  finished match at all. Do not pick one on your own.
+- **A goal comment cannot rewrite a finished result — it is refused** (found by M2, decided and
+  closed by Roli, 2026-09-19). `POST /tournaments/{id}/comments` with `event_type: "goal"` or
+  `"score_update"` writes the match's real goals through `_set_match_score`, and neither branch ever
+  looked at the match's **state**, so a goal comment filed against a *finished* match silently
+  changed a recorded result. Two things made it worse than a stray edit: the envelope it broadcasts
+  carries `reason="comment-score"` with **no `global_action`**, so no other device was ever told
+  (the `Q9` shape), and it is the one result-writing path that never reaches `after_result_change`,
+  so records and their badges did not move either. It was reachable from the UI, not theoretical —
+  `pages/live/TournamentCommentsCard.tsx` posts `event_type: "goal"` against `composerScope`, which
+  is any match in the tournament, not only the playing one (`score_update` has no UI caller today).
+  Both branches now refuse with **409** through `_refuse_score_on_a_finished_match`
+  (`routers/comments.py`), naming the way out: *"This match is finished — correct the score on the
+  match page, not with a goal comment"*. The match page is where a finished score is corrected,
+  because it confirms, it recomputes and it broadcasts `result`; the comment box was made to refuse
+  rather than made to work. **A goal in a *playing* match is untouched** — that is the case that
+  matters, and it is what the live composer is for.
 - **A goal in a *playing* match is not a result** (M2). Only finishing a match, un-finishing it and
   correcting a *finished* score are — that distinction is the guard on `PATCH /matches/{id}` in §6's
   table, and it is why typing goals through a live tournament costs nothing: the guard runs before
@@ -1051,15 +1075,25 @@ every past match simply keeps counting today's rating.
   identical for `?cup=` on the last cup; no one-shot anchor in the app pads its page's scroll room.
   Don't "fix" it inside `useOneShotSectionParam`.
 - **The profile's identity block is narrower than it looks, and the badge band wraps inside it**
-  (M5, measured at 390px against real data, not estimated). On **someone else's** profile the text
-  column beside the avatar is **278px** and fits **6** badges per row — seven uniform 32px chips
-  would fit (`38n − 6 ≤ 278`), but the `1v1`/`2v2` Elo chip is 51px and one wide chip is enough to
-  push the seventh down. On **your own** profile the three ghost edit buttons take **144px**,
-  leaving a **134px** column: **3** per row. Each extra row moves the tab strip by **~33px**
-  (measured 31 / 66 / 100px for 1 / 2 / 3 rows) — the accepted price of wrapping, bounded by two
-  things: the band renders **nothing** when a player holds nothing (no empty 28px strip, confirmed
-  in the DOM), and its query is cached under `["stats"]`, so a return visit paints the band with the
-  first frame and nothing moves. At 1280px every case is one row.
+  (M5, measured at 390px against real data, not estimated; the numbers are M8's and M9's, which
+  superseded M5's twice in one day — M5's 278 / 144 / 134px and "3 per row" describe a header that
+  no longer exists). A band that wraps is clamped to the space left beside the avatar, so both
+  numbers below are for a wrapping band: on **someone else's** profile that column is **254px**, on
+  **your own** **218px**, and **both fit 6 badges per row**. The 36px difference is the owner's one
+  ghost edit button — M8 replaced three of them, which took 144px between them — and both columns
+  are 24px narrower than M8 measured, because M9 grew the avatar from 56px to 80px and the row's
+  width is fixed. Six is where it stops in either case: seven *uniform* 32px chips would need 260px
+  (`38n − 6 ≤ W`; six need 222), but the `1v1`/`2v2` Elo chip is **51px** and one wide chip is
+  enough to push the seventh down, at 242px as at 218px. A band that does **not** wrap is sized to
+  its content instead, so the avatar's 24px cost it nothing at all (measured unchanged at 182px
+  owner / 113.6px visitor). Each extra row moves the tab strip by **~33px** (measured 31 / 66 /
+  100px for 1 / 2 / 3 rows) — the accepted price of wrapping, bounded by two things: the band
+  renders **nothing** when a player holds nothing (no empty 28px strip, confirmed in the DOM), and
+  its query is cached under `["stats"]`, so a return visit paints the band with the first frame and
+  nothing moves. At 1280px every case is one row. The header as a whole got **shorter** across the
+  two tasks even so: deleting the "Public profile" / "This is your profile" line and un-wrapping the
+  owner's band took **66px** off the tab strip's top (M8), and the taller avatar put back only
+  4–9.5px of it (M9).
 - Scroll position is app-managed (N2): `history.scrollRestoration` is `"manual"`, each history
   entry's offset lives in sessionStorage (`navStack`) and in-page view swaps (tabs, stats
   sections) keep their own offsets (`useReturnScroll`) — the H2H matchup rides on its own history
@@ -1107,23 +1141,30 @@ every past match simply keeps counting today's rating.
   machine** (dev has no VAPID and is not HTTPS), so production is the first real test of P2, P5 and
   the record push — **including whether iOS renders a non-ASCII push body**, which nothing here can
   check (§9).
-- **`feature/2026-09-badges` (M1–M7, `FEATURES_2026-09-badges.md`) is complete and unmerged** —
-  branched from `b8e741a`, seven commits, 46 files, **two new tables**, so it is a **full** deploy
-  when Roli says so. What landed: **M1** `GET /stats/records`, the one computation — sixteen records
-  in `services/stats/records.py`, folded out of the services the pages already call and writing no
-  ranking query of its own, with the deep-link `path` emitted per record (§6); **M2** `RecordHolder`
-  + `RecordKeyState`, `after_result_change` on all nine result-changing paths, the `record_moved`
-  push in three audiences × three languages, `result` for generate-over-results and a played
-  tournament's date, and the umlaut sweep across the whole notification catalogue (§9);
+- **`feature/2026-09-badges` (M1–M10, `FEATURES_2026-09-badges.md`) is complete and unmerged** —
+  branched from `b8e741a`, twelve commits, 48 files, **two new tables**, so it is a **full** deploy
+  when Roli says so. Ten tasks, because M8–M10 came out of Roli living with the batch on his phone
+  on the day it was built. What landed: **M1** `GET /stats/records`, the one computation — sixteen
+  records in `services/stats/records.py`, folded out of the services the pages already call and
+  writing no ranking query of its own, with the deep-link `path` emitted per record (§6);
+  **M2** `RecordHolder` + `RecordKeyState`, `after_result_change` on all nine result-changing paths,
+  the `record_moved` push in three audiences × three languages, `result` for generate-over-results
+  and a played tournament's date, and the umlaut sweep across the whole notification catalogue (§9);
   **M3** the stats URL learns `?sort=`/`?dir=`/`?record=` and the record icons become one map;
   **M4** the Records page reads `/stats/records` (one request where there were six) and Streaks,
   Records and Cups share one anchor hook; **M5** the badge band on the profile; **M6** the
   standings were evaluated and **nothing was added** — no file changed, the reasoning is in that
-  task's Deviations. Expect `Record holders seeded: 16` on the first boot, which is the line that
+  task's Deviations; **M7** the first documentation pass; **M8** a badge stops navigating and opens
+  a legend of what the badges mean, and the profile header loses its "Public profile" line and two
+  of its three edit buttons (§10); **M9** the profile avatar grows to 80px with a `text-lg` name
+  beside it; **M10** this second documentation pass, which corrected what M7 could not know.
+  Two later fixes carry no task number of their own: **a lead is not a record** — eight of the
+  sixteen are leads and the push says so, in its own words (§6) — and **the comment box can no
+  longer rewrite a finished result**, which was M2's open hole and is now a 409 (§10).
+  Expect `Record holders seeded: 16` on the first boot, which is the line that
   proves the diff base was written **silently**; `curl https://lorbeerkranz.xyz/api/stats/records |
   jq '.records | length'` → 16 proves the new code is up. Rollback to `f8a02b7` ignores both tables
-  (measured, not assumed — §5). One hole found and deliberately left: the goal comment that rewrites
-  a finished result (§10, and below).
+  (measured, not assumed — §5).
 - **`feature/2026-09-ideas` (P1–P6, `FEATURES_2026-09-ideas.md`) is merged** (`a547193`) and can be
   deleted — branched from `880a6fd`, seven commits, 38 files, three new tables, the first batch since
   the audit to touch the backend and the schema. **No manual step** — the three tables come from
@@ -1181,11 +1222,12 @@ every past match simply keeps counting today's rating.
   score-only match row wears one, across all seven surfaces, not just the friendlies list.
   The design-fixes batch above is merged (`5a97fa9`) and is in this same short-deploy queue; its
   smoke list is in that plan's "Deployment" section.
-- Checks at the badges branch head (code at `9c3bc67`, re-run on M7's documentation tree):
-  `make test` **272 passed** in 14:45, `make lint` clean, `make gen-types` **no diff**,
-  `cd frontend && npm run check` **734 tests in 74 files** in 72 s, `npm run build` green
-  (`index-*.js` 734.05 kB, the pre-existing >500 kB hint). The suite now takes a quarter of an hour
-  on the Pi: `after_result_change` runs a full records fold on every result-changing path, and
+- Checks at the badges branch head (code at `787fe71`, re-run on M10's documentation tree):
+  `make test` **273 passed** in 11:23, `make lint` clean, `make gen-types` **no diff**,
+  `cd frontend && npm run check` **735 tests in 74 files** in 72 s, `npm run build` green
+  (`index-*.js` 734.05 kB, the pre-existing >500 kB hint). M7 read 272 and 734 at `9c3bc67`; the
+  two fixes and M8 that came after it moved each count by one, and the same suite took 14:45 there
+  and 11:23 here — the Pi's own variance, not the suite changing. It is minutes either way: `after_result_change` runs a full records fold on every result-changing path, and
   `tests/test_record_holders.py` walks all nine of them. At the Ideas branch head (`dedd6fa`),
   for comparison: `make test` **228 passed**, `npm run check` **717 tests in 71 files**; for the
   merged design batch at its own head: `npm run check` **688 tests in 68 files**, `npm run build`
@@ -1197,22 +1239,16 @@ every past match simply keeps counting today's rating.
 
 ### Open, and each one is waiting on something specific
 
-- **A goal comment can rewrite a finished result, and Roli decides what to do about it** (found by
-  M2, deliberately not taken — it was outside that task's file set). `routers/comments.py:474` and
-  `:487` set a match's goals with no check on the match's state, and the broadcast that follows
-  carries no `global_action`, so other devices are never told (§10 has the whole shape, including
-  the composer that reaches it). The two candidate answers are "recompute after it" — one guard in
-  the same shape as the other eight `after_result_change` call sites — and "refuse to change a
-  finished match at all". They are not the same decision and neither is obviously right, so it is
-  his, not an implementer's.
 - **Whether iOS renders a non-ASCII push body is unverified, and only Roli's phone can close it.**
   The catalogue now carries its umlauts (§9, M2) and these are the first such bodies the app will
   have sent; nothing on this machine can check it, because push has never gone over the wire from
   here at all (no VAPID, no `cryptography` — every push assertion in every batch stops at the queued
   message). If a real notification shows mojibake, the place to look is the device, not the
   catalogue. The record push also wants his eye on the words themselves: the Styrian lines M2 wrote
-  are listed one by one in that task's Deviations, with `gräßte` and `Grod hot'n kana.` flagged as
-  the two he should read aloud.
+  are listed one by one in that task's Deviations. Two of them he has since corrected himself —
+  `gräßte` → `greßte` and `Siegsserie` → `Siegesserie` — and the six **lead** lines are newer than
+  that reading, so they have not had his eye at all; `Grod hot'n kana.` (and its lead twin `Grod is
+  kana vorn.`) is still the one to read aloud.
 - **The PWA reinstall path is unverified and only Roli's phone can close it** (P5). On the phone:
   delete the PWA, re-add it, log in — the "This device gets no notifications." notice should be on
   the first screen, **Turn on** should lead to the iOS permission prompt, and Settings →
