@@ -1,5 +1,6 @@
 import asyncio
 import json
+from datetime import datetime
 from pathlib import Path
 
 from sqlmodel import Session, select
@@ -664,3 +665,82 @@ def test_friendly_events_enqueue_push(client, editor_headers, admin_headers, mon
     assert "friendly_started" in event_types
     assert "friendly_score_changed" in event_types
     assert "friendly_finished" in event_types
+
+
+def test_put_subscription_refuses_an_endpoint_the_push_service_rejected(client, editor_headers):
+    """
+    A PWA reinstall leaves the browser without a subscription and the server with the
+    old endpoint. The push service answers 410 to the next delivery and `_deliver_one`
+    disables the row — but the client used to PUT the same dead endpoint back on the
+    next launch, which re-enabled it, so it died again on the very next push, for ever.
+    A row the push service rejected (404/410) is a corpse: the PUT is refused with 410
+    and the client rotates (unsubscribe -> subscribe -> PUT) instead.
+    """
+    dispatcher = StubPushDispatcher()
+    client.app.state.push_dispatcher = dispatcher
+
+    endpoint = "https://push.example.test/subscriptions/gone"
+    body = {
+        "endpoint": endpoint,
+        "keys": {"p256dh": "p256dh-key", "auth": "auth-key"},
+        "contentEncoding": "aes128gcm",
+        "app_platform": "ios",
+        "app_standalone": True,
+        "user_agent": "pytest",
+    }
+    first = client.put("/push/subscription", json=body, headers=editor_headers)
+    assert first.status_code == 200, first.text
+
+    # The push service rejected it: exactly what `_deliver_one` writes on 404/410.
+    with Session(get_engine()) as s:
+        row = s.exec(select(PushSubscription).where(PushSubscription.endpoint == endpoint)).first()
+        assert row is not None
+        row.disabled_at = datetime.utcnow()
+        row.last_http_status = 410
+        row.last_error = "410 gone"
+        s.add(row)
+        s.commit()
+
+    refused = client.put("/push/subscription", json=body, headers=editor_headers)
+    assert refused.status_code == 410, refused.text
+
+    with Session(get_engine()) as s:
+        row = s.exec(select(PushSubscription).where(PushSubscription.endpoint == endpoint)).first()
+        assert row is not None
+        assert row.disabled_at is not None, "a rejected endpoint must stay disabled"
+
+    # A rotated endpoint is a different row and is accepted.
+    rotated = dict(body, endpoint="https://push.example.test/subscriptions/fresh")
+    ok = client.put("/push/subscription", json=rotated, headers=editor_headers)
+    assert ok.status_code == 200, ok.text
+    assert ok.json()["disabled"] is False
+
+
+def test_put_subscription_reenables_a_subscription_the_client_disabled(client, editor_headers):
+    """A device that turned push off itself is not dead: turning it back on is a PUT."""
+    dispatcher = StubPushDispatcher()
+    client.app.state.push_dispatcher = dispatcher
+
+    endpoint = "https://push.example.test/subscriptions/paused"
+    body = {
+        "endpoint": endpoint,
+        "keys": {"p256dh": "p256dh-key", "auth": "auth-key"},
+        "contentEncoding": "aes128gcm",
+        "user_agent": "pytest",
+    }
+    assert client.put("/push/subscription", json=body, headers=editor_headers).status_code == 200
+
+    with Session(get_engine()) as s:
+        row = s.exec(select(PushSubscription).where(PushSubscription.endpoint == endpoint)).first()
+        assert row is not None
+        row.last_http_status = 201  # the push service was happy the last time it heard from us
+        s.add(row)
+        s.commit()
+
+    disabled = client.request("DELETE", "/push/subscription", json={"endpoint": endpoint}, headers=editor_headers)
+    assert disabled.status_code == 200, disabled.text
+    assert disabled.json()["disabled"] is True
+
+    again = client.put("/push/subscription", json=body, headers=editor_headers)
+    assert again.status_code == 200, again.text
+    assert again.json()["disabled"] is False

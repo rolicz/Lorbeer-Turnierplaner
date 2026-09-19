@@ -245,7 +245,7 @@ in-flight files in `make test` / `npm run check` runs, as the last batch did; co
 
 ---
 
-## P5 — The device that receives nothing says so  ☐
+## P5 — The device that receives nothing says so  ☑
 
 **The gap.** After a PWA reinstall the service-worker registration and the push subscription are
 gone, the server still holds the old endpoint (it only learns it is dead when APNs answers 410 to the
@@ -389,6 +389,72 @@ answers 410 for an endpoint the push service has rejected and the client rotates
 re-subscribes on `pushsubscriptionchange`.* `DESIGN.md` §2: the notice is a `warn` banner (nothing failed).
 
 **Deviations:**
+
+- **Verified first, all three gaps were live** (2026-09-19, at `880a6fd`): `usePushNotifications(`
+  had exactly one non-test caller (`PushNotificationsSettings.tsx:27`), `sw.js` had no
+  `pushsubscriptionchange`, and a scratch run against the `client` fixture answered **200 /
+  `disabled: false`** to a PUT of an endpoint whose row was disabled with `last_http_status = 410`.
+  Nothing was already fixed.
+- **The server rule, as chosen:** refuse with **410** when a row for this exact endpoint is
+  disabled **and** `last_http_status in (404, 410)` — i.e. the push service itself said the
+  endpoint is gone. Identity is the endpoint string, which is what separates "a genuinely new
+  endpoint" (a different row, accepted normally) from "the corpse the browser still holds". A row
+  a *client* disabled carries no rejection status and is re-enabled exactly as before; other
+  failure classes (5xx, timeouts, a VAPID 401) never disable a row and so can never refuse one.
+  `_deliver_one` is untouched.
+- **`loading` gained a third term:** `supported && !browserChecked`, a new internal flag set in a
+  `finally` around the `getSubscription()` read. Without it "nobody has subscribed" and "the
+  browser has not answered yet" are the same value (`browserEndpoint === null`) and the notice
+  flashes on every boot before the browser replies. Measured on the isolated stack: the answer
+  lands ~3 s after first load (the dev server registers the SW in ~1.9 s), so the flash would have
+  been long and visible. The Settings panel's refresh spinner honours the same flag.
+- **The user's deliberate "off" is remembered in the hook, not only in storage:** `userDisabled`
+  is `useState(isPushDisabledByUser())` kept in step by `rememberUserDisabled`, because
+  `pushSetupState` is called during render and a bare storage read there would not re-render on a
+  change.
+- **The 410 rotation is one helper, `putSubscriptionRotatingOn410`** (module-level in
+  `usePushNotifications.ts`), used by `enableMut` **and** the auto-sync effect — rule 8; the two
+  call sites do not each own a copy. The preferences PUT (`syncSubscriptionPreferences`) is left
+  alone: it only runs for an endpoint the server already lists.
+- **The four raw `window.localStorage` calls moved onto `utils/safeStorage`** in the same file, as
+  the task allowed.
+- **`AppShell` passes `token` from `ShellInner`**, and the notice is `<main>`'s first child, as
+  specified. Double mount with Settings → Notifications open is unchanged and idempotent; no
+  context was built for it.
+- **Verified in a real browser** (isolated stack: backend 8075 with a stub dispatcher, vite 8085,
+  `backend/data/verify-p5.db`, since removed), 390×844 **and** 1280×900, `blue` **and** `light`,
+  `/push/config` routed to an enabled stub, logged in as Berni: **40/40 checks passed**. The
+  notice appears on `/dashboard`, `/ideas` and `/stats`; at 390 it sits **16px under the 57px top
+  bar** (y=73, height 66, the sentence wrapping to two lines *inside* its own span rather than
+  above the buttons — `flex-wrap` allows either and this reads better), at 1280 it is the first
+  element above the desktop title row (y=24, height 58). **Not now** hides it and survives a
+  reload; a new context shows it again; a reader never sees it; `a a` = 0; 0 console errors.
+- **Two browser facts worth writing down for the next task that measures a permission:**
+  headless Chromium reports `Notification.permission === "denied"` no matter what (CDP
+  `Browser.setPermission: "prompt"` does not help), so the "nobody has decided" case only exists
+  in a **headed** browser under `xvfb-run`; and Playwright's `newContext({ permissions: [] })` is
+  an *empty grant*, which denies notifications — omit the option entirely to leave the default
+  alone. Both cost an hour here.
+- **What could not be exercised, and what was substituted.** A real 404/410 from Apple's or
+  Google's push service: substituted by writing exactly what `_deliver_one` writes
+  (`disabled_at`, `last_http_status = 410`) and then replaying the client's PUT — done twice, in
+  `tests/test_push_notifications.py` and **live** against the isolated stack, where the dead
+  endpoint answered **410** and stayed disabled while a rotated endpoint was accepted (and a
+  client-disabled row still re-enabled on PUT). The **client-side rotation** could not be driven
+  end to end: `pushManager.subscribe()` cannot succeed in this browser (no push service), so the
+  granted-permission context reached `subscribe()` — asserted, **1 call** — and got no endpoint to
+  PUT, which is why that check asserts the attempt and not the PUT. `pushsubscriptionchange`
+  cannot be fired synthetically either; `node --check` proves the handler parses, and the browser
+  is what fires it. Push **delivery** remains untestable on this machine (no `cryptography`).
+- **Left alone deliberately:** `PushNotificationsSettings.tsx`, `statusLabel`, the
+  language/mode handling, `_deliver_one`, `main.tsx`, the bell, and every response model — so no
+  `gen-types` diff (regenerated anyway: none).
+- **Still outstanding — only Roli's phone can close it:** delete the PWA, re-add it, log in, and
+  check that the notice is on the first screen and that **Turn on** leads to the iOS prompt and a
+  working **Send test**. The plan's assumption that iOS resets `Notification.permission` to
+  `default` on reinstall is WebKit's documented behaviour and is **not** verified here; if it
+  comes back `granted` instead, the device takes the silent `resubscribe` path and the notice
+  correctly stays away — the subscription is then repaired without anyone being asked.
 
 ---
 

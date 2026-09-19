@@ -17,6 +17,7 @@ import MobileChrome from "./MobileChrome";
 import BottomTabBar from "./BottomTabBar";
 import { ErrorToastViewport } from "../primitives/ErrorToast";
 import RouteErrorBoundary from "./RouteErrorBoundary";
+import PushSetupNotice from "./PushSetupNotice";
 import { useSwipeNav } from "./useSwipeNav";
 import { readStored, writeStored } from "../../utils/safeStorage";
 import { useLocationRestore } from "./useLocationRestore";
@@ -114,6 +115,10 @@ function ShellInner({ children }: { children: React.ReactNode }) {
           className="mx-auto w-full max-w-6xl flex-1 page-x py-4 pb-nav-clear lg:py-6 lg:pb-6"
           style={pull.distance > 0 && !pull.refreshing ? { transform: `translateY(${Math.min(pull.distance, 64)}px)` } : undefined}
         >
+          {/* A device whose push subscription is gone says so on whatever page the
+              reader is on — the one surface that finds someone who does not know
+              they have a problem (P5). It renders nothing in every other case. */}
+          <PushSetupNotice token={token} />
           <RouteErrorBoundary resetKey={location.pathname}>{children}</RouteErrorBoundary>
         </main>
 

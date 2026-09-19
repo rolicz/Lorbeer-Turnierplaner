@@ -89,3 +89,28 @@ export async function subscribeBrowserToPush(vapidPublicKey: string): Promise<Pu
     applicationServerKey: urlBase64ToUint8Array(vapidPublicKey) as BufferSource,
   });
 }
+
+/**
+ * Throw away this browser's subscription and get a fresh one (P5).
+ *
+ * `subscribeBrowserToPush` promises "the existing one if there is one", which is the
+ * wrong answer after the server has told us (410) that the push service no longer
+ * knows this endpoint: the browser still holds the corpse and would hand it straight
+ * back. Unsubscribing first is what makes the next endpoint a new one.
+ */
+export async function rotateBrowserPushSubscription(vapidPublicKey: string): Promise<PushSubscription> {
+  const registration = await registerNotificationServiceWorker();
+  if (!registration) {
+    throw new Error("Service workers are not available in this browser.");
+  }
+  const existing = await registration.pushManager.getSubscription();
+  if (existing) {
+    await existing.unsubscribe().catch(() => {
+      // a subscription the push service has already forgotten may refuse to unsubscribe
+    });
+  }
+  return registration.pushManager.subscribe({
+    userVisibleOnly: true,
+    applicationServerKey: urlBase64ToUint8Array(vapidPublicKey) as BufferSource,
+  });
+}
