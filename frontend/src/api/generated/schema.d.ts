@@ -1020,6 +1020,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/stats/records": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Stats Records
+         * @description Who holds which record — the one computation the Records page, the badge band
+         *     and the "took it from you" push all read (M1).
+         */
+        get: operations["stats_records_stats_records_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/stats/player-matches": {
         parameters: {
             query?: never;
@@ -2796,6 +2817,30 @@ export interface components {
             /** Status */
             status: string;
         };
+        /**
+         * RecordHolderOut
+         * @description One player who holds a record. `ongoing` is only ever true for a streak.
+         */
+        RecordHolderOut: {
+            player: components["schemas"]["PlayerRef"];
+            /**
+             * Ongoing
+             * @default false
+             */
+            ongoing: boolean;
+        };
+        /**
+         * RecordLeaderOut
+         * @description A ranked row behind a `title` record — competition ranking (1, 1, 3).
+         */
+        RecordLeaderOut: {
+            player: components["schemas"]["PlayerRef"];
+            /** Count */
+            count: number;
+            /** Rank */
+            rank: number;
+            latest?: components["schemas"]["StatsRecordTournamentOut"] | null;
+        };
         /** ScheduleGeneratedOut */
         ScheduleGeneratedOut: {
             /** Ok */
@@ -3232,6 +3277,76 @@ export interface components {
             k: number;
             /** Rows */
             rows: components["schemas"]["RatingRowOut"][];
+        };
+        /** StatsRecordMatchOut */
+        StatsRecordMatchOut: {
+            tournament: components["schemas"]["StatsRecordTournamentOut"];
+            match: components["schemas"]["StatsMatchOut"];
+        };
+        /**
+         * StatsRecordOut
+         * @description One record. `value` is the raw number — the frontend formats it.
+         *
+         *     `holders` is every tied holder (no tie count: the tie is visible in Stats).
+         *     `leaders` is filled for the `title` group only, `matches` for the `match` group only.
+         *     `path` is where this record lives in Stats — the backend decides that, once, so the
+         *     badge link and the push deep link cannot disagree.
+         */
+        StatsRecordOut: {
+            /** Key */
+            key: string;
+            /** Group */
+            group: string;
+            /** Label */
+            label: string;
+            /** Explainer */
+            explainer: string;
+            /** Path */
+            path: string;
+            /** Value */
+            value?: number | null;
+            /** Holders */
+            holders: components["schemas"]["RecordHolderOut"][];
+            /** Leaders */
+            leaders?: components["schemas"]["RecordLeaderOut"][];
+            /** Matches */
+            matches?: components["schemas"]["StatsRecordMatchOut"][];
+        };
+        /**
+         * StatsRecordTournamentOut
+         * @description Where a record match was played. A friendly carries a negative pseudo-id
+         *     and `status: "friendly"`, exactly as /stats/player-matches reports one.
+         */
+        StatsRecordTournamentOut: {
+            /** Id */
+            id: number;
+            /** Name */
+            name: string;
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Mode */
+            mode: string;
+            /** Status */
+            status: string;
+        };
+        /** StatsRecordsOut */
+        StatsRecordsOut: {
+            /**
+             * Generated At
+             * Format: date-time
+             */
+            generated_at: string;
+            /** Mode */
+            mode: string;
+            /** Scope */
+            scope: string;
+            /** Finished Matches */
+            finished_matches: number;
+            /** Records */
+            records: components["schemas"]["StatsRecordOut"][];
         };
         /** StatsStreaksOut */
         StatsStreaksOut: {
@@ -5694,6 +5809,40 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["StatsStreaksOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    stats_records_stats_records_get: {
+        parameters: {
+            query?: {
+                /** @description Match mode filter: "overall" (default), "1v1", or "2v2" */
+                mode?: string;
+                /** @description Data source scope: "tournaments" (default), "both", or "friendlies" */
+                scope?: "tournaments" | "both" | "friendlies";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StatsRecordsOut"];
                 };
             };
             /** @description Validation Error */

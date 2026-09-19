@@ -405,7 +405,7 @@ see each other's in-flight files in `npm run check`; commit only your own.
 
 ---
 
-## M1 — `/stats/records`: the one computation, typed  ☐
+## M1 — `/stats/records`: the one computation, typed  ☑
 
 **The gap.** No backend module knows what a record is. `RecordsView.tsx:166-173` fetches
 `/stats/player-matches` per player (`useQueries`) and computes the four superlatives at `:217-238`;
@@ -597,7 +597,75 @@ wins" top rank on `:8111/stats?view=overview&sub=records`, and `jq '[.records[] 
 **Canon.** `AGENTS.md` §2 backend modules gain `stats/records.py`; §6 gains `/stats/records`, the
 `sort`/`dir`/`record` params and the rule "the backend emits a record's `path`". M7 writes them.
 
+For M7, the canon lines this task actually earns:
+
+- §2 backend modules: `stats/records.py` — *the* registry (`RECORD_DEFS`, sixteen keys with their
+  English label, explainer, sort column and deep-link `path`) and `compute_stats_records`, which
+  folds the answer out of `compute_stats_ratings`, `compute_stats_streaks`, `compute_stats_players`
+  and `finished_matches_with_players` and **writes no ranking query of its own**. It is the only
+  place that decides what a record means.
+- §2: `stats/players.py::finished_matches_with_players` is public — it is *the* loader for "finished
+  matches in this mode and source", and a second one is how a badge and a page come to disagree.
+- §2: `stats/player_matches.py` exports `stats_match_dict`, `friendly_stats_match_dict`,
+  `friendly_group` and `player_ref` at module level, so `/stats/records` renders a match row
+  *identically* to `/stats/player-matches` — same `club_stars` as-of rule (R4), same friendly
+  pseudo-ids (tournament `-(1_000_000+fid)`, match `2_000_000_000+fid`).
+- §6 API map: `/stats/{…,records,…}` — public read, `mode` + `scope` like `/streaks`.
+- §6 rule: **the backend emits a record's `path`.** `RECORD_DEFS` decides where a record lives in
+  Stats (`table`/`elo` → `sub=table&sort=<col>`; `streak` → `sub=streaks&record=<key>`; `title`/
+  `match` → `sub=records&record=<key>`), and the badge link and the push deep link both use it, the
+  way `/ideas?idea=` is already emitted by the backend. The `sort`/`dir`/`record` params themselves
+  are M3's.
+- §6 cache table: `qk.stats.records(mode, scope)` lands under the existing `["stats"]` row (30 s) —
+  no new row, and the badge reads the entry the Records page reads at its defaults.
+- §5 / empty-column rule: a `table`/`elo` record is held only among rows with `played > 0`. Not the
+  floor Roli declined — "has an entry at all", so a newcomer at the default Elo 1000 tops nothing.
+
 **Deviations:**
+
+- **Parity was proven against the payloads, not the pixels.** `RecordsView` computes its four
+  superlatives and its title count from `/stats/player-matches` (one per player) + `/stats/players`
+  + the `/stats/ratings` rows `useStandings` provides. I transcribed that computation line for line
+  into a script that consumes *those same HTTP responses* from the isolated stack (`:8091`, a copy
+  of the dev DB) and diffed it against `/stats/records`. **252 assertions, 0 mismatches**, across
+  six mode/scope combinations (`overall|1v1|2v2 × tournaments`, `overall × both`,
+  `overall × friendlies`, `2v2 × both`) and all sixteen records: value, the tied match ids, and the
+  holder ids for the four match records; value + holders + `ongoing` for the four streaks against
+  `/stats/streaks`' own `records` list; value + leaders (id, count, rank, latest tournament) for
+  the titles; value + holders for the five table/Elo records against the top of the matching
+  `TABLE_COLS` column. `finished_matches` matched the browser's match count exactly
+  (94 / 54 / 40 / 117 / 23). **Records I could not verify this way: none** — every one of the
+  sixteen has a check. What the dev data could *not* exercise is the `played > 0` rule (all six
+  players have played) and a tie at the top of the titles list; both are covered by constructed
+  tests instead (`test_a_player_who_never_played_holds_no_table_record`,
+  `test_a_tie_at_the_top_gives_two_title_holders_at_rank_one`).
+- **`compute_stats_player_matches`' wire output is unchanged, measured.** 21 payloads (7 players ×
+  3 scopes) captured from the unmodified backend and re-fetched after the lift: **0 differing**.
+- **The plan's "skip a match without both sides or with an empty side" is implemented as written,
+  and `RecordsView` does not in fact skip it** — `teamNames` renders `["—"]` instead, so such a
+  match would count today. It changes nothing here: the dev database has **no** finished match,
+  tournament or friendly, with a missing or empty side, and the match counts matched exactly. The
+  backend rule is the better one (a side with no players cannot hold a record).
+- **Tied match rows are ordered most-recent-first** (`tournament.date desc, id desc, order_index
+  desc, id desc`), as the plan says. The browser's order was the order its six `useQueries` results
+  happened to arrive in. Membership is identical; only the display order of a tie differs.
+- **One thing the plan did not foresee: a friendly record row needs one extra query.** The loader
+  hands friendlies over as `scope.friendly_as_match_like` namespaces, which keep no reference to
+  the `FriendlyMatch`, and SQLAlchemy's identity map is weak — so by rendering time the row is gone
+  and `Session.get` re-reads it (measured: 12 statements for 6 friendly rows). Ranking now happens
+  before rendering and `_friendlies_by_id` re-reads **only the matches that actually tie a record,
+  in one query**. With `scope=tournaments` — every badge, and the Records page's default — the set
+  is empty and no query is made at all. `scope.py` was not touched (it is outside M1's file set).
+- `StarRatingResolver.load(s)` is loaded once, as the plan specifies; it is a rendering dependency,
+  not a ranking one, so "no query of its own beyond `select(Player)`" holds for every number.
+- Cost, on the Pi against the dev DB: **0.27 s** for the whole endpoint (`scope=both` 0.27 s,
+  `friendlies` 0.15 s) against seven HTTP round trips today.
+- `STREAK_KEYS` and `RECORD_DEF_BY_KEY` were added next to `RECORD_KEYS` — M2 needs a key→def
+  lookup for its diff and M4 needs the streak key list; both are one line over the registry, not a
+  second registry.
+- `player_ref` was lifted alongside the three builders the plan names (they call it). Same output.
+- Frontend: types, fetcher and query key only. `RecordsView.tsx` is untouched — M4 rewrites it.
+  `npm run check` is green with the new aliases unused, as the plan predicted.
 
 ---
 

@@ -17,6 +17,7 @@ from ..schemas.responses import (
     StatsPlayersOut,
     StatsRatingsHistoryOut,
     StatsRatingsOut,
+    StatsRecordsOut,
     StatsStreaksOut,
 )
 from ..services.stats.h2h import compute_stats_h2h
@@ -25,6 +26,7 @@ from ..services.stats.odds import compute_single_match_odds
 from ..services.stats.player_matches import compute_stats_player_matches
 from ..services.stats.players import compute_stats_players
 from ..services.stats.ratings import compute_stats_ratings, compute_stats_ratings_history
+from ..services.stats.records import compute_stats_records
 from ..services.stats.registry import stats_overview
 from ..services.stats.streaks import compute_stats_streaks
 
@@ -101,6 +103,17 @@ def stats_streaks(
     s: Session = Depends(get_session),
 ) -> dict[str, Any]:
     return compute_stats_streaks(s, mode=mode, player_id=player_id, limit=limit, scope=scope)
+
+
+@router.get("/records", response_model=StatsRecordsOut)
+def stats_records(
+    mode: str = Query("overall", description='Match mode filter: "overall" (default), "1v1", or "2v2"'),
+    scope: Literal["tournaments", "both", "friendlies"] = Query("tournaments", description='Data source scope: "tournaments" (default), "both", or "friendlies"'),
+    s: Session = Depends(get_session),
+) -> dict[str, Any]:
+    """Who holds which record — the one computation the Records page, the badge band
+    and the "took it from you" push all read (M1)."""
+    return compute_stats_records(s, mode=mode, scope=scope)
 
 
 @router.get("/player-matches", response_model=StatsPlayerMatchesOut)
