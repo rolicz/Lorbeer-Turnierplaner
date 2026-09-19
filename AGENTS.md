@@ -5,9 +5,14 @@
 > non-obvious about the project (deploy quirks, data semantics, decisions), **update this file**
 > so the knowledge survives model/tool switches. Keep the "Current state" section dated.
 >
-> Last full review: 2026-09-19 (branch `feature/2026-09-guestbook`; code at `ad21035`, this pass on
+> Last full review: 2026-09-19 (branch `feature/2026-09-guestbook`; code at `57050e4`, this pass on
 > top). `f425961` is still the only thing deployed: the design, Ideas and badges batches are all
-> merged to `main` (`14e27db`) and undeployed, and the guestbook batch (K1–K4) is not merged.
+> merged to `main` (`14e27db`) and undeployed, and the guestbook batch (K1–K4, then Q-A/Q-B and
+> G1–G3) is not merged. **Q-A and Q-B are the one part of that branch this file has not caught up
+> with**: K4 reviewed the tree at `ad21035`, and the two commits after it — the owner's About block
+> becoming the visitor's plus one Edit button, and an entry *citing* its subject with a thumbnail or
+> a quoted excerpt instead of naming it in a chip — are described in their commit messages and in
+> the code, not here (G1–G3's own pass, below, deliberately did not speak for them).
 
 ---
 
@@ -121,7 +126,11 @@ Size (2026-09-13): backend ≈ 13.3k LOC Python (`app/` + `manage.py` + `run.py`
   are `DESIGN.md` §7). The guestbook's armed composer borrows `ModeBadge` from
   `pages/live/comments/CommentComposer.tsx`, which is **exported** for it — a shared primitive that
   lives in a page module because that is where its family is, and the one chip a composer wears to
-  say what it is about to post.
+  say what it is about to post. **The guestbook feed is flat** (G1): `GuestbookSection.tsx` is a
+  `section-head` + `list-divided` rows at the page gutter, like every other section on the profile,
+  and `GuestbookEntryCard.tsx` is the row — no `card`, no `inset`. Its reply *and* the tournament
+  feed's reply are both `CommentSendRow`; the one field left in either is the edit form
+  (`DESIGN.md` §9b).
 - `src/ui/` — `primitives/` (Button, Card, CardSection, Modal, Input, Pill, EmptyState,
   InlineLoading, LoadingPlaceholder, MatchOverviewPanel, ScoreLine, MatchSides, ClubMark [the one
   16px club symbol every score-only match row wears, Q8/Q17], StatTile, Chip,
@@ -1268,9 +1277,8 @@ every past match simply keeps counting today's rating.
   machine** (dev has no VAPID and is not HTTPS), so production is the first real test of P2, P5 and
   the record push — **including whether iOS renders a non-ASCII push body**, which nothing here can
   check (§9).
-- **`feature/2026-09-guestbook` (K1–K4, `FEATURES_2026-09-guestbook.md`) is complete and unmerged**
-  — branched from `14e27db`, five commits (four implementation plus this documentation pass), 27
-  files of code, tests and the plan (plus the two canon files this pass touched), **two new tables
+- **`feature/2026-09-guestbook` (K1–K4, then Q-A/Q-B and G1–G3) is complete and unmerged** —
+  branched from `14e27db`, ten commits, 31 files, **two new tables
   and one new media directory**, so it is a **full** deploy when Roli says
   so. Roli asked to be able to comment on a profile's header image, About text and avatar, *"make
   sure the image and about texts persist so it is also clear what its about later when they
@@ -1291,6 +1299,41 @@ every past match simply keeps counting today's rating.
   both tables — measured, not assumed (§5) — and costs two things: tagged entries render as plain
   entries, and an entry deleted while rolled back leaves a link and a file that the next boot of the
   new code sweeps.
+- **G1–G3 answered a measured design audit of that tab, and one of the three changed the canon
+  rather than the code.** They are the last three commits on the branch (`facdef5`, `b3a618c`,
+  `57050e4`), frontend-only, no schema, no backend.
+  - **G1 — the guestbook is flat.** It was the profile's only boxed tab: measured at 390px, the
+    message text started at x=41 and was 308px wide, against x=16 / 358px on Overview, Stats and
+    Matches, which carry **no** `.card` at all. **Roli was shown that the code was *obeying*
+    `DESIGN.md` §9b ("a feed and its composer are one card", written when a feed was the whole
+    page) and chose flat anyway**, knowing it makes the app's two feeds differ — so §9b now says a
+    feed inside a tabbed page is flat and a feed that *is* its page keeps its card (the tournament
+    comments card is 6950px tall; its edges are never on screen). After: x=16 / 358px at 390, and
+    x=264 / 992px at 1280, identical to the three siblings.
+  - **G2 — one height per control.** A message wore five (24 · 26 · 30/36 · 32 · 40); it now wears
+    32 for every control on it and 40 for the chat row's send. Replying is `CommentSendRow` with a
+    `ChevronUp` cancel (144 → 192px, against 180 → 354px for the form it replaced); editing keeps a
+    real field with `Textarea`'s new `resizable={false}` and one Save filling the row; the
+    unread-replies marker is a `.chip`; the byline prints `· edited <ts>`; the unread jump is a
+    ghost `Button` with one tooltip instead of a classless `<button>` around a `Pill` with two.
+  - **G3 — `min-h-[60svh]` is gone**, the app's only forced viewport height on content: it bought
+    238px of dead space under a one-message wall, 338px under an empty one and 354px logged out,
+    and made an empty wall scroll 216px over nothing. All three are 0 now.
+  - **The one thing G2 deliberately did not change is the invisible click target**: tapping an
+    unread message marks it read, from a bare `onClick` on the row `<div>`. It stays, because the
+    honest answer is that it should not be a control at all — `role="button"` on a div is forbidden
+    (§7/§11), a stretched overlay is wrong on a row with six controls and selectable text, and the
+    row already has a labelled, focusable **Mark as read** button doing exactly this (the
+    tournament feed has *only* that button and no such handler). **Whether the shortcut should
+    exist is Roli's call**; the reasoning is written at the call site so the next audit does not
+    re-report it as an oversight.
+  - **Found while verifying, not fixed**: `listPlayerGuestbook` fetches the feed **without a
+    token** (`players.api.ts`), so `GuestbookEntryOut.can_edit` comes back `false` for everybody and
+    the pencil never renders — the guestbook's edit affordance is unreachable in the app today, for
+    an author inside the window and for an admin alike. The API itself is correct (`curl` with a
+    bearer token returns `can_edit: true`). G2 improved the form behind it and verified it by
+    forcing the flag in a throwaway local patch; the one-line fix (pass the token, or drop the
+    column) is a decision about a public read, not a design fix, so it was left for Roli.
 - **`feature/2026-09-badges` (M1–M10, `FEATURES_2026-09-badges.md`) is merged** (`14e27db`) and can
   be deleted — branched from `b8e741a`, twelve commits, 48 files, **two new tables**, part of the
   same full deploy. Ten tasks, because M8–M10 came out of Roli living with the batch on his phone
@@ -1372,12 +1415,14 @@ every past match simply keeps counting today's rating.
   score-only match row wears one, across all seven surfaces, not just the friendlies list.
   The design-fixes batch above is merged (`5a97fa9`) and is in that same queue; its
   smoke list is in that plan's "Deployment" section.
-- Checks at the **guestbook** branch head (code at `ad21035`, re-run on K4's documentation tree):
-  `make test` **286 passed** in 13:02, `make lint` clean, `make gen-types` **no diff**,
-  `cd frontend && npm run check` **757 tests in 78 files** in 90.6 s, `npm run build` green
-  (`index-*.js` 734.44 kB, 0.39 kB over the badges head — the same pre-existing >500 kB hint).
-  The backend count is the badges head's 273 plus K1's 13; the frontend's is 735 plus 11 from K2
-  (the vocabulary and the chip) and 11 from K3 (the trigger and the lightbox footer).
+- Checks at the **guestbook** branch head (code at `57050e4`, re-run on G1–G3's documentation
+  tree): `cd frontend && npm run check` **773 tests in 79 files** in 67 s, `npm run build` green
+  (`index-*.js` 734.48 kB — the same pre-existing >500 kB hint). G1–G3 are frontend-only and
+  changed no test count: 773 in 79 files is Q-A/Q-B's number and it held. The backend was last run
+  at K4's tree (`ad21035`): `make test` **286 passed** in 13:02, `make lint` clean, `make
+  gen-types` **no diff** — that is the badges head's 273 plus K1's 13, and nothing has touched
+  `backend/` since. At K4's tree the frontend read **757 tests in 78 files** (735 plus 11 from K2
+  and 11 from K3); Q-A and Q-B added the 16 between that and 773.
 - Checks at the badges branch head (code at `787fe71`, re-run on M10's documentation tree):
   `make test` **273 passed** in 11:23, `make lint` clean, `make gen-types` **no diff**,
   `cd frontend && npm run check` **735 tests in 74 files** in 72 s, `npm run build` green

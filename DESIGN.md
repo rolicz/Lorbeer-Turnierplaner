@@ -5,7 +5,15 @@
 > (project knowledge). Created 2026-09-12 after a full audit of the frontend (see
 > `FEATURES_2026-09.md` § "Design audit findings").
 >
-> Last checked against the code: **2026-09-19** (K4, the guestbook-subjects batch —
+> Last checked against the code: **2026-09-19** (G1–G3, the guestbook design fixes on the same
+> branch. Changed here: §9b's feed rule — **a feed and its composer are one *block*, and it is a
+> card only when the feed is its own page**, which is Roli's decision and supersedes "one card";
+> §9b's "light input" bullet (a reply is the chat row in both feeds, editing is the one field left,
+> and `Textarea`'s `resizable={false}`); §7's `Button`, `Pill` and `CommentComposer` rows; and one
+> new §11 line. **Not re-read, and known stale: §7's "What a guestbook entry is about" row still
+> describes a word-only `.chip`, which Q-B replaced with a citation of the pinned copy** — Q-A and
+> Q-B have not had a canon pass at all, see `AGENTS.md` §11. Nothing else was re-read this pass.)
+> The pass before it was **2026-09-19** (K4, the guestbook-subjects batch —
 > `FEATURES_2026-09-guestbook.md`, K1–K3. Changed here: §5b's subject words and `Earlier …`, §6's
 > "an action that is a real button makes the head as tall as the button" (with the open question
 > it raises), §7's four new rows — `ModeBadge` exported, `SubjectCommentTrigger` and its three
@@ -411,8 +419,8 @@ Matchup, Player) is built from the same block, so the sections read as one page:
 
 | Need | Use | Notes |
 |---|---|---|
-| Actions | `Button` (`solid`/`ghost`, `sm`/`md`, `iconOnly`) | never raw `btn-base`/`icon-button` classes; in light themes a ghost button carries a hairline resting edge, because `bg-card-chip` is white there |
-| Status tag | `Pill` (+ `statusMatchPill`/`statusPill`) | rounded-full, `chip` surface + status tokens |
+| Actions | `Button` (`solid`/`ghost`, `sm`/`md`, `iconOnly`) | never raw `btn-base`/`icon-button` classes; in light themes a ghost button carries a hairline resting edge, because `bg-card-chip` is white there. **`size="sm" iconOnly` *is* `h-8 w-8`** — never spell that out by hand: a row that hand-sizes its own icon buttons ends up wearing several heights at once (the guestbook message wore five before G2, and now wears one, 32px, for every control on it, 40px being the chat row's send and nothing else) |
+| Status tag | `Pill` (+ `statusMatchPill`/`statusPill`) | rounded-full, `chip` surface + status tokens. It **says** something; it never *does* something — wrapping one in a bare `<button>` to make an action of it gives you an unstyled 24px hit target with no focus ring and, if both carry a `title`, two tooltips for one action (the guestbook's unread jump did, until G2 made it a ghost `Button` carrying the glyph and the count) |
 | Single/multi choice | `Chip` / `ChipGroup` (`ui/primitives/Chip.tsx`) | `rounded-full border px-3 py-1.5 text-sm`; selected = `bg-accent/15 text-accent border-accent/40`, unselected = `bg-bg-card-chip/50` + a `border-border-card-chip/40` hairline (both states are the same height, and the hairline keeps an unselected chip visible on the light theme's white card). `chipClass()` is exported for the few triggers that cannot be a `Chip`. Replaces `ToggleChip` |
 | 2–3 view modes | `SegmentedSwitch` | `rounded-xl` track, `h-8` `rounded-lg` segments (§4 exception), sliding indicator in `Chip`'s selected style, lucide icon nodes |
 | Page sections | `SectionTabs` | underline tabs with edge fades |
@@ -421,7 +429,7 @@ Matchup, Player) is built from the same block, so the sections read as one page:
 | Clubs under a score | `MatchSides` | badge + club, flag + league, stars; nothing but "No club" for a clubless side. A row with **no** club line — a score-only row — says it with `ClubMark` instead (§8), never with both. `stars="token"` folds the rating into the league line as `★ 3.5` instead of giving five glyphs a line of their own — one line less per row, and the two numbers then meet either side of the centre gap (the friendlies list, Q7) |
 | A club beside a score | `ClubMark` (`ui/primitives/`) | one 16px `ClubBadge` for a side, plus the club's name `sr-only` and — for a side with no club — an inert 16px box that keeps the row's geometry. The **only** way a score-only match row names its clubs, and the same component on every one of them: the friendlies list in Compact, `MatchRowWithClubs` in Compact (Stats → Player, both profile lists, the H2H matchup, the H2H history modal, the match page's H2H panel) and `RecordsView`'s superlatives (Q17). It is passed to `ScoreLine` as `leftMark`/`rightMark` and never rendered on its own |
 | Picking a club | `SelectClubsPanel` + `ClubPicker` (`ui/`) | one panel per match, a `card` behind a single "Clubs" disclosure that summarises both clubs (§9b, T9). Open, it holds the whole job in one bounded block: the two `ClubSlot`s (side players + crest, league, stars), then the star/league filters, then the dice + *Random matchup* row. A slot opens the `ClubPicker` sheet: search focused on open, the club this side already has pinned on top with its `ClubStarsEditor`, then recents, then league groups, crest + stars per row, one tap selects. The scoreboard above (`MatchOverviewPanel`/`MatchSides`) stays **read-only on every surface** |
-| Writing a comment | `CommentComposer` (`pages/live/comments/`) | one chat row *inside* the feed's card, attached to its bottom edge behind a hairline and sticky, so it floats over the feed while reading and settles flush at the end (T3); scope + author are chips above the field, goal/shots swap the row in place. The guestbook's composer is the same row (`CommentSendRow`) at the end of its feed, **armed** with a subject the same way goal/shots arms this one (§9b) |
+| Writing a comment | `CommentComposer` (`pages/live/comments/`) | one chat row at the end of the feed, behind a hairline and sticky, so it floats over the feed while reading and settles flush at the end (T3); scope + author are chips above the field, goal/shots swap the row in place. It sits *inside* the card where the feed is its own page, and on the page's own background where the feed is flat (§9b, G1) — the class string is the same either way, and `bottom-nav-clear` + `lg:bottom-0` in it are load-bearing (Q2, Q14). The guestbook's composer is this row (`CommentSendRow`) at the end of its feed, **armed** with a subject the same way goal/shots arms this one (§9b); so is every **reply**, in both feeds, with a `ChevronUp` cancel as `trailing` |
 | Saying what a composer is about to post | `ModeBadge` (`pages/live/comments/CommentComposer.tsx`, **exported**) | one `.chip` in accent naming the mode, with the way out — a ghost icon `Button` carrying an `X` — beside it. Optional `icon` and `leaveLabel`; with neither it still draws `Goal`/`Target` from its `label`, so the two tournament call sites are byte-identical. The guestbook's armed composer passes the subject's glyph and "Remove the subject" (K2). It is a shared primitive that lives in a page module because that is where its family is: move it only when a third kind of composer needs it |
 | Commenting on a profile item | `SubjectCommentTrigger` (`pages/profile/`) | the **one** "start a comment about this" control, worn by the banner, the avatar and the About head so the three cannot drift into three affordances for one job (K3). It never hosts a thread — it arms the guestbook's composer (§9b). The look and the `MessageSquare` + `fmtCount` label are the Ideas board's comment toggle verbatim. Three variants, one behaviour: **`ghost`** in a `section-head`'s action slot (`order-1`), **`solid`** inside `ImageLightbox`, where a ghost button would paint dark text on a black scrim in the light themes, and **`overlay`**, the count badge in a picture's own corner. `overlay` is the one audited place a bare `<button>` replaces `Button`: `buttonClass` has no look for a marker sitting on a photograph, and `bg-black/60 text-white` is what the app already paints on one (`.overlay-scrim`, `ImageLightbox`), so it reads the same in every theme. It is **`absolute`, positioned by its caller, and never part of the flow** — a badge that pushed a header down is the height M8/M9 spent two tasks removing. **A control that does nothing is never shown**: nothing at all for a reader with a count of zero, and, for `overlay`, nothing at zero *whoever* is looking — that rule lives in the component, not at the call site |
 | What a guestbook entry is about | one `.chip` `<button>` + `pages/profile/guestbookSubjects.ts` | a tagged entry wears a single grey `.chip` between its author row and its body (26px — `text-xs` + `py-1` + the hairline; nothing is hand-sized to reach a number): the subject's glyph at 12px and its **word** (§5b). It is the `ModeBadge` chip's shape without the accent, because a subject is a fact and not a selected mode. Tapping it **always opens the snapshot** — `ImageLightbox` on the pinned copy for a picture, a `Modal` titled "About text" for the text, subtitled `As of <date, time>` plus ` · changed since` when it is no longer current — and **never the live item**: once the profile has moved on the banner is the wrong picture, and while it has not, the pinned copy *is* the banner. The words, glyphs and counts come from `guestbookSubjects.ts` and are never spelled a second time |
@@ -600,16 +608,28 @@ An editor is not a section you unfold; it is the thing itself becoming editable.
   friendly forms) and closed where the value usually already exists (live match, match detail),
   and each surface remembers the reader's last choice in `localStorage`
   (`club_panel_open:<surface>`, the `match_list_view` idiom).
-- **A feed and its composer are one card.** The composer is the card's last row, separated by a
-  hairline and sticky, so it floats over the feed while you read and settles flush on the card's
-  bottom edge at the end — never a second card floating next to the feed. Groups *inside* the
-  feed (match blocks, day separators) are hairline-separated sections of that one card, not
-  cards of their own, so the rows inside them stay level-2 `inset` (§1). The app has **two**
-  feeds and they are built the same way: the tournament's comments and a profile's guestbook
-  (`pages/profile/GuestbookSection.tsx`, A8) — one `card p-0`, a header row naming the feed and
-  its count, the messages as `inset` rows, a reply flat and tighter on the card's own surface
-  behind a `border-l-2 border-accent/25` rule (a reply inside an `inset` would be inset → inset,
-  which §3 forbids), then the chat row on the bottom edge.
+- **A feed and its composer are one block, and whether that block is a card depends on whether
+  the feed *is* the page** (G1, 2026-09-19, Roli's decision — it supersedes "a feed and its
+  composer are one card", which was written when a feed was always the whole page). Either way
+  the composer is the block's last row, separated by a hairline and sticky, so it floats over the
+  feed while you read and settles flush at its end — never a second card floating next to the
+  feed. Groups *inside* the feed (match blocks, day separators) are hairline-separated sections
+  of that one block, never cards of their own. The app's two feeds now differ, on purpose:
+  - **A feed that is its own page keeps its card** — the tournament's comments
+    (`pages/live/TournamentCommentsCard.tsx`): `card p-0`, a header row naming the feed and its
+    count, the messages as `inset` rows, the chat row welded to the bottom edge. Its card is
+    6950px tall, so its edges are never on screen and the box costs the reader nothing.
+  - **A feed inside a tabbed page is flat** — a profile's guestbook
+    (`pages/profile/GuestbookSection.tsx`): a `section-head` + `section-label` with the count
+    (§6), the messages as `list-divided` rows **at the page gutter** with no surface of their own,
+    and the same sticky chat row at the end, painting the page's own background. The reason is
+    the siblings: Overview, Stats and Matches carry no `.card` at all, so a boxed fourth tab
+    stepped its text 25px inward and took 50px of line width off it on every switch (measured at
+    390px: x=41 / 308px against x=16 / 358px), through page → card → inset → chip where the other
+    three have page → row. A card whose edges you see on every screenful has to earn them.
+  - **A reply is flat and tighter under its message**, behind a `border-l-2 border-accent/25`
+    rule, in both — inside a card that keeps a reply off a second `inset` (inset → inset is
+    forbidden, §3); on a flat feed it is what says "this hangs off the row above".
 - **A flat comment list under a row that is itself an `inset` takes the reply shape** — flat rows
   behind the accent rail, the chat row last — **never an `inset` of its own**. The Ideas board is
   the case (P4): an idea row *is* the level-2 surface and inset → inset is forbidden (§3), so its
@@ -629,7 +649,9 @@ An editor is not a section you unfold; it is the thing itself becoming editable.
   the page** and the feed keeps its one read state, one push and one realtime event. The badge is
   spent with the message it was posted on — the next one is an ordinary entry unless an item arms
   the composer again — and the badge and the send row share a wrapper *inside* the sticky box, which
-  keeps its own classes so the composer still settles flush on the card's bottom edge. A reader who
+  keeps its own classes so the composer still settles flush at the end of the feed (G1 made that
+  end the page's own surface rather than a card's bottom edge; the sticky box's classes did not
+  move, because `bottom-nav-clear` and `lg:bottom-0` are what Q2 and Q14 stand on). A reader who
   cannot post is taken to the conversation instead of to a composer they may not use. Two ways in
   are allowed where the item is a picture — the control inside the lightbox and the count badge in
   the banner's corner — because one of them is invisible until you tap; three would be a crowd.
@@ -669,7 +691,19 @@ An editor is not a section you unfold; it is the thing itself becoming editable.
 - **Heavy choice → sheet.** Many options, search, filters: a `Modal` sheet (full screen on
   mobile), opened from the value, closing on pick.
 - **Light input → always-visible row.** A text field with its send button sits at the bottom of
-  the feed like a chat, never behind a button that reveals a form.
+  the feed like a chat, never behind a button that reveals a form. **Replying is that row too**,
+  not a form a button unfolds: `CommentSendRow` with a `ChevronUp` cancel passed as `trailing`,
+  in the tournament's comments and in the guestbook alike (G2 — the guestbook's reply used to
+  open a labelled 298×96 `Textarea` with a drag grabber and a Cancel/Reply pair, which grew the
+  message from 144px to 354px to hold one line of text).
+  **Editing is the one place a real field stays**, because rewriting a paragraph in a one-line row
+  is worse than the form it replaces — but it takes `Textarea`'s `resizable={false}` (Q1 again:
+  no drag handle under a thumb) and its action row is one primary filling the width, never a pair
+  of content-sized buttons pushed right. The way out is the row's own edit toggle, which is
+  already showing `ChevronUp`; a second Cancel under the field is the same job twice.
+  `resizable` is a prop and not a class the caller passes, because `resize-y` and `resize-none`
+  are the same property at the same specificity and Tailwind emits `.resize-y` *after*
+  `.resize-none` — a `className="resize-none"` loses, silently, and only on the screen.
 - **A send button belongs to whatever it posts.** The chat row welds it to the field because in a
   comment feed the field *is* the message. Where the field is one optional part of a form — the
   Ideas composer's `Details`, whose Post is enabled while it sits empty — the send is the form's
@@ -770,6 +804,9 @@ drill-in that lives in a query param.
 ## 11. Do / Don't
 
 - Do put one idea per card; don't stack a card inside a card.
+- Do let a feed that lives inside a tabbed page lie flat on the page, at the gutter its sibling
+  tabs use; don't box the one tab whose siblings are flat (§9b, G1). A feed that *is* the page
+  keeps its card.
 - Do use `chip` for tags; don't use it as a container for numbers.
 - Do colour a result through `text-win/draw/loss`; don't tint whole boxes red/green.
 - Do keep names next to scores; don't push them to the panel edges.
