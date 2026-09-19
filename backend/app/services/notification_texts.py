@@ -81,19 +81,23 @@ def _status_label(status: str, language: str) -> str:
 
 
 def _vote_line(vote_count: Any, language: str) -> str:
-    """The Steirisch "wer mog des" line, singular at one vote (Roli, 2026-09-19,
-    second pass: a literal "Jetzt san's 1" reads wrong). Only Steirisch's
-    `idea_voted` template references `{vote_line}`; German and English were drafted
-    with `{vote_count}` inline and are left as given."""
+    """The "who else likes this" line, singular at one vote in every language.
+
+    A literal "Jetzt san's 1" reads wrong (Roli, 2026-09-19, second pass), and so do
+    "That makes 1 who like it" and its German twin — so all three templates take
+    `{vote_line}` rather than an inline `{vote_count}`. The verb is **like**, matching
+    the bell (`notificationText.ts`): the board's own word is "want", but a push and a
+    bell describing the same act in two different words is the drift this batch exists
+    to remove."""
     try:
         count = int(vote_count)
     except (TypeError, ValueError):
         count = 0
     if language == "steirisch":
-        if count == 1:
-            return "Jetzt mog des ana a."
-        return f"Jetzt san's {count}, de des a wolln."
-    return ""
+        return "Jetzt mog des ana a." if count == 1 else f"Jetzt san's {count}, de des a wolln."
+    if language == "deutsch":
+        return "Jetzt mag das einer auch." if count == 1 else f"Jetzt sind es {count}, denen das gefaellt."
+    return "One person likes it so far." if count == 1 else f"That is {count} who like it."
 
 
 def _authors_line(author_names: list[str], language: str) -> str:

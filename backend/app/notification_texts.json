@@ -134,8 +134,8 @@
           "body": "{title}\n{preview}\nOeffne die Ideen-Seite und lies, was gemeint ist."
         },
         "idea_voted": {
-          "title": "{author_name} will deine Idee auch",
-          "body": "{title}\nJetzt sind es {vote_count}, die das wollen.\nOeffne die Ideen-Seite, wenn du sehen willst, wer."
+          "title": "{author_name} mag deine Idee",
+          "body": "{title}\n{vote_line}\nOeffne die Ideen-Seite, wenn du sehen willst, wer."
         },
         "idea_status": {
           "title": "Deine Idee ist jetzt {status_label}",
@@ -239,8 +239,8 @@
           "body": "{title}\n{preview}\nOpen Ideas to read what they mean."
         },
         "idea_voted": {
-          "title": "{author_name} wants your idea too",
-          "body": "{title}\nThat makes {vote_count} who want it.\nOpen Ideas to see who."
+          "title": "{author_name} likes your idea",
+          "body": "{title}\n{vote_line}\nOpen Ideas to see who."
         },
         "idea_status": {
           "title": "Your idea is now {status_label}",
