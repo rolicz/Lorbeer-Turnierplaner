@@ -123,9 +123,12 @@ UP=$(mktemp -d)/uploads && rsync -a backend/data/uploads/ "$UP"/     # a copy, o
 
 # A throwaway secrets file OUTSIDE the repo (Rule 7). Three accounts: the wall's owner, a
 # commenter, and an admin who may delete anyone's entry.
+# `db_url` names YOUR COPY, spelled absolutely — belt and braces, so that a stack started
+# without `--db-url` cannot reach `backend/app.db`. Same idea for `UPLOADS_DIR`: pass it, and
+# never let the default `backend/data/uploads` be what a forgotten flag falls back to.
 SEC=$(mktemp -d)/secrets.json
-cat > "$SEC" <<'JSON'
-{ "db_url": "sqlite:///./app.db",
+cat > "$SEC" <<JSON
+{ "db_url": "sqlite:///$PWD/backend/data/<DB>",
   "player_accounts": [ { "name": "Roli",  "password": "verify-only", "admin": true },
                        { "name": "Berni", "password": "verify-only", "admin": false },
                        { "name": "Flo",   "password": "verify-only", "admin": false } ],
@@ -1097,7 +1100,7 @@ branch baseline is 735 in 74; K3 adds two files and 11 tests, K2 the other two a
 
 ---
 
-## K4 — Documentation pass  ☐
+## K4 — Documentation pass  ☑
 
 **Verify first.** `grep -n 'guestbook_subjects\|PlayerSubjectSnapshot' AGENTS.md` → 0;
 `grep -n 'SubjectCommentTrigger\|Earlier header image' DESIGN.md` → 0.
@@ -1113,6 +1116,71 @@ diff, `npm run check`, `npm run build`).
 **Gates.** All of them, on the final tree; `git status` shows only the three files.
 
 **Deviations:**
+
+Every Canon block from K1, K2 and K3 is folded in, plus the three things the workers measured that
+no Canon block had a line for. Where a Canon block and the shipped code disagreed, **the code is
+what is written down** — three such places, listed below.
+
+- **Where each block landed.** `AGENTS.md`: §2 (`guestbook_subjects.py` as the only reader/writer of
+  both tables, with `file_storage`'s two halves and `GUESTBOOK_SUBJECT_DIR`; the frontend's
+  `guestbookSubjects.ts`, `SubjectCommentTrigger.tsx` and the borrowed `ModeBadge`), §5 (the two
+  tables in the list, then a block of its own: copy-on-comment, the version, `current`'s two rules,
+  release-with-the-last-entry, the 409 before the insert, the boot sweep and the measured rollback;
+  plus the media list and the one immutable URL), §6 (the prefix line, a paragraph on the wire
+  shape and on what a subject deliberately does *not* change, and the `["players","guestbook"]`
+  row's `why`), §7 (the persistent-data list), §9 (the "a conversation lives in one place"
+  convention and the two new plan files), §10 (the banner badge's four-way measurement, the About
+  head's 32px, and the hardening below), §11 (rewritten — see the next bullet), §12.
+  `DESIGN.md`: §5b (the subject words and `Earlier …`), §6 (a button action makes the head as tall
+  as the button), §7 (four new rows: `ModeBadge`, `SubjectCommentTrigger`, the subject chip,
+  `ImageLightbox`'s `footer`; plus the composer row's armed clause), §9b (an item never hosts its
+  own thread).
+- **§11 needed correcting before it could be extended.** It described the badges batch as
+  "complete and unmerged" with `main` at `b8e741a`; `main` is now `14e27db`, the badges merge, so
+  the head bullet, the badges bullet and the stale "short deploy" queue for Q15–Q17 were rewritten.
+  All four undeployed batches now ride in **one full deploy**, which is what that section has to
+  say for a deploy to be safe. The file's own "Last full review" header moved to this branch.
+- **The `overlay` variant is canon, not drift** — recorded in `DESIGN.md` §7 as the one audited
+  place a bare `<button>` replaces `Button`. The reasoning K3 gave holds and is now written down:
+  `buttonClass` has no look for a marker sitting on a photograph, and `bg-black/60` is exactly what
+  `.overlay-scrim` already paints (`styles.css:243`, checked), so the badge reads the same in blue
+  and in light without a theme token that would have to mean something on an arbitrary picture. It
+  is one component for one job rather than a second button, its zero rule lives inside it, and it is
+  `absolute` and never part of the flow. If a second such marker is ever wanted, *that* is when it
+  becomes a primitive — not before.
+- **The About head's 32px is recorded twice and decided nowhere.** `AGENTS.md` §10 carries the
+  measurement (32.0px with the trigger, 16.0px without, both widths, both themes, the "Recent
+  matches" yardstick) and `AGENTS.md` §11's open list carries the question with its three possible
+  answers; `DESIGN.md` §6 states the rule that produces the number — a real button makes the head as
+  tall as the button — and forbids the one answer nobody should take unilaterally, a third
+  section-head treatment. Roli decides the rest.
+- **`ModeBadge` is named in three places** because "a shared primitive living in a page module" is
+  exactly the kind of fact that gets re-invented: `AGENTS.md` §2 (frontend modules), `DESIGN.md` §7
+  (its own row, with the two optional props and the promise that the tournament call sites are
+  byte-identical) and `DESIGN.md` §9b (the armed composer).
+- **Three places where a Canon block and the shipped code disagreed; the code won.**
+  1. K1's Canon says `SUBJECT_MEDIA_DIR` lives in the service; the code spells
+     `GUESTBOOK_SUBJECT_DIR` in `file_storage.py` and imports it (K1's own first Deviation).
+     `AGENTS.md` §2 names the shipped one.
+  2. K2's Canon calls the chip "the `ModeBadge` chip's look without the accent" and the DoD
+     predicted 28px; it ships at **26px**, because it is the canonical `.chip`. `DESIGN.md` §7 says
+     26 and says why, so nobody hand-sizes one to 28.
+  3. K3's Canon (written from the plan) says `ghost | solid`; three variants shipped, and the plan's
+     DoD clause "the trigger may not grow the head" is unsatisfiable alongside the component the
+     same task specifies. Both are recorded as they are, not as they were planned.
+- **One hardening with nothing behind it**: the runtime-verification recipe above now spells the
+  task's own DB copy in the throwaway `secrets.json` (and the heredoc is unquoted so `$PWD`
+  expands), instead of `"db_url": "sqlite:///./app.db"` plus a `--db-url` flag that has to be
+  remembered. Same line in `AGENTS.md` §10. It is belt and braces on a template, not a report of
+  anything that happened.
+- **Nothing was deleted that a worker did not mark stale**, and no task's Deviations were edited.
+  `git status` shows exactly `AGENTS.md`, `DESIGN.md` and this file.
+
+**Gates, observed on the final (documentation) tree** — docs-only, so these confirm the batch's real
+numbers rather than testing this task: `make test` **286 passed** in 13:02 (the badges head's 273
+plus K1's 13); `make lint` clean; `make gen-types` **no diff**; `cd frontend && npm run check`
+**757 tests in 78 files** in 90.6 s, tsc and eslint clean (735 plus 11 from K2 and 11 from K3).
+Both match what K1 and K3 reported, so nothing moved between their runs and this one.
 
 ---
 
