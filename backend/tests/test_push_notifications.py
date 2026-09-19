@@ -151,6 +151,10 @@ def test_notification_text_catalog_is_complete_and_renderable():
         "scoreline": "3-2",
         "mode": "2v2",
         "player_name": "Editor",
+        "title": "Dark mode",
+        "vote_count": 2,
+        "status": "planned",
+        "status_note_line": "\nsoon",
     }
 
     for language, payload in languages.items():

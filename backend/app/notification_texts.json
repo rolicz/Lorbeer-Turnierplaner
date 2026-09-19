@@ -24,6 +24,18 @@
           "title": "A neiche Idee vo {author_name}",
           "body": "{title}\n{meta_line}\nSchau eini und sog, wos draus wird."
         },
+        "idea_commented": {
+          "title": "{author_name} hot wos zu deiner Idee gsogt",
+          "body": "{title}\n{preview}\nSchau eini, wos gmoant is."
+        },
+        "idea_voted": {
+          "title": "{author_name} mog dei Idee",
+          "body": "{title}\n{vote_line}\nSchau eini."
+        },
+        "idea_status": {
+          "title": "Dei Idee is jetzt {status_label}",
+          "body": "{title}{status_note_line}\nSchau eini, wos si tuat."
+        },
         "poke_created": {
           "title": "{profile_player_name} is anpöbelt worn",
           "body": "{author_name} hot grad a bisserl ang'stichelt.\nBei {profile_player_name} is wos los.\nSchau eini, bevor no mehr daherkommt."
@@ -117,6 +129,18 @@
           "title": "Neue Idee von {author_name}",
           "body": "{title}\n{meta_line}\nOeffne die Ideen-Seite und setz einen Status."
         },
+        "idea_commented": {
+          "title": "{author_name} hat deine Idee kommentiert",
+          "body": "{title}\n{preview}\nOeffne die Ideen-Seite und lies, was gemeint ist."
+        },
+        "idea_voted": {
+          "title": "{author_name} will deine Idee auch",
+          "body": "{title}\nJetzt sind es {vote_count}, die das wollen.\nOeffne die Ideen-Seite, wenn du sehen willst, wer."
+        },
+        "idea_status": {
+          "title": "Deine Idee ist jetzt {status_label}",
+          "body": "{title}{status_note_line}\nOeffne die Ideen-Seite fuer den Stand."
+        },
         "poke_created": {
           "title": "Neues Anpoebeln fuer {profile_player_name}",
           "body": "{author_name} hat gerade angestichelt.\nBei {profile_player_name} geht etwas ab.\nSchau ins Profil, bevor noch mehr dazukommt."
@@ -209,6 +233,18 @@
         "idea_created": {
           "title": "New idea from {author_name}",
           "body": "{title}\n{meta_line}\nOpen Ideas to read it and set a status."
+        },
+        "idea_commented": {
+          "title": "{author_name} commented on your idea",
+          "body": "{title}\n{preview}\nOpen Ideas to read what they mean."
+        },
+        "idea_voted": {
+          "title": "{author_name} wants your idea too",
+          "body": "{title}\nThat makes {vote_count} who want it.\nOpen Ideas to see who."
+        },
+        "idea_status": {
+          "title": "Your idea is now {status_label}",
+          "body": "{title}{status_note_line}\nOpen Ideas to see where it stands."
         },
         "poke_created": {
           "title": "New poke for {profile_player_name}",

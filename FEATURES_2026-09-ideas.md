@@ -820,6 +820,71 @@ response model touched); `make lint` clean.
 
 **Deviations:**
 
+- **Verified first, the gap was live** (2026-09-19, at `bdc25a0`): the catalog had exactly 3
+  `"idea_*"` keys, `PERSONAL_DEFAULT_EVENT_TYPES` had 4 members, and the comment/vote/status
+  paths in `routers/ideas.py` called no push helper. Nothing was already fixed.
+- **The three new helpers take `s: Session`, which the plan's signature list did not show.**
+  They must — `idea_event_audience` (P1's audience helper, imported and never re-derived) needs a
+  session to read the comment-participant rows for a `comment` event, and every endpoint that
+  calls these helpers already has `s` open. Without it there would be no way to honour rule 8
+  ("P2 addresses its pushes from the list form") short of re-deriving the audience locally, which
+  is exactly what the caller's brief forbids. `request`, `s`, `idea_id`, `title`,
+  `author_player_id`, `actor_player_id` are otherwise exactly as specified.
+- **Each of the three helpers computes its own full audience and loops the enqueue itself** — one
+  call per event, in the shape of `push_idea_created` (which loops over `admin_player_ids` the
+  same way) — rather than the router looping and calling the helper once per recipient. For
+  `vote`/`status` the audience is always "the author alone or nobody", so this is invisible in
+  practice; for `comment` it is not: the idea's own author plus every other commenter, minus the
+  actor, can be several people, and only the helper itself (holding `s`) can compute that set.
+  This is what makes the third-pass audience decision ("a comment reaches the idea's author plus
+  everyone who has already commented") actually true for push, not just for the bell — verified
+  directly (`test_a_comment_a_vote_and_a_status_are_pushed_to_the_idea_author_only`, plus the two
+  delivery tests below).
+- **`_vote_line(vote_count, language)`** (new, `notification_texts.py`, beside `_status_label`) is
+  the mechanism behind Roli's second-pass correction — a literal "Jetzt san's 1" reads wrong —
+  computed generically for every language but **only referenced by the Steirisch `idea_voted`
+  template**; German and English keep the `{vote_count}` they were drafted with, inline, unchanged
+  from the plan's JSON, so no copy not explicitly corrected was touched. `_status_label` follows
+  the `_mode_label` precedent exactly, both wired into `render_notification_text` the same way
+  `mode_label`/`authors_line` already are (compute once if the raw field is present and the
+  rendered one is not).
+- **The Steirisch `idea_commented` body reads "Schau eini, wos gmoant is."** — the neutral form
+  from the second-pass correction, not "wos er moant" as it still stood in this section's own
+  drafted JSON before that correction (§"Answered 2026-09-19 (second pass)"). Every other string
+  is Roli's draft transcribed as written — his to correct, not mine.
+- **The comment preview follows the guestbook's own 120-char rule inline**
+  (`text if len(text) <= 120 else text[:117].rstrip() + "..."`), not `_snippet` — as the task
+  named it. `vote_count` is one extra `select(...).all()` over `FeatureRequestVote` after the
+  commit (no `func.count()` import needed, consistent with how `list_idea_voters` already reads
+  the same table). `status_note_line` is built at the call site exactly like `goal_note_line`
+  (`routers/comments.py:573`) — a computed `\n`-prefixed line that vanishes when empty, never a
+  helper of its own.
+- **`create_idea_comment`, `vote_idea` and `set_idea_status` each gained a `request: Request`
+  parameter and now capture `fr = get_or_404(...)`** (previously the idea row was fetched and its
+  return value discarded in all three) so the idea's `title` and `author_player_id` are on hand
+  for the push call without a second query. `set_idea_status` also gained a local `changed` flag
+  in place of the inline `if (fr.status, fr.status_note) != before:` so the same condition gates
+  both `record_idea_event` and the push call without evaluating the tuple comparison twice.
+- **Verified:** `make test` **228 passed**, 0 failed (a shared run against the group-A worktree, so
+  it includes P3's and P4's in-flight, uncommitted files too — expected per the plan's own note on
+  parallel workers; my own 4 tests are part of that count). `make lint` clean on the full tree.
+  `make gen-types` → **no diff**, confirmed against `git diff --stat` on `schema.d.ts` before and
+  after — no response model touched, as expected.
+- **What could not be exercised, and why:** push delivery over the wire (no VAPID configured, no
+  `cryptography` in this venv) — substituted, as R5/P1 did, by stopping at the queued
+  `PushMessage` for the audience/context assertions and by running the real
+  `NotificationDispatcher._deliver` with only the HTTPS POST faked
+  (`test_the_idea_comment_push_is_delivered_to_the_author_and_not_the_commenter`), which proves the
+  per-device language rendering and the author/commenter split actually reach `_deliver_one`, not
+  just the queue. The "everyone who has already commented" half of the `comment` audience for a
+  thread with three or more participants is P1's own matrix
+  (`test_idea_comments.py`) against `idea_event_audience` directly — not re-proven here, since P2
+  imports that function and never re-derives its rule (rule 8).
+- **Left alone, as instructed:** `push_idea_created` and its admin audience; `enqueue_personal_push`
+  (not used — the narrow `enqueue_personal_for_player` precedent stands); the six existing text
+  keys; `_mode_label`/`_authors_line`; `idea_events.py` (imported only, not edited — P3 owns it
+  this batch).
+
 ---
 
 ## P3 — Bell: the four idea kinds with read state  ☑

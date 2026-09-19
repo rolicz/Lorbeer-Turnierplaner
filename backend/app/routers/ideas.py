@@ -77,7 +77,12 @@ from ..services.ideas_view import (
     list_ideas,
     one_idea_dict,
 )
-from ..services.notifications import push_idea_created
+from ..services.notifications import (
+    push_idea_commented,
+    push_idea_created,
+    push_idea_status,
+    push_idea_voted,
+)
 
 log = logging.getLogger(__name__)
 router = APIRouter(tags=["ideas"])
@@ -308,6 +313,7 @@ def patch_idea(
 def set_idea_status(
     idea_id: int,
     body: IdeaStatusBody,
+    request: Request,
     s: Session = Depends(get_session),
     claims: dict = Depends(require_editor_claims),
 ) -> dict:
@@ -325,7 +331,8 @@ def set_idea_status(
     fr.updated_at = datetime.utcnow()
     s.add(fr)
     # Re-saving the same answer is not news: only a real change is an event.
-    if (fr.status, fr.status_note) != before:
+    changed = (fr.status, fr.status_note) != before
+    if changed:
         record_idea_event(
             s,
             request_id=int(fr.id),
@@ -336,6 +343,17 @@ def set_idea_status(
         )
     s.commit()
     s.refresh(fr)
+    if changed:
+        push_idea_status(
+            request,
+            s,
+            idea_id=int(fr.id),
+            title=fr.title,
+            author_player_id=int(fr.author_player_id),
+            actor_player_id=int(claims.get("player_id")),
+            status=fr.status,
+            status_note=fr.status_note,
+        )
     return one_idea_dict(s, fr, claims)
 
 
@@ -343,11 +361,12 @@ def set_idea_status(
 def vote_idea(
     idea_id: int,
     body: IdeaVoteBody,
+    request: Request,
     s: Session = Depends(get_session),
     claims: dict = Depends(require_auth_claims),
 ) -> dict:
     """A "+1", toggled. `value` is 1 or 0; -1 is not a thing an idea can take."""
-    get_or_404(s, FeatureRequest, idea_id, name="Idea")
+    fr = get_or_404(s, FeatureRequest, idea_id, name="Idea")
     player_id = int(claims.get("player_id"))
     raw = body.value
     try:
@@ -377,6 +396,24 @@ def vote_idea(
             s, request_id=int(idea_id), kind="vote", actor_player_id=player_id
         )
         s.commit()
+        vote_count = len(
+            s.exec(
+                select(FeatureRequestVote.player_id).where(
+                    FeatureRequestVote.request_id == int(idea_id)
+                )
+            ).all()
+        )
+        voter = s.get(Player, player_id)
+        push_idea_voted(
+            request,
+            s,
+            idea_id=int(idea_id),
+            title=fr.title,
+            author_player_id=int(fr.author_player_id),
+            actor_player_id=player_id,
+            actor_name=voter.display_name if voter is not None else "",
+            vote_count=vote_count,
+        )
     return {"ok": True, "value": value}
 
 
@@ -471,6 +508,7 @@ def delete_idea_image(
 def create_idea_comment(
     idea_id: int,
     body: IdeaCommentCreateBody,
+    request: Request,
     s: Session = Depends(get_session),
     claims: dict = Depends(require_editor_claims),
 ) -> dict:
@@ -480,7 +518,7 @@ def create_idea_comment(
     the author's text changing nor the admin's answer, and `updated_at` already
     carries more meanings than it can (R5's `edited_at` note).
     """
-    get_or_404(s, FeatureRequest, idea_id, name="Idea")
+    fr = get_or_404(s, FeatureRequest, idea_id, name="Idea")
     text = _clean_comment_body(body.body)
 
     author_player_id = int(claims.get("player_id"))
@@ -508,6 +546,21 @@ def create_idea_comment(
     )
     s.commit()
     s.refresh(c)
+
+    # The guestbook's own preview rule (`players.py`) — not `_snippet`, the bell's own.
+    preview = text if len(text) <= 120 else text[:117].rstrip() + "..."
+    push_idea_commented(
+        request,
+        s,
+        idea_id=int(idea_id),
+        title=fr.title,
+        author_player_id=int(fr.author_player_id),
+        actor_player_id=author_player_id,
+        actor_name=author.display_name,
+        preview=preview,
+        comment_id=int(c.id),
+    )
+
     return comment_dict(
         c,
         author_display_name=author.display_name,
