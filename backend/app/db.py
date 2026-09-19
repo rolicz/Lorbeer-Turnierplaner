@@ -69,6 +69,16 @@ def init_db() -> None:
     if swept > 0:
         log.info("Guestbook subjects swept: %s", swept)
 
+    # The derived media cache (W1): a directory whose source is gone, or a cached size
+    # older than the picture it was made from — which is what a rollback leaves, since old
+    # code overwrites an avatar without knowing the cache exists. Silent when there is
+    # nothing to do, because a cache that rebuilds itself is not news.
+    from .services.media_derivatives import sweep_orphan_derivatives
+
+    swept_media = sweep_orphan_derivatives()
+    if swept_media > 0:
+        log.info("Derived media swept: %s", swept_media)
+
 
 # Columns added to existing deployments after the fact: (table, column, DDL type/default).
 # Additive only — old code keeps working against a migrated DB.

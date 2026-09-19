@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import datetime as dt
 import os
+import shutil
 import tempfile
 from pathlib import Path
 from typing import Any, Callable, Type, TypeVar
@@ -91,6 +92,50 @@ def list_media(rel_dir: str) -> list[str]:
     return sorted(f"{rel.as_posix()}/{p.name}" for p in d.iterdir() if p.is_file())
 
 
+def list_media_tree(rel_dir: str) -> list[str]:
+    """Every file under `rel_dir`, recursively, relative to the media root; [] when the
+    directory does not exist.
+
+    `list_media` looks one level deep, which is all the guestbook sweep ever needs. The
+    derived cache (W1) is a tree — one directory per source file — so its sweep needs
+    this one. Sorted, so a sweep's behaviour is reproducible.
+    """
+    rel = _safe_rel(rel_dir)
+    d = _uploads_root() / rel
+    if not d.is_dir():
+        return []
+    return sorted(p.relative_to(_uploads_root()).as_posix() for p in d.rglob("*") if p.is_file())
+
+
+def media_mtime(rel_path: str) -> float | None:
+    """The file's mtime, or None when it is not there.
+
+    A derivative older than its source is stale by definition — that is the whole of the
+    boot sweep's second rule (W1).
+    """
+    rel = _safe_rel(rel_path)
+    p = _uploads_root() / rel
+    try:
+        return p.stat().st_mtime
+    except OSError:
+        return None
+
+
+def delete_media_dir(rel_dir: str) -> int:
+    """Remove `rel_dir` and everything under it; returns how many files went.
+
+    Missing directory → 0. Used **only** for the derived cache (W1), which is safe to
+    delete by design; no directory of originals is ever removed this way.
+    """
+    rel = _safe_rel(rel_dir)
+    d = _uploads_root() / rel
+    if not d.is_dir():
+        return 0
+    count = sum(1 for p in d.rglob("*") if p.is_file())
+    shutil.rmtree(d, ignore_errors=True)
+    return count
+
+
 def media_exists(rel_path: str) -> bool:
     rel = _safe_rel(rel_path)
     p = _uploads_root() / rel
@@ -127,6 +172,10 @@ def delete_media(rel_path: str) -> None:
         # Python < 3.8 fallback (not expected, but harmless).
         if p.exists():
             p.unlink()
+    # One of the two ways the bytes under a relative path can change (W1): the avatar and
+    # header DELETE endpoints, `release_subjects`, `sweep_orphan_subjects`, the comment
+    # image DELETE and the extension-changed branch of `upsert_media_row` all land here.
+    _purge_derivatives(rel.as_posix())
 
 
 def upsert_media_row(
@@ -143,6 +192,9 @@ def upsert_media_row(
     """Write media bytes and upsert the DB metadata row; delete the old file if the path changed."""
     now = updated_at or dt.datetime.utcnow()
     rel_path = path_builder(row_id, content_type)
+    # The other way the bytes under a relative path change (W1): overwriting in place,
+    # where the path does not move and `delete_media` is never called.
+    _purge_derivatives(rel_path)
     file_size = write_media(rel_path, data)
     row: Any = s.get(row_cls, row_id)
     if row is None:
@@ -173,3 +225,18 @@ def _ext_from_content_type(content_type: str) -> str:
     if ct == "image/svg+xml":
         return "svg"
     return "img"
+
+
+def _purge_derivatives(rel_path: str) -> None:
+    """Throw away the cached sizes of this source (W1).
+
+    Imported inside the function on purpose: `media_derivatives` imports this module, so
+    a module-level import would be a cycle. It never raises — a cache that could not be
+    cleared must not fail an upload.
+    """
+    from .media_derivatives import purge_derivatives
+
+    try:
+        purge_derivatives(rel_path)
+    except Exception:  # pragma: no cover - a cache is never worth an exception
+        pass

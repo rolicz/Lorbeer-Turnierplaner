@@ -54,7 +54,6 @@ from ..services.file_storage import (
     delete_media,
     media_path_for_avatar,
     media_path_for_profile_header,
-    read_media,
     upsert_media_row,
 )
 from ..services.guestbook import guestbook_can_edit, guestbook_entry_payload, list_guestbook_entries
@@ -68,6 +67,7 @@ from ..services.guestbook_subjects import (
     subjects_for_entries,
 )
 from ..services.guestbook_summary import player_guestbook_summary
+from ..services.media_derivatives import MediaWidthParam, media_response, version_token
 from ..services.notifications import enqueue_poke_push, push_guestbook_created
 from ..services.poke_summary import player_poke_summary
 from ..ws import ws_manager_player_profiles
@@ -374,21 +374,28 @@ def list_player_header_meta(s: Session = Depends(get_session)):
 
 
 @router.get("/{player_id}/avatar")
-def get_player_avatar(player_id: int):
+def get_player_avatar(
+    player_id: int,
+    w: MediaWidthParam = None,
+):
     with Session(get_engine()) as s:
         fs_row = s.get(PlayerAvatarFile, player_id)
         if not fs_row:
             raise HTTPException(status_code=404, detail="Avatar not found")
         content_type = fs_row.content_type
         file_path = fs_row.file_path
+        updated_at = fs_row.updated_at
 
-    data = read_media(file_path)
-    if data is None:
-        raise HTTPException(status_code=404, detail="Avatar file missing")
-
-    # Cache: avatar changes rarely; frontend uses updated_at as a cache buster.
-    headers = {"Cache-Control": "public, max-age=604800"}
-    return Response(content=data, media_type=content_type, headers=headers)
+    # Cache: avatar changes rarely; frontend uses updated_at as a cache buster — and the
+    # derived size on disk is keyed on that same `updated_at`, never on the caller's `?v=`.
+    return media_response(
+        source_rel_path=file_path,
+        content_type=content_type,
+        token=version_token(updated_at),
+        width=w,
+        cache_control="public, max-age=604800",
+        missing="Avatar file missing",
+    )
 
 
 @router.put("/{player_id}/avatar", response_model=PlayerMediaMetaOut)
@@ -444,28 +451,39 @@ def delete_player_avatar(
 
 
 @router.get("/{player_id}/header-image")
-def get_player_header_image(player_id: int):
+def get_player_header_image(
+    player_id: int,
+    w: MediaWidthParam = None,
+):
     with Session(get_engine()) as s:
         fs_row = s.get(PlayerHeaderImageFile, player_id)
         if not fs_row:
             raise HTTPException(status_code=404, detail="Header image not found")
         content_type = fs_row.content_type
         file_path = fs_row.file_path
+        updated_at = fs_row.updated_at
 
-    data = read_media(file_path)
-    if data is None:
-        raise HTTPException(status_code=404, detail="Header image file missing")
-    headers = {"Cache-Control": "public, max-age=604800"}
-    return Response(content=data, media_type=content_type, headers=headers)
+    return media_response(
+        source_rel_path=file_path,
+        content_type=content_type,
+        token=version_token(updated_at),
+        width=w,
+        cache_control="public, max-age=604800",
+        missing="Header image file missing",
+    )
 
 
 @router.get("/guestbook-subjects/{snapshot_id}/image")
-def get_guestbook_subject_image(snapshot_id: int):
+def get_guestbook_subject_image(
+    snapshot_id: int,
+    w: MediaWidthParam = None,
+):
     """The pinned copy a guestbook entry is about (K1).
 
     Public read, like the avatar. Immutable: a snapshot never changes and its URL carries
     its id, so the browser may keep it for a year — this is the one picture in the app
-    that is *guaranteed* not to be replaced under its own URL.
+    that is *guaranteed* not to be replaced under its own URL. A `?w=` derivative of it is
+    exactly as immutable, which is why it carries the same header (W1).
     """
     with Session(get_engine()) as s:
         snap = s.get(PlayerSubjectSnapshot, snapshot_id)
@@ -473,12 +491,16 @@ def get_guestbook_subject_image(snapshot_id: int):
             raise HTTPException(status_code=404, detail="Guestbook subject image not found")
         content_type = snap.content_type
         file_path = snap.file_path
+        captured_at = snap.captured_at
 
-    data = read_media(file_path)
-    if data is None:
-        raise HTTPException(status_code=404, detail="Guestbook subject image file missing")
-    headers = {"Cache-Control": "public, max-age=31536000, immutable"}
-    return Response(content=data, media_type=content_type, headers=headers)
+    return media_response(
+        source_rel_path=file_path,
+        content_type=content_type,
+        token=version_token(captured_at),
+        width=w,
+        cache_control="public, max-age=31536000, immutable",
+        missing="Guestbook subject image file missing",
+    )
 
 
 @router.put("/{player_id}/header-image", response_model=PlayerMediaMetaOut)

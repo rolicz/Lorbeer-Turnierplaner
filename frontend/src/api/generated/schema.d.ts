@@ -741,7 +741,8 @@ export interface paths {
          *
          *     Public read, like the avatar. Immutable: a snapshot never changes and its URL carries
          *     its id, so the browser may keep it for a year — this is the one picture in the app
-         *     that is *guaranteed* not to be replaced under its own URL.
+         *     that is *guaranteed* not to be replaced under its own URL. A `?w=` derivative of it is
+         *     exactly as immutable, which is why it carries the same header (W1).
          */
         get: operations["get_guestbook_subject_image_players_guestbook_subjects__snapshot_id__image_get"];
         put?: never;
@@ -5052,7 +5053,10 @@ export interface operations {
     };
     get_player_avatar_players__player_id__avatar_get: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Serve this pre-computed width instead of the original; omit for the original. */
+                w?: (64 | 128 | 256 | 384 | 768 | 1152 | 1536) | null;
+            };
             header?: never;
             path: {
                 player_id: number;
@@ -5149,7 +5153,10 @@ export interface operations {
     };
     get_player_header_image_players__player_id__header_image_get: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Serve this pre-computed width instead of the original; omit for the original. */
+                w?: (64 | 128 | 256 | 384 | 768 | 1152 | 1536) | null;
+            };
             header?: never;
             path: {
                 player_id: number;
@@ -5246,7 +5253,10 @@ export interface operations {
     };
     get_guestbook_subject_image_players_guestbook_subjects__snapshot_id__image_get: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Serve this pre-computed width instead of the original; omit for the original. */
+                w?: (64 | 128 | 256 | 384 | 768 | 1152 | 1536) | null;
+            };
             header?: never;
             path: {
                 snapshot_id: number;
@@ -6394,7 +6404,10 @@ export interface operations {
     };
     get_comment_image_comments__comment_id__image_get: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Serve this pre-computed width instead of the original; omit for the original. */
+                w?: (64 | 128 | 256 | 384 | 768 | 1152 | 1536) | null;
+            };
             header?: never;
             path: {
                 comment_id: number;
