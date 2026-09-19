@@ -5,12 +5,16 @@
 > (project knowledge). Created 2026-09-12 after a full audit of the frontend (see
 > `FEATURES_2026-09.md` § "Design audit findings").
 >
-> Last checked against the code: **2026-09-17** (C15, the blind audit's fix batch —
+> Last checked against the code: **2026-09-19** (M7, the record-badges batch —
+> `FEATURES_2026-09-badges.md`, M1–M6. Changed here: §5b names the badge band as a site of
+> `current`, §6's stats skeleton gains the deep-linkable section rule, and §7 gains two rows —
+> the one record-icon map and `RecordBadges`. Nothing else was re-read this pass.)
+> The previous full re-read was **2026-09-17** (C15, the blind audit's fix batch —
 > `DESIGN_FIXES_2026-09.md`, C1–C14 — whose fourteen workers each wrote down the canon line their
 > task changed; this pass applies them. Changed here: §2's `draw`, `live`, cup gold split and the
 > player palette, §3's inset hairline and `CollapsibleCard`, §5b (new, the word list), §6's
 > "see more" link, §7's confirm rule and the crown/ring lines, §8's `resultBadge`.)
-> The previous full re-read was **2026-09-14** (A8, the Round 6 audit's canon pass — every
+> Before that, **2026-09-14** (A8, the Round 6 audit's canon pass — every
 > claim below was re-read against the code it describes, and the ones that had drifted are
 > corrected here rather than enforced against a practice that won on merit). Verified at that
 > point: no retired surface class is defined or used, no raw Tailwind palette class outside
@@ -303,8 +307,9 @@ A score written in prose is an **en dash** (`3–1`); `RecordLine`'s `14:6` and 
 GF:GA records, not scores. `…`, never `...`. `Login` is the noun (the label), "log in" the verb
 (inside a sentence). Buttons, tabs and titles are **sentence case**. An empty state ends with a
 full stop and names its thing ("No streaks yet.", never "None yet."). A state that is still
-running is `current` (and wears `.chip`, not a status pill — it is not a match state); only the
-open end of a **date range** is `now`. A profile door is `Open X's profile`.
+running is `current` (and wears `.chip`, not a status pill — it is not a match state): the streak
+chips say it, and a record badge for an ongoing run says "record holder, current run" in its title
+and label (M5). Only the open end of a **date range** is `now`. A profile door is `Open X's profile`.
 
 ## 6. Section headers
 
@@ -352,6 +357,11 @@ Matchup, Player) is built from the same block, so the sections read as one page:
 
 - `frontend/src/pages/stats/StatsSection.tsx` **is** that block (`label`, `icon`, `explainer`,
   `action`, children). Never hand-roll a `section-head` inside a stats sub-view.
+- **A section that can be deep-linked carries `id={recordSectionId(key)}` and consumes `?record=`
+  through `useOneShotSectionParam`, the same hook `?cup=` uses** (M4). One anchor mechanism for
+  Records, Streaks and Cups: scroll to the section, then drop the param with a `replace` so it fires
+  exactly once. A section that *is* a record takes its icon from `recordIcons.ts` (§7), never from a
+  local map; a section that is not (Table, Positions, Trends, H2H) keeps its own lucide glyph.
 - **Category blocks** — a sub-view made of several equivalent groups (Streaks' four streak
   kinds, Records' titles / superlatives / longest runs) — are flat `StatsSection`s in a
   `grid gap-6 lg:grid-cols-2`, each with its own lucide icon, title, explainer and rows. They
@@ -395,6 +405,8 @@ Matchup, Player) is built from the same block, so the sections read as one page:
 | Confirming an irreversible action | `ConfirmDialog` | a `Modal` with a title, a one-line subtitle saying what happens, then Cancel + **the verb** (never "OK"), all in sentence case. **Every** irreversible action asks first — a delete, an admin's too (A10; deleting is allowed even when real results hang off the row), and equally a logout, a reshuffle, a side swap or clearing a dirty form (C7). Never `window.confirm`. **The red block is not decoration and is not a mood:** the body *names what is lost* in the danger idiom (`border-error/40 bg-error/10 text-error`, the `error` token and never `loss`, because a deleted tournament is not a defeat — §2, A8) **iff the action deletes something that is stored** — a result, a comment, a message, a file, a whole entity. An action that is reversible by its own inverse, or that changes state without deleting (mark read, reopen a tournament, swap sides, reshuffle an unplayed order, discard what is only typed), carries **no** red block; its subtitle says how to undo it instead. A dialog that shows a `busy` state must pass `busyLabel` — the fallback is "Deleting…", and most of these are not deletes |
 | Identity | `AvatarCircle`, `ClubBadge`, `NationFlag`, `CupOwnerBadge` (lucide `Crown`) | `AvatarCircle` is the only avatar, and it always wears a ring: a 1px neutral hairline by default (decoration — it gives the disc an edge on a white card as well as a dark page), or, given `cups`, a 2.5px ring in the cup's colour (a conic split for two). **Colour is the information and its tense is always "today"** (T15): a cup ring means this player holds that cup *right now* — `useCupHolders` is where that answer comes from. Historic ownership is never a ring. **One tense per screen:** the ring is worn only where the surface is about now — the Players page, a profile, the stats leaderboards (Table, Records, Streaks, Cups, the H2H matchup's header, Player) and the dashboard cups preview — H2H's own Players/Duos views render no avatars at all, though the canon used to list them (A8). **Inside a tournament** — its standings/results, the What-if table, its match lists, the Overview's blocks, and the Positions grid of past tournaments — every avatar keeps the neutral hairline, because that screen is about a past or ongoing event and a present-tense ring would read as "held it back then"; cup information there has exactly one carrier, the standings' `CupOwnerBadge` crown ("owned it going into this tournament"). Comment authors, guestbook entries and pickers get no cup marking at all. The ring is drawn inside the avatar's own box, so adopting it never moves the layout. **The crown is never drawn beside a ringed avatar** (C12): where the ring already says "holds it today", a `CupOwnerBadge` next to it says the same thing twice, so the badge was removed from the Players page and the profile header and a crown on a person now means exactly one thing — "owned it going into this tournament", in the standings. **A ring means "holds a cup" — except on a picker avatar, where it means "selected"** (`ui/primitives/AvatarButton`, `ring-2` accent, 6 pickers plus the friendly form's "None" slot). That is a deliberate, audited exception, not drift: no picker passes `cups`, so the two meanings can never meet on one disc, and re-ringing six pickers to prove a point is churn. Don't re-report it |
 | Identity → profile | `PlayerLink` | the only way an avatar/name becomes a link; hugs its text, stops click/Enter from bubbling so a row keeps its own action, `decorative` for an avatar that duplicates the name link. Never nest it in another `<a>` |
+| A record's icon | `recordIcon(key)` (`pages/stats/recordIcons.ts`) | the **one** map from a record key to its glyph, read by the Records page, Streaks, `StreakPatches`, `PlayerStreakChips` and the profile badges (M3). Sixteen glyphs, approved by Roli 2026-09-19: `Trophy` most titles · `Award` all three Elos (with a `1v1`/`2v2` `.text-micro` label beside the two mode ones — a mode, not a count) · `Coins` points · `Gauge` pts/match · `Dumbbell` played · `Crosshair` goals/match · `Flame` win streak · `Shield` unbeaten · `Goal` scoring · `Lock` clean sheet · `Zap` biggest win · `PartyPopper` highest-scoring match · `Rocket` most goals by one side · `TrendingUp` biggest upset. `Goal` belongs to the scoring streak and `Flame` to the win streak, which is why the two match records took `PartyPopper` and `Rocket`: four private copies of this map are how one glyph came to mean two records. Nothing here uses `Crown` |
+| A record held today | `RecordBadges` (`pages/profile/`) | a wrapping band of grey `.chip`s, one lucide glyph each from `recordIcons.ts`, `border-accent` for an ongoing streak record, no count, no cup token — it sits beside a cup ring and must never read as one. **The ongoing mark is the accent border and never a dot** (`StreakPatches` already paints exactly this for "the record is being set right now", and `C10` moved the streak chip off green because green means "a match is playing"). Each chip is a `Link` to the record's own `path`, which the backend emits; the band renders **nothing** when a player holds nothing, and it wraps rather than scrolling sideways (Roli's call, ~33px of tab-strip movement per extra row) |
 | Stars | `Stars` (lucide `Star`/`StarHalf`, replaces `StarsFA`); `StarsToken` is the same rating as one glyph plus the number, for a row too dense to spend 80px per side on a picture |
 
 ## 8. Score display (`ScoreLine`)

@@ -1587,7 +1587,7 @@ the row, the ring, or the push has already said" (points 3 and 4). Recommend add
 
 ---
 
-## M7 — Documentation pass (runs LAST)  ☐
+## M7 — Documentation pass (runs LAST)  ☑
 
 Files: `AGENTS.md`, `DESIGN.md`, this file. Collect every "Canon" line from M1–M5 (and M6's answer)
 and fold them in; **no code**. Specifically:
@@ -1609,21 +1609,86 @@ and fold them in; **no code**. Specifically:
 
 **Deviations:**
 
+- **No code changed.** `git diff --stat` for this task is `AGENTS.md`, `DESIGN.md` and this file and
+  nothing else; the gates below are the same tree the six implementation commits left, re-run.
+- **Where each canon line came from.** M1: §2's `stats/records.py` / `finished_matches_with_players`
+  / the `player_matches` exports, §6's `/stats/records` + "the backend emits a record's `path`",
+  §6's cache-table note, §5's empty-column rule. M2: §5's two tables with the silent-seed rule and
+  the measured rollback, §6's `after_result_change` table and the `record_moved` push with Roli's
+  arithmetic recorded as his decision, §6's `result` for generate/date, §9's umlaut instruction,
+  §10's "a goal in a playing match is not a result". M3: §10's stats URL scheme (`sort`/`dir`/
+  `record`), §9's "a record's icon comes from one map". M4: `DESIGN.md` §6's deep-linkable section
+  rule (transcribed as written), §2's "`RecordsView` reads `/stats/records`", §10's anchor-clamp
+  note. M5: `DESIGN.md` §7's `RecordBadges` row (transcribed as written) and §5b's `current`,
+  §9's "the badge band is the second present-tense mark and is deliberately not a ring", §10's
+  measured profile widths. M6: §10's `MIN_LEN` sentence, and §11 saying plainly that **no file
+  changed**.
+- **The "ASCII-safe" claim is gone from the canon and replaced with the opposite instruction**
+  (§9): write ä ö ü ß, repair what you find, `ensure_ascii=False` has always been there, and the one
+  unverifiable part — iOS rendering a non-ASCII body — is named as unverified in §9 and again in
+  §11's open list. `AGENTS.md:1014`'s "the German ASCII-safe" now reads "the German **spelled with
+  its umlauts** … do not put it back". **The three historical references in
+  `FEATURES_2026-09-ideas.md` (`:186`, `:769`, `:1348`) were left alone**: that file is a finished
+  tracker describing what was true when it was written, and rewriting history to match today's rule
+  would make the record wrong instead of the canon right. The canon is the file agents read.
+- **M2's goal-comment hole is written down twice and fixed nowhere** (as instructed): `AGENTS.md`
+  §10 carries the mechanism with both line numbers (`routers/comments.py:474`, `:487`), the missing
+  `global_action`, and the composer that reaches it
+  (`pages/live/TournamentCommentsCard.tsx:389` — the file is in `pages/live/`, not
+  `pages/live/comments/`, which is where M2's note put it); §11's open list carries the decision
+  Roli has to make, with both candidate answers named and neither recommended.
+- **What I deliberately did not write.** No claim that a push has been delivered (it has not, from
+  this machine, ever — §11 and the batch's own gate list say so); no claim that iOS renders the
+  umlauts; no work attributed to M6, which changed nothing and recommended nothing, and whose
+  §11 line says exactly that; no "fix" framing for the `?record=` clamp on a page's last section —
+  §10 records it as the browser refusing to scroll further than the document allows, pre-existing
+  and identical for `?cup=`. I also did not promote anything to canon that no task claimed: the
+  one candidate was `stats/records.py`'s "skip a match with an empty side" rule (M1 implemented it
+  as planned and noted that `RecordsView` never had it), and it is a service-level detail that no
+  task asked to canonise, so it stays in M1's Deviations.
+- **Two stale lines in `AGENTS.md` §11 were corrected while writing it**, because the section's job
+  is to separate deployed from merged: it claimed in one bullet that the Ideas batch was merged and
+  in the next that it was "complete and unmerged" (it is merged — `a547193`, on `main` at
+  `b8e741a`). `f425961` remains the only commit that has ever run on the server.
+- **`DESIGN.md`'s header note** now leads with this pass and demotes the C15 and A8 lines below it,
+  so the file still says when each claim was last read against the code. Only the four places this
+  batch touched were re-read; nothing else was re-verified, and the note says so.
+- **`AGENTS.md` §3's two baselines were moved** to what this tree actually measures — `make test`
+  228 → **272 passed** and "~9 min" → **~15 min** on the Pi, `npm run check` 717 in 71 → **734 in
+  74 files**. The suite crossed a quarter of an hour because `after_result_change` runs a full
+  records fold on every result-changing path and `test_record_holders.py` walks all nine of them;
+  §11 says so beside the number, because "the tests are slow now" without the reason is the kind of
+  line a future worker tries to fix.
+
+**Gates (this tree).** `make test` **272 passed** in 14:45 · `make lint` clean · `make gen-types`
+**no diff** · `npm run check` **734 tests in 74 files** · `npm run build` green (734.05 kB, the
+pre-existing hint). No code was touched by this task.
+
 ---
 
 ## Verification gates (after all tasks)
 
-- `make test` green (baseline 228 + M1's 9 + M2's 12 ≈ 249), `make lint` clean, `make gen-types` no
-  diff after M1's commit.
-- `cd frontend && npm run check` green (baseline 717 in 71 + the new files), `npm run build` green.
-- `curl -s :<B>/stats/records | jq '.records | length'` → 16, keys in registry order.
-- `grep -rn 'after_result_change' backend/app/routers | wc -l` → **8** call sites (patch_match,
-  swap_sides, generate, reassign, second_leg, delete, decider, date) + `manage.py` → 9.
-- `grep -rln 'from "lucide-react"' frontend/src/ui/StreakPatches.tsx frontend/src/pages/stats/PlayerStreakChips.tsx frontend/src/pages/stats/StreaksView.tsx` → **0** (all three read `recordIcons.ts`).
-- `document.querySelectorAll("a a").length` = 0 on a profile with badges and on Records.
-- Rollback drill done in M2 and written down.
+**Run by M7 on the documentation tree (code at `9c3bc67`, unchanged by that pass) — all green:**
+
+- ☑ `make test` **272 passed**, 36 warnings, in **885.41s (14:45)** on the Pi. Baseline was 228, so
+  the batch added 44 backend tests. (The 36 warnings are the pre-existing SAWarning from
+  `routers/tournaments.py:353/358`'s reassign flush, now raised by one more test file.)
+- ☑ `make lint` — `All checks passed!`
+- ☑ `make gen-types` — **no diff** (`schema.d.ts` untouched; M1 committed the only change).
+- ☑ `cd frontend && npm run check` — **734 tests in 74 files**, 71.50s; tsc clean, eslint clean.
+  Baseline was 717 in 71 files.
+- ☑ `npm run build` — green in 9.21s, `index-*.js` **734.05 kB** (gzip 228.07 kB) with the
+  pre-existing ">500 kB chunk" hint, which `AGENTS.md` §11 already records as deliberate.
+- ☑ `curl -s :<B>/stats/records | jq '.records | length'` → 16, keys in registry order (M1, and
+  `grep -c 'RecordDef(' backend/app/services/stats/records.py` → 16 on this tree).
+- ☑ `grep -rn 'after_result_change' backend/app/routers | wc -l` → **8** call sites (patch_match,
+  swap_sides, generate, reassign, second_leg, delete, decider, date) + `manage.py` → **9**.
+- ☑ `grep -rln 'from "lucide-react"' frontend/src/ui/StreakPatches.tsx frontend/src/pages/stats/PlayerStreakChips.tsx frontend/src/pages/stats/StreaksView.tsx` → **0** (all three read `recordIcons.ts`).
+- ☑ `document.querySelectorAll("a a").length` = 0 on a profile with badges (M5) and on Records (M4).
+- ☑ Rollback drill done in M2 and written down (and folded into `AGENTS.md` §5).
 - **Not a gate, not provable here:** push over the wire (no `cryptography`, no VAPID) — the queue is
-  asserted, the phone proves delivery.
+  asserted, the phone proves delivery. **Nor is iOS rendering the umlauts**, which is new to this
+  batch and equally the phone's to prove.
 
 ## Deployment (later, on Roli's go)
 
@@ -1650,18 +1715,33 @@ from a second phone correct a finished score that moves a record → every phone
 
 ## What this plan could not verify (and why)
 
-- **No checks were run** (read-only session); baselines are `AGENTS.md` §11's.
-- **The chips-per-row numbers are computed from class geometry** (`Button` `h-9 px-3`, avatar 56,
-  `--page-pad-x` 16, chip 32 + gap 6), not measured; M5 measures them.
-- **The reconcile's latency** on a match PATCH (three ratings folds, one streak fold, one players
-  fold, one match load ≈ six full passes over ~250 finished matches). Estimated well under 300 ms on
-  the VPS; M2 measures it on the Pi and, if the finish PATCH grows noticeably, notes `BackgroundTasks`
-  as the follow-up — not taken here because a synchronous call is what the tests can assert.
-- **Push over the wire**, as every batch before.
+*(Struck through where the task that owned it measured it. One bullet is left standing, and it is
+the same one every batch has ended with.)*
+
+- ~~**No checks were run** (read-only session); baselines are `AGENTS.md` §11's.~~ — M7's gates are
+  at the end of this file.
+- ~~**The chips-per-row numbers are computed from class geometry**~~ — **measured by M5**: the
+  foreign profile's text column is 278px and fits **6** badges per row (7 uniform chips would fit;
+  the 51px `1v1` Elo chip is what pushes the seventh down), your own profile's is 134px and fits
+  **3**, and each extra row moves the tab strip ~33px.
+- ~~**The reconcile's latency** on a match PATCH~~ — **measured by M2 on the Pi**, against a copy of
+  the real dev DB (94 finished tournament matches, 6 players): a result-changing
+  `PATCH /matches/{id}` takes **0.25 s** end to end, the boot seeds 16 keys in **0.38 s**, and a goal
+  in a *playing* match pays nothing because the guard runs first. `BackgroundTasks` was not needed.
+- **Push over the wire**, as every batch before — and with it, **whether iOS renders the umlauts**.
+  Both are the phone's to prove.
 
 ## Decisions still needed from Roli
 
-None block M1 or M2. **Item 1 blocks M3, M4 and M5.**
+**All eight were answered before implementation** (2026-09-19, second pass — the section "Answered
+2026-09-19, second pass" above, plus the two sections after it), and the answers are what the code
+does. Kept here as the record of what was asked: **1** icons approved as proposed; **2** both sides
+hold "Highest-scoring match"; **3** `played > 0`; **4** the literal placement; **5** wrap;
+**6** the push copy corrected in Roli's voice (M2 lists every Styrian line and whose it is, with
+`gräßte` and `Grod hot'n kana.` still worth his eye); **7** no bell item; **8** one `Award` with a
+`1v1`/`2v2` micro-label. Nothing below is open.
+
+Originally: none block M1 or M2. **Item 1 blocks M3, M4 and M5.**
 
 1. **The icon set** (the table at the top). Approve, or swap glyphs — the map is one file
    (`recordIcons.ts`); the two pairs to look at are `Coins`/`Award` and `Flame`/`Zap`. Cost of a swap
