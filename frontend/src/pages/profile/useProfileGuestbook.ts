@@ -395,13 +395,6 @@ export function useProfileGuestbook({
           [targetPlayerId]: prev[targetPlayerId] === entry.id ? null : entry.id,
         }));
       },
-      cancelEdit: (entryId) => {
-        if (!targetPlayerId) return;
-        setEditOpenEntryByProfileId((prev) => ({
-          ...prev,
-          [targetPlayerId]: prev[targetPlayerId] === entryId ? null : prev[targetPlayerId] ?? null,
-        }));
-      },
       setEditDraft: (entryId, text) => {
         if (!targetPlayerId) return;
         setEditDraftByProfileAndEntry((prev) => ({

@@ -6,13 +6,13 @@ import EmptyState from "../../ui/primitives/EmptyState";
 import ImageLightbox from "../../ui/primitives/ImageLightbox";
 import LoadingPlaceholder from "../../ui/primitives/LoadingPlaceholder";
 import Modal from "../../ui/primitives/Modal";
-import { Pill } from "../../ui/primitives/Pill";
 import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
 import { CommentSendRow, ModeBadge } from "../live/comments/CommentComposer";
 import { guestbookSubjectImageUrl } from "../../api/players.api";
 import { fmtDateTime } from "../../utils/format";
 import type { GuestbookSubjectKind, PlayerGuestbookEntry, PlayerGuestbookSubject } from "../../api/types";
 import { SUBJECT_ICON, SUBJECT_LABEL } from "./guestbookSubjects";
+import { SECTION_HEAD_ACTION_CLASS } from "./SubjectCommentTrigger";
 import GuestbookEntryCard, {
   GuestbookCardProvider,
   type GuestbookCardContextValue,
@@ -114,19 +114,31 @@ export default function GuestbookSection({
           <span className="shrink-0 text-xs font-normal tabular-nums text-text-muted">{total}</span>
         </h2>
         {unreadCount > 0 ? (
-          <span className="inline-flex shrink-0 items-center gap-2">
-            <button type="button" title="Jump to latest unread guestbook message" onClick={onJumpUnread}>
-              <Pill title="Unread guestbook messages">
-                <Mail size={12} className="text-accent" aria-hidden="true" />
-                <span className="tabular-nums text-text-normal">{unreadCount}</span>
-              </Pill>
-            </button>
+          /* Two actions, one treatment (Q-A): both are the `h-8` ghost button the profile's
+             heads already wear, so the head is 32px and neither control invents a size.
+             The jump used to be a bare `<button>` with no class at all — 56×24px, no focus
+             ring — wrapping a status `Pill`, with a `title` on each of them, so the reader
+             got two tooltips for one action. `Pill` is a status tag and this is an action
+             (`DESIGN.md` §7). */
+          <span className="shrink-0 inline-flex items-center gap-1.5">
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={onJumpUnread}
+              title="Jump to the latest unread message"
+              aria-label={`Jump to the latest unread message · ${unreadCount} unread`}
+              className={SECTION_HEAD_ACTION_CLASS}
+            >
+              <Mail size={14} className="text-accent" aria-hidden="true" />
+              <span className="tabular-nums">{unreadCount}</span>
+            </Button>
             <Button
               type="button"
               variant="ghost"
               onClick={onRequestMarkAllRead}
               title="Mark all unread guestbook messages as read"
               disabled={markAllPending}
+              className={SECTION_HEAD_ACTION_CLASS}
             >
               <MailOpen size={14} className="md:hidden" aria-hidden="true" />
               <span className="hidden md:inline">Read all</span>
@@ -159,7 +171,7 @@ export default function GuestbookSection({
       {/* You write at the end of the feed, in the same chat row as the comments
           (T3 / DESIGN.md §9b) — never behind a button, never above what you read. */}
       {canPost ? (
-        <div className="sticky bottom-nav-clear z-10 rounded-b-2xl border-t border-border-card-outer/55 bg-bg-card-outer p-2 lg:bottom-0">
+        <div className="sticky bottom-nav-clear z-10 rounded-b-2xl border-t border-border-card-outer/55 bg-bg-card-outer p-2 lg:bottom-0" data-guestbook-composer>
           <div className="space-y-2">
             {/* Armed: the composer says what the next message is about, with the way out
                 beside it — the goal/shots chip generalised (DESIGN.md §9b). */}
@@ -191,7 +203,7 @@ export default function GuestbookSection({
         </div>
       ) : (
         <div className="border-t border-border-card-outer/55 px-3 py-2.5 text-sm text-text-muted">
-          Login as a player to post guestbook messages.
+          Log in as a player to post guestbook messages.
         </div>
       )}
     </section>

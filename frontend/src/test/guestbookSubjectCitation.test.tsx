@@ -59,7 +59,6 @@ function context(over: Partial<GuestbookCardContextValue> = {}): GuestbookCardCo
     toggleReply: () => {},
     cancelReply: () => {},
     toggleEdit: () => {},
-    cancelEdit: () => {},
     setEditDraft: () => {},
     submitEdit: () => {},
     toggleCollapse: () => {},
