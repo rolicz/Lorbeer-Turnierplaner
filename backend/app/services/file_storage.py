@@ -57,12 +57,38 @@ def media_path_for_club_crest(club_id: int, content_type: str) -> str:
     return f"club_crests/{int(club_id)}.{ext}"
 
 
+#: Where the pinned copies live — spelled once, because the sweep looks in it too.
+GUESTBOOK_SUBJECT_DIR = "guestbook_subjects"
+
+
+def media_path_for_guestbook_subject(snapshot_id: int, content_type: str) -> str:
+    """The pinned copy of a header image or avatar a guestbook entry is about (K1).
+
+    A directory of its own, so the overwriting `upsert_media_row` and the two media
+    DELETE endpoints can never touch it: the copy outlives the picture it was made from.
+    """
+    ext = _ext_from_content_type(content_type)
+    return f"{GUESTBOOK_SUBJECT_DIR}/{int(snapshot_id)}.{ext}"
+
+
 def read_media(rel_path: str) -> bytes | None:
     rel = _safe_rel(rel_path)
     p = _uploads_root() / rel
     if not p.is_file():
         return None
     return p.read_bytes()
+
+
+def list_media(rel_dir: str) -> list[str]:
+    """Relative paths of the files directly under `rel_dir`; [] when it does not exist.
+
+    The sweep's eyes — this module is the only one that knows where the media root is.
+    """
+    rel = _safe_rel(rel_dir)
+    d = _uploads_root() / rel
+    if not d.is_dir():
+        return []
+    return sorted(f"{rel.as_posix()}/{p.name}" for p in d.iterdir() if p.is_file())
 
 
 def media_exists(rel_path: str) -> bool:

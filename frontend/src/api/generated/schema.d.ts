@@ -728,6 +728,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/players/guestbook-subjects/{snapshot_id}/image": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Guestbook Subject Image
+         * @description The pinned copy a guestbook entry is about (K1).
+         *
+         *     Public read, like the avatar. Immutable: a snapshot never changes and its URL carries
+         *     its id, so the browser may keep it for a year — this is the one picture in the app
+         *     that is *guaranteed* not to be replaced under its own URL.
+         */
+        get: operations["get_guestbook_subject_image_players_guestbook_subjects__snapshot_id__image_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/players/{player_id}/guestbook": {
         parameters: {
             query?: never;
@@ -2085,6 +2109,7 @@ export interface components {
              * @default false
              */
             can_edit: boolean;
+            subject?: components["schemas"]["GuestbookSubjectOut"] | null;
         };
         /** GuestbookReadMapOut */
         GuestbookReadMapOut: {
@@ -2092,6 +2117,38 @@ export interface components {
             profile_player_id: number;
             /** Entry Ids */
             entry_ids: number[];
+        };
+        /**
+         * GuestbookSubjectOut
+         * @description What a guestbook entry is about (K1): the header image, the About text or the avatar,
+         *     as it was when the entry was written. `current` says whether that is still what the
+         *     profile shows — computed server-side, rendered by the frontend, never re-derived there.
+         */
+        GuestbookSubjectOut: {
+            /** Kind */
+            kind: string;
+            /** Snapshot Id */
+            snapshot_id: number;
+            /**
+             * Captured At
+             * Format: date-time
+             */
+            captured_at: string;
+            /**
+             * Text
+             * @default
+             */
+            text: string;
+            /**
+             * Has Image
+             * @default false
+             */
+            has_image: boolean;
+            /**
+             * Current
+             * @default false
+             */
+            current: boolean;
         };
         /** GuestbookSummaryOut */
         GuestbookSummaryOut: {
@@ -2511,6 +2568,8 @@ export interface components {
             parent_entry_id?: number | null;
             /** Author Player Id */
             author_player_id?: number | null;
+            /** Subject Kind */
+            subject_kind?: string | null;
         };
         /** PlayerGuestbookPatchBody */
         PlayerGuestbookPatchBody: {
@@ -5160,6 +5219,37 @@ export interface operations {
             header?: never;
             path: {
                 player_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_guestbook_subject_image_players_guestbook_subjects__snapshot_id__image_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                snapshot_id: number;
             };
             cookie?: never;
         };

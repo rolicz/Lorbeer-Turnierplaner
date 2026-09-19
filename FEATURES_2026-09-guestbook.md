@@ -316,7 +316,7 @@ commit only your own.
 
 ---
 
-## K1 — Schema, the pin, the release, the sweep, the API  ☐
+## K1 — Schema, the pin, the release, the sweep, the API  ☑
 
 **The gap.** `models.py:93-128` has the guestbook's four tables and nothing that could remember a
 picture; `services/file_storage.py` has five `media_path_for_*` builders and none for a copy;
@@ -585,6 +585,73 @@ into Deviations.
   a reused id, which is why the sweep runs at boot and why `attach_subject` replaces a stale row.
 
 **Deviations:**
+
+Built as specified; five small things the task did not spell out, and the numbers behind
+every claim it asked to be *measured*.
+
+- **One spelling of the directory.** `services/file_storage.py::GUESTBOOK_SUBJECT_DIR =
+  "guestbook_subjects"` is new and not in the spec: the path builder and `list_media`'s caller
+  both name that directory, and two string literals is exactly the drift rule 8 is about. It
+  lives in `file_storage.py` (the module that owns the media root) and `guestbook_subjects.py`
+  imports it. The plan's `SUBJECT_MEDIA_DIR` in the service is therefore gone.
+- **The 409's words come from `_LABEL` through one helper** (`_unavailable(kind)`), so the three
+  messages cannot drift apart: *"There is no header image / About text / avatar to comment on
+  right now"*. Measured on the stack: player 6 (no header) → `409 {"detail":"There is no header
+  image to comment on right now"}`; an unknown kind → 400; `subject_kind: ""` → **200** with
+  `subject: null`, because empty is "no subject", not an error.
+- **`list_media` returns its paths sorted** — the plan said only "relative paths"; a stable order
+  makes the sweep's own behaviour reproducible.
+- **`test_a_tagged_entry_notifies_exactly_once` asserts two bell items, not one.** It posts an
+  untagged entry first as the yardstick for what a push carries, so the owner's bell legitimately
+  holds two — the assertions that matter are unchanged and sharper: exactly **one** queued push
+  for the tagged entry, `event_type == "guestbook_created"`, `set(text_context)` **identical** to
+  the untagged entry's, every bell item of kind `guestbook` (no new kind), exactly one of them
+  for the tagged entry, and its `path` the existing
+  `/profiles/{id}?tab=guestbook&entry={eid}`.
+- **`sweep_orphan_subjects` counts rows, not bytes.** A deleted link is 1, a deleted snapshot is 1
+  and its file rides along uncounted; a file with no row at all counts 1. That is what makes the
+  predicted `Guestbook subjects swept: 2` below exactly 2.
+
+**Gates, observed.** `make test` **286 passed** in 12:12 (273 + the 13 new; the branch baseline `14e27db`
+collects exactly 273, checked with `--collect-only` against the `git archive` tree below, so the
+badges head's number carried over the merge unchanged); `make lint` clean; `make gen-types` →
+`schema.d.ts` **+90 lines** (`GuestbookSubjectOut`, the `subject` field, `subject_kind`, the new
+path), committed with the models; `cd frontend && npm run
+check` **735 tests in 74 files** in 73 s — the baseline unchanged, K1 adds no frontend test and the
+two new aliases in `types.ts` are (deliberately) unused until K2.
+
+**The rollback check, measured.** Baseline `14e27db` extracted with `git archive | tar -x` into a
+temp dir (`.git` never touched), booted on the repo's venv against `backend/data/verify-k1.db` —
+a copy of the dev DB the new code had already written both tables and a pinned copy into, with
+`UPLOADS_DIR` a copy outside the repo:
+- it **boots clean** (`DB initialized`, no error), `GET /players/1/guestbook` → **200** and the
+  rows carry **12 keys, no `subject` at all**;
+- it **posts** an entry (200) and **deletes** the tagged one (204), leaving exactly what the plan
+  predicted: one link row `(entry 7 → snapshot 1)` and one snapshot row with
+  `guestbook_subjects/1.png` still on disk;
+- **A9 was not theoretical here**: the entry old code posted came back as **id 8** — the id a
+  previously deleted entry had held. Ids are handed out again in the same database, so the stale
+  link is a subject waiting to reattach itself, which is the whole reason for the sweep.
+- the next boot of the new code logged exactly `Guestbook subjects swept: 2` and
+  `guestbook_subjects/` was **empty**; a further boot logged **nothing** (idempotent), and
+  `sweep_orphan_subjects()` returns 0 in the test for the same reason.
+
+**The DoD on the isolated stack** (`:8121`, DB copy `backend/data/verify-k1.db`, uploads copy
+outside the repo, throwaway secrets outside the repo, three accounts): as Berni,
+`POST /players/1/guestbook {"subject_kind":"header_image"}` → 200 with `subject.current: true` and
+**one** file (`1.png`); a second post → **same `snapshot_id`, still one file**; as Roli,
+`PUT /players/1/header-image` with different bytes → both entries list `current: false` while
+`GET /players/guestbook-subjects/1/image` still serves the **old** bytes with
+`cache-control: public, max-age=31536000, immutable` and `/players/1/header-image` serves the new
+one; deleting the first of the two shared entries left row **and** file alone, deleting the last
+took both; all three kinds pin (About stores the text and writes **no** file); deleting every
+tagged entry left `guestbook_subjects/` empty and both tables at 0 rows. No port but 8121 was
+bound and every process was killed by its own PID.
+
+**Left for others, on purpose.** `frontend/src/api/types.ts` gains `GuestbookSubjectKind`,
+`PlayerGuestbookSubject` and the narrowed `PlayerGuestbookEntry` and nothing consumes them yet
+(K2/K3). `AGENTS.md` and `DESIGN.md` are untouched — the Canon block above is what K4 folds in,
+and it needed no correction from this task.
 
 ---
 

@@ -26,6 +26,10 @@ class PlayerGuestbookCreateBody(BaseModel):
     body: str = ""
     parent_entry_id: int | None = None
     author_player_id: int | None = None
+    #: What this entry is about (K1): "header_image" | "about" | "avatar". Root entries
+    #: only — a reply's subject is its root's. A subject is never edited, so there is no
+    #: patch-body twin.
+    subject_kind: str | None = None
 
 
 class PlayerGuestbookPatchBody(BaseModel):

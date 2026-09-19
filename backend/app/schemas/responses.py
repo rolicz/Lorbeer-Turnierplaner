@@ -112,6 +112,18 @@ class PlayerMediaMetaOut(BaseModel):
 
 
 # ---- guestbook / pokes -------------------------------------------------
+class GuestbookSubjectOut(BaseModel):
+    """What a guestbook entry is about (K1): the header image, the About text or the avatar,
+    as it was when the entry was written. `current` says whether that is still what the
+    profile shows — computed server-side, rendered by the frontend, never re-derived there."""
+    kind: str            # "header_image" | "about" | "avatar"
+    snapshot_id: int
+    captured_at: datetime
+    text: str = ""       # about: the text as it was then; images: ""
+    has_image: bool = False
+    current: bool = False
+
+
 class GuestbookEntryOut(BaseModel):
     id: int
     profile_player_id: int
@@ -127,6 +139,9 @@ class GuestbookEntryOut(BaseModel):
     # Per-viewer: the requester may edit this entry right now (author within the
     # edit window, or an admin). Defaults to False on viewer-less paths.
     can_edit: bool = False
+    # What the entry is about, pinned as it was then (K1). Absent on an untagged entry
+    # and on every reply.
+    subject: GuestbookSubjectOut | None = None
 
 
 class PokeOut(BaseModel):

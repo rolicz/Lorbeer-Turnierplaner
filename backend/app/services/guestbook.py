@@ -10,6 +10,7 @@ from ..models import (
     PlayerGuestbookThreadLink,
     PlayerGuestbookVote,
 )
+from .guestbook_subjects import subjects_for_entries
 
 GUESTBOOK_EDIT_WINDOW = dt.timedelta(hours=1)
 
@@ -37,6 +38,7 @@ def guestbook_entry_payload(
     downvotes: int = 0,
     my_vote: int | None = None,
     can_edit: bool = False,
+    subject: dict | None = None,
 ) -> dict:
     return {
         "id": int(entry.id),
@@ -51,6 +53,10 @@ def guestbook_entry_payload(
         "downvotes": int(downvotes),
         "my_vote": int(my_vote) if my_vote in (-1, 1) else 0,
         "can_edit": bool(can_edit),
+        # What the entry is about, as it was then (K1) — `None` for an untagged entry
+        # and for every reply. `current` inside it is the server's answer, not the
+        # frontend's.
+        "subject": subject,
     }
 
 
@@ -65,6 +71,7 @@ def list_guestbook_entries(s: Session, player_id: int, claims: dict | None) -> l
     parent_by_entry_id: dict[int, int | None] = {}
     votes_by_entry_id: dict[int, dict[str, int]] = {}
     my_vote_by_entry_id: dict[int, int] = {}
+    subject_by_entry_id = subjects_for_entries(s, player_id=int(player_id), entry_ids=entry_ids)
     if entry_ids:
         links = s.exec(
             select(PlayerGuestbookThreadLink.entry_id, PlayerGuestbookThreadLink.parent_entry_id).where(
@@ -112,6 +119,7 @@ def list_guestbook_entries(s: Session, player_id: int, claims: dict | None) -> l
             downvotes=votes_by_entry_id.get(int(row.id), {}).get("down", 0),
             my_vote=my_vote_by_entry_id.get(int(row.id), 0),
             can_edit=guestbook_can_edit(row, viewer_id=viewer_id, is_admin=is_admin, now=now),
+            subject=subject_by_entry_id.get(int(row.id)),
         )
         for row in rows
     ]
