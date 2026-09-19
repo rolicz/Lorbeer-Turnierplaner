@@ -8,70 +8,58 @@
           "title": "Neicha Kommentar in {tournament_name}",
           "body": "{author_name} hot wos dazug'schriebn.\n{preview}\nSchau glei eini, bevor da Faden no lauter wird."
         },
+        "friendly_created": {
+          "title": "Neiches Friendly eintrogn",
+          "body": "A {mode_label} Friendly is fertig eing'bucht.\nEndstand: {scoreline}.\nSchau in de Friendlies, wennst Details wüst."
+        },
+        "friendly_finished": {
+          "title": "Friendly is aus",
+          "body": "Da Spaß is vorbei.\nEndstand: {scoreline}.\nSchau in de Friendlies für die ganze G'schicht."
+        },
+        "friendly_score_changed": {
+          "title": "Friendly-Spielstand hot si g'rührt",
+          "body": "Beim Friendly is wos passiert.\nAktueller Stand: {scoreline}.\nSchau eini, wennst live am Ball bleibn willst."
+        },
+        "friendly_started": {
+          "title": "Friendly is grad live",
+          "body": "Da freundschaftliche Wahnsinn geht los.\nDes Match läuft grad.\nSchau eini, bevor da ganze Spaß vorbei is."
+        },
         "goal_comment_created": {
           "title": "Tor-Update bei {match_label}",
           "body": "{goal_line}{goal_note_line}\nIm {tournament_name} is des jetzt direkt im Match-Feed eingtrogn.\nSchau live eini und bleib am Ball."
-        },
-        "score_comment_created": {
-          "title": "Spielstand-Update bei {match_label}",
-          "body": "Im {tournament_name} is a neuer Stand im Match-Feed eingtrogn.\nAktueller Zwischenstand: {scoreline}.\nSchau live eini, damitst am neuesten Stand bleibst."
         },
         "guestbook_created": {
           "title": "Neicha Gästebuch-Eintrag bei {profile_player_name}",
           "body": "{author_name} hot an Gruaß daglossn.\n{preview}\nSchau am Profil vorbei und gib deinen Senf dazua."
         },
-        "idea_created": {
-          "title": "A neiche Idee vo {author_name}",
-          "body": "{title}\n{meta_line}\nSchau eini und sog, wos draus wird."
-        },
         "idea_commented": {
           "title": "{author_name} hot wos zu deiner Idee gsogt",
           "body": "{title}\n{preview}\nSchau eini, wos gmoant is."
         },
-        "idea_voted": {
-          "title": "{author_name} mog dei Idee",
-          "body": "{title}\n{vote_line}\nSchau eini."
+        "idea_created": {
+          "title": "A neiche Idee vo {author_name}",
+          "body": "{title}\n{meta_line}\nSchau eini und sog, wos draus wird."
         },
         "idea_status": {
           "title": "Dei Idee is jetzt {status_label}",
           "body": "{title}{status_note_line}\nSchau eini, wos si tuat."
         },
-        "poke_created": {
-          "title": "{profile_player_name} is anpöbelt worn",
-          "body": "{author_name} hot grad a bisserl ang'stichelt.\nBei {profile_player_name} is wos los.\nSchau eini, bevor no mehr daherkommt."
+        "idea_voted": {
+          "title": "{author_name} mog dei Idee",
+          "body": "{title}\n{vote_line}\nSchau eini."
         },
-        "poke_summary": {
-          "title": "{profile_player_name} is komplett unter Beschuss!",
-          "body": "{authors_line}\nIn da letztn Minutn san no {extra_count} Anpöbler dazukumman.\nSchau am Profil vorbei, do is jetz ordentlich Betrieb."
+        "lead_gained": {
+          "title": "Jetzt bist du vorn bei {record}",
+          "body": "{losers_line}Schau in de Stats."
         },
-        "tournament_created": {
-          "title": "{tournament_name} steht bereit",
-          "body": "Des Turnier is aufg'setzt und bereit zum Loslegn.\n{tournament_name} wartet auf die ersten Matches.\nSchau eini und bring Schwung eini."
+        "lead_lost": {
+          "title": "Bei {record} bist nimma vorn",
+          "body": "{gainers_line}Schau in de Stats und hol da's zruck."
         },
-        "tournament_updated": {
-          "title": "{tournament_name} is aktualisiert",
-          "body": "Beim Turnier hot si wos gändert.\n{tournament_name} is wieder am neuesten Stand.\nSchau kurz eini, damitst nix verpasst."
+        "lead_watch": {
+          "title": "Bei {record} hot si wos gtan",
+          "body": "{gainers_line}{losers_line}{holders_line}\nSchau in de Stats, wer wo steht."
         },
-        "tournament_date_changed": {
-          "title": "Neicher Termin fia {tournament_name}",
-          "body": "Des Turnier hot jetzt an fixen Tag.\nNeicher Termin: {tournament_date}.\nTrag's da ein, sunst stehst wieda unvorbereitet do."
-        },
-        "schedule_generated": {
-          "title": "Spielplan fertig fia {tournament_name}",
-          "body": "Da Plan steht endlich.\nEs san {match_count} Matches erstellt worn.\nSchau eini, wer wann gegen wen aufmuass."
-        },
-                "tournament_deleted": {
-                    "title": "{tournament_name} is weg",
-                    "body": "Des Turnier gibt's nimma.\n{tournament_name} is aus da Listn g'flogn.\nSchau in de Übersicht, wos stattdessen no laft."
-                },
-                "tournament_finished": {
-                    "title": "{tournament_name} is fertig",
-                    "body": "Des Turnier is durch.\n{tournament_name} hot jetzt an Endstand.\nSchau eini für Ergebnis, Statistik und Nachbesprechung."
-                },
-                "match_started": {
-                    "title": "{match_label} in {tournament_name} läuft",
-                    "body": "Jetzt geht's los.\n{match_label} is grad live.\nSchau eini und verfolg, wia's abgeht."
-                },
         "match_finished": {
           "title": "{match_label} in {tournament_name} is aus",
           "body": "Der Kick is vorbei.\nEndstand: {scoreline}.\nSchau eini für Kommentare, Statistik und Nachwehen."
@@ -84,25 +72,61 @@
           "title": "Spielstand geändert bei {match_label}",
           "body": "Im Turnier {tournament_name} hot si wos getan.\nAktueller Stand: {scoreline}.\nSchau eini, ob des a Aufholjagd oder a Watschn wird."
         },
-        "friendly_created": {
-          "title": "Neiches Friendly eintrogn",
-          "body": "A {mode_label} Friendly is fertig eing'bucht.\nEndstand: {scoreline}.\nSchau in de Friendlies, wennst Details wüst."
+        "match_started": {
+          "title": "{match_label} in {tournament_name} läuft",
+          "body": "Jetzt geht's los.\n{match_label} is grad live.\nSchau eini und verfolg, wia's abgeht."
         },
-        "friendly_started": {
-          "title": "Friendly is grad live",
-          "body": "Da freundschaftliche Wahnsinn geht los.\nDes Match laeuft grad.\nSchau eini, bevor da ganze Spass vorbei is."
+        "poke_created": {
+          "title": "{profile_player_name} is anpöbelt worn",
+          "body": "{author_name} hot grad a bisserl ang'stichelt.\nBei {profile_player_name} is wos los.\nSchau eini, bevor no mehr daherkommt."
         },
-        "friendly_finished": {
-          "title": "Friendly is aus",
-          "body": "Da Spass is vorbei.\nEndstand: {scoreline}.\nSchau in de Friendlies für die ganze G'schicht."
-        },
-        "friendly_score_changed": {
-          "title": "Friendly-Spielstand hot si g'rührt",
-          "body": "Beim Friendly is wos passiert.\nAktueller Stand: {scoreline}.\nSchau eini, wennst live am Ball bleibn willst."
+        "poke_summary": {
+          "title": "{profile_player_name} is komplett unter Beschuss!",
+          "body": "{authors_line}\nIn da letztn Minutn san no {extra_count} Anpöbler dazukumman.\nSchau am Profil vorbei, do is jetz ordentlich Betrieb."
         },
         "push_test": {
           "title": "Push passt bei dir",
           "body": "Servus {player_name}, des is da Test.\nDe Benachrichtigungen kumman an.\nJetzt kannst di auf den nächsten Alarm verlassen."
+        },
+        "record_gained": {
+          "title": "Rekord! {record} is jetzt deins",
+          "body": "{losers_line}{holders_line}\nSchau in de Stats und genieß es."
+        },
+        "record_lost": {
+          "title": "{record} is weg",
+          "body": "{gainers_line}Bei {record} bist nimma vorn.\nSchau in de Stats und hol da'n zruck."
+        },
+        "record_watch": {
+          "title": "Bei {record} hot si wos gtan",
+          "body": "{gainers_line}{losers_line}{holders_line}\nSchau in de Stats, wer wo steht."
+        },
+        "schedule_generated": {
+          "title": "Spielplan fertig fia {tournament_name}",
+          "body": "Da Plan steht endlich.\nEs san {match_count} Matches erstellt worn.\nSchau eini, wer wann gegen wen aufmuass."
+        },
+        "score_comment_created": {
+          "title": "Spielstand-Update bei {match_label}",
+          "body": "Im {tournament_name} is a neuer Stand im Match-Feed eingtrogn.\nAktueller Zwischenstand: {scoreline}.\nSchau live eini, damitst am neuesten Stand bleibst."
+        },
+        "tournament_created": {
+          "title": "{tournament_name} steht bereit",
+          "body": "Des Turnier is aufg'setzt und bereit zum Loslegn.\n{tournament_name} wartet auf die ersten Matches.\nSchau eini und bring Schwung eini."
+        },
+        "tournament_date_changed": {
+          "title": "Neicher Termin fia {tournament_name}",
+          "body": "Des Turnier hot jetzt an fixen Tag.\nNeicher Termin: {tournament_date}.\nTrag's da ein, sunst stehst wieda unvorbereitet do."
+        },
+        "tournament_deleted": {
+          "title": "{tournament_name} is weg",
+          "body": "Des Turnier gibt's nimma.\n{tournament_name} is aus da Listn g'flogn.\nSchau in de Übersicht, wos stattdessen no laft."
+        },
+        "tournament_finished": {
+          "title": "{tournament_name} is fertig",
+          "body": "Des Turnier is durch.\n{tournament_name} hot jetzt an Endstand.\nSchau eini für Ergebnis, Statistik und Nachbesprechung."
+        },
+        "tournament_updated": {
+          "title": "{tournament_name} is aktualisiert",
+          "body": "Beim Turnier hot si wos gändert.\n{tournament_name} is wieder am neuesten Stand.\nSchau kurz eini, damitst nix verpasst."
         }
       }
     },
@@ -113,101 +137,125 @@
           "title": "Neuer Kommentar in {tournament_name}",
           "body": "{author_name} hat einen neuen Kommentar hinterlassen.\n{preview}\nSchau jetzt rein, bevor die Diskussion weiterzieht."
         },
+        "friendly_created": {
+          "title": "Neues Friendly eingetragen",
+          "body": "Ein {mode_label}-Friendly wurde gespeichert.\nEndstand: {scoreline}.\nÖffne die Friendly-Liste für alle Details."
+        },
+        "friendly_finished": {
+          "title": "Friendly ist beendet",
+          "body": "Das Friendly ist vorbei.\nEndstand: {scoreline}.\nÖffne die Liste, wenn du den Verlauf sehen willst."
+        },
+        "friendly_score_changed": {
+          "title": "Friendly-Spielstand geändert",
+          "body": "Im Friendly hat sich etwas getan.\nAktueller Stand: {scoreline}.\nSchau live rein, wenn du dranbleiben willst."
+        },
+        "friendly_started": {
+          "title": "Friendly ist live",
+          "body": "Ein Friendly hat gerade begonnen.\nDas Spiel läuft jetzt live.\nSchau rein, solange es noch heiß ist."
+        },
         "goal_comment_created": {
           "title": "Tor-Update bei {match_label}",
-          "body": "{goal_line}{goal_note_line}\nIm Turnier {tournament_name} wurde das direkt im Match-Feed eingetragen.\nOeffne den Live-Bereich, wenn du dranbleiben willst."
-        },
-        "score_comment_created": {
-          "title": "Spielstand-Update bei {match_label}",
-          "body": "Im Turnier {tournament_name} wurde ein neuer Zwischenstand im Match-Feed eingetragen.\nAktueller Stand: {scoreline}.\nOeffne den Live-Bereich, wenn du den Verlauf sehen willst."
+          "body": "{goal_line}{goal_note_line}\nIm Turnier {tournament_name} wurde das direkt im Match-Feed eingetragen.\nÖffne den Live-Bereich, wenn du dranbleiben willst."
         },
         "guestbook_created": {
-          "title": "Neuer Guestbook-Eintrag bei {profile_player_name}",
-          "body": "{author_name} hat eine Nachricht dagelassen.\n{preview}\nOeffne das Profil und sieh dir den neuen Eintrag an."
-        },
-        "idea_created": {
-          "title": "Neue Idee von {author_name}",
-          "body": "{title}\n{meta_line}\nOeffne die Ideen-Seite und setz einen Status."
+          "title": "Neuer Gästebuch-Eintrag bei {profile_player_name}",
+          "body": "{author_name} hat eine Nachricht dagelassen.\n{preview}\nÖffne das Profil und sieh dir den neuen Eintrag an."
         },
         "idea_commented": {
           "title": "{author_name} hat deine Idee kommentiert",
-          "body": "{title}\n{preview}\nOeffne die Ideen-Seite und lies, was gemeint ist."
+          "body": "{title}\n{preview}\nÖffne die Ideen-Seite und lies, was gemeint ist."
         },
-        "idea_voted": {
-          "title": "{author_name} mag deine Idee",
-          "body": "{title}\n{vote_line}\nOeffne die Ideen-Seite, wenn du sehen willst, wer."
+        "idea_created": {
+          "title": "Neue Idee von {author_name}",
+          "body": "{title}\n{meta_line}\nÖffne die Ideen-Seite und setz einen Status."
         },
         "idea_status": {
           "title": "Deine Idee ist jetzt {status_label}",
-          "body": "{title}{status_note_line}\nOeffne die Ideen-Seite fuer den Stand."
+          "body": "{title}{status_note_line}\nÖffne die Ideen-Seite für den Stand."
+        },
+        "idea_voted": {
+          "title": "{author_name} mag deine Idee",
+          "body": "{title}\n{vote_line}\nÖffne die Ideen-Seite, wenn du sehen willst, wer."
+        },
+        "lead_gained": {
+          "title": "Jetzt bist du vorn bei {record}",
+          "body": "{losers_line}Öffne die Stats."
+        },
+        "lead_lost": {
+          "title": "Bei {record} bist du nicht mehr vorn",
+          "body": "{gainers_line}Öffne die Stats und hol es dir zurück."
+        },
+        "lead_watch": {
+          "title": "{record} hat sich bewegt",
+          "body": "{gainers_line}{losers_line}{holders_line}\nÖffne die Stats und sieh nach, wer wo steht."
+        },
+        "match_finished": {
+          "title": "{match_label} in {tournament_name} ist beendet",
+          "body": "Das Spiel ist vorbei.\nEndstand: {scoreline}.\nSchau in den Live-Bereich für Reaktionen und Zahlen."
+        },
+        "match_goal": {
+          "title": "Tor bei {match_label}",
+          "body": "In {tournament_name} ist gerade ein Tor gefallen.\nAktueller Stand: {scoreline}.\nSchau live rein, bevor direkt das nächste kommt."
+        },
+        "match_score_changed": {
+          "title": "Spielstand geändert bei {match_label}",
+          "body": "In {tournament_name} hat sich der Spielstand bewegt.\nAktueller Stand: {scoreline}.\nSchau live rein, wenn du nichts verpassen willst."
+        },
+        "match_started": {
+          "title": "{match_label} in {tournament_name} ist live",
+          "body": "Jetzt geht es los.\n{match_label} hat begonnen.\nSchau direkt rein und verfolge das Spiel live."
         },
         "poke_created": {
-          "title": "Neues Anpoebeln fuer {profile_player_name}",
+          "title": "Neues Anpöbeln für {profile_player_name}",
           "body": "{author_name} hat gerade angestichelt.\nBei {profile_player_name} geht etwas ab.\nSchau ins Profil, bevor noch mehr dazukommt."
         },
         "poke_summary": {
-          "title": "Mehr Anpoebeln fuer {profile_player_name}",
-          "body": "{authors_line}\nIn der letzten Minute kamen noch {extra_count} weitere Anpoebeleien dazu.\nOeffne das Profil, um den kompletten Verlauf zu sehen."
+          "title": "Mehr Anpöbeln für {profile_player_name}",
+          "body": "{authors_line}\nIn der letzten Minute kamen noch {extra_count} weitere Anpöbeleien dazu.\nÖffne das Profil, um den kompletten Verlauf zu sehen."
+        },
+        "push_test": {
+          "title": "Push funktioniert",
+          "body": "Hallo {player_name}, das ist dein Test.\nDie Benachrichtigungen kommen sauber an.\nDu kannst dich jetzt auf die echten Meldungen verlassen."
+        },
+        "record_gained": {
+          "title": "Rekord! {record} gehört jetzt dir",
+          "body": "{losers_line}{holders_line}\nÖffne die Stats und genieß es."
+        },
+        "record_lost": {
+          "title": "{record} ist weg",
+          "body": "{gainers_line}Bei {record} bist du nicht mehr vorn.\nÖffne die Stats und hol ihn dir zurück."
+        },
+        "record_watch": {
+          "title": "{record} hat sich bewegt",
+          "body": "{gainers_line}{losers_line}{holders_line}\nÖffne die Stats und sieh nach, wer wo steht."
+        },
+        "schedule_generated": {
+          "title": "Spielplan fertig für {tournament_name}",
+          "body": "Der Spielplan steht.\nEs wurden {match_count} Spiele erstellt.\nSchau rein, wer wann gegeneinander ranmuss."
+        },
+        "score_comment_created": {
+          "title": "Spielstand-Update bei {match_label}",
+          "body": "Im Turnier {tournament_name} wurde ein neuer Zwischenstand im Match-Feed eingetragen.\nAktueller Stand: {scoreline}.\nÖffne den Live-Bereich, wenn du den Verlauf sehen willst."
         },
         "tournament_created": {
           "title": "{tournament_name} ist bereit",
           "body": "Das Turnier wurde erfolgreich angelegt.\n{tournament_name} wartet auf die ersten Spiele.\nSchau rein und bring Bewegung in die Sache."
         },
+        "tournament_date_changed": {
+          "title": "Neuer Termin für {tournament_name}",
+          "body": "Das Turnier hat jetzt ein neues Datum.\nGeplant ist es für {tournament_date}.\nTrag es dir ein, bevor es untergeht."
+        },
+        "tournament_deleted": {
+          "title": "{tournament_name} wurde gelöscht",
+          "body": "Dieses Turnier ist nicht mehr verfügbar.\n{tournament_name} wurde entfernt.\nSieh in der Übersicht nach, was jetzt noch läuft."
+        },
+        "tournament_finished": {
+          "title": "{tournament_name} ist beendet",
+          "body": "Das Turnier ist abgeschlossen.\n{tournament_name} hat jetzt ein finales Ergebnis.\nÖffne den Live-Bereich für Ergebnis, Statistik und Reaktionen."
+        },
         "tournament_updated": {
           "title": "{tournament_name} wurde aktualisiert",
-          "body": "Am Turnier hat sich etwas geaendert.\n{tournament_name} ist jetzt auf dem neuesten Stand.\nSchau kurz rein, damit du nichts verpasst."
-        },
-        "tournament_date_changed": {
-          "title": "Neuer Termin fuer {tournament_name}",
-          "body": "Das Turnier hat jetzt ein neues Datum.\nGeplant ist es fuer {tournament_date}.\nTrag es dir ein, bevor es untergeht."
-        },
-        "schedule_generated": {
-          "title": "Spielplan fertig fuer {tournament_name}",
-          "body": "Der Spielplan steht.\nEs wurden {match_count} Spiele erstellt.\nSchau rein, wer wann gegeneinander ranmuss."
-        },
-                "tournament_deleted": {
-                    "title": "{tournament_name} wurde geloescht",
-                    "body": "Dieses Turnier ist nicht mehr verfuegbar.\n{tournament_name} wurde entfernt.\nSieh in der Uebersicht nach, was jetzt noch laeuft."
-                },
-                "tournament_finished": {
-                    "title": "{tournament_name} ist beendet",
-                    "body": "Das Turnier ist abgeschlossen.\n{tournament_name} hat jetzt ein finales Ergebnis.\nOeffne den Live-Bereich fuer Ergebnis, Statistik und Reaktionen."
-                },
-                "match_started": {
-                    "title": "{match_label} in {tournament_name} ist live",
-                    "body": "Jetzt geht es los.\n{match_label} hat begonnen.\nSchau direkt rein und verfolge das Spiel live."
-                },
-        "match_finished": {
-          "title": "{match_label} in {tournament_name} ist beendet",
-          "body": "Das Spiel ist vorbei.\nEndstand: {scoreline}.\nSchau in den Live-Bereich fuer Reaktionen und Zahlen."
-        },
-        "match_goal": {
-          "title": "Tor bei {match_label}",
-          "body": "In {tournament_name} ist gerade ein Tor gefallen.\nAktueller Stand: {scoreline}.\nSchau live rein, bevor direkt das naechste kommt."
-        },
-        "match_score_changed": {
-          "title": "Spielstand geaendert bei {match_label}",
-          "body": "In {tournament_name} hat sich der Spielstand bewegt.\nAktueller Stand: {scoreline}.\nSchau live rein, wenn du nichts verpassen willst."
-        },
-        "friendly_created": {
-          "title": "Neues Friendly eingetragen",
-          "body": "Ein {mode_label}-Friendly wurde gespeichert.\nEndstand: {scoreline}.\nOeffne die Friendly-Liste fuer alle Details."
-        },
-        "friendly_started": {
-          "title": "Friendly ist live",
-          "body": "Ein Friendly hat gerade begonnen.\nDas Spiel laeuft jetzt live.\nSchau rein, solange es noch heiss ist."
-        },
-        "friendly_finished": {
-          "title": "Friendly ist beendet",
-          "body": "Das Friendly ist vorbei.\nEndstand: {scoreline}.\nOeffne die Liste, wenn du den Verlauf sehen willst."
-        },
-        "friendly_score_changed": {
-          "title": "Friendly-Spielstand geaendert",
-          "body": "Im Friendly hat sich etwas getan.\nAktueller Stand: {scoreline}.\nSchau live rein, wenn du dranbleiben willst."
-        },
-        "push_test": {
-          "title": "Push funktioniert",
-          "body": "Hallo {player_name}, das ist dein Test.\nDie Benachrichtigungen kommen sauber an.\nDu kannst dich jetzt auf die echten Meldungen verlassen."
+          "body": "Am Turnier hat sich etwas geändert.\n{tournament_name} ist jetzt auf dem neuesten Stand.\nSchau kurz rein, damit du nichts verpasst."
         }
       }
     },
@@ -218,70 +266,58 @@
           "title": "New comment in {tournament_name}",
           "body": "{author_name} dropped a fresh comment.\n{preview}\nOpen the app now before the thread moves on."
         },
+        "friendly_created": {
+          "title": "New friendly recorded",
+          "body": "A {mode_label} friendly has been logged.\nFinal score: {scoreline}.\nOpen the friendlies list for the full details."
+        },
+        "friendly_finished": {
+          "title": "Friendly finished",
+          "body": "The friendly is done.\nFinal score: {scoreline}.\nOpen the list if you want the full recap."
+        },
+        "friendly_score_changed": {
+          "title": "Friendly score changed",
+          "body": "Something happened in the friendly.\nCurrent score: {scoreline}.\nOpen the match if you want to stay on top of it."
+        },
+        "friendly_started": {
+          "title": "Friendly is live",
+          "body": "A friendly match just kicked off.\nThe game is running now.\nOpen it while the action is still hot."
+        },
         "goal_comment_created": {
           "title": "Goal update in {match_label}",
           "body": "{goal_line}{goal_note_line}\nThat moment is now logged directly in the {tournament_name} match feed.\nOpen the live view if you want the full context."
-        },
-        "score_comment_created": {
-          "title": "Score update in {match_label}",
-          "body": "A new score update was logged in the {tournament_name} match feed.\nCurrent score: {scoreline}.\nOpen the live view if you want the full context."
         },
         "guestbook_created": {
           "title": "New guestbook post for {profile_player_name}",
           "body": "{author_name} left a new message.\n{preview}\nOpen the profile and catch up on the latest note."
         },
-        "idea_created": {
-          "title": "New idea from {author_name}",
-          "body": "{title}\n{meta_line}\nOpen Ideas to read it and set a status."
-        },
         "idea_commented": {
           "title": "{author_name} commented on your idea",
           "body": "{title}\n{preview}\nOpen Ideas to read what they mean."
         },
-        "idea_voted": {
-          "title": "{author_name} likes your idea",
-          "body": "{title}\n{vote_line}\nOpen Ideas to see who."
+        "idea_created": {
+          "title": "New idea from {author_name}",
+          "body": "{title}\n{meta_line}\nOpen Ideas to read it and set a status."
         },
         "idea_status": {
           "title": "Your idea is now {status_label}",
           "body": "{title}{status_note_line}\nOpen Ideas to see where it stands."
         },
-        "poke_created": {
-          "title": "New poke for {profile_player_name}",
-          "body": "{author_name} just stirred things up.\nSomething is happening around {profile_player_name}.\nOpen the profile before the pile-on grows."
+        "idea_voted": {
+          "title": "{author_name} likes your idea",
+          "body": "{title}\n{vote_line}\nOpen Ideas to see who."
         },
-        "poke_summary": {
-          "title": "More pokes for {profile_player_name}",
-          "body": "{authors_line}\nThere were {extra_count} more pokes in the last minute.\nOpen the profile to see the full chain."
+        "lead_gained": {
+          "title": "You lead {record}",
+          "body": "{losers_line}Open Stats."
         },
-        "tournament_created": {
-          "title": "{tournament_name} is ready",
-          "body": "The tournament has been created.\n{tournament_name} is waiting for the first matches.\nJump in and see how the field is shaping up."
+        "lead_lost": {
+          "title": "You no longer lead {record}",
+          "body": "{gainers_line}Open Stats and take it back."
         },
-        "tournament_updated": {
-          "title": "{tournament_name} was updated",
-          "body": "Something changed in the tournament setup.\n{tournament_name} is now up to date again.\nOpen it now so you do not miss the latest state."
+        "lead_watch": {
+          "title": "{record} changed hands",
+          "body": "{gainers_line}{losers_line}{holders_line}\nOpen Stats to see who stands where."
         },
-        "tournament_date_changed": {
-          "title": "New date for {tournament_name}",
-          "body": "The tournament schedule moved.\nIt is now set for {tournament_date}.\nLock it in before it slips past you."
-        },
-        "schedule_generated": {
-          "title": "Schedule ready for {tournament_name}",
-          "body": "The bracket is set.\n{match_count} match(es) were created.\nOpen the tournament to see who plays when."
-        },
-                "tournament_deleted": {
-                    "title": "{tournament_name} was deleted",
-                    "body": "That tournament is no longer available.\n{tournament_name} has been removed.\nCheck the overview to see what is still running."
-                },
-                "tournament_finished": {
-                    "title": "{tournament_name} is finished",
-                    "body": "The tournament is complete.\n{tournament_name} now has a final result.\nOpen the live page for the result, stats and reactions."
-                },
-                "match_started": {
-                    "title": "{match_label} in {tournament_name} is live",
-                    "body": "Kick-off just happened.\n{match_label} is underway.\nOpen the live view and follow the action."
-                },
         "match_finished": {
           "title": "{match_label} in {tournament_name} is over",
           "body": "The match has finished.\nFinal score: {scoreline}.\nOpen the live page for comments, stats and fallout."
@@ -294,25 +330,61 @@
           "title": "Score update in {match_label}",
           "body": "The score moved in {tournament_name}.\nCurrent score: {scoreline}.\nOpen the live page if you want the full context."
         },
-        "friendly_created": {
-          "title": "New friendly recorded",
-          "body": "A {mode_label} friendly has been logged.\nFinal score: {scoreline}.\nOpen the friendlies list for the full details."
+        "match_started": {
+          "title": "{match_label} in {tournament_name} is live",
+          "body": "Kick-off just happened.\n{match_label} is underway.\nOpen the live view and follow the action."
         },
-        "friendly_started": {
-          "title": "Friendly is live",
-          "body": "A friendly match just kicked off.\nThe game is running now.\nOpen it while the action is still hot."
+        "poke_created": {
+          "title": "New poke for {profile_player_name}",
+          "body": "{author_name} just stirred things up.\nSomething is happening around {profile_player_name}.\nOpen the profile before the pile-on grows."
         },
-        "friendly_finished": {
-          "title": "Friendly finished",
-          "body": "The friendly is done.\nFinal score: {scoreline}.\nOpen the list if you want the full recap."
-        },
-        "friendly_score_changed": {
-          "title": "Friendly score changed",
-          "body": "Something happened in the friendly.\nCurrent score: {scoreline}.\nOpen the match if you want to stay on top of it."
+        "poke_summary": {
+          "title": "More pokes for {profile_player_name}",
+          "body": "{authors_line}\nThere were {extra_count} more pokes in the last minute.\nOpen the profile to see the full chain."
         },
         "push_test": {
           "title": "Push is working",
           "body": "Hi {player_name}, this is your test notification.\nYour push setup is delivering correctly.\nYou can trust the real alerts from here."
+        },
+        "record_gained": {
+          "title": "Record! {record} is yours",
+          "body": "{losers_line}{holders_line}\nOpen Stats and enjoy the view."
+        },
+        "record_lost": {
+          "title": "{record} is gone",
+          "body": "{gainers_line}You no longer hold {record}.\nOpen Stats and plan the comeback."
+        },
+        "record_watch": {
+          "title": "{record} changed hands",
+          "body": "{gainers_line}{losers_line}{holders_line}\nOpen Stats to see who stands where."
+        },
+        "schedule_generated": {
+          "title": "Schedule ready for {tournament_name}",
+          "body": "The bracket is set.\n{match_count} match(es) were created.\nOpen the tournament to see who plays when."
+        },
+        "score_comment_created": {
+          "title": "Score update in {match_label}",
+          "body": "A new score update was logged in the {tournament_name} match feed.\nCurrent score: {scoreline}.\nOpen the live view if you want the full context."
+        },
+        "tournament_created": {
+          "title": "{tournament_name} is ready",
+          "body": "The tournament has been created.\n{tournament_name} is waiting for the first matches.\nJump in and see how the field is shaping up."
+        },
+        "tournament_date_changed": {
+          "title": "New date for {tournament_name}",
+          "body": "The tournament schedule moved.\nIt is now set for {tournament_date}.\nLock it in before it slips past you."
+        },
+        "tournament_deleted": {
+          "title": "{tournament_name} was deleted",
+          "body": "That tournament is no longer available.\n{tournament_name} has been removed.\nCheck the overview to see what is still running."
+        },
+        "tournament_finished": {
+          "title": "{tournament_name} is finished",
+          "body": "The tournament is complete.\n{tournament_name} now has a final result.\nOpen the live page for the result, stats and reactions."
+        },
+        "tournament_updated": {
+          "title": "{tournament_name} was updated",
+          "body": "Something changed in the tournament setup.\n{tournament_name} is now up to date again.\nOpen it now so you do not miss the latest state."
         }
       }
     }

@@ -1,4 +1,4 @@
-import { Bell, CircleCheck, HandFist, ImageIcon, Loader2, Mail, Trash2, UserPen } from "lucide-react";
+import { Bell, CircleCheck, HandFist, ImageIcon, Loader2, Mail, Pencil, Trash2, UserPen } from "lucide-react";
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
@@ -8,6 +8,8 @@ import ConfirmDialog from "../../ui/primitives/ConfirmDialog";
 import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
 import CommentImageCropper from "../../ui/primitives/CommentImageCropper";
 import ImageLightbox from "../../ui/primitives/ImageLightbox";
+import Modal from "../../ui/primitives/Modal";
+import { List, ListRow } from "../../ui/primitives/List";
 
 import { deletePlayerAvatar, playerAvatarUrl, putPlayerAvatar } from "../../api/playerAvatars.api";
 import {
@@ -16,8 +18,10 @@ import {
   putPlayerHeaderImage,
 } from "../../api/playerHeaders.api";
 import { qk } from "../../api/queryKeys";
+import type { StatsRecord } from "../../api/types";
 import { usePlayerHeaderMap } from "../../hooks/usePlayerHeaderMap";
 import PlayerAvatarEditor from "../players/PlayerAvatarEditor";
+import RecordBadges from "./RecordBadges";
 import { type useProfilePokes } from "./useProfilePokes";
 
 type ProfilePokes = ReturnType<typeof useProfilePokes>;
@@ -41,6 +45,7 @@ export default function ProfileHeader({
   unreadGuestbookAuthorsText,
   unreadGuestbookAuthorCount,
   pokes,
+  records,
 }: {
   targetPlayerId: number;
   token: string | null;
@@ -55,6 +60,7 @@ export default function ProfileHeader({
   unreadGuestbookAuthorsText: string;
   unreadGuestbookAuthorCount: number;
   pokes: ProfilePokes;
+  records: StatsRecord[];
 }) {
   const qc = useQueryClient();
   const { headerUpdatedAtById: headerUpdatedAtByPlayerId } = usePlayerHeaderMap();
@@ -64,6 +70,7 @@ export default function ProfileHeader({
   const [avatarLightboxSrc, setAvatarLightboxSrc] = useState<string | null>(null);
   const [headerLightboxSrc, setHeaderLightboxSrc] = useState<string | null>(null);
   const [pendingDeleteHeader, setPendingDeleteHeader] = useState<true | null>(null);
+  const [picturesSheetOpen, setPicturesSheetOpen] = useState(false);
 
   const avatarImageSrc = avatarUpdatedAt ? playerAvatarUrl(targetPlayerId, avatarUpdatedAt) : null;
   const headerUpdatedAt = headerUpdatedAtByPlayerId.get(targetPlayerId) ?? profileHeaderUpdatedAt ?? null;
@@ -164,7 +171,8 @@ export default function ProfileHeader({
                 playerId={targetPlayerId}
                 name={displayName ?? String(targetPlayerId)}
                 updatedAt={avatarUpdatedAt}
-                sizeClass="h-14 w-14"
+                sizeClass="h-20 w-20"
+                fallbackClassName="text-lg font-semibold text-text-muted"
                 cups={ownedCups}
               />
             </button>
@@ -173,17 +181,18 @@ export default function ProfileHeader({
               playerId={targetPlayerId}
               name={displayName ?? String(targetPlayerId)}
               updatedAt={avatarUpdatedAt}
-              sizeClass="h-14 w-14"
+              sizeClass="h-20 w-20"
+              fallbackClassName="text-lg font-semibold text-text-muted"
               cups={ownedCups}
             />
           )}
           <div className="min-w-0">
             <div className="min-w-0 flex items-center gap-2">
-              <span className="truncate text-base font-semibold text-text-normal">
+              <span className="truncate text-lg font-semibold text-text-normal">
                 {displayName ?? `Player #${targetPlayerId}`}
               </span>
             </div>
-            <div className="text-xs text-text-muted">{isOwnProfile ? "This is your profile" : "Public profile"}</div>
+            <RecordBadges playerId={targetPlayerId} records={records} />
             <div className="mt-0.5 text-xs text-text-muted">
               {isOwnProfile ? (
                 <>
@@ -227,33 +236,23 @@ export default function ProfileHeader({
                 </Button>
               ) : null}
 
+              {/* One control, not three (M8, Roli: "i want to see my page as if someone else
+                  visits my page plus one edit button or so"). The three ghost buttons that used
+                  to sit here took 144px of a 278px text column, which is why the owner's badge
+                  band wrapped a row earlier than a visitor's. The three actions live in the sheet
+                  it opens; the delete keeps its `ConfirmDialog` (C7). */}
               {canEdit ? (
-                <>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    onClick={() => setHeaderEditorOpen(true)}
-                    title={headerImageSrc ? "Edit header image" : "Upload header image"}
-                  >
-                    <ImageIcon size={14} className="md:hidden" aria-hidden="true" />
-                    <span className="hidden md:inline">{headerImageSrc ? "Edit header" : "Upload header"}</span>
-                  </Button>
-                  {headerImageSrc ? (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      onClick={() => setPendingDeleteHeader(true)}
-                      title="Delete header image"
-                      className="h-9 w-9 p-0 inline-flex items-center justify-center"
-                    >
-                      <Trash2 size={14} aria-hidden="true" />
-                    </Button>
-                  ) : null}
-                  <Button type="button" variant="ghost" onClick={() => setAvatarEditorOpen(true)} title="Edit avatar">
-                    <UserPen size={14} className="md:hidden" aria-hidden="true" />
-                    <span className="hidden md:inline">Edit avatar</span>
-                  </Button>
-                </>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => setPicturesSheetOpen(true)}
+                  title="Edit profile pictures"
+                  aria-label="Edit profile pictures"
+                  data-edit-pictures
+                  className="h-9 w-9 p-0 inline-flex items-center justify-center"
+                >
+                  <Pencil size={14} aria-hidden="true" />
+                </Button>
               ) : null}
             </div>
           </div>
@@ -319,6 +318,56 @@ export default function ProfileHeader({
           </div>
         ) : null}
       </div>
+
+      {/* The one edit affordance's sheet: the three picture actions, each opening the editor it
+          names. It closes as it hands over, so two overlays are never stacked, and "Delete header
+          image" still goes through `ConfirmDialog` below — the sheet is a chooser, not a shortcut
+          past the confirmation (C7). No chevron: these rows open an overlay on this page, and that
+          glyph promises navigation (`DESIGN.md` §9b). */}
+      <Modal
+        open={picturesSheetOpen}
+        title="Profile pictures"
+        subtitle="Your header image and avatar."
+        onClose={() => setPicturesSheetOpen(false)}
+        maxWidth="max-w-md"
+      >
+        <div data-profile-pictures>
+          <List>
+            <ListRow
+              onClick={() => {
+                setPicturesSheetOpen(false);
+                setHeaderEditorOpen(true);
+              }}
+              chevron={false}
+              leading={<ImageIcon size={16} className="text-text-muted" aria-hidden="true" />}
+              title={headerImageSrc ? "Edit header image" : "Upload header image"}
+              subtitle="The 16:9 banner at the top of the profile."
+            />
+            {headerImageSrc ? (
+              <ListRow
+                onClick={() => {
+                  setPicturesSheetOpen(false);
+                  setPendingDeleteHeader(true);
+                }}
+                chevron={false}
+                leading={<Trash2 size={16} className="text-error" aria-hidden="true" />}
+                title="Delete header image"
+                subtitle="The profile shows the placeholder instead."
+              />
+            ) : null}
+            <ListRow
+              onClick={() => {
+                setPicturesSheetOpen(false);
+                setAvatarEditorOpen(true);
+              }}
+              chevron={false}
+              leading={<UserPen size={16} className="text-text-muted" aria-hidden="true" />}
+              title="Edit avatar"
+              subtitle="The round picture beside your name."
+            />
+          </List>
+        </div>
+      </Modal>
 
       <PlayerAvatarEditor
         open={avatarEditorOpen}

@@ -521,3 +521,35 @@ class FeatureRequestEventRead(SQLModel, table=True):
     player_id: int = Field(foreign_key="player.id", primary_key=True)
     event_id: int = Field(foreign_key="featurerequestevent.id", primary_key=True)
     read_at: dt.datetime = Field(default_factory=dt.datetime.utcnow, index=True)
+
+
+class RecordHolder(SQLModel, table=True):
+    """Who held which record the last time anyone looked (M2).
+
+    Records are computed live everywhere a reader sees them
+    (`services/stats/records.py`); this table only remembers the previous answer, so
+    "Rumpi took it from you" has something to diff against. Written by
+    `services/record_holders.py::reconcile_record_holders` and nothing else — and read
+    by nothing else either, which is what makes a rollback to code that predates it
+    harmless.
+
+    A key that some later deploy drops from `RECORD_DEFS` leaves its rows behind; they
+    are orphans nobody reads, not data to migrate.
+    """
+    record_key: str = Field(primary_key=True)
+    player_id: int = Field(foreign_key="player.id", primary_key=True)
+    since: dt.datetime = Field(default_factory=dt.datetime.utcnow, index=True)
+
+
+class RecordKeyState(SQLModel, table=True):
+    """One row per record key that has been reconciled at least once.
+
+    This is what makes seeding honest. A key with **no row** is computed and stored
+    *silently* — the first boot on a database that predates the table, and a record kind
+    added in a later deploy, must not announce every current holder as a brand-new one
+    (sixteen records times six players, all at once). A key **with** a row and no
+    `RecordHolder` rows means nobody holds it, which is a real answer and not a missing one.
+    """
+    record_key: str = Field(primary_key=True)
+    computed_at: dt.datetime = Field(default_factory=dt.datetime.utcnow)
+    holder_count: int = Field(default=0)

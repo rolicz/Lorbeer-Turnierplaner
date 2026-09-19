@@ -9,7 +9,8 @@
 > This batch **touches the backend and the schema** (two new tables) and is the **full** deploy.
 > **Not deployed** at the end of the batch — Roli tests first.
 >
-> Task IDs `M1`–`M7`. `A B C D DS F G N P Q R S T U` are taken; `M` is free
+> Task IDs `M1`–`M7`, plus the follow-up `M8` (Roli after testing M5 on his phone).
+> `A B C D DS F G N P Q R S T U` are taken; `M` is free
 > (`grep -rn '^## M[0-9]' *.md` → nothing at the baseline).
 
 ## The icon proposal — Roli approves this before any frontend code is written
@@ -391,8 +392,14 @@ language is obviously missing in the others rather than silently stale.
 | 5 | M5 | The badge band on the profile | `frontend/src/pages/profile/RecordBadges.tsx` (new), `frontend/src/pages/profile/ProfileHeader.tsx`, `frontend/src/pages/ProfilePage.tsx`, `frontend/src/test/recordBadges.test.tsx` (new) | group B |
 | 6 | M6 | Standings: evaluate, expect nothing | none expected (`pages/live/StandingsTable.tsx` read, not written) | group B |
 | 7 | M7 | Documentation pass | `AGENTS.md`, `DESIGN.md`, this file | last |
+| 8 | M8 | The badges explain themselves; the profile stops narrating itself | `frontend/src/pages/profile/RecordBadges.tsx`, `frontend/src/pages/profile/ProfileHeader.tsx`, `frontend/src/test/recordBadges.test.tsx`, this file | follow-up, after M7 (its canon corrections are written in its own section for a later pass) |
+| 9 | M9 | The avatar grows to match the band beside it | `frontend/src/pages/profile/ProfileHeader.tsx`, this file | follow-up, after M8 (its canon corrections are written in its own section for a later pass) |
+| 10 | M10 | Documentation correction pass — the canon M7 could not know | `AGENTS.md`, `DESIGN.md`, this file | last, after M9 |
 
-**Order:** M1 alone → **group A** {M2, M3} in parallel → **group B** {M4, M5, M6} in parallel → M7.
+**Order:** M1 alone → **group A** {M2, M3} in parallel → **group B** {M4, M5, M6} in parallel → M7
+→ then the follow-ups Roli's phone produced, in order: the two unnumbered fixes (a lead is not a
+record; the comment box cannot rewrite a finished result), M8, M9, and **M10**, which is the second
+documentation pass and corrects what M7 wrote before any of them existed.
 **Why M1 alone:** every other task reads its response models, its generated types or its `RECORD_DEFS`,
 and a half-written `responses.py` breaks `make gen-types` for anyone sharing the worktree. **Why M2
 and M3 are disjoint:** M2 is backend + `manage.py` + three backend tests; M3 is four frontend files
@@ -405,7 +412,7 @@ see each other's in-flight files in `npm run check`; commit only your own.
 
 ---
 
-## M1 — `/stats/records`: the one computation, typed  ☐
+## M1 — `/stats/records`: the one computation, typed  ☑
 
 **The gap.** No backend module knows what a record is. `RecordsView.tsx:166-173` fetches
 `/stats/player-matches` per player (`useQueries`) and computes the four superlatives at `:217-238`;
@@ -597,11 +604,79 @@ wins" top rank on `:8111/stats?view=overview&sub=records`, and `jq '[.records[] 
 **Canon.** `AGENTS.md` §2 backend modules gain `stats/records.py`; §6 gains `/stats/records`, the
 `sort`/`dir`/`record` params and the rule "the backend emits a record's `path`". M7 writes them.
 
+For M7, the canon lines this task actually earns:
+
+- §2 backend modules: `stats/records.py` — *the* registry (`RECORD_DEFS`, sixteen keys with their
+  English label, explainer, sort column and deep-link `path`) and `compute_stats_records`, which
+  folds the answer out of `compute_stats_ratings`, `compute_stats_streaks`, `compute_stats_players`
+  and `finished_matches_with_players` and **writes no ranking query of its own**. It is the only
+  place that decides what a record means.
+- §2: `stats/players.py::finished_matches_with_players` is public — it is *the* loader for "finished
+  matches in this mode and source", and a second one is how a badge and a page come to disagree.
+- §2: `stats/player_matches.py` exports `stats_match_dict`, `friendly_stats_match_dict`,
+  `friendly_group` and `player_ref` at module level, so `/stats/records` renders a match row
+  *identically* to `/stats/player-matches` — same `club_stars` as-of rule (R4), same friendly
+  pseudo-ids (tournament `-(1_000_000+fid)`, match `2_000_000_000+fid`).
+- §6 API map: `/stats/{…,records,…}` — public read, `mode` + `scope` like `/streaks`.
+- §6 rule: **the backend emits a record's `path`.** `RECORD_DEFS` decides where a record lives in
+  Stats (`table`/`elo` → `sub=table&sort=<col>`; `streak` → `sub=streaks&record=<key>`; `title`/
+  `match` → `sub=records&record=<key>`), and the badge link and the push deep link both use it, the
+  way `/ideas?idea=` is already emitted by the backend. The `sort`/`dir`/`record` params themselves
+  are M3's.
+- §6 cache table: `qk.stats.records(mode, scope)` lands under the existing `["stats"]` row (30 s) —
+  no new row, and the badge reads the entry the Records page reads at its defaults.
+- §5 / empty-column rule: a `table`/`elo` record is held only among rows with `played > 0`. Not the
+  floor Roli declined — "has an entry at all", so a newcomer at the default Elo 1000 tops nothing.
+
 **Deviations:**
+
+- **Parity was proven against the payloads, not the pixels.** `RecordsView` computes its four
+  superlatives and its title count from `/stats/player-matches` (one per player) + `/stats/players`
+  + the `/stats/ratings` rows `useStandings` provides. I transcribed that computation line for line
+  into a script that consumes *those same HTTP responses* from the isolated stack (`:8091`, a copy
+  of the dev DB) and diffed it against `/stats/records`. **252 assertions, 0 mismatches**, across
+  six mode/scope combinations (`overall|1v1|2v2 × tournaments`, `overall × both`,
+  `overall × friendlies`, `2v2 × both`) and all sixteen records: value, the tied match ids, and the
+  holder ids for the four match records; value + holders + `ongoing` for the four streaks against
+  `/stats/streaks`' own `records` list; value + leaders (id, count, rank, latest tournament) for
+  the titles; value + holders for the five table/Elo records against the top of the matching
+  `TABLE_COLS` column. `finished_matches` matched the browser's match count exactly
+  (94 / 54 / 40 / 117 / 23). **Records I could not verify this way: none** — every one of the
+  sixteen has a check. What the dev data could *not* exercise is the `played > 0` rule (all six
+  players have played) and a tie at the top of the titles list; both are covered by constructed
+  tests instead (`test_a_player_who_never_played_holds_no_table_record`,
+  `test_a_tie_at_the_top_gives_two_title_holders_at_rank_one`).
+- **`compute_stats_player_matches`' wire output is unchanged, measured.** 21 payloads (7 players ×
+  3 scopes) captured from the unmodified backend and re-fetched after the lift: **0 differing**.
+- **The plan's "skip a match without both sides or with an empty side" is implemented as written,
+  and `RecordsView` does not in fact skip it** — `teamNames` renders `["—"]` instead, so such a
+  match would count today. It changes nothing here: the dev database has **no** finished match,
+  tournament or friendly, with a missing or empty side, and the match counts matched exactly. The
+  backend rule is the better one (a side with no players cannot hold a record).
+- **Tied match rows are ordered most-recent-first** (`tournament.date desc, id desc, order_index
+  desc, id desc`), as the plan says. The browser's order was the order its six `useQueries` results
+  happened to arrive in. Membership is identical; only the display order of a tie differs.
+- **One thing the plan did not foresee: a friendly record row needs one extra query.** The loader
+  hands friendlies over as `scope.friendly_as_match_like` namespaces, which keep no reference to
+  the `FriendlyMatch`, and SQLAlchemy's identity map is weak — so by rendering time the row is gone
+  and `Session.get` re-reads it (measured: 12 statements for 6 friendly rows). Ranking now happens
+  before rendering and `_friendlies_by_id` re-reads **only the matches that actually tie a record,
+  in one query**. With `scope=tournaments` — every badge, and the Records page's default — the set
+  is empty and no query is made at all. `scope.py` was not touched (it is outside M1's file set).
+- `StarRatingResolver.load(s)` is loaded once, as the plan specifies; it is a rendering dependency,
+  not a ranking one, so "no query of its own beyond `select(Player)`" holds for every number.
+- Cost, on the Pi against the dev DB: **0.27 s** for the whole endpoint (`scope=both` 0.27 s,
+  `friendlies` 0.15 s) against seven HTTP round trips today.
+- `STREAK_KEYS` and `RECORD_DEF_BY_KEY` were added next to `RECORD_KEYS` — M2 needs a key→def
+  lookup for its diff and M4 needs the streak key list; both are one line over the registry, not a
+  second registry.
+- `player_ref` was lifted alongside the three builders the plan names (they call it). Same output.
+- Frontend: types, fetcher and query key only. `RecordsView.tsx` is untouched — M4 rewrites it.
+  `npm run check` is green with the new aliases unused, as the plan predicted.
 
 ---
 
-## M2 — Persisted holders, the one after-result function, the push  ☐
+## M2 — Persisted holders, the one after-result function, the push  ☑
 
 **The gap.** Nothing stores who held what (`grep -n 'class RecordHolder' backend/app/models.py` → 0).
 Nothing is called when a result changes except the broadcasts and the four `push_match_*`/
@@ -703,7 +778,7 @@ grep -n 'def swap_sides\|def patch_decider\|def second_leg' -A6 backend/app/rout
    prepared.update(_record_lines(...))`. Do **not** rewrite `_authors_line` onto `_join_names` in this
    task (it would change shipped text); note it in Deviations as the next candidate.
 6. **`notification_texts.json`** — three keys in all three languages, drafted here for Roli to
-   correct (Decisions list item 6). Steirisch in his voice, German ASCII-safe, English plain:
+   correct (Decisions list item 6). Steirisch in his voice, German with its umlauts, English plain:
    ```json
    "record_gained": { "title": "Rekord! {record} is jetzt deins",
                       "body": "{losers_line}{holders_line}\nSchau in de Stats und gnieß es." },
@@ -808,11 +883,172 @@ into Deviations.
 `record_moved` push, Roli's arithmetic as his decision, `result` for generate/date, the table of
 paths), §10 (a live goal is not a result; `RecordKeyState` row = "computed at least once"). M7 writes.
 
+For M7, the canon lines this task actually earns:
+
+- §5 tables: `RecordHolder` (`record_key`, `player_id`, `since`) and `RecordKeyState`
+  (`record_key`, `computed_at`, `holder_count`) — additive, nothing in `_RUNTIME_COLUMNS`, written
+  **only** by `services/record_holders.py::reconcile_record_holders` and read by nothing else.
+- §5 seeding rule: a key with **no** `RecordKeyState` row has never been computed, so it is stored
+  **silently** — the first boot on production, and every record kind a later deploy adds. A key
+  *with* a row and no holder rows means nobody holds it, which is a real answer. `init_db()` logs
+  `Record holders seeded: N` the way it logs the club-star seed.
+- §5 rollback consequence: old code boots against the two tables and ignores them, so results
+  entered while rolled back are simply not reconciled; the next boot of the new code **absorbs**
+  that drift and logs `Record holders reconciled at startup: N moved (…) — absorbed, not
+  announced`. A boot never pushes: the dispatcher does not exist yet at `init_db()` time, and a
+  deploy must not buzz everybody with a backlog.
+- §6: `after_result_change(request, s, *, tournament_id, reason)` in
+  `services/record_holders.py` is **the** function every result-changing path calls — `PATCH
+  /matches/{id}` (guard: `old_state == "finished" or m.state == "finished"`), `/swap-sides`
+  (`m.state == "finished"`), `/generate`, `/reassign`, `/second-leg` (disable) via
+  `deletion.finished`, `DELETE /tournaments/{id}`, `PATCH /decider`, `PATCH /date` (when the
+  tournament has a finished match), and `manage.py add-match` with `request=None`. `reorder`,
+  friendlies, tournament creation and a rename are deliberately **not** in the list. It commits —
+  the documented exception to "routers own the transaction", precedent
+  `_bulk_delete_matches(autocommit=True)`.
+- §6 push: `record_moved` joins `PERSONAL_DEFAULT_EVENT_TYPES`, so it reaches the default
+  "Results & personal" mode. **One notification per player per record moved** — Roli was shown the
+  arithmetic (six per record, four per person on a four-record night) and kept it; the only
+  batching is the OS tag `record-{key}`. Three texts chosen by the *recipient's* relationship to
+  the move, never by the actor: `record_gained` · `record_lost` · `record_watch`. The deep link is
+  the record's own `path`, emitted by `RECORD_DEFS` (M1).
+- §6 realtime: `generate` over finished matches and `date` on a played tournament now send
+  `action="result"`, closing the last two holes a tournament result could slip through.
+- §9 / §10 copy: **German and Styrian push texts carry their umlauts** — `services/webpush.py:173`
+  has always serialised `ensure_ascii=False` over UTF-8, so the transliteration was imitation, not
+  a constraint. Delete any note that calls German "ASCII-safe". A record's name is translated too
+  (`notification_texts.py::_RECORD_LABELS`, keyed by `RECORD_KEYS`), so a push says "meiste Punkte
+  is weg" while the English UI says "Most points".
+- §10: a goal in a *playing* match is not a result — only finishing, un-finishing and correcting a
+  finished score are.
+
 **Deviations:**
+
+- **One result path the plan did not enumerate, and I did not take it** (outside M2's file set,
+  Rule 3): `POST /tournaments/{id}/comments` with `event_type: "goal"` or `"score_update"` writes
+  match goals (`routers/comments.py:474` and `:487`, via `_set_match_score`). Nothing there checks
+  the match's state, so a goal comment filed on a **finished** match changes a real result — and it
+  broadcasts `reason="comment-score"` with **no** `global_action`, so it is a `Q9`-shaped hole on
+  the websocket side too. The composer reaches it: `TournamentCommentsCard.tsx:389` posts
+  `event_type: "goal"` against `composerScope`, which is any match in the tournament, not only the
+  playing one (`score_update` has no UI caller at all today). The fix is one guard in the same
+  shape as the others, after the commit: `if match_for_event is not None and match_score_changed
+  and match_for_event.state == "finished": after_result_change(request, s,
+  tournament_id=tournament_id, reason="comment-score")` — `create_comment` already takes `request`.
+  **Every path the plan *did* list is implemented and tested**; this is the seventeenth, found by
+  re-deriving the list from `grep` over everything that writes `MatchSide.goals`, `Match.state`,
+  `Tournament.date`, `decider_*` or deletes match rows. Flagged for Roli / M7.
+  Everything else re-derived matched the plan exactly: `PATCH /players/{id}` is a rename (holders
+  are ids), there is no `DELETE /players/{id}`, `POST /tournaments` and `PATCH /tournaments/{id}`
+  never touch a result, `reorder` cannot move a finished match, and friendlies are outside
+  `BADGE_SCOPE`. Each of those has a test asserting the call does **not** happen.
+- **A boot absorbs drift and logs it; it does not announce it.** The plan predicted "the first
+  reconcile after re-deploy announces those moves late". It cannot and should not: `init_db()` runs
+  *before* `main.py`'s lifespan starts the dispatcher, so there is nothing to push into, and the
+  only way a boot finds movement is code that does not reconcile (a rollback, or `manage.py` on a
+  stopped server) — announcing that backlog would make every deploy buzz everybody. So
+  `backfill_record_holders` logs `Record holders reconciled at startup: N moved (…) — absorbed, not
+  announced`. Measured in the rollback drill below.
+- **The record labels' German and Styrian live in `notification_texts.py` (`_RECORD_LABELS`), not
+  beside the English labels in `stats/records.py`.** `stats/records.py` is M1's file and outside
+  M2's set (Rule 3), and the module that owns every *translated word* in a push already exists —
+  `_STATUS_LABELS` and `_mode_label` are the same shape, so this is the existing mechanism rather
+  than a new one (Rule 8). The instruction's actual purpose — "a record renamed in one language is
+  obviously missing in the others rather than silently stale" — is enforced mechanically instead of
+  by adjacency: `test_every_record_has_a_name_in_every_language` fails the moment `RECORD_KEYS` and
+  `_RECORD_LABELS` disagree, in either direction.
+- **The umlaut sweep, measured.** 27 message strings repaired across the catalogue (26 `deutsch`,
+  2 `steirisch` — two strings had two faults), covering 14 distinct words: `Oeffne`×11, `fuer`×9,
+  `geaendert`×3, `Anpoebeln`×2, `laeuft`×2 (+1 steirisch), `Spass`×2 (steirisch), and one each of
+  `Anpoebeleien`, `Uebersicht`, `geloescht`, `naechste`, `verfuegbar`, `heiss`, plus
+  `Guestbook-Eintrag` → `Gästebuch-Eintrag`. Three more in `notification_texts.py`: `gefaellt` and
+  `angepoebelt`×2. A guard test (`test_the_catalog_is_not_transliterated`) keeps them out. The JSON
+  was rewritten by a serialiser, which also normalised ~33 lines of pre-existing four-level
+  indentation in the `steirisch` and `deutsch` blocks; `git diff -w` is exactly the 27 changed
+  strings plus the 9 new messages, and a parsed before/after comparison confirms **no other string
+  changed**. `FEATURES_2026-09-ideas.md:186/769/1348` and `AGENTS.md:1014` still call German
+  "ASCII-safe" — the historical tracker and the canon are not mine to edit (M7 owns `AGENTS.md`).
+- **`{record}` reads better with an article in German and Styrian, so the *lines* do not repeat
+  it.** The labels are article-less noun phrases ("meiste Punkte"), and "Rumpi hat sich meiste
+  Punkte geholt" is wrong German. `gainers_line` says "…hat sich **den Rekord** geholt" /
+  "…hot si'n **Rekord** gschnappt"; the record is named in the title of all three templates, so
+  nothing is lost. English keeps "{names} took {record}." — an English label is title-shaped and
+  takes no article.
+- **`_authors_line` was left alone**, as the task says. It is the next candidate for `_join_names`
+  (it carries its own 1/2/3/4+ ladder), but folding it in would change shipped poke text.
+- `MatchDeletion.finished` is a defaulted last field, so `EMPTY_DELETION` and every existing
+  construction keep working. Two of the three guards (`reassign`, `second-leg` disable) are
+  provably always 0 — both refuse before they delete — and the test asserts that they stay 0
+  rather than trusting the comment.
+- `record_holders.py` imports `notifications.push_record_moves` **inside** `after_result_change`;
+  `notifications.py` imports `RecordMove` under `TYPE_CHECKING`. Either direction alone is a cycle.
+- **Cost, measured on the Pi against a copy of the real dev DB** (94 finished tournament matches,
+  6 players): a result-changing `PATCH /matches/{id}` takes **0.25 s** end to end, of which
+  `compute_stats_records` is the bulk (M1 measured it at 0.27 s for the whole endpoint). Boot seeds
+  16 keys in **0.38 s**. A goal in a *playing* match pays nothing — the guard runs first.
+
+**What was exercised, and what could not be.** Push delivery cannot be exercised on this machine
+(no VAPID, no `cryptography`), so every push assertion stops at the queued `PushMessage`, the
+`_Recorder` from `tests/test_ideas.py:333`. What *is* proven: 28 new tests in
+`tests/test_record_holders.py` + 4 in `tests/test_realtime_events.py`; each result path calls
+`after_result_change` exactly once and each non-result path not at all (a spy on both routers);
+a move produces the three audiences, one message per player per record, with the right `text_key`,
+`tag`, `path` and `text_context`, rendering in all three languages with no `{placeholder}` left
+over; the variant follows the recipient, so the editor who types in their own win is told they
+**gained** it; a first seed and a seed over a fully played database both return `[]` and queue
+nothing; deleting a tournament tells every former holder `record_lost`.
+
+**On real data** (`backend/data/verify-m2.db`, a copy; backend on 8092, nothing else bound):
+first boot logged `Record holders seeded: 16` with 16 state rows and 24 holder rows written and
+**no** notification; correcting one finished score in the done tournament 19 moved three records
+(`highest_elo`, `highest_elo_1v1`, `highest_scoring_match`) and queued **18** messages — Roli's
+arithmetic, 3 × 6, exactly as decided.
+
+**Rollback drill (§5 rule 3), both observations.** `git archive f8a02b7` into a temp dir, run
+against the DB the new code had already written: it **boots clean** (`DB initialized`, no
+complaint about the two unknown tables), `GET /stats/players` **200**, `GET /stats/ratings` **200**,
+`GET /tournaments` **200**, `PATCH /matches/{id}` **200**, `GET /stats/records` **404** (that
+endpoint does not exist yet in `f8a02b7`), and the 21 `recordholder` rows were left **untouched** —
+old code never reads or writes them. Returning to the new code on the same DB, the boot found the
+drift and said so: `Record holders reconciled at startup: 2 moved (highest_elo,
+highest_scoring_match) — absorbed, not announced`.
+
+**The Styrian lines, for Roli's one pass.** *Mine* = written by this task, *plan* = drafted in this
+file before implementation (with Roli's two corrections already applied), *pre-existing* = shipped
+text I only respelled.
+
+| # | string | whose |
+|---|---|---|
+| 1 | `Rekord! {record} is jetzt deins` (title) | plan |
+| 2 | `{losers_line}{holders_line}\nSchau in de Stats und genieß es.` | plan (Roli: "genieß", not "gnieß") |
+| 3 | `{record} is weg` (title) | plan (Roli: not "is da weg") |
+| 4 | `{gainers_line}Bei {record} bist nimma vorn.\nSchau in de Stats und hol da'n zruck.` | plan |
+| 5 | `Bei {record} hot si wos gtan` (title) | plan |
+| 6 | `{gainers_line}{losers_line}{holders_line}\nSchau in de Stats, wer wo steht.` | plan |
+| 7 | `{name} hot si'n Rekord gschnappt.` (one gainer) | **mine** |
+| 8 | `{names} ham si'n Rekord gschnappt.` (several) | **mine** |
+| 9 | `{name} is nimma vorn.` (one loser) | **mine** |
+| 10 | `{names} san nimma vorn.` (several) | **mine** |
+| 11 | `Grod hot'n kana.` (nobody holds it) | **mine** |
+| 12 | `Jetzt vorn: {name}.` | **mine** |
+| 13 | `Jetzt gleichauf vorn: {names}.` (a tie) | **mine** |
+| 14 | `{a}, {b} und no {n} weitere` (4+ names) | **mine** (mirrors `_authors_line`) |
+| 15 | the sixteen record names: `meiste Turniersiege` · `höchstes Elo` (+ `(1v1)`, `(2v2)`) · `meiste Punkt` · `meiste Punkt pro Match` · `meiste Matches` · `meiste Tor pro Match` · `längste Siegsserie` · `längste Serie ohne Niederlog` · `längste Torserie` · `längste Serie ohne Gegentor` · `höchster Sieg` · `torreichstes Match` · `meiste Tor vo ana Seitn` · `gräßte Überraschung (nach Elo)` | **mine** |
+| 16 | `Des Match läuft grad` / `da ganze Spaß` (friendly_started), `Da Spaß is vorbei` (friendly_finished), `ham weiter angepöbelt` (`_authors_line`) | pre-existing — **spelling only**, no wording changed |
+
+Two Styrian points worth his eye specifically: **`gräßte`** (#15, for "größte" — "greßte" is the
+other spelling), and whether **`Grod hot'n kana.`** (#11) is the way he would say "nobody holds it
+right now". The German is mine too where it is new: the sixteen labels, `hat sich den Rekord
+geholt` / `ist nicht mehr vorn` / `Aktuell vorn:` / `Aktuell gleichauf vorn:` /
+`Aktuell ist niemand vorn.`, and `genieß es` / `hol ihn dir zurück` from the plan.
+
+**Gates.** `make test` **272 passed** (240 before M2, +32), `make lint` clean, `make gen-types`
+**no diff** — no response model moved, the two tables are internal. `npm run check` not run: no
+frontend file was touched.
 
 ---
 
-## M3 — The stats URL learns `?sort=`, `?dir=` and `?record=`; the one icon map  ☐
+## M3 — The stats URL learns `?sort=`, `?dir=` and `?record=`; the one icon map  ☑
 
 **The gap.** `StatsTable.tsx:42-43` keeps `sortKey`/`dir` in component state; a deep link cannot name
 a column. `statsNav.ts` knows `cup` as its only one-shot section param. The streak icons live in three
@@ -901,9 +1137,48 @@ render; the dashboard preview is unchanged (pixel-compare the Standings card bef
 
 **Deviations:**
 
+- Implemented exactly as specified: `SORT_PARAM`/`DIR_PARAM`/`parseSortDir`/`RECORD_PARAM`/
+  `recordSectionId` in `statsNav.ts`; `StatsInsights` reads `sort`/`dir` once and passes
+  `sortKey`/`sortDir`/`onSortChange` only to the Overview/Table `StatsTable`; `StatsTable` takes
+  the three as optional props, falls back to its own `localSort` state when they are absent (the
+  dashboard preview), and gained the one new effect that makes a deep-linked sort column visible
+  (gated on `controlled`, i.e. `fixedColumns != null`, so the preview is untouched); `record` was
+  added to `lastLocation.ts`'s `ONE_SHOT_PARAMS`; `recordIcons.ts` is the one map, sixteen keys,
+  used nowhere yet (M4 repoints the four consumers).
+- **`?record=` does not yet scroll-and-drop on its own page** — that wiring is
+  `pages/stats/useOneShotSectionParam.ts` and its adoption in `StreaksView`/`RecordsView`
+  (M4's file set, not M3's). What M3 delivers and what I verified: the constant/helper exist, and
+  `record` is registered as one-shot in `lastLocation.ts` — so a page carrying `?record=win_streak`
+  is never *remembered* with it (confirmed live: `localStorage["lk:dest-last"]` for `stats` after
+  visiting `/stats?view=overview&sub=streaks&record=win_streak&sort=ppm` holds
+  `.../streaks?sort=ppm` with `record` gone and `sort` kept — filter state survives, the one-shot
+  anchor does not). The parent task's "Prove it" line ("`?record=` scrolls to the record and then
+  disappears from the URL") describes the *end-to-end* behaviour M4 completes; I did not add
+  scrolling or in-page dropping here because `StreaksView.tsx`/`RecordsView.tsx` are outside M3's
+  file set and the plan's own M3 "Definition of done" does not ask for it (only the URL/table
+  behaviour and the dashboard-preview parity do). Flagging this now so M4 isn't surprised — verify
+  the same URL again after M4 lands and confirm the param disappears from the *address bar itself*.
+- Verified in a real headless Chromium (npx-cached `playwright`, not a project devDependency) on
+  the isolated stack at 390×844 and 1280×900, `blue` and `light`, all four green:
+  `?sort=ppm` → PPM header accent + `▾` (desc default); `?sort=gpm` → G/M becomes visible and
+  sorted (accent), while its `GF-GA-GD /m` column-chip group correctly stays un-highlighted since
+  only the sorted column, not the whole triplet, was auto-added; `?sort=nope` → falls back to Pts,
+  clean render, 0 page errors; tapping PPM again → `dir=asc` in the URL; tapping Pts → both `sort`
+  and `dir` removed from the URL. Dashboard preview: columns stay exactly `Pts/PPM/P/Win %/Elo`
+  (`DEFAULT_COLS`), default sort stays Pts-desc, tapping a header sorts locally without ever
+  touching `/dashboard`'s URL — screenshotted, matches the pre-existing layout. No console errors;
+  the only warnings seen are the pre-existing React Router v7 future-flag notices and one
+  navigation-timing WebSocket-closed warning, neither related to this change.
+- Ports: the plan's M3 row (backend 8093 / vite 8113) collided with an unrelated long-running
+  process already bound to 127.0.0.1:8093 on this machine (not part of this repo or this batch,
+  PID 736, up since before this session). Used 8193/8213 instead, otherwise followed the isolated-
+  stack recipe verbatim (copy of `backend/app.db` → `backend/data/verify-m3.db`, throwaway
+  secrets outside the repo, three accounts). Stopped only the two PIDs this session started; the
+  DB copy and secrets file were removed afterward.
+
 ---
 
-## M4 — Records and Streaks read the one computation; the anchors; the shared icons  ☐
+## M4 — Records and Streaks read the one computation; the anchors; the shared icons  ☑
 
 **The gap.** `RecordsView.tsx` computes its records in the browser (`:166-266`) from six requests;
 after M1 the backend has the same answer and the page must read it, or the badge and the page are two
@@ -990,9 +1265,99 @@ page's numbers.
 
 **Deviations:**
 
+- Implemented as specified. `useOneShotSectionParam.ts` (new) is `CupsView`'s effect generalised
+  (`param`, `sectionIdFor`, `knownKeys`, `ready`); its effect deps list `param`/`sectionIdFor`/
+  `knownKeys` explicitly (CupsView's original only listed its one array, `cups`) — correctness for
+  a now-parameterised hook, no behaviour change. `CupsView` adopted it and lost its inline effect.
+  `RecordsView.tsx` reads one `useQuery(qk.stats.records(mode, scope))`; the six-request
+  `useQueries`/`getStatsPlayerMatches`/`getStatsPlayers` path is gone. `StreaksView`, `StreakPatches`
+  and `PlayerStreakChips` now import `recordIcon` from `recordIcons.ts` and carry no `lucide-react`
+  import of their own (`grep -rln 'from "lucide-react"' … StreakPatches.tsx PlayerStreakChips.tsx
+  StreaksView.tsx` → 0, per the batch's own final gate). `MatchHistoryList.tsx`'s
+  `tournamentMatchHref` is structurally widened to `{id, status}`/`{id}` — body unchanged.
+- **One eslint fix the plan didn't anticipate.** `react-hooks/static-components` (part of this
+  repo's `reactHooks.configs.recommended.rules`) flags `const TitlesIcon = recordIcon("most_titles");
+  … <TitlesIcon .../>` when the assignment sits directly in the component's top-level render scope —
+  "component created during render" — even though `recordIcon` always returns a referentially stable
+  glyph from a fixed map. The identical pattern inside `matchGroups.map((r) => { const Icon =
+  recordIcon(r.key); … })` and inside `StreaksView`'s own `.map()` is **not** flagged (nested closure,
+  outside the rule's top-level check) — confirmed by running `npm run lint` with only the top-level
+  case present. Fixed by wrapping the titles-icon lookup in an IIFE (`{showTitles && titles ? (() => {
+  const TitlesIcon = recordIcon("most_titles"); return (<div>…</div>); })() : null}`), matching the
+  `.map()` shape the rule already accepts. `npm run lint` is clean; no rule was disabled.
+- **Verify-first confirmed the gap exactly as written** (all five checks in "Verify first" matched
+  their stated output before any edit).
+- **Isolated stack:** backend **8094**, vite **8114** — both free, no port collision this time (M3
+  hit one on 8093/8113 and moved to 8193/8213). DB copy `backend/data/verify-m4.db` (copy of
+  `backend/app.db`), removed after use; throwaway secrets outside the repo, removed after use.
+  Stopped only the PIDs this session started, all by exact PID (backend, vite, and vite's `sh -c`/
+  `node` children resolved via `pgrep -P`).
+- **Before/after comparison method.** M4 is frontend-only, so the *backend* (`:8094`, the copied DB)
+  was shared between "before" and "after" — only the frontend build differs. "Before" was a
+  temporary `git worktree add /tmp/.../m4-before-worktree 0588eee` (M4's own stated baseline sha,
+  i.e. immediately after M3 landed) with `frontend/node_modules` symlinked from the main tree (no
+  dependency changed between the two commits) and its own `vite --port 8214` pointed at the same
+  `:8094` backend; "after" was the working tree's `vite --port 8114`. Both stacks logged in as Roli
+  the same way. The worktree and its vite server were removed after the screenshots were taken.
+- **Records vs Streaks screenshots, 390×844 and 1280×900, `blue` and `light` (16 total, Playwright
+  headless Chromium).** `Streaks` is **byte-identical, zero differing pixels** before vs after, in
+  all four theme/viewport combinations (`ImageChops.difference(...).getbbox()` → `None` on every
+  pair) — confirms `StreaksView`'s icon repoint, its new `useOneShotSectionParam` call, and the
+  `<div id=…>` wrapper changed nothing visible. `Records` differs **only inside one bounding box**
+  per viewport (`(264,513)-(784,1065)` at 1280, `(16,692)-(374,1374)` at 390 — identical box for
+  `blue` and `light`, i.e. no theme-related drift anywhere), which is exactly the "Highest-scoring
+  match" + "Most goals by one side" pair of blocks: cropped side-by-side comparison confirms (a) the
+  two intended icon swaps (`Goal`→`PartyPopper`, `Flame`→`Rocket`, screenshotted at 3× DPR) and (b)
+  the four tied rows inside "Highest-scoring match" are the **same four matches**, reordered
+  most-recent-first — exactly M1's Deviations note ("Tied match rows are ordered most-recent-first
+  … the browser's order was whatever its six `useQueries` happened to resolve in — only the display
+  order of a tie differs"), now visible for the first time because M4 is what makes the page read
+  that order. "Most tournament wins", "Biggest win" and "Biggest upset (by Elo)" — the three
+  sections whose icon is unchanged — are pixel-identical, confirmed both from the full diff bbox
+  excluding them and from dedicated header-only crops of all five sections (`Trophy`, `Zap`,
+  `TrendingUp` pixel-for-pixel the same before/after; `Goal`→`PartyPopper` and `Flame`→`Rocket` the
+  only two glyphs that differ) — the two things the task named as the regression risk, checked
+  deliberately rather than assumed.
+- **`mode=1v1&source=both` parity**, the DoD's explicit check: the Records sub-view's full text
+  content (`textContent` of the section list) is **byte-identical**, before vs after, at that filter
+  combination against the same DB copy (77 finished matches, six sections incl. the 6-tied "Biggest
+  upset").
+- **`?record=` scroll-and-drop, measured.** `?sub=records&record=biggest_win` and
+  `?sub=streaks&record=scoring_streak` both land with the target's `getBoundingClientRect().top`
+  at **61px** (57px sticky top bar + 4px, exactly the DoD's "≈ 57 + 4 at 390") and the URL loses
+  `record` — the same 61px the untouched `?cup=bauernkranz` case measures, confirming
+  `useOneShotSectionParam` behaves identically for all three call sites. **One thing the DoD's own
+  example (`record=biggest_upset`) could not have shown**: `biggest_upset` is the *last* section on
+  the Records page, and at 390×844 against this DB the page's total scroll room (`scrollHeight −
+  innerHeight` = 781px) is **less** than the distance needed to pull that particular section flush
+  under the header — the browser clamps `scrollY` at 781, `scrollTo` cannot ask for more, and the
+  section lands at `top: 384` instead of 61. This is `scrollToSectionById`'s own documented
+  behaviour ("unless the user scrolls in the meantime" — it never claims to overcome a page that is
+  simply too short below the target) and is identical for `?cup=` on a cup with nothing after it; it
+  is not new to this task and not a defect in `useOneShotSectionParam`. The param still drops from
+  the URL in that case (confirmed) — only the pixel-perfect landing is capped by page length. Verify
+  first if this needs a real fix (e.g. padding the page's scroll room, which no other one-shot anchor
+  in the app currently does either) — recording it here rather than "fixing" it silently. `?record=`
+  on every *other* key (streaks and the three non-last match records) lands at 61px.
+- **Tests.** `frontend/src/test/recordsView.test.tsx` (new, 3 tests, not the plan's literal single
+  test — split for readability): tied `biggest_win` (one real tournament match, one friendly with
+  `tournament.id < 0`) renders "2 tied", the tournament row links to `/live/42/match/501`, the
+  friendly row carries no anchor; `#record-biggest_win` and `#record-most_titles` both exist;
+  `finished_matches: 0` renders the empty state instead of an empty/broken list;
+  `document.querySelectorAll("a a").length === 0`. Beyond `vi.mock("../api/stats.api")` and
+  `../api/clubs.api` (both required to drive the view), `../api/playerAvatars.api` and
+  `../api/cup.api` are also stubbed to resolve empty — `TitlesGroup` calls `usePlayerAvatarMap`/
+  `useCupHolders`, and leaving those unmocked would hit real (failing) network calls in jsdom, as
+  `cupsPreview.test.tsx` already does for the same reason.
+- **Gates, on the final shared-branch HEAD** (M2's and M5's commits landed on this branch mid-task;
+  re-ran everything against the merged tree rather than only my own diff): `cd frontend && npm run
+  check` → **734 tests in 74 files**, clean typecheck, clean lint; `npm run build` → green, the
+  pre-existing `>500 kB chunk` hint only (`index-*.js` 734 kB, unchanged category, not a regression —
+  `AGENTS.md` §11 already notes this and D1 leaves it deliberately unsplit).
+
 ---
 
-## M5 — The badge band on the profile  ☐
+## M5 — The badge band on the profile  ☑
 
 **The gap.** `ProfileHeader.tsx:180-202` — the text column beside the avatar has name, "Public
 profile", and the meta line; nothing between them. No component renders a record.
@@ -1074,9 +1439,81 @@ deliberately not a ring. M7 writes.
 
 **Deviations:**
 
+- Implemented as specified: `pages/profile/RecordBadges.tsx` (new), `ProfileHeader.tsx` gains a
+  `records: StatsRecord[]` prop and renders the band between the "Public profile"/"This is your
+  profile" line and the meta line, `ProfilePage.tsx` hoists `recordsQ` at exactly
+  `qk.stats.records("overall", "tournaments")` and adds it to `unreadJumpReady`. No file outside
+  the task's set was touched.
+- **Measured on the M5 isolated stack (backend 8095, vite 8115, `verify-m5.db`, a copy of
+  `backend/app.db`) with a headless Chromium (Playwright, invoked from its cached npx install —
+  not added as a project dependency) at 390×844 and 1280×900, `blue` and `light` — geometry and
+  colours were identical between themes, as expected (CSS variables only).** Dev data holders,
+  live from `/stats/records`: Roli holds 8 of the 16 records, Berni 3, Rumpi 4, Atzi 4, Flo 3,
+  Mike 0 — Mike stood in for "a player with no records" (`Berni's` profile, the plan's literal
+  foreign-profile example, only holds 3, so it does not exercise wrap; **Roli's profile viewed
+  by Berni** was used as the second "several badges, foreign" case to get a real 8-badge foreign
+  row, since no dev player besides Roli holds enough to wrap at 390px foreign width).
+  - **Chips per row at 390px, foreign profile:** the text column measured **278px** (plan
+    estimated ~290px). With 8 uniform 32px chips it packs **6 per row**, not 7 — because one of
+    Roli's 8 held records is `highest_elo_1v1`, whose `1v1` mode label widens that chip to 51px
+    (19px over the 32px baseline); the extra width pushed the 7th plain chip to the next row.
+    Recomputed for all-uniform 32px chips (`38n − 6 ≤ 278`): **7 fits, 8 does not** — matching the
+    plan's estimate exactly once the one wide chip is accounted for. Row split observed: 6 + 2.
+  - **Chips per row at 390px, own profile:** the text column measured **134px** (plan estimated
+    ~148px; the three ghost `Button`s + `gap-2` measured **144px**, wider than the plan's ~130px
+    guess). That packs **3 per row**, not 4 — the unread-pokes bell was **not** showing in this
+    data (Roli's pokes were already read), so the plan's "3 with the bell" case was not
+    independently exercised; 3 is simply what 144px of edit cluster leaves at these real
+    measurements. Row split for Roli's 8: 3 + 3 + 2.
+  - **Tab-strip shift, measured with the `/stats/records` response held via `page.route` so the
+    pre-data and post-data position were both captured on the same load** (390px, `blue`):
+    foreign/3 badges (1 row): **+31px**. Foreign/8 badges (2 rows): **+66px** (33px/row).
+    Own/8 badges (3 rows): **+100px** (33.3px/row). All close to the plan's "~34px per row"
+    estimate; the small (1-2px) shortfall is the `mt-1` (4px) plus a 28px row not landing on an
+    exact multiple once real font metrics are in play. At 1280px all three cases stayed a single
+    row (23+ chips fit; no shift measured — nothing to shift).
+  - **No-record profile (Mike):** `[data-record-badges]` is absent from the DOM, and the tab
+    strip's position is identical to a same-shaped profile with a band absent — confirmed no
+    empty 28px strip and no gap in the header rhythm (screenshot: "Public profile" is immediately
+    followed by "Angepöbelt: 404" with no space between).
+  - **Contrast, computed via the WCAG relative-luminance formula from the live
+    `getComputedStyle()` values** (not eyeballed): icon ink vs. chip background — **blue 8.60:1**,
+    **light 17.49:1** (both far past the required 4.5:1). Accent border (added via
+    `classList.add("border-accent")` on a live chip to confirm the cascade, since no streak in
+    this dev data happens to be `ongoing` right now — the `recordBadges.test.tsx` unit test
+    covers the `ongoing` rendering path directly) vs. chip background — **blue 3.50:1**, **light
+    6.87:1** (both past 3:1); vs. the page background — blue 6.22:1, light 5.77:1. Chip hairline
+    (`border-card-chip` at 55%) vs. the light page background — **2.12:1**, a deliberately subtle
+    resting edge (the same token every other `.chip` in the app uses at the same opacity; it is
+    not the 3:1 UI-component threshold, which applies to interactive/state boundaries, not a
+    passive card edge) — visible at 100% in the screenshot's zoomed crop.
+  - **Ring vs. badge, screenshotted at 3× device-scale-factor** on Berni's profile (Berni holds
+    the Lorbeerkranz cup in this dev data, so his ring is gold/coloured rather than the neutral
+    hairline): the avatar ring and the grey chip band are unambiguously two different marks in
+    both themes — solid colour ring vs. bordered grey pills with a lucide glyph, no shared shape,
+    no shared colour. No `Crown`, no cup-colour token anywhere in the band.
+  - **Tap-through:** clicked `most_points` (Roli holds it) → landed on
+    `/stats?view=overview&sub=table&mode=overall&source=tournaments&sort=pts` with **0** further
+    requests to `/stats/records` (network listener asserted); clicked `win_streak` → landed on
+    `/stats?view=overview&sub=streaks&mode=overall&source=tournaments&record=win_streak`, same
+    zero-refetch result; separately clicked `highest_ppm` from Atzi's profile (the plan's own
+    example record) → `sort=ppm`, also 0 further requests. All three: back navigated to the
+    originating profile, 0 console errors.
+  - `document.querySelectorAll("a a").length === 0` on every profile screenshotted (with the
+    band rendered, the avatar-open `<button>` above it, and — at 1280px — the sidebar's own
+    links on the same page).
+- `npm run check` (73 files / 731 tests, tsc clean, eslint clean) and `npm run build` both green
+  on this task's own files; both were also run against the shared working tree while M4 was
+  mid-edit on `pages/stats/*` (disjoint from this task's file set) — `npm run build` failed once
+  transiently on `StatsInsights.tsx`/`RecordsView.tsx` (files this task does not own or touch)
+  while that edit was in flight, and passed on retry once M4's tree was internally consistent
+  again. Not a defect in this task's files; noted per rule 8's "Group-B workers will see each
+  other's in-flight files" warning.
+- No backend files touched, so no backend gate applies to this task.
+
 ---
 
-## M6 — Standings: evaluate, expect nothing  ☐
+## M6 — Standings: evaluate, expect nothing  ☑
 
 **The question.** Should `pages/live/StandingsTable.tsx` show anything about records now that the
 profile does? Roli expects "nothing". This task reads, measures and answers; it writes no code unless
@@ -1108,9 +1545,56 @@ written as a proposal here, not implemented.
 
 **Deviations:**
 
+No code changed; `git status` is clean for every file this task touched (read-only). Verified with
+the isolated stack (backend 8096, vite 8116, `backend/data/verify-m6.db`, deleted after use — both
+free, nothing else was bound there). The dev DB copy had no live/mixed tournament and no current run
+tied to an all-time record, so the accent-border check (item 1) needed a constructed case: created a
+throwaway 1v1 tournament ("M6 Verify Live", id 21, 3 players) in the DB copy only, finished two
+matches so Rumpi's current win streak became 4 — exactly tying the all-time win-streak record (4,
+his own, 2025-11-30 → 2025-12-23) — and left the third match scheduled so the tournament sat at
+derived status `live`. Screenshotted via Playwright (`headless_shell`, per the raspi5 launch note in
+another project's memory) at 390×844 and 1280×900, `blue` and `light`, all four combinations.
+
+1. **Confirmed.** Rumpi's row shows two streak patches: win-streak "4" with the accent border (orange
+   on `blue`, blue on `light`) and unbeaten-streak "4" with the ordinary neutral border (unbeaten
+   record is 13, so 4 doesn't light it) — same row, same length number, two different borders, which
+   is the whole mechanism working exactly as `StandingsTable.tsx:215` / `StreakPatches.tsx:38`
+   describe. Both themes, both viewports, consistent.
+2. **Confirmed, not a conflict.** `MIN_LEN = 2` (`:182`) only filters which *current runs* get a
+   patch at all (a streak of 1 isn't shown); it never touches record status. The badge system's "no
+   minimum threshold" (M1) is a different question — whether `played > 0` is enough to top a column —
+   answered by `RECORD_DEFS`/`compute_stats_records`, not by this constant. Nothing to reconcile.
+3. **Confirmed against the canon.** `DESIGN.md`'s Identity row (mirrored in `AGENTS.md` §9, T15)
+   states inside a tournament every avatar keeps the neutral hairline "because that screen is about a
+   past or ongoing event and a present-tense ring would read as 'held it back then'; cup information
+   there has exactly one carrier, the standings' `CupOwnerBadge` crown". A stable-record badge (most
+   titles, most points, highest Elo) is present-tense information exactly like the ring is, so putting
+   one on a standings row would be the second present-tense mark on a screen the canon keeps
+   deliberately free of them — the same duplication `C12` removed once already (crown beside a ringed
+   avatar).
+4. **Confirmed, and already covered end-to-end.** The one new thing a tournament night can produce
+   for a *stable* record is someone taking it over mid-tournament (e.g. overtaking Highest Elo). That
+   is already told three ways that don't need a fourth: the `record_moved` push (M2, three texts:
+   gained/lost/watching) reaches every player immediately; the badge band (M5, `RecordBadges.tsx`,
+   `08153fb`) shows it the moment that profile is opened; and `/stats` shows the live holder. A
+   standings badge would only restate the same fact on the one screen the app has kept present-tense
+   free.
+
+**Space measurement (390×844, the binding width — desktop has hundreds of spare px, see the
+screenshots).** The row's badge cluster is already hard-capped by existing code regardless of how
+many records a player holds: `cupMarks.slice(0, 2)` + `streaks.slice(0, 2)`, at most 4 chips beside
+the name, and no real player today holds two cups at once (Lorbeerkranz → Berni, Bauernkranz → Roli),
+so the realistic worst case is 1 cup badge + 2 streak patches. Measured on that row ("Rumpi", 5
+characters — representative, since every real player name is ≤ 6 characters): the chip cluster's
+rightmost pixel sits at x≈255 of 390, the points column's leftmost pixel at x≈355 — **≈100px (about a
+quarter of the row) of clear space between them**, even fully loaded. So the answer is not "there's no
+room" — there measurably is. It's "there's nothing to put there that doesn't already say something
+the row, the ring, or the push has already said" (points 3 and 4). Recommend adding nothing;
+`StandingsTable.tsx` and `StreakPatches.tsx` are unchanged.
+
 ---
 
-## M7 — Documentation pass (runs LAST)  ☐
+## M7 — Documentation pass (runs LAST)  ☑
 
 Files: `AGENTS.md`, `DESIGN.md`, this file. Collect every "Canon" line from M1–M5 (and M6's answer)
 and fold them in; **no code**. Specifically:
@@ -1132,21 +1616,560 @@ and fold them in; **no code**. Specifically:
 
 **Deviations:**
 
+- **No code changed.** `git diff --stat` for this task is `AGENTS.md`, `DESIGN.md` and this file and
+  nothing else; the gates below are the same tree the six implementation commits left, re-run.
+- **Where each canon line came from.** M1: §2's `stats/records.py` / `finished_matches_with_players`
+  / the `player_matches` exports, §6's `/stats/records` + "the backend emits a record's `path`",
+  §6's cache-table note, §5's empty-column rule. M2: §5's two tables with the silent-seed rule and
+  the measured rollback, §6's `after_result_change` table and the `record_moved` push with Roli's
+  arithmetic recorded as his decision, §6's `result` for generate/date, §9's umlaut instruction,
+  §10's "a goal in a playing match is not a result". M3: §10's stats URL scheme (`sort`/`dir`/
+  `record`), §9's "a record's icon comes from one map". M4: `DESIGN.md` §6's deep-linkable section
+  rule (transcribed as written), §2's "`RecordsView` reads `/stats/records`", §10's anchor-clamp
+  note. M5: `DESIGN.md` §7's `RecordBadges` row (transcribed as written) and §5b's `current`,
+  §9's "the badge band is the second present-tense mark and is deliberately not a ring", §10's
+  measured profile widths. M6: §10's `MIN_LEN` sentence, and §11 saying plainly that **no file
+  changed**.
+- **The "ASCII-safe" claim is gone from the canon and replaced with the opposite instruction**
+  (§9): write ä ö ü ß, repair what you find, `ensure_ascii=False` has always been there, and the one
+  unverifiable part — iOS rendering a non-ASCII body — is named as unverified in §9 and again in
+  §11's open list. `AGENTS.md:1014`'s "the German ASCII-safe" now reads "the German **spelled with
+  its umlauts** … do not put it back". **The three historical references in
+  `FEATURES_2026-09-ideas.md` (`:186`, `:769`, `:1348`) were left alone**: that file is a finished
+  tracker describing what was true when it was written, and rewriting history to match today's rule
+  would make the record wrong instead of the canon right. The canon is the file agents read.
+- **M2's goal-comment hole is written down twice and fixed nowhere** (as instructed): `AGENTS.md`
+  §10 carries the mechanism with both line numbers (`routers/comments.py:474`, `:487`), the missing
+  `global_action`, and the composer that reaches it
+  (`pages/live/TournamentCommentsCard.tsx:389` — the file is in `pages/live/`, not
+  `pages/live/comments/`, which is where M2's note put it); §11's open list carries the decision
+  Roli has to make, with both candidate answers named and neither recommended.
+- **What I deliberately did not write.** No claim that a push has been delivered (it has not, from
+  this machine, ever — §11 and the batch's own gate list say so); no claim that iOS renders the
+  umlauts; no work attributed to M6, which changed nothing and recommended nothing, and whose
+  §11 line says exactly that; no "fix" framing for the `?record=` clamp on a page's last section —
+  §10 records it as the browser refusing to scroll further than the document allows, pre-existing
+  and identical for `?cup=`. I also did not promote anything to canon that no task claimed: the
+  one candidate was `stats/records.py`'s "skip a match with an empty side" rule (M1 implemented it
+  as planned and noted that `RecordsView` never had it), and it is a service-level detail that no
+  task asked to canonise, so it stays in M1's Deviations.
+- **Two stale lines in `AGENTS.md` §11 were corrected while writing it**, because the section's job
+  is to separate deployed from merged: it claimed in one bullet that the Ideas batch was merged and
+  in the next that it was "complete and unmerged" (it is merged — `a547193`, on `main` at
+  `b8e741a`). `f425961` remains the only commit that has ever run on the server.
+- **`DESIGN.md`'s header note** now leads with this pass and demotes the C15 and A8 lines below it,
+  so the file still says when each claim was last read against the code. Only the four places this
+  batch touched were re-read; nothing else was re-verified, and the note says so.
+- **`AGENTS.md` §3's two baselines were moved** to what this tree actually measures — `make test`
+  228 → **272 passed** and "~9 min" → **~15 min** on the Pi, `npm run check` 717 in 71 → **734 in
+  74 files**. The suite crossed a quarter of an hour because `after_result_change` runs a full
+  records fold on every result-changing path and `test_record_holders.py` walks all nine of them;
+  §11 says so beside the number, because "the tests are slow now" without the reason is the kind of
+  line a future worker tries to fix.
+
+**Gates (this tree).** `make test` **272 passed** in 14:45 · `make lint` clean · `make gen-types`
+**no diff** · `npm run check` **734 tests in 74 files** · `npm run build` green (734.05 kB, the
+pre-existing hint). No code was touched by this task.
+
+---
+
+## M8 — The badges explain themselves; the profile stops narrating itself  ☑
+
+Roli, after living with M5 on his phone (2026-09-19), in his words:
+
+1. *"clicking on a badge open a thing (deliberately wrote thing, it should be consistent with rest
+   of design) that shows what each badge means and then clicking on that item brings me to the
+   stats page for it"*
+2. *"on the profile, it does not have to say 'Public profile' -> that just wastes space"*
+3. *"on my own profile, dont write 'This is your profile'"*
+4. *"find a better spot for the edit buttons and edit text -> i want to see my page as if someone
+   else visits my page plus one edit button or so"*
+
+and, on the sheet: *"make sure the modal items are aligned -> the elo 1v1 moves the text to the right"*.
+
+**The gap.** M5 shipped the band as sixteen glyphs that navigate. A glyph cannot say what it stands
+for, so the only way to learn what `Coins` means was to tap it and read the page it landed on — and
+the tap was a commitment, not a question. Meanwhile the header spent one whole line saying "Public
+profile" (which every profile is) or "This is your profile" (which the reader knows), and the owner's
+three edit buttons took **144px of the 278px** text column, which is why an own profile wrapped the
+band to **three** rows where a visitor's took two.
+
+**Verify first** (all four confirmed at `289ddf3` before a line was changed, on the M8 stack, with
+screenshots kept as the before evidence — `before-{owner,visitor}-{390,1280}-{blue,light}.png`):
+```bash
+grep -n 'Public profile' frontend/src/pages/profile/ProfileHeader.tsx          # → 1 (the line)
+grep -c 'variant="ghost"' frontend/src/pages/profile/ProfileHeader.tsx          # → the three edit buttons + bell + poke
+grep -n '<Link' frontend/src/pages/profile/RecordBadges.tsx                     # → the chip is a link
+```
+
+**The change.**
+
+1. **`pages/profile/RecordBadges.tsx`** — the band becomes a **legend, not a link**. Every chip is a
+   `button` and **any** chip opens one `Modal` (`maxWidth="max-w-md"`, `scrollBody`, clamped to
+   `max-h-sheet`), titled "Records held", subtitled "What each badge means — tap one to open it in
+   Stats." Inside: `List` + `ListRow`, one row per record **this player holds** (Roli's choice —
+   never the other eight), in payload order, each row `to={r.path}` — the path the backend emits,
+   never built here. An ongoing streak keeps its `border-accent` on the mark and adds the app's
+   existing `current` chip (`StreaksView`'s word). A consequence worth naming: with no `<a>` left in
+   the band, the nested-anchor hazard M5 had to guard against cannot occur.
+2. **The row's leading mark is a fixed 28px square**, the glyph alone — *not* the band's chip. The
+   three Elo chips carry a `1v1`/`2v2` micro-label and measure **51px against 32px**; a leading slot
+   that mirrored them would step those rows' label and explainer right and nothing in the column
+   would line up. Nothing is lost: `RECORD_DEFS` already spells the mode into the name ("Highest Elo
+   (1v1)"), which is the line the row prints.
+3. **`pages/profile/ProfileHeader.tsx`** — the "Public profile" / "This is your profile" line is
+   deleted outright, and the three edit controls become **one** 36px ghost `Button` (lucide `Pencil`,
+   the app's edit glyph) at the identity row's right edge. It opens a second `Modal` ("Profile
+   pictures") whose three `ListRow`s are the three actions — edit/upload header, delete header,
+   edit avatar — each closing the sheet as it hands over to the editor it names, so two overlays are
+   never stacked. **Delete still goes through `ConfirmDialog`** (C7): the sheet is a chooser, not a
+   shortcut past the confirmation.
+4. **`test/recordBadges.test.tsx`** — rewritten for the new shape: chips are buttons with no `<a>` in
+   the band; any chip opens the legend; the legend holds only the held records, in payload order,
+   with label + explainer; each row's `href` is the payload's `path` untouched; the ongoing row keeps
+   `border-accent` and says `current`; `a a` stays 0.
+
+**Blast radius.** `frontend/src/pages/profile/RecordBadges.tsx`,
+`frontend/src/pages/profile/ProfileHeader.tsx`, `frontend/src/test/recordBadges.test.tsx`, this file.
+No backend, no response model, no `qk` key, no primitive: both sheets are `Modal` + `List`/`ListRow`
+exactly as the club picker, the voters list and every confirm dialog use them.
+
+**Definition of done.** `npm run check` + `npm run build` green; owner and visitor, 390×844 and
+1280×900, `blue` and `light`: the header carries no "Public profile"/"This is your profile" and one
+control instead of three; the legend opens from any chip with the right rows and their explainers;
+its labels and explainers start at the same x on every row; a row taps through to the right Stats
+page with no second `/stats/records` request; back returns to the profile; `a a` = 0; 0 console errors.
+
+**Gates.** `cd frontend && npm run check` — **735 tests in 74 files**, tsc clean, eslint clean.
+`npm run build` — green, `index-*.js` 734.05 kB with the pre-existing ">500 kB" hint. No backend file
+touched, so no backend gate applies.
+
+**Canon — the sentence M7 wrote that this task makes wrong.**
+
+`DESIGN.md` §7 (line 409), the "A record held today" row, currently ends:
+
+> …Each chip is a `Link` to the record's own `path`, which the backend emits; the band renders
+> **nothing** when a player holds nothing, and it wraps rather than scrolling sideways (Roli's call,
+> ~33px of tab-strip movement per extra row)
+
+It should read:
+
+> …Each chip is a **`button`**, not a link: a glyph cannot say what it stands for, so **any** chip
+> opens one `Modal` legend ("Records held") listing **only the records this player holds** — a
+> fixed-width glyph mark, the record's label, its explainer — and the **row** carries the `Link` to
+> the record's own `path`, which the backend emits. That mark is a **28px square holding the glyph
+> alone**, never the band's chip: the three Elo chips are 51px against 32px because of their
+> `1v1`/`2v2` label, and a leading slot that varied would step every label and explainer right
+> (Roli, M8). The mode is not lost — `RECORD_DEFS` spells it into the name the row prints. An
+> ongoing streak keeps `border-accent` on the mark and adds the `current` chip `StreaksView`
+> already uses. The band renders **nothing** when a player holds nothing, and it wraps rather than
+> scrolling sideways (Roli's call, ~33px of tab-strip movement per extra row)
+
+Two more lines follow from it, both M7's:
+
+- `AGENTS.md` §6 (line ~447): *"**The badge link and the push deep link both use that `path`**"* →
+  *"**The legend row behind a badge, and the push deep link, both use that `path`**"*. The badge
+  itself no longer navigates.
+- `AGENTS.md` §11's measured-width paragraph (lines ~1053-1062) is superseded by M8's numbers below:
+  the own-profile column is **242px** and fits **6** badges per row, because the edit cluster is
+  **36px**, not 144px; the band is 2 rows on an own profile, not 4; and the header line the paragraph
+  assumes ("Public profile") no longer exists.
+
+A third, smaller one: `DESIGN.md` §9b's *"No chevron on such a row: that glyph promises navigation,
+and these rows expand"* is about a row that expands **in place**. The legend's rows genuinely
+navigate and keep their chevron; the Profile-pictures sheet's rows open an overlay on the same page
+and are given `chevron={false}` for exactly that reason. Worth one clause in §9b so the next worker
+does not have to re-derive it.
+
+**Deviations:**
+
+- **Where the single control went, and why — both options measured, not argued.** It sits at the
+  **identity row's right edge**, where the three buttons were: one `h-9 w-9` ghost `Button` with a
+  lucide `Pencil`, `title`/`aria-label` "Edit profile pictures". The alternative Roli's brief
+  allowed — overlaying it on the header banner, which would leave the owner's identity row byte-for-byte
+  a visitor's — was measured by removing the control from the live DOM and re-laying the row out:
+  | 390px, owner, 8 badges | text column | badges per row | band rows | tab strip top |
+  |---|---|---|---|---|
+  | before (three buttons, 144px) | 134px | 3 | 3 (3+3+2) | 513px |
+  | **A: one 36px button (shipped)** | **242px** | **6** | **2 (6+2)** | **447px** |
+  | B: no control in the row (banner overlay) | 278px | 6 | 2 (6+2) | 447px |
+  | a visitor, for reference | 278px | 6 | 2 (6+2) | 504px |
+  **B buys 36px of column and zero badges per row** — the band packs identically and the tab strip
+  lands on the same pixel, because 242px already fits six 32px chips (`38n − 6 ≤ W`: 6 needs 222,
+  7 needs 260) and the 7th is blocked by the 51px Elo chip in both. B is only better in the
+  all-uniform case (7 vs 6), which this data does not contain. Against that: the app has **no**
+  overlay-on-image control anywhere (`grep 'absolute right-\|absolute top-'` → the tab-strip fades,
+  the lightbox and `Modal`'s own box, nothing else), the banner is already a `<button>` so an edit
+  control would have to be a positioned sibling with its own scrim to survive an arbitrary photo,
+  and `DESIGN.md` §9b asks a trigger to name what it edits — a pencil on the banner names the banner
+  but opens a sheet that also edits the avatar. Rule 8 (reuse before you create) decides a tie, and
+  the measurement says it is a tie. **A wins on zero measured cost.**
+- **What the numbers say the change bought.** Own profile at 390: the edit cluster **144px → 36px**,
+  the text column **134 → 242px** (+81%), the band **3 rows → 2**, the tab strip **513 → 447px** —
+  **66px** of the page back, and the 66 decomposes exactly: 16px for the deleted line, 34px for the
+  band row that no longer wraps, and **16px nobody predicted** — at 134px the meta line broke into
+  two ("Guestbook: 2 ·" / "Angepöbelt: 47"), and at 242px it is one line again. A visitor's profile
+  is unchanged in width (278px, 6 per row) and gains the **16px** of the deleted "Public profile"
+  line (520 → 504). At 1280 nothing wraps in either case (317px column, all 8 badges in one row) and
+  the strip moves up by that same 16px (owner 785 → 769, visitor 839 → 823). Measured at
+  `deviceScaleFactor: 2` in headless Chromium on the M8 stack; geometry was identical in `blue` and
+  `light`, as it should be (CSS variables only).
+- **The legend, measured.** 8 rows for Roli in the dev data (he holds 8 of the 16), no scrolling at
+  390×844 (sheet 268→819 of an 844px viewport, `scrollHeight == clientHeight`). Every leading mark is
+  **28px** — one width, all sixteen keys — and every label **and** every explainer starts at
+  **x = 65px** at 390 (x = 473 at 1280), i.e. a single distinct value per column across all 8 rows:
+  that is Roli's alignment complaint measured rather than eyeballed. Both themes identical.
+- **The tap-through, and the shared cache entry.** Three rows tested in both themes, six runs:
+  `Most points` → `/stats?view=overview&sub=table&mode=overall&source=tournaments&sort=pts`
+  (`sort` survives — it is persistent state, not a one-shot); `Win streak` → `sub=streaks` with
+  `?record=win_streak` **consumed and dropped** by `useOneShotSectionParam` and the page scrolled to
+  the section (`scrollY` 155); `Most tournament wins` → `sub=records`, same one-shot behaviour.
+  **`recordsRequestsAfterTap` = 0 in all six**: the badge and the Records page are still one cache
+  entry under `qk.stats.records("overall", "tournaments")`, so tapping through fetches nothing.
+  Back returned to `/profiles/1` every time. 0 console errors in every run.
+- **The ongoing marking could not be exercised by the dev data** — no streak in `verify-m8.db` is
+  currently running — so it was forced in the browser with `page.route`, rewriting `ongoing: true`
+  onto `win_streak` in the live response: the band chip keeps `data-ongoing="true"` and
+  `border-accent`, and in the legend the flame mark keeps the accent ring with the `current` chip
+  beside the label (`ongoing-blue-sheet.png`, `ongoing-light-sheet.png`). The unit test covers the
+  same path headlessly.
+- **The delete confirmation survives the move**, asserted in the browser and not only by reading the
+  code: opening Profile pictures → "Delete header image" puts up *"Delete the header image?"* with
+  its `ConfirmDialog` body, in both themes.
+- **Edge cases re-checked.** A profile whose player holds nothing (Mike, id 6) renders no
+  `[data-record-badges]` at all — no empty strip, no gap. A **signed-out reader** on Roli's profile
+  sees the full band and can open the legend: `/stats/records` is a public read and the chips are
+  buttons, so nothing about the change is gated on a login. `document.querySelectorAll("a a").length`
+  is **0** in every case measured — profile, legend open, pictures sheet open, at both widths, both
+  themes, and with the desktop sidebar's own links on the page.
+- **`useState` is the sheet's whole state.** No URL param, no `?record=` on the profile: the legend
+  is a lookup, not a destination, and giving it a history entry would put a back-chevron target
+  between a profile and Stats. `Modal`'s Escape/scrim/`body` lock are the only close paths.
+- **One thing deliberately not built:** the legend does not scroll to or highlight the chip you
+  tapped. It lists at most 16 rows in the same order as the band, and at 390×844 all 8 of the
+  worst real case fit without scrolling. A "which one did I tap" affordance is a mechanism to
+  maintain for a case that does not exist yet.
+- **Isolated stack:** backend **8097**, vite **8117**, `backend/data/verify-m8.db` (a copy of
+  `backend/app.db`), throwaway secrets outside the repo. Both were free; nothing on 8000/8001/8010/5173
+  was touched, and only the two PIDs this task started were killed.
+
+---
+
+## M9 — The avatar grows to match the band beside it  ☑
+
+Roli, after living with M8 (2026-09-19): *"make the profile avatar larger -> the 3 rows (name,
+badges, angepöbelt) are higher now than the avatar, which does not look nice. the name can be
+bigger."*
+
+**The gap.** M8 shrank the identity row's edit cluster from three buttons to one, which freed
+80px+ of column width — but the avatar itself never grew. `ProfileHeader.tsx:174/183` still sets
+`sizeClass="h-14 w-14"` (56px), unchanged since before M5. Next to a name plus a two-row badge
+band the disc reads small; the imbalance is worst on the exact profile Roli looks at most —
+his own, which holds the most records in the dev data (8 of 16) and is therefore the one most
+likely to wrap the band to two rows.
+
+**Verify first.**
+```bash
+grep -n 'h-14 w-14' frontend/src/pages/profile/ProfileHeader.tsx                            # → 2 (both AvatarCircle calls)
+grep -n 'text-base font-semibold text-text-normal' frontend/src/pages/profile/ProfileHeader.tsx  # → 1 (the name span)
+```
+Both matched at `193fb47` — the gap was still open.
+
+**The change.** `frontend/src/pages/profile/ProfileHeader.tsx` only, three edits, no new file:
+1. Both `AvatarCircle` calls (the lightbox-trigger button variant and the inert variant):
+   `sizeClass="h-14 w-14"` → `sizeClass="h-20 w-20"` (56px → 80px, the next two-step jump on
+   Tailwind's scale — `h-16`/64px was measured and rejected, see Deviations) plus
+   `fallbackClassName="text-lg font-semibold text-text-muted"`, one step up from `AvatarCircle`'s
+   own default (`text-sm`) so the fallback initial keeps the same proportion inside a 43%-larger
+   disc (Roli's own instance always has a real photo in the dev data; the fallback was checked by
+   intercepting `/players/avatars` in the browser to force it, see Deviations).
+2. The name span: `className="truncate text-base font-semibold text-text-normal"` →
+   `className="truncate text-lg font-semibold text-text-normal"` — `text-lg` (18px) is the type
+   scale's next step up from `text-base` and is already the bucket `DESIGN.md` §5 calls "card
+   titles, names next to scores".
+3. Nothing else moves: `RecordBadges`, the meta line, the edit button, the pictures sheet and the
+   avatar ring logic (`AvatarCircle`) are untouched — the ring is drawn *inside* the avatar's own
+   box via padding (`AvatarCircle.tsx:70`), so growing `sizeClass` never had to be reconciled with
+   ring math.
+
+**Blast radius.** `frontend/src/pages/profile/ProfileHeader.tsx` only. No test file references
+`h-14 w-14` or the name's font size (`grep -rln 'h-14 w-14\|ProfileHeader' frontend/src/test/` →
+no matches), so no test needed updating.
+
+**Definition of done.** `npm run check` green with the existing 735/74 baseline unchanged (no
+test touched this file); `npm run build` green with `index-*.js` unchanged at 734.05 kB (a
+class-string change costs nothing); browser check at 390×844 and 1280×900, `blue` and `light`,
+owner and visitor, one-row and two-row band: avatar visibly closer in height to the text column
+than at 56px; the cup ring (Berni, gold; Rumpi, green) still reads as a distinct mark from the
+grey badge band at the new size; the fallback initial is legible and proportioned inside the
+larger disc; `a a` stays 0; 0 console errors.
+
+**Gates.** `cd frontend && npm run check` — **735 tests in 74 files**, tsc clean, eslint clean.
+`npm run build` — green, `index-*.js` 734.05 kB, same pre-existing ">500 kB" hint as M8 (no
+change — this task edited three class strings, not logic).
+
+**Canon — for M7's later pass, alongside M8's still-pending corrections.**
+
+`DESIGN.md` §7's "Identity" row (the `AvatarCircle` entry, ~line 406) should gain a clause: *the
+profile header's own avatar (`ProfileHeader.tsx`) is `h-20 w-20` (80px) — the largest
+`AvatarCircle` in the app (every other instance stays at its existing house size: 56px on the
+Player-stats card, 24–40px everywhere else) — sized so the disc reads balanced next to a name
+plus a wrapping badge band (M9, Roli: "the 3 rows … are higher now than the avatar"). The name
+beside it is `text-lg` (18px), the type scale's "names next to scores" step, not `text-base`.*
+
+`AGENTS.md` §11's measured-width paragraph (the one M8's own canon note already flagged as
+superseded, "the own-profile column is **242px** and fits **6** badges per row … the band is 2
+rows on an own profile, not 4") needs a **second** correction layered on top of M8's: growing the
+avatar from 56px to 80px costs the text column another 24px of width (the row's total width is
+fixed; a wider avatar leaves less for its neighbour) — measured **218px** on an own profile
+holding 8 records (was 242px after M8, 134px before it), still packing 6 badges into the first
+row before wrapping (the 7th is still blocked by the 51px `1v1`/`2v2` Elo chip, exactly as M8
+found). A visitor's column is unaffected in the common case (single-row bands are sized to
+content, not to the available width — see Deviations) and measures 24px narrower only where a
+band already wraps (**254px**, was 278px).
+
+**Deviations:**
+
+- **Two sizes were measured, not guessed, and one number held.** The task brief asked to measure
+  the text column's real height for an owner and a visitor, with a one-row and a two-row band, at
+  390px and 1280px — four scenarios, both viewports, both themes (geometry is theme-independent,
+  CSS variables only, confirmed identical in `blue` and `light` throughout). Login/profile pairs
+  used to get real one-row and two-row bands from the dev data (Roli=8 records, Berni=3): **owner,
+  two-row** = Roli logged in viewing `/profiles/1`; **owner, one-row** = Berni logged in viewing
+  `/profiles/4`; **visitor, two-row** = Berni logged in viewing `/profiles/1`; **visitor,
+  one-row** = Roli logged in viewing `/profiles/4`. Measured at 390×844 (`blue`, values identical
+  in `light`):
+
+  | scenario | text-column height | avatar height (before → after) | height ratio (avatar / column) |
+  |---|---|---|---|
+  | owner, 1-row band (Berni) | 74px → 78px | 56 → 80 | **0.76 → 1.03** |
+  | owner, 2-row band (Roli) | 108px → 112px | 56 → 80 | **0.52 → 0.71** |
+  | visitor, 1-row band (Berni via Roli) | 76px → 80px | 56 → 80 | **0.74 → 1.00** |
+  | visitor, 2-row band (Roli via Berni) | 110px → 114px | 56 → 80 | **0.51 → 0.70** |
+
+  At 1280px every scenario's band fits on one row (the column is 317px owner / 113–317px visitor,
+  well past the wrap point), so all four collapse to the "1-row" numbers above (colH 74–76px
+  before, 78–80px after) — there is no 1280px 2-row case to measure, and none was claimed.
+  **The one-row case is the common one**: four of the six dev players (Berni, Rumpi, Atzi, Flo)
+  hold ≤4 records, which never wraps a foreign or an own column at either width — only Roli's 8
+  wraps. `h-20` (80px) was chosen over `h-16` (64px) because it is the size that reads balanced
+  in **both** regimes: it roughly *matches* the 1-row column (78–80px, ratio ≈1.0 — avatar and
+  text now the same height) while meaningfully closing the 2-row gap (0.52→0.71 / 0.51→0.70,
+  vs. `h-16`'s computed 0.59/0.57 — barely moved from the 56px baseline). `h-16` was rejected on
+  that arithmetic alone, not rendered, because the 2-row case is the one Roli was looking at when
+  he filed this. **One number holds**: the brief's fallback (avatar tracks band rows) was not
+  needed — 80px reads as a deliberately large "hero" identity photo against a 1-row column and
+  merely "closer, still readable as a column beside a disc" against a 2-row one, which is the more
+  honest outcome for a header whose height already varies by player (M5/M8 already accepted that
+  for the band; this doesn't add a second axis of per-player variation to the avatar itself,
+  which stays one size for everyone).
+- **Row-height / tab-strip cost, measured (390px, `blue`, `identityRow`'s own
+  `getBoundingClientRect()` before and after, live via `page.route`-free before/after runs since
+  this is a code change, not a data toggle):**
+
+  | scenario | row height before → after | tab-strip `top` before → after |
+  |---|---|---|
+  | owner, 1-row (Berni) | 74 → 83.5px (+9.5) | 413.25 → 422.75px (+9.5) |
+  | owner, 2-row (Roli) | 108 → 112px (+4) | 447.25 → 451.25px (+4) |
+  | visitor, 1-row (Berni via Roli) | 76 → 83.5px (+7.5) | 470.25 → 477.75px (+7.5) |
+  | visitor, 2-row (Roli via Berni) | 110 → 114px (+4) | 504.25 → 508.25px (+4) |
+
+  The 2-row cases move least (+4px: the text column was already taller than 56px and stays taller
+  than 80px, so the row's height is still governed by the text column, barely changed by the
+  meta-line's own reflow). The 1-row cases move more (+7.5/+9.5px): there the avatar was already
+  the taller element pre-change in one case and becomes the taller element post-change in the
+  other, so the row's governing dimension shifts from the text column to the avatar. At 1280px
+  the same pattern holds, slightly larger (+7.5 to +11px) because the owner edit button's own
+  36px height stops being the tallest thing in the row once the avatar passes it. No case moves
+  the tab strip by more than 11px — an order of magnitude below the ~33–34px a wrapped badge row
+  costs (M5/M8), and well inside "a header whose height differs per player is a property it
+  already has" (M5's own framing, quoted in the brief).
+- **Text-column width shrinks by exactly the avatar's own width increase (24px) where the column
+  is wrap-driven, and by nothing where it is content-driven.** Measured 390px `colWidth`: owner
+  2-row 242→218px, visitor 2-row 278→254px (both wrap-driven — the flex item is clamped to the
+  row's leftover space, so a wider avatar leaves less of it); owner/visitor 1-row 182px/113.6px
+  unchanged (content-driven — a 3-badge band's own max-content width is narrower than the leftover
+  space either way, so the flex item shrinks to its content regardless of avatar width). Folded
+  into the Canon note above for M7.
+- **Band packing at 218px (owner, 2-row, after) was re-checked against M8's 242px finding**,
+  since 218px is under the `38×6−6=222` threshold M8 computed for 6 uniform 32px chips: the 7th
+  chip is still blocked by the wide (51px) `1v1` Elo chip before the uniform-width threshold ever
+  matters, so the row still splits 6+2, matching M8's own split at 242px. Row count did not change
+  because of this task.
+- **Cup ring, checked visually at the new size, both themes, two ringed profiles.** Berni
+  (`/profiles/4`, holds the gold Lorbeerkranz ring) and Rumpi (`/profiles/3`, holds a green ring)
+  were screenshotted at 80px: the ring's own styling (`AvatarCircle.tsx`) is untouched by this
+  task — width stays `2.5px`, the neutral hairline stays `1px`, both drawn via `padding` inside
+  the box, so growing `sizeClass` only grows the disc the ring sits on. The ring-to-diameter
+  proportion actually drops slightly (2.5/80 ≈ 3.1% vs 2.5/56 ≈ 4.5%), and it is still clearly
+  legible and unambiguously a different mark from the grey badge band in both themes at 3× zoom —
+  no contrast recompute was needed because no colour or stroke width changed, only what it is
+  drawn around.
+- **The fallback initial could not be exercised on real data** — all six dev players have an
+  avatar image in the current `backend/app.db` copy (`GET /players/{id}/profile` returns
+  `avatar_updated_at: None` for every id via that endpoint, which turned out to be the wrong
+  field to check; the real signal, `GET /players/avatars`, lists an entry for all six). To see the
+  fallback rendered for real, `/players/avatars`' response was intercepted in the browser
+  (`page.route`) and Roli's entry stripped, forcing `AvatarCircle` down its no-`updatedAt` branch:
+  the disc renders `data-avatar-ring="neutral"`, an "R" at `text-lg`/18px/600-weight, centred, and
+  reads proportioned inside the 80px disc in both themes and both widths — screenshots kept
+  (`after-fallback-{390,1280}-{blue,light}.png`). This is a page-level test harness technique, not
+  a code path — no source file was touched to make it possible.
+- **M8's own work re-checked, not re-touched.** The legend Modal (`RecordsHeldSheet`), its 28px
+  leading marks, its label/explainer alignment, and the single-pencil edit control are unchanged
+  DOM — opening the legend on the post-M9 header (screenshot `after-legend-open-390-blue.png`)
+  shows the same 8-row list for Roli with the same alignment M8 measured; `document.
+  querySelectorAll("a a").length` stayed **0** in every scenario/screenshot, with the legend open
+  and closed, at both widths, both themes.
+- **0 console errors, real requests only** (an earlier automated run showed spurious 401s on
+  `/me`, `/push/subscriptions/me` and the read-map endpoints; traced to the test harness losing an
+  exported env var between separate tool invocations, not the app — a fresh login token in the
+  same shell call fixed it, confirming it was never a product issue).
+- **Isolated stack:** backend **8098**, vite **8118** (both free; the task's suggested ports held),
+  `backend/data/verify-m9.db` (a copy of `backend/app.db`), throwaway secrets outside the repo.
+  Killed by exact PID (`3759335` backend, `3759419` the actual vite child process — `npx vite`'s
+  own reported `$!` PID, `3759406`, was a wrapper shell that had already exited); nothing on
+  8000/8001/8010/5173 was touched or even queried beyond one read-only `ss -ltnp` at the start.
+
+---
+
+## M10 — Documentation correction pass: the canon M7 could not know  ☑
+
+M7 wrote the canon for this batch and then **four** things landed on top of it — two unnumbered
+fixes out of Roli's own testing, then M8 and M9 — three of which make what M7 wrote **wrong**.
+Wrong canon is worse than missing canon, because the next agent trusts it. Files: `AGENTS.md`,
+`DESIGN.md`, this file. **No code.**
+
+**Verify first** (all run against `787fe71`, the tree M7's canon describes; every one of them
+matched, so every correction below was still needed):
+```bash
+grep -c 'The badge link and the push deep link' AGENTS.md          # → 1  (M8 made it the legend row)
+grep -c 'Each chip is a `Link`' DESIGN.md                          # → 1  (M8 made every chip a button)
+grep -c 'A goal comment can still rewrite a finished result' AGENTS.md  # → 1  (fixed in 8f2ad29)
+grep -c 'Roli decides what to do about it' AGENTS.md               # → 1  (he decided: refuse)
+grep -c '144px' AGENTS.md                                          # → 1  (M8: one 36px button)
+grep -c 'M1–M7' AGENTS.md                                          # → 1  (ten tasks now)
+grep -c '272 passed' AGENTS.md ; grep -c '734 tests in 74 files' AGENTS.md  # → 2, 2  (both moved)
+```
+
+**The change.**
+
+1. **`DESIGN.md` §7, "A record held today"** — M8's replacement sentence, **transcribed verbatim**
+   from its own Canon block: the chip is a `button`, any chip opens the one `Modal` legend listing
+   only the records this player holds, the **row** carries the `Link` to the backend's `path`, and
+   the leading mark is a 28px square holding the glyph alone (51px vs 32px is why).
+2. **`DESIGN.md` §7, "Identity"** — M9's clause, transcribed: the profile header's avatar is
+   `h-20 w-20` (80px), the largest `AvatarCircle` in the app, and the name beside it is `text-lg`.
+3. **`DESIGN.md` §9b** — the clause M8 asked for: a row that *genuinely navigates* keeps its
+   chevron (the legend's rows do), a row that opens an overlay on the same page passes
+   `chevron={false}` for the same reason an expanding row has none.
+4. **`DESIGN.md` §5b** — the legend row for an ongoing run wears the word `current` as a `.chip`;
+   one more site for a word the section already lists.
+5. **`DESIGN.md`'s header note** — M10 leads it, M7's entry is demoted below it, each saying what
+   it re-read.
+6. **`AGENTS.md` §6** — the badge-link line becomes the legend-row line (M8, verbatim), and a new
+   paragraph records **a lead is not a record**: eight of the sixteen are leads, `record_kind()` is
+   the one place that decides, the push takes `lead_gained`/`lead_lost`/`lead_watch`, a lead is
+   *taken and overtaken* while a record is *snatched and lost*, and nothing else in the app branches
+   on the kind (same `record_moved` event type, same `record-{key}` tag, same audience).
+7. **`AGENTS.md` §9** — the band's chips are buttons that open the legend; "a tie is visible when
+   you tap through" now says where.
+8. **`AGENTS.md` §10** — the goal-comment bullet is rewritten from *"here is a hole"* to *"here is
+   the rule and why"*: both branches refuse with **409** through
+   `_refuse_score_on_a_finished_match`, a goal in a *playing* match is untouched, and the two
+   reasons the hole mattered (no `global_action`, never reaching `after_result_change`) are kept,
+   because they are why the answer is "refuse" and not "recompute".
+9. **`AGENTS.md` §10** — the measured-width paragraph, superseded **twice** in one day, is rewritten
+   once with both layers: a wrapping band's column is **254px** on a visitor's profile and **218px**
+   on your own (the 36px difference is M8's single edit button; both are 24px narrower than M8
+   measured, because M9's avatar grew), **6** badges per row in either case, and a band that does
+   not wrap is content-sized and lost nothing.
+10. **`AGENTS.md` §3 and §11** — the gate numbers (below), and §11's badge bullet rewritten for a
+    **ten-task** batch: twelve commits, 48 files, two new tables, M7–M10 and the two unnumbered
+    fixes named. The decided decision leaves §11's open list, and the umlaut bullet records that
+    Roli has already corrected `gräßte` → `greßte` and `Siegsserie` → `Siegesserie` while the six
+    **lead** lines were shown to him too, in the same pass that produced `greßte` — the three
+    Styrian sentences (`X is jetzt vorn.` · `X is überholt worn.` · `Grod is kana vorn.`) and the
+    six titles. So the copy has been read; what has *not* happened is a push rendering any of it
+    on a real device.
+
+**Blast radius.** `AGENTS.md`, `DESIGN.md`, this file. No code, no test, no response model.
+
+**Definition of done.** No line of canon describes the pre-M8 badge, the pre-M9 header, a record
+push that calls a lead a Rekord, or a goal comment that can rewrite a finished result; the batch's
+own numbers (tasks, commits, files, gates) match the tree; `make test` and `npm run check` green.
+
+**Gates (this tree).** `make test` **273 passed**, 36 warnings, in **683.50s (11:23)** · `make
+lint` clean · `make gen-types` **no diff** · `cd frontend && npm run check` **735 tests in 74
+files** in 71.98s · `npm run build` green in 8.58s (`index-*.js` **734,051 bytes**, the pre-existing
+">500 kB" hint). No code was touched by this task.
+
+**Deviations:**
+
+- **No code changed.** `git diff --stat` for this task is `AGENTS.md`, `DESIGN.md` and this file and
+  nothing else; the gates are the tree M9 left, re-run.
+- **Transcribed, not reworded, wherever a task wrote the sentence out** — M8's §7 replacement and
+  M9's Identity clause are their own words, adapted only by being folded into a one-line table cell.
+  Items 6's lead paragraph and 8's goal-comment rule had no written sentence to copy (the first was
+  a commit message, the second a decision), so they are new prose in the voice of the section that
+  holds them.
+- **Two lines nobody flagged were falsified by the same commits, and are fixed here.** §6's push
+  example read *"a push says \"meiste Punkte is weg\""* — wrong twice over: `most_points` is a
+  **lead**, so its push is `lead_lost` (*"Bei meiste Punkt bist nimma vorn"*), and the Styrian label
+  is `meiste Punkt`, not `meiste Punkte`. And §6's list of the three text keys (`record_gained` ·
+  `record_lost` · `record_watch`) now names the *roles* — gained · lost · watching — with the kind
+  paragraph beside it, because there are six keys per language now, not three.
+- **§5b's existing sentence was left standing and only extended.** The band's chip still carries
+  "record holder, current run" in its `title` and `aria-label` (`RecordBadges.tsx`), so M5's claim
+  is still true; the legend row is an *additional* site of the word, not a replacement.
+- **Nothing was promoted to canon that no task claimed.** Two candidates were considered and left
+  where they are: the legend's "no second `/stats/records` request on tap-through" (M8 measured it,
+  but it is the existing `["stats"]` cache row doing its job, already canon in §6) and M9's
+  "a one-row band is content-sized, a wrapping band is space-sized" — which *is* in §10 now, but as
+  the measured reason the two numbers differ, not as a new rule for anyone to follow.
+- **What I deliberately did not write.** No claim that a push has been delivered over the wire —
+  none ever has from this machine, and the lead texts are no more proven than the record ones; no
+  claim that iOS renders the umlauts; no work attributed to **M6**, which changed nothing; and
+  nothing about the two unnumbered fixes beyond what their commits actually did (`8f2ad29` also
+  fixed one Styrian label, `289ddf3` another — both recorded as Roli's corrections, not as a sweep).
+- **Line numbers were dropped where they had already rotted.** §10's goal-comment bullet used to
+  cite `routers/comments.py:474` and `:487`; both moved when the guard was added. The rewrite names
+  `_refuse_score_on_a_finished_match` and `TournamentCommentsCard.tsx` without a line number, which
+  is what M7's own §2 convention does everywhere else.
+
 ---
 
 ## Verification gates (after all tasks)
 
-- `make test` green (baseline 228 + M1's 9 + M2's 12 ≈ 249), `make lint` clean, `make gen-types` no
-  diff after M1's commit.
-- `cd frontend && npm run check` green (baseline 717 in 71 + the new files), `npm run build` green.
-- `curl -s :<B>/stats/records | jq '.records | length'` → 16, keys in registry order.
-- `grep -rn 'after_result_change' backend/app/routers | wc -l` → **8** call sites (patch_match,
-  swap_sides, generate, reassign, second_leg, delete, decider, date) + `manage.py` → 9.
-- `grep -rln 'from "lucide-react"' frontend/src/ui/StreakPatches.tsx frontend/src/pages/stats/PlayerStreakChips.tsx frontend/src/pages/stats/StreaksView.tsx` → **0** (all three read `recordIcons.ts`).
-- `document.querySelectorAll("a a").length` = 0 on a profile with badges and on Records.
-- Rollback drill done in M2 and written down.
+**Re-run by M10 on the final tree (code at `787fe71`, unchanged by that pass) — all green:**
+`make test` **273 passed** in 11:23 · `make lint` clean · `make gen-types` **no diff** ·
+`cd frontend && npm run check` **735 tests in 74 files** in 71.98s · `npm run build` green. The two
+counts moved after M7 by one each: `8f2ad29` added the tests that hold the comment box's 409 (and `289ddf3`
+made M2's own record tests kind-aware rather than adding any), and M8 rewrote
+`recordBadges.test.tsx` for the legend. Everything below is M7's earlier reading of the same gates,
+kept because it carries the reasons.
+
+**Run by M7 on the documentation tree (code at `9c3bc67`, unchanged by that pass) — all green:**
+
+- ☑ `make test` **272 passed**, 36 warnings, in **885.41s (14:45)** on the Pi. Baseline was 228, so
+  the batch added 44 backend tests. (The 36 warnings are the pre-existing SAWarning from
+  `routers/tournaments.py:353/358`'s reassign flush, now raised by one more test file.)
+- ☑ `make lint` — `All checks passed!`
+- ☑ `make gen-types` — **no diff** (`schema.d.ts` untouched; M1 committed the only change).
+- ☑ `cd frontend && npm run check` — **734 tests in 74 files**, 71.50s; tsc clean, eslint clean.
+  Baseline was 717 in 71 files.
+- ☑ `npm run build` — green in 9.21s, `index-*.js` **734.05 kB** (gzip 228.07 kB) with the
+  pre-existing ">500 kB chunk" hint, which `AGENTS.md` §11 already records as deliberate.
+- ☑ `curl -s :<B>/stats/records | jq '.records | length'` → 16, keys in registry order (M1, and
+  `grep -c 'RecordDef(' backend/app/services/stats/records.py` → 16 on this tree).
+- ☑ `grep -rn 'after_result_change' backend/app/routers | wc -l` → **8** call sites (patch_match,
+  swap_sides, generate, reassign, second_leg, delete, decider, date) + `manage.py` → **9**.
+- ☑ `grep -rln 'from "lucide-react"' frontend/src/ui/StreakPatches.tsx frontend/src/pages/stats/PlayerStreakChips.tsx frontend/src/pages/stats/StreaksView.tsx` → **0** (all three read `recordIcons.ts`).
+- ☑ `document.querySelectorAll("a a").length` = 0 on a profile with badges (M5) and on Records (M4).
+- ☑ Rollback drill done in M2 and written down (and folded into `AGENTS.md` §5).
 - **Not a gate, not provable here:** push over the wire (no `cryptography`, no VAPID) — the queue is
-  asserted, the phone proves delivery.
+  asserted, the phone proves delivery. **Nor is iOS rendering the umlauts**, which is new to this
+  batch and equally the phone's to prove.
 
 ## Deployment (later, on Roli's go)
 
@@ -1173,18 +2196,33 @@ from a second phone correct a finished score that moves a record → every phone
 
 ## What this plan could not verify (and why)
 
-- **No checks were run** (read-only session); baselines are `AGENTS.md` §11's.
-- **The chips-per-row numbers are computed from class geometry** (`Button` `h-9 px-3`, avatar 56,
-  `--page-pad-x` 16, chip 32 + gap 6), not measured; M5 measures them.
-- **The reconcile's latency** on a match PATCH (three ratings folds, one streak fold, one players
-  fold, one match load ≈ six full passes over ~250 finished matches). Estimated well under 300 ms on
-  the VPS; M2 measures it on the Pi and, if the finish PATCH grows noticeably, notes `BackgroundTasks`
-  as the follow-up — not taken here because a synchronous call is what the tests can assert.
-- **Push over the wire**, as every batch before.
+*(Struck through where the task that owned it measured it. One bullet is left standing, and it is
+the same one every batch has ended with.)*
+
+- ~~**No checks were run** (read-only session); baselines are `AGENTS.md` §11's.~~ — M7's gates are
+  at the end of this file.
+- ~~**The chips-per-row numbers are computed from class geometry**~~ — **measured by M5**: the
+  foreign profile's text column is 278px and fits **6** badges per row (7 uniform chips would fit;
+  the 51px `1v1` Elo chip is what pushes the seventh down), your own profile's is 134px and fits
+  **3**, and each extra row moves the tab strip ~33px.
+- ~~**The reconcile's latency** on a match PATCH~~ — **measured by M2 on the Pi**, against a copy of
+  the real dev DB (94 finished tournament matches, 6 players): a result-changing
+  `PATCH /matches/{id}` takes **0.25 s** end to end, the boot seeds 16 keys in **0.38 s**, and a goal
+  in a *playing* match pays nothing because the guard runs first. `BackgroundTasks` was not needed.
+- **Push over the wire**, as every batch before — and with it, **whether iOS renders the umlauts**.
+  Both are the phone's to prove.
 
 ## Decisions still needed from Roli
 
-None block M1 or M2. **Item 1 blocks M3, M4 and M5.**
+**All eight were answered before implementation** (2026-09-19, second pass — the section "Answered
+2026-09-19, second pass" above, plus the two sections after it), and the answers are what the code
+does. Kept here as the record of what was asked: **1** icons approved as proposed; **2** both sides
+hold "Highest-scoring match"; **3** `played > 0`; **4** the literal placement; **5** wrap;
+**6** the push copy corrected in Roli's voice (M2 lists every Styrian line and whose it is, with
+`gräßte` and `Grod hot'n kana.` still worth his eye); **7** no bell item; **8** one `Award` with a
+`1v1`/`2v2` micro-label. Nothing below is open.
+
+Originally: none block M1 or M2. **Item 1 blocks M3, M4 and M5.**
 
 1. **The icon set** (the table at the top). Approve, or swap glyphs — the map is one file
    (`recordIcons.ts`); the two pairs to look at are `Coins`/`Award` and `Flame`/`Zap`. Cost of a swap

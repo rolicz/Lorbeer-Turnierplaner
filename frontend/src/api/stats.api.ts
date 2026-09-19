@@ -7,6 +7,7 @@ import {
   StatsPlayerMatchesResponse,
   StatsPlayersResponse,
   StatsRatingsResponse,
+  StatsRecordsResponse,
   StatsScope,
   StatsStreaksResponse,
 } from "./types";
@@ -89,6 +90,19 @@ export function getStatsRatings(opts?: { mode?: "overall" | "1v1" | "2v2"; scope
     if (opts?.scope && opts.scope !== "tournaments") qs.set("scope", String(opts.scope));
     const suffix = qs.toString() ? `?${qs.toString()}` : "";
     return apiFetch(`/stats/ratings${suffix}`, { method: "GET" });
+}
+
+/**
+ * Who holds which record (M1) — the one computation the Records page, the Streaks
+ * page's top rows and the profile's badge band all read, so a badge can never claim
+ * a record the page does not show.
+ */
+export function getStatsRecords(opts?: { mode?: "overall" | "1v1" | "2v2"; scope?: StatsScope }): Promise<StatsRecordsResponse> {
+    const qs = new URLSearchParams();
+    if (opts?.mode && opts.mode !== "overall") qs.set("mode", String(opts.mode));
+    if (opts?.scope && opts.scope !== "tournaments") qs.set("scope", String(opts.scope));
+    const suffix = qs.toString() ? `?${qs.toString()}` : "";
+    return apiFetch(`/stats/records${suffix}`, { method: "GET" });
 }
 
 export function getStatsRatingsHistory(opts?: { mode?: "overall" | "1v1" | "2v2"; scope?: StatsScope }): Promise<StatsRatingsHistoryResponse> {

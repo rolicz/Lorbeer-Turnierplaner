@@ -129,6 +129,13 @@ export const qk = {
         : (["stats", "ratings"] as const),
     ratingsHistory: (mode: string, scope: string) =>
       ["stats", "ratingsHistory", mode, scope] as const,
+    /**
+     * `/stats/records` — one entry per (mode, scope), and the badge band reads the very
+     * entry the Records page reads at its defaults ("overall", "tournaments"), so tapping
+     * a badge into Stats is a cache hit on the payload the badge was drawn from.
+     * Both args are required: a partial key would be a second entry that can disagree.
+     */
+    records: (mode: string, scope: string) => ["stats", "records", mode, scope] as const,
     playerMatches: (playerId?: number | string, scope?: string) =>
       playerId !== undefined
         ? scope !== undefined

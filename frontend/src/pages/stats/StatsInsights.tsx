@@ -10,7 +10,7 @@ import StatsFilterPill from "./StatsFilterPill";
 import { useReturnScroll } from "../../ui/shell/useReturnScroll";
 import type { StatsScope } from "../../api/types";
 import type { StatsMode } from "./statsMode";
-import { useStandings } from "./standings";
+import { TABLE_COLS, useStandings } from "./standings";
 import StatsTable from "./StatsTable";
 import TrendsExplorer, { type Metric, type ViewMode } from "./trends/TrendsExplorer";
 import PositionsView from "./PositionsView";
@@ -23,10 +23,14 @@ import CupsView from "./CupsView";
 import {
   canonicalStatsParams,
   collapseMatchupSide,
+  DIR_PARAM,
+  parseSortDir,
   resolveStatsView,
+  SORT_PARAM,
   subForSection,
   subsFor,
   type H2HSub,
+  type SortDir,
   type StatsSub,
   type StatsView,
 } from "./statsNav";
@@ -88,6 +92,19 @@ export default function StatsInsights({
   // and pressing Back restores the same place (e.g. Overview · Positions).
   const [searchParams, setSearchParams] = useSearchParams();
   const { view, sub, legacy } = resolveStatsView(searchParams, location.hash, location.state);
+
+  // The Table's sort lives in the URL too (M3), so a record badge can land on it
+  // sorted by the column the record is about (`?sort=`/`?dir=`). Unknown/absent
+  // falls back to Pts, exactly as StatsTable's own uncontrolled default did.
+  const sortRaw = searchParams.get(SORT_PARAM);
+  const sortKey = TABLE_COLS.some((c) => c.key === sortRaw) ? sortRaw! : "pts";
+  const sortDir: SortDir = parseSortDir(searchParams.get(DIR_PARAM));
+  const onSortChange = (key: string, dir: SortDir) => {
+    const next = new URLSearchParams(searchParams);
+    if (key === "pts") next.delete(SORT_PARAM); else next.set(SORT_PARAM, key);
+    if (dir === "desc") next.delete(DIR_PARAM); else next.set(DIR_PARAM, dir);
+    setSearchParams(next, { replace: true });
+  };
 
   // Older URL shapes (?view=table, ?section=h2h, #trends, nav state) are rewritten once.
   const rewrittenRef = useRef<string | null>(null);
@@ -227,10 +244,21 @@ export default function StatsInsights({
         </div>
       ) : null}
 
-      {view === "overview" && activeSub === "table" && <StatsTable rows={rows} loading={loading} onSelect={goPlayer} mode={mode} scope={scope} />}
+      {view === "overview" && activeSub === "table" && (
+        <StatsTable
+          rows={rows}
+          loading={loading}
+          onSelect={goPlayer}
+          mode={mode}
+          scope={scope}
+          sortKey={sortKey}
+          sortDir={sortDir}
+          onSortChange={onSortChange}
+        />
+      )}
       {view === "overview" && activeSub === "positions" && <PositionsView mode={mode} />}
       {view === "overview" && activeSub === "streaks" && <StreaksView mode={mode} scope={scope} />}
-      {view === "overview" && activeSub === "records" && <RecordsView mode={mode} scope={scope} rows={rows} onSelect={goPlayer} onOpenStreaks={() => setSub("streaks")} />}
+      {view === "overview" && activeSub === "records" && <RecordsView mode={mode} scope={scope} onSelect={goPlayer} onOpenStreaks={() => setSub("streaks")} />}
       {view === "overview" && activeSub === "cups" && <CupsView />}
 
       {view === "trends" && <TrendsExplorer mode={mode} scope={scope} rows={rows} initialMetric={initState?.trendsMetric} initialView={initState?.trendsView} initialPerMatch={initState?.trendsPerMatch} />}

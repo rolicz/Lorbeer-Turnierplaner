@@ -5,7 +5,7 @@ const KEY = "lk:dest-last";
 const TTL_MS = 12 * 60 * 60 * 1000;
 
 /** Deep-link params that fire exactly once; never replay them from memory. */
-const ONE_SHOT_PARAMS = ["unread", "comment", "entry", "cup", "idea"] as const;
+const ONE_SHOT_PARAMS = ["unread", "comment", "entry", "cup", "idea", "record"] as const;
 
 type Entry = { path: string; ts: number };
 type Store = Record<string, Entry>;

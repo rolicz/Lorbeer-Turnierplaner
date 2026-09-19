@@ -26,8 +26,13 @@ from .scope import (
 )
 
 
-def _finished_matches_with_players(s: Session, *, mode: str, scope: StatsScope) -> list[Any]:
-    """Finished matches the Source filter asks for — the same two halves every other stats service loads."""
+def finished_matches_with_players(s: Session, *, mode: str, scope: StatsScope) -> list[Any]:
+    """Finished matches the Source filter asks for — the same two halves every other stats service loads.
+
+    Public because it is *the* loader for "finished matches in this mode and source":
+    `services/stats/records.py` reads the same rows rather than writing a second query,
+    which is what keeps a record and the page that shows it from drifting apart (M1).
+    """
     matches: list[Any] = []
 
     if include_tournaments(scope):
@@ -74,7 +79,7 @@ def compute_stats_players(s: Session, *, mode: str, lastN: int, scope: str = "to
     players = list(s.exec(select(Player).order_by(Player.display_name)).all())
 
     # Finished matches for overall + lastN — friendlies included when the scope says so.
-    finished_matches = _finished_matches_with_players(s, mode=mode_norm, scope=scope_norm)
+    finished_matches = finished_matches_with_players(s, mode=mode_norm, scope=scope_norm)
     overall = compute_overall_and_lastN(finished_matches, players, lastN=lastN)
 
     # Per-tournament positions should include any tournament that already has

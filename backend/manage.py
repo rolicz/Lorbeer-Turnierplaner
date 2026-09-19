@@ -475,9 +475,16 @@ def main() -> None:
     if args.cmd == "add-match":
         data = load_seed_file(args.file)
         from app.db import get_session
+        from app.services.record_holders import after_result_change
         with Session(get_engine()) as s:
             res = insert_match(s, data)
+            # The one write that never goes through HTTP. There is no request and so no
+            # dispatcher: nobody is pushed, but the holder table stays in step with the
+            # results, which is the half that must not drift (M2).
+            moves = after_result_change(None, s, tournament_id=int(res.tournament_id), reason="cli")
         log.info("Add match complete: %s", res)
+        for move in moves:
+            log.info("Record moved: %s gained=%s lost=%s", move.key, list(move.gained), list(move.lost))
 
     if args.cmd == "recover-club-star-history":
         from app.tools.recover_club_star_history import (

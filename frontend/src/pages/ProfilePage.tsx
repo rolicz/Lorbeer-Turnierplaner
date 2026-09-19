@@ -15,7 +15,14 @@ import {
 } from "../api/players.api";
 import { ApiError } from "../api/client";
 import { getCup, listCupDefs } from "../api/cup.api";
-import { getStatsH2H, getStatsPlayerMatches, getStatsPlayers, getStatsRatings, getStatsStreaks } from "../api/stats.api";
+import {
+  getStatsH2H,
+  getStatsPlayerMatches,
+  getStatsPlayers,
+  getStatsRatings,
+  getStatsRecords,
+  getStatsStreaks,
+} from "../api/stats.api";
 import { listClubs } from "../api/clubs.api";
 import { groupFriendlyTournamentsByDate } from "./stats/matchHistory";
 import { FORM_LAST_N } from "./stats/standings";
@@ -119,6 +126,13 @@ export default function ProfilePage() {
   const statsMatchesQ = useQuery({
     queryKey: qk.stats.playerMatchesProfile(targetPlayerId ?? "none"),
     queryFn: () => getStatsPlayerMatches({ playerId: targetPlayerId as number, scope: "both" }),
+    enabled: Number.isFinite(targetPlayerId) && (targetPlayerId ?? 0) > 0,
+  });
+  // The profile's badge band (M5) — exactly the Records page's default key, so the badge and the
+  // page it opens are one cache entry: tapping a badge is a cache hit, not a second fetch.
+  const recordsQ = useQuery({
+    queryKey: qk.stats.records("overall", "tournaments"),
+    queryFn: () => getStatsRecords({ mode: "overall", scope: "tournaments" }),
     enabled: Number.isFinite(targetPlayerId) && (targetPlayerId ?? 0) > 0,
   });
   const cupDefsQ = useQuery({ queryKey: qk.cupDefs(), queryFn: listCupDefs });
@@ -240,6 +254,7 @@ export default function ProfilePage() {
     statsH2HQ.isLoading ||
     statsRatingsQ.isLoading ||
     statsMatchesQ.isLoading ||
+    recordsQ.isLoading ||
     cupDefsQ.isLoading ||
     cupsLoading
   );
@@ -294,6 +309,7 @@ export default function ProfilePage() {
           unreadGuestbookAuthorsText={guestbook.unreadGuestbookAuthorsText}
           unreadGuestbookAuthorCount={guestbook.unreadGuestbookAuthorCount}
           pokes={pokes}
+          records={recordsQ.data?.records ?? []}
         />
 
         <SectionTabs

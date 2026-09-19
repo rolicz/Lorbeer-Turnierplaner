@@ -37,6 +37,22 @@ export function cupSectionHref(cupKey: string): string {
   return `/stats?view=overview&sub=cups&${CUP_PARAM}=${encodeURIComponent(cupKey)}`;
 }
 
+/** `?sort=<TABLE_COLS key>` — the column the Table is sorted by; absent = `pts`. Written with
+ * `replace` like every stats param. A record badge (backend-emitted `path`) lands here. */
+export const SORT_PARAM = "sort";
+/** `?dir=asc` — ascending; absent = descending (the default is deleted from the URL, `useTabParam`'s idiom). */
+export const DIR_PARAM = "dir";
+export type SortDir = "asc" | "desc";
+export function parseSortDir(raw: string | null): SortDir {
+  return raw === "asc" ? "asc" : "desc";
+}
+
+/** One-shot anchor of a Streaks or Records section (`?record=<key>`), the shape of `?cup=`. */
+export const RECORD_PARAM = "record";
+export function recordSectionId(key: string): string {
+  return `record-${key}`;
+}
+
 /** How many player ids one matchup side can carry (`?player=1,5`): a 2v2 team. */
 export const MATCHUP_SIDE_MAX = 2;
 

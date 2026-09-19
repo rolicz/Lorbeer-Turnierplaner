@@ -225,6 +225,23 @@ def _set_match_score(match: Match, score_a: int, score_b: int) -> bool:
     return old_score != (score_a, score_b)
 
 
+def _refuse_score_on_a_finished_match(match: Match, what: str) -> None:
+    """A finished result is not editable through the comment box (Roli, 2026-09-19).
+
+    `_set_match_score` writes real goals, and neither the goal nor the score_update
+    branch ever looked at the match's state — so a goal comment filed against a match
+    that was already finished silently rewrote a recorded result, and the websocket
+    envelope it sent carries no `global_action`, so no other device was told (the Q9
+    shape). It is also the one result-changing path that never reaches
+    `after_result_change`, so records and their badges would not move either.
+
+    The match page is where a finished score is corrected: it confirms, it recomputes,
+    and it broadcasts `result`. So this refuses instead of being made to work.
+    """
+    if match.state == "finished":
+        conflict(f"This match is finished — correct the score on the match page, not with a {what}")
+
+
 def _validate_goal_score_progression(match: Match, score_a: int, score_b: int) -> None:
     current_a, current_b = _match_score(match)
     if (current_a, current_b) == (score_a, score_b):
@@ -469,6 +486,7 @@ async def create_comment(
         goal_scorer_name = _goal_scorer_name_for_match(s, match_id, body.goal_player_id, body.goal_player_name)
         score_a = _to_score_value(body.result_score_a, field="result_score_a")
         score_b = _to_score_value(body.result_score_b, field="result_score_b")
+        _refuse_score_on_a_finished_match(match_for_event, "goal comment")
         _validate_goal_score_progression(match_for_event, score_a, score_b)
         _ensure_match_scoreline_is_new(s, match_id, score_a, score_b)
         match_score_changed = _set_match_score(match_for_event, score_a, score_b)
@@ -481,6 +499,7 @@ async def create_comment(
             bad_request("Score update events require a match_id")
         if match_for_event is None:
             bad_request(f"Unknown match_id {match_id}")
+        _refuse_score_on_a_finished_match(match_for_event, "score update")
         score_a = _to_score_value(body.result_score_a, field="result_score_a")
         score_b = _to_score_value(body.result_score_b, field="result_score_b")
         _ensure_match_scoreline_is_new(s, match_id, score_a, score_b)

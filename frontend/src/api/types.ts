@@ -174,6 +174,22 @@ export type StatsStreakRow = S["StreakRunOut"];
 export type StatsStreakCategory = S["StreakCategoryOut"];
 export type StatsStreaksResponse = S["StatsStreaksOut"];
 
+// Records (M1) — `/stats/records` is the one computation behind the Records page, the
+// Streaks page's top rows and the profile's badge band. The two unions below are the
+// deliberate narrowings: the backend types `key` and `group` as plain strings (they are
+// `RECORD_DEFS` entries, not enums), and every consumer wants to switch on them.
+export type RecordKey =
+  | "most_titles" | "highest_elo" | "highest_elo_1v1" | "highest_elo_2v2"
+  | "most_points" | "highest_ppm" | "most_played" | "most_goals_per_match"
+  | "win_streak" | "unbeaten_streak" | "scoring_streak" | "clean_sheet_streak"
+  | "biggest_win" | "highest_scoring_match" | "most_goals_one_side" | "biggest_upset";
+export type RecordGroup = "title" | "elo" | "table" | "streak" | "match";
+export type StatsRecordHolder = S["RecordHolderOut"];
+export type StatsRecordLeader = S["RecordLeaderOut"];
+export type StatsRecordMatch = S["StatsRecordMatchOut"];
+export type StatsRecord = Omit<S["StatsRecordOut"], "key" | "group"> & { key: RecordKey; group: RecordGroup };
+export type StatsRecordsResponse = Omit<S["StatsRecordsOut"], "records"> & { records: StatsRecord[] };
+
 // ---- FE-only types not derivable from generated schema -----------------
 
 // Request body helpers

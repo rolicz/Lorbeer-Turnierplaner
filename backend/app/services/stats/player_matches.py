@@ -27,6 +27,83 @@ from .scope import (
 )
 
 
+def player_ref(pp: Player) -> dict[str, Any]:
+    return {"id": int(pp.id), "display_name": pp.display_name}
+
+
+def stats_match_dict(m: Match, played_on: Any, stars: StarRatingResolver) -> dict[str, Any]:
+    """One finished/scheduled match, shaped for every `/stats/*` payload that shows matches.
+
+    Module level since M1: `/stats/records` renders its record rows with this exact
+    function, so a record row and a `/stats/player-matches` row are the same row —
+    same `club_stars` as-of rule (R4), same field set, never a second rendering.
+    """
+    sides = []
+    for side in sorted(m.sides, key=lambda x: x.side):
+        sides.append(
+            {
+                "id": int(side.id),
+                "side": side.side,
+                "club_id": side.club_id,
+                "club_stars": stars.as_of(side.club_id, played_on),
+                "goals": int(side.goals or 0),
+                "players": [player_ref(pp) for pp in side.players],
+            }
+        )
+    return {
+        "id": int(m.id),
+        "leg": int(m.leg),
+        "order_index": int(m.order_index or 0),
+        "state": m.state,
+        "started_at": m.started_at,
+        "finished_at": m.finished_at,
+        "sides": sides,
+    }
+
+
+def friendly_stats_match_dict(fm: FriendlyMatch, stars: StarRatingResolver) -> dict[str, Any]:
+    """A friendly in the same shape, with the pseudo-id every stats payload uses for one."""
+    sides = []
+    for side in sorted(fm.sides, key=lambda x: x.side):
+        sides.append(
+            {
+                "id": int(side.id),
+                "side": side.side,
+                "club_id": side.club_id,
+                # A friendly carries its own date — it is not inside a tournament.
+                "club_stars": stars.as_of(side.club_id, fm.date),
+                "goals": int(side.goals or 0),
+                "players": [player_ref(pp) for pp in side.players],
+            }
+        )
+    fid = int(fm.id or 0)
+    return {
+        "id": 2_000_000_000 + fid,
+        "leg": 1,
+        "order_index": 0,
+        "state": fm.state,
+        "started_at": fm.created_at,
+        "finished_at": fm.updated_at,
+        "sides": sides,
+    }
+
+
+def friendly_group(fm: FriendlyMatch) -> dict[str, Any]:
+    """The pseudo-tournament a friendly is grouped under — negative id, `status: "friendly"`.
+
+    The id keeps friendlies away from real tournament ids so frontend keys stay
+    deterministic; `/stats/records` groups a friendly record row the same way.
+    """
+    fid = int(fm.id or 0)
+    return {
+        "id": -(1_000_000 + fid),
+        "name": f"Friendly #{fid}",
+        "date": fm.date,
+        "mode": fm.mode,
+        "status": "friendly",
+    }
+
+
 def compute_stats_player_matches(s: Session, *, player_id: int, scope: str = "tournaments") -> dict[str, Any]:
     scope_norm = normalize_scope(scope)
     p = s.get(Player, player_id)
@@ -77,57 +154,6 @@ def compute_stats_player_matches(s: Session, *, player_id: int, scope: str = "to
     # re-rated since must not rewrite what an old match counted as.
     stars = StarRatingResolver.load(s)
 
-    def player_dict(pp: Player) -> dict[str, Any]:
-        return {"id": int(pp.id), "display_name": pp.display_name}
-
-    def match_dict(m: Match, played_on: Any) -> dict[str, Any]:
-        sides = []
-        for side in sorted(m.sides, key=lambda x: x.side):
-            sides.append(
-                {
-                    "id": int(side.id),
-                    "side": side.side,
-                    "club_id": side.club_id,
-                    "club_stars": stars.as_of(side.club_id, played_on),
-                    "goals": int(side.goals or 0),
-                    "players": [player_dict(pp) for pp in side.players],
-                }
-            )
-        return {
-            "id": int(m.id),
-            "leg": int(m.leg),
-            "order_index": int(m.order_index or 0),
-            "state": m.state,
-            "started_at": m.started_at,
-            "finished_at": m.finished_at,
-            "sides": sides,
-        }
-
-    def friendly_match_dict(fm: FriendlyMatch) -> dict[str, Any]:
-        sides = []
-        for side in sorted(fm.sides, key=lambda x: x.side):
-            sides.append(
-                {
-                    "id": int(side.id),
-                    "side": side.side,
-                    "club_id": side.club_id,
-                    # A friendly carries its own date — it is not inside a tournament.
-                    "club_stars": stars.as_of(side.club_id, fm.date),
-                    "goals": int(side.goals or 0),
-                    "players": [player_dict(pp) for pp in side.players],
-                }
-            )
-        fid = int(fm.id or 0)
-        return {
-            "id": 2_000_000_000 + fid,
-            "leg": 1,
-            "order_index": 0,
-            "state": fm.state,
-            "started_at": fm.created_at,
-            "finished_at": fm.updated_at,
-            "sides": sides,
-        }
-
     cup_stakes_by_tid = compute_all_cup_tournament_stakes_by_tournament(s) if include_tournaments(scope_norm) else {}
     grouped: dict[int, dict[str, Any]] = {}
     for m in matches:
@@ -146,24 +172,17 @@ def compute_stats_player_matches(s: Session, *, player_id: int, scope: str = "to
                 "cup_stakes": cup_stakes_by_tid.get(tid, []),
                 "matches": [],
             }
-        g["matches"].append(match_dict(m, t.date))
+        g["matches"].append(stats_match_dict(m, t.date, stars))
 
     for fm in friendlies:
         fid = int(fm.id or 0)
         # keep ids unique from real tournaments so frontend keys stay deterministic
-        gid = -(1_000_000 + fid)
+        group = friendly_group(fm)
+        gid = int(group["id"])
         g = grouped.get(gid)
         if not g:
-            grouped[gid] = g = {
-                "id": gid,
-                "name": f"Friendly #{fid}",
-                "date": fm.date,
-                "mode": fm.mode,
-                "status": "friendly",
-                "_sort_id": 1_000_000_000 + fid,
-                "matches": [],
-            }
-        g["matches"].append(friendly_match_dict(fm))
+            grouped[gid] = g = {**group, "_sort_id": 1_000_000_000 + fid, "matches": []}
+        g["matches"].append(friendly_stats_match_dict(fm, stars))
 
     # Preserve the same ordering as the SQL query (date desc, id desc).
     tournaments_out = list(grouped.values())
@@ -174,6 +193,6 @@ def compute_stats_player_matches(s: Session, *, player_id: int, scope: str = "to
     return {
         "generated_at": datetime.utcnow().isoformat(),
         "scope": scope_norm,
-        "player": player_dict(p),
+        "player": player_ref(p),
         "tournaments": tournaments_out,
     }

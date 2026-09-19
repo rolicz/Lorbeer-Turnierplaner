@@ -2,16 +2,16 @@
  *  and the stats Player section. A chip is highlighted while the current run equals
  *  the all-time record of every player (i.e. the record is being set right now). */
 import { useMemo } from "react";
-import { Flame, Goal, Lock, Shield } from "lucide-react";
 
 import type { StatsStreakCategory } from "../../api/types";
+import { recordIcon } from "./recordIcons";
 
-/** Category order + glyphs (same mapping as `StreaksView`). */
+/** Category order + glyphs (the one map every record-icon consumer reads, M4). */
 const CATEGORIES = [
-  { key: "win_streak", label: "Win streak", Icon: Flame },
-  { key: "unbeaten_streak", label: "Unbeaten streak", Icon: Shield },
-  { key: "scoring_streak", label: "Scoring streak", Icon: Goal },
-  { key: "clean_sheet_streak", label: "Clean sheet streak", Icon: Lock },
+  { key: "win_streak", label: "Win streak", Icon: recordIcon("win_streak") },
+  { key: "unbeaten_streak", label: "Unbeaten streak", Icon: recordIcon("unbeaten_streak") },
+  { key: "scoring_streak", label: "Scoring streak", Icon: recordIcon("scoring_streak") },
+  { key: "clean_sheet_streak", label: "Clean sheet streak", Icon: recordIcon("clean_sheet_streak") },
 ] as const;
 
 export default function PlayerStreakChips({

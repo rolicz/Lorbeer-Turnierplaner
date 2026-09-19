@@ -1,4 +1,4 @@
-import { Flame, Goal, Lock, Shield } from "lucide-react";
+import { recordIcon } from "../pages/stats/recordIcons";
 
 export type ActiveStreakKey = "win_streak" | "unbeaten_streak" | "scoring_streak" | "clean_sheet_streak";
 
@@ -8,16 +8,18 @@ export type ActiveStreak = {
   highlight?: boolean;
 };
 
+/** Labels stay local (they read "Unbeaten", not "Unbeaten streak"); the glyph
+ *  comes from the one map every record-icon consumer reads (M4). */
 function iconFor(key: ActiveStreakKey) {
   switch (key) {
     case "win_streak":
-      return { Icon: Flame, label: "Win streak" };
+      return { Icon: recordIcon(key), label: "Win streak" };
     case "unbeaten_streak":
-      return { Icon: Shield, label: "Unbeaten" };
+      return { Icon: recordIcon(key), label: "Unbeaten" };
     case "scoring_streak":
-      return { Icon: Goal, label: "Scoring streak" };
+      return { Icon: recordIcon(key), label: "Scoring streak" };
     case "clean_sheet_streak":
-      return { Icon: Lock, label: "Clean sheet streak" };
+      return { Icon: recordIcon(key), label: "Clean sheet streak" };
   }
 }
 

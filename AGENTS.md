@@ -45,9 +45,22 @@ Size (2026-09-13): backend ≈ 13.3k LOC Python (`app/` + `manage.py` + `run.py`
   `cup.py` (cup ownership fold), `file_storage.py` (media on disk), `authorization.py`
   (owner/admin guards), `comments_view.py`, `guestbook*.py`, `ideas_view.py` + `idea_events.py`
   (the Ideas board's event log, and the one helper that answers who hears about an event — §6),
-  `poke_summary.py`, `stats/` (players, h2h, h2h_matches, streaks, ratings, odds, player_matches, tournament_stats,
-  core, scope, registry), `comments_summary.py`, `guestbook_summary.py`,
-  `club_stars.py` (the star-rating timeline: every write appends, every match resolves by date).
+  `poke_summary.py`, `stats/` (players, h2h, h2h_matches, streaks, ratings, odds, player_matches,
+  records, tournament_stats, core, scope, registry), `comments_summary.py`, `guestbook_summary.py`,
+  `club_stars.py` (the star-rating timeline: every write appends, every match resolves by date),
+  `record_holders.py` (who held which record last time, and the one function every result-changing
+  path calls — §5, §6).
+- **`stats/records.py` is the only place that decides what a record is** (M1). `RECORD_DEFS` is the
+  registry — sixteen keys, each with its English label, its one-line explainer, its sort column and
+  its deep-link `path` — and `compute_stats_records` folds the answer out of
+  `compute_stats_ratings`, `compute_stats_streaks`, `compute_stats_players` and
+  `finished_matches_with_players`, **writing no ranking query of its own**.
+  `stats/players.py::finished_matches_with_players` is public for it: it is *the* loader for
+  "finished matches in this mode and source", and a second one is how a badge and a page come to
+  disagree. `stats/player_matches.py` exports `stats_match_dict`, `friendly_stats_match_dict`,
+  `friendly_group` and `player_ref` at module level for the same reason, so `/stats/records`
+  renders a match row *identically* to `/stats/player-matches` — same `club_stars` as-of rule (R4),
+  same friendly pseudo-ids (tournament `-(1_000_000+fid)`, match `2_000_000_000+fid`).
 - `app/models.py` — all SQLModel tables. `app/schemas/requests.py` + `responses.py` — pydantic
   bodies/response models (**response models drive the generated frontend types**).
 - `app/db.py` — engine + `init_db()` (create_all + additive runtime columns + backfills).
@@ -84,7 +97,14 @@ Size (2026-09-13): backend ≈ 13.3k LOC Python (`app/` + `manage.py` + `run.py`
   (and maps every legacy URL shape onto them, §10), `StatsSection.tsx` is the shared sub-view
   skeleton, `StatsFilterPill.tsx` the stats page's two groups for the shared
   `ui/primitives/FilterPill` (Q7), `h2h/MatchupView.tsx` +
-  `h2h/matchupSummary.ts` the "A vs B, every match" drill-in.
+  `h2h/matchupSummary.ts` the "A vs B, every match" drill-in,
+  `recordIcons.ts` the one map from a record key to its lucide glyph (M3 — four copies lived in
+  four files before it, which is how `Goal` and `Flame` each came to mean two records at once),
+  `useOneShotSectionParam.ts` the `?record=`/`?cup=` anchor Streaks, Records and Cups all consume
+  (M4), and `RecordsView.tsx`, which **reads `/stats/records`** instead of computing the
+  superlatives in the browser from six requests (M4).
+  `profile/RecordBadges.tsx` is the profile's band of the records that player holds today **and the
+  one `Modal` legend any of its chips opens** (M5 built the band, M8 made it explain itself — §9).
 - `src/ui/` — `primitives/` (Button, Card, CardSection, Modal, Input, Pill, EmptyState,
   InlineLoading, LoadingPlaceholder, MatchOverviewPanel, ScoreLine, MatchSides, ClubMark [the one
   16px club symbol every score-only match row wears, Q8/Q17], StatTile, Chip,
@@ -156,10 +176,10 @@ make frontend       # or: make frontend-lan
 make dev            # both, LAN
 
 # checks — run before every commit
-make test           # backend pytest   (baseline 228 passed, ~9 min on the Pi, 2026-09-19; §11 is the authority)
+make test           # backend pytest   (baseline 273 passed, 11–15 min on the Pi, 2026-09-19; §11 is the authority)
 make lint           # ruff (E/W/F/I; line-length 150)
 make gen-types      # regenerate frontend/src/api/generated/schema.d.ts after ANY response-model change
-cd frontend && npm run check   # tsc + eslint + vitest (baseline 717 tests in 71 files, ~80 s)
+cd frontend && npm run check   # tsc + eslint + vitest (baseline 735 tests in 74 files, ~72 s)
 cd frontend && npm run build   # tsc -b + vite build (run for structural changes)
 ```
 
@@ -222,6 +242,7 @@ Current prod config (mirrored in `backend/app/cups.json` and `backend/data/cups.
   `TournamentPinnedComment`, `TournamentCreatorLink`, `FriendlyCreatorLink`,
   `FeatureRequest` (+`FeatureRequestArea`, `FeatureRequestVote`, `FeatureRequestImageFile`,
   `FeatureRequestComment`, `FeatureRequestEvent`, `FeatureRequestEventRead`),
+  `RecordHolder`, `RecordKeyState`,
   `PushSubscription`, `PushSubscriptionPreference`.
 - **The Ideas board** (R5, four new tables): `FeatureRequest` is one idea — author (never NULL,
   posting needs a login), `title`, `body`, `kind` (feature|change|bug), `status`
@@ -256,6 +277,36 @@ Current prod config (mirrored in `backend/app/cups.json` and `backend/data/cups.
   touched) was booted against a database the new code had already written all three tables into,
   answered `GET /ideas` **200**, and still created an idea and voted on it. The one documented consequence of a rollback: an idea
   posted under the old code carries no `created` event, so the admins get no bell item for it.
+- **Who held what, last time** (M2, two more tables). Every record a reader sees is computed live
+  (`services/stats/records.py`); nothing in this app has ever *stored* a ranking, which is fine for
+  drawing a page and useless for "Rumpi took it from you", because there is no previous answer to
+  diff against. `RecordHolder` (`record_key`, `player_id`, `since`) is that previous answer and
+  `RecordKeyState` (`record_key`, `computed_at`, `holder_count`) is which keys have been computed
+  at all — both additive, nothing altered, nothing in `_RUNTIME_COLUMNS`, **written only by
+  `services/record_holders.py::reconcile_record_holders`** and read by nothing else.
+  - **Seeding is silent, and `RecordKeyState` is what makes that honest.** A key with **no** state
+    row has never been computed — the first boot on production, and every record kind a later
+    deploy adds — so its holders are stored and announced to nobody; a key *with* a row and no
+    holder rows means nobody holds it, which is a real answer, not a missing one. `init_db()` seeds
+    them the way it seeds `ClubStarRating` and logs `Record holders seeded: N`.
+  - **A boot absorbs drift; it never announces it.** `init_db()` runs before the FastAPI lifespan
+    starts the dispatcher, so there is nothing to push into — and a deploy must not buzz everybody
+    with a backlog. A boot that finds movement says so in the log and stops there:
+    `Record holders reconciled at startup: N moved (…) — absorbed, not announced`.
+  - **Rule 3 above was measured, not asserted.** The commit before the schema landed (`f8a02b7`,
+    extracted with `git archive` so `.git` was never touched) was booted against a database the new
+    code had already written both tables into: it boots clean, `GET /stats/players`,
+    `/stats/ratings` and `/tournaments` answer **200**, a `PATCH /matches/{id}` answers **200**,
+    `/stats/records` answers 404 because that endpoint does not exist there yet — and the 21
+    `recordholder` rows were left **untouched**, because old code never reads or writes them. The
+    one consequence of a rollback is that results entered while rolled back are not reconciled; the
+    next boot of the new code absorbed exactly that (`2 moved (highest_elo,
+    highest_scoring_match)`), silently.
+  - **The scope is fixed**: `BADGE_MODE = "overall"` and `BADGE_SCOPE = "tournaments"` live in
+    `record_holders.py` and nowhere else — every badge and every push, never friendlies.
+  - **The empty-column rule**: a `table`/`elo` record is held only among rows with `played > 0`.
+    That is not the floor Roli declined — it is "has an entry at all", so a newcomer sitting at the
+    default Elo 1000 tops nothing and an empty database does not hand all six players every record.
 - **Tournament "live/done/draft" is derived from match states** (`tournament_status.py`): all
   scheduled → draft, all finished → done, otherwise live. The `Tournament.status` column still
   exists but is not authoritative and there is **no status endpoint** (the README's old
@@ -293,9 +344,12 @@ Current prod config (mirrored in `backend/app/cups.json` and `backend/data/cups.
   `/stats/*` endpoint that reads matches — `/stats/players` learned it last (A4), so no stats
   surface can show the Source filter and ignore it. Ratings are Elo-like per mode.
 - Push: languages `steirisch` (default) | `deutsch` | `english`; modes `finished_only` (default)
-  | `all` | `off`; personal events (pokes, guestbook, and all four idea events — created,
-  commented, voted, status) go only to the players that event is about, never to the actor (§6
-  names the audience per kind). Dispatcher is started in the FastAPI lifespan.
+  | `all` | `off`; personal events (pokes, guestbook, all four idea events — created, commented,
+  voted, status — and a record moving) go only to the players that event is about, never to the
+  actor (§6 names the audience per kind). **A record move is the one personal event that addresses
+  *everybody*** (M2): every player hears about it, but each hears a different sentence depending on
+  whether they gained it, lost it or watched it happen. Dispatcher is started in the FastAPI
+  lifespan.
 
 ## 6. API & realtime contract (short map)
 
@@ -306,7 +360,7 @@ create, patch, `/date`, `/generate`, `/reorder`, `/second-leg`, `/stats`, `/deci
 `/clubs` (+`/leagues`, `/{id}/crest`, `/{id}/star-history` — public read, oldest first),
 `/players…` (profiles, avatars, headers, guestbook, pokes,
 read-maps), `/cup?key=`, `/cup/defs`, `/stats/{overview,players,h2h,h2h-matches,streaks,
-player-matches,ratings,ratings/history,odds}`, `/friendlies`, `/ideas` (+`/areas`, `/{id}`,
+player-matches,ratings,ratings/history,odds,records}`, `/friendlies`, `/ideas` (+`/areas`, `/{id}`,
 `/{id}/status`, `/{id}/vote`, `/{id}/voters`, `/{id}/image`, `/{id}/comments`, `/comments/{cid}`,
 `/{id}/read`), `/push/{config,subscription,subscriptions/me,test}`, `/comments/…`, `/health`.
 Roles: `reader` (no token) < `editor` < `admin`; deps `require_editor` / `require_admin`;
@@ -386,6 +440,68 @@ be absent — `exclude_none` was deliberately **not** used, because it would als
 meaningful `"author_player_id": null` a "General" comment carries. `created_at` stays a `str`. The
 bell's copy for all seven lives in `ui/shell/notificationText.ts`, never inline in the component.
 
+**Records are computed in one place, and the backend says where each one lives** (M1).
+`GET /stats/records?mode&scope` is a public read like every `/stats/*`, with the same `mode`/`scope`
+shapes `/streaks` has. It returns the sixteen records in `RECORD_DEFS` order, each with its
+`holders`, its `value` and its **`path`** — where that record lives in Stats (`table`/`elo` →
+`sub=table&sort=<col>`; `streak` → `sub=streaks&record=<key>`; `title`/`match` →
+`sub=records&record=<key>`). **The legend row behind a badge, and the push deep link, both use
+that `path`**, the way `/ideas?idea=<id>` is already emitted by the backend; the frontend never
+builds one. The Records
+page reads this same endpoint (M4), which is what makes "a badge claiming a record the Records page
+does not show" impossible rather than merely unlikely, and the badge reads the same **cache entry**
+at the page's defaults — `qk.stats.records(mode, scope)` lands under the existing `["stats"]` row of
+the table below (30 s), no new row.
+**One function is called by every path that changes a result** (M2).
+`services/record_holders.py::after_result_change(request, s, *, tournament_id, reason)` —
+reconcile, then push, then log. It **commits**: the documented exception to "routers own the
+transaction", precedent `_bulk_delete_matches(autocommit=True)`. The callers, with the guard each
+one carries, because a guard and not a comment is what keeps a list like this honest:
+
+| path | called when |
+|---|---|
+| `PATCH /matches/{id}` | `old_state == "finished" or m.state == "finished"` — **a goal in a *playing* match is not yet a result**; finishing, un-finishing and correcting a finished score are |
+| `PATCH /matches/{id}/swap-sides` | `m.state == "finished"` — it swaps who won |
+| `POST /tournaments/{id}/generate` | `deletion.finished > 0` — regenerating a live tournament destroys finished matches |
+| `POST /tournaments/{id}/reassign` | `deletion.finished > 0` — provably always 0, because it refuses before it deletes; the guard is the proof, and a test asserts it stays 0 |
+| `PATCH /tournaments/{id}/second-leg` (disable) | `deletion.finished > 0` — likewise (`_leg2_started` refuses otherwise) |
+| `DELETE /tournaments/{id}` | always — it destroys results |
+| `PATCH /tournaments/{id}/decider` | always — it changes the tournament's winner, i.e. Most tournament wins |
+| `PATCH /tournaments/{id}/date` | the tournament has ≥1 finished match — streaks, Elo and the upset are ordered by `tournament.date`, so a moved date reorders them |
+| `manage.py add-match` | always, with `request=None` — the one write outside HTTP; no dispatcher, so it persists and logs and nobody is pushed |
+
+`reorder` (it cannot move a finished match), friendlies (outside `BADGE_SCOPE`), `POST
+/tournaments`, a name/settings `PATCH` and a player rename (holders are ids, not names) are
+deliberately **not** in the list, and a test asserts each of them does not call it.
+**A record that changes hands notifies every player** (M2, Roli's decision): one push **per player
+per record moved**, with three texts chosen by the *recipient's* relationship to the move and never
+by the actor — gained · lost · watching, in the vocabulary of the **kind** the paragraph below
+defines — so the editor who types in their own win is told they gained it. **Roli was shown the
+arithmetic — six players is six notifications per record moved, and a four-record night is four
+per person — and chose to keep it**; nobody quietly turns this into a digest later. The only batching is the OS tag `record-{key}`, which
+replaces the previous message about that same record. `record_moved` joins
+`PERSONAL_DEFAULT_EVENT_TYPES`, so it reaches a default "Results & personal" device and a device set
+to "Off" still gets nothing. The deep link is the record's own `path`, and a record's *name* is
+translated per language (`notification_texts.py::_RECORD_LABELS`, one entry per key of
+`RECORD_KEYS` in each language, guarded by a test that fails the moment the two disagree in either
+direction) — so a push says "Bei meiste Punkt bist nimma vorn" while the English UI says
+"Most points".
+**Eight of the sixteen are not records at all — they are leads, and the push says so** (Roli,
+2026-09-19). A record is a best-ever mark that stands: the longest streak anyone has run, the
+biggest win ever played. A **lead** is whoever is top of a running tally *right now* — most points,
+highest points per match, most played, most goals per match, the three Elo badges, and most
+tournament wins, which is a cumulative count like points rather than a feat.
+`services/stats/records.py::record_kind(key)` is the **one place** that decides which of the two a
+key is (by `RecordDef.group`: `table`, `elo` and `title` are leads; `streak` and `match` are
+records), and both the push key and the sentences follow it — `lead_gained` / `lead_lost` /
+`lead_watch` beside `record_gained` / `record_lost` / `record_watch`, six keys per language, and
+`_record_lines` takes the same `kind` so no line contradicts its own title. **A lead is taken and
+overtaken; a record is snatched and lost**, and a lead is never called a Rekord: *"Jetzt bist du
+vorn bei meiste Punkt"*, never *"Rekord! meiste Punkt is jetzt deins"*. Nothing else in the app
+branches on the kind — the event type stays `record_moved`, the OS tag stays `record-{key}`, the
+audience is unchanged, and `/stats/records`, the Records page and the badges treat all sixteen
+alike; it is a copy decision, made once, server-side.
+
 WebSocket channels (`app/main.py`, `app/ws.py`, `services/events.py`):
 - `/ws/tournaments/{id}` → `tournament.sync` (full tournament payload), `tournament.deleted`,
   `comment.upsert|delete|meta`.
@@ -398,6 +514,10 @@ WebSocket channels (`app/main.py`, `app/ws.py`, `services/events.py`):
   wrong on every other device. `services/events.py:global_action_for_match_change` is the only
   place that decides this, for both `PATCH /matches/{id}` and `/swap-sides`; a goal in a *live*
   match still sends nothing globally, so the channel stays as coarse as it was designed to be.
+  **Regenerating a live tournament over finished matches, and changing a played tournament's date,
+  send `result` too** (M2) — both used to announce themselves as a mere `updated` although they move
+  Elo, streaks and the upset, and they were the last two holes a tournament result could slip
+  through.
   `result`, `status` and `deleted` are the three actions that invalidate stats and cup.
 - `/ws/players/{id}` → profile-channel events, broadcast from `routers/players.py`:
   `player:pokes:update` and `player:guestbook:update` (created/updated/voted/deleted). Both are
@@ -443,7 +563,7 @@ Coverage is not "is there a channel" but "is the channel open *while you are awa
 | `["comments","summary"]` | **global channel** | 5 min | Every comment write sends `action="comment"` purely to move this badge (A5). |
 | `["cup", …]` | **global channel** | 5 min | Ownership moves only when a tournament finishes (`status`), is deleted, or a done result is corrected (`result`) — all three announce themselves. |
 | `["cup","defs"]` | none (static) | 30 min | `cups.json`, read once at backend startup. Only a deploy changes it. |
-| `["stats", …]` | **partial** | 30 s | Tournament results announce themselves; **friendly results are broadcast by nothing at all**, and every `/stats/*` endpoint takes `scope=friendlies\|both`. |
+| `["stats", …]` | **partial** | 30 s | Tournament results announce themselves; **friendly results are broadcast by nothing at all**, and every `/stats/*` endpoint takes `scope=friendlies\|both`. `qk.stats.records(mode, scope)` (M1) inherits this row on purpose: the profile's badge band and the Records page share one entry, so tapping a badge into Stats is a cache hit of the payload the badge was drawn from. |
 | `["match-h2h", …]` | **partial** | 30 s | The same numbers as `/stats`, but the key sits *outside* `["stats"]`, so no reducer ever invalidates it — only the window does. |
 | `["me","notifications"]` | **partial** | 30 s | A reply to your comment invalidates it from the tournament channel; a poke, a guestbook entry or an idea event does not. `NotificationBell`'s own 60 s poll covers the rest. |
 | `["players"]` (roster, profiles, avatars, headers) | **none** | 5 s | No channel: a rename or a new avatar reaches another device only by refetching. |
@@ -638,11 +758,28 @@ every past match simply keeps counting today's rating.
   the Players page and the profile header, where the ring already said "holds it today", so the
   standings is now its only site and its only meaning. A picker avatar's accent ring means
   "selected" and is the one audited exception to "a ring means a cup" — no picker passes `cups`,
-  so the two can never meet.
+  so the two can never meet. **The profile's badge band is the second present-tense mark on that
+  screen, and is deliberately not a ring** (M5, 2026-09-19): `pages/profile/RecordBadges.tsx` shows
+  the records that player holds *today* as grey `.chip`s with a lucide glyph each — **no `Crown`,
+  no cup colour token**, because it sits a few pixels from the avatar's cup ring and must read as a
+  different kind of mark (the duplication `C12` deleted once already). An ongoing streak record
+  wears `border-accent`, the very signal `PlayerStreakChips` paints on the same profile — **never a
+  dot**, and never the green one, because `C10` moved the streak chip off green for saying "a match
+  is playing". **A chip is a `button`, not a link** (M8): a glyph cannot say what it stands for, so
+  any chip opens one `Modal` legend — only the records this player holds, each row a fixed 28px
+  glyph mark, the label and the explainer — and the **row** is what navigates, to the `path` the
+  backend emits (`DESIGN.md` §7). The band carries no count: a tie is visible in Stats, one legend
+  row away (`×N` already means three things, `DESIGN.md` §5b).
 - **Icons: lucide-react only** (`DESIGN.md` §1.5). Font Awesome is gone (DS7, 2026-09-13) —
   the dependency, the CSS import and every `<i class="fa-…">` with it. Import the component
   (`import { Crown } from "lucide-react"`) and give it an explicit `size` in px; `aria-hidden`
   unless the icon carries meaning on its own, then `aria-label`/`title`.
+  **A record's icon comes from one map** (M3): `pages/stats/recordIcons.ts::recordIcon(key)`, read
+  by the Records page, the Streaks page, `StreakPatches`, `PlayerStreakChips` and the profile
+  badges. It replaced four private copies, which is how `Goal` and `Flame` each came to mean two
+  different records at once; the sixteen glyphs were approved by Roli on 2026-09-19 (the table at
+  the top of `FEATURES_2026-09-badges.md`, mirrored in `DESIGN.md` §7). An unknown key still gets a
+  glyph. Never spell a record's icon inline again.
 - **Style:** match surrounding code; Tailwind + design tokens (no raw colors); compact-mobile
   idiom (`md:hidden` icon + `hidden md:inline` label, `text-xs` for dense text and `.text-micro`
   for markers — arbitrary `text-[Npx]` is banned, `DESIGN.md` §5);
@@ -651,6 +788,17 @@ every past match simply keeps counting today's rating.
 - **Words are canon too** (C10, 2026-09-17): `DESIGN.md` §5b is the app's word list — one word per
   quantity, `fmtCount` for a count in prose, `fmtAvg` for a per-match average, `joinNames` for two
   names on one line, sentence case, `…`. Read it before naming a label.
+- **German and Styrian push texts carry their umlauts** (M2, 2026-09-19). Write real characters —
+  ä ö ü ß — in every notification string, and repair any transliteration you find in the same
+  sweep. The old convention was imitation, never a constraint: `services/webpush.py:173` has always
+  serialised with `ensure_ascii=False` over UTF-8, and the only `ascii` in that module is the base64
+  of the VAPID key, where it belongs. M2 repaired **27 strings across the catalogue** covering 14
+  distinct words (`Oeffne`, `fuer`, `Anpoebeln`, `geaendert`, `laeuft`, `Spass`, … — plus a German
+  string that said `Guestbook-Eintrag` where `Gästebuch-Eintrag` belongs), and
+  `test_the_catalog_is_not_transliterated` keeps them out. **Do not re-impose "ASCII-safe" on
+  German**, in the code, the plans or this file. The one thing nobody here can check: **iOS
+  rendering a non-ASCII push body is unverified** — these are the first the app has ever sent, so if
+  a real notification ever shows mojibake, that is where to look, not at the catalogue.
 - **No call site spells a locale** (C1, 2026-09-17). `frontend/src/utils/format.ts` exports the
   two constants every date helper uses: **`APP_LOCALE_NUMERIC = "de-AT"`** for numeric dates and
   times (`12.09.2026`, `12.09.2026, 14:30`) and **`APP_LOCALE_MONTHS = "en-GB"`** for spelled and
@@ -872,7 +1020,16 @@ every past match simply keeps counting today's rating.
   `&player=<ids>`, `&vs=<ids>` (opens the Matchup drill-in inside H2H), `&rel=together`
   (deep links only — an in-app matchup always opens on "Against") and `&cup=<key>` (T5: opens the
   Cups sub-view at that cup's section, then drops itself — a one-shot param, see
-  `ui/shell/lastLocation.ts`). **`player` and `vs` carry one *or two* comma-separated ids**
+  `ui/shell/lastLocation.ts`), `&sort=<column key>` + `&dir=asc` (M3: the Table's sort, owned by
+  `statsNav.ts`'s `SORT_PARAM`/`DIR_PARAM`, parsed once in `StatsInsights`, with `StatsTable`
+  controlled by props — the dashboard preview stays uncontrolled on its own state; descending is the
+  default and is deleted from the URL, an unknown column falls back to Pts, and a sorted column that
+  is not visible is made visible), and `&record=<key>` (M3/M4: a **one-shot** anchor in the exact
+  shape of `?cup=` — the sub-view scrolls to `recordSectionId(key)` and drops the param with a
+  `replace`, through `pages/stats/useOneShotSectionParam.ts`, which is the one hook all three of
+  Records, Streaks and Cups call; it is listed in `lastLocation.ts`'s `ONE_SHOT_PARAMS`, so a
+  destination is never *remembered* with it while `sort` and the filters survive).
+  **`player` and `vs` carry one *or two* comma-separated ids**
   (T7): one per side is "this player vs that one, whatever the partners", two on both sides is
   the exact team matchup (`?player=1,4&vs=2,5` → `exact_teams` on `POST /stats/h2h-matches`).
   Outside the matchup only the first id counts, and leaving H2H collapses a team back to it.
@@ -888,6 +1045,55 @@ every past match simply keeps counting today's rating.
   nav-bar jump leaves it for the H2H list.
   All older shapes (`?view=table|stars`, `?section=…`, `#trends`, nav `state.statsTab`) are
   mapped once by `pages/stats/statsNav.ts` and rewritten — **never re-introduce `?section=`**.
+- **A goal comment cannot rewrite a finished result — it is refused** (found by M2, decided and
+  closed by Roli, 2026-09-19). `POST /tournaments/{id}/comments` with `event_type: "goal"` or
+  `"score_update"` writes the match's real goals through `_set_match_score`, and neither branch ever
+  looked at the match's **state**, so a goal comment filed against a *finished* match silently
+  changed a recorded result. Two things made it worse than a stray edit: the envelope it broadcasts
+  carries `reason="comment-score"` with **no `global_action`**, so no other device was ever told
+  (the `Q9` shape), and it is the one result-writing path that never reaches `after_result_change`,
+  so records and their badges did not move either. It was reachable from the UI, not theoretical —
+  `pages/live/TournamentCommentsCard.tsx` posts `event_type: "goal"` against `composerScope`, which
+  is any match in the tournament, not only the playing one (`score_update` has no UI caller today).
+  Both branches now refuse with **409** through `_refuse_score_on_a_finished_match`
+  (`routers/comments.py`), naming the way out: *"This match is finished — correct the score on the
+  match page, not with a goal comment"*. The match page is where a finished score is corrected,
+  because it confirms, it recomputes and it broadcasts `result`; the comment box was made to refuse
+  rather than made to work. **A goal in a *playing* match is untouched** — that is the case that
+  matters, and it is what the live composer is for.
+- **A goal in a *playing* match is not a result** (M2). Only finishing a match, un-finishing it and
+  correcting a *finished* score are — that distinction is the guard on `PATCH /matches/{id}` in §6's
+  table, and it is why typing goals through a live tournament costs nothing: the guard runs before
+  the fold. `MIN_LEN = 2` in `StandingsTable` is a different question again — it gates whether a
+  *current run* is shown as a patch, never whether a record is held (M6).
+- **A one-shot `?record=`/`?cup=` anchor on the *last* section of a page lands lower than the
+  header, and that is the browser, not the hook** (M4, measured). `scrollToSectionById` asks for the
+  section's top minus the sticky bar (61px at 390px = 57 + 4, which every other key hits exactly),
+  but at the end of a short page the document has less scroll room than the request — at 390×844
+  against the dev DB the Records page's `scrollHeight − innerHeight` is 781px, so `biggest_upset`,
+  the last section, settles at `top: 384`. The param still drops from the URL. Pre-existing and
+  identical for `?cup=` on the last cup; no one-shot anchor in the app pads its page's scroll room.
+  Don't "fix" it inside `useOneShotSectionParam`.
+- **The profile's identity block is narrower than it looks, and the badge band wraps inside it**
+  (M5, measured at 390px against real data, not estimated; the numbers are M8's and M9's, which
+  superseded M5's twice in one day — M5's 278 / 144 / 134px and "3 per row" describe a header that
+  no longer exists). A band that wraps is clamped to the space left beside the avatar, so both
+  numbers below are for a wrapping band: on **someone else's** profile that column is **254px**, on
+  **your own** **218px**, and **both fit 6 badges per row**. The 36px difference is the owner's one
+  ghost edit button — M8 replaced three of them, which took 144px between them — and both columns
+  are 24px narrower than M8 measured, because M9 grew the avatar from 56px to 80px and the row's
+  width is fixed. Six is where it stops in either case: seven *uniform* 32px chips would need 260px
+  (`38n − 6 ≤ W`; six need 222), but the `1v1`/`2v2` Elo chip is **51px** and one wide chip is
+  enough to push the seventh down, at 242px as at 218px. A band that does **not** wrap is sized to
+  its content instead, so the avatar's 24px cost it nothing at all (measured unchanged at 182px
+  owner / 113.6px visitor). Each extra row moves the tab strip by **~33px** (measured 31 / 66 /
+  100px for 1 / 2 / 3 rows) — the accepted price of wrapping, bounded by two things: the band
+  renders **nothing** when a player holds nothing (no empty 28px strip, confirmed in the DOM), and
+  its query is cached under `["stats"]`, so a return visit paints the band with the first frame and
+  nothing moves. At 1280px every case is one row. The header as a whole got **shorter** across the
+  two tasks even so: deleting the "Public profile" / "This is your profile" line and un-wrapping the
+  owner's band took **66px** off the tab strip's top (M8), and the taller avatar put back only
+  4–9.5px of it (M9).
 - Scroll position is app-managed (N2): `history.scrollRestoration` is `"manual"`, each history
   entry's offset lives in sessionStorage (`navStack`) and in-page view swaps (tabs, stats
   sections) keep their own offsets (`useReturnScroll`) — the H2H matchup rides on its own history
@@ -922,22 +1128,48 @@ every past match simply keeps counting today's rating.
 
 ## 11. Current state (2026-09-19)
 
-- **`f425961` (2026-09-16) is still the only thing that has ever run on the server**, and two
-  batches now sit in front of it, **both merged into `main` and pushed**: the 2026-09 design batch
-  (frontend-only) and the Ideas batch (`feature/2026-09-ideas`, merged 2026-09-19). Because the
-  Ideas half touches the **backend and the schema**, the next deploy is the **full** one —
-  `git pull && docker compose up -d --build`, with the §7 step-2 data backup taken first — and it
-  carries both batches at once (Roli's call: one deploy, not two). No manual step: the three new
-  tables are created by `init_db()` at startup, and old code was run against a migrated database to
-  prove it still boots. Both feature branches can be deleted once it is live.
-  **Nothing in either batch has run on iOS, and no push has ever gone over the wire from this
-  machine** (dev has no VAPID and is not HTTPS), so the first real test of P2 and P5 is production.
-- **`feature/2026-09-ideas` (P1–P6, `FEATURES_2026-09-ideas.md`) is complete and unmerged** —
-  branched from `880a6fd`, seven commits, 38 files, three new tables. It is the first batch since
-  the audit to **touch the backend and the schema**, so it is the **full** deploy when Roli says so:
-  `python3 backend/manage.py backup-deploy-data` first, then `git pull && docker compose up -d
-  --build`. **No manual step** — the three tables come from `create_all` with no log line of their
-  own, nothing goes into `_RUNTIME_COLUMNS`, and `notification_texts.json` ships in the image;
+- **`f425961` (2026-09-16) is still the only thing that has ever run on the server.** `main` is
+  `b8e741a` and carries two batches that are **merged and undeployed**: the 2026-09 design batch
+  (frontend-only) and the Ideas batch (`feature/2026-09-ideas`, merged 2026-09-19 as `a547193`).
+  In front of both sits a third that is **not merged at all** — `feature/2026-09-badges`, below.
+  Because the Ideas half and the badges half each touch the **backend and the schema**, the next
+  deploy is the **full** one — `git pull && docker compose up -d --build`, with the §7 step-2 data
+  backup taken first — and it carries whatever is on `main` at that moment (Roli's call: one deploy,
+  not one per batch). No manual step in either: the new tables are created by `init_db()` at
+  startup, and in both batches old code was run against a migrated database to prove it still boots.
+  **Nothing in any of the three has run on iOS, and no push has ever gone over the wire from this
+  machine** (dev has no VAPID and is not HTTPS), so production is the first real test of P2, P5 and
+  the record push — **including whether iOS renders a non-ASCII push body**, which nothing here can
+  check (§9).
+- **`feature/2026-09-badges` (M1–M10, `FEATURES_2026-09-badges.md`) is complete and unmerged** —
+  branched from `b8e741a`, twelve commits, 48 files, **two new tables**, so it is a **full** deploy
+  when Roli says so. Ten tasks, because M8–M10 came out of Roli living with the batch on his phone
+  on the day it was built. What landed: **M1** `GET /stats/records`, the one computation — sixteen
+  records in `services/stats/records.py`, folded out of the services the pages already call and
+  writing no ranking query of its own, with the deep-link `path` emitted per record (§6);
+  **M2** `RecordHolder` + `RecordKeyState`, `after_result_change` on all nine result-changing paths,
+  the `record_moved` push in three audiences × three languages, `result` for generate-over-results
+  and a played tournament's date, and the umlaut sweep across the whole notification catalogue (§9);
+  **M3** the stats URL learns `?sort=`/`?dir=`/`?record=` and the record icons become one map;
+  **M4** the Records page reads `/stats/records` (one request where there were six) and Streaks,
+  Records and Cups share one anchor hook; **M5** the badge band on the profile; **M6** the
+  standings were evaluated and **nothing was added** — no file changed, the reasoning is in that
+  task's Deviations; **M7** the first documentation pass; **M8** a badge stops navigating and opens
+  a legend of what the badges mean, and the profile header loses its "Public profile" line and two
+  of its three edit buttons (§10); **M9** the profile avatar grows to 80px with a `text-lg` name
+  beside it; **M10** this second documentation pass, which corrected what M7 could not know.
+  Two later fixes carry no task number of their own: **a lead is not a record** — eight of the
+  sixteen are leads and the push says so, in its own words (§6) — and **the comment box can no
+  longer rewrite a finished result**, which was M2's open hole and is now a 409 (§10).
+  Expect `Record holders seeded: 16` on the first boot, which is the line that
+  proves the diff base was written **silently**; `curl https://lorbeerkranz.xyz/api/stats/records |
+  jq '.records | length'` → 16 proves the new code is up. Rollback to `f8a02b7` ignores both tables
+  (measured, not assumed — §5).
+- **`feature/2026-09-ideas` (P1–P6, `FEATURES_2026-09-ideas.md`) is merged** (`a547193`) and can be
+  deleted — branched from `880a6fd`, seven commits, 38 files, three new tables, the first batch since
+  the audit to touch the backend and the schema. **No manual step** — the three tables come from
+  `create_all` with no log line of their own, nothing goes into `_RUNTIME_COLUMNS`, and
+  `notification_texts.json` ships in the image;
   `curl https://lorbeerkranz.xyz/api/ideas | grep -c '"comments"'` > 0 proves the new code is up,
   and a rollback to `880a6fd` simply ignores the new tables (measured, not assumed — §5). What
   landed: **P5** a device that receives nothing says so (the shell notice, `usePushNotifications`
@@ -990,17 +1222,33 @@ every past match simply keeps counting today's rating.
   score-only match row wears one, across all seven surfaces, not just the friendlies list.
   The design-fixes batch above is merged (`5a97fa9`) and is in this same short-deploy queue; its
   smoke list is in that plan's "Deployment" section.
-- Checks at the Ideas branch head (code at `dedd6fa`): `make test` **228 passed**, `make lint` clean,
-  `make gen-types` no diff, `cd frontend && npm run check` **717 tests in 71 files**, `npm run build` green
-  (the pre-existing >500 kB hint). For the merged design batch, at its own head: `npm run check`
-  **688 tests in 68 files**, `npm run build` green (`index-*.js` 723.99 kB), `make gen-types` no
-  diff, and a backend untouched (`make test` **204 passed** at `f1ea22b`).
+- Checks at the badges branch head (code at `787fe71`, re-run on M10's documentation tree):
+  `make test` **273 passed** in 11:23, `make lint` clean, `make gen-types` **no diff**,
+  `cd frontend && npm run check` **735 tests in 74 files** in 72 s, `npm run build` green
+  (`index-*.js` 734.05 kB, the pre-existing >500 kB hint). M7 read 272 and 734 at `9c3bc67`; the
+  two fixes and M8 that came after it moved each count by one, and the same suite took 14:45 there
+  and 11:23 here — the Pi's own variance, not the suite changing. It is minutes either way: `after_result_change` runs a full records fold on every result-changing path, and
+  `tests/test_record_holders.py` walks all nine of them. At the Ideas branch head (`dedd6fa`),
+  for comparison: `make test` **228 passed**, `npm run check` **717 tests in 71 files**; for the
+  merged design batch at its own head: `npm run check` **688 tests in 68 files**, `npm run build`
+  green (`index-*.js` 723.99 kB), and a backend untouched (`make test` **204 passed** at
+  `f1ea22b`).
   **Push has never been delivered over the wire on this machine** — no `cryptography` in the venv,
   no VAPID — so every push test in the Ideas batch stops at the queued `PushMessage` or at the real
   `_deliver` with the HTTPS POST faked. The wire itself is the phone's to prove.
 
 ### Open, and each one is waiting on something specific
 
+- **Whether iOS renders a non-ASCII push body is unverified, and only Roli's phone can close it.**
+  The catalogue now carries its umlauts (§9, M2) and these are the first such bodies the app will
+  have sent; nothing on this machine can check it, because push has never gone over the wire from
+  here at all (no VAPID, no `cryptography` — every push assertion in every batch stops at the queued
+  message). If a real notification shows mojibake, the place to look is the device, not the
+  catalogue. The record push also wants his eye on the words themselves: the Styrian lines M2 wrote
+  are listed one by one in that task's Deviations. Two of them he has since corrected himself —
+  `gräßte` → `greßte` and `Siegsserie` → `Siegesserie` — and the six **lead** lines are newer than
+  that reading, so they have not had his eye at all; `Grod hot'n kana.` (and its lead twin `Grod is
+  kana vorn.`) is still the one to read aloud.
 - **The PWA reinstall path is unverified and only Roli's phone can close it** (P5). On the phone:
   delete the PWA, re-add it, log in — the "This device gets no notifications." notice should be on
   the first screen, **Turn on** should lead to the iOS permission prompt, and Settings →
@@ -1011,7 +1259,9 @@ every past match simply keeps counting today's rating.
   the notice correctly never appears.
 - **The push and bell copy for the four idea events is Roli's to correct** — three languages × four
   events (`backend/app/notification_texts.json`, `frontend/src/ui/shell/notificationText.ts`): his
-  Styrian drafts transcribed as written, the German ASCII-safe, the English plain. One divergence to
+  Styrian drafts transcribed as written, the German **spelled with its umlauts** (M2 repaired the
+  whole catalogue and there was never a reason for the transliteration — §9; do not put it back),
+  the English plain. One divergence to
   read with fresh eyes, because it is deliberate and not drift: the **bell** says "likes your idea"
   (his own word for it, decided on the second pass) while the English **push** still says "wants
   your idea too" (the board's own verb). Either is a one-line string edit with no code behind it.

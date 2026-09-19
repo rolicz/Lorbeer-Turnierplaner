@@ -898,3 +898,60 @@ class StatsStreaksOut(BaseModel):
     scope: str
     player: PlayerRef | None
     categories: list[StreakCategoryOut]
+
+
+# ---- stats: records ----------------------------------------------------
+class RecordHolderOut(BaseModel):
+    """One player who holds a record. `ongoing` is only ever true for a streak."""
+    player: PlayerRef
+    ongoing: bool = False
+
+
+class StatsRecordTournamentOut(BaseModel):
+    """Where a record match was played. A friendly carries a negative pseudo-id
+    and `status: "friendly"`, exactly as /stats/player-matches reports one."""
+    id: int
+    name: str
+    date: date
+    mode: str
+    status: str
+
+
+class StatsRecordMatchOut(BaseModel):
+    tournament: StatsRecordTournamentOut
+    match: StatsMatchOut
+
+
+class RecordLeaderOut(BaseModel):
+    """A ranked row behind a `title` record — competition ranking (1, 1, 3)."""
+    player: PlayerRef
+    count: int
+    rank: int
+    latest: StatsRecordTournamentOut | None = None
+
+
+class StatsRecordOut(BaseModel):
+    """One record. `value` is the raw number — the frontend formats it.
+
+    `holders` is every tied holder (no tie count: the tie is visible in Stats).
+    `leaders` is filled for the `title` group only, `matches` for the `match` group only.
+    `path` is where this record lives in Stats — the backend decides that, once, so the
+    badge link and the push deep link cannot disagree.
+    """
+    key: str
+    group: str
+    label: str
+    explainer: str
+    path: str
+    value: float | None = None
+    holders: list[RecordHolderOut]
+    leaders: list[RecordLeaderOut] = Field(default_factory=list)
+    matches: list[StatsRecordMatchOut] = Field(default_factory=list)
+
+
+class StatsRecordsOut(BaseModel):
+    generated_at: datetime
+    mode: str
+    scope: str
+    finished_matches: int
+    records: list[StatsRecordOut]
