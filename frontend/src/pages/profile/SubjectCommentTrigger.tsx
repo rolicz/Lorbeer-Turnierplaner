@@ -6,6 +6,15 @@ import type { GuestbookSubjectKind } from "../../api/types";
 import { subjectTriggerLabel, subjectTriggerTitle } from "./guestbookSubjects";
 
 /**
+ * The metrics of a profile action that is a real button rather than a "see more" link
+ * (`DESIGN.md` §6) — the Ideas board's comment toggle verbatim, worn by this trigger in both
+ * its `ghost` and `solid` looks. The About head's two actions, "Edit" and this trigger, share
+ * the literal so a matched pair cannot drift into two heights (Q-A); the `overlay` badge does
+ * not, being a marker on a photograph rather than a button in a row.
+ */
+export const SECTION_HEAD_ACTION_CLASS = "inline-flex h-8 items-center gap-1.5 px-2 text-xs";
+
+/**
  * The one "start a comment about this" control on a profile item (K3) — the banner, the
  * avatar and the About text all wear this and nothing else, so the three cannot drift into
  * three affordances for one job.
@@ -78,7 +87,7 @@ export default function SubjectCommentTrigger({
       aria-label={title}
       data-subject-trigger={kind}
       data-subject-trigger-variant={variant}
-      className={cn("inline-flex h-8 items-center gap-1.5 px-2 text-xs", className)}
+      className={cn(SECTION_HEAD_ACTION_CLASS, className)}
     >
       <MessageSquare size={14} aria-hidden="true" />
       {subjectTriggerLabel(count)}

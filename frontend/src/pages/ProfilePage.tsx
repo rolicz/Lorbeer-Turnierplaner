@@ -351,7 +351,10 @@ export default function ProfilePage() {
               if (!targetPlayerId) return;
               setBioDraftByPlayerId((prev) => ({ ...prev, [targetPlayerId]: value }));
             }}
-            onSaveBio={() => saveProfileMut.mutate()}
+            /* `mutateAsync`, not `mutate`: the About block closes its editor only once the
+               save has landed *and* its invalidations have refetched the profile, so the read
+               view it returns to shows the saved text rather than the old one for a frame. */
+            onSaveBio={() => saveProfileMut.mutateAsync()}
             savingBio={saveProfileMut.isPending}
             favorite={favorite}
             nemesis={nemesis}

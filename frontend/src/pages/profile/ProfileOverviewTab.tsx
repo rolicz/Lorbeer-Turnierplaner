@@ -1,5 +1,5 @@
-import { ChevronRight, HeartCrack, Smile } from "lucide-react";
-import type { ReactNode } from "react";
+import { ChevronRight, HeartCrack, Pencil, Smile } from "lucide-react";
+import { useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 
 import Button from "../../ui/primitives/Button";
@@ -12,7 +12,7 @@ import { fmtAvg, fmtRank } from "../../utils/format";
 import { MatchHistoryList, tournamentMatchHref } from "../stats/MatchHistoryList";
 import { statsMatchupHref } from "../stats/statsNav";
 import { type FavoriteTeammate } from "./favoriteTeammates";
-import SubjectCommentTrigger from "./SubjectCommentTrigger";
+import SubjectCommentTrigger, { SECTION_HEAD_ACTION_CLASS } from "./SubjectCommentTrigger";
 
 /**
  * Favorite / Nemesis chip. With a known opponent it links into the stats matchup
@@ -82,7 +82,8 @@ export default function ProfileOverviewTab({
   bioDraft: string;
   profileBio: string | null;
   onBioChange: (value: string) => void;
-  onSaveBio: () => void;
+  /** Resolves when the bio is saved and the profile query has caught up; rejects on failure. */
+  onSaveBio: () => Promise<unknown>;
   savingBio: boolean;
   favorite: StatsH2HOpponentRow | null;
   nemesis: StatsH2HOpponentRow | null;
@@ -99,6 +100,17 @@ export default function ProfileOverviewTab({
   canPostGuestbook: boolean;
   onCommentOnAbout: () => void;
 }) {
+  /**
+   * The owner reads their own About block exactly as a visitor does, and edits it only when
+   * they say so (Roli 2026-09-19: "about text on own profile should look exactly like other
+   * profiles, with edit button beside comments label") — the move M8 made on the profile
+   * header, applied to the wall below it. The draft wiring is untouched: opening seeds the
+   * field from the saved text, Cancel puts it back, so an abandoned edit leaves nothing.
+   */
+  const [editingBio, setEditingBio] = useState(false);
+  const editingAbout = canEdit && editingBio;
+  const savedBio = profileBio ?? "";
+
   // One set of column widths per block, so the cards in a grid line up (T14).
   const rivalWidths = recordWidths([favorite, nemesis]);
   const teammateWidths = recordWidths(favoriteTeammates.map((tm) => ({ wins: tm.w, draws: tm.d, losses: tm.l })));
@@ -107,22 +119,49 @@ export default function ProfileOverviewTab({
       <div className="space-y-2">
         <div className="section-head">
           <span className="section-label">About</span>
-          {/* `order-1` is the section-head's action slot — label · ───── · action, the
-              "Recent matches" head below being the worked example (`DESIGN.md` §6).
-              An empty About has no trigger: there is nothing to pin and the server would
-              answer 409. The owner sees it above their own textarea, and what it pins is
-              the *saved* bio, never the draft in the field. */}
-          {profileBio?.trim() ? (
-            <SubjectCommentTrigger
-              kind="about"
-              count={aboutCommentCount}
-              canPost={canPostGuestbook}
-              onOpen={() => onCommentOnAbout()}
-              className="order-1 shrink-0"
-            />
+          {/* `order-1` is the section-head's action slot — label · ───── · action (`DESIGN.md`
+              §6). Two actions here, and they are a matched pair: both are the `h-8` ghost
+              button the app already uses for "comment on this", because one of them *is* that
+              control and a second, smaller look for the button beside it would be a third head
+              treatment (rule 8). The head is therefore 32px, as it has been since K3.
+              Edit sits inboard of the trigger, so the comments control keeps the same corner
+              for a visitor and for the owner — the owner's page is the visitor's page plus one
+              button (M8). It hides while its own editor is open; the trigger does not, because
+              it is about the *saved* text and that has not moved.
+              An empty About has no trigger — there is nothing to pin and the server would
+              answer 409 — but the way in must never hide, or an owner with no bio could never
+              write one. */}
+          {(canEdit && !editingAbout) || savedBio.trim() ? (
+            <div className="order-1 shrink-0 flex items-center gap-1.5">
+              {canEdit && !editingAbout ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => {
+                    onBioChange(savedBio);
+                    setEditingBio(true);
+                  }}
+                  title="Edit the About text"
+                  aria-label="Edit the About text"
+                  data-edit-about
+                  className={SECTION_HEAD_ACTION_CLASS}
+                >
+                  <Pencil size={14} aria-hidden="true" />
+                  Edit
+                </Button>
+              ) : null}
+              {savedBio.trim() ? (
+                <SubjectCommentTrigger
+                  kind="about"
+                  count={aboutCommentCount}
+                  canPost={canPostGuestbook}
+                  onOpen={() => onCommentOnAbout()}
+                />
+              ) : null}
+            </div>
           ) : null}
         </div>
-        {canEdit ? (
+        {editingAbout ? (
           <>
             <Textarea
               label="Profile text"
@@ -130,11 +169,32 @@ export default function ProfileOverviewTab({
               onChange={(e) => onBioChange(e.target.value)}
               placeholder="Write something about this player…"
             />
-            <div className="flex justify-end">
+            <div className="flex justify-end gap-2">
               <Button
                 type="button"
-                onClick={onSaveBio}
-                disabled={savingBio || bioDraft === (profileBio ?? "")}
+                variant="ghost"
+                onClick={() => {
+                  onBioChange(savedBio);
+                  setEditingBio(false);
+                }}
+                disabled={savingBio}
+                title="Discard the changes"
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                onClick={() => {
+                  void (async () => {
+                    try {
+                      await onSaveBio();
+                      setEditingBio(false);
+                    } catch {
+                      // The page's own toast says what went wrong; the draft stays on screen.
+                    }
+                  })();
+                }}
+                disabled={savingBio || bioDraft === savedBio}
                 title="Save profile text"
               >
                 {savingBio ? "Saving…" : "Save"}
@@ -142,7 +202,7 @@ export default function ProfileOverviewTab({
             </div>
           </>
         ) : (
-          <div className="text-sm text-text-normal whitespace-pre-wrap">{profileBio?.trim() || "No profile text yet."}</div>
+          <div className="text-sm text-text-normal whitespace-pre-wrap">{savedBio.trim() || "No profile text yet."}</div>
         )}
       </div>
 
