@@ -68,6 +68,7 @@ from ..services.notifications import (
     push_tournament_deleted,
     push_tournament_updated,
 )
+from ..services.record_holders import after_result_change
 from ..services.stats.core import compute_points_table_finished, top_group
 from ..services.stats.tournament_stats import compute_tournament_stats
 from ..services.tournament_list import build_tournament_list
@@ -109,9 +110,13 @@ class MatchDeletion(NamedTuple):
     matches: int
     comment_ids: list[int]
     image_paths: list[str]
+    #: How many of them were `finished` — i.e. how many real results died here. It is the
+    #: guard every caller uses to decide whether this was a *result* change (M2); a guard,
+    #: not a comment, is what keeps that honest on the two paths where it is always 0.
+    finished: int = 0
 
 
-EMPTY_DELETION = MatchDeletion(0, [], [])
+EMPTY_DELETION = MatchDeletion(0, [], [], 0)
 
 
 def _bulk_delete_matches(
@@ -136,6 +141,12 @@ def _bulk_delete_matches(
     match_ids = [int(i) for i in s.exec(q).all()]
     if not match_ids:
         return EMPTY_DELETION
+
+    finished = int(
+        s.exec(
+            select(func.count(Match.id)).where(Match.id.in_(match_ids), Match.state == "finished")
+        ).one()
+    )
 
     comment_ids = match_comment_ids(s, tournament_id, match_ids)
     image_paths = delete_comment_rows(s, tournament_id, comment_ids)
@@ -166,7 +177,7 @@ def _bulk_delete_matches(
     if autocommit:
         s.commit()
         s.expire_all()
-    return MatchDeletion(len(match_ids), comment_ids, image_paths)
+    return MatchDeletion(len(match_ids), comment_ids, image_paths, finished)
 
 
 def _delete_schedule(s: Session, tournament_id: int, *, autocommit: bool = True) -> MatchDeletion:
@@ -602,7 +613,23 @@ async def patch_date(
     s.commit()
     s.refresh(t)
 
-    await broadcast_tournament(s, tournament_id, reason="updated", global_action="updated")
+    # Streaks, Elo and the upset are ordered by `tournament.date`, so moving the date of a
+    # tournament that has results reorders them — a result change that moves no status (M2).
+    has_results = (
+        int(
+            s.exec(
+                select(func.count(Match.id)).where(
+                    Match.tournament_id == tournament_id, Match.state == "finished"
+                )
+            ).one()
+        )
+        > 0
+    )
+    await broadcast_tournament(
+        s, tournament_id, reason="updated", global_action="result" if has_results else "updated"
+    )
+    if has_results:
+        after_result_change(request, s, tournament_id=tournament_id, reason="date")
     log.info("Tournament date changed: tournament_id=%s date=%s by=%s", tournament_id, t.date, role)
     push_tournament_date_changed(request, tournament_id=tournament_id, tournament_name=t.name, tournament_date=t.date)
     return {"ok": True, "date": t.date}
@@ -628,7 +655,13 @@ async def generate_schedule(
     created_matches, label_to_name, deletion = _generate_schedule_for_tournament(s, t, randomize=randomize)
 
     await _finish_match_deletion(tournament_id, deletion)
-    await broadcast_tournament(s, tournament_id, reason="schedule", global_action="updated")
+    # Regenerating a *live* tournament destroys finished matches, which moves every stat
+    # and the cup — "updated" would have told no other device anything (M2).
+    await broadcast_tournament(
+        s, tournament_id, reason="schedule", global_action="result" if deletion.finished else "updated"
+    )
+    if deletion.finished:
+        after_result_change(request, s, tournament_id=tournament_id, reason="generate")
     log.info(
         "Generated schedule: tournament_id=%s matches=%s mode=%s players=%s",
         tournament_id,
@@ -690,6 +723,8 @@ async def reorder(
         s.add(by_id[mid])
 
     s.commit()
+    # No `after_result_change` here: the checks above pin every finished/playing match as
+    # an unmovable prefix, so a reorder cannot touch a result — only the queue ahead of it.
     await broadcast_tournament(s, tournament_id, reason="reorder")
     return {"ok": True}
 
@@ -698,6 +733,7 @@ async def reorder(
 async def second_leg(
     tournament_id: int,
     body: TournamentSecondLegBody,
+    request: Request,
     s: Session = Depends(get_session),
     role: str = Depends(require_editor),
 ):
@@ -755,6 +791,10 @@ async def second_leg(
 
         await _finish_match_deletion(tournament_id, deletion)
         await broadcast_tournament(s, tournament_id, reason="schedule", global_action="updated")
+        # Always 0 — `_leg2_started` refused above if leg 2 had begun. The guard is the
+        # proof of that, and it keeps this path honest if that check is ever relaxed (M2).
+        if deletion.finished:
+            after_result_change(request, s, tournament_id=tournament_id, reason="second-leg")
         return {"ok": True, "second_leg": False, "deleted": True, "status": t.status}
 
     # enabled == True
@@ -835,6 +875,8 @@ async def delete_tournament(
     _delete_tournament_graph(s, tournament_id)
 
     await broadcast_tournament_deleted(tournament_id)
+    # The tournament is gone, so there is no id left to name (M2).
+    after_result_change(request, s, tournament_id=None, reason="delete")
     log.info("Tournament deleted: tournament_id=%s by=%s", tournament_id, role)
     push_tournament_deleted(request, tournament_id=tournament_id, tournament_name=tournament_name)
 
@@ -848,6 +890,7 @@ ALLOWED_DECIDERS = ("none", "penalties", "match", "scheresteinpapier")
 async def patch_decider(
     tournament_id: int,
     body: TournamentDeciderPatchBody,
+    request: Request,
     s: Session = Depends(get_session),
     claims: dict = Depends(require_editor_claims),
 ):
@@ -950,6 +993,8 @@ async def patch_decider(
 
     # Decider resolves the winner of a finished tournament -> affects cup + stats.
     await broadcast_tournament(s, tournament_id, reason="decider", global_action="status", status="done")
+    # …and "Most tournament wins" with it (M2).
+    after_result_change(request, s, tournament_id=tournament_id, reason="decider")
     return {
         "ok": True,
         "decider_type": t.decider_type,
@@ -1017,6 +1062,7 @@ def reassign_2v2_preview(
 @router.post("/{tournament_id}/reassign", response_model=ReassignResultOut, dependencies=[Depends(require_editor)])
 async def reassign_2v2(
     tournament_id: int,
+    request: Request,
     body: TournamentReassignBody | None = None,
     s: Session = Depends(get_session),
     role: str = Depends(require_editor),
@@ -1139,6 +1185,10 @@ async def reassign_2v2(
 
     await _finish_match_deletion(tournament_id, deletion)
     await broadcast_tournament(s, tournament_id, reason="schedule", global_action="updated")
+    # Always 0 — re-assign refuses for exactly one reason, a match that is not scheduled.
+    # The guard is the proof of that, not a comment claiming it (M2).
+    if deletion.finished:
+        after_result_change(request, s, tournament_id=tournament_id, reason="reassign")
     log.info(
         "2v2 reassign: tournament_id=%s matches=%s had_leg2=%s comments_deleted=%s by=%s",
         tournament_id, len(label_matches), had_leg2, len(deletion.comment_ids), role

@@ -18,6 +18,7 @@ from ..services.notifications import (
     push_match_started,
     push_tournament_finished,
 )
+from ..services.record_holders import after_result_change
 from ..tournament_status import compute_status_for_tournament, find_other_live_tournament_id
 
 router = APIRouter(prefix="/matches", tags=["matches"])
@@ -268,12 +269,19 @@ async def patch_match(
             goals_added=goals_added,
         )
 
+    # Last, so "tournament finished" lands before "you hold X now" (M2). A goal in a
+    # *playing* match is not yet a result; finishing one, un-finishing one and correcting
+    # a finished score all are — which is exactly what this guard says.
+    if old_state == "finished" or m.state == "finished":
+        after_result_change(request, s, tournament_id=int(m.tournament_id), reason="match")
+
     return {"ok": True, "id": m.id, "state": m.state, "leg": m.leg, "tournament_status": status_after}
 
 
 @router.patch("/{match_id}/swap-sides", response_model=OkResponse)
 async def swap_sides(
     match_id: int,
+    request: Request,
     s: Session = Depends(get_session),
     claims: dict = Depends(require_editor_claims),
 ):
@@ -323,4 +331,7 @@ async def swap_sides(
         global_action=global_action_for_match_change(status_now, status_now),
         status=status_now,
     )
+    # Swapping a finished match swaps who won it — a result change like any other (M2).
+    if m.state == "finished":
+        after_result_change(request, s, tournament_id=int(m.tournament_id), reason="swap")
     return {"ok": True}

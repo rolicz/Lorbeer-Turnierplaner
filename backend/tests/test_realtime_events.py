@@ -292,3 +292,58 @@ def test_guestbook_writes_reach_the_profile_channel(client, admin_headers, monke
     assert removed.status_code == 204, removed.text
 
     assert actions() == ["created", "updated", "voted", "deleted"]
+
+
+def test_regenerating_a_live_tournament_over_results_is_result_grade(client, editor_headers, admin_headers, monkeypatch):
+    """
+    M2: `/generate` on a tournament that already has finished matches destroys results.
+    It moved no status, so it announced itself as a mere "updated" and every other
+    device kept the old standings, cup owner and stats — Q9's failure, one door along.
+    """
+    tid, mid = _live_match(client, editor_headers, admin_headers)
+    r = client.patch(
+        f"/matches/{mid}",
+        json={"state": "finished", "sideA": {"goals": 2}, "sideB": {"goals": 0}},
+        headers=editor_headers,
+    )
+    assert r.status_code == 200, r.text
+
+    rec = _patch_ws(monkeypatch)
+    r = client.post(f"/tournaments/{tid}/generate", json={"randomize": False}, headers=editor_headers)
+    assert r.status_code == 200, r.text
+    actions = [p.get("action") for (ev, p) in rec.global_channel if ev == "tournaments.changed"]
+    assert "result" in actions, actions
+
+
+def test_regenerating_a_draft_is_still_only_an_update(client, editor_headers, admin_headers, monkeypatch):
+    """…and a schedule nobody has played is not a result, so the channel stays coarse."""
+    tid, _ = _live_match(client, editor_headers, admin_headers)
+
+    rec = _patch_ws(monkeypatch)
+    r = client.post(f"/tournaments/{tid}/generate", json={"randomize": False}, headers=editor_headers)
+    assert r.status_code == 200, r.text
+    actions = [p.get("action") for (ev, p) in rec.global_channel if ev == "tournaments.changed"]
+    assert "result" not in actions and "updated" in actions, actions
+
+
+def test_moving_a_played_tournaments_date_is_result_grade(client, editor_headers, admin_headers, monkeypatch):
+    """M2: streaks, Elo and the upset are ordered by `tournament.date`."""
+    tid, _ = _live_match(client, editor_headers, admin_headers)
+    _finish_all(client, editor_headers, tid)
+
+    rec = _patch_ws(monkeypatch)
+    r = client.patch(f"/tournaments/{tid}/date", json={"date": "2026-01-05"}, headers=admin_headers)
+    assert r.status_code == 200, r.text
+    actions = [p.get("action") for (ev, p) in rec.global_channel if ev == "tournaments.changed"]
+    assert "result" in actions, actions
+
+
+def test_moving_a_draft_tournaments_date_is_only_an_update(client, editor_headers, admin_headers, monkeypatch):
+    """A date on a tournament with no results reorders nothing that anything reads."""
+    tid, _ = _live_match(client, editor_headers, admin_headers)
+
+    rec = _patch_ws(monkeypatch)
+    r = client.patch(f"/tournaments/{tid}/date", json={"date": "2026-01-05"}, headers=admin_headers)
+    assert r.status_code == 200, r.text
+    actions = [p.get("action") for (ev, p) in rec.global_channel if ev == "tournaments.changed"]
+    assert "result" not in actions and "updated" in actions, actions

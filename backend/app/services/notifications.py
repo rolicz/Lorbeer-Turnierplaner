@@ -5,7 +5,7 @@ import hashlib
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
 import httpx
 from fastapi import Request
@@ -28,6 +28,9 @@ from .webpush import (
     web_push_runtime_ready,
 )
 
+if TYPE_CHECKING:  # `record_holders` imports this module, so the type stays an annotation.
+    from .record_holders import RecordMove
+
 log = logging.getLogger(__name__)
 DEFAULT_NOTIFICATION_MODE = "finished_only"
 SUPPORTED_NOTIFICATION_MODES = ("finished_only", "all", "off")
@@ -42,6 +45,10 @@ PERSONAL_DEFAULT_EVENT_TYPES = {
     "idea_commented",
     "idea_voted",
     "idea_status",
+    # A record moving is addressed at each player personally — the text differs by what
+    # it means to *them* — so it must reach a device in the default "Results & personal"
+    # mode (M2). A device set to "Off" still gets nothing.
+    "record_moved",
 }
 
 
@@ -602,6 +609,66 @@ def push_idea_status(
         else:
             dispatcher.enqueue_for_player(pid, message)
     return True
+
+
+def push_record_moves(request: Request, s: Session, moves: list["RecordMove"]) -> int:
+    """One notification per player per record moved. Returns how many were queued.
+
+    Roli's decision, arithmetic and all: with six players that is six notifications per
+    record moved, and four per person on a four-record night. He was shown the numbers
+    and kept them — nobody quietly turns this into a digest later. The only batching is
+    the OS tag `record-{key}`, so a second move of the *same* record replaces the first
+    on the device instead of stacking.
+
+    Three texts, chosen by the recipient's own relationship to the move — never by who
+    did it: you took it (`record_gained`), you lost it (`record_lost`), or you watched
+    it happen (`record_watch`). The actor is irrelevant here; a player who corrects a
+    score and thereby takes a record is told they gained it, not that they are watching.
+
+    The record's name is the English stats label; `render_notification_text` translates
+    it per language off `record_key` (M2). Names are the players' current display names.
+    """
+    dispatcher = push_dispatcher_from_request(request)
+    if dispatcher is None or not moves:
+        return 0
+
+    name_by_id = {int(pid): str(name or "") for pid, name in s.exec(select(Player.id, Player.display_name)).all() if pid is not None}
+    everyone = sorted(name_by_id)
+    if not everyone:
+        return 0
+
+    def names(ids: tuple[int, ...]) -> list[str]:
+        return [name_by_id[int(pid)] for pid in ids if int(pid) in name_by_id]
+
+    queued = 0
+    for move in moves:
+        gained, lost, holders = set(move.gained), set(move.lost), move.holders
+        gainer_names, loser_names, holder_names = names(move.gained), names(move.lost), names(holders)
+        for pid in everyone:
+            if pid in gained:
+                text_key = "record_gained"
+            elif pid in lost:
+                text_key = "record_lost"
+            else:
+                text_key = "record_watch"
+            message = localized_push_message(
+                text_key,
+                path=move.path,
+                tag=f"record-{move.key}",
+                event_type="record_moved",
+                data={"record_key": move.key, "gained": list(move.gained), "lost": list(move.lost)},
+                record=move.label,
+                record_key=move.key,
+                gainers=gainer_names,
+                losers=loser_names,
+                holders=holder_names,
+            )
+            if hasattr(dispatcher, "enqueue_personal_for_player"):
+                dispatcher.enqueue_personal_for_player(pid, message)
+            else:
+                dispatcher.enqueue_for_player(pid, message)
+            queued += 1
+    return queued
 
 
 def push_friendly_created(request: Request, *, friendly_id: int, mode: str, scoreline: str) -> None:

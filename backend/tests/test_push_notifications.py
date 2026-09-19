@@ -155,6 +155,11 @@ def test_notification_text_catalog_is_complete_and_renderable():
         "vote_count": 2,
         "status": "planned",
         "status_note_line": "\nsoon",
+        "record": "Win streak",
+        "record_key": "win_streak",
+        "gainers": ["Rumpi"],
+        "losers": ["Roli"],
+        "holders": ["Rumpi"],
     }
 
     for language, payload in languages.items():

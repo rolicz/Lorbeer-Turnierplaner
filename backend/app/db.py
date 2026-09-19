@@ -49,6 +49,16 @@ def init_db() -> None:
     if seeded > 0:
         log.info("Club star history seeded: %s", seeded)
 
+    # Who holds which record, as of now (M2). Lazily imported for the same reason as
+    # above, and *silent by design*: a key that has never been computed is stored
+    # without announcing anything, so neither the first boot nor a later deploy that
+    # adds a record kind pushes every current holder at everybody.
+    from .services.record_holders import backfill_record_holders
+
+    seeded_records = backfill_record_holders(_engine)
+    if seeded_records > 0:
+        log.info("Record holders seeded: %s", seeded_records)
+
 
 # Columns added to existing deployments after the fact: (table, column, DDL type/default).
 # Additive only — old code keeps working against a migrated DB.

@@ -13,8 +13,11 @@ Global channel (/ws/tournaments):
     `action="comment"` is the one that does NOT touch the list: it exists so the
     tournaments list can move its unread badge when a comment is written or removed.
     `action="result"` is the opposite: a score/side correction on a tournament that is
-    already done. It changes no status, so nothing used to announce it, and the list's
-    winner, the cup owner and every stat could stay wrong on every other device (Q9).
+    already done — or any change to finished results or their chronology that moves no
+    status, such as a live tournament regenerated over finished matches or a played
+    tournament's date being moved (M2). It changes no status, so nothing used to
+    announce it, and the list's winner, the cup owner and every stat could stay wrong on
+    every other device (Q9).
 
 Profile channel (/ws/players/{player_id}), broadcast from routers/players.py:
   - player:pokes:update     {player_id, action, ...}
@@ -59,6 +62,11 @@ def global_action_for_match_change(status_before: str, status_after: str) -> str
     A goals/clubs/side edit on a tournament that is *already done* is a correction to a
     real result: it moves the list's winner, the cup owner and every stat, and nothing
     else would ever announce it -> "result".
+
+    This decides it for `PATCH /matches/{id}` and `/swap-sides` only. Two paths outside
+    a match edit are the same grade of change and say so themselves (M2): regenerating a
+    live tournament *over finished matches*, and moving a played tournament's date —
+    streaks, Elo and the upset are all ordered by `tournament.date`.
 
     Everything else -- a goal in a live match, a club picked in a draft -- stays off the
     global channel, which is deliberately coarse and low-frequency so a goal never
