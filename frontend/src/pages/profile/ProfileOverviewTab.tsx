@@ -12,6 +12,7 @@ import { fmtAvg, fmtRank } from "../../utils/format";
 import { MatchHistoryList, tournamentMatchHref } from "../stats/MatchHistoryList";
 import { statsMatchupHref } from "../stats/statsNav";
 import { type FavoriteTeammate } from "./favoriteTeammates";
+import SubjectCommentTrigger from "./SubjectCommentTrigger";
 
 /**
  * Favorite / Nemesis chip. With a known opponent it links into the stats matchup
@@ -73,6 +74,9 @@ export default function ProfileOverviewTab({
   targetPlayerId,
   statsMatchesError,
   onViewAllMatches,
+  aboutCommentCount,
+  canPostGuestbook,
+  onCommentOnAbout,
 }: {
   canEdit: boolean;
   bioDraft: string;
@@ -90,6 +94,10 @@ export default function ProfileOverviewTab({
   targetPlayerId: number;
   statsMatchesError: unknown;
   onViewAllMatches: () => void;
+  /** Guestbook entries about the *saved* About text as it stands now (K3). */
+  aboutCommentCount: number;
+  canPostGuestbook: boolean;
+  onCommentOnAbout: () => void;
 }) {
   // One set of column widths per block, so the cards in a grid line up (T14).
   const rivalWidths = recordWidths([favorite, nemesis]);
@@ -97,7 +105,23 @@ export default function ProfileOverviewTab({
   return (
     <div className="space-y-5">
       <div className="space-y-2">
-        <div className="section-head"><span className="section-label">About</span></div>
+        <div className="section-head">
+          <span className="section-label">About</span>
+          {/* `order-1` is the section-head's action slot — label · ───── · action, the
+              "Recent matches" head below being the worked example (`DESIGN.md` §6).
+              An empty About has no trigger: there is nothing to pin and the server would
+              answer 409. The owner sees it above their own textarea, and what it pins is
+              the *saved* bio, never the draft in the field. */}
+          {profileBio?.trim() ? (
+            <SubjectCommentTrigger
+              kind="about"
+              count={aboutCommentCount}
+              canPost={canPostGuestbook}
+              onOpen={() => onCommentOnAbout()}
+              className="order-1 shrink-0"
+            />
+          ) : null}
+        </div>
         {canEdit ? (
           <>
             <Textarea

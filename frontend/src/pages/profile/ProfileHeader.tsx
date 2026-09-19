@@ -18,10 +18,11 @@ import {
   putPlayerHeaderImage,
 } from "../../api/playerHeaders.api";
 import { qk } from "../../api/queryKeys";
-import type { StatsRecord } from "../../api/types";
+import type { GuestbookSubjectKind, StatsRecord } from "../../api/types";
 import { usePlayerHeaderMap } from "../../hooks/usePlayerHeaderMap";
 import PlayerAvatarEditor from "../players/PlayerAvatarEditor";
 import RecordBadges from "./RecordBadges";
+import SubjectCommentTrigger from "./SubjectCommentTrigger";
 import { type useProfilePokes } from "./useProfilePokes";
 
 type ProfilePokes = ReturnType<typeof useProfilePokes>;
@@ -46,6 +47,9 @@ export default function ProfileHeader({
   unreadGuestbookAuthorCount,
   pokes,
   records,
+  subjectCounts,
+  canPostGuestbook,
+  onCommentOn,
 }: {
   targetPlayerId: number;
   token: string | null;
@@ -61,6 +65,10 @@ export default function ProfileHeader({
   unreadGuestbookAuthorCount: number;
   pokes: ProfilePokes;
   records: StatsRecord[];
+  /** Guestbook entries about the *current* version of each item (K3). */
+  subjectCounts: Record<GuestbookSubjectKind, number>;
+  canPostGuestbook: boolean;
+  onCommentOn: (kind: GuestbookSubjectKind) => void;
 }) {
   const qc = useQueryClient();
   const { headerUpdatedAtById: headerUpdatedAtByPlayerId } = usePlayerHeaderMap();
@@ -87,6 +95,10 @@ export default function ProfileHeader({
     },
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: qk.playerAvatars() });
+      // `current` on every subject chip is a fact about this profile, and the guestbook
+      // list is what carries it (K3): the owner's own chips flip to "Earlier …" with the
+      // upload, not 5 s later when the window goes stale.
+      await qc.invalidateQueries({ queryKey: qk.playerGuestbook(targetPlayerId) });
     },
   });
 
@@ -98,6 +110,10 @@ export default function ProfileHeader({
     },
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: qk.playerAvatars() });
+      // `current` on every subject chip is a fact about this profile, and the guestbook
+      // list is what carries it (K3): the owner's own chips flip to "Earlier …" with the
+      // upload, not 5 s later when the window goes stale.
+      await qc.invalidateQueries({ queryKey: qk.playerGuestbook(targetPlayerId) });
     },
   });
 
@@ -111,6 +127,10 @@ export default function ProfileHeader({
       await qc.invalidateQueries({ queryKey: qk.playerHeaders() });
       await qc.invalidateQueries({ queryKey: qk.playerProfile(targetPlayerId ?? "none") });
       await qc.invalidateQueries({ queryKey: qk.playerProfiles() });
+      // `current` on every subject chip is a fact about this profile, and the guestbook
+      // list is what carries it (K3): the owner's own chips flip to "Earlier …" with the
+      // upload, not 5 s later when the window goes stale.
+      await qc.invalidateQueries({ queryKey: qk.playerGuestbook(targetPlayerId) });
     },
   });
 
@@ -124,6 +144,10 @@ export default function ProfileHeader({
       await qc.invalidateQueries({ queryKey: qk.playerHeaders() });
       await qc.invalidateQueries({ queryKey: qk.playerProfile(targetPlayerId ?? "none") });
       await qc.invalidateQueries({ queryKey: qk.playerProfiles() });
+      // `current` on every subject chip is a fact about this profile, and the guestbook
+      // list is what carries it (K3): the owner's own chips flip to "Earlier …" with the
+      // upload, not 5 s later when the window goes stale.
+      await qc.invalidateQueries({ queryKey: qk.playerGuestbook(targetPlayerId) });
     },
   });
 
@@ -157,6 +181,21 @@ export default function ProfileHeader({
               No header image
             </div>
           )}
+          {/* The second way in, and the only one that shows without a tap (Roli 2026-09-19,
+              overruling the plan's "lightbox only"). It is `absolute` inside the banner's own
+              box on purpose: M8 and M9 spent two tasks taking height out of this header, so a
+              badge that took part in the flow would push the identity block and the tab strip
+              back down. It says nothing at all at zero. */}
+          {headerImageSrc ? (
+            <SubjectCommentTrigger
+              kind="header_image"
+              count={subjectCounts.header_image}
+              canPost={canPostGuestbook}
+              variant="overlay"
+              onOpen={onCommentOn}
+              className="absolute bottom-2 right-2 z-10"
+            />
+          ) : null}
         </div>
 
         <div className="flex items-center gap-3">
@@ -400,8 +439,42 @@ export default function ProfileHeader({
         }}
       />
 
-      <ImageLightbox open={!!avatarLightboxSrc} src={avatarLightboxSrc} onClose={() => setAvatarLightboxSrc(null)} />
-      <ImageLightbox open={!!headerLightboxSrc} src={headerLightboxSrc} onClose={() => setHeaderLightboxSrc(null)} />
+      {/* The picture's own "comment on this": the lightbox closes as it hands over, so the
+          armed composer is not left behind an overlay. */}
+      <ImageLightbox
+        open={!!avatarLightboxSrc}
+        src={avatarLightboxSrc}
+        onClose={() => setAvatarLightboxSrc(null)}
+        footer={
+          <SubjectCommentTrigger
+            kind="avatar"
+            count={subjectCounts.avatar}
+            canPost={canPostGuestbook}
+            variant="solid"
+            onOpen={(kind) => {
+              setAvatarLightboxSrc(null);
+              onCommentOn(kind);
+            }}
+          />
+        }
+      />
+      <ImageLightbox
+        open={!!headerLightboxSrc}
+        src={headerLightboxSrc}
+        onClose={() => setHeaderLightboxSrc(null)}
+        footer={
+          <SubjectCommentTrigger
+            kind="header_image"
+            count={subjectCounts.header_image}
+            canPost={canPostGuestbook}
+            variant="solid"
+            onOpen={(kind) => {
+              setHeaderLightboxSrc(null);
+              onCommentOn(kind);
+            }}
+          />
+        }
+      />
 
       <ConfirmDialog
         open={!!pendingDeleteHeader}

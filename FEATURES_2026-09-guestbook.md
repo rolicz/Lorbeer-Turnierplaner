@@ -872,7 +872,7 @@ block above is what K4 folds in, and it needed one addition (the exported `ModeB
 
 ---
 
-## K3 — The items: one trigger on the banner, the avatar and the About text  ☐
+## K3 — The items: one trigger on the banner, the avatar and the About text  ☑
 
 **The gap.** `ImageLightbox.tsx` closes on any click (`onClickCapture`, `:96`) and has no slot for a
 control; `ProfileHeader.tsx:146/164` open it for the banner and the avatar with nothing else in it;
@@ -997,6 +997,103 @@ composer. `AGENTS.md` §6 — the owner's picture and bio mutations invalidate `
 because `current` is a fact about the profile the guestbook list carries.
 
 **Deviations:**
+
+Built as specified, with **one variant the plan could not name** (it predates Roli's overrule)
+and **one DoD clause that cannot hold as written**. Every claim below is a number this task
+measured on the isolated stack (`:8123` / `:8143`, `backend/data/verify-k3.db`, an uploads copy
+outside the repo), never an estimate.
+
+- **`SubjectCommentTrigger` has a third variant, `overlay`, and it is the count badge.** The plan
+  wrote `ghost | solid` because it was written before Roli asked for the banner badge as well; the
+  badge is the same job — "start a comment about this item" — so it is the *same* component with a
+  third look rather than a second button in `ProfileHeader` (rule 8). Three things about it are
+  decisions the plan did not make: it is a bare `<button>`, not `Button`, because `buttonClass` has
+  no look for a marker sitting on a photograph; its scrim is `bg-black/60 text-white`, which is the
+  `.overlay-scrim` / `ImageLightbox` precedent and the one way a mark on an arbitrary picture reads
+  the same in blue and in light; and **the zero rule lives in the component**, not at the call site
+  (`variant === "overlay" && count === 0 → null`), so Roli's constraint cannot be lost by a future
+  caller. It renders the **number alone** — a badge is a marker, never prose (`DESIGN.md` §5b) —
+  with the whole sentence in `title`/`aria-label` ("2 comments on the header image").
+- **The badge is a *sibling* of the banner's own button, not inside it.** A `<button>` inside a
+  `<button>` is invalid HTML and the outer one would swallow the tap. It sits in the banner's
+  existing `relative … overflow-hidden` box as `absolute bottom-2 right-2 z-10`.
+- **The count badge moves nothing — measured four ways, not argued.** The tab strip
+  (`[data-section-tabs]`, document coordinates) on the **owner's own profile with 8 badges**:
+
+  | width / theme | tab strip top | badge present | badge removed from the DOM |
+  |---|---|---|---|
+  | 390×844 blue | **451.3px** | 451.3 | 451.3 (**Δ 0.0**) |
+  | 390×844 light | **451.3px** | 451.3 | 451.3 (**Δ 0.0**) |
+  | 1280×900 blue | **779.9px** | 779.9 | 779.9 (**Δ 0.0**) |
+  | 1280×900 light | **779.9px** | 779.9 | 779.9 (**Δ 0.0**) |
+
+  and the same number at source level across four data states at each width — four tagged entries
+  with the badge showing, the two header entries deleted so the badge does not render at all, the
+  **pristine dev DB** (no tagged entry has ever existed, i.e. the pre-K3 header), and restored:
+  **451.3 / 451.3 / 451.3 / 451.3** at 390px and **779.9 ×4** at 1280px. The measurement is not
+  blind: inserting a 20px block as the tab strip's sibling moves it to **483.3px** (+32 = 20 plus
+  the page column's own 12px flow margin), so it would have seen any growth at all. The M9 baseline
+  it must not disturb is intact in the same runs — avatar **80×80** (`h-20`), band **8 chips**, one
+  row of 8 at 1280px and **5 + 3** at 390px in a **218px** owner column (M9's "6 per row" is for
+  uniform 32px chips and it says itself that one 51px Elo chip pushes the next one down; Roli holds
+  two). The badge itself is **41.9 × 28px**, bottom-right, fully inside the banner's box
+  (measured `insideBanner: true`), on a banner of 358×202.3 at 390px and 992×558.9 at 1280px.
+- **The About head does grow, by 16px, and the DoD's own clause cannot hold.** "both must be the
+  `h-8` row — the trigger may not grow the head" contradicts the component the same task specifies:
+  a bare `.section-head` is its label's line, **16.0px**, and the trigger is the Ideas toggle
+  verbatim, **32.0px**, so the head with it is **32.0px** — at both widths, in both themes. Nothing
+  was improvised to dodge this: the plan names the class string, rule 8 forbids a second smaller
+  "comment on this" look, and the *hard* constraint (the tab strip, the identity block) is untouched
+  because this head is inside the Overview tab. The number is here so K4 or Roli can decide; the
+  in-app yardstick is that the "Recent matches" head, which already carries an action, is **16.0px**
+  because its action is text-only. It is flush right (`order: 1`, `flushRight`), which is the
+  section-head action slot working as documented.
+- **The lightbox footer, measured**: the solid button is **32px**, **centred** (|centre − viewport
+  centre| < 1px), carries `btn-solid` in all four runs, and its box is flush to the safe box
+  (`bottom-safe-b`, gap 0 — `env()` is 0px in Chromium, and the footer's own `p-3` keeps the button
+  12px off the edge). A click on the scrim still closes it; a click on the button does not (both in
+  the browser and in `imageLightboxFooter.test.tsx`, which needed a `ResizeObserver` stub as the
+  plan predicted). `footer` is declared on **both** exported components — the wrapper forwards it.
+- **The whole chain, at 390×844 and 1280×900, in `blue` and in `light`, as Berni on `/profiles/1`**
+  (0 console errors and `a a` = 0 in every one of the four runs): the banner badge reads the count
+  → the banner opens the lightbox → its solid button reads "2 comments" → tapping it closes the
+  lightbox, lands on **`?tab=guestbook`**, shows the `ModeBadge` **"Header image"** above the field
+  (verified *inside* the sticky composer box, which keeps `bottom-nav-clear`), and
+  `document.activeElement` **is** the textarea → posting writes an entry whose chip reads "Header
+  image", clears the badge, and the banner's count steps **2 → 3 → 4 → 5 → 6** over the four runs.
+  The avatar arms **"Avatar"**, the About head arms **"About text"**. Entry ids are unique
+  (`[id^="guestbook-entry-"]`, 10 ids, 10 distinct) — an entry appears exactly once.
+- **The reader, measured**: the banner badge and the About trigger ("1 comment") are both there,
+  tapping lands on `?tab=guestbook` with the guestbook on screen, the "Login as a player…" line and
+  **no** `ModeBadge`; on a profile with a bio and no About comment (player 2) there is **no trigger
+  and a 16.0px head**; on a profile with an empty bio (player 6) there is no trigger at all.
+- **`current` flips both ways, and the invalidations are what does it.** Through the **real owner
+  UI** — the one edit button → the sheet → Edit header image → Use image — the chip on the entry
+  about the old picture goes "Header image" → **"Earlier header image"** with **no reload**
+  (`performance.getEntriesByType("navigation").length` stays 1); that is
+  `putHeaderMut.onSuccess`'s new `qk.playerGuestbook` line. The bio save does the same from
+  `ProfilePage` ("About text" → "Earlier About text", no reload) **and comes back** to "About text"
+  when the exact words are typed again, which is K1's text-equality rule for `current` seen from the
+  browser. On **another device** (Berni's tab, nothing touched in it) a header replaced over HTTP
+  reaches it after **6.8s away and a return**: 2 refetches, chip flips, no reload — the 5s window
+  plus the focus refetch, exactly as §7 of this plan predicted, since no channel announces an upload.
+  After a new header nobody has commented on, the banner badge correctly says **nothing**.
+- **Two tests beyond the plan's list**, both about the overrule: the overlay says nothing at zero
+  *whoever is looking*, and it renders the bare count with the sentence in its accessible name.
+- **The iOS caret is still unproven, as the plan said it would be.** The focus is placed by the
+  composer nonce after the tab switch, outside the tap's own call stack, so Safari may show the
+  field focused without raising the keyboard; headless Chromium reports `document.activeElement ===
+  textarea` in all four runs, and the armed chip is visible either way.
+- **Nothing outside the file set was touched.** No port but 8123/8143 was bound, every process was
+  killed by its own PID, the DB was a copy and the uploads root a directory outside the repo — the
+  two header uploads this verification made went there and nowhere near `backend/data/uploads`.
+
+**Gates, observed** (on the shared tree, so K2's in-flight feed work is in these numbers too):
+`cd frontend && npm run check` → tsc + eslint clean, **757 tests in 78 files** in 69.6 s (the
+branch baseline is 735 in 74; K3 adds two files and 11 tests, K2 the other two and 11);
+`npm run build` green in 8.98 s, `index-BC7SuiK6.js` **734.44 kB** — the pre-existing
+">500 kB chunk" hint, 0.39 kB over the badges head's 734.05 kB. Browser: 390×844 and 1280×900
+× `blue` and `light`, **0 console errors** and **`a a` = 0** in all four.
 
 ---
 

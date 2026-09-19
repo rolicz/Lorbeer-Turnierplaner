@@ -45,6 +45,7 @@ import { useProfilePokes } from "./profile/useProfilePokes";
 import { useProfileGuestbook } from "./profile/useProfileGuestbook";
 import { useGuestbookUnreadJump } from "./profile/useGuestbookUnreadJump";
 import { qk } from "../api/queryKeys";
+import type { GuestbookSubjectKind } from "../api/types";
 
 type ProfileTab = "overview" | "stats" | "matches" | "guestbook";
 const PROFILE_TAB_KEYS = ["overview", "stats", "matches", "guestbook"] as const satisfies readonly ProfileTab[];
@@ -225,6 +226,18 @@ export default function ProfilePage() {
 
   usePlayerProfileWS(targetPlayerId, token);
 
+  /**
+   * "Comment on this" from an item (K3). An item never hosts its own thread: it switches to
+   * the Guestbook tab and arms the feed's own composer, so an entry appears exactly once on
+   * this page. A reader who cannot post is taken to the conversation instead — the count they
+   * tapped is what is down there.
+   */
+  const onCommentOn = (kind: GuestbookSubjectKind) => {
+    setProfileTab("guestbook");
+    if (guestbook.canPostGuestbook) guestbook.armSubject(kind);
+    else guestbook.scrollToGuestbookSection("auto");
+  };
+
   const saveProfileMut = useMutation({
     mutationFn: async () => {
       if (!token) throw new Error("Not logged in");
@@ -237,6 +250,9 @@ export default function ProfilePage() {
       }
       await qc.invalidateQueries({ queryKey: qk.playerProfile(targetPlayerId ?? "none") });
       await qc.invalidateQueries({ queryKey: qk.playerProfiles() });
+      // A saved bio is a new version, so every About chip's `current` may have flipped —
+      // and that flag is computed server-side and carried in the guestbook list (K3).
+      if (targetPlayerId) await qc.invalidateQueries({ queryKey: qk.playerGuestbook(targetPlayerId) });
     },
   });
 
@@ -310,6 +326,9 @@ export default function ProfilePage() {
           unreadGuestbookAuthorCount={guestbook.unreadGuestbookAuthorCount}
           pokes={pokes}
           records={recordsQ.data?.records ?? []}
+          subjectCounts={guestbook.currentSubjectCounts}
+          canPostGuestbook={guestbook.canPostGuestbook}
+          onCommentOn={onCommentOn}
         />
 
         <SectionTabs
@@ -344,6 +363,9 @@ export default function ProfilePage() {
             targetPlayerId={targetPlayerId}
             statsMatchesError={statsMatchesQ.error}
             onViewAllMatches={() => setProfileTab("matches")}
+            aboutCommentCount={guestbook.currentSubjectCounts.about}
+            canPostGuestbook={guestbook.canPostGuestbook}
+            onCommentOnAbout={() => onCommentOn("about")}
           />
         ) : null}
 
