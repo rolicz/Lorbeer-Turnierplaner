@@ -171,7 +171,8 @@ export default function ProfileHeader({
                 playerId={targetPlayerId}
                 name={displayName ?? String(targetPlayerId)}
                 updatedAt={avatarUpdatedAt}
-                sizeClass="h-14 w-14"
+                sizeClass="h-20 w-20"
+                fallbackClassName="text-lg font-semibold text-text-muted"
                 cups={ownedCups}
               />
             </button>
@@ -180,13 +181,14 @@ export default function ProfileHeader({
               playerId={targetPlayerId}
               name={displayName ?? String(targetPlayerId)}
               updatedAt={avatarUpdatedAt}
-              sizeClass="h-14 w-14"
+              sizeClass="h-20 w-20"
+              fallbackClassName="text-lg font-semibold text-text-muted"
               cups={ownedCups}
             />
           )}
           <div className="min-w-0">
             <div className="min-w-0 flex items-center gap-2">
-              <span className="truncate text-base font-semibold text-text-normal">
+              <span className="truncate text-lg font-semibold text-text-normal">
                 {displayName ?? `Player #${targetPlayerId}`}
               </span>
             </div>

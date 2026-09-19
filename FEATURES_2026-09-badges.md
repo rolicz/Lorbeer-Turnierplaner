@@ -393,6 +393,7 @@ language is obviously missing in the others rather than silently stale.
 | 6 | M6 | Standings: evaluate, expect nothing | none expected (`pages/live/StandingsTable.tsx` read, not written) | group B |
 | 7 | M7 | Documentation pass | `AGENTS.md`, `DESIGN.md`, this file | last |
 | 8 | M8 | The badges explain themselves; the profile stops narrating itself | `frontend/src/pages/profile/RecordBadges.tsx`, `frontend/src/pages/profile/ProfileHeader.tsx`, `frontend/src/test/recordBadges.test.tsx`, this file | follow-up, after M7 (its canon corrections are written in its own section for a later pass) |
+| 9 | M9 | The avatar grows to match the band beside it | `frontend/src/pages/profile/ProfileHeader.tsx`, this file | follow-up, after M8 (its canon corrections are written in its own section for a later pass) |
 
 **Order:** M1 alone → **group A** {M2, M3} in parallel → **group B** {M4, M5, M6} in parallel → M7.
 **Why M1 alone:** every other task reads its response models, its generated types or its `RECORD_DEFS`,
@@ -1847,6 +1848,184 @@ does not have to re-derive it.
 - **Isolated stack:** backend **8097**, vite **8117**, `backend/data/verify-m8.db` (a copy of
   `backend/app.db`), throwaway secrets outside the repo. Both were free; nothing on 8000/8001/8010/5173
   was touched, and only the two PIDs this task started were killed.
+
+---
+
+## M9 — The avatar grows to match the band beside it  ☑
+
+Roli, after living with M8 (2026-09-19): *"make the profile avatar larger -> the 3 rows (name,
+badges, angepöbelt) are higher now than the avatar, which does not look nice. the name can be
+bigger."*
+
+**The gap.** M8 shrank the identity row's edit cluster from three buttons to one, which freed
+80px+ of column width — but the avatar itself never grew. `ProfileHeader.tsx:174/183` still sets
+`sizeClass="h-14 w-14"` (56px), unchanged since before M5. Next to a name plus a two-row badge
+band the disc reads small; the imbalance is worst on the exact profile Roli looks at most —
+his own, which holds the most records in the dev data (8 of 16) and is therefore the one most
+likely to wrap the band to two rows.
+
+**Verify first.**
+```bash
+grep -n 'h-14 w-14' frontend/src/pages/profile/ProfileHeader.tsx                            # → 2 (both AvatarCircle calls)
+grep -n 'text-base font-semibold text-text-normal' frontend/src/pages/profile/ProfileHeader.tsx  # → 1 (the name span)
+```
+Both matched at `193fb47` — the gap was still open.
+
+**The change.** `frontend/src/pages/profile/ProfileHeader.tsx` only, three edits, no new file:
+1. Both `AvatarCircle` calls (the lightbox-trigger button variant and the inert variant):
+   `sizeClass="h-14 w-14"` → `sizeClass="h-20 w-20"` (56px → 80px, the next two-step jump on
+   Tailwind's scale — `h-16`/64px was measured and rejected, see Deviations) plus
+   `fallbackClassName="text-lg font-semibold text-text-muted"`, one step up from `AvatarCircle`'s
+   own default (`text-sm`) so the fallback initial keeps the same proportion inside a 43%-larger
+   disc (Roli's own instance always has a real photo in the dev data; the fallback was checked by
+   intercepting `/players/avatars` in the browser to force it, see Deviations).
+2. The name span: `className="truncate text-base font-semibold text-text-normal"` →
+   `className="truncate text-lg font-semibold text-text-normal"` — `text-lg` (18px) is the type
+   scale's next step up from `text-base` and is already the bucket `DESIGN.md` §5 calls "card
+   titles, names next to scores".
+3. Nothing else moves: `RecordBadges`, the meta line, the edit button, the pictures sheet and the
+   avatar ring logic (`AvatarCircle`) are untouched — the ring is drawn *inside* the avatar's own
+   box via padding (`AvatarCircle.tsx:70`), so growing `sizeClass` never had to be reconciled with
+   ring math.
+
+**Blast radius.** `frontend/src/pages/profile/ProfileHeader.tsx` only. No test file references
+`h-14 w-14` or the name's font size (`grep -rln 'h-14 w-14\|ProfileHeader' frontend/src/test/` →
+no matches), so no test needed updating.
+
+**Definition of done.** `npm run check` green with the existing 735/74 baseline unchanged (no
+test touched this file); `npm run build` green with `index-*.js` unchanged at 734.05 kB (a
+class-string change costs nothing); browser check at 390×844 and 1280×900, `blue` and `light`,
+owner and visitor, one-row and two-row band: avatar visibly closer in height to the text column
+than at 56px; the cup ring (Berni, gold; Rumpi, green) still reads as a distinct mark from the
+grey badge band at the new size; the fallback initial is legible and proportioned inside the
+larger disc; `a a` stays 0; 0 console errors.
+
+**Gates.** `cd frontend && npm run check` — **735 tests in 74 files**, tsc clean, eslint clean.
+`npm run build` — green, `index-*.js` 734.05 kB, same pre-existing ">500 kB" hint as M8 (no
+change — this task edited three class strings, not logic).
+
+**Canon — for M7's later pass, alongside M8's still-pending corrections.**
+
+`DESIGN.md` §7's "Identity" row (the `AvatarCircle` entry, ~line 406) should gain a clause: *the
+profile header's own avatar (`ProfileHeader.tsx`) is `h-20 w-20` (80px) — the largest
+`AvatarCircle` in the app (every other instance stays at its existing house size: 56px on the
+Player-stats card, 24–40px everywhere else) — sized so the disc reads balanced next to a name
+plus a wrapping badge band (M9, Roli: "the 3 rows … are higher now than the avatar"). The name
+beside it is `text-lg` (18px), the type scale's "names next to scores" step, not `text-base`.*
+
+`AGENTS.md` §11's measured-width paragraph (the one M8's own canon note already flagged as
+superseded, "the own-profile column is **242px** and fits **6** badges per row … the band is 2
+rows on an own profile, not 4") needs a **second** correction layered on top of M8's: growing the
+avatar from 56px to 80px costs the text column another 24px of width (the row's total width is
+fixed; a wider avatar leaves less for its neighbour) — measured **218px** on an own profile
+holding 8 records (was 242px after M8, 134px before it), still packing 6 badges into the first
+row before wrapping (the 7th is still blocked by the 51px `1v1`/`2v2` Elo chip, exactly as M8
+found). A visitor's column is unaffected in the common case (single-row bands are sized to
+content, not to the available width — see Deviations) and measures 24px narrower only where a
+band already wraps (**254px**, was 278px).
+
+**Deviations:**
+
+- **Two sizes were measured, not guessed, and one number held.** The task brief asked to measure
+  the text column's real height for an owner and a visitor, with a one-row and a two-row band, at
+  390px and 1280px — four scenarios, both viewports, both themes (geometry is theme-independent,
+  CSS variables only, confirmed identical in `blue` and `light` throughout). Login/profile pairs
+  used to get real one-row and two-row bands from the dev data (Roli=8 records, Berni=3): **owner,
+  two-row** = Roli logged in viewing `/profiles/1`; **owner, one-row** = Berni logged in viewing
+  `/profiles/4`; **visitor, two-row** = Berni logged in viewing `/profiles/1`; **visitor,
+  one-row** = Roli logged in viewing `/profiles/4`. Measured at 390×844 (`blue`, values identical
+  in `light`):
+
+  | scenario | text-column height | avatar height (before → after) | height ratio (avatar / column) |
+  |---|---|---|---|
+  | owner, 1-row band (Berni) | 74px → 78px | 56 → 80 | **0.76 → 1.03** |
+  | owner, 2-row band (Roli) | 108px → 112px | 56 → 80 | **0.52 → 0.71** |
+  | visitor, 1-row band (Berni via Roli) | 76px → 80px | 56 → 80 | **0.74 → 1.00** |
+  | visitor, 2-row band (Roli via Berni) | 110px → 114px | 56 → 80 | **0.51 → 0.70** |
+
+  At 1280px every scenario's band fits on one row (the column is 317px owner / 113–317px visitor,
+  well past the wrap point), so all four collapse to the "1-row" numbers above (colH 74–76px
+  before, 78–80px after) — there is no 1280px 2-row case to measure, and none was claimed.
+  **The one-row case is the common one**: four of the six dev players (Berni, Rumpi, Atzi, Flo)
+  hold ≤4 records, which never wraps a foreign or an own column at either width — only Roli's 8
+  wraps. `h-20` (80px) was chosen over `h-16` (64px) because it is the size that reads balanced
+  in **both** regimes: it roughly *matches* the 1-row column (78–80px, ratio ≈1.0 — avatar and
+  text now the same height) while meaningfully closing the 2-row gap (0.52→0.71 / 0.51→0.70,
+  vs. `h-16`'s computed 0.59/0.57 — barely moved from the 56px baseline). `h-16` was rejected on
+  that arithmetic alone, not rendered, because the 2-row case is the one Roli was looking at when
+  he filed this. **One number holds**: the brief's fallback (avatar tracks band rows) was not
+  needed — 80px reads as a deliberately large "hero" identity photo against a 1-row column and
+  merely "closer, still readable as a column beside a disc" against a 2-row one, which is the more
+  honest outcome for a header whose height already varies by player (M5/M8 already accepted that
+  for the band; this doesn't add a second axis of per-player variation to the avatar itself,
+  which stays one size for everyone).
+- **Row-height / tab-strip cost, measured (390px, `blue`, `identityRow`'s own
+  `getBoundingClientRect()` before and after, live via `page.route`-free before/after runs since
+  this is a code change, not a data toggle):**
+
+  | scenario | row height before → after | tab-strip `top` before → after |
+  |---|---|---|
+  | owner, 1-row (Berni) | 74 → 83.5px (+9.5) | 413.25 → 422.75px (+9.5) |
+  | owner, 2-row (Roli) | 108 → 112px (+4) | 447.25 → 451.25px (+4) |
+  | visitor, 1-row (Berni via Roli) | 76 → 83.5px (+7.5) | 470.25 → 477.75px (+7.5) |
+  | visitor, 2-row (Roli via Berni) | 110 → 114px (+4) | 504.25 → 508.25px (+4) |
+
+  The 2-row cases move least (+4px: the text column was already taller than 56px and stays taller
+  than 80px, so the row's height is still governed by the text column, barely changed by the
+  meta-line's own reflow). The 1-row cases move more (+7.5/+9.5px): there the avatar was already
+  the taller element pre-change in one case and becomes the taller element post-change in the
+  other, so the row's governing dimension shifts from the text column to the avatar. At 1280px
+  the same pattern holds, slightly larger (+7.5 to +11px) because the owner edit button's own
+  36px height stops being the tallest thing in the row once the avatar passes it. No case moves
+  the tab strip by more than 11px — an order of magnitude below the ~33–34px a wrapped badge row
+  costs (M5/M8), and well inside "a header whose height differs per player is a property it
+  already has" (M5's own framing, quoted in the brief).
+- **Text-column width shrinks by exactly the avatar's own width increase (24px) where the column
+  is wrap-driven, and by nothing where it is content-driven.** Measured 390px `colWidth`: owner
+  2-row 242→218px, visitor 2-row 278→254px (both wrap-driven — the flex item is clamped to the
+  row's leftover space, so a wider avatar leaves less of it); owner/visitor 1-row 182px/113.6px
+  unchanged (content-driven — a 3-badge band's own max-content width is narrower than the leftover
+  space either way, so the flex item shrinks to its content regardless of avatar width). Folded
+  into the Canon note above for M7.
+- **Band packing at 218px (owner, 2-row, after) was re-checked against M8's 242px finding**,
+  since 218px is under the `38×6−6=222` threshold M8 computed for 6 uniform 32px chips: the 7th
+  chip is still blocked by the wide (51px) `1v1` Elo chip before the uniform-width threshold ever
+  matters, so the row still splits 6+2, matching M8's own split at 242px. Row count did not change
+  because of this task.
+- **Cup ring, checked visually at the new size, both themes, two ringed profiles.** Berni
+  (`/profiles/4`, holds the gold Lorbeerkranz ring) and Rumpi (`/profiles/3`, holds a green ring)
+  were screenshotted at 80px: the ring's own styling (`AvatarCircle.tsx`) is untouched by this
+  task — width stays `2.5px`, the neutral hairline stays `1px`, both drawn via `padding` inside
+  the box, so growing `sizeClass` only grows the disc the ring sits on. The ring-to-diameter
+  proportion actually drops slightly (2.5/80 ≈ 3.1% vs 2.5/56 ≈ 4.5%), and it is still clearly
+  legible and unambiguously a different mark from the grey badge band in both themes at 3× zoom —
+  no contrast recompute was needed because no colour or stroke width changed, only what it is
+  drawn around.
+- **The fallback initial could not be exercised on real data** — all six dev players have an
+  avatar image in the current `backend/app.db` copy (`GET /players/{id}/profile` returns
+  `avatar_updated_at: None` for every id via that endpoint, which turned out to be the wrong
+  field to check; the real signal, `GET /players/avatars`, lists an entry for all six). To see the
+  fallback rendered for real, `/players/avatars`' response was intercepted in the browser
+  (`page.route`) and Roli's entry stripped, forcing `AvatarCircle` down its no-`updatedAt` branch:
+  the disc renders `data-avatar-ring="neutral"`, an "R" at `text-lg`/18px/600-weight, centred, and
+  reads proportioned inside the 80px disc in both themes and both widths — screenshots kept
+  (`after-fallback-{390,1280}-{blue,light}.png`). This is a page-level test harness technique, not
+  a code path — no source file was touched to make it possible.
+- **M8's own work re-checked, not re-touched.** The legend Modal (`RecordsHeldSheet`), its 28px
+  leading marks, its label/explainer alignment, and the single-pencil edit control are unchanged
+  DOM — opening the legend on the post-M9 header (screenshot `after-legend-open-390-blue.png`)
+  shows the same 8-row list for Roli with the same alignment M8 measured; `document.
+  querySelectorAll("a a").length` stayed **0** in every scenario/screenshot, with the legend open
+  and closed, at both widths, both themes.
+- **0 console errors, real requests only** (an earlier automated run showed spurious 401s on
+  `/me`, `/push/subscriptions/me` and the read-map endpoints; traced to the test harness losing an
+  exported env var between separate tool invocations, not the app — a fresh login token in the
+  same shell call fixed it, confirming it was never a product issue).
+- **Isolated stack:** backend **8098**, vite **8118** (both free; the task's suggested ports held),
+  `backend/data/verify-m9.db` (a copy of `backend/app.db`), throwaway secrets outside the repo.
+  Killed by exact PID (`3759335` backend, `3759419` the actual vite child process — `npx vite`'s
+  own reported `$!` PID, `3759406`, was a wrapper shell that had already exited); nothing on
+  8000/8001/8010/5173 was touched or even queried beyond one read-only `ss -ltnp` at the start.
 
 ---
 
