@@ -20,7 +20,7 @@ import { fmtCount } from "../../utils/format";
 
 export const SUBJECT_KINDS = ["header_image", "about", "avatar"] as const satisfies readonly GuestbookSubjectKind[];
 
-/** The chip's word while the subject is still what the profile shows. */
+/** The citation's word while the subject is still what the profile shows. */
 export const SUBJECT_LABEL: Record<GuestbookSubjectKind, string> = {
   header_image: "Header image",
   about: "About text",
@@ -60,9 +60,9 @@ export function subjectCitationTitle(s: PlayerGuestbookSubject): string {
 /**
  * How much of the pinned About text the citation quotes (Q-B). Two bounds, each for the
  * width the other cannot reach, and both ending in an ellipsis so the reader is told
- * either way: at 390px the citation column is 308px and the `line-clamp-2` the citation
- * draws it with cuts first (two `text-xs` lines hold ~90 characters); at 1280px it is 942px,
- * the quote is one line, and this cap is what stops it. Measured, both themes.
+ * either way: at 390px the citation column is 350px (271px beside a thumbnail) and the
+ * `line-clamp-2` the citation draws it with cuts first; at 1280px the quote is one line and
+ * this cap is what stops it. Measured after G1 flattened the feed, both themes.
  */
 export const SUBJECT_EXCERPT_MAX = 140;
 

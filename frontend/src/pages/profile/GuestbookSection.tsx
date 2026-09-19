@@ -262,7 +262,7 @@ export default function GuestbookSection({
       onConfirm={onConfirmMarkAllRead}
     />
 
-    {/* A chip always opens the *snapshot*, never the live item: once the profile has
+    {/* A citation always opens the *snapshot*, never the live item: once the profile has
         moved on, the banner is the wrong picture, and while it has not, the pinned copy
         is the banner. No `footer` here — the trigger belongs to the live picture (K3). */}
     <ImageLightbox
