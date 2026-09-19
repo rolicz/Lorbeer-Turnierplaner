@@ -16,8 +16,10 @@ import {
   putPlayerHeaderImage,
 } from "../../api/playerHeaders.api";
 import { qk } from "../../api/queryKeys";
+import type { StatsRecord } from "../../api/types";
 import { usePlayerHeaderMap } from "../../hooks/usePlayerHeaderMap";
 import PlayerAvatarEditor from "../players/PlayerAvatarEditor";
+import RecordBadges from "./RecordBadges";
 import { type useProfilePokes } from "./useProfilePokes";
 
 type ProfilePokes = ReturnType<typeof useProfilePokes>;
@@ -41,6 +43,7 @@ export default function ProfileHeader({
   unreadGuestbookAuthorsText,
   unreadGuestbookAuthorCount,
   pokes,
+  records,
 }: {
   targetPlayerId: number;
   token: string | null;
@@ -55,6 +58,7 @@ export default function ProfileHeader({
   unreadGuestbookAuthorsText: string;
   unreadGuestbookAuthorCount: number;
   pokes: ProfilePokes;
+  records: StatsRecord[];
 }) {
   const qc = useQueryClient();
   const { headerUpdatedAtById: headerUpdatedAtByPlayerId } = usePlayerHeaderMap();
@@ -184,6 +188,7 @@ export default function ProfileHeader({
               </span>
             </div>
             <div className="text-xs text-text-muted">{isOwnProfile ? "This is your profile" : "Public profile"}</div>
+            <RecordBadges playerId={targetPlayerId} records={records} />
             <div className="mt-0.5 text-xs text-text-muted">
               {isOwnProfile ? (
                 <>

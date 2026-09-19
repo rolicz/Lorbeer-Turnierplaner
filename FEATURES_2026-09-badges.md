@@ -669,7 +669,7 @@ For M7, the canon lines this task actually earns:
 
 ---
 
-## M2 — Persisted holders, the one after-result function, the push  ☐
+## M2 — Persisted holders, the one after-result function, the push  ☑
 
 **The gap.** Nothing stores who held what (`grep -n 'class RecordHolder' backend/app/models.py` → 0).
 Nothing is called when a result changes except the broadcasts and the four `push_match_*`/
@@ -771,7 +771,7 @@ grep -n 'def swap_sides\|def patch_decider\|def second_leg' -A6 backend/app/rout
    prepared.update(_record_lines(...))`. Do **not** rewrite `_authors_line` onto `_join_names` in this
    task (it would change shipped text); note it in Deviations as the next candidate.
 6. **`notification_texts.json`** — three keys in all three languages, drafted here for Roli to
-   correct (Decisions list item 6). Steirisch in his voice, German ASCII-safe, English plain:
+   correct (Decisions list item 6). Steirisch in his voice, German with its umlauts, English plain:
    ```json
    "record_gained": { "title": "Rekord! {record} is jetzt deins",
                       "body": "{losers_line}{holders_line}\nSchau in de Stats und gnieß es." },
@@ -876,7 +876,168 @@ into Deviations.
 `record_moved` push, Roli's arithmetic as his decision, `result` for generate/date, the table of
 paths), §10 (a live goal is not a result; `RecordKeyState` row = "computed at least once"). M7 writes.
 
+For M7, the canon lines this task actually earns:
+
+- §5 tables: `RecordHolder` (`record_key`, `player_id`, `since`) and `RecordKeyState`
+  (`record_key`, `computed_at`, `holder_count`) — additive, nothing in `_RUNTIME_COLUMNS`, written
+  **only** by `services/record_holders.py::reconcile_record_holders` and read by nothing else.
+- §5 seeding rule: a key with **no** `RecordKeyState` row has never been computed, so it is stored
+  **silently** — the first boot on production, and every record kind a later deploy adds. A key
+  *with* a row and no holder rows means nobody holds it, which is a real answer. `init_db()` logs
+  `Record holders seeded: N` the way it logs the club-star seed.
+- §5 rollback consequence: old code boots against the two tables and ignores them, so results
+  entered while rolled back are simply not reconciled; the next boot of the new code **absorbs**
+  that drift and logs `Record holders reconciled at startup: N moved (…) — absorbed, not
+  announced`. A boot never pushes: the dispatcher does not exist yet at `init_db()` time, and a
+  deploy must not buzz everybody with a backlog.
+- §6: `after_result_change(request, s, *, tournament_id, reason)` in
+  `services/record_holders.py` is **the** function every result-changing path calls — `PATCH
+  /matches/{id}` (guard: `old_state == "finished" or m.state == "finished"`), `/swap-sides`
+  (`m.state == "finished"`), `/generate`, `/reassign`, `/second-leg` (disable) via
+  `deletion.finished`, `DELETE /tournaments/{id}`, `PATCH /decider`, `PATCH /date` (when the
+  tournament has a finished match), and `manage.py add-match` with `request=None`. `reorder`,
+  friendlies, tournament creation and a rename are deliberately **not** in the list. It commits —
+  the documented exception to "routers own the transaction", precedent
+  `_bulk_delete_matches(autocommit=True)`.
+- §6 push: `record_moved` joins `PERSONAL_DEFAULT_EVENT_TYPES`, so it reaches the default
+  "Results & personal" mode. **One notification per player per record moved** — Roli was shown the
+  arithmetic (six per record, four per person on a four-record night) and kept it; the only
+  batching is the OS tag `record-{key}`. Three texts chosen by the *recipient's* relationship to
+  the move, never by the actor: `record_gained` · `record_lost` · `record_watch`. The deep link is
+  the record's own `path`, emitted by `RECORD_DEFS` (M1).
+- §6 realtime: `generate` over finished matches and `date` on a played tournament now send
+  `action="result"`, closing the last two holes a tournament result could slip through.
+- §9 / §10 copy: **German and Styrian push texts carry their umlauts** — `services/webpush.py:173`
+  has always serialised `ensure_ascii=False` over UTF-8, so the transliteration was imitation, not
+  a constraint. Delete any note that calls German "ASCII-safe". A record's name is translated too
+  (`notification_texts.py::_RECORD_LABELS`, keyed by `RECORD_KEYS`), so a push says "meiste Punkte
+  is weg" while the English UI says "Most points".
+- §10: a goal in a *playing* match is not a result — only finishing, un-finishing and correcting a
+  finished score are.
+
 **Deviations:**
+
+- **One result path the plan did not enumerate, and I did not take it** (outside M2's file set,
+  Rule 3): `POST /tournaments/{id}/comments` with `event_type: "goal"` or `"score_update"` writes
+  match goals (`routers/comments.py:474` and `:487`, via `_set_match_score`). Nothing there checks
+  the match's state, so a goal comment filed on a **finished** match changes a real result — and it
+  broadcasts `reason="comment-score"` with **no** `global_action`, so it is a `Q9`-shaped hole on
+  the websocket side too. The composer reaches it: `TournamentCommentsCard.tsx:389` posts
+  `event_type: "goal"` against `composerScope`, which is any match in the tournament, not only the
+  playing one (`score_update` has no UI caller at all today). The fix is one guard in the same
+  shape as the others, after the commit: `if match_for_event is not None and match_score_changed
+  and match_for_event.state == "finished": after_result_change(request, s,
+  tournament_id=tournament_id, reason="comment-score")` — `create_comment` already takes `request`.
+  **Every path the plan *did* list is implemented and tested**; this is the seventeenth, found by
+  re-deriving the list from `grep` over everything that writes `MatchSide.goals`, `Match.state`,
+  `Tournament.date`, `decider_*` or deletes match rows. Flagged for Roli / M7.
+  Everything else re-derived matched the plan exactly: `PATCH /players/{id}` is a rename (holders
+  are ids), there is no `DELETE /players/{id}`, `POST /tournaments` and `PATCH /tournaments/{id}`
+  never touch a result, `reorder` cannot move a finished match, and friendlies are outside
+  `BADGE_SCOPE`. Each of those has a test asserting the call does **not** happen.
+- **A boot absorbs drift and logs it; it does not announce it.** The plan predicted "the first
+  reconcile after re-deploy announces those moves late". It cannot and should not: `init_db()` runs
+  *before* `main.py`'s lifespan starts the dispatcher, so there is nothing to push into, and the
+  only way a boot finds movement is code that does not reconcile (a rollback, or `manage.py` on a
+  stopped server) — announcing that backlog would make every deploy buzz everybody. So
+  `backfill_record_holders` logs `Record holders reconciled at startup: N moved (…) — absorbed, not
+  announced`. Measured in the rollback drill below.
+- **The record labels' German and Styrian live in `notification_texts.py` (`_RECORD_LABELS`), not
+  beside the English labels in `stats/records.py`.** `stats/records.py` is M1's file and outside
+  M2's set (Rule 3), and the module that owns every *translated word* in a push already exists —
+  `_STATUS_LABELS` and `_mode_label` are the same shape, so this is the existing mechanism rather
+  than a new one (Rule 8). The instruction's actual purpose — "a record renamed in one language is
+  obviously missing in the others rather than silently stale" — is enforced mechanically instead of
+  by adjacency: `test_every_record_has_a_name_in_every_language` fails the moment `RECORD_KEYS` and
+  `_RECORD_LABELS` disagree, in either direction.
+- **The umlaut sweep, measured.** 27 message strings repaired across the catalogue (26 `deutsch`,
+  2 `steirisch` — two strings had two faults), covering 14 distinct words: `Oeffne`×11, `fuer`×9,
+  `geaendert`×3, `Anpoebeln`×2, `laeuft`×2 (+1 steirisch), `Spass`×2 (steirisch), and one each of
+  `Anpoebeleien`, `Uebersicht`, `geloescht`, `naechste`, `verfuegbar`, `heiss`, plus
+  `Guestbook-Eintrag` → `Gästebuch-Eintrag`. Three more in `notification_texts.py`: `gefaellt` and
+  `angepoebelt`×2. A guard test (`test_the_catalog_is_not_transliterated`) keeps them out. The JSON
+  was rewritten by a serialiser, which also normalised ~33 lines of pre-existing four-level
+  indentation in the `steirisch` and `deutsch` blocks; `git diff -w` is exactly the 27 changed
+  strings plus the 9 new messages, and a parsed before/after comparison confirms **no other string
+  changed**. `FEATURES_2026-09-ideas.md:186/769/1348` and `AGENTS.md:1014` still call German
+  "ASCII-safe" — the historical tracker and the canon are not mine to edit (M7 owns `AGENTS.md`).
+- **`{record}` reads better with an article in German and Styrian, so the *lines* do not repeat
+  it.** The labels are article-less noun phrases ("meiste Punkte"), and "Rumpi hat sich meiste
+  Punkte geholt" is wrong German. `gainers_line` says "…hat sich **den Rekord** geholt" /
+  "…hot si'n **Rekord** gschnappt"; the record is named in the title of all three templates, so
+  nothing is lost. English keeps "{names} took {record}." — an English label is title-shaped and
+  takes no article.
+- **`_authors_line` was left alone**, as the task says. It is the next candidate for `_join_names`
+  (it carries its own 1/2/3/4+ ladder), but folding it in would change shipped poke text.
+- `MatchDeletion.finished` is a defaulted last field, so `EMPTY_DELETION` and every existing
+  construction keep working. Two of the three guards (`reassign`, `second-leg` disable) are
+  provably always 0 — both refuse before they delete — and the test asserts that they stay 0
+  rather than trusting the comment.
+- `record_holders.py` imports `notifications.push_record_moves` **inside** `after_result_change`;
+  `notifications.py` imports `RecordMove` under `TYPE_CHECKING`. Either direction alone is a cycle.
+- **Cost, measured on the Pi against a copy of the real dev DB** (94 finished tournament matches,
+  6 players): a result-changing `PATCH /matches/{id}` takes **0.25 s** end to end, of which
+  `compute_stats_records` is the bulk (M1 measured it at 0.27 s for the whole endpoint). Boot seeds
+  16 keys in **0.38 s**. A goal in a *playing* match pays nothing — the guard runs first.
+
+**What was exercised, and what could not be.** Push delivery cannot be exercised on this machine
+(no VAPID, no `cryptography`), so every push assertion stops at the queued `PushMessage`, the
+`_Recorder` from `tests/test_ideas.py:333`. What *is* proven: 28 new tests in
+`tests/test_record_holders.py` + 4 in `tests/test_realtime_events.py`; each result path calls
+`after_result_change` exactly once and each non-result path not at all (a spy on both routers);
+a move produces the three audiences, one message per player per record, with the right `text_key`,
+`tag`, `path` and `text_context`, rendering in all three languages with no `{placeholder}` left
+over; the variant follows the recipient, so the editor who types in their own win is told they
+**gained** it; a first seed and a seed over a fully played database both return `[]` and queue
+nothing; deleting a tournament tells every former holder `record_lost`.
+
+**On real data** (`backend/data/verify-m2.db`, a copy; backend on 8092, nothing else bound):
+first boot logged `Record holders seeded: 16` with 16 state rows and 24 holder rows written and
+**no** notification; correcting one finished score in the done tournament 19 moved three records
+(`highest_elo`, `highest_elo_1v1`, `highest_scoring_match`) and queued **18** messages — Roli's
+arithmetic, 3 × 6, exactly as decided.
+
+**Rollback drill (§5 rule 3), both observations.** `git archive f8a02b7` into a temp dir, run
+against the DB the new code had already written: it **boots clean** (`DB initialized`, no
+complaint about the two unknown tables), `GET /stats/players` **200**, `GET /stats/ratings` **200**,
+`GET /tournaments` **200**, `PATCH /matches/{id}` **200**, `GET /stats/records` **404** (that
+endpoint does not exist yet in `f8a02b7`), and the 21 `recordholder` rows were left **untouched** —
+old code never reads or writes them. Returning to the new code on the same DB, the boot found the
+drift and said so: `Record holders reconciled at startup: 2 moved (highest_elo,
+highest_scoring_match) — absorbed, not announced`.
+
+**The Styrian lines, for Roli's one pass.** *Mine* = written by this task, *plan* = drafted in this
+file before implementation (with Roli's two corrections already applied), *pre-existing* = shipped
+text I only respelled.
+
+| # | string | whose |
+|---|---|---|
+| 1 | `Rekord! {record} is jetzt deins` (title) | plan |
+| 2 | `{losers_line}{holders_line}\nSchau in de Stats und genieß es.` | plan (Roli: "genieß", not "gnieß") |
+| 3 | `{record} is weg` (title) | plan (Roli: not "is da weg") |
+| 4 | `{gainers_line}Bei {record} bist nimma vorn.\nSchau in de Stats und hol da'n zruck.` | plan |
+| 5 | `Bei {record} hot si wos gtan` (title) | plan |
+| 6 | `{gainers_line}{losers_line}{holders_line}\nSchau in de Stats, wer wo steht.` | plan |
+| 7 | `{name} hot si'n Rekord gschnappt.` (one gainer) | **mine** |
+| 8 | `{names} ham si'n Rekord gschnappt.` (several) | **mine** |
+| 9 | `{name} is nimma vorn.` (one loser) | **mine** |
+| 10 | `{names} san nimma vorn.` (several) | **mine** |
+| 11 | `Grod hot'n kana.` (nobody holds it) | **mine** |
+| 12 | `Jetzt vorn: {name}.` | **mine** |
+| 13 | `Jetzt gleichauf vorn: {names}.` (a tie) | **mine** |
+| 14 | `{a}, {b} und no {n} weitere` (4+ names) | **mine** (mirrors `_authors_line`) |
+| 15 | the sixteen record names: `meiste Turniersiege` · `höchstes Elo` (+ `(1v1)`, `(2v2)`) · `meiste Punkt` · `meiste Punkt pro Match` · `meiste Matches` · `meiste Tor pro Match` · `längste Siegsserie` · `längste Serie ohne Niederlog` · `längste Torserie` · `längste Serie ohne Gegentor` · `höchster Sieg` · `torreichstes Match` · `meiste Tor vo ana Seitn` · `gräßte Überraschung (nach Elo)` | **mine** |
+| 16 | `Des Match läuft grad` / `da ganze Spaß` (friendly_started), `Da Spaß is vorbei` (friendly_finished), `ham weiter angepöbelt` (`_authors_line`) | pre-existing — **spelling only**, no wording changed |
+
+Two Styrian points worth his eye specifically: **`gräßte`** (#15, for "größte" — "greßte" is the
+other spelling), and whether **`Grod hot'n kana.`** (#11) is the way he would say "nobody holds it
+right now". The German is mine too where it is new: the sixteen labels, `hat sich den Rekord
+geholt` / `ist nicht mehr vorn` / `Aktuell vorn:` / `Aktuell gleichauf vorn:` /
+`Aktuell ist niemand vorn.`, and `genieß es` / `hol ihn dir zurück` from the plan.
+
+**Gates.** `make test` **272 passed** (240 before M2, +32), `make lint` clean, `make gen-types`
+**no diff** — no response model moved, the two tables are internal. `npm run check` not run: no
+frontend file was touched.
 
 ---
 
@@ -1099,7 +1260,7 @@ page's numbers.
 
 ---
 
-## M5 — The badge band on the profile  ☐
+## M5 — The badge band on the profile  ☑
 
 **The gap.** `ProfileHeader.tsx:180-202` — the text column beside the avatar has name, "Public
 profile", and the meta line; nothing between them. No component renders a record.
@@ -1180,6 +1341,78 @@ gains the sentence that the badge band is the second present-tense mark on a pro
 deliberately not a ring. M7 writes.
 
 **Deviations:**
+
+- Implemented as specified: `pages/profile/RecordBadges.tsx` (new), `ProfileHeader.tsx` gains a
+  `records: StatsRecord[]` prop and renders the band between the "Public profile"/"This is your
+  profile" line and the meta line, `ProfilePage.tsx` hoists `recordsQ` at exactly
+  `qk.stats.records("overall", "tournaments")` and adds it to `unreadJumpReady`. No file outside
+  the task's set was touched.
+- **Measured on the M5 isolated stack (backend 8095, vite 8115, `verify-m5.db`, a copy of
+  `backend/app.db`) with a headless Chromium (Playwright, invoked from its cached npx install —
+  not added as a project dependency) at 390×844 and 1280×900, `blue` and `light` — geometry and
+  colours were identical between themes, as expected (CSS variables only).** Dev data holders,
+  live from `/stats/records`: Roli holds 8 of the 16 records, Berni 3, Rumpi 4, Atzi 4, Flo 3,
+  Mike 0 — Mike stood in for "a player with no records" (`Berni's` profile, the plan's literal
+  foreign-profile example, only holds 3, so it does not exercise wrap; **Roli's profile viewed
+  by Berni** was used as the second "several badges, foreign" case to get a real 8-badge foreign
+  row, since no dev player besides Roli holds enough to wrap at 390px foreign width).
+  - **Chips per row at 390px, foreign profile:** the text column measured **278px** (plan
+    estimated ~290px). With 8 uniform 32px chips it packs **6 per row**, not 7 — because one of
+    Roli's 8 held records is `highest_elo_1v1`, whose `1v1` mode label widens that chip to 51px
+    (19px over the 32px baseline); the extra width pushed the 7th plain chip to the next row.
+    Recomputed for all-uniform 32px chips (`38n − 6 ≤ 278`): **7 fits, 8 does not** — matching the
+    plan's estimate exactly once the one wide chip is accounted for. Row split observed: 6 + 2.
+  - **Chips per row at 390px, own profile:** the text column measured **134px** (plan estimated
+    ~148px; the three ghost `Button`s + `gap-2` measured **144px**, wider than the plan's ~130px
+    guess). That packs **3 per row**, not 4 — the unread-pokes bell was **not** showing in this
+    data (Roli's pokes were already read), so the plan's "3 with the bell" case was not
+    independently exercised; 3 is simply what 144px of edit cluster leaves at these real
+    measurements. Row split for Roli's 8: 3 + 3 + 2.
+  - **Tab-strip shift, measured with the `/stats/records` response held via `page.route` so the
+    pre-data and post-data position were both captured on the same load** (390px, `blue`):
+    foreign/3 badges (1 row): **+31px**. Foreign/8 badges (2 rows): **+66px** (33px/row).
+    Own/8 badges (3 rows): **+100px** (33.3px/row). All close to the plan's "~34px per row"
+    estimate; the small (1-2px) shortfall is the `mt-1` (4px) plus a 28px row not landing on an
+    exact multiple once real font metrics are in play. At 1280px all three cases stayed a single
+    row (23+ chips fit; no shift measured — nothing to shift).
+  - **No-record profile (Mike):** `[data-record-badges]` is absent from the DOM, and the tab
+    strip's position is identical to a same-shaped profile with a band absent — confirmed no
+    empty 28px strip and no gap in the header rhythm (screenshot: "Public profile" is immediately
+    followed by "Angepöbelt: 404" with no space between).
+  - **Contrast, computed via the WCAG relative-luminance formula from the live
+    `getComputedStyle()` values** (not eyeballed): icon ink vs. chip background — **blue 8.60:1**,
+    **light 17.49:1** (both far past the required 4.5:1). Accent border (added via
+    `classList.add("border-accent")` on a live chip to confirm the cascade, since no streak in
+    this dev data happens to be `ongoing` right now — the `recordBadges.test.tsx` unit test
+    covers the `ongoing` rendering path directly) vs. chip background — **blue 3.50:1**, **light
+    6.87:1** (both past 3:1); vs. the page background — blue 6.22:1, light 5.77:1. Chip hairline
+    (`border-card-chip` at 55%) vs. the light page background — **2.12:1**, a deliberately subtle
+    resting edge (the same token every other `.chip` in the app uses at the same opacity; it is
+    not the 3:1 UI-component threshold, which applies to interactive/state boundaries, not a
+    passive card edge) — visible at 100% in the screenshot's zoomed crop.
+  - **Ring vs. badge, screenshotted at 3× device-scale-factor** on Berni's profile (Berni holds
+    the Lorbeerkranz cup in this dev data, so his ring is gold/coloured rather than the neutral
+    hairline): the avatar ring and the grey chip band are unambiguously two different marks in
+    both themes — solid colour ring vs. bordered grey pills with a lucide glyph, no shared shape,
+    no shared colour. No `Crown`, no cup-colour token anywhere in the band.
+  - **Tap-through:** clicked `most_points` (Roli holds it) → landed on
+    `/stats?view=overview&sub=table&mode=overall&source=tournaments&sort=pts` with **0** further
+    requests to `/stats/records` (network listener asserted); clicked `win_streak` → landed on
+    `/stats?view=overview&sub=streaks&mode=overall&source=tournaments&record=win_streak`, same
+    zero-refetch result; separately clicked `highest_ppm` from Atzi's profile (the plan's own
+    example record) → `sort=ppm`, also 0 further requests. All three: back navigated to the
+    originating profile, 0 console errors.
+  - `document.querySelectorAll("a a").length === 0` on every profile screenshotted (with the
+    band rendered, the avatar-open `<button>` above it, and — at 1280px — the sidebar's own
+    links on the same page).
+- `npm run check` (73 files / 731 tests, tsc clean, eslint clean) and `npm run build` both green
+  on this task's own files; both were also run against the shared working tree while M4 was
+  mid-edit on `pages/stats/*` (disjoint from this task's file set) — `npm run build` failed once
+  transiently on `StatsInsights.tsx`/`RecordsView.tsx` (files this task does not own or touch)
+  while that edit was in flight, and passed on retry once M4's tree was internally consistent
+  again. Not a defect in this task's files; noted per rule 8's "Group-B workers will see each
+  other's in-flight files" warning.
+- No backend files touched, so no backend gate applies to this task.
 
 ---
 
