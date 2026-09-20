@@ -5,13 +5,16 @@
 > non-obvious about the project (deploy quirks, data semantics, decisions), **update this file**
 > so the knowledge survives model/tool switches. Keep the "Current state" section dated.
 >
-> Last full review: 2026-09-19 (branch `feature/2026-09-guestbook`; code at `34a48e2`, this pass on
-> top). `f425961` is still the only thing deployed: the design, Ideas and badges batches are all
-> merged to `main` (`14e27db`) and undeployed, and the guestbook batch (K1–K4, then Q-A/Q-B, G1–G3
-> and G4) is not merged. **Q-A and Q-B now have their canon pass** (G5, this one): K4 reviewed the
-> tree at `ad21035` and G1–G3's pass deliberately did not speak for the two commits after it, so
-> this file and `DESIGN.md` described a word-only subject chip and an always-open About field that
-> the code had already replaced. Both are corrected here, against the running app.
+> Last full review: 2026-09-20 (branch `main`; code at `f8ff0a4`, this pass on top).
+> **There is no deploy queue any more: `main` is what is running on the server.** Roli deployed
+> twice on 2026-09-20 — first `87586f8` (design + Ideas + badges + guestbook, the four batches
+> this file spent a week describing as merged-and-undeployed), then `bb831c1`/`f8ff0a4` (media +
+> composer) — and both were verified against production from here (§11). Every merged branch has
+> been **deleted**; `main` and the unmerged `feat/todo-md-full-implementation` are all that is
+> left locally. The previous pass (G5, 2026-09-19 at `34a48e2`) was written while four batches
+> were still queued, so every sentence of the form "merged and not yet deployed", "can be
+> deleted" or "the one open branch" was stale within a day; §11 is rewritten here rather than
+> patched, and the header block is the first thing to distrust when it disagrees with `git log`.
 
 ---
 
@@ -230,16 +233,27 @@ make frontend       # or: make frontend-lan
 make dev            # both, LAN
 
 # checks — run before every commit
-make test           # backend pytest   (baseline 273 passed, 11–15 min on the Pi, 2026-09-19; §11 is the authority)
+make test           # backend pytest   (baseline 303 passed, 13–16 min on the Pi, 2026-09-20; §11 is the authority)
 make lint           # ruff (E/W/F/I; line-length 150)
 make gen-types      # regenerate frontend/src/api/generated/schema.d.ts after ANY response-model change
-cd frontend && npm run check   # tsc + eslint + vitest (baseline 735 tests in 74 files, ~72 s)
+cd frontend && npm run check   # tsc + eslint + vitest (baseline 826 tests in 86 files, ~74 s)
 cd frontend && npm run build   # tsc -b + vite build (run for structural changes)
 ```
 
 - **Node ≥ 20.19 / ≥ 22.12 is required** (Vite 7). `.nvmrc` pins 24; the frontend make targets
   source `scripts/node-env.sh`, which loads nvm when present, so `make dev`/`make frontend` work
   from any shell (login bash on this Pi does not load nvm and would otherwise pick system Node 18).
+- **eslint is a dependency of `frontend/`, and only became one on 2026-09-20** (`f8ff0a4`).
+  `npm run lint` is `eslint .`, but eslint was in neither `frontend/package.json` nor
+  `frontend/node_modules`: it resolved only because **a stray `node_modules/` sits at the repo
+  root with no `package.json` beside it**, and Node walks up. So the lint gate passed on this
+  machine and would have found nothing in a fresh clone or in CI. The five packages the flat
+  config imports are now declared at the versions that were actually running — eslint 9.39.2,
+  `@eslint/js` 9.39.2, typescript-eslint 8.51.0, `eslint-plugin-react-hooks` 7.0.1,
+  `eslint-plugin-react-refresh` 0.4.26 — proven by hiding the root install and re-running the gate
+  against a planted error. **The stray root `node_modules/` still exists and was deliberately not
+  deleted**: it is orphaned, not load-bearing, so treat it as clutter to ignore rather than
+  something to repair or depend on.
 - `make format` = ruff format. Frontend has no prettier; match surrounding style.
 - Backend API docs: `http://127.0.0.1:8001/docs`.
 - Dev machine is a Raspberry Pi 5 (arm64, LAN IP 192.168.178.78). `frontend/.env.local` points
@@ -798,9 +812,10 @@ doing only what it is for — the combination nobody has asked for yet.
   docker compose logs -f backend      # expect "Cup defs validated", "DB initialized"
   ```
   Only the frontend changed → `docker compose up -d --build frontend` (Vite env is baked in).
-- **The media batch adds the project's first image dependency** (W1, 2026-09-20):
-  `Pillow==12.3.0` in `backend/requirements.txt`, which makes that deploy a **full** one (the
-  backend image is rebuilt with a new wheel in it) even though it changes no schema. **The one
+- **The media batch added the project's first image dependency, and it shipped on 2026-09-20**
+  (W1): `Pillow==12.3.0` in `backend/requirements.txt`, which made that deploy a **full** one (the
+  backend image is rebuilt with a new wheel in it) even though it changed no schema. The rule
+  below still applies to **every future rebuild**. **The one
   thing to watch in the build log is `pip install`**: expect a
   `pillow-12.3.0-cp311-cp311-manylinux…_x86_64.whl` **download** — 6.93 MB, a file that was
   looked up on PyPI rather than assumed — never a compile. If it starts building from source,
@@ -821,12 +836,16 @@ doing only what it is for — the combination nobody has asked for yet.
   5. After changes that need new media (e.g. club crests): run the tool inside the container,
      e.g. `docker compose exec backend python -m app.tools.sync_club_crests` (done on prod
      already; 591/597 crests present as of the 2026-08-20 snapshot).
-  6. **Once, on the deploy that ships R4: load the club star history by hand.** Roli asked for
+  6. **DONE — do not run this again.** This was the one-time club star history load (R4), and it
+     was carried out on the 2026-09-16 deploy; production's `ClubStarRating` is recovered (§11).
+     **`--apply` writes to production data, so re-running it now would be a destructive action
+     against a job already finished.** The procedure is kept below only as the record of what was
+     done and as the shape for any future one-time recovery. Roli asked for
      this to be written down rather than remembered (2026-09-15). `ClubStarRating` is created
-     empty and `init_db()` seeds one row per club dated **that day**, so until the recovery runs,
-     production believes every club has always had the rating it has now — which is the bug R4
-     exists to fix, still live. The reconstruction reads the deploy snapshots, and those live on
-     the dev machine, not on the server, so they have to travel:
+     empty and `init_db()` seeds one row per club dated **that day**, so until the recovery ran,
+     production believed every club had always had the rating it has now — which is the bug R4
+     existed to fix. The reconstruction reads the deploy snapshots, and those live on
+     the dev machine, not on the server, so they had to travel:
      ```bash
      # on the dev machine, after the server's `git pull` + `up -d --build` succeeded.
      # Check the filter with --dry-run first; only app.db and snapshot.json are needed (~10 MB).
@@ -837,13 +856,22 @@ doing only what it is for — the combination nobody has asked for yet.
      docker compose exec backend python manage.py recover-club-star-history --path /data/star-snapshots --apply
      rm -rf ~/projects/Lorbeer-Turnierplaner/backend/data/star-snapshots   # copies, not runtime data
      ```
-     **Run it without `--apply` first and read the report.** On the 2026-09-15 dev data it found
+     **It was run without `--apply` first and the report read**, which is the rule for any
+     command of this shape. On the 2026-09-15 dev data it found
      626 opening ratings and 31 changes across 31 clubs, and moved 3 of 218 finished match sides;
-     prod numbers should be close. If they are not, stop — step 2's backup is the way back.
+     prod numbers were close. If they had not been, the rule was to stop — step 2's backup is the
+     way back.
      `snapshot.json`'s `"kind"` is what selects a snapshot, never the directory name, which is why
      that file has to be copied alongside each `app.db`.
-  7. Smoke: `curl -I https://lorbeerkranz.xyz`, `curl https://lorbeerkranz.xyz/api/health`,
-     open the PWA on a phone, check cup owners on the dashboard and one live/done tournament.
+  7. Smoke: `curl -I https://lorbeerkranz.xyz` (the site root is nginx and does answer HEAD),
+     `curl https://lorbeerkranz.xyz/api/health`, open the PWA on a phone, check cup owners on the
+     dashboard and one live/done tournament. **Every `/api` check must be a GET** — the API
+     answers **405 to HEAD**, so `curl -I` on an endpoint proves nothing (§10). The checks that
+     currently prove the deployed code is the current code:
+     `curl -s https://lorbeerkranz.xyz/api/stats/records | jq '.records | length'` → 16,
+     `curl -s https://lorbeerkranz.xyz/api/ideas | grep -c '"comments"'` > 0, and
+     `curl -s -o /dev/null -w '%{http_code}\n' 'https://lorbeerkranz.xyz/api/players/1/avatar?w=137'`
+     → 422 (the media ladder rejecting an off-ladder width).
 - **Rollback:** `git checkout <previous-sha> && docker compose up -d --build`. Schema changes are
   additive, so old code boots on the new DB. If data must be restored, rsync the desired
   `backup/deploy/<ts>/data/` back to `backend/data/` on the server and restart backend.
@@ -1061,7 +1089,12 @@ every past match simply keeps counting today's rating.
 - League name `NWSL (North America))` has a trailing `))` typo **in the DB**; exact-name maps must
   keep it. `Primera División` = Argentina. DB club name typos exist (`Quatar`, `United Tigewrs SC`).
 - Cup era boundary is **2026-07-11** (not 07-12): the deciding "4. Lorbeerkranzturnier" is dated
-  11.07. Expected owners after that date: Lorbeerkranz → Berni, Bauernkranz → Roli.
+  11.07. Owners *immediately* after that date were Lorbeerkranz → Berni, Bauernkranz → Roli.
+  **Don't use that pair as a smoke check any more** — ownership is a fold over every qualifying
+  tournament since (§5), so it moves whenever one is played. Live on production on 2026-09-20:
+  Lorbeerkranz → **Berni**, Bauernkranz → **Rumpi**. Read the current answer from
+  `curl -s 'https://lorbeerkranz.xyz/api/cup?key=default'` and `…?key=bauernkranz` rather than
+  from this file.
 - `/clubs` page and pickers require editor login; stats, live pages, friendlies, profiles and
   `/ideas` are public reads.
 - **A per-caller flag is only as good as the request that asked for it** (G4, 2026-09-19 — found
@@ -1246,11 +1279,12 @@ every past match simply keeps counting today's rating.
   between two fields of the same composer keeps the episode (that hop is exactly what failed on
   the device). `styles.css` does the rest — `.hide-on-keyboard` (the tab bar, the filter pill) and
   `--bottom-nav-clearance: 0`, both only below `lg` or on a coarse pointer, so a desktop browser
-  typing in a form keeps its filter pill. One spacing token, never a hand-written `4.5rem`:
+  typing in a form keeps its filter pill. Spacing tokens, never a hand-written `4.5rem`:
   **`nav-clear`**, the room to leave above the bottom edge right now — it collapses with the bar
-  for the three composers, the error toast, the pill **and the page's own end padding in
+  for the error toast, the pill **and the page's own end padding in
   `AppShell`** (Q14: `nav-h`, Q2's constant for that padding, is gone — holding 72px for a hidden
-  bar is the dead space under a composer Roli reported). The page's end is the only one that is
+  bar is the dead space under a composer Roli reported) — and **`pin-clear`** beside it for the
+  three composers, which is the next bullet and is not the same number. The page's end is the only one that is
   document height, so its flip goes through `ui/shell/bottomReservation.ts`: at the very end of a
   page the browser clamps the scroll when the document shortens, and that module records what the
   clamp took, pays it back when the room returns, voids it the moment the reader scrolls, and
@@ -1259,6 +1293,53 @@ every past match simply keeps counting today's rating.
   deliberately never hides.
   VisualViewport is the only mechanism iOS supports — `interactive-widget=resizes-content` and
   `env(keyboard-inset-height)` are Chromium-only, so don't reach for them.
+- **iOS re-anchors `fixed` to the keyboard and leaves `sticky` behind, so there are two bottom
+  tokens** (Q-D, 2026-09-20; `DESIGN.md` §9b and §7 carry the same rule). Q2 hides the tab bar and
+  collapses `--bottom-nav-clearance` to 0, and for a **`fixed`** box — the error toast, the filter
+  pill — that is exactly right, because iOS has already lifted it onto the shrunken **visual**
+  viewport. A **`sticky`** box is pinned to the **layout** viewport, which does **not** shrink, so
+  the very same collapse pushed all three pinned composers the last 72px *into* the keys. Roli
+  photographed it: at 390×844 with a 336px keyboard (top edge y=508) the guestbook row sat at
+  **787–844**, showing only its focus ring under iOS's own accessory bar. One token was answering
+  two opposite questions. Now: **`nav-clear` for a `fixed` box, `pin-clear` for a `sticky` one** —
+  identical while the bar is there; while the keyboard is up `pin-clear` is **the strip the
+  keyboard actually covers**, `innerHeight − (visualViewport.height + visualViewport.offsetTop)`,
+  measured in `keyboardOpen.ts` (still the only module in the app that touches `visualViewport`)
+  and published as `--keyboard-inset-bottom`, which `styles.css` maps onto the token inside the
+  media query that already gates Q2. The three rows now sit at 451–508, 365–508 and 47–508.
+  **This is a position, not a detection, and the ban above stands**: the covered strip is measured
+  only *after* the caret has already said a keyboard is up, and is never compared with a floor or
+  a ratio — the two rules do not conflict, and `offsetTop` is in the *sum* for precisely the
+  reason it must never be in a *decision* (it is how far iOS scrolled the layout viewport to
+  reveal the field, so the visible window occupies `[offsetTop, offsetTop + height]`). Where it
+  reads 0, every row sits exactly where it did. **Reply and edit rows are in flow, not pinned**,
+  so none of this reaches them and it must not: the platform scrolls a focused field into view,
+  and a sticky row is the one thing scrolling cannot rescue. Settings → Diagnostics shows a
+  `covered` row and `lift <n>` beside the verdict, in the copied report too — **behind the
+  keyboard with `lift 0` is the measurement failing; with the right lift it is the CSS.** Two
+  known limits, both deliberate: at ≥1024px with a coarse pointer `lg:bottom-0` still wins, and a
+  *short* Ideas board cannot lift its open 461px form all the way. **Unverified on iOS** —
+  `visualViewport` was replaced at the source in a real browser, which proves the wiring and
+  nothing about the device.
+- **A sticky composer can only be as reachable as its containing block** (Q-C, 2026-09-20).
+  `position: sticky` lifts a box no higher than the top of its **own** containing block, so a
+  composer written as the feed's last child is pinned only while the *feed's* top is far enough up
+  the screen — it needs roughly `composer height + pin-clear` of room above the fold. The
+  tournament feed starts at y=130 and never noticed; a profile's guestbook starts under a ~490px
+  header, and the lift was clamped: 375×667 put **11px of the row behind the bottom tab bar** on a
+  profile with a header image and was fine on one without, 31px of header apart — the whole of
+  Roli's "not always though". The row is now a **sibling** of the feed, sticking to
+  `#profile-section-main`. When a pinned row misbehaves, look at what box it is allowed to float
+  inside before you touch its own classes.
+- **`curl -I` does not work against this API — every `/api` route answers 405 to HEAD**
+  (measured 2026-09-20 on production: `/api/health`, `/api/stats/records`, `/api/clubs/{id}/crest`
+  and `/api/players/{id}/avatar` all 405). The FastAPI routes declare `GET` and nothing
+  auto-implements `HEAD`. Only `curl -I https://lorbeerkranz.xyz` works, because that is nginx
+  serving `index.html`. **Smoke commands in a plan or in §7/§11 must therefore be GETs** — use
+  `curl -s -o /dev/null -w '%{http_code} %{size_download} %{content_type}\n' <url>`, or
+  `curl -s -D - -o /dev/null <url>` when the headers are the point. W4 shipped a `curl -sI …?w=128`
+  smoke line that could never have passed; it is corrected in §11, and it is the reason to run a
+  documented check once before writing it down.
 - **One live indicator** (T10): the pulsing dot in the bottom tab bar (mobile) / sidebar
   "Live now" (desktop). `ui/shell/ConnectionIndicator.tsx` renders **nothing** while the socket
   is up and only says "Reconnecting"/"Offline" after a 1.2s grace period; the tournament page has
@@ -1457,27 +1538,82 @@ every past match simply keeps counting today's rating.
 
 ## 11. Current state (2026-09-20)
 
-- **`f425961` (2026-09-16) is still the only thing that has ever run on the server.** `main` is
-  `a0b1392` and carries **four** batches that are merged and undeployed: the 2026-09 design batch
-  (frontend-only), the Ideas batch (`feature/2026-09-ideas`, merged as `a547193`), the badges
-  batch (`feature/2026-09-badges`, merged as `14e27db`) and the guestbook batch
-  (`feature/2026-09-guestbook`, merged 2026-09-19 as `87586f8`; `a0b1392` is the same branch's
-  merge of the media batch's plan file and carries no code). In front of all four sits a fifth
-  that is **not merged at all** — `feature/2026-09-media`, below. Ideas, badges and guestbook each
-  touch the **backend and the schema**, and media touches the **backend and the requirements
-  file**, so the next deploy is the **full** one — `git pull && docker compose up -d --build`,
-  with the §7 step-2 data backup taken first — and it carries whatever is on `main` at that moment
-  (Roli's call: one deploy, not one per batch). No manual step in any of them: every new table is
-  created by `init_db()` at startup, the media batch creates none at all, and in each backend
-  batch old code was run against a migrated database to prove it still boots.
-  **Nothing in any of the five has run on iOS, and no push has ever gone over the wire from this
-  machine** (dev has no VAPID and is not HTTPS), so production is the first real test of P2, P5 and
-  the record push — **including whether iOS renders a non-ASCII push body**, which nothing here can
-  check (§9).
-- **`feature/2026-09-media` (W1–W4, `FEATURES_2026-09-media.md`) is complete and unmerged** —
-  branched from `a0b1392`, five commits, 26 files, and **no new table, no new column and no
-  `_RUNTIME_COLUMNS` entry**: what it adds to production is one wheel in the backend image and one
-  cache directory inside the bind mount (§5, §7). Roli, verbatim: *"can you pre-compute smaller
+- **Everything is deployed. There is no queue, and `main` (`f8ff0a4`) is what is running.**
+  For the four days before this, `f425961` (2026-09-16) was the only thing that had ever run on
+  the server and five batches piled up behind it; on **2026-09-20 Roli deployed twice** and
+  emptied the queue. Both deploys were the **full** one (`git pull && docker compose up -d --build`, §7
+  step-2 backup first), because both carried backend changes, and **neither needed a manual
+  step** — every new table comes from `init_db()` at startup and the media batch adds no table at
+  all. A reader arriving here should assume nothing is pending and check `git log origin/main`
+  against the server before believing otherwise.
+  - **Deploy 1 — `87586f8`**, the four batches this file spent a week calling undeployed: the
+    2026-09 design batch (frontend-only), Ideas (`a547193`), badges (`14e27db`) and guestbook
+    (`87586f8`), the last three each carrying schema. Verified from here against production:
+    `/api/stats/records` returns **16** records, every one with holders and a `path`;
+    `/api/ideas` carries `comments`; `/api/players/1/guestbook` carries `subject`; and
+    `/players/guestbook-subjects/{snapshot_id}/image` is present in the served `openapi.json`
+    (a GET against it answers 404 for lack of a snapshot, not for lack of a route — which is the
+    check to use, since a missing route 404s identically). Roli read the boot log himself and
+    confirmed **`Record holders seeded: 16`** — the line that proves the badge diff base was
+    written **silently**, to nobody's phone (§5). Cup owners on the deployed app read
+    Lorbeerkranz → Berni, Bauernkranz → Rumpi.
+  - **Deploy 2 — `bb831c1`** (the tree `f8ff0a4` then added eslint to `package.json`, no runtime
+    code): the media batch (W1–W4) and the composer batch (Q-C/Q-D), merged as `fa24c0a` and
+    `bb831c1`. Verified from here **with GET, because every `/api` route answers 405 to HEAD**
+    (§10): avatar player 1 is **492,806 B** `image/png` raw, **1,064 B** `image/webp` at `?w=64`,
+    2,974 at `?w=128`, 9,242 at `?w=256`, and **the original PNG again at `?w=768`** — the ladder
+    never upscales; the header image goes 3,834,705 → 19,896 / 138,674 / 204,062 at 384 / 1152 /
+    1536; comment 79's picture 4,412,874 → 10,784 / 29,488 / 50,892 at 384 / 768 / 1152.
+    **`?w=137` answers 422**, which alone proves the new code is up, and a derivative carries
+    `Cache-Control: public, max-age=604800`, matching its source. The **guestbook-snapshot**
+    family is the one thing with nothing to show: production has no tagged entries yet, so
+    nothing is served from it — an absence of data, not a failure.
+  **What production still has not proven is iOS.** No push has ever gone over the wire from this
+  machine (dev has no VAPID and is not HTTPS), so P2, P5, the record push and **whether iOS
+  renders a non-ASCII push body** are now testable for the first time but still untested (§9);
+  and no rung of the media ladder, and no lifted composer, has been seen on a real phone beyond
+  Roli's own "ok better" on Q-D.
+- **The composer batch (Q-C, Q-D) is merged (`bb831c1`) and deployed, and it has no plan file** —
+  two fixes written straight onto `feature/2026-09-composer` from Roli's own phone, 13 files,
+  frontend-only, no schema, no backend. It is the answer to *"the input field for guestbook
+  entries (also comments on header etc) is super awkward on mobile. it scrolls weirdly and is not
+  nice at all"* — and, crucially, *"not always though"*.
+  - **Q-C (`4e8bff4`) — a chat row is pinned to the page, not to the feed.** `position: sticky`
+    lifts a box no higher than the top of its **own containing block**, and the composer was
+    written as the feed's last child. The tournament feed starts at y=130 and never noticed; a
+    profile's guestbook starts under a ~490px header, so the lift was clamped and the row landed
+    wherever the clamp left it. That is the whole of "not always": measured at 375×667, a profile
+    **with** a header image put **11px of the row behind the bottom tab bar** while the same
+    screen on a profile **without** one was fine — 31px of header apart. 1280×900 left **3px** of
+    it on screen and 1209px of scrolling to reach it; 1280×700 put it off-screen entirely.
+    `GuestbookSection` now returns the feed and the chat row as two **siblings** and the row
+    sticks to `#profile-section-main`, which starts at 72–73px on every screen: scroll distance
+    to reach it at 1280 went **1209px → 0**. Two more fixed in the same pass: a pinned composer
+    sat **on top of** the reply field it should clear (28 of a 40px field at 390 in the guestbook,
+    23 of 40 in the tournament feed), so **only one composer floats at a time** now; and
+    `AutoTextarea` capped itself **twice** (`maxRows = 6` = 136px against `max-h-32` = 128px), so
+    the sixth line was asked for and refused, caret 8px below the field's own bottom edge.
+  - **Q-D (`6a996d1`) — a sticky composer clears the keyboard, not the bar.** From two
+    photographs and a screen recording off Roli's iPhone. **The keyboard detector was working** —
+    the tab bar is hidden in all of them, so `keyboardOpen.ts` had correctly said yes; the bug was
+    purely positional. iOS re-anchors `position: fixed` to the shrunken **visual** viewport (that
+    is Q2, the tab bar riding onto the keys) but does **not** re-anchor `sticky`, which stays on
+    the **layout** viewport, which does not shrink — so Q2's collapse of the clearance to 0, right
+    for the two fixed surfaces, pushed all three pinned composers the last 72px **further into the
+    keys**. One token was answering two opposite questions; there are two now (§10, `DESIGN.md`
+    §9b). Measured at 390×844 with a 336px keyboard (top edge y=508): the guestbook row
+    **787–844 → 451–508**, tournament comments 700–843 → 365–508, ideas 383–844 → 47–508.
+    Settings → Diagnostics now prints a `covered` row and `lift <n>` beside the verdict, in the
+    copied report too — **behind the keyboard with `lift 0` is the measurement failing; with the
+    right lift it is the CSS.** Two deliberate limits: at ≥1024px with a coarse pointer
+    `lg:bottom-0` still wins, and a *short* Ideas board cannot lift its open 461px form all the
+    way (Q-C's condition). **Unverified on iOS** — `visualViewport` was replaced at the source in
+    a real browser, which proves the wiring and nothing about the device. Roli's verdict after
+    testing the merged tree on his phone: **"ok better"**.
+- **`feature/2026-09-media` (W1–W4, `FEATURES_2026-09-media.md`) is merged (`fa24c0a`) and
+  deployed** — branched from `a0b1392`, five commits, 26 files, and **no new table, no new column
+  and no `_RUNTIME_COLUMNS` entry**: what it added to production is one wheel in the backend image
+  and one cache directory inside the bind mount (§5, §7). Roli, verbatim: *"can you pre-compute smaller
   sizes on server -> then serve whats requested (needed)"* — scoped by him to avatars, header
   images and guestbook snapshots, and then, once the plan was written, to comment images as well
   (*"yeah comment images as well, go"*). Four families; **crests stay out**, his own 2026-09-16
@@ -1498,17 +1634,20 @@ every past match simply keeps counting today's rating.
   **The one accepted regression**: on a retina desktop both big pictures cap at the **1536** rung
   against a 1920 px original (55,868 B instead of 2,662,379), because 1536 is the top of the
   ladder. **Roli accepted that knowingly**, the lightbox being where the real file still is.
-  Deploy shape: **no manual step**, and nothing pre-warms the cache — it is empty on the first
+  Deploy shape: **no manual step**, and nothing pre-warms the cache — it was empty on the first
   boot and fills on demand, the worst first load paying ~275 ms once, ever, for a 1152 rung on
-  this Pi (the VPS is faster). `curl -sI 'https://lorbeerkranz.xyz/api/players/1/avatar?w=128' |
-  grep -i content-type` → `image/webp` proves the new code is up; `Derived media swept:` on the
-  first boot would be a surprise rather than a confirmation, because a cache that has never
-  existed has nothing to sweep. Two things nobody has measured yet, said plainly: the **17 MB**
-  in `uploads/comments/` is six files and their drawn sizes were measured, but production's feed
-  is not this dev corpus; and no rung has ever been served to a real phone.
+  this Pi (the VPS is faster); `Derived media swept:` on that first boot would have been a
+  surprise rather than a confirmation, because a cache that has never existed has nothing to
+  sweep. **W4 wrote the smoke command as `curl -sI …?w=128`, and that command does not work** —
+  every `/api` route answers **405 to HEAD** (§10), so it was never run before the deploy. The
+  working check is a GET: `curl -s -o /dev/null -w '%{size_download} %{content_type}\n'
+  'https://lorbeerkranz.xyz/api/players/1/avatar?w=128'` → `2974 image/webp`, and `?w=137` → 422
+  is the sharper proof. Both are recorded against production in the first bullet. One thing
+  nobody has measured still stands: the **17 MB** in `uploads/comments/` is six dev files whose
+  drawn sizes were measured, and production's feed is not that corpus.
 - **`feature/2026-09-guestbook` (K1–K4, then Q-A/Q-B, G1–G3 and G4/G5) is merged** (`87586f8`,
-  2026-09-19) and can be deleted — branched from `14e27db`, thirteen commits, 34 files, **two
-  new tables and one new media directory**, part of the same full deploy. Roli asked to be able
+  2026-09-19) **and deployed** in deploy 1 — branched from `14e27db`, thirteen commits, 34 files,
+  **two new tables and one new media directory**; the branch is deleted. Roli asked to be able
   to comment on a profile's header image, About text and avatar, *"make sure the image and
   about texts persist so it is also clear what its about later when they
   change"* — and the answer is that **the guestbook absorbs it**: an entry gains a subject and
@@ -1534,11 +1673,13 @@ every past match simply keeps counting today's rating.
   390px in both themes: the citation is 48px for a picture and 42/58px for a one/two-line quote,
   taking a tagged entry from the untagged 124px to 180px and 174/190px; at 1280px the same
   two-line quote fits on one. **G4** is the fix for the bug G2 found (below) and **G5** is this
-  documentation pass, the one K4 and G1–G3 could not give them. Two things a reader should know
-  before the deploy: the sweep's log line `Guestbook subjects swept: N` appears **only when a boot
-  removed something**, so silence on the first boot is the expected outcome, and
-  `curl https://lorbeerkranz.xyz/api/players/1/guestbook | grep -c '"subject"'` > 0 proves the new
-  code is up (the key is present and `null` on every untagged entry). Rollback to `14e27db` ignores
+  documentation pass, the one K4 and G1–G3 could not give them. Two things the deploy confirmed:
+  the sweep's log line `Guestbook subjects swept: N` appears **only when a boot removed
+  something**, so the silence on the first boot was the expected outcome, and
+  `curl https://lorbeerkranz.xyz/api/players/1/guestbook | grep -c '"subject"'` > 0 — run against
+  production, it returns 1 (the key is present and `null` on every untagged entry, and **no
+  production entry is tagged yet**, which is why the media batch's snapshot rung has nothing to
+  serve there). Rollback to `14e27db` ignores
   both tables — measured, not assumed (§5) — and costs two things: tagged entries render as plain
   entries, and an entry deleted while rolled back leaves a link and a file that the next boot of the
   new code sweeps. Its `guestbook_subjects/` pinned copies are the third family the media batch
@@ -1585,9 +1726,9 @@ every past match simply keeps counting today's rating.
     reports `can_edit: false` for the entry it just created (the router's `guestbook_entry_payload`
     call leaves the default), which is invisible because the mutation invalidates and the refetched
     list carries the right answer.
-- **`feature/2026-09-badges` (M1–M10, `FEATURES_2026-09-badges.md`) is merged** (`14e27db`) and can
-  be deleted — branched from `b8e741a`, twelve commits, 48 files, **two new tables**, part of the
-  same full deploy. Ten tasks, because M8–M10 came out of Roli living with the batch on his phone
+- **`feature/2026-09-badges` (M1–M10, `FEATURES_2026-09-badges.md`) is merged** (`14e27db`) **and
+  deployed** in deploy 1 — branched from `b8e741a`, twelve commits, 48 files, **two new tables**;
+  the branch is deleted. Ten tasks, because M8–M10 came out of Roli living with the batch on his phone
   on the day it was built. What landed: **M1** `GET /stats/records`, the one computation — sixteen
   records in `services/stats/records.py`, folded out of the services the pages already call and
   writing no ranking query of its own, with the deep-link `path` emitted per record (§6);
@@ -1605,17 +1746,19 @@ every past match simply keeps counting today's rating.
   Two later fixes carry no task number of their own: **a lead is not a record** — eight of the
   sixteen are leads and the push says so, in its own words (§6) — and **the comment box can no
   longer rewrite a finished result**, which was M2's open hole and is now a 409 (§10).
-  Expect `Record holders seeded: 16` on the first boot, which is the line that
-  proves the diff base was written **silently**; `curl https://lorbeerkranz.xyz/api/stats/records |
-  jq '.records | length'` → 16 proves the new code is up. Rollback to `f8a02b7` ignores both tables
-  (measured, not assumed — §5).
-- **`feature/2026-09-ideas` (P1–P6, `FEATURES_2026-09-ideas.md`) is merged** (`a547193`) and can be
-  deleted — branched from `880a6fd`, seven commits, 38 files, three new tables, the first batch since
-  the audit to touch the backend and the schema. **No manual step** — the three tables come from
-  `create_all` with no log line of their own, nothing goes into `_RUNTIME_COLUMNS`, and
-  `notification_texts.json` ships in the image;
-  `curl https://lorbeerkranz.xyz/api/ideas | grep -c '"comments"'` > 0 proves the new code is up,
-  and a rollback to `880a6fd` simply ignores the new tables (measured, not assumed — §5). What
+  Both smoke checks came back as written: **Roli read `Record holders seeded: 16` in the boot
+  log** — the line that proves the diff base was written **silently**, so nobody was buzzed with a
+  backlog — and `curl https://lorbeerkranz.xyz/api/stats/records | jq '.records | length'` → 16
+  against production, every record carrying holders and a `path`. Rollback to `f8a02b7` ignores
+  both tables (measured, not assumed — §5).
+- **`feature/2026-09-ideas` (P1–P6, `FEATURES_2026-09-ideas.md`) is merged** (`a547193`) **and
+  deployed** in deploy 1 — branched from `880a6fd`, seven commits, 38 files, three new tables, the
+  first batch since the audit to touch the backend and the schema; the branch is deleted. **No
+  manual step** — the three tables come from `create_all` with no log line of their own, nothing
+  goes into `_RUNTIME_COLUMNS`, and `notification_texts.json` ships in the image;
+  `curl https://lorbeerkranz.xyz/api/ideas | grep -c '"comments"'` > 0 came back 1 against
+  production, and a rollback to `880a6fd` simply ignores the new tables (measured, not
+  assumed — §5). What
   landed: **P5** a device that receives nothing says so (the shell notice, `usePushNotifications`
   app-wide, the 410 on a dead endpoint, `pushsubscriptionchange` in `sw.js` — §10); **P1** the three
   tables, the comment endpoints, `PUT /ideas/{id}/read`, the one audience helper both channels use,
@@ -1624,7 +1767,8 @@ every past match simply keeps counting today's rating.
   state that agrees with the push; **P4** the board's flat comment thread, where opening one marks
   it read. Beside them one unnumbered fix: Ctrl+C on `make dev` now stops the servers it started
   (§10).
-- **`feature/2026-09-design-fixes` is merged** (`5a97fa9`) and can be deleted (branched from
+- **`feature/2026-09-design-fixes` is merged** (`5a97fa9`) **and deployed** in deploy 1; the
+  branch is deleted (branched from
   `2e23365`; six docs
   commits, then C1–C14 as fifteen implementation commits, then this doc pass). It answers
   `DESIGN_AUDIT_2026-09-17.md`, a blind design-consistency audit — eight parallel reviewers, four
@@ -1632,7 +1776,7 @@ every past match simply keeps counting today's rating.
   or `DESIGN.md` so the findings were not anchored by decisions already made; a finding counted
   only with counted evidence behind it (raw reports in `design-audit-2026-09-17/`).
   `DESIGN_FIXES_2026-09.md` is the plan, with Roli's decisions recorded at the top under "do not
-  relitigate". **Frontend-only, merged, not yet deployed.** What landed:
+  relitigate". **Frontend-only; merged and deployed.** What landed:
   **C1** one locale constant per shape (numbers `de-AT`, months `en-GB`); **C2** the player
   palette takes its lightness from the theme (hue stays the player's identity); **C3** light
   hairlines, placeholders and the League select — a light page is now exactly as tall as the same
@@ -1653,19 +1797,32 @@ every past match simply keeps counting today's rating.
   on 2026-09-16, carrying Rounds 6, 7 and 8 and everything that came out of Roli testing on his
   phone — 110 commits, 234 files, seven new tables. **§7 step 6 was run on that deploy and is
   done**: the club star history is recovered in production and that step is now history, not a
-  pending chore. Every *earlier* batch branch is merged and can be deleted whenever Roli wants;
-  `feature/2026-09-design-fixes` is the one open branch.
-- **Pushed and not yet deployed** — Q15/Q16/Q17 (`f1ea22b`) plus the Streaks/Club-stars swap
-  (`2e23365`), **frontend and docs only** in themselves, which is why they were once queued as a
-  short deploy; they have since been overtaken by three backend batches on `main`, so they simply
-  ride along in the one **full** deploy the first bullet describes. Q15: the clubs list's row is the edit trigger, no buttons, delete inside
+  pending chore.
+- **Every merged branch has been deleted** on 2026-09-20 (reported as 18; the per-branch reflogs
+  went with them, so the count is not independently checkable — what *is* verifiable is the
+  result). Locally only `main` and
+  the unmerged `feat/todo-md-full-implementation` remain, so a §11 sentence of the form "this
+  branch is merged and can be deleted" is now history rather than a chore; the batch bullets above
+  keep their merge SHAs, which is the part that still answers questions. **Four stale branches
+  survive on `origin`** — `feat/pwa-push-and-stats-player-tiles`, `feature/player-profiles-auth`,
+  `gemini-colors`, `refactor/maintainability-cleanup` — and **Roli has not been asked about
+  them**, so don't delete them on your own initiative.
+- **Q15/Q16/Q17 (`f1ea22b`) plus the Streaks/Club-stars swap (`2e23365`) are deployed**, having
+  ridden along in deploy 1 — **frontend and docs only** in themselves, which is why they were once
+  queued as a short deploy before three backend batches overtook them. Q15: the clubs list's row is the edit trigger, no buttons, delete inside
   the editor (which also un-truncated 3 of 16 club names on a phone and dropped 12 wrapped league
   lines). Q16: the club-stars ladder shows all ten rungs, and an unplayed rung prints **no digits**
   — "no matches" plus an em dash — because rows genuinely played for zero points already exist and
   would otherwise be indistinguishable. Q17: `ClubMark` moved into `ui/primitives/` and every
   score-only match row wears one, across all seven surfaces, not just the friendlies list.
-  The design-fixes batch above is merged (`5a97fa9`) and is in that same queue; its
-  smoke list is in that plan's "Deployment" section.
+  The design-fixes batch above went out on the same deploy; its smoke list is in that plan's
+  "Deployment" section.
+- **Checks at `f8ff0a4`, the deployed tree** (re-run for this documentation pass):
+  `cd frontend && npm run check` **826 tests in 86 files** green in 74 s. That is the media head's
+  806/85 plus Q-C's 7 in the new `src/test/composerPinning.test.tsx` and Q-D's 13 in
+  `keyboardOpen.test.ts` (23 → 36); nothing pre-existing moved. The backend was **not re-run here and does
+  not need to be** — the composer batch is frontend-only, so the media head's **303 passed**
+  stands as the current backend number.
 - Checks at the **media** branch head (code at `7da765f`, re-run on W4's documentation tree, which
   touches no code): `make test` **303 passed** in 15:28, `make lint` clean, `make gen-types`
   **no diff**, `cd frontend && npm run check` **806 tests in 85 files** in 82 s, `npm run build`
@@ -1719,11 +1876,12 @@ every past match simply keeps counting today's rating.
   Chromium reports `document.activeElement === textarea` in all four verification runs, and the
   armed chip is visible either way, so the worst case is one extra tap. It is the same family as
   Q2 below and should be re-tested in the same session.
-- **Whether iOS renders a non-ASCII push body is unverified, and only Roli's phone can close it.**
-  The catalogue now carries its umlauts (§9, M2) and these are the first such bodies the app will
-  have sent; nothing on this machine can check it, because push has never gone over the wire from
-  here at all (no VAPID, no `cryptography` — every push assertion in every batch stops at the queued
-  message). If a real notification shows mojibake, the place to look is the device, not the
+- **Whether iOS renders a non-ASCII push body is unverified — and, since 2026-09-20, finally
+  testable.** The catalogue carries its umlauts (§9, M2) and the code that sends them is now
+  **deployed**, so the next real notification is the experiment; before the deploy there was
+  nothing to test. Nothing on this machine can check it, because push has never gone over the wire
+  from here at all (no VAPID, no `cryptography` — every push assertion in every batch stops at the
+  queued message), so it stays open until a notification arrives on the phone. If a real notification shows mojibake, the place to look is the device, not the
   catalogue. The record push also wants his eye on the words themselves: the Styrian lines M2 wrote
   are listed one by one in that task's Deviations. Two of them he has since corrected himself —
   `gräßte` → `greßte` and `Siegsserie` → `Siegesserie` — and the six **lead** lines are newer than
@@ -1745,12 +1903,46 @@ every past match simply keeps counting today's rating.
   read with fresh eyes, because it is deliberate and not drift: the **bell** says "likes your idea"
   (his own word for it, decided on the second pass) while the English **push** still says "wants
   your idea too" (the board's own verb). Either is a one-line string edit with no code behind it.
-- **Q2, the keyboard, is unticked and only Roli's phone can close it.** The rule is now the caret
-  (§10); it shipped green twice on a threshold that measured geometry and did nothing on the
-  device both times. What he should re-test: a tournament's comments, the Ideas composer
-  **including the hop from the title into the details textarea** (the case that failed), and a
-  profile's guestbook — in the standalone PWA *and* in Safari. If it fails again: Settings →
-  Diagnostics → Copy.
+- **Q2, the keyboard, is now addressed and partially confirmed — but not verified on iOS.** The
+  history matters, because it shipped green twice on a threshold that measured geometry and did
+  nothing on the device both times; the rule is the caret (§10). Q-D then found that the
+  **detection had been right all along** — the tab bar is hidden in every photograph Roli sent —
+  and that what remained was purely positional, a `sticky` box collapsing its room as though it
+  were `fixed`. His verdict on the merged, deployed tree is **"ok better"**, which is the first
+  time this family has been reported working on the device at all. It is *not* a tick: "better"
+  is not a measurement, `visualViewport` was only replaced at the source in a desktop browser, and
+  the two known limits (≥1024px with a coarse pointer, and a short Ideas board with its 461px form
+  open) are unexercised on a phone. Worth re-testing in one session: a tournament's comments, the
+  Ideas composer **including the hop from the title into the details textarea** (the case that
+  failed twice), and a profile's guestbook — in the standalone PWA *and* in Safari. If it fails:
+  Settings → Diagnostics → Copy, and read `lift` first — **`lift 0` behind the keyboard is the
+  measurement failing; the right lift with the row still covered is the CSS.**
+- **The profile header eats the Guestbook tab, and it is Roli's call how much** (2026-09-20, from
+  his own use of the deployed app). At **390px** the header leaves roughly **150px** of reading
+  room above the fold on that tab; at **1280px** there is effectively none of this problem. It is
+  M8/M9 territory — those two tasks already took 66px off the tab strip's top and then put 4–9.5px
+  back for the taller avatar (§10) — and it interacts with Q-C, since the header's height is
+  exactly what used to clamp the composer's lift. **Nothing has been designed for it**: the
+  options (a shorter header on this tab, a collapsing header, or leaving it) have not been
+  costed, and nobody should start one as a drive-by.
+- **Whether tapping an unread message should mark it read at all is still undecided** (G2's
+  deliberate non-change, restated here because it is a decision waiting on Roli and not a
+  documented behaviour to preserve). The guestbook row carries a bare `onClick` on the row
+  `<div>` that marks it read — an invisible click target. G2 left it because the honest fix is to
+  remove it rather than dress it up: `role="button"` on a div is forbidden (`DESIGN.md` §7/§11), a
+  stretched overlay is wrong on a row with six controls and selectable text, and the row already
+  has a labelled, focusable **Mark as read** button doing exactly this (the tournament feed has
+  *only* that button and no such handler). The reasoning is written at the call site so the next
+  audit does not re-report it as an oversight.
+- **An empty Matches tab, seen once and never reproduced.** In Roli's screen recording at 13:48 on
+  2026-09-20 the profile's Matches tab rendered **black from the tab strip to the bottom bar** —
+  no rows, no empty state, no loader. It has not happened again, nothing was captured from
+  Settings → Diagnostics at the time, and the recording is the only evidence, so there is no
+  theory here worth writing down: it is **not** the blank-screen detector's case (the app was
+  drawing, the shell and the tab strip were on screen), which is the one thing that can be said
+  for certain. If it recurs, the first move is Diagnostics → Copy all **while it is on screen**,
+  and the second is whether the tab's query is empty or errored — `RouteErrorBoundary` would have
+  shown a page-failed state, and it did not.
 - **The iOS 27 blur band over the top of installed PWAs is not ours and Roli is waiting for
   Apple.** `black-translucent` + `viewport-fit=cover` (`index.html`) put page pixels under the
   status bar, and iOS 27 fills that inset with its own glass. Making the bars opaque (Q12) did
