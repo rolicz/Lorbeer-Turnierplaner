@@ -5,8 +5,10 @@ import { cn } from "../cn";
 import Button from "../primitives/Button";
 import { copyText } from "../../utils/clipboard";
 import {
+  coveredStrip,
   isKeyboardOpen,
   keyboardConditions,
+  keyboardInsetPublished,
   keyboardOpenFrom,
   readKeyboardProbe,
   type KeyboardConditions,
@@ -43,6 +45,15 @@ import {
  * viewport seen since this page was opened, so the evidence survives the keyboard closing and
  * a copied report is worth something even without a screenshot.
  *
+ * **And it shows where the pinned rows were put** (Q-D). The composers are `sticky`, so the
+ * keyboard does not lift them the way it lifts the `fixed` tab bar; they are offset by the
+ * covered strip instead — `innerHeight − (vv.height + vv.offsetTop)` — published as
+ * `--keyboard-inset-bottom` while the flag is set. The `covered` row is that measurement in
+ * all three columns, and `lift` beside the verdict is what actually reached CSS, read back
+ * off `<html>`. A capture with the keyboard up therefore answers "was the row lifted, and by
+ * how much" without anyone having to guess from the photograph. The strip is a *position*
+ * and never a detection: it is measured only after the caret has said the keyboard is up.
+ *
  * The conditions are not recomputed here: `keyboardConditions()` is the shipped decision,
  * imported. A readout with its own copy of the rule could agree with a bug.
  */
@@ -61,6 +72,10 @@ type Reading = {
   open: boolean;
   /** What `<html data-keyboard-open>` actually says right now. */
   flag: boolean;
+  /** The covered strip as measured — evidence, in every column, keyboard or not (Q-D). */
+  strip: number;
+  /** What `--keyboard-inset-bottom` actually says, i.e. what the sticky rows were given. */
+  lift: number;
 };
 
 type State = { now: Reading; rest: Reading | null; deepest: Reading | null; sig: string };
@@ -85,6 +100,8 @@ function read(): Reading {
     conditions: probe ? keyboardConditions(probe) : null,
     open: probe ? keyboardOpenFrom(probe) : false,
     flag: isKeyboardOpen(),
+    strip: probe ? coveredStrip(probe) : 0,
+    lift: keyboardInsetPublished(),
   };
 }
 
@@ -104,6 +121,8 @@ function sigOf(r: Reading | null): string {
     c?.settled ?? "-",
     r.open,
     r.flag,
+    r.strip,
+    r.lift,
   ].join("|");
 }
 
@@ -163,6 +182,8 @@ function formatReading(label: string, r: Reading | null): string {
     c ? `onscreenKeyboard=${c.onscreenKeyboard}${c.settled ? "" : " (settling)"}` : "onscreenKeyboard=n/a",
     `test=${r.open ? "open" : "closed"}`,
     `flag=${r.flag ? "set" : "unset"}`,
+    `covered=${r.strip}`,
+    `lift=${r.lift}`,
   ];
   return `${label}: ${parts.join(" ")}`;
 }
@@ -238,7 +259,9 @@ export default function ViewportReadout() {
     <div className="space-y-2">
       {/* The numbers — evidence for the next bug report, not inputs to the rule any more.
           "At rest" is the last reading with no caret; "deepest" the smallest the visible
-          viewport got. Kept to five short rows: every line here has to fit above a keyboard. */}
+          viewport got. Kept to six short rows: every line here has to fit above a keyboard.
+          `covered` is the last of them and the one Q-D added — how much layout viewport
+          lies below the visible one, which is how far a sticky composer has to be lifted. */}
       <dl className="inset grid grid-cols-[1fr,auto,auto,auto] gap-x-3 gap-y-0.5 py-2 text-xs">
         <dt className="text-micro uppercase tracking-wide text-text-muted">measure</dt>
         <dd className="text-right text-micro uppercase tracking-wide text-text-muted">now</dd>
@@ -259,6 +282,11 @@ export default function ViewportReadout() {
         <dd className="text-right tabular-nums text-text-normal">{px(now.probe?.offsetTop)}</dd>
         <dd className="text-right tabular-nums text-text-muted">{px(rest?.probe?.offsetTop)}</dd>
         <dd className="text-right tabular-nums text-text-muted">{px(deepest?.probe?.offsetTop)}</dd>
+
+        <dt className="text-text-muted">covered</dt>
+        <dd className="text-right tabular-nums text-text-normal">{px(now.strip)}</dd>
+        <dd className="text-right tabular-nums text-text-muted">{rest ? px(rest.strip) : "—"}</dd>
+        <dd className="text-right tabular-nums text-text-muted">{deepest ? px(deepest.strip) : "—"}</dd>
 
         <dt className="text-text-muted">vv.scale</dt>
         <dd className="text-right tabular-nums text-text-normal">{now.probe ? now.probe.scale.toFixed(2) : "—"}</dd>
@@ -326,7 +354,7 @@ export default function ViewportReadout() {
             Keyboard {now.open ? "open" : "closed"}
           </span>
           <span className="min-w-0 flex-1 truncate text-xs text-text-muted">
-            flag {now.flag ? "set" : "unset"}
+            flag {now.flag ? "set" : "unset"} · lift <span className="tabular-nums">{px(now.lift)}</span>
           </span>
           <Button
             type="button"
@@ -368,7 +396,10 @@ export default function ViewportReadout() {
         threshold any more: a caret in a text field <em>is</em> the keyboard, and condition 3 only takes it back when
         the viewport did not move at all, which is a hardware keyboard. <code>innerHeight</code> and{" "}
         <code>vv.offsetTop</code> are reported as evidence and decide nothing — subtracting them is what Q2 got wrong
-        twice.
+        twice. They are subtracted for one thing only, and it decides nothing either: <code>covered</code> above, the
+        strip of page the keyboard sits over, which is how far the composers are lifted once the flag is already set —
+        "lift" beside the verdict is the number that reached CSS. A composer behind the keyboard with a lift of 0 is
+        that measurement failing; with the right lift it is the CSS.
       </p>
       <p className="text-micro text-text-muted">{environmentLine()}</p>
     </div>

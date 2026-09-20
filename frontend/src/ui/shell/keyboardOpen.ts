@@ -19,6 +19,37 @@
  * The page's end is the one of them that is *document height* rather than a floating
  * overlay, so its flip is bracketed by `bottomReservation.ts`, which settles the scroll
  * the shortened document takes from the reader and gives it back when the room returns.
+ * One custom property rides along with the flag for the boxes the flag alone cannot
+ * place — the section directly below.
+ *
+ * ## Two answers, and only one of them is a detection (Q-D)
+ *
+ * **Whether** a keyboard is up is the caret's answer, and nothing measures the screen to
+ * reach it (the next section is that rule, and it is the only rule). **How far up** a row
+ * must sit so the keys do not cover it is a different question with a different answer:
+ * the **covered strip**, `innerHeight − (visualViewport.height + visualViewport.offsetTop)`,
+ * published as `--keyboard-inset-bottom` on `<html>` *while the flag is already set and the
+ * viewport has actually moved under it* (`keyboardInsetFrom`).
+ *
+ * That is a **position, not a detection**. `AGENTS.md` §10 bans the covered strip as a
+ * *threshold* — as the way to decide whether a keyboard exists, which was wrong on the
+ * device twice — and this is the opposite move: it is asked only after the caret has said
+ * yes, it can never hold the flag down or raise it, and where it reads 0 every row sits
+ * exactly where it sat before this existed. Nothing here may ever be compared against a
+ * floor or a ratio.
+ *
+ * It exists because `position: sticky` is anchored to the **layout** viewport, and iOS
+ * shrinks only the visual one. The tab bar is `fixed`, so it is re-anchored and rides *up*
+ * onto the keyboard (the bug at the top of this file); a composer pinned with `bottom:`
+ * is not re-anchored at all and stays at the layout viewport's bottom edge — underneath
+ * the keys — and Q2 collapsing `nav-clear` to 0 pushed it the last 72px further into
+ * them. Roli's own readings, iOS 18.7, standalone PWA, keyboard up: `innerHeight 956,
+ * vv.height 568, vv.offsetTop 131` → a 257px strip, and `894 / 568 / 222` → 104px. That
+ * is how far under the keyboard the row he was typing in had gone. `offsetTop` is in the
+ * sum because it is exactly how far iOS shifted the layout viewport up to reveal the
+ * field: the visible window occupies layout coordinates `[offsetTop, offsetTop + height]`,
+ * so what lies below it inside the layout viewport is the rest. It is *not* a term in any
+ * decision — subtracting it there is Q2's first bug and stays banned.
  *
  * ## What counts as "open": the caret, not the geometry
  *
@@ -77,6 +108,13 @@ import { applyBottomReservation, forgetReservationScrollDebt } from "./bottomRes
 
 /** `<html data-keyboard-open="true">` — the flag `styles.css` keys off. */
 const FLAG = "keyboardOpen";
+/**
+ * `<html style="--keyboard-inset-bottom: 257px">` — the covered strip, while the flag is
+ * set (Q-D). `styles.css` turns it into `--bottom-pin-clearance`, which is what the
+ * `pin-clear` spacing token resolves to; absent (the normal case) the token falls back to
+ * the tab bar's height, exactly as `nav-clear` does.
+ */
+const INSET_VAR = "--keyboard-inset-bottom";
 
 /** How long a "closed" reading must hold before the bar comes back (keyboard slide-out). */
 const CLOSE_DELAY_MS = 250;
@@ -202,15 +240,91 @@ export function keyboardOpenFrom(p: KeyboardProbe): boolean {
   return c.editableFocus && c.scaleOk && c.onscreenKeyboard;
 }
 
+/**
+ * How much of the **layout** viewport lies below the visible one, in CSS px — the strip a
+ * `position: sticky` row would otherwise be pinned into (Q-D).
+ *
+ * Pure arithmetic on two numbers the browser reports, with no threshold anywhere near it:
+ * it is never compared against a floor, a ratio or anything else, and it decides nothing.
+ * `keyboardInsetFrom` below is what gets published, and it is this number **only while
+ * the caret rule already says a keyboard is up** — which is why a pinch (huge strip, no
+ * keyboard) and a desktop browser's horizontal scrollbar (a 15px strip, no keyboard)
+ * cannot move a single box. Clamped at 0, so a reading mid-animation can only ever mean
+ * "no lift", i.e. today's behaviour.
+ */
+export function coveredStrip(p: KeyboardProbe): number {
+  const covered = p.layoutHeight - (p.viewportHeight + p.offsetTop);
+  if (!Number.isFinite(covered) || covered <= 0) return 0;
+  return Math.round(covered);
+}
+
+/**
+ * The strip as a *position*: published only once the caret rule has said yes, **and** only
+ * once something has actually happened to the viewport.
+ *
+ * The second gate is not a threshold either — it is condition 3's own question, asked for a
+ * different purpose. The flag goes up on the caret alone, before the keyboard has drawn a
+ * pixel, and at that instant the strip measures whatever was already below the visible
+ * viewport: a browser toolbar, a scrollbar, nothing at all. Lifting a row by *that* would be
+ * a jump with no keyboard behind it. So while the viewport is still exactly as the caret
+ * found it the lift stays 0 — today's behaviour — and the keyboard's own resize, which is
+ * the very event that makes `viewportMoved` true, is what places the row.
+ *
+ * Note where the two questions differ. Condition 3 must *abstain* when it has no baseline
+ * (a reading with no baseline is not evidence that no keyboard came, and treating it as
+ * such would keep the bar over the keys); the lift abstains the other way, because a lift
+ * of 0 is simply where the row sits today. Hence the extra line: the caret's very first
+ * reading has no episode behind it yet, and comparing a viewport with itself is not an
+ * answer either way.
+ */
+export function keyboardInsetFrom(p: KeyboardProbe): number {
+  const c = keyboardConditions(p);
+  if (!(c.editableFocus && c.scaleOk && c.onscreenKeyboard)) return 0;
+  // The caret has this instant landed: there is nothing to compare with yet.
+  if (!p.caretArrival) return 0;
+  // Nothing has happened since it landed, so whatever is covered was covered before the
+  // keyboard — and where the baseline itself is untrustworthy (`fromRest: false`, a watcher
+  // that started mid-keyboard) `viewportMoved` is already true and the strip has the say.
+  if (!c.viewportMoved) return 0;
+  return coveredStrip(p);
+}
+
 /** Is the flag currently set? (The DOM is the single source of truth, not a module variable.) */
 export function isKeyboardOpen(): boolean {
   if (typeof document === "undefined") return false;
   return document.documentElement.dataset[FLAG] === "true";
 }
 
-function setFlag(open: boolean): void {
+/** What `--keyboard-inset-bottom` says right now, in px — the DOM, as for the flag. */
+export function keyboardInsetPublished(): number {
+  if (typeof document === "undefined") return 0;
+  const raw = document.documentElement.style.getPropertyValue(INSET_VAR).trim();
+  if (!raw) return 0;
+  const n = Number.parseFloat(raw);
+  return Number.isFinite(n) ? n : 0;
+}
+
+/** The last value written, so a viewport event that changes nothing costs no recalculation. */
+let publishedInset: number | null = null;
+
+function publishInset(px: number): void {
+  if (typeof document === "undefined" || publishedInset === px) return;
+  publishedInset = px;
+  const root = document.documentElement;
+  // Removed rather than set to 0: absent is what the token's own fallback is written for,
+  // so a page with no keyboard anywhere near it carries no override at all.
+  if (px > 0) root.style.setProperty(INSET_VAR, `${px}px`);
+  else root.style.removeProperty(INSET_VAR);
+}
+
+function setFlag(open: boolean, p: KeyboardProbe | null): void {
   if (typeof document === "undefined") return;
   const root = document.documentElement;
+  // The lift is re-published on *every* reading, not only on a transition: the keyboard
+  // animates in under a flag that is already set, and its top edge moves while it does.
+  // While the flag is going out it is simply dropped — the row returns to the bar's room
+  // in the same recalculation the bar comes back in.
+  publishInset(open && p ? keyboardInsetFrom(p) : 0);
   // Only on a real transition: the flag is re-derived on every viewport event, and the
   // page's end reservation settles the scroll around each flip (Q14) — which must happen
   // once per change, not once per event.
@@ -308,14 +422,14 @@ export function refreshKeyboardFlag(immediate = false): void {
 
   if (open) {
     clearCloseTimer();
-    setFlag(true);
+    setFlag(true, p);
     return;
   }
   if (p?.editableFocus) {
     // Caret, no keyboard: a hardware keyboard or a pinch. The episode stays open, so the
     // instant the viewport does move the flag comes back.
     clearCloseTimer();
-    setFlag(false);
+    setFlag(false, p);
     return;
   }
   if (!isKeyboardOpen() && !episode) {
@@ -325,7 +439,7 @@ export function refreshKeyboardFlag(immediate = false): void {
   if (immediate) {
     clearCloseTimer();
     endEpisode();
-    setFlag(false);
+    setFlag(false, null);
     return;
   }
   if (closeTimer !== undefined) return;
@@ -334,7 +448,7 @@ export function refreshKeyboardFlag(immediate = false): void {
     const again = readKeyboardProbe();
     if (again && keyboardOpenFrom(again)) return;
     if (!again?.editableFocus) endEpisode();
-    setFlag(false);
+    setFlag(false, null);
   }, CLOSE_DELAY_MS);
 }
 
@@ -383,7 +497,10 @@ export function installKeyboardWatcher(): () => void {
     sawCaret = undefined;
     // Nor a scroll debt: there is no page left to pay it back into (Q14).
     forgetReservationScrollDebt();
-    setFlag(false);
+    setFlag(false, null);
+    // …nor a lift it did not measure itself (Q-D): `setFlag` above has already removed the
+    // property, and this makes the next watcher write it rather than believe this one.
+    publishedInset = null;
   };
 }
 

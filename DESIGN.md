@@ -5,7 +5,24 @@
 > (project knowledge). Created 2026-09-12 after a full audit of the frontend (see
 > `FEATURES_2026-09.md` § "Design audit findings").
 >
-> Last checked against the code: **2026-09-19** (G5, the pass Q-A and Q-B never had, on the same
+> Last checked against the code: **2026-09-20** (Q-D, the composer behind the keyboard, on
+> `feature/2026-09-composer`. Changed here: §9b's keyboard bullet, §7's composer and overlay rows
+> and §11 all learn that **there are two bottom tokens, not one** — `nav-clear` for a `fixed` box
+> and `pin-clear` for a `sticky` one. iOS re-anchors `fixed` elements to the shrunken visual
+> viewport, which is why the tab bar rides onto the keyboard and why collapsing its room to 0 is
+> right for the toast and the pill; it does **not** re-anchor `sticky`, which stays pinned to the
+> layout viewport, so the same collapse put the three composers *under* the keys — measured at
+> 390×844 with a 336px keyboard: the guestbook row at 787–844 against a keyboard whose top edge
+> is 508, i.e. entirely behind it, and 451–508 after. Nothing else was re-read this pass.)
+> The pass before it was **2026-09-20** (Q-C, the composer's reachability, on the same branch.
+> Changed here: §9b's feed rule gains the condition sticky carries —
+> a box cannot be lifted above its own containing block, so a chat row written as the feed's last
+> child is pinned only while the feed's top is high enough, which on a profile it is not (375×667
+> put it 11px behind the bottom tab bar, 1280×900 left 3px of it on screen) — plus **one composer
+> floats at a time**, because a reply opened inside the feed was covered by the pinned one; and
+> §9b's "light input" bullet gains the field's one growth ceiling. Every number was measured in a
+> browser at 375/390/414/1280 in both themes.)
+> The pass before that was **2026-09-19** (G5, the pass Q-A and Q-B never had, on the same
 > branch. Changed here: §5b and §7's "What a guestbook entry is about" row — a tagged entry
 > **cites** its subject (a thumbnail of the pinned copy, or a quoted excerpt) instead of naming it
 > in a word-only `.chip`, which is what Q-B built and what the previous two passes could not
@@ -452,7 +469,7 @@ Matchup, Player) is built from the same block, so the sections read as one page:
 | Clubs under a score | `MatchSides` | badge + club, flag + league, stars; nothing but "No club" for a clubless side. A row with **no** club line — a score-only row — says it with `ClubMark` instead (§8), never with both. `stars="token"` folds the rating into the league line as `★ 3.5` instead of giving five glyphs a line of their own — one line less per row, and the two numbers then meet either side of the centre gap (the friendlies list, Q7) |
 | A club beside a score | `ClubMark` (`ui/primitives/`) | one 16px `ClubBadge` for a side, plus the club's name `sr-only` and — for a side with no club — an inert 16px box that keeps the row's geometry. The **only** way a score-only match row names its clubs, and the same component on every one of them: the friendlies list in Compact, `MatchRowWithClubs` in Compact (Stats → Player, both profile lists, the H2H matchup, the H2H history modal, the match page's H2H panel) and `RecordsView`'s superlatives (Q17). It is passed to `ScoreLine` as `leftMark`/`rightMark` and never rendered on its own |
 | Picking a club | `SelectClubsPanel` + `ClubPicker` (`ui/`) | one panel per match, a `card` behind a single "Clubs" disclosure that summarises both clubs (§9b, T9). Open, it holds the whole job in one bounded block: the two `ClubSlot`s (side players + crest, league, stars), then the star/league filters, then the dice + *Random matchup* row. A slot opens the `ClubPicker` sheet: search focused on open, the club this side already has pinned on top with its `ClubStarsEditor`, then recents, then league groups, crest + stars per row, one tap selects. The scoreboard above (`MatchOverviewPanel`/`MatchSides`) stays **read-only on every surface** |
-| Writing a comment | `CommentComposer` (`pages/live/comments/`) | one chat row at the end of the feed, behind a hairline and sticky, so it floats over the feed while reading and settles flush at the end (T3); scope + author are chips above the field, goal/shots swap the row in place. It sits *inside* the card where the feed is its own page, and on the page's own background where the feed is flat (§9b, G1) — the class string is the same either way, and `bottom-nav-clear` + `lg:bottom-0` in it are load-bearing (Q2, Q14). The guestbook's composer is this row (`CommentSendRow`) at the end of its feed, **armed** with a subject the same way goal/shots arms this one (§9b); so is every **reply**, in both feeds, with a `ChevronUp` cancel as `trailing` |
+| Writing a comment | `CommentComposer` (`pages/live/comments/`) | one chat row at the end of the feed, behind a hairline and sticky, so it floats over the feed while reading and settles flush at the end (T3); scope + author are chips above the field, goal/shots swap the row in place. It sits *inside* the card where the feed is its own page, and on the page's own background where the feed is flat (§9b, G1) — the class string is the same either way, and `bottom-pin-clear` + `lg:bottom-0` in it are load-bearing (Q2, Q14, Q-D: the *sticky* token, never `nav-clear`, or the keyboard covers the row). The guestbook's composer is this row (`CommentSendRow`) at the end of its feed, **armed** with a subject the same way goal/shots arms this one (§9b); so is every **reply**, in both feeds, with a `ChevronUp` cancel as `trailing` |
 | Saying what a composer is about to post | `ModeBadge` (`pages/live/comments/CommentComposer.tsx`, **exported**) | one `.chip` in accent naming the mode, with the way out — a ghost icon `Button` carrying an `X` — beside it. Optional `icon` and `leaveLabel`; with neither it still draws `Goal`/`Target` from its `label`, so the two tournament call sites are byte-identical. The guestbook's armed composer passes the subject's glyph and "Remove the subject" (K2). It is a shared primitive that lives in a page module because that is where its family is: move it only when a third kind of composer needs it |
 | Commenting on a profile item | `SubjectCommentTrigger` (`pages/profile/`) | the **one** "start a comment about this" control, worn by the banner, the avatar and the About head so the three cannot drift into three affordances for one job (K3). It never hosts a thread — it arms the guestbook's composer (§9b). The look and the `MessageSquare` + `fmtCount` label are the Ideas board's comment toggle verbatim. Three variants, one behaviour: **`ghost`** in a `section-head`'s action slot (`order-1`) — whose `h-8` class literal it **owns and exports** as `SECTION_HEAD_ACTION_CLASS`, so the owner's Edit beside it on the About head cannot drift into a second height (§6, Q-A) — **`solid`** inside `ImageLightbox`, where a ghost button would paint dark text on a black scrim in the light themes, and **`overlay`**, the count badge in a picture's own corner. `overlay` is the one audited place a bare `<button>` replaces `Button`: `buttonClass` has no look for a marker sitting on a photograph, and `bg-black/60 text-white` is what the app already paints on one (`.overlay-scrim`, `ImageLightbox`), so it reads the same in every theme. It is **`absolute`, positioned by its caller, and never part of the flow** — a badge that pushed a header down is the height M8/M9 spent two tasks removing. **A control that does nothing is never shown**: nothing at all for a reader with a count of zero, and, for `overlay`, nothing at zero *whoever* is looking — that rule lives in the component, not at the call site |
 | What a guestbook entry is about | one `<button>` citation + `pages/profile/guestbookSubjects.ts` | a tagged entry **cites** its subject between its author row and its body (Q-B, which replaced K2's word-only `.chip`): the **pinned copy itself** — a thumbnail in its source's own shape, 71×40 for the banner and 40×40 for the avatar (`h-10`, `aspect-[16/9]`/`aspect-square`, `rounded-xl` with a `ring-1 ring-inset` hairline) — or, for the About text, a quoted excerpt (`text-xs` italic, `line-clamp-2`, `subjectExcerpt`: whitespace collapsed to spaces, cut at a word boundary at 140 chars, closed with `…`). **The word stays beside it**: a thumbnail cannot say whether it is a header image or an avatar (§5b, the M8 lesson), and it is what is left when the picture does not load — `onError` swaps in a box of exactly the same size carrying the kind's 16px glyph. It carries **no surface of its own**: it lives inside a row that is already at the page gutter (§9b, G1), where inset → inset is forbidden. **One tap target, not two** — the thumbnail, the caption and the quote are one `<button>`, and it **always opens the snapshot**: `ImageLightbox` on the pinned copy for a picture, a `Modal` titled "About text" for the text, subtitled `As of <date, time>` plus ` · changed since` when it is no longer current — **never the live item**: once the profile has moved on the banner is the wrong picture, and while it has not, the pinned copy *is* the banner. Measured at 390px in both themes: the citation is **48px** for a picture and **42 / 58px** for a one/two-line quote, taking a tagged entry from the untagged 124px to **180px** (picture) and **174 / 190px** (quote); at 1280px the same two-line quote fits on one (42px), the 140-char cap being what bounds it there. **The thumbnail asks for a thumbnail** (W3): the box is a fixed 71×40 or 40×40 at *every* viewport, so it takes exactly one rung — `w=256` for a banner, `w=128` for an avatar, at dpr 3 — against a pinned copy that is megabytes (measured 2,662,379 → 4,926 bytes for one citation). It is the app's one **fixed-rung** picture; the two whose width follows the viewport use `srcset` instead (their own row, two below). The URL still carries the snapshot id and is still served `immutable`, so entries about one version cost one request — and the button still opens the **pinned copy at full size**, with no width on it at all. The words, glyphs and counts come from `guestbookSubjects.ts` and are never spelled a second time |
@@ -464,7 +481,7 @@ Matchup, Player) is built from the same block, so the sections read as one page:
 | A list of one-line rows | `List` / `ListRow` | leading · title · subtitle · trailing, hairline separators, and the row's action as a **stretched overlay** (`absolute inset-0 z-0`) so `trailing` can hold its own buttons without nesting one control in another. Reach for it whenever the row fits that shape (players admin, tournaments, nav-ish lists) |
 | A list of rows that carry a primitive | `list-divided` + the row the page writes itself | A `ScoreLine`, a `MatchSides` block, a `RecordLine` under a name, a two-line standings row: these are not "title + subtitle + trailing", and squeezing them through `ListRow`'s slots costs more than it saves — 13 files build their own rows and that is **correct** (A8). What is *not* optional is the mechanic: the container is `list-divided`, and an interactive row copies `ListRow`'s pattern exactly — `relative` row, one stretched `<button>`/`<Link>` (`absolute inset-0 z-0 rounded-xl focus-ring`) carrying an `aria-label` that names what it opens, the content `pointer-events-none relative z-10`, and any real control inside it `pointer-events-auto` above the overlay (`pages/live/MatchList.tsx` is the worked example, A6). Never `role="button"` on a `<div>`, never a hand-rolled keydown handler, never a button inside the row's own hit area |
 | Empty / loading | `EmptyState`, `InlineLoading` (lucide `Loader2` spinner), `LoadingPlaceholder` |
-| Overlay | `Modal` (card on scrim, full-screen sheet on mobile) | **The container owns the screen edge** (Q4). A `fixed` overlay escapes the `body` padding that clears a landscape notch, so the sheet's *positioning box* takes the insets itself — `bottom-safe-b left-safe-l right-safe-r`, plus `sm:top-safe-t` once it centres — and the card keeps its own `p-3` on top; the card is also clamped to `max-h-sheet` and scrolls, so a tall dialog's buttons can never end up off-screen. `ImageLightbox` does the same on its pan/zoom box (as `top/right/bottom/left`, not padding: `clientWidth` there *is* the fit maths) and the drawer (`MobileChrome`) pads itself `pt-safe-t pb-safe-b pl-safe-l`. An overlay root carries `style={{ margin: 0 }}`, because a page column's `> * ~ *` rule would otherwise hand it a 12px top margin and the scrim would miss the top of the screen. Never hand-spell `env(safe-area-inset-*)` in a class: the four `safe-t/r/b/l` spacing tokens (`tailwind.config.cjs`, §2) are the vocabulary, and they are 0px wherever a device has no inset. The mobile tab bar has its own token in the same place — `nav-clear`, the room you must leave above the screen's bottom edge *right now*, which is the bar's height normally and 0 while the keyboard is up (§9b, Q2/Q14). **A sticky page header floors at the top inset** the same way: `useStickyTop` returns `max(<measured bar height>, env(safe-area-inset-top, 0px))`, because with the auto-hiding bar away 0 is the top of the *window*, and on a notched phone that is the status bar's own strip (Q11). It is the one place `env()` is spelled outside the config — the other half of that `max()` is a measured number, which no class can carry — and the floor lives in the hook so a call site cannot forget it |
+| Overlay | `Modal` (card on scrim, full-screen sheet on mobile) | **The container owns the screen edge** (Q4). A `fixed` overlay escapes the `body` padding that clears a landscape notch, so the sheet's *positioning box* takes the insets itself — `bottom-safe-b left-safe-l right-safe-r`, plus `sm:top-safe-t` once it centres — and the card keeps its own `p-3` on top; the card is also clamped to `max-h-sheet` and scrolls, so a tall dialog's buttons can never end up off-screen. `ImageLightbox` does the same on its pan/zoom box (as `top/right/bottom/left`, not padding: `clientWidth` there *is* the fit maths) and the drawer (`MobileChrome`) pads itself `pt-safe-t pb-safe-b pl-safe-l`. An overlay root carries `style={{ margin: 0 }}`, because a page column's `> * ~ *` rule would otherwise hand it a 12px top margin and the scrim would miss the top of the screen. Never hand-spell `env(safe-area-inset-*)` in a class: the four `safe-t/r/b/l` spacing tokens (`tailwind.config.cjs`, §2) are the vocabulary, and they are 0px wherever a device has no inset. The mobile tab bar has its own token in the same place — `nav-clear`, the room you must leave above the screen's bottom edge *right now*, which is the bar's height normally and 0 while the keyboard is up (§9b, Q2/Q14) — with `pin-clear` beside it for a `sticky` box, identical except while the keyboard is up, where it is the strip the keyboard covers (Q-D). **A sticky page header floors at the top inset** the same way: `useStickyTop` returns `max(<measured bar height>, env(safe-area-inset-top, 0px))`, because with the auto-hiding bar away 0 is the top of the *window*, and on a notched phone that is the status bar's own strip (Q11). It is the one place `env()` is spelled outside the config — the other half of that `max()` is a measured number, which no class can carry — and the floor lives in the hook so a call site cannot forget it |
 | Confirming an irreversible action | `ConfirmDialog` | a `Modal` with a title, a one-line subtitle saying what happens, then Cancel + **the verb** (never "OK"), all in sentence case. **Every** irreversible action asks first — a delete, an admin's too (A10; deleting is allowed even when real results hang off the row), and equally a logout, a reshuffle, a side swap or clearing a dirty form (C7). Never `window.confirm`. **The red block is not decoration and is not a mood:** the body *names what is lost* in the danger idiom (`border-error/40 bg-error/10 text-error`, the `error` token and never `loss`, because a deleted tournament is not a defeat — §2, A8) **iff the action deletes something that is stored** — a result, a comment, a message, a file, a whole entity. An action that is reversible by its own inverse, or that changes state without deleting (mark read, reopen a tournament, swap sides, reshuffle an unplayed order, discard what is only typed), carries **no** red block; its subtitle says how to undo it instead. A dialog that shows a `busy` state must pass `busyLabel` — the fallback is "Deleting…", and most of these are not deletes |
 | Identity | `AvatarCircle`, `ClubBadge`, `NationFlag`, `CupOwnerBadge` (lucide `Crown`) | `AvatarCircle` is the only avatar, and it always wears a ring: a 1px neutral hairline by default (decoration — it gives the disc an edge on a white card as well as a dark page), or, given `cups`, a 2.5px ring in the cup's colour (a conic split for two). **Colour is the information and its tense is always "today"** (T15): a cup ring means this player holds that cup *right now* — `useCupHolders` is where that answer comes from. Historic ownership is never a ring. **One tense per screen:** the ring is worn only where the surface is about now — the Players page, a profile, the stats leaderboards (Table, Records, Streaks, Cups, the H2H matchup's header, Player) and the dashboard cups preview — H2H's own Players/Duos views render no avatars at all, though the canon used to list them (A8). **Inside a tournament** — its standings/results, the What-if table, its match lists, the Overview's blocks, and the Positions grid of past tournaments — every avatar keeps the neutral hairline, because that screen is about a past or ongoing event and a present-tense ring would read as "held it back then"; cup information there has exactly one carrier, the standings' `CupOwnerBadge` crown ("owned it going into this tournament"). Comment authors, guestbook entries and pickers get no cup marking at all. The ring is drawn inside the avatar's own box, so adopting it never moves the layout. **The crown is never drawn beside a ringed avatar** (C12): where the ring already says "holds it today", a `CupOwnerBadge` next to it says the same thing twice, so the badge was removed from the Players page and the profile header and a crown on a person now means exactly one thing — "owned it going into this tournament", in the standings. **A ring means "holds a cup" — except on a picker avatar, where it means "selected"** (`ui/primitives/AvatarButton`, `ring-2` accent, 6 pickers plus the friendly form's "None" slot). That is a deliberate, audited exception, not drift: no picker passes `cups`, so the two meanings can never meet on one disc, and re-ringing six pickers to prove a point is churn. Don't re-report it. **The profile header's own avatar** (`ProfileHeader.tsx`) is `h-20 w-20` (80px) — the largest `AvatarCircle` in the app (every other instance stays at its existing house size: 56px on the Player-stats card, 24–40px everywhere else) — sized so the disc reads balanced next to a name plus a wrapping badge band (M9, Roli: "the 3 rows … are higher now than the avatar"). The name beside it is `text-lg` (18px), the type scale's "names next to scores" step, not `text-base`. **The disc asks the server for its own size** (W2): `AvatarCircle` reads the `sizeClass` it is already given, works out the rung that box needs at the capped device pixel ratio (3) and puts it on the URL — so **no call site ever spells a width**, which is the point: one component with one answer instead of 25 chances to disagree with itself. An unrecognised class (`h-full`, `h-[3.25rem]`) serves the original, so a future call site can be slow and never broken, and the ring padding is deliberately not subtracted — over-serving by 5px is free, under-serving is a blurry face |
 | Identity → profile | `PlayerLink` | the only way an avatar/name becomes a link; hugs its text, stops click/Enter from bubbling so a row keeps its own action, `decorative` for an avatar that duplicates the name link. Never nest it in another `<a>` |
@@ -638,7 +655,33 @@ An editor is not a section you unfold; it is the thing itself becoming editable.
   the composer is the block's last row, separated by a hairline and sticky, so it floats over the
   feed while you read and settles flush at its end — never a second card floating next to the
   feed. Groups *inside* the feed (match blocks, day separators) are hairline-separated sections
-  of that one block, never cards of their own. The app's two feeds now differ, on purpose:
+  of that one block, never cards of their own.
+  **"Sticky" is a claim, and it has a condition** (Q-C, 2026-09-20; it corrects G1's "the chat
+  row stays sticky at the end of the feed", which was true of the code and not of the screen).
+  `position: sticky` can lift a box no higher than the top of its **own containing block**, so a
+  composer written as the feed's last child is pinned only while the *feed's* top is far enough
+  up the screen — it needs roughly `composer height + pin-clear` of room above the fold. A feed
+  that starts at the top of its page always has it; a feed under a header does not, and the
+  failure is silent and intermittent rather than obvious. Measured with the row inside the feed
+  section: on a profile at **375×667** with a header image it settled at 564–621 against a bottom
+  tab bar whose top is 610 — **11px of it behind the bar** — while the same screen on a profile
+  *without* a header image was fine (31px less header), which is exactly the "not always" a
+  reader reports; at **1280×900** it left **3px** of itself on screen and asked for **1209px** of
+  scrolling to be used. So **the chat row is a sibling of the feed, not its last child**,
+  whenever the block does not start the page: the profile's guestbook renders `<section>` and the
+  row as two children of the page column (`#profile-section-main`), which begins at 72–73px on
+  every screen. The row's own classes do not change — `sticky bottom-pin-clear … lg:bottom-0`
+  stay exactly as Q2, Q14 and Q-D need them (Q-C left them reading `bottom-nav-clear`; Q-D is what
+  moved the three composers onto the sticky token) — only which box it is allowed to float inside.
+  **And only one composer floats at a time.** A reply and an edit are this same chat row, opened
+  *inside* the feed, and a pinned composer is opaque and above them: measured at 390px, tapping
+  Reply on a message near the feed's end put the reply field at 703–743 under a composer box at
+  715–772, i.e. **28 of its 40px behind the field you are not typing in** (23 of 40 in the
+  tournament's feed). While a reply or an edit is open the block's own composer therefore stops
+  floating and sits at the feed's end, where it belongs. Nothing is added or removed, so the
+  document keeps its height and no scroll is forced — the guestbook reads its feed state,
+  `CommentComposer` takes `sticky={false}`.
+  The app's two feeds differ in the surface, on purpose:
   - **A feed that is its own page keeps its card** — the tournament's comments
     (`pages/live/TournamentCommentsCard.tsx`): `card p-0`, a header row naming the feed and its
     count, the messages as `inset` rows, the chat row welded to the bottom edge. Its card is
@@ -646,7 +689,8 @@ An editor is not a section you unfold; it is the thing itself becoming editable.
   - **A feed inside a tabbed page is flat** — a profile's guestbook
     (`pages/profile/GuestbookSection.tsx`): a `section-head` + `section-label` with the count
     (§6), the messages as `list-divided` rows **at the page gutter** with no surface of their own,
-    and the same sticky chat row at the end, painting the page's own background. The reason is
+    and the same chat row after it — a sibling of the feed rather than its last child (above),
+    painting the page's own background. The reason for the flat surface is
     the siblings: Overview, Stats and Matches carry no `.card` at all, so a boxed fourth tab
     stepped its text 25px inward and took 50px of line width off it on every switch (measured at
     390px: x=41 / 308px against x=16 / 358px), through page → card → inset → chip where the other
@@ -674,8 +718,10 @@ An editor is not a section you unfold; it is the thing itself becoming editable.
   spent with the message it was posted on — the next one is an ordinary entry unless an item arms
   the composer again — and the badge and the send row share a wrapper *inside* the sticky box, which
   keeps its own classes so the composer still settles flush at the end of the feed (G1 made that
-  end the page's own surface rather than a card's bottom edge; the sticky box's classes did not
-  move, because `bottom-nav-clear` and `lg:bottom-0` are what Q2 and Q14 stand on). A reader who
+  end the page's own surface rather than a card's bottom edge and Q-C moved the box out of the
+  feed section to the page column; the offset itself moved once, in Q-D, from `bottom-nav-clear`
+  to `bottom-pin-clear`, because a sticky row wants the keyboard's own strip where a fixed one
+  wants 0 — with `lg:bottom-0` beside it, those two are what Q2, Q14 and Q-D stand on). A reader who
   cannot post is taken to the conversation instead of to a composer they may not use. Two ways in
   are allowed where the item is a picture — the control inside the lightbox and the count badge in
   the banner's corner — because one of them is invisible until you tap; three would be a crowd.
@@ -690,16 +736,30 @@ An editor is not a section you unfold; it is the thing itself becoming editable.
   editor **closes only once the save has resolved** (`mutateAsync`, not `mutate`), so the read
   view it returns to never shows stale text for a frame. The way in is shown whenever the owner
   may edit, including on an empty block where the *comments* trigger is absent by design.
-- **The keyboard owns the bottom of the screen.** Everything pinned there clears the mobile
-  tab bar with the `nav-clear` token, never a hand-written `4.5rem` — and that token is **0 while
-  the on-screen keyboard is up**, because the bar is hidden then (`<html data-keyboard-open>`,
-  `ui/shell/keyboardOpen.ts`, Q2). A composer's sticky offset, the filter pill, the error toast
-  **and the page's own end padding** (`AppShell`, Q14) therefore collapse in the same repaint, so
-  nothing floats in a 72px gap over the keys and no page ends in 72px of room held for a bar that
-  is not there. The page's end is the only one of them that is *document height*, and the browser
-  clamps the scroll when a document gets shorter under a reader parked at its end — so that flip
-  alone is bracketed by `ui/shell/bottomReservation.ts`, which records what the clamp took and
-  pays it back when the room returns, and keeps it out of N2's per-entry scroll record meanwhile.
+- **The keyboard owns the bottom of the screen, and there are two tokens for it** (Q2, Q14,
+  Q-D). Everything pinned down there names the room it needs with a token, never a hand-written
+  `4.5rem`, and **which token depends on which viewport the box is anchored to** — iOS gives
+  `fixed` and `sticky` different ones, and that is the whole of this rule:
+  - **`nav-clear`, for a `fixed` box** — the error toast and the filter pill. It is the bar's
+    height normally and **0 while the keyboard is up** (`<html data-keyboard-open>`,
+    `ui/shell/keyboardOpen.ts`), because the bar is hidden then *and* iOS has re-anchored the box
+    to the shrunken visual viewport, i.e. lifted it clear of the keys already. The page's own end
+    padding (`AppShell`, Q14) uses it too, so no page ends in 72px of room held for a bar that is
+    not there.
+  - **`pin-clear`, for a `sticky` box** — the three composers, and nothing else. Identical while
+    the bar is there; while the keyboard is up it is **the strip the keyboard actually covers**,
+    because a sticky row is pinned to the *layout* viewport, which iOS does not shrink. Collapsing
+    its offset to 0 does not lift it at all — it pushes it the last 72px *into* the keys, which is
+    what Roli photographed: at 390×844 with a 336px keyboard the guestbook row sat at 787–844
+    against a keyboard whose top edge is 508, and sits at 451–508 now. The strip is measured once,
+    by the one module that owns `visualViewport`, and reaches CSS as `--keyboard-inset-bottom`;
+    where it is 0 or missing everything lands exactly on the old behaviour. It is a **position,
+    not a detection** — whether a keyboard is up is the caret's answer alone, and measuring the
+    screen to decide *that* is banned (`AGENTS.md` §10, two failed attempts).
+  The page's end is the only one of these that is *document height*, and the browser clamps the
+  scroll when a document gets shorter under a reader parked at its end — so that flip alone is
+  bracketed by `ui/shell/bottomReservation.ts`, which records what the clamp took and pays it back
+  when the room returns, and keeps it out of N2's per-entry scroll record meanwhile.
   Two surfaces hide with the bar (the bar itself, the filter pill) and one never does — the error
   toast, because an error you cannot see is worse than a filter you cannot reach.
 - **Only the value a control writes may be prefilled.** A field means what it says: the goal
@@ -731,6 +791,12 @@ An editor is not a section you unfold; it is the thing itself becoming editable.
   in the tournament's comments and in the guestbook alike (G2 — the guestbook's reply used to
   open a labelled 298×96 `Textarea` with a drag grabber and a Cancel/Reply pair, which grew the
   message from 144px to 354px to hold one line of text).
+  The row's field starts one line high and grows with the text to **six** (20px line-height +
+  16px padding = 136px), then scrolls. **That ceiling is spelled once**, derived from `maxRows`
+  in the effect that sizes the field — never a `max-h-*` class beside it: the two drifted by one
+  line (`max-h-32` = 128px against six rows' 136px), so the sixth line was the one the field
+  asked to show and CSS refused, and the caret sat 8px below the field's own bottom edge with
+  the box scrolling inside itself (Q-C, measured at 390px).
   **Editing is the one place a real field stays**, because rewriting a paragraph in a one-line row
   is worse than the form it replaces — but it takes `Textarea`'s `resizable={false}` (Q1 again:
   no drag handle under a thumb) and its action row is one primary filling the width, never a pair
@@ -842,6 +908,12 @@ drill-in that lives in a query param.
 - Do let a feed that lives inside a tabbed page lie flat on the page, at the gutter its sibling
   tabs use; don't box the one tab whose siblings are flat (§9b, G1). A feed that *is* the page
   keeps its card.
+- Do give a chat row a containing block that starts above the fold — the page column, not the
+  feed section — when the block it closes does not start the page; don't call a row "sticky" and
+  leave it pinned to a box that begins below the screen (§9b, Q-C).
+- Do let one composer float at a time: a reply or an edit opened inside the feed un-pins the
+  block's own row; don't let an opaque pinned row sit over the field the reader is typing in
+  (§9b, Q-C).
 - Do use `chip` for tags; don't use it as a container for numbers.
 - Do colour a result through `text-win/draw/loss`; don't tint whole boxes red/green.
 - Do keep names next to scores; don't push them to the panel edges.
@@ -877,9 +949,12 @@ drill-in that lives in a query param.
 - Do let the box that touches a screen edge name its safe-area inset with the `safe-*` spacing
   tokens (`pb-safe-b`, `left-safe-l`, …); don't hand-spell `env(safe-area-inset-*)` in a class,
   and don't leave the job to the ten call sites of an overlay.
-- Do clear the mobile tab bar with `nav-clear` — `bottom-nav-clear` on a floating surface,
-  `pb-nav-clear` to reserve room at the end of a page; don't write its height into a class, don't
-  leave anything floating over the keyboard, and don't hold room for a bar that is hidden.
+- Do clear the mobile tab bar with a token — `bottom-nav-clear` on a `fixed` surface,
+  `pb-nav-clear` to reserve room at the end of a page, **`bottom-pin-clear` on a `sticky` one**
+  (§9b, Q-D: iOS lifts `fixed` onto the visual viewport by itself and leaves `sticky` on the
+  layout viewport, so the two want opposite things while the keyboard is up); don't write its
+  height into a class, don't give a sticky row `nav-clear`, don't leave anything floating over the
+  keyboard, and don't hold room for a bar that is hidden.
 - Do let `useBack()` decide whether a page has a back affordance and where it goes; don't hand a
   page its own back button, and don't add a second way out of one screen.
 - Do mark a navigation that is *not* a drill-in with `NAV_JUMP_STATE` when you add one (a new nav

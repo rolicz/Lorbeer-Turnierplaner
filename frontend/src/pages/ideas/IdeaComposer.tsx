@@ -71,8 +71,11 @@ export default function IdeaComposer({
   const canSubmit = !!draft.title.trim() && draft.areas.length > 0;
 
   return (
+    // `pin-clear`, not `nav-clear`: a sticky row is pinned to the layout viewport, which
+    // iOS does not shrink for the keyboard, so it wants the keyboard's own strip where a
+    // `fixed` box wants 0 (Q2, Q-D — `ui/shell/keyboardOpen.ts`).
     <div
-      className="sticky bottom-nav-clear z-10 rounded-b-2xl border-t border-border-card-outer/55 bg-bg-card-outer p-2 lg:bottom-0"
+      className="sticky bottom-pin-clear z-10 rounded-b-2xl border-t border-border-card-outer/55 bg-bg-card-outer p-2 lg:bottom-0"
       data-idea-composer
     >
       <div className="space-y-2">

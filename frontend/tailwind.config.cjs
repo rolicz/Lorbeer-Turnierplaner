@@ -21,22 +21,32 @@ module.exports = {
         "safe-b": "env(safe-area-inset-bottom, 0px)",
         "safe-l": "env(safe-area-inset-left, 0px)",
 
-        // The bottom tab bar, as the one question anything above it ever asks (Q2, Q14):
-        //   `nav-clear` — how much room to leave above the screen's bottom edge *right
-        //                 now*. It is the bar's height normally and **0px while the
-        //                 on-screen keyboard is up**, because the bar is hidden then
-        //                 (`html[data-keyboard-open]`, `ui/shell/keyboardOpen.ts`) and
-        //                 the room would otherwise be a gap over the keyboard. Every
-        //                 surface that clears the bar uses it — `ErrorToast`,
-        //                 `FilterPill`, all three composers, and the end of the page
-        //                 itself (`AppShell`) — so they collapse and return together.
+        // The bottom tab bar, as the one question anything above it ever asks (Q2, Q14,
+        // Q-D). Two tokens, because the answer depends on which viewport the box is
+        // anchored to, and iOS gives `fixed` and `sticky` different ones:
+        //   `nav-clear` — for a **fixed** box. How much room to leave above the screen's
+        //                 bottom edge *right now*: the bar's height normally and **0px
+        //                 while the on-screen keyboard is up**, because the bar is hidden
+        //                 then (`html[data-keyboard-open]`, `ui/shell/keyboardOpen.ts`)
+        //                 *and* iOS has already re-anchored the box to the shrunken
+        //                 visual viewport, i.e. lifted it clear of the keys itself. Used
+        //                 by `ErrorToast`, `FilterPill` and the end of the page
+        //                 (`AppShell`), so they collapse and return together.
+        //   `pin-clear` — for a **sticky** box, i.e. the three composers. Identical while
+        //                 the bar is there, and while the keyboard is up it is the strip
+        //                 the keyboard covers, because sticky is pinned to the *layout*
+        //                 viewport, which iOS does not shrink: collapsing to 0 there puts
+        //                 the row under the keys instead of above them (Q-D). The strip
+        //                 is measured in `keyboardOpen.ts` and reaches CSS as
+        //                 `--keyboard-inset-bottom`; `styles.css` maps it onto this var.
         // Q2 also kept `nav-h`, the bar's height as a constant, for the page's end
         // padding; Q14 removed it, because a reservation that outlives the bar is 72px
         // of dead space under a composer. The page's end is different only in that it is
         // document height, which `ui/shell/bottomReservation.ts` compensates for.
-        // The fallback in the var is the fail-safe: with no flag, no stylesheet and no
-        // VisualViewport API, `nav-clear` is simply the bar's height, as before.
+        // The fallback in each var is the fail-safe: with no flag, no stylesheet and no
+        // VisualViewport API, both are simply the bar's height, as before.
         "nav-clear": `var(--bottom-nav-clearance, ${bottomNavHeight})`,
+        "pin-clear": `var(--bottom-pin-clearance, ${bottomNavHeight})`,
 
         // The mobile **top** bar's side boxes (Q13). The bar is a fixed frame: two
         // boxes of this width with the title between them, so the title's centre is

@@ -53,9 +53,17 @@ function AutoTextarea({
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
-    el.style.height = "auto";
     // 20px line-height + 16px vertical padding, capped so the row never eats the feed.
-    el.style.height = `${Math.min(el.scrollHeight, maxRows * 20 + 16)}px`;
+    // **One cap, not two** (Q-C). The cap used to be spelled twice — here as `maxRows`
+    // and again as `max-h-32` on the element — and 6 rows is 136px while `max-h-32` is
+    // 128, so the sixth line was the one the box asked to show and CSS refused: measured
+    // at 390px, `style.height: 136px` against a `max-height: 128px`, the field scrolling
+    // inside itself with the caret 8px below its own bottom edge. Derived from the prop,
+    // the two cannot drift again.
+    const cap = maxRows * 20 + 16;
+    el.style.maxHeight = `${cap}px`;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, cap)}px`;
   }, [value, maxRows]);
 
   return (
@@ -76,7 +84,7 @@ function AutoTextarea({
       placeholder={placeholder}
       aria-label={ariaLabel}
       disabled={disabled}
-      className="input-field max-h-32 min-h-[2.5rem] flex-1 resize-none py-2 leading-5"
+      className="input-field min-h-[2.5rem] flex-1 resize-none py-2 leading-5"
     />
   );
 }
@@ -341,12 +349,15 @@ export default function CommentComposer({
       className={cn(
         // Attached to the feed's card: a hairline separates them, nothing floats (T3).
         "z-10 rounded-b-2xl border-t border-border-card-outer/55 bg-bg-card-outer p-2",
-        // The mobile offset clears the bottom tab bar — and collapses to 0 with it when
-        // the keyboard hides the bar, so the composer never floats 72px above the keys
-        // (`nav-clear`, Q2). On desktop there is no bar, and `lg:bottom-4` left a 16px
+        // The mobile offset clears the bottom tab bar, and while the keyboard is up it
+        // clears the keyboard instead — `pin-clear`, the sticky box's token (Q2, Q-D).
+        // Never `nav-clear` here: that one collapses to 0, which is right for a `fixed`
+        // box (iOS lifts those onto the visual viewport itself) and puts a *sticky* one
+        // under the keys, because sticky is pinned to the layout viewport and iOS does
+        // not shrink that. On desktop there is no bar, and `lg:bottom-4` left a 16px
         // strip of the feed's own card below the composer — it read as a slice cut out of
         // the card it belongs to (A7). Flush is right.
-        sticky && "sticky bottom-nav-clear lg:bottom-0",
+        sticky && "sticky bottom-pin-clear lg:bottom-0",
       )}
       data-comment-composer
     >

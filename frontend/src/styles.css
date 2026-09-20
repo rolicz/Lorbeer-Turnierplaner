@@ -127,7 +127,7 @@
     background-color: rgb(var(--color-bg-default));
   }
 
-  /* The on-screen keyboard, in two rules (Q2). `ui/shell/keyboardOpen.ts` sets
+  /* The on-screen keyboard, in three rules (Q2, Q-D). `ui/shell/keyboardOpen.ts` sets
      `<html data-keyboard-open>` while a text field has the caret; iOS re-anchors fixed
      elements to the shrunken visual viewport, which is how the bottom tab bar ends up
      sitting on the keyboard.
@@ -141,11 +141,22 @@
         itself, which would otherwise hold 72px of dead space under a composer for a bar
         that is not there. The page's end is the only one of them that is document
         height; `ui/shell/bottomReservation.ts` settles the scroll around its flip.
+     3. A box that is `sticky` rather than `fixed` needs the opposite of rule 2 (Q-D).
+        iOS re-anchors `fixed` to the visual viewport — that is the whole of rule 1 —
+        but a sticky row is pinned to the **layout** viewport, which the keyboard does
+        not shrink, so rule 2 collapsing its offset pushes it *into* the keys instead of
+        clear of them. It therefore reads `pin-clear`, not `nav-clear`: the same room
+        while the bar is there, and while the keyboard is up the strip the keyboard
+        actually covers, measured and published by the same module as
+        `--keyboard-inset-bottom`. A *position*, never a detection: whether a keyboard
+        exists is the caret's answer alone (that module's doc comment, and `AGENTS.md`
+        §10). Missing or 0 — a browser that resizes the layout viewport instead, or one
+        with no `VisualViewport` at all — lands exactly on rule 2's behaviour.
 
-     Both only where a keyboard can cover the page: a mobile-sized layout (below `lg`,
-     where the bar exists at all and every consumer's `lg:` offset takes over), plus any
-     coarse-pointer device at any width — an iPad in landscape is 1366px wide and still
-     puts a keyboard over the bottom of it. A desktop browser typing into a form is
+     All three only where a keyboard can cover the page: a mobile-sized layout (below
+     `lg`, where the bar exists at all and every consumer's `lg:` offset takes over), plus
+     any coarse-pointer device at any width — an iPad in landscape is 1366px wide and
+     still puts a keyboard over the bottom of it. A desktop browser typing into a form is
      neither, and must keep its filter pill. */
   @media (max-width: 1023.98px), (pointer: coarse) {
     html[data-keyboard-open] .hide-on-keyboard {
@@ -153,6 +164,7 @@
     }
     html[data-keyboard-open] {
       --bottom-nav-clearance: 0px;
+      --bottom-pin-clearance: var(--keyboard-inset-bottom, 0px);
     }
   }
 
