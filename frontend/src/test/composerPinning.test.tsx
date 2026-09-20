@@ -110,8 +110,12 @@ describe("the guestbook's chat row", () => {
   it("floats while nothing else is being written", () => {
     const { composer } = renderSection();
     expect(composer.className).toContain("sticky");
-    // Q2's keyboard collapse and Q14's bottom reservation ride on these two literals.
-    expect(composer.className).toContain("bottom-nav-clear");
+    // Q2's keyboard collapse and Q14's bottom reservation ride on these two literals —
+    // and it is `pin-clear`, not `nav-clear` (Q-D): a sticky box is pinned to the layout
+    // viewport, which iOS does not shrink for the keyboard, so collapsing its offset to 0
+    // puts the row *under* the keys. `nav-clear` stays for the `fixed` surfaces.
+    expect(composer.className).toContain("bottom-pin-clear");
+    expect(composer.className).not.toContain("bottom-nav-clear");
     expect(composer.className).toContain("lg:bottom-0");
     expect(composer.getAttribute("data-pinned")).toBe("");
   });
@@ -119,7 +123,7 @@ describe("the guestbook's chat row", () => {
   it("stops floating while a reply is open, so it cannot cover it", () => {
     const { composer } = renderSection({ cardContext: context({ replyOpenEntryId: 12 }) });
     expect(composer.className).not.toContain("sticky");
-    expect(composer.className).not.toContain("bottom-nav-clear");
+    expect(composer.className).not.toContain("bottom-pin-clear");
     expect(composer.getAttribute("data-pinned")).toBe(null);
     // It is still the feed's closing row, hairline and all.
     expect(composer.className).toContain("border-t");
@@ -157,12 +161,14 @@ describe("the tournament feed's chat row", () => {
     const pinned = render(<CommentComposer {...base} />);
     const a = pinned.container.querySelector("[data-comment-composer]") as HTMLElement;
     expect(a.className).toContain("sticky");
-    expect(a.className).toContain("bottom-nav-clear");
+    // `pin-clear`, never `nav-clear`, for the same reason as the guestbook's row (Q-D).
+    expect(a.className).toContain("bottom-pin-clear");
+    expect(a.className).not.toContain("bottom-nav-clear");
 
     const loose = render(<CommentComposer {...base} sticky={false} />);
     const b = loose.container.querySelector("[data-comment-composer]") as HTMLElement;
     expect(b.className).not.toContain("sticky");
-    expect(b.className).not.toContain("bottom-nav-clear");
+    expect(b.className).not.toContain("bottom-pin-clear");
     // Welded to the card's bottom edge either way (T3).
     expect(b.className).toContain("rounded-b-2xl");
   });

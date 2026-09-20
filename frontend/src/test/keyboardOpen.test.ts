@@ -1,10 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  coveredStrip,
   installKeyboardWatcher,
   isEditableElement,
   isKeyboardOpen,
   keyboardConditions,
+  keyboardInsetFrom,
+  keyboardInsetPublished,
   keyboardOpenFrom,
   refreshKeyboardFlag,
   type KeyboardProbe,
@@ -168,6 +171,118 @@ describe("keyboardConditions", () => {
   });
 });
 
+/**
+ * Q-D: how far up a *sticky* row has to sit, which is a different question from whether a
+ * keyboard is up at all.
+ *
+ * iOS re-anchors `fixed` boxes to the shrunken visual viewport — that is why the tab bar
+ * rides onto the keyboard (Q2) — but a `sticky` box is pinned to the **layout** viewport,
+ * which the keyboard does not shrink, so a composer stays at the bottom of it: underneath
+ * the keys. The offset it needs is the strip of layout viewport below the visible one.
+ *
+ * `AGENTS.md` §10 bans this measurement as a **threshold** — as the way to decide that a
+ * keyboard exists, which was wrong on the device twice. Here it decides nothing: the caret
+ * rule has already said yes before it is asked, and it is never compared against a floor or
+ * a ratio. The two functions are split precisely so that is visible in the tests below —
+ * `coveredStrip` is the ruler, `keyboardInsetFrom` is the ruler behind the caret's gate.
+ */
+describe("the covered strip", () => {
+  /**
+   * Roli's own readings, iOS 18.7, standalone PWA, keyboard up (the same two as above),
+   * each with the visible viewport it had before the caret — the whole screen — so the
+   * keyboard has visibly arrived and the strip may be believed.
+   */
+  const REAL: Array<[KeyboardProbe, number]> = [
+    [arrived({ ...CARET, layoutHeight: 956, viewportHeight: 568, offsetTop: 131 }, 956), 257],
+    [arrived({ ...CARET, layoutHeight: 894, viewportHeight: 568, offsetTop: 222 }, 894), 104],
+  ];
+
+  it("is what lies below the visible viewport inside the layout one", () => {
+    for (const [probe, expected] of REAL) {
+      expect(coveredStrip(probe)).toBe(expected);
+      expect(keyboardInsetFrom(probe)).toBe(expected);
+    }
+  });
+
+  it("counts `offsetTop`, because that is how far iOS shifted the layout viewport up", () => {
+    // Same visible height, same screen: only the shift differs, and the row it has to clear
+    // differs with it. This is the term Q2 got wrong by putting it in a *decision*.
+    expect(coveredStrip({ ...CARET, layoutHeight: 956, viewportHeight: 568, offsetTop: 0 })).toBe(388);
+    expect(coveredStrip({ ...CARET, layoutHeight: 956, viewportHeight: 568, offsetTop: 131 })).toBe(257);
+  });
+
+  it("is 0 on a desktop browser, so the offset is a no-op rather than a special case", () => {
+    expect(coveredStrip(CARET)).toBe(0);
+    expect(keyboardInsetFrom(CARET)).toBe(0);
+    // …and on a browser that resizes the layout viewport with the keyboard (Android), where
+    // there is nothing below the visible area to lift the row out of.
+    expect(keyboardInsetFrom({ ...CARET, layoutHeight: 508, viewportHeight: 508 })).toBe(0);
+  });
+
+  it("never returns a negative lift, whatever a mid-animation reading says", () => {
+    expect(coveredStrip({ ...CARET, layoutHeight: 844, viewportHeight: 900 })).toBe(0);
+    expect(coveredStrip({ ...CARET, layoutHeight: Number.NaN })).toBe(0);
+    // Rounded: a sub-pixel lift is not a lift.
+    expect(coveredStrip({ ...CARET, layoutHeight: 844.4, viewportHeight: 844 })).toBe(0);
+    expect(coveredStrip({ ...CARET, layoutHeight: 844.6, viewportHeight: 844 })).toBe(1);
+  });
+
+  it("is a position, not a detection: a pinch measures large and lifts nothing", () => {
+    // The whole of the ban in one assertion. Pinch-zoomed, the visual viewport is a third of
+    // the layout one and the strip is huge — and no keyboard is up, so nothing may move.
+    const pinched: KeyboardProbe = { ...CARET, viewportHeight: 422, scale: 2 };
+    expect(coveredStrip(pinched)).toBe(422);
+    expect(keyboardOpenFrom(pinched)).toBe(false);
+    expect(keyboardInsetFrom(pinched)).toBe(0);
+  });
+
+  it("lifts nothing without a caret, and nothing behind a hardware keyboard", () => {
+    // A desktop page with a horizontal scrollbar measures ~15px and must move no box.
+    const scrollbar: KeyboardProbe = { ...CARET, editableFocus: false, layoutHeight: 859 };
+    expect(coveredStrip(scrollbar)).toBe(15);
+    expect(keyboardInsetFrom(scrollbar)).toBe(0);
+    // An iPad whose viewport never moved when the caret arrived: condition 3 says no
+    // keyboard, so whatever the strip measures is not a keyboard's.
+    const hardware = arrived({ ...CARET, layoutHeight: 894 }, 844);
+    expect(coveredStrip(hardware)).toBe(50);
+    expect(keyboardInsetFrom(hardware)).toBe(0);
+  });
+
+  it("waits for the viewport to move before it believes what it measured", () => {
+    // The flag goes up on the caret alone, before the keyboard has drawn anything, and at
+    // that instant the strip is whatever was below the visible viewport already — a browser
+    // toolbar. The row must not jump by that; the keyboard's own resize is what places it.
+    const settling = arrived({ ...CARET, layoutHeight: 894 }, 844, 10);
+    expect(keyboardOpenFrom(settling)).toBe(true);
+    expect(coveredStrip(settling)).toBe(50);
+    expect(keyboardInsetFrom(settling)).toBe(0);
+
+    // …and the moment the viewport does move, the whole strip is the lift.
+    const arrivedKeyboard = arrived({ ...CARET, layoutHeight: 894, viewportHeight: 508 }, 844, 10);
+    expect(keyboardInsetFrom(arrivedKeyboard)).toBe(386);
+  });
+
+  it("never lifts a row the flag has not been raised for", () => {
+    const probes = [
+      CARET,
+      { ...CARET, editableFocus: false },
+      { ...CARET, scale: 2, viewportHeight: 422 },
+      { ...CARET, editableFocus: false, layoutHeight: 859 },
+      arrived(CARET, 844),
+      arrived({ ...CARET, viewportHeight: 508 }, 844),
+      arrived(CARET, 844, 10),
+      arrived({ ...CARET, layoutHeight: 894 }, 844, 10),
+      ...REAL.map(([probe]) => probe),
+    ];
+    for (const p of probes) {
+      const lift = keyboardInsetFrom(p);
+      if (!keyboardOpenFrom(p)) expect(lift).toBe(0);
+      // Never more than what was measured, and never measured differently.
+      expect(lift === 0 || lift === coveredStrip(p)).toBe(true);
+    }
+  });
+});
+
 describe("isEditableElement", () => {
   const make = (html: string) => {
     const host = document.createElement("div");
@@ -207,6 +322,12 @@ class FakeVisualViewport extends EventTarget {
     this.height = height;
     this.dispatchEvent(new Event("resize"));
   }
+  /** The keyboard, as iOS reports it: a shorter visible window, shifted down the layout one. */
+  shiftTo(height: number, offsetTop: number) {
+    this.height = height;
+    this.offsetTop = offsetTop;
+    this.dispatchEvent(new Event("resize"));
+  }
 }
 
 describe("the watcher", () => {
@@ -235,6 +356,7 @@ describe("the watcher", () => {
     field.remove();
     details.remove();
     delete document.documentElement.dataset.keyboardOpen;
+    document.documentElement.style.removeProperty("--keyboard-inset-bottom");
     vi.useRealTimers();
   });
 
@@ -330,5 +452,80 @@ describe("the watcher", () => {
     field.remove();
     refreshKeyboardFlag(true);
     expect(isKeyboardOpen()).toBe(false);
+  });
+
+  /* Q-D: the lift the sticky composers are placed with, published beside the flag. */
+
+  it("publishes the covered strip while the flag is up, and nothing while it is not", () => {
+    stop = installKeyboardWatcher();
+    expect(keyboardInsetPublished()).toBe(0);
+    expect(document.documentElement.style.getPropertyValue("--keyboard-inset-bottom")).toBe("");
+
+    window.innerHeight = 956;
+    field.focus();
+    // The caret alone hides the bar immediately — and lifts nothing, because the viewport
+    // has not moved yet. That is the honest reading, not a miss.
+    expect(isKeyboardOpen()).toBe(true);
+    expect(keyboardInsetPublished()).toBe(0);
+
+    // …then the keyboard arrives, exactly as Roli's phone reported it.
+    vv!.shiftTo(568, 131);
+    expect(keyboardInsetPublished()).toBe(257);
+
+    field.blur();
+    vi.advanceTimersByTime(250);
+    expect(isKeyboardOpen()).toBe(false);
+    expect(keyboardInsetPublished()).toBe(0);
+    // Removed, not zeroed: the token's own fallback is what a page without a keyboard uses.
+    expect(document.documentElement.style.getPropertyValue("--keyboard-inset-bottom")).toBe("");
+  });
+
+  it("follows the keyboard while it is up — the flag does not move, the lift does", () => {
+    window.innerHeight = 956;
+    stop = installKeyboardWatcher();
+    field.focus();
+    vv!.shiftTo(568, 131);
+    expect(keyboardInsetPublished()).toBe(257);
+
+    // The accessory bar goes (a taller visible window): the row comes down with it, under a
+    // flag that never changed.
+    vv!.shiftTo(612, 131);
+    expect(isKeyboardOpen()).toBe(true);
+    expect(keyboardInsetPublished()).toBe(213);
+  });
+
+  it("publishes nothing where no keyboard came up — a hardware keyboard lifts nothing", () => {
+    window.innerHeight = 894;
+    stop = installKeyboardWatcher();
+    field.focus();
+    // 894 − 844 = 50px of strip (a browser toolbar, say) with the caret in a field, and the
+    // viewport never moves. Condition 3 takes the flag back and the lift with it.
+    expect(keyboardInsetPublished()).toBe(0);
+    vi.advanceTimersByTime(SETTLE_MS + 100);
+    expect(isKeyboardOpen()).toBe(false);
+    expect(keyboardInsetPublished()).toBe(0);
+  });
+
+  it("drops the lift on a navigation, where a removed field may never fire focusout", () => {
+    window.innerHeight = 956;
+    stop = installKeyboardWatcher();
+    field.focus();
+    vv!.shiftTo(568, 131);
+    expect(keyboardInsetPublished()).toBe(257);
+
+    field.remove();
+    refreshKeyboardFlag(true);
+    expect(keyboardInsetPublished()).toBe(0);
+  });
+
+  it("drops it when it is torn down: a lifted composer must never outlive the watcher", () => {
+    window.innerHeight = 956;
+    const off = installKeyboardWatcher();
+    field.focus();
+    vv!.shiftTo(568, 131);
+    expect(keyboardInsetPublished()).toBe(257);
+
+    off();
+    expect(keyboardInsetPublished()).toBe(0);
   });
 });

@@ -349,12 +349,15 @@ export default function CommentComposer({
       className={cn(
         // Attached to the feed's card: a hairline separates them, nothing floats (T3).
         "z-10 rounded-b-2xl border-t border-border-card-outer/55 bg-bg-card-outer p-2",
-        // The mobile offset clears the bottom tab bar — and collapses to 0 with it when
-        // the keyboard hides the bar, so the composer never floats 72px above the keys
-        // (`nav-clear`, Q2). On desktop there is no bar, and `lg:bottom-4` left a 16px
+        // The mobile offset clears the bottom tab bar, and while the keyboard is up it
+        // clears the keyboard instead — `pin-clear`, the sticky box's token (Q2, Q-D).
+        // Never `nav-clear` here: that one collapses to 0, which is right for a `fixed`
+        // box (iOS lifts those onto the visual viewport itself) and puts a *sticky* one
+        // under the keys, because sticky is pinned to the layout viewport and iOS does
+        // not shrink that. On desktop there is no bar, and `lg:bottom-4` left a 16px
         // strip of the feed's own card below the composer — it read as a slice cut out of
         // the card it belongs to (A7). Flush is right.
-        sticky && "sticky bottom-nav-clear lg:bottom-0",
+        sticky && "sticky bottom-pin-clear lg:bottom-0",
       )}
       data-comment-composer
     >

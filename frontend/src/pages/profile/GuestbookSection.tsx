@@ -201,15 +201,17 @@ export default function GuestbookSection({
 
     {/* You write at the end of the feed, in the same chat row as the comments
         (T3 / DESIGN.md §9b) — never behind a button, never above what you read.
-        `bottom-nav-clear` and `lg:bottom-0` are load-bearing and never hand-spelled:
-        they are what collapses this box with the mobile tab bar when the keyboard
-        comes up (Q2) and what keeps Q14's bottom reservation honest. Flat, the strip
+        `bottom-pin-clear` and `lg:bottom-0` are load-bearing and never hand-spelled:
+        the token is the mobile tab bar's room while the bar is there and the keyboard's
+        own strip while it is not (Q2, Q-D — a sticky box is pinned to the layout
+        viewport, so `nav-clear`'s collapse to 0 would leave it under the keys), and
+        `lg:bottom-0` is what keeps Q14's bottom reservation honest. Flat, the strip
         paints the page's own background instead of the card's. */}
     {canPost ? (
       <div
         className={cn(
           "z-10 border-t border-border-card-chip/40 bg-bg-default py-2",
-          !replyOrEditOpen && "sticky bottom-nav-clear lg:bottom-0",
+          !replyOrEditOpen && "sticky bottom-pin-clear lg:bottom-0",
         )}
         data-guestbook-composer
         data-pinned={!replyOrEditOpen ? "" : undefined}

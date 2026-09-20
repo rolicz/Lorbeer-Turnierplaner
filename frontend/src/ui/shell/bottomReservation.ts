@@ -26,8 +26,11 @@
  *   by that much into the strip the reservation was holding. This is not avoidable by
  *   scrolling: the scroll that would hold the content still is the scroll that no longer
  *   exists. It is also the whole point — the strip it closes is the dead space Roli
- *   reported, and the composer already makes exactly this move at every other scroll
- *   position, where its own `bottom-nav-clear` offset collapses.
+ *   reported, and the composer comes down into it at every other scroll position too, as
+ *   its own offset gives up the bar's room. (Q-D changed *what* that offset becomes — the
+ *   strip the keyboard covers rather than 0, `pin-clear` rather than `nav-clear`, because
+ *   sticky is pinned to the layout viewport — but not that it gives up the bar's room, and
+ *   not this reservation, which is document height and still collapses to 0.)
  * - **A page shorter than the screen**: nothing scrolls, `main` is `flex-1` inside a
  *   `min-h-screen` column and stretches either way, so the reservation is absorbed and
  *   nothing moves at all.
